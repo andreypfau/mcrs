@@ -1,0 +1,16 @@
+[package]
+name = "mcrs_network"
+description = "Protocol library for Minecraft: Java Edition"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bytes.workspace = true
+thiserror.workspace = true
+mcrs_protocol.workspace = true
+tokio.workspace = true
+serde_json.workspace = true

@@ -1,0 +1,40 @@
+[package]
+name = "mcrs_server"
+description = "mcrs_server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+mcrs_network.workspace = true
+mcrs_protocol.workspace = true
+mcrs_registry.workspace = true
+mcrs_nbt.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_time.workspace = true
+bevy_tasks.workspace = true
+bevy_reflect.workspace = true
+tokio.workspace = true
+rand.workspace = true
+serde_json.workspace = true
+rustc-hash.workspace = true
+arrayvec.workspace = true
+num-integer.workspace = true
+derive_more.workspace = true
+rocksdb.workspace = true
+serde = { version = "1.0.228", features = ["derive"] }
+bitflags = "2.10.0"
+
+[features]
+         
+
+
+
+
+
+
+
+
+
+
+

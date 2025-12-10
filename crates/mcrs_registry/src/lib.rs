@@ -1,0 +1,130 @@
+use std::fmt::Debug;
+use indexmap::IndexMap;
+use std::marker::PhantomData;
+use std::sync::Arc;
+use valence_ident::Ident;
+use serde::{Deserialize, Serialize};
+
+pub trait RegistryEntry: Send + Sync + 'static {
+    // fn identifier(&self) -> Ident<&str>;
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum RegistryId<E: RegistryEntry> {
+    Index {
+        index: usize,
+        marker: PhantomData<E>,
+    },
+    Identifier {
+        identifier: Ident<String>,
+    },
+    StaticIdentifier {
+        identifier: Ident<&'static str>,
+    },
+}
+
+impl<E: RegistryEntry> From<Ident<String>> for RegistryId<E> {
+    fn from(value: Ident<String>) -> Self {
+        RegistryId::Identifier {
+            identifier: value.into(),
+        }
+    }
+}
+
+impl<E: RegistryEntry> From<Ident<&'static str>> for RegistryId<E> {
+    fn from(value: Ident<&'static str>) -> Self {
+        RegistryId::StaticIdentifier { identifier: value }
+    }
+}
+
+pub struct Registry<E: RegistryEntry> {
+    items: IndexMap<Ident<String>, E>,
+}
+
+impl<E: RegistryEntry> Default for Registry<E> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<E: RegistryEntry> Registry<E> {
+    pub fn new() -> Self {
+        Self {
+            items: IndexMap::new(),
+        }
+    }
+
+    pub fn get(&self, id: impl Into<RegistryId<E>>) -> Option<&E> {
+        match id.into() {
+            RegistryId::Index { index, .. } => self.items.get_index(index).map(|(_, v)| v),
+            RegistryId::Identifier { identifier } => self.items.get(&identifier),
+            RegistryId::StaticIdentifier { identifier } => self.items.get(identifier.as_str()),
+        }
+    }
+
+    pub fn insert(&mut self, id: impl Into<Ident<String>>, entry: E) -> RegistryRef<E> {
+        let index = self.items.len();
+        let id = id.into();
+        self.items.insert(id.clone(), entry);
+
+        RegistryRef {
+            index,
+            identifier: id,
+            marker: PhantomData,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn ids(&self) -> impl Iterator<Item = RegistryId<E>> + '_ {
+        self.items
+            .iter()
+            .enumerate()
+            .map(|(i, (k, _))| RegistryId::Index {
+                index: i,
+                marker: PhantomData,
+            })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RegistryRef<E: RegistryEntry> {
+    index: usize,
+    identifier: Ident<String>,
+    marker: PhantomData<E>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum Holder<E: RegistryEntry + Debug + Clone> {
+    Direct(E),
+    Reference(Ident<String>)
+}
+
+impl<E: RegistryEntry> Into<RegistryId<E>> for RegistryRef<E> {
+    fn into(self) -> RegistryId<E> {
+        RegistryId::Index {
+            index: self.index,
+            marker: PhantomData,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use valence_ident::ident;
+
+    fn test_registry() {
+        struct TestEntry {}
+        impl RegistryEntry for TestEntry {}
+
+        const A: Ident<&'static str> = ident!("test_entry");
+
+        let mut reg = Registry::<TestEntry>::new();
+        let r = reg.insert(A, TestEntry {});
+        let option = reg.get(r);
+        let f = reg.get(ident!("not_found"));
+    }
+}

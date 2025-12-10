@@ -1,0 +1,10 @@
+[package]
+name = "mcrs_registry"
+description = "Procedural macros for mcrs_registry"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+indexmap.workspace = true
+valence_ident.workspace = true
+serde = { version = "1.0.228", features = ["derive"] }
