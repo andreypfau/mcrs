@@ -8,7 +8,6 @@ mod dimension_type;
 mod direction;
 mod keep_alive;
 mod login;
-mod parallel_world;
 mod sound;
 mod value;
 mod version;

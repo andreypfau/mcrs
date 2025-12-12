@@ -10,13 +10,10 @@ use mcrs_protocol::WritePacket;
 pub mod block;
 mod block_update;
 pub mod chunk;
-pub mod chunk_observer;
-mod chunk_tickets;
 pub mod entity;
 mod format;
 mod generate;
 mod palette;
-mod player_chunk_loader;
 
 pub struct WorldPlugin;
 
