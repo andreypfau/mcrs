@@ -1,10 +1,17 @@
-use std::io::Write;
+use crate::{Decode, Encode, VarInt};
 use anyhow::Context;
 use derive_more::{Deref, From, Into};
-use crate::{Decode, Encode, VarInt};
+use std::io::Write;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug, From, Into, Deref)]
 pub struct BlockStateId(pub u16);
+
+impl BlockStateId {
+    #[inline]
+    pub fn is_air(&self) -> bool {
+        self.0 == 0
+    }
+}
 
 impl From<BlockStateId> for VarInt {
     fn from(id: BlockStateId) -> Self {
@@ -55,6 +62,8 @@ impl Encode for BlockEntityId {
 impl<'a> Decode<'a> for BlockEntityId {
     fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let id = VarInt::decode(r)?;
-        Ok(Self(id.0.try_into().with_context(|| format!("id {}", id.0))?))
+        Ok(Self(
+            id.0.try_into().with_context(|| format!("id {}", id.0))?,
+        ))
     }
 }

@@ -11,9 +11,10 @@ encryption = ["dep:aes", "dep:cfb8"]
 compression = ["dep:flate2"]
 
 [dependencies]
-valence_math.workspace = true
+mcrs_engine.workspace = true
 valence_text.workspace = true
 bevy_ecs.workspace = true
+bevy_math.workspace = true
 bevy_reflect.workspace = true
 mcrs_nbt.workspace = true
 mcrs_protocol_macros.workspace = true

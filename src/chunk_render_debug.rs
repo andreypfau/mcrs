@@ -1,31 +1,27 @@
 use bevy::DefaultPlugins;
-use bevy::a11y::AccessibilitySystems::Update;
-use bevy::color::palettes::basic::{GREEN, PURPLE, RED};
-use bevy::log::tracing_subscriber::filter::combinator::And;
-use bevy::math::{Vec2, Vec3Swizzles};
+use bevy::color::palettes::basic::{GREEN, RED};
 use bevy::mesh::Mesh2d;
 use bevy::prelude::{
-    Assets, Camera2d, Circle, Color, ColorMaterial, Component, Mesh, MeshMaterial2d, Rectangle,
-    Transform, Vec3,
+    Assets, Camera2d, Circle, Color, ColorMaterial, Mesh, MeshMaterial2d, Rectangle, Transform,
+    Vec3,
 };
 use bevy_app::{App, FixedUpdate, Plugin, Startup};
 use bevy_ecs::change_detection::{Mut, ResMut};
-use bevy_ecs::prelude::{Commands, Entity, Query, Without};
-use bevy_ecs::query::{Added, With};
-use bevy_ecs::system::Res;
-use mcrs_protocol::{ChunkColumnPos, ChunkPos, Position};
-use mcrs_server::world::chunk::{ChunkIndex, ChunkStatus};
-use mcrs_server::world::chunk_observer::{ChunkObserverPlugin, PlayerChunkObserver};
-use std::collections::HashMap;
+use bevy_ecs::prelude::{Commands, Entity, Query};
+use bevy_ecs::query::Added;
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
+use mcrs_engine::world::chunk::{ChunkPos, ChunkStatus};
+use mcrs_protocol::Position;
 
 pub struct ChunkRenderDebug;
 
 impl Plugin for ChunkRenderDebug {
     fn build(&self, app: &mut App) {
         app.add_plugins(DefaultPlugins);
-        app.add_plugins(EguiPlugin::default()).add_plugins(WorldInspectorPlugin::new());
+        app.add_plugins(EguiPlugin::default())
+            .add_plugins(WorldInspectorPlugin::new());
         app.add_systems(Startup, setup);
         app.add_systems(FixedUpdate, (on_add_player, on_move));
         app.add_systems(FixedUpdate, on_add_chunk);

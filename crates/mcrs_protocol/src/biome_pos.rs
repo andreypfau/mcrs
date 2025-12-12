@@ -1,6 +1,5 @@
-use valence_math::DVec3;
-
-use crate::BlockPos;
+use bevy_math::DVec3;
+use mcrs_engine::world::block::BlockPos;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Debug)]
 pub struct BiomePos {

@@ -1,0 +1,21 @@
+[package]
+name = "mcrs_engine"
+description = "mcrs_engine"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bevy.workspace = true
+rustc-hash.workspace = true
+
+[features]
+
+[profile.dev.package."bevy"]
+opt-level = 3
+
+
+
+
+
+
+

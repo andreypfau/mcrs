@@ -1,8 +1,8 @@
+use crate::{Decode, Encode};
 use bevy_ecs::component::Component;
+use bevy_math::{DVec3, Quat};
 use bitfield_struct::bitfield;
 use derive_more::Deref;
-use valence_math::DVec3;
-use crate::{Decode, Encode};
 
 #[derive(Component, Clone, Copy, PartialEq, Debug, Default, Deref)]
 pub struct Position(DVec3);
@@ -16,6 +16,12 @@ impl Position {
 impl From<DVec3> for Position {
     fn from(value: DVec3) -> Self {
         Position(value)
+    }
+}
+
+impl From<Position> for DVec3 {
+    fn from(value: Position) -> Self {
+        value.0
     }
 }
 
@@ -34,7 +40,6 @@ impl Decode<'_> for Position {
     }
 }
 
-
 #[derive(Component, Copy, Clone, PartialEq, Default, Debug)]
 pub struct Look {
     /// The yaw angle in degrees, where:
@@ -50,6 +55,17 @@ pub struct Look {
     /// - `0` is looking straight ahead.
     /// - `90` is looking straight down.
     pub pitch: f32,
+}
+
+impl From<Look> for Quat {
+    fn from(value: Look) -> Self {
+        Quat::from_euler(
+            bevy_math::EulerRot::YXZ,
+            value.yaw.to_radians(),
+            value.pitch.to_radians(),
+            0.0,
+        )
+    }
 }
 
 impl Encode for Look {

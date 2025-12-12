@@ -1,13 +1,12 @@
 use std::io::{Cursor, Write};
 
 use anyhow::Context;
-use uuid::Uuid;
-use valence_ident::{Ident, IdentError};
-use valence_math::DVec3;
+use mcrs_nbt::Nbt;
 use mcrs_nbt::compound::NbtCompound;
-use mcrs_nbt::{to_bytes_unnamed, Nbt};
 use mcrs_nbt::deserializer::NbtReadHelper;
 use mcrs_nbt::serializer::WriteAdaptor;
+use uuid::Uuid;
+use valence_ident::{Ident, IdentError};
 
 use crate::{Decode, Encode, ItemId, VarInt};
 
@@ -56,7 +55,8 @@ impl Encode for NbtCompound {
 impl Decode<'_> for NbtCompound {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let mut reader = NbtReadHelper::new(Cursor::new(r));
-        Nbt::read_unnamed(&mut reader).map(|n| n.root_tag)
+        Nbt::read_unnamed(&mut reader)
+            .map(|n| n.root_tag)
             .map_err(|e| e.into())
     }
 }
@@ -91,4 +91,3 @@ impl Decode<'_> for ItemId {
         Ok(ItemId(id.try_into().context(errmsg)?))
     }
 }
-

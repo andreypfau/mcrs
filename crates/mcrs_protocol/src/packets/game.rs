@@ -1,22 +1,22 @@
 pub mod clientbound {
-    use std::borrow::Cow;
-    use derive_more::From;
-    use valence_ident::Ident;
-    use valence_math::DVec3;
-    use mcrs_protocol::{BlockPos, BlockStateId, Position};
-    use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use crate::chunk::ChunkBlockUpdateEntry;
     use crate::entity::player::*;
     use crate::game_event::GameEventKind;
     use crate::packets::common::clientbound::KeepAlive;
-    use crate::{ChunkColumnPos, ChunkPos, Look, PositionFlag, VarInt};
-    use crate::chunk::ChunkBlockUpdateEntry;
-    use crate::packets::common::serverbound::ClientInformation;
+    use crate::{ChunkColumnPos, Look, PositionFlag, VarInt};
+    use bevy_math::DVec3;
+    use mcrs_engine::world::block::BlockPos;
+    use mcrs_engine::world::chunk::ChunkPos;
+    use mcrs_protocol::BlockStateId;
+    use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use std::borrow::Cow;
+    use valence_ident::Ident;
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x08, state=Game)]
     pub struct ClientboundBlockUpdate {
         pub block_pos: BlockPos,
-        pub block_state_id: BlockStateId
+        pub block_state_id: BlockStateId,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
@@ -36,20 +36,20 @@ pub mod clientbound {
         pub show_death_screen: bool,
         pub do_limited_crafting: bool,
         pub player_spawn_info: PlayerSpawnInfo<'a>,
-        pub enforces_secure_chat: bool
+        pub enforces_secure_chat: bool,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x25, state=Game)]
     pub struct ClientboundForgetLevelChunk {
         pub z: i32,
-        pub x: i32
+        pub x: i32,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x26, state=Game)]
     pub struct ClientboundGameEvent {
-        pub game_event: GameEventKind
+        pub game_event: GameEventKind,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
@@ -64,7 +64,7 @@ pub mod clientbound {
     #[packet(id=0x46, state=Game)]
     pub struct ClientboundPlayerPosition {
         pub teleport_id: VarInt,
-        pub position: Position,
+        pub position: DVec3,
         pub velocity: DVec3,
         pub look: Look,
         pub flags: Vec<PositionFlag>,
@@ -81,23 +81,24 @@ pub mod clientbound {
     #[packet(id=0x5C, state=Game)]
     pub struct ClientboundSetChunkCacheCenter {
         pub x: VarInt,
-        pub z: VarInt
+        pub z: VarInt,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x5D, state=Game)]
     pub struct ClientboundChunkCacheRadius {
-        pub radius: VarInt
+        pub radius: VarInt,
     }
 }
 
 pub mod serverbound {
-    use derive_more::From;
-    use mcrs_protocol_macros::{Decode, Encode, Packet};
-    use crate::packets::common::serverbound::{ClientInformation, KeepAlive};
-    use crate::{BlockPos, Direction, Look, Position, VarInt};
     use crate::entity::player::PlayerAction;
+    use crate::packets::common::serverbound::{ClientInformation, KeepAlive};
     use crate::pos::MoveFlags;
+    use crate::{Direction, Look, Position, VarInt};
+    use derive_more::From;
+    use mcrs_engine::world::block::BlockPos;
+    use mcrs_protocol_macros::{Decode, Encode, Packet};
 
     #[derive(Clone, Debug, Encode, Decode, From, Packet)]
     #[packet(id=0x0D, state=Game)]
@@ -111,7 +112,7 @@ pub mod serverbound {
     #[packet(id=0x1D, state=Game)]
     pub struct ServerboundMovePlayerPos {
         pub position: Position,
-        pub flags: MoveFlags
+        pub flags: MoveFlags,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
@@ -119,20 +120,20 @@ pub mod serverbound {
     pub struct ServerboundMovePlayerPosRot {
         pub position: Position,
         pub look: Look,
-        pub flags: MoveFlags
+        pub flags: MoveFlags,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x1F, state=Game)]
     pub struct ServerboundMovePlayerRot {
         pub look: Look,
-        pub flags: MoveFlags
+        pub flags: MoveFlags,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x20, state=Game)]
     pub struct ServerboundMovePlayerStatusOnly {
-        pub flags: MoveFlags
+        pub flags: MoveFlags,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
@@ -141,6 +142,6 @@ pub mod serverbound {
         pub action: PlayerAction,
         pub pos: BlockPos,
         pub direction: Direction,
-        pub sequence: VarInt
+        pub sequence: VarInt,
     }
 }

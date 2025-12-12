@@ -1,9 +1,8 @@
-use std::fmt::Debug;
-use valence_math::DVec3;
-
-use crate::block_pos::BlockPos;
-use crate::chunk_section_pos::ChunkPos;
 use crate::{BiomePos, Decode, Encode, Position};
+use bevy_math::DVec3;
+use mcrs_engine::world::block::BlockPos;
+use mcrs_engine::world::chunk::ChunkPos;
+use std::fmt::Debug;
 
 /// The X and Z position of a chunk.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Encode, Decode)]
@@ -13,6 +12,7 @@ pub struct ChunkColumnPos {
     /// The Z position of the chunk.
     pub z: i32,
 }
+
 impl Debug for ChunkColumnPos {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self.x, self.z).fmt(f)

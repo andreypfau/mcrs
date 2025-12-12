@@ -19,11 +19,13 @@ edition = "2024"
 [workspace.dependencies]
 bevy_ecs = "0.17.3"
 bevy_app = "0.17.3"
+bevy_math = "0.17.3"
 bevy_reflect = "0.17.3"
 bevy_time = "0.17.3"
 bevy_tasks = "0.17.3"
 bevy_editor_pls = "0.10.0"
 bevy-inspector-egui = "0.35.0"
+bevy_transform = "0.17.3"
 bevy = { version =  "0.17.3", features = ["trace_tracy"] }
 
 rocksdb = { version = "0.24.0" }
@@ -64,7 +66,8 @@ mcrs_generated = { path = "crates/mcrs_generated" }
 mcrs_protocol = { path = "crates/mcrs_protocol" }
 mcrs_nbt = { path = "crates/mcrs_nbt" }
 mcrs_network = { path = "crates/mcrs_network" }
-mcrs_server = { path = "crates/mcrs_server" }
+mcrs_engine = { path = "crates/mcrs_engine" }
+mcrs_minecraft = { path = "crates/mcrs_minecraft" }
 mcrs_registry = { path = "crates/mcrs_registry" }
 
 [dependencies]
@@ -76,7 +79,8 @@ log = { version = "*", features = ["max_level_debug", "release_max_level_warn"] 
 tokio = { version = "1", features = ["full"] }
 mcrs_protocol.workspace = true
 mcrs_network.workspace = true
-mcrs_server.workspace = true
+mcrs_engine.workspace = true
+mcrs_minecraft.workspace = true
 anyhow.workspace = true
 bytes.workspace = true
 tracy-client = "0.18.3"
@@ -99,4 +103,7 @@ opt-level = 3
 opt-level = 3
 
 [profile.dev.package."bevy_time"]
+opt-level = 3
+
+[profile.dev.package."bevy_math"]
 opt-level = 3

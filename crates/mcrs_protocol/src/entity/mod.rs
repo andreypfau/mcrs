@@ -1,8 +1,9 @@
-use crate::{BlockPos, BlockStateId, Direction, GlobalPos, ItemStack, VarInt, VarLong};
+use crate::{BlockStateId, Direction, GlobalPos, ItemStack, VarInt, VarLong};
+use bevy_math::{Vec3, Vec4};
+use mcrs_engine::world::block::BlockPos;
 use mcrs_protocol::entity::player::HumanoidArm;
 use mcrs_protocol_macros::{Decode, Encode};
 use uuid::Uuid;
-use valence_math::{Vec3, Vec4};
 use valence_text::Text;
 
 pub mod player;

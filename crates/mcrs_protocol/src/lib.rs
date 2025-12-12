@@ -17,56 +17,54 @@
     clippy::dbg_macro
 )]
 
+extern crate core; // This allows us to use our own proc macros internally.
+extern crate self as mcrs_protocol;
 /// Used only by macros. Not public API.
 #[doc(hidden)]
 pub mod __private {
-    pub use anyhow::{anyhow, bail, ensure, Context, Result};
+    pub use anyhow::{Context, Result, anyhow, bail, ensure};
 
     pub use crate::var_int::VarInt;
     pub use crate::{Decode, Encode, Packet};
 }
 
-// This allows us to use our own proc macros internally.
-extern crate self as mcrs_protocol;
-extern crate core;
-
 mod array;
 mod biome_pos;
 mod bit_set;
+mod block;
 pub mod block_pos;
 mod bounded;
 mod byte_angle;
+mod cell_pos;
+pub mod chunk;
 pub mod chunk_pos;
 pub mod chunk_section_pos;
 pub mod decode;
+mod dialog;
 mod difficulty;
 mod direction;
 pub mod encode;
+pub mod entity;
+pub mod game_event;
 pub mod game_mode;
 mod global_pos;
 mod hand;
+pub mod handshake;
 mod impls;
 pub mod item;
 pub mod packets;
+mod pos;
 pub mod profile;
 mod raw;
+pub mod registry;
+pub mod resource_pack;
+mod serial;
+pub mod setting;
 pub mod sound;
+mod teleport_flags;
 pub mod var_int;
 mod var_long;
 mod velocity;
-mod block;
-pub mod setting;
-mod serial;
-pub mod handshake;
-pub mod resource_pack;
-pub mod registry;
-mod dialog;
-pub mod entity;
-mod pos;
-pub mod game_event;
-mod cell_pos;
-pub mod chunk;
-mod teleport_flags;
 
 use std::io::Write;
 
@@ -74,43 +72,37 @@ use anyhow::Context;
 pub use array::FixedArray;
 pub use biome_pos::BiomePos;
 pub use bit_set::FixedBitSet;
-pub use block_pos::BlockPos;
+pub use block::BlockStateId;
 pub use bounded::Bounded;
 pub use byte_angle::ByteAngle;
 pub use cell_pos::CellPos;
+pub use chunk::ChunkData;
+pub use chunk::LightData;
 pub use chunk_pos::ChunkColumnPos;
-pub use chunk_section_pos::ChunkPos;
 pub use decode::PacketDecoder;
 use derive_more::{From, Into};
 pub use difficulty::Difficulty;
 pub use direction::Direction;
 pub use encode::{PacketEncoder, WritePacket};
+pub use game_event::GameEventKind;
 pub use game_mode::GameMode;
 pub use global_pos::GlobalPos;
 pub use hand::Hand;
 pub use ident::ident;
 pub use item::{ItemId, ItemStack};
+pub use mcrs_protocol_macros::{Decode, Encode, Packet};
+pub use pos::Look;
+pub use pos::MoveFlags;
+pub use pos::Position;
 pub use raw::RawBytes;
 use serde::{Deserialize, Serialize};
+pub use teleport_flags::PositionFlag;
 pub use text::Text;
 pub use valence_ident::Ident;
-pub use mcrs_protocol_macros::{Decode, Encode, Packet};
 pub use var_int::VarInt;
 pub use var_long::VarLong;
 pub use velocity::Velocity;
-pub use chunk::ChunkData;
-pub use chunk::LightData;
-pub use teleport_flags::PositionFlag;
-pub use {
-    anyhow, bytes, mcrs_nbt as nbt, uuid, valence_ident as ident, valence_math as math,
-    valence_text as text,
-};
-pub use block::BlockStateId;
-pub use pos::Position;
-pub use pos::Look;
-pub use pos::MoveFlags;
-pub use game_event::GameEventKind;
-
+pub use {anyhow, bytes, mcrs_nbt as nbt, uuid, valence_ident as ident, valence_text as text};
 
 /// The maximum number of bytes in a single Minecraft packet.
 pub const MAX_PACKET_SIZE: i32 = 2097152;

@@ -1,8 +1,6 @@
-use std::io::Write;
-
-use valence_math::*;
-
 use crate::{Decode, Encode};
+use bevy_math::{DQuat, DVec2, DVec3, IVec2, IVec3, Quat, Vec2, Vec3, Vec3A, Vec4};
+use std::io::Write;
 
 impl Encode for Vec2 {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
@@ -66,6 +64,22 @@ impl Decode<'_> for IVec3 {
             x: i32::decode(r)?,
             y: i32::decode(r)?,
             z: i32::decode(r)?,
+        })
+    }
+}
+
+impl Encode for IVec2 {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        self.x.encode(&mut w)?;
+        self.y.encode(w)
+    }
+}
+
+impl Decode<'_> for IVec2 {
+    fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+        Ok(Self {
+            x: i32::decode(r)?,
+            y: i32::decode(r)?,
         })
     }
 }

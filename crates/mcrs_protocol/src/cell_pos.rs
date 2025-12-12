@@ -1,4 +1,6 @@
-use crate::{BlockPos, ChunkPos};
+use mcrs_engine::world::block::BlockPos;
+use mcrs_engine::world::chunk;
+use mcrs_engine::world::chunk::ChunkPos;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CellPos {
@@ -15,7 +17,7 @@ impl CellPos {
     pub const HALF_SIZE: usize = Self::SIZE >> 1;
     pub const HALF_VOLUME: usize = Self::VOLUME >> 1;
     pub const MASK: usize = Self::SIZE - 1;
-    pub const CHUNK_TO_CELL_BITS: usize = ChunkPos::BITS - Self::BITS;
+    pub const CHUNK_TO_CELL_BITS: usize = chunk::BLOCKS::BITS - Self::BITS;
 
     pub const INVALID: CellPos = CellPos {
         x: i32::MIN,
@@ -40,11 +42,11 @@ impl From<BlockPos> for CellPos {
 
 impl From<CellPos> for BlockPos {
     fn from(value: CellPos) -> Self {
-        Self {
-            x: value.x << CellPos::BITS,
-            y: value.y << CellPos::BITS,
-            z: value.z << CellPos::BITS,
-        }
+        Self::new(
+            value.x << CellPos::BITS,
+            value.y << CellPos::BITS,
+            value.z << CellPos::BITS,
+        )
     }
 }
 
@@ -60,10 +62,10 @@ impl From<ChunkPos> for CellPos {
 
 impl From<CellPos> for ChunkPos {
     fn from(value: CellPos) -> Self {
-        Self {
-            x: value.x >> CellPos::CHUNK_TO_CELL_BITS,
-            y: value.y >> CellPos::CHUNK_TO_CELL_BITS,
-            z: value.z >> CellPos::CHUNK_TO_CELL_BITS,
-        }
+        ChunkPos::new(
+            value.x >> CellPos::CHUNK_TO_CELL_BITS,
+            value.y >> CellPos::CHUNK_TO_CELL_BITS,
+            value.z >> CellPos::CHUNK_TO_CELL_BITS,
+        )
     }
 }
