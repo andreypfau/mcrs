@@ -17,7 +17,6 @@ impl bevy::prelude::Plugin for TicketPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         app.add_systems(FixedPreUpdate, spawn_chunks);
         app.add_systems(FixedUpdate, unload_chunks);
-        app.add_systems(FixedPostUpdate, (despawn_chunks));
         app.add_systems(FixedPostUpdate, (tick_timeout, despawn_chunks));
     }
 }

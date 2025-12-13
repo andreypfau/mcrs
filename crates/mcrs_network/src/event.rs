@@ -64,7 +64,6 @@ fn run_event_loop(
             match conn.try_recv() {
                 Ok(Some(pkt)) => {
                     commands.command_scope(|mut cmd| {
-                        println!("Received packet {:?}", pkt);
                         cmd.trigger(ReceivedPacketEvent {
                             entity,
                             id: pkt.id,

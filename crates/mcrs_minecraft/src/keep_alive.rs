@@ -63,12 +63,6 @@ pub fn handle_keepalive(
             continue;
         }
 
-        println!("Keepalive tick for {:?}", entity);
-
-        println!(
-            "Keepalive duration: {}",
-            now.duration_since(state.time).as_secs()
-        );
         if now.duration_since(state.time).as_secs() >= 15 {
             if state.pending {
                 println!("Keepalive timed out, disconnecting");
