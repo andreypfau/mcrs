@@ -12,10 +12,12 @@ pub struct FusedExplosiveBundle {
 }
 
 #[derive(Component, Reflect, Default)]
+#[component(storage = "SparseSet")]
 pub struct FusedExplosive;
 
 /// Whether a [FusedExplosive] is currently primed.
 #[derive(Component, Reflect, Default)]
+#[component(storage = "SparseSet")]
 pub struct IsPrimed;
 
 #[derive(Component, Reflect, Default, Deref, DerefMut)]

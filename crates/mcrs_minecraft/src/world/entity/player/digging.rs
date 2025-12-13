@@ -110,7 +110,7 @@ fn player_start_destroy_block(
         &InDimension,
         &Transform,
         &Reposition,
-        &InstantBuild,
+        Has<InstantBuild>,
         &MiningEfficiency,
         &BlockBreakSpeed,
     )>,

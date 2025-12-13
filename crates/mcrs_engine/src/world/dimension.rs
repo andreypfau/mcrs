@@ -39,7 +39,7 @@ pub struct Dimension;
 #[derive(Component, Clone, Default, Deref, Debug)]
 pub struct DimensionPlayers(BTreeSet<Entity>);
 
-#[derive(Component, Clone, Debug, PartialEq, Eq, DerefMut, Deref)]
+#[derive(Component, Clone, Debug, Copy, PartialEq, Eq, DerefMut, Deref)]
 pub struct InDimension(pub Entity);
 
 impl ContainsEntity for InDimension {

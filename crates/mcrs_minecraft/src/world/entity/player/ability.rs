@@ -11,8 +11,9 @@ pub struct Flying(pub bool);
 #[derive(Component, Default, Debug, Clone, Copy, Deref, DerefMut)]
 pub struct MayFly(pub bool);
 
-#[derive(Component, Default, Debug, Clone, Copy, Deref, DerefMut)]
-pub struct InstantBuild(pub bool);
+#[derive(Component, Default, Debug, Clone, Copy)]
+#[component(storage = "SparseSet")]
+pub struct InstantBuild;
 
 #[derive(Component, Debug, Clone, Copy, Deref, DerefMut)]
 pub struct MayBuild(pub bool);
@@ -46,7 +47,6 @@ pub struct PlayerAbilitiesBundle {
     pub invulnerable: Invulnerable,
     pub flying: Flying,
     pub may_fly: MayFly,
-    pub instant_build: InstantBuild,
     pub may_build: MayBuild,
     pub fly_speed: FlySpeed,
     pub walk_speed: WalkSpeed,
@@ -56,16 +56,16 @@ impl PlayerAbilitiesBundle {
     fn update(&mut self, game_mode: &GameMode) -> &Self {
         if *game_mode == GameMode::Creative {
             *self.may_fly = true;
-            *self.instant_build = true;
+            // *self.instant_build = true;
             *self.invulnerable = true;
         } else if *game_mode == GameMode::Spectator {
             *self.may_fly = true;
-            *self.instant_build = false;
+            // *self.instant_build = false;
             *self.invulnerable = true;
             *self.flying = true;
         } else {
             *self.may_fly = false;
-            *self.instant_build = false;
+            // *self.instant_build = false;
             *self.invulnerable = false;
             *self.flying = false;
         }

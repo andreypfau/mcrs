@@ -1,5 +1,11 @@
+use crate::world::chunk::ChunkIndex;
+use crate::world::dimension::InDimension;
 use bevy::math::{DQuat, DVec3, DVec4, Quat, Vec3};
-use bevy::prelude::{Component, Deref, DerefMut, Reflect};
+use bevy::prelude::{
+    BuildChildrenTransformExt, Commands, Component, ContainsEntity, Deref, DerefMut, DetectChanges,
+    EntityRef, Mut, Query, Reflect,
+};
+use std::process::Command;
 
 #[derive(Clone, Copy, Debug, PartialEq, Component, Reflect)]
 pub struct Transform {
@@ -53,7 +59,7 @@ impl Default for Transform {
     }
 }
 
-#[derive(Copy, Clone, Debug, Component, Reflect)]
+#[derive(Copy, Clone, Debug, Component, Reflect, Deref)]
 pub struct OldTransform(pub Transform);
 
 #[derive(Copy, Clone, Debug, Deref, DerefMut, Component, Reflect)]

@@ -5,7 +5,7 @@ use derive_more::{From, Into};
 use crate::{Decode, Encode};
 
 /// Quantized entity velocity.
-#[derive(Copy, Clone, PartialEq, Eq, Encode, Decode, From, Into)]
+#[derive(Copy, Clone, PartialEq, Eq, Default, Encode, Decode, From, Into)]
 pub struct Velocity(pub [i16; 3]);
 
 impl Velocity {

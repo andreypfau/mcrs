@@ -1,11 +1,15 @@
+use crate::world::entity::explosive::fused::primed_tnt::PrimedTntPlugin;
 use crate::world::entity::player::PlayerPlugin;
 use bevy_app::{App, Plugin};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::prelude::ContainsEntity;
+use derive_more::{Deref, DerefMut};
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_protocol::VarInt;
+use mcrs_protocol::uuid::Uuid;
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::Ordering::Relaxed;
 
@@ -19,6 +23,7 @@ pub struct MinecraftEntityPlugin;
 impl Plugin for MinecraftEntityPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(PlayerPlugin);
+        app.add_plugins(PrimedTntPlugin);
     }
 }
 
@@ -45,10 +50,20 @@ impl EntityBundle {
 }
 
 #[derive(Component, Default)]
+#[component(storage = "SparseSet")]
 pub struct MinecraftEntity;
 
-#[derive(Debug, Clone, Copy, Component)]
-pub struct EntityOwner(pub Option<Entity>);
+#[derive(Debug, Clone, Copy, Component, Deref, DerefMut)]
+pub struct EntityOwner(pub Entity);
+
+#[derive(Debug, Clone, Copy, Component, Deref)]
+pub struct EntityUuid(Uuid);
+
+impl ContainsEntity for EntityOwner {
+    fn entity(&self) -> Entity {
+        self.0
+    }
+}
 
 static ENTITY_ID: AtomicI32 = AtomicI32::new(0);
 

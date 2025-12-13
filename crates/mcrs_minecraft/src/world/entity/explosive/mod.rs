@@ -10,6 +10,7 @@ pub struct ExplosiveBundle {
 }
 
 #[derive(Component, Reflect, Default, Debug)]
+#[component(storage = "SparseSet")]
 pub struct Explosive;
 
 /// The radius of the [Explosion] to be created by detonating an [Explosive].

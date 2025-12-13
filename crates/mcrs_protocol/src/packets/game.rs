@@ -7,10 +7,25 @@ pub mod clientbound {
     use bevy_math::DVec3;
     use mcrs_engine::world::block::BlockPos;
     use mcrs_engine::world::chunk::ChunkPos;
-    use mcrs_protocol::BlockStateId;
+    use mcrs_protocol::{BlockStateId, ByteAngle};
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
+    use uuid::Uuid;
     use valence_ident::Ident;
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x01, state=Game)]
+    pub struct ClientboundAddEntity {
+        pub id: VarInt,
+        pub uuid: Uuid,
+        pub kind: VarInt,
+        pub pos: DVec3,
+        pub velocity: VarInt,
+        pub yaw: ByteAngle,
+        pub pitch: ByteAngle,
+        pub head_yaw: ByteAngle,
+        pub data: VarInt,
+    }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x05, state=Game)]

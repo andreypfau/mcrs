@@ -1,13 +1,18 @@
 pub mod palette;
 pub mod ticket;
 
+use crate::entity::ChunkEntities;
+use crate::entity::physics::{OldTransform, Transform};
 use crate::math::BitSize;
 use crate::world::block::BlockPos;
 use crate::world::chunk::ticket::TicketPlugin;
-use crate::world::dimension::InDimension;
+use crate::world::dimension::{Dimension, InDimension};
 use bevy::app::{App, Plugin};
 use bevy::math::{DVec3, IVec3};
-use bevy::prelude::{Bundle, Component, Deref, DerefMut, Entity, Reflect};
+use bevy::prelude::{
+    Bundle, Component, ContainsEntity, Deref, DerefMut, DetectChanges, Entity, Query, Ref, Reflect,
+    Without,
+};
 use rustc_hash::FxHashMap;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
@@ -79,7 +84,13 @@ pub struct ChunkBundle {
     pub dimension: InDimension,
     pub pos: ChunkPos,
     pub status: ChunkStatus,
+    pub entities: ChunkEntities,
+    marker: Chunk,
 }
+
+#[derive(Component, Debug, Default)]
+#[component(storage = "SparseSet")]
+pub struct Chunk;
 
 impl ChunkBundle {
     pub fn new(dimension: InDimension, chunk_pos: ChunkPos) -> Self {
@@ -87,6 +98,8 @@ impl ChunkBundle {
             dimension,
             pos: chunk_pos,
             status: ChunkStatus::default(),
+            entities: ChunkEntities::default(),
+            marker: Chunk,
         }
     }
 }
