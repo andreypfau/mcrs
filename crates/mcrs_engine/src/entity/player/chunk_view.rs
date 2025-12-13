@@ -71,6 +71,7 @@ fn update_view(
                     load_queue.push(pos);
                 });
                 load_queue.sort_by_key(|pos| pos.distance_squared(*chunk_pos));
+                println!("added to load queue: {}", load_queue.len());
                 observer.load_queue.extend(load_queue);
                 observer.last_last_chunk_tracking_view = Some(new_view);
                 commands.command_scope(|mut cmd| {
@@ -107,6 +108,7 @@ fn update_view(
             });
 
             load_queue.sort_by_key(|pos| pos.distance_squared(*chunk_pos));
+            println!("added to load queue: {}", load_queue.len());
             observer.load_queue.extend(load_queue);
             observer.last_last_chunk_tracking_view = Some(new_view);
         });
@@ -148,7 +150,7 @@ fn update_loading_queue(
     chunks: Query<&ChunkStatus>,
     mut load_requests: MessageWriter<PlayerChunkLoadRequest>,
 ) {
-    const MAX_SENDS: usize = 64;
+    const MAX_SENDS: usize = 64 * 16;
 
     players.iter_mut().for_each(|(player, mut observer, dim)| {
         let Ok(chunk_index) = dims.get(**dim) else {
@@ -191,15 +193,15 @@ fn update_load_queue(
     mut players: Query<(&mut PlayerChunkObserver, &InDimension)>,
     mut dimensions: Query<&mut ChunkTickets>,
 ) {
-    const MAX_LOADS: usize = 64;
+    const MAX_LOADS: usize = 64 * 16;
 
-    players.par_iter_mut().for_each(|(mut observer, dim)| {
+    players.iter_mut().for_each(|(mut observer, dim)| {
         let observer = &mut *observer;
         let Some(last_view) = observer.last_last_chunk_tracking_view else {
             return;
         };
 
-        while observer.loading_queue.len() < MAX_LOADS {
+        while observer.delayed_ticket_ops.len() < MAX_LOADS {
             let Some(pos) = observer.load_queue.pop_front() else {
                 return;
             };

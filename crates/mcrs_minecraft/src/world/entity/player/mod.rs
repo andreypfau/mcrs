@@ -1,14 +1,17 @@
 use crate::client_info::ClientViewDistance;
 use crate::world::entity::EntityBundle;
 use crate::world::entity::player::column_view::ColumnViewPlugin;
+use crate::world::entity::player::digging::DiggingPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
 use bevy_app::Plugin;
 use bevy_ecs::bundle::Bundle;
+use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Changed, Commands, Query, With};
 use bevy_math::DVec3;
 use mcrs_engine::entity::physics::Transform;
+use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDistance};
 use mcrs_engine::entity::player::reposition::Reposition;
 use mcrs_engine::world::dimension::{Dimension, InDimension};
@@ -21,6 +24,7 @@ use movement::TeleportState;
 pub mod ability;
 pub mod attribute;
 mod column_view;
+pub mod digging;
 pub mod movement;
 pub mod player_action;
 
@@ -28,6 +32,7 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut bevy_app::App) {
+        app.add_plugins(DiggingPlugin);
         app.add_plugins(PlayerActionPlugin);
         app.add_plugins(MovementPlugin);
         app.add_plugins(ColumnViewPlugin);
@@ -42,6 +47,7 @@ pub struct PlayerBundle {
     pub reposition: Reposition,
     pub abilities: ability::PlayerAbilitiesBundle,
     pub attributes: attribute::PlayerAttributesBundle,
+    pub marker: Player,
 }
 
 fn spawn_player(

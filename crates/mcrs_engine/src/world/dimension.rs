@@ -1,10 +1,13 @@
 use crate::entity::despawn::Despawned;
+use crate::entity::player::Player;
 use crate::world::chunk::ticket::ChunkTickets;
 use crate::world::chunk::{ChunkIndex, ChunkPlugin};
 use bevy::app::{App, FixedPostUpdate, FixedUpdate, Plugin, PostUpdate, PreStartup};
+use bevy::ecs::schedule::And;
 use bevy::prelude::{
-    Bundle, Changed, Commands, Component, ContainsEntity, Deref, DerefMut, Despawn, DetectChanges,
-    Entity, Has, IntoScheduleConfigs, Mut, Query, Ref, Reflect, ResMut, Resource,
+    Added, Bundle, Changed, Commands, Component, ContainsEntity, Deref, DerefMut, Despawn,
+    DetectChanges, Entity, Has, IntoScheduleConfigs, Mut, Query, Ref, Reflect, ResMut, Resource,
+    With,
 };
 use std::collections::BTreeSet;
 
@@ -14,7 +17,10 @@ impl Plugin for DimensionPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ChunkPlugin);
         app.add_systems(PreStartup, spawn_dimension);
-        app.add_systems(PostUpdate, (update_index, update_old_in_dimensions).chain());
+        app.add_systems(
+            FixedPostUpdate,
+            (add_old_in_dimension, update_index, update_old_in_dimensions).chain(),
+        );
         app.add_systems(FixedPostUpdate, update_time);
     }
 }
@@ -67,7 +73,7 @@ fn spawn_dimension(mut commands: Commands) {
 }
 
 fn update_index(
-    entities: Query<(Entity, Has<Despawned>, &OldInDimension, Ref<InDimension>)>,
+    entities: Query<(Entity, Has<Despawned>, &OldInDimension, Ref<InDimension>), With<Player>>,
     mut dimensions: Query<&mut DimensionPlayers>,
 ) {
     entities
@@ -90,6 +96,22 @@ fn update_index(
                 }
             }
         })
+}
+
+fn add_old_in_dimension(
+    mut commands: Commands,
+    new_players: Query<(Entity, &InDimension), (With<Player>, Added<InDimension>)>,
+    mut dimensions: Query<&mut DimensionPlayers>,
+) {
+    new_players.iter().for_each(|(entity, in_dimension)| {
+        commands
+            .entity(entity)
+            .insert(OldInDimension(**in_dimension));
+        let Ok(mut dim) = dimensions.get_mut(**in_dimension) else {
+            return;
+        };
+        dim.0.insert(entity);
+    });
 }
 
 fn update_old_in_dimensions(

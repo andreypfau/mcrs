@@ -1,12 +1,11 @@
 use crate::{EngineConnection, ServerSideConnection};
-use bevy_app::{App, MainScheduleOrder, Plugin, PreUpdate, Update};
+use bevy_app::{App, Plugin, Update};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
-use bevy_ecs::query::Added;
 use bevy_ecs::schedule::ScheduleLabel;
-use bevy_ecs::system::{Commands, Query};
+use bevy_ecs::system::{ParallelCommands, Query};
 use bytes::Bytes;
-use mcrs_protocol::{ConnectionState, Decode, Packet};
+use mcrs_protocol::{Decode, Packet};
 use std::time::Instant;
 
 #[derive(Debug, Clone, EntityEvent)]
@@ -26,7 +25,7 @@ impl ReceivedPacketEvent {
         if self.id != P::ID {
             return None;
         }
-        
+
         let mut r = &self.data[..];
         match P::decode(&mut r) {
             Ok(pkt) => {
@@ -56,19 +55,31 @@ impl Plugin for EventLoopPlugin {
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RunEventLoop;
 
-fn run_event_loop(query: Query<(Entity, &mut ServerSideConnection)>, mut commands: Commands) {
-    for (entity, mut conn) in query {
-        match conn.try_recv() {
-            Ok(Some(pkt)) => commands.trigger(ReceivedPacketEvent {
-                entity,
-                id: pkt.id,
-                data: pkt.payload,
-                timestamp: pkt.timestamp,
-            }),
-            Ok(None) => {}
-            Err(e) => {
-                commands.entity(entity).remove::<ServerSideConnection>();
+fn run_event_loop(
+    mut query: Query<(Entity, &mut ServerSideConnection)>,
+    commands: ParallelCommands,
+) {
+    query.par_iter_mut().for_each(|(entity, mut conn)| {
+        loop {
+            match conn.try_recv() {
+                Ok(Some(pkt)) => {
+                    commands.command_scope(|mut cmd| {
+                        println!("Received packet {:?}", pkt);
+                        cmd.trigger(ReceivedPacketEvent {
+                            entity,
+                            id: pkt.id,
+                            data: pkt.payload,
+                            timestamp: pkt.timestamp,
+                        })
+                    });
+                }
+                Ok(None) => break,
+                Err(e) => {
+                    commands.command_scope(|mut cmd| {
+                        cmd.entity(entity).remove::<ServerSideConnection>();
+                    });
+                }
             }
         }
-    }
+    });
 }

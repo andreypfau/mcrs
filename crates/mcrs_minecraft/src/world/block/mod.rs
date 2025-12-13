@@ -1,9 +1,7 @@
-use crate::world::block::behaviour::BlockBehaviour;
-use crate::world::block::minecraft::Block;
+use crate::world::block::behaviour::{BlockBehaviour, Properties};
 use bevy_ecs::prelude::Resource;
-use mcrs_protocol::ident;
-use mcrs_registry::{Registry, RegistryEntry};
-use std::sync::Arc;
+use mcrs_protocol::{BlockStateId, Ident};
+use mcrs_registry::RegistryEntry;
 
 pub mod behaviour;
 pub mod minecraft;
@@ -24,42 +22,43 @@ bitflags::bitflags! {
         const NONE = BlockUpdateFlags::SKIP_BLOCK_ENTITY_SIDEEFFECTS.bits() | BlockUpdateFlags::INVISIBLE.bits();
         const ALL = BlockUpdateFlags::NEIGHBORS.bits() | BlockUpdateFlags::CLIENTS.bits();
         const ALL_IMMEDIATE = BlockUpdateFlags::ALL.bits() | BlockUpdateFlags::IMMEDIATE.bits();
-        // остальные по надобности
     }
 }
 
-#[derive(Resource)]
-struct BlockRegistry {
-    registry: Registry<BlockEntry>,
+#[derive(Debug)]
+pub struct Block {
+    pub identifier: Ident<&'static str>,
+    pub properties: &'static Properties,
+    pub default_state: &'static BlockState,
+    pub states: &'static [BlockState],
 }
 
-struct BlockEntry {
-    block: Arc<&'static Block>,
-}
-
-impl AsRef<Block> for BlockEntry {
-    fn as_ref(&self) -> &Block {
-        self.block.as_ref()
+impl Block {
+    #[inline]
+    pub fn hardness(&self) -> f32 {
+        self.properties.hardness
     }
 }
 
-impl RegistryEntry for BlockEntry {}
-
-impl From<&'static Block> for BlockEntry {
+impl From<&'static Block> for BlockStateId {
     fn from(block: &'static Block) -> Self {
-        Self {
-            block: Arc::new(block),
-        }
+        block.default_state.id
     }
 }
 
-impl BlockRegistry {
-    fn new() -> Self {
-        let mut registry = Registry::new();
-        registry.insert(ident!("air"), (&minecraft::AIR).into());
-        registry.insert(ident!("stone"), (&minecraft::STONE).into());
-        registry.insert(ident!("tnt"), (&minecraft::TNT).into());
+#[derive(Debug, Eq)]
+pub struct BlockState {
+    pub id: BlockStateId,
+}
 
-        Self { registry }
+impl PartialEq for BlockState {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl From<BlockState> for BlockStateId {
+    fn from(state: BlockState) -> Self {
+        state.id
     }
 }

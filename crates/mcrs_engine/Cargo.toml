@@ -5,8 +5,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-bevy.workspace = true
+bevy = { workspace = true, features = ["track_location"] }
 rustc-hash.workspace = true
+tracing = "0.1.43"
 
 [features]
 

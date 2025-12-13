@@ -2,6 +2,7 @@ use bevy::math::{DVec3, IVec3};
 use bevy::prelude::{Changed, Component, Query, Reflect, Res, Resource};
 
 use crate::entity::physics::Transform;
+use crate::world::block::BlockPos;
 use crate::world::chunk;
 
 /// Client-coordinate repositioning (Spout-style).
@@ -69,7 +70,7 @@ impl Reposition {
     }
 
     #[inline]
-    pub fn convert_block_pos(&self, pos: DVec3) -> DVec3 {
+    pub fn convert_dvec3(&self, pos: DVec3) -> DVec3 {
         pos + DVec3::new(
             self.offset_blocks.x as f64,
             self.offset_blocks.y as f64,
@@ -78,11 +79,29 @@ impl Reposition {
     }
 
     #[inline]
-    pub fn unconvert_block_pos(&self, pos: DVec3) -> DVec3 {
+    pub fn unconvert_dvec3(&self, pos: DVec3) -> DVec3 {
         pos - DVec3::new(
             self.offset_blocks.x as f64,
             self.offset_blocks.y as f64,
             self.offset_blocks.z as f64,
+        )
+    }
+
+    #[inline]
+    pub fn convert_block_pos(&self, pos: BlockPos) -> BlockPos {
+        BlockPos::new(
+            pos.x + self.offset_blocks.x,
+            pos.y + self.offset_blocks.y,
+            pos.z + self.offset_blocks.z,
+        )
+    }
+
+    #[inline]
+    pub fn unconvert_block_pos(&self, pos: BlockPos) -> BlockPos {
+        BlockPos::new(
+            pos.x - self.offset_blocks.x,
+            pos.y - self.offset_blocks.y,
+            pos.z - self.offset_blocks.z,
         )
     }
 

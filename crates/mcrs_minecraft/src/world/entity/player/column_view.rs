@@ -357,7 +357,7 @@ fn process_column_queues(
                 light_data: LightData::default(),
             };
             con.write_packet(&pkt);
-            println!("Sent column {:?} to player {:?}", column_pos, player);
+            // println!("Sent column {:?} to player {:?}", column_pos, player);
             sends += 1;
         }
         if sends > 0 {

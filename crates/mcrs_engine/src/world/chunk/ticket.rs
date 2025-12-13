@@ -1,19 +1,24 @@
 use crate::world::chunk::{ChunkBundle, ChunkIndex, ChunkPos, ChunkStatus};
 use crate::world::dimension::InDimension;
+use bevy::app::{FixedPostUpdate, FixedPreUpdate, FixedUpdate};
+use bevy::log::Level;
+use bevy::log::tracing::span;
 use bevy::prelude::{
-    Changed, Commands, Component, Deref, DerefMut, DetectChangesMut, Entity, PostUpdate, PreUpdate,
-    Query, Update,
+    Changed, Commands, Component, Deref, DerefMut, DetectChanges, DetectChangesMut, Entity,
+    PostUpdate, PreUpdate, Query, Ref, Update,
 };
 use rustc_hash::FxHashMap;
 use std::cmp::Ordering;
+use tracing::info_span;
 
 pub(crate) struct TicketPlugin;
 
 impl bevy::prelude::Plugin for TicketPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
-        app.add_systems(PreUpdate, spawn_chunks);
-        app.add_systems(Update, unload_chunks);
-        app.add_systems(PostUpdate, (tick_timeout, despawn_chunks));
+        app.add_systems(FixedPreUpdate, spawn_chunks);
+        app.add_systems(FixedUpdate, unload_chunks);
+        app.add_systems(FixedPostUpdate, (despawn_chunks));
+        app.add_systems(FixedPostUpdate, (tick_timeout, despawn_chunks));
     }
 }
 
@@ -164,20 +169,32 @@ fn tick_timeout(
         })
 }
 
-fn spawn_chunks(mut dims: Query<(Entity, &ChunkTickets, &mut ChunkIndex)>, mut commands: Commands) {
+fn spawn_chunks(
+    mut dims: Query<(Entity, Ref<ChunkTickets>, &mut ChunkIndex), Changed<ChunkTickets>>,
+    mut commands: Commands,
+) {
     dims.iter_mut()
         .for_each(|(dim, chunk_tickets, mut chunk_index)| {
-            chunk_tickets.iter().for_each(|(pos, tickets)| {
-                if tickets.is_empty() {
-                    return;
-                }
-                if chunk_index.contains(*pos) {
-                    return;
-                }
-                let chunk_entity = commands
-                    .spawn(ChunkBundle::new(InDimension(dim), *pos))
-                    .id();
-                chunk_index.insert(*pos, chunk_entity);
-            });
+            let _span = info_span!("spawn_chunks iteration").entered();
+
+            // Iterate only over new tickets by filtering out already spawned chunks
+            let chunks_to_spawn: Vec<ChunkPos> = chunk_tickets
+                .iter()
+                .filter_map(|(pos, tickets)| {
+                    if !tickets.is_empty() && !chunk_index.contains(*pos) {
+                        Some(*pos)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            drop(_span);
+
+            // Spawn chunks in batch
+            for pos in chunks_to_spawn {
+                let chunk_entity = commands.spawn(ChunkBundle::new(InDimension(dim), pos)).id();
+                chunk_index.insert(pos, chunk_entity);
+            }
         })
 }

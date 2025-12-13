@@ -24,8 +24,10 @@ arrayvec.workspace = true
 num-integer.workspace = true
 derive_more.workspace = true
 rocksdb.workspace = true
+indexmap.workspace = true
 serde = { version = "1.0.228", features = ["derive"] }
 bitflags = "2.10.0"
+tracing = "0.1.43"
 
 [features]
          

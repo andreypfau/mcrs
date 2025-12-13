@@ -2,20 +2,20 @@ use mcrs_engine::world::block::BlockPos;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Properties {
-    destroy_time: f32,
-    explosion_resistance: f32,
-    ignited_by_lava: bool,
-    replaceable: bool,
-    is_air: bool,
-    has_collision: bool,
-    can_occlude: bool,
-    requires_correct_tool_for_drops: bool,
+    pub hardness: f32,
+    pub explosion_resistance: f32,
+    pub ignited_by_lava: bool,
+    pub replaceable: bool,
+    pub is_air: bool,
+    pub has_collision: bool,
+    pub can_occlude: bool,
+    pub requires_correct_tool_for_drops: bool,
 }
 
 impl Properties {
     pub const fn new() -> Self {
         Properties {
-            destroy_time: 0.0,
+            hardness: 0.0,
             explosion_resistance: 0.0,
             ignited_by_lava: false,
             is_air: false,
@@ -26,8 +26,8 @@ impl Properties {
         }
     }
 
-    pub const fn destroy_time(mut self, value: f32) -> Self {
-        self.destroy_time = value;
+    pub const fn hardness(mut self, value: f32) -> Self {
+        self.hardness = value;
         self
     }
 
@@ -37,7 +37,7 @@ impl Properties {
     }
 
     pub const fn instant_break(self) -> Self {
-        self.destroy_time(0.0).explosion_resistance(0.0)
+        self.hardness(0.0).explosion_resistance(0.0)
     }
 
     pub const fn ignited_by_lava(mut self) -> Self {
@@ -82,6 +82,6 @@ pub trait BlockBehaviour: Sync + Send {
     fn properties(&self) -> &Properties;
 
     fn get_destroy_speed(&self, pos: BlockPos) -> f32 {
-        self.properties().destroy_time
+        self.properties().hardness
     }
 }

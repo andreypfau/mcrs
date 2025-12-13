@@ -3,6 +3,7 @@ use crate::world::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Query, Resource};
+use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, ResMut};
 use bevy_tasks::futures_lite::future;
@@ -45,13 +46,18 @@ fn load_chunks(
     mut query: Query<(Entity, &mut ChunkStatus, &ChunkPos)>,
     mut loading_chunks: ResMut<LoadingChunks>,
 ) {
+    let _span = tracing::info_span!("load_chunks get pool").entered();
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
+    drop(_span);
+    let _span = tracing::info_span!("load_chunks iterate chunks").entered();
     query.iter_mut().for_each(|(e, mut status, pos)| {
+        let _1 = tracing::info_span!("load_chunks process chunk").entered();
         if *status != ChunkStatus::Loading {
             return;
         }
         *status = ChunkStatus::Generating;
         let pos = *pos;
+        let _2 = tracing::info_span!("load_chunks spawn task").entered();
         let task = task_pool.spawn(async move {
             let mut blocks = BlockPalette::default();
             let mut biomes = BiomePalette::default();
@@ -63,6 +69,7 @@ fn load_chunks(
                 biomes,
             }
         });
+        let _3 = tracing::info_span!("load_chunks insert task").entered();
         loading_chunks.0.insert(pos, task);
     })
 }

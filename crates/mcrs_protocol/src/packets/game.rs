@@ -13,6 +13,14 @@ pub mod clientbound {
     use valence_ident::Ident;
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x05, state=Game)]
+    pub struct ClientboundBlockDestruction {
+        pub id: VarInt,
+        pub pos: BlockPos,
+        pub progress: i8,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x08, state=Game)]
     pub struct ClientboundBlockUpdate {
         pub block_pos: BlockPos,

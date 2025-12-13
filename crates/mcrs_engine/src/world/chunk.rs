@@ -91,6 +91,7 @@ impl ChunkBundle {
     }
 }
 
+// TODO: Change from enum to separate marker structures for each status for optimized archetype filtering
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Component, Reflect)]
 pub enum ChunkStatus {
     Unloaded,

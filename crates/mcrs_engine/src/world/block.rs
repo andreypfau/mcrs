@@ -1,3 +1,4 @@
+use bevy::math::DVec3;
 use bevy::prelude::{Deref, DerefMut, IVec3, Reflect};
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
@@ -37,6 +38,16 @@ impl Hash for BlockPos {
             | (self.y as u64 & Self::PACKED_Y_MASK)
             | (self.z as u64 & Self::PACKED_Z_MASK) << 12;
         packed.hash(state);
+    }
+}
+
+impl From<DVec3> for BlockPos {
+    fn from(value: DVec3) -> Self {
+        BlockPos::new(
+            value.x.floor() as i32,
+            value.y.floor() as i32,
+            value.z.floor() as i32,
+        )
     }
 }
 
