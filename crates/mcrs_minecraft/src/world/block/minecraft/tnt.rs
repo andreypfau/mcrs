@@ -1,11 +1,15 @@
 use crate::world::block::behaviour::Properties;
 use crate::world::block::{Block, BlockState};
 use crate::world::entity::EntityOwner;
-use crate::world::entity::explosive::primed_tnt::{Detonator, PrimedTntBundle};
+use crate::world::entity::explosive::primed_tnt::{
+    DEFAULT_FUSE_DURATION, Detonator, PrimedTntBundle,
+};
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
+use crate::world::explosion::BlockExplodedEvent;
 use bevy_app::Plugin;
 use bevy_ecs::message::MessageReader;
+use bevy_ecs::prelude::On;
 use bevy_ecs::query::{Has, With};
 use bevy_ecs::system::{Commands, Query};
 use bevy_math::DVec3;
@@ -13,6 +17,7 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_protocol::BlockStateId;
+use rand::{Rng, rng};
 
 pub const BLOCK: Block = Block {
     identifier: mcrs_protocol::ident!("tnt"),
@@ -35,6 +40,7 @@ pub struct TntBlockPlugin;
 impl Plugin for TntBlockPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.add_systems(bevy_app::FixedUpdate, player_will_destroy_tnt);
+        app.add_observer(tnt_block_exploded);
     }
 }
 
@@ -63,4 +69,21 @@ fn player_will_destroy_tnt(
             Detonator(event.player),
         ));
     });
+}
+
+fn tnt_block_exploded(event: On<BlockExplodedEvent>, mut commands: Commands) {
+    let blk = event.block_state_id;
+    if blk != DEFAULT_STATE.id && blk != UNSTABLE_STATE.id {
+        return;
+    }
+    // random int from 0 to DEFAULT_FUSE_DURATION
+    let fuse = rng().random_range(0..(DEFAULT_FUSE_DURATION / 4)) + DEFAULT_FUSE_DURATION / 8;
+
+    commands.spawn(
+        PrimedTntBundle::new(
+            InDimension(event.dimension),
+            Transform::from_translation(event.block_pos.as_dvec3() + DVec3::new(0.5, 0.0, 0.5)),
+        )
+        .with_fuse(fuse),
+    );
 }

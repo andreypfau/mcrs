@@ -61,6 +61,11 @@ impl PrimedTntBundle {
             dimension,
         }
     }
+
+    pub fn with_fuse(mut self, fuse: u16) -> Self {
+        self.fuse = Fuse(fuse);
+        self
+    }
 }
 
 #[derive(Component, Debug, Default, Reflect)]
@@ -113,7 +118,6 @@ impl<'w, 's> PlayerViewQueryItem<'w, 's> {
             data: VarInt(0),
         };
         self.connection.write_packet(&pkt);
-        println!("try to spawn: {:?}", entity.entity);
     }
 }
 
@@ -163,7 +167,6 @@ fn update_fuse_durations(
             let mut cmds = commands.entity(e);
             cmds.remove::<Fuse>();
             cmds.insert(Explosion);
-            println!("ticks left, BOOM!")
         }
     })
 }

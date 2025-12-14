@@ -12,8 +12,9 @@ use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos};
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_protocol::BlockStateId;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::hash_map::Entry;
+use std::hash::Hash;
 use std::mem::MaybeUninit;
 
 pub struct ExplosionPlugin;
@@ -32,6 +33,22 @@ pub struct Explosion;
 #[derive(Component, Reflect, Default, Debug)]
 pub struct ExplosionRadius(pub u16);
 
+#[derive(Event, Debug, Eq, PartialEq)]
+pub struct BlockExplodedEvent {
+    pub dimension: DimEntity,
+    pub chunk: ChunkEntity,
+    pub block_pos: BlockPos,
+    pub block_state_id: BlockStateId,
+    pub detonator: Option<Entity>,
+}
+
+impl Hash for BlockExplodedEvent {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.dimension.hash(state);
+        self.block_pos.hash(state);
+    }
+}
+
 const CHUNK_CACHE_SHIFT: usize = 2;
 const CHUNK_CACHE_MASK: usize = (1 << CHUNK_CACHE_SHIFT) - 1;
 const CHUNK_CACHE_WIDTH: usize = 1 << CHUNK_CACHE_SHIFT;
@@ -41,14 +58,14 @@ struct BlockCacheItem {
     pos: BlockPos,
     block: BlockStateId,
     resistance: f32,
-    out_of_bounds: bool,
+    chunk: Option<Entity>,
     should_explode: Option<bool>,
 }
 
 struct BlockCache<'a, 'b> {
     map: FxHashMap<BlockPos, BlockCacheItem>,
     chunk_index: &'a ChunkIndex,
-    chunks: &'a Query<'a, 'a, &'b BlockPalette>,
+    chunks: &'a Query<'a, 'a, (Entity, &'b BlockPalette)>,
 }
 
 impl<'a, 'b> BlockCache<'a, 'b> {
@@ -68,14 +85,14 @@ impl<'a, 'b> BlockCache<'a, 'b> {
                 let chunk_pos = ChunkPos::from(pos);
                 let item = (|| {
                     let b = chunk_index.get(chunk_pos)?;
-                    let palette = chunks.get(b.entity()).ok()?;
+                    let (chunk, palette) = chunks.get(b.entity()).ok()?;
                     let block_state = palette.get(pos);
                     let resistance = (block_state.as_ref().explosion_resistance() + 0.3) * 0.3;
                     Some(BlockCacheItem {
                         pos,
                         block: block_state,
                         resistance,
-                        out_of_bounds: false,
+                        chunk: Some(chunk),
                         should_explode: None,
                     })
                 })()
@@ -83,7 +100,7 @@ impl<'a, 'b> BlockCache<'a, 'b> {
                     pos,
                     block: BlockStateId(0),
                     resistance: 0.0,
-                    out_of_bounds: true,
+                    chunk: None,
                     should_explode: None,
                 });
                 v.insert(item)
@@ -92,57 +109,79 @@ impl<'a, 'b> BlockCache<'a, 'b> {
     }
 }
 
+type ExplosionEntity = Entity;
+type ChunkEntity = Entity;
+type DimEntity = Entity;
+
 fn tick_explode(
-    mut explosions: Query<(Entity, &Transform, &InDimension, &ExplosionRadius), With<Explosion>>,
+    mut explosions: Query<
+        (
+            ExplosionEntity,
+            &Transform,
+            &InDimension,
+            &ExplosionRadius,
+            Option<&Detonator>,
+        ),
+        With<Explosion>,
+    >,
     dim_chunks: Query<&ChunkIndex>,
-    chunks: Query<&BlockPalette>,
-    mut block_writer: MessageWriter<BlockSetRequest>,
-    mut queue: Local<Parallel<Vec<(Entity, Entity, Vec<BlockPos>)>>>,
+    chunks: Query<(ChunkEntity, &BlockPalette)>,
+    mut queue: Local<Parallel<Vec<(ExplosionEntity, Vec<BlockExplodedEvent>)>>>,
     mut commands: Commands,
+    mut writer: MessageWriter<BlockSetRequest>,
 ) {
     explosions.par_iter_mut().for_each_init(
         || queue.borrow_local_mut(),
-        |q, (e, transform, dim, radius)| {
+        |q, (e, transform, dim, radius, detonator)| {
             let center = transform.translation;
-            println!("Start exploding at {:?}", center);
             let dim = dim.entity();
             let Some(dim_chunks) = dim_chunks.get(dim).ok() else {
                 return;
             };
+            let _span = tracing::info_span!("tick_explode::calc_blocks").entered();
             let blocks = calc_blocks(
+                dim,
                 center,
                 radius.0 as f32,
                 &mut rng(),
                 false,
+                detonator.map(|d| d.entity()),
                 dim_chunks,
                 &chunks,
             );
-            println!("Explosion destroyed {} blocks", blocks.len());
-            q.push((e, dim, blocks));
+            drop(_span);
+            q.push((e, blocks));
         },
     );
 
-    block_writer.write_batch(
-        queue
-            .drain()
-            .map(|(e, dim, blocks)| {
-                commands.entity(e).despawn();
-                blocks
-                    .into_iter()
-                    .map(move |b| BlockSetRequest::remove_block(dim, b))
-            })
-            .flatten(),
-    );
+    let _span = tracing::info_span!("tick_explode::deduplicate blocks").entered();
+    let mut event_set = FxHashSet::<BlockExplodedEvent>::default();
+    for (explosion, events) in queue.drain() {
+        commands.entity(explosion).despawn();
+        for event in events {
+            event_set.insert(event);
+        }
+    }
+    drop(_span);
+
+    writer.write_batch(event_set.drain().map(|event| {
+        let dim = event.dimension;
+        let block_pos = event.block_pos;
+        commands.trigger(event);
+        BlockSetRequest::remove_block(dim, block_pos)
+    }));
 }
 
 fn calc_blocks<R>(
+    dimension: DimEntity,
     center: DVec3,
     radius: f32,
     random: &mut R,
     fire: bool,
+    detonator: Option<Entity>,
     dim_chunks: &ChunkIndex,
-    chunks: &Query<&BlockPalette>,
-) -> Vec<BlockPos>
+    chunks: &Query<(ChunkEntity, &BlockPalette)>,
+) -> Vec<BlockExplodedEvent>
 where
     R: rand::Rng,
 {
@@ -155,28 +194,20 @@ where
     let mut ret = Vec::new();
     let cached_rays = cached_rays();
     for inc in cached_rays {
-        println!("ray {:?}", inc);
         let mut cached_block = cache.get_explosion_block(center);
         let mut curr = center;
 
         let r = random.random::<f32>();
         let mut power = radius * (r * 0.6 + 0.7);
-        println!(
-            "power {} = radius: {} * (random: {} * 0.6 + 0.7)",
-            power, radius, r
-        );
         loop {
-            println!("   curr {:?}", curr);
-            let pos = BlockPos::from(curr);
-            // println!("pos {:?}", pos);
-            if cached_block.pos != pos {
+            let block_pos = BlockPos::from(curr);
+            if cached_block.pos != block_pos {
                 // TODO: direct buf cache
-                cached_block = cache.get_explosion_block(pos);
+                cached_block = cache.get_explosion_block(block_pos);
             }
-            // println!("block {:?}", cached_block);
-            if cached_block.out_of_bounds {
+            let Some(chunk) = cached_block.chunk else {
                 break;
-            }
+            };
             power -= cached_block.resistance;
             if power > 0.0 && cached_block.should_explode.is_none() {
                 // todo: calc
@@ -184,7 +215,13 @@ where
                 cached_block.should_explode = Some(should_explode);
 
                 if should_explode && (fire || cached_block.block != AIR.default_state.id) {
-                    ret.push(pos);
+                    ret.push(BlockExplodedEvent {
+                        dimension,
+                        chunk,
+                        block_pos,
+                        detonator,
+                        block_state_id: cached_block.block,
+                    });
                 }
             }
 
@@ -201,8 +238,10 @@ where
 
 use crate::world::block::minecraft::AIR;
 use crate::world::block_update::BlockSetRequest;
+use crate::world::entity::explosive::primed_tnt::Detonator;
+use bevy_ecs::event::Event;
 use bevy_ecs::message::{Message, MessageWriter};
-use bevy_ecs::prelude::Commands;
+use bevy_ecs::prelude::{Commands, On};
 use bevy_math::DVec3;
 use bevy_math::ops::exp;
 use bevy_utils::Parallel;
