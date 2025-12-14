@@ -1,4 +1,4 @@
-use crate::world::entity::explosive::fused::primed_tnt::PrimedTntPlugin;
+use crate::world::entity::explosive::primed_tnt::PrimedTntPlugin;
 use crate::world::entity::player::PlayerPlugin;
 use bevy_app::{App, Plugin};
 use bevy_ecs::bundle::Bundle;

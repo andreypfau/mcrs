@@ -1,7 +1,7 @@
 use crate::world::block::behaviour::Properties;
 use crate::world::block::{Block, BlockState};
 use crate::world::entity::EntityOwner;
-use crate::world::entity::explosive::fused::primed_tnt::{Detonator, PrimedTntBundle};
+use crate::world::entity::explosive::primed_tnt::{Detonator, PrimedTntBundle};
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
 use bevy_app::Plugin;
@@ -53,7 +53,7 @@ fn player_will_destroy_tnt(
         if instant_build {
             return;
         }
-        println!("prime");
+        println!("prime!");
         commands.spawn((
             PrimedTntBundle::new(
                 *dim,

@@ -16,6 +16,7 @@ bevy_ecs.workspace = true
 bevy_time.workspace = true
 bevy_tasks.workspace = true
 bevy_reflect.workspace = true
+bevy_utils.workspace = true
 tokio.workspace = true
 rand.workspace = true
 serde_json.workspace = true

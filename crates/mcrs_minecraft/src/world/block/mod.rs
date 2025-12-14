@@ -38,6 +38,10 @@ impl Block {
     pub fn hardness(&self) -> f32 {
         self.properties.hardness
     }
+
+    pub fn explosion_resistance(&self) -> f32 {
+        self.properties.explosion_resistance
+    }
 }
 
 impl From<&'static Block> for BlockStateId {

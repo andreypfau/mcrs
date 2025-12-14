@@ -26,6 +26,7 @@ bevy_tasks = "0.17.3"
 bevy_editor_pls = "0.10.0"
 bevy-inspector-egui = "0.35.0"
 bevy_transform = "0.17.3"
+bevy_utils = "0.17.3"
 bevy = { version =  "0.17.3", features = ["trace_tracy"] }
 
 rocksdb = { version = "0.24.0" }
