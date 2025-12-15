@@ -6,16 +6,19 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
-use bevy_ecs::prelude::{Commands, ContainsEntity, MessageReader, ParallelCommands, Query};
+use bevy_ecs::prelude::{Commands, ContainsEntity, MessageReader, On, ParallelCommands, Query};
 use bevy_ecs::query::{Added, QueryData, With, Without};
 use bevy_math::{DVec3, Vec3};
 use bevy_reflect::Reflect;
 use derive_more::{Deref, DerefMut};
-use mcrs_engine::entity::EntityObservers;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{ChunkTrackingView, PlayerChunkObserver};
 use mcrs_engine::entity::player::reposition::Reposition;
+use mcrs_engine::entity::{
+    EntityNetworkAddEvent, EntityNetworkAddedEvent, EntityNetworkRemoveEvent,
+    EntityNetworkRemovedEvent, EntityNetworkSyncEvent, EntityNetworkSyncedEvent,
+};
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos};
 use mcrs_engine::world::dimension::{Dimension, DimensionPlayers, InDimension};
 use mcrs_network::ServerSideConnection;
@@ -27,8 +30,8 @@ pub struct PrimedTntPlugin;
 
 impl Plugin for PrimedTntPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, update_new_primed_tnt);
         app.add_systems(FixedUpdate, update_fuse_durations);
+        app.add_observer(network_add);
     }
 }
 
@@ -100,59 +103,12 @@ struct PlayerViewQuery {
     reposition: &'static Reposition,
 }
 
-impl<'w, 's> PlayerViewQueryItem<'w, 's> {
-    fn can_view_chunk(&self, chunk_pos: &ChunkPos) -> bool {
-        self.view.can_view_chunk(chunk_pos)
-    }
-
-    fn send(&mut self, entity: &PrimedTntQueryItem) {
-        let pkt = ClientboundAddEntity {
-            id: VarInt(entity.entity.index() as i32),
-            uuid: entity.uuid.0,
-            kind: VarInt(132),
-            pos: self.reposition.convert_dvec3(entity.transform.translation),
-            velocity: VarInt(0),
-            yaw: ByteAngle::from_degrees(entity.transform.rotation.y),
-            pitch: ByteAngle::from_degrees(entity.transform.rotation.x),
-            head_yaw: ByteAngle::from_degrees(entity.transform.rotation.y),
-            data: VarInt(0),
-        };
-        self.connection.write_packet(&pkt);
-    }
-}
-
 #[derive(QueryData)]
 struct PrimedTntQuery {
     entity: Entity,
     transform: &'static Transform,
     dimension: &'static InDimension,
     uuid: &'static EntityUuid,
-}
-
-fn update_new_primed_tnt(
-    entities: Query<(PrimedTntQuery), (With<PrimedTnt>, Without<EntityObservers>)>,
-    dim_players: Query<(&DimensionPlayers), With<Dimension>>,
-    mut players: Query<PlayerViewQuery>,
-    mut commands: Commands,
-) {
-    entities.iter().for_each(|(tnt_entity)| {
-        let Some(dim_players) = dim_players.get(tnt_entity.dimension.entity()).ok() else {
-            return;
-        };
-        let entity_chunk = ChunkPos::from(tnt_entity.transform.translation);
-        let mut iter = players.iter_many_mut(dim_players.iter());
-        let mut viewers = vec![];
-        while let Some((mut player_view)) = iter.fetch_next() {
-            if !player_view.view.can_view_chunk(&entity_chunk) {
-                continue;
-            }
-            player_view.send(&tnt_entity);
-            viewers.push(player_view.player);
-        }
-        commands
-            .entity(tnt_entity.entity)
-            .insert(EntityObservers::new(viewers));
-    })
 }
 
 fn update_fuse_durations(
@@ -169,4 +125,36 @@ fn update_fuse_durations(
             cmds.insert(Explosion);
         }
     })
+}
+
+fn network_add(
+    event: On<EntityNetworkAddEvent>,
+    tnt: Query<(Entity, &EntityUuid, &Transform), With<PrimedTnt>>,
+    mut player: Query<(&mut ServerSideConnection, &Reposition), With<Player>>,
+    mut commands: Commands,
+) {
+    let Ok((entity, uuid, transform)) = tnt.get(event.entity) else {
+        return;
+    };
+    let Ok((mut connection, reposition)) = player.get_mut(event.player) else {
+        return;
+    };
+
+    let pkt = ClientboundAddEntity {
+        id: VarInt(entity.index() as i32),
+        uuid: uuid.0,
+        kind: VarInt(132),
+        pos: reposition.convert_dvec3(transform.translation),
+        velocity: VarInt(0),
+        yaw: ByteAngle::from_degrees(transform.rotation.y),
+        pitch: ByteAngle::from_degrees(transform.rotation.x),
+        head_yaw: ByteAngle::from_degrees(transform.rotation.y),
+        data: VarInt(0),
+    };
+    connection.write_packet(&pkt);
+
+    commands.trigger(EntityNetworkAddedEvent {
+        entity,
+        player: event.player,
+    });
 }

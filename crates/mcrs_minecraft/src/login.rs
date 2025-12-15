@@ -54,7 +54,6 @@ impl<'a> From<&'a GameProfile> for mcrs_protocol::profile::GameProfile<'a> {
 
         Self {
             id: profile.id,
-            // конструктор Bounded зависит от API, здесь вариант с TryFrom
             username: Bounded::try_from(profile.username.as_str())
                 .expect("username longer than 16 chars"),
             properties: Cow::Owned(props),

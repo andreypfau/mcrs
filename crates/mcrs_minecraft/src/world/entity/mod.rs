@@ -6,6 +6,7 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::ContainsEntity;
 use derive_more::{Deref, DerefMut};
+use mcrs_engine::entity::EntityPlugin;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_protocol::VarInt;
@@ -22,6 +23,7 @@ pub struct MinecraftEntityPlugin;
 
 impl Plugin for MinecraftEntityPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugins(EntityPlugin);
         app.add_plugins(PlayerPlugin);
         app.add_plugins(PrimedTntPlugin);
     }
@@ -32,6 +34,7 @@ pub struct EntityBundle {
     pub minecraft_entity: MinecraftEntity,
     pub dimension: InDimension,
     pub transform: Transform,
+    pub uuid: EntityUuid,
 }
 
 impl EntityBundle {
@@ -40,7 +43,13 @@ impl EntityBundle {
             minecraft_entity: Default::default(),
             dimension,
             transform: Default::default(),
+            uuid: Default::default(),
         }
+    }
+
+    pub fn with_uuid(mut self, uuid: Uuid) -> Self {
+        self.uuid = EntityUuid(uuid);
+        self
     }
 
     pub fn with_transform(mut self, transform: Transform) -> Self {
@@ -58,6 +67,12 @@ pub struct EntityOwner(pub Entity);
 
 #[derive(Debug, Clone, Copy, Component, Deref)]
 pub struct EntityUuid(Uuid);
+
+impl Default for EntityUuid {
+    fn default() -> Self {
+        EntityUuid(Uuid::new_v4())
+    }
+}
 
 impl ContainsEntity for EntityOwner {
     fn entity(&self) -> Entity {

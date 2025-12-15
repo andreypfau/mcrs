@@ -1,4 +1,5 @@
 use crate::client_info::ClientViewDistance;
+use crate::login::GameProfile;
 use crate::world::entity::EntityBundle;
 use crate::world::entity::player::column_view::ColumnViewPlugin;
 use crate::world::entity::player::digging::DiggingPlugin;
@@ -8,6 +9,7 @@ use bevy_app::Plugin;
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::event::EntityEvent;
 use bevy_ecs::prelude::{Changed, Commands, Query, With};
 use bevy_math::DVec3;
 use mcrs_engine::entity::physics::Transform;
@@ -57,6 +59,7 @@ fn spawn_player(
             Entity,
             &ClientViewDistance,
             &ConnectionState,
+            &GameProfile,
             &mut ServerSideConnection,
         ),
         Changed<ConnectionState>,
@@ -65,7 +68,7 @@ fn spawn_player(
 ) {
     query
         .iter_mut()
-        .for_each(|(entity, distance, con_state, mut con)| {
+        .for_each(|(entity, distance, con_state, profile, mut con)| {
             if *con_state != ConnectionState::Game {
                 return;
             }
@@ -95,6 +98,7 @@ fn spawn_player(
                     ..Default::default()
                 },
                 EntityBundle::new(InDimension(dim))
+                    .with_uuid(profile.id)
                     .with_transform(Transform::default().with_translation(pos)),
                 PlayerBundle {
                     view_distance: PlayerViewDistance {
@@ -104,5 +108,12 @@ fn spawn_player(
                     ..Default::default()
                 },
             ));
+            commands.trigger(PlayerJoinEvent { player: entity });
         });
+}
+
+#[derive(EntityEvent)]
+pub struct PlayerJoinEvent {
+    #[event_target]
+    pub player: Entity,
 }
