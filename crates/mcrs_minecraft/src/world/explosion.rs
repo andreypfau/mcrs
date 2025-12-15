@@ -13,6 +13,7 @@ use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos};
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_protocol::BlockStateId;
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::hash::Hash;
 use std::mem::MaybeUninit;
@@ -63,7 +64,7 @@ struct BlockCacheItem {
 }
 
 struct BlockCache<'a, 'b> {
-    map: FxHashMap<BlockPos, BlockCacheItem>,
+    map: &'a mut FxHashMap<BlockPos, BlockCacheItem>,
     chunk_index: &'a ChunkIndex,
     chunks: &'a Query<'a, 'a, (Entity, &'b BlockPalette)>,
 }
@@ -132,12 +133,20 @@ fn tick_explode(
 ) {
     explosions.par_iter_mut().for_each_init(
         || queue.borrow_local_mut(),
-        |q, (e, transform, dim, radius, detonator)| {
+        |(q), (e, transform, dim, radius, detonator)| {
             let center = transform.translation;
             let dim = dim.entity();
             let Some(dim_chunks) = dim_chunks.get(dim).ok() else {
                 return;
             };
+
+            let mut cache_map = FxHashMap::default();
+            let mut cache = BlockCache {
+                map: &mut cache_map,
+                chunk_index: dim_chunks,
+                chunks: &chunks,
+            };
+
             let _span = tracing::info_span!("tick_explode::calc_blocks").entered();
             let blocks = calc_blocks(
                 dim,
@@ -146,8 +155,7 @@ fn tick_explode(
                 &mut rng(),
                 false,
                 detonator.map(|d| d.entity()),
-                dim_chunks,
-                &chunks,
+                &mut cache,
             );
             drop(_span);
             q.push((e, blocks));
@@ -179,18 +187,11 @@ fn calc_blocks<R>(
     random: &mut R,
     fire: bool,
     detonator: Option<Entity>,
-    dim_chunks: &ChunkIndex,
-    chunks: &Query<(ChunkEntity, &BlockPalette)>,
+    cache: &mut BlockCache<'_, '_>,
 ) -> Vec<BlockExplodedEvent>
 where
     R: rand::Rng,
 {
-    let mut cache = BlockCache {
-        map: FxHashMap::default(),
-        chunk_index: dim_chunks,
-        chunks: &chunks,
-    };
-
     let mut ret = Vec::new();
     let cached_rays = cached_rays();
     for inc in cached_rays {
