@@ -4,13 +4,19 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::ContainsEntity;
+use bevy_ecs::prelude::{ContainsEntity, On};
+use bevy_ecs::system::Query;
 use derive_more::{Deref, DerefMut};
-use mcrs_engine::entity::EntityPlugin;
-use mcrs_engine::entity::physics::Transform;
+use mcrs_engine::entity::physics::{OldTransform, Transform};
+use mcrs_engine::entity::{EntityNetworkSyncEvent, EntityPlugin};
 use mcrs_engine::world::dimension::InDimension;
-use mcrs_protocol::VarInt;
+use mcrs_network::ServerSideConnection;
+use mcrs_protocol::packets::game::clientbound::{
+    ClientboundEntityPositionSync, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
+    ClientboundMoveEntityRot, ClientboundRotateHead,
+};
 use mcrs_protocol::uuid::Uuid;
+use mcrs_protocol::{ByteAngle, Look, VarInt, WritePacket};
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::Ordering::Relaxed;
 
@@ -21,11 +27,17 @@ pub mod player;
 
 pub struct MinecraftEntityPlugin;
 
+pub enum MinecraftEntityType {
+    PrimedTnt = 132,
+    Player = 155,
+}
+
 impl Plugin for MinecraftEntityPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(EntityPlugin);
         app.add_plugins(PlayerPlugin);
         app.add_plugins(PrimedTntPlugin);
+        app.add_observer(entity_pos_sync);
     }
 }
 
@@ -95,5 +107,80 @@ impl Default for NetworkEntityId {
 impl Into<i32> for NetworkEntityId {
     fn into(self) -> i32 {
         self.0.0
+    }
+}
+
+pub fn entity_pos_sync(
+    event: On<EntityNetworkSyncEvent>,
+    entity_data: Query<(&Transform, &OldTransform)>,
+    mut players: Query<&mut ServerSideConnection>,
+) {
+    let Ok(mut con) = players.get_mut(event.player) else {
+        return;
+    };
+    let Ok((&transform, &old_transform)) = entity_data.get(event.entity) else {
+        return;
+    };
+    let old_transform = old_transform.0;
+
+    let (y_rot, x_rot, _) = transform.rotation.to_euler(bevy_math::EulerRot::YXZ);
+    let y_rot = ByteAngle::from_radians(y_rot);
+    let x_rot = ByteAngle::from_radians(x_rot);
+
+    let (old_y_rot, old_x_rot, _) = old_transform.rotation.to_euler(bevy_math::EulerRot::YXZ);
+
+    let old_y_rot = ByteAngle::from_radians(old_y_rot);
+    let old_x_rot = ByteAngle::from_radians(old_x_rot);
+
+    let delta = (transform.translation - old_transform.translation) * 4096.0;
+    let delta_to_big = delta.x < -32768.0
+        || delta.x > 32767.0
+        || delta.y < -32768.0
+        || delta.y > 32767.0
+        || delta.z < -32768.0
+        || delta.z > 32767.0;
+    let need_sync = transform == old_transform;
+    let on_ground = true;
+    let entity_id = VarInt(event.entity.index() as i32);
+    let pos_changed = delta.length_squared() >= 1.0;
+    if delta_to_big || need_sync {
+        con.write_packet(&ClientboundEntityPositionSync {
+            entity_id,
+            position: transform.translation,
+            velocity: Default::default(),
+            look: Look::from(transform.rotation),
+            on_ground,
+        });
+    } else {
+        let rot_changed = y_rot.abs_diff(*old_y_rot) >= 1 || x_rot.abs_diff(*old_x_rot) >= 1;
+        if pos_changed && rot_changed {
+            con.write_packet(&ClientboundMoveEntityPosRot {
+                entity_id,
+                delta: delta.to_array().map(|f| f as i16),
+                y_rot,
+                x_rot,
+                on_ground,
+            });
+        } else if pos_changed {
+            con.write_packet(&ClientboundMoveEntityPos {
+                entity_id,
+                delta: delta.to_array().map(|f| f as i16),
+                on_ground,
+            });
+        } else if rot_changed {
+            con.write_packet(&ClientboundMoveEntityRot {
+                entity_id,
+                y_rot,
+                x_rot,
+                on_ground,
+            });
+        }
+    }
+
+    if old_y_rot != y_rot {
+        con.write_packet(&ClientboundRotateHead {
+            entity_id,
+            y_head_rot: y_rot,
+        })
     }
 }

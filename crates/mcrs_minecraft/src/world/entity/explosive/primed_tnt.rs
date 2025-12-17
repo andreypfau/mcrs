@@ -1,5 +1,5 @@
 use crate::world::entity::explosive::ExplosiveBundle;
-use crate::world::entity::{EntityUuid, MinecraftEntity};
+use crate::world::entity::{EntityUuid, MinecraftEntity, MinecraftEntityType};
 use crate::world::explosion::{Explosion, ExplosionRadius};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::bundle::Bundle;
@@ -16,8 +16,7 @@ use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{ChunkTrackingView, PlayerChunkObserver};
 use mcrs_engine::entity::player::reposition::Reposition;
 use mcrs_engine::entity::{
-    EntityNetworkAddEvent, EntityNetworkAddedEvent, EntityNetworkRemoveEvent,
-    EntityNetworkRemovedEvent, EntityNetworkSyncEvent, EntityNetworkSyncedEvent,
+    EntityNetworkAddEvent, EntityNetworkRemoveEvent, EntityNetworkSyncEvent,
 };
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos};
 use mcrs_engine::world::dimension::{Dimension, DimensionPlayers, InDimension};
@@ -131,7 +130,6 @@ fn network_add(
     event: On<EntityNetworkAddEvent>,
     tnt: Query<(Entity, &EntityUuid, &Transform), With<PrimedTnt>>,
     mut player: Query<(&mut ServerSideConnection, &Reposition), With<Player>>,
-    mut commands: Commands,
 ) {
     let Ok((entity, uuid, transform)) = tnt.get(event.entity) else {
         return;
@@ -143,7 +141,7 @@ fn network_add(
     let pkt = ClientboundAddEntity {
         id: VarInt(entity.index() as i32),
         uuid: uuid.0,
-        kind: VarInt(132),
+        kind: VarInt(MinecraftEntityType::PrimedTnt as i32),
         pos: reposition.convert_dvec3(transform.translation),
         velocity: VarInt(0),
         yaw: ByteAngle::from_degrees(transform.rotation.y),
@@ -152,9 +150,4 @@ fn network_add(
         data: VarInt(0),
     };
     connection.write_packet(&pkt);
-
-    commands.trigger(EntityNetworkAddedEvent {
-        entity,
-        player: event.player,
-    });
 }

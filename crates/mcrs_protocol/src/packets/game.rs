@@ -1,8 +1,10 @@
 pub mod clientbound {
     use crate::chunk::ChunkBlockUpdateEntry;
+    use crate::entity::minecart::MinecartStep;
     use crate::entity::player::*;
     use crate::game_event::GameEventKind;
     use crate::packets::common::clientbound::KeepAlive;
+    use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::{ChunkColumnPos, Look, PositionFlag, VarInt};
     use bevy_math::DVec3;
     use mcrs_engine::world::block::BlockPos;
@@ -10,6 +12,7 @@ pub mod clientbound {
     use mcrs_protocol::{BlockStateId, ByteAngle};
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
+    use std::io::Write;
     use uuid::Uuid;
     use valence_ident::Ident;
 
@@ -43,8 +46,39 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x23, state=Game)]
+    pub struct ClientboundEntityPositionSync {
+        pub entity_id: VarInt,
+        pub position: DVec3,
+        pub velocity: DVec3,
+        pub look: Look,
+        pub on_ground: bool,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x25, state=Game)]
+    pub struct ClientboundForgetLevelChunk {
+        pub z: i32,
+        pub x: i32,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x26, state=Game)]
+    pub struct ClientboundGameEvent {
+        pub game_event: GameEventKind,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x2B, state=Game)]
     pub struct ClientboundKeepAlive(pub KeepAlive);
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x2C, state=Game)]
+    pub struct ClientboundLevelChunkWithLight<'a> {
+        pub pos: ChunkColumnPos,
+        pub chunk_data: crate::chunk::ChunkData<'a>,
+        pub light_data: crate::chunk::LightData<'a>,
+    }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x30, state=Game)]
@@ -63,24 +97,44 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x25, state=Game)]
-    pub struct ClientboundForgetLevelChunk {
-        pub z: i32,
-        pub x: i32,
+    #[packet(id=0x33, state=Game)]
+    pub struct ClientboundMoveEntityPos {
+        pub entity_id: VarInt,
+        pub delta: [i16; 3],
+        pub on_ground: bool,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x26, state=Game)]
-    pub struct ClientboundGameEvent {
-        pub game_event: GameEventKind,
+    #[packet(id=0x34, state=Game)]
+    pub struct ClientboundMoveEntityPosRot {
+        pub entity_id: VarInt,
+        pub delta: [i16; 3],
+        pub y_rot: ByteAngle,
+        pub x_rot: ByteAngle,
+        pub on_ground: bool,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x2C, state=Game)]
-    pub struct ClientboundLevelChunkWithLight<'a> {
-        pub pos: ChunkColumnPos,
-        pub chunk_data: crate::chunk::ChunkData<'a>,
-        pub light_data: crate::chunk::LightData<'a>,
+    #[packet(id=0x35, state=Game)]
+    pub struct ClientboundMoveMinecartAlongTrack {
+        pub entity_id: VarInt,
+        pub lerp_steps: Vec<MinecartStep>,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x36, state=Game)]
+    pub struct ClientboundMoveEntityRot {
+        pub entity_id: VarInt,
+        pub y_rot: ByteAngle,
+        pub x_rot: ByteAngle,
+        pub on_ground: bool,
+    }
+
+    #[derive(Clone, Debug, Packet)]
+    #[packet(id=0x44, state=Game)]
+    pub struct ClientboundPlayerInfoUpdate<'a> {
+        pub actions: PlayerListActions,
+        pub entries: Cow<'a, [PlayerListEntry<'a>]>,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
@@ -91,6 +145,13 @@ pub mod clientbound {
         pub velocity: DVec3,
         pub look: Look,
         pub flags: Vec<PositionFlag>,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x51, state=Game)]
+    pub struct ClientboundRotateHead {
+        pub entity_id: VarInt,
+        pub y_head_rot: ByteAngle,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
@@ -111,6 +172,93 @@ pub mod clientbound {
     #[packet(id=0x5D, state=Game)]
     pub struct ClientboundChunkCacheRadius {
         pub radius: VarInt,
+    }
+
+    impl<'a> crate::Encode for ClientboundPlayerInfoUpdate<'a> {
+        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+            self.actions.into_bits().encode(&mut w)?;
+
+            // Write number of entries.
+            VarInt(self.entries.len() as i32).encode(&mut w)?;
+
+            for entry in self.entries.as_ref() {
+                entry.player_uuid.encode(&mut w)?;
+
+                if self.actions.add_player() {
+                    entry.username.encode(&mut w)?;
+                    entry.properties.encode(&mut w)?;
+                }
+
+                if self.actions.initialize_chat() {
+                    entry.chat_data.encode(&mut w)?;
+                }
+
+                if self.actions.update_game_mode() {
+                    entry.game_mode.encode(&mut w)?;
+                }
+
+                if self.actions.update_listed() {
+                    entry.listed.encode(&mut w)?;
+                }
+
+                if self.actions.update_latency() {
+                    VarInt(entry.ping).encode(&mut w)?;
+                }
+
+                if self.actions.update_display_name() {
+                    entry.display_name.encode(&mut w)?;
+                }
+            }
+
+            Ok(())
+        }
+    }
+
+    impl<'a> crate::Decode<'a> for ClientboundPlayerInfoUpdate<'a> {
+        fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+            let actions = PlayerListActions::from_bits(u8::decode(r)?);
+
+            let mut entries = vec![];
+
+            for _ in 0..VarInt::decode(r)?.0 {
+                let mut entry = PlayerListEntry {
+                    player_uuid: Uuid::decode(r)?,
+                    ..Default::default()
+                };
+
+                if actions.add_player() {
+                    entry.username = crate::Decode::decode(r)?;
+                    entry.properties = crate::Decode::decode(r)?;
+                }
+
+                if actions.initialize_chat() {
+                    entry.chat_data = crate::Decode::decode(r)?;
+                }
+
+                if actions.update_game_mode() {
+                    entry.game_mode = crate::Decode::decode(r)?;
+                }
+
+                if actions.update_listed() {
+                    entry.listed = crate::Decode::decode(r)?;
+                }
+
+                if actions.update_latency() {
+                    entry.ping = VarInt::decode(r)?.0;
+                }
+
+                if actions.update_display_name() {
+                    entry.display_name = crate::Decode::decode(r)?;
+                }
+
+                entries.push(entry);
+            }
+
+            Ok(Self {
+                actions,
+                entries: entries.into(),
+            })
+        }
     }
 }
 

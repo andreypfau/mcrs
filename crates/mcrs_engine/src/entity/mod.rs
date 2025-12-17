@@ -7,8 +7,9 @@ use bevy::ecs::entity::EntityHashSet;
 use bevy::ecs::relationship::RelationshipSourceCollection;
 use bevy::prelude::{
     Added, Commands, Component, ContainsEntity, Deref, DetectChanges, Entity, EntityEvent, Has,
-    IntoScheduleConfigs, Message, On, ParallelCommands, Query, Ref, With, Without,
+    IntoScheduleConfigs, Local, Message, On, ParallelCommands, Query, Ref, With, Without,
 };
+use std::time::Instant;
 
 pub mod despawn;
 pub mod physics;
@@ -29,6 +30,7 @@ impl bevy::app::Plugin for EntityPlugin {
                 remove_entity_despawned,
                 add_old_transform,
                 update_chunk_entities,
+                update_old_transforms,
             )
                 .chain(),
         );
@@ -66,18 +68,6 @@ struct EntityChunkMovedEvent {
     pub old_chunk_pos: ChunkPos,
     pub new_chunk_pos: ChunkPos,
     pub dimension: Entity,
-}
-
-#[derive(EntityEvent, Debug)]
-struct SendSpawnPacketEvent {
-    entity: Entity,
-    player: Entity,
-}
-
-#[derive(EntityEvent, Debug)]
-struct SendDespawnPacketEvent {
-    entity: Entity,
-    player: Entity,
 }
 
 #[derive(Component, Debug, Default, Deref)]
@@ -285,14 +275,18 @@ fn tick_chunk_entities(
         });
 }
 
-#[derive(EntityEvent, Debug)]
-pub struct EntityNetworkSyncEvent {
-    pub entity: Entity,
-    pub player: Entity,
+fn update_old_transforms(
+    mut entities: Query<(&mut OldTransform, &Transform), (Without<Despawned>)>,
+) {
+    entities
+        .iter_mut()
+        .for_each(|(mut old_transform, transform)| {
+            old_transform.0 = *transform;
+        });
 }
 
 #[derive(EntityEvent, Debug)]
-pub struct EntityNetworkSyncedEvent {
+pub struct EntityNetworkSyncEvent {
     pub entity: Entity,
     pub player: Entity,
 }
@@ -304,19 +298,7 @@ pub struct EntityNetworkAddEvent {
 }
 
 #[derive(EntityEvent, Debug)]
-pub struct EntityNetworkAddedEvent {
-    pub entity: Entity,
-    pub player: Entity,
-}
-
-#[derive(EntityEvent, Debug)]
 pub struct EntityNetworkRemoveEvent {
-    pub entity: Entity,
-    pub player: Entity,
-}
-
-#[derive(EntityEvent, Debug)]
-pub struct EntityNetworkRemovedEvent {
     pub entity: Entity,
     pub player: Entity,
 }
@@ -346,7 +328,16 @@ fn sync_entities(
         Has<EntityNetworkSync>,
     )>,
     commands: ParallelCommands,
+    mut last_force_sync: Local<Option<Instant>>,
 ) {
+    let need_force_sync = match *last_force_sync {
+        Some(last) => last.elapsed().as_secs_f32() > 3.0,
+        None => true,
+    };
+    if need_force_sync {
+        *last_force_sync = Some(Instant::now());
+    }
+
     entities
         .par_iter()
         .for_each(|(entity, in_dimension, transform, is_removed, need_sync)| {
@@ -369,7 +360,7 @@ fn sync_entities(
                         commands.command_scope(|mut cmds| {
                             cmds.trigger(EntityNetworkRemoveEvent { entity, player });
                         });
-                    } else if need_sync || transform.is_changed() {
+                    } else if need_force_sync || need_sync || transform.is_changed() {
                         commands.command_scope(|mut cmds| {
                             cmds.trigger(EntityNetworkSyncEvent { entity, player });
                         });
@@ -389,7 +380,7 @@ fn sync_entities(
 }
 
 fn synced_entity_added(
-    event: On<EntityNetworkAddedEvent>,
+    event: On<EntityNetworkAddEvent>,
     mut player_data: Query<&mut PlayerSynchronizedEntities, With<Player>>,
 ) {
     let Ok(mut synced_entities) = player_data.get_mut(event.player) else {
@@ -399,7 +390,7 @@ fn synced_entity_added(
 }
 
 fn synced_entity_removed(
-    event: On<EntityNetworkRemovedEvent>,
+    event: On<EntityNetworkRemoveEvent>,
     mut player_data: Query<&mut PlayerSynchronizedEntities, With<Player>>,
 ) {
     let Ok(mut synced_entities) = player_data.get_mut(event.player) else {

@@ -6,6 +6,7 @@ use mcrs_protocol_macros::{Decode, Encode};
 use uuid::Uuid;
 use valence_text::Text;
 
+pub mod minecart;
 pub mod player;
 mod sniffer;
 

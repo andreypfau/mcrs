@@ -68,14 +68,13 @@ fn handle_move_packets(on: On<ReceivedPacketEvent>, mut writer: MessageWriter<Pl
             p.flags,
         ));
     } else if let Some(p) = on.decode::<ServerboundMovePlayerPosRot>() {
-        writer.write(PlayerMovement::new(
-            e,
-            Some(p.position.into()),
-            Some(p.look.into()),
-            p.flags,
-        ));
+        let m = PlayerMovement::new(e, Some(p.position.into()), Some(p.look.into()), p.flags);
+        println!("Received rot packet: {:?} - {:?}", p.look, m.look);
+        writer.write(m);
     } else if let Some(p) = on.decode::<ServerboundMovePlayerRot>() {
-        writer.write(PlayerMovement::new(e, None, Some(p.look.into()), p.flags));
+        let m = PlayerMovement::new(e, None, Some(p.look.into()), p.flags);
+        println!("Received rot packet: {:?} - {:?}", p.look, m.look);
+        writer.write(m);
     } else if let Some(p) = on.decode::<ServerboundMovePlayerStatusOnly>() {
         writer.write(PlayerMovement::new(e, None, None, p.flags));
     }

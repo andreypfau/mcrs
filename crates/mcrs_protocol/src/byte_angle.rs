@@ -1,11 +1,11 @@
+use crate::{Decode, Encode};
+use derive_more::Deref;
 use std::f32::consts::TAU;
 use std::fmt;
 use std::io::Write;
 
-use crate::{Decode, Encode};
-
 /// Represents an angle in steps of 1/256 of a full turn.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Deref)]
 pub struct ByteAngle(pub u8);
 
 impl ByteAngle {
@@ -21,9 +21,9 @@ impl ByteAngle {
         self.0 as f32 / 256.0 * 360.0
     }
 
-    pub fn to_radians(self) -> f32 {
-        self.0 as f32 / 256.0 * TAU
-    }
+    // pub fn to_radians(self) -> f32 {
+    //     self.0 as f32 / 256.0 * TAU
+    // }
 }
 
 impl fmt::Debug for ByteAngle {

@@ -1,8 +1,9 @@
 use crate::byte_channel::{ByteSender, TrySendError, byte_channel};
 use crate::{EngineConnection, ReceivedPacket};
-use anyhow::bail;
 use bytes::BytesMut;
-use mcrs_protocol::{Decode, Encode, PacketDecoder, PacketEncoder, ConnectionState, WritePacket, Packet};
+use mcrs_protocol::{
+    ConnectionState, Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket,
+};
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
@@ -66,7 +67,11 @@ impl PacketIo {
         }
     }
 
-    pub(crate) fn into_raw_connection(mut self, remote_addr: SocketAddr, state: ConnectionState) -> RawConnection {
+    pub(crate) fn into_raw_connection(
+        mut self,
+        remote_addr: SocketAddr,
+        state: ConnectionState,
+    ) -> RawConnection {
         let (incoming_sender, incoming_receiver) = channel(1);
         let (mut reader, mut writer) = self.stream.into_split();
         let reader_task = tokio::spawn(async move {
@@ -112,7 +117,7 @@ impl PacketIo {
                         break;
                     }
                 };
-                println!("writing packet of size {}", bytes.len());
+                // println!("writing packet of size {}", bytes.len());
 
                 if let Err(e) = writer.write_all(&bytes).await {
                     // eprintln!("error writing data to stream: {e}");
@@ -127,7 +132,7 @@ impl PacketIo {
             writer_task,
             enc: self.enc,
             remote_addr,
-            state
+            state,
         }
     }
 }
@@ -139,7 +144,7 @@ pub(crate) struct RawConnection {
     writer_task: JoinHandle<()>,
     enc: PacketEncoder,
     pub remote_addr: SocketAddr,
-    pub state: ConnectionState
+    pub state: ConnectionState,
 }
 
 impl EngineConnection for RawConnection {

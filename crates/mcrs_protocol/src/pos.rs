@@ -68,6 +68,16 @@ impl From<Look> for Quat {
     }
 }
 
+impl From<Quat> for Look {
+    fn from(value: Quat) -> Self {
+        let (yaw, pitch, _) = value.to_euler(bevy_math::EulerRot::YXZ);
+        Look {
+            yaw: yaw.to_degrees(),
+            pitch: pitch.to_degrees(),
+        }
+    }
+}
+
 impl Encode for Look {
     fn encode(&self, mut w: impl std::io::Write) -> anyhow::Result<()> {
         self.yaw.encode(&mut w)?;
