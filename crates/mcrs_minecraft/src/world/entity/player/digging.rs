@@ -6,6 +6,9 @@ use crate::world::entity::player::attribute::{BlockBreakSpeed, MiningEfficiency}
 use crate::world::entity::player::player_action::{
     PlayerAction, PlayerActionKind, PlayerWillDestroyBlock,
 };
+use crate::world::inventory::PlayerHotbarSlots;
+use crate::world::item::ItemStack;
+use crate::world::item::component::Tool;
 use crate::world::palette::BlockPalette;
 use bevy_app::{FixedUpdate, Plugin, Update};
 use bevy_ecs::prelude::*;
@@ -113,14 +116,16 @@ fn player_start_destroy_block(
         Has<InstantBuild>,
         &MiningEfficiency,
         &BlockBreakSpeed,
+        &PlayerHotbarSlots,
     )>,
+    items: Query<(&ItemStack, Option<&Tool>)>,
     time: Res<Time<Fixed>>,
     mut player_will_destroy_block: MessageWriter<PlayerWillDestroyBlock>,
     mut commands: Commands,
 ) {
     reader.read().for_each(|event| {
         let player = event.player;
-        let (dim, pos, rep, instant_build, mining_efficiency, block_break_speed) =
+        let (dim, pos, rep, instant_build, mining_efficiency, block_break_speed, hotbar) =
             match players.get_mut(player) {
                 Ok(value) => value,
                 Err(_) => return,
@@ -151,7 +156,13 @@ fn player_start_destroy_block(
 
         let mut damage = 1.0;
         if block_state.0 != 0 {
-            damage = get_destroy_speed(block_state, mining_efficiency, block_break_speed);
+            damage = get_destroy_speed(
+                block_state,
+                hotbar,
+                &items,
+                mining_efficiency,
+                block_break_speed,
+            );
         }
 
         if damage >= 1.0 {
@@ -280,17 +291,20 @@ impl SendDestroyBlockProgress<'_, '_> {
 
 fn get_destroy_speed<B>(
     block: B,
+    hotbar: &PlayerHotbarSlots,
+    items: &Query<(&ItemStack, Option<&Tool>)>,
     mining_efficiency: &MiningEfficiency,
     block_break_speed: &BlockBreakSpeed,
 ) -> f32
 where
     B: AsRef<Block>,
 {
-    let hardness = block.as_ref().hardness();
+    let block = block.as_ref();
+    let hardness = block.hardness();
     if hardness == -1.0 {
         return 0.0;
     }
-    let mut tool_speed = get_tool_destroy_speed();
+    let mut tool_speed = get_tool_destroy_speed(block, hotbar, items);
     if tool_speed > 1.0 {
         tool_speed += mining_efficiency.value();
     }
@@ -298,11 +312,37 @@ where
     tool_speed / hardness
 }
 
-// TODO: calc by TOOL component from item stack
-pub fn get_tool_destroy_speed() -> f32 {
-    let has_correct_tool = false;
+pub fn extract_tool_data(
+    block: &Block,
+    hotbar: &PlayerHotbarSlots,
+    items: &Query<(&ItemStack, Option<&Tool>)>,
+) -> (bool, f32) {
+    if !block.requires_correct_tool_for_drops() {
+        return (true, 1.0);
+    }
+    let Some(Some(slot)) = hotbar.slots.get(hotbar.selected as usize) else {
+        return (false, 1.0);
+    };
+    let Ok((stack, tool)) = items.get(*slot) else {
+        return (false, 1.0);
+    };
+    let Some(tool) = tool.or_else(|| stack.item_id().as_ref().components.tool.as_ref()) else {
+        return (false, 1.0);
+    };
+    (
+        tool.is_correct_block_for_drops(block),
+        tool.get_mining_speed(block),
+    )
+}
+
+pub fn get_tool_destroy_speed(
+    block: &Block,
+    hotbar: &PlayerHotbarSlots,
+    items: &Query<(&ItemStack, Option<&Tool>)>,
+) -> f32 {
+    let (has_correct_tool, speed) = extract_tool_data(block, hotbar, items);
     let modifier = if has_correct_tool { 30.0 } else { 100.0 };
-    1.0 / modifier
+    speed / modifier
 }
 
 fn handle_player_will_destroy_block(

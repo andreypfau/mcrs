@@ -14,7 +14,7 @@ pub struct NbtCompound {
 }
 
 impl NbtCompound {
-    pub fn new() -> NbtCompound {
+    pub const fn new() -> NbtCompound {
         NbtCompound {
             child_tags: Vec::new(),
         }
