@@ -18,6 +18,7 @@ edition = "2024"
 
 [workspace.dependencies]
 bevy_ecs = "0.17.3"
+bevy_ecs_macros = "0.17.3"
 bevy_app = "0.17.3"
 bevy_math = "0.17.3"
 bevy_reflect = "0.17.3"

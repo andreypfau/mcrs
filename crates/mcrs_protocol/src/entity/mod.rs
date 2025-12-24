@@ -1,4 +1,4 @@
-use crate::{BlockStateId, Direction, GlobalPos, ItemStack, VarInt, VarLong};
+use crate::{BlockStateId, Direction, GlobalPos, Slot, VarInt, VarLong};
 use bevy_math::{Vec3, Vec4};
 use mcrs_engine::world::block::BlockPos;
 use mcrs_protocol::entity::player::HumanoidArm;
@@ -25,7 +25,7 @@ pub enum MetaDataValue<'a> {
     String(&'a str),
     Text(Text),
     OptionalText(Option<Text>),
-    Slot(Option<ItemStack>),
+    Slot(Option<Slot>),
     Boolean(bool),
     Rotations(Vec3),
     BlockPos(BlockPos),

@@ -5,13 +5,17 @@ use crate::world::entity::player::digging::DiggingPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
 use crate::world::entity::{EntityBundle, MinecraftEntityType};
-use bevy_app::Plugin;
+use crate::world::inventory::{ContainerSeqno, PlayerInventoryBundle, PlayerInventoryQuery};
+use crate::world::item::minecraft::DIAMOND_PICKAXE;
+use crate::world::item::{ItemCommands, ItemStack};
+use bevy_app::{FixedUpdate, Plugin};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Changed, Commands, Query, With};
+use bevy_ecs::query::Added;
 use bevy_math::DVec3;
 use mcrs_engine::entity::EntityNetworkAddEvent;
 use mcrs_engine::entity::physics::Transform;
@@ -21,11 +25,13 @@ use mcrs_engine::entity::player::reposition::Reposition;
 use mcrs_engine::world::dimension::{Dimension, InDimension};
 use mcrs_network::{ConnectionState, ServerSideConnection};
 use mcrs_protocol::entity::player::PlayerSpawnInfo;
+use mcrs_protocol::item::ComponentPatch;
 use mcrs_protocol::packets::game::clientbound::{
-    ClientboundAddEntity, ClientboundGameEvent, ClientboundLogin, ClientboundPlayerInfoUpdate,
+    ClientboundAddEntity, ClientboundContainerSetContent, ClientboundGameEvent, ClientboundLogin,
+    ClientboundPlayerInfoUpdate,
 };
 use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
-use mcrs_protocol::{ByteAngle, GameEventKind, GameMode, VarInt, WritePacket, ident};
+use mcrs_protocol::{ByteAngle, GameEventKind, GameMode, Slot, VarInt, WritePacket, ident};
 use movement::TeleportState;
 
 pub mod ability;
@@ -44,6 +50,7 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(MovementPlugin);
         app.add_plugins(ColumnViewPlugin);
         app.add_systems(bevy_app::Update, spawn_player);
+        app.add_systems(FixedUpdate, added_inventory);
         app.add_observer(network_add);
         app.add_observer(player_joined);
     }
@@ -56,6 +63,8 @@ pub struct PlayerBundle {
     pub reposition: Reposition,
     pub abilities: ability::PlayerAbilitiesBundle,
     pub attributes: attribute::PlayerAttributesBundle,
+    pub inventory: PlayerInventoryBundle,
+    pub container_seqno: ContainerSeqno,
     pub marker: Player,
 }
 
@@ -99,7 +108,12 @@ fn spawn_player(
             con.write_packet(&ClientboundGameEvent {
                 game_event: GameEventKind::LevelChunksLoadStart,
             });
-            let pos = DVec3::new(0.0, 17.0, 0.0);
+            let pos = DVec3::new(0.0, 64.0, 0.0);
+
+            let pickaxe = commands.spawn_item_stack(&DIAMOND_PICKAXE, 1);
+            let mut inventory = PlayerInventoryBundle::default();
+            inventory.hotbar.slots[0] = Some(pickaxe);
+
             commands.entity(entity).insert((
                 PlayerChunkObserver {
                     ..Default::default()
@@ -112,6 +126,7 @@ fn spawn_player(
                         distance: **distance,
                         vert_distance: **distance,
                     },
+                    inventory,
                     ..Default::default()
                 },
             ));
@@ -192,4 +207,41 @@ fn player_joined(
     players
         .iter_mut()
         .for_each(|(mut connection, _)| connection.write_packet(&pkt));
+}
+
+fn added_inventory(
+    mut players: Query<
+        (
+            &mut ServerSideConnection,
+            PlayerInventoryQuery,
+            &ContainerSeqno,
+        ),
+        (With<Player>, Added<ContainerSeqno>),
+    >,
+    items: Query<(&ItemStack)>,
+) {
+    for (mut con, inventory, seqno) in players.iter_mut() {
+        let slots = inventory
+            .all_slots()
+            .iter()
+            .map(|slot| {
+                slot.and_then(|slot| items.get(slot).ok())
+                    .map(|item| Slot::new(item.item_id(), item.count(), ComponentPatch::EMPTY))
+                    .unwrap_or(Slot::EMPTY)
+            })
+            .collect();
+        let carried_item = inventory
+            .carried_item
+            .and_then(|slot| items.get(slot).ok())
+            .map(|item| Slot::new(item.item_id(), item.count(), ComponentPatch::EMPTY))
+            .unwrap_or(Slot::EMPTY);
+
+        let pkt = ClientboundContainerSetContent {
+            container_id: VarInt(0),
+            state_seqno: VarInt((**seqno) as i32),
+            slot_data: slots,
+            carried_item,
+        };
+        con.write_packet(&pkt);
+    }
 }

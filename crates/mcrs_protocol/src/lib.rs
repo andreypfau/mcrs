@@ -89,7 +89,7 @@ pub use game_mode::GameMode;
 pub use global_pos::GlobalPos;
 pub use hand::Hand;
 pub use ident::ident;
-pub use item::{ItemId, ItemStack};
+pub use item::{ItemId, Slot};
 pub use mcrs_protocol_macros::{Decode, Encode, Packet};
 pub use pos::Look;
 pub use pos::MoveFlags;

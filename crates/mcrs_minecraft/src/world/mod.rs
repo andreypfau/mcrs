@@ -15,6 +15,8 @@ pub mod entity;
 mod explosion;
 mod format;
 mod generate;
+mod inventory;
+pub mod item;
 mod palette;
 
 pub struct WorldPlugin;

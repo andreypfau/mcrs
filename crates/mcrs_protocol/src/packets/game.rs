@@ -5,7 +5,7 @@ pub mod clientbound {
     use crate::game_event::GameEventKind;
     use crate::packets::common::clientbound::KeepAlive;
     use crate::profile::{PlayerListActions, PlayerListEntry};
-    use crate::{ChunkColumnPos, Look, PositionFlag, VarInt};
+    use crate::{ChunkColumnPos, Look, PositionFlag, Slot, VarInt};
     use bevy_math::DVec3;
     use mcrs_engine::world::block::BlockPos;
     use mcrs_engine::world::chunk::ChunkPos;
@@ -43,6 +43,15 @@ pub mod clientbound {
     pub struct ClientboundBlockUpdate {
         pub block_pos: BlockPos,
         pub block_state_id: BlockStateId,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x12, state=Game)]
+    pub struct ClientboundContainerSetContent {
+        pub container_id: VarInt,
+        pub state_seqno: VarInt,
+        pub slot_data: Vec<Slot>,
+        pub carried_item: Slot,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
@@ -264,6 +273,7 @@ pub mod clientbound {
 
 pub mod serverbound {
     use crate::entity::player::PlayerAction;
+    use crate::item::{ContainerInput, HashedSlot};
     use crate::packets::common::serverbound::{ClientInformation, KeepAlive};
     use crate::pos::MoveFlags;
     use crate::{Direction, Look, Position, VarInt};
@@ -274,6 +284,18 @@ pub mod serverbound {
     #[derive(Clone, Debug, Encode, Decode, From, Packet)]
     #[packet(id=0x0D, state=Game)]
     pub struct ServerboundClientInformation<'a>(pub ClientInformation<'a>);
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x11, state=Game)]
+    pub struct ServerboundContainerClick {
+        pub container_id: VarInt,
+        pub state_seqno: VarInt,
+        pub slot_index: i16,
+        pub button: u8,
+        pub container_input: ContainerInput,
+        pub changed_slots: Vec<(u16, Option<HashedSlot>)>,
+        pub carried_item: Option<HashedSlot>,
+    }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x1B, state=Game)]
