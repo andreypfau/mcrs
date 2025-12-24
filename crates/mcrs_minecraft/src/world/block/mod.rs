@@ -2,6 +2,7 @@ use crate::world::block::behaviour::{BlockBehaviour, Properties};
 use bevy_ecs::prelude::Resource;
 use mcrs_protocol::{BlockStateId, Ident};
 use mcrs_registry::RegistryEntry;
+use std::hash::{Hash, Hasher};
 
 pub mod behaviour;
 pub mod minecraft;
@@ -33,6 +34,18 @@ pub struct Block {
     pub states: &'static [BlockState],
 }
 
+impl PartialEq for Block {
+    fn eq(&self, other: &Self) -> bool {
+        self.identifier == other.identifier
+    }
+}
+
+impl Hash for Block {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.identifier.hash(state);
+    }
+}
+
 impl Block {
     #[inline]
     pub fn hardness(&self) -> f32 {
@@ -41,6 +54,10 @@ impl Block {
 
     pub fn explosion_resistance(&self) -> f32 {
         self.properties.explosion_resistance
+    }
+
+    pub fn requires_correct_tool_for_drops(&self) -> bool {
+        self.properties.requires_correct_tool_for_drops
     }
 }
 

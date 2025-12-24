@@ -16,5 +16,5 @@ pub const DEFAULT_STATE: BlockState = BlockState {
 pub const PROPERTIES: Properties = Properties::new()
     .replacable()
     .no_collision()
-    .no_loot_table()
+    .with_no_loot_table()
     .air();

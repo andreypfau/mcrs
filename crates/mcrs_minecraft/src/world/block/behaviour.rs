@@ -10,6 +10,8 @@ pub struct Properties {
     pub has_collision: bool,
     pub can_occlude: bool,
     pub requires_correct_tool_for_drops: bool,
+    pub is_valid_spawn: bool,
+    pub is_randomly_ticking: bool,
 }
 
 impl Properties {
@@ -23,25 +25,38 @@ impl Properties {
             has_collision: true,
             can_occlude: true,
             requires_correct_tool_for_drops: false,
+            is_valid_spawn: true,
+            is_randomly_ticking: false,
         }
     }
 
-    pub const fn hardness(mut self, value: f32) -> Self {
+    pub const fn with_strength(mut self, value: f32) -> Self {
+        self.hardness = value;
+        self.explosion_resistance = value;
+        self
+    }
+
+    pub const fn with_hardness(mut self, value: f32) -> Self {
         self.hardness = value;
         self
     }
 
-    pub const fn explosion_resistance(mut self, value: f32) -> Self {
+    pub const fn with_explosion_resistance(mut self, value: f32) -> Self {
         self.explosion_resistance = value.max(0.0);
         self
     }
 
     pub const fn instant_break(self) -> Self {
-        self.hardness(0.0).explosion_resistance(0.0)
+        self.with_hardness(0.0).with_explosion_resistance(0.0)
     }
 
     pub const fn ignited_by_lava(mut self) -> Self {
         self.ignited_by_lava = true;
+        self
+    }
+
+    pub const fn with_random_ticks(mut self) -> Self {
+        self.is_randomly_ticking = true;
         self
     }
 
@@ -66,8 +81,13 @@ impl Properties {
         self
     }
 
-    pub const fn no_loot_table(mut self) -> Self {
+    pub const fn with_no_loot_table(mut self) -> Self {
         //todo: loot table
+        self
+    }
+
+    pub const fn with_is_valid_spawn(mut self, value: bool) -> Self {
+        self.can_occlude = value;
         self
     }
 }
