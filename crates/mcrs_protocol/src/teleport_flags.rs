@@ -1,5 +1,5 @@
-use std::io::Write;
 use crate::{Decode, Encode};
+use std::io::Write;
 
 /// For the first 8 values set means relative value while unset means absolute
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]

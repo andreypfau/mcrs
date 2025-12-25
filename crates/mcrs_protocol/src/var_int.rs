@@ -6,8 +6,8 @@ use derive_more::{Deref, DerefMut, From, Into};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{Decode, Encode};
 use crate::serial::{PacketRead, PacketWrite};
+use crate::{Decode, Encode};
 
 /// An `i32` encoded with variable length.
 #[derive(
@@ -159,7 +159,7 @@ impl Decode<'_> for VarInt {
 
 #[cfg(test)]
 mod tests {
-    use rand::{thread_rng, Rng};
+    use rand::{Rng, thread_rng};
 
     use super::*;
 

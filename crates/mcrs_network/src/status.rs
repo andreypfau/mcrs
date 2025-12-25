@@ -1,13 +1,3 @@
-use mcrs_protocol::Text;
-
-use mcrs_protocol::packets::intent::serverbound::{ServerboundHandshake, Packet as HandshakePacket};
-use mcrs_protocol::packets::ping::clientbound::PongResponse;
-use mcrs_protocol::packets::ping::serverbound::PingRequest;
-use mcrs_protocol::packets::status::clientbound::{
-    Packet as ClientboundStatusPacket, StatusResponse,
-};
-use mcrs_protocol::packets::status::serverbound::{Packet as ServerboundStatusPacket, Packet};
-
 pub struct ServerStatusPacketListener<'a> {
     has_requested_status: bool,
     // connection: crate::connect::Connection,

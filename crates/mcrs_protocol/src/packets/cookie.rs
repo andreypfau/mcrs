@@ -1,8 +1,8 @@
 pub mod serverbound {
-    use std::borrow::Cow;
     use derive_more::Into;
-    use valence_ident::Ident;
     use mcrs_protocol_macros::{Decode, Encode};
+    use std::borrow::Cow;
+    use valence_ident::Ident;
 
     #[derive(Clone, Debug, Encode, Decode, Into)]
     pub struct CookieResponse<'a> {
@@ -12,10 +12,10 @@ pub mod serverbound {
 }
 
 pub mod clientbound {
-    use std::borrow::Cow;
     use derive_more::Into;
-    use valence_ident::Ident;
     use mcrs_protocol_macros::{Decode, Encode};
+    use std::borrow::Cow;
+    use valence_ident::Ident;
 
     #[derive(Clone, Debug, Encode, Decode, Into)]
     pub struct CookieRequest<'a> {

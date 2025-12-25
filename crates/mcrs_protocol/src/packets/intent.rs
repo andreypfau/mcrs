@@ -1,7 +1,7 @@
 pub mod serverbound {
-    use derive_more::{From, Into};
     use crate::handshake::Intent;
     use crate::{Bounded, VarInt};
+    use derive_more::From;
     use mcrs_protocol_macros::{Decode, Encode, Packet};
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]

@@ -1,8 +1,8 @@
+use crate::{Decode, Encode, VarInt, nbt};
+use mcrs_nbt::compound::NbtCompound;
 use std::borrow::Cow;
 use std::io::Write;
 use valence_ident::Ident;
-use mcrs_nbt::compound::NbtCompound;
-use crate::{nbt, Decode, Encode, VarInt};
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Entry<'a> {
@@ -25,7 +25,7 @@ impl Encode for Holder {
             Holder::Direct(compound) => {
                 VarInt(0).encode(&mut w)?;
                 nbt::to_bytes_unnamed(compound, &mut w)?;
-            },
+            }
         }
         Ok(())
     }
@@ -43,4 +43,3 @@ impl<'a> Decode<'a> for Holder {
         }
     }
 }
-

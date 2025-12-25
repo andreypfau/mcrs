@@ -105,19 +105,21 @@ impl<const MAX_CHARS: usize> Decode<'_> for Bounded<Box<str>, MAX_CHARS> {
 impl Encode for Text {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         if let (TextContent::Text { text }) = &self.content {
-            if self.extra.is_empty() && self.color.is_none() &&
-                self.font.is_none() &&
-                self.bold.is_none() &&
-                self.italic.is_none() &&
-                self.underlined.is_none() &&
-                self.strikethrough.is_none() &&
-                self.obfuscated.is_none() &&
-                self.click_event.is_none() &&
-                self.hover_event.is_none() &&
-                self.insertion.is_none() {
+            if self.extra.is_empty()
+                && self.color.is_none()
+                && self.font.is_none()
+                && self.bold.is_none()
+                && self.italic.is_none()
+                && self.underlined.is_none()
+                && self.strikethrough.is_none()
+                && self.obfuscated.is_none()
+                && self.click_event.is_none()
+                && self.hover_event.is_none()
+                && self.insertion.is_none()
+            {
                 w.write_u8(STRING_ID)?;
                 NbtTag::String(text.to_string()).serialize_data(&mut WriteAdaptor::new(w))?;
-                return Ok(())
+                return Ok(());
             }
         }
         to_bytes_unnamed(&self, &mut w)?;

@@ -1,5 +1,5 @@
-use std::io::Write;
 use crate::{Decode, Encode};
+use std::io::Write;
 
 #[derive(Debug, Clone, Copy)]
 pub enum GameEventKind {
@@ -16,7 +16,7 @@ pub enum GameEventKind {
     GuardianElderEffect,
     ImmediateRespawn(bool),
     LimitedCrafting(bool),
-    LevelChunksLoadStart
+    LevelChunksLoadStart,
 }
 
 impl Encode for GameEventKind {
@@ -26,23 +26,31 @@ impl Encode for GameEventKind {
             GameEventKind::EndRaining => (1, 0f32),
             GameEventKind::BeginRaining => (2, 0f32),
             GameEventKind::ChangeGameMode => (3, 0f32),
-            GameEventKind::WinGame(credits) => (4, match credits {
-                EnterCredits::SeenBefore => 0f32,
-                EnterCredits::FirstTime => 1f32,
-            }),
-            GameEventKind::DemoEvent(message) => (5, match message {
-                DemoMessage::Welcome => 0f32,
-                DemoMessage::MovementControls => 101f32,
-                DemoMessage::JumpControl => 102f32,
-                DemoMessage::InventoryControl => 103f32,
-                DemoMessage::ScreenshotControl => 104f32,
-            }),
+            GameEventKind::WinGame(credits) => (
+                4,
+                match credits {
+                    EnterCredits::SeenBefore => 0f32,
+                    EnterCredits::FirstTime => 1f32,
+                },
+            ),
+            GameEventKind::DemoEvent(message) => (
+                5,
+                match message {
+                    DemoMessage::Welcome => 0f32,
+                    DemoMessage::MovementControls => 101f32,
+                    DemoMessage::JumpControl => 102f32,
+                    DemoMessage::InventoryControl => 103f32,
+                    DemoMessage::ScreenshotControl => 104f32,
+                },
+            ),
             GameEventKind::PlayArrowHitSound => (6, 0f32),
             GameEventKind::RainLevelChange(strength) => (7, *strength),
             GameEventKind::ThunderLevelChange(strength) => (8, *strength),
             GameEventKind::PufferfishSting => (9, 0f32),
             GameEventKind::GuardianElderEffect => (10, 0f32),
-            GameEventKind::ImmediateRespawn(immediate) => (11, if *immediate { 1f32 } else { 0f32 }),
+            GameEventKind::ImmediateRespawn(immediate) => {
+                (11, if *immediate { 1f32 } else { 0f32 })
+            }
             GameEventKind::LimitedCrafting(limited) => (12, if *limited { 1f32 } else { 0f32 }),
             GameEventKind::LevelChunksLoadStart => (13, 0f32),
         };
@@ -99,7 +107,7 @@ pub enum DemoMessage {
     MovementControls,
     JumpControl,
     InventoryControl,
-    ScreenshotControl
+    ScreenshotControl,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -2,10 +2,14 @@ use serde::ser::Impossible;
 use serde::{Serialize, ser};
 use std::io::{Cursor, Write};
 
-use crate::tag::NbtTag;
-use crate::{BYTE_ARRAY_ID, BYTE_ID, COMPOUND_ID, DOUBLE_ID, END_ID, Error, FLOAT_ID, INT_ARRAY_ID, INT_ID, LIST_ID, LONG_ARRAY_ID, LONG_ID, NBT_ARRAY_TAG, NBT_BYTE_ARRAY_TAG, NBT_INT_ARRAY_TAG, NBT_LONG_ARRAY_TAG, SHORT_ID, STRING_ID, Nbt};
 use crate::compound::NbtCompound;
 use crate::deserializer::NbtReadHelper;
+use crate::tag::NbtTag;
+use crate::{
+    BYTE_ARRAY_ID, BYTE_ID, COMPOUND_ID, DOUBLE_ID, END_ID, Error, FLOAT_ID, INT_ARRAY_ID, INT_ID,
+    LIST_ID, LONG_ARRAY_ID, LONG_ID, NBT_ARRAY_TAG, NBT_BYTE_ARRAY_TAG, NBT_INT_ARRAY_TAG,
+    NBT_LONG_ARRAY_TAG, Nbt, SHORT_ID, STRING_ID,
+};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -156,7 +160,6 @@ pub fn to_bytes_named<T: Serialize>(value: &T, name: String, w: impl Write) -> R
 pub fn to_bytes<T: Serialize>(value: &T, w: impl Write) -> Result<()> {
     to_bytes_named(value, String::new(), w)
 }
-
 
 // todo: do not use serialization into bytes
 pub fn to_nbt_compound_unnamed<T: Serialize>(value: &T) -> Result<NbtCompound> {

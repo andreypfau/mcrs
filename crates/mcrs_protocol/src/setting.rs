@@ -33,5 +33,5 @@ pub enum MainArm {
 pub enum ParticleStatus {
     All,
     Decreased,
-    Minimal
+    Minimal,
 }

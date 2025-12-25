@@ -1,9 +1,9 @@
 mod byte_channel;
 pub mod connect;
+pub mod event;
 mod intent;
 mod packet_io;
 mod status;
-pub mod event;
 
 use crate::byte_channel::TrySendError;
 use crate::packet_io::RawConnection;
@@ -54,9 +54,7 @@ fn build_plugin(app: &mut App) -> anyhow::Result<()> {
         for _ in 0..new_sessions_recv.len() {
             match new_sessions_recv.try_recv() {
                 Ok((session)) => {
-                    let connection = ServerSideConnection { 
-                        raw: session 
-                    };
+                    let connection = ServerSideConnection { raw: session };
                     world.spawn((connection, ConnectionState::Login))
                 }
                 Err(_) => break,

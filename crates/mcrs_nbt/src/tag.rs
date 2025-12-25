@@ -498,4 +498,3 @@ impl<'de> Deserialize<'de> for NbtTag {
         deserializer.deserialize_any(NbtTagVisitor)
     }
 }
-

@@ -4,10 +4,10 @@
 //! used in.
 
 pub mod common;
-pub mod status;
-pub mod ping;
-pub mod login;
-pub mod cookie;
-pub mod intent;
 pub mod configuration;
+pub mod cookie;
 pub mod game;
+pub mod intent;
+pub mod login;
+pub mod ping;
+pub mod status;

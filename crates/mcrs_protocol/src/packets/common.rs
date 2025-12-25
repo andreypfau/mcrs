@@ -15,7 +15,7 @@ pub mod clientbound {
         pub data: Bounded<Cow<'a, RawBytes<'a>>, MAX_PAYLOAD_SIZE>,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Into, )]
+    #[derive(Clone, Debug, Encode, Decode, Into)]
     pub struct Disconnect<'a> {
         pub reason: Cow<'a, Text>,
     }

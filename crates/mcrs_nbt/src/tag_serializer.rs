@@ -152,11 +152,15 @@ impl serde::ser::Serializer for TagSerializer {
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        Ok(ListSerializer { elements: Vec::new() })
+        Ok(ListSerializer {
+            elements: Vec::new(),
+        })
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        Ok(ListSerializer { elements: Vec::new() })
+        Ok(ListSerializer {
+            elements: Vec::new(),
+        })
     }
 
     fn serialize_tuple_struct(
@@ -164,7 +168,9 @@ impl serde::ser::Serializer for TagSerializer {
         name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        Ok(ListSerializer { elements: Vec::new() })
+        Ok(ListSerializer {
+            elements: Vec::new(),
+        })
     }
 
     fn serialize_tuple_variant(
@@ -189,7 +195,9 @@ impl serde::ser::Serializer for TagSerializer {
         name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        Ok(StructSerializer { entries: Vec::new() })
+        Ok(StructSerializer {
+            entries: Vec::new(),
+        })
     }
 
     fn serialize_struct_variant(

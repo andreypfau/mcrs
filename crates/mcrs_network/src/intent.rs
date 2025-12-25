@@ -1,9 +1,9 @@
 use crate::SharedNetworkState;
 use crate::packet_io::PacketIo;
-use mcrs_protocol::handshake::Intent;
-use serde_json::json;
 use mcrs_protocol::ConnectionState;
-use mcrs_protocol::packets::intent::serverbound::{Packet as IntentPacket, ServerboundHandshake};
+use mcrs_protocol::handshake::Intent;
+use mcrs_protocol::packets::intent::serverbound::ServerboundHandshake;
+use serde_json::json;
 
 pub(crate) async fn handle_intent(
     shared: SharedNetworkState,
@@ -13,7 +13,7 @@ pub(crate) async fn handle_intent(
     println!("Handling intent from {}", remote_addr);
     let (handshake) = io.recv_packet::<ServerboundHandshake>().await?;
     let intent = handshake.intent;
-    
+
     match intent {
         Intent::Status => {
             let json = json!({
@@ -36,10 +36,13 @@ pub(crate) async fn handle_intent(
         }
         Intent::Login => {
             let raw_connection = io.into_raw_connection(remote_addr, ConnectionState::Login);
-            shared.0.new_connections_send.send(Box::new(raw_connection)).await?;
+            shared
+                .0
+                .new_connections_send
+                .send(Box::new(raw_connection))
+                .await?;
         }
         Intent::Transfer => {}
     }
     Ok(())
 }
-

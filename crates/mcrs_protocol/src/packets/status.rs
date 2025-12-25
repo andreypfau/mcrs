@@ -17,9 +17,9 @@ pub mod clientbound {
 
 pub mod serverbound {
     use crate::packets::ping::serverbound::PingRequest;
-    use derive_more::{From, Into};
+    use derive_more::From;
     use mcrs_protocol_macros::{Decode, Encode};
-    
+
     #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode, From)]
     pub enum Packet {
         StatusRequest,

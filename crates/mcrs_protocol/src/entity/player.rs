@@ -1,8 +1,8 @@
 use crate::game_mode::OptGameMode;
 use crate::{GameMode, GlobalPos, VarInt};
-use std::borrow::Cow;
-use valence_ident::{ident, Ident};
 use mcrs_protocol_macros::{Decode, Encode};
+use std::borrow::Cow;
+use valence_ident::{Ident, ident};
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct PlayerSpawnInfo<'a> {
@@ -44,11 +44,11 @@ pub enum PlayerAction {
     DropItem,
     ReleaseUseItem,
     SwapItemWithOffhand,
-    Stab
+    Stab,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Encode, Decode)]
 pub enum HumanoidArm {
     Left,
-    Right
+    Right,
 }

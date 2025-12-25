@@ -1,6 +1,6 @@
-use std::io::{Error, Write};
-use crate::serial::PacketWrite;
 use crate::VarInt;
+use crate::serial::PacketWrite;
+use std::io::{Error, Write};
 
 impl PacketWrite for bool {
     fn write<W: Write>(&self, writer: &mut W) -> Result<(), Error> {

@@ -112,7 +112,6 @@ mod tests {
     };
     use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
-    use std::fs::File;
     use std::io::Cursor;
 
     #[test]
@@ -348,20 +347,20 @@ mod tests {
     // #[test]
     // fn test_direct_file_io() {
     //     use tempfile::tempdir;
-    // 
+    //
     //     let temp_dir = tempdir().expect("Failed to create temporary directory");
     //     let file_path = temp_dir.path().join("test_compound.dat");
-    // 
+    //
     //     let mut compound = NbtCompound::new();
     //     compound.put_int("test_value", 42);
-    // 
+    //
     //     let file = File::create(&file_path).expect("Failed to create temp file");
     //     write_gzip_compound_tag(&compound, file).expect("Failed to write compound to file");
-    // 
+    //
     //     let file = File::open(&file_path).expect("Failed to open temp file");
     //     let read_compound =
     //         read_gzip_compound_tag(file).expect("Failed to read compound from file");
-    // 
+    //
     //     assert_eq!(read_compound.get_int("test_value"), Some(42));
     // }
 }

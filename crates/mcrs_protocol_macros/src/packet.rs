@@ -27,7 +27,7 @@ pub(super) fn derive_packet(item: TokenStream) -> Result<TokenStream> {
                 return Err(Error::new(
                     packet_attr.span,
                     "missing valid `id = ...` value from `packet` attr",
-                ))
+                ));
             }
         },
     };
@@ -45,13 +45,14 @@ pub(super) fn derive_packet(item: TokenStream) -> Result<TokenStream> {
     } else {
         return Err(Error::new(
             packet_attr.span,
-            format!("missing `side = PacketSide::...` value from `packet` attribute, name: `{}`", name_str.to_lowercase())
+            format!(
+                "missing `side = PacketSide::...` value from `packet` attribute, name: `{}`",
+                name_str.to_lowercase()
+            ),
         ));
     };
 
-    let state = packet_attr
-        .state
-        .unwrap_or_else(|| parse_quote!(Play));
+    let state = packet_attr.state.unwrap_or_else(|| parse_quote!(Play));
 
     let string_id = name_str.to_snake_case();
     let string_id = format!(

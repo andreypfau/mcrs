@@ -22,7 +22,7 @@ pub mod tag_serializer;
 pub use deserializer::{from_bytes, from_bytes_unnamed};
 pub use serializer::{to_bytes, to_bytes_named, to_bytes_unnamed};
 
-pub use tag_serializer::{to_nbt_compound};
+pub use tag_serializer::to_nbt_compound;
 
 // This NBT crate is inspired from CrabNBT
 
@@ -207,7 +207,6 @@ impl_array!(nbt_byte_array, NBT_BYTE_ARRAY_TAG);
 
 #[cfg(test)]
 mod test {
-
     use std::io::Cursor;
 
     use crate::Error;
