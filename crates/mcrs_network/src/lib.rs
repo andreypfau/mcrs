@@ -7,9 +7,9 @@ mod status;
 
 use crate::byte_channel::TrySendError;
 use crate::packet_io::RawConnection;
-use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin, PostStartup, PostUpdate, PreUpdate};
+use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin, PostStartup};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Component, RemovedComponents};
+use bevy_ecs::prelude::Component;
 use bevy_ecs::query::Changed;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{Commands, Query, Res};

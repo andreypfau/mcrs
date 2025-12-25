@@ -2,7 +2,7 @@ use heck::{ToShoutySnakeCase, ToSnakeCase};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::spanned::Spanned;
-use syn::{parse2, parse_quote, Attribute, DeriveInput, Error, Expr, LitInt, LitStr, Result};
+use syn::{Attribute, DeriveInput, Error, Expr, LitInt, LitStr, Result, parse_quote, parse2};
 
 use crate::add_trait_bounds;
 

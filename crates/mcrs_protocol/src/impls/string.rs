@@ -2,14 +2,13 @@ use std::io::{Cursor, Write};
 use std::str::FromStr;
 
 use crate::{Bounded, Decode, Encode, RawBytes, VarInt};
-use anyhow::{Context, ensure};
+use anyhow::ensure;
 use byteorder::WriteBytesExt;
-use bytes::Buf;
 use mcrs_nbt::deserializer::NbtReadHelper;
+use mcrs_nbt::serializer::WriteAdaptor;
 use mcrs_nbt::tag::NbtTag;
 use mcrs_nbt::{STRING_ID, from_bytes_unnamed, to_bytes_unnamed};
 use valence_text::{Text, TextContent};
-use mcrs_nbt::serializer::WriteAdaptor;
 
 const DEFAULT_MAX_STRING_CHARS: usize = 32767;
 const MAX_TEXT_CHARS: usize = 262144;
