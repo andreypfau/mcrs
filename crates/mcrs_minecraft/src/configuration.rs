@@ -1,11 +1,11 @@
 use crate::dimension_type::DimensionType;
 use crate::version::VERSION_ID;
 use bevy_app::{App, Plugin};
-use bevy_ecs::prelude::{Changed, Entity, On, Query};
+use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use mcrs_network::event::ReceivedPacketEvent;
-use mcrs_network::{ConnectionState, ServerSideConnection};
+use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::packets::configuration::clientbound::ClientboundSelectKnownPacks;
 use mcrs_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
 use mcrs_protocol::packets::configuration::{
@@ -101,8 +101,12 @@ fn on_configuration_enter(
     }
 }
 
-fn on_configuration_ack(event: On<ReceivedPacketEvent>, mut query: Query<(&mut ConnectionState)>) {
-    let Ok((mut state)) = query.get_mut(event.entity) else {
+fn on_configuration_ack(
+    event: On<ReceivedPacketEvent>,
+    mut query: Query<(Entity, &mut ConnectionState)>,
+    mut commands: Commands,
+) {
+    let Ok((entity, mut state)) = query.get_mut(event.entity) else {
         return;
     };
     if *state != ConnectionState::Configuration {
@@ -111,7 +115,8 @@ fn on_configuration_ack(event: On<ReceivedPacketEvent>, mut query: Query<(&mut C
     let Some(_) = event.decode::<ServerboundFinishConfiguration>() else {
         return;
     };
-    *state = ConnectionState::Game
+    *state = ConnectionState::Game;
+    commands.entity(entity).insert(InGameConnectionState);
 }
 
 #[derive(Default, Resource)]

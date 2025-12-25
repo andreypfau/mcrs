@@ -112,6 +112,10 @@ pub enum ConnectionState {
     Game,
 }
 
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct InGameConnectionState;
+
 impl ServerSideConnection {
     pub fn remote_addr(&self) -> SocketAddr {
         self.raw.remote_addr
