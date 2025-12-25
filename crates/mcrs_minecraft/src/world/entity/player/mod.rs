@@ -52,6 +52,7 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(PlayerActionPlugin);
         app.add_plugins(MovementPlugin);
         app.add_plugins(ColumnViewPlugin);
+        app.add_plugins(PlayerInventoryPlugin);
         app.add_systems(bevy_app::Update, spawn_player);
         app.add_systems(FixedUpdate, added_inventory);
         app.add_observer(network_add);
