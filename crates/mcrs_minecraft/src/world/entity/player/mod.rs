@@ -1,5 +1,6 @@
 use crate::client_info::ClientViewDistance;
 use crate::login::GameProfile;
+use crate::world::entity::player::chat::ChatPlugin;
 use crate::world::entity::player::column_view::ColumnViewPlugin;
 use crate::world::entity::player::digging::DiggingPlugin;
 use crate::world::entity::player::inventory::PlayerInventoryPlugin;
@@ -18,26 +19,28 @@ use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Changed, Commands, Query, With};
 use bevy_ecs::query::Added;
 use bevy_math::DVec3;
+use derive_more::{Deref, DerefMut};
 use mcrs_engine::entity::EntityNetworkAddEvent;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDistance};
 use mcrs_engine::entity::player::reposition::Reposition;
 use mcrs_engine::world::dimension::{Dimension, InDimension};
-use mcrs_network::{ConnectionState, ServerSideConnection};
+use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_protocol::item::ComponentPatch;
 use mcrs_protocol::packets::game::clientbound::{
-    ClientboundAddEntity, ClientboundContainerSetContent, ClientboundGameEvent, ClientboundLogin,
-    ClientboundPlayerInfoUpdate,
+    ClientboundAddEntity, ClientboundContainerSetContent, ClientboundDisconnect,
+    ClientboundGameEvent, ClientboundLogin, ClientboundPlayerInfoUpdate,
 };
 use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
-use mcrs_protocol::{ByteAngle, GameEventKind, GameMode, Slot, VarInt, WritePacket, ident};
+use mcrs_protocol::{ByteAngle, GameEventKind, GameMode, Slot, Text, VarInt, WritePacket, ident};
 use movement::TeleportState;
 use tracing::info;
 
 pub mod ability;
 pub mod attribute;
+mod chat;
 mod column_view;
 pub mod digging;
 mod inventory;
@@ -53,6 +56,7 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(MovementPlugin);
         app.add_plugins(ColumnViewPlugin);
         app.add_plugins(PlayerInventoryPlugin);
+        app.add_plugins(ChatPlugin);
         app.add_systems(bevy_app::Update, spawn_player);
         app.add_systems(FixedUpdate, added_inventory);
         app.add_observer(network_add);

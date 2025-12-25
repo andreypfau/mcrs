@@ -1,7 +1,8 @@
+use bevy_ecs::prelude::Component;
 use bitfield_struct::bitfield;
 use mcrs_protocol_macros::{Decode, Encode};
 
-#[derive(Copy, Clone, PartialEq, Eq, Default, Debug, Encode, Decode)]
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug, Component, Encode, Decode)]
 pub enum ChatMode {
     Enabled,
     CommandsOnly,

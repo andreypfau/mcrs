@@ -15,6 +15,7 @@ pub mod clientbound {
     use std::io::Write;
     use uuid::Uuid;
     use valence_ident::Ident;
+    use valence_text::Text;
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x01, state=Game)]
@@ -183,6 +184,13 @@ pub mod clientbound {
         pub radius: VarInt,
     }
 
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x77, state=Game)]
+    pub struct ClientboundSystemChatPacket {
+        pub content: Text,
+        pub overlay: bool,
+    }
+
     impl<'a> crate::Encode for ClientboundPlayerInfoUpdate<'a> {
         fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
             self.actions.into_bits().encode(&mut w)?;
@@ -272,15 +280,23 @@ pub mod clientbound {
 }
 
 pub mod serverbound {
-    use crate::entity::player::PlayerAction;
+    use crate::entity::player::{CommandArgumentSignature, MessageSignature, PlayerAction};
     use crate::item::{ContainerInput, HashedSlot};
     use crate::packets::common::serverbound::{ClientInformation, KeepAlive};
     use crate::pos::MoveFlags;
-    use crate::{Direction, Look, Position, VarInt};
+    use crate::{Bounded, Difficulty, Direction, GameMode, Look, Position, VarInt};
     use derive_more::From;
     use mcrs_engine::world::block::BlockPos;
     use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use uuid::Uuid;
 
+    pub struct ServerboundChat<'a> {
+        pub message: Bounded<&'a str, 256>,
+        pub timestamp: u64,
+        pub salt: u64,
+        pub signature: Option<&'a [u8; 256]>,
+        pub last_seen_messages: MessageSignature,
+    }
     #[derive(Clone, Debug, Encode, Decode, From, Packet)]
     #[packet(id=0x0D, state=Game)]
     pub struct ServerboundClientInformation<'a>(pub ClientInformation<'a>);

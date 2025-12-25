@@ -39,4 +39,5 @@ pub fn update_client_info(
     let mut entity = commands.entity(on.entity);
     entity.insert(ClientLocale(info.locale.to_string()));
     entity.insert(ClientViewDistance(info.view_distance));
+    entity.insert(info.chat_mode);
 }
