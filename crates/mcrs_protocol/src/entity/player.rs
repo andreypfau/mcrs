@@ -1,5 +1,5 @@
 use crate::game_mode::OptGameMode;
-use crate::{GameMode, GlobalPos, VarInt};
+use crate::{Bounded, FixedBitSet, GameMode, GlobalPos, VarInt};
 use mcrs_protocol_macros::{Decode, Encode};
 use std::borrow::Cow;
 use valence_ident::{Ident, ident};
@@ -51,4 +51,17 @@ pub enum PlayerAction {
 pub enum HumanoidArm {
     Left,
     Right,
+}
+
+#[derive(Copy, Clone, Debug, Encode, Decode)]
+pub struct CommandArgumentSignature<'a> {
+    pub argument_name: Bounded<&'a str, 16>,
+    pub signature: &'a [u8; 256],
+}
+
+#[derive(Copy, Clone, Debug, Encode, Decode)]
+pub struct MessageSignature {
+    pub offset: VarInt,
+    pub acknowledged: FixedBitSet<20, 3>,
+    pub checksum: u8,
 }

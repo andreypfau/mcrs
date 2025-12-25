@@ -296,6 +296,62 @@ pub mod serverbound {
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use uuid::Uuid;
 
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x00, state=Game)]
+    pub struct ServerboundAcceptTeleportation {
+        pub teleport_id: VarInt,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x01, state=Game)]
+    pub struct ServerboundBlockEntityTagQuery {
+        pub transaction_id: VarInt,
+        pub block_pos: BlockPos,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x02, state=Game)]
+    pub struct ServerboundSelectBundleItem {
+        pub slot_id: VarInt,
+        pub selected_item_index: VarInt,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x03, state=Game)]
+    pub struct ServerboundChangeDifficulty {
+        pub difficulty: Difficulty,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x04, state=Game)]
+    pub struct ServerboundChangeGameMode {
+        pub mode: GameMode,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x05, state=Game)]
+    pub struct ServerboundChatAck {
+        pub offset: VarInt,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x06, state=Game)]
+    pub struct ServerboundChatCommand<'a> {
+        pub command: Bounded<&'a str, 32767>,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x07, state=Game)]
+    pub struct ServerboundChatCommandSigned<'a> {
+        pub command: Bounded<&'a str, 32767>,
+        pub timestamp: u64,
+        pub salt: u64,
+        pub argument_signatures: Vec<CommandArgumentSignature<'a>>,
+        pub last_seen_messages: MessageSignature,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x08, state=Game)]
     pub struct ServerboundChat<'a> {
         pub message: Bounded<&'a str, 256>,
         pub timestamp: u64,
@@ -303,6 +359,14 @@ pub mod serverbound {
         pub signature: Option<&'a [u8; 256]>,
         pub last_seen_messages: MessageSignature,
     }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x09, state=Game)]
+    pub struct ServerboundChatSessionUpdate {
+        pub session_id: Uuid,
+        pub public_key: [u8; 32],
+    }
+
     #[derive(Clone, Debug, Encode, Decode, From, Packet)]
     #[packet(id=0x0D, state=Game)]
     pub struct ServerboundClientInformation<'a>(pub ClientInformation<'a>);

@@ -1,6 +1,7 @@
 use crate::byte_channel::{ByteSender, TrySendError, byte_channel};
 use crate::{EngineConnection, ReceivedPacket};
 use bytes::BytesMut;
+use log::{error, warn};
 use mcrs_protocol::{
     ConnectionState, Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket,
 };
@@ -85,13 +86,17 @@ impl PacketIo {
                             Ok(0) => break, // Reader is at EOF.
                             Ok(_) => {}
                             Err(e) => {
+                                error!("error reading data from stream: {e}");
                                 break;
                             }
                         }
                         self.dec.queue_bytes(buf.split());
                         continue;
                     }
-                    Err(e) => break,
+                    Err(e) => {
+                        warn!("error decoding packet: {e}");
+                        break;
+                    }
                 };
 
                 let timestamp = Instant::now();
