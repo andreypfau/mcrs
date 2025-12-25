@@ -141,7 +141,7 @@ pub fn entity_pos_sync(
         || delta.z > 32767.0;
     let need_sync = transform == old_transform;
     let on_ground = true;
-    let entity_id = VarInt(event.entity.index() as i32);
+    let entity_id = VarInt(event.entity.index_u32() as i32);
     let pos_changed = delta.length_squared() >= 1.0;
     if delta_to_big || need_sync {
         con.write_packet(&ClientboundEntityPositionSync {

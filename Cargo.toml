@@ -17,16 +17,16 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-bevy_ecs = "0.17.3"
-bevy_ecs_macros = "0.17.3"
-bevy_app = "0.17.3"
-bevy_math = "0.17.3"
-bevy_time = "0.17.3"
-bevy_tasks = "0.17.3"
-bevy_utils = "0.17.3"
-bevy_asset = "0.17.3"
-bevy_derive = "0.17.3"
-bevy_log = "0.17.3"
+bevy_ecs = "0.18.0-rc.1"
+bevy_ecs_macros = "0.18.0-rc.1"
+bevy_app = "0.18.0-rc.1"
+bevy_math = "0.18.0-rc.1"
+bevy_time = "0.18.0-rc.1"
+bevy_tasks = "0.18.0-rc.1"
+bevy_utils = { version = "0.18.0-rc.1", features = ["debug"] }
+bevy_asset = "0.18.0-rc.1"
+bevy_derive = "0.18.0-rc.1"
+bevy_log = "0.18.0-rc.1"
 
 rocksdb = { version = "0.24.0" }
 heck = "0.5.0"
@@ -56,6 +56,7 @@ num-integer = "0.1.46"
 tokio = {  version = "1.48.0", features = ["full"] }
 valence_ident = "0.2.0-alpha.1+mc.1.20.1"
 valence_text = "0.2.0-alpha.1+mc.1.20.1"
+log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 
 mcrs_protocol_macros = { path = "crates/mcrs_protocol_macros" }
 mcrs_protocol = { path = "crates/mcrs_protocol" }

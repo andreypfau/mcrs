@@ -23,6 +23,7 @@ use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::ClientboundBlockDestruction;
 use mcrs_protocol::{BlockStateId, VarInt, WritePacket};
 use std::time::Duration;
+use tracing::{debug, trace};
 
 pub struct DiggingPlugin;
 
@@ -78,13 +79,13 @@ fn tick_digging(
             if block_state == digging.block_state {
                 let progress = digging.progress(time.elapsed());
                 let stage = (progress * 10.0).floor() as i8;
-                println!("progress: {:?}", progress);
+                trace!("progress: {:?}", progress);
                 if stage != digging.last_sent_progress {
                     packet_queue.push((dim.entity(), player, digging.block_pos, stage));
                     digging.last_sent_progress = stage;
-                    println!("started: {:?}", digging.started_time);
-                    println!("expected: {:?}", digging.expected_end_time);
-                    println!(
+                    trace!("started: {:?}", digging.started_time);
+                    trace!("expected: {:?}", digging.expected_end_time);
+                    trace!(
                         "actual: {:?}",
                         digging.expected_end_time - digging.started_time
                     );
@@ -280,7 +281,7 @@ impl SendDestroyBlockProgress<'_, '_> {
                 continue;
             }
             let packet = ClientboundBlockDestruction {
-                id: VarInt(id.index() as i32),
+                id: VarInt(id.index_u32() as i32),
                 pos: rep.convert_block_pos(block_pos),
                 progress,
             };

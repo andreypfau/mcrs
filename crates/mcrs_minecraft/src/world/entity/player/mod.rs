@@ -2,6 +2,7 @@ use crate::client_info::ClientViewDistance;
 use crate::login::GameProfile;
 use crate::world::entity::player::column_view::ColumnViewPlugin;
 use crate::world::entity::player::digging::DiggingPlugin;
+use crate::world::entity::player::inventory::PlayerInventoryPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
 use crate::world::entity::{EntityBundle, MinecraftEntityType};
@@ -33,6 +34,7 @@ use mcrs_protocol::packets::game::clientbound::{
 use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
 use mcrs_protocol::{ByteAngle, GameEventKind, GameMode, Slot, VarInt, WritePacket, ident};
 use movement::TeleportState;
+use tracing::info;
 
 pub mod ability;
 pub mod attribute;
@@ -94,7 +96,7 @@ fn spawn_player(
                 return;
             };
             con.write_packet(&ClientboundLogin {
-                player_id: entity.index() as i32,
+                player_id: entity.index_u32() as i32,
                 hardcore: false,
                 dimensions: vec![ident!("overworld").into()],
                 max_players: VarInt(100),
@@ -154,7 +156,7 @@ fn network_add(
     };
 
     let pkt = ClientboundAddEntity {
-        id: VarInt(entity.index() as i32),
+        id: VarInt(entity.index_u32() as i32),
         uuid: profile.id,
         kind: VarInt(MinecraftEntityType::Player as i32),
         pos: reposition.convert_dvec3(transform.translation),

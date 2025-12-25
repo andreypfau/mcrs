@@ -133,7 +133,7 @@ fn network_add(
     };
 
     let pkt = ClientboundAddEntity {
-        id: VarInt(entity.index() as i32),
+        id: VarInt(entity.index_u32() as i32),
         uuid: uuid.0,
         kind: VarInt(MinecraftEntityType::PrimedTnt as i32),
         pos: reposition.convert_dvec3(transform.translation),
