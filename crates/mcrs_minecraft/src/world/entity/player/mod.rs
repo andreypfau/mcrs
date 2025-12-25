@@ -38,6 +38,7 @@ pub mod ability;
 pub mod attribute;
 mod column_view;
 pub mod digging;
+mod inventory;
 pub mod movement;
 pub mod player_action;
 

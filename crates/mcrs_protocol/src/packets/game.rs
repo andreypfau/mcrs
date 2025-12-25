@@ -337,4 +337,10 @@ pub mod serverbound {
         pub direction: Direction,
         pub sequence: VarInt,
     }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x34, state=Game)]
+    pub struct ServerboundSetCarriedItem {
+        pub slot: u16,
+    }
 }

@@ -16,6 +16,12 @@ pub struct PlayerHotbarSlots {
     pub selected: u8,
 }
 
+impl PlayerHotbarSlots {
+    pub fn get_selected_slot(&self) -> Option<Entity> {
+        self.slots.get(self.selected as usize).copied()?
+    }
+}
+
 #[derive(Debug, Clone, Default, Component)]
 pub struct PlayerOffhandSlot {
     slot: Option<Entity>,

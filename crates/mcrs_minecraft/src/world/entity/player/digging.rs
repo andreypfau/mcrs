@@ -320,10 +320,10 @@ pub fn extract_tool_data(
     if !block.requires_correct_tool_for_drops() {
         return (true, 1.0);
     }
-    let Some(Some(slot)) = hotbar.slots.get(hotbar.selected as usize) else {
+    let Some(slot) = hotbar.get_selected_slot() else {
         return (false, 1.0);
     };
-    let Ok((stack, tool)) = items.get(*slot) else {
+    let Ok((stack, tool)) = items.get(slot) else {
         return (false, 1.0);
     };
     let Some(tool) = tool.or_else(|| stack.item_id().as_ref().components.tool.as_ref()) else {
