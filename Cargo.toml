@@ -23,12 +23,10 @@ bevy_app = "0.17.3"
 bevy_math = "0.17.3"
 bevy_time = "0.17.3"
 bevy_tasks = "0.17.3"
-bevy_editor_pls = "0.10.0"
-bevy-inspector-egui = "0.35.0"
-bevy_transform = "0.17.3"
 bevy_utils = "0.17.3"
 bevy_asset = "0.17.3"
-bevy = { version =  "0.17.3", features = ["trace_tracy"] }
+bevy_derive = "0.17.3"
+bevy_log = "0.17.3"
 
 rocksdb = { version = "0.24.0" }
 heck = "0.5.0"
@@ -56,15 +54,10 @@ rustc-hash = "2.1.1"
 arrayvec = "0.7.6"
 num-integer = "0.1.46"
 tokio = {  version = "1.48.0", features = ["full"] }
-valence_generated = "0.2.0-alpha.1+mc.1.20.1"
 valence_ident = "0.2.0-alpha.1+mc.1.20.1"
-valence_math = "0.2.0-alpha.1+mc.1.20.1"
-valence_nbt = "0.8.0"
 valence_text = "0.2.0-alpha.1+mc.1.20.1"
-valence_build_utils = "0.2.0-alpha.1+mc.1.20.1"
 
 mcrs_protocol_macros = { path = "crates/mcrs_protocol_macros" }
-mcrs_generated = { path = "crates/mcrs_generated" }
 mcrs_protocol = { path = "crates/mcrs_protocol" }
 mcrs_nbt = { path = "crates/mcrs_nbt" }
 mcrs_network = { path = "crates/mcrs_network" }
@@ -73,19 +66,11 @@ mcrs_minecraft = { path = "crates/mcrs_minecraft" }
 mcrs_registry = { path = "crates/mcrs_registry" }
 
 [dependencies]
-bevy.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
-bevy-inspector-egui.workspace = true
-log = { version = "*", features = ["max_level_debug", "release_max_level_warn"] }
+bevy_log.workspace = true
 tokio = { version = "1", features = ["full"] }
-mcrs_protocol.workspace = true
-mcrs_network.workspace = true
-mcrs_engine.workspace = true
 mcrs_minecraft.workspace = true
-anyhow.workspace = true
-bytes.workspace = true
-tracy-client = "0.18.3"
 
 [profile.dev]
 opt-level = 0

@@ -17,5 +17,3 @@ pub struct Music {
     max_delay: i32,
     replace_current_music: bool,
 }
-
-pub const ITEM_BREAK: Handle<SoundEvent> = uuid_handle!("019b30d8-a349-78b7-b7f5-d94ad743dd6d");

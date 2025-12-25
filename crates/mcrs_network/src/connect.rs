@@ -5,6 +5,7 @@ use crate::intent::handle_intent;
 use anyhow::bail;
 use bevy_ecs::component::Component;
 use bytes::{Bytes, BytesMut};
+use log::info;
 use mcrs_protocol::{Decode, Encode, Text};
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
@@ -12,6 +13,8 @@ use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
+
+const HANDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(crate) async fn start_accept_loop(shared: SharedNetworkState) {
     let listener = match TcpListener::bind(shared.0.address).await {
@@ -21,8 +24,7 @@ pub(crate) async fn start_accept_loop(shared: SharedNetworkState) {
             return;
         }
     };
-
-    let handle_connection_timeout = Duration::from_secs(5);
+    info!("Listening on {}", shared.0.address);
 
     loop {
         match listener.accept().await {
@@ -30,10 +32,10 @@ pub(crate) async fn start_accept_loop(shared: SharedNetworkState) {
                 let shared = shared.clone();
                 tokio::spawn(async move {
                     if let Err(e) = timeout(
-                        handle_connection_timeout,
+                        HANDLE_CONNECTION_TIMEOUT,
                         handle_connection(shared, socket, remote_addr),
                     )
-                        .await
+                    .await
                     {
                         eprintln!("{} Failed to handle connection: {}", remote_addr, e);
                     }
@@ -60,8 +62,6 @@ async fn handle_connection(
     }
 }
 
-
-
 // #[derive(Component)]
 // pub struct Connection {
 //     remote_addr: std::net::SocketAddr,
@@ -70,16 +70,16 @@ async fn handle_connection(
 //     reader_task: JoinHandle<()>,
 //     pub disconnect_reason: Option<Text>,
 // }
-// 
+//
 // impl Connection {
 //     pub fn remote_addr(&self) -> std::net::SocketAddr {
 //         self.remote_addr
 //     }
-// 
+//
 //     pub fn state(&self) -> mcrs_protocol::PacketState {
 //         self.state
 //     }
-// 
+//
 //     // pub async fn send_packet<P>(&mut self, pkt: &P) -> anyhow::Result<()>
 //     // where
 //     //     P: Encode,
@@ -93,7 +93,7 @@ async fn handle_connection(
 //     // {
 //     //     self.io.recv_packet().await
 //     // }
-// 
+//
 //     pub fn try_recv(&mut self) -> anyhow::Result<Option<ReceivedPacket>> {
 //         match self.recv.try_recv() {
 //             Ok(p) => Ok(Some(p)),
@@ -102,4 +102,3 @@ async fn handle_connection(
 //         }
 //     }
 // }
-

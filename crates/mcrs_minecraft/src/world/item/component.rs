@@ -5,17 +5,16 @@ mod rarity;
 mod swing;
 pub mod tool;
 
-use crate::sound::{ITEM_BREAK, SoundEvent};
 pub use crate::world::item::component::attribute::AttributeModifiers;
 pub use crate::world::item::component::enchantments::Enchantments;
 use crate::world::item::component::rarity::Rarity;
 use crate::world::item::component::swing::SwingAnimation;
 pub use crate::world::item::component::tool::Tool;
 use crate::world::item::component::tool::{ToolMaterial, ToolRule};
-use bevy_asset::Handle;
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use mcrs_protocol::item::{CustomData, ItemComponentKind, Lore, MaxStackSize};
+use std::borrow::Cow;
 
 #[derive(Default, Clone)]
 pub struct ItemComponents {
@@ -27,7 +26,6 @@ pub struct ItemComponents {
     pub use_effects: UseEffects,
     pub attribute_modifiers: AttributeModifiers,
     pub rarity: Rarity,
-    pub break_sound: BreakSound,
     pub tooltip_display: TooltipDisplay,
     pub swing_animation: SwingAnimation,
     pub max_damage: Option<MaxDamage>,
@@ -35,6 +33,8 @@ pub struct ItemComponents {
     pub enchantable: Option<Enchantable>,
     pub tool: Option<Tool>,
 }
+
+const BREAK_SOUND: Cow<'static, str> = Cow::Borrowed("entity.item.break");
 
 impl ItemComponents {
     pub const fn new() -> Self {
@@ -47,7 +47,6 @@ impl ItemComponents {
             use_effects: UseEffects::DEFAULT,
             attribute_modifiers: AttributeModifiers::new(Vec::new()),
             rarity: Rarity::Common,
-            break_sound: BreakSound(ITEM_BREAK),
             tooltip_display: TooltipDisplay::DEFAULT,
             swing_animation: SwingAnimation::DEFAULT,
             max_damage: None,
@@ -137,15 +136,6 @@ pub struct MaxDamage(pub u32);
 
 #[derive(Clone, Copy, Debug, Component)]
 pub struct Damage(pub u32);
-
-#[derive(Clone, Debug, Component)]
-pub struct BreakSound(pub Handle<SoundEvent>);
-
-impl Default for BreakSound {
-    fn default() -> Self {
-        Self(ITEM_BREAK)
-    }
-}
 
 #[derive(Clone, Debug, Default, Component)]
 pub struct TooltipDisplay {

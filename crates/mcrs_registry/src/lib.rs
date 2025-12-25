@@ -1,9 +1,9 @@
-use std::fmt::Debug;
 use indexmap::IndexMap;
-use std::marker::PhantomData;
-use std::sync::Arc;
-use valence_ident::Ident;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use valence_ident::Ident;
 
 pub trait RegistryEntry: Send + Sync + 'static {
     // fn identifier(&self) -> Ident<&str>;
@@ -99,7 +99,7 @@ pub struct RegistryRef<E: RegistryEntry> {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Holder<E: RegistryEntry + Debug + Clone> {
     Direct(E),
-    Reference(Ident<String>)
+    Reference(Ident<Cow<'static, str>>),
 }
 
 impl<E: RegistryEntry> Into<RegistryId<E>> for RegistryRef<E> {
