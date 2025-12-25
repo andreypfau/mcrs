@@ -56,6 +56,12 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x20, state=Game)]
+    pub struct ClientboundDisconnect {
+        pub reason: Text,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x23, state=Game)]
     pub struct ClientboundEntityPositionSync {
         pub entity_id: VarInt,

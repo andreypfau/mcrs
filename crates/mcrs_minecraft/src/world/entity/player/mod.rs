@@ -58,7 +58,7 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(PlayerInventoryPlugin);
         app.add_plugins(ChatPlugin);
         app.add_systems(bevy_app::Update, spawn_player);
-        app.add_systems(FixedUpdate, added_inventory);
+        app.add_systems(FixedUpdate, (disconnect_player, added_inventory));
         app.add_observer(network_add);
         app.add_observer(player_joined);
     }
@@ -75,6 +75,9 @@ pub struct PlayerBundle {
     pub container_seqno: ContainerSeqno,
     pub marker: Player,
 }
+
+#[derive(Clone, Debug, PartialEq, Component, Deref, DerefMut)]
+pub struct DisconnectReason(pub Text);
 
 fn spawn_player(
     dimensions: Query<(Entity), With<Dimension>>,
@@ -226,6 +229,15 @@ fn player_joined(
     players
         .iter_mut()
         .for_each(|(mut connection, _)| connection.write_packet(&pkt));
+}
+
+fn disconnect_player(
+    mut players: Query<(&mut ServerSideConnection, &DisconnectReason), With<InGameConnectionState>>,
+) {
+    players.iter_mut().for_each(|(mut con, reason)| {
+        let reason = reason.0.clone();
+        con.write_packet(&ClientboundDisconnect { reason })
+    })
 }
 
 fn added_inventory(
