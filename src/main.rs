@@ -1,52 +1,58 @@
-use bevy::MinimalPlugins;
-use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
-use bevy::log::{LogPlugin, tracing};
-use bevy_app::{
-    App, FixedLast, FixedPostUpdate, FixedPreUpdate, FixedUpdate, ScheduleRunnerPlugin, Startup,
-    Update,
-};
+use bevy_app::ScheduleRunnerPlugin;
+use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
-use bevy_ecs::schedule::ExecutorKind;
+use bevy_ecs::schedule::{ExecutorKind, ScheduleLabel};
+use bevy_log::LogPlugin;
 use mcrs_minecraft::ServerPlugin;
 
 mod chunk_render_debug;
 
 #[tokio::main]
 async fn main() {
-    App::new()
-        .add_plugins(MinimalPlugins)
+    let mut app = App::new();
+    setup_schedules(&mut app);
+    app.add_plugins(ScheduleRunnerPlugin::default())
         .add_plugins(LogPlugin::default())
-        .add_systems(Startup, setup)
-        .add_plugins(FrameTimeDiagnosticsPlugin::default())
-        // .add_plugins(ChunkRenderDebug)
-        // .add_plugins(ScheduleRunnerPlugin::default())
         .add_plugins(ServerPlugin)
-        .edit_schedule(Update, |s| {
-            s.set_executor_kind(ExecutorKind::SingleThreaded);
-        })
-        .edit_schedule(FixedPreUpdate, |s| {
-            s.set_executor_kind(ExecutorKind::SingleThreaded);
-        })
-        .edit_schedule(FixedUpdate, |s| {
-            s.set_executor_kind(ExecutorKind::SingleThreaded);
-        })
-        .edit_schedule(FixedPostUpdate, |s| {
-            s.set_executor_kind(ExecutorKind::SingleThreaded);
-        })
-        .edit_schedule(FixedLast, |s| {
-            s.set_executor_kind(ExecutorKind::SingleThreaded);
-        })
-        .add_systems(FixedLast, tick_system)
         .run();
-    println!("Hello, world!");
 }
 
-fn setup(mut commands: Commands) {}
+fn setup_schedules(app: &mut App) {
+    #[cfg(debug_assertions)]
+    app.add_plugins(TaskPoolPlugin {
+        task_pool_options: TaskPoolOptions::with_num_threads(1),
+    });
 
-fn tick_system() {
-    tracing::event!(
-        tracing::Level::INFO,
-        message = "finished frame",
-        tracy.frame_mark = true
-    );
+    #[cfg(not(debug_assertions))]
+    app.add_plugins(TaskPoolPlugin::default());
+
+    app.edit_schedule(Update, |schedule| {
+        schedule.set_executor_kind(ExecutorKind::SingleThreaded);
+    });
+    #[cfg(debug_assertions)]
+    force_singlethread_schedules(app);
+}
+
+#[cfg(debug_assertions)]
+fn force_singlethread_schedules(app: &mut App) {
+    for label in [
+        PreStartup.intern(),
+        Startup.intern(),
+        PostStartup.intern(),
+        First.intern(),
+        PreUpdate.intern(),
+        RunFixedMainLoop.intern(),
+        Update.intern(),
+        PostUpdate.intern(),
+        Last.intern(),
+        FixedFirst.intern(),
+        FixedPreUpdate.intern(),
+        FixedUpdate.intern(),
+        FixedPostUpdate.intern(),
+        FixedLast.intern(),
+    ] {
+        app.edit_schedule(label, |s| {
+            s.set_executor_kind(ExecutorKind::SingleThreaded);
+        });
+    }
 }
