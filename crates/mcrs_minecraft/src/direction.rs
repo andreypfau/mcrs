@@ -1,5 +1,4 @@
 use bevy_math::IVec3;
-use bevy_reflect::Reflect;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::BitAndAssign;
@@ -105,7 +104,7 @@ impl From<Direction> for IVec3 {
     }
 }
 
-#[derive(Default, Clone, Copy, PartialEq, Eq, Reflect)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct DirectionSet(u8);
 
 impl Debug for DirectionSet {

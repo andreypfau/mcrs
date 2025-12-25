@@ -12,7 +12,7 @@ use crate::world::chunk;
 ///
 /// `offset_blocks` is expressed in **blocks** (not chunks). Vertical repositioning works by shifting
 /// the client window while keeping the server world unbounded.
-#[derive(Copy, Clone, Debug, Default, Component, Reflect)]
+#[derive(Copy, Clone, Debug, Default, Component)]
 pub struct Reposition {
     offset_blocks: IVec3,
 }

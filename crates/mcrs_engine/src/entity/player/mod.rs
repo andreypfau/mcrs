@@ -1,7 +1,7 @@
+use bevy_ecs_macros::Component;
+
 pub mod chunk_view;
 pub mod reposition;
 
-use bevy::prelude::{Component, Event, Message, Reflect};
-
-#[derive(Component, Reflect, Default)]
+#[derive(Component, Default)]
 pub struct Player;

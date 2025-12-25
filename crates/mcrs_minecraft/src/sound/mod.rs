@@ -1,10 +1,8 @@
-use bevy_asset::{Asset, Handle, uuid_handle};
-use bevy_reflect::TypePath;
 use mcrs_protocol::Ident;
 use mcrs_registry::{Holder, RegistryEntry};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize, Asset, TypePath)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SoundEvent {
     sound_id: Ident<String>,
     range: f32,

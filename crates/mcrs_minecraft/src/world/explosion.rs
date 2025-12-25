@@ -6,7 +6,6 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::{ContainsEntity, Entity};
 use bevy_ecs::query::With;
 use bevy_ecs::system::{Local, Query};
-use bevy_reflect::Reflect;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos};
@@ -31,7 +30,7 @@ impl Plugin for ExplosionPlugin {
 pub struct Explosion;
 
 /// The radius of the [Explosion] to be created by detonating an [Explosive].
-#[derive(Component, Reflect, Default, Debug)]
+#[derive(Component, Default, Debug)]
 pub struct ExplosionRadius(pub u16);
 
 #[derive(Event, Debug, Eq, PartialEq)]

@@ -1,9 +1,9 @@
-use bevy::math::DVec3;
-use bevy::prelude::{Deref, DerefMut, IVec3, Reflect};
+use bevy_math::DVec3;
+use bevy_math::prelude::*;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Reflect)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct BlockPos(IVec3);
 
 impl Display for BlockPos {

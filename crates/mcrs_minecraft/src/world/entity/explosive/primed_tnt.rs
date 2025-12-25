@@ -5,25 +5,19 @@ use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Message;
-use bevy_ecs::prelude::{Commands, ContainsEntity, MessageReader, On, ParallelCommands, Query};
-use bevy_ecs::query::{Added, QueryData, With, Without};
-use bevy_math::{DVec3, Vec3};
-use bevy_reflect::Reflect;
+use bevy_ecs::prelude::{Commands, ContainsEntity, On, Query};
+use bevy_ecs::query::{QueryData, With, Without};
 use derive_more::{Deref, DerefMut};
+use mcrs_engine::entity::EntityNetworkAddEvent;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
-use mcrs_engine::entity::player::chunk_view::{ChunkTrackingView, PlayerChunkObserver};
+use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_engine::entity::player::reposition::Reposition;
-use mcrs_engine::entity::{
-    EntityNetworkAddEvent, EntityNetworkRemoveEvent, EntityNetworkSyncEvent,
-};
-use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos};
-use mcrs_engine::world::dimension::{Dimension, DimensionPlayers, InDimension};
+use mcrs_engine::world::dimension::InDimension;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::ClientboundAddEntity;
 use mcrs_protocol::uuid::Uuid;
-use mcrs_protocol::{ByteAngle, VarInt, Velocity, WritePacket};
+use mcrs_protocol::{ByteAngle, VarInt, WritePacket};
 
 pub struct PrimedTntPlugin;
 
@@ -70,12 +64,12 @@ impl PrimedTntBundle {
     }
 }
 
-#[derive(Component, Debug, Default, Reflect)]
+#[derive(Component, Debug, Default)]
 #[component(storage = "SparseSet")]
 pub struct PrimedTnt;
 
 /// The detonator entity
-#[derive(Component, Debug, Reflect, Deref, DerefMut)]
+#[derive(Component, Debug, Deref, DerefMut)]
 pub struct Detonator(pub Entity);
 
 impl ContainsEntity for Detonator {
@@ -84,7 +78,7 @@ impl ContainsEntity for Detonator {
     }
 }
 
-#[derive(Component, Debug, Reflect, Deref, DerefMut)]
+#[derive(Component, Debug, Deref, DerefMut)]
 pub struct Fuse(pub u16);
 
 impl Default for Fuse {

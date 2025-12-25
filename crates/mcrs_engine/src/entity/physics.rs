@@ -1,13 +1,8 @@
-use crate::world::chunk::ChunkIndex;
-use crate::world::dimension::InDimension;
-use bevy::math::{DQuat, DVec3, DVec4, Quat, Vec3};
-use bevy::prelude::{
-    BuildChildrenTransformExt, Commands, Component, ContainsEntity, Deref, DerefMut, DetectChanges,
-    EntityRef, Mut, Query, Reflect,
-};
-use std::process::Command;
+use bevy_derive::{Deref, DerefMut};
+use bevy_ecs::prelude::Component;
+use bevy_math::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Component, Reflect)]
+#[derive(Clone, Copy, Debug, PartialEq, Component)]
 pub struct Transform {
     pub translation: DVec3,
     pub rotation: Quat,
@@ -59,11 +54,11 @@ impl Default for Transform {
     }
 }
 
-#[derive(Copy, Clone, Debug, Component, Reflect, Deref)]
+#[derive(Copy, Clone, Debug, Component, Deref)]
 pub struct OldTransform(pub Transform);
 
-#[derive(Copy, Clone, Debug, Deref, DerefMut, Component, Reflect)]
+#[derive(Copy, Clone, Debug, Deref, DerefMut, Component)]
 pub struct Velocity(pub DVec3);
 
-#[derive(Copy, Clone, Debug, Deref, DerefMut, Component, Reflect)]
+#[derive(Copy, Clone, Debug, Deref, DerefMut, Component)]
 pub struct OldVelocity(pub Velocity);
