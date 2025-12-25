@@ -59,7 +59,6 @@ fn player_will_destroy_tnt(
         if instant_build {
             return;
         }
-        println!("prime!");
         commands.spawn((
             PrimedTntBundle::new(
                 *dim,

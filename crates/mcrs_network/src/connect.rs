@@ -5,7 +5,7 @@ use crate::intent::handle_intent;
 use anyhow::bail;
 use bevy_ecs::component::Component;
 use bytes::{Bytes, BytesMut};
-use log::info;
+use log::{error, info};
 use mcrs_protocol::{Decode, Encode, Text};
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
@@ -20,7 +20,7 @@ pub(crate) async fn start_accept_loop(shared: SharedNetworkState) {
     let listener = match TcpListener::bind(shared.0.address).await {
         Ok(listener) => listener,
         Err(e) => {
-            eprintln!("Failed to bind to address {} {}", shared.0.address, e);
+            error!("Failed to bind to address {} {}", shared.0.address, e);
             return;
         }
     };
@@ -42,7 +42,7 @@ pub(crate) async fn start_accept_loop(shared: SharedNetworkState) {
                 });
             }
             Err(e) => {
-                eprintln!("Failed to accept connection: {}", e);
+                error!("Failed to accept connection: {}", e);
             }
         }
     }

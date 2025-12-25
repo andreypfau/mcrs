@@ -2,17 +2,24 @@ use bevy_app::ScheduleRunnerPlugin;
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{ExecutorKind, ScheduleLabel};
-use bevy_log::LogPlugin;
+use bevy_log::{Level, LogPlugin};
 use mcrs_minecraft::ServerPlugin;
 
 mod chunk_render_debug;
+
+const LOG_FILTER: &str =
+    "mcrs_minecraft=debug,mcrs_minecraft::world::entity::player::digging=trace";
 
 #[tokio::main]
 async fn main() {
     let mut app = App::new();
     setup_schedules(&mut app);
     app.add_plugins(ScheduleRunnerPlugin::default())
-        .add_plugins(LogPlugin::default())
+        .add_plugins(LogPlugin {
+            filter: LOG_FILTER.to_string(),
+            level: Level::INFO,
+            ..Default::default()
+        })
         .add_plugins(ServerPlugin)
         .run();
 }

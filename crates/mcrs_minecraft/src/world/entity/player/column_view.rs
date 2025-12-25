@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 
+use crate::world::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Message, On, Query};
@@ -12,14 +13,13 @@ use mcrs_engine::entity::player::reposition::{Reposition, RepositionConfig};
 use mcrs_engine::world::chunk::ticket::{ChunkTickets, Ticket, TicketKind};
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos, ChunkStatus};
 use mcrs_engine::world::dimension::InDimension;
-use rustc_hash::FxHashSet;
-
-use crate::world::palette::{BiomePalette, BlockPalette};
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundLevelChunkWithLight, ClientboundSetChunkCacheCenter,
 };
 use mcrs_protocol::{ChunkColumnPos, ChunkData, Encode, LightData, VarInt, WritePacket};
+use rustc_hash::FxHashSet;
+use tracing::{debug, trace};
 
 /// Vanilla client window height: 256 blocks == 16 chunk sections.
 const CLIENT_COLUMN_SECTIONS: i32 = 16;
@@ -145,7 +145,7 @@ fn on_view_update(
     let Ok(mut tickets) = dimensions.get_mut(dim.entity()) else {
         return;
     };
-    println!(
+    trace!(
         "Player {:?} chunk view updated: old={:?} new={:?}",
         event.player, event.old_view, event.new_view
     );

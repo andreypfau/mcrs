@@ -177,11 +177,22 @@ fn network_add(
 fn player_joined(
     event: On<PlayerJoinEvent>,
     mut players: Query<(&mut ServerSideConnection, &GameProfile)>,
+    positions: Query<(&Transform), With<Player>>,
 ) {
-    let Ok((_, joined_player)) = players.get(event.player) else {
+    let Ok((con, joined_player)) = players.get(event.player) else {
         return;
     };
-    println!("Player {:?} has joined the game.", joined_player.username);
+
+    info!(
+        "{}[{}] logged in with entity id {} at {}",
+        joined_player.username,
+        con.remote_addr(),
+        event.player,
+        positions
+            .get(event.player)
+            .map(|pos| format!("{}", pos.translation))
+            .unwrap_or_default()
+    );
 
     let names = players
         .iter()

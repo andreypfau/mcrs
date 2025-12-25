@@ -91,7 +91,7 @@ fn tick_digging(
                     );
                 }
             } else {
-                println!(
+                trace!(
                     "block state changed: {:?} -> {:?}",
                     digging.block_state, block_state
                 );
@@ -201,16 +201,16 @@ fn player_abort_destroy_block(
             return;
         };
         let player = event.player;
-        println!("abort destroy block: {:?}", block_pos);
+        debug!("abort destroy block: {:?}", block_pos);
         let Ok((player, dim, digging)) = digging_players.get(player) else {
-            println!("player {} not found", player);
+            debug!("player {} not found", player);
             return;
         };
         destroy_block_progress.execute(dim.entity(), player, digging.block_pos, -1);
         if digging.block_pos != block_pos {
             return;
         }
-        println!("aborted progress: {:?}", digging.progress(time.elapsed()));
+        debug!("aborted progress: {:?}", digging.progress(time.elapsed()));
         commands.entity(player).remove::<Digging>();
     });
 }
@@ -234,12 +234,8 @@ fn player_stop_destroy_block(
             return;
         }
         let progress = digging.progress(time.elapsed() + time.timestep());
-        println!(
-            "stop destroy block: {:?}, progress: {:?}",
-            block_pos, progress
-        );
         if progress >= 0.7 {
-            println!("destroy block: {:?}", block_pos);
+            debug!("destroy block: {:?}", block_pos);
             destroy_block_progress.execute(dim.entity(), player, digging.block_pos, -1);
             player_will_destroy_block.write(PlayerWillDestroyBlock {
                 player,
@@ -268,10 +264,6 @@ struct SendDestroyBlockProgress<'w, 's> {
 
 impl SendDestroyBlockProgress<'_, '_> {
     fn execute(&mut self, dim: Entity, id: Entity, block_pos: BlockPos, progress: i8) {
-        println!(
-            "send destroy block progress: {:?}, progress: {:?}",
-            block_pos, progress
-        );
         let Some(dim_players) = self.dim_players.get(dim.entity()).ok() else {
             return;
         };

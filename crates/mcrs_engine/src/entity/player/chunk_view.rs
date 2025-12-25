@@ -71,7 +71,6 @@ fn update_view(
                     load_queue.push(pos);
                 });
                 load_queue.sort_by_key(|pos| pos.distance_squared(*chunk_pos));
-                println!("added to load queue: {}", load_queue.len());
                 observer.load_queue.extend(load_queue);
                 observer.last_last_chunk_tracking_view = Some(new_view);
                 commands.command_scope(|mut cmd| {
@@ -108,7 +107,6 @@ fn update_view(
             });
 
             load_queue.sort_by_key(|pos| pos.distance_squared(*chunk_pos));
-            println!("added to load queue: {}", load_queue.len());
             observer.load_queue.extend(load_queue);
             observer.last_last_chunk_tracking_view = Some(new_view);
         });

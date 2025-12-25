@@ -1,5 +1,6 @@
 use crate::SharedNetworkState;
 use crate::packet_io::PacketIo;
+use log::debug;
 use mcrs_protocol::ConnectionState;
 use mcrs_protocol::handshake::Intent;
 use mcrs_protocol::packets::intent::serverbound::ServerboundHandshake;
@@ -10,7 +11,7 @@ pub(crate) async fn handle_intent(
     mut io: PacketIo,
     remote_addr: std::net::SocketAddr,
 ) -> anyhow::Result<()> {
-    println!("Handling intent from {}", remote_addr);
+    debug!("Handling intent from {}", remote_addr);
     let (handshake) = io.recv_packet::<ServerboundHandshake>().await?;
     let intent = handshake.intent;
 

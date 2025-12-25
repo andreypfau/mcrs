@@ -15,6 +15,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{Commands, Query, Res};
 use bevy_ecs::world::World;
 use bytes::{Bytes, BytesMut};
+use log::warn;
 use mcrs_protocol::{Encode, Packet, WritePacket};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
@@ -77,7 +78,7 @@ fn flush_packets(
     for (entity, mut connection) in connections.iter_mut() {
         if let Err(e) = connection.flush() {
             commands.entity(entity).despawn();
-            eprintln!("Connection to {} closed: {}", connection.remote_addr(), e);
+            warn!("Connection to {} closed: {}", connection.remote_addr(), e);
         }
     }
 }
