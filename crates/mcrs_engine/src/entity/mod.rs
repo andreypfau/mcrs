@@ -2,13 +2,14 @@ use crate::entity::physics::{OldTransform, Transform};
 use crate::entity::player::Player;
 use crate::world::chunk::{Chunk, ChunkIndex, ChunkPos};
 use crate::world::dimension::{Dimension, DimensionPlayers, InDimension, OldInDimension};
-use bevy::app::{FixedPostUpdate, FixedUpdate};
-use bevy::ecs::entity::EntityHashSet;
-use bevy::ecs::relationship::RelationshipSourceCollection;
-use bevy::prelude::{
-    Added, Commands, Component, ContainsEntity, Deref, DetectChanges, Entity, EntityEvent, Has,
-    IntoScheduleConfigs, Local, Message, On, ParallelCommands, Query, Ref, With, Without,
+use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Plugin};
+use bevy_derive::Deref;
+use bevy_ecs::entity::EntityHashSet;
+use bevy_ecs::prelude::{
+    Added, Commands, Component, ContainsEntity, DetectChanges, Entity, EntityEvent, Has,
+    IntoScheduleConfigs, Local, On, ParallelCommands, Query, Ref, With, Without,
 };
+use bevy_ecs::relationship::RelationshipSourceCollection;
 use std::time::Instant;
 
 pub mod despawn;
@@ -17,10 +18,10 @@ pub mod player;
 
 pub struct EntityPlugin;
 
-impl bevy::app::Plugin for EntityPlugin {
-    fn build(&self, app: &mut bevy::prelude::App) {
+impl Plugin for EntityPlugin {
+    fn build(&self, app: &mut App) {
         app.add_systems(
-            bevy::prelude::FixedPreUpdate,
+            FixedPreUpdate,
             (add_entity_to_chunk, add_player_synced_entities),
         );
         app.add_systems(FixedUpdate, (tick_chunk_entities, sync_entities));
@@ -247,7 +248,7 @@ fn tick_chunk_entities(
             &InDimension,
             &OldInDimension,
         ),
-        (Without<Despawned>),
+        Without<Despawned>,
     >,
     mut commands: Commands,
 ) {
@@ -275,9 +276,7 @@ fn tick_chunk_entities(
         });
 }
 
-fn update_old_transforms(
-    mut entities: Query<(&mut OldTransform, &Transform), (Without<Despawned>)>,
-) {
+fn update_old_transforms(mut entities: Query<(&mut OldTransform, &Transform), Without<Despawned>>) {
     entities
         .iter_mut()
         .for_each(|(mut old_transform, transform)| {

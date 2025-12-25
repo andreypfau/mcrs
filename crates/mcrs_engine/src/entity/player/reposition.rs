@@ -1,7 +1,6 @@
-use bevy::math::{DVec3, IVec3};
-use bevy::prelude::{Changed, Component, Query, Reflect, Res, Resource};
+use bevy_ecs::prelude::{Component, Resource};
+use bevy_math::*;
 
-use crate::entity::physics::Transform;
 use crate::world::block::BlockPos;
 use crate::world::chunk;
 

@@ -1,4 +1,5 @@
-use bevy::prelude::{Commands, Component, Entity, Query, With};
+use bevy_ecs::prelude::*;
+use bevy_ecs_macros::Component;
 
 #[derive(Component, Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub struct Despawned;

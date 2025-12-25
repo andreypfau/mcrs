@@ -2,12 +2,12 @@ use crate::entity::physics::Transform;
 use crate::world::chunk::ticket::{ChunkTickets, Ticket, TicketCommand, TicketKind};
 use crate::world::chunk::{ChunkIndex, ChunkPos, ChunkStatus};
 use crate::world::dimension::InDimension;
-use bevy::app::FixedUpdate;
-use bevy::prelude::{
-    App, Component, ContainsEntity, Entity, EntityEvent, Message, MessageWriter, ParallelCommands,
-    Plugin, Query,
+use bevy_app::{App, FixedUpdate, Plugin};
+use bevy_ecs::prelude::{
+    Changed, Component, ContainsEntity, Entity, EntityEvent, IntoScheduleConfigs, MessageWriter,
+    ParallelCommands, Query,
 };
-use bevy::prelude::{Changed, IntoScheduleConfigs};
+use bevy_ecs_macros::Message;
 use std::collections::VecDeque;
 
 pub struct ChunkViewPlugin;

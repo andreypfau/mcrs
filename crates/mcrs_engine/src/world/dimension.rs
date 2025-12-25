@@ -2,12 +2,12 @@ use crate::entity::despawn::Despawned;
 use crate::entity::player::Player;
 use crate::world::chunk::ticket::ChunkTickets;
 use crate::world::chunk::{ChunkIndex, ChunkPlugin};
-use bevy::app::{App, FixedPostUpdate, FixedUpdate, Plugin, PostUpdate, PreStartup};
-use bevy::ecs::schedule::And;
-use bevy::prelude::{
-    Added, Bundle, Changed, Commands, Component, ContainsEntity, Deref, DerefMut, Despawn,
-    DetectChanges, Entity, Has, IntoScheduleConfigs, Mut, Query, Ref, Reflect, ResMut, Resource,
-    With,
+use bevy_app::{App, FixedPostUpdate, Plugin, PreStartup};
+use bevy_derive::{Deref, DerefMut};
+use bevy_ecs::change_detection::DetectChanges;
+use bevy_ecs::prelude::{
+    Added, Bundle, Changed, Commands, Component, ContainsEntity, Entity, Has, IntoScheduleConfigs,
+    Mut, Query, Ref, With,
 };
 use std::collections::BTreeSet;
 
@@ -57,9 +57,7 @@ impl ContainsEntity for OldInDimension {
     }
 }
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Reflect, Component, Deref, DerefMut,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Component, Deref, DerefMut)]
 pub struct DimensionTime(pub u64);
 
 fn update_time(mut dimension_time: Query<Mut<DimensionTime>>) {

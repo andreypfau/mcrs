@@ -1,20 +1,17 @@
 use crate::world::chunk::{ChunkBundle, ChunkIndex, ChunkPos, ChunkStatus};
 use crate::world::dimension::InDimension;
-use bevy::app::{FixedPostUpdate, FixedPreUpdate, FixedUpdate};
-use bevy::log::Level;
-use bevy::log::tracing::span;
-use bevy::prelude::{
-    Changed, Commands, Component, Deref, DerefMut, DetectChanges, DetectChangesMut, Entity,
-    PostUpdate, PreUpdate, Query, Ref, Update,
-};
+use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Plugin};
+use bevy_derive::{Deref, DerefMut};
+use bevy_ecs::change_detection::DetectChangesMut;
+use bevy_ecs::prelude::{Changed, Commands, Component, Entity, Query, Ref};
 use rustc_hash::FxHashMap;
 use std::cmp::Ordering;
 use tracing::info_span;
 
 pub(crate) struct TicketPlugin;
 
-impl bevy::prelude::Plugin for TicketPlugin {
-    fn build(&self, app: &mut bevy::prelude::App) {
+impl Plugin for TicketPlugin {
+    fn build(&self, app: &mut App) {
         app.add_systems(FixedPreUpdate, spawn_chunks);
         app.add_systems(FixedUpdate, unload_chunks);
         app.add_systems(FixedPostUpdate, (tick_timeout, despawn_chunks));
@@ -116,8 +113,8 @@ impl ChunkTickets {
     }
 }
 
-fn unload_chunks(mut chunk_statuses: Query<(&mut ChunkStatus), Changed<ChunkStatus>>) {
-    chunk_statuses.iter_mut().for_each(|(mut status)| {
+fn unload_chunks(mut chunk_statuses: Query<&mut ChunkStatus, Changed<ChunkStatus>>) {
+    chunk_statuses.iter_mut().for_each(|mut status| {
         if *status != ChunkStatus::Unloading {
             return;
         }

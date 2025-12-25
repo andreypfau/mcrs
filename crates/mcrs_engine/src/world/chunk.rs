@@ -2,21 +2,18 @@ pub mod palette;
 pub mod ticket;
 
 use crate::entity::ChunkEntities;
-use crate::entity::physics::{OldTransform, Transform};
 use crate::math::BitSize;
 use crate::world::block::BlockPos;
 use crate::world::chunk::ticket::TicketPlugin;
-use crate::world::dimension::{Dimension, InDimension};
-use bevy::app::{App, Plugin};
-use bevy::math::{DVec3, IVec3};
-use bevy::prelude::{
-    Bundle, Component, ContainsEntity, Deref, DerefMut, DetectChanges, Entity, Query, Ref, Reflect,
-    Without,
-};
+use crate::world::dimension::InDimension;
+use bevy_app::{App, Plugin};
+use bevy_derive::{Deref, DerefMut};
+use bevy_ecs::prelude::{Bundle, Component, Entity};
+use bevy_math::DVec3;
+use bevy_math::prelude::*;
 use rustc_hash::FxHashMap;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
-use std::ops::Deref;
 
 pub(crate) struct ChunkPlugin;
 

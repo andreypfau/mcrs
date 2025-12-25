@@ -2,7 +2,7 @@ use crate::math::BitSize;
 use crate::world::block::BlockPos;
 use crate::world::chunk;
 use crate::world::chunk::ChunkPos;
-use bevy::math::IVec3;
+use bevy_math::prelude::*;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Hash)]
 pub struct RegionPos(pub IVec3);
 
