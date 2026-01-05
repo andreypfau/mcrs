@@ -36,7 +36,7 @@ pub(crate) async fn handle_intent(
             // listener.handle().await?;
         }
         Intent::Login => {
-            let raw_connection = io.into_raw_connection(remote_addr, ConnectionState::Login);
+            let raw_connection = io.into_raw_connection(remote_addr);
             shared
                 .0
                 .new_connections_send

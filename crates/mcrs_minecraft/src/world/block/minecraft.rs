@@ -7,7 +7,7 @@ pub mod grass_block;
 pub mod stone;
 pub mod tnt;
 
-use mcrs_protocol::BlockStateId;
+use mcrs_protocol::{BlockStateId, Ident};
 
 use crate::world::block::Block;
 pub use air::BLOCK as AIR;
@@ -45,6 +45,24 @@ impl TryFrom<BlockStateId> for &'static Block {
     #[inline]
     fn try_from(v: BlockStateId) -> Result<Self, Self::Error> {
         STATE_TO_BLOCK.get(v.0 as usize).and_then(|x| *x).ok_or(())
+    }
+}
+
+impl TryFrom<Ident<String>> for &'static Block {
+    type Error = ();
+
+    fn try_from(value: Ident<String>) -> Result<Self, Self::Error> {
+        STATE_TO_BLOCK
+            .iter()
+            .find(|block_opt| {
+                if let Some(block) = block_opt {
+                    block.identifier.as_str() == value.as_str()
+                } else {
+                    false
+                }
+            })
+            .and_then(|block_opt| *block_opt)
+            .ok_or(())
     }
 }
 

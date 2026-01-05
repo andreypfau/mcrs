@@ -20,8 +20,10 @@ use crate::client_info::ClientInfoPlugin;
 use crate::configuration::ConfigurationStatePlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::LoginPlugin;
+use crate::tag::block::BlockTagPlugin;
 use crate::world::WorldPlugin;
 use bevy_app::{App, Plugin};
+use bevy_asset::AssetPlugin;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_network::{EngineConnection, NetworkPlugin};
 use std::num::NonZeroU32;
@@ -42,6 +44,8 @@ impl Plugin for ServerPlugin {
         // if !app.is_plugin_added::<ScheduleRunnerPlugin>() {
         //     app.add_plugins(ScheduleRunnerPlugin::default());
         // }
+        app.add_plugins(AssetPlugin::default());
+        app.add_plugins(BlockTagPlugin);
         app.add_plugins(NetworkPlugin);
         app.add_plugins(LoginPlugin);
         app.add_plugins(ConfigurationStatePlugin);

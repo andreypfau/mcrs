@@ -2,9 +2,11 @@ use crate::{EngineConnection, ServerSideConnection};
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
+use bevy_ecs::prelude::Commands;
 use bevy_ecs::schedule::ScheduleLabel;
 use bevy_ecs::system::{ParallelCommands, Query};
 use bytes::Bytes;
+use log::{debug, warn};
 use mcrs_protocol::{Decode, Packet};
 use std::time::Instant;
 
@@ -55,30 +57,22 @@ impl Plugin for EventLoopPlugin {
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RunEventLoop;
 
-fn run_event_loop(
-    mut query: Query<(Entity, &mut ServerSideConnection)>,
-    commands: ParallelCommands,
-) {
-    query.par_iter_mut().for_each(|(entity, mut conn)| {
-        loop {
-            match conn.try_recv() {
-                Ok(Some(pkt)) => {
-                    commands.command_scope(|mut cmd| {
-                        cmd.trigger(ReceivedPacketEvent {
-                            entity,
-                            id: pkt.id,
-                            data: pkt.payload,
-                            timestamp: pkt.timestamp,
-                        })
-                    });
-                }
-                Ok(None) => break,
-                Err(e) => {
-                    commands.command_scope(|mut cmd| {
-                        cmd.entity(entity).remove::<ServerSideConnection>();
-                    });
-                }
+fn run_event_loop(mut query: Query<(Entity, &mut ServerSideConnection)>, mut commands: Commands) {
+    query
+        .iter_mut()
+        .for_each(|(entity, mut conn)| match conn.try_recv() {
+            Ok(Some(pkt)) => {
+                commands.trigger(ReceivedPacketEvent {
+                    entity,
+                    id: pkt.id,
+                    data: pkt.payload,
+                    timestamp: pkt.timestamp,
+                });
             }
-        }
-    });
+            Ok(None) => {}
+            Err(e) => {
+                warn!("disconnecting client: {e}");
+                commands.entity(entity).remove::<ServerSideConnection>();
+            }
+        });
 }

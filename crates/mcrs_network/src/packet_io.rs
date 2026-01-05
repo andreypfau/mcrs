@@ -1,5 +1,6 @@
 use crate::byte_channel::{ByteSender, TrySendError, byte_channel};
 use crate::{EngineConnection, ReceivedPacket};
+use bevy_ecs::error::warn;
 use bytes::BytesMut;
 use log::{error, warn};
 use mcrs_protocol::{
@@ -68,11 +69,7 @@ impl PacketIo {
         }
     }
 
-    pub(crate) fn into_raw_connection(
-        mut self,
-        remote_addr: SocketAddr,
-        state: ConnectionState,
-    ) -> RawConnection {
+    pub(crate) fn into_raw_connection(mut self, remote_addr: SocketAddr) -> RawConnection {
         let (incoming_sender, incoming_receiver) = channel(1);
         let (mut reader, mut writer) = self.stream.into_split();
         let reader_task = tokio::spawn(async move {
@@ -83,7 +80,10 @@ impl PacketIo {
                     Ok(None) => {
                         buf.reserve(READ_BUF_SIZE);
                         match reader.read_buf(&mut buf).await {
-                            Ok(0) => break, // Reader is at EOF.
+                            Ok(0) => {
+                                warn!("Connection closed!");
+                                break;
+                            } // Reader is at EOF.
                             Ok(_) => {}
                             Err(e) => {
                                 error!("error reading data from stream: {e}");
@@ -107,10 +107,13 @@ impl PacketIo {
                     payload: frame.body.into(),
                 };
 
-                if incoming_sender.send(packet).await.is_err() {
+                let r = incoming_sender.send(packet).await;
+                if let Err(e) = r {
+                    warn!("error sending incoming packet {e}");
                     break;
                 }
             }
+            warn!("stop reader loop");
         });
 
         let (outgoing_sender, mut outgoing_receiver) = byte_channel(8388608);
@@ -119,15 +122,15 @@ impl PacketIo {
                 let bytes = match outgoing_receiver.recv_async().await {
                     Ok(bytes) => bytes,
                     Err(e) => {
+                        warn!("error receiving packet: {e}");
                         break;
                     }
                 };
-                // println!("writing packet of size {}", bytes.len());
-
                 if let Err(e) = writer.write_all(&bytes).await {
-                    // eprintln!("error writing data to stream: {e}");
+                    warn!("error writing outgoing packet: {e}");
                 }
             }
+            warn!("stop writer loop")
         });
 
         RawConnection {
@@ -137,7 +140,6 @@ impl PacketIo {
             writer_task,
             enc: self.enc,
             remote_addr,
-            state,
         }
     }
 }
@@ -149,7 +151,14 @@ pub(crate) struct RawConnection {
     writer_task: JoinHandle<()>,
     enc: PacketEncoder,
     pub remote_addr: SocketAddr,
-    pub state: ConnectionState,
+}
+
+impl Drop for RawConnection {
+    fn drop(&mut self) {
+        self.writer_task.abort();
+        self.reader_task.abort();
+        warn!("dropped raw connection")
+    }
 }
 
 impl EngineConnection for RawConnection {

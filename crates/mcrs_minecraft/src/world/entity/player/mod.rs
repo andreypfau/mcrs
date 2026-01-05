@@ -10,21 +10,21 @@ use crate::world::entity::{EntityBundle, MinecraftEntityType};
 use crate::world::inventory::{ContainerSeqno, PlayerInventoryBundle, PlayerInventoryQuery};
 use crate::world::item::minecraft::DIAMOND_PICKAXE;
 use crate::world::item::{ItemCommands, ItemStack};
-use bevy_app::{FixedUpdate, Plugin};
+use bevy_app::{FixedUpdate, Plugin, PostUpdate};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Changed, Commands, Query, With};
+use bevy_ecs::prelude::{Changed, Commands, Query, RemovedComponents, With};
 use bevy_ecs::query::Added;
 use bevy_math::DVec3;
 use derive_more::{Deref, DerefMut};
-use mcrs_engine::entity::EntityNetworkAddEvent;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDistance};
 use mcrs_engine::entity::player::reposition::Reposition;
+use mcrs_engine::entity::{Despawned, EntityNetworkAddEvent};
 use mcrs_engine::world::dimension::{Dimension, InDimension};
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::entity::player::PlayerSpawnInfo;
@@ -59,6 +59,7 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(ChatPlugin);
         app.add_systems(bevy_app::Update, spawn_player);
         app.add_systems(FixedUpdate, (disconnect_player, added_inventory));
+        app.add_systems(PostUpdate, despawn_disconnected_clients);
         app.add_observer(network_add);
         app.add_observer(player_joined);
     }
@@ -237,6 +238,17 @@ fn disconnect_player(
     players.iter_mut().for_each(|(mut con, reason)| {
         let reason = reason.0.clone();
         con.write_packet(&ClientboundDisconnect { reason })
+    })
+}
+
+fn despawn_disconnected_clients(
+    mut commands: Commands,
+    mut disconnected_clients: RemovedComponents<ServerSideConnection>,
+) {
+    disconnected_clients.read().for_each(|entity| {
+        if let Ok(mut entity) = commands.get_entity(entity) {
+            entity.insert(Despawned);
+        }
     })
 }
 
