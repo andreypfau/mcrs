@@ -14,6 +14,7 @@ pub use air::BLOCK as AIR;
 pub use bedrock::BLOCK as BEDROCK;
 pub use dirt::BLOCK as DIRT;
 pub use grass_block::BLOCK as GRASS_BLOCK;
+use mcrs_registry::Registry;
 pub use stone::BLOCK as STONE;
 pub use tnt::BLOCK as TNT;
 
@@ -22,6 +23,16 @@ pub struct MinecraftBlockPlugin;
 impl Plugin for MinecraftBlockPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(tnt::TntBlockPlugin);
+
+        let mut registry = Registry::<&'static Block>::default();
+        registry.insert(AIR.identifier, &AIR);
+        registry.insert(GRASS_BLOCK.identifier, &GRASS_BLOCK);
+        registry.insert(DIRT.identifier, &DIRT);
+        registry.insert(STONE.identifier, &STONE);
+        registry.insert(BEDROCK.identifier, &BEDROCK);
+        registry.insert(TNT.identifier, &TNT);
+
+        app.insert_resource(registry);
     }
 }
 

@@ -9,7 +9,10 @@ use bevy_ecs::message::MessageReader;
 use bevy_ecs::system::{Res, ResMut};
 use bevy_ecs_macros::Resource;
 use mcrs_protocol::{Ident, ident};
+use mcrs_registry::{Registry, RegistryId};
 use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::path::PathBuf;
 use std::str::FromStr;
 use tracing::info;
 use world::block::minecraft;
@@ -85,25 +88,36 @@ impl Plugin for BlockTagPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<ResourcePackTags>()
             .register_asset_loader(ResourcePackTagsLoader)
-            .init_resource::<BlockTagRegistry>()
+            .init_resource::<TagRegistry<&'static Block>>()
             .add_systems(Startup, load_block_tags)
-            .add_systems(FixedUpdate, process_loaded_tags);
+            .add_systems(FixedUpdate, process_loaded_tags::<&'static Block>);
     }
 }
 
-#[derive(Resource, Default)]
-pub struct BlockTagRegistry {
-    pub map: HashMap<Ident<String>, Vec<&'static Block>>,
+#[derive(Resource)]
+pub struct TagRegistry<T: Clone + Send + Sync> {
+    pub map: HashMap<Ident<String>, Vec<RegistryId<T>>>,
     loaded_tags: Vec<Handle<ResourcePackTags>>,
     processed_tags: HashSet<AssetId<ResourcePackTags>>,
 }
 
-impl BlockTagRegistry {
-    fn resolve_tag_entries(
+impl<T: std::clone::Clone + Send + std::marker::Sync> Default for TagRegistry<T> {
+    fn default() -> Self {
+        Self {
+            map: HashMap::new(),
+            loaded_tags: Vec::new(),
+            processed_tags: HashSet::new(),
+        }
+    }
+}
+
+impl<T: Clone + Send + Sync> TagRegistry<T> {
+    fn resolve_tag_entries<'a, 'b: 'a>(
         &mut self,
         tag_name: Ident<String>,
-        entries: &[TagEntry],
+        entries: &'b [TagEntry],
         tags_assets: &Assets<ResourcePackTags>,
+        registry: &'a Registry<T>,
     ) {
         let mut blocks = Vec::new();
 
@@ -112,11 +126,14 @@ impl BlockTagRegistry {
         for entry in entries {
             match &entry.tag {
                 TagOrTagFileHandle::Tag(ident) => {
-                    // Try to convert identifier to Block reference
-                    let result: Result<&'static Block, ()> = TryFrom::try_from(ident.clone());
-                    if let Ok(block) = result {
-                        info!("Found block {} in tag {}", block.identifier, tag_name);
-                        blocks.push(block);
+                    let reg_id = RegistryId::Identifier {
+                        identifier: ident.clone(),
+                    };
+                    if let Some((index, block)) = registry.get_full(reg_id) {
+                        blocks.push(RegistryId::Index {
+                            index,
+                            marker: std::marker::PhantomData,
+                        });
                     } else if !entry.required {
                         // If not required and not found, skip silently
                         continue;
@@ -142,40 +159,62 @@ impl BlockTagRegistry {
     }
 }
 
-fn load_block_tags(mut asset_server: ResMut<AssetServer>, mut registry: ResMut<BlockTagRegistry>) {
-    // Load all block tag files from assets/minecraft/tags/block/
-    let tag_files = vec![
-        "mineable/pickaxe.json",
-        "mineable/axe.json",
-        "mineable/shovel.json",
-        "mineable/hoe.json",
-        "needs_diamond_tool.json",
-        "needs_iron_tool.json",
-        "needs_stone_tool.json",
-        "incorrect_for_netherite_tool.json",
-        "incorrect_for_diamond_tool.json",
-        "incorrect_for_iron_tool.json",
-        "incorrect_for_copper_tool.json",
-        "incorrect_for_stone_tool.json",
-        "incorrect_for_gold_tool.json",
-        "incorrect_for_wooden_tool.json",
-    ];
+fn load_block_tags(
+    asset_server: ResMut<AssetServer>,
+    mut registry: ResMut<TagRegistry<&'static Block>>,
+) {
+    // Recursively load all block tag files from assets/minecraft/tags/block/
+    let base_path = PathBuf::from("assets/minecraft/tags/block");
 
-    for tag_file in tag_files {
-        let path = format!("minecraft/tags/block/{}", tag_file);
-        let handle: Handle<ResourcePackTags> = asset_server.load_with_settings(
-            path.clone(),
-            |settings: &mut TagFileLoaderSettings| {
-                settings.directory = "minecraft/tags/block".to_string();
-            },
-        );
-        registry.loaded_tags.push(handle);
+    if !base_path.exists() {
+        tracing::warn!("Block tags directory not found: {:?}", base_path);
+        return;
+    }
+
+    if let Ok(tag_files) = collect_tag_files(&base_path, &base_path) {
+        tracing::info!("Loading {} block tag files", tag_files.len());
+
+        for relative_path in tag_files {
+            let asset_path = format!("minecraft/tags/block/{}", relative_path);
+            let handle: Handle<ResourcePackTags> = asset_server.load_with_settings(
+                asset_path.clone(),
+                |settings: &mut TagFileLoaderSettings| {
+                    settings.directory = "minecraft/tags/block".to_string();
+                },
+            );
+            registry.loaded_tags.push(handle);
+        }
     }
 }
 
-pub fn process_loaded_tags(
-    mut registry: ResMut<BlockTagRegistry>,
+/// Recursively collects all .json files in the directory
+fn collect_tag_files(dir: &PathBuf, base_path: &PathBuf) -> Result<Vec<String>, std::io::Error> {
+    let mut files = Vec::new();
+
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            // Recursively collect from subdirectories
+            files.extend(collect_tag_files(&path, base_path)?);
+        } else if path.extension().and_then(|s| s.to_str()) == Some("json") {
+            // Get relative path from base_path
+            if let Ok(relative) = path.strip_prefix(base_path) {
+                if let Some(relative_str) = relative.to_str() {
+                    files.push(relative_str.to_string());
+                }
+            }
+        }
+    }
+
+    Ok(files)
+}
+
+pub fn process_loaded_tags<T: Clone + Send + Sync + 'static>(
+    mut registry: ResMut<TagRegistry<T>>,
     tags_assets: Res<Assets<ResourcePackTags>>,
+    block_registry: Res<Registry<T>>,
     mut asset_events: MessageReader<AssetEvent<ResourcePackTags>>,
 ) {
     // Handle asset events for hot reload support
@@ -211,7 +250,12 @@ pub fn process_loaded_tags(
             if let Some(path) = handle.path() {
                 let path_str = path.path().to_string_lossy().into_owned();
                 if let Ok(tag_name) = Ident::<String>::from_str(&path_str) {
-                    registry.resolve_tag_entries(tag_name, &tag_asset.values, &tags_assets);
+                    registry.resolve_tag_entries(
+                        tag_name,
+                        &tag_asset.values,
+                        &tags_assets,
+                        &block_registry,
+                    );
                     registry.processed_tags.insert(asset_id);
                 }
             }

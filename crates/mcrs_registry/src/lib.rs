@@ -1,3 +1,4 @@
+use bevy_ecs::prelude::Resource;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -5,12 +6,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use valence_ident::Ident;
 
-pub trait RegistryEntry: Send + Sync + 'static {
-    // fn identifier(&self) -> Ident<&str>;
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum RegistryId<E: RegistryEntry> {
+pub enum RegistryId<E> {
     Index {
         index: usize,
         marker: PhantomData<E>,
@@ -23,7 +20,7 @@ pub enum RegistryId<E: RegistryEntry> {
     },
 }
 
-impl<E: RegistryEntry> From<Ident<String>> for RegistryId<E> {
+impl<E> From<Ident<String>> for RegistryId<E> {
     fn from(value: Ident<String>) -> Self {
         RegistryId::Identifier {
             identifier: value.into(),
@@ -31,23 +28,24 @@ impl<E: RegistryEntry> From<Ident<String>> for RegistryId<E> {
     }
 }
 
-impl<E: RegistryEntry> From<Ident<&'static str>> for RegistryId<E> {
+impl<E> From<Ident<&'static str>> for RegistryId<E> {
     fn from(value: Ident<&'static str>) -> Self {
         RegistryId::StaticIdentifier { identifier: value }
     }
 }
 
-pub struct Registry<E: RegistryEntry> {
+#[derive(Resource)]
+pub struct Registry<E> {
     items: IndexMap<Ident<String>, E>,
 }
 
-impl<E: RegistryEntry> Default for Registry<E> {
+impl<E> Default for Registry<E> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<E: RegistryEntry> Registry<E> {
+impl<E> Registry<E> {
     pub fn new() -> Self {
         Self {
             items: IndexMap::new(),
@@ -62,10 +60,40 @@ impl<E: RegistryEntry> Registry<E> {
         }
     }
 
+    pub fn get_full(&self, id: impl Into<RegistryId<E>>) -> Option<(usize, &E)> {
+        match id.into() {
+            RegistryId::Index { index, .. } => self.items.get_index(index).map(|(_, v)| (index, v)),
+            RegistryId::Identifier { identifier } => self
+                .items
+                .get_full(&identifier)
+                .map(|(index, _, v)| (index, v)),
+            RegistryId::StaticIdentifier { identifier } => self
+                .items
+                .get_full(identifier.as_str())
+                .map(|(index, _, v)| (index, v)),
+        }
+    }
+
     pub fn insert(&mut self, id: impl Into<Ident<String>>, entry: E) -> RegistryRef<E> {
         let index = self.items.len();
         let id = id.into();
         self.items.insert(id.clone(), entry);
+
+        RegistryRef {
+            index,
+            identifier: id,
+            marker: PhantomData,
+        }
+    }
+
+    pub fn shift_insert(
+        &mut self,
+        index: usize,
+        id: impl Into<Ident<String>>,
+        entry: E,
+    ) -> RegistryRef<E> {
+        let id = id.into();
+        self.items.shift_insert(index, id.clone(), entry);
 
         RegistryRef {
             index,
@@ -90,19 +118,19 @@ impl<E: RegistryEntry> Registry<E> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct RegistryRef<E: RegistryEntry> {
+pub struct RegistryRef<E> {
     index: usize,
     identifier: Ident<String>,
     marker: PhantomData<E>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Holder<E: RegistryEntry + Debug + Clone> {
+pub enum Holder<E: Debug + Clone> {
     Direct(E),
     Reference(Ident<Cow<'static, str>>),
 }
 
-impl<E: RegistryEntry> Into<RegistryId<E>> for RegistryRef<E> {
+impl<E> Into<RegistryId<E>> for RegistryRef<E> {
     fn into(self) -> RegistryId<E> {
         RegistryId::Index {
             index: self.index,
@@ -118,7 +146,6 @@ mod tests {
 
     fn test_registry() {
         struct TestEntry {}
-        impl RegistryEntry for TestEntry {}
 
         const A: Ident<&'static str> = ident!("test_entry");
 

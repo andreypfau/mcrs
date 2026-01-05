@@ -1,7 +1,6 @@
 use crate::world::block::behaviour::{BlockBehaviour, Properties};
 use bevy_ecs::prelude::Resource;
 use mcrs_protocol::{BlockStateId, Ident};
-use mcrs_registry::RegistryEntry;
 use std::hash::{Hash, Hasher};
 
 pub mod behaviour;

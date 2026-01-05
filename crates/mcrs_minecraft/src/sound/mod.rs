@@ -1,5 +1,5 @@
 use mcrs_protocol::Ident;
-use mcrs_registry::{Holder, RegistryEntry};
+use mcrs_registry::Holder;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -7,8 +7,6 @@ pub struct SoundEvent {
     sound_id: Ident<String>,
     range: f32,
 }
-
-impl RegistryEntry for SoundEvent {}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Music {
