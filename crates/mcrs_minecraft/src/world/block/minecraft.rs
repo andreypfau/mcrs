@@ -1,54 +1,89 @@
-use bevy_app::{App, Plugin};
-
-pub mod air;
-pub mod bedrock;
-pub mod dirt;
-pub mod grass_block;
-pub mod stone;
-pub mod tnt;
-
-use mcrs_protocol::{BlockStateId, Ident};
-
 use crate::world::block::Block;
-pub use air::BLOCK as AIR;
-pub use bedrock::BLOCK as BEDROCK;
-pub use dirt::BLOCK as DIRT;
-pub use grass_block::BLOCK as GRASS_BLOCK;
+use bevy_app::{App, Plugin};
+use mcrs_protocol::{BlockStateId, Ident};
 use mcrs_registry::Registry;
-pub use stone::BLOCK as STONE;
-pub use tnt::BLOCK as TNT;
 
-pub struct MinecraftBlockPlugin;
+macro_rules! declare_blocks {
+    (
+        $(
+            $module:ident => $const_name:ident
+            $([$($plugin:ident),* $(,)?])?
+            $(: [$($state:ident),* $(,)?])?
+        ),* $(,)?
+    ) => {
+        // Declare modules
+        $(
+            pub mod $module;
+        )*
 
-impl Plugin for MinecraftBlockPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(tnt::TntBlockPlugin);
+        // Re-export block constants
+        $(
+            pub use $module::BLOCK as $const_name;
+        )*
 
-        let mut registry = Registry::<&'static Block>::default();
-        registry.insert(AIR.identifier, &AIR);
-        registry.insert(GRASS_BLOCK.identifier, &GRASS_BLOCK);
-        registry.insert(DIRT.identifier, &DIRT);
-        registry.insert(STONE.identifier, &STONE);
-        registry.insert(BEDROCK.identifier, &BEDROCK);
-        registry.insert(TNT.identifier, &TNT);
+        pub struct MinecraftBlockPlugin;
 
-        app.insert_resource(registry);
-    }
+        impl Plugin for MinecraftBlockPlugin {
+            fn build(&self, app: &mut App) {
+                // Add block-specific plugins
+                $(
+                    $($(
+                        app.add_plugins($module::$plugin);
+                    )*)?
+                )*
+
+                // Register blocks in registry
+                let mut registry = Registry::<&'static Block>::default();
+                $(
+                    registry.insert($const_name.identifier, &$const_name);
+                )*
+
+                app.insert_resource(registry);
+            }
+        }
+
+        const STATE_TABLE_LEN: usize = 1 << 16;
+
+        static STATE_TO_BLOCK: [Option<&'static Block>; STATE_TABLE_LEN] = {
+            let mut t: [Option<&'static Block>; STATE_TABLE_LEN] = [None; STATE_TABLE_LEN];
+            $(
+                // If explicit states provided, use them
+                $($(
+                    t[$module::$state.id.0 as usize] = Some(&$const_name);
+                )*)?
+
+                // Otherwise use DEFAULT_STATE (this gets overridden if states were specified)
+                #[allow(unreachable_code)]
+                {
+                    $($(let _ = $module::$state;)*)?  // Consume the pattern if it exists
+
+                    // Only register DEFAULT_STATE if no explicit states
+                    if false $(|| { $(let _ = $module::$state;)* true })? {
+                        // Skip - explicit states handled above
+                    } else {
+                        t[$module::DEFAULT_STATE.id.0 as usize] = Some(&$const_name);
+                    }
+                }
+            )*
+            t
+        };
+    };
 }
 
-const STATE_TABLE_LEN: usize = 1 << 16;
+declare_blocks! {
+    air => AIR,
+    stone => STONE,
+    granite => GRANITE,
+    polished_granite => POLISHED_GRANITE,
+    diorite => DIORITE,
+    polished_diorite => POLISHED_DIORITE,
 
-static STATE_TO_BLOCK: [Option<&'static Block>; STATE_TABLE_LEN] = {
-    let mut t: [Option<&'static Block>; STATE_TABLE_LEN] = [None; STATE_TABLE_LEN];
-    t[air::DEFAULT_STATE.id.0 as usize] = Some(&AIR);
-    t[grass_block::DEFAULT_STATE.id.0 as usize] = Some(&GRASS_BLOCK);
-    t[dirt::DEFAULT_STATE.id.0 as usize] = Some(&DIRT);
-    t[stone::DEFAULT_STATE.id.0 as usize] = Some(&STONE);
-    t[bedrock::DEFAULT_STATE.id.0 as usize] = Some(&BEDROCK);
-    t[tnt::UNSTABLE_STATE.id.0 as usize] = Some(&TNT);
-    t[tnt::DEFAULT_STATE.id.0 as usize] = Some(&TNT);
-    t
-};
+    grass_block => GRASS_BLOCK,
+    dirt => DIRT,
+    bedrock => BEDROCK,
+    note_block => NOTE_BLOCK,
+    tnt => TNT [TntBlockPlugin]: [UNSTABLE_STATE, DEFAULT_STATE],
+}
 
 impl TryFrom<BlockStateId> for &'static Block {
     type Error = ();

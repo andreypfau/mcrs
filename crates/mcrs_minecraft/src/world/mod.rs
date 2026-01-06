@@ -17,6 +17,7 @@ mod format;
 mod generate;
 mod inventory;
 pub mod item;
+mod material;
 mod palette;
 
 pub struct WorldPlugin;

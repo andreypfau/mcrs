@@ -1,3 +1,7 @@
+use crate::sound::SoundType;
+use crate::world::block::minecraft::note_block::NoteBlockInstrument;
+use crate::world::material::PushReaction;
+use crate::world::material::map::MapColor;
 use mcrs_engine::world::block::BlockPos;
 
 #[derive(Clone, Copy, Debug)]
@@ -12,6 +16,10 @@ pub struct Properties {
     pub requires_correct_tool_for_drops: bool,
     pub is_valid_spawn: bool,
     pub is_randomly_ticking: bool,
+    pub map_color: MapColor,
+    pub sound_type: &'static SoundType,
+    pub push_reaction: PushReaction,
+    pub instrument: NoteBlockInstrument,
 }
 
 impl Properties {
@@ -27,6 +35,10 @@ impl Properties {
             requires_correct_tool_for_drops: false,
             is_valid_spawn: true,
             is_randomly_ticking: false,
+            map_color: MapColor::NONE,
+            sound_type: &SoundType::STONE,
+            push_reaction: PushReaction::Normal,
+            instrument: NoteBlockInstrument::Harp,
         }
     }
 
@@ -57,6 +69,26 @@ impl Properties {
 
     pub const fn with_random_ticks(mut self) -> Self {
         self.is_randomly_ticking = true;
+        self
+    }
+
+    pub const fn with_map_color(mut self, value: MapColor) -> Self {
+        self.map_color = value;
+        self
+    }
+
+    pub const fn with_note_block_instrument(mut self, value: NoteBlockInstrument) -> Self {
+        self.instrument = value;
+        self
+    }
+
+    pub const fn with_sound(mut self, value: &'static SoundType) -> Self {
+        self.sound_type = value;
+        self
+    }
+
+    pub const fn with_push_reaction(mut self, value: PushReaction) -> Self {
+        self.push_reaction = value;
         self
     }
 

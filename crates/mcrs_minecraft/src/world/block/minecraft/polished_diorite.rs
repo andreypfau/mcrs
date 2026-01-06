@@ -5,18 +5,18 @@ use crate::world::material::map::MapColor;
 use mcrs_protocol::{BlockStateId, ident};
 
 pub const BLOCK: Block = Block {
-    identifier: ident!("stone"),
+    identifier: ident!("polished_diorite"),
     properties: &PROPERTIES,
     default_state: &DEFAULT_STATE,
     states: &[DEFAULT_STATE],
 };
 
 pub const DEFAULT_STATE: BlockState = BlockState {
-    id: BlockStateId(1),
+    id: BlockStateId(6),
 };
 
 pub const PROPERTIES: Properties = Properties::new()
-    .with_map_color(MapColor::STONE)
+    .with_map_color(MapColor::QUARTZ)
     .with_note_block_instrument(NoteBlockInstrument::Basedrum)
     .requires_correct_tool_for_drops()
     .with_hardness(1.5)
