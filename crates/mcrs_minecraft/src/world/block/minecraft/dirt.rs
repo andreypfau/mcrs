@@ -1,5 +1,6 @@
 use crate::world::block::behaviour::Properties;
 use crate::world::block::{Block, BlockState};
+use crate::world::material::map::MapColor;
 use mcrs_protocol::{BlockStateId, ident};
 
 pub const BLOCK: Block = Block {
@@ -14,5 +15,5 @@ pub const DEFAULT_STATE: BlockState = BlockState {
 };
 
 pub const PROPERTIES: Properties = Properties::new()
-    .with_hardness(0.5)
-    .with_explosion_resistance(0.5);
+    .with_map_color(MapColor::DIRT)
+    .with_strength(0.5);

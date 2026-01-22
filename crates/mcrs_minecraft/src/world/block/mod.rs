@@ -4,6 +4,7 @@ use mcrs_protocol::{BlockStateId, Ident};
 use std::hash::{Hash, Hasher};
 
 pub mod behaviour;
+mod macros;
 pub mod minecraft;
 
 bitflags::bitflags! {

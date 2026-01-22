@@ -1,3 +1,5 @@
+#![recursion_limit = "2048"]
+
 extern crate core;
 
 mod biome;

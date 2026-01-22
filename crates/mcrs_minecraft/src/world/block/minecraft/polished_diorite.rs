@@ -12,12 +12,12 @@ pub const BLOCK: Block = Block {
 };
 
 pub const DEFAULT_STATE: BlockState = BlockState {
-    id: BlockStateId(6),
+    id: BlockStateId(5),
 };
 
 pub const PROPERTIES: Properties = Properties::new()
     .with_map_color(MapColor::QUARTZ)
-    .with_note_block_instrument(NoteBlockInstrument::Basedrum)
-    .requires_correct_tool_for_drops()
+    .with_note_block_instrument(NoteBlockInstrument::BASEDRUM)
     .with_hardness(1.5)
-    .with_explosion_resistance(6.0);
+    .with_explosion_resistance(6.0)
+    .requires_correct_tool_for_drops();

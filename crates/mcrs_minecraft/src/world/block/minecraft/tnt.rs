@@ -7,6 +7,7 @@ use crate::world::entity::explosive::primed_tnt::{
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
 use crate::world::explosion::BlockExplodedEvent;
+use crate::world::material::map::MapColor;
 use bevy_app::Plugin;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::On;
@@ -29,11 +30,16 @@ pub const BLOCK: Block = Block {
 pub const UNSTABLE_STATE: BlockState = BlockState {
     id: BlockStateId(2140),
 };
+
 pub const DEFAULT_STATE: BlockState = BlockState {
     id: BlockStateId(2141),
 };
 
-pub const PROPERTIES: Properties = Properties::new().instant_break().ignited_by_lava();
+pub const PROPERTIES: Properties = Properties::new()
+    .with_map_color(MapColor::FIRE)
+    .with_strength(0.0)
+    .ignited_by_lava()
+    .instant_break();
 
 pub struct TntBlockPlugin;
 

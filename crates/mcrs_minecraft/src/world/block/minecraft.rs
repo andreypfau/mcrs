@@ -8,7 +8,6 @@ macro_rules! declare_blocks {
         $(
             $module:ident => $const_name:ident
             $([$($plugin:ident),* $(,)?])?
-            $(: [$($state:ident),* $(,)?])?
         ),* $(,)?
     ) => {
         // Declare modules
@@ -47,21 +46,13 @@ macro_rules! declare_blocks {
         static STATE_TO_BLOCK: [Option<&'static Block>; STATE_TABLE_LEN] = {
             let mut t: [Option<&'static Block>; STATE_TABLE_LEN] = [None; STATE_TABLE_LEN];
             $(
-                // If explicit states provided, use them
-                $($(
-                    t[$module::$state.id.0 as usize] = Some(&$const_name);
-                )*)?
-
-                // Otherwise use DEFAULT_STATE (this gets overridden if states were specified)
-                #[allow(unreachable_code)]
                 {
-                    $($(let _ = $module::$state;)*)?  // Consume the pattern if it exists
-
-                    // Only register DEFAULT_STATE if no explicit states
-                    if false $(|| { $(let _ = $module::$state;)* true })? {
-                        // Skip - explicit states handled above
-                    } else {
-                        t[$module::DEFAULT_STATE.id.0 as usize] = Some(&$const_name);
+                    let block = &$const_name;
+                    let states = block.states;
+                    let mut i = 0;
+                    while i < states.len() {
+                        t[states[i].id.0 as usize] = Some(block);
+                        i += 1;
                     }
                 }
             )*
@@ -77,13 +68,40 @@ declare_blocks! {
     polished_granite => POLISHED_GRANITE,
     diorite => DIORITE,
     polished_diorite => POLISHED_DIORITE,
-
+    andesite => ANDESITE,
+    polished_andesite => POLISHED_ANDESITE,
     grass_block => GRASS_BLOCK,
     dirt => DIRT,
+    coarse_dirt => COARSE_DIRT,
+    podzol => PODZOL,
+    cobblestone => COBBLESTONE,
+    oak_planks => OAK_PLANKS,
+    spruce_planks => SPRUCE_PLANKS,
+    birch_planks => BIRCH_PLANKS,
+    jungle_planks => JUNGLE_PLANKS,
+    acacia_planks => ACACIA_PLANKS,
+    cherry_planks => CHERRY_PLANKS,
+    dark_oak_planks => DARK_OAK_PLANKS,
+    pale_oak_wood => PALE_OAK_WOOD,
+    pale_oak_planks => PALE_OAK_PLANKS,
+    mangrove_planks => MANGROVE_PLANKS,
+    bamboo_planks => BAMBOO_PLANKS,
+    bamboo_mosaic => BAMBOO_MOSAIC,
+    oak_sapling => OAK_SAPLING,
+    spruce_sapling => SPRUCE_SAPLING,
+    birch_sapling => BIRCH_SAPLING,
+    jungle_sapling => JUNGLE_SAPLING,
+    acacia_sapling => ACACIA_SAPLING,
+    cherry_sapling => CHERRY_SAPLING,
+    dark_oak_sapling => DARK_OAK_SAPLING,
+    pale_oak_sapling => PALE_OAK_SAPLING,
+    mangrove_propagule => MANGROVE_PROPAGULE,
     bedrock => BEDROCK,
     note_block => NOTE_BLOCK,
-    tnt => TNT [TntBlockPlugin]: [UNSTABLE_STATE, DEFAULT_STATE],
+    tnt => TNT [TntBlockPlugin],
 }
+
+fn foo() {}
 
 impl TryFrom<BlockStateId> for &'static Block {
     type Error = ();

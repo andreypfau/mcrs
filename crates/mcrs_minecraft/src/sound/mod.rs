@@ -72,6 +72,15 @@ impl SoundType {
         minecraft::STONE_HIT,
         minecraft::STONE_FALL,
     );
+    pub const GRASS: SoundType = Self::new(
+        1.0,
+        1.0,
+        minecraft::EMPTY,
+        minecraft::EMPTY,
+        minecraft::EMPTY,
+        minecraft::EMPTY,
+        minecraft::EMPTY,
+    );
 
     const fn new(
         volume: f32,

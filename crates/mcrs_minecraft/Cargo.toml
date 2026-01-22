@@ -32,6 +32,7 @@ bytes.workspace = true
 cipher.workspace = true
 async-compression.workspace = true
 thiserror.workspace = true
+paste = { version = "1.0.15" }
 serde = { version = "1.0.228", features = ["derive"] }
 bitflags = "2.10.0"
 tracing = "0.1.43"
