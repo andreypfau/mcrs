@@ -4,6 +4,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{ExecutorKind, ScheduleLabel};
 use bevy_log::{Level, LogPlugin};
 use mcrs_minecraft::ServerPlugin;
+use std::time::Duration;
 
 mod chunk_render_debug;
 
@@ -14,14 +15,16 @@ const LOG_FILTER: &str =
 async fn main() {
     let mut app = App::new();
     setup_schedules(&mut app);
-    app.add_plugins(ScheduleRunnerPlugin::default())
-        .add_plugins(LogPlugin {
-            filter: LOG_FILTER.to_string(),
-            level: Level::INFO,
-            ..Default::default()
-        })
-        .add_plugins(ServerPlugin)
-        .run();
+    app.add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_secs_f64(
+        1.0 / mcrs_minecraft::DEFAULT_TPS.get() as f64,
+    )))
+    .add_plugins(LogPlugin {
+        filter: LOG_FILTER.to_string(),
+        level: Level::INFO,
+        ..Default::default()
+    })
+    .add_plugins(ServerPlugin)
+    .run();
 }
 
 fn setup_schedules(app: &mut App) {
