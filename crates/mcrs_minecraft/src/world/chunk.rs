@@ -1,14 +1,15 @@
 use crate::world::generate::generate_chunk;
 use crate::world::palette::{BiomePalette, BlockPalette};
-use bevy_app::{App, FixedPreUpdate, Plugin};
+use bevy_app::{App, FixedPreUpdate, Plugin, Startup};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Query, Resource};
 use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::{Commands, ResMut};
+use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
 use mcrs_engine::world::chunk::{ChunkPos, ChunkStatus};
+use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsAsset, NoiseGeneratorSettingsPlugin};
 use rustc_hash::FxHashMap;
 use std::sync::OnceLock;
 
@@ -16,6 +17,7 @@ pub struct ChunkPlugin;
 
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugins(NoiseGeneratorSettingsPlugin);
         CHUNK_TASK_POOL.get_or_init(|| {
             TaskPoolBuilder::new()
                 .thread_name("ChunkGen".to_string())

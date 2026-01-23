@@ -10,6 +10,7 @@ mcrs_engine.workspace = true
 mcrs_network.workspace = true
 mcrs_protocol.workspace = true
 mcrs_registry.workspace = true
+mcrs_minecraft_worldgen.workspace = true
 mcrs_nbt.workspace = true
 bevy_math.workspace = true
 bevy_app.workspace = true

@@ -1,0 +1,34 @@
+[package]
+name = "mcrs_minecraft_worldgen"
+description = "mcrs_minecraft_worldgen"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+mcrs_engine.workspace = true
+mcrs_protocol.workspace = true
+mcrs_random.workspace = true
+bevy_math.workspace = true
+bevy_app = { workspace = true, optional = true }
+bevy_asset = { workspace = true, optional = true }
+bevy_reflect = { workspace = true, optional = true }
+bevy_ecs = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+thiserror = { workspace = true, optional = true }
+
+[features]
+default = ["serde", "bevy"]
+serde = ["dep:serde", "dep:serde_json"]
+bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_asset", "dep:bevy_reflect", "dep:thiserror"]
+
+
+
+
+
+
+
+
+
+
+

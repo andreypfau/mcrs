@@ -90,7 +90,7 @@ impl Plugin for BlockTagPlugin {
             .register_asset_loader(ResourcePackTagsLoader)
             .init_resource::<TagRegistry<&'static Block>>()
             .add_systems(Startup, load_block_tags)
-            .add_systems(FixedUpdate, process_loaded_tags::<&'static Block>);
+            .add_systems(Update, process_loaded_tags::<&'static Block>);
     }
 }
 
@@ -121,7 +121,7 @@ impl<T: Clone + Send + Sync> TagRegistry<T> {
     ) {
         let mut blocks = Vec::new();
 
-        info!("Resolving tag entries for {}", tag_name);
+        // info!("Resolving tag entries for {}", tag_name);
 
         for entry in entries {
             match &entry.tag {

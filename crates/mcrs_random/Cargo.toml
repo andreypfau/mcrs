@@ -1,0 +1,9 @@
+[package]
+name = "mcrs_random"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rand_xoshiro.workspace = true
+bevy_math.workspace = true
+md-5.workspace = true
