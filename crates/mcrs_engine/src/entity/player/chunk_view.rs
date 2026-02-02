@@ -1,12 +1,13 @@
 use crate::entity::physics::Transform;
-use crate::world::chunk::ticket::{ChunkTickets, Ticket, TicketCommand, TicketKind};
-use crate::world::chunk::{ChunkIndex, ChunkPos, ChunkStatus};
+use crate::world::chunk::ticket::{ChunkTicketsCommands, Ticket, TicketCommand, TicketKind};
+use crate::world::chunk::{ChunkIndex, ChunkLoaded, ChunkPos};
 use crate::world::dimension::InDimension;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{
     Changed, Component, ContainsEntity, Entity, EntityEvent, IntoScheduleConfigs, MessageWriter,
-    ParallelCommands, Query,
+    ParallelCommands, Query, With,
 };
+use bevy_ecs::system::Commands;
 use bevy_ecs_macros::Message;
 use std::collections::VecDeque;
 
@@ -127,7 +128,7 @@ pub struct PlayerChunkLoadRequest {
 
 fn update_unload_queue(
     mut query: Query<(Entity, &InDimension, &mut PlayerChunkObserver)>,
-    mut dimensions: Query<&mut ChunkTickets>,
+    mut dimensions: Query<&mut ChunkTicketsCommands>,
     mut unload_requests: MessageWriter<PlayerChunkUnloadRequest>,
 ) {
     query.iter_mut().for_each(|(player, dim, mut observer)| {
@@ -145,7 +146,7 @@ fn update_unload_queue(
 fn update_loading_queue(
     mut players: Query<(Entity, &mut PlayerChunkObserver, &InDimension)>,
     dims: Query<&ChunkIndex>,
-    chunks: Query<&ChunkStatus>,
+    chunks: Query<Entity, With<ChunkLoaded>>,
     mut load_requests: MessageWriter<PlayerChunkLoadRequest>,
 ) {
     const MAX_SENDS: usize = 64 * 16;
@@ -170,12 +171,9 @@ fn update_loading_queue(
             let Some(chunk) = chunk_index.get(chunk_pos) else {
                 return;
             };
-            let Some(status) = chunks.get(chunk).ok().copied() else {
+            let Some(status) = chunks.get(chunk).ok() else {
                 return;
             };
-            if status != ChunkStatus::Loaded {
-                return;
-            }
             observer.loading_queue.pop_front();
             load_requests.write(PlayerChunkLoadRequest {
                 player,
@@ -189,7 +187,8 @@ fn update_loading_queue(
 
 fn update_load_queue(
     mut players: Query<(&mut PlayerChunkObserver, &InDimension)>,
-    mut dimensions: Query<&mut ChunkTickets>,
+    mut dimensions: Query<&mut ChunkTicketsCommands>,
+    mut commands: Commands,
 ) {
     const MAX_LOADS: usize = 64 * 16;
 

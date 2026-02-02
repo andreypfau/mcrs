@@ -83,6 +83,7 @@ pub struct ChunkBundle {
     pub status: ChunkStatus,
     pub entities: ChunkEntities,
     marker: Chunk,
+    chunk_loading: ChunkLoading,
 }
 
 #[derive(Component, Debug, Default)]
@@ -97,6 +98,7 @@ impl ChunkBundle {
             status: ChunkStatus::default(),
             entities: ChunkEntities::default(),
             marker: Chunk,
+            chunk_loading: ChunkLoading,
         }
     }
 }
@@ -111,6 +113,26 @@ pub enum ChunkStatus {
     Loaded,
     Unloading,
 }
+
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct ChunkLoaded;
+
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct ChunkGenerating;
+
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct ChunkLoading;
+
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct ChunkUnloading;
+
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct ChunkUnloaded;
 
 #[derive(Component, Debug, Default, Deref)]
 pub struct ChunkIndex(FxHashMap<ChunkPos, Entity>);

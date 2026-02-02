@@ -1,6 +1,6 @@
 use crate::entity::despawn::Despawned;
 use crate::entity::player::Player;
-use crate::world::chunk::ticket::ChunkTickets;
+use crate::world::chunk::ticket::ChunkTicketsCommands;
 use crate::world::chunk::{ChunkIndex, ChunkPlugin};
 use bevy_app::{App, FixedPostUpdate, Plugin, PreStartup};
 use bevy_derive::{Deref, DerefMut};
@@ -29,7 +29,7 @@ impl Plugin for DimensionPlugin {
 pub struct DimensionBundle {
     pub dimension: Dimension,
     pub chunk_index: ChunkIndex,
-    pub chunk_tickets: ChunkTickets,
+    pub chunk_tickets: ChunkTicketsCommands,
     pub players: DimensionPlayers,
 }
 

@@ -1,20 +1,28 @@
-use crate::world::chunk::{ChunkBundle, ChunkIndex, ChunkPos, ChunkStatus};
+use crate::world::chunk::{
+    Chunk, ChunkBundle, ChunkIndex, ChunkPos, ChunkUnloaded, ChunkUnloading,
+};
 use crate::world::dimension::InDimension;
-use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Plugin};
+use bevy_app::{App, FixedPreUpdate, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
-use bevy_ecs::change_detection::DetectChangesMut;
-use bevy_ecs::prelude::{Changed, Commands, Component, Entity, Query, Ref};
-use rustc_hash::FxHashMap;
+use bevy_ecs::prelude::*;
+use bevy_ecs::query::With;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::cmp::Ordering;
-use tracing::info_span;
 
 pub(crate) struct TicketPlugin;
 
 impl Plugin for TicketPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(FixedPreUpdate, spawn_chunks);
-        app.add_systems(FixedUpdate, unload_chunks);
-        app.add_systems(FixedPostUpdate, (tick_timeout, despawn_chunks));
+        app.add_systems(
+            FixedUpdate,
+            (
+                unload_chunks,
+                unloading_chunks,
+                despawn_chunks,
+                remove_tickets_from_chunks,
+            ),
+        );
     }
 }
 
@@ -90,19 +98,44 @@ pub enum TicketCommand {
     },
 }
 
-#[derive(Component, Debug, Default, DerefMut, Deref)]
-pub struct ChunkTickets(FxHashMap<ChunkPos, Vec<Ticket>>);
+#[derive(Component, Debug, Default)]
+pub struct ChunkTicketsCommands {
+    add_tickets: FxHashMap<ChunkPos, Vec<Ticket>>,
+    remove_tickets: FxHashSet<(ChunkPos, Vec<TicketKind>)>,
+}
 
-impl ChunkTickets {
+#[derive(Component, Deref, DerefMut)]
+pub struct ChunkTicketHolder(pub Vec<Ticket>);
+
+impl ChunkTicketHolder {
+    pub fn add(&mut self, ticket: Ticket) {
+        self.0.push(ticket);
+        self.0.sort_by(|a, b| b.cmp(a));
+    }
+
+    pub fn add_all(&mut self, tickets: Vec<Ticket>) {
+        self.0.extend(tickets);
+        self.0.sort_by(|a, b| b.cmp(a));
+    }
+
+    pub fn remove(&mut self, ticket_kind: TicketKind) {
+        self.0
+            .iter()
+            .position(|t| t.kind == ticket_kind)
+            .map(|i| self.0.remove(i));
+    }
+}
+
+impl ChunkTicketsCommands {
     pub fn add_ticket(&mut self, chunk_pos: ChunkPos, ticket: Ticket) {
-        self.0.entry(chunk_pos).or_default().push(ticket);
-        self.0.get_mut(&chunk_pos).map(|tickets| {
+        self.add_tickets.entry(chunk_pos).or_default().push(ticket);
+        self.add_tickets.get_mut(&chunk_pos).map(|tickets| {
             tickets.sort_by(|a, b| b.cmp(a));
         });
     }
 
     pub fn remove_ticket(&mut self, chunk_pos: ChunkPos, ticket_kind: TicketKind) {
-        if let Some(tickets) = self.0.get_mut(&chunk_pos) {
+        if let Some(tickets) = self.add_tickets.get_mut(&chunk_pos) {
             // println!("Removing ticket {:?} from chunk {:?}", ticket_kind, chunk_pos);
             tickets
                 .iter()
@@ -113,84 +146,114 @@ impl ChunkTickets {
     }
 }
 
-fn unload_chunks(mut chunk_statuses: Query<&mut ChunkStatus, Changed<ChunkStatus>>) {
-    chunk_statuses.iter_mut().for_each(|mut status| {
-        if *status != ChunkStatus::Unloading {
-            return;
-        }
-        status.set_if_neq(ChunkStatus::Unloaded);
-    })
-}
+// fn unload_chunks(
+//     mut commands: Commands,
+//     mut chunk_statuses: Query<(Entity, &ChunkStatus), Changed<ChunkStatus>>,
+// ) {
+//     chunk_statuses.iter_mut().for_each(|(e, status)| {
+//         if *status != ChunkStatus::Unloading {
+//             return;
+//         }
+//         commands.entity(e).insert(ChunkUnloaded);
+//     })
+// }
 
 fn despawn_chunks(
     mut commands: Commands,
     mut dims: Query<(&mut ChunkIndex)>,
-    chunk_statuses: Query<(Entity, &ChunkPos, &ChunkStatus, &InDimension), Changed<ChunkStatus>>,
+    chunk_statuses: Query<(Entity, &ChunkPos, &InDimension), With<ChunkUnloaded>>,
 ) {
-    chunk_statuses
-        .iter()
-        .for_each(|(chunk, chunk_pos, status, dim)| {
-            if *status != ChunkStatus::Unloaded {
-                return;
-            }
-            dims.get_mut(**dim).ok().map(|mut chunk_index| {
-                chunk_index.remove(*chunk_pos);
-            });
-            commands.entity(chunk).despawn();
-            // println!("Despawned chunk {:?}", chunk_pos);
-        })
+    chunk_statuses.iter().for_each(|(chunk, chunk_pos, dim)| {
+        dims.get_mut(**dim).ok().map(|mut chunk_index| {
+            chunk_index.remove(*chunk_pos);
+        });
+        commands.entity(chunk).despawn();
+        // println!("Despawned chunk {:?}", chunk_pos);
+    })
 }
 
-fn tick_timeout(
-    mut dims: Query<(&mut ChunkTickets, &ChunkIndex)>,
-    mut chunk_statuses: Query<&mut ChunkStatus>,
+fn unloading_chunks(
+    mut commands: Commands,
+    mut chunks: Query<
+        (Entity, &ChunkTicketHolder),
+        (
+            With<Chunk>,
+            Without<ChunkUnloaded>,
+            Changed<ChunkTicketHolder>,
+        ),
+    >,
 ) {
-    dims.iter_mut()
-        .for_each(|(mut chunk_tickets, chunk_index)| {
-            chunk_tickets.retain(|pos, tickets| {
-                tickets.retain_mut(|t| {
-                    t.decrease_ticks_left();
-                    !t.is_expired()
-                });
-                if tickets.is_empty() {
-                    chunk_index
-                        .get(*pos)
-                        .and_then(|e| chunk_statuses.get_mut(e).ok())
-                        .map(|mut s| s.set_if_neq(ChunkStatus::Unloading));
-                    false
-                } else {
-                    true
-                }
-            })
-        })
+    chunks.iter_mut().for_each(|(e, ticket_holder)| {
+        if ticket_holder.is_empty() {
+            commands.entity(e).insert(ChunkUnloading);
+        }
+    });
+}
+
+fn unload_chunks(
+    mut commands: Commands,
+    chunk_statuses: Query<(Entity, &ChunkPos, &InDimension), With<ChunkUnloading>>,
+) {
+    chunk_statuses.iter().for_each(|(chunk, chunk_pos, dim)| {
+        commands
+            .entity(chunk)
+            .remove::<ChunkUnloading>()
+            .insert(ChunkUnloaded);
+    })
 }
 
 fn spawn_chunks(
-    mut dims: Query<(Entity, Ref<ChunkTickets>, &mut ChunkIndex), Changed<ChunkTickets>>,
+    mut dims: Query<
+        (Entity, &mut ChunkTicketsCommands, &mut ChunkIndex),
+        Changed<ChunkTicketsCommands>,
+    >,
     mut commands: Commands,
+    mut chunks: Query<(Entity, &mut ChunkTicketHolder), With<Chunk>>,
 ) {
     dims.iter_mut()
-        .for_each(|(dim, chunk_tickets, mut chunk_index)| {
-            let _span = info_span!("spawn_chunks iteration").entered();
-
-            // Iterate only over new tickets by filtering out already spawned chunks
-            let chunks_to_spawn: Vec<ChunkPos> = chunk_tickets
-                .iter()
-                .filter_map(|(pos, tickets)| {
-                    if !tickets.is_empty() && !chunk_index.contains(*pos) {
-                        Some(*pos)
+        .for_each(|(dim, mut chunk_tickets, mut chunk_index)| {
+            chunk_tickets
+                .add_tickets
+                .drain()
+                .for_each(|(pos, tickets)| {
+                    if !chunk_index.contains(pos) {
+                        let chunk_entity = commands
+                            .spawn((
+                                ChunkBundle::new(InDimension(dim), pos),
+                                ChunkTicketHolder(tickets.clone()),
+                            ))
+                            .id();
+                        chunk_index.insert(pos, chunk_entity);
                     } else {
-                        None
+                        let Some(chunk_entity) = chunk_index.get(pos) else {
+                            return;
+                        };
+                        if let Ok((_, mut ticket_holder)) = chunks.get_mut(chunk_entity) {
+                            ticket_holder.add_all(tickets);
+                        }
                     }
-                })
-                .collect();
+                });
+        });
+}
 
-            drop(_span);
-
-            // Spawn chunks in batch
-            for pos in chunks_to_spawn {
-                let chunk_entity = commands.spawn(ChunkBundle::new(InDimension(dim), pos)).id();
-                chunk_index.insert(pos, chunk_entity);
-            }
-        })
+fn remove_tickets_from_chunks(
+    mut dims: Query<(&mut ChunkTicketsCommands, &ChunkIndex)>,
+    mut chunks: Query<(Entity, &mut ChunkTicketHolder), With<Chunk>>,
+) {
+    dims.iter_mut()
+        .for_each(|(mut chunk_tickets, chunk_index)| {
+            chunk_tickets
+                .remove_tickets
+                .drain()
+                .for_each(|(pos, ticket_kinds)| {
+                    let Some(chunk_entity) = chunk_index.get(pos) else {
+                        return;
+                    };
+                    if let Ok((_, mut ticket_holder)) = chunks.get_mut(chunk_entity) {
+                        ticket_kinds.iter().for_each(|kind| {
+                            ticket_holder.remove(*kind);
+                        });
+                    }
+                });
+        });
 }
