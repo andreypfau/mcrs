@@ -12,7 +12,7 @@ use mcrs_protocol::packets::configuration::serverbound::ServerboundKeepAlive as 
 use mcrs_protocol::packets::game::clientbound::ClientboundKeepAlive as GameRequest;
 use mcrs_protocol::packets::game::serverbound::ServerboundKeepAlive as GameResponse;
 use std::time::Instant;
-use tracing::{debug, trace};
+use tracing::{debug, info, trace, warn};
 
 pub struct KeepAlivePlugin;
 
@@ -66,6 +66,7 @@ pub fn handle_keepalive(
 
         if now.duration_since(state.time).as_secs() >= 15 {
             if state.pending {
+                warn!("Keepalive timeout for {}", con.remote_addr());
                 commands.entity(entity).remove::<ServerSideConnection>();
                 continue;
             }
@@ -73,6 +74,12 @@ pub fn handle_keepalive(
             state.challenge = rand::random();
             state.time = now;
             state.pending = true;
+
+            debug!(
+                "Sending keepalive to {} with payload {}",
+                con.remote_addr(),
+                state.challenge
+            );
             let request = mcrs_protocol::packets::common::clientbound::KeepAlive {
                 payload: state.challenge,
             };
@@ -115,8 +122,14 @@ pub fn handle_keepalive_response(
         }
         _ => return,
     };
-    trace!("Keepalive response: {:?}", keep_alive);
+    debug!("Keepalive response: {:?}", keep_alive);
     if !state.pending || keep_alive.payload != state.challenge {
+        warn!(
+            "Keepalive failed for {}: expected {}, got {}",
+            con.remote_addr(),
+            state.challenge,
+            keep_alive.payload
+        );
         commands
             .entity(event.entity)
             .remove::<ServerSideConnection>();

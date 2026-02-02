@@ -26,7 +26,7 @@ use crate::tag::block::BlockTagPlugin;
 use crate::world::WorldPlugin;
 use bevy_app::{App, Plugin};
 use bevy_asset::AssetPlugin;
-use bevy_time::{Fixed, Time, TimePlugin};
+use bevy_time::TimePlugin;
 use mcrs_network::{EngineConnection, NetworkPlugin};
 use std::num::NonZeroU32;
 
@@ -42,7 +42,7 @@ impl Plugin for ServerPlugin {
         if !app.is_plugin_added::<TimePlugin>() {
             app.add_plugins(TimePlugin);
         }
-        app.insert_resource(Time::<Fixed>::from_hz(DEFAULT_TPS.get() as f64));
+        // app.insert_resource(Time::<Fixed>::from_hz(DEFAULT_TPS.get() as f64));
         // if !app.is_plugin_added::<ScheduleRunnerPlugin>() {
         //     app.add_plugins(ScheduleRunnerPlugin::default());
         // }

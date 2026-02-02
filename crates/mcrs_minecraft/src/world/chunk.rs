@@ -1,15 +1,19 @@
-use crate::world::generate::generate_chunk;
+use crate::world::generate::{generate_chunk, generate_noise};
 use crate::world::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPreUpdate, Plugin, Startup};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Query, Resource};
+use bevy_ecs::prelude::{Query, Resource, With, resource_exists};
 use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
-use mcrs_engine::world::chunk::{ChunkPos, ChunkStatus};
-use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsAsset, NoiseGeneratorSettingsPlugin};
+use mcrs_engine::world::chunk::{
+    ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos, ChunkStatus,
+};
+use mcrs_minecraft_worldgen::bevy::{
+    NoiseGeneratorSettingsAsset, NoiseGeneratorSettingsPlugin, OverworldNoiseRouter,
+};
 use rustc_hash::FxHashMap;
 use std::sync::OnceLock;
 
@@ -27,7 +31,11 @@ impl Plugin for ChunkPlugin {
         app.insert_resource(LoadingChunks::default());
         app.add_systems(
             FixedPreUpdate,
-            (load_chunks, process_generated_chunk).chain(),
+            (
+                load_chunks.run_if(resource_exists::<OverworldNoiseRouter>),
+                process_generated_chunk,
+            )
+                .chain(),
         );
     }
 }
@@ -45,8 +53,10 @@ struct ChunkLoadingTask {
 }
 
 fn load_chunks(
-    mut query: Query<(Entity, &mut ChunkStatus, &ChunkPos)>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut ChunkStatus, &ChunkPos), With<ChunkLoading>>,
     mut loading_chunks: ResMut<LoadingChunks>,
+    overworld_noise_router: Res<OverworldNoiseRouter>,
 ) {
     let _span = tracing::info_span!("load_chunks get pool").entered();
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
@@ -54,16 +64,25 @@ fn load_chunks(
     let _span = tracing::info_span!("load_chunks iterate chunks").entered();
     query.iter_mut().for_each(|(e, mut status, pos)| {
         let _1 = tracing::info_span!("load_chunks process chunk").entered();
-        if *status != ChunkStatus::Loading {
-            return;
-        }
         *status = ChunkStatus::Generating;
+
+        commands
+            .entity(e)
+            .insert(ChunkGenerating)
+            .remove::<ChunkLoading>();
+
         let pos = *pos;
         let _2 = tracing::info_span!("load_chunks spawn task").entered();
+        let mut router = overworld_noise_router.0.clone();
         let task = task_pool.spawn(async move {
             let mut blocks = BlockPalette::default();
             let mut biomes = BiomePalette::default();
-            generate_chunk(pos, &mut blocks, &mut biomes);
+            if pos.x >= 0 && pos.x < 3 && pos.z >= 0 && pos.z < 3 {
+                // generate_noise(pos, &mut blocks, &mut biomes, &mut router);
+                generate_chunk(pos, &mut blocks, &mut biomes);
+            } else {
+                generate_chunk(pos, &mut blocks, &mut biomes);
+            }
             ChunkLoadingTask {
                 chunk: e,
                 pos,
@@ -89,7 +108,10 @@ fn process_generated_chunk(
             let Ok((mut status)) = query.get_mut(chunk) else {
                 return false;
             };
-            *status = ChunkStatus::Loaded;
+            commands
+                .entity(chunk)
+                .insert(ChunkLoaded)
+                .remove::<ChunkGenerating>();
             commands
                 .entity(chunk)
                 .insert((loaded_chunk.blocks, loaded_chunk.biomes));

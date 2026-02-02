@@ -1,7 +1,9 @@
 use crate::world::block::minecraft::{BEDROCK, DIRT, GRASS_BLOCK, STONE};
 use crate::world::palette::{BiomePalette, BlockPalette};
+use bevy_math::IVec3;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::ChunkPos;
+use mcrs_minecraft_worldgen::density_function::NoiseRouter;
 
 // i need layer:
 // grass_block - top 1
@@ -44,6 +46,34 @@ pub fn generate_chunk(pos: ChunkPos, block_states: &mut BlockPalette, _biomes: &
         for x in 0..16 {
             for z in 0..16 {
                 block_states.set(BlockPos::new(x, 63 - chunk_y_start, z), &GRASS_BLOCK);
+            }
+        }
+    }
+}
+
+pub fn generate_noise(
+    pos: ChunkPos,
+    block_states: &mut BlockPalette,
+    biomes: &mut BiomePalette,
+    noise_router: &mut NoiseRouter,
+) {
+    let block_x = pos.x * 16;
+    let block_z = pos.z * 16;
+    let block_y = pos.y * 16;
+    for x in 0..16 {
+        let world_x = block_x + x;
+        for z in 0..16 {
+            let world_z = block_z + z;
+            for y in 0..16 {
+                let world_y = block_y + y;
+
+                let density = noise_router.final_density(IVec3::new(world_x, world_y, world_z));
+
+                if density > 0.0 {
+                    block_states.set(BlockPos::new(x, y, z), &STONE);
+                } else {
+                    // Air block, do nothing or set to air if necessary
+                }
             }
         }
     }

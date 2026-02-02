@@ -3,15 +3,15 @@ use std::collections::VecDeque;
 use crate::world::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Message, On, Query};
+use bevy_ecs::prelude::{Added, Changed, Component, ContainsEntity, Message, On, Query, With};
 use bevy_ecs::system::{Commands, Res};
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::chunk_view::{
     ChunkTrackingView, ChunkTrackingViewUpdateEvent, ChunkViewPlugin, PlayerChunkObserver,
 };
 use mcrs_engine::entity::player::reposition::{Reposition, RepositionConfig};
-use mcrs_engine::world::chunk::ticket::{ChunkTickets, Ticket, TicketKind};
-use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos, ChunkStatus};
+use mcrs_engine::world::chunk::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
+use mcrs_engine::world::chunk::{ChunkIndex, ChunkLoaded, ChunkPos, ChunkStatus};
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::{
@@ -107,7 +107,7 @@ fn offset_sections(rep: &Reposition) -> i32 {
 }
 
 fn apply_forced_tickets(
-    tickets: &mut ChunkTickets,
+    tickets: &mut ChunkTicketsCommands,
     col: ChunkColumnPos,
     off_sections: i32,
     add: bool,
@@ -137,7 +137,7 @@ fn on_view_update(
         &mut PlayerColumnView,
         &mut PlayerChunkObserver,
     )>,
-    mut dimensions: Query<&mut ChunkTickets>,
+    mut dimensions: Query<&mut ChunkTicketsCommands>,
 ) {
     let Ok((mut con, rep, dim, mut col_view, mut observer)) = q.get_mut(event.player) else {
         return;
@@ -220,7 +220,7 @@ fn handle_reposition_changed(
         ),
         Changed<Reposition>,
     >,
-    mut dimensions: Query<&mut ChunkTickets>,
+    mut dimensions: Query<&mut ChunkTicketsCommands>,
 ) {
     for (rep, dim, mut view, mut observer) in &mut players {
         let Ok(mut tickets) = dimensions.get_mut(dim.entity()) else {
@@ -260,7 +260,7 @@ fn process_column_queues(
         &mut ServerSideConnection,
     )>,
     dims: Query<&ChunkIndex>,
-    chunks: Query<(&ChunkStatus, &BlockPalette, &BiomePalette)>,
+    chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
 ) {
     const MAX_COL_SENDS: usize = 64;
 
@@ -309,14 +309,10 @@ fn process_column_queues(
                     ready = false;
                     break;
                 };
-                let Ok((status, blocks, biomes)) = chunks.get(chunk_e) else {
+                let Ok((blocks, biomes)) = chunks.get(chunk_e) else {
                     ready = false;
                     break;
                 };
-                if *status != ChunkStatus::Loaded {
-                    ready = false;
-                    break;
-                }
                 sections.push((chunk_e, blocks, biomes));
             }
 
