@@ -3,9 +3,11 @@ use bevy_math::FloatExt;
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 
-pub trait SplineFunction<C> {
-    fn apply(&self, ctx: &mut C) -> f32;
+pub trait SplineFunction<C>: RangeFunction {
+    fn apply(&self, ctx: &C) -> f32;
+}
 
+pub trait RangeFunction {
     fn min_value(&self) -> f32;
 
     fn max_value(&self) -> f32;
@@ -186,7 +188,7 @@ impl<C, F: SplineFunction<C>> CubicSpline<C, F> {
 }
 
 impl<C, F: SplineFunction<C>> SplineFunction<C> for CubicSpline<C, F> {
-    fn apply(&self, ctx: &mut C) -> f32 {
+    fn apply(&self, ctx: &C) -> f32 {
         match self {
             Constant(v) => *v,
             CubicSpline::MultiPoint {
@@ -228,7 +230,9 @@ impl<C, F: SplineFunction<C>> SplineFunction<C> for CubicSpline<C, F> {
             }
         }
     }
+}
 
+impl<C, F: SplineFunction<C>> RangeFunction for CubicSpline<C, F> {
     fn min_value(&self) -> f32 {
         match self {
             Constant(v) => *v,
@@ -331,7 +335,7 @@ where
 #[cfg(test)]
 mod test {
     use crate::spline::test::CoordinateFunction::Identity;
-    use crate::spline::{Builder, SplineFunction};
+    use crate::spline::{Builder, RangeFunction, SplineFunction};
     use CoordinateFunction::Square;
 
     enum CoordinateFunction {
@@ -339,20 +343,22 @@ mod test {
         Square,
     }
 
-    impl SplineFunction<f32> for CoordinateFunction {
-        fn apply(&self, ctx: &mut f32) -> f32 {
-            match self {
-                Identity => *ctx,
-                Square => *ctx * *ctx,
-            }
-        }
-
+    impl RangeFunction for CoordinateFunction {
         fn min_value(&self) -> f32 {
             f32::NEG_INFINITY
         }
 
         fn max_value(&self) -> f32 {
             f32::INFINITY
+        }
+    }
+
+    impl SplineFunction<f32> for CoordinateFunction {
+        fn apply(&self, ctx: &f32) -> f32 {
+            match self {
+                Identity => *ctx,
+                Square => *ctx * *ctx,
+            }
         }
     }
 

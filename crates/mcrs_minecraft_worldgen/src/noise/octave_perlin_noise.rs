@@ -3,15 +3,15 @@ use mcrs_random::Random;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct OctavePerlinNoise {
-    lacunarity: f64,
-    persistence: f64,
-    max_value: f64,
-    amplitudes: Vec<f64>,
+    lacunarity: f32,
+    persistence: f32,
+    max_value: f32,
+    amplitudes: Vec<f32>,
     octave_samplers: Vec<Option<ImprovedNoise>>,
 }
 
 impl OctavePerlinNoise {
-    pub fn new<T>(random: &mut T, first_octave: i32, amplitudes: Vec<f64>, legacy: bool) -> Self
+    pub fn new<T>(random: &mut T, first_octave: i32, amplitudes: Vec<f32>, legacy: bool) -> Self
     where
         T: Random + Clone,
     {
@@ -44,10 +44,10 @@ impl OctavePerlinNoise {
             octave_samplers.reverse();
         }
 
-        let scale = 2.0_f64;
+        let scale = 2.0_f32;
         let lacunarity = scale.powi(first_octave);
-        let a = scale.powf(amplitudes.len() as f64 - 1.0);
-        let b = scale.powf(amplitudes.len() as f64) - 1.0;
+        let a = scale.powf(amplitudes.len() as f32 - 1.0);
+        let b = scale.powf(amplitudes.len() as f32) - 1.0;
         let persistence = a / b;
 
         let mut noise = Self {
@@ -67,11 +67,11 @@ impl OctavePerlinNoise {
             .and_then(|sampler| sampler.as_ref())
     }
 
-    pub fn max_value(&self) -> f64 {
+    pub fn max_value(&self) -> f32 {
         self.max_value
     }
 
-    pub fn edge_value(&self, scale: f64) -> f64 {
+    pub fn edge_value(&self, scale: f32) -> f32 {
         let mut value = 0.0;
         let mut factor = self.persistence;
         for i in 0..self.octave_samplers.len() {
@@ -84,14 +84,14 @@ impl OctavePerlinNoise {
     }
 
     #[inline]
-    pub fn maintain_precission(value: f64) -> f64 {
+    pub fn maintain_precission(value: f32) -> f32 {
         #[cfg(feature = "far-lands")]
         return value;
         #[cfg(not(feature = "far-lands"))]
-        return value - (value / 3.3554432E7 + 0.5).floor() * 3.3554432E7;
+        return (value - (value / 3.3554432E7 + 0.5).floor() * 3.3554432E7);
     }
 
-    pub fn get(&self, x: f64, y: f64, z: f64) -> f64 {
+    pub fn get(&self, x: f32, y: f32, z: f32) -> f32 {
         let mut lacunarity = self.lacunarity;
         let mut persistence = self.persistence;
         let mut acc = 0.0;

@@ -1,6 +1,6 @@
 use mcrs_random::{Random, RandomSource};
 
-const FLAT_SIMPLEX_GRAD: [f64; 64] = [
+const FLAT_SIMPLEX_GRAD: [f32; 64] = [
     1.0, 1.0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 1.0, 0.0,
     1.0, 0.0, -1.0, 0.0, 1.0, 0.0, 1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, 0.0, 1.0, 1.0, 0.0,
     0.0, -1.0, 1.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, -1.0, -1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, -1.0,
@@ -10,9 +10,9 @@ const FLAT_SIMPLEX_GRAD: [f64; 64] = [
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImprovedNoise {
     permutation: [u8; 256],
-    pub origin_x: f64,
-    pub origin_y: f64,
-    pub origin_z: f64,
+    pub origin_x: f32,
+    pub origin_y: f32,
+    pub origin_z: f32,
 }
 
 impl Default for ImprovedNoise {
@@ -26,9 +26,9 @@ impl ImprovedNoise {
     where
         T: Random,
     {
-        let origin_x = random.next_f64() * 256.0;
-        let origin_y = random.next_f64() * 256.0;
-        let origin_z = random.next_f64() * 256.0;
+        let origin_x = random.next_f32() * 256.0;
+        let origin_y = random.next_f32() * 256.0;
+        let origin_z = random.next_f32() * 256.0;
         let mut permutation = [0u8; 256];
         for i in 0..256 {
             permutation[i] = i as u8;
@@ -45,16 +45,16 @@ impl ImprovedNoise {
         }
     }
 
-    pub fn sample(&self, x: f64, y: f64, z: f64, y_scale: f64, y_max: f64) -> f64 {
+    pub fn sample(&self, x: f32, y: f32, z: f32, y_scale: f32, y_max: f32) -> f32 {
         let shifted_x = x + self.origin_x;
         let shifted_y = y + self.origin_y;
         let shifted_z = z + self.origin_z;
         let section_x = shifted_x.floor() as i32;
         let section_y = shifted_y.floor() as i32;
         let section_z = shifted_z.floor() as i32;
-        let local_x = shifted_x - section_x as f64;
-        let local_y = shifted_y - section_y as f64;
-        let local_z = shifted_z - section_z as f64;
+        let local_x = shifted_x - section_x as f32;
+        let local_y = shifted_y - section_y as f32;
+        let local_z = shifted_z - section_z as f32;
         let mut fade = 0.0;
         if y_scale != 0.0 {
             let t = if y_max >= 0.0 && y_max < local_y {
@@ -62,7 +62,7 @@ impl ImprovedNoise {
             } else {
                 local_y
             };
-            fade = (t / y_scale + 1.0E-7f64).floor() * y_scale
+            fade = (t / y_scale + 1.0E-7f32).floor() * y_scale
         }
         self.sample_and_lerp(
             section_x,
@@ -80,11 +80,11 @@ impl ImprovedNoise {
         section_x: i32,
         section_y: i32,
         section_z: i32,
-        local_x: f64,
-        local_y: f64,
-        local_z: f64,
-        fade_local_x: f64,
-    ) -> f64 {
+        local_x: f32,
+        local_y: f32,
+        local_z: f32,
+        fade_local_x: f32,
+    ) -> f32 {
         let var0 = section_x & 0xFF;
         let var1 = (section_x.wrapping_add(1)) & 0xFF;
         let var2 = self.permutation[var0 as usize] as i32;

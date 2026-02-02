@@ -13,7 +13,7 @@ const F64_MULTIPLIER: f64 = 1.0 / (1u64 << 30) as f64;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegacyRandom {
-    seed: u64,
+    pub seed: u64,
 }
 
 impl LegacyRandom {

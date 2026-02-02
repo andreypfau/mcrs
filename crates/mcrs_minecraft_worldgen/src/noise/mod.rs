@@ -1,4 +1,3 @@
-pub mod blended_noise;
 pub mod improved_noise;
 pub mod normal_noise;
 pub mod octave_perlin_noise;

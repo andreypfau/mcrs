@@ -11,7 +11,16 @@ impl Hash for HashableF64 {
     }
 }
 
-#[derive(Hash, PartialEq, Debug, Clone, serde::Serialize, serde::Deserialize)]
+impl Eq for HashableF64 {}
+
+impl From<f64> for HashableF64 {
+    #[inline]
+    fn from(value: f64) -> Self {
+        HashableF64(value)
+    }
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(feature = "bevy", derive(bevy_asset::Asset, bevy_reflect::TypePath))]
 pub enum DensityFunctionHolder {
@@ -26,7 +35,7 @@ impl From<SingleArgumentFunction> for DensityFunctionHolder {
     }
 }
 
-#[derive(Hash, PartialEq, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 pub enum ProtoDensityFunction {
@@ -141,7 +150,7 @@ pub enum ProtoDensityFunction {
     },
 }
 
-#[derive(Hash, PartialEq, Debug, Clone)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(untagged))]
 pub enum NoiseHolder {
@@ -149,7 +158,7 @@ pub enum NoiseHolder {
     Owned(NoiseParam),
 }
 
-#[derive(Hash, PartialEq, Debug, Clone)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NoiseParam {
     #[cfg(feature = "serde")]
@@ -158,7 +167,7 @@ pub struct NoiseParam {
     pub amplitudes: Vec<HashableF64>,
 }
 
-#[derive(Hash, PartialEq, Eq, Debug, Clone)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum RarityValueMapper {
     #[serde(rename = "type_1")]
@@ -167,20 +176,20 @@ pub enum RarityValueMapper {
     Type2,
 }
 
-#[derive(Hash, PartialEq, Debug, Clone)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SingleArgumentFunction {
     pub argument: DensityFunctionHolder,
 }
 
-#[derive(Hash, PartialEq, Debug, Clone)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TwoArgumentFunction {
     pub argument1: DensityFunctionHolder,
     pub argument2: DensityFunctionHolder,
 }
 
-#[derive(Hash, Clone, Debug, PartialEq)]
+#[derive(Hash, Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[serde(untagged)]
 pub enum SplineHolder {
@@ -188,14 +197,14 @@ pub enum SplineHolder {
     Spline(Spline),
 }
 
-#[derive(Hash, Clone, Debug, PartialEq)]
+#[derive(Hash, Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Spline {
     pub coordinate: DensityFunctionHolder,
     pub points: Vec<SplinePoint>,
 }
 
-#[derive(Hash, Clone, Debug, PartialEq)]
+#[derive(Hash, Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SplinePoint {
     pub location: HashableF64,
@@ -266,7 +275,7 @@ pub trait Visitor {
                 max_exclusive,
                 when_in_range,
                 when_out_of_range,
-            } => self.visit_range_choise(
+            } => self.visit_range_choice(
                 input,
                 min_inclusive.0,
                 max_exclusive.0,
@@ -382,7 +391,7 @@ pub trait Visitor {
         self.visit_noise_holder(noise)
     }
 
-    fn visit_range_choise(
+    fn visit_range_choice(
         &mut self,
         input: &DensityFunctionHolder,
         min_inclusive: f64,
@@ -401,8 +410,8 @@ pub trait Visitor {
     fn visit_shift_b(&mut self, function: &NoiseHolder) {
         self.visit_noise_holder(function)
     }
-    fn visit_shift(&mut self, function: &NoiseHolder) {
-        self.visit_noise_holder(function)
+    fn visit_shift(&mut self, argument: &NoiseHolder) {
+        self.visit_noise_holder(argument)
     }
     fn visit_blend_density(&mut self, function: &SingleArgumentFunction) {
         self.visit_single_argument_function(function)
