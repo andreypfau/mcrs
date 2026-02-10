@@ -203,7 +203,7 @@ fn on_view_update(
             }
         }
     }
-    load_queue.sort_by_key(|col| col.distance_squared(center));
+    load_queue.sort_unstable_by_key(|col| col.distance_squared(center));
     col_view.load_queue.extend(load_queue);
 
     col_view.desired_columns = new_cols;

@@ -14,6 +14,7 @@ use bevy_ecs::prelude::{Commands, Res, Resource};
 use bevy_reflect::TypePath;
 use mcrs_protocol::Ident;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use thiserror::Error;
 
 pub struct NoiseGeneratorSettingsPlugin;
@@ -36,7 +37,7 @@ impl Plugin for NoiseGeneratorSettingsPlugin {
 pub struct OverworldNoiseSettings(pub Handle<NoiseGeneratorSettingsAsset>);
 
 #[derive(Resource)]
-pub struct OverworldNoiseRouter(pub NoiseRouter);
+pub struct OverworldNoiseRouter(pub Arc<NoiseRouter>);
 
 fn setup_overworld_noise_settings(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(OverworldNoiseSettings(
@@ -149,12 +150,12 @@ fn print_loaded_noise_settings(
                     noises_proto.insert(id.clone(), handle.noise.clone());
                 });
 
-                let overworld = OverworldNoiseRouter(build_functions(
+                let overworld = OverworldNoiseRouter(Arc::new(build_functions(
                     &functions_proto,
                     &noises_proto,
                     &settings.settings,
                     0,
-                ));
+                )));
                 commands.insert_resource(overworld);
             }
         }

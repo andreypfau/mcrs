@@ -14,4 +14,5 @@ thiserror.workspace = true
 mcrs_protocol.workspace = true
 tokio.workspace = true
 serde_json.workspace = true
+tracing.workspace = true
 log = "0.4.29"

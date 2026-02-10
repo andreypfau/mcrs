@@ -67,11 +67,12 @@ fn update_view(
             let new_view = ChunkTrackingView::new(chunk_pos, distance + 1, vert_distance + 1);
 
             let Some(last_view) = observer.last_last_chunk_tracking_view else {
-                let mut load_queue = Vec::new();
+                let capacity = new_view.size();
+                let mut load_queue = Vec::with_capacity(capacity);
                 new_view.for_each(|pos| {
                     load_queue.push(pos);
                 });
-                load_queue.sort_by_key(|pos| pos.distance_squared(*chunk_pos));
+                load_queue.sort_unstable_by_key(|pos| pos.distance_squared(*chunk_pos));
                 observer.load_queue.extend(load_queue);
                 observer.last_last_chunk_tracking_view = Some(new_view);
                 commands.command_scope(|mut cmd| {
@@ -107,7 +108,7 @@ fn update_view(
                 }
             });
 
-            load_queue.sort_by_key(|pos| pos.distance_squared(*chunk_pos));
+            load_queue.sort_unstable_by_key(|pos| pos.distance_squared(*chunk_pos));
             observer.load_queue.extend(load_queue);
             observer.last_last_chunk_tracking_view = Some(new_view);
         });
@@ -190,7 +191,7 @@ fn update_load_queue(
     mut dimensions: Query<&mut ChunkTicketsCommands>,
     mut commands: Commands,
 ) {
-    const MAX_LOADS: usize = 64 * 16;
+    const MAX_LOADS: usize = 256;
 
     players.iter_mut().for_each(|(mut observer, dim)| {
         let observer = &mut *observer;
@@ -333,19 +334,15 @@ impl ChunkTrackingView {
     where
         F: FnMut(ChunkPos),
     {
-        let min_y = self.min_y();
-        let max_y = self.max_y();
-        let min_x = self.min_x();
-        let min_z = self.min_z();
-        let max_x = self.max_x();
-        let max_z = self.max_z();
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
-                for z in min_z..=max_z {
-                    let pos = ChunkPos::new(x, y, z);
-                    if self.contains(&pos) {
-                        f(pos);
-                    }
+        let d = self.distance as i32;
+        let vd = self.vert_distance as i32;
+        let cx = self.center.x;
+        let cy = self.center.y;
+        let cz = self.center.z;
+        for y in (cy - vd)..=(cy + vd) {
+            for x in (cx - d)..=(cx + d) {
+                for z in (cz - d)..=(cz + d) {
+                    f(ChunkPos::new(x, y, z));
                 }
             }
         }

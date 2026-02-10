@@ -6,7 +6,7 @@ use bevy_ecs::prelude::Commands;
 use bevy_ecs::schedule::ScheduleLabel;
 use bevy_ecs::system::{ParallelCommands, Query};
 use bytes::Bytes;
-use log::{debug, warn};
+use log::{debug, info, warn};
 use mcrs_protocol::{Decode, Packet};
 use std::time::Instant;
 
@@ -58,21 +58,31 @@ impl Plugin for EventLoopPlugin {
 pub struct RunEventLoop;
 
 fn run_event_loop(mut query: Query<(Entity, &mut ServerSideConnection)>, mut commands: Commands) {
-    query
-        .iter_mut()
-        .for_each(|(entity, mut conn)| match conn.try_recv() {
-            Ok(Some(pkt)) => {
-                commands.trigger(ReceivedPacketEvent {
-                    entity,
-                    id: pkt.id,
-                    data: pkt.payload,
-                    timestamp: pkt.timestamp,
-                });
+    query.iter_mut().for_each(|(entity, mut conn)| {
+        loop {
+            match conn.try_recv() {
+                Ok(Some(pkt)) => {
+                    let now = Instant::now();
+                    let process_latency = now - pkt.timestamp;
+                    let _span = tracing::info_span!("process_received_packet").entered();
+                    commands.trigger(ReceivedPacketEvent {
+                        entity,
+                        id: pkt.id,
+                        data: pkt.payload,
+                        timestamp: pkt.timestamp,
+                    });
+                    info!(
+                        "{}: processed packet {} in {:?}",
+                        entity, pkt.id, process_latency
+                    );
+                }
+                Ok(None) => break,
+                Err(e) => {
+                    warn!("disconnecting client: {e}");
+                    commands.entity(entity).remove::<ServerSideConnection>();
+                    break;
+                }
             }
-            Ok(None) => {}
-            Err(e) => {
-                warn!("disconnecting client: {e}");
-                commands.entity(entity).remove::<ServerSideConnection>();
-            }
-        });
+        }
+    });
 }

@@ -203,37 +203,47 @@ fn unload_chunks(
 }
 
 fn spawn_chunks(
-    mut dims: Query<
-        (Entity, &mut ChunkTicketsCommands, &mut ChunkIndex),
-        Changed<ChunkTicketsCommands>,
-    >,
+    mut dims: Query<(Entity, &mut ChunkTicketsCommands, &mut ChunkIndex)>,
     mut commands: Commands,
     mut chunks: Query<(Entity, &mut ChunkTicketHolder), With<Chunk>>,
 ) {
-    dims.iter_mut()
-        .for_each(|(dim, mut chunk_tickets, mut chunk_index)| {
-            chunk_tickets
-                .add_tickets
-                .drain()
-                .for_each(|(pos, tickets)| {
-                    if !chunk_index.contains(pos) {
-                        let chunk_entity = commands
-                            .spawn((
-                                ChunkBundle::new(InDimension(dim), pos),
-                                ChunkTicketHolder(tickets.clone()),
-                            ))
-                            .id();
-                        chunk_index.insert(pos, chunk_entity);
-                    } else {
-                        let Some(chunk_entity) = chunk_index.get(pos) else {
-                            return;
-                        };
-                        if let Ok((_, mut ticket_holder)) = chunks.get_mut(chunk_entity) {
-                            ticket_holder.add_all(tickets);
-                        }
-                    }
-                });
-        });
+    const MAX_SPAWNS_PER_TICK: usize = 128;
+
+    for (dim, mut chunk_tickets, mut chunk_index) in dims.iter_mut() {
+        if chunk_tickets.add_tickets.is_empty() {
+            continue;
+        }
+
+        let keys_to_process: Vec<_> = chunk_tickets
+            .add_tickets
+            .keys()
+            .take(MAX_SPAWNS_PER_TICK)
+            .copied()
+            .collect();
+
+        for pos in keys_to_process {
+            let Some(tickets) = chunk_tickets.add_tickets.remove(&pos) else {
+                continue;
+            };
+
+            if !chunk_index.contains(pos) {
+                let chunk_entity = commands
+                    .spawn((
+                        ChunkBundle::new(InDimension(dim), pos),
+                        ChunkTicketHolder(tickets),
+                    ))
+                    .id();
+                chunk_index.insert(pos, chunk_entity);
+            } else {
+                let Some(chunk_entity) = chunk_index.get(pos) else {
+                    continue;
+                };
+                if let Ok((_, mut ticket_holder)) = chunks.get_mut(chunk_entity) {
+                    ticket_holder.add_all(tickets);
+                }
+            }
+        }
+    }
 }
 
 fn remove_tickets_from_chunks(
