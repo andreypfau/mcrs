@@ -62,8 +62,6 @@ fn run_event_loop(mut query: Query<(Entity, &mut ServerSideConnection)>, mut com
         loop {
             match conn.try_recv() {
                 Ok(Some(pkt)) => {
-                    let now = Instant::now();
-                    let process_latency = now - pkt.timestamp;
                     let _span = tracing::info_span!("process_received_packet").entered();
                     commands.trigger(ReceivedPacketEvent {
                         entity,
@@ -71,10 +69,13 @@ fn run_event_loop(mut query: Query<(Entity, &mut ServerSideConnection)>, mut com
                         data: pkt.payload,
                         timestamp: pkt.timestamp,
                     });
-                    // info!(
-                    //     "{}: processed packet {} in {:?}",
-                    //     entity, pkt.id, process_latency
-                    // );
+                    let now = Instant::now();
+                    info!(
+                        "{}: processed packet {} in {:?}",
+                        entity,
+                        pkt.id,
+                        now - pkt.timestamp
+                    );
                 }
                 Ok(None) => break,
                 Err(e) => {
