@@ -5,6 +5,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Query, Resource, With, resource_exists};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
+use bevy_math::IVec3;
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
 use mcrs_engine::entity::physics::Transform;
@@ -56,19 +57,21 @@ fn load_chunks(
     mut loading_chunks: ResMut<LoadingChunks>,
     overworld_noise_router: Res<OverworldNoiseRouter>,
 ) {
-    const MAX_CHUNKS_PER_TICK: usize = 64;
+    const MAX_CHUNKS_PER_TICK: usize = 1024;
 
     if query.is_empty() {
         return;
     }
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
-    let mut count = 0;
+
+    let mut tmp = Vec::new();
 
     for (e, mut status, pos) in query.iter_mut() {
-        if count >= MAX_CHUNKS_PER_TICK {
+        if loading_chunks.0.len() >= MAX_CHUNKS_PER_TICK {
             break;
         }
-        count += 1;
+
+        // info!("Loading chunk at {:?}", pos);
 
         *status = ChunkStatus::Generating;
         commands
@@ -77,13 +80,16 @@ fn load_chunks(
             .remove::<ChunkLoading>();
 
         let pos = *pos;
+        tmp.push(pos);
         let router = overworld_noise_router.0.clone();
         let task = task_pool.spawn(async move {
-            let mut router = router.as_ref().clone();
+            let _span = tracing::info_span!("ChunkGen", pos = pos.to_string().as_str()).entered();
+            // let mut router = router.as_ref().clone();
             let mut blocks = BlockPalette::default();
             let mut biomes = BiomePalette::default();
             if pos.x >= 0 && pos.x < 3 && pos.z >= 0 && pos.z < 3 {
-                generate_noise(pos, &mut blocks, &mut biomes, &mut router);
+                // generate_noise(pos, &mut blocks, &mut biomes, &mut router);
+                generate_chunk(pos, &mut blocks, &mut biomes);
             } else {
                 generate_chunk(pos, &mut blocks, &mut biomes);
             }
@@ -96,6 +102,16 @@ fn load_chunks(
         });
         loading_chunks.0.push(task);
     }
+
+    if !tmp.is_empty() {
+        info!("Start loading {} chunks", tmp.len());
+    }
+
+    tmp.sort_by_key(|pos| (pos.x.abs() + pos.z.abs(), pos.x, pos.z, pos.y));
+
+    tmp.into_iter().for_each(|pos| {
+        // info!("Started loading chunk at {:?}", pos);
+    });
 }
 
 fn process_generated_chunk(mut loading_chunks: ResMut<LoadingChunks>, mut commands: Commands) {
@@ -104,7 +120,7 @@ fn process_generated_chunk(mut loading_chunks: ResMut<LoadingChunks>, mut comman
         let retain = res.is_none();
         if let Some(loaded_chunk) = res {
             let chunk = loaded_chunk.chunk;
-            info!("Loaded chunk at {:?}", loaded_chunk.pos);
+            // info!("Loaded chunk at {:?}", loaded_chunk.pos);
             commands
                 .entity(chunk)
                 .insert(ChunkLoaded)

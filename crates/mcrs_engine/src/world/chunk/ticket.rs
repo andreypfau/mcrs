@@ -1,5 +1,5 @@
 use crate::world::chunk::{
-    Chunk, ChunkBundle, ChunkIndex, ChunkPos, ChunkUnloaded, ChunkUnloading,
+    Chunk, ChunkBundle, ChunkIndex, ChunkLoaded, ChunkPos, ChunkUnloaded, ChunkUnloading,
 };
 use crate::world::dimension::InDimension;
 use bevy_app::{App, FixedPreUpdate, FixedUpdate, Plugin};
@@ -10,6 +10,9 @@ use indexmap::IndexMap;
 use rustc_hash::{FxBuildHasher, FxHashSet};
 use std::cmp::Ordering;
 
+const MAX_DESPAWNS_PER_TICK: usize = 1024;
+const MAX_SPAWNS_PER_TICK: usize = 1024;
+
 pub(crate) struct TicketPlugin;
 
 impl Plugin for TicketPlugin {
@@ -17,12 +20,7 @@ impl Plugin for TicketPlugin {
         app.add_systems(FixedPreUpdate, spawn_chunks);
         app.add_systems(
             FixedUpdate,
-            (
-                unload_chunks,
-                unloading_chunks,
-                despawn_chunks,
-                remove_tickets_from_chunks,
-            ),
+            (unload_chunks, despawn_chunks, remove_tickets_from_chunks),
         );
     }
 }
@@ -159,32 +157,12 @@ fn despawn_chunks(
     mut dims: Query<(&mut ChunkIndex)>,
     chunk_statuses: Query<(Entity, &ChunkPos, &InDimension), With<ChunkUnloaded>>,
 ) {
-    const MAX_DESPAWNS_PER_TICK: usize = 128;
-
     for (chunk, chunk_pos, dim) in chunk_statuses.iter().take(MAX_DESPAWNS_PER_TICK) {
         if let Ok(mut chunk_index) = dims.get_mut(**dim) {
             chunk_index.remove(*chunk_pos);
         }
         commands.entity(chunk).despawn();
     }
-}
-
-fn unloading_chunks(
-    mut commands: Commands,
-    mut chunks: Query<
-        (Entity, &ChunkTicketHolder),
-        (
-            With<Chunk>,
-            Without<ChunkUnloaded>,
-            Changed<ChunkTicketHolder>,
-        ),
-    >,
-) {
-    chunks.iter_mut().for_each(|(e, ticket_holder)| {
-        if ticket_holder.is_empty() {
-            commands.entity(e).insert(ChunkUnloading);
-        }
-    });
 }
 
 fn unload_chunks(
@@ -204,8 +182,6 @@ fn spawn_chunks(
     mut commands: Commands,
     mut chunks: Query<(Entity, &mut ChunkTicketHolder), With<Chunk>>,
 ) {
-    const MAX_SPAWNS_PER_TICK: usize = 128;
-
     for (dim, mut chunk_tickets, mut chunk_index) in dims.iter_mut() {
         if chunk_tickets.add_tickets.is_empty() {
             continue;
@@ -219,7 +195,7 @@ fn spawn_chunks(
             .collect();
 
         for pos in keys_to_process {
-            let Some(tickets) = chunk_tickets.add_tickets.remove(&pos) else {
+            let Some(tickets) = chunk_tickets.add_tickets.swap_remove(&pos) else {
                 continue;
             };
 
@@ -246,6 +222,7 @@ fn spawn_chunks(
 fn remove_tickets_from_chunks(
     mut dims: Query<(&mut ChunkTicketsCommands, &ChunkIndex)>,
     mut chunks: Query<(Entity, &mut ChunkTicketHolder), With<Chunk>>,
+    mut commands: Commands,
 ) {
     dims.iter_mut()
         .for_each(|(mut chunk_tickets, chunk_index)| {
@@ -260,6 +237,12 @@ fn remove_tickets_from_chunks(
                         ticket_kinds.iter().for_each(|kind| {
                             ticket_holder.remove(*kind);
                         });
+                        if ticket_holder.0.is_empty() {
+                            commands
+                                .entity(chunk_entity)
+                                .remove::<ChunkLoaded>()
+                                .insert(ChunkUnloading);
+                        }
                     }
                 });
         });

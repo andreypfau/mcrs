@@ -11,6 +11,8 @@ use bevy_ecs::system::Commands;
 use bevy_ecs_macros::Message;
 use std::collections::VecDeque;
 
+const MAX_LOADS: usize = 1024;
+
 pub struct ChunkViewPlugin;
 
 impl Plugin for ChunkViewPlugin {
@@ -191,8 +193,6 @@ fn update_load_queue(
     mut dimensions: Query<&mut ChunkTicketsCommands>,
     mut commands: Commands,
 ) {
-    const MAX_LOADS: usize = 256;
-
     players.iter_mut().for_each(|(mut observer, dim)| {
         let observer = &mut *observer;
         let Some(last_view) = observer.last_last_chunk_tracking_view else {
