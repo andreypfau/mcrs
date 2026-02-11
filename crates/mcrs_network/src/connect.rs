@@ -5,7 +5,7 @@ use crate::intent::handle_intent;
 use anyhow::bail;
 use bevy_ecs::component::Component;
 use bytes::{Bytes, BytesMut};
-use log::{error, info};
+use log::{error, info, warn};
 use mcrs_protocol::{Decode, Encode, Text};
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
@@ -37,12 +37,13 @@ pub(crate) async fn start_accept_loop(shared: SharedNetworkState) {
                     )
                     .await
                     {
-                        eprintln!("{} Failed to handle connection: {}", remote_addr, e);
+                        warn!("{} Failed to handle connection: {}", remote_addr, e);
                     }
                 });
             }
             Err(e) => {
                 error!("Failed to accept connection: {}", e);
+                tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
     }
@@ -54,11 +55,11 @@ async fn handle_connection(
     remote_addr: std::net::SocketAddr,
 ) {
     if let Err(e) = stream.set_nodelay(true) {
-        eprintln!("Failed to set nodelay on {}: {}", remote_addr, e);
+        warn!("Failed to set nodelay on {}: {}", remote_addr, e);
     }
     let io = PacketIo::new(stream);
     if let Err(e) = handle_intent(shared, io, remote_addr).await {
-        eprintln!("Error during handshake with {}: {}", remote_addr, e);
+        warn!("Error during handshake with {}: {}", remote_addr, e);
     }
 }
 

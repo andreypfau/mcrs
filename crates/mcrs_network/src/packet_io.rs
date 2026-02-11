@@ -1,7 +1,5 @@
-use crate::byte_channel::{ByteSender, TrySendError, byte_channel};
 use crate::{EngineConnection, ReceivedPacket};
-use bevy_ecs::error::warn;
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use log::{error, warn};
 use mcrs_protocol::{
     ConnectionState, Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket,
@@ -9,10 +7,12 @@ use mcrs_protocol::{
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
-use tokio::sync::mpsc::{Receiver, channel};
 use tokio::task::JoinHandle;
 
 pub(crate) struct PacketIo {
@@ -70,102 +70,124 @@ impl PacketIo {
     }
 
     pub(crate) fn into_raw_connection(mut self, remote_addr: SocketAddr) -> RawConnection {
-        let (incoming_sender, incoming_receiver) = channel(1);
-        let (mut reader, mut writer) = self.stream.into_split();
-        let reader_task = tokio::spawn(async move {
-            let mut buf = BytesMut::new();
-            loop {
-                let frame = match self.dec.try_next_packet() {
-                    Ok(Some(frame)) => frame,
-                    Ok(None) => {
-                        buf.reserve(READ_BUF_SIZE);
-                        match reader.read_buf(&mut buf).await {
-                            Ok(0) => {
-                                warn!("Connection closed!");
-                                break;
-                            } // Reader is at EOF.
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("error reading data from stream: {e}");
-                                break;
-                            }
-                        }
-                        self.dec.queue_bytes(buf.split());
-                        continue;
-                    }
-                    Err(e) => {
-                        warn!("error decoding packet: {e}");
-                        break;
-                    }
-                };
+        let (incoming_sender, incoming_receiver) = mpsc::channel(256);
+        let (outgoing_sender, outgoing_receiver) = mpsc::unbounded_channel::<Bytes>();
+        let queued_bytes = Arc::new(AtomicUsize::new(0));
 
-                let timestamp = Instant::now();
+        let (reader, writer) = self.stream.into_split();
 
-                let packet = ReceivedPacket {
-                    timestamp,
-                    id: frame.id,
-                    payload: frame.body.into(),
-                };
-
-                let r = incoming_sender.send(packet).await;
-                if let Err(e) = r {
-                    warn!("error sending incoming packet {e}");
-                    break;
-                }
-            }
-            warn!("stop reader loop");
-        });
-
-        let (outgoing_sender, mut outgoing_receiver) = byte_channel(8388608);
-        let writer_task = tokio::spawn(async move {
-            loop {
-                let bytes = match outgoing_receiver.recv_async().await {
-                    Ok(bytes) => bytes,
-                    Err(e) => {
-                        warn!("error receiving packet: {e}");
-                        break;
-                    }
-                };
-                if let Err(e) = writer.write_all(&bytes).await {
-                    warn!("error writing outgoing packet: {e}");
-                }
-            }
-            warn!("stop writer loop")
-        });
+        let reader_task = tokio::spawn(reader_loop(reader, self.dec, incoming_sender));
+        let writer_task =
+            tokio::spawn(writer_loop(outgoing_receiver, writer, queued_bytes.clone()));
 
         RawConnection {
-            send: outgoing_sender,
+            outgoing: outgoing_sender,
             recv: incoming_receiver,
             reader_task,
             writer_task,
             enc: self.enc,
             remote_addr,
+            queued_bytes,
         }
     }
 }
 
+async fn reader_loop(
+    mut reader: tokio::net::tcp::OwnedReadHalf,
+    mut dec: PacketDecoder,
+    incoming_sender: mpsc::Sender<ReceivedPacket>,
+) {
+    let mut buf = BytesMut::new();
+    loop {
+        let frame = match dec.try_next_packet() {
+            Ok(Some(frame)) => frame,
+            Ok(None) => {
+                buf.reserve(READ_BUF_SIZE);
+                match reader.read_buf(&mut buf).await {
+                    Ok(0) => {
+                        warn!("Connection closed!");
+                        break;
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("error reading data from stream: {e}");
+                        break;
+                    }
+                }
+                dec.queue_bytes(buf.split());
+                continue;
+            }
+            Err(e) => {
+                warn!("error decoding packet: {e}");
+                break;
+            }
+        };
+
+        let timestamp = Instant::now();
+
+        let packet = ReceivedPacket {
+            timestamp,
+            id: frame.id,
+            payload: frame.body.into(),
+        };
+
+        if incoming_sender.send(packet).await.is_err() {
+            warn!("error sending incoming packet: receiver dropped");
+            break;
+        }
+    }
+}
+
+async fn writer_loop(
+    mut rx: mpsc::UnboundedReceiver<Bytes>,
+    tcp: tokio::net::tcp::OwnedWriteHalf,
+    queued_bytes: Arc<AtomicUsize>,
+) {
+    let mut writer = BufWriter::with_capacity(64 * 1024, tcp);
+    while let Some(bytes) = rx.recv().await {
+        let len = bytes.len();
+        if writer.write_all(&bytes).await.is_err() {
+            return;
+        }
+        // Decrement AFTER successful write so the counter accurately
+        // reflects bytes not yet written to TCP.
+        queued_bytes.fetch_sub(len, Ordering::Relaxed);
+
+        // Drain all pending messages without awaiting the channel
+        while let Ok(bytes) = rx.try_recv() {
+            let len = bytes.len();
+            if writer.write_all(&bytes).await.is_err() {
+                return;
+            }
+            queued_bytes.fetch_sub(len, Ordering::Relaxed);
+        }
+        if writer.flush().await.is_err() {
+            return;
+        }
+    }
+    // Channel closed — drain any remaining buffered data for graceful shutdown.
+    let _ = writer.flush().await;
+}
+
 pub(crate) struct RawConnection {
-    send: ByteSender,
-    recv: Receiver<ReceivedPacket>,
+    outgoing: mpsc::UnboundedSender<Bytes>,
+    recv: mpsc::Receiver<ReceivedPacket>,
     reader_task: JoinHandle<()>,
     writer_task: JoinHandle<()>,
     enc: PacketEncoder,
     pub remote_addr: SocketAddr,
+    queued_bytes: Arc<AtomicUsize>,
 }
 
 impl Drop for RawConnection {
     fn drop(&mut self) {
-        self.writer_task.abort();
+        // Only abort the reader. The writer will drain remaining messages
+        // and shut down naturally when the outgoing sender is dropped.
         self.reader_task.abort();
-        warn!("dropped raw connection")
     }
 }
 
 impl EngineConnection for RawConnection {
-    fn try_send(&mut self, bytes: BytesMut) -> Result<(), TrySendError> {
-        self.send.try_send(bytes)
-    }
-
     fn try_recv(&mut self) -> Result<Option<ReceivedPacket>, TryRecvError> {
         match self.recv.try_recv() {
             Ok(packet) => Ok(Some(packet)),
@@ -174,12 +196,26 @@ impl EngineConnection for RawConnection {
         }
     }
 
-    fn flush(&mut self) -> Result<(), TrySendError> {
+    fn flush(&mut self) -> anyhow::Result<()> {
         let bytes = self.enc.take();
         if bytes.is_empty() {
             return Ok(());
         }
-        self.send.try_send(bytes)
+        let len = bytes.len();
+        let bytes = bytes.freeze();
+        // Increment BEFORE send so the writer task's fetch_sub never
+        // underflows the counter (it can only subtract after receiving).
+        self.queued_bytes.fetch_add(len, Ordering::Relaxed);
+        self.outgoing.send(bytes).map_err(|_| {
+            // Undo the increment since the bytes were not actually sent.
+            self.queued_bytes.fetch_sub(len, Ordering::Relaxed);
+            anyhow::anyhow!("connection closed")
+        })?;
+        Ok(())
+    }
+
+    fn queued_bytes(&self) -> usize {
+        self.queued_bytes.load(Ordering::Relaxed)
     }
 }
 

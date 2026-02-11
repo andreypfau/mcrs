@@ -34,10 +34,10 @@ impl ReceivedPacketEvent {
                 if r.is_empty() {
                     return Some(pkt);
                 }
-                eprintln!("PacketEvent decode: {} bytes left over", r.len());
+                warn!("PacketEvent decode: {} bytes left over", r.len());
             }
             Err(e) => {
-                eprintln!("PacketEvent decode error: {:?}", e);
+                warn!("PacketEvent decode error: {:?}", e);
             }
         }
         None
@@ -69,18 +69,18 @@ fn run_event_loop(mut query: Query<(Entity, &mut ServerSideConnection)>, mut com
                         data: pkt.payload,
                         timestamp: pkt.timestamp,
                     });
-                    let now = Instant::now();
-                    info!(
-                        "{}: processed packet {} in {:?}",
-                        entity,
-                        pkt.id,
-                        now - pkt.timestamp
-                    );
+                    // let now = Instant::now();
+                    // info!(
+                    //     "{}: processed packet {} in {:?}",
+                    //     entity,
+                    //     pkt.id,
+                    //     now - pkt.timestamp
+                    // );
                 }
                 Ok(None) => break,
                 Err(e) => {
                     warn!("disconnecting client: {e}");
-                    commands.entity(entity).remove::<ServerSideConnection>();
+                    commands.entity(entity).despawn();
                     break;
                 }
             }

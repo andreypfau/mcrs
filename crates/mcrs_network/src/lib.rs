@@ -1,20 +1,18 @@
-mod byte_channel;
 pub mod connect;
 pub mod event;
 mod intent;
 mod packet_io;
 mod status;
 
-use crate::byte_channel::TrySendError;
 use crate::packet_io::RawConnection;
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin, PostStartup};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Component;
-use bevy_ecs::query::Changed;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Query, Res};
 use bevy_ecs::world::World;
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
 use log::warn;
 use mcrs_protocol::{Encode, Packet, WritePacket};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
@@ -36,7 +34,7 @@ fn build_plugin(app: &mut App) -> anyhow::Result<()> {
     let runtime = Runtime::new()?;
     let tokio_handle = runtime.handle().clone();
 
-    let (new_sessions_send, mut new_sessions_recv) = channel(1);
+    let (new_sessions_send, mut new_sessions_recv) = channel(128);
 
     let shared_state = SharedNetworkState(Arc::new(SharedNetworkStateInner {
         address: SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 25565).into(),
@@ -65,20 +63,38 @@ fn build_plugin(app: &mut App) -> anyhow::Result<()> {
 
     app.add_systems(PostStartup, start_accept_loop);
     app.add_systems(FixedPreUpdate, spawn_new_raw_connections);
-    app.add_systems(FixedPostUpdate, flush_packets);
+    app.add_systems(FixedPostUpdate, (flush_packets, check_congestion).chain());
     app.add_plugins(event::EventLoopPlugin);
 
     Ok(())
 }
 
 fn flush_packets(
-    mut connections: Query<(Entity, &mut ServerSideConnection), Changed<ServerSideConnection>>,
+    mut connections: Query<(Entity, &mut ServerSideConnection)>,
     mut commands: Commands,
 ) {
     for (entity, mut connection) in connections.iter_mut() {
         if let Err(e) = connection.flush() {
             commands.entity(entity).despawn();
             warn!("Connection to {} closed: {}", connection.remote_addr(), e);
+        }
+    }
+}
+
+/// 32 MiB hard limit on queued outgoing bytes before disconnecting.
+/// Must accommodate initial join burst (chunks + entity data).
+const MAX_QUEUED_BYTES: usize = 32 * 1024 * 1024;
+
+fn check_congestion(connections: Query<(Entity, &ServerSideConnection)>, mut commands: Commands) {
+    for (entity, connection) in connections.iter() {
+        let queued = connection.queued_bytes();
+        if queued > MAX_QUEUED_BYTES {
+            warn!(
+                "Connection to {} congested ({} bytes queued), disconnecting",
+                connection.remote_addr(),
+                queued
+            );
+            commands.entity(entity).despawn();
         }
     }
 }
@@ -120,6 +136,10 @@ impl ServerSideConnection {
     pub fn remote_addr(&self) -> SocketAddr {
         self.raw.remote_addr
     }
+
+    pub fn queued_bytes(&self) -> usize {
+        self.raw.queued_bytes()
+    }
 }
 
 impl WritePacket for ServerSideConnection {
@@ -136,16 +156,16 @@ impl WritePacket for ServerSideConnection {
 }
 
 impl EngineConnection for ServerSideConnection {
-    fn try_send(&mut self, bytes: BytesMut) -> Result<(), TrySendError> {
-        self.raw.try_send(bytes)
-    }
-
     fn try_recv(&mut self) -> Result<Option<ReceivedPacket>, TryRecvError> {
         self.raw.try_recv()
     }
 
-    fn flush(&mut self) -> Result<(), TrySendError> {
+    fn flush(&mut self) -> anyhow::Result<()> {
         self.raw.flush()
+    }
+
+    fn queued_bytes(&self) -> usize {
+        self.raw.queued_bytes()
     }
 }
 
@@ -156,12 +176,14 @@ impl Drop for ServerSideConnection {
 }
 
 pub trait EngineConnection: Send + Sync + 'static {
-    /// Sends encoded clientbound packet data. This function must not block and
-    /// the data should be sent as soon as possible.
-    fn try_send(&mut self, bytes: BytesMut) -> Result<(), TrySendError>;
     /// Receives the next pending serverbound packet. This must return
     /// immediately without blocking.
     fn try_recv(&mut self) -> Result<Option<ReceivedPacket>, TryRecvError>;
 
-    fn flush(&mut self) -> Result<(), TrySendError>;
+    /// Flushes encoded packets to the outgoing channel.
+    /// Only fails if the connection is closed (writer task died).
+    fn flush(&mut self) -> anyhow::Result<()>;
+
+    /// Returns the number of bytes currently queued for sending.
+    fn queued_bytes(&self) -> usize;
 }

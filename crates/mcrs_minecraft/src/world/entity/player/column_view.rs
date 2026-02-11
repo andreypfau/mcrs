@@ -87,7 +87,7 @@ fn load_chunk_request(
         }
 
         if chunk_view.desired_columns.insert(column_pos) {
-            info!(
+            trace!(
                 "Player {:?} requested load of chunk column {:?}",
                 req.player, column_pos
             );
@@ -128,7 +128,7 @@ fn load_column_queue(
             if chunk_view.desired_columns.contains(&col) {
                 if chunk_view.loaded_columns.insert(col) {
                     apply_forced_tickets(&mut cmds, col, offset_sections(rep), true);
-                    info!("Added tickets to col: {:?}", col);
+                    trace!("Added tickets to col: {:?}", col);
                 }
                 chunk_view.loading_queue.push_back(col);
             }
@@ -169,12 +169,19 @@ fn loading_column_queue(
                     return;
                 }
             }
-            info!("Column {:?} loaded", col);
+            trace!("Column {:?} loaded", col);
             chunk_view.loading_queue.pop_front();
             chunk_view.send_queue.push_back((col, chunks_entities));
         }
     })
 }
+
+/// Maximum chunk columns to send per player per tick.
+const MAX_COL_SENDS_PER_TICK: usize = 10;
+
+/// If more than this many bytes are queued for a connection, skip sending
+/// more chunks this tick and let the writer task drain first.
+const CHUNK_BACKPRESSURE_BYTES: usize = 2 * 1024 * 1024;
 
 fn send_column_queue(
     mut players: Query<(
@@ -189,8 +196,16 @@ fn send_column_queue(
         .iter_mut()
         .for_each(|(mut con, mut chunk_view, dim, rep)| {
             let off = offset_sections(rep);
+            let mut sends = 0usize;
 
             loop {
+                if sends >= MAX_COL_SENDS_PER_TICK {
+                    break;
+                }
+                if con.queued_bytes() > CHUNK_BACKPRESSURE_BYTES {
+                    break;
+                }
+
                 let Some((column_pos, chunks_e)) = chunk_view.send_queue.front() else {
                     break;
                 };
@@ -238,6 +253,7 @@ fn send_column_queue(
                     light_data: LightData::default(),
                 };
                 con.write_packet(&pkt);
+                sends += 1;
             }
         })
 }
