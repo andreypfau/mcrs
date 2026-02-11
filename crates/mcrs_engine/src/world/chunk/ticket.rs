@@ -11,7 +11,7 @@ use rustc_hash::{FxBuildHasher, FxHashSet};
 use std::cmp::Ordering;
 
 const MAX_DESPAWNS_PER_TICK: usize = 1024;
-const MAX_SPAWNS_PER_TICK: usize = 1024;
+const MAX_SPAWNS_PER_TICK: usize = 512;
 
 pub(crate) struct TicketPlugin;
 

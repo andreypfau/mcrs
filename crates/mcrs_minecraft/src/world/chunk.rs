@@ -1,4 +1,4 @@
-use crate::world::generate::{generate_chunk, generate_noise};
+use crate::world::generate::generate_chunk;
 use crate::world::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::entity::Entity;
@@ -32,17 +32,15 @@ impl Plugin for ChunkPlugin {
         app.add_systems(
             FixedPreUpdate,
             (
-                load_chunks.run_if(resource_exists::<OverworldNoiseRouter>),
                 process_generated_chunk,
-            ),
+                load_chunks.run_if(resource_exists::<OverworldNoiseRouter>),
+            )
+                .chain(),
         );
     }
 }
 
 static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
-
-#[derive(Resource, Default, Debug)]
-struct LoadingChunks(Vec<Task<ChunkLoadingTask>>);
 
 struct ChunkLoadingTask {
     chunk: Entity,
@@ -51,26 +49,55 @@ struct ChunkLoadingTask {
     biomes: BiomePalette,
 }
 
+#[derive(Resource, Default)]
+struct LoadingChunks {
+    tasks: Vec<Task<ChunkLoadingTask>>,
+}
+
+/// Squared XZ (column) distance from a chunk to the nearest player.
+fn min_column_distance(pos: &ChunkPos, players: &[IVec3]) -> i64 {
+    if players.is_empty() {
+        return 0;
+    }
+    players
+        .iter()
+        .map(|p| {
+            let dx = (pos.x - p.x) as i64;
+            let dz = (pos.z - p.z) as i64;
+            dx * dx + dz * dz
+        })
+        .min()
+        .unwrap_or(0)
+}
+
+/// Absolute Y distance from a chunk to the nearest player's Y.
+fn min_y_distance(pos: &ChunkPos, players: &[IVec3]) -> i32 {
+    if players.is_empty() {
+        return 0;
+    }
+    players
+        .iter()
+        .map(|p| (pos.y - p.y).abs())
+        .min()
+        .unwrap_or(0)
+}
+
 fn load_chunks(
     mut commands: Commands,
     mut query: Query<(Entity, &mut ChunkStatus, &ChunkPos), With<ChunkLoading>>,
     mut loading_chunks: ResMut<LoadingChunks>,
-    overworld_noise_router: Res<OverworldNoiseRouter>,
+    _overworld_noise_router: Res<OverworldNoiseRouter>,
+    players: Query<&Transform, With<Player>>,
 ) {
-    const MAX_CHUNKS_PER_TICK: usize = 1024;
-
     if query.is_empty() {
         return;
     }
-    let task_pool = CHUNK_TASK_POOL.get().unwrap();
 
-    let mut tmp = Vec::new();
+    let task_pool = CHUNK_TASK_POOL.get().unwrap();
+    let mut dispatched = 0usize;
 
     for (e, mut status, pos) in query.iter_mut() {
-        if loading_chunks.0.len() >= MAX_CHUNKS_PER_TICK {
-            break;
-        }
-
+        let pos = *pos;
         // info!("Loading chunk at {:?}", pos);
 
         *status = ChunkStatus::Generating;
@@ -79,20 +106,11 @@ fn load_chunks(
             .insert(ChunkGenerating)
             .remove::<ChunkLoading>();
 
-        let pos = *pos;
-        tmp.push(pos);
-        let router = overworld_noise_router.0.clone();
         let task = task_pool.spawn(async move {
             let _span = tracing::info_span!("ChunkGen", pos = pos.to_string().as_str()).entered();
-            // let mut router = router.as_ref().clone();
             let mut blocks = BlockPalette::default();
             let mut biomes = BiomePalette::default();
-            if pos.x >= 0 && pos.x < 3 && pos.z >= 0 && pos.z < 3 {
-                // generate_noise(pos, &mut blocks, &mut biomes, &mut router);
-                generate_chunk(pos, &mut blocks, &mut biomes);
-            } else {
-                generate_chunk(pos, &mut blocks, &mut biomes);
-            }
+            generate_chunk(pos, &mut blocks, &mut biomes);
             ChunkLoadingTask {
                 chunk: e,
                 pos,
@@ -100,35 +118,27 @@ fn load_chunks(
                 biomes,
             }
         });
-        loading_chunks.0.push(task);
+
+        loading_chunks.tasks.push(task);
+        dispatched += 1;
     }
 
-    if !tmp.is_empty() {
-        info!("Start loading {} chunks", tmp.len());
+    if dispatched > 0 {
+        info!("Dispatched generation tasks for {} chunks", dispatched);
     }
-
-    tmp.sort_by_key(|pos| (pos.x.abs() + pos.z.abs(), pos.x, pos.z, pos.y));
-
-    tmp.into_iter().for_each(|pos| {
-        // info!("Started loading chunk at {:?}", pos);
-    });
 }
 
 fn process_generated_chunk(mut loading_chunks: ResMut<LoadingChunks>, mut commands: Commands) {
-    loading_chunks.0.retain_mut(|task| {
+    loading_chunks.tasks.retain_mut(|task| {
         let res = block_on(future::poll_once(task));
-        let retain = res.is_none();
         if let Some(loaded_chunk) = res {
-            let chunk = loaded_chunk.chunk;
-            // info!("Loaded chunk at {:?}", loaded_chunk.pos);
             commands
-                .entity(chunk)
-                .insert(ChunkLoaded)
+                .entity(loaded_chunk.chunk)
+                .insert((ChunkLoaded, loaded_chunk.blocks, loaded_chunk.biomes))
                 .remove::<ChunkGenerating>();
-            commands
-                .entity(chunk)
-                .insert((loaded_chunk.blocks, loaded_chunk.biomes));
+            false
+        } else {
+            true
         }
-        retain
-    })
+    });
 }
