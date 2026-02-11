@@ -17,9 +17,9 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-bevy_ecs = { version = "0.18.0", features = ["trace"] }
+bevy_ecs = { version = "0.18.0" }
 bevy_ecs_macros = "0.18.0"
-bevy_app = { version = "0.18.0", features = ["trace"] }
+bevy_app = { version = "0.18.0" }
 bevy_math = "0.18.0"
 bevy_time = "0.18.0"
 bevy_tasks = "0.18.0"

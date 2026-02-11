@@ -1,4 +1,4 @@
-use crate::world::generate::generate_chunk;
+use crate::world::generate::{generate_chunk, generate_noise};
 use crate::world::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::entity::Entity;
@@ -84,9 +84,9 @@ fn min_y_distance(pos: &ChunkPos, players: &[IVec3]) -> i32 {
 
 fn load_chunks(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut ChunkStatus, &ChunkPos), With<ChunkLoading>>,
+    mut query: Query<(Entity, &ChunkPos), With<ChunkLoading>>,
     mut loading_chunks: ResMut<LoadingChunks>,
-    _overworld_noise_router: Res<OverworldNoiseRouter>,
+    overworld_noise_router: Res<OverworldNoiseRouter>,
     players: Query<&Transform, With<Player>>,
 ) {
     if query.is_empty() {
@@ -96,21 +96,23 @@ fn load_chunks(
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
     let mut dispatched = 0usize;
 
-    for (e, mut status, pos) in query.iter_mut() {
+    for (e, pos) in query.iter() {
         let pos = *pos;
         // info!("Loading chunk at {:?}", pos);
 
-        *status = ChunkStatus::Generating;
         commands
             .entity(e)
             .insert(ChunkGenerating)
             .remove::<ChunkLoading>();
 
+        let router = overworld_noise_router.0.clone();
         let task = task_pool.spawn(async move {
-            let _span = tracing::info_span!("ChunkGen", pos = pos.to_string().as_str()).entered();
+            let router = router.as_ref();
+            let _span = tracing::info_span!("ChunkGen").entered();
             let mut blocks = BlockPalette::default();
             let mut biomes = BiomePalette::default();
-            generate_chunk(pos, &mut blocks, &mut biomes);
+            // generate_chunk(pos, &mut blocks, &mut biomes);
+            generate_noise(pos, &mut blocks, &mut biomes, &router);
             ChunkLoadingTask {
                 chunk: e,
                 pos,

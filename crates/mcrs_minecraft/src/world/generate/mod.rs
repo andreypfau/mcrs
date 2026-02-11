@@ -55,7 +55,7 @@ pub fn generate_noise(
     pos: ChunkPos,
     block_states: &mut BlockPalette,
     biomes: &mut BiomePalette,
-    noise_router: &mut NoiseRouter,
+    noise_router: &NoiseRouter,
 ) {
     let block_x = pos.x * 16;
     let block_z = pos.z * 16;

@@ -16,6 +16,7 @@ bevy_ecs = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
+tracing = { workspace = true }
 
 [features]
 default = ["serde", "bevy"]
