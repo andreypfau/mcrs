@@ -440,6 +440,30 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
             // Don't continue — fall through to identity/zero check below
         }
 
+        // 5b. Convert remaining standalone Linear to Affine (removes tracing span, uses FMA)
+        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(lin)) =
+            &stack[i]
+        {
+            let (scale, offset) = match lin.operation {
+                LinearOperation::Add => (1.0, lin.argument),
+                LinearOperation::Multiply => (lin.argument, 0.0),
+            };
+            let (min_value, max_value) = Affine::compute_range(
+                stack[lin.input_index].min_value(),
+                stack[lin.input_index].max_value(),
+                scale,
+                offset,
+            );
+            stack[i] =
+                DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(Affine {
+                    input_index: lin.input_index,
+                    scale,
+                    offset,
+                    min_value,
+                    max_value,
+                }));
+        }
+
         // 6. Identity/zero elimination
         match &stack[i] {
             DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(aff)) => {
@@ -591,7 +615,17 @@ pub struct NoiseRouter {
 
 impl NoiseRouter {
     pub fn final_density(&self, pos: IVec3) -> f32 {
-        DensityFunctionComponent::sample_from_stack(&self.stack[..=self.final_density_index], pos)
+        self.evaluate_forward(self.final_density_index, pos)
+    }
+
+    /// Forward evaluation: iterate bottom-up, compute each entry exactly once.
+    /// Eliminates duplicate subgraph evaluation and tracing span overhead.
+    fn evaluate_forward(&self, root: usize, pos: IVec3) -> f32 {
+        let mut cache = vec![0.0f32; root + 1];
+        for i in 0..=root {
+            cache[i] = self.stack[i].sample_cached(&cache, &self.stack, pos);
+        }
+        cache[root]
     }
 }
 
@@ -1999,6 +2033,66 @@ impl DensityFunction for Spline {
     }
 }
 
+impl SplineValue {
+    #[inline]
+    fn sample_cached(&self, cache: &[f32], stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        match self {
+            SplineValue::Spline(x) => x.sample_cached(cache, stack, pos),
+            SplineValue::Constant(x) => *x,
+        }
+    }
+}
+
+impl Spline {
+    fn sample_cached(&self, cache: &[f32], stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        let location = cache[self.input_index];
+
+        let locs = &self.locations;
+        let idx_gt = Self::upper_bound(locs, location);
+        let n_points = locs.len();
+
+        if idx_gt == 0 {
+            let v0 = self.values[0].sample_cached(cache, stack, pos);
+            let d0 = self.derivatives[0];
+            return if d0 == 0.0 {
+                v0
+            } else {
+                d0.mul_add(location - locs[0], v0)
+            };
+        }
+
+        if idx_gt == n_points {
+            let i = n_points - 1;
+            let v = self.values[i].sample_cached(cache, stack, pos);
+            let d = self.derivatives[i];
+            return if d == 0.0 {
+                v
+            } else {
+                d.mul_add(location - locs[i], v)
+            };
+        }
+
+        let i0 = idx_gt - 1;
+        let i1 = idx_gt;
+
+        let v0 = self.values[i0].sample_cached(cache, stack, pos);
+        let v1 = self.values[i1].sample_cached(cache, stack, pos);
+
+        let seg = self.segments[i0];
+        let x = (location - seg.left) * seg.inv_dist;
+
+        let delta = v1 - v0;
+
+        let e0 = seg.lower_deriv_dist - delta;
+        let e1 = -seg.upper_deriv_dist + delta;
+
+        let cubic = (x * (1.0 - x)) * Self::lerp(e0, e1, x);
+        let linear = Self::lerp(v0, v1, x);
+
+        cubic + linear
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 struct FindTopSurface {
     density_index: usize,
@@ -2260,6 +2354,127 @@ impl DensityFunctionComponent {
     fn sample_from_stack(stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         let (top_component, component_stack) = stack.split_last().unwrap();
         top_component.sample(component_stack, pos)
+    }
+
+    /// Evaluate using pre-computed cache (forward evaluation).
+    /// All entries at indices < this entry's position are already computed in `cache`.
+    /// No tracing spans — this is the optimized hot path.
+    #[inline]
+    fn sample_cached(&self, cache: &[f32], stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        match self {
+            DensityFunctionComponent::Independent(f) => match f {
+                IndependentDensityFunction::Constant(x) => *x,
+                IndependentDensityFunction::OldBlendedNoise(x) => x.sample(&[], pos),
+                IndependentDensityFunction::Noise(x) => x.sample(&[], pos),
+                IndependentDensityFunction::ShiftA(x) => x.sample(&[], pos),
+                IndependentDensityFunction::ShiftB(x) => x.sample(&[], pos),
+                IndependentDensityFunction::Shift(x) => x.sample(&[], pos),
+                IndependentDensityFunction::ClampedYGradient(x) => x.sample(&[], pos),
+            },
+            DensityFunctionComponent::Dependent(f) => match f {
+                DependentDensityFunction::Linear(x) => {
+                    let input = cache[x.input_index];
+                    match x.operation {
+                        LinearOperation::Add => input + x.argument,
+                        LinearOperation::Multiply => input * x.argument,
+                    }
+                }
+                DependentDensityFunction::Affine(x) => {
+                    cache[x.input_index].mul_add(x.scale, x.offset)
+                }
+                DependentDensityFunction::Unary(x) => x.operation.apply(cache[x.input_index]),
+                DependentDensityFunction::Binary(x) => {
+                    let a = cache[x.input1_index];
+                    let b = cache[x.input2_index];
+                    match x.operation {
+                        BinaryOperation::Add => a + b,
+                        BinaryOperation::Multiply => a * b,
+                        BinaryOperation::Min => a.min(b),
+                        BinaryOperation::Max => a.max(b),
+                    }
+                }
+                DependentDensityFunction::ShiftedNoise(x) => x.sampler.get(
+                    pos.x as f32 * x.xz_scale + cache[x.input_x_index],
+                    pos.y as f32 * x.y_scale + cache[x.input_y_index],
+                    pos.z as f32 * x.xz_scale + cache[x.input_z_index],
+                ),
+                DependentDensityFunction::WeirdScaled(x) => {
+                    let density = cache[x.input_index];
+                    let (amp, coord_mul) = match x.mapper {
+                        RarityValueMapper::Type1 => {
+                            if density < -0.5 {
+                                (0.75, 1.0 / 0.75)
+                            } else if density < 0.0 {
+                                (1.0, 1.0)
+                            } else if density < 0.5 {
+                                (1.5, 1.0 / 1.5)
+                            } else {
+                                (2.0, 0.5)
+                            }
+                        }
+                        RarityValueMapper::Type2 => {
+                            if density < -0.75 {
+                                (0.5, 2.0)
+                            } else if density < -0.5 {
+                                (0.75, 1.0 / 0.75)
+                            } else if density < 0.5 {
+                                (1.0, 1.0)
+                            } else if density < 0.75 {
+                                (2.0, 0.5)
+                            } else {
+                                (3.0, 1.0 / 3.0)
+                            }
+                        }
+                    };
+                    amp * x.sampler.get(
+                        pos.x as f32 * coord_mul,
+                        pos.y as f32 * coord_mul,
+                        pos.z as f32 * coord_mul,
+                    )
+                }
+                DependentDensityFunction::Clamp(x) => {
+                    cache[x.input_index].clamp(x.min_value, x.max_value)
+                }
+                DependentDensityFunction::RangeChoice(x) => {
+                    let input = cache[x.input_index];
+                    if input >= x.min_inclusion_value && input < x.max_exclusion_value {
+                        cache[x.when_in_index]
+                    } else {
+                        cache[x.when_out_index]
+                    }
+                }
+                DependentDensityFunction::Spline(x) => x.sample_cached(cache, stack, pos),
+                DependentDensityFunction::FindTopSurface(x) => {
+                    let top_y =
+                        (cache[x.upper_bound_index] / x.cell_height).floor() * x.cell_height;
+                    if top_y <= x.lower_bound {
+                        x.lower_bound
+                    } else {
+                        // Must evaluate density at different Y positions — fall back to recursive
+                        let mut current_y = top_y;
+                        loop {
+                            let sample_pos = IVec3::new(pos.x, current_y as i32, pos.z);
+                            let density = DensityFunctionComponent::sample_from_stack(
+                                &stack[..=x.density_index],
+                                sample_pos,
+                            );
+                            if density > 0.0 || current_y <= x.lower_bound {
+                                return current_y;
+                            }
+                            current_y -= x.cell_height;
+                        }
+                    }
+                }
+            },
+            DensityFunctionComponent::Wrapper(f) => match f {
+                WrapperDensityFunction::BlendDensity(x) => cache[x.input_index],
+                WrapperDensityFunction::Interpolated(x) => cache[x.input_index],
+                WrapperDensityFunction::FlatCache(x) => cache[x.input_index],
+                WrapperDensityFunction::Cache2d(x) => cache[x.input_index],
+                WrapperDensityFunction::CacheOnce(x) => cache[x.input_index],
+                WrapperDensityFunction::CacheAllInCell(x) => cache[x.input_index],
+            },
+        }
     }
 }
 

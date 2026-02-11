@@ -111,8 +111,11 @@ fn load_chunks(
             let _span = tracing::info_span!("ChunkGen").entered();
             let mut blocks = BlockPalette::default();
             let mut biomes = BiomePalette::default();
-            // generate_chunk(pos, &mut blocks, &mut biomes);
-            generate_noise(pos, &mut blocks, &mut biomes, &router);
+            if pos.y > 0 && pos.x >= 0 && pos.x < 16 && pos.z >= 0 && pos.z < 16 {
+                generate_noise(pos, &mut blocks, &mut biomes, &router);
+            } else {
+                generate_chunk(pos, &mut blocks, &mut biomes);
+            }
             ChunkLoadingTask {
                 chunk: e,
                 pos,
