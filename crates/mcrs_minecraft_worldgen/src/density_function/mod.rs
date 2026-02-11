@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
 use std::mem::swap;
 use std::ops::Index;
-use tracing::info_span;
+use tracing::{info, info_span};
 
 pub mod proto;
 
@@ -37,6 +37,397 @@ struct ChunkNoiseFunctionBuilderOptions {
 
 trait DensityFunction: RangeFunction {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32;
+}
+
+fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]) {
+    let n = stack.len();
+    if n == 0 {
+        return;
+    }
+
+    let mut redirect: Vec<usize> = (0..n).collect();
+    let mut affine_fusions = 0usize;
+    let mut constants_folded = 0usize;
+    let mut caches_eliminated = 0usize;
+    let mut identities_eliminated = 0usize;
+
+    // Phase 1: Forward pass — peephole optimize
+    for i in 0..n {
+        // 1. Resolve cache wrapper redirects
+        let is_cache = matches!(
+            &stack[i],
+            DensityFunctionComponent::Wrapper(
+                WrapperDensityFunction::FlatCache(_)
+                    | WrapperDensityFunction::Cache2d(_)
+                    | WrapperDensityFunction::CacheOnce(_)
+                    | WrapperDensityFunction::CacheAllInCell(_)
+            )
+        );
+
+        if is_cache {
+            let input_index = match &stack[i] {
+                DensityFunctionComponent::Wrapper(WrapperDensityFunction::FlatCache(x)) => {
+                    x.input_index
+                }
+                DensityFunctionComponent::Wrapper(WrapperDensityFunction::Cache2d(x)) => {
+                    x.input_index
+                }
+                DensityFunctionComponent::Wrapper(WrapperDensityFunction::CacheOnce(x)) => {
+                    x.input_index
+                }
+                DensityFunctionComponent::Wrapper(WrapperDensityFunction::CacheAllInCell(x)) => {
+                    x.input_index
+                }
+                _ => unreachable!(),
+            };
+            redirect[i] = redirect[input_index];
+            caches_eliminated += 1;
+            continue;
+        }
+
+        // 2. Apply redirects to current entry's inputs
+        stack[i].rewrite_indices(&redirect);
+
+        // 3. Constant folding for Linear operations with constant input
+        let folded = match &stack[i] {
+            DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(lin)) => {
+                if let Some(c) = stack[lin.input_index].as_constant() {
+                    let result = match lin.operation {
+                        LinearOperation::Add => c + lin.argument,
+                        LinearOperation::Multiply => c * lin.argument,
+                    };
+                    Some(result)
+                } else {
+                    None
+                }
+            }
+            DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(aff)) => {
+                if let Some(c) = stack[aff.input_index].as_constant() {
+                    Some(c.mul_add(aff.scale, aff.offset))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+        if let Some(constant) = folded {
+            stack[i] = DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(
+                constant,
+            ));
+            constants_folded += 1;
+            continue;
+        }
+
+        // 4. Affine fusion
+        let fused = match &stack[i] {
+            DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(lin)) => {
+                let input = &stack[lin.input_index];
+                match (&lin.operation, input) {
+                    // Linear::Add(x, a) where x is Linear::Add(y, b) → Affine(y, 1.0, a+b)
+                    (
+                        LinearOperation::Add,
+                        DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(
+                            inner,
+                        )),
+                    ) if inner.operation == LinearOperation::Add => {
+                        let (min_value, max_value) = Affine::compute_range(
+                            stack[inner.input_index].min_value(),
+                            stack[inner.input_index].max_value(),
+                            1.0,
+                            lin.argument + inner.argument,
+                        );
+                        Some(DensityFunctionComponent::Dependent(
+                            DependentDensityFunction::Affine(Affine {
+                                input_index: inner.input_index,
+                                scale: 1.0,
+                                offset: lin.argument + inner.argument,
+                                min_value,
+                                max_value,
+                            }),
+                        ))
+                    }
+                    // Linear::Mul(x, a) where x is Linear::Mul(y, b) → Affine(y, a*b, 0.0)
+                    (
+                        LinearOperation::Multiply,
+                        DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(
+                            inner,
+                        )),
+                    ) if inner.operation == LinearOperation::Multiply => {
+                        let scale = lin.argument * inner.argument;
+                        let (min_value, max_value) = Affine::compute_range(
+                            stack[inner.input_index].min_value(),
+                            stack[inner.input_index].max_value(),
+                            scale,
+                            0.0,
+                        );
+                        Some(DensityFunctionComponent::Dependent(
+                            DependentDensityFunction::Affine(Affine {
+                                input_index: inner.input_index,
+                                scale,
+                                offset: 0.0,
+                                min_value,
+                                max_value,
+                            }),
+                        ))
+                    }
+                    // Linear::Mul(x, a) where x is Linear::Add(y, b) → Affine(y, a, b*a)
+                    (
+                        LinearOperation::Multiply,
+                        DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(
+                            inner,
+                        )),
+                    ) if inner.operation == LinearOperation::Add => {
+                        let offset = inner.argument * lin.argument;
+                        let (min_value, max_value) = Affine::compute_range(
+                            stack[inner.input_index].min_value(),
+                            stack[inner.input_index].max_value(),
+                            lin.argument,
+                            offset,
+                        );
+                        Some(DensityFunctionComponent::Dependent(
+                            DependentDensityFunction::Affine(Affine {
+                                input_index: inner.input_index,
+                                scale: lin.argument,
+                                offset,
+                                min_value,
+                                max_value,
+                            }),
+                        ))
+                    }
+                    // Linear::Add(x, a) where x is Linear::Mul(y, b) → Affine(y, b, a)
+                    (
+                        LinearOperation::Add,
+                        DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(
+                            inner,
+                        )),
+                    ) if inner.operation == LinearOperation::Multiply => {
+                        let (min_value, max_value) = Affine::compute_range(
+                            stack[inner.input_index].min_value(),
+                            stack[inner.input_index].max_value(),
+                            inner.argument,
+                            lin.argument,
+                        );
+                        Some(DensityFunctionComponent::Dependent(
+                            DependentDensityFunction::Affine(Affine {
+                                input_index: inner.input_index,
+                                scale: inner.argument,
+                                offset: lin.argument,
+                                min_value,
+                                max_value,
+                            }),
+                        ))
+                    }
+                    // Linear::Add(x, a) where x is Affine(y, s, o) → Affine(y, s, o+a)
+                    (
+                        LinearOperation::Add,
+                        DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(
+                            inner,
+                        )),
+                    ) => {
+                        let offset = inner.offset + lin.argument;
+                        let (min_value, max_value) = Affine::compute_range(
+                            stack[inner.input_index].min_value(),
+                            stack[inner.input_index].max_value(),
+                            inner.scale,
+                            offset,
+                        );
+                        Some(DensityFunctionComponent::Dependent(
+                            DependentDensityFunction::Affine(Affine {
+                                input_index: inner.input_index,
+                                scale: inner.scale,
+                                offset,
+                                min_value,
+                                max_value,
+                            }),
+                        ))
+                    }
+                    // Linear::Mul(x, a) where x is Affine(y, s, o) → Affine(y, s*a, o*a)
+                    (
+                        LinearOperation::Multiply,
+                        DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(
+                            inner,
+                        )),
+                    ) => {
+                        let scale = inner.scale * lin.argument;
+                        let offset = inner.offset * lin.argument;
+                        let (min_value, max_value) = Affine::compute_range(
+                            stack[inner.input_index].min_value(),
+                            stack[inner.input_index].max_value(),
+                            scale,
+                            offset,
+                        );
+                        Some(DensityFunctionComponent::Dependent(
+                            DependentDensityFunction::Affine(Affine {
+                                input_index: inner.input_index,
+                                scale,
+                                offset,
+                                min_value,
+                                max_value,
+                            }),
+                        ))
+                    }
+                    _ => None,
+                }
+            }
+            DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(aff)) => {
+                let input = &stack[aff.input_index];
+                match input {
+                    // Affine(x, s2, o2) where x is Affine(y, s1, o1) → Affine(y, s1*s2, o1*s2+o2)
+                    DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(
+                        inner,
+                    )) => {
+                        let scale = inner.scale * aff.scale;
+                        let offset = inner.offset.mul_add(aff.scale, aff.offset);
+                        let (min_value, max_value) = Affine::compute_range(
+                            stack[inner.input_index].min_value(),
+                            stack[inner.input_index].max_value(),
+                            scale,
+                            offset,
+                        );
+                        Some(DensityFunctionComponent::Dependent(
+                            DependentDensityFunction::Affine(Affine {
+                                input_index: inner.input_index,
+                                scale,
+                                offset,
+                                min_value,
+                                max_value,
+                            }),
+                        ))
+                    }
+                    // Affine(x, s2, o2) where x is Linear::Add(y, b) → Affine(y, s2, b*s2+o2)
+                    DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(
+                        inner,
+                    )) if inner.operation == LinearOperation::Add => {
+                        let offset = inner.argument.mul_add(aff.scale, aff.offset);
+                        let (min_value, max_value) = Affine::compute_range(
+                            stack[inner.input_index].min_value(),
+                            stack[inner.input_index].max_value(),
+                            aff.scale,
+                            offset,
+                        );
+                        Some(DensityFunctionComponent::Dependent(
+                            DependentDensityFunction::Affine(Affine {
+                                input_index: inner.input_index,
+                                scale: aff.scale,
+                                offset,
+                                min_value,
+                                max_value,
+                            }),
+                        ))
+                    }
+                    // Affine(x, s2, o2) where x is Linear::Mul(y, b) → Affine(y, b*s2, o2)
+                    DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(
+                        inner,
+                    )) if inner.operation == LinearOperation::Multiply => {
+                        let scale = inner.argument * aff.scale;
+                        let (min_value, max_value) = Affine::compute_range(
+                            stack[inner.input_index].min_value(),
+                            stack[inner.input_index].max_value(),
+                            scale,
+                            aff.offset,
+                        );
+                        Some(DensityFunctionComponent::Dependent(
+                            DependentDensityFunction::Affine(Affine {
+                                input_index: inner.input_index,
+                                scale,
+                                offset: aff.offset,
+                                min_value,
+                                max_value,
+                            }),
+                        ))
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+
+        if let Some(replacement) = fused {
+            stack[i] = replacement;
+            affine_fusions += 1;
+            // Don't continue — fall through to identity/zero check below
+        }
+
+        // 5. Identity/zero elimination
+        match &stack[i] {
+            DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(aff)) => {
+                if aff.scale == 1.0 && aff.offset == 0.0 {
+                    // Identity
+                    redirect[i] = aff.input_index;
+                    identities_eliminated += 1;
+                    continue;
+                }
+                if aff.scale == 0.0 {
+                    // Constant
+                    stack[i] = DensityFunctionComponent::Independent(
+                        IndependentDensityFunction::Constant(aff.offset),
+                    );
+                    constants_folded += 1;
+                    continue;
+                }
+            }
+            DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(lin)) => {
+                match lin.operation {
+                    LinearOperation::Add if lin.argument == 0.0 => {
+                        redirect[i] = lin.input_index;
+                        identities_eliminated += 1;
+                        continue;
+                    }
+                    LinearOperation::Multiply if lin.argument == 1.0 => {
+                        redirect[i] = lin.input_index;
+                        identities_eliminated += 1;
+                        continue;
+                    }
+                    LinearOperation::Multiply if lin.argument == 0.0 => {
+                        stack[i] = DensityFunctionComponent::Independent(
+                            IndependentDensityFunction::Constant(0.0),
+                        );
+                        constants_folded += 1;
+                        continue;
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+
+        // 6. Clamp of in-range elimination
+        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Clamp(clamp)) =
+            &stack[i]
+        {
+            let input = &stack[clamp.input_index];
+            if input.min_value() >= clamp.min_value && input.max_value() <= clamp.max_value {
+                redirect[i] = clamp.input_index;
+                identities_eliminated += 1;
+            }
+        }
+    }
+
+    // Phase 2: Rewrite all indices using redirect table
+    // Transitively resolve the redirect table
+    for i in 0..n {
+        let mut target = redirect[i];
+        while redirect[target] != target {
+            target = redirect[target];
+        }
+        redirect[i] = target;
+    }
+
+    for entry in stack.iter_mut() {
+        entry.rewrite_indices(&redirect);
+    }
+    for root in roots.iter_mut() {
+        *root = redirect[*root];
+    }
+
+    info!(
+        stack_size = n,
+        affine_fusions,
+        constants_folded,
+        caches_eliminated,
+        identities_eliminated,
+        "Density function stack optimized"
+    );
 }
 
 pub fn build_functions(
@@ -66,7 +457,7 @@ pub fn build_functions(
     let preliminary_surface_level_index =
         builder.component(&noise_settings.noise_router.preliminary_surface_level);
 
-    NoiseRouter {
+    let mut roots = [
         final_density_index,
         temperature_index,
         vegetation_index,
@@ -75,6 +466,19 @@ pub fn build_functions(
         depth_index,
         ridges_index,
         preliminary_surface_level_index,
+    ];
+
+    optimize_stack(&mut builder.stack, &mut roots);
+
+    NoiseRouter {
+        final_density_index: roots[0],
+        temperature_index: roots[1],
+        vegetation_index: roots[2],
+        continents_index: roots[3],
+        erosion_index: roots[4],
+        depth_index: roots[5],
+        ridges_index: roots[6],
+        preliminary_surface_level_index: roots[7],
         stack: Box::from(builder.stack),
     }
 }
@@ -739,6 +1143,7 @@ impl DensityFunction for IndependentDensityFunction {
 #[derive(Clone, Debug, PartialEq)]
 enum DependentDensityFunction {
     Linear(Linear),
+    Affine(Affine),
     Unary(Unary),
     Binary(Binary),
     ShiftedNoise(ShiftedNoise),
@@ -818,6 +1223,11 @@ impl DensityFunction for DependentDensityFunction {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         match self {
             DependentDensityFunction::Linear(x) => x.sample(stack, pos),
+            DependentDensityFunction::Affine(x) => {
+                let _span =
+                    info_span!("Affine::sample", scale = x.scale, offset = x.offset).entered();
+                x.sample(stack, pos)
+            }
             DependentDensityFunction::Unary(x) => x.sample(stack, pos),
             DependentDensityFunction::Binary(x) => x.sample(stack, pos),
             DependentDensityFunction::ShiftedNoise(x) => x.sample(stack, pos),
@@ -837,6 +1247,7 @@ impl RangeFunction for DependentDensityFunction {
     fn min_value(&self) -> f32 {
         match self {
             DependentDensityFunction::Linear(x) => x.min_value(),
+            DependentDensityFunction::Affine(x) => x.min_value(),
             DependentDensityFunction::Unary(x) => x.min_value(),
             DependentDensityFunction::Binary(x) => x.min_value(),
             DependentDensityFunction::ShiftedNoise(x) => x.min_value(),
@@ -851,6 +1262,7 @@ impl RangeFunction for DependentDensityFunction {
     fn max_value(&self) -> f32 {
         match self {
             DependentDensityFunction::Linear(x) => x.max_value(),
+            DependentDensityFunction::Affine(x) => x.max_value(),
             DependentDensityFunction::Unary(x) => x.max_value(),
             DependentDensityFunction::Binary(x) => x.max_value(),
             DependentDensityFunction::ShiftedNoise(x) => x.max_value(),
@@ -872,10 +1284,55 @@ struct Linear {
     operation: LinearOperation,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+struct Affine {
+    input_index: usize,
+    scale: f32,
+    offset: f32,
+    min_value: f32,
+    max_value: f32,
+}
+
 #[derive(Clone, Debug, PartialEq, Copy, Eq)]
 enum LinearOperation {
     Add,
     Multiply,
+}
+
+impl Affine {
+    fn compute_range(input_min: f32, input_max: f32, scale: f32, offset: f32) -> (f32, f32) {
+        if scale >= 0.0 {
+            (
+                input_min.mul_add(scale, offset),
+                input_max.mul_add(scale, offset),
+            )
+        } else {
+            (
+                input_max.mul_add(scale, offset),
+                input_min.mul_add(scale, offset),
+            )
+        }
+    }
+}
+
+impl RangeFunction for Affine {
+    #[inline]
+    fn min_value(&self) -> f32 {
+        self.min_value
+    }
+
+    #[inline]
+    fn max_value(&self) -> f32 {
+        self.max_value
+    }
+}
+
+impl DensityFunction for Affine {
+    #[inline]
+    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        let density = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
+        density.mul_add(self.scale, self.offset)
+    }
 }
 
 impl DensityFunction for Linear {
@@ -1611,6 +2068,89 @@ impl TryFrom<DensityFunctionComponent> for f32 {
             Ok(v)
         } else {
             Err(())
+        }
+    }
+}
+
+impl SplineValue {
+    fn rewrite_indices(&mut self, redirect: &[usize]) {
+        if let SplineValue::Spline(spline) = self {
+            spline.rewrite_indices(redirect);
+        }
+    }
+}
+
+impl Spline {
+    fn rewrite_indices(&mut self, redirect: &[usize]) {
+        self.input_index = redirect[self.input_index];
+        for value in self.values.iter_mut() {
+            value.rewrite_indices(redirect);
+        }
+    }
+}
+
+impl DensityFunctionComponent {
+    fn rewrite_indices(&mut self, redirect: &[usize]) {
+        match self {
+            DensityFunctionComponent::Independent(_) => {}
+            DensityFunctionComponent::Dependent(dep) => match dep {
+                DependentDensityFunction::Linear(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+                DependentDensityFunction::Affine(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+                DependentDensityFunction::Unary(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+                DependentDensityFunction::Binary(x) => {
+                    x.input1_index = redirect[x.input1_index];
+                    x.input2_index = redirect[x.input2_index];
+                }
+                DependentDensityFunction::ShiftedNoise(x) => {
+                    x.input_x_index = redirect[x.input_x_index];
+                    x.input_y_index = redirect[x.input_y_index];
+                    x.input_z_index = redirect[x.input_z_index];
+                }
+                DependentDensityFunction::WeirdScaled(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+                DependentDensityFunction::Clamp(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+                DependentDensityFunction::RangeChoice(x) => {
+                    x.input_index = redirect[x.input_index];
+                    x.when_in_index = redirect[x.when_in_index];
+                    x.when_out_index = redirect[x.when_out_index];
+                }
+                DependentDensityFunction::Spline(x) => {
+                    x.rewrite_indices(redirect);
+                }
+                DependentDensityFunction::FindTopSurface(x) => {
+                    x.density_index = redirect[x.density_index];
+                    x.upper_bound_index = redirect[x.upper_bound_index];
+                }
+            },
+            DensityFunctionComponent::Wrapper(wrapper) => match wrapper {
+                WrapperDensityFunction::BlendDensity(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+                WrapperDensityFunction::Interpolated(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+                WrapperDensityFunction::FlatCache(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+                WrapperDensityFunction::Cache2d(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+                WrapperDensityFunction::CacheOnce(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+                WrapperDensityFunction::CacheAllInCell(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+            },
         }
     }
 }

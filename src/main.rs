@@ -2,7 +2,7 @@ use bevy_app::ScheduleRunnerPlugin;
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{ExecutorKind, ScheduleLabel};
-use bevy_log::{Level, LogPlugin};
+use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft::ServerPlugin;
 
 mod chunk_render_debug;
@@ -23,6 +23,13 @@ async fn main() {
     .add_plugins(LogPlugin {
         filter: LOG_FILTER.to_string(),
         level: Level::INFO,
+        fmt_layer: |_| {
+            Some(Box::new(
+                tracing_subscriber::fmt::Layer::default()
+                    .with_writer(std::io::stderr)
+                    .with_ansi(false),
+            ))
+        },
         ..Default::default()
     })
     .add_plugins(ServerPlugin)
