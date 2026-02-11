@@ -50,6 +50,7 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
     let mut constants_folded = 0usize;
     let mut caches_eliminated = 0usize;
     let mut identities_eliminated = 0usize;
+    let mut binary_demotions = 0usize;
 
     // Phase 1: Forward pass — peephole optimize
     for i in 0..n {
@@ -88,26 +89,117 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
         // 2. Apply redirects to current entry's inputs
         stack[i].rewrite_indices(&redirect);
 
-        // 3. Constant folding for Linear operations with constant input
-        let folded = match &stack[i] {
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(lin)) => {
-                if let Some(c) = stack[lin.input_index].as_constant() {
-                    let result = match lin.operation {
-                        LinearOperation::Add => c + lin.argument,
-                        LinearOperation::Multiply => c * lin.argument,
+        // 3. Binary optimizations: constant folding, demotion, and range elimination
+        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Binary(bin)) =
+            &stack[i]
+        {
+            let c1 = stack[bin.input1_index].as_constant();
+            let c2 = stack[bin.input2_index].as_constant();
+            let replacement = match (c1, c2, bin.operation) {
+                // Both constant → fold for all operations
+                (Some(a), Some(b), op) => {
+                    let result = match op {
+                        BinaryOperation::Add => a + b,
+                        BinaryOperation::Multiply => a * b,
+                        BinaryOperation::Min => a.min(b),
+                        BinaryOperation::Max => a.max(b),
                     };
-                    Some(result)
-                } else {
-                    None
+                    Some(DensityFunctionComponent::Independent(
+                        IndependentDensityFunction::Constant(result),
+                    ))
                 }
-            }
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(aff)) => {
-                if let Some(c) = stack[aff.input_index].as_constant() {
-                    Some(c.mul_add(aff.scale, aff.offset))
-                } else {
-                    None
+                // One constant, Add/Multiply → demote to Linear
+                (Some(c), None, BinaryOperation::Add | BinaryOperation::Multiply)
+                | (None, Some(c), BinaryOperation::Add | BinaryOperation::Multiply) => {
+                    let input_index = if c1.is_some() {
+                        bin.input2_index
+                    } else {
+                        bin.input1_index
+                    };
+                    let operation = match bin.operation {
+                        BinaryOperation::Add => LinearOperation::Add,
+                        BinaryOperation::Multiply => LinearOperation::Multiply,
+                        _ => unreachable!(),
+                    };
+                    Some(DensityFunctionComponent::Dependent(
+                        DependentDensityFunction::Linear(Linear {
+                            input_index,
+                            min_value: bin.min_value,
+                            max_value: bin.max_value,
+                            argument: c,
+                            operation,
+                        }),
+                    ))
                 }
+                _ => None,
+            };
+            if let Some(r) = replacement {
+                if r.as_constant().is_some() {
+                    constants_folded += 1;
+                } else {
+                    binary_demotions += 1;
+                }
+                stack[i] = r;
+                // Fall through — the new Linear/Constant will be caught by subsequent steps
             }
+        }
+
+        // 3b. Binary Min/Max range elimination
+        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Binary(bin)) =
+            &stack[i]
+        {
+            let in1 = &stack[bin.input1_index];
+            let in2 = &stack[bin.input2_index];
+            match bin.operation {
+                // Min(x, y) where x.max <= y.min → x always wins
+                BinaryOperation::Min => {
+                    if in1.max_value() <= in2.min_value() {
+                        redirect[i] = bin.input1_index;
+                        identities_eliminated += 1;
+                        continue;
+                    } else if in2.max_value() <= in1.min_value() {
+                        redirect[i] = bin.input2_index;
+                        identities_eliminated += 1;
+                        continue;
+                    }
+                }
+                // Max(x, y) where x.min >= y.max → x always wins
+                BinaryOperation::Max => {
+                    if in1.min_value() >= in2.max_value() {
+                        redirect[i] = bin.input1_index;
+                        identities_eliminated += 1;
+                        continue;
+                    } else if in2.min_value() >= in1.max_value() {
+                        redirect[i] = bin.input2_index;
+                        identities_eliminated += 1;
+                        continue;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // 4. Constant folding for all single-input operations
+        let folded = match &stack[i] {
+            DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(lin)) => stack
+                [lin.input_index]
+                .as_constant()
+                .map(|c| match lin.operation {
+                    LinearOperation::Add => c + lin.argument,
+                    LinearOperation::Multiply => c * lin.argument,
+                }),
+            DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(aff)) => stack
+                [aff.input_index]
+                .as_constant()
+                .map(|c| c.mul_add(aff.scale, aff.offset)),
+            DensityFunctionComponent::Dependent(DependentDensityFunction::Unary(u)) => stack
+                [u.input_index]
+                .as_constant()
+                .map(|c| u.operation.apply(c)),
+            DensityFunctionComponent::Dependent(DependentDensityFunction::Clamp(cl)) => stack
+                [cl.input_index]
+                .as_constant()
+                .map(|c| c.clamp(cl.min_value, cl.max_value)),
             _ => None,
         };
         if let Some(constant) = folded {
@@ -118,7 +210,7 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
             continue;
         }
 
-        // 4. Affine fusion
+        // 5. Affine fusion
         let fused = match &stack[i] {
             DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(lin)) => {
                 let input = &stack[lin.input_index];
@@ -348,7 +440,7 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
             // Don't continue — fall through to identity/zero check below
         }
 
-        // 5. Identity/zero elimination
+        // 6. Identity/zero elimination
         match &stack[i] {
             DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(aff)) => {
                 if aff.scale == 1.0 && aff.offset == 0.0 {
@@ -391,7 +483,7 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
             _ => {}
         }
 
-        // 6. Clamp of in-range elimination
+        // 7. Clamp of in-range elimination
         if let DensityFunctionComponent::Dependent(DependentDensityFunction::Clamp(clamp)) =
             &stack[i]
         {
@@ -426,6 +518,7 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
         constants_folded,
         caches_eliminated,
         identities_eliminated,
+        binary_demotions,
         "Density function stack optimized"
     );
 }
