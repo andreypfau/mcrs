@@ -6,7 +6,8 @@ use bevy_app::{App, FixedPreUpdate, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::With;
-use rustc_hash::{FxHashMap, FxHashSet};
+use indexmap::IndexMap;
+use rustc_hash::{FxBuildHasher, FxHashSet};
 use std::cmp::Ordering;
 
 pub(crate) struct TicketPlugin;
@@ -100,7 +101,9 @@ pub enum TicketCommand {
 
 #[derive(Component, Debug, Default)]
 pub struct ChunkTicketsCommands {
-    add_tickets: FxHashMap<ChunkPos, Vec<Ticket>>,
+    /// Insertion-ordered map so chunks are spawned in the order they were requested
+    /// (closest to player first, since the view system adds them in distance order).
+    add_tickets: IndexMap<ChunkPos, Vec<Ticket>, FxBuildHasher>,
     remove_tickets: FxHashSet<(ChunkPos, Vec<TicketKind>)>,
 }
 
@@ -110,38 +113,31 @@ pub struct ChunkTicketHolder(pub Vec<Ticket>);
 impl ChunkTicketHolder {
     pub fn add(&mut self, ticket: Ticket) {
         self.0.push(ticket);
-        self.0.sort_by(|a, b| b.cmp(a));
+        self.0.sort_unstable_by(|a, b| b.cmp(a));
     }
 
     pub fn add_all(&mut self, tickets: Vec<Ticket>) {
         self.0.extend(tickets);
-        self.0.sort_by(|a, b| b.cmp(a));
+        self.0.sort_unstable_by(|a, b| b.cmp(a));
     }
 
     pub fn remove(&mut self, ticket_kind: TicketKind) {
-        self.0
-            .iter()
-            .position(|t| t.kind == ticket_kind)
-            .map(|i| self.0.remove(i));
+        if let Some(i) = self.0.iter().position(|t| t.kind == ticket_kind) {
+            self.0.swap_remove(i);
+        }
     }
 }
 
 impl ChunkTicketsCommands {
     pub fn add_ticket(&mut self, chunk_pos: ChunkPos, ticket: Ticket) {
         self.add_tickets.entry(chunk_pos).or_default().push(ticket);
-        self.add_tickets.get_mut(&chunk_pos).map(|tickets| {
-            tickets.sort_by(|a, b| b.cmp(a));
-        });
     }
 
     pub fn remove_ticket(&mut self, chunk_pos: ChunkPos, ticket_kind: TicketKind) {
         if let Some(tickets) = self.add_tickets.get_mut(&chunk_pos) {
-            // println!("Removing ticket {:?} from chunk {:?}", ticket_kind, chunk_pos);
-            tickets
-                .iter()
-                .position(|t| t.kind == ticket_kind)
-                .map(|i| tickets.remove(i));
-            // println!("Chunk {:?} now has {} tickets", chunk_pos, tickets.len());
+            if let Some(i) = tickets.iter().position(|t| t.kind == ticket_kind) {
+                tickets.swap_remove(i);
+            }
         }
     }
 }
@@ -163,13 +159,14 @@ fn despawn_chunks(
     mut dims: Query<(&mut ChunkIndex)>,
     chunk_statuses: Query<(Entity, &ChunkPos, &InDimension), With<ChunkUnloaded>>,
 ) {
-    chunk_statuses.iter().for_each(|(chunk, chunk_pos, dim)| {
-        dims.get_mut(**dim).ok().map(|mut chunk_index| {
+    const MAX_DESPAWNS_PER_TICK: usize = 128;
+
+    for (chunk, chunk_pos, dim) in chunk_statuses.iter().take(MAX_DESPAWNS_PER_TICK) {
+        if let Ok(mut chunk_index) = dims.get_mut(**dim) {
             chunk_index.remove(*chunk_pos);
-        });
+        }
         commands.entity(chunk).despawn();
-        // println!("Despawned chunk {:?}", chunk_pos);
-    })
+    }
 }
 
 fn unloading_chunks(

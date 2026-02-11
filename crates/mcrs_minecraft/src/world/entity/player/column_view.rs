@@ -284,6 +284,8 @@ fn process_column_queues(
         }
 
         // Loads / resends.
+        // Reuse a single buffer across all columns to avoid per-chunk allocation.
+        let mut data = Vec::with_capacity(8 * 1024);
         sends = 0usize;
         while sends < MAX_COL_SENDS {
             let Some(column_pos) = view.load_queue.front().copied() else {
@@ -298,8 +300,8 @@ fn process_column_queues(
             }
 
             // Gather 16 server chunk entities in client section order.
-            let mut sections = Vec::with_capacity(CLIENT_COLUMN_SECTIONS as usize);
             let mut ready = true;
+            data.clear();
 
             for client_y in 0..CLIENT_COLUMN_SECTIONS {
                 let server_y = client_y - off;
@@ -313,21 +315,6 @@ fn process_column_queues(
                     ready = false;
                     break;
                 };
-                sections.push((chunk_e, blocks, biomes));
-            }
-
-            if !ready {
-                break;
-            }
-
-            view.load_queue.pop_front();
-            view.queued_columns.remove(&column_pos);
-            view.sent_columns.insert(column_pos);
-            if sends == 0 {
-                // todo: send start chunk batch
-            }
-            let mut data = Vec::new();
-            for (_, blocks, biomes) in sections.iter() {
                 blocks
                     .non_air_block_count()
                     .encode(&mut data)
@@ -341,6 +328,14 @@ fn process_column_queues(
                     .encode(&mut data)
                     .expect("Failed to encode chunk biome data");
             }
+
+            if !ready {
+                break;
+            }
+
+            view.load_queue.pop_front();
+            view.queued_columns.remove(&column_pos);
+            view.sent_columns.insert(column_pos);
             let pkt = ClientboundLevelChunkWithLight {
                 pos: ChunkColumnPos::new(
                     rep.convert_chunk_x(column_pos.x),
@@ -353,11 +348,7 @@ fn process_column_queues(
                 light_data: LightData::default(),
             };
             con.write_packet(&pkt);
-            // println!("Sent column {:?} to player {:?}", column_pos, player);
             sends += 1;
-        }
-        if sends > 0 {
-            // todo: send end chunk batch
         }
     }
 }

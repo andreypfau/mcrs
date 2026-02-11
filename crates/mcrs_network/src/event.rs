@@ -71,10 +71,10 @@ fn run_event_loop(mut query: Query<(Entity, &mut ServerSideConnection)>, mut com
                         data: pkt.payload,
                         timestamp: pkt.timestamp,
                     });
-                    info!(
-                        "{}: processed packet {} in {:?}",
-                        entity, pkt.id, process_latency
-                    );
+                    // info!(
+                    //     "{}: processed packet {} in {:?}",
+                    //     entity, pkt.id, process_latency
+                    // );
                 }
                 Ok(None) => break,
                 Err(e) => {

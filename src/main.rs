@@ -15,7 +15,10 @@ async fn main() {
     let mut app = App::new();
     setup_schedules(&mut app);
     app.add_plugins(
-        ScheduleRunnerPlugin::default(), // ::run_loop(Duration::from_secs_f64(1.0 / mcrs_minecraft::DEFAULT_TPS.get() as f64))
+        // ScheduleRunnerPlugin::default(), // ::run_loop(Duration::from_secs_f64(1.0 / mcrs_minecraft::DEFAULT_TPS.get() as f64))
+        ScheduleRunnerPlugin::run_loop(std::time::Duration::from_secs_f64(
+            1.0 / mcrs_minecraft::DEFAULT_TPS.get() as f64,
+        )),
     )
     .add_plugins(LogPlugin {
         filter: LOG_FILTER.to_string(),

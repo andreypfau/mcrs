@@ -1,3 +1,4 @@
+use rustc_hash::FxHashMap;
 use std::hash::Hash;
 
 /// 3d array indexed by y,z,x
@@ -8,6 +9,8 @@ pub struct HeterogeneousPaletteData<V: Hash + Eq + Copy, const DIM: usize> {
     pub cube: Box<AbstractCube<V, DIM>>,
     pub palette: Vec<V>,
     pub counts: Vec<u16>,
+    /// Reverse index: value → palette index. Kept in sync with `palette`.
+    index: FxHashMap<V, usize>,
 }
 
 impl<V: Hash + Eq + Copy, const DIM: usize> HeterogeneousPaletteData<V, DIM> {
@@ -19,6 +22,12 @@ impl<V: Hash + Eq + Copy, const DIM: usize> HeterogeneousPaletteData<V, DIM> {
         self.cube[y][z][x]
     }
 
+    /// O(1) palette index lookup via the reverse HashMap.
+    #[inline]
+    fn palette_index(&self, value: &V) -> usize {
+        self.index[value]
+    }
+
     /// Returns the Original
     fn set(&mut self, x: usize, y: usize, z: usize, value: V) -> V {
         debug_assert!(x < DIM);
@@ -26,11 +35,18 @@ impl<V: Hash + Eq + Copy, const DIM: usize> HeterogeneousPaletteData<V, DIM> {
         debug_assert!(z < DIM);
 
         let original = self.cube[y][z][x];
-        let original_index = self.palette.iter().position(|v| v == &original).unwrap();
+        let original_index = self.palette_index(&original);
         self.counts[original_index] -= 1;
 
         if self.counts[original_index] == 0 {
             // Remove from palette and counts Vecs if the count hits zero.
+            self.index.remove(&original);
+            let last = self.palette.len() - 1;
+            if original_index != last {
+                // swap_remove will move the last element into original_index
+                let moved_value = self.palette[last];
+                self.index.insert(moved_value, original_index);
+            }
             self.palette.swap_remove(original_index);
             self.counts.swap_remove(original_index);
         }
@@ -39,11 +55,13 @@ impl<V: Hash + Eq + Copy, const DIM: usize> HeterogeneousPaletteData<V, DIM> {
         self.cube[y][z][x] = value;
 
         // Find or add the new value to the palette.
-        if let Some(new_index) = self.palette.iter().position(|v| v == &value) {
-            self.counts[new_index] += 1;
+        if let Some(&existing_index) = self.index.get(&value) {
+            self.counts[existing_index] += 1;
         } else {
+            let new_index = self.palette.len();
             self.palette.push(value);
             self.counts.push(1);
+            self.index.insert(value, new_index);
         }
 
         original
@@ -65,28 +83,27 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
     fn from_cube(cube: Box<AbstractCube<V, DIM>>) -> Self {
         let mut palette: Vec<V> = Vec::new();
         let mut counts: Vec<u16> = Vec::new();
+        let mut index: FxHashMap<V, usize> = FxHashMap::default();
 
-        // Iterate over the flattened cube to populate the palette and counts
         for val in cube.as_flattened().as_flattened().iter() {
-            if let Some(index) = palette.iter().position(|v| v == val) {
-                // Value already exists, increment its count
-                counts[index] += 1;
+            if let Some(&idx) = index.get(val) {
+                counts[idx] += 1;
             } else {
-                // New value, add it to the palette and start its count
+                let idx = palette.len();
+                index.insert(*val, idx);
                 palette.push(*val);
                 counts.push(1);
             }
         }
 
         if palette.len() == 1 {
-            // Fast path: the cube is homogeneous, so we can store just one value
             Self::Homogeneous(palette[0])
         } else {
-            // Heterogeneous cube, store the full data
             Self::Heterogeneous(Box::new(HeterogeneousPaletteData {
                 cube,
                 palette,
                 counts,
+                index,
             }))
         }
     }
@@ -105,7 +122,6 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
                 debug_assert!(bits_per_entry >= encompassing_bits(data.counts.len()));
                 debug_assert!(bits_per_entry <= 15);
 
-                // Don't use HashMap's here, because its slow
                 let blocks_per_i64 = 64 / bits_per_entry;
 
                 let packed_indices: Box<[i64]> = data
@@ -115,7 +131,7 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
                     .chunks(blocks_per_i64 as usize)
                     .map(|chunk| {
                         chunk.iter().enumerate().fold(0, |acc, (index, key)| {
-                            let key_index = data.palette.iter().position(|&x| x == *key).unwrap();
+                            let key_index = data.index[key];
                             debug_assert!((1 << bits_per_entry) > key_index);
 
                             let packed_offset_index =
@@ -178,17 +194,18 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
             decompressed_values.push(value);
         }
 
-        // Now, with all decompressed values, build the counts.
-        let mut counts = vec![0; palette_slice.len()];
+        // Build reverse index and counts using O(1) lookups.
+        let palette_vec: Vec<V> = palette_slice.to_vec();
+        let index: FxHashMap<V, usize> = palette_vec
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (*v, i))
+            .collect();
 
+        let mut counts = vec![0u16; palette_slice.len()];
         for &value in &decompressed_values {
-            // This is the key optimization: find the index in the palette Vec
-            // and increment the corresponding count.
-            if let Some(index) = palette_slice.iter().position(|v| v == &value) {
-                counts[index] += 1;
-            } else {
-                // This case should ideally not happen if the palette is complete.
-                // log::warn!("Decompressed value not found in palette!");
+            if let Some(&idx) = index.get(&value) {
+                counts[idx] += 1;
             }
         }
 
@@ -197,12 +214,11 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
             .as_flattened_mut()
             .copy_from_slice(&decompressed_values);
 
-        let palette_vec: Vec<V> = palette_slice.to_vec();
-
         Self::Heterogeneous(Box::new(HeterogeneousPaletteData {
             cube,
             palette: palette_vec,
             counts,
+            index,
         }))
     }
 

@@ -7,11 +7,14 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
+use mcrs_engine::entity::physics::Transform;
+use mcrs_engine::entity::player::Player;
 use mcrs_engine::world::chunk::{
     ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos, ChunkStatus,
 };
 use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsPlugin, OverworldNoiseRouter};
 use std::sync::OnceLock;
+use tracing::info;
 
 pub struct ChunkPlugin;
 
@@ -95,19 +98,13 @@ fn load_chunks(
     }
 }
 
-fn process_generated_chunk(
-    mut loading_chunks: ResMut<LoadingChunks>,
-    mut query: Query<(&mut ChunkStatus)>,
-    mut commands: Commands,
-) {
+fn process_generated_chunk(mut loading_chunks: ResMut<LoadingChunks>, mut commands: Commands) {
     loading_chunks.0.retain_mut(|task| {
         let res = block_on(future::poll_once(task));
         let retain = res.is_none();
         if let Some(loaded_chunk) = res {
             let chunk = loaded_chunk.chunk;
-            let Ok((mut status)) = query.get_mut(chunk) else {
-                return false;
-            };
+            info!("Loaded chunk at {:?}", loaded_chunk.pos);
             commands
                 .entity(chunk)
                 .insert(ChunkLoaded)
