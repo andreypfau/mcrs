@@ -1075,6 +1075,176 @@ fn compute_per_block(stack: &[DensityFunctionComponent], _roots: &[usize]) -> Ve
     per_block
 }
 
+/// Reorder the stack into three zones for optimal `evaluate_forward` performance:
+///
+///   Zone A `[0..column_boundary)`:  column-only entries reachable from final_density
+///   Zone B `[column_boundary..fd_boundary)`: per-Y entries reachable from final_density
+///   Zone C `[fd_boundary..n)`:               entries not reachable from final_density
+///
+/// Within each zone, topological order is maintained (children before parents).
+/// Returns `(column_boundary, fd_boundary)`.
+fn reorder_stack_for_evaluation(
+    stack: &mut Vec<DensityFunctionComponent>,
+    per_block: &mut Vec<bool>,
+    node_labels: &mut Vec<String>,
+    roots: &mut [usize],
+    final_density_root_idx: usize,
+) -> (usize, usize) {
+    let n = stack.len();
+    let fd_index = roots[final_density_root_idx];
+
+    // Step 1: Compute full reachability from final_density (backward walk)
+    let mut fd_reachable = vec![false; n];
+    {
+        let mut worklist = vec![fd_index];
+        fd_reachable[fd_index] = true;
+        while let Some(idx) = worklist.pop() {
+            stack[idx].visit_input_indices(&mut |input| {
+                if !fd_reachable[input] {
+                    fd_reachable[input] = true;
+                    worklist.push(input);
+                }
+            });
+        }
+    }
+
+    // Step 2: Compute per-Y reachability (backward walk, stopping at FlatCache/Cache2d)
+    // These are entries whose per-Y values are actually consumed by final_density.
+    let mut per_y_reachable = vec![false; n];
+    {
+        let mut worklist = vec![fd_index];
+        per_y_reachable[fd_index] = true;
+        while let Some(idx) = worklist.pop() {
+            // Stop at FlatCache/Cache2d: their inputs' per-Y values are never used
+            let is_cache_boundary = matches!(
+                &stack[idx],
+                DensityFunctionComponent::Wrapper(
+                    WrapperDensityFunction::FlatCache(_) | WrapperDensityFunction::Cache2d(_)
+                )
+            );
+            if !is_cache_boundary {
+                stack[idx].visit_input_indices(&mut |input| {
+                    if !per_y_reachable[input] {
+                        per_y_reachable[input] = true;
+                        worklist.push(input);
+                    }
+                });
+            }
+        }
+    }
+
+    // Step 3: Classify each entry into a zone
+    //   Zone A (0): fd_reachable AND NOT (per_y_reachable AND per_block)
+    //   Zone B (1): per_y_reachable AND per_block
+    //   Zone C (2): NOT fd_reachable
+    let mut zone = vec![2u8; n];
+    for i in 0..n {
+        if fd_reachable[i] {
+            if per_y_reachable[i] && per_block[i] {
+                zone[i] = 1; // Zone B: per-Y evaluation needed
+            } else {
+                zone[i] = 0; // Zone A: column-only (or shielded by FlatCache)
+            }
+        }
+    }
+
+    // Safety check: verify no Zone A entry depends on a Zone B entry.
+    // This would happen if a FlatCache input is shared with a direct per-Y consumer.
+    // In vanilla Minecraft, this never occurs; all FlatCache inputs are exclusive.
+    for i in 0..n {
+        if zone[i] == 0 {
+            stack[i].visit_input_indices(&mut |input| {
+                debug_assert!(
+                    zone[input] != 1,
+                    "Zone A entry {} depends on Zone B entry {} — \
+                     FlatCache/Cache2d input is shared with a direct per-Y consumer. \
+                     This case requires special handling.",
+                    i,
+                    input
+                );
+            });
+        }
+    }
+
+    // Step 4: Create permutation sorted by (zone, original_index).
+    // Since the original stack is in topological order, sorting by original_index
+    // within each zone preserves topological order within that zone.
+    let mut sorted_indices: Vec<usize> = (0..n).collect();
+    sorted_indices.sort_by_key(|&i| (zone[i], i));
+
+    // Step 5: Build old→new index mapping
+    let mut old_to_new = vec![0usize; n];
+    for (new_idx, &old_idx) in sorted_indices.iter().enumerate() {
+        old_to_new[old_idx] = new_idx;
+    }
+
+    // Step 6: Apply permutation to stack, per_block, node_labels
+    let old_stack: Vec<DensityFunctionComponent> = stack.drain(..).collect();
+    let old_per_block: Vec<bool> = per_block.drain(..).collect();
+    let old_labels: Vec<String> = node_labels.drain(..).collect();
+
+    for &old_idx in &sorted_indices {
+        stack.push(old_stack[old_idx].clone());
+        per_block.push(old_per_block[old_idx]);
+        node_labels.push(old_labels[old_idx].clone());
+    }
+
+    // Step 7: Rewrite all index references using old→new mapping
+    for entry in stack.iter_mut() {
+        entry.rewrite_indices(&old_to_new);
+    }
+
+    // Step 8: Update root indices
+    for root in roots.iter_mut() {
+        *root = old_to_new[*root];
+    }
+
+    // Step 9: Compute zone boundaries
+    let zone_a_count = zone.iter().filter(|&&z| z == 0).count();
+    let zone_b_count = zone.iter().filter(|&&z| z == 1).count();
+    let zone_c_count = zone.iter().filter(|&&z| z == 2).count();
+    let column_boundary = zone_a_count;
+    let fd_boundary = zone_a_count + zone_b_count;
+
+    info!(
+        zone_a_count,
+        zone_b_count,
+        zone_c_count,
+        column_boundary,
+        fd_boundary,
+        "Stack reordered for evaluation zones"
+    );
+
+    // Count per-zone noise evaluations (expensive operations)
+    let count_noises = |range: std::ops::Range<usize>| -> usize {
+        range
+            .filter(|&i| {
+                matches!(
+                    &stack[i],
+                    DensityFunctionComponent::Independent(
+                        IndependentDensityFunction::OldBlendedNoise(_)
+                            | IndependentDensityFunction::Noise(_)
+                            | IndependentDensityFunction::ShiftA(_)
+                            | IndependentDensityFunction::ShiftB(_)
+                            | IndependentDensityFunction::Shift(_)
+                    ) | DensityFunctionComponent::Dependent(
+                        DependentDensityFunction::ShiftedNoise(_)
+                            | DependentDensityFunction::WeirdScaled(_)
+                    )
+                )
+            })
+            .count()
+    };
+    info!(
+        zone_a_noises = count_noises(0..column_boundary),
+        zone_b_noises = count_noises(column_boundary..fd_boundary),
+        zone_c_noises = count_noises(fd_boundary..n),
+        "Noise evaluations per zone"
+    );
+
+    (column_boundary, fd_boundary)
+}
+
 /// Persistent cache for density function evaluation.
 /// Reuse across calls to `final_density` within the same chunk generation
 /// to cache column-only values (FlatCache/Cache2d dependency cones).
@@ -1139,7 +1309,7 @@ pub fn build_functions(
 
     optimize_stack(&mut builder.stack, &mut roots);
 
-    let per_block = compute_per_block(&builder.stack, &roots);
+    let mut per_block = compute_per_block(&builder.stack, &roots);
 
     // Build node labels: start with type labels, then overlay reference names
     let mut node_labels: Vec<String> = vec![String::new(); builder.stack.len()];
@@ -1150,6 +1320,18 @@ pub fn build_functions(
             }
         }
     }
+
+    // Reorder the stack into evaluation zones for optimal forward evaluation:
+    //   Zone A [0..column_boundary): column-only entries reachable from final_density
+    //   Zone B [column_boundary..fd_boundary): per-Y entries for final_density
+    //   Zone C [fd_boundary..): entries not reachable from final_density
+    let (column_boundary, fd_boundary) = reorder_stack_for_evaluation(
+        &mut builder.stack,
+        &mut per_block,
+        &mut node_labels,
+        &mut roots,
+        11, // final_density is roots[11]
+    );
 
     let router = NoiseRouter {
         barrier_index: roots[0],
@@ -1168,6 +1350,8 @@ pub fn build_functions(
         vein_ridged_index: roots[13],
         vein_gap_index: roots[14],
         per_block: per_block.into_boxed_slice(),
+        column_boundary,
+        fd_boundary,
         stack: Box::from(builder.stack),
         node_labels: node_labels.into_boxed_slice(),
     };
@@ -1195,6 +1379,12 @@ pub struct NoiseRouter {
     /// per_block[i] == true means entry i depends on Y and must be recomputed per block.
     /// per_block[i] == false means entry i is column-only (cached across Y changes).
     per_block: Box<[bool]>,
+    /// First index of Zone B (per-Y entries for final_density).
+    /// Zone A [0..column_boundary): column-only entries reachable from final_density.
+    column_boundary: usize,
+    /// First index of Zone C (entries not reachable from final_density).
+    /// Zone B [column_boundary..fd_boundary): per-Y entries for final_density.
+    fd_boundary: usize,
     stack: Box<[DensityFunctionComponent]>,
     node_labels: Box<[String]>,
 }
@@ -1305,6 +1495,57 @@ impl NoiseRouter {
     /// Evaluate final_density without caching (recursive, for validation/comparison).
     pub fn final_density_uncached(&self, pos: IVec3) -> f32 {
         DensityFunctionComponent::sample_from_stack(&self.stack[..=self.final_density_index], pos)
+    }
+
+    /// Verify that evaluate_forward (zone-based cached) matches the simple forward sweep
+    /// at multiple positions. Tests both fresh-cache and column-reuse paths.
+    /// Returns true if all checks pass.
+    pub fn verify_evaluation(&self, positions: &[IVec3]) -> bool {
+        let mut ok = true;
+
+        // Test 1: Each position with a fresh cache
+        for &pos in positions {
+            let mut values = vec![0.0f32; self.final_density_index + 1];
+            for i in 0..=self.final_density_index {
+                values[i] = self.stack[i].sample_cached(&values, &self.stack, pos);
+            }
+            let expected = values[self.final_density_index];
+
+            let mut cache = self.new_cache();
+            let actual = self.final_density(pos, &mut cache);
+
+            if (expected - actual).abs() > 1e-6 {
+                eprintln!(
+                    "MISMATCH (fresh) at ({},{},{}): expected={}, actual={}",
+                    pos.x, pos.y, pos.z, expected, actual
+                );
+                ok = false;
+            }
+        }
+
+        // Test 2: Column-reuse — same XZ, iterate Y with shared cache
+        let mut cache = self.new_cache();
+        for &base in positions.iter().take(4) {
+            for y in (-64..=320).step_by(8) {
+                let pos = IVec3::new(base.x, y, base.z);
+                let mut values = vec![0.0f32; self.final_density_index + 1];
+                for i in 0..=self.final_density_index {
+                    values[i] = self.stack[i].sample_cached(&values, &self.stack, pos);
+                }
+                let expected = values[self.final_density_index];
+                let actual = self.final_density(pos, &mut cache);
+
+                if (expected - actual).abs() > 1e-6 {
+                    eprintln!(
+                        "MISMATCH (column) at ({},{},{}): expected={}, actual={}",
+                        pos.x, pos.y, pos.z, expected, actual
+                    );
+                    ok = false;
+                }
+            }
+        }
+
+        ok
     }
 
     /// Generate a DOT graph of the density function computation tree
@@ -1595,36 +1836,72 @@ impl NoiseRouter {
         dot
     }
 
-    /// Forward evaluation with column caching.
+    /// Forward evaluation with column caching and zone-based dispatch.
     ///
-    /// When (X,Z) changes: evaluate ALL entries at Y=0 to populate the cache
-    /// (this correctly fills FlatCache inputs at Y=0, and gives baseline values
-    /// for all other entries). Then recompute per_block entries at actual Y.
+    /// The stack is reordered into three zones:
+    ///   Zone A `[0..column_boundary)`:  column-only entries for final_density
+    ///   Zone B `[column_boundary..fd_boundary)`: per-Y entries for final_density
+    ///   Zone C `[fd_boundary..n)`:               other roots (aquifer, veins, etc.)
     ///
-    /// When (X,Z) is unchanged: only recompute per_block entries at actual Y.
-    /// Column-only entries retain their cached values.
+    /// For Zone A roots (continents, erosion, ridges, etc.):
+    ///   Only the column pass runs; the per-Y loop is empty.
+    ///
+    /// For Zone B roots (final_density and its per-Y dependencies):
+    ///   Column pass evaluates Zone A at Y=0; per-Y pass sweeps Zone B branchlessly.
+    ///
+    /// For Zone C roots (barrier, temperature, veins, etc.):
+    ///   Falls back to the general per_block-checking approach.
     fn evaluate_forward(&self, root: usize, pos: IVec3, cache: &mut DensityCache) -> f32 {
         let column_changed = pos.x != cache.last_x || pos.z != cache.last_z || !cache.column_valid;
 
-        if column_changed {
-            cache.last_x = pos.x;
-            cache.last_z = pos.z;
-
-            // Evaluate ALL entries at Y=0 to populate column-only caches.
-            // FlatCache/Cache2d inputs (which may intrinsically use Y) get evaluated
-            // at Y=0, which is the correct behavior (FlatCache caches at Y=0).
-            let y0_pos = IVec3::new(pos.x, 0, pos.z);
-            for i in 0..=root {
-                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
+        if root < self.column_boundary {
+            // Zone A root: column-only (e.g., continents, erosion, ridges)
+            if column_changed {
+                cache.last_x = pos.x;
+                cache.last_z = pos.z;
+                let y0_pos = IVec3::new(pos.x, 0, pos.z);
+                for i in 0..=root {
+                    cache.scratch[i] =
+                        self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
+                }
+                cache.column_valid = true;
             }
-            cache.column_valid = true;
-        }
-
-        // Recompute per-block entries at actual Y.
-        // Column-only entries retain their cached values from the column pass.
-        for i in 0..=root {
-            if self.per_block[i] {
+        } else if root < self.fd_boundary {
+            // Zone B root: final_density path
+            if column_changed {
+                cache.last_x = pos.x;
+                cache.last_z = pos.z;
+                // Evaluate Zone A (column-only) entries at Y=0.
+                // This includes FlatCache inputs evaluated at Y=0 (correct for column caching).
+                let y0_pos = IVec3::new(pos.x, 0, pos.z);
+                for i in 0..self.column_boundary {
+                    cache.scratch[i] =
+                        self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
+                }
+                cache.column_valid = true;
+            }
+            // Evaluate Zone B (per-Y) entries at actual position — branchless.
+            // All entries in this range are per_block=true by construction.
+            for i in self.column_boundary..=root {
                 cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
+            }
+        } else {
+            // Zone C root: fallback for aquifer, veins, temperature, etc.
+            if column_changed {
+                cache.last_x = pos.x;
+                cache.last_z = pos.z;
+                let y0_pos = IVec3::new(pos.x, 0, pos.z);
+                for i in 0..=root {
+                    cache.scratch[i] =
+                        self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
+                }
+                cache.column_valid = true;
+            }
+            for i in 0..=root {
+                if self.per_block[i] {
+                    cache.scratch[i] =
+                        self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
+                }
             }
         }
 
