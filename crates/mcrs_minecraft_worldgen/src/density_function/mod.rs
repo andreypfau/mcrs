@@ -54,25 +54,17 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
 
     // Phase 1: Forward pass — peephole optimize
     for i in 0..n {
-        // 1. Resolve cache wrapper redirects
-        let is_cache = matches!(
+        // 1. Resolve cache wrapper redirects (only CacheOnce and CacheAllInCell;
+        //    FlatCache and Cache2d are kept alive for column caching)
+        let is_eliminated_cache = matches!(
             &stack[i],
             DensityFunctionComponent::Wrapper(
-                WrapperDensityFunction::FlatCache(_)
-                    | WrapperDensityFunction::Cache2d(_)
-                    | WrapperDensityFunction::CacheOnce(_)
-                    | WrapperDensityFunction::CacheAllInCell(_)
+                WrapperDensityFunction::CacheOnce(_) | WrapperDensityFunction::CacheAllInCell(_)
             )
         );
 
-        if is_cache {
+        if is_eliminated_cache {
             let input_index = match &stack[i] {
-                DensityFunctionComponent::Wrapper(WrapperDensityFunction::FlatCache(x)) => {
-                    x.input_index
-                }
-                DensityFunctionComponent::Wrapper(WrapperDensityFunction::Cache2d(x)) => {
-                    x.input_index
-                }
                 DensityFunctionComponent::Wrapper(WrapperDensityFunction::CacheOnce(x)) => {
                     x.input_index
                 }
@@ -547,6 +539,57 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
     );
 }
 
+/// Compute which stack entries need recomputation per block (Y changes)
+/// vs once per column (X,Z changes). FlatCache and Cache2d block propagation
+/// to their inputs, marking those dependency cones as column-only.
+fn compute_per_block(stack: &[DensityFunctionComponent], roots: &[usize]) -> Vec<bool> {
+    let mut per_block = vec![false; stack.len()];
+
+    // Mark all roots as per_block
+    for &root in roots {
+        per_block[root] = true;
+    }
+
+    // Backward propagation: for each per_block entry, mark its inputs as per_block,
+    // UNLESS the entry is FlatCache or Cache2d (they block propagation).
+    for i in (0..stack.len()).rev() {
+        if !per_block[i] {
+            continue;
+        }
+
+        // FlatCache and Cache2d block propagation — their inputs are column-only
+        match &stack[i] {
+            DensityFunctionComponent::Wrapper(
+                WrapperDensityFunction::FlatCache(_) | WrapperDensityFunction::Cache2d(_),
+            ) => continue,
+            _ => {}
+        }
+
+        stack[i].visit_input_indices(&mut |idx| {
+            per_block[idx] = true;
+        });
+    }
+
+    let column_only_count = per_block.iter().filter(|&&b| !b).count();
+    let per_block_count = per_block.iter().filter(|&&b| b).count();
+    info!(
+        column_only_count,
+        per_block_count, "Density function per_block analysis"
+    );
+
+    per_block
+}
+
+/// Persistent cache for density function evaluation.
+/// Reuse across calls to `final_density` within the same chunk generation
+/// to cache column-only values (FlatCache/Cache2d dependency cones).
+pub struct DensityCache {
+    scratch: Vec<f32>,
+    last_x: i32,
+    last_z: i32,
+    column_valid: bool,
+}
+
 pub fn build_functions(
     functions: &BTreeMap<Ident<String>, ProtoDensityFunction>,
     noises: &BTreeMap<Ident<String>, NoiseParam>,
@@ -585,9 +628,11 @@ pub fn build_functions(
         preliminary_surface_level_index,
     ];
 
-    optimize_stack(&mut builder.stack, &mut roots);
+    // optimize_stack(&mut builder.stack, &mut roots);
 
-    NoiseRouter {
+    let per_block = compute_per_block(&builder.stack, &roots);
+
+    let router = NoiseRouter {
         final_density_index: roots[0],
         temperature_index: roots[1],
         vegetation_index: roots[2],
@@ -596,8 +641,13 @@ pub fn build_functions(
         depth_index: roots[5],
         ridges_index: roots[6],
         preliminary_surface_level_index: roots[7],
+        per_block: per_block.into_boxed_slice(),
         stack: Box::from(builder.stack),
-    }
+    };
+    let d = router.final_density(IVec3::new(0, 60, 0));
+    println!("d={:?}", d);
+
+    router
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -610,22 +660,56 @@ pub struct NoiseRouter {
     depth_index: usize,
     ridges_index: usize,
     preliminary_surface_level_index: usize,
+    /// per_block[i] == true means entry i depends on Y and must be recomputed per block.
+    /// per_block[i] == false means entry i is column-only (cached across Y changes).
+    per_block: Box<[bool]>,
     stack: Box<[DensityFunctionComponent]>,
 }
 
 impl NoiseRouter {
-    pub fn final_density(&self, pos: IVec3) -> f32 {
-        self.evaluate_forward(self.final_density_index, pos)
+    /// Create a new DensityCache for use with `final_density`.
+    /// Reuse across calls within the same chunk generation.
+    pub fn new_cache(&self) -> DensityCache {
+        DensityCache {
+            scratch: vec![0.0f32; self.stack.len()],
+            last_x: i32::MIN,
+            last_z: i32::MIN,
+            column_valid: false,
+        }
     }
 
-    /// Forward evaluation: iterate bottom-up, compute each entry exactly once.
-    /// Eliminates duplicate subgraph evaluation and tracing span overhead.
-    fn evaluate_forward(&self, root: usize, pos: IVec3) -> f32 {
-        let mut cache = vec![0.0f32; root + 1];
+    pub fn final_density(&self, pos: IVec3) -> f32 {
+        DensityFunctionComponent::sample_from_stack(&self.stack[..=self.final_density_index], pos)
+    }
+
+    /// Forward evaluation with column caching.
+    ///
+    /// When (X,Z) changes: evaluate ALL entries at Y=0 to populate column caches,
+    /// then recompute per_block entries at actual Y.
+    /// When (X,Z) is unchanged: only recompute per_block entries.
+    fn evaluate_forward(&self, root: usize, pos: IVec3, cache: &mut DensityCache) -> f32 {
+        // let column_changed = pos.x != cache.last_x || pos.z != cache.last_z;
+        // cache.last_x = pos.x;
+        // cache.last_z = pos.z;
+        //
+        // if column_changed {
+        //     // Evaluate ALL entries at Y=0 to populate column-only caches (FlatCache/Cache2d)
+        //     let y0_pos = IVec3::new(pos.x, 0, pos.z);
+        //     for i in 0..=root {
+        //         cache.scratch[i] =
+        //             self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
+        //     }
+        //     cache.column_valid = true;
+        // }
+
+        // Recompute per-block entries at actual Y
         for i in 0..=root {
-            cache[i] = self.stack[i].sample_cached(&cache, &self.stack, pos);
+            if self.per_block[i] {
+                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
+            }
         }
-        cache[root]
+
+        cache.scratch[root]
     }
 }
 
@@ -760,7 +844,7 @@ impl DensityFunction for OldBlendedNoise {
                 }
             }
             factor /= 2.0;
-        }
+        } //value=(mc=start),end=(mc=delta),delta=
 
         let start = min / 512.0;
         let end = max / 512.0;
@@ -1085,7 +1169,10 @@ impl RangeFunction for FlatCache {
 
 impl DensityFunction for FlatCache {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos)
+        let quart_x = pos.x >> 2;
+        let quart_z = pos.z >> 2;
+        let quart_pos = IVec3::new(quart_x << 2, 0, quart_z) << 2;
+        DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], quart_pos)
     }
 }
 
@@ -1767,6 +1854,10 @@ impl DensityFunction for RangeChoice {
         } else {
             self.when_out_index
         };
+        println!(
+            "range choice d={} min={} max={}",
+            input_density, self.min_inclusion_value, self.max_exclusion_value
+        );
         DensityFunctionComponent::sample_from_stack(&stack[..=idx], pos)
     }
 }
@@ -2163,6 +2254,16 @@ impl DensityFunction for Binary {
         .entered();
         let input1_density =
             DensityFunctionComponent::sample_from_stack(&stack[..=self.input1_index], pos);
+        // let input2_density =
+        //     DensityFunctionComponent::sample_from_stack(&stack[..=self.input2_index], pos);
+        // println!("binary {:?} d1={} d2={}", self.operation, input1_density, input2_density);
+        // println!(
+        //     "binary {:?} d={:?} arg1.min={:?} arg1.max={:?}",
+        //     self.operation,
+        //     input1_density,
+        //     stack[self.input1_index].min_value(),
+        //     stack[self.input1_index].max_value()
+        // );
         match self.operation {
             BinaryOperation::Add => {
                 let input2_density =
@@ -2274,6 +2375,15 @@ impl Spline {
             value.rewrite_indices(redirect);
         }
     }
+
+    fn visit_input_indices(&self, f: &mut impl FnMut(usize)) {
+        f(self.input_index);
+        for value in self.values.iter() {
+            if let SplineValue::Spline(nested) = value {
+                nested.visit_input_indices(f);
+            }
+        }
+    }
 }
 
 impl DensityFunctionComponent {
@@ -2340,6 +2450,46 @@ impl DensityFunctionComponent {
             },
         }
     }
+
+    fn visit_input_indices(&self, f: &mut impl FnMut(usize)) {
+        match self {
+            DensityFunctionComponent::Independent(_) => {}
+            DensityFunctionComponent::Dependent(dep) => match dep {
+                DependentDensityFunction::Linear(x) => f(x.input_index),
+                DependentDensityFunction::Affine(x) => f(x.input_index),
+                DependentDensityFunction::Unary(x) => f(x.input_index),
+                DependentDensityFunction::Binary(x) => {
+                    f(x.input1_index);
+                    f(x.input2_index);
+                }
+                DependentDensityFunction::ShiftedNoise(x) => {
+                    f(x.input_x_index);
+                    f(x.input_y_index);
+                    f(x.input_z_index);
+                }
+                DependentDensityFunction::WeirdScaled(x) => f(x.input_index),
+                DependentDensityFunction::Clamp(x) => f(x.input_index),
+                DependentDensityFunction::RangeChoice(x) => {
+                    f(x.input_index);
+                    f(x.when_in_index);
+                    f(x.when_out_index);
+                }
+                DependentDensityFunction::Spline(x) => x.visit_input_indices(f),
+                DependentDensityFunction::FindTopSurface(x) => {
+                    f(x.density_index);
+                    f(x.upper_bound_index);
+                }
+            },
+            DensityFunctionComponent::Wrapper(wrapper) => match wrapper {
+                WrapperDensityFunction::BlendDensity(x) => f(x.input_index),
+                WrapperDensityFunction::Interpolated(x) => f(x.input_index),
+                WrapperDensityFunction::FlatCache(x) => f(x.input_index),
+                WrapperDensityFunction::Cache2d(x) => f(x.input_index),
+                WrapperDensityFunction::CacheOnce(x) => f(x.input_index),
+                WrapperDensityFunction::CacheAllInCell(x) => f(x.input_index),
+            },
+        }
+    }
 }
 
 impl DensityFunctionComponent {
@@ -2354,6 +2504,10 @@ impl DensityFunctionComponent {
     fn sample_from_stack(stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         let (top_component, component_stack) = stack.split_last().unwrap();
         top_component.sample(component_stack, pos)
+    }
+
+    fn debug(stack: &[DensityFunctionComponent], index: usize, pos: IVec3) -> f32 {
+        Self::sample_from_stack(&stack[..=index], pos)
     }
 
     /// Evaluate using pre-computed cache (forward evaluation).

@@ -154,7 +154,7 @@ fn print_loaded_noise_settings(
                     &functions_proto,
                     &noises_proto,
                     &settings.settings,
-                    0,
+                    2,
                 )));
                 commands.insert_resource(overworld);
             }

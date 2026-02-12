@@ -60,6 +60,7 @@ pub fn generate_noise(
     let block_x = pos.x * 16;
     let block_z = pos.z * 16;
     let block_y = pos.y * 16;
+    let mut cache = noise_router.new_cache();
     for x in 0..16 {
         let world_x = block_x + x;
         for z in 0..16 {
