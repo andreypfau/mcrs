@@ -1,14 +1,17 @@
 //! Standalone tool to dump the density function computation graph as a DOT file.
 //!
 //! Usage:
-//!   cargo run --example density_graph -- [--seed SEED] [--pos X:Y:Z] [--assets PATH] [--root ROOT] [--output FILE]
+//!   cargo run --example density_graph -- [--seed SEED] [--pos X:Y:Z] [--assets PATH] [--root ROOT] [--settings NAME] [--output FILE]
 //!
 //! Defaults:
-//!   seed = 2, pos = 0:60:0, assets = ./assets, root = final_density, output = stdout
+//!   seed = 0, pos = 0:63:0, assets = ./assets, root = final_density, settings = overworld, output = stdout
 //!
 //! Example:
 //!   cargo run --release --example density_graph -p mcrs_minecraft_worldgen -- --seed 2 --pos 0:60:0 --root final_density > graph.dot
 //!   dot -Tsvg graph.dot -o graph.svg
+//!
+//!   # Generate combined graphs for all noise settings:
+//!   cargo run --release --example density_graph -p mcrs_minecraft_worldgen -- --settings all --root all --output graphs/
 
 use bevy_math::IVec3;
 use mcrs_minecraft_worldgen::density_function::build_functions;
@@ -71,17 +74,21 @@ fn resolve_holder(
 
 fn load_all(
     assets_path: &Path,
+    settings_name: &str,
 ) -> (
     BTreeMap<Ident<String>, ProtoDensityFunction>,
     BTreeMap<Ident<String>, NoiseParam>,
     NoiseGeneratorSettings,
 ) {
     // Load noise settings
-    let settings_path = assets_path.join("minecraft/worldgen/noise_settings/overworld.json");
+    let settings_path = assets_path.join(format!(
+        "minecraft/worldgen/noise_settings/{}.json",
+        settings_name
+    ));
     let settings_data = std::fs::read(&settings_path)
         .unwrap_or_else(|e| panic!("Failed to read {}: {}", settings_path.display(), e));
     let settings: NoiseGeneratorSettings = serde_json::from_slice(&settings_data)
-        .unwrap_or_else(|e| panic!("Failed to parse noise settings: {}", e));
+        .unwrap_or_else(|e| panic!("Failed to parse noise settings {}: {}", settings_name, e));
 
     // Load all density function files
     let df_dir = assets_path.join("minecraft/worldgen/density_function");
@@ -125,12 +132,74 @@ fn load_all(
     }
 
     eprintln!(
-        "Loaded {} density functions, {} noises",
+        "Loaded {} density functions, {} noises (settings: {})",
         functions.len(),
-        noises.len()
+        noises.len(),
+        settings_name
     );
 
     (functions, noises, settings)
+}
+
+fn list_noise_settings(assets_path: &Path) -> Vec<String> {
+    let dir = assets_path.join("minecraft/worldgen/noise_settings");
+    let mut names = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "json") {
+                if let Some(stem) = path.file_stem() {
+                    names.push(stem.to_string_lossy().into_owned());
+                }
+            }
+        }
+    }
+    names.sort();
+    names
+}
+
+fn generate_graph(
+    assets_path: &Path,
+    settings_name: &str,
+    root_name: &str,
+    seed: u64,
+    pos: IVec3,
+    output_path: Option<&Path>,
+) {
+    let (functions, noises, settings) = load_all(assets_path, settings_name);
+    let router = build_functions(&functions, &noises, &settings, seed);
+
+    let dot = if root_name == "all" {
+        router.dump_combined_dot_graph(pos)
+    } else {
+        let all_roots = router.roots();
+        let found = all_roots.iter().find(|(name, _)| *name == &*root_name);
+        let (name, idx) = match found {
+            Some((name, idx)) => (*name, *idx),
+            None => {
+                eprintln!("Unknown root: {}. Available:", root_name);
+                for (name, _) in &all_roots {
+                    eprintln!("  {}", name);
+                }
+                std::process::exit(1);
+            }
+        };
+        router.dump_dot_graph(name, idx, pos)
+    };
+
+    match output_path {
+        Some(path) => {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).ok();
+            }
+            std::fs::write(path, &dot)
+                .unwrap_or_else(|e| panic!("Failed to write {}: {}", path.display(), e));
+            eprintln!("Written to {}", path.display());
+        }
+        None => {
+            print!("{}", dot);
+        }
+    }
 }
 
 fn main() {
@@ -138,6 +207,7 @@ fn main() {
     let mut pos = IVec3::new(0, 63, 0);
     let mut assets_path = PathBuf::from("./assets");
     let mut root_name = "final_density".to_string();
+    let mut settings_name = "overworld".to_string();
     let mut output_path: Option<PathBuf> = None;
 
     // Simple arg parsing
@@ -169,13 +239,17 @@ fn main() {
                 i += 1;
                 root_name = args[i].clone();
             }
+            "--settings" => {
+                i += 1;
+                settings_name = args[i].clone();
+            }
             "--output" | "-o" => {
                 i += 1;
                 output_path = Some(PathBuf::from(&args[i]));
             }
             "--help" | "-h" => {
                 eprintln!(
-                    "Usage: density_graph [--seed SEED] [--pos X:Y:Z] [--assets PATH] [--root ROOT] [--output FILE]"
+                    "Usage: density_graph [--seed SEED] [--pos X:Y:Z] [--assets PATH] [--root ROOT] [--settings NAME] [--output FILE|DIR]"
                 );
                 eprintln!();
                 eprintln!("Roots: barrier, fluid_level_floodedness, fluid_level_spread, lava,");
@@ -185,7 +259,15 @@ fn main() {
                 );
                 eprintln!("       vein_gap, all");
                 eprintln!();
-                eprintln!("Defaults: seed=0, pos=0:63:0, assets=./assets, root=final_density");
+                eprintln!(
+                    "Settings: overworld, nether, end, caves, amplified, large_biomes, floating_islands, all"
+                );
+                eprintln!();
+                eprintln!(
+                    "Defaults: seed=0, pos=0:63:0, assets=./assets, root=final_density, settings=overworld"
+                );
+                eprintln!();
+                eprintln!("When --settings all is used, --output is treated as a directory.");
                 std::process::exit(0);
             }
             other => {
@@ -198,37 +280,28 @@ fn main() {
 
     eprintln!("Seed: {}, Pos: {}:{}:{}", seed, pos.x, pos.y, pos.z);
 
-    let (functions, noises, settings) = load_all(&assets_path);
-    let router = build_functions(&functions, &noises, &settings, seed);
-
-    let dot = if root_name == "all" {
-        router.dump_combined_dot_graph(pos)
+    if settings_name == "all" {
+        let names = list_noise_settings(&assets_path);
+        let out_dir = output_path.as_deref().unwrap_or(Path::new("graphs"));
+        for name in &names {
+            eprintln!("\n=== {} ===", name);
+            let file_name = if root_name == "all" {
+                format!("{}_combined.dot", name)
+            } else {
+                format!("{}_{}.dot", name, root_name)
+            };
+            let out_file = out_dir.join(&file_name);
+            generate_graph(&assets_path, name, &root_name, seed, pos, Some(&out_file));
+        }
+        eprintln!("\nAll graphs written to {}/", out_dir.display());
     } else {
-        let all_roots = router.roots();
-        let found = all_roots
-            .iter()
-            .find(|(name, _)| *name == root_name.as_str());
-        let (name, idx) = match found {
-            Some((name, idx)) => (*name, *idx),
-            None => {
-                eprintln!("Unknown root: {}. Available:", root_name);
-                for (name, _) in &all_roots {
-                    eprintln!("  {}", name);
-                }
-                std::process::exit(1);
-            }
-        };
-        router.dump_dot_graph(name, idx, pos)
-    };
-
-    match output_path {
-        Some(path) => {
-            std::fs::write(&path, &dot)
-                .unwrap_or_else(|e| panic!("Failed to write {}: {}", path.display(), e));
-            eprintln!("Written to {}", path.display());
-        }
-        None => {
-            print!("{}", dot);
-        }
+        generate_graph(
+            &assets_path,
+            &settings_name,
+            &root_name,
+            seed,
+            pos,
+            output_path.as_deref(),
+        );
     }
 }

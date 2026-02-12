@@ -1816,6 +1816,7 @@ enum IndependentDensityFunction {
     ShiftB(ShiftB),
     Shift(Shift),
     ClampedYGradient(ClampedYGradient),
+    EndIslands,
 }
 
 impl RangeFunction for IndependentDensityFunction {
@@ -1828,6 +1829,7 @@ impl RangeFunction for IndependentDensityFunction {
             IndependentDensityFunction::ShiftB(x) => x.min_value(),
             IndependentDensityFunction::Shift(x) => x.min_value(),
             IndependentDensityFunction::ClampedYGradient(x) => x.min_value(),
+            IndependentDensityFunction::EndIslands => -0.84375,
         }
     }
 
@@ -1840,6 +1842,7 @@ impl RangeFunction for IndependentDensityFunction {
             IndependentDensityFunction::ShiftB(x) => x.max_value(),
             IndependentDensityFunction::Shift(x) => x.max_value(),
             IndependentDensityFunction::ClampedYGradient(x) => x.max_value(),
+            IndependentDensityFunction::EndIslands => 0.5625,
         }
     }
 }
@@ -1874,6 +1877,10 @@ impl DensityFunction for IndependentDensityFunction {
             IndependentDensityFunction::ClampedYGradient(x) => {
                 let _span = info_span!("ClampedYGradient::sample").entered();
                 x.sample(stack, pos)
+            }
+            IndependentDensityFunction::EndIslands => {
+                // TODO: implement proper end islands noise sampling
+                0.0
             }
         }
     }
@@ -2988,6 +2995,7 @@ impl DensityFunctionComponent {
                         g.from_y, g.to_y, g.from_value, g.to_value
                     )
                 }
+                IndependentDensityFunction::EndIslands => "end_islands".into(),
             },
             DensityFunctionComponent::Dependent(f) => match f {
                 DependentDensityFunction::Linear(l) => match l.operation {
@@ -3233,6 +3241,7 @@ impl DensityFunctionComponent {
                 IndependentDensityFunction::ShiftB(x) => x.sample(&[], pos),
                 IndependentDensityFunction::Shift(x) => x.sample(&[], pos),
                 IndependentDensityFunction::ClampedYGradient(x) => x.sample(&[], pos),
+                IndependentDensityFunction::EndIslands => 0.0,
             },
             DensityFunctionComponent::Dependent(f) => match f {
                 DependentDensityFunction::Linear(x) => {
@@ -3809,6 +3818,13 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                 noise_name,
                 sampler,
             })),
+        );
+    }
+
+    fn visit_end_islands(&mut self) {
+        self.register_component(
+            ProtoDensityFunction::EndIslands,
+            DensityFunctionComponent::Independent(IndependentDensityFunction::EndIslands),
         );
     }
 
