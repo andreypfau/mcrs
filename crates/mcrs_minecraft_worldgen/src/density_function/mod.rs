@@ -138,6 +138,204 @@ fn try_build_slide(idx: usize, stack: &[DensityFunctionComponent]) -> Option<Sli
     })
 }
 
+fn try_flatten_spline(
+    spline_idx: usize,
+    stack: &[DensityFunctionComponent],
+    grid_size: usize,
+) -> Option<FlattenedSpline> {
+    // 1. Collect all unique coordinate indices referenced by this spline
+    let spline = match &stack[spline_idx] {
+        DensityFunctionComponent::Dependent(DependentDensityFunction::Spline(s)) => s,
+        _ => return None,
+    };
+
+    let mut all_coords = Vec::new();
+    spline.visit_input_indices(&mut |idx| {
+        if !all_coords.contains(&idx) {
+            all_coords.push(idx);
+        }
+    });
+    all_coords.sort_unstable();
+
+    if all_coords.is_empty() {
+        return None;
+    }
+
+    // 2. Determine independent coordinates: those whose dependency cones
+    //    don't contain any other collected coordinate.
+    let mut independent = Vec::new();
+    for &coord_idx in &all_coords {
+        let mut is_derived = false;
+        // Walk backward from coord_idx through its dependency cone
+        let mut visited = vec![false; coord_idx + 1];
+        let mut queue = vec![coord_idx];
+        visited[coord_idx] = true;
+        while let Some(current) = queue.pop() {
+            stack[current].visit_input_indices(&mut |dep_idx| {
+                if dep_idx < visited.len() && !visited[dep_idx] {
+                    visited[dep_idx] = true;
+                    queue.push(dep_idx);
+                }
+            });
+        }
+        // Check if any OTHER collected coordinate is reachable from this one
+        for &other in &all_coords {
+            if other != coord_idx && other < visited.len() && visited[other] {
+                is_derived = true;
+                break;
+            }
+        }
+        if !is_derived {
+            independent.push(coord_idx);
+        }
+    }
+
+    if independent.len() != 3 {
+        return None;
+    }
+
+    let coord_indices = [independent[0], independent[1], independent[2]];
+
+    // 3. Get ranges of the 3 independent coordinates.
+    //    Use static ranges, but also extract location ranges from the spline tree itself
+    //    to handle cases where static range analysis is degenerate (e.g., Abs range bug).
+    let mut coord_min = [f32::INFINITY; 3];
+    let mut coord_max = [f32::NEG_INFINITY; 3];
+    // Seed from static ranges
+    for i in 0..3 {
+        let smin = stack[coord_indices[i]].min_value();
+        let smax = stack[coord_indices[i]].max_value();
+        coord_min[i] = coord_min[i].min(smin);
+        coord_max[i] = coord_max[i].max(smax);
+    }
+    // Also extract ranges from spline location arrays
+    fn collect_spline_ranges(
+        spline: &Spline,
+        coord_indices: &[usize; 3],
+        coord_min: &mut [f32; 3],
+        coord_max: &mut [f32; 3],
+    ) {
+        for (i, &idx) in coord_indices.iter().enumerate() {
+            if spline.input_index == idx {
+                if let (Some(&first), Some(&last)) =
+                    (spline.locations.first(), spline.locations.last())
+                {
+                    coord_min[i] = coord_min[i].min(first);
+                    coord_max[i] = coord_max[i].max(last);
+                }
+            }
+        }
+        for val in spline.values.iter() {
+            if let SplineValue::Spline(nested) = val {
+                collect_spline_ranges(nested, coord_indices, coord_min, coord_max);
+            }
+        }
+    }
+    collect_spline_ranges(spline, &coord_indices, &mut coord_min, &mut coord_max);
+
+    for i in 0..3 {
+        // Ensure non-degenerate range
+        if (coord_max[i] - coord_min[i]).abs() < 1e-10 {
+            return None;
+        }
+    }
+
+    let coord_inv_range = [
+        1.0 / (coord_max[0] - coord_min[0]),
+        1.0 / (coord_max[1] - coord_min[1]),
+        1.0 / (coord_max[2] - coord_min[2]),
+    ];
+
+    let strides = [grid_size * grid_size, grid_size, 1];
+
+    // 4. Determine which stack entries need forward evaluation
+    //    (entries between min(independent) and spline_idx that are in the dependency cone)
+    let min_coord = coord_indices[0]; // already sorted
+    let max_coord = *all_coords.last().unwrap();
+
+    // Collect the set of entries we need to evaluate: everything in the dependency cone
+    // of each all_coords entry, from min_coord..=max_coord (excluding the independent coords,
+    // which we set directly)
+    let mut needs_eval: Vec<usize> = Vec::new();
+    for &c in &all_coords {
+        if !coord_indices.contains(&c) {
+            needs_eval.push(c);
+        }
+    }
+    // Also find intermediate entries between min_coord and max_coord that feed into derived coords
+    // We need entries that sit between independent coords and derived coords
+    for &derived in &needs_eval.clone() {
+        let mut queue = vec![derived];
+        let mut visited_set = vec![false; stack.len()];
+        visited_set[derived] = true;
+        while let Some(current) = queue.pop() {
+            stack[current].visit_input_indices(&mut |dep_idx| {
+                if dep_idx >= min_coord && !visited_set[dep_idx] {
+                    visited_set[dep_idx] = true;
+                    if !coord_indices.contains(&dep_idx) && !needs_eval.contains(&dep_idx) {
+                        needs_eval.push(dep_idx);
+                    }
+                    queue.push(dep_idx);
+                }
+            });
+        }
+    }
+    needs_eval.sort_unstable();
+    needs_eval.dedup();
+
+    // 5. Build the LUT
+    let total = grid_size * grid_size * grid_size;
+    let mut lut = vec![0.0f32; total];
+    let mut lut_min = f32::INFINITY;
+    let mut lut_max = f32::NEG_INFINITY;
+
+    let mut cache = vec![0.0f32; stack.len()];
+
+    // Pre-fill cache for all entries before min_coord (they are constant w.r.t. the grid)
+    // Actually, we only need entries referenced by the spline's dependency cone.
+    // For safety, evaluate the independent coords' positions only.
+
+    for i in 0..grid_size {
+        let c0 = coord_min[0] + (i as f32 / (grid_size - 1) as f32) * (coord_max[0] - coord_min[0]);
+        cache[coord_indices[0]] = c0;
+
+        for j in 0..grid_size {
+            let c1 =
+                coord_min[1] + (j as f32 / (grid_size - 1) as f32) * (coord_max[1] - coord_min[1]);
+            cache[coord_indices[1]] = c1;
+
+            for k in 0..grid_size {
+                let c2 = coord_min[2]
+                    + (k as f32 / (grid_size - 1) as f32) * (coord_max[2] - coord_min[2]);
+                cache[coord_indices[2]] = c2;
+
+                // Forward-evaluate derived entries
+                for &entry_idx in &needs_eval {
+                    cache[entry_idx] = stack[entry_idx].sample_cached(&cache, stack, IVec3::ZERO);
+                }
+
+                // Evaluate the spline
+                let value = spline.sample_cached(&cache, stack, IVec3::ZERO);
+                let lut_idx = i * strides[0] + j * strides[1] + k;
+                lut[lut_idx] = value;
+                lut_min = lut_min.min(value);
+                lut_max = lut_max.max(value);
+            }
+        }
+    }
+
+    Some(FlattenedSpline {
+        coord_indices,
+        coord_min,
+        coord_inv_range,
+        grid_size,
+        strides,
+        lut: lut.into_boxed_slice(),
+        min_value: lut_min,
+        max_value: lut_max,
+    })
+}
+
 fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]) {
     let n = stack.len();
     if n == 0 {
@@ -760,6 +958,21 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
         *root = redirect[*root];
     }
 
+    // Phase 3: Flatten splines to lookup tables
+    let grid_size = 64;
+    let mut splines_flattened = 0usize;
+    for i in 0..stack.len() {
+        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Spline(_)) = &stack[i]
+        {
+            if let Some(flat) = try_flatten_spline(i, stack, grid_size) {
+                stack[i] = DensityFunctionComponent::Dependent(
+                    DependentDensityFunction::FlattenedSpline(flat),
+                );
+                splines_flattened += 1;
+            }
+        }
+    }
+
     info!(
         stack_size = n,
         affine_fusions,
@@ -769,6 +982,7 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
         identities_eliminated,
         binary_demotions,
         slide_fusions,
+        splines_flattened,
         "Density function stack optimized"
     );
 }
@@ -2025,6 +2239,7 @@ enum DependentDensityFunction {
     Clamp(Clamp),
     RangeChoice(RangeChoice),
     Spline(Spline),
+    FlattenedSpline(FlattenedSpline),
     FindTopSurface(FindTopSurface),
 }
 
@@ -2114,6 +2329,7 @@ impl DensityFunction for DependentDensityFunction {
                 let _span = info_span!("Spline::sample").entered();
                 x.sample(stack, pos)
             }
+            DependentDensityFunction::FlattenedSpline(x) => x.sample(stack, pos),
             DependentDensityFunction::FindTopSurface(x) => x.sample(stack, pos),
         }
     }
@@ -2133,6 +2349,7 @@ impl RangeFunction for DependentDensityFunction {
             DependentDensityFunction::Clamp(x) => x.min_value(),
             DependentDensityFunction::RangeChoice(x) => x.min_value(),
             DependentDensityFunction::Spline(x) => x.min_value(),
+            DependentDensityFunction::FlattenedSpline(x) => x.min_value(),
             DependentDensityFunction::FindTopSurface(x) => x.min_value(),
         }
     }
@@ -2150,6 +2367,7 @@ impl RangeFunction for DependentDensityFunction {
             DependentDensityFunction::Clamp(x) => x.max_value(),
             DependentDensityFunction::RangeChoice(x) => x.max_value(),
             DependentDensityFunction::Spline(x) => x.max_value(),
+            DependentDensityFunction::FlattenedSpline(x) => x.max_value(),
             DependentDensityFunction::FindTopSurface(x) => x.max_value(),
         }
     }
@@ -3014,6 +3232,86 @@ impl Spline {
     }
 }
 
+#[derive(Clone, Debug)]
+struct FlattenedSpline {
+    coord_indices: [usize; 3],
+    coord_min: [f32; 3],
+    coord_inv_range: [f32; 3],
+    grid_size: usize,
+    strides: [usize; 3],
+    lut: Box<[f32]>,
+    min_value: f32,
+    max_value: f32,
+}
+
+impl PartialEq for FlattenedSpline {
+    fn eq(&self, other: &Self) -> bool {
+        self.coord_indices == other.coord_indices
+            && self.coord_min == other.coord_min
+            && self.coord_inv_range == other.coord_inv_range
+            && self.grid_size == other.grid_size
+            && self.min_value == other.min_value
+            && self.max_value == other.max_value
+    }
+}
+
+impl FlattenedSpline {
+    #[inline]
+    fn evaluate(&self, c0: f32, c1: f32, c2: f32) -> f32 {
+        let max_idx = (self.grid_size - 1) as f32;
+
+        let fx = ((c0 - self.coord_min[0]) * self.coord_inv_range[0]).clamp(0.0, 1.0) * max_idx;
+        let fy = ((c1 - self.coord_min[1]) * self.coord_inv_range[1]).clamp(0.0, 1.0) * max_idx;
+        let fz = ((c2 - self.coord_min[2]) * self.coord_inv_range[2]).clamp(0.0, 1.0) * max_idx;
+
+        let ix = (fx as usize).min(self.grid_size - 2);
+        let iy = (fy as usize).min(self.grid_size - 2);
+        let iz = (fz as usize).min(self.grid_size - 2);
+        let tx = fx - ix as f32;
+        let ty = fy - iy as f32;
+        let tz = fz - iz as f32;
+
+        let base = ix * self.strides[0] + iy * self.strides[1] + iz;
+        let c000 = self.lut[base];
+        let c001 = self.lut[base + 1];
+        let c010 = self.lut[base + self.strides[1]];
+        let c011 = self.lut[base + self.strides[1] + 1];
+        let c100 = self.lut[base + self.strides[0]];
+        let c101 = self.lut[base + self.strides[0] + 1];
+        let c110 = self.lut[base + self.strides[0] + self.strides[1]];
+        let c111 = self.lut[base + self.strides[0] + self.strides[1] + 1];
+
+        let c00 = c000 + (c001 - c000) * tz;
+        let c01 = c010 + (c011 - c010) * tz;
+        let c10 = c100 + (c101 - c100) * tz;
+        let c11 = c110 + (c111 - c110) * tz;
+        let c0 = c00 + (c01 - c00) * ty;
+        let c1 = c10 + (c11 - c10) * ty;
+        c0 + (c1 - c0) * tx
+    }
+}
+
+impl RangeFunction for FlattenedSpline {
+    #[inline]
+    fn min_value(&self) -> f32 {
+        self.min_value
+    }
+
+    #[inline]
+    fn max_value(&self) -> f32 {
+        self.max_value
+    }
+}
+
+impl DensityFunction for FlattenedSpline {
+    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        let c0 = DensityFunctionComponent::sample_from_stack(&stack[..=self.coord_indices[0]], pos);
+        let c1 = DensityFunctionComponent::sample_from_stack(&stack[..=self.coord_indices[1]], pos);
+        let c2 = DensityFunctionComponent::sample_from_stack(&stack[..=self.coord_indices[2]], pos);
+        self.evaluate(c0, c1, c2)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 struct FindTopSurface {
     density_index: usize,
@@ -3241,6 +3539,9 @@ impl DensityFunctionComponent {
                     )
                 }
                 DependentDensityFunction::Spline(_) => "spline".into(),
+                DependentDensityFunction::FlattenedSpline(f) => {
+                    format!("flattened_spline\\ngrid={}^3", f.grid_size)
+                }
                 DependentDensityFunction::FindTopSurface(_) => "find_top_surface".into(),
             },
             DensityFunctionComponent::Wrapper(f) => match f {
@@ -3346,6 +3647,11 @@ impl DensityFunctionComponent {
                 DependentDensityFunction::Spline(x) => {
                     x.rewrite_indices(redirect);
                 }
+                DependentDensityFunction::FlattenedSpline(x) => {
+                    for idx in x.coord_indices.iter_mut() {
+                        *idx = redirect[*idx];
+                    }
+                }
                 DependentDensityFunction::FindTopSurface(x) => {
                     x.density_index = redirect[x.density_index];
                     x.upper_bound_index = redirect[x.upper_bound_index];
@@ -3400,6 +3706,11 @@ impl DensityFunctionComponent {
                     f(x.when_out_index);
                 }
                 DependentDensityFunction::Spline(x) => x.visit_input_indices(f),
+                DependentDensityFunction::FlattenedSpline(x) => {
+                    for &idx in &x.coord_indices {
+                        f(idx);
+                    }
+                }
                 DependentDensityFunction::FindTopSurface(x) => {
                     f(x.density_index);
                     f(x.upper_bound_index);
@@ -3537,6 +3848,11 @@ impl DensityFunctionComponent {
                     }
                 }
                 DependentDensityFunction::Spline(x) => x.sample_cached(cache, stack, pos),
+                DependentDensityFunction::FlattenedSpline(x) => x.evaluate(
+                    cache[x.coord_indices[0]],
+                    cache[x.coord_indices[1]],
+                    cache[x.coord_indices[2]],
+                ),
                 DependentDensityFunction::FindTopSurface(x) => {
                     let top_y =
                         (cache[x.upper_bound_index] / x.cell_height).floor() * x.cell_height;
