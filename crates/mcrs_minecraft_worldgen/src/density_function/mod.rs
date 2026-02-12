@@ -1255,25 +1255,30 @@ pub struct DensityCache {
     column_valid: bool,
 }
 
-/// Pre-populated cache holding Zone A (column-only) results for all 256 XZ positions
-/// within a 16x16 chunk column. Eliminates the `column_changed` branch from the
-/// per-block hot path when evaluating `final_density`.
+/// Pre-populated cache holding Zone A (column-only) results for all 289 (17x17) XZ positions
+/// within a chunk column plus the +16 boundary. Eliminates the `column_changed` branch from
+/// the per-block hot path when evaluating `final_density`.
+///
+/// The 17x17 grid covers local coordinates 0..=16 in both X and Z, which is needed because
+/// `fill_plane` samples corner positions at block_x+0, block_x+4, ..., block_x+16.
 pub struct ChunkColumnCache {
     /// `column_data[xz_idx * zone_a_count + entry_idx]`
-    /// where `xz_idx = local_x * 16 + local_z` (row-major).
+    /// where `xz_idx = local_x * GRID_SIDE + local_z` (row-major).
     column_data: Vec<f32>,
     zone_a_count: usize,
-    base_block_x: i32,
-    base_block_z: i32,
+    pub(crate) base_block_x: i32,
+    pub(crate) base_block_z: i32,
     /// Scratch buffer (len == stack.len()), reused per `final_density_from_column_cache` call.
     scratch: Vec<f32>,
 }
 
 impl ChunkColumnCache {
+    const GRID_SIDE: i32 = 17;
+
     /// Load pre-computed Zone A values for the given local (x, z) into scratch[0..zone_a_count).
     #[inline]
     pub fn load_column(&mut self, local_x: i32, local_z: i32) {
-        let xz_idx = (local_x * 16 + local_z) as usize;
+        let xz_idx = (local_x * Self::GRID_SIDE + local_z) as usize;
         let off = xz_idx * self.zone_a_count;
         self.scratch[..self.zone_a_count]
             .copy_from_slice(&self.column_data[off..off + self.zone_a_count]);
@@ -1579,10 +1584,12 @@ impl NoiseRouter {
         ok
     }
 
-    /// Create a new `ChunkColumnCache` for a 16x16 chunk column starting at block (base_block_x, base_block_z).
+    /// Create a new `ChunkColumnCache` for a 17x17 chunk column grid starting at block (base_block_x, base_block_z).
+    /// The 17x17 grid covers local coordinates 0..=16 to include boundary corner positions.
     pub fn new_column_cache(&self, base_block_x: i32, base_block_z: i32) -> ChunkColumnCache {
+        let grid_positions = (ChunkColumnCache::GRID_SIDE * ChunkColumnCache::GRID_SIDE) as usize;
         ChunkColumnCache {
-            column_data: vec![0.0f32; 256 * self.column_boundary],
+            column_data: vec![0.0f32; grid_positions * self.column_boundary],
             zone_a_count: self.column_boundary,
             base_block_x,
             base_block_z,
@@ -1590,12 +1597,18 @@ impl NoiseRouter {
         }
     }
 
-    /// Pre-populate Zone A values for all 256 XZ positions in the chunk column.
-    /// Evaluates each column at Y=0 (Zone A entries are Y-independent).
+    /// Pre-populate Zone A values at cell corner positions in the chunk column grid.
+    /// Only evaluates the (h_cells+1)^2 = 25 corner positions (step by h_cell_blocks),
+    /// not every block position. This matches exactly the positions sampled by `fill_plane`.
     pub fn populate_columns(&self, cache: &mut ChunkColumnCache) {
         let zone_a_count = cache.zone_a_count;
-        for local_x in 0..16i32 {
-            for local_z in 0..16i32 {
+        let grid_side = ChunkColumnCache::GRID_SIDE;
+        let step = self.h_cell_blocks as i32;
+        let corners = (16 / step) + 1; // h_cells + 1
+        for cx in 0..corners {
+            let local_x = cx * step;
+            for cz in 0..corners {
+                let local_z = cz * step;
                 let y0_pos = IVec3::new(
                     cache.base_block_x + local_x,
                     0,
@@ -1605,7 +1618,7 @@ impl NoiseRouter {
                     cache.scratch[i] =
                         self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
                 }
-                let xz_idx = (local_x * 16 + local_z) as usize;
+                let xz_idx = (local_x * grid_side + local_z) as usize;
                 let off = xz_idx * zone_a_count;
                 cache.column_data[off..off + zone_a_count]
                     .copy_from_slice(&cache.scratch[..zone_a_count]);
@@ -1625,14 +1638,18 @@ impl NoiseRouter {
     }
 
     /// Verify that `final_density_from_column_cache` matches `final_density` for
-    /// all 256 XZ positions at the given Y values. Returns true if all checks pass.
+    /// all cell corner XZ positions at the given Y values. Returns true if all checks pass.
     pub fn verify_column_cache(&self, base_x: i32, base_z: i32, y_values: &[i32]) -> bool {
         let mut ok = true;
         let mut column_cache = self.new_column_cache(base_x, base_z);
         self.populate_columns(&mut column_cache);
 
-        for local_x in 0..16i32 {
-            for local_z in 0..16i32 {
+        let step = self.h_cell_blocks as i32;
+        let corners = (16 / step) + 1;
+        for cx in 0..corners {
+            let local_x = cx * step;
+            for cz in 0..corners {
+                let local_z = cz * step;
                 column_cache.load_column(local_x, local_z);
                 for &y in y_values {
                     let pos = IVec3::new(base_x + local_x, y, base_z + local_z);
@@ -2122,6 +2139,43 @@ impl SectionInterpolator {
                 let density = router.final_density(pos, cache);
                 buf[cz * v_stride + cy] = density;
             }
+        }
+    }
+
+    /// Evaluate `final_density` at all corner positions on a Y-Z plane for a given X,
+    /// using a pre-populated `ChunkColumnCache` instead of `DensityCache`.
+    ///
+    /// This eliminates the `column_changed` branch entirely — Zone A values are loaded
+    /// from the cache, and only Zone B is evaluated per corner.
+    pub fn fill_plane_cached(
+        &mut self,
+        is_start: bool,
+        x: i32,
+        base_y: i32,
+        base_z: i32,
+        router: &NoiseRouter,
+        column_cache: &mut ChunkColumnCache,
+    ) {
+        let buf = if is_start {
+            &mut self.start_buf
+        } else {
+            &mut self.end_buf
+        };
+        let v_stride = self.v_cells + 1;
+        let local_x = x - column_cache.base_block_x;
+        for cz in 0..=self.h_cells {
+            let z = base_z + (cz * self.h_cell_blocks) as i32;
+            let local_z = z - column_cache.base_block_z;
+            column_cache.load_column(local_x, local_z);
+            for cy in 0..=self.v_cells {
+                let y = base_y + (cy * self.v_cell_blocks) as i32;
+                let pos = IVec3::new(x, y, z);
+                let density = router.final_density_from_column_cache(pos, column_cache);
+                buf[cz * v_stride + cy] = density;
+            }
+            // Reload column for next iteration since final_density_from_column_cache
+            // mutated scratch[column_boundary..]. The load_column at the top of the
+            // next iteration handles this, but the last iteration doesn't need reload.
         }
     }
 

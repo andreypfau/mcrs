@@ -1,10 +1,12 @@
 use crate::world::block::minecraft::STONE;
 use crate::world::palette::{BiomePalette, BlockPalette};
 use mcrs_engine::world::block::BlockPos;
-use mcrs_minecraft_worldgen::density_function::{DensityCache, NoiseRouter, SectionInterpolator};
+use mcrs_minecraft_worldgen::density_function::{
+    ChunkColumnCache, NoiseRouter, SectionInterpolator,
+};
 
-/// Generate a single section using the provided cache and interpolator.
-/// The cache and interpolator are passed in so they can be reused across
+/// Generate a single section using a pre-populated column cache and interpolator.
+/// The column cache and interpolator are passed in so they can be reused across
 /// multiple Y sections in the same column.
 fn generate_section(
     block_x: i32,
@@ -12,7 +14,7 @@ fn generate_section(
     block_z: i32,
     block_states: &mut BlockPalette,
     noise_router: &NoiseRouter,
-    cache: &mut DensityCache,
+    column_cache: &mut ChunkColumnCache,
     interp: &mut SectionInterpolator,
 ) {
     let h_cell_blocks = interp.h_cell_blocks();
@@ -20,13 +22,13 @@ fn generate_section(
     let h_cells = interp.h_cells();
     let v_cells = interp.v_cells();
 
-    // Fill the initial X start plane
-    interp.fill_plane(true, block_x, block_y, block_z, noise_router, cache);
+    // Fill the initial X start plane using column cache
+    interp.fill_plane_cached(true, block_x, block_y, block_z, noise_router, column_cache);
 
     for cell_x in 0..h_cells {
         // Fill end plane at x = block_x + (cell_x + 1) * h_cell_blocks
         let next_x = block_x + ((cell_x + 1) * h_cell_blocks) as i32;
-        interp.fill_plane(false, next_x, block_y, block_z, noise_router, cache);
+        interp.fill_plane_cached(false, next_x, block_y, block_z, noise_router, column_cache);
 
         for cell_z in 0..h_cells {
             for cell_y in (0..v_cells).rev() {
@@ -88,18 +90,22 @@ fn generate_section(
     }
 }
 
-/// Generate all sections in a column, sharing a single DensityCache.
-/// Zone A (column-only density functions) is computed once and reused across all Y sections.
+/// Generate all sections in a column using a pre-populated ChunkColumnCache.
+/// Zone A (column-only density functions) is computed once for all 17x17 XZ positions
+/// and reused across all Y sections, eliminating per-block column-change branches.
 pub fn generate_column(
     section_x: i32,
     section_z: i32,
     y_sections: &[i32],
     noise_router: &NoiseRouter,
 ) -> Vec<(BlockPalette, BiomePalette)> {
-    let mut cache = noise_router.new_cache();
     let mut interp = noise_router.new_section_interpolator();
     let block_x = section_x * 16;
     let block_z = section_z * 16;
+
+    // Pre-populate Zone A values for all 17x17 XZ positions in one pass
+    let mut column_cache = noise_router.new_column_cache(block_x, block_z);
+    noise_router.populate_columns(&mut column_cache);
 
     y_sections
         .iter()
@@ -112,7 +118,7 @@ pub fn generate_column(
                 block_z,
                 &mut blocks,
                 noise_router,
-                &mut cache,
+                &mut column_cache,
                 &mut interp,
             );
             (blocks, biomes)
