@@ -39,6 +39,105 @@ trait DensityFunction: RangeFunction {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32;
 }
 
+/// Check if a Binary::Multiply has one ClampedYGradient input.
+/// Returns (gradient, other_input_index) if found.
+fn extract_mul_y_grad(
+    bin: &Binary,
+    stack: &[DensityFunctionComponent],
+) -> Option<(ClampedYGradient, usize)> {
+    if bin.operation != BinaryOperation::Multiply {
+        return None;
+    }
+    if let DensityFunctionComponent::Independent(IndependentDensityFunction::ClampedYGradient(g)) =
+        &stack[bin.input1_index]
+    {
+        return Some((g.clone(), bin.input2_index));
+    }
+    if let DensityFunctionComponent::Independent(IndependentDensityFunction::ClampedYGradient(g)) =
+        &stack[bin.input2_index]
+    {
+        return Some((g.clone(), bin.input1_index));
+    }
+    None
+}
+
+/// Try to detect and build a Slide from a 5-node pattern:
+///   Affine(+c) at `idx` ← Mul(ygrad2, Affine(+b) ← Mul(ygrad1, Affine(+a, input)))
+fn try_build_slide(idx: usize, stack: &[DensityFunctionComponent]) -> Option<Slide> {
+    // Node at idx must be Affine with scale=1.0 (the outermost "add offset_c")
+    let aff_c = match &stack[idx] {
+        DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(a))
+            if a.scale == 1.0 =>
+        {
+            a
+        }
+        _ => return None,
+    };
+    let outer_min = aff_c.min_value;
+    let outer_max = aff_c.max_value;
+
+    // Its input must be Binary::Multiply with a ClampedYGradient
+    let mul2 = match &stack[aff_c.input_index] {
+        DensityFunctionComponent::Dependent(DependentDensityFunction::Binary(b)) => b,
+        _ => return None,
+    };
+    let (grad2, aff_b_idx) = extract_mul_y_grad(mul2, stack)?;
+
+    // The other Mul input must be Affine with scale=1.0
+    let aff_b = match &stack[aff_b_idx] {
+        DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(a))
+            if a.scale == 1.0 =>
+        {
+            a
+        }
+        _ => return None,
+    };
+
+    // Its input must be Binary::Multiply with a ClampedYGradient
+    let mul1 = match &stack[aff_b.input_index] {
+        DensityFunctionComponent::Dependent(DependentDensityFunction::Binary(b)) => b,
+        _ => return None,
+    };
+    let (grad1, aff_a_idx) = extract_mul_y_grad(mul1, stack)?;
+
+    // The other Mul input must be Affine with scale=1.0
+    let aff_a = match &stack[aff_a_idx] {
+        DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(a))
+            if a.scale == 1.0 =>
+        {
+            a
+        }
+        _ => return None,
+    };
+
+    // Both gradients must have a Y range where they saturate to 1.0
+    let (g1_min, g1_max) = Slide::saturate_one_range(&grad1)?;
+    let (g2_min, g2_max) = Slide::saturate_one_range(&grad2)?;
+
+    // Intersect the two ranges
+    let fast_min = g1_min.max(g2_min);
+    let fast_max = g1_max.min(g2_max);
+    if fast_min >= fast_max {
+        return None; // No overlapping fast-path range
+    }
+
+    let combined_offset = aff_a.offset + aff_b.offset + aff_c.offset;
+
+    Some(Slide {
+        input_index: aff_a.input_index,
+        grad1,
+        grad2,
+        offset_a: aff_a.offset,
+        offset_b: aff_b.offset,
+        offset_c: aff_c.offset,
+        combined_offset,
+        fast_path_min_y: fast_min,
+        fast_path_max_y: fast_max,
+        min_value: outer_min,
+        max_value: outer_max,
+    })
+}
+
 fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]) {
     let n = stack.len();
     if n == 0 {
@@ -51,6 +150,7 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
     let mut caches_eliminated = 0usize;
     let mut identities_eliminated = 0usize;
     let mut binary_demotions = 0usize;
+    let mut slide_fusions = 0usize;
 
     // Phase 1: Forward pass — peephole optimize
     for i in 0..n {
@@ -509,6 +609,13 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
                 identities_eliminated += 1;
             }
         }
+
+        // 8. Slide fusion: detect Affine(+c) ← Mul(ygrad2, Affine(+b) ← Mul(ygrad1, Affine(+a, input)))
+        //    Fuses the 5-node chain into a single Slide operation.
+        if let Some(slide) = try_build_slide(i, &stack) {
+            stack[i] = DensityFunctionComponent::Dependent(DependentDensityFunction::Slide(slide));
+            slide_fusions += 1;
+        }
     }
 
     // Phase 2: Rewrite all indices using redirect table
@@ -535,6 +642,7 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
         caches_eliminated,
         identities_eliminated,
         binary_demotions,
+        slide_fusions,
         "Density function stack optimized"
     );
 }
@@ -607,18 +715,28 @@ pub fn build_functions(
         horizontal_biome_end: 4,
     };
     let mut builder = FunctionStackBuilder::new(random, functions, noises, &builder_options);
-    let final_density_index = builder.component(&noise_settings.noise_router.final_density);
-    let temperature_index = builder.component(&noise_settings.noise_router.temperature);
-    let vegetation_index = builder.component(&noise_settings.noise_router.vegetation);
-    let continents_index = builder.component(&noise_settings.noise_router.continents);
-    let erosion_index = builder.component(&noise_settings.noise_router.erosion);
-    let depth_index = builder.component(&noise_settings.noise_router.depth);
-    let ridges_index = builder.component(&noise_settings.noise_router.ridges);
-    let preliminary_surface_level_index =
-        builder.component(&noise_settings.noise_router.preliminary_surface_level);
+    let nr = &noise_settings.noise_router;
+    let barrier_index = builder.component(&nr.barrier);
+    let fluid_level_floodedness_index = builder.component(&nr.fluid_level_floodedness);
+    let fluid_level_spread_index = builder.component(&nr.fluid_level_spread);
+    let lava_index = builder.component(&nr.lava);
+    let temperature_index = builder.component(&nr.temperature);
+    let vegetation_index = builder.component(&nr.vegetation);
+    let continents_index = builder.component(&nr.continents);
+    let erosion_index = builder.component(&nr.erosion);
+    let depth_index = builder.component(&nr.depth);
+    let ridges_index = builder.component(&nr.ridges);
+    let preliminary_surface_level_index = builder.component(&nr.preliminary_surface_level);
+    let final_density_index = builder.component(&nr.final_density);
+    let vein_toggle_index = builder.component(&nr.vein_toggle);
+    let vein_ridged_index = builder.component(&nr.vein_ridged);
+    let vein_gap_index = builder.component(&nr.vein_gap);
 
     let mut roots = [
-        final_density_index,
+        barrier_index,
+        fluid_level_floodedness_index,
+        fluid_level_spread_index,
+        lava_index,
         temperature_index,
         vegetation_index,
         continents_index,
@@ -626,6 +744,10 @@ pub fn build_functions(
         depth_index,
         ridges_index,
         preliminary_surface_level_index,
+        final_density_index,
+        vein_toggle_index,
+        vein_ridged_index,
+        vein_gap_index,
     ];
 
     optimize_stack(&mut builder.stack, &mut roots);
@@ -643,14 +765,21 @@ pub fn build_functions(
     }
 
     let router = NoiseRouter {
-        final_density_index: roots[0],
-        temperature_index: roots[1],
-        vegetation_index: roots[2],
-        continents_index: roots[3],
-        erosion_index: roots[4],
-        depth_index: roots[5],
-        ridges_index: roots[6],
-        preliminary_surface_level_index: roots[7],
+        barrier_index: roots[0],
+        fluid_level_floodedness_index: roots[1],
+        fluid_level_spread_index: roots[2],
+        lava_index: roots[3],
+        temperature_index: roots[4],
+        vegetation_index: roots[5],
+        continents_index: roots[6],
+        erosion_index: roots[7],
+        depth_index: roots[8],
+        ridges_index: roots[9],
+        preliminary_surface_level_index: roots[10],
+        final_density_index: roots[11],
+        vein_toggle_index: roots[12],
+        vein_ridged_index: roots[13],
+        vein_gap_index: roots[14],
         per_block: per_block.into_boxed_slice(),
         stack: Box::from(builder.stack),
         node_labels: node_labels.into_boxed_slice(),
@@ -661,7 +790,10 @@ pub fn build_functions(
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct NoiseRouter {
-    final_density_index: usize,
+    barrier_index: usize,
+    fluid_level_floodedness_index: usize,
+    fluid_level_spread_index: usize,
+    lava_index: usize,
     temperature_index: usize,
     vegetation_index: usize,
     continents_index: usize,
@@ -669,6 +801,10 @@ pub struct NoiseRouter {
     depth_index: usize,
     ridges_index: usize,
     preliminary_surface_level_index: usize,
+    final_density_index: usize,
+    vein_toggle_index: usize,
+    vein_ridged_index: usize,
+    vein_gap_index: usize,
     /// per_block[i] == true means entry i depends on Y and must be recomputed per block.
     /// per_block[i] == false means entry i is column-only (cached across Y changes).
     per_block: Box<[bool]>,
@@ -677,6 +813,33 @@ pub struct NoiseRouter {
 }
 
 impl NoiseRouter {
+    /// All noise router entries as (name, index) pairs.
+    pub fn roots(&self) -> Vec<(&'static str, usize)> {
+        vec![
+            ("barrier", self.barrier_index),
+            (
+                "fluid_level_floodedness",
+                self.fluid_level_floodedness_index,
+            ),
+            ("fluid_level_spread", self.fluid_level_spread_index),
+            ("lava", self.lava_index),
+            ("temperature", self.temperature_index),
+            ("vegetation", self.vegetation_index),
+            ("continents", self.continents_index),
+            ("erosion", self.erosion_index),
+            ("depth", self.depth_index),
+            ("ridges", self.ridges_index),
+            (
+                "preliminary_surface_level",
+                self.preliminary_surface_level_index,
+            ),
+            ("final_density", self.final_density_index),
+            ("vein_toggle", self.vein_toggle_index),
+            ("vein_ridged", self.vein_ridged_index),
+            ("vein_gap", self.vein_gap_index),
+        ]
+    }
+
     /// Create a new DensityCache for use with `final_density`.
     /// Reuse across calls within the same chunk generation.
     pub fn new_cache(&self) -> DensityCache {
@@ -688,8 +851,20 @@ impl NoiseRouter {
         }
     }
 
-    pub fn final_density_index(&self) -> usize {
-        self.final_density_index
+    pub fn barrier_index(&self) -> usize {
+        self.barrier_index
+    }
+
+    pub fn fluid_level_floodedness_index(&self) -> usize {
+        self.fluid_level_floodedness_index
+    }
+
+    pub fn fluid_level_spread_index(&self) -> usize {
+        self.fluid_level_spread_index
+    }
+
+    pub fn lava_index(&self) -> usize {
+        self.lava_index
     }
 
     pub fn temperature_index(&self) -> usize {
@@ -718,6 +893,22 @@ impl NoiseRouter {
 
     pub fn preliminary_surface_level_index(&self) -> usize {
         self.preliminary_surface_level_index
+    }
+
+    pub fn final_density_index(&self) -> usize {
+        self.final_density_index
+    }
+
+    pub fn vein_toggle_index(&self) -> usize {
+        self.vein_toggle_index
+    }
+
+    pub fn vein_ridged_index(&self) -> usize {
+        self.vein_ridged_index
+    }
+
+    pub fn vein_gap_index(&self) -> usize {
+        self.vein_gap_index
     }
 
     pub fn final_density(&self, pos: IVec3) -> f32 {
@@ -816,25 +1007,200 @@ impl NoiseRouter {
         dot
     }
 
-    /// Dump DOT graphs for all major roots (final_density, continents, etc.)
+    /// Dump DOT graphs for all noise router entries.
     pub fn dump_all_roots_dot_graph(&self, pos: IVec3) -> Vec<(String, String)> {
-        let roots = [
-            ("final_density", self.final_density_index),
-            ("temperature", self.temperature_index),
-            ("vegetation", self.vegetation_index),
-            ("continents", self.continents_index),
-            ("erosion", self.erosion_index),
-            ("depth", self.depth_index),
-            ("ridges", self.ridges_index),
-            (
-                "preliminary_surface_level",
-                self.preliminary_surface_level_index,
-            ),
-        ];
-        roots
+        self.roots()
             .iter()
             .map(|(name, idx)| (name.to_string(), self.dump_dot_graph(name, *idx, pos)))
             .collect()
+    }
+
+    /// Colors for each noise router entry (cycled if more than palette size).
+    const ROOT_COLORS: &[&str] = &[
+        "#ef5350", // barrier - red
+        "#42a5f5", // fluid_level_floodedness - blue
+        "#66bb6a", // fluid_level_spread - green
+        "#ffa726", // lava - orange
+        "#ff7043", // temperature - deep orange
+        "#9ccc65", // vegetation - light green
+        "#ab47bc", // continents - purple
+        "#ffca28", // erosion - amber
+        "#26c6da", // depth - cyan
+        "#ec407a", // ridges - pink
+        "#8d6e63", // preliminary_surface_level - brown
+        "#29b6f6", // final_density - light blue
+        "#78909c", // vein_toggle - blue-grey
+        "#7e57c2", // vein_ridged - deep purple
+        "#26a69a", // vein_gap - teal
+    ];
+
+    /// Generate a single combined DOT graph showing all noise router entries,
+    /// how they share nodes, and which entry functions feed into the router.
+    pub fn dump_combined_dot_graph(&self, pos: IVec3) -> String {
+        let all_roots = self.roots();
+        let roots: Vec<(&str, usize, &str)> = all_roots
+            .iter()
+            .enumerate()
+            .map(|(i, (name, idx))| (*name, *idx, Self::ROOT_COLORS[i % Self::ROOT_COLORS.len()]))
+            .collect();
+
+        // Find the maximum index needed
+        let max_root = roots.iter().map(|(_, idx, _)| *idx).max().unwrap_or(0);
+
+        // Forward evaluate all entries up to max root
+        let mut values = vec![0.0f32; max_root + 1];
+        for i in 0..=max_root {
+            values[i] = self.stack[i].sample_cached(&values, &self.stack, pos);
+        }
+
+        // For each node, track which roots reach it
+        let mut root_membership: Vec<Vec<usize>> = vec![Vec::new(); max_root + 1];
+        for (root_idx, (_, root, _)) in roots.iter().enumerate() {
+            let mut reachable = vec![false; *root + 1];
+            reachable[*root] = true;
+            for i in (0..=*root).rev() {
+                if !reachable[i] {
+                    continue;
+                }
+                self.stack[i].visit_input_indices(&mut |idx| {
+                    if idx <= *root {
+                        reachable[idx] = true;
+                    }
+                });
+            }
+            for i in 0..=*root {
+                if reachable[i] {
+                    root_membership[i].push(root_idx);
+                }
+            }
+        }
+
+        // Any reachable node (belongs to at least one root)
+        let any_reachable: Vec<bool> = root_membership
+            .iter()
+            .map(|members| !members.is_empty())
+            .collect();
+
+        let mut dot = String::new();
+        dot.push_str("digraph noise_router {\n");
+        dot.push_str("  rankdir=BT;\n");
+        dot.push_str("  compound=true;\n");
+        dot.push_str("  node [shape=box, style=filled, fontname=\"Helvetica\", fontsize=10];\n");
+        dot.push_str(&format!(
+            "  label=\"Noise Router at ({}, {}, {})\";\n",
+            pos.x, pos.y, pos.z
+        ));
+        dot.push_str("  labelloc=t;\n");
+        dot.push_str("  fontsize=14;\n\n");
+
+        // Add router entry nodes at the top
+        dot.push_str("  // Router entry points\n");
+        dot.push_str("  subgraph cluster_router {\n");
+        dot.push_str("    label=\"Noise Router\";\n");
+        dot.push_str("    style=dashed;\n");
+        dot.push_str("    color=\"#666666\";\n");
+        dot.push_str("    fontsize=12;\n");
+        for &(name, idx, color) in &roots {
+            dot.push_str(&format!(
+                "    router_{} [label=\"{}\\nval={:.6}\", fillcolor=\"{}\", shape=doubleoctagon, penwidth=2.0, fontsize=11];\n",
+                name, name, values[idx], color
+            ));
+        }
+        dot.push_str("  }\n\n");
+
+        // Connect router entry nodes to their root stack nodes
+        for &(name, idx, color) in &roots {
+            dot.push_str(&format!(
+                "  n{} -> router_{} [color=\"{}\", penwidth=2.0];\n",
+                idx, name, color
+            ));
+        }
+        dot.push_str("\n");
+
+        // Add computation nodes
+        for i in 0..=max_root {
+            if !any_reachable[i] {
+                continue;
+            }
+            let type_label = self.stack[i].type_label();
+            let value = values[i];
+            let ref_name = &self.node_labels[i];
+            let members = &root_membership[i];
+
+            // Color: shared nodes get a special color, others get value-based color
+            let is_shared = members.len() > 1;
+            let is_root_node = roots.iter().any(|(_, idx, _)| *idx == i);
+
+            let color = if is_root_node {
+                // Root node gets its root color
+                roots
+                    .iter()
+                    .find(|(_, idx, _)| *idx == i)
+                    .map(|(_, _, c)| *c)
+                    .unwrap_or("#ffffff")
+                    .to_string()
+            } else if is_shared {
+                "#fff9c4".to_string() // Light yellow for shared nodes
+            } else if value > 0.5 {
+                "#81c784".to_string()
+            } else if value > 0.0 {
+                "#c8e6c9".to_string()
+            } else if value > -0.5 {
+                "#ffcdd2".to_string()
+            } else {
+                "#ef9a9a".to_string()
+            };
+
+            let full_label = if ref_name.is_empty() {
+                format!("[{}] {}\\nval={:.6}", i, type_label, value)
+            } else {
+                let short_name = ref_name.strip_prefix("minecraft:").unwrap_or(ref_name);
+                format!("[{}] {}\\n{}\\nval={:.6}", i, short_name, type_label, value)
+            };
+
+            // Append sharing info for shared nodes
+            let full_label = if is_shared {
+                let shared_with: Vec<&str> = members.iter().map(|&ri| roots[ri].0).collect();
+                format!("{}\\nshared: {}", full_label, shared_with.join(", "))
+            } else {
+                full_label
+            };
+
+            let shape = match &self.stack[i] {
+                DensityFunctionComponent::Independent(_) => "ellipse",
+                _ => "box",
+            };
+
+            let penwidth = if is_root_node {
+                "3.0"
+            } else if is_shared {
+                "2.0"
+            } else {
+                "1.0"
+            };
+
+            dot.push_str(&format!(
+                "  n{} [label=\"{}\", fillcolor=\"{}\", shape={}, penwidth={}];\n",
+                i, full_label, color, shape, penwidth
+            ));
+        }
+
+        dot.push_str("\n");
+
+        // Add edges
+        for i in 0..=max_root {
+            if !any_reachable[i] {
+                continue;
+            }
+            self.stack[i].visit_input_indices(&mut |idx| {
+                if idx <= max_root && any_reachable[idx] {
+                    dot.push_str(&format!("  n{} -> n{};\n", idx, i));
+                }
+            });
+        }
+
+        dot.push_str("}\n");
+        dot
     }
 
     /// Forward evaluation with column caching.
@@ -1016,6 +1382,7 @@ impl DensityFunction for OldBlendedNoise {
 
 #[derive(Clone, PartialEq)]
 struct Noise {
+    noise_name: String,
     sampler: NoiseSampler,
     xz_scale: f32,
     y_scale: f32,
@@ -1024,6 +1391,7 @@ struct Noise {
 impl Debug for Noise {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Noise")
+            .field("noise_name", &self.noise_name)
             .field("xz_scale", &self.xz_scale)
             .field("y_scale", &self.y_scale)
             .field("min_value", &self.min_value())
@@ -1058,12 +1426,14 @@ impl DensityFunction for Noise {
 
 #[derive(Clone, PartialEq)]
 struct ShiftA {
+    noise_name: String,
     sampler: NoiseSampler,
 }
 
 impl Debug for ShiftA {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ShiftA")
+            .field("noise_name", &self.noise_name)
             .field("min_value", &self.min_value())
             .field("max_value", &self.max_value())
             .finish()
@@ -1092,12 +1462,14 @@ impl DensityFunction for ShiftA {
 
 #[derive(Clone, PartialEq)]
 struct ShiftB {
+    noise_name: String,
     sampler: NoiseSampler,
 }
 
 impl Debug for ShiftB {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ShiftB")
+            .field("noise_name", &self.noise_name)
             .field("min_value", &self.min_value())
             .field("max_value", &self.max_value())
             .finish()
@@ -1126,6 +1498,7 @@ impl DensityFunction for ShiftB {
 
 #[derive(Clone, Debug, PartialEq)]
 struct Shift {
+    noise_name: String,
     sampler: NoiseSampler,
 }
 
@@ -1510,6 +1883,7 @@ impl DensityFunction for IndependentDensityFunction {
 enum DependentDensityFunction {
     Linear(Linear),
     Affine(Affine),
+    Slide(Slide),
     Unary(Unary),
     Binary(Binary),
     ShiftedNoise(ShiftedNoise),
@@ -1594,6 +1968,7 @@ impl DensityFunction for DependentDensityFunction {
                     info_span!("Affine::sample", scale = x.scale, offset = x.offset).entered();
                 x.sample(stack, pos)
             }
+            DependentDensityFunction::Slide(x) => x.sample(stack, pos),
             DependentDensityFunction::Unary(x) => x.sample(stack, pos),
             DependentDensityFunction::Binary(x) => x.sample(stack, pos),
             DependentDensityFunction::ShiftedNoise(x) => x.sample(stack, pos),
@@ -1614,6 +1989,7 @@ impl RangeFunction for DependentDensityFunction {
         match self {
             DependentDensityFunction::Linear(x) => x.min_value(),
             DependentDensityFunction::Affine(x) => x.min_value(),
+            DependentDensityFunction::Slide(x) => x.min_value(),
             DependentDensityFunction::Unary(x) => x.min_value(),
             DependentDensityFunction::Binary(x) => x.min_value(),
             DependentDensityFunction::ShiftedNoise(x) => x.min_value(),
@@ -1629,6 +2005,7 @@ impl RangeFunction for DependentDensityFunction {
         match self {
             DependentDensityFunction::Linear(x) => x.max_value(),
             DependentDensityFunction::Affine(x) => x.max_value(),
+            DependentDensityFunction::Slide(x) => x.max_value(),
             DependentDensityFunction::Unary(x) => x.max_value(),
             DependentDensityFunction::Binary(x) => x.max_value(),
             DependentDensityFunction::ShiftedNoise(x) => x.max_value(),
@@ -1698,6 +2075,99 @@ impl DensityFunction for Affine {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         let density = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
         density.mul_add(self.scale, self.offset)
+    }
+}
+
+/// Fused world-boundary "slide" operation.
+///
+/// Replaces the 5-node chain:
+///   `Affine(+a) → Mul(y_grad1) → Affine(+b) → Mul(y_grad2) → Affine(+c)`
+///
+/// Full computation:
+///   `grad2(y) * (grad1(y) * (input + offset_a) + offset_b) + offset_c`
+///
+/// Fast path: when both gradients saturate to 1.0 (y in the interior range),
+/// the three offsets cancel out and the result equals `input + combined_offset`
+/// (which is typically ~0, i.e. identity).
+#[derive(Clone, Debug, PartialEq)]
+struct Slide {
+    input_index: usize,
+
+    // First Y-gradient applied (typically "top": 240..256 → 1.0..0.0)
+    grad1: ClampedYGradient,
+    // Second Y-gradient applied (typically "bottom": -64..-40 → 0.0..1.0)
+    grad2: ClampedYGradient,
+
+    // Three affine offsets (all original affines had scale=1.0)
+    offset_a: f32, // pre-grad1
+    offset_b: f32, // between grad1 and grad2
+    offset_c: f32, // post-grad2
+
+    // Pre-computed: offset_a + offset_b + offset_c
+    combined_offset: f32,
+
+    // Y range where both gradients saturate to 1.0 (fast path)
+    fast_path_min_y: f32,
+    fast_path_max_y: f32,
+
+    min_value: f32,
+    max_value: f32,
+}
+
+impl Slide {
+    #[inline]
+    fn eval_gradient(g: &ClampedYGradient, y: f32) -> f32 {
+        if y < g.from_y {
+            g.from_value
+        } else if y > g.to_y {
+            g.to_value
+        } else {
+            g.from_value + (g.to_value - g.from_value) * (y - g.from_y) / (g.to_y - g.from_y)
+        }
+    }
+
+    #[inline]
+    fn compute(&self, input: f32, y: f32) -> f32 {
+        if y > self.fast_path_min_y && y < self.fast_path_max_y {
+            input + self.combined_offset
+        } else {
+            let g1 = Self::eval_gradient(&self.grad1, y);
+            let g2 = Self::eval_gradient(&self.grad2, y);
+            (g1 * (input + self.offset_a) + self.offset_b).mul_add(g2, self.offset_c)
+        }
+    }
+
+    /// Compute the Y range where a gradient saturates to exactly 1.0.
+    /// Returns (min_y, max_y) or None if the gradient never equals 1.0.
+    fn saturate_one_range(g: &ClampedYGradient) -> Option<(f32, f32)> {
+        let below = g.from_value == 1.0; // y <= from_y → 1.0
+        let above = g.to_value == 1.0; // y >= to_y → 1.0
+        match (below, above) {
+            (true, true) => Some((f32::NEG_INFINITY, f32::INFINITY)),
+            (true, false) => Some((f32::NEG_INFINITY, g.from_y)),
+            (false, true) => Some((g.to_y, f32::INFINITY)),
+            (false, false) => None,
+        }
+    }
+}
+
+impl RangeFunction for Slide {
+    #[inline]
+    fn min_value(&self) -> f32 {
+        self.min_value
+    }
+
+    #[inline]
+    fn max_value(&self) -> f32 {
+        self.max_value
+    }
+}
+
+impl DensityFunction for Slide {
+    #[inline]
+    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        let input = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
+        self.compute(input, pos.y as f32)
     }
 }
 
@@ -1812,6 +2282,7 @@ impl RangeFunction for Unary {
 
 #[derive(Clone, PartialEq)]
 struct ShiftedNoise {
+    noise_name: String,
     input_x_index: usize,
     input_y_index: usize,
     input_z_index: usize,
@@ -1823,6 +2294,7 @@ struct ShiftedNoise {
 impl Debug for ShiftedNoise {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ShiftedNoise")
+            .field("noise_name", &self.noise_name)
             .field("input_x_index", &self.input_x_index)
             .field("input_y_index", &self.input_y_index)
             .field("input_z_index", &self.input_z_index)
@@ -1866,6 +2338,7 @@ impl RangeFunction for ShiftedNoise {
 
 #[derive(Clone, PartialEq)]
 struct WeirdScaled {
+    noise_name: String,
     input_index: usize,
     sampler: NoiseSampler,
     mapper: RarityValueMapper,
@@ -1874,6 +2347,7 @@ struct WeirdScaled {
 impl Debug for WeirdScaled {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WeirdScaled")
+            .field("noise_name", &self.noise_name)
             .field("input_index", &self.input_index)
             .field("mapper", &self.mapper)
             .field("min_value", &self.min_value())
@@ -2494,11 +2968,20 @@ impl DensityFunctionComponent {
                 IndependentDensityFunction::Constant(v) => format!("const({v:.6})"),
                 IndependentDensityFunction::OldBlendedNoise(_) => "old_blended_noise".into(),
                 IndependentDensityFunction::Noise(n) => {
-                    format!("noise\\nxz={:.3} y={:.3}", n.xz_scale, n.y_scale)
+                    format!(
+                        "noise({})\\nxz={:.3} y={:.3}",
+                        n.noise_name, n.xz_scale, n.y_scale
+                    )
                 }
-                IndependentDensityFunction::ShiftA(_) => "shift_a".into(),
-                IndependentDensityFunction::ShiftB(_) => "shift_b".into(),
-                IndependentDensityFunction::Shift(_) => "shift".into(),
+                IndependentDensityFunction::ShiftA(s) => {
+                    format!("shift_a({})", s.noise_name)
+                }
+                IndependentDensityFunction::ShiftB(s) => {
+                    format!("shift_b({})", s.noise_name)
+                }
+                IndependentDensityFunction::Shift(s) => {
+                    format!("shift({})", s.noise_name)
+                }
                 IndependentDensityFunction::ClampedYGradient(g) => {
                     format!(
                         "y_gradient\\n{:.0}..{:.0} -> {:.2}..{:.2}",
@@ -2514,6 +2997,12 @@ impl DensityFunctionComponent {
                 DependentDensityFunction::Affine(a) => {
                     format!("affine\\ns={:.6} o={:.6}", a.scale, a.offset)
                 }
+                DependentDensityFunction::Slide(s) => {
+                    format!(
+                        "slide\\noffsets={:.6},{:.6},{:.6}\\nfast_y={:.0}..{:.0}",
+                        s.offset_a, s.offset_b, s.offset_c, s.fast_path_min_y, s.fast_path_max_y
+                    )
+                }
                 DependentDensityFunction::Unary(u) => format!("{:?}", u.operation),
                 DependentDensityFunction::Binary(b) => match b.operation {
                     BinaryOperation::Add => "Add".into(),
@@ -2522,10 +3011,13 @@ impl DensityFunctionComponent {
                     BinaryOperation::Max => "Max".into(),
                 },
                 DependentDensityFunction::ShiftedNoise(s) => {
-                    format!("shifted_noise\\nxz={:.3} y={:.3}", s.xz_scale, s.y_scale)
+                    format!(
+                        "shifted_noise({})\\nxz={:.3} y={:.3}",
+                        s.noise_name, s.xz_scale, s.y_scale
+                    )
                 }
                 DependentDensityFunction::WeirdScaled(w) => {
-                    format!("weird_scaled\\n{:?}", w.mapper)
+                    format!("weird_scaled({})\\n{:?}", w.noise_name, w.mapper)
                 }
                 DependentDensityFunction::Clamp(c) => {
                     format!("clamp\\n{:.4}..{:.4}", c.min_value, c.max_value)
@@ -2610,6 +3102,9 @@ impl DensityFunctionComponent {
                 DependentDensityFunction::Affine(x) => {
                     x.input_index = redirect[x.input_index];
                 }
+                DependentDensityFunction::Slide(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
                 DependentDensityFunction::Unary(x) => {
                     x.input_index = redirect[x.input_index];
                 }
@@ -2670,6 +3165,7 @@ impl DensityFunctionComponent {
             DensityFunctionComponent::Dependent(dep) => match dep {
                 DependentDensityFunction::Linear(x) => f(x.input_index),
                 DependentDensityFunction::Affine(x) => f(x.input_index),
+                DependentDensityFunction::Slide(x) => f(x.input_index),
                 DependentDensityFunction::Unary(x) => f(x.input_index),
                 DependentDensityFunction::Binary(x) => {
                     f(x.input1_index);
@@ -2749,6 +3245,7 @@ impl DensityFunctionComponent {
                 DependentDensityFunction::Affine(x) => {
                     cache[x.input_index].mul_add(x.scale, x.offset)
                 }
+                DependentDensityFunction::Slide(x) => x.compute(cache[x.input_index], pos.y as f32),
                 DependentDensityFunction::Unary(x) => x.operation.apply(cache[x.input_index]),
                 DependentDensityFunction::Binary(x) => {
                     let a = cache[x.input1_index];
@@ -3150,6 +3647,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     }
 
     fn visit_noise(&mut self, noise_holder: &NoiseHolder, xz_scale: f64, y_scale: f64) {
+        let noise_name = Self::noise_name(noise_holder);
         let sampler = self.noise_sampler(noise_holder);
         let proto = ProtoDensityFunction::Noise {
             noise: noise_holder.clone(),
@@ -3159,6 +3657,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         self.register_component(
             proto,
             DensityFunctionComponent::Independent(IndependentDensityFunction::Noise(Noise {
+                noise_name,
                 sampler,
                 xz_scale: xz_scale as f32,
                 y_scale: y_scale as f32,
@@ -3173,6 +3672,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         rarity_value_mapper: &RarityValueMapper,
     ) {
         let (input_index) = self.component(input);
+        let noise_name = Self::noise_name(noise);
         let sampler = self.noise_sampler(noise);
         let proto = ProtoDensityFunction::WeirdScaledSampler {
             input: input.clone(),
@@ -3183,6 +3683,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             proto,
             DensityFunctionComponent::Dependent(DependentDensityFunction::WeirdScaled(
                 WeirdScaled {
+                    noise_name,
                     input_index,
                     sampler,
                     mapper: *rarity_value_mapper,
@@ -3203,6 +3704,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         let (input_x_index) = self.component(shift_x);
         let (input_y_index) = self.component(shift_y);
         let (input_z_index) = self.component(shift_z);
+        let noise_name = Self::noise_name(noise);
         let sampler = self.noise_sampler(noise);
         let proto = ProtoDensityFunction::ShiftedNoise {
             shift_x: shift_x.clone(),
@@ -3216,6 +3718,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             proto,
             DensityFunctionComponent::Dependent(DependentDensityFunction::ShiftedNoise(
                 ShiftedNoise {
+                    noise_name,
                     input_x_index,
                     input_y_index,
                     input_z_index,
@@ -3268,36 +3771,42 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     }
 
     fn visit_shift_a(&mut self, function: &NoiseHolder) {
+        let noise_name = Self::noise_name(function);
         let sampler = self.noise_sampler(function);
         self.register_component(
             ProtoDensityFunction::ShiftA {
                 argument: function.clone(),
             },
             DensityFunctionComponent::Independent(IndependentDensityFunction::ShiftA(ShiftA {
+                noise_name,
                 sampler,
             })),
         );
     }
 
     fn visit_shift_b(&mut self, function: &NoiseHolder) {
+        let noise_name = Self::noise_name(function);
         let sampler = self.noise_sampler(function);
         self.register_component(
             ProtoDensityFunction::ShiftB {
                 argument: function.clone(),
             },
             DensityFunctionComponent::Independent(IndependentDensityFunction::ShiftB(ShiftB {
+                noise_name,
                 sampler,
             })),
         );
     }
 
     fn visit_shift(&mut self, argument: &NoiseHolder) {
+        let noise_name = Self::noise_name(argument);
         let sampler = self.noise_sampler(argument);
         self.register_component(
             ProtoDensityFunction::Shift {
                 argument: argument.clone(),
             },
             DensityFunctionComponent::Independent(IndependentDensityFunction::Shift(Shift {
+                noise_name,
                 sampler,
             })),
         );
@@ -3558,6 +4067,17 @@ impl<'a> FunctionStackBuilder<'a> {
                 operation,
             })),
         );
+    }
+
+    fn noise_name(holder: &NoiseHolder) -> String {
+        match holder {
+            NoiseHolder::Reference(x) => x
+                .as_str()
+                .strip_prefix("minecraft:")
+                .unwrap_or(x.as_str())
+                .to_string(),
+            NoiseHolder::Owned(_) => "inline".to_string(),
+        }
     }
 
     fn noise_sampler(&mut self, holder: &NoiseHolder) -> NoiseSampler {

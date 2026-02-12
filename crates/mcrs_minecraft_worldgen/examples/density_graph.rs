@@ -134,8 +134,8 @@ fn load_all(
 }
 
 fn main() {
-    let mut seed: u64 = 2;
-    let mut pos = IVec3::new(0, 60, 0);
+    let mut seed: u64 = 0;
+    let mut pos = IVec3::new(0, 63, 0);
     let mut assets_path = PathBuf::from("./assets");
     let mut root_name = "final_density".to_string();
     let mut output_path: Option<PathBuf> = None;
@@ -178,11 +178,14 @@ fn main() {
                     "Usage: density_graph [--seed SEED] [--pos X:Y:Z] [--assets PATH] [--root ROOT] [--output FILE]"
                 );
                 eprintln!();
+                eprintln!("Roots: barrier, fluid_level_floodedness, fluid_level_spread, lava,");
+                eprintln!("       temperature, vegetation, continents, erosion, depth, ridges,");
                 eprintln!(
-                    "Roots: final_density, temperature, vegetation, continents, erosion, depth, ridges, preliminary_surface_level, all"
+                    "       preliminary_surface_level, final_density, vein_toggle, vein_ridged,"
                 );
+                eprintln!("       vein_gap, all");
                 eprintln!();
-                eprintln!("Defaults: seed=2, pos=0:60:0, assets=./assets, root=final_density");
+                eprintln!("Defaults: seed=0, pos=0:63:0, assets=./assets, root=final_density");
                 std::process::exit(0);
             }
             other => {
@@ -199,27 +202,19 @@ fn main() {
     let router = build_functions(&functions, &noises, &settings, seed);
 
     let dot = if root_name == "all" {
-        let graphs = router.dump_all_roots_dot_graph(pos);
-        graphs
-            .into_iter()
-            .map(|(_, dot)| dot)
-            .collect::<Vec<_>>()
-            .join("\n")
+        router.dump_combined_dot_graph(pos)
     } else {
-        let (name, idx) = match root_name.as_str() {
-            "final_density" => ("final_density", router.final_density_index()),
-            "temperature" => ("temperature", router.temperature_index()),
-            "vegetation" => ("vegetation", router.vegetation_index()),
-            "continents" => ("continents", router.continents_index()),
-            "erosion" => ("erosion", router.erosion_index()),
-            "depth" => ("depth", router.depth_index()),
-            "ridges" => ("ridges", router.ridges_index()),
-            "preliminary_surface_level" => (
-                "preliminary_surface_level",
-                router.preliminary_surface_level_index(),
-            ),
-            other => {
-                eprintln!("Unknown root: {}", other);
+        let all_roots = router.roots();
+        let found = all_roots
+            .iter()
+            .find(|(name, _)| *name == root_name.as_str());
+        let (name, idx) = match found {
+            Some((name, idx)) => (*name, *idx),
+            None => {
+                eprintln!("Unknown root: {}. Available:", root_name);
+                for (name, _) in &all_roots {
+                    eprintln!("  {}", name);
+                }
                 std::process::exit(1);
             }
         };
