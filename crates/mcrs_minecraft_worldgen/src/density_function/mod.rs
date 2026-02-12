@@ -146,6 +146,7 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
 
     let mut redirect: Vec<usize> = (0..n).collect();
     let mut affine_fusions = 0usize;
+    let mut piecewise_affine_fusions = 0usize;
     let mut constants_folded = 0usize;
     let mut caches_eliminated = 0usize;
     let mut identities_eliminated = 0usize;
@@ -284,6 +285,12 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
                 [aff.input_index]
                 .as_constant()
                 .map(|c| c.mul_add(aff.scale, aff.offset)),
+            DensityFunctionComponent::Dependent(DependentDensityFunction::PiecewiseAffine(pa)) => {
+                stack[pa.input_index].as_constant().map(|c| {
+                    let scale = if c < 0.0 { pa.neg_scale } else { pa.pos_scale };
+                    c.mul_add(scale, pa.offset)
+                })
+            }
             DensityFunctionComponent::Dependent(DependentDensityFunction::Unary(u)) => stack
                 [u.input_index]
                 .as_constant()
@@ -610,8 +617,126 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
             }
         }
 
-        // 8. Slide fusion: detect Affine(+c) ← Mul(ygrad2, Affine(+b) ← Mul(ygrad1, Affine(+a, input)))
-        //    Fuses the 5-node chain into a single Slide operation.
+        // 8. RangeChoice range-based elimination: if the input's static range proves
+        //    it always falls in or always falls out, redirect to the known branch.
+        if let DensityFunctionComponent::Dependent(DependentDensityFunction::RangeChoice(rc)) =
+            &stack[i]
+        {
+            let input = &stack[rc.input_index];
+            if input.max_value() < rc.min_inclusion_value
+                || input.min_value() >= rc.max_exclusion_value
+            {
+                // Always out-of-range
+                redirect[i] = rc.when_out_index;
+                identities_eliminated += 1;
+                continue;
+            }
+            if input.min_value() >= rc.min_inclusion_value
+                && input.max_value() < rc.max_exclusion_value
+            {
+                // Always in-range
+                redirect[i] = rc.when_in_index;
+                identities_eliminated += 1;
+                continue;
+            }
+        }
+
+        // 9. Unary→Affine fusion: Affine(Unary::QuarterNegative/HalfNegative(x)) → PiecewiseAffine
+        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(aff)) =
+            &stack[i]
+        {
+            if let DensityFunctionComponent::Dependent(DependentDensityFunction::Unary(u)) =
+                &stack[aff.input_index]
+            {
+                let pwa = match u.operation {
+                    // QuarterNegative(x) = if x<0 { 0.25*x } else { x }
+                    // Affine(QuarterNeg(x), s, o) = if x<0 { 0.25*s*x + o } else { s*x + o }
+                    UnaryOperation::QuarterNegative => Some((aff.scale * 0.25, aff.scale)),
+                    // HalfNegative(x) = if x<0 { 0.5*x } else { x }
+                    // Affine(HalfNeg(x), s, o) = if x<0 { 0.5*s*x + o } else { s*x + o }
+                    UnaryOperation::HalfNegative => Some((aff.scale * 0.5, aff.scale)),
+                    _ => None,
+                };
+                if let Some((neg_scale, pos_scale)) = pwa {
+                    let (min_value, max_value) = PiecewiseAffine::compute_range(
+                        stack[u.input_index].min_value(),
+                        stack[u.input_index].max_value(),
+                        neg_scale,
+                        pos_scale,
+                        aff.offset,
+                    );
+                    stack[i] = DensityFunctionComponent::Dependent(
+                        DependentDensityFunction::PiecewiseAffine(PiecewiseAffine {
+                            input_index: u.input_index,
+                            neg_scale,
+                            pos_scale,
+                            offset: aff.offset,
+                            min_value,
+                            max_value,
+                        }),
+                    );
+                    piecewise_affine_fusions += 1;
+                }
+            }
+        }
+
+        // 10. Binary same-index identity: Min(x,x)→x, Max(x,x)→x, Add(x,x)→2*x, Mul(x,x)→x²
+        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Binary(bin)) =
+            &stack[i]
+        {
+            if bin.input1_index == bin.input2_index {
+                match bin.operation {
+                    BinaryOperation::Min | BinaryOperation::Max => {
+                        redirect[i] = bin.input1_index;
+                        identities_eliminated += 1;
+                        continue;
+                    }
+                    BinaryOperation::Add => {
+                        // Add(x, x) = 2*x
+                        let (min_value, max_value) = Affine::compute_range(
+                            stack[bin.input1_index].min_value(),
+                            stack[bin.input1_index].max_value(),
+                            2.0,
+                            0.0,
+                        );
+                        stack[i] = DensityFunctionComponent::Dependent(
+                            DependentDensityFunction::Affine(Affine {
+                                input_index: bin.input1_index,
+                                scale: 2.0,
+                                offset: 0.0,
+                                min_value,
+                                max_value,
+                            }),
+                        );
+                        binary_demotions += 1;
+                    }
+                    BinaryOperation::Multiply => {
+                        // Mul(x, x) = x²
+                        let in_min = stack[bin.input1_index].min_value();
+                        let in_max = stack[bin.input1_index].max_value();
+                        let (min_value, max_value) = if in_min >= 0.0 {
+                            (in_min * in_min, in_max * in_max)
+                        } else if in_max <= 0.0 {
+                            (in_max * in_max, in_min * in_min)
+                        } else {
+                            (0.0, (in_min * in_min).max(in_max * in_max))
+                        };
+                        stack[i] = DensityFunctionComponent::Dependent(
+                            DependentDensityFunction::Unary(Unary {
+                                input_index: bin.input1_index,
+                                operation: UnaryOperation::Square,
+                                min_value,
+                                max_value,
+                            }),
+                        );
+                        binary_demotions += 1;
+                    }
+                }
+            }
+        }
+
+        // 11. Slide fusion: detect Affine(+c) ← Mul(ygrad2, Affine(+b) ← Mul(ygrad1, Affine(+a, input)))
+        //     Fuses the 5-node chain into a single Slide operation.
         if let Some(slide) = try_build_slide(i, &stack) {
             stack[i] = DensityFunctionComponent::Dependent(DependentDensityFunction::Slide(slide));
             slide_fusions += 1;
@@ -638,6 +763,7 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
     info!(
         stack_size = n,
         affine_fusions,
+        piecewise_affine_fusions,
         constants_folded,
         caches_eliminated,
         identities_eliminated,
@@ -1890,6 +2016,7 @@ impl DensityFunction for IndependentDensityFunction {
 enum DependentDensityFunction {
     Linear(Linear),
     Affine(Affine),
+    PiecewiseAffine(PiecewiseAffine),
     Slide(Slide),
     Unary(Unary),
     Binary(Binary),
@@ -1975,6 +2102,7 @@ impl DensityFunction for DependentDensityFunction {
                     info_span!("Affine::sample", scale = x.scale, offset = x.offset).entered();
                 x.sample(stack, pos)
             }
+            DependentDensityFunction::PiecewiseAffine(x) => x.sample(stack, pos),
             DependentDensityFunction::Slide(x) => x.sample(stack, pos),
             DependentDensityFunction::Unary(x) => x.sample(stack, pos),
             DependentDensityFunction::Binary(x) => x.sample(stack, pos),
@@ -1996,6 +2124,7 @@ impl RangeFunction for DependentDensityFunction {
         match self {
             DependentDensityFunction::Linear(x) => x.min_value(),
             DependentDensityFunction::Affine(x) => x.min_value(),
+            DependentDensityFunction::PiecewiseAffine(x) => x.min_value(),
             DependentDensityFunction::Slide(x) => x.min_value(),
             DependentDensityFunction::Unary(x) => x.min_value(),
             DependentDensityFunction::Binary(x) => x.min_value(),
@@ -2012,6 +2141,7 @@ impl RangeFunction for DependentDensityFunction {
         match self {
             DependentDensityFunction::Linear(x) => x.max_value(),
             DependentDensityFunction::Affine(x) => x.max_value(),
+            DependentDensityFunction::PiecewiseAffine(x) => x.max_value(),
             DependentDensityFunction::Slide(x) => x.max_value(),
             DependentDensityFunction::Unary(x) => x.max_value(),
             DependentDensityFunction::Binary(x) => x.max_value(),
@@ -2082,6 +2212,74 @@ impl DensityFunction for Affine {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         let density = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
         density.mul_add(self.scale, self.offset)
+    }
+}
+
+/// Piecewise-linear affine: different scales for negative vs non-negative input.
+///
+/// Replaces patterns like `Affine(Unary::QuarterNegative(x))` or
+/// `Affine(Unary::HalfNegative(x))` where the unary damps the negative side.
+///
+/// Computes: `if x < 0 { x * neg_scale + offset } else { x * pos_scale + offset }`
+#[derive(Clone, Debug, PartialEq)]
+struct PiecewiseAffine {
+    input_index: usize,
+    neg_scale: f32,
+    pos_scale: f32,
+    offset: f32,
+    min_value: f32,
+    max_value: f32,
+}
+
+impl PiecewiseAffine {
+    fn compute_range(
+        input_min: f32,
+        input_max: f32,
+        neg_scale: f32,
+        pos_scale: f32,
+        offset: f32,
+    ) -> (f32, f32) {
+        // Negative side: input_min * neg_scale + offset (input_min <= 0)
+        // Positive side: input_max * pos_scale + offset (input_max >= 0)
+        // At zero: offset
+        let mut lo = offset;
+        let mut hi = offset;
+        if input_min < 0.0 {
+            let v = input_min * neg_scale + offset;
+            lo = lo.min(v);
+            hi = hi.max(v);
+        }
+        if input_max > 0.0 {
+            let v = input_max * pos_scale + offset;
+            lo = lo.min(v);
+            hi = hi.max(v);
+        }
+        (lo, hi)
+    }
+}
+
+impl RangeFunction for PiecewiseAffine {
+    #[inline]
+    fn min_value(&self) -> f32 {
+        self.min_value
+    }
+
+    #[inline]
+    fn max_value(&self) -> f32 {
+        self.max_value
+    }
+}
+
+impl DensityFunction for PiecewiseAffine {
+    #[inline]
+    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        let x = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
+        let scale = if x < 0.0 {
+            self.neg_scale
+        } else {
+            self.pos_scale
+        };
+        x.mul_add(scale, self.offset)
     }
 }
 
@@ -3005,6 +3203,12 @@ impl DensityFunctionComponent {
                 DependentDensityFunction::Affine(a) => {
                     format!("affine\\ns={:.6} o={:.6}", a.scale, a.offset)
                 }
+                DependentDensityFunction::PiecewiseAffine(a) => {
+                    format!(
+                        "piecewise_affine\\nneg={:.6} pos={:.6} o={:.6}",
+                        a.neg_scale, a.pos_scale, a.offset
+                    )
+                }
                 DependentDensityFunction::Slide(s) => {
                     format!(
                         "slide\\noffsets={:.6},{:.6},{:.6}\\nfast_y={:.0}..{:.0}",
@@ -3110,6 +3314,9 @@ impl DensityFunctionComponent {
                 DependentDensityFunction::Affine(x) => {
                     x.input_index = redirect[x.input_index];
                 }
+                DependentDensityFunction::PiecewiseAffine(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
                 DependentDensityFunction::Slide(x) => {
                     x.input_index = redirect[x.input_index];
                 }
@@ -3173,6 +3380,7 @@ impl DensityFunctionComponent {
             DensityFunctionComponent::Dependent(dep) => match dep {
                 DependentDensityFunction::Linear(x) => f(x.input_index),
                 DependentDensityFunction::Affine(x) => f(x.input_index),
+                DependentDensityFunction::PiecewiseAffine(x) => f(x.input_index),
                 DependentDensityFunction::Slide(x) => f(x.input_index),
                 DependentDensityFunction::Unary(x) => f(x.input_index),
                 DependentDensityFunction::Binary(x) => {
@@ -3253,6 +3461,15 @@ impl DensityFunctionComponent {
                 }
                 DependentDensityFunction::Affine(x) => {
                     cache[x.input_index].mul_add(x.scale, x.offset)
+                }
+                DependentDensityFunction::PiecewiseAffine(x) => {
+                    let input = cache[x.input_index];
+                    let scale = if input < 0.0 {
+                        x.neg_scale
+                    } else {
+                        x.pos_scale
+                    };
+                    input.mul_add(scale, x.offset)
                 }
                 DependentDensityFunction::Slide(x) => x.compute(cache[x.input_index], pos.y as f32),
                 DependentDensityFunction::Unary(x) => x.operation.apply(cache[x.input_index]),
