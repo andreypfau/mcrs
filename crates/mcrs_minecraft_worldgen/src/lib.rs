@@ -1,7 +1,7 @@
 mod climate;
 pub mod density_function;
 mod noise;
-mod proto;
+pub mod proto;
 mod spline;
 
 #[cfg(feature = "bevy")]

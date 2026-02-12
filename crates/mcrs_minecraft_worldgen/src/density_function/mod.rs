@@ -628,9 +628,19 @@ pub fn build_functions(
         preliminary_surface_level_index,
     ];
 
-    // optimize_stack(&mut builder.stack, &mut roots);
+    optimize_stack(&mut builder.stack, &mut roots);
 
     let per_block = compute_per_block(&builder.stack, &roots);
+
+    // Build node labels: start with type labels, then overlay reference names
+    let mut node_labels: Vec<String> = vec![String::new(); builder.stack.len()];
+    for (ident, proto) in builder.functions.iter() {
+        if let Some(&idx) = builder.built.get(proto) {
+            if idx < node_labels.len() {
+                node_labels[idx] = ident.to_string();
+            }
+        }
+    }
 
     let router = NoiseRouter {
         final_density_index: roots[0],
@@ -643,9 +653,8 @@ pub fn build_functions(
         preliminary_surface_level_index: roots[7],
         per_block: per_block.into_boxed_slice(),
         stack: Box::from(builder.stack),
+        node_labels: node_labels.into_boxed_slice(),
     };
-    let d = router.final_density(IVec3::new(0, 60, 0));
-    println!("d={:?}", d);
 
     router
 }
@@ -664,6 +673,7 @@ pub struct NoiseRouter {
     /// per_block[i] == false means entry i is column-only (cached across Y changes).
     per_block: Box<[bool]>,
     stack: Box<[DensityFunctionComponent]>,
+    node_labels: Box<[String]>,
 }
 
 impl NoiseRouter {
@@ -678,8 +688,153 @@ impl NoiseRouter {
         }
     }
 
+    pub fn final_density_index(&self) -> usize {
+        self.final_density_index
+    }
+
+    pub fn temperature_index(&self) -> usize {
+        self.temperature_index
+    }
+
+    pub fn vegetation_index(&self) -> usize {
+        self.vegetation_index
+    }
+
+    pub fn continents_index(&self) -> usize {
+        self.continents_index
+    }
+
+    pub fn erosion_index(&self) -> usize {
+        self.erosion_index
+    }
+
+    pub fn depth_index(&self) -> usize {
+        self.depth_index
+    }
+
+    pub fn ridges_index(&self) -> usize {
+        self.ridges_index
+    }
+
+    pub fn preliminary_surface_level_index(&self) -> usize {
+        self.preliminary_surface_level_index
+    }
+
     pub fn final_density(&self, pos: IVec3) -> f32 {
         DensityFunctionComponent::sample_from_stack(&self.stack[..=self.final_density_index], pos)
+    }
+
+    /// Generate a DOT graph of the density function computation tree
+    /// rooted at `root`, evaluated at `pos`. Each node shows its type,
+    /// optional reference name, and computed value.
+    pub fn dump_dot_graph(&self, root_name: &str, root: usize, pos: IVec3) -> String {
+        // Forward evaluate all entries up to root
+        let mut values = vec![0.0f32; root + 1];
+        for i in 0..=root {
+            values[i] = self.stack[i].sample_cached(&values, &self.stack, pos);
+        }
+
+        // Find reachable nodes from root
+        let mut reachable = vec![false; root + 1];
+        reachable[root] = true;
+        for i in (0..=root).rev() {
+            if !reachable[i] {
+                continue;
+            }
+            self.stack[i].visit_input_indices(&mut |idx| {
+                if idx <= root {
+                    reachable[idx] = true;
+                }
+            });
+        }
+
+        let mut dot = String::new();
+        dot.push_str(&format!(
+            "digraph \"{}\" {{\n",
+            root_name.replace('"', "\\\"")
+        ));
+        dot.push_str("  rankdir=BT;\n");
+        dot.push_str("  node [shape=box, style=filled, fontname=\"Helvetica\", fontsize=10];\n");
+        dot.push_str(&format!(
+            "  label=\"{} at ({}, {}, {})\";\n",
+            root_name, pos.x, pos.y, pos.z
+        ));
+        dot.push_str("  labelloc=t;\n");
+
+        // Add nodes
+        for i in 0..=root {
+            if !reachable[i] {
+                continue;
+            }
+            let type_label = self.stack[i].type_label();
+            let value = values[i];
+            let ref_name = &self.node_labels[i];
+
+            let color = if value > 0.5 {
+                "#81c784"
+            } else if value > 0.0 {
+                "#c8e6c9"
+            } else if value > -0.5 {
+                "#ffcdd2"
+            } else {
+                "#ef9a9a"
+            };
+
+            let full_label = if ref_name.is_empty() {
+                format!("[{}] {}\\nval={:.6}", i, type_label, value)
+            } else {
+                let short_name = ref_name.strip_prefix("minecraft:").unwrap_or(ref_name);
+                format!("[{}] {}\\n{}\\nval={:.6}", i, short_name, type_label, value)
+            };
+
+            let shape = match &self.stack[i] {
+                DensityFunctionComponent::Independent(_) => "ellipse",
+                _ => "box",
+            };
+
+            let penwidth = if i == root { "3.0" } else { "1.0" };
+
+            dot.push_str(&format!(
+                "  n{} [label=\"{}\", fillcolor=\"{}\", shape={}, penwidth={}];\n",
+                i, full_label, color, shape, penwidth
+            ));
+        }
+
+        // Add edges
+        for i in 0..=root {
+            if !reachable[i] {
+                continue;
+            }
+            self.stack[i].visit_input_indices(&mut |idx| {
+                if idx <= root && reachable[idx] {
+                    dot.push_str(&format!("  n{} -> n{};\n", idx, i));
+                }
+            });
+        }
+
+        dot.push_str("}\n");
+        dot
+    }
+
+    /// Dump DOT graphs for all major roots (final_density, continents, etc.)
+    pub fn dump_all_roots_dot_graph(&self, pos: IVec3) -> Vec<(String, String)> {
+        let roots = [
+            ("final_density", self.final_density_index),
+            ("temperature", self.temperature_index),
+            ("vegetation", self.vegetation_index),
+            ("continents", self.continents_index),
+            ("erosion", self.erosion_index),
+            ("depth", self.depth_index),
+            ("ridges", self.ridges_index),
+            (
+                "preliminary_surface_level",
+                self.preliminary_surface_level_index,
+            ),
+        ];
+        roots
+            .iter()
+            .map(|(name, idx)| (name.to_string(), self.dump_dot_graph(name, *idx, pos)))
+            .collect()
     }
 
     /// Forward evaluation with column caching.
@@ -1169,10 +1324,7 @@ impl RangeFunction for FlatCache {
 
 impl DensityFunction for FlatCache {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let quart_x = pos.x >> 2;
-        let quart_z = pos.z >> 2;
-        let quart_pos = IVec3::new(quart_x << 2, 0, quart_z) << 2;
-        DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], quart_pos)
+        DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos)
     }
 }
 
@@ -1779,11 +1931,14 @@ impl DensityFunction for WeirdScaled {
                 }
             }
         };
-        amp * self.sampler.get(
-            pos.x as f32 * coord_mul,
-            pos.y as f32 * coord_mul,
-            pos.z as f32 * coord_mul,
-        )
+        amp * self
+            .sampler
+            .get(
+                pos.x as f32 * coord_mul,
+                pos.y as f32 * coord_mul,
+                pos.z as f32 * coord_mul,
+            )
+            .abs()
     }
 }
 
@@ -1854,10 +2009,6 @@ impl DensityFunction for RangeChoice {
         } else {
             self.when_out_index
         };
-        println!(
-            "range choice d={} min={} max={}",
-            input_density, self.min_inclusion_value, self.max_exclusion_value
-        );
         DensityFunctionComponent::sample_from_stack(&stack[..=idx], pos)
     }
 }
@@ -2337,6 +2488,68 @@ enum DensityFunctionComponent {
 }
 
 impl DensityFunctionComponent {
+    fn type_label(&self) -> String {
+        match self {
+            DensityFunctionComponent::Independent(f) => match f {
+                IndependentDensityFunction::Constant(v) => format!("const({v:.6})"),
+                IndependentDensityFunction::OldBlendedNoise(_) => "old_blended_noise".into(),
+                IndependentDensityFunction::Noise(n) => {
+                    format!("noise\\nxz={:.3} y={:.3}", n.xz_scale, n.y_scale)
+                }
+                IndependentDensityFunction::ShiftA(_) => "shift_a".into(),
+                IndependentDensityFunction::ShiftB(_) => "shift_b".into(),
+                IndependentDensityFunction::Shift(_) => "shift".into(),
+                IndependentDensityFunction::ClampedYGradient(g) => {
+                    format!(
+                        "y_gradient\\n{:.0}..{:.0} -> {:.2}..{:.2}",
+                        g.from_y, g.to_y, g.from_value, g.to_value
+                    )
+                }
+            },
+            DensityFunctionComponent::Dependent(f) => match f {
+                DependentDensityFunction::Linear(l) => match l.operation {
+                    LinearOperation::Add => format!("add({:.6})", l.argument),
+                    LinearOperation::Multiply => format!("mul({:.6})", l.argument),
+                },
+                DependentDensityFunction::Affine(a) => {
+                    format!("affine\\ns={:.6} o={:.6}", a.scale, a.offset)
+                }
+                DependentDensityFunction::Unary(u) => format!("{:?}", u.operation),
+                DependentDensityFunction::Binary(b) => match b.operation {
+                    BinaryOperation::Add => "Add".into(),
+                    BinaryOperation::Multiply => "Mul".into(),
+                    BinaryOperation::Min => "Min".into(),
+                    BinaryOperation::Max => "Max".into(),
+                },
+                DependentDensityFunction::ShiftedNoise(s) => {
+                    format!("shifted_noise\\nxz={:.3} y={:.3}", s.xz_scale, s.y_scale)
+                }
+                DependentDensityFunction::WeirdScaled(w) => {
+                    format!("weird_scaled\\n{:?}", w.mapper)
+                }
+                DependentDensityFunction::Clamp(c) => {
+                    format!("clamp\\n{:.4}..{:.4}", c.min_value, c.max_value)
+                }
+                DependentDensityFunction::RangeChoice(r) => {
+                    format!(
+                        "range_choice\\n{:.4}..{:.4}",
+                        r.min_inclusion_value, r.max_exclusion_value
+                    )
+                }
+                DependentDensityFunction::Spline(_) => "spline".into(),
+                DependentDensityFunction::FindTopSurface(_) => "find_top_surface".into(),
+            },
+            DensityFunctionComponent::Wrapper(f) => match f {
+                WrapperDensityFunction::BlendDensity(_) => "blend_density".into(),
+                WrapperDensityFunction::Interpolated(_) => "interpolated".into(),
+                WrapperDensityFunction::FlatCache(_) => "flat_cache".into(),
+                WrapperDensityFunction::Cache2d(_) => "cache_2d".into(),
+                WrapperDensityFunction::CacheOnce(_) => "cache_once".into(),
+                WrapperDensityFunction::CacheAllInCell(_) => "cache_all_in_cell".into(),
+            },
+        }
+    }
+
     fn as_constant(&self) -> Option<f32> {
         match self {
             DensityFunctionComponent::Independent(x) => match x {
@@ -2580,11 +2793,14 @@ impl DensityFunctionComponent {
                             }
                         }
                     };
-                    amp * x.sampler.get(
-                        pos.x as f32 * coord_mul,
-                        pos.y as f32 * coord_mul,
-                        pos.z as f32 * coord_mul,
-                    )
+                    amp * x
+                        .sampler
+                        .get(
+                            pos.x as f32 * coord_mul,
+                            pos.y as f32 * coord_mul,
+                            pos.z as f32 * coord_mul,
+                        )
+                        .abs()
                 }
                 DependentDensityFunction::Clamp(x) => {
                     cache[x.input_index].clamp(x.min_value, x.max_value)
