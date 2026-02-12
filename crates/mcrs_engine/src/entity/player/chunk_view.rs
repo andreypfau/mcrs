@@ -11,7 +11,7 @@ use bevy_ecs::system::Commands;
 use bevy_ecs_macros::Message;
 use std::collections::VecDeque;
 
-const MAX_LOADS: usize = 512;
+const MAX_LOADS: usize = 256;
 
 pub struct ChunkViewPlugin;
 

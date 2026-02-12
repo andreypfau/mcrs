@@ -1,4 +1,4 @@
-use crate::world::generate::generate_noise;
+use crate::world::generate::generate_column;
 use crate::world::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::entity::Entity;
@@ -10,10 +10,9 @@ use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
-use mcrs_engine::world::chunk::{
-    ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos, ChunkStatus,
-};
+use mcrs_engine::world::chunk::{ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos};
 use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsPlugin, OverworldNoiseRouter};
+use std::collections::HashMap;
 use std::sync::OnceLock;
 use tracing::info;
 
@@ -42,16 +41,13 @@ impl Plugin for ChunkPlugin {
 
 static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
 
-struct ChunkLoadingTask {
-    chunk: Entity,
-    pos: ChunkPos,
-    blocks: BlockPalette,
-    biomes: BiomePalette,
+struct ChunkColumnResult {
+    sections: Vec<(Entity, ChunkPos, BlockPalette, BiomePalette)>,
 }
 
 #[derive(Resource, Default)]
 struct LoadingChunks {
-    tasks: Vec<Task<ChunkLoadingTask>>,
+    tasks: Vec<Task<ChunkColumnResult>>,
 }
 
 /// Squared XZ (column) distance from a chunk to the nearest player.
@@ -84,7 +80,7 @@ fn min_y_distance(pos: &ChunkPos, players: &[IVec3]) -> i32 {
 
 fn load_chunks(
     mut commands: Commands,
-    mut query: Query<(Entity, &ChunkPos), With<ChunkLoading>>,
+    query: Query<(Entity, &ChunkPos), With<ChunkLoading>>,
     mut loading_chunks: ResMut<LoadingChunks>,
     overworld_noise_router: Res<OverworldNoiseRouter>,
     players: Query<&Transform, With<Player>>,
@@ -94,30 +90,42 @@ fn load_chunks(
     }
 
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
-    let mut dispatched = 0usize;
 
-    for (e, pos) in query.iter() {
-        let pos = *pos;
-        // info!("Loading chunk at {:?}", pos);
-
+    // Group sections by (x, z) column
+    let mut columns: HashMap<(i32, i32), Vec<(Entity, ChunkPos)>> = HashMap::new();
+    for (entity, pos) in query.iter() {
         commands
-            .entity(e)
+            .entity(entity)
             .insert(ChunkGenerating)
             .remove::<ChunkLoading>();
+        columns
+            .entry((pos.x, pos.z))
+            .or_default()
+            .push((entity, *pos));
+    }
+
+    let mut dispatched = 0usize;
+
+    for ((col_x, col_z), mut sections) in columns {
+        // Sort sections by Y so generation proceeds bottom-to-top
+        sections.sort_by_key(|(_, pos)| pos.y);
 
         let router = overworld_noise_router.0.clone();
         let task = task_pool.spawn(async move {
             let router = router.as_ref();
-            let _span = tracing::info_span!("ChunkGen").entered();
-            let mut blocks = BlockPalette::default();
-            let mut biomes = BiomePalette::default();
-            let _span = tracing::info_span!("ChunkGen::generate_noise").entered();
-            generate_noise(pos, &mut blocks, &mut biomes, &router);
-            ChunkLoadingTask {
-                chunk: e,
-                pos,
-                blocks,
-                biomes,
+            let _span = tracing::info_span!("ChunkColumnGen").entered();
+
+            let y_sections: Vec<i32> = sections.iter().map(|(_, pos)| pos.y).collect();
+            let results = generate_column(col_x, col_z, &y_sections, router);
+
+            let column_sections = sections
+                .into_iter()
+                .zip(results)
+                .map(|((entity, pos), (blocks, biomes))| (entity, pos, blocks, biomes))
+                .collect();
+
+            ChunkColumnResult {
+                sections: column_sections,
             }
         });
 
@@ -126,18 +134,20 @@ fn load_chunks(
     }
 
     if dispatched > 0 {
-        info!("Dispatched generation tasks for {} chunks", dispatched);
+        info!("Dispatched generation tasks for {} columns", dispatched);
     }
 }
 
 fn process_generated_chunk(mut loading_chunks: ResMut<LoadingChunks>, mut commands: Commands) {
     loading_chunks.tasks.retain_mut(|task| {
         let res = block_on(future::poll_once(task));
-        if let Some(loaded_chunk) = res {
-            commands
-                .entity(loaded_chunk.chunk)
-                .insert((ChunkLoaded, loaded_chunk.blocks, loaded_chunk.biomes))
-                .remove::<ChunkGenerating>();
+        if let Some(column_result) = res {
+            for (entity, _pos, blocks, biomes) in column_result.sections {
+                commands
+                    .entity(entity)
+                    .insert((ChunkLoaded, blocks, biomes))
+                    .remove::<ChunkGenerating>();
+            }
             false
         } else {
             true

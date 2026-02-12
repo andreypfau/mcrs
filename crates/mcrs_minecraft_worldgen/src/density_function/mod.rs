@@ -2040,18 +2040,18 @@ pub struct SectionInterpolator {
 
     /// Y-Z plane of corner densities at the current X plane start.
     /// Indexed: `buf[(z_corner * (v_cells + 1)) + y_corner]`
-    start_buf: Vec<f64>,
+    start_buf: Vec<f32>,
     /// Y-Z plane of corner densities at the current X plane end.
-    end_buf: Vec<f64>,
+    end_buf: Vec<f32>,
 
     /// 8 cell corners after `on_sampled_cell_corners`
-    corners: [f64; 8],
+    corners: [f32; 8],
     /// 4 values after Y interpolation
-    after_y: [f64; 4],
+    after_y: [f32; 4],
     /// 2 values after X interpolation
-    after_x: [f64; 2],
+    after_x: [f32; 2],
     /// Final interpolated value
-    val: f64,
+    val: f32,
 }
 
 impl SectionInterpolator {
@@ -2064,12 +2064,12 @@ impl SectionInterpolator {
             v_cell_blocks,
             h_cells,
             v_cells,
-            start_buf: vec![0.0; plane_size],
-            end_buf: vec![0.0; plane_size],
-            corners: [0.0; 8],
-            after_y: [0.0; 4],
-            after_x: [0.0; 2],
-            val: 0.0,
+            start_buf: vec![0.0f32; plane_size],
+            end_buf: vec![0.0f32; plane_size],
+            corners: [0.0f32; 8],
+            after_y: [0.0f32; 4],
+            after_x: [0.0f32; 2],
+            val: 0.0f32,
         }
     }
 
@@ -2120,7 +2120,7 @@ impl SectionInterpolator {
                 let y = base_y + (cy * self.v_cell_blocks) as i32;
                 let pos = IVec3::new(x, y, z);
                 let density = router.final_density(pos, cache);
-                buf[cz * v_stride + cy] = density as f64;
+                buf[cz * v_stride + cy] = density;
             }
         }
     }
@@ -2150,10 +2150,41 @@ impl SectionInterpolator {
         self.corners[7] = self.end_buf[z1 + cell_y + 1];
     }
 
+    /// Check if all 8 corner densities agree on sign.
+    /// Returns `Some(true)` if all positive (solid), `Some(false)` if all <= 0 (air),
+    /// or `None` if mixed (requires interpolation).
+    #[inline]
+    pub fn corners_uniform_sign(&self) -> Option<bool> {
+        let c = &self.corners;
+        if c[0] > 0.0
+            && c[1] > 0.0
+            && c[2] > 0.0
+            && c[3] > 0.0
+            && c[4] > 0.0
+            && c[5] > 0.0
+            && c[6] > 0.0
+            && c[7] > 0.0
+        {
+            return Some(true);
+        }
+        if c[0] <= 0.0
+            && c[1] <= 0.0
+            && c[2] <= 0.0
+            && c[3] <= 0.0
+            && c[4] <= 0.0
+            && c[5] <= 0.0
+            && c[6] <= 0.0
+            && c[7] <= 0.0
+        {
+            return Some(false);
+        }
+        None
+    }
+
     /// Interpolate along Y: 8 corners → 4 values.
     /// `delta` = local_y / v_cell_blocks (0.0 at bottom of cell, 1.0 at top).
     #[inline]
-    pub fn interpolate_y(&mut self, delta: f64) {
+    pub fn interpolate_y(&mut self, delta: f32) {
         self.after_y[0] = self.corners[0].lerp(self.corners[1], delta);
         self.after_y[1] = self.corners[2].lerp(self.corners[3], delta);
         self.after_y[2] = self.corners[4].lerp(self.corners[5], delta);
@@ -2163,7 +2194,7 @@ impl SectionInterpolator {
     /// Interpolate along X: 4 values → 2 values.
     /// `delta` = local_x / h_cell_blocks.
     #[inline]
-    pub fn interpolate_x(&mut self, delta: f64) {
+    pub fn interpolate_x(&mut self, delta: f32) {
         self.after_x[0] = self.after_y[0].lerp(self.after_y[2], delta);
         self.after_x[1] = self.after_y[1].lerp(self.after_y[3], delta);
     }
@@ -2171,7 +2202,7 @@ impl SectionInterpolator {
     /// Interpolate along Z: 2 values → 1 value.
     /// `delta` = local_z / h_cell_blocks.
     #[inline]
-    pub fn interpolate_z(&mut self, delta: f64) {
+    pub fn interpolate_z(&mut self, delta: f32) {
         self.val = self.after_x[0].lerp(self.after_x[1], delta);
     }
 
@@ -2183,7 +2214,7 @@ impl SectionInterpolator {
 
     /// Get the final interpolated density value.
     #[inline]
-    pub fn result(&self) -> f64 {
+    pub fn result(&self) -> f32 {
         self.val
     }
 }
