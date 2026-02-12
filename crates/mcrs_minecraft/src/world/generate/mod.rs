@@ -68,7 +68,8 @@ pub fn generate_noise(
             for y in 0..16 {
                 let world_y = block_y + y;
 
-                let density = noise_router.final_density(IVec3::new(world_x, world_y, world_z));
+                let density =
+                    noise_router.final_density(IVec3::new(world_x, world_y, world_z), &mut cache);
 
                 if density > 0.0 {
                     block_states.set(BlockPos::new(x, y, z), &STONE);

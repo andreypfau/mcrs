@@ -246,12 +246,44 @@ fn try_flatten_spline(
         1.0 / (coord_max[2] - coord_min[2]),
     ];
 
-    let strides = [grid_size * grid_size, grid_size, 1];
+    // 3b. Count unique knot positions per axis to determine per-axis grid sizes.
+    //     More knots = more features = need higher resolution.
+    let mut knot_counts = [0usize; 3];
+    fn count_knots_per_axis(
+        spline: &Spline,
+        coord_indices: &[usize; 3],
+        knot_counts: &mut [usize; 3],
+    ) {
+        for (i, &idx) in coord_indices.iter().enumerate() {
+            if spline.input_index == idx {
+                knot_counts[i] = knot_counts[i].max(spline.locations.len());
+            }
+        }
+        for val in spline.values.iter() {
+            if let SplineValue::Spline(nested) = val {
+                count_knots_per_axis(nested, coord_indices, knot_counts);
+            }
+        }
+    }
+    count_knots_per_axis(spline, &coord_indices, &mut knot_counts);
+
+    // Per-axis grid: at least base_grid, but scale up for axes with many knots.
+    // Use ~8 grid points per knot interval for good cubic interpolation.
+    let mut grid_sizes = [0usize; 3];
+    for i in 0..3 {
+        let knot_based = if knot_counts[i] > 1 {
+            (knot_counts[i] - 1) * 8
+        } else {
+            grid_size
+        };
+        grid_sizes[i] = grid_size.max(knot_based);
+    }
+
+    let strides = [grid_sizes[1] * grid_sizes[2], grid_sizes[2], 1];
 
     // 4. Determine which stack entries need forward evaluation
     //    (entries between min(independent) and spline_idx that are in the dependency cone)
     let min_coord = coord_indices[0]; // already sorted
-    let max_coord = *all_coords.last().unwrap();
 
     // Collect the set of entries we need to evaluate: everything in the dependency cone
     // of each all_coords entry, from min_coord..=max_coord (excluding the independent coords,
@@ -263,7 +295,6 @@ fn try_flatten_spline(
         }
     }
     // Also find intermediate entries between min_coord and max_coord that feed into derived coords
-    // We need entries that sit between independent coords and derived coords
     for &derived in &needs_eval.clone() {
         let mut queue = vec![derived];
         let mut visited_set = vec![false; stack.len()];
@@ -284,29 +315,26 @@ fn try_flatten_spline(
     needs_eval.dedup();
 
     // 5. Build the LUT
-    let total = grid_size * grid_size * grid_size;
+    let total = grid_sizes[0] * grid_sizes[1] * grid_sizes[2];
     let mut lut = vec![0.0f32; total];
     let mut lut_min = f32::INFINITY;
     let mut lut_max = f32::NEG_INFINITY;
 
     let mut cache = vec![0.0f32; stack.len()];
 
-    // Pre-fill cache for all entries before min_coord (they are constant w.r.t. the grid)
-    // Actually, we only need entries referenced by the spline's dependency cone.
-    // For safety, evaluate the independent coords' positions only.
-
-    for i in 0..grid_size {
-        let c0 = coord_min[0] + (i as f32 / (grid_size - 1) as f32) * (coord_max[0] - coord_min[0]);
+    for i in 0..grid_sizes[0] {
+        let c0 =
+            coord_min[0] + (i as f32 / (grid_sizes[0] - 1) as f32) * (coord_max[0] - coord_min[0]);
         cache[coord_indices[0]] = c0;
 
-        for j in 0..grid_size {
-            let c1 =
-                coord_min[1] + (j as f32 / (grid_size - 1) as f32) * (coord_max[1] - coord_min[1]);
+        for j in 0..grid_sizes[1] {
+            let c1 = coord_min[1]
+                + (j as f32 / (grid_sizes[1] - 1) as f32) * (coord_max[1] - coord_min[1]);
             cache[coord_indices[1]] = c1;
 
-            for k in 0..grid_size {
+            for k in 0..grid_sizes[2] {
                 let c2 = coord_min[2]
-                    + (k as f32 / (grid_size - 1) as f32) * (coord_max[2] - coord_min[2]);
+                    + (k as f32 / (grid_sizes[2] - 1) as f32) * (coord_max[2] - coord_min[2]);
                 cache[coord_indices[2]] = c2;
 
                 // Forward-evaluate derived entries
@@ -328,7 +356,7 @@ fn try_flatten_spline(
         coord_indices,
         coord_min,
         coord_inv_range,
-        grid_size,
+        grid_sizes,
         strides,
         lut: lut.into_boxed_slice(),
         min_value: lut_min,
@@ -959,19 +987,19 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
     }
 
     // Phase 3: Flatten splines to lookup tables
-    let grid_size = 64;
     let mut splines_flattened = 0usize;
-    for i in 0..stack.len() {
-        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Spline(_)) = &stack[i]
-        {
-            if let Some(flat) = try_flatten_spline(i, stack, grid_size) {
-                stack[i] = DensityFunctionComponent::Dependent(
-                    DependentDensityFunction::FlattenedSpline(flat),
-                );
-                splines_flattened += 1;
-            }
-        }
-    }
+    // let grid_size = 128;
+    // for i in 0..stack.len() {
+    //     if let DensityFunctionComponent::Dependent(DependentDensityFunction::Spline(_)) = &stack[i]
+    //     {
+    //         if let Some(flat) = try_flatten_spline(i, stack, grid_size) {
+    //             stack[i] = DensityFunctionComponent::Dependent(
+    //                 DependentDensityFunction::FlattenedSpline(flat),
+    //             );
+    //             splines_flattened += 1;
+    //         }
+    //     }
+    // }
 
     info!(
         stack_size = n,
@@ -988,34 +1016,53 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
 }
 
 /// Compute which stack entries need recomputation per block (Y changes)
-/// vs once per column (X,Z changes). FlatCache and Cache2d block propagation
-/// to their inputs, marking those dependency cones as column-only.
-fn compute_per_block(stack: &[DensityFunctionComponent], roots: &[usize]) -> Vec<bool> {
+/// vs once per column (X,Z changes only).
+///
+/// Forward propagation: a node is per_block if it intrinsically depends on Y
+/// OR if any of its inputs is per_block. FlatCache and Cache2d force their
+/// output to column-only regardless of inputs.
+fn compute_per_block(stack: &[DensityFunctionComponent], _roots: &[usize]) -> Vec<bool> {
     let mut per_block = vec![false; stack.len()];
 
-    // Mark all roots as per_block
-    for &root in roots {
-        per_block[root] = true;
-    }
+    for i in 0..stack.len() {
+        // Check if intrinsically per_block (uses pos.y directly)
+        let intrinsic = match &stack[i] {
+            DensityFunctionComponent::Independent(f) => matches!(
+                f,
+                IndependentDensityFunction::OldBlendedNoise(_)
+                    | IndependentDensityFunction::Noise(_)
+                    | IndependentDensityFunction::ClampedYGradient(_)
+            ),
+            DensityFunctionComponent::Dependent(f) => matches!(
+                f,
+                DependentDensityFunction::Slide(_)
+                    | DependentDensityFunction::ShiftedNoise(_)
+                    | DependentDensityFunction::WeirdScaled(_)
+                    | DependentDensityFunction::FindTopSurface(_)
+            ),
+            DensityFunctionComponent::Wrapper(_) => false,
+        };
 
-    // Backward propagation: for each per_block entry, mark its inputs as per_block,
-    // UNLESS the entry is FlatCache or Cache2d (they block propagation).
-    for i in (0..stack.len()).rev() {
-        if !per_block[i] {
-            continue;
+        if intrinsic {
+            per_block[i] = true;
+        } else {
+            // per_block if any input is per_block
+            stack[i].visit_input_indices(&mut |idx| {
+                if per_block[idx] {
+                    per_block[i] = true;
+                }
+            });
         }
 
-        // FlatCache and Cache2d block propagation — their inputs are column-only
-        match &stack[i] {
+        // FlatCache/Cache2d override: force column-only
+        if matches!(
+            &stack[i],
             DensityFunctionComponent::Wrapper(
-                WrapperDensityFunction::FlatCache(_) | WrapperDensityFunction::Cache2d(_),
-            ) => continue,
-            _ => {}
+                WrapperDensityFunction::FlatCache(_) | WrapperDensityFunction::Cache2d(_)
+            )
+        ) {
+            per_block[i] = false;
         }
-
-        stack[i].visit_input_indices(&mut |idx| {
-            per_block[idx] = true;
-        });
     }
 
     let column_only_count = per_block.iter().filter(|&&b| !b).count();
@@ -1251,7 +1298,12 @@ impl NoiseRouter {
         self.vein_gap_index
     }
 
-    pub fn final_density(&self, pos: IVec3) -> f32 {
+    pub fn final_density(&self, pos: IVec3, cache: &mut DensityCache) -> f32 {
+        self.evaluate_forward(self.final_density_index, pos, cache)
+    }
+
+    /// Evaluate final_density without caching (recursive, for validation/comparison).
+    pub fn final_density_uncached(&self, pos: IVec3) -> f32 {
         DensityFunctionComponent::sample_from_stack(&self.stack[..=self.final_density_index], pos)
     }
 
@@ -1545,25 +1597,31 @@ impl NoiseRouter {
 
     /// Forward evaluation with column caching.
     ///
-    /// When (X,Z) changes: evaluate ALL entries at Y=0 to populate column caches,
-    /// then recompute per_block entries at actual Y.
-    /// When (X,Z) is unchanged: only recompute per_block entries.
+    /// When (X,Z) changes: evaluate ALL entries at Y=0 to populate the cache
+    /// (this correctly fills FlatCache inputs at Y=0, and gives baseline values
+    /// for all other entries). Then recompute per_block entries at actual Y.
+    ///
+    /// When (X,Z) is unchanged: only recompute per_block entries at actual Y.
+    /// Column-only entries retain their cached values.
     fn evaluate_forward(&self, root: usize, pos: IVec3, cache: &mut DensityCache) -> f32 {
-        // let column_changed = pos.x != cache.last_x || pos.z != cache.last_z;
-        // cache.last_x = pos.x;
-        // cache.last_z = pos.z;
-        //
-        // if column_changed {
-        //     // Evaluate ALL entries at Y=0 to populate column-only caches (FlatCache/Cache2d)
-        //     let y0_pos = IVec3::new(pos.x, 0, pos.z);
-        //     for i in 0..=root {
-        //         cache.scratch[i] =
-        //             self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
-        //     }
-        //     cache.column_valid = true;
-        // }
+        let column_changed = pos.x != cache.last_x || pos.z != cache.last_z || !cache.column_valid;
 
-        // Recompute per-block entries at actual Y
+        if column_changed {
+            cache.last_x = pos.x;
+            cache.last_z = pos.z;
+
+            // Evaluate ALL entries at Y=0 to populate column-only caches.
+            // FlatCache/Cache2d inputs (which may intrinsically use Y) get evaluated
+            // at Y=0, which is the correct behavior (FlatCache caches at Y=0).
+            let y0_pos = IVec3::new(pos.x, 0, pos.z);
+            for i in 0..=root {
+                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
+            }
+            cache.column_valid = true;
+        }
+
+        // Recompute per-block entries at actual Y.
+        // Column-only entries retain their cached values from the column pass.
         for i in 0..=root {
             if self.per_block[i] {
                 cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
@@ -3237,7 +3295,7 @@ struct FlattenedSpline {
     coord_indices: [usize; 3],
     coord_min: [f32; 3],
     coord_inv_range: [f32; 3],
-    grid_size: usize,
+    grid_sizes: [usize; 3],
     strides: [usize; 3],
     lut: Box<[f32]>,
     min_value: f32,
@@ -3249,45 +3307,101 @@ impl PartialEq for FlattenedSpline {
         self.coord_indices == other.coord_indices
             && self.coord_min == other.coord_min
             && self.coord_inv_range == other.coord_inv_range
-            && self.grid_size == other.grid_size
+            && self.grid_sizes == other.grid_sizes
             && self.min_value == other.min_value
             && self.max_value == other.max_value
     }
 }
 
 impl FlattenedSpline {
+    /// Monotone cubic Hermite interpolation between p1 and p2.
+    /// Uses p0 and p3 as neighbors for derivative estimation with
+    /// Fritsch-Carlson monotonicity correction to prevent overshoot.
+    #[inline(always)]
+    fn monotone_cubic(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
+        let delta = p2 - p1;
+
+        // Estimate derivatives via central differences
+        let mut d1 = (p2 - p0) * 0.5;
+        let mut d2 = (p3 - p1) * 0.5;
+
+        // Fritsch-Carlson monotonicity: if delta is ~0, zero both derivatives
+        if delta.abs() < 1e-10 {
+            d1 = 0.0;
+            d2 = 0.0;
+        } else {
+            // Clamp derivatives to prevent overshoot
+            let alpha = d1 / delta;
+            let beta = d2 / delta;
+            // If derivatives point the wrong way, zero them
+            if alpha < 0.0 {
+                d1 = 0.0;
+            }
+            if beta < 0.0 {
+                d2 = 0.0;
+            }
+            // Fritsch-Carlson: constrain to circle of radius 3
+            let r2 = alpha * alpha + beta * beta;
+            if r2 > 9.0 {
+                let s = 3.0 / r2.sqrt();
+                d1 = s * alpha * delta;
+                d2 = s * beta * delta;
+            }
+        }
+
+        // Hermite basis evaluation
+        let t2 = t * t;
+        let t3 = t2 * t;
+        let h00 = 2.0 * t3 - 3.0 * t2 + 1.0;
+        let h10 = t3 - 2.0 * t2 + t;
+        let h01 = -2.0 * t3 + 3.0 * t2;
+        let h11 = t3 - t2;
+
+        h00 * p1 + h10 * d1 + h01 * p2 + h11 * d2
+    }
+
+    /// Tricubic monotone Hermite interpolation with per-axis grid sizes.
     #[inline]
     fn evaluate(&self, c0: f32, c1: f32, c2: f32) -> f32 {
-        let max_idx = (self.grid_size - 1) as f32;
+        let coords = [c0, c1, c2];
+        let mut f = [0.0f32; 3];
+        let mut idx = [0usize; 3];
+        let mut t = [0.0f32; 3];
+        let mut neighbors = [[0usize; 4]; 3]; // [i-1, i, i+1, i+2] per axis
 
-        let fx = ((c0 - self.coord_min[0]) * self.coord_inv_range[0]).clamp(0.0, 1.0) * max_idx;
-        let fy = ((c1 - self.coord_min[1]) * self.coord_inv_range[1]).clamp(0.0, 1.0) * max_idx;
-        let fz = ((c2 - self.coord_min[2]) * self.coord_inv_range[2]).clamp(0.0, 1.0) * max_idx;
+        for d in 0..3 {
+            let gs = self.grid_sizes[d];
+            let max_idx = (gs - 1) as f32;
+            f[d] = ((coords[d] - self.coord_min[d]) * self.coord_inv_range[d]).clamp(0.0, 1.0)
+                * max_idx;
+            idx[d] = (f[d] as usize).min(gs - 2);
+            t[d] = f[d] - idx[d] as f32;
+            let last = gs - 1;
+            neighbors[d] = [
+                idx[d].saturating_sub(1),
+                idx[d],
+                (idx[d] + 1).min(last),
+                (idx[d] + 2).min(last),
+            ];
+        }
 
-        let ix = (fx as usize).min(self.grid_size - 2);
-        let iy = (fy as usize).min(self.grid_size - 2);
-        let iz = (fz as usize).min(self.grid_size - 2);
-        let tx = fx - ix as f32;
-        let ty = fy - iy as f32;
-        let tz = fz - iz as f32;
-
-        let base = ix * self.strides[0] + iy * self.strides[1] + iz;
-        let c000 = self.lut[base];
-        let c001 = self.lut[base + 1];
-        let c010 = self.lut[base + self.strides[1]];
-        let c011 = self.lut[base + self.strides[1] + 1];
-        let c100 = self.lut[base + self.strides[0]];
-        let c101 = self.lut[base + self.strides[0] + 1];
-        let c110 = self.lut[base + self.strides[0] + self.strides[1]];
-        let c111 = self.lut[base + self.strides[0] + self.strides[1] + 1];
-
-        let c00 = c000 + (c001 - c000) * tz;
-        let c01 = c010 + (c011 - c010) * tz;
-        let c10 = c100 + (c101 - c100) * tz;
-        let c11 = c110 + (c111 - c110) * tz;
-        let c0 = c00 + (c01 - c00) * ty;
-        let c1 = c10 + (c11 - c10) * ty;
-        c0 + (c1 - c0) * tx
+        // Tricubic: interpolate along axis 2, then 1, then 0
+        let mut x_vals = [0.0f32; 4];
+        for (a, &xi) in neighbors[0].iter().enumerate() {
+            let mut y_vals = [0.0f32; 4];
+            for (b, &yi) in neighbors[1].iter().enumerate() {
+                let base = xi * self.strides[0] + yi * self.strides[1];
+                y_vals[b] = Self::monotone_cubic(
+                    self.lut[base + neighbors[2][0]],
+                    self.lut[base + neighbors[2][1]],
+                    self.lut[base + neighbors[2][2]],
+                    self.lut[base + neighbors[2][3]],
+                    t[2],
+                );
+            }
+            x_vals[a] = Self::monotone_cubic(y_vals[0], y_vals[1], y_vals[2], y_vals[3], t[1]);
+        }
+        Self::monotone_cubic(x_vals[0], x_vals[1], x_vals[2], x_vals[3], t[0])
     }
 }
 
@@ -3540,7 +3654,10 @@ impl DensityFunctionComponent {
                 }
                 DependentDensityFunction::Spline(_) => "spline".into(),
                 DependentDensityFunction::FlattenedSpline(f) => {
-                    format!("flattened_spline\\ngrid={}^3", f.grid_size)
+                    format!(
+                        "flattened_spline\\ngrid={}x{}x{}",
+                        f.grid_sizes[0], f.grid_sizes[1], f.grid_sizes[2]
+                    )
                 }
                 DependentDensityFunction::FindTopSurface(_) => "find_top_surface".into(),
             },
