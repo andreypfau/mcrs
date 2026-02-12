@@ -169,6 +169,22 @@ fn generate_graph(
     let (functions, noises, settings) = load_all(assets_path, settings_name);
     let router = build_functions(&functions, &noises, &settings, seed);
 
+    // Cross-validate column cache against reference forward sweep
+    let y_values: Vec<i32> = (-64..=320).step_by(16).collect();
+    let base_x = pos.x & !15; // align to chunk boundary
+    let base_z = pos.z & !15;
+    eprintln!(
+        "Verifying column cache at chunk ({}, {})...",
+        base_x >> 4,
+        base_z >> 4
+    );
+    if router.verify_column_cache(base_x, base_z, &y_values) {
+        eprintln!("Column cache verification: PASSED");
+    } else {
+        eprintln!("Column cache verification: FAILED");
+        std::process::exit(1);
+    }
+
     let dot = if root_name == "all" {
         router.dump_combined_dot_graph(pos)
     } else {

@@ -1255,6 +1255,31 @@ pub struct DensityCache {
     column_valid: bool,
 }
 
+/// Pre-populated cache holding Zone A (column-only) results for all 256 XZ positions
+/// within a 16x16 chunk column. Eliminates the `column_changed` branch from the
+/// per-block hot path when evaluating `final_density`.
+pub struct ChunkColumnCache {
+    /// `column_data[xz_idx * zone_a_count + entry_idx]`
+    /// where `xz_idx = local_x * 16 + local_z` (row-major).
+    column_data: Vec<f32>,
+    zone_a_count: usize,
+    base_block_x: i32,
+    base_block_z: i32,
+    /// Scratch buffer (len == stack.len()), reused per `final_density_from_column_cache` call.
+    scratch: Vec<f32>,
+}
+
+impl ChunkColumnCache {
+    /// Load pre-computed Zone A values for the given local (x, z) into scratch[0..zone_a_count).
+    #[inline]
+    pub fn load_column(&mut self, local_x: i32, local_z: i32) {
+        let xz_idx = (local_x * 16 + local_z) as usize;
+        let off = xz_idx * self.zone_a_count;
+        self.scratch[..self.zone_a_count]
+            .copy_from_slice(&self.column_data[off..off + self.zone_a_count]);
+    }
+}
+
 pub fn build_functions(
     functions: &BTreeMap<Ident<String>, ProtoDensityFunction>,
     noises: &BTreeMap<Ident<String>, NoiseParam>,
@@ -1545,6 +1570,88 @@ impl NoiseRouter {
             }
         }
 
+        ok
+    }
+
+    /// Create a new `ChunkColumnCache` for a 16x16 chunk column starting at block (base_block_x, base_block_z).
+    pub fn new_column_cache(&self, base_block_x: i32, base_block_z: i32) -> ChunkColumnCache {
+        ChunkColumnCache {
+            column_data: vec![0.0f32; 256 * self.column_boundary],
+            zone_a_count: self.column_boundary,
+            base_block_x,
+            base_block_z,
+            scratch: vec![0.0f32; self.stack.len()],
+        }
+    }
+
+    /// Pre-populate Zone A values for all 256 XZ positions in the chunk column.
+    /// Evaluates each column at Y=0 (Zone A entries are Y-independent).
+    pub fn populate_columns(&self, cache: &mut ChunkColumnCache) {
+        let zone_a_count = cache.zone_a_count;
+        for local_x in 0..16i32 {
+            for local_z in 0..16i32 {
+                let y0_pos = IVec3::new(
+                    cache.base_block_x + local_x,
+                    0,
+                    cache.base_block_z + local_z,
+                );
+                for i in 0..zone_a_count {
+                    cache.scratch[i] =
+                        self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
+                }
+                let xz_idx = (local_x * 16 + local_z) as usize;
+                let off = xz_idx * zone_a_count;
+                cache.column_data[off..off + zone_a_count]
+                    .copy_from_slice(&cache.scratch[..zone_a_count]);
+            }
+        }
+    }
+
+    /// Evaluate final_density using a pre-populated column cache.
+    /// Zone A values must already be loaded into `cache.scratch` via `load_column`.
+    /// Only evaluates Zone B entries (branchless, no column_changed check).
+    #[inline]
+    pub fn final_density_from_column_cache(&self, pos: IVec3, cache: &mut ChunkColumnCache) -> f32 {
+        for i in self.column_boundary..=self.final_density_index {
+            cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
+        }
+        cache.scratch[self.final_density_index]
+    }
+
+    /// Verify that `final_density_from_column_cache` matches `final_density` for
+    /// all 256 XZ positions at the given Y values. Returns true if all checks pass.
+    pub fn verify_column_cache(&self, base_x: i32, base_z: i32, y_values: &[i32]) -> bool {
+        let mut ok = true;
+        let mut column_cache = self.new_column_cache(base_x, base_z);
+        self.populate_columns(&mut column_cache);
+
+        for local_x in 0..16i32 {
+            for local_z in 0..16i32 {
+                column_cache.load_column(local_x, local_z);
+                for &y in y_values {
+                    let pos = IVec3::new(base_x + local_x, y, base_z + local_z);
+
+                    let actual = self.final_density_from_column_cache(pos, &mut column_cache);
+
+                    // Reference: simple forward sweep
+                    let mut values = vec![0.0f32; self.final_density_index + 1];
+                    for i in 0..=self.final_density_index {
+                        values[i] = self.stack[i].sample_cached(&values, &self.stack, pos);
+                    }
+                    let expected = values[self.final_density_index];
+
+                    if (expected - actual).abs() > 1e-6 {
+                        eprintln!(
+                            "COLUMN CACHE MISMATCH at ({},{},{}): expected={}, actual={}",
+                            pos.x, pos.y, pos.z, expected, actual
+                        );
+                        ok = false;
+                    }
+                }
+                // Reload column since final_density_from_column_cache mutated scratch
+                column_cache.load_column(local_x, local_z);
+            }
+        }
         ok
     }
 

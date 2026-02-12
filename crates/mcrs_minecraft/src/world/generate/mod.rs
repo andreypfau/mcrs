@@ -60,21 +60,21 @@ pub fn generate_noise(
     let block_x = pos.x * 16;
     let block_z = pos.z * 16;
     let block_y = pos.y * 16;
-    let mut cache = noise_router.new_cache();
-    for x in 0..16 {
-        let world_x = block_x + x;
-        for z in 0..16 {
-            let world_z = block_z + z;
-            for y in 0..16 {
-                let world_y = block_y + y;
 
-                let density =
-                    noise_router.final_density(IVec3::new(world_x, world_y, world_z), &mut cache);
+    let mut column_cache = noise_router.new_column_cache(block_x, block_z);
+    noise_router.populate_columns(&mut column_cache);
+
+    for x in 0..16 {
+        for z in 0..16 {
+            column_cache.load_column(x, z);
+            for y in 0..16 {
+                let density = noise_router.final_density_from_column_cache(
+                    IVec3::new(block_x + x, block_y + y, block_z + z),
+                    &mut column_cache,
+                );
 
                 if density > 0.0 {
                     block_states.set(BlockPos::new(x, y, z), &STONE);
-                } else {
-                    // Air block, do nothing or set to air if necessary
                 }
             }
         }
