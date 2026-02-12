@@ -1377,6 +1377,8 @@ pub fn build_functions(
         per_block: per_block.into_boxed_slice(),
         column_boundary,
         fd_boundary,
+        h_cell_blocks: builder_options.horizontal_cell_block_count,
+        v_cell_blocks: builder_options.vertical_cell_block_count,
         stack: Box::from(builder.stack),
         node_labels: node_labels.into_boxed_slice(),
     };
@@ -1410,6 +1412,10 @@ pub struct NoiseRouter {
     /// First index of Zone C (entries not reachable from final_density).
     /// Zone B [column_boundary..fd_boundary): per-Y entries for final_density.
     fd_boundary: usize,
+    /// Horizontal cell size in blocks (typically 4).
+    h_cell_blocks: usize,
+    /// Vertical cell size in blocks (typically 8).
+    v_cell_blocks: usize,
     stack: Box<[DensityFunctionComponent]>,
     node_labels: Box<[String]>,
 }
@@ -2013,6 +2019,172 @@ impl NoiseRouter {
         }
 
         cache.scratch[root]
+    }
+
+    /// Create a new `SectionInterpolator` matching this router's cell dimensions.
+    pub fn new_section_interpolator(&self) -> SectionInterpolator {
+        SectionInterpolator::new(self.h_cell_blocks, self.v_cell_blocks)
+    }
+}
+
+/// Trilinear interpolator for chunk section noise generation.
+///
+/// Samples `final_density` only at cell corners and trilinearly interpolates
+/// interior block positions. With cell sizes of 4x8x4, this reduces expensive
+/// density evaluations from 4,096 to 75 per 16x16x16 section.
+pub struct SectionInterpolator {
+    h_cell_blocks: usize,
+    v_cell_blocks: usize,
+    h_cells: usize,
+    v_cells: usize,
+
+    /// Y-Z plane of corner densities at the current X plane start.
+    /// Indexed: `buf[(z_corner * (v_cells + 1)) + y_corner]`
+    start_buf: Vec<f64>,
+    /// Y-Z plane of corner densities at the current X plane end.
+    end_buf: Vec<f64>,
+
+    /// 8 cell corners after `on_sampled_cell_corners`
+    corners: [f64; 8],
+    /// 4 values after Y interpolation
+    after_y: [f64; 4],
+    /// 2 values after X interpolation
+    after_x: [f64; 2],
+    /// Final interpolated value
+    val: f64,
+}
+
+impl SectionInterpolator {
+    pub fn new(h_cell_blocks: usize, v_cell_blocks: usize) -> Self {
+        let h_cells = 16 / h_cell_blocks;
+        let v_cells = 16 / v_cell_blocks;
+        let plane_size = (h_cells + 1) * (v_cells + 1);
+        Self {
+            h_cell_blocks,
+            v_cell_blocks,
+            h_cells,
+            v_cells,
+            start_buf: vec![0.0; plane_size],
+            end_buf: vec![0.0; plane_size],
+            corners: [0.0; 8],
+            after_y: [0.0; 4],
+            after_x: [0.0; 2],
+            val: 0.0,
+        }
+    }
+
+    #[inline]
+    pub fn h_cells(&self) -> usize {
+        self.h_cells
+    }
+
+    #[inline]
+    pub fn v_cells(&self) -> usize {
+        self.v_cells
+    }
+
+    #[inline]
+    pub fn h_cell_blocks(&self) -> usize {
+        self.h_cell_blocks
+    }
+
+    #[inline]
+    pub fn v_cell_blocks(&self) -> usize {
+        self.v_cell_blocks
+    }
+
+    /// Evaluate `final_density` at all corner positions on a Y-Z plane for a given X,
+    /// storing results into `start_buf` or `end_buf`.
+    ///
+    /// Uses `DensityCache` which handles Zone A column caching internally via
+    /// the `column_changed` check. Corner positions can be at +16 (outside the
+    /// 16x16 chunk), so `ChunkColumnCache` cannot be used here.
+    pub fn fill_plane(
+        &mut self,
+        is_start: bool,
+        x: i32,
+        base_y: i32,
+        base_z: i32,
+        router: &NoiseRouter,
+        cache: &mut DensityCache,
+    ) {
+        let buf = if is_start {
+            &mut self.start_buf
+        } else {
+            &mut self.end_buf
+        };
+        let v_stride = self.v_cells + 1;
+        for cz in 0..=self.h_cells {
+            let z = base_z + (cz * self.h_cell_blocks) as i32;
+            for cy in 0..=self.v_cells {
+                let y = base_y + (cy * self.v_cell_blocks) as i32;
+                let pos = IVec3::new(x, y, z);
+                let density = router.final_density(pos, cache);
+                buf[cz * v_stride + cy] = density as f64;
+            }
+        }
+    }
+
+    /// Load the 8 corner densities for a given cell from the start/end buffers.
+    /// Corner layout:
+    ///   corners[0] = start_buf[z][y]       (x0, y0, z0)
+    ///   corners[1] = start_buf[z][y+1]     (x0, y1, z0)
+    ///   corners[2] = start_buf[z+1][y]     (x0, y0, z1)
+    ///   corners[3] = start_buf[z+1][y+1]   (x0, y1, z1)
+    ///   corners[4] = end_buf[z][y]         (x1, y0, z0)
+    ///   corners[5] = end_buf[z][y+1]       (x1, y1, z0)
+    ///   corners[6] = end_buf[z+1][y]       (x1, y0, z1)
+    ///   corners[7] = end_buf[z+1][y+1]     (x1, y1, z1)
+    #[inline]
+    pub fn on_sampled_cell_corners(&mut self, cell_y: usize, cell_z: usize) {
+        let v_stride = self.v_cells + 1;
+        let z0 = cell_z * v_stride;
+        let z1 = (cell_z + 1) * v_stride;
+        self.corners[0] = self.start_buf[z0 + cell_y];
+        self.corners[1] = self.start_buf[z0 + cell_y + 1];
+        self.corners[2] = self.start_buf[z1 + cell_y];
+        self.corners[3] = self.start_buf[z1 + cell_y + 1];
+        self.corners[4] = self.end_buf[z0 + cell_y];
+        self.corners[5] = self.end_buf[z0 + cell_y + 1];
+        self.corners[6] = self.end_buf[z1 + cell_y];
+        self.corners[7] = self.end_buf[z1 + cell_y + 1];
+    }
+
+    /// Interpolate along Y: 8 corners → 4 values.
+    /// `delta` = local_y / v_cell_blocks (0.0 at bottom of cell, 1.0 at top).
+    #[inline]
+    pub fn interpolate_y(&mut self, delta: f64) {
+        self.after_y[0] = self.corners[0].lerp(self.corners[1], delta);
+        self.after_y[1] = self.corners[2].lerp(self.corners[3], delta);
+        self.after_y[2] = self.corners[4].lerp(self.corners[5], delta);
+        self.after_y[3] = self.corners[6].lerp(self.corners[7], delta);
+    }
+
+    /// Interpolate along X: 4 values → 2 values.
+    /// `delta` = local_x / h_cell_blocks.
+    #[inline]
+    pub fn interpolate_x(&mut self, delta: f64) {
+        self.after_x[0] = self.after_y[0].lerp(self.after_y[2], delta);
+        self.after_x[1] = self.after_y[1].lerp(self.after_y[3], delta);
+    }
+
+    /// Interpolate along Z: 2 values → 1 value.
+    /// `delta` = local_z / h_cell_blocks.
+    #[inline]
+    pub fn interpolate_z(&mut self, delta: f64) {
+        self.val = self.after_x[0].lerp(self.after_x[1], delta);
+    }
+
+    /// Swap start and end buffers (the current end becomes the next start).
+    #[inline]
+    pub fn swap_buffers(&mut self) {
+        swap(&mut self.start_buf, &mut self.end_buf);
+    }
+
+    /// Get the final interpolated density value.
+    #[inline]
+    pub fn result(&self) -> f64 {
+        self.val
     }
 }
 

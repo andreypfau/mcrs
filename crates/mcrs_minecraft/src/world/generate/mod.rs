@@ -1,82 +1,65 @@
-use crate::world::block::minecraft::{BEDROCK, DIRT, GRASS_BLOCK, STONE};
+use crate::world::block::minecraft::STONE;
 use crate::world::palette::{BiomePalette, BlockPalette};
-use bevy_math::IVec3;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::ChunkPos;
 use mcrs_minecraft_worldgen::density_function::NoiseRouter;
 
-// i need layer:
-// grass_block - top 1
-// dirt - 3
-// stone - 59
-// bedrock - bottom 1
-pub fn generate_chunk(pos: ChunkPos, block_states: &mut BlockPalette, _biomes: &mut BiomePalette) {
-    let chunk_y_start = pos.y * 16;
-    let chunk_y_end = chunk_y_start + 16;
-
-    // Handle stone layer (y=1 to y=59)
-    if chunk_y_start < 60 && chunk_y_end > 1 {
-        block_states.fill(&STONE);
-    }
-
-    // Handle bedrock layer (y=0)
-    if chunk_y_start <= 0 && chunk_y_end > 0 {
-        for x in 0..16 {
-            for z in 0..16 {
-                block_states.set(BlockPos::new(x, 0, z), &BEDROCK);
-            }
-        }
-    }
-
-    // Handle dirt layer (y=60 to y=62)
-    if chunk_y_start < 63 && chunk_y_end > 60 {
-        let dirt_start = chunk_y_start.max(60);
-        let dirt_end = chunk_y_end.min(63);
-        for y in dirt_start..dirt_end {
-            for x in 0..16 {
-                for z in 0..16 {
-                    block_states.set(BlockPos::new(x, y - chunk_y_start, z), &DIRT);
-                }
-            }
-        }
-    }
-
-    // Handle grass_block layer (y=63)
-    if chunk_y_start <= 63 && chunk_y_end > 63 {
-        for x in 0..16 {
-            for z in 0..16 {
-                block_states.set(BlockPos::new(x, 63 - chunk_y_start, z), &GRASS_BLOCK);
-            }
-        }
-    }
-}
-
 pub fn generate_noise(
     pos: ChunkPos,
     block_states: &mut BlockPalette,
-    biomes: &mut BiomePalette,
+    _biomes: &mut BiomePalette,
     noise_router: &NoiseRouter,
 ) {
     let block_x = pos.x * 16;
     let block_z = pos.z * 16;
     let block_y = pos.y * 16;
 
-    let mut column_cache = noise_router.new_column_cache(block_x, block_z);
-    noise_router.populate_columns(&mut column_cache);
+    let mut cache = noise_router.new_cache();
 
-    for x in 0..16 {
-        for z in 0..16 {
-            column_cache.load_column(x, z);
-            for y in 0..16 {
-                let density = noise_router.final_density_from_column_cache(
-                    IVec3::new(block_x + x, block_y + y, block_z + z),
-                    &mut column_cache,
-                );
+    let mut interp = noise_router.new_section_interpolator();
+    let h_cell_blocks = interp.h_cell_blocks();
+    let v_cell_blocks = interp.v_cell_blocks();
+    let h_cells = interp.h_cells();
+    let v_cells = interp.v_cells();
 
-                if density > 0.0 {
-                    block_states.set(BlockPos::new(x, y, z), &STONE);
+    // Fill the initial X start plane
+    interp.fill_plane(true, block_x, block_y, block_z, noise_router, &mut cache);
+
+    for cell_x in 0..h_cells {
+        // Fill end plane at x = block_x + (cell_x + 1) * h_cell_blocks
+        let next_x = block_x + ((cell_x + 1) * h_cell_blocks) as i32;
+        interp.fill_plane(false, next_x, block_y, block_z, noise_router, &mut cache);
+
+        for cell_z in 0..h_cells {
+            for cell_y in (0..v_cells).rev() {
+                interp.on_sampled_cell_corners(cell_y, cell_z);
+
+                for local_y in (0..v_cell_blocks).rev() {
+                    let delta_y = local_y as f64 / v_cell_blocks as f64;
+                    interp.interpolate_y(delta_y);
+
+                    for local_x in 0..h_cell_blocks {
+                        let delta_x = local_x as f64 / h_cell_blocks as f64;
+                        interp.interpolate_x(delta_x);
+
+                        for local_z in 0..h_cell_blocks {
+                            let delta_z = local_z as f64 / h_cell_blocks as f64;
+                            interp.interpolate_z(delta_z);
+
+                            let density = interp.result();
+
+                            if density > 0.0 {
+                                let bx = (cell_x * h_cell_blocks + local_x) as i32;
+                                let by = (cell_y * v_cell_blocks + local_y) as i32;
+                                let bz = (cell_z * h_cell_blocks + local_z) as i32;
+                                block_states.set(BlockPos::new(bx, by, bz), &STONE);
+                            }
+                        }
+                    }
                 }
             }
         }
+
+        interp.swap_buffers();
     }
 }

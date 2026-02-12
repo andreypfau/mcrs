@@ -1,4 +1,4 @@
-use crate::world::generate::{generate_chunk, generate_noise};
+use crate::world::generate::generate_noise;
 use crate::world::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::entity::Entity;
@@ -111,13 +111,8 @@ fn load_chunks(
             let _span = tracing::info_span!("ChunkGen").entered();
             let mut blocks = BlockPalette::default();
             let mut biomes = BiomePalette::default();
-            if pos.y > 2 && pos.y <= 8 && pos.x >= 0 && pos.x < 2 && pos.z >= 0 && pos.z < 2 {
-                let _span = tracing::info_span!("ChunkGen::generate_noise").entered();
-                generate_noise(pos, &mut blocks, &mut biomes, &router);
-            } else {
-                let _span = tracing::info_span!("ChunkGen::generate_chunk").entered();
-                generate_chunk(pos, &mut blocks, &mut biomes);
-            }
+            let _span = tracing::info_span!("ChunkGen::generate_noise").entered();
+            generate_noise(pos, &mut blocks, &mut biomes, &router);
             ChunkLoadingTask {
                 chunk: e,
                 pos,
