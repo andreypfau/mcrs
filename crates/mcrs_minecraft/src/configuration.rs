@@ -21,6 +21,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
+use tracing::{debug, info, warn};
 
 /// Default world preset name used when MCRS_WORLD_PRESET is not set
 const DEFAULT_WORLD_PRESET: &str = "normal";
@@ -91,7 +92,7 @@ fn on_configuration_enter(
                 registry: Cow::from(registry_id.as_str()).try_into().unwrap(),
                 entries: packet_entries,
             };
-            println!("sending registry data {:?}", &packet);
+            debug!("Sending registry data: {:?}", &packet);
             con.write_packet(&packet);
         }
 
@@ -208,20 +209,27 @@ fn init_world_preset() -> LoadedWorldPreset {
     match load_world_preset_from_env() {
         Some(preset) => {
             let dimensions = preset.ordered_dimensions();
-            println!(
-                "Initialized LoadedWorldPreset '{}' with {} dimensions: {:?}",
-                preset_name,
-                dimensions.len(),
-                dimensions.iter().map(|(k, _)| k.as_str()).collect::<Vec<_>>()
+            info!(
+                preset = %preset_name,
+                dimension_count = dimensions.len(),
+                "Loaded world preset with {} dimensions",
+                dimensions.len()
             );
+            for (dim_key, dim_type) in &dimensions {
+                info!(
+                    dimension_key = %dim_key,
+                    dimension_type = %dim_type,
+                    "  Spawning dimension"
+                );
+            }
             LoadedWorldPreset {
                 preset_name,
                 dimensions,
             }
         }
         None => {
-            eprintln!(
-                "CRITICAL: Failed to initialize world preset, using empty default"
+            warn!(
+                "Failed to initialize world preset, using empty default"
             );
             LoadedWorldPreset::default()
         }
@@ -313,7 +321,11 @@ pub fn parse_world_preset(preset_name: &str) -> Option<WorldPreset> {
         "single_biome_surface" => include_str!("../../../assets/minecraft/worldgen/world_preset/single_biome_surface.json"),
         "debug_all_block_states" => include_str!("../../../assets/minecraft/worldgen/world_preset/debug_all_block_states.json"),
         _ => {
-            eprintln!("Unknown world preset: '{}', falling back to 'normal'", preset_name);
+            warn!(
+                preset = %preset_name,
+                fallback = "normal",
+                "Unknown world preset, falling back to normal"
+            );
             include_str!("../../../assets/minecraft/worldgen/world_preset/normal.json")
         }
     };
@@ -321,7 +333,11 @@ pub fn parse_world_preset(preset_name: &str) -> Option<WorldPreset> {
     match serde_json::from_str::<WorldPreset>(json_content) {
         Ok(preset) => Some(preset),
         Err(e) => {
-            eprintln!("Failed to parse world preset '{}': {}", preset_name, e);
+            warn!(
+                preset = %preset_name,
+                error = %e,
+                "Failed to parse world preset"
+            );
             None
         }
     }
@@ -335,25 +351,34 @@ pub fn get_world_preset_name() -> String {
             let preset_name = preset_name.trim().to_lowercase();
 
             if preset_name.is_empty() {
-                println!("MCRS_WORLD_PRESET is empty, using default preset: '{}'", DEFAULT_WORLD_PRESET);
+                info!(
+                    default_preset = DEFAULT_WORLD_PRESET,
+                    "MCRS_WORLD_PRESET is empty, using default preset"
+                );
                 return DEFAULT_WORLD_PRESET.to_string();
             }
 
             if VALID_PRESETS.contains(&preset_name.as_str()) {
-                println!("Loading world preset from MCRS_WORLD_PRESET: '{}'", preset_name);
+                info!(
+                    preset = %preset_name,
+                    "Loading world preset from MCRS_WORLD_PRESET"
+                );
                 preset_name
             } else {
-                eprintln!(
-                    "Invalid world preset '{}' specified in MCRS_WORLD_PRESET. Valid presets: {:?}. Falling back to '{}'",
-                    preset_name,
-                    VALID_PRESETS,
-                    DEFAULT_WORLD_PRESET
+                warn!(
+                    preset = %preset_name,
+                    valid_presets = ?VALID_PRESETS,
+                    fallback = DEFAULT_WORLD_PRESET,
+                    "Invalid world preset specified, falling back to default"
                 );
                 DEFAULT_WORLD_PRESET.to_string()
             }
         }
         Err(_) => {
-            println!("MCRS_WORLD_PRESET not set, using default preset: '{}'", DEFAULT_WORLD_PRESET);
+            info!(
+                default_preset = DEFAULT_WORLD_PRESET,
+                "MCRS_WORLD_PRESET not set, using default preset"
+            );
             DEFAULT_WORLD_PRESET.to_string()
         }
     }
@@ -366,33 +391,36 @@ pub fn load_world_preset_from_env() -> Option<WorldPreset> {
 
     match parse_world_preset(&preset_name) {
         Some(preset) => {
-            println!(
-                "Successfully loaded world preset '{}' with {} dimensions",
-                preset_name,
-                preset.dimensions.len()
+            debug!(
+                preset = %preset_name,
+                dimension_count = preset.dimensions.len(),
+                "Successfully parsed world preset"
             );
             Some(preset)
         }
         None => {
-            eprintln!(
-                "Failed to load world preset '{}', attempting fallback to '{}'",
-                preset_name,
-                DEFAULT_WORLD_PRESET
+            warn!(
+                preset = %preset_name,
+                fallback = DEFAULT_WORLD_PRESET,
+                "Failed to load world preset, attempting fallback"
             );
 
             // Try to load the default preset as a fallback
             if preset_name != DEFAULT_WORLD_PRESET {
                 match parse_world_preset(DEFAULT_WORLD_PRESET) {
                     Some(preset) => {
-                        println!(
-                            "Loaded fallback world preset '{}' with {} dimensions",
-                            DEFAULT_WORLD_PRESET,
-                            preset.dimensions.len()
+                        info!(
+                            preset = DEFAULT_WORLD_PRESET,
+                            dimension_count = preset.dimensions.len(),
+                            "Loaded fallback world preset"
                         );
                         Some(preset)
                     }
                     None => {
-                        eprintln!("CRITICAL: Failed to load default world preset '{}'", DEFAULT_WORLD_PRESET);
+                        warn!(
+                            preset = DEFAULT_WORLD_PRESET,
+                            "Failed to load default world preset"
+                        );
                         None
                     }
                 }
