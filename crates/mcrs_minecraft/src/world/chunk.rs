@@ -12,7 +12,8 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::world::chunk::{ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos};
 use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsPlugin, OverworldNoiseRouter};
-use std::collections::HashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use tracing::info;
@@ -169,6 +170,73 @@ impl Default for SchedulerConfig {
             max_dispatch_per_tick: 32,
             num_threads: 4,
         }
+    }
+}
+
+/// Priority-based scheduler for chunk column generation.
+///
+/// Manages the lifecycle of chunk columns from pending to in-flight to completed.
+/// Uses a `BTreeMap` priority queue for O(log n) priority-ordered dispatch and efficient
+/// removal during cancellation/reprioritization.
+///
+/// # Structure
+/// - `pending`: Priority queue of columns waiting to be dispatched (ordered by `ColumnKey`)
+/// - `column_index`: Reverse index from column position to its current priority key
+/// - `in_flight_index`: Set of column positions currently being generated
+/// - `in_flight`: Active generation tasks with their cancellation tokens
+/// - `config`: Concurrency and dispatch limits
+#[derive(Resource)]
+pub struct ChunkColumnScheduler {
+    /// Priority queue of pending columns. Lower `ColumnKey` values are dispatched first.
+    pub pending: BTreeMap<ColumnKey, PendingColumn>,
+    /// Reverse index: column position -> current priority key.
+    /// Enables O(log n) removal/reprioritization by position.
+    pub column_index: FxHashMap<(i32, i32), ColumnKey>,
+    /// Set of column positions with active generation tasks.
+    /// Used to avoid duplicate dispatch.
+    pub in_flight_index: FxHashSet<(i32, i32)>,
+    /// Active generation tasks with cancellation tokens.
+    pub in_flight: Vec<InFlightColumn>,
+    /// Configuration for concurrency limits and dispatch rates.
+    pub config: SchedulerConfig,
+}
+
+impl Default for ChunkColumnScheduler {
+    fn default() -> Self {
+        Self::new(SchedulerConfig::default())
+    }
+}
+
+impl ChunkColumnScheduler {
+    /// Create a new scheduler with the given configuration.
+    pub fn new(config: SchedulerConfig) -> Self {
+        Self {
+            pending: BTreeMap::new(),
+            column_index: FxHashMap::default(),
+            in_flight_index: FxHashSet::default(),
+            in_flight: Vec::new(),
+            config,
+        }
+    }
+
+    /// Returns the number of columns waiting to be dispatched.
+    pub fn pending_count(&self) -> usize {
+        self.pending.len()
+    }
+
+    /// Returns the number of columns currently being generated.
+    pub fn in_flight_count(&self) -> usize {
+        self.in_flight.len()
+    }
+
+    /// Check if a column is pending dispatch.
+    pub fn is_pending(&self, col: (i32, i32)) -> bool {
+        self.column_index.contains_key(&col)
+    }
+
+    /// Check if a column has an active generation task.
+    pub fn is_in_flight(&self, col: (i32, i32)) -> bool {
+        self.in_flight_index.contains(&col)
     }
 }
 
