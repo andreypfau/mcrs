@@ -650,3 +650,120 @@ fn reprioritize_columns(
         }
     }
 }
+
+/// Dispatch pending columns to worker tasks for generation.
+///
+/// This system pops columns from the priority queue and spawns generation tasks,
+/// respecting concurrency limits:
+/// - `max_in_flight`: Maximum concurrent generation tasks
+/// - `max_dispatch_per_tick`: Maximum columns to dispatch per system run
+///
+/// # Algorithm
+/// 1. Calculate available capacity: `max_in_flight - current_in_flight`
+/// 2. Determine dispatch count: `min(available, max_dispatch_per_tick, pending_count)`
+/// 3. Pop the N lowest-priority columns from the BTreeMap (closest to players)
+/// 4. For each column:
+///    - Sort sections by Y (bottom-to-top for cache efficiency)
+///    - Create a CancellationToken for cooperative cancellation
+///    - Spawn the generation task to the thread pool
+///    - Add to `in_flight` Vec and `in_flight_index` set
+///
+/// # Performance
+/// - Uses `pop_first()` for O(log n) priority dequeue from BTreeMap
+/// - Bounded dispatch prevents task queue explosion during player teleports
+fn dispatch_column_generation(
+    mut scheduler: ResMut<ChunkColumnScheduler>,
+    overworld_noise_router: Res<OverworldNoiseRouter>,
+) {
+    let task_pool = CHUNK_TASK_POOL.get().unwrap();
+
+    // Calculate how many columns we can dispatch this tick
+    let current_in_flight = scheduler.in_flight.len();
+    let max_in_flight = scheduler.config.max_in_flight;
+    let max_dispatch = scheduler.config.max_dispatch_per_tick;
+
+    // Early exit if at capacity
+    if current_in_flight >= max_in_flight {
+        return;
+    }
+
+    let available_capacity = max_in_flight - current_in_flight;
+    let pending_count = scheduler.pending.len();
+
+    // Dispatch up to min(available_capacity, max_dispatch, pending_count) columns
+    let dispatch_count = available_capacity.min(max_dispatch).min(pending_count);
+
+    if dispatch_count == 0 {
+        return;
+    }
+
+    let mut dispatched = 0usize;
+
+    // Pop columns from priority queue in order (lowest distance first)
+    while dispatched < dispatch_count {
+        // Pop the first (lowest priority key) entry from the BTreeMap
+        let Some((key, mut pending_column)) = scheduler.pending.pop_first() else {
+            break;
+        };
+
+        let col = (key.col_x, key.col_z);
+
+        // Remove from column index
+        scheduler.column_index.remove(&col);
+
+        // Sort sections by Y (bottom-to-top) for Y-boundary cache reuse
+        pending_column.sections.sort_by_key(|(_, y)| *y);
+
+        // Prepare data for the async task
+        let router = overworld_noise_router.0.clone();
+        let cancel = CancellationToken::new();
+        let cancel_clone = cancel.clone();
+
+        // Extract section data for the task
+        let sections_data: Vec<(Entity, ChunkPos)> = pending_column
+            .sections
+            .iter()
+            .map(|(entity, y)| (*entity, ChunkPos::new(col.0, *y, col.1)))
+            .collect();
+
+        let y_sections: Vec<i32> = pending_column.sections.iter().map(|(_, y)| *y).collect();
+        let col_x = col.0;
+        let col_z = col.1;
+
+        // Spawn the generation task
+        let task = task_pool.spawn(async move {
+            let router = router.as_ref();
+            let _span = tracing::info_span!("ChunkColumnGen").entered();
+
+            let results = generate_column(col_x, col_z, &y_sections, router, &cancel_clone);
+
+            let column_sections = sections_data
+                .into_iter()
+                .zip(results)
+                .map(|((entity, pos), result)| (entity, pos, result))
+                .collect();
+
+            ChunkColumnResult {
+                sections: column_sections,
+            }
+        });
+
+        // Create in-flight entry
+        let in_flight_column = InFlightColumn::new(
+            col,
+            pending_column.sections,
+            cancel,
+            task,
+        );
+
+        // Add to in-flight tracking
+        scheduler.in_flight_index.insert(col);
+        scheduler.in_flight.push(in_flight_column);
+
+        dispatched += 1;
+    }
+
+    if dispatched > 0 {
+        info!("Dispatched generation tasks for {} columns", dispatched);
+    }
+}
