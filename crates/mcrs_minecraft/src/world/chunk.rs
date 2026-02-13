@@ -72,6 +72,29 @@ impl Default for CancellationToken {
     }
 }
 
+/// Sort key for the priority queue. Lower distance_sq values are dequeued first.
+/// The column position (col_x, col_z) serves as a tiebreaker for determinism.
+#[derive(Ord, PartialOrd, Eq, PartialEq, Clone, Copy, Debug)]
+pub struct ColumnKey {
+    /// Squared XZ distance to the nearest player. Primary sort key.
+    pub distance_sq: i64,
+    /// Column X coordinate. Tiebreaker for deterministic ordering.
+    pub col_x: i32,
+    /// Column Z coordinate. Tiebreaker for deterministic ordering.
+    pub col_z: i32,
+}
+
+impl ColumnKey {
+    /// Create a new ColumnKey with the given distance and position.
+    pub fn new(distance_sq: i64, col_x: i32, col_z: i32) -> Self {
+        Self {
+            distance_sq,
+            col_x,
+            col_z,
+        }
+    }
+}
+
 struct ChunkColumnResult {
     sections: Vec<(Entity, ChunkPos, BlockPalette, BiomePalette)>,
 }
