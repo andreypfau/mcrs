@@ -1,5 +1,5 @@
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
-pub struct Weighted<T> {
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct Weighted<T: PartialEq> {
     data: T,
     weight: f32,
 }

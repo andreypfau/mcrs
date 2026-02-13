@@ -124,8 +124,8 @@ pub struct RegistryRef<E> {
     marker: PhantomData<E>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Holder<E: Debug + Clone> {
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum Holder<E: Debug + Clone + PartialEq> {
     Direct(E),
     Reference(Ident<Cow<'static, str>>),
 }

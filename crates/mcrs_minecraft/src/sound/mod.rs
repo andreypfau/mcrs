@@ -4,7 +4,7 @@ use mcrs_protocol::Ident;
 use mcrs_registry::Holder;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SoundEvent {
     sound_id: Ident<String>,
     range: Option<f32>,
@@ -25,7 +25,7 @@ where
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Music {
     sound: Holder<SoundEvent>,
     min_delay: i32,

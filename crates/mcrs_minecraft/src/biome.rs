@@ -3,24 +3,25 @@ use crate::weight::Weighted;
 use mcrs_registry::Holder;
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
-struct Biome {
+#[derive(Default, Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Biome {
     #[serde(flatten)]
-    climate_settings: ClimateSettings,
-    effects: BiomeSpecialEffects,
+    pub climate_settings: ClimateSettings,
+    pub effects: BiomeSpecialEffects,
 }
 
-#[derive(Default, Copy, Clone, serde::Deserialize, serde::Serialize)]
-struct ClimateSettings {
-    has_precipitation: bool,
-    temperature: f32,
+#[derive(Default, Copy, Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct ClimateSettings {
+    pub has_precipitation: bool,
+    pub temperature: f32,
     #[serde(default)]
-    temperature_modifier: TemperatureModifier,
-    downfall: f32,
+    pub temperature_modifier: TemperatureModifier,
+    pub downfall: f32,
 }
 
-#[derive(Default, Copy, Clone, serde::Deserialize, serde::Serialize)]
-enum TemperatureModifier {
+#[derive(Default, Copy, Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum TemperatureModifier {
     #[default]
     #[serde(rename = "none")]
     None,
@@ -28,35 +29,35 @@ enum TemperatureModifier {
     Frozen,
 }
 
-#[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
-struct BiomeSpecialEffects {
-    fog_color: u32,
-    water_color: u32,
-    water_fog_color: u32,
-    sky_color: u32,
+#[derive(Default, Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct BiomeSpecialEffects {
+    pub fog_color: u32,
+    pub water_color: u32,
+    pub water_fog_color: u32,
+    pub sky_color: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    foliage_color: Option<u32>,
+    pub foliage_color: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    dry_foliage_color: Option<u32>,
+    pub dry_foliage_color: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    grass_color: Option<u32>,
+    pub grass_color: Option<u32>,
     #[serde(default)]
-    grass_color_modifier: GrassColorModifier,
+    pub grass_color_modifier: GrassColorModifier,
     #[serde(skip_serializing_if = "Option::is_none")]
-    particle: Option<Particle>,
+    pub particle: Option<Particle>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    ambient_sound: Option<Holder<SoundEvent>>,
+    pub ambient_sound: Option<Holder<SoundEvent>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    mood_sound: Option<AmbientMoodSettings>,
+    pub mood_sound: Option<AmbientMoodSettings>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    additions_sound: Option<AmbientAdditionsSettings>,
+    pub additions_sound: Option<AmbientAdditionsSettings>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    music: Option<Vec<Weighted<Music>>>,
-    music_volume: f32,
+    pub music: Option<Vec<Weighted<Music>>>,
+    pub music_volume: f32,
 }
 
-#[derive(Default, Copy, Clone, serde::Deserialize, serde::Serialize)]
-enum GrassColorModifier {
+#[derive(Default, Copy, Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum GrassColorModifier {
     #[default]
     #[serde(rename = "none")]
     None,
@@ -66,33 +67,33 @@ enum GrassColorModifier {
     Swamp,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Particle {
-    options: ParticleOptions,
-    portability: f32,
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct Particle {
+    pub options: ParticleOptions,
+    pub probability: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct ParticleOptions {
-    r#type: String,
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct ParticleOptions {
+    pub r#type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    value: Option<i32>,
+    pub value: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct AmbientMoodSettings {
-    sound: Holder<SoundEvent>,
-    tick_delay: i32,
-    block_search_extent: i32,
-    offset: f64,
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct AmbientMoodSettings {
+    pub sound: Holder<SoundEvent>,
+    pub tick_delay: i32,
+    pub block_search_extent: i32,
+    pub offset: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct AmbientAdditionsSettings {
-    sound: Holder<SoundEvent>,
-    tick_chance: f64,
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct AmbientAdditionsSettings {
+    pub sound: Holder<SoundEvent>,
+    pub tick_chance: f64,
 }
 
-struct GenerationSettings {}
+pub struct GenerationSettings {}
 
-struct MobSpawnSettings {}
+pub struct MobSpawnSettings {}
