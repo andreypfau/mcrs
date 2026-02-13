@@ -38,6 +38,7 @@ fn on_configuration_enter(
     >,
     res: Res<SyncedRegistries>,
     dimension_types: Res<LoadedDimensionTypes>,
+    biomes: Res<LoadedBiomes>,
 ) {
     for (entity, mut con, conn_state) in query.iter_mut() {
         if *conn_state != ConnectionState::Configuration {
@@ -95,12 +96,22 @@ fn on_configuration_enter(
             entries: dim_entries,
         });
 
+        // Send loaded biomes to client
+        let biome_entries: Vec<Entry> = biomes
+            .0
+            .iter()
+            .map(|(id, biome)| {
+                let biome_nbt = nbt::to_nbt_compound(biome)
+                    .expect(&format!("Failed to serialize biome: {}", id));
+                Entry {
+                    id: Cow::from(id.as_str()).try_into().unwrap(),
+                    data: Some(Cow::Owned(biome_nbt)),
+                }
+            })
+            .collect();
         con.write_packet(&ClientboundRegistryData {
             registry: ident!("minecraft:worldgen/biome").into(),
-            entries: vec![Entry {
-                id: ident!("minecraft:plains").into(),
-                data: None,
-            }],
+            entries: biome_entries,
         });
 
         con.write_packet(&ClientboundFinishConfiguration)
