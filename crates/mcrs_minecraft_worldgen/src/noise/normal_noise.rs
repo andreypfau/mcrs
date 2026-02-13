@@ -51,6 +51,37 @@ impl NoiseSampler {
         let z2 = z * INPUT_FACTOR;
         (self.first.get(x, y, z) + self.second.get(x2, y2, z2)) * self.value_factor
     }
+
+    /// Batch evaluate NoiseSampler at multiple positions (zero heap allocation).
+    /// Evaluates both inner OctavePerlinNoise instances in batch, then combines.
+    #[cfg(feature = "batch-noise")]
+    pub fn get_batch(&self, positions: &[(f32, f32, f32)], results: &mut [f32]) {
+        const MAX_BATCH: usize = 16;
+        let n = positions.len();
+        debug_assert_eq!(n, results.len());
+        debug_assert!(n <= MAX_BATCH);
+
+        // Build second-set positions (scaled by INPUT_FACTOR) on stack
+        let mut second_positions = [(0.0f32, 0.0f32, 0.0f32); MAX_BATCH];
+        for i in 0..n {
+            let (x, y, z) = positions[i];
+            second_positions[i] = (x * INPUT_FACTOR, y * INPUT_FACTOR, z * INPUT_FACTOR);
+        }
+
+        // Evaluate first OctavePerlinNoise in batch
+        let mut first_results = [0.0f32; MAX_BATCH];
+        self.first.get_batch(positions, &mut first_results[..n]);
+
+        // Evaluate second OctavePerlinNoise in batch
+        let mut second_results = [0.0f32; MAX_BATCH];
+        self.second
+            .get_batch(&second_positions[..n], &mut second_results[..n]);
+
+        // Combine: (first + second) * value_factor
+        for i in 0..n {
+            results[i] = (first_results[i] + second_results[i]) * self.value_factor;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -74,5 +105,31 @@ mod test {
             format!("{:.4}", noise.get(-204.0, 28.0, 12.0)),
             format!("{:.4}", -0.593348747968403)
         );
+    }
+
+    #[cfg(feature = "batch-noise")]
+    #[test]
+    fn get_batch_matches_scalar() {
+        let mut random = LegacyRandom::new(82);
+        let noise = NoiseSampler::new(&mut random, -6, vec![1.0, 1.0]);
+
+        let positions = [
+            (0.0, 0.0, 0.0),
+            (0.5, 4.0, -2.0),
+            (-204.0, 28.0, 12.0),
+            (50.0, 25.0, -50.0),
+            (1000.0, 64.0, 1000.0),
+        ];
+        let mut batch_results = [0.0f32; 5];
+        noise.get_batch(&positions, &mut batch_results);
+
+        for (i, &(x, y, z)) in positions.iter().enumerate() {
+            let scalar = noise.get(x, y, z);
+            assert_eq!(
+                batch_results[i], scalar,
+                "Mismatch at position {}: batch={}, scalar={}",
+                i, batch_results[i], scalar
+            );
+        }
     }
 }
