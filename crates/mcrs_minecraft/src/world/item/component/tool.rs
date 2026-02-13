@@ -1,8 +1,147 @@
 use crate::tag::block;
-use crate::tag::block::{BlockTagSet, BlockTagSetExt};
+use crate::tag::block::{BlockTagSet, BlockTagSetExt, DynamicBlockTagSet, TagRegistry};
 use crate::world::block::Block;
 use crate::world::item::component::ItemComponents;
 use bevy_ecs::component::Component;
+use mcrs_protocol::Ident;
+use std::str::FromStr;
+
+/// Reference to a set of blocks, either static (compile-time) or dynamic (runtime lookup).
+///
+/// This enum allows the tool system to work with both hardcoded block tag constants
+/// and dynamically loaded tags from asset files. The enum is `Copy` to support
+/// use in const contexts.
+///
+/// # Examples
+///
+/// ```ignore
+/// // Static reference (for const contexts)
+/// let static_ref = ToolTagRef::Static(&[&BlockTag::Tag(&minecraft::STONE)]);
+///
+/// // Dynamic reference using a static identifier string (for const contexts)
+/// let dynamic_ref = ToolTagRef::DynamicIdent("minecraft:mineable/pickaxe");
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub enum ToolTagRef {
+    /// A static block tag set defined at compile time.
+    Static(BlockTagSet),
+    /// A dynamic tag identifier that will be resolved at runtime against the TagRegistry.
+    /// The string should be in the format "namespace:path" (e.g., "minecraft:mineable/pickaxe").
+    DynamicIdent(&'static str),
+}
+
+impl Default for ToolTagRef {
+    fn default() -> Self {
+        ToolTagRef::Static(&[])
+    }
+}
+
+impl ToolTagRef {
+    /// Creates a static tool tag reference from a compile-time block tag set.
+    pub const fn from_static(blocks: BlockTagSet) -> Self {
+        ToolTagRef::Static(blocks)
+    }
+
+    /// Creates a dynamic tool tag reference from a static identifier string.
+    ///
+    /// The identifier should be in the format "namespace:path" (e.g., "minecraft:mineable/pickaxe").
+    pub const fn from_dynamic_ident(ident: &'static str) -> Self {
+        ToolTagRef::DynamicIdent(ident)
+    }
+
+    /// Creates a dynamic tool tag reference from a DynamicBlockTagSet at runtime.
+    ///
+    /// Note: This consumes the DynamicBlockTagSet but only stores a reference to
+    /// a leaked string. This should be used sparingly, preferring `from_dynamic_ident`
+    /// for static identifier strings.
+    pub fn from_dynamic(tag: DynamicBlockTagSet) -> Self {
+        // For runtime creation, we need to leak the string to get a 'static reference.
+        // This is intentional for cases where dynamic tags are created at runtime.
+        let leaked = Box::leak(tag.ident.into_inner().into_boxed_str());
+        ToolTagRef::DynamicIdent(leaked)
+    }
+
+    /// Checks if the given block is contained in this tag reference.
+    ///
+    /// For static tags, this performs a direct comparison.
+    /// For dynamic tags, this requires the TagRegistry to perform the lookup.
+    ///
+    /// Note: For dynamic tags without a registry reference, this returns `false`.
+    /// Use `contains_block_with_registry` for dynamic tag lookups.
+    pub fn contains_block(&self, block: &Block) -> bool {
+        match self {
+            ToolTagRef::Static(tag_set) => tag_set.contains_block(block),
+            ToolTagRef::DynamicIdent(_) => {
+                // Dynamic tags require registry lookup; without registry, return false
+                // Use contains_block_with_registry for proper dynamic lookup
+                false
+            }
+        }
+    }
+
+    /// Checks if the given block is contained in this tag reference using the tag registry.
+    ///
+    /// This method supports both static and dynamic tag references:
+    /// - Static tags perform direct comparison (registry is ignored)
+    /// - Dynamic tags perform lookup against the provided TagRegistry
+    pub fn contains_block_with_registry(
+        &self,
+        block: &Block,
+        tag_registry: &TagRegistry<&'static Block>,
+        block_registry: &mcrs_registry::Registry<&'static Block>,
+    ) -> bool {
+        match self {
+            ToolTagRef::Static(tag_set) => tag_set.contains_block(block),
+            ToolTagRef::DynamicIdent(ident_str) => {
+                // Parse the identifier string and look up in registry
+                if let Ok(ident) = Ident::<String>::from_str(ident_str) {
+                    let dynamic_tag = DynamicBlockTagSet::new(ident);
+                    // Find the block's registry ID
+                    let reg_id = mcrs_registry::RegistryId::Identifier {
+                        identifier: block.identifier.to_string_ident(),
+                    };
+                    if let Some((index, _)) = block_registry.get_full(reg_id) {
+                        dynamic_tag.contains_block_index(tag_registry, index)
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    /// Returns true if this is a static tag reference.
+    pub const fn is_static(&self) -> bool {
+        matches!(self, ToolTagRef::Static(_))
+    }
+
+    /// Returns true if this is a dynamic tag reference.
+    pub const fn is_dynamic(&self) -> bool {
+        matches!(self, ToolTagRef::DynamicIdent(_))
+    }
+
+    /// Returns the dynamic identifier string if this is a dynamic tag reference.
+    pub const fn as_dynamic_ident(&self) -> Option<&'static str> {
+        match self {
+            ToolTagRef::DynamicIdent(ident) => Some(*ident),
+            ToolTagRef::Static(_) => None,
+        }
+    }
+}
+
+impl From<BlockTagSet> for ToolTagRef {
+    fn from(blocks: BlockTagSet) -> Self {
+        ToolTagRef::Static(blocks)
+    }
+}
+
+impl From<DynamicBlockTagSet> for ToolTagRef {
+    fn from(tag: DynamicBlockTagSet) -> Self {
+        ToolTagRef::from_dynamic(tag)
+    }
+}
 
 #[derive(Clone, Debug, Default, Component)]
 pub struct Tool {
@@ -72,27 +211,70 @@ impl Tool {
     }
 }
 
-#[derive(Clone, Debug, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ToolRule {
-    pub blocks: BlockTagSet,
+    pub blocks: ToolTagRef,
     pub speed: Option<f32>,
     pub correct_for_drops: Option<bool>,
 }
 
 impl ToolRule {
+    /// Creates a tool rule for blocks that can be mined at the given speed and drop items.
+    ///
+    /// This is a const function that works with static BlockTagSet references.
     pub const fn mines_and_drops(blocks: BlockTagSet, speed: f32) -> Self {
         Self {
-            blocks,
+            blocks: ToolTagRef::Static(blocks),
             speed: Some(speed),
             correct_for_drops: Some(true),
         }
     }
 
+    /// Creates a tool rule for blocks that deny drops when mined with this tool.
+    ///
+    /// This is a const function that works with static BlockTagSet references.
     pub const fn denies_drops(blocks: BlockTagSet) -> Self {
         Self {
-            blocks,
+            blocks: ToolTagRef::Static(blocks),
             speed: None,
             correct_for_drops: Some(false),
+        }
+    }
+
+    /// Creates a tool rule for blocks that can be mined at the given speed and drop items,
+    /// using a dynamic tag identifier for runtime lookup.
+    ///
+    /// The identifier should be in the format "namespace:path" (e.g., "minecraft:mineable/pickaxe").
+    pub const fn mines_and_drops_dynamic(tag_ident: &'static str, speed: f32) -> Self {
+        Self {
+            blocks: ToolTagRef::DynamicIdent(tag_ident),
+            speed: Some(speed),
+            correct_for_drops: Some(true),
+        }
+    }
+
+    /// Creates a tool rule for blocks that deny drops when mined with this tool,
+    /// using a dynamic tag identifier for runtime lookup.
+    ///
+    /// The identifier should be in the format "namespace:path" (e.g., "minecraft:mineable/pickaxe").
+    pub const fn denies_drops_dynamic(tag_ident: &'static str) -> Self {
+        Self {
+            blocks: ToolTagRef::DynamicIdent(tag_ident),
+            speed: None,
+            correct_for_drops: Some(false),
+        }
+    }
+
+    /// Creates a tool rule with a custom ToolTagRef.
+    pub const fn with_tag_ref(
+        blocks: ToolTagRef,
+        speed: Option<f32>,
+        correct_for_drops: Option<bool>,
+    ) -> Self {
+        Self {
+            blocks,
+            speed,
+            correct_for_drops,
         }
     }
 }
