@@ -25,6 +25,81 @@ pub enum BlockTag {
     TagSet(BlockTagSet),
 }
 
+/// A dynamic block tag set that wraps an identifier for runtime lookup.
+///
+/// Unlike the static `BlockTagSet`, this type stores only the tag identifier
+/// and performs lookups against the `TagRegistry` at runtime. This enables
+/// tags loaded from asset files to be used in place of hardcoded constants.
+///
+/// # Example
+///
+/// ```ignore
+/// let pickaxe_tag = DynamicBlockTagSet::new(ident!("minecraft:mineable/pickaxe"));
+///
+/// // Later, check if a block is in the tag
+/// if pickaxe_tag.contains_block(&block_registry, &tag_registry, &block) {
+///     // Block can be mined with a pickaxe
+/// }
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct DynamicBlockTagSet {
+    /// The identifier of the tag (e.g., "minecraft:mineable/pickaxe")
+    pub ident: Ident<String>,
+}
+
+impl DynamicBlockTagSet {
+    /// Creates a new dynamic block tag set from the given identifier.
+    pub fn new(ident: Ident<String>) -> Self {
+        Self { ident }
+    }
+
+    /// Creates a new dynamic block tag set from a static identifier.
+    pub fn from_static(ident: Ident<&'static str>) -> Self {
+        Self {
+            ident: ident.to_string_ident(),
+        }
+    }
+
+    /// Returns the identifier of this tag set.
+    pub fn ident(&self) -> &Ident<String> {
+        &self.ident
+    }
+
+    /// Returns the registry IDs of all blocks in this tag, or `None` if the tag doesn't exist.
+    pub fn get_entries<'a>(
+        &self,
+        tag_registry: &'a TagRegistry<&'static Block>,
+    ) -> Option<&'a [RegistryId<&'static Block>]> {
+        tag_registry.get_tag(&self.ident)
+    }
+
+    /// Checks if the given block is contained in this tag set.
+    ///
+    /// Returns `false` if the tag doesn't exist or if the block is not in the tag.
+    pub fn contains_block(
+        &self,
+        tag_registry: &TagRegistry<&'static Block>,
+        block: &RegistryId<&'static Block>,
+    ) -> bool {
+        tag_registry.contains_tag(&self.ident, block)
+    }
+
+    /// Checks if the given block (by registry index) is contained in this tag set.
+    ///
+    /// Returns `false` if the tag doesn't exist or if the block is not in the tag.
+    pub fn contains_block_index(
+        &self,
+        tag_registry: &TagRegistry<&'static Block>,
+        block_index: usize,
+    ) -> bool {
+        let block_id = RegistryId::<&'static Block>::Index {
+            index: block_index,
+            marker: std::marker::PhantomData,
+        };
+        self.contains_block(tag_registry, &block_id)
+    }
+}
+
 pub trait BlockTagSetExt {
     fn contains_block(&self, block: &Block) -> bool;
 }
