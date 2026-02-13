@@ -309,6 +309,20 @@ fn main() {
     let router = build_functions(&functions, &noises, &settings, seed);
     let build_elapsed = t_build.elapsed();
     eprintln!("Built NoiseRouter in {}", fmt_duration(build_elapsed));
+    // router.print_zone_stats();
+    //
+    // // --- Verify column cache correctness on center chunk ---
+    // {
+    //     let block_x = center_x * 16;
+    //     let block_z = center_z * 16;
+    //     let y_values: Vec<i32> = y_sections.iter().flat_map(|&sy| {
+    //         (0..=2).map(move |cy| sy * 16 + cy * 8)
+    //     }).collect();
+    //     let ok = router.verify_column_cache(block_x, block_z, &y_values);
+    //     if ok {
+    //         eprintln!("Verification: column cache matches reference (all checks passed)");
+    //     }
+    // }
 
     // --- Build chunk list ---
     let side = 2 * view_distance + 1;
