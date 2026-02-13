@@ -8,6 +8,10 @@ use mcrs_minecraft_worldgen::density_function::{
 /// Generate a single section using a pre-populated column cache and interpolator.
 /// The column cache and interpolator are passed in so they can be reused across
 /// multiple Y sections in the same column.
+///
+/// Uses `fill_plane_cached_reuse` for Y-boundary sharing: the top-Y row of the
+/// previous section is reused as the bottom-Y row of this section, eliminating
+/// ~33% of density evaluations for all sections after the first.
 fn generate_section(
     block_x: i32,
     block_y: i32,
@@ -22,13 +26,29 @@ fn generate_section(
     let h_cells = interp.h_cells();
     let v_cells = interp.v_cells();
 
-    // Fill the initial X start plane using column cache
-    interp.fill_plane_cached(true, block_x, block_y, block_z, noise_router, column_cache);
+    // Fill the initial X start plane using column cache (with Y-boundary reuse)
+    interp.fill_plane_cached_reuse(
+        0,
+        true,
+        block_x,
+        block_y,
+        block_z,
+        noise_router,
+        column_cache,
+    );
 
     for cell_x in 0..h_cells {
         // Fill end plane at x = block_x + (cell_x + 1) * h_cell_blocks
         let next_x = block_x + ((cell_x + 1) * h_cell_blocks) as i32;
-        interp.fill_plane_cached(false, next_x, block_y, block_z, noise_router, column_cache);
+        interp.fill_plane_cached_reuse(
+            cell_x + 1,
+            false,
+            next_x,
+            block_y,
+            block_z,
+            noise_router,
+            column_cache,
+        );
 
         for cell_z in 0..h_cells {
             for cell_y in (0..v_cells).rev() {
@@ -88,11 +108,17 @@ fn generate_section(
 
         interp.swap_buffers();
     }
+
+    // Mark section complete so the next section can reuse our top-Y row
+    interp.end_section();
 }
 
 /// Generate all sections in a column using a pre-populated ChunkColumnCache.
 /// Zone A (column-only density functions) is computed once for all 17x17 XZ positions
 /// and reused across all Y sections, eliminating per-block column-change branches.
+///
+/// Adjacent Y sections share cell corners at their boundary via Y-boundary reuse,
+/// eliminating ~33% of density evaluations for all sections after the first.
 pub fn generate_column(
     section_x: i32,
     section_z: i32,
@@ -107,9 +133,16 @@ pub fn generate_column(
     let mut column_cache = noise_router.new_column_cache(block_x, block_z);
     noise_router.populate_columns(&mut column_cache);
 
+    let mut prev_sy: Option<i32> = None;
     y_sections
         .iter()
         .map(|&sy| {
+            // Invalidate Y-boundary cache when sections are not adjacent
+            if prev_sy.is_some_and(|prev| prev + 1 != sy) {
+                interp.reset_section_boundary();
+            }
+            prev_sy = Some(sy);
+
             let mut blocks = BlockPalette::default();
             let biomes = BiomePalette::default();
             generate_section(
