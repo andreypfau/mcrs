@@ -1,7 +1,8 @@
 use bevy_math::IVec3;
 use md5::{Digest, Md5};
 use rand_xoshiro::Xoroshiro128PlusPlus;
-use rand_xoshiro::rand_core::{RngCore, SeedableRng};
+use rand_xoshiro::rand_core::{Rng, SeedableRng, TryRng};
+use std::convert::Infallible;
 
 use crate::{Random, block_pos_seed};
 
@@ -91,22 +92,26 @@ impl Random for XoroshiroRandom {
     }
 }
 
-impl RngCore for XoroshiroRandom {
+impl TryRng for XoroshiroRandom {
+    type Error = Infallible;
+
     #[inline]
-    fn next_u32(&mut self) -> u32 {
-        self.0.next_u32()
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        Ok(self.0.next_u32())
     }
 
     #[inline]
-    fn next_u64(&mut self) -> u64 {
-        self.0.next_u64()
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        Ok(self.0.next_u64())
     }
 
     #[inline]
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        self.0.fill_bytes(dest)
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
+        self.0.fill_bytes(dest);
+        Ok(())
     }
 }
+
 
 fn mix_starford_13(mut v: u64) -> u64 {
     v = (v ^ v >> 30).wrapping_mul(STAFFORD_1);

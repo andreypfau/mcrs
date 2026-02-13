@@ -245,7 +245,7 @@ use bevy_ecs::prelude::{Commands, On};
 use bevy_math::DVec3;
 use bevy_math::ops::exp;
 use bevy_utils::Parallel;
-use rand::{Rng, rng};
+use rand::{Rng, RngExt, rng};
 use std::sync::OnceLock;
 
 const N: i32 = 15;

@@ -73,7 +73,7 @@ impl<'a> Decode<'a> for GameEventKind {
                 let credits = match param as i32 {
                     0 => EnterCredits::SeenBefore,
                     1 => EnterCredits::FirstTime,
-                    _ => return Err(anyhow::anyhow!("invalid EnterCredits value: {}", param)),
+                    _ => return Err(anyhow::anyhow!("invalid EnterCredits value: {param}")),
                 };
                 Ok(GameEventKind::WinGame(credits))
             }
@@ -84,7 +84,7 @@ impl<'a> Decode<'a> for GameEventKind {
                     102 => DemoMessage::JumpControl,
                     103 => DemoMessage::InventoryControl,
                     104 => DemoMessage::ScreenshotControl,
-                    _ => return Err(anyhow::anyhow!("invalid DemoMessage value: {}", param)),
+                    _ => return Err(anyhow::anyhow!("invalid DemoMessage value: {param}")),
                 };
                 Ok(GameEventKind::DemoEvent(message))
             }
@@ -96,7 +96,7 @@ impl<'a> Decode<'a> for GameEventKind {
             11 => Ok(GameEventKind::ImmediateRespawn(param != 0.0)),
             12 => Ok(GameEventKind::LimitedCrafting(param != 0.0)),
             13 => Ok(GameEventKind::LevelChunksLoadStart),
-            _ => Err(anyhow::anyhow!("invalid GameEventKind id: {}", event_id)),
+            _ => Err(anyhow::anyhow!("invalid GameEventKind id: {event_id}")),
         }
     }
 }

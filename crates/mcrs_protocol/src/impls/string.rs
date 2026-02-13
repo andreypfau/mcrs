@@ -1,5 +1,4 @@
 use std::io::{Cursor, Write};
-use std::str::FromStr;
 
 use crate::{Bounded, Decode, Encode, RawBytes, VarInt};
 use anyhow::ensure;
@@ -11,7 +10,6 @@ use mcrs_nbt::{STRING_ID, from_bytes_unnamed, to_bytes_unnamed};
 use valence_text::{Text, TextContent};
 
 const DEFAULT_MAX_STRING_CHARS: usize = 32767;
-const MAX_TEXT_CHARS: usize = 262144;
 
 impl Encode for str {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
@@ -103,23 +101,22 @@ impl<const MAX_CHARS: usize> Decode<'_> for Bounded<Box<str>, MAX_CHARS> {
 
 impl Encode for Text {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
-        if let (TextContent::Text { text }) = &self.content {
-            if self.extra.is_empty()
-                && self.color.is_none()
-                && self.font.is_none()
-                && self.bold.is_none()
-                && self.italic.is_none()
-                && self.underlined.is_none()
-                && self.strikethrough.is_none()
-                && self.obfuscated.is_none()
-                && self.click_event.is_none()
-                && self.hover_event.is_none()
-                && self.insertion.is_none()
-            {
-                w.write_u8(STRING_ID)?;
-                NbtTag::String(text.to_string()).serialize_data(&mut WriteAdaptor::new(w))?;
-                return Ok(());
-            }
+        if let TextContent::Text { text } = &self.content
+            && self.extra.is_empty()
+            && self.color.is_none()
+            && self.font.is_none()
+            && self.bold.is_none()
+            && self.italic.is_none()
+            && self.underlined.is_none()
+            && self.strikethrough.is_none()
+            && self.obfuscated.is_none()
+            && self.click_event.is_none()
+            && self.hover_event.is_none()
+            && self.insertion.is_none()
+        {
+            w.write_u8(STRING_ID)?;
+            NbtTag::String(text.to_string()).serialize_data(&mut WriteAdaptor::new(w))?;
+            return Ok(());
         }
         to_bytes_unnamed(&self, &mut w)?;
         Ok(())
@@ -136,8 +133,7 @@ impl Decode<'_> for Text {
                 Ok(Self::text(s))
             } else {
                 anyhow::bail!(
-                    "expected NBT String tag for Text deserialization, got {:?}",
-                    s
+                    "expected NBT String tag for Text deserialization, got {s:?}"
                 );
             }
         } else {

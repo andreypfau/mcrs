@@ -6,7 +6,6 @@ pub use self::clientbound::ClientboundShowDialog;
 pub mod clientbound {
     use crate::packets::common::clientbound::{CustomPayload, Disconnect, KeepAlive, Ping};
     use crate::packets::cookie::clientbound::CookieRequest;
-    use crate::registry::Holder;
     use derive_more::From;
     use mcrs_nbt::compound::NbtCompound;
     use mcrs_protocol_macros::{Decode, Encode, Packet};

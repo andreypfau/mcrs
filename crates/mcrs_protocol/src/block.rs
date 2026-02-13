@@ -34,14 +34,17 @@ impl Decode<'_> for BlockStateId {
     }
 }
 
+#[allow(dead_code, unreachable_pub)]
 pub struct BlockId(pub u16);
 
+#[allow(dead_code)]
 impl Encode for BlockId {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
         VarInt(self.0 as i32).encode(w)
     }
 }
 
+#[allow(dead_code)]
 impl Decode<'_> for BlockId {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let id = VarInt::decode(r)?.0;

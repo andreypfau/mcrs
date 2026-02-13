@@ -84,7 +84,7 @@ impl serde::ser::Serializer for TagSerializer {
         Ok(NbtTag::Double(v))
     }
 
-    fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
+    fn serialize_char(self, _v: char) -> Result<Self::Ok, Self::Error> {
         Err(Error::UnsupportedType("char".to_string()))
     }
 
@@ -111,14 +111,14 @@ impl serde::ser::Serializer for TagSerializer {
         Ok(NbtTag::End)
     }
 
-    fn serialize_unit_struct(self, name: &'static str) -> Result<Self::Ok, Self::Error> {
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
         Ok(NbtTag::End)
     }
 
     fn serialize_unit_variant(
         self,
-        name: &'static str,
-        variant_index: u32,
+        _name: &'static str,
+        _variant_index: u32,
         variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
         Ok(NbtTag::String(variant.to_string()))
@@ -126,7 +126,7 @@ impl serde::ser::Serializer for TagSerializer {
 
     fn serialize_newtype_struct<T>(
         self,
-        name: &'static str,
+        _name: &'static str,
         value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
@@ -138,26 +138,25 @@ impl serde::ser::Serializer for TagSerializer {
     fn serialize_newtype_variant<T>(
         self,
         name: &'static str,
-        variant_index: u32,
+        _variant_index: u32,
         variant: &'static str,
-        value: &T,
+        _value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
         T: ?Sized + Serialize,
     {
         Err(Error::UnsupportedType(format!(
-            "newtype variant {}::{} in in-memory serializer is not implemented",
-            name, variant
+            "newtype variant {name}::{variant} in in-memory serializer is not implemented"
         )))
     }
 
-    fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
+    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
         Ok(ListSerializer {
             elements: Vec::new(),
         })
     }
 
-    fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
+    fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, Self::Error> {
         Ok(ListSerializer {
             elements: Vec::new(),
         })
@@ -165,8 +164,8 @@ impl serde::ser::Serializer for TagSerializer {
 
     fn serialize_tuple_struct(
         self,
-        name: &'static str,
-        len: usize,
+        _name: &'static str,
+        _len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
         Ok(ListSerializer {
             elements: Vec::new(),
@@ -175,15 +174,15 @@ impl serde::ser::Serializer for TagSerializer {
 
     fn serialize_tuple_variant(
         self,
-        name: &'static str,
-        variant_index: u32,
-        variant: &'static str,
-        len: usize,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
         Err(Error::UnsupportedType("tuple variant".to_string()))
     }
 
-    fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
+    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
         Ok(MapSerializer {
             entries: Vec::new(),
             next_key: None,
@@ -192,8 +191,8 @@ impl serde::ser::Serializer for TagSerializer {
 
     fn serialize_struct(
         self,
-        name: &'static str,
-        len: usize,
+        _name: &'static str,
+        _len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
         Ok(StructSerializer {
             entries: Vec::new(),
@@ -202,10 +201,10 @@ impl serde::ser::Serializer for TagSerializer {
 
     fn serialize_struct_variant(
         self,
-        name: &'static str,
-        variant_index: u32,
-        variant: &'static str,
-        len: usize,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
         Err(Error::UnsupportedType("struct variant".to_string()))
     }

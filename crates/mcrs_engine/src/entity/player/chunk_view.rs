@@ -7,7 +7,6 @@ use bevy_ecs::prelude::{
     Changed, Component, ContainsEntity, Entity, EntityEvent, IntoScheduleConfigs, MessageWriter,
     ParallelCommands, Query, With,
 };
-use bevy_ecs::system::Commands;
 use bevy_ecs_macros::Message;
 use std::collections::VecDeque;
 
@@ -57,15 +56,15 @@ fn update_view(
         ),
         Changed<Transform>,
     >,
-    mut commands: ParallelCommands,
+    commands: ParallelCommands,
 ) {
     query
         .par_iter_mut()
         .for_each(|(player, mut observer, transform, client_view_distance)| {
             let observer = &mut *observer;
             let chunk_pos = ChunkPos::from(transform.translation);
-            let distance = (client_view_distance.distance);
-            let vert_distance = (client_view_distance.vert_distance);
+            let distance = client_view_distance.distance;
+            let vert_distance = client_view_distance.vert_distance;
             let new_view = ChunkTrackingView::new(chunk_pos, distance + 1, vert_distance + 1);
 
             let Some(last_view) = observer.last_last_chunk_tracking_view else {
@@ -101,7 +100,7 @@ fn update_view(
 
             // println!("Updating chunk view from {:?} to {:?}", last_view, new_view);
 
-            ChunkTrackingView::diff(&last_view, &new_view, |(a)| match a {
+            ChunkTrackingView::diff(&last_view, &new_view, |a| match a {
                 ChunkViewAction::LoadChunk(pos) => {
                     load_queue.push(pos);
                 }
@@ -174,7 +173,7 @@ fn update_loading_queue(
             let Some(chunk) = chunk_index.get(chunk_pos) else {
                 return;
             };
-            let Some(status) = chunks.get(chunk).ok() else {
+            if chunks.get(chunk).is_err() {
                 return;
             };
             observer.loading_queue.pop_front();
@@ -191,9 +190,8 @@ fn update_loading_queue(
 fn update_load_queue(
     mut players: Query<(&mut PlayerChunkObserver, &InDimension)>,
     mut dimensions: Query<&mut ChunkTicketsCommands>,
-    mut commands: Commands,
 ) {
-    players.iter_mut().for_each(|(mut observer, dim)| {
+    players.iter_mut().for_each(|(mut observer, _dim)| {
         let observer = &mut *observer;
         let Some(last_view) = observer.last_last_chunk_tracking_view else {
             return;
@@ -214,7 +212,7 @@ fn update_load_queue(
         }
     });
     players.iter_mut().for_each(|(mut observer, dim)| {
-        dimensions.get_mut(**dim).ok().map(|mut chunks| {
+        if let Ok(mut chunks) = dimensions.get_mut(**dim) {
             observer
                 .delayed_ticket_ops
                 .drain(..)
@@ -229,7 +227,7 @@ fn update_load_queue(
                         chunks.remove_ticket(chunk_pos, ticket_kind);
                     }
                 });
-        });
+        }
     });
 }
 

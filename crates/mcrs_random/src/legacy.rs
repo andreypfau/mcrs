@@ -1,8 +1,8 @@
 use crate::{Random, block_pos_seed};
 use bevy_math::IVec3;
 use md5::{Digest, Md5};
-use rand_xoshiro::rand_core::RngCore;
-use rand_xoshiro::rand_core::le::fill_bytes_via_next;
+use rand_xoshiro::rand_core::{Rng, TryRng};
+use std::convert::Infallible;
 
 const MODULUS_BITS: usize = 48;
 const MODULUS_MASK: u64 = 281474976710655;
@@ -34,19 +34,34 @@ impl LegacyRandom {
     }
 }
 
-impl RngCore for LegacyRandom {
-    fn next_u32(&mut self) -> u32 {
-        self.next_bits(32) as u32
+impl TryRng for LegacyRandom {
+    type Error = Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        Ok(self.next_bits(32) as u32)
     }
 
-    fn next_u64(&mut self) -> u64 {
-        (self.next_bits(32) << 32) + self.next_bits(32)
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        Ok((self.next_bits(32) << 32) + self.next_bits(32))
     }
 
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        fill_bytes_via_next(self, dest);
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
+        // Implement fill_bytes using next_u64
+        let mut i = 0;
+        while i + 8 <= dest.len() {
+            let bytes = self.next_u64().to_le_bytes();
+            dest[i..i + 8].copy_from_slice(&bytes);
+            i += 8;
+        }
+        if i < dest.len() {
+            let bytes = self.next_u64().to_le_bytes();
+            let remaining = dest.len() - i;
+            dest[i..].copy_from_slice(&bytes[..remaining]);
+        }
+        Ok(())
     }
 }
+
 
 impl Random for LegacyRandom {
     fn is_legacy(&self) -> bool {

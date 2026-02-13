@@ -1,6 +1,4 @@
-use std::hash::{Hash, Hasher};
 use std::io::Write;
-use std::ops::{Add, Sub};
 
 use crate::{Decode, Encode};
 use anyhow::bail;

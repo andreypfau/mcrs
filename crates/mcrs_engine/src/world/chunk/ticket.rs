@@ -8,7 +8,6 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::query::With;
 use indexmap::IndexMap;
 use rustc_hash::{FxBuildHasher, FxHashSet};
-use std::cmp::Ordering;
 
 const MAX_DESPAWNS_PER_TICK: usize = 1024;
 const MAX_SPAWNS_PER_TICK: usize = 512;
@@ -25,7 +24,7 @@ impl Plugin for TicketPlugin {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
 pub struct Ticket {
     pub kind: TicketKind,
     pub ticks_left: i64,
@@ -46,17 +45,11 @@ impl Ticket {
     }
 
     pub fn is_expired(&self) -> bool {
-        if let Some(_) = self.kind.timeout() {
+        if self.kind.timeout().is_some() {
             self.ticks_left < 0
         } else {
             false
         }
-    }
-}
-
-impl PartialOrd for Ticket {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.kind.cmp(&other.kind))
     }
 }
 
@@ -132,10 +125,10 @@ impl ChunkTicketsCommands {
     }
 
     pub fn remove_ticket(&mut self, chunk_pos: ChunkPos, ticket_kind: TicketKind) {
-        if let Some(tickets) = self.add_tickets.get_mut(&chunk_pos) {
-            if let Some(i) = tickets.iter().position(|t| t.kind == ticket_kind) {
-                tickets.swap_remove(i);
-            }
+        if let Some(tickets) = self.add_tickets.get_mut(&chunk_pos)
+            && let Some(i) = tickets.iter().position(|t| t.kind == ticket_kind)
+        {
+            tickets.swap_remove(i);
         }
     }
 }
@@ -154,7 +147,7 @@ impl ChunkTicketsCommands {
 
 fn despawn_chunks(
     mut commands: Commands,
-    mut dims: Query<(&mut ChunkIndex)>,
+    mut dims: Query<&mut ChunkIndex>,
     chunk_statuses: Query<(Entity, &ChunkPos, &InDimension), With<ChunkUnloaded>>,
 ) {
     for (chunk, chunk_pos, dim) in chunk_statuses.iter().take(MAX_DESPAWNS_PER_TICK) {
@@ -169,7 +162,7 @@ fn unload_chunks(
     mut commands: Commands,
     chunk_statuses: Query<(Entity, &ChunkPos, &InDimension), With<ChunkUnloading>>,
 ) {
-    chunk_statuses.iter().for_each(|(chunk, chunk_pos, dim)| {
+    chunk_statuses.iter().for_each(|(chunk, _chunk_pos, _dim)| {
         commands
             .entity(chunk)
             .remove::<ChunkUnloading>()

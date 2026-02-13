@@ -4,9 +4,10 @@ pub mod xoroshiro;
 use crate::legacy::LegacyRandom;
 use crate::xoroshiro::XoroshiroRandom;
 use bevy_math::IVec3;
-use rand_xoshiro::rand_core::RngCore;
+use rand_xoshiro::rand_core::{Rng, TryRng};
+use std::convert::Infallible;
 
-pub trait Random: RngCore + Clone {
+pub trait Random: Rng + Clone {
     fn is_legacy(&self) -> bool;
 
     fn next_bool(&mut self) -> bool;
@@ -69,28 +70,32 @@ impl RandomSource {
     }
 }
 
-impl RngCore for RandomSource {
-    fn next_u32(&mut self) -> u32 {
-        match self {
+impl TryRng for RandomSource {
+    type Error = Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+        Ok(match self {
             RandomSource::Legacy(random) => random.next_u32(),
             RandomSource::Xoroshiro(random) => random.next_u32(),
-        }
+        })
     }
 
-    fn next_u64(&mut self) -> u64 {
-        match self {
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+        Ok(match self {
             RandomSource::Legacy(random) => random.next_u64(),
             RandomSource::Xoroshiro(random) => random.next_u64(),
-        }
+        })
     }
 
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
         match self {
             RandomSource::Legacy(random) => random.fill_bytes(dest),
             RandomSource::Xoroshiro(random) => random.fill_bytes(dest),
         }
+        Ok(())
     }
 }
+
 
 impl Random for RandomSource {
     fn is_legacy(&self) -> bool {

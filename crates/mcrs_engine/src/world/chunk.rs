@@ -80,7 +80,6 @@ impl From<BlockPos> for ChunkPos {
 pub struct ChunkBundle {
     pub dimension: InDimension,
     pub pos: ChunkPos,
-    pub status: ChunkStatus,
     pub entities: ChunkEntities,
     marker: Chunk,
     chunk_loading: ChunkLoading,
@@ -95,23 +94,11 @@ impl ChunkBundle {
         Self {
             dimension,
             pos: chunk_pos,
-            status: ChunkStatus::default(),
             entities: ChunkEntities::default(),
             marker: Chunk,
             chunk_loading: ChunkLoading,
         }
     }
-}
-
-// TODO: Change from enum to separate marker structures for each status for optimized archetype filtering
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Component)]
-pub enum ChunkStatus {
-    Unloaded,
-    #[default]
-    Loading,
-    Generating,
-    Loaded,
-    Unloading,
 }
 
 #[derive(Component)]

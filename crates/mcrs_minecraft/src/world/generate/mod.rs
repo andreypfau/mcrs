@@ -1,4 +1,5 @@
 use crate::world::block::minecraft::STONE;
+use crate::world::chunk::CancellationToken;
 use crate::world::palette::{BiomePalette, BlockPalette};
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_worldgen::density_function::{
@@ -119,12 +120,17 @@ fn generate_section(
 ///
 /// Adjacent Y sections share cell corners at their boundary via Y-boundary reuse,
 /// eliminating ~33% of density evaluations for all sections after the first.
+///
+/// Accepts a `CancellationToken` for cooperative cancellation. The token is checked
+/// between section generations; if cancelled, remaining sections return `None` while
+/// already-completed sections return `Some((blocks, biomes))`.
 pub fn generate_column(
     section_x: i32,
     section_z: i32,
     y_sections: &[i32],
     noise_router: &NoiseRouter,
-) -> Vec<(BlockPalette, BiomePalette)> {
+    cancel: &CancellationToken,
+) -> Vec<Option<(BlockPalette, BiomePalette)>> {
     let mut interp = noise_router.new_section_interpolator();
     let block_x = section_x * 16;
     let block_z = section_z * 16;
@@ -140,6 +146,11 @@ pub fn generate_column(
     y_sections
         .iter()
         .map(|&sy| {
+            // Check cancellation between sections (cooperative cancellation)
+            if cancel.is_cancelled() {
+                return None;
+            }
+
             // Surface skip: sections above estimated max surface are guaranteed all-air
             #[cfg(feature = "surface-skip")]
             if let Some(max_y) = skip_above_y {
@@ -147,7 +158,7 @@ pub fn generate_column(
                     // Skipped section breaks Y-adjacency, treated as a gap
                     interp.reset_section_boundary();
                     prev_sy = Some(sy);
-                    return (BlockPalette::default(), BiomePalette::default());
+                    return Some((BlockPalette::default(), BiomePalette::default()));
                 }
             }
 
@@ -168,7 +179,7 @@ pub fn generate_column(
                 &mut column_cache,
                 &mut interp,
             );
-            (blocks, biomes)
+            Some((blocks, biomes))
         })
         .collect()
 }

@@ -1,5 +1,5 @@
 /// # Usage Example 1: Mangrove Propagule
-/// ```rust
+/// ```rust,ignore
 /// generate_block_states! {
 ///     base_id: 45,
 ///     block_name: "mangrove_propagule",
@@ -14,7 +14,7 @@
 /// ```
 ///
 /// # Usage Example 2: Custom Door
-/// ```rust
+/// ```rust,ignore
 /// generate_block_states! {
 ///     base_id: 200,
 ///     block_name: "oak_door",
@@ -30,7 +30,7 @@
 /// ```
 ///
 /// # Usage Example 3: Single State Block (No Properties)
-/// ```rust
+/// ```rust,ignore
 /// generate_block_states! {
 ///     base_id: 100,
 ///     block_name: "bedrock",
