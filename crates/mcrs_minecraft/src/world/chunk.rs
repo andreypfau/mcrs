@@ -30,12 +30,15 @@ impl Plugin for ChunkPlugin {
                 .num_threads(4)
                 .build()
         });
-        app.insert_resource(LoadingChunks::default());
+        app.insert_resource(ChunkColumnScheduler::default());
         app.add_systems(
             FixedPreUpdate,
             (
-                process_generated_chunk,
-                load_chunks.run_if(resource_exists::<OverworldNoiseRouter>),
+                process_completed_columns,
+                enqueue_pending_columns,
+                cancel_stale_columns,
+                reprioritize_columns,
+                dispatch_column_generation.run_if(resource_exists::<OverworldNoiseRouter>),
             )
                 .chain(),
         );
