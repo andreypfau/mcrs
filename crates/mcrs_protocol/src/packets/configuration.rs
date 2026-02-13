@@ -78,6 +78,7 @@ pub mod clientbound {
         Ping(Ping),
         ResetChat,
         RegistryData(ClientboundRegistryData<'a>),
+        UpdateTags(ClientboundUpdateTags<'a>),
     }
 }
 
