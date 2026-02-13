@@ -97,7 +97,7 @@ impl Plugin for BlockTagPlugin {
 #[derive(Resource)]
 pub struct TagRegistry<T: Clone + Send + Sync> {
     pub map: HashMap<Ident<String>, Vec<RegistryId<T>>>,
-    loaded_tags: Vec<Handle<ResourcePackTags>>,
+    pub(crate) loaded_tags: Vec<Handle<ResourcePackTags>>,
     processed_tags: HashSet<AssetId<ResourcePackTags>>,
 }
 
