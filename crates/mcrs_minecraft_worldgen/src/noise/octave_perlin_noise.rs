@@ -70,7 +70,7 @@ impl OctavePerlinNoise {
     /// Sample a specific octave directly, with custom y_scale/y_max.
     /// Skips the Option check — use only when you know the octave is populated
     /// (e.g., all amplitudes are non-zero).
-    #[inline]
+    #[inline(always)]
     pub fn sample_octave(
         &self,
         octave: usize,
@@ -83,7 +83,7 @@ impl OctavePerlinNoise {
         let idx = self.octave_samplers.len() - 1 - octave;
         // SAFETY: Caller guarantees octave is populated (all amplitudes non-zero).
         // In OldBlendedNoise, all 16/8 octaves are always present.
-        match &self.octave_samplers[idx] {
+        match unsafe { self.octave_samplers.get_unchecked(idx) } {
             Some(sampler) => sampler.sample(x, y, z, y_scale, y_max),
             None => 0.0,
         }
@@ -110,12 +110,20 @@ impl OctavePerlinNoise {
         #[cfg(feature = "far-lands")]
         return value;
         #[cfg(not(feature = "far-lands"))]
-        return (value - (value / 3.3554432E7 + 0.5).floor() * 3.3554432E7);
+        {
+            const RECIP: f32 = 1.0 / 3.3554432E7;
+            const FACTOR: f32 = 3.3554432E7;
+            value - (value * RECIP + 0.5).floor() * FACTOR
+        }
     }
 
     #[inline(always)]
     pub fn get(&self, x: f32, y: f32, z: f32) -> f32 {
-        let mut lacunarity = self.lacunarity;
+        // Strength-reduce: scale coordinates directly instead of multiplying
+        // by a separate lacunarity variable each iteration.
+        let mut lx = x * self.lacunarity;
+        let mut ly = y * self.lacunarity;
+        let mut lz = z * self.lacunarity;
         let mut persistence = self.persistence;
         let mut acc = 0.0f32;
         let len = self.octave_samplers.len();
@@ -124,16 +132,18 @@ impl OctavePerlinNoise {
             let sampler = unsafe { self.octave_samplers.get_unchecked(i) };
             if let Some(sampler) = sampler {
                 let sample = sampler.sample(
-                    Self::maintain_precission(x * lacunarity),
-                    Self::maintain_precission(y * lacunarity),
-                    Self::maintain_precission(z * lacunarity),
+                    Self::maintain_precission(lx),
+                    Self::maintain_precission(ly),
+                    Self::maintain_precission(lz),
                     0.0,
                     0.0,
                 );
                 let amp = unsafe { *self.amplitudes.get_unchecked(i) };
                 acc = sample.mul_add(persistence * amp, acc);
             }
-            lacunarity *= 2.0;
+            lx *= 2.0;
+            ly *= 2.0;
+            lz *= 2.0;
             persistence *= 0.5;
         }
         acc

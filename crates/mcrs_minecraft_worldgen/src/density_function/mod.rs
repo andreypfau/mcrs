@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
 use std::mem::swap;
 use std::ops::Index;
-use tracing::{info, info_span};
+use tracing::info;
 
 pub mod proto;
 
@@ -2855,52 +2855,86 @@ impl DensityFunction for OldBlendedNoise {
         let scaled_y = pos.y as f32 * self.y_multiplier;
         let scaled_z = pos.z as f32 * self.xz_multiplier;
 
-        let factored_x = scaled_x / self.xz_factor;
-        let factored_y = scaled_y / self.y_factor;
-        let factored_z = scaled_z / self.xz_factor;
+        // Strength-reduce: halve coordinates each iteration instead of
+        // multiplying by a separate factor variable.
+        let mut fx = scaled_x / self.xz_factor;
+        let mut fy = scaled_y / self.y_factor;
+        let mut fz = scaled_z / self.xz_factor;
+        let mut main_smear = self.main_smear;
 
-        let mut value = 0.0;
-        let mut factor = 1.0;
+        // Interpolated noise: 8 octaves.
+        let mut value = 0.0f32;
+        let mut amplitude = 1.0f32;
         for i in 0..8 {
-            if let Some(noise) = self.interpolated_noise.get_octave(i) {
-                let xx = OctavePerlinNoise::maintain_precission(factored_x * factor);
-                let yy = OctavePerlinNoise::maintain_precission(factored_y * factor);
-                let zz = OctavePerlinNoise::maintain_precission(factored_z * factor);
-                value += noise.sample(
-                    xx,
-                    yy,
-                    zz,
-                    self.main_smear * factor,
-                    factored_y * factor,
-                ) / factor;
-            }
-            factor /= 2.0;
+            let s = self.interpolated_noise.sample_octave(
+                i,
+                OctavePerlinNoise::maintain_precission(fx),
+                OctavePerlinNoise::maintain_precission(fy),
+                OctavePerlinNoise::maintain_precission(fz),
+                main_smear,
+                fy,
+            );
+            value = s.mul_add(amplitude, value);
+            fx *= 0.5;
+            fy *= 0.5;
+            fz *= 0.5;
+            main_smear *= 0.5;
+            amplitude *= 2.0;
         }
 
         value = (value / 10.0 + 1.0) / 2.0;
-        factor = 1.0;
-        let less_than_one = value < 1.0;
-        let more_than_zero = value > 0.0;
-        let mut min = 0.0;
-        let mut max = 0.0;
+        let need_lower = value < 1.0;
+        let need_upper = value > 0.0;
+        let mut min = 0.0f32;
+        let mut max = 0.0f32;
 
-        let smear = self.limit_smear;
-        for i in 0..16 {
-            let xx = OctavePerlinNoise::maintain_precission(scaled_x * factor);
-            let yy = OctavePerlinNoise::maintain_precission(scaled_y * factor);
-            let zz = OctavePerlinNoise::maintain_precission(scaled_z * factor);
-            let smears_smear = smear * factor;
-            if less_than_one {
-                if let Some(noise) = self.lower_interpolated_noise.get_octave(i) {
-                    min += noise.sample(xx, yy, zz, smears_smear, scaled_y * factor) / factor;
-                }
+        // Separate loops for lower/upper noise to keep each OctavePerlinNoise's
+        // permutation tables cache-warm during evaluation.
+        if need_lower {
+            let mut sx = scaled_x;
+            let mut sy = scaled_y;
+            let mut sz = scaled_z;
+            let mut sm = self.limit_smear;
+            let mut amplitude = 1.0f32;
+            for i in 0..16 {
+                let s = self.lower_interpolated_noise.sample_octave(
+                    i,
+                    OctavePerlinNoise::maintain_precission(sx),
+                    OctavePerlinNoise::maintain_precission(sy),
+                    OctavePerlinNoise::maintain_precission(sz),
+                    sm,
+                    sy,
+                );
+                min = s.mul_add(amplitude, min);
+                sx *= 0.5;
+                sy *= 0.5;
+                sz *= 0.5;
+                sm *= 0.5;
+                amplitude *= 2.0;
             }
-            if more_than_zero {
-                if let Some(noise) = self.upper_interpolated_noise.get_octave(i) {
-                    max += noise.sample(xx, yy, zz, smears_smear, scaled_y * factor) / factor;
-                }
+        }
+        if need_upper {
+            let mut sx = scaled_x;
+            let mut sy = scaled_y;
+            let mut sz = scaled_z;
+            let mut sm = self.limit_smear;
+            let mut amplitude = 1.0f32;
+            for i in 0..16 {
+                let s = self.upper_interpolated_noise.sample_octave(
+                    i,
+                    OctavePerlinNoise::maintain_precission(sx),
+                    OctavePerlinNoise::maintain_precission(sy),
+                    OctavePerlinNoise::maintain_precission(sz),
+                    sm,
+                    sy,
+                );
+                max = s.mul_add(amplitude, max);
+                sx *= 0.5;
+                sy *= 0.5;
+                sz *= 0.5;
+                sm *= 0.5;
+                amplitude *= 2.0;
             }
-            factor /= 2.0;
         }
 
         let start = min / 512.0;
@@ -2910,7 +2944,7 @@ impl DensityFunction for OldBlendedNoise {
         } else if value > 1.0 {
             end
         } else {
-            value * (end - start) + start
+            value.mul_add(end - start, start)
         };
         value / 128.0
     }
@@ -3386,34 +3420,13 @@ impl RangeFunction for IndependentDensityFunction {
 impl DensityFunction for IndependentDensityFunction {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         match self {
-            IndependentDensityFunction::Constant(x) => {
-                let _span = info_span!("Constant::sample").entered();
-                *x
-            }
-            IndependentDensityFunction::OldBlendedNoise(x) => {
-                let _span = info_span!("OldBlendedNoise::sample").entered();
-                x.sample(stack, pos)
-            }
-            IndependentDensityFunction::Noise(x) => {
-                let _span = info_span!("Noise::sample").entered();
-                x.sample(stack, pos)
-            }
-            IndependentDensityFunction::ShiftA(x) => {
-                let _span = info_span!("ShiftA::sample").entered();
-                x.sample(stack, pos)
-            }
-            IndependentDensityFunction::ShiftB(x) => {
-                let _span = info_span!("ShiftB::sample").entered();
-                x.sample(stack, pos)
-            }
-            IndependentDensityFunction::Shift(x) => {
-                let _span = info_span!("Shift::sample").entered();
-                x.sample(stack, pos)
-            }
-            IndependentDensityFunction::ClampedYGradient(x) => {
-                let _span = info_span!("ClampedYGradient::sample").entered();
-                x.sample(stack, pos)
-            }
+            IndependentDensityFunction::Constant(x) => *x,
+            IndependentDensityFunction::OldBlendedNoise(x) => x.sample(stack, pos),
+            IndependentDensityFunction::Noise(x) => x.sample(stack, pos),
+            IndependentDensityFunction::ShiftA(x) => x.sample(stack, pos),
+            IndependentDensityFunction::ShiftB(x) => x.sample(stack, pos),
+            IndependentDensityFunction::Shift(x) => x.sample(stack, pos),
+            IndependentDensityFunction::ClampedYGradient(x) => x.sample(stack, pos),
             IndependentDensityFunction::EndIslands => {
                 // TODO: implement proper end islands noise sampling
                 0.0
@@ -3476,30 +3489,14 @@ impl RangeFunction for WrapperDensityFunction {
 impl DensityFunction for WrapperDensityFunction {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         match self {
-            WrapperDensityFunction::BlendDensity(x) => {
-                let _span = info_span!("BlendDensity::sample").entered();
-                x.sample(stack, pos)
-            }
+            WrapperDensityFunction::BlendDensity(x) => x.sample(stack, pos),
             WrapperDensityFunction::Interpolated(x) => {
-                let _span = info_span!("Interpolated::sample").entered();
                 DensityFunctionComponent::sample_from_stack(&stack[..=x.input_index], pos)
             }
-            WrapperDensityFunction::FlatCache(x) => {
-                let _span = info_span!("FlatCache::sample").entered();
-                x.sample(stack, pos)
-            }
-            WrapperDensityFunction::Cache2d(x) => {
-                let _span = info_span!("Cache2d::sample").entered();
-                x.sample(stack, pos)
-            }
-            WrapperDensityFunction::CacheOnce(x) => {
-                let _span = info_span!("CacheOnce::sample").entered();
-                x.sample(stack, pos)
-            }
-            WrapperDensityFunction::CacheAllInCell(x) => {
-                let _span = info_span!("CacheAllInCell::sample").entered();
-                x.sample(stack, pos)
-            }
+            WrapperDensityFunction::FlatCache(x) => x.sample(stack, pos),
+            WrapperDensityFunction::Cache2d(x) => x.sample(stack, pos),
+            WrapperDensityFunction::CacheOnce(x) => x.sample(stack, pos),
+            WrapperDensityFunction::CacheAllInCell(x) => x.sample(stack, pos),
         }
     }
 }
@@ -3508,11 +3505,7 @@ impl DensityFunction for DependentDensityFunction {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         match self {
             DependentDensityFunction::Linear(x) => x.sample(stack, pos),
-            DependentDensityFunction::Affine(x) => {
-                let _span =
-                    info_span!("Affine::sample", scale = x.scale, offset = x.offset).entered();
-                x.sample(stack, pos)
-            }
+            DependentDensityFunction::Affine(x) => x.sample(stack, pos),
             DependentDensityFunction::PiecewiseAffine(x) => x.sample(stack, pos),
             DependentDensityFunction::Slide(x) => x.sample(stack, pos),
             DependentDensityFunction::Unary(x) => x.sample(stack, pos),
@@ -3521,10 +3514,7 @@ impl DensityFunction for DependentDensityFunction {
             DependentDensityFunction::WeirdScaled(x) => x.sample(stack, pos),
             DependentDensityFunction::Clamp(x) => x.sample(stack, pos),
             DependentDensityFunction::RangeChoice(x) => x.sample(stack, pos),
-            DependentDensityFunction::Spline(x) => {
-                let _span = info_span!("Spline::sample").entered();
-                x.sample(stack, pos)
-            }
+            DependentDensityFunction::Spline(x) => x.sample(stack, pos),
             DependentDensityFunction::FlattenedSpline(x) => x.sample(stack, pos),
             DependentDensityFunction::FindTopSurface(x) => x.sample(stack, pos),
         }
@@ -3793,12 +3783,6 @@ impl DensityFunction for Slide {
 impl DensityFunction for Linear {
     #[inline]
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let _span = match self.operation {
-            LinearOperation::Add => info_span!("Linear::Add::Sample", self.argument).entered(),
-            LinearOperation::Multiply => {
-                info_span!("Linear::Multiply::sample", self.argument).entered()
-            }
-        };
         let density = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
         match self.operation {
             LinearOperation::Add => density + self.argument,
@@ -3871,17 +3855,6 @@ impl UnaryOperation {
 impl DensityFunction for Unary {
     #[inline]
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let _span = match self.operation {
-            UnaryOperation::Abs => info_span!("Unary::Abs::sample").entered(),
-            UnaryOperation::Square => info_span!("Unary::Square::sample").entered(),
-            UnaryOperation::Cube => info_span!("Unary::Cube::sample").entered(),
-            UnaryOperation::HalfNegative => info_span!("Unary::HalfNegative::sample").entered(),
-            UnaryOperation::QuarterNegative => {
-                info_span!("Unary::QuarterNegative::sample").entered()
-            }
-            UnaryOperation::Invert => info_span!("Unary::Invert::sample").entered(),
-            UnaryOperation::Squeeze => info_span!("Unary::Squeeze::sample").entered(),
-        };
         let density = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
         self.operation.apply(density)
     }
@@ -3995,8 +3968,6 @@ impl DensityFunction for WeirdScaled {
     // todo: branchless
     #[inline]
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let _span = info_span!("WeirdScaled::sample").entered();
-
         let density = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
         let (amp, coord_mul) = match self.mapper {
             RarityValueMapper::Type1 => {
@@ -4057,8 +4028,6 @@ impl RangeFunction for Clamp {
 impl DensityFunction for Clamp {
     #[inline]
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let _span = info_span!("Clamp::sample").entered();
-
         let density = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
         density.clamp(self.min_value, self.max_value)
     }
@@ -4090,8 +4059,6 @@ impl RangeFunction for RangeChoice {
 impl DensityFunction for RangeChoice {
     #[inline]
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let _span = info_span!("RangeChoice::sample").entered();
-
         let input_density =
             DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
 
@@ -4587,8 +4554,6 @@ impl RangeFunction for FindTopSurface {
 
 impl DensityFunction for FindTopSurface {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let _span = info_span!("FindTopSurface::sample").entered();
-
         let top_y =
             (DensityFunctionComponent::sample_from_stack(&stack[..=self.upper_bound_index], pos)
                 / self.cell_height)
@@ -4625,13 +4590,6 @@ struct Binary {
 impl DensityFunction for Binary {
     #[inline]
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let _span = match self.operation {
-            BinaryOperation::Add => info_span!("Binary::Add::sample"),
-            BinaryOperation::Multiply => info_span!("Binary::Multiply::sample"),
-            BinaryOperation::Min => info_span!("Binary::Min::sample"),
-            BinaryOperation::Max => info_span!("Binary::Max::sample"),
-        }
-        .entered();
         let input1_density =
             DensityFunctionComponent::sample_from_stack(&stack[..=self.input1_index], pos);
         // let input2_density =
