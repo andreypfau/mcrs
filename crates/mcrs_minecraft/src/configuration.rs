@@ -1,3 +1,4 @@
+use crate::biome::Biome;
 use crate::dimension_type::DimensionType;
 use crate::version::VERSION_ID;
 use bevy_app::{App, Plugin};
@@ -145,6 +146,29 @@ fn init_dimension_types() -> Vec<(Ident<String>, DimensionType)> {
                 .expect(&format!("Failed to parse dimension type: {}", name));
             let id = Ident::from_str(name).unwrap();
             (id, dim_type)
+        })
+        .collect()
+}
+
+#[derive(Default, Resource)]
+pub(crate) struct LoadedBiomes(pub Vec<(Ident<String>, Biome)>);
+
+fn init_biomes() -> Vec<(Ident<String>, Biome)> {
+    let synced_registries = include_str!("../../../assets/synced_registries.json");
+    let json = serde_json::from_str::<Map<String, Value>>(synced_registries).unwrap();
+    let biome_registry = json
+        .get("worldgen/biome")
+        .expect("worldgen/biome registry not found in synced_registries.json")
+        .as_object()
+        .expect("worldgen/biome should be an object");
+
+    biome_registry
+        .iter()
+        .map(|(name, value)| {
+            let biome: Biome = serde_json::from_value(value.clone())
+                .expect(&format!("Failed to parse biome: {}", name));
+            let id = Ident::from_str(name).unwrap();
+            (id, biome)
         })
         .collect()
 }
