@@ -120,7 +120,11 @@ fn spawn_player(
             con.write_packet(&ClientboundLogin {
                 player_id: entity.index_u32() as i32,
                 hardcore: false,
-                dimensions: vec![ident!("overworld").into()],
+                dimensions: world_preset
+                    .dimensions
+                    .iter()
+                    .map(|(dim_key, _)| dim_key.clone().into())
+                    .collect(),
                 max_players: VarInt(100),
                 chunk_radius: VarInt(12),
                 simulation_distance: VarInt(12),
