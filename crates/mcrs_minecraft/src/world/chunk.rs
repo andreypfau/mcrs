@@ -13,7 +13,8 @@ use mcrs_engine::entity::player::Player;
 use mcrs_engine::world::chunk::{ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos};
 use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsPlugin, OverworldNoiseRouter};
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock};
 use tracing::info;
 
 pub struct ChunkPlugin;
@@ -40,6 +41,36 @@ impl Plugin for ChunkPlugin {
 }
 
 static CHUNK_TASK_POOL: OnceLock<TaskPool> = OnceLock::new();
+
+/// Token for cooperative cancellation of chunk generation tasks.
+///
+/// The token is cloned and passed to worker tasks. When `cancel()` is called,
+/// tasks check `is_cancelled()` between section generations and can exit early.
+#[derive(Clone)]
+pub struct CancellationToken(Arc<AtomicBool>);
+
+impl CancellationToken {
+    /// Create a new uncancelled token.
+    pub fn new() -> Self {
+        Self(Arc::new(AtomicBool::new(false)))
+    }
+
+    /// Signal cancellation to all clones of this token.
+    pub fn cancel(&self) {
+        self.0.store(true, Ordering::Release);
+    }
+
+    /// Check if cancellation has been signaled.
+    pub fn is_cancelled(&self) -> bool {
+        self.0.load(Ordering::Acquire)
+    }
+}
+
+impl Default for CancellationToken {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 struct ChunkColumnResult {
     sections: Vec<(Entity, ChunkPos, BlockPalette, BiomePalette)>,
