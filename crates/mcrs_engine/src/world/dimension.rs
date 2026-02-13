@@ -28,6 +28,8 @@ impl Plugin for DimensionPlugin {
 #[derive(Bundle, Default)]
 pub struct DimensionBundle {
     pub dimension: Dimension,
+    pub dimension_id: DimensionId,
+    pub type_config: DimensionTypeConfig,
     pub chunk_index: ChunkIndex,
     pub chunk_tickets: ChunkTicketsCommands,
     pub players: DimensionPlayers,
@@ -67,6 +69,13 @@ pub struct DimensionId(pub String);
 impl DimensionId {
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
+    }
+}
+
+impl Default for DimensionId {
+    fn default() -> Self {
+        // Default to overworld to match DimensionTypeConfig::default()
+        Self::new("minecraft:overworld")
     }
 }
 
