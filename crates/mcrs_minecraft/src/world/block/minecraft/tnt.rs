@@ -18,7 +18,7 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_protocol::BlockStateId;
-use rand::{Rng, thread_rng};
+use rand::{Rng, rng};
 
 pub const BLOCK: Block = Block {
     identifier: mcrs_protocol::ident!("tnt"),
@@ -82,7 +82,7 @@ fn tnt_block_exploded(event: On<BlockExplodedEvent>, mut commands: Commands) {
         return;
     }
     // random int from 0 to DEFAULT_FUSE_DURATION
-    let fuse = thread_rng().r#gen_range(0..(DEFAULT_FUSE_DURATION / 4)) + DEFAULT_FUSE_DURATION / 8;
+    let fuse = rng().random_range(0..(DEFAULT_FUSE_DURATION / 4)) + DEFAULT_FUSE_DURATION / 8;
 
     commands.spawn(
         PrimedTntBundle::new(

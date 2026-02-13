@@ -37,8 +37,8 @@ paste = { version = "1.0.15" }
 serde = { version = "1.0.228", features = ["derive"] }
 bitflags = "2.10.0"
 tracing = { workspace = true }
-cfb8.workspace = true
-aes.workspace = true
+cfb8 = "0.9.0-rc.1"
+aes = "0.9.0-rc.2"
 
 [features]
          
