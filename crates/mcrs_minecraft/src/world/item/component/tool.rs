@@ -358,6 +358,20 @@ impl ToolMaterial {
         ]
     }
 
+    /// Creates tool rules for blocks mineable with this tool material using a dynamic tag identifier.
+    ///
+    /// This is the dynamic equivalent of `for_mineable_blocks`, using runtime tag lookup
+    /// instead of static block tag sets.
+    ///
+    /// # Arguments
+    /// * `mineable_tag` - The tag identifier for mineable blocks (e.g., "minecraft:mineable/pickaxe")
+    pub const fn for_mineable_blocks_dynamic(&self, mineable_tag: &'static str) -> [ToolRule; 2] {
+        [
+            ToolRule::with_tag_ref(self.incorrect_blocks_for_drops, None, Some(false)),
+            ToolRule::mines_and_drops_dynamic(mineable_tag, self.speed),
+        ]
+    }
+
     pub const fn apply_tool_properties(
         &self,
         components: ItemComponents,

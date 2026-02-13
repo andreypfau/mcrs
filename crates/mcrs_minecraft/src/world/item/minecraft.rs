@@ -1,8 +1,11 @@
-use crate::tag::block::MINEABLE_PICKAXE;
 use crate::world::item::Item;
 use crate::world::item::component::ItemComponents;
 use crate::world::item::component::tool::ToolMaterial;
 use mcrs_protocol::{ItemId, ident};
+
+/// Dynamic tag identifier for blocks mineable with a pickaxe.
+/// This replaces the hardcoded MINEABLE_PICKAXE constant with a runtime tag lookup.
+const MINEABLE_PICKAXE_TAG: &str = "minecraft:mineable/pickaxe";
 
 pub const WOODEN_PICKAXE: Item = Item {
     id: ItemId(913),
@@ -11,7 +14,7 @@ pub const WOODEN_PICKAXE: Item = Item {
         &ToolMaterial::WOOD,
         1.0,
         -2.0,
-        &ToolMaterial::WOOD.for_mineable_blocks(MINEABLE_PICKAXE),
+        &ToolMaterial::WOOD.for_mineable_blocks_dynamic(MINEABLE_PICKAXE_TAG),
     ),
 };
 
@@ -22,7 +25,7 @@ pub const STONE_PICKAXE: Item = Item {
         &ToolMaterial::STONE,
         1.0,
         -2.0,
-        &ToolMaterial::STONE.for_mineable_blocks(MINEABLE_PICKAXE),
+        &ToolMaterial::STONE.for_mineable_blocks_dynamic(MINEABLE_PICKAXE_TAG),
     ),
 };
 
@@ -33,7 +36,7 @@ pub const GOLDEN_PICKAXE: Item = Item {
         &ToolMaterial::GOLD,
         1.0,
         -2.8,
-        &ToolMaterial::GOLD.for_mineable_blocks(MINEABLE_PICKAXE),
+        &ToolMaterial::GOLD.for_mineable_blocks_dynamic(MINEABLE_PICKAXE_TAG),
     ),
 };
 
@@ -44,7 +47,7 @@ pub const IRON_PICKAXE: Item = Item {
         &ToolMaterial::IRON,
         1.0,
         -2.8,
-        &ToolMaterial::IRON.for_mineable_blocks(MINEABLE_PICKAXE),
+        &ToolMaterial::IRON.for_mineable_blocks_dynamic(MINEABLE_PICKAXE_TAG),
     ),
 };
 
@@ -55,7 +58,7 @@ pub const DIAMOND_PICKAXE: Item = Item {
         &ToolMaterial::DIAMOND,
         1.0,
         -2.8,
-        &ToolMaterial::DIAMOND.for_mineable_blocks(MINEABLE_PICKAXE),
+        &ToolMaterial::DIAMOND.for_mineable_blocks_dynamic(MINEABLE_PICKAXE_TAG),
     ),
 };
 
