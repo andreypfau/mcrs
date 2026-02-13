@@ -35,6 +35,7 @@ fn on_configuration_enter(
         Changed<ConnectionState>,
     >,
     res: Res<SyncedRegistries>,
+    dimension_types: Res<LoadedDimensionTypes>,
 ) {
     for (entity, mut con, conn_state) in query.iter_mut() {
         if *conn_state != ConnectionState::Configuration {
@@ -74,20 +75,22 @@ fn on_configuration_enter(
             con.write_packet(&packet);
         }
 
-        let dim_nbt = nbt::to_nbt_compound(&DimensionType {
-            min_y: 0,
-            height: 256,
-            logical_height: 256,
-            ambient_light: 1.0,
-            ..Default::default()
-        })
-        .unwrap();
+        // Send loaded dimension types to client
+        let dim_entries: Vec<Entry> = dimension_types
+            .0
+            .iter()
+            .map(|(id, dim_type)| {
+                let dim_nbt = nbt::to_nbt_compound(dim_type)
+                    .expect(&format!("Failed to serialize dimension type: {}", id));
+                Entry {
+                    id: Cow::from(id.as_str()).try_into().unwrap(),
+                    data: Some(Cow::Owned(dim_nbt)),
+                }
+            })
+            .collect();
         con.write_packet(&ClientboundRegistryData {
             registry: ident!("minecraft:dimension_type").into(),
-            entries: vec![Entry {
-                id: ident!("minecraft:overworld").into(),
-                data: Some(Cow::Owned(dim_nbt)),
-            }],
+            entries: dim_entries,
         });
 
         con.write_packet(&ClientboundRegistryData {
