@@ -22,14 +22,4 @@ tracing = { workspace = true }
 default = ["serde", "bevy"]
 serde = ["dep:serde", "dep:serde_json"]
 bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_asset", "dep:bevy_reflect", "dep:thiserror"]
-
-
-
-
-
-
-
-
-
-
-
+lazy-range-choice = []

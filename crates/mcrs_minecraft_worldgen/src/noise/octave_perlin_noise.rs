@@ -67,6 +67,28 @@ impl OctavePerlinNoise {
             .and_then(|sampler| sampler.as_ref())
     }
 
+    /// Sample a specific octave directly, with custom y_scale/y_max.
+    /// Skips the Option check — use only when you know the octave is populated
+    /// (e.g., all amplitudes are non-zero).
+    #[inline]
+    pub fn sample_octave(
+        &self,
+        octave: usize,
+        x: f32,
+        y: f32,
+        z: f32,
+        y_scale: f32,
+        y_max: f32,
+    ) -> f32 {
+        let idx = self.octave_samplers.len() - 1 - octave;
+        // SAFETY: Caller guarantees octave is populated (all amplitudes non-zero).
+        // In OldBlendedNoise, all 16/8 octaves are always present.
+        match &self.octave_samplers[idx] {
+            Some(sampler) => sampler.sample(x, y, z, y_scale, y_max),
+            None => 0.0,
+        }
+    }
+
     pub fn max_value(&self) -> f32 {
         self.max_value
     }

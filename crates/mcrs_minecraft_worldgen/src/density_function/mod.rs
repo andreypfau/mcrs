@@ -1285,6 +1285,133 @@ impl ChunkColumnCache {
     }
 }
 
+/// Compute lazy RangeChoice optimization for Zone B.
+///
+/// Finds the RangeChoice in Zone B with the most exclusive entries and creates
+/// two evaluation lists: one for when the condition is true (when_in branch)
+/// and one for when it's false (when_out branch). Entries exclusive to the
+/// inactive branch are omitted from the respective list.
+#[cfg(feature = "lazy-range-choice")]
+fn compute_lazy_range_choice(
+    stack: &[DensityFunctionComponent],
+    column_boundary: usize,
+    final_density_index: usize,
+) -> Option<LazyRangeChoice> {
+    // Find RangeChoice nodes in Zone B
+    let mut best: Option<LazyRangeChoice> = None;
+    let mut best_savings = 0usize;
+
+    for rc_idx in column_boundary..=final_density_index {
+        let rc = match &stack[rc_idx] {
+            DensityFunctionComponent::Dependent(DependentDensityFunction::RangeChoice(rc)) => rc,
+            _ => continue,
+        };
+
+        // Compute reachable sets from when_in and when_out branches
+        let extent = final_density_index + 1;
+        let reachable_from_wi = reachable_backwards(rc.when_in_index, stack, extent);
+        let reachable_from_wo = reachable_backwards(rc.when_out_index, stack, extent);
+
+        // Compute reachable set from final_density WITHOUT going through this RC's branches.
+        // We walk back from final_density but when we encounter this RC node, we only
+        // follow the input edge (not when_in or when_out).
+        let reachable_without_branches = {
+            let mut visited = vec![false; final_density_index + 1];
+            visited[final_density_index] = true;
+            for i in (column_boundary..=final_density_index).rev() {
+                if !visited[i] {
+                    continue;
+                }
+                if i == rc_idx {
+                    // Only follow the input edge, not the branch edges
+                    if rc.input_index <= final_density_index {
+                        visited[rc.input_index] = true;
+                    }
+                } else {
+                    stack[i].visit_input_indices(&mut |dep| {
+                        if dep <= final_density_index {
+                            visited[dep] = true;
+                        }
+                    });
+                }
+            }
+            visited
+        };
+
+        // Entries exclusive to when_out: reachable from WO, NOT from WI, NOT from other paths
+        let wo_exclusive: Vec<usize> = (column_boundary..rc_idx)
+            .filter(|&e| {
+                reachable_from_wo[e] && !reachable_from_wi[e] && !reachable_without_branches[e]
+            })
+            .collect();
+
+        // Entries exclusive to when_in: reachable from WI, NOT from WO, NOT from other paths
+        let wi_exclusive: Vec<usize> = (column_boundary..rc_idx)
+            .filter(|&e| {
+                reachable_from_wi[e] && !reachable_from_wo[e] && !reachable_without_branches[e]
+            })
+            .collect();
+
+        let savings = wo_exclusive.len().max(wi_exclusive.len());
+        if savings <= best_savings {
+            continue;
+        }
+
+        // Build branch-specific lists: Zone B entries AFTER input_index, minus exclusives.
+        // The common prefix [column_boundary..=input_index] is always evaluated.
+        let input_idx = rc.input_index;
+        let branch_when_in: Vec<usize> = ((input_idx + 1)..=final_density_index)
+            .filter(|e| !wo_exclusive.contains(e))
+            .collect();
+        let branch_when_out: Vec<usize> = ((input_idx + 1)..=final_density_index)
+            .filter(|e| !wi_exclusive.contains(e))
+            .collect();
+
+        eprintln!(
+            "  Lazy RangeChoice at [{}]: when_in skips {}, when_out skips {}",
+            rc_idx,
+            wo_exclusive.len(),
+            wi_exclusive.len(),
+        );
+
+        best_savings = savings;
+        best = Some(LazyRangeChoice {
+            input_index: input_idx,
+            min_inclusion: rc.min_inclusion_value,
+            max_exclusion: rc.max_exclusion_value,
+            branch_when_in: branch_when_in.into_boxed_slice(),
+            branch_when_out: branch_when_out.into_boxed_slice(),
+        });
+    }
+
+    best
+}
+
+#[cfg(feature = "lazy-range-choice")]
+/// Walk backwards from `start` through input edges, returning a reachability bitmap
+/// of size `extent`. Entries beyond `start` are always false.
+fn reachable_backwards(
+    start: usize,
+    stack: &[DensityFunctionComponent],
+    extent: usize,
+) -> Vec<bool> {
+    let mut visited = vec![false; extent];
+    if start < extent {
+        visited[start] = true;
+    }
+    for i in (0..=start.min(extent - 1)).rev() {
+        if !visited[i] {
+            continue;
+        }
+        stack[i].visit_input_indices(&mut |dep| {
+            if dep < extent {
+                visited[dep] = true;
+            }
+        });
+    }
+    visited
+}
+
 pub fn build_functions(
     functions: &BTreeMap<Ident<String>, ProtoDensityFunction>,
     noises: &BTreeMap<Ident<String>, NoiseParam>,
@@ -1363,6 +1490,12 @@ pub fn build_functions(
         11, // final_density is roots[11]
     );
 
+    let final_density_index = roots[11];
+
+    // Compute lazy RangeChoice optimization for Zone B.
+    #[cfg(feature = "lazy-range-choice")]
+    let lazy_rc = compute_lazy_range_choice(&builder.stack, column_boundary, final_density_index);
+
     let router = NoiseRouter {
         barrier_index: roots[0],
         fluid_level_floodedness_index: roots[1],
@@ -1375,7 +1508,7 @@ pub fn build_functions(
         depth_index: roots[8],
         ridges_index: roots[9],
         preliminary_surface_level_index: roots[10],
-        final_density_index: roots[11],
+        final_density_index,
         vein_toggle_index: roots[12],
         vein_ridged_index: roots[13],
         vein_gap_index: roots[14],
@@ -1386,12 +1519,33 @@ pub fn build_functions(
         v_cell_blocks: builder_options.vertical_cell_block_count,
         stack: Box::from(builder.stack),
         node_labels: node_labels.into_boxed_slice(),
+        #[cfg(feature = "lazy-range-choice")]
+        lazy_rc,
     };
 
     router
 }
 
+#[cfg(feature = "lazy-range-choice")]
 #[derive(Clone, Debug, PartialEq)]
+/// Lazy RangeChoice evaluation data.
+/// Zone B evaluation is split into a common prefix (up to and including the
+/// RangeChoice input) and branch-specific tails. The input is evaluated first,
+/// then based on the condition, only the needed branch entries are evaluated.
+struct LazyRangeChoice {
+    /// Stack index of the RangeChoice's input.
+    input_index: usize,
+    /// Range bounds for the condition.
+    min_inclusion: f32,
+    max_exclusion: f32,
+    /// Zone B entries AFTER input_index when condition is TRUE (input in range).
+    /// Excludes entries only needed by the when_out branch.
+    branch_when_in: Box<[usize]>,
+    /// Zone B entries AFTER input_index when condition is FALSE (input out of range).
+    /// Excludes entries only needed by the when_in branch.
+    branch_when_out: Box<[usize]>,
+}
+
 pub struct NoiseRouter {
     barrier_index: usize,
     fluid_level_floodedness_index: usize,
@@ -1423,6 +1577,11 @@ pub struct NoiseRouter {
     v_cell_blocks: usize,
     stack: Box<[DensityFunctionComponent]>,
     node_labels: Box<[String]>,
+    /// Lazy RangeChoice optimization for Zone B evaluation.
+    /// If present, `final_density_from_column_cache` uses branch-specific
+    /// evaluation lists to skip entries exclusive to the inactive branch.
+    #[cfg(feature = "lazy-range-choice")]
+    lazy_rc: Option<LazyRangeChoice>,
 }
 
 impl NoiseRouter {
@@ -1451,6 +1610,133 @@ impl NoiseRouter {
             ("vein_ridged", self.vein_ridged_index),
             ("vein_gap", self.vein_gap_index),
         ]
+    }
+
+    /// Print Zone B composition to stderr for profiling purposes.
+    pub fn print_zone_stats(&self) {
+        let zone_a = self.column_boundary;
+        let zone_b = self.final_density_index + 1 - self.column_boundary;
+        let zone_c = self.stack.len() - self.fd_boundary;
+        eprintln!(
+            "  Zone A (column-only):  {} entries [0..{})",
+            zone_a, self.column_boundary
+        );
+        eprintln!(
+            "  Zone B (per-Y final):  {} entries [{}..={}]",
+            zone_b, self.column_boundary, self.final_density_index
+        );
+        eprintln!(
+            "  Zone C (other roots):  {} entries [{}..{})",
+            zone_c,
+            self.fd_boundary,
+            self.stack.len()
+        );
+        eprintln!("  Total stack: {} entries", self.stack.len());
+
+        // Count Zone B by type
+        let mut constants = 0usize;
+        let mut old_blended = 0;
+        let mut noise = 0;
+        let mut shift = 0;
+        let mut clamped_y = 0;
+        let mut linear = 0;
+        let mut affine = 0;
+        let mut piecewise = 0;
+        let mut slide = 0;
+        let mut unary = 0;
+        let mut binary = 0;
+        let mut shifted_noise = 0;
+        let mut weird_scaled = 0;
+        let mut clamp = 0;
+        let mut range_choice = 0;
+        let mut spline = 0;
+        let mut flat_spline = 0;
+        let mut find_top = 0;
+        for i in self.column_boundary..=self.final_density_index {
+            match &self.stack[i] {
+                DensityFunctionComponent::Independent(f) => match f {
+                    IndependentDensityFunction::Constant(_) => constants += 1,
+                    IndependentDensityFunction::OldBlendedNoise(_) => old_blended += 1,
+                    IndependentDensityFunction::Noise(_) => noise += 1,
+                    IndependentDensityFunction::ShiftA(_)
+                    | IndependentDensityFunction::ShiftB(_)
+                    | IndependentDensityFunction::Shift(_) => shift += 1,
+                    IndependentDensityFunction::ClampedYGradient(_) => clamped_y += 1,
+                    IndependentDensityFunction::EndIslands => {}
+                },
+                DensityFunctionComponent::Wrapper(_) => {}
+                DensityFunctionComponent::Dependent(f) => match f {
+                    DependentDensityFunction::Linear(_) => linear += 1,
+                    DependentDensityFunction::Affine(_) => affine += 1,
+                    DependentDensityFunction::PiecewiseAffine(_) => piecewise += 1,
+                    DependentDensityFunction::Slide(_) => slide += 1,
+                    DependentDensityFunction::Unary(_) => unary += 1,
+                    DependentDensityFunction::Binary(_) => binary += 1,
+                    DependentDensityFunction::ShiftedNoise(_) => shifted_noise += 1,
+                    DependentDensityFunction::WeirdScaled(_) => weird_scaled += 1,
+                    DependentDensityFunction::Clamp(_) => clamp += 1,
+                    DependentDensityFunction::RangeChoice(_) => range_choice += 1,
+                    DependentDensityFunction::Spline(_) => spline += 1,
+                    DependentDensityFunction::FlattenedSpline(_) => flat_spline += 1,
+                    DependentDensityFunction::FindTopSurface(_) => find_top += 1,
+                },
+            }
+        }
+        eprintln!("\n  Zone B breakdown:");
+        if constants > 0 {
+            eprintln!("    Constant:        {}", constants);
+        }
+        if old_blended > 0 {
+            eprintln!("    OldBlendedNoise: {}", old_blended);
+        }
+        if noise > 0 {
+            eprintln!("    Noise:           {}", noise);
+        }
+        if shift > 0 {
+            eprintln!("    Shift:           {}", shift);
+        }
+        if clamped_y > 0 {
+            eprintln!("    ClampedYGrad:    {}", clamped_y);
+        }
+        if linear > 0 {
+            eprintln!("    Linear:          {}", linear);
+        }
+        if affine > 0 {
+            eprintln!("    Affine:          {}", affine);
+        }
+        if piecewise > 0 {
+            eprintln!("    PiecewiseAffine: {}", piecewise);
+        }
+        if slide > 0 {
+            eprintln!("    Slide:           {}", slide);
+        }
+        if unary > 0 {
+            eprintln!("    Unary:           {}", unary);
+        }
+        if binary > 0 {
+            eprintln!("    Binary:          {}", binary);
+        }
+        if shifted_noise > 0 {
+            eprintln!("    ShiftedNoise:    {}", shifted_noise);
+        }
+        if weird_scaled > 0 {
+            eprintln!("    WeirdScaled:     {}", weird_scaled);
+        }
+        if clamp > 0 {
+            eprintln!("    Clamp:           {}", clamp);
+        }
+        if range_choice > 0 {
+            eprintln!("    RangeChoice:     {}", range_choice);
+        }
+        if spline > 0 {
+            eprintln!("    Spline:          {}", spline);
+        }
+        if flat_spline > 0 {
+            eprintln!("    FlattenedSpline: {}", flat_spline);
+        }
+        if find_top > 0 {
+            eprintln!("    FindTopSurface:  {}", find_top);
+        }
     }
 
     /// Create a new DensityCache for use with `final_density`.
@@ -1631,6 +1917,30 @@ impl NoiseRouter {
     /// Only evaluates Zone B entries (branchless, no column_changed check).
     #[inline]
     pub fn final_density_from_column_cache(&self, pos: IVec3, cache: &mut ChunkColumnCache) -> f32 {
+        #[cfg(feature = "lazy-range-choice")]
+        if let Some(rc) = &self.lazy_rc {
+            // Phase 1: Evaluate the common prefix up to the RangeChoice input.
+            for i in self.column_boundary..=rc.input_index {
+                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
+            }
+
+            // Phase 2: Check the RangeChoice condition and select the branch.
+            let input_val = cache.scratch[rc.input_index];
+            let in_range = input_val >= rc.min_inclusion && input_val < rc.max_exclusion;
+            let branch = if in_range {
+                &rc.branch_when_in
+            } else {
+                &rc.branch_when_out
+            };
+
+            // Phase 3: Evaluate only the needed branch entries.
+            for &i in branch.iter() {
+                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
+            }
+
+            return cache.scratch[self.final_density_index];
+        }
+
         for i in self.column_boundary..=self.final_density_index {
             cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
         }
@@ -2423,9 +2733,37 @@ impl RangeFunction for OldBlendedNoise {
     }
 }
 
+impl OldBlendedNoise {
+    /// Accumulate 16 octaves of a single noise into a running sum.
+    /// Uses `sample_octave` to bypass Option checks and replaces division
+    /// with multiplication by precomputed inverse factors.
+    #[inline]
+    fn accumulate_noise(
+        noise: &OctavePerlinNoise,
+        scaled_x: f32,
+        scaled_y: f32,
+        scaled_z: f32,
+        smear: f32,
+    ) -> f32 {
+        let mut acc = 0.0f32;
+        let mut coord_scale = 1.0f32;
+        let mut inv_factor = 1.0f32;
+        for i in 0..16 {
+            let xx = OctavePerlinNoise::maintain_precission(scaled_x * coord_scale);
+            let yy = OctavePerlinNoise::maintain_precission(scaled_y * coord_scale);
+            let zz = OctavePerlinNoise::maintain_precission(scaled_z * coord_scale);
+            acc = noise
+                .sample_octave(i, xx, yy, zz, smear * coord_scale, scaled_y * coord_scale)
+                .mul_add(inv_factor, acc);
+            coord_scale *= 0.5;
+            inv_factor *= 2.0;
+        }
+        acc
+    }
+}
+
 impl DensityFunction for OldBlendedNoise {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        // todo: fraction optimization from Pumpkin
+    fn sample(&self, _stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         let scaled_x = pos.x as f32 * self.xz_multiplier;
         let scaled_y = pos.y as f32 * self.y_multiplier;
         let scaled_z = pos.z as f32 * self.xz_multiplier;
@@ -2434,61 +2772,53 @@ impl DensityFunction for OldBlendedNoise {
         let factored_y = scaled_y / self.y_factor;
         let factored_z = scaled_z / self.xz_factor;
 
-        let mut value = 0.0;
-        let mut factor = 1.0;
+        // Phase 1: Compute blend factor from 8-octave interpolation noise.
+        let mut value = 0.0f32;
+        let mut coord_scale = 1.0f32;
+        let mut inv_factor = 1.0f32;
         for i in 0..8 {
-            if let Some(noise) = self.interpolated_noise.get_octave(i) {
-                let xx = OctavePerlinNoise::maintain_precission(factored_x * factor);
-                let yy = OctavePerlinNoise::maintain_precission(factored_y * factor);
-                let zz = OctavePerlinNoise::maintain_precission(factored_z * factor);
-                value += noise.sample(
+            let xx = OctavePerlinNoise::maintain_precission(factored_x * coord_scale);
+            let yy = OctavePerlinNoise::maintain_precission(factored_y * coord_scale);
+            let zz = OctavePerlinNoise::maintain_precission(factored_z * coord_scale);
+            value = self
+                .interpolated_noise
+                .sample_octave(
+                    i,
                     xx,
                     yy,
                     zz,
-                    (self.main_smear * factor),
-                    (factored_y * factor),
-                ) as f32
-                    / factor;
-            }
-            factor /= 2.0;
+                    self.main_smear * coord_scale,
+                    factored_y * coord_scale,
+                )
+                .mul_add(inv_factor, value);
+            coord_scale *= 0.5;
+            inv_factor *= 2.0;
         }
 
         value = (value / 10.0 + 1.0) / 2.0;
-        factor = 1.0;
-        let less_than_one = value < 1.0;
-        let more_than_zero = value > 0.0;
-        let mut min = 0.0;
-        let mut max = 0.0;
 
+        // Phase 2: Evaluate both lower and upper 16-octave noises and lerp.
+        // The blend factor is always in ~[0.4, 0.6] in practice (8-octave
+        // interpolation noise max is ~2, so after /10+1)/2 the range is narrow),
+        // so both noises are always needed.
         let smear = self.limit_smear;
-        for i in 0..16 {
-            let xx = OctavePerlinNoise::maintain_precission(scaled_x * factor);
-            let yy = OctavePerlinNoise::maintain_precission(scaled_y * factor);
-            let zz = OctavePerlinNoise::maintain_precission(scaled_z * factor);
-            let smears_smear = smear * factor;
-            if less_than_one {
-                if let Some(noise) = self.lower_interpolated_noise.get_octave(i) {
-                    min += noise.sample(xx, yy, zz, smears_smear, scaled_y * factor) / factor;
-                }
-            }
-            if more_than_zero {
-                if let Some(noise) = self.upper_interpolated_noise.get_octave(i) {
-                    max += noise.sample(xx, yy, zz, smears_smear, scaled_y * factor) / factor;
-                }
-            }
-            factor /= 2.0;
-        } //value=(mc=start),end=(mc=delta),delta=
-
+        let min = Self::accumulate_noise(
+            &self.lower_interpolated_noise,
+            scaled_x,
+            scaled_y,
+            scaled_z,
+            smear,
+        );
+        let max = Self::accumulate_noise(
+            &self.upper_interpolated_noise,
+            scaled_x,
+            scaled_y,
+            scaled_z,
+            smear,
+        );
         let start = min / 512.0;
         let end = max / 512.0;
-        value = if value < 0.0 {
-            start
-        } else if value > 1.0 {
-            end
-        } else {
-            value * (end - start) + start
-        };
-        value / 128.0
+        value.mul_add(end - start, start) / 128.0
     }
 }
 
