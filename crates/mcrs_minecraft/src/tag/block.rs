@@ -8,8 +8,10 @@ use bevy_asset::{AssetApp, AssetEvent, AssetId, AssetServer, Assets, Handle};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::system::{Res, ResMut};
 use bevy_ecs_macros::Resource;
-use mcrs_protocol::{Ident, ident};
+use mcrs_protocol::packets::configuration::clientbound::{RegistryTags, TagGroup};
+use mcrs_protocol::{Ident, VarInt, ident};
 use mcrs_registry::{Registry, RegistryId};
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
@@ -262,6 +264,57 @@ impl<T: Clone + Send + Sync> TagRegistry<T> {
         self.map.keys()
     }
 
+    /// Converts the tag registry data into a `RegistryTags` structure suitable for
+    /// the `ClientboundUpdateTags` packet.
+    ///
+    /// # Arguments
+    ///
+    /// * `registry_name` - The identifier of the registry (e.g., "minecraft:block", "minecraft:item")
+    ///
+    /// # Returns
+    ///
+    /// A `RegistryTags` structure containing all tags with their numeric entry IDs.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let block_tags: TagRegistry<&'static Block> = ...;
+    /// let registry_tags = block_tags.build_registry_tags(ident!("minecraft:block"));
+    /// ```
+    pub fn build_registry_tags<'a>(&self, registry_name: Ident<Cow<'a, str>>) -> RegistryTags<'a> {
+        let tags: Vec<TagGroup<'a>> = self
+            .map
+            .iter()
+            .map(|(tag_name, entries)| {
+                // Convert tag name to the packet format
+                // Strip the directory prefix from the tag name if present
+                // e.g., "minecraft/tags/block/mineable/pickaxe.json" -> "minecraft:mineable/pickaxe"
+                let tag_ident = convert_tag_path_to_ident(tag_name);
+
+                // Convert registry IDs to VarInt
+                let entry_ids: Vec<VarInt> = entries
+                    .iter()
+                    .filter_map(|id| match id {
+                        RegistryId::Index { index, .. } => Some(VarInt(*index as i32)),
+                        _ => None,
+                    })
+                    .collect();
+
+                TagGroup {
+                    name: Ident::new(Cow::Owned(tag_ident.to_string())).unwrap_or_else(|_| {
+                        Ident::new(Cow::Borrowed("minecraft:unknown")).unwrap()
+                    }),
+                    entries: entry_ids,
+                }
+            })
+            .collect();
+
+        RegistryTags {
+            registry: registry_name,
+            tags,
+        }
+    }
+
     fn resolve_tag_entries<'a, 'b: 'a>(
         &mut self,
         tag_name: Ident<String>,
@@ -411,4 +464,44 @@ pub fn process_loaded_tags<T: Clone + Send + Sync + 'static>(
             }
         }
     }
+}
+
+/// Converts a tag asset path to a Minecraft identifier format.
+///
+/// This function transforms paths like:
+/// - `"minecraft/tags/block/mineable/pickaxe.json"` -> `"minecraft:mineable/pickaxe"`
+/// - `"minecraft/tags/item/logs.json"` -> `"minecraft:logs"`
+///
+/// The function extracts the namespace and tag name by:
+/// 1. Removing the `.json` extension
+/// 2. Extracting the namespace (part before `/tags/`)
+/// 3. Extracting the tag path (part after `block/` or `item/`)
+/// 4. Combining them as `namespace:tag_path`
+fn convert_tag_path_to_ident(path: &Ident<String>) -> Ident<String> {
+    let path_str = path.as_str();
+
+    // Try to parse the path format: "namespace/tags/type/tag_path.json"
+    // or just use the ident as-is if it's already in the right format
+    if let Some(stripped) = path_str.strip_suffix(".json") {
+        // Pattern: "minecraft/tags/block/mineable/pickaxe" -> "minecraft:mineable/pickaxe"
+        // Pattern: "minecraft/tags/item/logs" -> "minecraft:logs"
+
+        // Find the "/tags/" part
+        if let Some(tags_idx) = stripped.find("/tags/") {
+            let namespace = &stripped[..tags_idx];
+            let after_tags = &stripped[tags_idx + 6..]; // Skip "/tags/"
+
+            // Find the first "/" after "tags/" to skip the type (block/item/etc.)
+            if let Some(type_sep_idx) = after_tags.find('/') {
+                let tag_path = &after_tags[type_sep_idx + 1..];
+                let ident_str = format!("{}:{}", namespace, tag_path);
+                if let Ok(ident) = Ident::<String>::from_str(&ident_str) {
+                    return ident;
+                }
+            }
+        }
+    }
+
+    // Fallback: return the original path as an ident
+    path.clone()
 }
