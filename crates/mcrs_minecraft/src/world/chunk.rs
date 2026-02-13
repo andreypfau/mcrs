@@ -417,3 +417,78 @@ fn process_completed_columns(
         }
     });
 }
+
+/// Enqueue pending chunk columns from entities with ChunkLoading marker.
+///
+/// This system:
+/// 1. Queries all entities with `ChunkLoading` component (newly requested sections)
+/// 2. Groups sections by their (x, z) column position
+/// 3. Computes priority based on squared XZ distance to nearest player
+/// 4. Inserts columns into the priority queue with their priority key
+/// 5. Transitions entities from `ChunkLoading` to `ChunkGenerating` state
+///
+/// Columns already pending or in-flight are skipped to avoid duplicate work.
+/// The `ChunkGenerating` marker is applied immediately to prevent re-discovery
+/// on subsequent ticks.
+fn enqueue_pending_columns(
+    mut commands: Commands,
+    mut scheduler: ResMut<ChunkColumnScheduler>,
+    loading_query: Query<(Entity, &ChunkPos), With<ChunkLoading>>,
+    players: Query<&Transform, With<Player>>,
+) {
+    if loading_query.is_empty() {
+        return;
+    }
+
+    // Collect player positions for distance calculations
+    let player_positions: Vec<IVec3> = players
+        .iter()
+        .map(|t| {
+            // Convert world position to chunk coordinates
+            IVec3::new(
+                (t.position.x / 16.0).floor() as i32,
+                (t.position.y / 16.0).floor() as i32,
+                (t.position.z / 16.0).floor() as i32,
+            )
+        })
+        .collect();
+
+    // Group sections by (x, z) column
+    let mut columns: HashMap<(i32, i32), Vec<(Entity, i32)>> = HashMap::new();
+    for (entity, pos) in loading_query.iter() {
+        // Transition entity state: ChunkLoading -> ChunkGenerating
+        // This prevents re-discovery on subsequent ticks
+        commands
+            .entity(entity)
+            .insert(ChunkGenerating)
+            .remove::<ChunkLoading>();
+
+        columns
+            .entry((pos.x, pos.z))
+            .or_default()
+            .push((entity, pos.y));
+    }
+
+    // Enqueue each new column into the priority queue
+    for ((col_x, col_z), sections) in columns {
+        let col = (col_x, col_z);
+
+        // Skip columns that are already pending or in-flight
+        if scheduler.is_pending(col) || scheduler.is_in_flight(col) {
+            continue;
+        }
+
+        // Compute priority: squared XZ distance to nearest player
+        // Create a ChunkPos for distance calculation (Y doesn't matter for XZ distance)
+        let chunk_pos = ChunkPos::new(col_x, 0, col_z);
+        let distance_sq = min_column_distance(&chunk_pos, &player_positions);
+
+        // Create the priority key and pending column
+        let key = ColumnKey::new(distance_sq, col_x, col_z);
+        let pending_column = PendingColumn::new(sections);
+
+        // Insert into priority queue and reverse index
+        scheduler.pending.insert(key, pending_column);
+        scheduler.column_index.insert(col, key);
+    }
+}
