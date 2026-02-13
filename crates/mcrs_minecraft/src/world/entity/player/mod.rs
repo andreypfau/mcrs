@@ -96,6 +96,11 @@ fn spawn_player(
     >,
     mut commands: Commands,
 ) {
+    // Wait for the world preset to be loaded via Bevy assets
+    if !world_preset.is_loaded {
+        return;
+    }
+
     query
         .iter_mut()
         .for_each(|(entity, distance, con_state, profile, mut con)| {
@@ -114,7 +119,7 @@ fn spawn_player(
                 dimensions.iter().next().map(|(entity, _)| entity)
             };
             let Some(dim) = dim else {
-                println!("No dimension found! Can't spawn player.");
+                tracing::warn!("No dimension found! Can't spawn player yet - dimensions may still be loading.");
                 return;
             };
             con.write_packet(&ClientboundLogin {

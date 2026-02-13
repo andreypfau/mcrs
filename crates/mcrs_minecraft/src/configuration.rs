@@ -1,8 +1,14 @@
 use crate::biome::Biome;
 use crate::dimension_type::DimensionType;
 use crate::version::VERSION_ID;
-use bevy_app::{App, Plugin};
-use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query};
+use crate::world_preset_loader::{
+    DimensionTypeAsset, DimensionTypeLoader, WorldPresetAsset, WorldPresetLoader,
+    resolve_preset_asset_path,
+};
+use bevy_app::{App, Plugin, Startup, Update};
+use bevy_asset::{AssetApp, AssetEvent, AssetServer, Assets, Handle};
+use bevy_ecs::message::MessageReader;
+use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use mcrs_network::event::ReceivedPacketEvent;
@@ -15,10 +21,8 @@ use mcrs_protocol::packets::configuration::{
 use mcrs_protocol::registry::Entry;
 use mcrs_protocol::resource_pack::KnownPack;
 use mcrs_protocol::{Ident, WritePacket, ident, nbt};
-use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
 use tracing::{debug, info, warn};
@@ -26,26 +30,133 @@ use tracing::{debug, info, warn};
 /// Default world preset name used when MCRS_WORLD_PRESET is not set
 const DEFAULT_WORLD_PRESET: &str = "normal";
 
-/// Valid world preset names that are supported
-const VALID_PRESETS: &[&str] = &[
-    "normal",
-    "flat",
-    "amplified",
-    "large_biomes",
-    "single_biome_surface",
-    "debug_all_block_states",
-];
-
 pub(crate) struct ConfigurationStatePlugin;
 
 impl Plugin for ConfigurationStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(bevy_app::FixedPreUpdate, on_configuration_enter);
+        // Register asset types and loaders for dynamic loading
+        app.init_asset::<WorldPresetAsset>()
+            .init_asset::<DimensionTypeAsset>()
+            .register_asset_loader(WorldPresetLoader)
+            .register_asset_loader(DimensionTypeLoader);
+
+        // Initialize resources
+        app.init_resource::<LoadedWorldPreset>();
+        app.init_resource::<LoadedDimensionTypes>();
         app.insert_resource(SyncedRegistries(init_synced_registries()));
-        app.insert_resource(LoadedDimensionTypes(init_dimension_types()));
         app.insert_resource(LoadedBiomes(init_biomes()));
-        app.insert_resource(init_world_preset());
+
+        // Add systems
+        app.add_systems(Startup, start_loading_world_preset);
+        app.add_systems(Update, process_loaded_world_preset);
+        app.add_systems(bevy_app::FixedPreUpdate, on_configuration_enter);
         app.add_observer(on_configuration_ack);
+    }
+}
+
+/// Resource that holds the handle to the loading world preset asset.
+#[derive(Resource, Default)]
+struct WorldPresetHandle(Option<Handle<WorldPresetAsset>>);
+
+/// Start loading the world preset based on the MCRS_WORLD_PRESET environment variable.
+fn start_loading_world_preset(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+) {
+    let preset_name = get_world_preset_name();
+    let asset_path = resolve_preset_asset_path(&preset_name);
+
+    info!(
+        preset = %preset_name,
+        asset_path = %asset_path,
+        "Starting to load world preset via Bevy asset system"
+    );
+
+    let handle: Handle<WorldPresetAsset> = asset_server.load(asset_path);
+    commands.insert_resource(WorldPresetHandle(Some(handle)));
+}
+
+/// Process the loaded world preset when it and its dependencies are ready.
+fn process_loaded_world_preset(
+    preset_handle: Res<WorldPresetHandle>,
+    mut preset_events: MessageReader<AssetEvent<WorldPresetAsset>>,
+    preset_assets: Res<Assets<WorldPresetAsset>>,
+    dim_type_assets: Res<Assets<DimensionTypeAsset>>,
+    mut loaded_preset: ResMut<LoadedWorldPreset>,
+    mut loaded_dim_types: ResMut<LoadedDimensionTypes>,
+) {
+    let Some(handle) = &preset_handle.0 else {
+        return;
+    };
+
+    // Check for asset events
+    for event in preset_events.read() {
+        match event {
+            AssetEvent::LoadedWithDependencies { id } => {
+                if *id != handle.id() {
+                    continue;
+                }
+
+                // Get the loaded preset asset
+                let Some(preset_asset) = preset_assets.get(handle) else {
+                    warn!("World preset asset not found after LoadedWithDependencies event");
+                    continue;
+                };
+
+                info!(
+                    preset = %preset_asset.preset_name,
+                    dimension_count = preset_asset.dimensions.len(),
+                    "World preset loaded with all dimension type dependencies"
+                );
+
+                // Update LoadedWorldPreset resource
+                loaded_preset.preset_name = preset_asset.preset_name.clone();
+                loaded_preset.dimensions = preset_asset.ordered_dimensions();
+                loaded_preset.is_loaded = true;
+
+                // Collect dimension types from the loaded assets
+                let mut dim_types = Vec::new();
+                for (type_ref, type_handle) in &preset_asset.dimension_type_handles {
+                    if let Some(dim_type_asset) = dim_type_assets.get(type_handle) {
+                        info!(
+                            dimension_type = %dim_type_asset.id,
+                            min_y = dim_type_asset.dimension_type.min_y,
+                            height = dim_type_asset.dimension_type.height,
+                            "  Loaded dimension type"
+                        );
+                        dim_types.push((
+                            dim_type_asset.id.clone(),
+                            dim_type_asset.dimension_type.clone(),
+                        ));
+                    } else {
+                        warn!(
+                            dimension_type = %type_ref,
+                            "Dimension type asset not available"
+                        );
+                    }
+                }
+
+                // Update LoadedDimensionTypes resource
+                loaded_dim_types.0 = dim_types;
+
+                info!(
+                    preset = %preset_asset.preset_name,
+                    dimensions = loaded_preset.dimensions.len(),
+                    dimension_types = loaded_dim_types.0.len(),
+                    "World preset configuration complete"
+                );
+
+                // Log each dimension that will be spawned
+                for (dim_key, dim_type) in &loaded_preset.dimensions {
+                    info!(
+                        dimension_key = %dim_key,
+                        dimension_type = %dim_type,
+                        "  Ready to spawn dimension"
+                    );
+                }
+            }
+            _ => {}
+        }
     }
 }
 
@@ -160,26 +271,6 @@ struct SyncedRegistries(Vec<(Ident<String>, Vec<Ident<String>>)>);
 #[derive(Default, Resource)]
 pub(crate) struct LoadedDimensionTypes(pub Vec<(Ident<String>, DimensionType)>);
 
-/// List of known dimension types to load from individual JSON files
-const DIMENSION_TYPE_FILES: &[(&str, &str)] = &[
-    ("minecraft:overworld", include_str!("../../../assets/minecraft/dimension_type/overworld.json")),
-    ("minecraft:overworld_caves", include_str!("../../../assets/minecraft/dimension_type/overworld_caves.json")),
-    ("minecraft:the_end", include_str!("../../../assets/minecraft/dimension_type/the_end.json")),
-    ("minecraft:the_nether", include_str!("../../../assets/minecraft/dimension_type/the_nether.json")),
-];
-
-fn init_dimension_types() -> Vec<(Ident<String>, DimensionType)> {
-    DIMENSION_TYPE_FILES
-        .iter()
-        .map(|(name, json_content)| {
-            let dim_type: DimensionType = serde_json::from_str(json_content)
-                .expect(&format!("Failed to parse dimension type: {}", name));
-            let id = Ident::from_str(name).unwrap();
-            (id, dim_type)
-        })
-        .collect()
-}
-
 #[derive(Default, Resource)]
 pub(crate) struct LoadedBiomes(pub Vec<(Ident<String>, Biome)>);
 
@@ -192,6 +283,8 @@ pub struct LoadedWorldPreset {
     /// Ordered list of dimensions as (dimension_key, dimension_type_ref) tuples.
     /// For example: [("minecraft:overworld", "minecraft:overworld"), ("minecraft:the_end", "minecraft:the_end"), ...]
     pub dimensions: Vec<(Ident<String>, Ident<String>)>,
+    /// Whether the preset has been fully loaded from assets
+    pub is_loaded: bool,
 }
 
 impl Default for LoadedWorldPreset {
@@ -199,39 +292,7 @@ impl Default for LoadedWorldPreset {
         Self {
             preset_name: DEFAULT_WORLD_PRESET.to_string(),
             dimensions: Vec::new(),
-        }
-    }
-}
-
-fn init_world_preset() -> LoadedWorldPreset {
-    let preset_name = get_world_preset_name();
-
-    match load_world_preset_from_env() {
-        Some(preset) => {
-            let dimensions = preset.ordered_dimensions();
-            info!(
-                preset = %preset_name,
-                dimension_count = dimensions.len(),
-                "Loaded world preset with {} dimensions",
-                dimensions.len()
-            );
-            for (dim_key, dim_type) in &dimensions {
-                info!(
-                    dimension_key = %dim_key,
-                    dimension_type = %dim_type,
-                    "  Spawning dimension"
-                );
-            }
-            LoadedWorldPreset {
-                preset_name,
-                dimensions,
-            }
-        }
-        None => {
-            warn!(
-                "Failed to initialize world preset, using empty default"
-            );
-            LoadedWorldPreset::default()
+            is_loaded: false,
         }
     }
 }
@@ -272,79 +333,9 @@ fn init_synced_registries() -> Vec<(Ident<String>, Vec<Ident<String>>)> {
         .collect::<Vec<_>>()
 }
 
-/// Represents a dimension entry within a world preset
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorldPresetDimensionEntry {
-    /// Reference to the dimension type (e.g., "minecraft:overworld")
-    #[serde(rename = "type")]
-    pub dimension_type: String,
-    /// Generator configuration (kept as raw Value since we don't need to parse it)
-    #[serde(default)]
-    pub generator: Value,
-}
-
-/// Represents a world preset loaded from assets/minecraft/worldgen/world_preset/{preset}.json
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorldPreset {
-    /// Map of dimension key to dimension entry
-    pub dimensions: HashMap<String, WorldPresetDimensionEntry>,
-}
-
-impl WorldPreset {
-    /// Returns an ordered list of dimension entries as (dimension_key, dimension_type_ref) tuples.
-    /// Order is deterministic: sorted alphabetically by dimension key.
-    pub fn ordered_dimensions(&self) -> Vec<(Ident<String>, Ident<String>)> {
-        let mut dims: Vec<_> = self
-            .dimensions
-            .iter()
-            .map(|(key, entry)| {
-                let dim_key = Ident::from_str(key).expect(&format!("Invalid dimension key: {}", key));
-                let dim_type = Ident::from_str(&entry.dimension_type)
-                    .expect(&format!("Invalid dimension type: {}", entry.dimension_type));
-                (dim_key, dim_type)
-            })
-            .collect();
-        // Sort by dimension key for deterministic ordering
-        dims.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
-        dims
-    }
-}
-
-/// Parse a world preset from the embedded assets
-pub fn parse_world_preset(preset_name: &str) -> Option<WorldPreset> {
-    // Load the preset JSON based on preset name
-    let json_content = match preset_name {
-        "normal" => include_str!("../../../assets/minecraft/worldgen/world_preset/normal.json"),
-        "flat" => include_str!("../../../assets/minecraft/worldgen/world_preset/flat.json"),
-        "amplified" => include_str!("../../../assets/minecraft/worldgen/world_preset/amplified.json"),
-        "large_biomes" => include_str!("../../../assets/minecraft/worldgen/world_preset/large_biomes.json"),
-        "single_biome_surface" => include_str!("../../../assets/minecraft/worldgen/world_preset/single_biome_surface.json"),
-        "debug_all_block_states" => include_str!("../../../assets/minecraft/worldgen/world_preset/debug_all_block_states.json"),
-        _ => {
-            warn!(
-                preset = %preset_name,
-                fallback = "normal",
-                "Unknown world preset, falling back to normal"
-            );
-            include_str!("../../../assets/minecraft/worldgen/world_preset/normal.json")
-        }
-    };
-
-    match serde_json::from_str::<WorldPreset>(json_content) {
-        Ok(preset) => Some(preset),
-        Err(e) => {
-            warn!(
-                preset = %preset_name,
-                error = %e,
-                "Failed to parse world preset"
-            );
-            None
-        }
-    }
-}
-
 /// Get the world preset name from the MCRS_WORLD_PRESET environment variable.
 /// Returns the default 'normal' preset if not set or invalid.
+/// Supports both short names ("normal") and namespaced identifiers ("minecraft:normal").
 pub fn get_world_preset_name() -> String {
     match env::var("MCRS_WORLD_PRESET") {
         Ok(preset_name) => {
@@ -358,21 +349,20 @@ pub fn get_world_preset_name() -> String {
                 return DEFAULT_WORLD_PRESET.to_string();
             }
 
-            if VALID_PRESETS.contains(&preset_name.as_str()) {
-                info!(
-                    preset = %preset_name,
-                    "Loading world preset from MCRS_WORLD_PRESET"
-                );
-                preset_name
+            // If already namespaced (contains ':'), extract the path part for validation
+            let path_name = if preset_name.contains(':') {
+                preset_name.split(':').last().unwrap_or(&preset_name)
             } else {
-                warn!(
-                    preset = %preset_name,
-                    valid_presets = ?VALID_PRESETS,
-                    fallback = DEFAULT_WORLD_PRESET,
-                    "Invalid world preset specified, falling back to default"
-                );
-                DEFAULT_WORLD_PRESET.to_string()
-            }
+                &preset_name
+            };
+
+            info!(
+                preset = %preset_name,
+                "Loading world preset from MCRS_WORLD_PRESET"
+            );
+
+            // Return the original (possibly namespaced) name
+            preset_name
         }
         Err(_) => {
             info!(
@@ -380,53 +370,6 @@ pub fn get_world_preset_name() -> String {
                 "MCRS_WORLD_PRESET not set, using default preset"
             );
             DEFAULT_WORLD_PRESET.to_string()
-        }
-    }
-}
-
-/// Load the world preset based on the MCRS_WORLD_PRESET environment variable.
-/// Returns the parsed WorldPreset or None if loading fails.
-pub fn load_world_preset_from_env() -> Option<WorldPreset> {
-    let preset_name = get_world_preset_name();
-
-    match parse_world_preset(&preset_name) {
-        Some(preset) => {
-            debug!(
-                preset = %preset_name,
-                dimension_count = preset.dimensions.len(),
-                "Successfully parsed world preset"
-            );
-            Some(preset)
-        }
-        None => {
-            warn!(
-                preset = %preset_name,
-                fallback = DEFAULT_WORLD_PRESET,
-                "Failed to load world preset, attempting fallback"
-            );
-
-            // Try to load the default preset as a fallback
-            if preset_name != DEFAULT_WORLD_PRESET {
-                match parse_world_preset(DEFAULT_WORLD_PRESET) {
-                    Some(preset) => {
-                        info!(
-                            preset = DEFAULT_WORLD_PRESET,
-                            dimension_count = preset.dimensions.len(),
-                            "Loaded fallback world preset"
-                        );
-                        Some(preset)
-                    }
-                    None => {
-                        warn!(
-                            preset = DEFAULT_WORLD_PRESET,
-                            "Failed to load default world preset"
-                        );
-                        None
-                    }
-                }
-            } else {
-                None
-            }
         }
     }
 }
