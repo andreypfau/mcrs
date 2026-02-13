@@ -143,6 +143,35 @@ impl InFlightColumn {
     }
 }
 
+/// Configuration for the chunk column scheduler.
+///
+/// Controls concurrency limits and dispatch rates for chunk generation tasks.
+#[derive(Resource, Clone)]
+pub struct SchedulerConfig {
+    /// Maximum number of concurrent generation tasks.
+    /// Default: `available_parallelism * 2` (or 8 if unavailable).
+    pub max_in_flight: usize,
+    /// Maximum columns to dispatch per tick.
+    /// Default: 32.
+    pub max_dispatch_per_tick: usize,
+    /// Number of threads in the chunk generation thread pool.
+    /// Default: 4.
+    pub num_threads: usize,
+}
+
+impl Default for SchedulerConfig {
+    fn default() -> Self {
+        let parallelism = std::thread::available_parallelism()
+            .map(|p| p.get())
+            .unwrap_or(4);
+        Self {
+            max_in_flight: parallelism * 2,
+            max_dispatch_per_tick: 32,
+            num_threads: 4,
+        }
+    }
+}
+
 struct ChunkColumnResult {
     sections: Vec<(Entity, ChunkPos, BlockPalette, BiomePalette)>,
 }
