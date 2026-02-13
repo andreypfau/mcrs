@@ -31,7 +31,7 @@ bevy_reflect = "0.18.0"
 
 rocksdb = { version = "0.24.0" }
 heck = "0.5.0"
-cipher = "0.5.0-rc.2"
+cipher = "0.4.4"
 async-compression = { version = "0.4.36", features = ["tokio", "zlib"] }
 proc-macro2 = "1.0.103"
 syn = "2.0.110"
@@ -40,18 +40,18 @@ bytes = "1"
 anyhow = "1.0.100"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.145"}
-aes = "0.9.0-rc.2"
+aes = "0.8.4"
 base64 = "0.22.1"
 bitfield-struct = "0.12.1"
 byteorder = "1.5.0"
-cfb8 = "0.9.0-rc.1"
+cfb8 = "0.8.1"
 derive_more = "2.0.1"
 flate2 = "1.1.5"
 thiserror = "2.0.17"
 tracing = "0.1.41"
-url = "2.5.7"
+url = { version = "2.5.7", features = ["serde"] }
 uuid = "1.18.1"
-rand = "0.10.0-rc.5"
+rand = "0.8.5"
 indexmap = "2.12.0"
 rustc-hash = "2.1.1"
 arrayvec = "0.7.6"
@@ -60,8 +60,9 @@ tokio = {  version = "1.48.0", features = ["full"] }
 valence_ident = "0.2.0-alpha.1+mc.1.20.1"
 valence_text = "0.2.0-alpha.1+mc.1.20.1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
-md-5 = "0.11.0-rc.3"
-rand_xoshiro = "0.8.0-rc.0"
+md-5 = "0.10.0"
+rand_xoshiro = "0.6.0"
+rand_core = "0.6.4"
 
 mcrs_protocol_macros = { path = "crates/mcrs_protocol_macros" }
 mcrs_protocol = { path = "crates/mcrs_protocol" }

@@ -1,8 +1,7 @@
 use crate::{Random, block_pos_seed};
 use bevy_math::IVec3;
 use md5::{Digest, Md5};
-use rand_xoshiro::rand_core::RngCore;
-use rand_xoshiro::rand_core::le::fill_bytes_via_next;
+use rand_core::RngCore;
 
 const MODULUS_BITS: usize = 48;
 const MODULUS_MASK: u64 = 281474976710655;
@@ -44,7 +43,21 @@ impl RngCore for LegacyRandom {
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        fill_bytes_via_next(self, dest);
+        let mut left = dest;
+        while left.len() >= 8 {
+            let val = <Self as RngCore>::next_u64(self);
+            left[..8].copy_from_slice(&val.to_le_bytes());
+            left = &mut left[8..];
+        }
+        if !left.is_empty() {
+            let val = <Self as RngCore>::next_u64(self).to_le_bytes();
+            left.copy_from_slice(&val[..left.len()]);
+        }
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+        self.fill_bytes(dest);
+        Ok(())
     }
 }
 
@@ -85,21 +98,21 @@ impl Random for LegacyRandom {
     }
 
     fn fork(&mut self) -> Self {
-        LegacyRandom::new(self.next_u64())
+        LegacyRandom::new(<Self as RngCore>::next_u64(self))
     }
 
     fn fork_at<T>(&mut self, pos: T) -> Self
     where
         T: Into<IVec3>,
     {
-        LegacyRandom::new(self.next_u64() ^ block_pos_seed(pos))
+        LegacyRandom::new(<Self as RngCore>::next_u64(self) ^ block_pos_seed(pos))
     }
 
     fn fork_hash(&mut self, seed: impl AsRef<[u8]>) -> Self {
         let mut hasher = Md5::new();
         hasher.update(seed);
         let hash = hasher.finalize();
-        LegacyRandom::new(self.next_u64() ^ u64::from_le_bytes(hash[0..8].try_into().unwrap()))
+        LegacyRandom::new(<Self as RngCore>::next_u64(self) ^ u64::from_le_bytes(hash[0..8].try_into().unwrap()))
     }
 }
 

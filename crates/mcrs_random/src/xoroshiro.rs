@@ -1,7 +1,7 @@
 use bevy_math::IVec3;
 use md5::{Digest, Md5};
+use rand_core::{RngCore, SeedableRng};
 use rand_xoshiro::Xoroshiro128PlusPlus;
-use rand_xoshiro::rand_core::{RngCore, SeedableRng};
 
 use crate::{Random, block_pos_seed};
 
@@ -29,7 +29,7 @@ impl XoroshiroRandom {
     }
 
     fn next_bits(&mut self, bits: usize) -> u64 {
-        self.next_u64() >> (64 - bits)
+        <Self as RngCore>::next_u64(self) >> (64 - bits)
     }
 }
 
@@ -39,17 +39,17 @@ impl Random for XoroshiroRandom {
     }
 
     fn next_bool(&mut self) -> bool {
-        self.next_u64() & 1 != 0
+        <Self as RngCore>::next_u64(self) & 1 != 0
     }
 
     fn next_u32_bound(&mut self, bound: u32) -> u32 {
-        let mut l = self.next_u32() as u64;
+        let mut l = <Self as RngCore>::next_u32(self) as u64;
         let mut m = l.wrapping_mul(bound as u64);
         let mut n = (m & 0xFFFFFFFF) as u32;
         if n < bound {
             let threshold = (!bound + 1).wrapping_rem(bound);
             while n < threshold {
-                l = self.next_u32() as u64;
+                l = <Self as RngCore>::next_u32(self) as u64;
                 m = l.wrapping_mul(bound as u64);
                 n = (m & 0xFFFFFFFF) as u32;
             }
@@ -66,7 +66,10 @@ impl Random for XoroshiroRandom {
     }
 
     fn fork(&mut self) -> XoroshiroRandom {
-        XoroshiroRandom::from_u128_seed(self.next_u64(), self.next_u64())
+        XoroshiroRandom::from_u128_seed(
+            <Self as RngCore>::next_u64(self),
+            <Self as RngCore>::next_u64(self),
+        )
     }
 
     fn fork_at<T>(&mut self, pos: T) -> Self
@@ -74,14 +77,14 @@ impl Random for XoroshiroRandom {
         T: Into<IVec3>,
     {
         let seed = block_pos_seed(pos);
-        let lo = self.next_u64() ^ seed;
-        let hi = self.next_u64();
+        let lo = <Self as RngCore>::next_u64(self) ^ seed;
+        let hi = <Self as RngCore>::next_u64(self);
         XoroshiroRandom::from_u128_seed(lo, hi)
     }
 
     fn fork_hash(&mut self, seed: impl AsRef<[u8]>) -> Self {
-        let l = self.next_u64();
-        let h = self.next_u64();
+        let l = <Self as RngCore>::next_u64(self);
+        let h = <Self as RngCore>::next_u64(self);
         let mut hasher = Md5::new();
         hasher.update(seed);
         let hash = hasher.finalize();
@@ -94,17 +97,22 @@ impl Random for XoroshiroRandom {
 impl RngCore for XoroshiroRandom {
     #[inline]
     fn next_u32(&mut self) -> u32 {
-        self.0.next_u32()
+        <Xoroshiro128PlusPlus as RngCore>::next_u32(&mut self.0)
     }
 
     #[inline]
     fn next_u64(&mut self) -> u64 {
-        self.0.next_u64()
+        <Xoroshiro128PlusPlus as RngCore>::next_u64(&mut self.0)
     }
 
     #[inline]
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        self.0.fill_bytes(dest)
+        <Xoroshiro128PlusPlus as RngCore>::fill_bytes(&mut self.0, dest)
+    }
+
+    #[inline]
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+        <Xoroshiro128PlusPlus as RngCore>::try_fill_bytes(&mut self.0, dest)
     }
 }
 

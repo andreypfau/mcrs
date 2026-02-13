@@ -5,5 +5,6 @@ edition.workspace = true
 
 [dependencies]
 rand_xoshiro.workspace = true
+rand_core.workspace = true
 bevy_math.workspace = true
 md-5.workspace = true
