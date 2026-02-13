@@ -1269,7 +1269,7 @@ pub struct ChunkColumnCache {
     pub(crate) base_block_x: i32,
     pub(crate) base_block_z: i32,
     /// Scratch buffer (len == stack.len()), reused per `final_density_from_column_cache` call.
-    scratch: Vec<f32>,
+    pub scratch: Vec<f32>,
 }
 
 impl ChunkColumnCache {
@@ -1610,6 +1610,20 @@ impl NoiseRouter {
             ("vein_ridged", self.vein_ridged_index),
             ("vein_gap", self.vein_gap_index),
         ]
+    }
+
+    pub fn column_boundary(&self) -> usize {
+        self.column_boundary
+    }
+
+    pub fn final_density_idx(&self) -> usize {
+        self.final_density_index
+    }
+
+    /// Evaluate a single stack entry using pre-computed cache values.
+    #[inline]
+    pub fn sample_entry(&self, index: usize, cache: &[f32], pos: IVec3) -> f32 {
+        self.stack[index].sample_cached(cache, &self.stack, pos)
     }
 
     /// Print Zone B composition to stderr for profiling purposes.
@@ -2741,37 +2755,8 @@ impl RangeFunction for OldBlendedNoise {
     }
 }
 
-impl OldBlendedNoise {
-    /// Accumulate 16 octaves of a single noise into a running sum.
-    /// Uses `sample_octave` to bypass Option checks and replaces division
-    /// with multiplication by precomputed inverse factors.
-    #[inline]
-    fn accumulate_noise(
-        noise: &OctavePerlinNoise,
-        scaled_x: f32,
-        scaled_y: f32,
-        scaled_z: f32,
-        smear: f32,
-    ) -> f32 {
-        let mut acc = 0.0f32;
-        let mut coord_scale = 1.0f32;
-        let mut inv_factor = 1.0f32;
-        for i in 0..16 {
-            let xx = OctavePerlinNoise::maintain_precission(scaled_x * coord_scale);
-            let yy = OctavePerlinNoise::maintain_precission(scaled_y * coord_scale);
-            let zz = OctavePerlinNoise::maintain_precission(scaled_z * coord_scale);
-            acc = noise
-                .sample_octave(i, xx, yy, zz, smear * coord_scale, scaled_y * coord_scale)
-                .mul_add(inv_factor, acc);
-            coord_scale *= 0.5;
-            inv_factor *= 2.0;
-        }
-        acc
-    }
-}
-
 impl DensityFunction for OldBlendedNoise {
-    fn sample(&self, _stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         let scaled_x = pos.x as f32 * self.xz_multiplier;
         let scaled_y = pos.y as f32 * self.y_multiplier;
         let scaled_z = pos.z as f32 * self.xz_multiplier;
@@ -2780,53 +2765,61 @@ impl DensityFunction for OldBlendedNoise {
         let factored_y = scaled_y / self.y_factor;
         let factored_z = scaled_z / self.xz_factor;
 
-        // Phase 1: Compute blend factor from 8-octave interpolation noise.
-        let mut value = 0.0f32;
-        let mut coord_scale = 1.0f32;
-        let mut inv_factor = 1.0f32;
+        let mut value = 0.0;
+        let mut factor = 1.0;
         for i in 0..8 {
-            let xx = OctavePerlinNoise::maintain_precission(factored_x * coord_scale);
-            let yy = OctavePerlinNoise::maintain_precission(factored_y * coord_scale);
-            let zz = OctavePerlinNoise::maintain_precission(factored_z * coord_scale);
-            value = self
-                .interpolated_noise
-                .sample_octave(
-                    i,
+            if let Some(noise) = self.interpolated_noise.get_octave(i) {
+                let xx = OctavePerlinNoise::maintain_precission(factored_x * factor);
+                let yy = OctavePerlinNoise::maintain_precission(factored_y * factor);
+                let zz = OctavePerlinNoise::maintain_precission(factored_z * factor);
+                value += noise.sample(
                     xx,
                     yy,
                     zz,
-                    self.main_smear * coord_scale,
-                    factored_y * coord_scale,
-                )
-                .mul_add(inv_factor, value);
-            coord_scale *= 0.5;
-            inv_factor *= 2.0;
+                    (self.main_smear * factor),
+                    (factored_y * factor),
+                ) as f32
+                    / factor;
+            }
+            factor /= 2.0;
         }
 
         value = (value / 10.0 + 1.0) / 2.0;
+        factor = 1.0;
+        let less_than_one = value < 1.0;
+        let more_than_zero = value > 0.0;
+        let mut min = 0.0;
+        let mut max = 0.0;
 
-        // Phase 2: Evaluate both lower and upper 16-octave noises and lerp.
-        // The blend factor is always in ~[0.4, 0.6] in practice (8-octave
-        // interpolation noise max is ~2, so after /10+1)/2 the range is narrow),
-        // so both noises are always needed.
         let smear = self.limit_smear;
-        let min = Self::accumulate_noise(
-            &self.lower_interpolated_noise,
-            scaled_x,
-            scaled_y,
-            scaled_z,
-            smear,
-        );
-        let max = Self::accumulate_noise(
-            &self.upper_interpolated_noise,
-            scaled_x,
-            scaled_y,
-            scaled_z,
-            smear,
-        );
+        for i in 0..16 {
+            let xx = OctavePerlinNoise::maintain_precission(scaled_x * factor);
+            let yy = OctavePerlinNoise::maintain_precission(scaled_y * factor);
+            let zz = OctavePerlinNoise::maintain_precission(scaled_z * factor);
+            let smears_smear = smear * factor;
+            if less_than_one {
+                if let Some(noise) = self.lower_interpolated_noise.get_octave(i) {
+                    min += noise.sample(xx, yy, zz, smears_smear, scaled_y * factor) / factor;
+                }
+            }
+            if more_than_zero {
+                if let Some(noise) = self.upper_interpolated_noise.get_octave(i) {
+                    max += noise.sample(xx, yy, zz, smears_smear, scaled_y * factor) / factor;
+                }
+            }
+            factor /= 2.0;
+        }
+
         let start = min / 512.0;
         let end = max / 512.0;
-        value.mul_add(end - start, start) / 128.0
+        value = if value < 0.0 {
+            start
+        } else if value > 1.0 {
+            end
+        } else {
+            value * (end - start) + start
+        };
+        value / 128.0
     }
 }
 

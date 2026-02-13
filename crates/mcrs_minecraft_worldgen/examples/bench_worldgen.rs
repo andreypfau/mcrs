@@ -15,6 +15,7 @@
 //!   --assets PATH        Assets directory (default: ./assets)
 //!   --settings NAME      Noise settings name (default: overworld)
 
+use bevy_math::IVec3;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::density_function::proto::{
     DensityFunctionHolder, NoiseParam, ProtoDensityFunction,
@@ -309,20 +310,77 @@ fn main() {
     let router = build_functions(&functions, &noises, &settings, seed);
     let build_elapsed = t_build.elapsed();
     eprintln!("Built NoiseRouter in {}", fmt_duration(build_elapsed));
-    // router.print_zone_stats();
-    //
-    // // --- Verify column cache correctness on center chunk ---
-    // {
-    //     let block_x = center_x * 16;
-    //     let block_z = center_z * 16;
-    //     let y_values: Vec<i32> = y_sections.iter().flat_map(|&sy| {
-    //         (0..=2).map(move |cy| sy * 16 + cy * 8)
-    //     }).collect();
-    //     let ok = router.verify_column_cache(block_x, block_z, &y_values);
-    //     if ok {
-    //         eprintln!("Verification: column cache matches reference (all checks passed)");
-    //     }
-    // }
+    router.print_zone_stats();
+
+    // --- A/B comparison: lazy vs full evaluation across multiple chunks ---
+    {
+        let test_chunks: Vec<(i32, i32)> = (-3..=3)
+            .flat_map(|dx| (-3..=3).map(move |dz| (center_x + dx, center_z + dz)))
+            .collect();
+        let mut mismatches = 0u64;
+        let mut total_checks = 0u64;
+        let mut max_diff: f32 = 0.0;
+
+        for &(cx, cz) in &test_chunks {
+            let block_x = cx * 16;
+            let block_z = cz * 16;
+
+            // Create two independent column caches
+            let mut cache_lazy = router.new_column_cache(block_x, block_z);
+            let mut cache_full = router.new_column_cache(block_x, block_z);
+            router.populate_columns(&mut cache_lazy);
+            router.populate_columns(&mut cache_full);
+
+            for &sy in &y_sections {
+                let section_block_y = sy * 16;
+                for px in 0..=4usize {
+                    let x = block_x + (px * 4) as i32;
+                    let lx = (px * 4) as i32;
+                    for pz in 0..=4usize {
+                        let z = block_z + (pz * 4) as i32;
+                        let lz = (pz * 4) as i32;
+
+                        cache_lazy.load_column(lx, lz);
+                        cache_full.load_column(lx, lz);
+
+                        for cy in 0..=2usize {
+                            let y = section_block_y + (cy * 8) as i32;
+                            let pos = IVec3::new(x, y, z);
+
+                            let lazy_val = router.final_density_from_column_cache(pos, &mut cache_lazy);
+
+                            // Full: evaluate all Zone B entries (no lazy skip)
+                            for i in router.column_boundary()..=router.final_density_idx() {
+                                cache_full.scratch[i] = router.sample_entry(i, &cache_full.scratch, pos);
+                            }
+                            let full_val = cache_full.scratch[router.final_density_idx()];
+
+                            total_checks += 1;
+                            let diff = (lazy_val - full_val).abs();
+                            if diff > 1e-6 {
+                                mismatches += 1;
+                                max_diff = max_diff.max(diff);
+                                if mismatches <= 5 {
+                                    eprintln!(
+                                        "  MISMATCH at ({},{},{}): lazy={:.8}, full={:.8}, diff={:.8e}",
+                                        x, y, z, lazy_val, full_val, diff,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if mismatches > 0 {
+            eprintln!(
+                "A/B CHECK FAILED: {}/{} mismatches (max diff={:.8e})",
+                mismatches, total_checks, max_diff,
+            );
+        } else {
+            eprintln!("A/B check: {}/{} ok", total_checks, total_checks);
+        }
+    }
 
     // --- Build chunk list ---
     let side = 2 * view_distance + 1;

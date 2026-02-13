@@ -84,15 +84,17 @@ to constants.
 
 ### 3.6 Affine Fusion (12 patterns)
 Detects chains of `Linear` and `Affine` operations and fuses them into a
-single `Affine { input, scale, offset }`:
+single `Affine { input, scale, offset }` (9 patterns):
 
-- `Linear(Linear(x))` → `Affine(x, s1*s2, s1*o2+o1)`
-- `Linear(Affine(x))` → `Affine(x, ...)`
-- `Add(Affine, const)` → `Affine(x, s, o+c)`
-- `Mul(Affine, const)` → `Affine(x, s*c, o*c)`
-- `Add(Linear, const)` → `Affine(x, s, o+c)`
-- `Mul(Linear, const)` → `Affine(x, s*c, o*c)`
-- And 6 more symmetric/nested patterns
+- `Linear::Add(Linear::Add(x))` → `Affine(x)`
+- `Linear::Mul(Linear::Mul(x))` → `Affine(x)`
+- `Linear::Mul(Linear::Add(x))` → `Affine(x)`
+- `Linear::Add(Linear::Mul(x))` → `Affine(x)`
+- `Linear::Add(Affine(x))` → `Affine(x)`
+- `Linear::Mul(Affine(x))` → `Affine(x)`
+- `Affine(Affine(x))` → `Affine(x)`
+- `Affine(Linear::Add(x))` → `Affine(x)`
+- `Affine(Linear::Mul(x))` → `Affine(x)`
 
 ### 3.7 Linear-to-Affine Promotion
 Plain `Linear` nodes are promoted to `Affine` for uniform handling (one
@@ -149,17 +151,20 @@ Linear/Add/Mul operations.
 
 ### 4.2 `PiecewiseAffine`
 ```rust
-struct PiecewiseAffine { input_index, scale, offset, neg_scale, min_value, max_value }
+struct PiecewiseAffine { input_index, pos_scale, neg_scale, offset, min_value, max_value }
 ```
 Affine transform followed by piecewise negative scaling (HalfNeg or
-QuarterNeg). One node instead of two.
+QuarterNeg). Uses `pos_scale` for positive inputs and `neg_scale` for
+negative inputs. One node instead of two.
 
 ### 4.3 `Linear`
 ```rust
-struct Linear { input_index, scale, offset, min_value, max_value }
+struct Linear { input_index, argument, operation: Add|Mul, min_value, max_value }
 ```
 Intermediate representation for `Binary(Add/Mul, x, const)` demotion.
-Most are further promoted to `Affine`.
+The `argument` field holds the constant value and `operation` determines
+whether it's addition or multiplication. Most are further promoted to
+`Affine`.
 
 ### 4.4 `Slide`
 ```rust
@@ -352,6 +357,62 @@ This allows sharing one `NoiseRouter` across all chunk generation threads
 **Impact**: Enables embarrassingly parallel chunk generation. The benchmark
 generates 441 chunks single-threaded; the server uses 4+ threads for
 near-linear throughput scaling.
+
+---
+
+## 12. Lazy RangeChoice Evaluation
+
+**File**: `density_function/mod.rs` — `LazyRangeChoice`,
+`compute_lazy_range_choice()`, `final_density_from_column_cache()`
+**Feature flag**: `lazy-range-choice` (enabled by default)
+
+Zone B contains a `RangeChoice` node that gates two mutually exclusive
+sub-graphs: terrain shaping (when_in branch) and cave carving (when_out
+branch). The condition is `sloped_cheese < 1.5625`, which is true for
+most positions (surface/subsurface terrain).
+
+At build time, `compute_lazy_range_choice()` performs a reachability
+analysis to classify Zone B entries as:
+
+- **Common prefix**: entries up to and including the RangeChoice input
+  (always evaluated)
+- **when_in exclusive**: entries only needed by the terrain branch
+  (23 entries, mostly cave-related noise samplers)
+- **when_out exclusive**: entries only needed by the cave branch
+  (2 entries)
+
+At evaluation time, `final_density_from_column_cache()` splits into
+three phases:
+
+```rust
+// Phase 1: Evaluate common prefix up to the RangeChoice input.
+for i in column_boundary..=rc.input_index {
+    cache.scratch[i] = stack[i].sample_cached(...);
+}
+
+// Phase 2: Check condition and select branch.
+let branch = if input_val >= min && input_val < max {
+    &rc.branch_when_in   // skips 23 cave-exclusive entries
+} else {
+    &rc.branch_when_out  // skips 2 terrain-exclusive entries
+};
+
+// Phase 3: Evaluate only the needed branch entries.
+for &i in branch.iter() {
+    cache.scratch[i] = stack[i].sample_cached(...);
+}
+```
+
+Exclusivity is determined conservatively: an entry is exclusive to a
+branch only if it is reachable from that branch AND NOT reachable from
+the other branch AND NOT reachable from any path bypassing the
+RangeChoice (e.g., entries shared by other nodes after the RangeChoice).
+
+**Impact**: Skips 23 of 60 Zone B entries (~38%) on the common terrain
+path. The skipped entries include expensive `Noise` and `WeirdScaled`
+samplers used for cave generation.
+
+**Benchmark**: ~1.89ms → ~1.73ms per chunk column (~8% faster).
 
 ---
 

@@ -19,7 +19,7 @@ thiserror = { workspace = true, optional = true }
 tracing = { workspace = true }
 
 [features]
-default = ["serde", "bevy"]
+default = ["serde", "bevy", "lazy-range-choice"]
 serde = ["dep:serde", "dep:serde_json"]
 bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_asset", "dep:bevy_reflect", "dep:thiserror"]
 lazy-range-choice = []
