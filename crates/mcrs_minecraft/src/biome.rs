@@ -69,7 +69,7 @@ enum GrassColorModifier {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Particle {
     options: ParticleOptions,
-    portability: f32,
+    probability: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
