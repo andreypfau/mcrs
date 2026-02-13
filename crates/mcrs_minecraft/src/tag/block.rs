@@ -112,6 +112,11 @@ impl<T: std::clone::Clone + Send + std::marker::Sync> Default for TagRegistry<T>
 }
 
 impl<T: Clone + Send + Sync> TagRegistry<T> {
+    /// Returns the registry IDs for all entries in the specified tag, or None if the tag doesn't exist.
+    pub fn get_tag(&self, tag_name: &Ident<String>) -> Option<&[RegistryId<T>]> {
+        self.map.get(tag_name).map(|v| v.as_slice())
+    }
+
     fn resolve_tag_entries<'a, 'b: 'a>(
         &mut self,
         tag_name: Ident<String>,
