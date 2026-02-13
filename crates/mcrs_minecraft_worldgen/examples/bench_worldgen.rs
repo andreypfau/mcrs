@@ -147,7 +147,8 @@ fn generate_column(
     for &sy in y_sections {
         let section_block_y = sy * 16;
 
-        interp.fill_plane_cached(
+        interp.fill_plane_cached_reuse(
+            0,
             true,
             block_x,
             section_block_y,
@@ -158,7 +159,8 @@ fn generate_column(
 
         for cell_x in 0..h_cells {
             let next_x = block_x + ((cell_x + 1) * h_cell_blocks) as i32;
-            interp.fill_plane_cached(
+            interp.fill_plane_cached_reuse(
+                cell_x + 1,
                 false,
                 next_x,
                 section_block_y,
@@ -203,6 +205,8 @@ fn generate_column(
 
             interp.swap_buffers();
         }
+
+        interp.end_section();
     }
 
     solid_count
@@ -317,7 +321,7 @@ fn main() {
     }
 
     eprintln!(
-        "\nGenerating {}x{} = {} chunks (view distance {}), center ({}, {}), seed {} ...",
+        "\nGenerating {}x{} = {} chunk columns (view distance {}), center ({}, {}), seed {} ...",
         side, side, total_chunks, view_distance, center_x, center_z, seed,
     );
 
@@ -345,11 +349,11 @@ fn main() {
     let p99 = times[((total_chunks as f64 * 0.99) as usize).min(total_chunks - 1)];
 
     eprintln!();
-    eprintln!("=== Results ({} chunks) ===", total_chunks);
+    eprintln!("=== Results ({} chunk columns) ===", total_chunks);
     eprintln!("  Wall time:     {}", fmt_duration(wall_time));
     eprintln!("  Total solid:   {} blocks", total_solid);
     eprintln!();
-    eprintln!("  Per chunk:");
+    eprintln!("  Per chunk column:");
     eprintln!("    Mean:   {}", fmt_duration(mean));
     eprintln!("    Median: {}", fmt_duration(median));
     eprintln!("    Min:    {}", fmt_duration(min));
@@ -358,11 +362,11 @@ fn main() {
     eprintln!("    P99:    {}", fmt_duration(p99));
     eprintln!();
     eprintln!(
-        "  Throughput: {:.2} chunks/sec",
+        "  Throughput: {:.2} chunks columns/sec",
         total_chunks as f64 / wall_time.as_secs_f64(),
     );
     eprintln!(
-        "  Per section (mean): {}",
+        "  Per chunk section (mean): {}",
         fmt_duration(mean / num_sections as u32),
     );
 }

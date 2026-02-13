@@ -2069,6 +2069,19 @@ pub struct SectionInterpolator {
     after_x: [f32; 2],
     /// Final interpolated value
     val: f32,
+
+    /// Saved top-Y density values for section-boundary reuse.
+    /// Adjacent Y sections share cell corners at their boundary (the top Y-row
+    /// of section s equals the bottom Y-row of section s+1). This buffer saves
+    /// those values to avoid recomputing them.
+    ///
+    /// Indexed by `[plane_seq * z_count + z_corner]` where plane_seq is the
+    /// sequential fill_plane call index within a section (0..=h_cells) and
+    /// z_count = h_cells + 1.
+    saved_top_y: Vec<f32>,
+    /// True after the first section has been fully processed, meaning
+    /// `saved_top_y` contains valid data for the next section.
+    section_boundary_valid: bool,
 }
 
 impl SectionInterpolator {
@@ -2076,6 +2089,8 @@ impl SectionInterpolator {
         let h_cells = 16 / h_cell_blocks;
         let v_cells = 16 / v_cell_blocks;
         let plane_size = (h_cells + 1) * (v_cells + 1);
+        let z_count = h_cells + 1;
+        let num_planes = h_cells + 1; // start plane + h_cells end planes
         Self {
             h_cell_blocks,
             v_cell_blocks,
@@ -2087,6 +2102,8 @@ impl SectionInterpolator {
             after_y: [0.0f32; 4],
             after_x: [0.0f32; 2],
             val: 0.0f32,
+            saved_top_y: vec![0.0f32; num_planes * z_count],
+            section_boundary_valid: false,
         }
     }
 
@@ -2174,6 +2191,65 @@ impl SectionInterpolator {
                 buf[cz * v_stride + cy] = density;
             }
         }
+    }
+
+    /// Like `fill_plane_cached`, but reuses the top-Y row from the previous section
+    /// as the bottom-Y row of this section when `section_boundary_valid` is true.
+    ///
+    /// `plane_seq` identifies which X-plane is being filled (0 = start plane,
+    /// 1..=h_cells = successive end planes). This index is used to look up the
+    /// correct saved top-Y row from the previous section.
+    ///
+    /// After filling, the top-Y row (cy = v_cells) is saved for the next section.
+    pub fn fill_plane_cached_reuse(
+        &mut self,
+        plane_seq: usize,
+        is_start: bool,
+        x: i32,
+        base_y: i32,
+        base_z: i32,
+        router: &NoiseRouter,
+        column_cache: &mut ChunkColumnCache,
+    ) {
+        let buf = if is_start {
+            &mut self.start_buf
+        } else {
+            &mut self.end_buf
+        };
+        let v_stride = self.v_cells + 1;
+        let local_x = x - column_cache.base_block_x;
+        let z_count = self.h_cells + 1;
+        let reuse = self.section_boundary_valid;
+
+        for cz in 0..z_count {
+            // Restore bottom-Y from saved top-Y of previous section
+            if reuse {
+                buf[cz * v_stride] = self.saved_top_y[plane_seq * z_count + cz];
+            }
+
+            let z = base_z + (cz * self.h_cell_blocks) as i32;
+            let local_z = z - column_cache.base_block_z;
+            column_cache.load_column(local_x, local_z);
+
+            let cy_start = if reuse { 1 } else { 0 };
+            for cy in cy_start..=self.v_cells {
+                let y = base_y + (cy * self.v_cell_blocks) as i32;
+                let pos = IVec3::new(x, y, z);
+                let density = router.final_density_from_column_cache(pos, column_cache);
+                buf[cz * v_stride + cy] = density;
+            }
+
+            // Save top-Y for next section
+            self.saved_top_y[plane_seq * z_count + cz] = buf[cz * v_stride + self.v_cells];
+        }
+    }
+
+    /// Mark the current section as complete, enabling Y-boundary reuse for the
+    /// next section. Call this after all fill_plane calls and interpolation for
+    /// a section are done.
+    #[inline]
+    pub fn end_section(&mut self) {
+        self.section_boundary_valid = true;
     }
 
     /// Load the 8 corner densities for a given cell from the start/end buffers.
