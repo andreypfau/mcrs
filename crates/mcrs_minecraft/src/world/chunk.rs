@@ -372,3 +372,48 @@ fn process_generated_chunk(mut loading_chunks: ResMut<LoadingChunks>, mut comman
         }
     });
 }
+
+/// Process completed column generation tasks from the scheduler.
+///
+/// This system polls in-flight tasks and processes their results:
+/// - For successfully completed sections: inserts `ChunkLoaded` with block/biome data
+/// - For cancelled sections (None): inserts `ChunkUnloading` to trigger cleanup
+/// - Removes `ChunkGenerating` marker from all processed sections
+/// - Removes completed columns from the `in_flight_index`
+///
+/// Uses `retain_mut` pattern to efficiently filter completed tasks while iterating.
+fn process_completed_columns(
+    mut scheduler: ResMut<ChunkColumnScheduler>,
+    mut commands: Commands,
+) {
+    scheduler.in_flight.retain_mut(|in_flight| {
+        let res = block_on(future::poll_once(&mut in_flight.task));
+        if let Some(column_result) = res {
+            // Column generation task completed, process all sections
+            for (entity, _pos, result) in column_result.sections {
+                match result {
+                    Some((blocks, biomes)) => {
+                        // Section completed successfully - mark as loaded with data
+                        commands
+                            .entity(entity)
+                            .insert((ChunkLoaded, blocks, biomes))
+                            .remove::<ChunkGenerating>();
+                    }
+                    None => {
+                        // Section was cancelled before generation could complete
+                        // Mark for unloading so the entity gets cleaned up
+                        commands
+                            .entity(entity)
+                            .insert(ChunkUnloading)
+                            .remove::<ChunkGenerating>();
+                    }
+                }
+            }
+            // Remove column from in-flight tracking
+            scheduler.in_flight_index.remove(&in_flight.col);
+            false // Remove from in_flight Vec
+        } else {
+            true // Keep in in_flight Vec, task still running
+        }
+    });
+}
