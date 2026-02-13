@@ -2,7 +2,7 @@ use crate::entity::despawn::Despawned;
 use crate::entity::player::Player;
 use crate::world::chunk::ticket::ChunkTicketsCommands;
 use crate::world::chunk::{ChunkIndex, ChunkPlugin};
-use bevy_app::{App, FixedPostUpdate, Plugin, PreStartup};
+use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::prelude::{
@@ -16,7 +16,8 @@ pub struct DimensionPlugin;
 impl Plugin for DimensionPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ChunkPlugin);
-        app.add_systems(PreStartup, spawn_dimension);
+        // Note: Dimensions are spawned dynamically by mcrs_minecraft based on LoadedWorldPreset resource.
+        // See mcrs_minecraft::world::WorldPlugin for the spawn_dimensions_from_preset system.
         app.add_systems(
             FixedPostUpdate,
             (add_old_in_dimension, update_index, update_old_in_dimensions).chain(),
@@ -119,10 +120,6 @@ fn update_time(mut dimension_time: Query<Mut<DimensionTime>>) {
     dimension_time.iter_mut().for_each(|mut dimension_time| {
         **dimension_time = dimension_time.wrapping_add(1);
     });
-}
-
-fn spawn_dimension(mut commands: Commands) {
-    commands.spawn(DimensionBundle::default());
 }
 
 #[allow(clippy::type_complexity)]
