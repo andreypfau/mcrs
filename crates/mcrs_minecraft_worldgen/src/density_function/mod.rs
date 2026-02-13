@@ -1275,6 +1275,13 @@ pub struct ChunkColumnCache {
 impl ChunkColumnCache {
     const GRID_SIDE: i32 = 17;
 
+    /// Read a single Zone A value for a given (local_x, local_z) without loading the full column.
+    #[inline]
+    pub fn read_za_value(&self, local_x: i32, local_z: i32, za_index: usize) -> f32 {
+        let xz_idx = (local_x * Self::GRID_SIDE + local_z) as usize;
+        self.column_data[xz_idx * self.zone_a_count + za_index]
+    }
+
     /// Load pre-computed Zone A values for the given local (x, z) into scratch[0..zone_a_count).
     #[inline]
     pub fn load_column(&mut self, local_x: i32, local_z: i32) {
@@ -1496,6 +1503,32 @@ pub fn build_functions(
     #[cfg(feature = "lazy-range-choice")]
     let lazy_rc = compute_lazy_range_choice(&builder.stack, column_boundary, final_density_index);
 
+    // Surface-skip: find Zone A indices for offset/factor, and max of OldBlendedNoise.
+    #[cfg(feature = "surface-skip")]
+    let offset_za_index = node_labels[..column_boundary]
+        .iter()
+        .position(|l| l == "minecraft:overworld/offset");
+    #[cfg(feature = "surface-skip")]
+    let factor_za_index = node_labels[..column_boundary]
+        .iter()
+        .position(|l| l == "minecraft:overworld/factor");
+    // OldBlendedNoise::max_value() returns edge_value(y_multiplier + 2.0) ≈ 87.5,
+    // which is an extremely conservative Java-style bound. The actual sample() output
+    // is bounded by ~2.0: ImprovedNoise gradients have max dot product 2.0 (from the
+    // FLAT_SIMPLEX_GRAD table), and the 2^i octave weighting cancels with the /512/128
+    // output divisions. We use 2.0 as the proven bound (0 if no OldBlendedNoise found).
+    #[cfg(feature = "surface-skip")]
+    let base_3d_noise_max = if builder.stack.iter().any(|c| {
+        matches!(
+            c,
+            DensityFunctionComponent::Independent(IndependentDensityFunction::OldBlendedNoise(_))
+        )
+    }) {
+        2.0f32
+    } else {
+        0.0f32
+    };
+
     let router = NoiseRouter {
         barrier_index: roots[0],
         fluid_level_floodedness_index: roots[1],
@@ -1521,6 +1554,12 @@ pub fn build_functions(
         node_labels: node_labels.into_boxed_slice(),
         #[cfg(feature = "lazy-range-choice")]
         lazy_rc,
+        #[cfg(feature = "surface-skip")]
+        offset_za_index,
+        #[cfg(feature = "surface-skip")]
+        factor_za_index,
+        #[cfg(feature = "surface-skip")]
+        base_3d_noise_max,
     };
 
     router
@@ -1582,6 +1621,15 @@ pub struct NoiseRouter {
     /// evaluation lists to skip entries exclusive to the inactive branch.
     #[cfg(feature = "lazy-range-choice")]
     lazy_rc: Option<LazyRangeChoice>,
+    /// Zone A index of `"minecraft:overworld/offset"` for surface estimation.
+    #[cfg(feature = "surface-skip")]
+    offset_za_index: Option<usize>,
+    /// Zone A index of `"minecraft:overworld/factor"` for surface estimation.
+    #[cfg(feature = "surface-skip")]
+    factor_za_index: Option<usize>,
+    /// Maximum value of the OldBlendedNoise function (base 3D noise ceiling).
+    #[cfg(feature = "surface-skip")]
+    base_3d_noise_max: f32,
 }
 
 impl NoiseRouter {
@@ -1751,6 +1799,52 @@ impl NoiseRouter {
         if find_top > 0 {
             eprintln!("    FindTopSurface:  {}", find_top);
         }
+    }
+
+    /// Estimate the maximum Y coordinate that could contain solid blocks in
+    /// this chunk column. Returns `None` if the required Zone A entries
+    /// (overworld/offset and overworld/factor) are not available.
+    ///
+    /// The estimate is conservative (always >= actual surface) with a +1 section
+    /// safety margin. Sections at or above the returned Y can be skipped entirely.
+    ///
+    /// Math: density > 0 (solid) when `depth * factor + noise > 0`.
+    /// Above surface: `depth = y_gradient(y) + offset`.
+    /// Solving `(y_gradient + offset) * factor + noise_max = 0`:
+    ///   `y = (1.5 + offset + noise_max/factor) * 128 - 64`
+    #[cfg(feature = "surface-skip")]
+    pub fn estimate_max_surface_y(&self, cache: &ChunkColumnCache) -> Option<i32> {
+        let offset_idx = self.offset_za_index?;
+        let factor_idx = self.factor_za_index?;
+        let step = self.h_cell_blocks as i32;
+        let corners = 16 / step + 1; // 5 for step=4
+        let mut max_y = f32::NEG_INFINITY;
+        for cx in 0..corners {
+            let local_x = cx * step;
+            for cz in 0..corners {
+                let local_z = cz * step;
+                let offset = cache.read_za_value(local_x, local_z, offset_idx);
+                let factor = cache.read_za_value(local_x, local_z, factor_idx);
+                // Factor must be positive for the formula to be valid.
+                // Negative/zero factor inverts the depth contribution, making
+                // surface prediction unreliable. NaN also fails this check.
+                // These values are data-driven (from JSON), so bail out.
+                if !(factor > 0.0) {
+                    return None;
+                }
+                // y = (1.5 + offset + noise_max/factor) * 128 - 64
+                let surface_y =
+                    (1.5 + offset as f64 + self.base_3d_noise_max as f64 / factor as f64) * 128.0
+                        - 64.0;
+                max_y = max_y.max(surface_y as f32);
+            }
+        }
+        // Guard against NaN from offset (NaN comparisons propagate through max)
+        if !max_y.is_finite() {
+            return None;
+        }
+        // Round up to section boundary + 1 section safety margin
+        Some(((max_y / 16.0).ceil() as i32 + 1) * 16)
     }
 
     /// Create a new DensityCache for use with `final_density`.

@@ -133,10 +133,24 @@ pub fn generate_column(
     let mut column_cache = noise_router.new_column_cache(block_x, block_z);
     noise_router.populate_columns(&mut column_cache);
 
+    #[cfg(feature = "surface-skip")]
+    let skip_above_y = noise_router.estimate_max_surface_y(&column_cache);
+
     let mut prev_sy: Option<i32> = None;
     y_sections
         .iter()
         .map(|&sy| {
+            // Surface skip: sections above estimated max surface are guaranteed all-air
+            #[cfg(feature = "surface-skip")]
+            if let Some(max_y) = skip_above_y {
+                if sy * 16 >= max_y {
+                    // Skipped section breaks Y-adjacency, treated as a gap
+                    interp.reset_section_boundary();
+                    prev_sy = Some(sy);
+                    return (BlockPalette::default(), BiomePalette::default());
+                }
+            }
+
             // Invalidate Y-boundary cache when sections are not adjacent
             if prev_sy.is_some_and(|prev| prev + 1 != sy) {
                 interp.reset_section_boundary();

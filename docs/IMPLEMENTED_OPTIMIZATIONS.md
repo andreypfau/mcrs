@@ -416,6 +416,75 @@ samplers used for cave generation.
 
 ---
 
+## 13. Early Section Skip via Surface Prediction
+
+**File**: `density_function/mod.rs` — `estimate_max_surface_y()`,
+`ChunkColumnCache::read_za_value()`
+**File**: `world/generate/mod.rs` — `generate_column()`
+**Feature flag**: `surface-skip` (opt-in, not in default)
+
+After `populate_columns()` fills Zone A for all 17x17 XZ positions, the
+`overworld/offset` and `overworld/factor` values are available for free.
+These two signals fully determine the terrain surface height (before 3D
+noise perturbation). By reading them at all 25 interpolation grid corners,
+we compute a conservative maximum Y above which the density is guaranteed
+negative (air).
+
+**Math**: density is positive (solid) when `depth * factor + noise > 0`.
+Depth is `y_gradient(y) + offset` where `y_gradient = 1.5 - (y+64)/128`.
+Solving for the worst case (`noise = noise_max`):
+
+```
+y_max = (1.5 + offset + noise_max / factor) * 128 - 64
+```
+
+The `noise_max` is the output bound of `OldBlendedNoise::sample()`.
+Despite the stored `max_value` field being ~87.5 (a conservative
+Java-style `edge_value` bound), the actual output is bounded by **2.0**:
+`ImprovedNoise` gradients (from `FLAT_SIMPLEX_GRAD`) have maximum dot
+product 2.0, and the `2^i` octave weighting in the manual accumulation
+loop cancels with the `/512/128` output divisions.
+
+A +1 section safety margin is added to handle sub-cell jaggedness.
+
+**Safety for user-modified data**: The `offset` and `factor` values are
+data-driven (loaded from JSON density function definitions). If any
+sampled `factor` value is non-positive or NaN, the optimization is
+disabled for that column (`estimate_max_surface_y` returns `None`).
+Non-finite `offset` values (NaN/Inf) are also caught. This ensures
+correctness even with custom density function configurations.
+
+```rust
+let skip_above_y = router.estimate_max_surface_y(&column_cache);
+// In the Y section loop:
+if let Some(max_y) = skip_above_y {
+    if sy * 16 >= max_y {
+        interp.reset_section_boundary();
+        continue; // section is all air
+    }
+}
+```
+
+Skipped sections break Y-adjacency, so `reset_section_boundary()` is
+called to invalidate the Y-boundary cache (see optimization 9).
+
+**Impact**: Skips 44.6% of sections (4,717 out of 10,584) in a typical
+view-distance-10 area centered at origin. The savings are greatest for
+ocean/plains biomes (up to 14 of 24 sections skipped) and smallest for
+extreme mountains.
+
+**Benchmark**: ~1.2ms → ~0.65ms per chunk column (1.86x faster, 86%
+more throughput). Combined with all other optimizations:
+
+| Metric | Without surface-skip | With surface-skip |
+|--------|---------------------|-------------------|
+| Wall time (441 chunks) | 531ms | 286ms |
+| Mean per column | 1.20ms | 0.65ms |
+| Throughput | 830 col/sec | 1,542 col/sec |
+| Sections skipped | 0% | 44.6% |
+
+---
+
 ## Performance Summary
 
 | Metric | Value |

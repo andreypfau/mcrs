@@ -130,7 +130,7 @@ fn generate_column(
     section_x: i32,
     section_z: i32,
     y_sections: &[i32],
-) -> u64 {
+) -> (u64, u64) {
     let mut interp = router.new_section_interpolator();
     let block_x = section_x * 16;
     let block_z = section_z * 16;
@@ -138,14 +138,27 @@ fn generate_column(
     let mut column_cache = router.new_column_cache(block_x, block_z);
     router.populate_columns(&mut column_cache);
 
+    #[cfg(feature = "surface-skip")]
+    let skip_above_y = router.estimate_max_surface_y(&column_cache);
     let h_cell_blocks = interp.h_cell_blocks();
     let v_cell_blocks = interp.v_cell_blocks();
     let h_cells = interp.h_cells();
     let v_cells = interp.v_cells();
 
     let mut solid_count: u64 = 0;
+    #[allow(unused_mut)]
+    let mut skipped_sections: u64 = 0;
 
     for &sy in y_sections {
+        #[cfg(feature = "surface-skip")]
+        if let Some(max_y) = skip_above_y {
+            if sy * 16 >= max_y {
+                skipped_sections += 1;
+                interp.reset_section_boundary();
+                continue;
+            }
+        }
+
         let section_block_y = sy * 16;
 
         interp.fill_plane_cached_reuse(
@@ -210,7 +223,7 @@ fn generate_column(
         interp.end_section();
     }
 
-    solid_count
+    (solid_count, skipped_sections)
 }
 
 fn fmt_duration(d: Duration) -> String {
@@ -400,13 +413,15 @@ fn main() {
     // --- Generate all chunks, timing each one ---
     let mut times = Vec::with_capacity(total_chunks);
     let mut total_solid: u64 = 0;
+    let mut total_skipped: u64 = 0;
 
     let t_total = Instant::now();
     for &(cx, cz) in &chunks {
         let t = Instant::now();
-        let solid = generate_column(&router, cx, cz, &y_sections);
+        let (solid, skipped) = generate_column(&router, cx, cz, &y_sections);
         times.push(t.elapsed());
         total_solid += solid;
+        total_skipped += skipped;
     }
     let wall_time = t_total.elapsed();
 
@@ -424,6 +439,15 @@ fn main() {
     eprintln!("=== Results ({} chunk columns) ===", total_chunks);
     eprintln!("  Wall time:     {}", fmt_duration(wall_time));
     eprintln!("  Total solid:   {} blocks", total_solid);
+    if total_skipped > 0 {
+        let total_sections = total_chunks as u64 * num_sections as u64;
+        eprintln!(
+            "  Skipped:       {}/{} sections ({:.1}%)",
+            total_skipped,
+            total_sections,
+            total_skipped as f64 / total_sections as f64 * 100.0,
+        );
+    }
     eprintln!();
     eprintln!("  Per chunk column:");
     eprintln!("    Mean:   {}", fmt_duration(mean));
