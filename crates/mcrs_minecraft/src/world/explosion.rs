@@ -151,7 +151,7 @@ fn tick_explode(
                 dim,
                 center,
                 radius.0 as f32,
-                &mut rng(),
+                &mut thread_rng(),
                 false,
                 detonator.map(|d| d.entity()),
                 &mut cache,
@@ -197,7 +197,7 @@ where
         let mut cached_block = cache.get_explosion_block(center);
         let mut curr = center;
 
-        let r = random.random::<f32>();
+        let r = random.r#gen::<f32>();
         let mut power = radius * (r * 0.6 + 0.7);
         loop {
             let block_pos = BlockPos::from(curr);
@@ -245,7 +245,7 @@ use bevy_ecs::prelude::{Commands, On};
 use bevy_math::DVec3;
 use bevy_math::ops::exp;
 use bevy_utils::Parallel;
-use rand::{Rng, rng};
+use rand::{Rng, thread_rng};
 use std::sync::OnceLock;
 
 const N: i32 = 15;
