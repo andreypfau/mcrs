@@ -2,7 +2,7 @@ use crate::entity::despawn::Despawned;
 use crate::entity::player::Player;
 use crate::world::chunk::ticket::ChunkTicketsCommands;
 use crate::world::chunk::{ChunkIndex, ChunkPlugin};
-use bevy_app::{App, FixedPostUpdate, Plugin, PreStartup};
+use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::prelude::{
@@ -16,7 +16,8 @@ pub struct DimensionPlugin;
 impl Plugin for DimensionPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ChunkPlugin);
-        app.add_systems(PreStartup, spawn_dimension);
+        // Note: Dimensions are spawned dynamically by mcrs_minecraft based on LoadedWorldPreset resource.
+        // See mcrs_minecraft::world::WorldPlugin for the spawn_dimensions_from_preset system.
         app.add_systems(
             FixedPostUpdate,
             (add_old_in_dimension, update_index, update_old_in_dimensions).chain(),
@@ -28,6 +29,8 @@ impl Plugin for DimensionPlugin {
 #[derive(Bundle, Default)]
 pub struct DimensionBundle {
     pub dimension: Dimension,
+    pub dimension_id: DimensionId,
+    pub type_config: DimensionTypeConfig,
     pub chunk_index: ChunkIndex,
     pub chunk_tickets: ChunkTicketsCommands,
     pub players: DimensionPlayers,
@@ -60,14 +63,63 @@ impl ContainsEntity for OldInDimension {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Component, Deref, DerefMut)]
 pub struct DimensionTime(pub u64);
 
+/// Unique identifier for a dimension (e.g., "minecraft:overworld", "minecraft:the_nether")
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Component, Deref, DerefMut)]
+pub struct DimensionId(pub String);
+
+impl DimensionId {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+}
+
+impl Default for DimensionId {
+    fn default() -> Self {
+        // Default to overworld to match DimensionTypeConfig::default()
+        Self::new("minecraft:overworld")
+    }
+}
+
+/// Configuration derived from the dimension type, containing Y-level and section metadata.
+/// Used for chunk loading and column view calculations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Component)]
+pub struct DimensionTypeConfig {
+    /// Minimum Y coordinate for this dimension (e.g., -64 for overworld, 0 for nether)
+    pub min_y: i32,
+    /// Total height in blocks (e.g., 384 for overworld, 256 for nether)
+    pub height: u32,
+    /// Number of chunk sections (height / 16)
+    pub section_count: u32,
+}
+
+impl DimensionTypeConfig {
+    /// Create a new DimensionTypeConfig from min_y and height.
+    /// Section count is automatically calculated as height / 16.
+    pub fn new(min_y: i32, height: u32) -> Self {
+        Self {
+            min_y,
+            height,
+            section_count: height / 16,
+        }
+    }
+
+    /// Returns the maximum Y coordinate (min_y + height - 1)
+    pub fn max_y(&self) -> i32 {
+        self.min_y + self.height as i32 - 1
+    }
+}
+
+impl Default for DimensionTypeConfig {
+    fn default() -> Self {
+        // Default to overworld values
+        Self::new(-64, 384)
+    }
+}
+
 fn update_time(mut dimension_time: Query<Mut<DimensionTime>>) {
     dimension_time.iter_mut().for_each(|mut dimension_time| {
         **dimension_time = dimension_time.wrapping_add(1);
     });
-}
-
-fn spawn_dimension(mut commands: Commands) {
-    commands.spawn(DimensionBundle::default());
 }
 
 #[allow(clippy::type_complexity)]

@@ -1,4 +1,5 @@
 use crate::client_info::ClientViewDistance;
+use crate::configuration::LoadedWorldPreset;
 use crate::login::GameProfile;
 use crate::world::entity::player::chat::ChatPlugin;
 use crate::world::entity::player::column_view::ColumnViewPlugin;
@@ -16,7 +17,7 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Changed, Commands, Query, RemovedComponents, With};
+use bevy_ecs::prelude::{Changed, Commands, Query, RemovedComponents, Res, With};
 use bevy_ecs::query::Added;
 use bevy_math::DVec3;
 use derive_more::{Deref, DerefMut};
@@ -25,7 +26,7 @@ use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDistance};
 use mcrs_engine::entity::player::reposition::Reposition;
 use mcrs_engine::entity::{Despawned, EntityNetworkAddEvent};
-use mcrs_engine::world::dimension::{Dimension, InDimension};
+use mcrs_engine::world::dimension::{Dimension, DimensionId, InDimension};
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_protocol::item::ComponentPatch;
@@ -81,7 +82,8 @@ pub struct PlayerBundle {
 pub struct DisconnectReason(pub Text);
 
 fn spawn_player(
-    dimensions: Query<(Entity), With<Dimension>>,
+    world_preset: Res<LoadedWorldPreset>,
+    dimensions: Query<(Entity, &DimensionId), With<Dimension>>,
     mut query: Query<
         (
             Entity,
@@ -94,20 +96,40 @@ fn spawn_player(
     >,
     mut commands: Commands,
 ) {
+    // Wait for the world preset to be loaded via Bevy assets
+    if !world_preset.is_loaded {
+        return;
+    }
+
     query
         .iter_mut()
         .for_each(|(entity, distance, con_state, profile, mut con)| {
             if *con_state != ConnectionState::Game {
                 return;
             }
-            let Some(dim) = dimensions.iter().next() else {
-                println!("No dimension found! Can't spawn player.");
+            // Find dimension by first DimensionId in preset order
+            let dim = if let Some((first_dim_key, _)) = world_preset.dimensions.first() {
+                // Look for the dimension entity matching the first preset dimension
+                dimensions
+                    .iter()
+                    .find(|(_, dim_id)| dim_id.as_str() == first_dim_key.as_str())
+                    .map(|(entity, _)| entity)
+            } else {
+                // Fallback: use any available dimension if preset is empty
+                dimensions.iter().next().map(|(entity, _)| entity)
+            };
+            let Some(dim) = dim else {
+                tracing::warn!("No dimension found! Can't spawn player yet - dimensions may still be loading.");
                 return;
             };
             con.write_packet(&ClientboundLogin {
                 player_id: entity.index_u32() as i32,
                 hardcore: false,
-                dimensions: vec![ident!("overworld").into()],
+                dimensions: world_preset
+                    .dimensions
+                    .iter()
+                    .map(|(dim_key, _)| dim_key.clone().into())
+                    .collect(),
                 max_players: VarInt(100),
                 chunk_radius: VarInt(12),
                 simulation_distance: VarInt(12),

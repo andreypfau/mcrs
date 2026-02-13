@@ -3,9 +3,8 @@ use mcrs_protocol::{Ident, ident};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-#[serde(deny_unknown_fields)]
 pub struct DimensionType {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub fixed_time: Option<i64>,
     pub has_skylight: bool,
     pub has_ceiling: bool,
@@ -20,6 +19,7 @@ pub struct DimensionType {
     pub infiniburn: String,
     pub effects: Ident<String>,
     pub ambient_light: f32,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub cloud_height: Option<i32>,
     #[serde(flatten)]
     pub monster_settings: MonsterSettings,

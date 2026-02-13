@@ -127,9 +127,10 @@ pub struct RegistryRef<E> {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum Holder<E: Debug + Clone + PartialEq> {
-    Direct(E),
     Reference(Ident<Cow<'static, str>>),
+    Direct(E),
 }
 
 impl<E> From<RegistryRef<E>> for RegistryId<E> {

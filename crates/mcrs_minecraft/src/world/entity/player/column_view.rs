@@ -16,7 +16,7 @@ use mcrs_engine::entity::player::chunk_view::{
 use mcrs_engine::entity::player::reposition::{Reposition, RepositionConfig};
 use mcrs_engine::world::chunk::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkLoaded, ChunkPos};
-use mcrs_engine::world::dimension::InDimension;
+use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundLevelChunkWithLight, ClientboundSetChunkCacheCenter,
@@ -24,9 +24,6 @@ use mcrs_protocol::packets::game::clientbound::{
 use mcrs_protocol::{ChunkColumnPos, ChunkData, Encode, LightData, VarInt, WritePacket};
 use rustc_hash::FxHashSet;
 use tracing::{debug, info, trace};
-
-/// Vanilla client window height: 256 blocks == 16 chunk sections.
-const CLIENT_COLUMN_SECTIONS: i32 = 16;
 
 pub struct ColumnViewPlugin;
 
@@ -99,7 +96,7 @@ fn load_chunk_request(
 fn unload_chunk_request(
     mut message: MessageReader<PlayerChunkUnloadRequest>,
     mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
-    mut cmds: Query<&mut ChunkTicketsCommands>,
+    mut dims: Query<(&mut ChunkTicketsCommands, &DimensionTypeConfig)>,
 ) {
     message.read().for_each(|req| {
         let Ok((mut chunk_view, in_dim, rep)) = players.get_mut(req.player) else {
@@ -109,8 +106,8 @@ fn unload_chunk_request(
         chunk_view.desired_columns.remove(&column_pos);
         chunk_view.sent_columns.remove(&column_pos);
         if chunk_view.loaded_columns.remove(&column_pos) {
-            if let Ok(mut cmds) = cmds.get_mut(in_dim.entity()) {
-                apply_forced_tickets(&mut cmds, column_pos, offset_sections(rep), false);
+            if let Ok((mut cmds, type_config)) = dims.get_mut(in_dim.entity()) {
+                apply_forced_tickets(&mut cmds, column_pos, offset_sections(rep), type_config.section_count, false);
             }
         }
     });
@@ -118,16 +115,17 @@ fn unload_chunk_request(
 
 fn load_column_queue(
     mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
-    mut dims: Query<&mut ChunkTicketsCommands>,
+    mut dims: Query<(&mut ChunkTicketsCommands, &DimensionTypeConfig)>,
 ) {
     players.iter_mut().for_each(|(mut chunk_view, dim, rep)| {
-        let Ok(mut cmds) = dims.get_mut(dim.0) else {
+        let Ok((mut cmds, type_config)) = dims.get_mut(dim.0) else {
             return;
         };
+        let section_count = type_config.section_count;
         while let Some(col) = chunk_view.load_queue.pop_front() {
             if chunk_view.desired_columns.contains(&col) {
                 if chunk_view.loaded_columns.insert(col) {
-                    apply_forced_tickets(&mut cmds, col, offset_sections(rep), true);
+                    apply_forced_tickets(&mut cmds, col, offset_sections(rep), section_count, true);
                     trace!("Added tickets to col: {:?}", col);
                 }
                 chunk_view.loading_queue.push_back(col);
@@ -139,13 +137,14 @@ fn load_column_queue(
 
 fn loading_column_queue(
     mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
-    dims: Query<&ChunkIndex>,
+    dims: Query<(&ChunkIndex, &DimensionTypeConfig)>,
     chunks: Query<Entity, With<ChunkLoaded>>,
 ) {
     players.iter_mut().for_each(|(mut chunk_view, dim, rep)| {
-        let Ok(chunk_index) = dims.get(dim.entity()) else {
+        let Ok((chunk_index, type_config)) = dims.get(dim.entity()) else {
             return;
         };
+        let section_count = type_config.section_count as i32;
         loop {
             let Some(col) = chunk_view.loading_queue.front().copied() else {
                 return;
@@ -156,8 +155,8 @@ fn loading_column_queue(
             }
             // Check if all chunks in the column are loaded.
             let off = offset_sections(rep);
-            let mut chunks_entities = Vec::with_capacity(CLIENT_COLUMN_SECTIONS as usize);
-            for client_y in 0..CLIENT_COLUMN_SECTIONS {
+            let mut chunks_entities = Vec::with_capacity(section_count as usize);
+            for client_y in 0..section_count {
                 let server_y = client_y - off;
                 let pos = ChunkPos::new(col.x, server_y, col.z);
                 let Some(chunk_e) = chunk_index.get(pos) else {
@@ -315,9 +314,10 @@ fn apply_forced_tickets(
     tickets: &mut ChunkTicketsCommands,
     col: ChunkColumnPos,
     off_sections: i32,
+    section_count: u32,
     add: bool,
 ) {
-    for client_y in 0..CLIENT_COLUMN_SECTIONS {
+    for client_y in 0..section_count as i32 {
         let server_y = client_y - off_sections;
         let chunk_pos = ChunkPos::new(col.x, server_y, col.z);
         if add {

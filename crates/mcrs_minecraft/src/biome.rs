@@ -4,7 +4,6 @@ use mcrs_registry::Holder;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Clone, PartialEq, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Biome {
     #[serde(flatten)]
     pub climate_settings: ClimateSettings,

@@ -129,13 +129,13 @@ impl Decode<'_> for VarLong {
 
 #[cfg(test)]
 mod tests {
-    use rand::{thread_rng, Rng};
+    use rand::RngExt;
 
     use super::*;
 
     #[test]
     fn encode_decode() {
-        let mut rng = thread_rng();
+        let mut rng = rand::rng();
         let mut buf = vec![];
 
         for n in (0..1_000_000)

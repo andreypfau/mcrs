@@ -44,6 +44,7 @@ mod value;
 mod version;
 mod weight;
 pub mod world;
+pub mod world_preset_loader;
 
 use crate::client_info::ClientInfoPlugin;
 use crate::configuration::ConfigurationStatePlugin;
