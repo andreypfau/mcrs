@@ -122,6 +122,29 @@ fn on_configuration_ack(
 #[derive(Default, Resource)]
 struct SyncedRegistries(Vec<(Ident<String>, Vec<Ident<String>>)>);
 
+#[derive(Default, Resource)]
+pub(crate) struct LoadedDimensionTypes(pub Vec<(Ident<String>, DimensionType)>);
+
+fn init_dimension_types() -> Vec<(Ident<String>, DimensionType)> {
+    let synced_registries = include_str!("../../../assets/synced_registries.json");
+    let json = serde_json::from_str::<Map<String, Value>>(synced_registries).unwrap();
+    let dimension_type_registry = json
+        .get("dimension_type")
+        .expect("dimension_type registry not found in synced_registries.json")
+        .as_object()
+        .expect("dimension_type should be an object");
+
+    dimension_type_registry
+        .iter()
+        .map(|(name, value)| {
+            let dim_type: DimensionType = serde_json::from_value(value.clone())
+                .expect(&format!("Failed to parse dimension type: {}", name));
+            let id = Ident::from_str(name).unwrap();
+            (id, dim_type)
+        })
+        .collect()
+}
+
 fn init_synced_registries() -> Vec<(Ident<String>, Vec<Ident<String>>)> {
     let synced_registries = include_str!("../../../assets/synced_registries.json");
     let json = serde_json::from_str::<Map<String, Value>>(synced_registries).unwrap();
