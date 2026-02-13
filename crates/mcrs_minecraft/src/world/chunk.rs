@@ -579,3 +579,74 @@ fn cancel_stale_columns(
         }
     }
 }
+
+/// Update column priorities when players move.
+///
+/// This system recalculates the distance-based priority for all pending columns
+/// when any player's position changes. Columns that were far away when initially
+/// queued may now be closer (and vice versa) as players move around the world.
+///
+/// # Algorithm
+/// 1. Collect current player chunk positions
+/// 2. For each pending column, recalculate the squared XZ distance to nearest player
+/// 3. If the distance changed, update the column's position in the priority queue:
+///    - Remove from `pending` BTreeMap with the old key
+///    - Insert into `pending` with the new key
+///    - Update `column_index` to reflect the new key
+///
+/// # Performance
+/// - Run condition: only executes when any player's `Transform` has `Changed`
+/// - O(n log n) where n = number of pending columns
+/// - Uses batch update to minimize BTreeMap operations
+fn reprioritize_columns(
+    mut scheduler: ResMut<ChunkColumnScheduler>,
+    players: Query<&Transform, With<Player>>,
+) {
+    // Early exit if no pending columns to reprioritize
+    if scheduler.pending.is_empty() {
+        return;
+    }
+
+    // Collect player positions in chunk coordinates
+    let player_positions: Vec<IVec3> = players
+        .iter()
+        .map(|t| {
+            IVec3::new(
+                (t.position.x / 16.0).floor() as i32,
+                (t.position.y / 16.0).floor() as i32,
+                (t.position.z / 16.0).floor() as i32,
+            )
+        })
+        .collect();
+
+    // If no players, nothing to reprioritize against
+    if player_positions.is_empty() {
+        return;
+    }
+
+    // Collect columns that need reprioritization: (col, old_key, new_key)
+    let mut updates: Vec<((i32, i32), ColumnKey, ColumnKey)> = Vec::new();
+
+    for (&col, &old_key) in &scheduler.column_index {
+        // Create a ChunkPos for distance calculation (Y doesn't matter for XZ distance)
+        let chunk_pos = ChunkPos::new(col.0, 0, col.1);
+        let new_distance_sq = min_column_distance(&chunk_pos, &player_positions);
+
+        // Only update if distance has changed
+        if new_distance_sq != old_key.distance_sq {
+            let new_key = ColumnKey::new(new_distance_sq, col.0, col.1);
+            updates.push((col, old_key, new_key));
+        }
+    }
+
+    // Apply updates: remove with old key, insert with new key
+    for (col, old_key, new_key) in updates {
+        // Remove from pending with old key
+        if let Some(pending_column) = scheduler.pending.remove(&old_key) {
+            // Insert with new key
+            scheduler.pending.insert(new_key, pending_column);
+            // Update the reverse index
+            scheduler.column_index.insert(col, new_key);
+        }
+    }
+}
