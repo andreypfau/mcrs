@@ -316,17 +316,18 @@ fn load_chunks(
         sections.sort_by_key(|(_, pos)| pos.y);
 
         let router = overworld_noise_router.0.clone();
+        let cancel = CancellationToken::new();
         let task = task_pool.spawn(async move {
             let router = router.as_ref();
             let _span = tracing::info_span!("ChunkColumnGen").entered();
 
             let y_sections: Vec<i32> = sections.iter().map(|(_, pos)| pos.y).collect();
-            let results = generate_column(col_x, col_z, &y_sections, router);
+            let results = generate_column(col_x, col_z, &y_sections, router, &cancel);
 
             let column_sections = sections
                 .into_iter()
                 .zip(results)
-                .map(|((entity, pos), (blocks, biomes))| (entity, pos, Some((blocks, biomes))))
+                .map(|((entity, pos), result)| (entity, pos, result))
                 .collect();
 
             ChunkColumnResult {
