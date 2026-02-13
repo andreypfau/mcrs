@@ -19,7 +19,21 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::env;
 use std::str::FromStr;
+
+/// Default world preset name used when MCRS_WORLD_PRESET is not set
+const DEFAULT_WORLD_PRESET: &str = "normal";
+
+/// Valid world preset names that are supported
+const VALID_PRESETS: &[&str] = &[
+    "normal",
+    "flat",
+    "amplified",
+    "large_biomes",
+    "single_biome_surface",
+    "debug_all_block_states",
+];
 
 pub(crate) struct ConfigurationStatePlugin;
 
@@ -262,6 +276,82 @@ pub fn parse_world_preset(preset_name: &str) -> Option<WorldPreset> {
         Err(e) => {
             eprintln!("Failed to parse world preset '{}': {}", preset_name, e);
             None
+        }
+    }
+}
+
+/// Get the world preset name from the MCRS_WORLD_PRESET environment variable.
+/// Returns the default 'normal' preset if not set or invalid.
+pub fn get_world_preset_name() -> String {
+    match env::var("MCRS_WORLD_PRESET") {
+        Ok(preset_name) => {
+            let preset_name = preset_name.trim().to_lowercase();
+
+            if preset_name.is_empty() {
+                println!("MCRS_WORLD_PRESET is empty, using default preset: '{}'", DEFAULT_WORLD_PRESET);
+                return DEFAULT_WORLD_PRESET.to_string();
+            }
+
+            if VALID_PRESETS.contains(&preset_name.as_str()) {
+                println!("Loading world preset from MCRS_WORLD_PRESET: '{}'", preset_name);
+                preset_name
+            } else {
+                eprintln!(
+                    "Invalid world preset '{}' specified in MCRS_WORLD_PRESET. Valid presets: {:?}. Falling back to '{}'",
+                    preset_name,
+                    VALID_PRESETS,
+                    DEFAULT_WORLD_PRESET
+                );
+                DEFAULT_WORLD_PRESET.to_string()
+            }
+        }
+        Err(_) => {
+            println!("MCRS_WORLD_PRESET not set, using default preset: '{}'", DEFAULT_WORLD_PRESET);
+            DEFAULT_WORLD_PRESET.to_string()
+        }
+    }
+}
+
+/// Load the world preset based on the MCRS_WORLD_PRESET environment variable.
+/// Returns the parsed WorldPreset or None if loading fails.
+pub fn load_world_preset_from_env() -> Option<WorldPreset> {
+    let preset_name = get_world_preset_name();
+
+    match parse_world_preset(&preset_name) {
+        Some(preset) => {
+            println!(
+                "Successfully loaded world preset '{}' with {} dimensions",
+                preset_name,
+                preset.dimensions.len()
+            );
+            Some(preset)
+        }
+        None => {
+            eprintln!(
+                "Failed to load world preset '{}', attempting fallback to '{}'",
+                preset_name,
+                DEFAULT_WORLD_PRESET
+            );
+
+            // Try to load the default preset as a fallback
+            if preset_name != DEFAULT_WORLD_PRESET {
+                match parse_world_preset(DEFAULT_WORLD_PRESET) {
+                    Some(preset) => {
+                        println!(
+                            "Loaded fallback world preset '{}' with {} dimensions",
+                            DEFAULT_WORLD_PRESET,
+                            preset.dimensions.len()
+                        );
+                        Some(preset)
+                    }
+                    None => {
+                        eprintln!("CRITICAL: Failed to load default world preset '{}'", DEFAULT_WORLD_PRESET);
+                        None
+                    }
+                }
+            } else {
+                None
+            }
         }
     }
 }
