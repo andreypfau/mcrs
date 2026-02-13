@@ -24,6 +24,7 @@ impl Plugin for ConfigurationStatePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(bevy_app::FixedPreUpdate, on_configuration_enter);
         app.insert_resource(SyncedRegistries(init_synced_registries()));
+        app.insert_resource(LoadedDimensionTypes(init_dimension_types()));
         app.add_observer(on_configuration_ack);
     }
 }
