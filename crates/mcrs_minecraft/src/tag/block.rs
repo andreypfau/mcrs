@@ -117,6 +117,23 @@ impl<T: Clone + Send + Sync> TagRegistry<T> {
         self.map.get(tag_name).map(|v| v.as_slice())
     }
 
+    /// Checks if the specified registry ID is contained in the given tag.
+    ///
+    /// Returns `false` if the tag doesn't exist or if the entry is not in the tag.
+    pub fn contains_tag(&self, tag_name: &Ident<String>, entry: &RegistryId<T>) -> bool
+    where
+        RegistryId<T>: PartialEq,
+    {
+        self.get_tag(tag_name)
+            .map(|entries| entries.contains(entry))
+            .unwrap_or(false)
+    }
+
+    /// Returns an iterator over all tag names in the registry.
+    pub fn iter_tags(&self) -> impl Iterator<Item = &Ident<String>> {
+        self.map.keys()
+    }
+
     fn resolve_tag_entries<'a, 'b: 'a>(
         &mut self,
         tag_name: Ident<String>,
