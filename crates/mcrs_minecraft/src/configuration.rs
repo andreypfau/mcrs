@@ -43,6 +43,7 @@ impl Plugin for ConfigurationStatePlugin {
         app.insert_resource(SyncedRegistries(init_synced_registries()));
         app.insert_resource(LoadedDimensionTypes(init_dimension_types()));
         app.insert_resource(LoadedBiomes(init_biomes()));
+        app.insert_resource(init_world_preset());
         app.add_observer(on_configuration_ack);
     }
 }
@@ -180,6 +181,52 @@ fn init_dimension_types() -> Vec<(Ident<String>, DimensionType)> {
 
 #[derive(Default, Resource)]
 pub(crate) struct LoadedBiomes(pub Vec<(Ident<String>, Biome)>);
+
+/// Resource containing the loaded world preset with ordered dimensions.
+/// The dimensions are sorted alphabetically by dimension key for deterministic ordering.
+#[derive(Resource)]
+pub struct LoadedWorldPreset {
+    /// The name of the loaded preset (e.g., "normal", "flat")
+    pub preset_name: String,
+    /// Ordered list of dimensions as (dimension_key, dimension_type_ref) tuples.
+    /// For example: [("minecraft:overworld", "minecraft:overworld"), ("minecraft:the_end", "minecraft:the_end"), ...]
+    pub dimensions: Vec<(Ident<String>, Ident<String>)>,
+}
+
+impl Default for LoadedWorldPreset {
+    fn default() -> Self {
+        Self {
+            preset_name: DEFAULT_WORLD_PRESET.to_string(),
+            dimensions: Vec::new(),
+        }
+    }
+}
+
+fn init_world_preset() -> LoadedWorldPreset {
+    let preset_name = get_world_preset_name();
+
+    match load_world_preset_from_env() {
+        Some(preset) => {
+            let dimensions = preset.ordered_dimensions();
+            println!(
+                "Initialized LoadedWorldPreset '{}' with {} dimensions: {:?}",
+                preset_name,
+                dimensions.len(),
+                dimensions.iter().map(|(k, _)| k.as_str()).collect::<Vec<_>>()
+            );
+            LoadedWorldPreset {
+                preset_name,
+                dimensions,
+            }
+        }
+        None => {
+            eprintln!(
+                "CRITICAL: Failed to initialize world preset, using empty default"
+            );
+            LoadedWorldPreset::default()
+        }
+    }
+}
 
 fn init_biomes() -> Vec<(Ident<String>, Biome)> {
     let synced_registries = include_str!("../../../assets/synced_registries.json");
