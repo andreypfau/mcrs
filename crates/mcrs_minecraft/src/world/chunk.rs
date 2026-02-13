@@ -298,6 +298,9 @@ fn process_completed_columns(
     mut scheduler: ResMut<ChunkColumnScheduler>,
     mut commands: Commands,
 ) {
+    // Collect columns to remove from in_flight_index after iteration
+    let mut columns_to_remove: Vec<(i32, i32)> = Vec::new();
+
     scheduler.in_flight.retain_mut(|in_flight| {
         let res = block_on(future::poll_once(&mut in_flight.task));
         if let Some(column_result) = res {
@@ -321,13 +324,18 @@ fn process_completed_columns(
                     }
                 }
             }
-            // Remove column from in-flight tracking
-            scheduler.in_flight_index.remove(&in_flight.col);
+            // Mark column for removal from in-flight tracking
+            columns_to_remove.push(in_flight.col);
             false // Remove from in_flight Vec
         } else {
             true // Keep in in_flight Vec, task still running
         }
     });
+
+    // Remove completed columns from in_flight_index
+    for col in columns_to_remove {
+        scheduler.in_flight_index.remove(&col);
+    }
 }
 
 /// Enqueue pending chunk columns from entities with ChunkLoading marker.
@@ -358,9 +366,9 @@ fn enqueue_pending_columns(
         .map(|t| {
             // Convert world position to chunk coordinates
             IVec3::new(
-                (t.position.x / 16.0).floor() as i32,
-                (t.position.y / 16.0).floor() as i32,
-                (t.position.z / 16.0).floor() as i32,
+                (t.translation.x / 16.0).floor() as i32,
+                (t.translation.y / 16.0).floor() as i32,
+                (t.translation.z / 16.0).floor() as i32,
             )
         })
         .collect();
@@ -523,9 +531,9 @@ fn reprioritize_columns(
         .iter()
         .map(|t| {
             IVec3::new(
-                (t.position.x / 16.0).floor() as i32,
-                (t.position.y / 16.0).floor() as i32,
-                (t.position.z / 16.0).floor() as i32,
+                (t.translation.x / 16.0).floor() as i32,
+                (t.translation.y / 16.0).floor() as i32,
+                (t.translation.z / 16.0).floor() as i32,
             )
         })
         .collect();

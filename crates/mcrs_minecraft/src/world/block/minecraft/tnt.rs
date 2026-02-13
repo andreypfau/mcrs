@@ -18,7 +18,7 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_protocol::BlockStateId;
-use rand::{Rng, rng};
+use rand::{Rng, RngExt, rng};
 
 pub const BLOCK: Block = Block {
     identifier: mcrs_protocol::ident!("tnt"),

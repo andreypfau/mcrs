@@ -15,7 +15,7 @@ use mcrs_engine::entity::player::chunk_view::{
 };
 use mcrs_engine::entity::player::reposition::{Reposition, RepositionConfig};
 use mcrs_engine::world::chunk::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
-use mcrs_engine::world::chunk::{ChunkIndex, ChunkLoaded, ChunkPos, ChunkStatus};
+use mcrs_engine::world::chunk::{ChunkIndex, ChunkLoaded, ChunkPos};
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::{

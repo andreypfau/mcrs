@@ -49,7 +49,7 @@ derive_more = "2.0.1"
 flate2 = "1.1.5"
 thiserror = "2.0.17"
 tracing = "0.1.41"
-url = "2.5.7"
+url = { version = "2.5.7", features = ["serde"] }
 uuid = "1.18.1"
 rand = "0.10.0-rc.5"
 indexmap = "2.12.0"
