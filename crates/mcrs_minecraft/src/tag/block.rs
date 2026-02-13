@@ -124,33 +124,86 @@ impl BlockTagSetExt for BlockTagSet {
     }
 }
 
+#[deprecated(
+    since = "0.1.0",
+    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:mineable/pickaxe\")) with TagRegistry instead"
+)]
 pub const MINEABLE_PICKAXE: BlockTagSet = &[&BlockTag::Tag(&minecraft::STONE)];
 
+#[deprecated(
+    since = "0.1.0",
+    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:mineable/shovel\")) with TagRegistry instead"
+)]
 pub const MINEABLE_SHOVEL: BlockTagSet = &[
     &BlockTag::Tag(&minecraft::GRASS_BLOCK),
     &BlockTag::Tag(&minecraft::DIRT),
 ];
 
+#[deprecated(
+    since = "0.1.0",
+    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:needs_diamond_tool\")) with TagRegistry instead"
+)]
 pub const NEEDS_DIAMOND_TOOL: BlockTagSet = &[];
+#[deprecated(
+    since = "0.1.0",
+    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:needs_iron_tool\")) with TagRegistry instead"
+)]
 pub const NEEDS_IRON_TOOL: BlockTagSet = &[];
+#[deprecated(
+    since = "0.1.0",
+    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:needs_stone_tool\")) with TagRegistry instead"
+)]
 pub const NEEDS_STONE_TOOL: BlockTagSet = &[];
 
+#[deprecated(
+    since = "0.1.0",
+    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_netherite_tool\")) with TagRegistry instead"
+)]
 pub const INCORRECT_FOR_NETHERITE_TOOL: BlockTagSet = &[];
+#[deprecated(
+    since = "0.1.0",
+    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_diamond_tool\")) with TagRegistry instead"
+)]
 pub const INCORRECT_FOR_DIAMOND_TOOL: BlockTagSet = &[];
+#[deprecated(
+    since = "0.1.0",
+    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_iron_tool\")) with TagRegistry instead"
+)]
+#[allow(deprecated)]
 pub const INCORRECT_FOR_IRON_TOOL: BlockTagSet = &[&BlockTag::TagSet(NEEDS_DIAMOND_TOOL)];
+#[deprecated(
+    since = "0.1.0",
+    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_copper_tool\")) with TagRegistry instead"
+)]
+#[allow(deprecated)]
 pub const INCORRECT_FOR_COPPER_TOOL: BlockTagSet = &[
     &BlockTag::TagSet(NEEDS_DIAMOND_TOOL),
     &BlockTag::TagSet(NEEDS_IRON_TOOL),
 ];
+#[deprecated(
+    since = "0.1.0",
+    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_stone_tool\")) with TagRegistry instead"
+)]
+#[allow(deprecated)]
 pub const INCORRECT_FOR_STONE_TOOL: BlockTagSet = &[
     &BlockTag::TagSet(NEEDS_DIAMOND_TOOL),
     &BlockTag::TagSet(NEEDS_IRON_TOOL),
 ];
+#[deprecated(
+    since = "0.1.0",
+    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_gold_tool\")) with TagRegistry instead"
+)]
+#[allow(deprecated)]
 pub const INCORRECT_FOR_GOLD_TOOL: BlockTagSet = &[
     &BlockTag::TagSet(NEEDS_DIAMOND_TOOL),
     &BlockTag::TagSet(NEEDS_IRON_TOOL),
     &BlockTag::TagSet(NEEDS_STONE_TOOL),
 ];
+#[deprecated(
+    since = "0.1.0",
+    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_wooden_tool\")) with TagRegistry instead"
+)]
+#[allow(deprecated)]
 pub const INCORRECT_FOR_WOODEN_TOOL: BlockTagSet = &[
     &BlockTag::TagSet(NEEDS_DIAMOND_TOOL),
     &BlockTag::TagSet(NEEDS_IRON_TOOL),
