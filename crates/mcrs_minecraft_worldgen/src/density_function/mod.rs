@@ -2562,6 +2562,14 @@ impl SectionInterpolator {
         self.section_boundary_valid = true;
     }
 
+    /// Invalidate the Y-boundary cache, forcing the next section to compute
+    /// all corner values from scratch. Must be called when the next section
+    /// is not adjacent to the current one (i.e. there is a gap in Y sections).
+    #[inline]
+    pub fn reset_section_boundary(&mut self) {
+        self.section_boundary_valid = false;
+    }
+
     /// Load the 8 corner densities for a given cell from the start/end buffers.
     /// Corner layout:
     ///   corners[0] = start_buf[z][y]       (x0, y0, z0)

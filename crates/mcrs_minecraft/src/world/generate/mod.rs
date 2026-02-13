@@ -133,9 +133,16 @@ pub fn generate_column(
     let mut column_cache = noise_router.new_column_cache(block_x, block_z);
     noise_router.populate_columns(&mut column_cache);
 
+    let mut prev_sy: Option<i32> = None;
     y_sections
         .iter()
         .map(|&sy| {
+            // Invalidate Y-boundary cache when sections are not adjacent
+            if prev_sy.is_some_and(|prev| prev + 1 != sy) {
+                interp.reset_section_boundary();
+            }
+            prev_sy = Some(sy);
+
             let mut blocks = BlockPalette::default();
             let biomes = BiomePalette::default();
             generate_section(
