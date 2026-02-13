@@ -254,10 +254,6 @@ struct ChunkColumnResult {
     sections: Vec<(Entity, ChunkPos, Option<(BlockPalette, BiomePalette)>)>,
 }
 
-#[derive(Resource, Default)]
-struct LoadingChunks {
-    tasks: Vec<Task<ChunkColumnResult>>,
-}
 
 /// Squared XZ (column) distance from a chunk to the nearest player.
 fn min_column_distance(pos: &ChunkPos, players: &[IVec3]) -> i64 {
@@ -287,95 +283,7 @@ fn min_y_distance(pos: &ChunkPos, players: &[IVec3]) -> i32 {
         .unwrap_or(0)
 }
 
-fn load_chunks(
-    mut commands: Commands,
-    query: Query<(Entity, &ChunkPos), With<ChunkLoading>>,
-    mut loading_chunks: ResMut<LoadingChunks>,
-    overworld_noise_router: Res<OverworldNoiseRouter>,
-    players: Query<&Transform, With<Player>>,
-) {
-    if query.is_empty() {
-        return;
-    }
 
-    let task_pool = CHUNK_TASK_POOL.get().unwrap();
-
-    // Group sections by (x, z) column
-    let mut columns: HashMap<(i32, i32), Vec<(Entity, ChunkPos)>> = HashMap::new();
-    for (entity, pos) in query.iter() {
-        commands
-            .entity(entity)
-            .insert(ChunkGenerating)
-            .remove::<ChunkLoading>();
-        columns
-            .entry((pos.x, pos.z))
-            .or_default()
-            .push((entity, *pos));
-    }
-
-    let mut dispatched = 0usize;
-
-    for ((col_x, col_z), mut sections) in columns {
-        // Sort sections by Y so generation proceeds bottom-to-top
-        sections.sort_by_key(|(_, pos)| pos.y);
-
-        let router = overworld_noise_router.0.clone();
-        let cancel = CancellationToken::new();
-        let task = task_pool.spawn(async move {
-            let router = router.as_ref();
-            let _span = tracing::info_span!("ChunkColumnGen").entered();
-
-            let y_sections: Vec<i32> = sections.iter().map(|(_, pos)| pos.y).collect();
-            let results = generate_column(col_x, col_z, &y_sections, router, &cancel);
-
-            let column_sections = sections
-                .into_iter()
-                .zip(results)
-                .map(|((entity, pos), result)| (entity, pos, result))
-                .collect();
-
-            ChunkColumnResult {
-                sections: column_sections,
-            }
-        });
-
-        loading_chunks.tasks.push(task);
-        dispatched += 1;
-    }
-
-    if dispatched > 0 {
-        info!("Dispatched generation tasks for {} columns", dispatched);
-    }
-}
-
-fn process_generated_chunk(mut loading_chunks: ResMut<LoadingChunks>, mut commands: Commands) {
-    loading_chunks.tasks.retain_mut(|task| {
-        let res = block_on(future::poll_once(task));
-        if let Some(column_result) = res {
-            for (entity, _pos, result) in column_result.sections {
-                match result {
-                    Some((blocks, biomes)) => {
-                        // Section completed successfully
-                        commands
-                            .entity(entity)
-                            .insert((ChunkLoaded, blocks, biomes))
-                            .remove::<ChunkGenerating>();
-                    }
-                    None => {
-                        // Section was cancelled before generation
-                        commands
-                            .entity(entity)
-                            .insert(ChunkUnloading)
-                            .remove::<ChunkGenerating>();
-                    }
-                }
-            }
-            false
-        } else {
-            true
-        }
-    });
-}
 
 /// Process completed column generation tasks from the scheduler.
 ///
