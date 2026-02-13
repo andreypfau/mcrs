@@ -9,6 +9,7 @@ use bevy_math::IVec3;
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
 use mcrs_engine::entity::physics::Transform;
+use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::world::chunk::{ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos, ChunkUnloading};
 use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsPlugin, OverworldNoiseRouter};
@@ -490,5 +491,91 @@ fn enqueue_pending_columns(
         // Insert into priority queue and reverse index
         scheduler.pending.insert(key, pending_column);
         scheduler.column_index.insert(col, key);
+    }
+}
+
+/// Cancel columns that are no longer within any player's view.
+///
+/// This system handles cancellation for both pending and in-flight columns:
+///
+/// **Pending columns:**
+/// - Removed from the priority queue and column index
+/// - All sections transitioned from `ChunkGenerating` to `ChunkUnloading`
+///
+/// **In-flight columns:**
+/// - Cancellation token signaled via `cancel.cancel()`
+/// - The worker task will check `is_cancelled()` between sections and exit early
+/// - `process_completed_columns` will handle the partial results on the next tick
+///
+/// A column is considered "stale" if NONE of its sections are visible to ANY player.
+/// This is a conservative check - if even one section might be visible, we keep the column.
+fn cancel_stale_columns(
+    mut scheduler: ResMut<ChunkColumnScheduler>,
+    mut commands: Commands,
+    players: Query<&PlayerChunkObserver>,
+) {
+    // Collect all player views for visibility checks
+    let player_views: Vec<_> = players
+        .iter()
+        .filter_map(|observer| observer.last_last_chunk_tracking_view)
+        .collect();
+
+    // If no players have views, don't cancel anything (edge case during startup)
+    if player_views.is_empty() {
+        return;
+    }
+
+    // Helper closure: check if a column has any section visible to any player
+    let is_column_visible = |col: (i32, i32), sections: &[(Entity, i32)]| -> bool {
+        for (_, section_y) in sections {
+            let chunk_pos = ChunkPos::new(col.0, *section_y, col.1);
+            for view in &player_views {
+                if view.contains(&chunk_pos) {
+                    return true;
+                }
+            }
+        }
+        false
+    };
+
+    // Cancel stale pending columns
+    // Collect keys to remove first to avoid borrowing issues
+    let stale_pending: Vec<((i32, i32), ColumnKey, Vec<Entity>)> = scheduler
+        .column_index
+        .iter()
+        .filter_map(|(col, key)| {
+            let pending = scheduler.pending.get(key)?;
+            if !is_column_visible(*col, &pending.sections) {
+                // Collect section entities for cleanup
+                let entities: Vec<Entity> = pending.sections.iter().map(|(e, _)| *e).collect();
+                Some((*col, *key, entities))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Remove stale pending columns and mark sections for unloading
+    for (col, key, entities) in stale_pending {
+        scheduler.pending.remove(&key);
+        scheduler.column_index.remove(&col);
+
+        // Transition all sections to ChunkUnloading state
+        for entity in entities {
+            commands
+                .entity(entity)
+                .insert(ChunkUnloading)
+                .remove::<ChunkGenerating>();
+        }
+    }
+
+    // Cancel stale in-flight columns
+    // For in-flight columns, we just signal cancellation - the worker will check the token
+    for in_flight in &scheduler.in_flight {
+        if !is_column_visible(in_flight.col, &in_flight.sections) {
+            // Signal cancellation to the worker task
+            // The task will check is_cancelled() between sections and exit early
+            in_flight.cancel.cancel();
+        }
     }
 }
