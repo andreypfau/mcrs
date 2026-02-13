@@ -18,6 +18,11 @@ use tracing::info;
 
 pub mod proto;
 
+/// Maximum number of positions that can be batched in a single fill_plane call.
+/// 5 Z-columns * 3 Y-positions = 15, rounded up to 16 for alignment.
+#[cfg(feature = "batch-noise")]
+const MAX_BATCH: usize = 16;
+
 struct ChunkNoiseFunctionBuilderOptions {
     // Number of blocks per cell per axis
     horizontal_cell_block_count: usize,
@@ -1270,6 +1275,19 @@ pub struct ChunkColumnCache {
     pub(crate) base_block_z: i32,
     /// Scratch buffer (len == stack.len()), reused per `final_density_from_column_cache` call.
     pub scratch: Vec<f32>,
+    /// Scratch buffer for batch evaluation: MAX_BATCH * stack_len flat layout.
+    /// Pre-allocated at construction to avoid repeated allocation.
+    #[cfg(feature = "batch-noise")]
+    batch_scratch: Vec<f32>,
+    /// Temp buffer for Spline evaluation during batch path (len == stack.len()).
+    #[cfg(feature = "batch-noise")]
+    spline_temp: Vec<f32>,
+    /// Fixed buffer for batch noise evaluation results.
+    #[cfg(feature = "batch-noise")]
+    batch_noise_results: [f32; MAX_BATCH],
+    /// Fixed buffer for batch noise positions (scaled coordinates).
+    #[cfg(feature = "batch-noise")]
+    batch_noise_positions: [(f32, f32, f32); MAX_BATCH],
 }
 
 impl ChunkColumnCache {
@@ -1560,6 +1578,24 @@ pub fn build_functions(
         factor_za_index,
         #[cfg(feature = "surface-skip")]
         base_3d_noise_max,
+        #[cfg(feature = "batch-noise")]
+        obn_zone_b_index: None, // computed below
+    };
+
+    #[cfg(feature = "batch-noise")]
+    let router = {
+        let mut router = router;
+        // Find OldBlendedNoise index in Zone B for batch prefetching
+        for i in router.column_boundary..=router.final_density_index {
+            if let DensityFunctionComponent::Independent(
+                IndependentDensityFunction::OldBlendedNoise(_),
+            ) = &router.stack[i]
+            {
+                router.obn_zone_b_index = Some(i);
+                break;
+            }
+        }
+        router
     };
 
     router
@@ -1630,6 +1666,9 @@ pub struct NoiseRouter {
     /// Maximum value of the OldBlendedNoise function (base 3D noise ceiling).
     #[cfg(feature = "surface-skip")]
     base_3d_noise_max: f32,
+    /// Index of OldBlendedNoise in Zone B, used for batch prefetching.
+    #[cfg(feature = "batch-noise")]
+    obn_zone_b_index: Option<usize>,
 }
 
 impl NoiseRouter {
@@ -1988,6 +2027,14 @@ impl NoiseRouter {
             base_block_x,
             base_block_z,
             scratch: vec![0.0f32; self.stack.len()],
+            #[cfg(feature = "batch-noise")]
+            batch_scratch: vec![0.0f32; MAX_BATCH * (self.final_density_index + 1)],
+            #[cfg(feature = "batch-noise")]
+            spline_temp: vec![0.0f32; self.stack.len()],
+            #[cfg(feature = "batch-noise")]
+            batch_noise_results: [0.0f32; MAX_BATCH],
+            #[cfg(feature = "batch-noise")]
+            batch_noise_positions: [(0.0f32, 0.0f32, 0.0f32); MAX_BATCH],
         }
     }
 
@@ -2053,6 +2100,411 @@ impl NoiseRouter {
             cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
         }
         cache.scratch[self.final_density_index]
+    }
+
+    /// Batch-evaluate OldBlendedNoise for multiple positions.
+    /// Used by `fill_plane_cached_reuse` to prefetch the dominant noise cost
+    /// before running per-position density stack evaluation.
+    /// If no OldBlendedNoise exists in Zone B, `results` is zeroed.
+    #[cfg(feature = "batch-noise")]
+    pub fn prefetch_obn_batch(&self, positions: &[IVec3], results: &mut [f32]) {
+        if let Some(idx) = self.obn_zone_b_index {
+            if let DensityFunctionComponent::Independent(
+                IndependentDensityFunction::OldBlendedNoise(noise),
+            ) = &self.stack[idx]
+            {
+                // Use individual evaluations to avoid sample_batch Vec allocations.
+                // The benefit comes from separating OBN evaluation from the
+                // density stack, so the per-position stack eval skips it.
+                for (i, pos) in positions.iter().enumerate() {
+                    results[i] = noise.sample(&[], *pos);
+                }
+                return;
+            }
+        }
+        results.iter_mut().for_each(|r| *r = 0.0);
+    }
+
+    /// Evaluate final_density using a pre-populated column cache, with a
+    /// pre-computed OldBlendedNoise value injected. Skips the OBN entry
+    /// in the stack since its value is already known.
+    #[cfg(feature = "batch-noise")]
+    #[inline(always)]
+    pub fn final_density_from_column_cache_prefetched(
+        &self,
+        pos: IVec3,
+        cache: &mut ChunkColumnCache,
+        obn_value: f32,
+    ) -> f32 {
+        // usize::MAX sentinel means "no OBN to skip"
+        let obn_skip = self.obn_zone_b_index.unwrap_or(usize::MAX);
+
+        // Pre-populate the OBN slot so downstream entries can read it
+        if obn_skip != usize::MAX {
+            cache.scratch[obn_skip] = obn_value;
+        }
+
+        #[cfg(feature = "lazy-range-choice")]
+        if let Some(rc) = &self.lazy_rc {
+            for i in self.column_boundary..=rc.input_index {
+                if i == obn_skip {
+                    continue;
+                }
+                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
+            }
+
+            let input_val = cache.scratch[rc.input_index];
+            let in_range = input_val >= rc.min_inclusion && input_val < rc.max_exclusion;
+            let branch = if in_range {
+                &rc.branch_when_in
+            } else {
+                &rc.branch_when_out
+            };
+
+            for &i in branch.iter() {
+                if i == obn_skip {
+                    continue;
+                }
+                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
+            }
+
+            return cache.scratch[self.final_density_index];
+        }
+
+        for i in self.column_boundary..=self.final_density_index {
+            if i == obn_skip {
+                continue;
+            }
+            cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
+        }
+        cache.scratch[self.final_density_index]
+    }
+
+    /// Batch-evaluate Zone B of final_density across multiple positions.
+    ///
+    /// **Preconditions**: `cache.batch_scratch` must be pre-populated with Zone A data for
+    /// each position at `[p * stack_len .. p * stack_len + column_boundary)`.
+    /// The caller is responsible for setting up Zone A (possibly from different columns).
+    ///
+    /// Results are written to `results[0..n]` and also left in batch_scratch at
+    /// `[p * stack_len + final_density_index]`.
+    #[cfg(feature = "batch-noise")]
+    fn evaluate_zone_b_batch(
+        &self,
+        positions: &[IVec3],
+        cache: &mut ChunkColumnCache,
+        results: &mut [f32],
+    ) {
+        let n = positions.len();
+        debug_assert_eq!(n, results.len());
+        debug_assert!(n <= MAX_BATCH);
+        let stack_len = self.final_density_index + 1;
+
+        // Evaluate Zone B entries, entry by entry across all positions.
+        // Skips lazy RangeChoice for the batch path — the SIMD noise wins outweigh it.
+        for i in self.column_boundary..=self.final_density_index {
+            match &self.stack[i] {
+                DensityFunctionComponent::Independent(f) => match f {
+                    IndependentDensityFunction::OldBlendedNoise(noise) => {
+                        noise.sample_batch(positions, &mut cache.batch_noise_results[..n]);
+                        for p in 0..n {
+                            cache.batch_scratch[p * stack_len + i] =
+                                cache.batch_noise_results[p];
+                        }
+                    }
+                    IndependentDensityFunction::Noise(noise) => {
+                        for p in 0..n {
+                            cache.batch_noise_positions[p] = (
+                                positions[p].x as f32 * noise.xz_scale,
+                                positions[p].y as f32 * noise.y_scale,
+                                positions[p].z as f32 * noise.xz_scale,
+                            );
+                        }
+                        noise.sampler.get_batch(
+                            &cache.batch_noise_positions[..n],
+                            &mut cache.batch_noise_results[..n],
+                        );
+                        for p in 0..n {
+                            cache.batch_scratch[p * stack_len + i] =
+                                cache.batch_noise_results[p];
+                        }
+                    }
+                    _ => {
+                        for p in 0..n {
+                            cache.batch_scratch[p * stack_len + i] = f.sample(&[], positions[p]);
+                        }
+                    }
+                },
+                DensityFunctionComponent::Dependent(f) => match f {
+                    DependentDensityFunction::Linear(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            let input = cache.batch_scratch[base + x.input_index];
+                            cache.batch_scratch[base + i] = match x.operation {
+                                LinearOperation::Add => input + x.argument,
+                                LinearOperation::Multiply => input * x.argument,
+                            };
+                        }
+                    }
+                    DependentDensityFunction::Affine(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            let input = cache.batch_scratch[base + x.input_index];
+                            cache.batch_scratch[base + i] = input.mul_add(x.scale, x.offset);
+                        }
+                    }
+                    DependentDensityFunction::PiecewiseAffine(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            let input = cache.batch_scratch[base + x.input_index];
+                            let scale = if input < 0.0 { x.neg_scale } else { x.pos_scale };
+                            cache.batch_scratch[base + i] = input.mul_add(scale, x.offset);
+                        }
+                    }
+                    DependentDensityFunction::Slide(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            let input = cache.batch_scratch[base + x.input_index];
+                            cache.batch_scratch[base + i] =
+                                x.compute(input, positions[p].y as f32);
+                        }
+                    }
+                    DependentDensityFunction::Unary(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            let input = cache.batch_scratch[base + x.input_index];
+                            cache.batch_scratch[base + i] = x.operation.apply(input);
+                        }
+                    }
+                    DependentDensityFunction::Binary(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            let a = cache.batch_scratch[base + x.input1_index];
+                            let b = cache.batch_scratch[base + x.input2_index];
+                            cache.batch_scratch[base + i] = match x.operation {
+                                BinaryOperation::Add => a + b,
+                                BinaryOperation::Multiply => a * b,
+                                BinaryOperation::Min => a.min(b),
+                                BinaryOperation::Max => a.max(b),
+                            };
+                        }
+                    }
+                    DependentDensityFunction::ShiftedNoise(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            cache.batch_scratch[base + i] = x.sampler.get(
+                                positions[p].x as f32 * x.xz_scale
+                                    + cache.batch_scratch[base + x.input_x_index],
+                                positions[p].y as f32 * x.y_scale
+                                    + cache.batch_scratch[base + x.input_y_index],
+                                positions[p].z as f32 * x.xz_scale
+                                    + cache.batch_scratch[base + x.input_z_index],
+                            );
+                        }
+                    }
+                    DependentDensityFunction::WeirdScaled(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            let density = cache.batch_scratch[base + x.input_index];
+                            let (amp, coord_mul) = match x.mapper {
+                                RarityValueMapper::Type1 => {
+                                    if density < -0.5 {
+                                        (0.75, 1.0 / 0.75)
+                                    } else if density < 0.0 {
+                                        (1.0, 1.0)
+                                    } else if density < 0.5 {
+                                        (1.5, 1.0 / 1.5)
+                                    } else {
+                                        (2.0, 0.5)
+                                    }
+                                }
+                                RarityValueMapper::Type2 => {
+                                    if density < -0.75 {
+                                        (0.5, 2.0)
+                                    } else if density < -0.5 {
+                                        (0.75, 1.0 / 0.75)
+                                    } else if density < 0.5 {
+                                        (1.0, 1.0)
+                                    } else if density < 0.75 {
+                                        (2.0, 0.5)
+                                    } else {
+                                        (3.0, 1.0 / 3.0)
+                                    }
+                                }
+                            };
+                            cache.batch_scratch[base + i] = amp
+                                * x.sampler
+                                    .get(
+                                        positions[p].x as f32 * coord_mul,
+                                        positions[p].y as f32 * coord_mul,
+                                        positions[p].z as f32 * coord_mul,
+                                    )
+                                    .abs();
+                        }
+                    }
+                    DependentDensityFunction::Clamp(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            let input = cache.batch_scratch[base + x.input_index];
+                            cache.batch_scratch[base + i] = input.clamp(x.min_value, x.max_value);
+                        }
+                    }
+                    DependentDensityFunction::RangeChoice(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            let input = cache.batch_scratch[base + x.input_index];
+                            cache.batch_scratch[base + i] =
+                                if input >= x.min_inclusion_value && input < x.max_exclusion_value {
+                                    cache.batch_scratch[base + x.when_in_index]
+                                } else {
+                                    cache.batch_scratch[base + x.when_out_index]
+                                };
+                        }
+                    }
+                    DependentDensityFunction::Spline(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            // Copy this position's scratch into temp for Spline's &[f32] API
+                            cache.spline_temp[..stack_len]
+                                .copy_from_slice(&cache.batch_scratch[base..base + stack_len]);
+                            cache.batch_scratch[base + i] =
+                                x.sample_cached(&cache.spline_temp, &self.stack, positions[p]);
+                        }
+                    }
+                    DependentDensityFunction::FlattenedSpline(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            cache.batch_scratch[base + i] = x.evaluate(
+                                cache.batch_scratch[base + x.coord_indices[0]],
+                                cache.batch_scratch[base + x.coord_indices[1]],
+                                cache.batch_scratch[base + x.coord_indices[2]],
+                            );
+                        }
+                    }
+                    DependentDensityFunction::FindTopSurface(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            let top_y = (cache.batch_scratch[base + x.upper_bound_index]
+                                / x.cell_height)
+                                .floor()
+                                * x.cell_height;
+                            cache.batch_scratch[base + i] = if top_y <= x.lower_bound {
+                                x.lower_bound
+                            } else {
+                                let mut current_y = top_y;
+                                loop {
+                                    let sample_pos = IVec3::new(
+                                        positions[p].x,
+                                        current_y as i32,
+                                        positions[p].z,
+                                    );
+                                    let density = DensityFunctionComponent::sample_from_stack(
+                                        &self.stack[..=x.density_index],
+                                        sample_pos,
+                                    );
+                                    if density > 0.0 || current_y <= x.lower_bound {
+                                        break current_y;
+                                    }
+                                    current_y -= x.cell_height;
+                                }
+                            };
+                        }
+                    }
+                },
+                DensityFunctionComponent::Wrapper(f) => {
+                    let input_index = match f {
+                        WrapperDensityFunction::BlendDensity(x) => x.input_index,
+                        WrapperDensityFunction::Interpolated(x) => x.input_index,
+                        WrapperDensityFunction::FlatCache(x) => x.input_index,
+                        WrapperDensityFunction::Cache2d(x) => x.input_index,
+                        WrapperDensityFunction::CacheOnce(x) => x.input_index,
+                        WrapperDensityFunction::CacheAllInCell(x) => x.input_index,
+                    };
+                    for p in 0..n {
+                        let base = p * stack_len;
+                        cache.batch_scratch[base + i] = cache.batch_scratch[base + input_index];
+                    }
+                }
+            }
+        }
+
+        // Extract results
+        for p in 0..n {
+            results[p] = cache.batch_scratch[p * stack_len + self.final_density_index];
+        }
+    }
+
+    /// Batch-evaluate final_density at multiple positions sharing the same Zone A column.
+    /// Zone A values must already be loaded into `cache.scratch` via `load_column`.
+    #[cfg(feature = "batch-noise")]
+    pub fn final_density_from_column_cache_batch(
+        &self,
+        positions: &[IVec3],
+        cache: &mut ChunkColumnCache,
+        results: &mut [f32],
+    ) {
+        let n = positions.len();
+        debug_assert_eq!(n, results.len());
+
+        if n == 0 {
+            return;
+        }
+        if n == 1 {
+            results[0] = self.final_density_from_column_cache(positions[0], cache);
+            return;
+        }
+
+        let stack_len = self.final_density_index + 1;
+        let za = self.column_boundary;
+        debug_assert!(n <= MAX_BATCH);
+        debug_assert!(cache.batch_scratch.len() >= n * stack_len);
+
+        // Initialize Zone A for each position from the current loaded column
+        for p in 0..n {
+            let off = p * stack_len;
+            cache.batch_scratch[off..off + za].copy_from_slice(&cache.scratch[..za]);
+        }
+
+        self.evaluate_zone_b_batch(positions, cache, results);
+    }
+
+    /// Batch-evaluate final_density across multiple Z columns in one call.
+    ///
+    /// `positions` is laid out as `[col0_y0, col0_y1, ..., col1_y0, col1_y1, ...]`
+    /// with `per_col` positions per column. `column_local_xz[c]` gives the
+    /// `(local_x, local_z)` used to load Zone A for column `c`.
+    ///
+    /// This batches all positions across all columns through the Zone B evaluation,
+    /// keeping noise permutation tables cache-hot and enabling SIMD across positions.
+    #[cfg(feature = "batch-noise")]
+    pub fn evaluate_plane_batch(
+        &self,
+        positions: &[IVec3],
+        column_local_xz: &[(i32, i32)],
+        per_col: usize,
+        cache: &mut ChunkColumnCache,
+        results: &mut [f32],
+    ) {
+        let n = positions.len();
+        debug_assert_eq!(n, results.len());
+        debug_assert_eq!(n, column_local_xz.len() * per_col);
+        debug_assert!(n <= MAX_BATCH);
+
+        let stack_len = self.final_density_index + 1;
+        let za = self.column_boundary;
+        debug_assert!(cache.batch_scratch.len() >= n * stack_len);
+
+        // Load Zone A for each column and copy to each position in that column
+        for (c, &(local_x, local_z)) in column_local_xz.iter().enumerate() {
+            cache.load_column(local_x, local_z);
+            for j in 0..per_col {
+                let p = c * per_col + j;
+                let off = p * stack_len;
+                cache.batch_scratch[off..off + za].copy_from_slice(&cache.scratch[..za]);
+            }
+        }
+
+        self.evaluate_zone_b_batch(positions, cache, results);
     }
 
     /// Verify that `final_density_from_column_cache` matches `final_density` for
@@ -2639,26 +3091,80 @@ impl SectionInterpolator {
         let z_count = self.h_cells + 1;
         let reuse = self.section_boundary_valid;
 
-        for cz in 0..z_count {
-            // Restore bottom-Y from saved top-Y of previous section
-            if reuse {
-                buf[cz * v_stride] = self.saved_top_y[plane_seq * z_count + cz];
+        #[cfg(feature = "batch-noise")]
+        {
+            use crate::density_function::MAX_BATCH;
+
+            // Phase 1: Restore saved boundary values and collect batch positions
+            let cy_start = if reuse { 1usize } else { 0 };
+            let per_col = self.v_cells + 1 - cy_start;
+            let total = z_count * per_col;
+            debug_assert!(total <= MAX_BATCH);
+
+            let mut positions = [IVec3::ZERO; MAX_BATCH];
+            let mut column_xz = [(0i32, 0i32); MAX_BATCH]; // max z_count = 5
+            let mut idx = 0;
+
+            for cz in 0..z_count {
+                if reuse {
+                    buf[cz * v_stride] = self.saved_top_y[plane_seq * z_count + cz];
+                }
+                let z = base_z + (cz * self.h_cell_blocks) as i32;
+                let local_z = z - column_cache.base_block_z;
+                column_xz[cz] = (local_x, local_z);
+
+                for cy in cy_start..=self.v_cells {
+                    let y = base_y + (cy * self.v_cell_blocks) as i32;
+                    positions[idx] = IVec3::new(x, y, z);
+                    idx += 1;
+                }
             }
+            debug_assert_eq!(idx, total);
 
-            let z = base_z + (cz * self.h_cell_blocks) as i32;
-            let local_z = z - column_cache.base_block_z;
-            column_cache.load_column(local_x, local_z);
+            // Phase 2: Batch evaluate all positions
+            let mut results = [0.0f32; MAX_BATCH];
+            router.evaluate_plane_batch(
+                &positions[..total],
+                &column_xz[..z_count],
+                per_col,
+                column_cache,
+                &mut results[..total],
+            );
 
-            let cy_start = if reuse { 1 } else { 0 };
-            for cy in cy_start..=self.v_cells {
-                let y = base_y + (cy * self.v_cell_blocks) as i32;
-                let pos = IVec3::new(x, y, z);
-                let density = router.final_density_from_column_cache(pos, column_cache);
-                buf[cz * v_stride + cy] = density;
+            // Phase 3: Write results back to buf and save top-Y
+            idx = 0;
+            for cz in 0..z_count {
+                for cy in cy_start..=self.v_cells {
+                    buf[cz * v_stride + cy] = results[idx];
+                    idx += 1;
+                }
+                self.saved_top_y[plane_seq * z_count + cz] = buf[cz * v_stride + self.v_cells];
             }
+        }
 
-            // Save top-Y for next section
-            self.saved_top_y[plane_seq * z_count + cz] = buf[cz * v_stride + self.v_cells];
+        #[cfg(not(feature = "batch-noise"))]
+        {
+            for cz in 0..z_count {
+                // Restore bottom-Y from saved top-Y of previous section
+                if reuse {
+                    buf[cz * v_stride] = self.saved_top_y[plane_seq * z_count + cz];
+                }
+
+                let z = base_z + (cz * self.h_cell_blocks) as i32;
+                let local_z = z - column_cache.base_block_z;
+                column_cache.load_column(local_x, local_z);
+
+                let cy_start = if reuse { 1 } else { 0 };
+                for cy in cy_start..=self.v_cells {
+                    let y = base_y + (cy * self.v_cell_blocks) as i32;
+                    let pos = IVec3::new(x, y, z);
+                    let density = router.final_density_from_column_cache(pos, column_cache);
+                    buf[cz * v_stride + cy] = density;
+                }
+
+                // Save top-Y for next section
+                self.saved_top_y[plane_seq * z_count + cz] = buf[cz * v_stride + self.v_cells];
+            }
         }
     }
 
@@ -2833,6 +3339,167 @@ impl OldBlendedNoise {
             lower_interpolated_noise,
             upper_interpolated_noise: OctavePerlinNoise::new(random, -15, vec![1.0; 16], true),
             interpolated_noise: OctavePerlinNoise::new(random, -7, vec![1.0; 8], true),
+        }
+    }
+
+    /// Batch-evaluate OldBlendedNoise at multiple positions simultaneously (zero heap allocation).
+    /// Evaluates all octaves for all positions together, keeping permutation
+    /// tables cache-warm. Evaluates both lower and upper noise unconditionally
+    /// (the branch savings from skipping are offset by batch SIMD gains).
+    #[cfg(feature = "batch-noise")]
+    pub fn sample_batch(&self, positions: &[IVec3], results: &mut [f32]) {
+        let n = positions.len();
+        debug_assert_eq!(n, results.len());
+        debug_assert!(n <= MAX_BATCH);
+
+        // Pre-compute scaled coordinates on stack
+        let mut scaled = [(0.0f32, 0.0f32, 0.0f32); MAX_BATCH];
+        for j in 0..n {
+            scaled[j] = (
+                positions[j].x as f32 * self.xz_multiplier,
+                positions[j].y as f32 * self.y_multiplier,
+                positions[j].z as f32 * self.xz_multiplier,
+            );
+        }
+
+        // Reusable stack buffers
+        let mut octave_results = [0.0f32; MAX_BATCH];
+        let mut positions_buf = [(0.0f32, 0.0f32, 0.0f32); MAX_BATCH];
+        let mut y_maxes = [0.0f32; MAX_BATCH];
+
+        // ---- Interpolated noise: 8 octaves ----
+        let mut interp_fxs = [0.0f32; MAX_BATCH];
+        let mut interp_fys = [0.0f32; MAX_BATCH];
+        let mut interp_fzs = [0.0f32; MAX_BATCH];
+        for j in 0..n {
+            interp_fxs[j] = scaled[j].0 / self.xz_factor;
+            interp_fys[j] = scaled[j].1 / self.y_factor;
+            interp_fzs[j] = scaled[j].2 / self.xz_factor;
+        }
+        let mut interp_values = [0.0f32; MAX_BATCH];
+        let mut main_smear = self.main_smear;
+        let mut amplitude = 1.0f32;
+
+        for i in 0..8 {
+            for j in 0..n {
+                positions_buf[j] = (
+                    OctavePerlinNoise::maintain_precission(interp_fxs[j]),
+                    OctavePerlinNoise::maintain_precission(interp_fys[j]),
+                    OctavePerlinNoise::maintain_precission(interp_fzs[j]),
+                );
+                y_maxes[j] = interp_fys[j];
+            }
+
+            self.interpolated_noise.sample_octave_batch(
+                i,
+                &positions_buf[..n],
+                main_smear,
+                &y_maxes[..n],
+                &mut octave_results[..n],
+            );
+
+            for j in 0..n {
+                interp_values[j] = octave_results[j].mul_add(amplitude, interp_values[j]);
+                interp_fxs[j] *= 0.5;
+                interp_fys[j] *= 0.5;
+                interp_fzs[j] *= 0.5;
+            }
+            main_smear *= 0.5;
+            amplitude *= 2.0;
+        }
+
+        // ---- Lower noise: 16 octaves ----
+        let mut sxs = [0.0f32; MAX_BATCH];
+        let mut sys = [0.0f32; MAX_BATCH];
+        let mut szs = [0.0f32; MAX_BATCH];
+        for j in 0..n {
+            sxs[j] = scaled[j].0;
+            sys[j] = scaled[j].1;
+            szs[j] = scaled[j].2;
+        }
+        let mut lower_values = [0.0f32; MAX_BATCH];
+        let mut sm = self.limit_smear;
+        amplitude = 1.0;
+
+        for i in 0..16 {
+            for j in 0..n {
+                positions_buf[j] = (
+                    OctavePerlinNoise::maintain_precission(sxs[j]),
+                    OctavePerlinNoise::maintain_precission(sys[j]),
+                    OctavePerlinNoise::maintain_precission(szs[j]),
+                );
+                y_maxes[j] = sys[j];
+            }
+
+            self.lower_interpolated_noise.sample_octave_batch(
+                i,
+                &positions_buf[..n],
+                sm,
+                &y_maxes[..n],
+                &mut octave_results[..n],
+            );
+
+            for j in 0..n {
+                lower_values[j] = octave_results[j].mul_add(amplitude, lower_values[j]);
+                sxs[j] *= 0.5;
+                sys[j] *= 0.5;
+                szs[j] *= 0.5;
+            }
+            sm *= 0.5;
+            amplitude *= 2.0;
+        }
+
+        // ---- Upper noise: 16 octaves ----
+        // Reuse sxs/sys/szs buffers (reset from scaled)
+        for j in 0..n {
+            sxs[j] = scaled[j].0;
+            sys[j] = scaled[j].1;
+            szs[j] = scaled[j].2;
+        }
+        let mut upper_values = [0.0f32; MAX_BATCH];
+        sm = self.limit_smear;
+        amplitude = 1.0;
+
+        for i in 0..16 {
+            for j in 0..n {
+                positions_buf[j] = (
+                    OctavePerlinNoise::maintain_precission(sxs[j]),
+                    OctavePerlinNoise::maintain_precission(sys[j]),
+                    OctavePerlinNoise::maintain_precission(szs[j]),
+                );
+                y_maxes[j] = sys[j];
+            }
+
+            self.upper_interpolated_noise.sample_octave_batch(
+                i,
+                &positions_buf[..n],
+                sm,
+                &y_maxes[..n],
+                &mut octave_results[..n],
+            );
+
+            for j in 0..n {
+                upper_values[j] = octave_results[j].mul_add(amplitude, upper_values[j]);
+                sxs[j] *= 0.5;
+                sys[j] *= 0.5;
+                szs[j] *= 0.5;
+            }
+            sm *= 0.5;
+            amplitude *= 2.0;
+        }
+
+        // ---- Combine results ----
+        for j in 0..n {
+            let value = (interp_values[j] / 10.0 + 1.0) / 2.0;
+            let start = lower_values[j] / 512.0;
+            let end = upper_values[j] / 512.0;
+            results[j] = if value < 0.0 {
+                start
+            } else if value > 1.0 {
+                end
+            } else {
+                value.mul_add(end - start, start)
+            } / 128.0;
         }
     }
 }
