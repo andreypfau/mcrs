@@ -15,8 +15,10 @@ use mcrs_protocol::packets::configuration::{
 use mcrs_protocol::registry::Entry;
 use mcrs_protocol::resource_pack::KnownPack;
 use mcrs_protocol::{Ident, WritePacket, ident, nbt};
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::str::FromStr;
 
 pub(crate) struct ConfigurationStatePlugin;
@@ -199,4 +201,67 @@ fn init_synced_registries() -> Vec<(Ident<String>, Vec<Ident<String>>)> {
             (registry_id, entries)
         })
         .collect::<Vec<_>>()
+}
+
+/// Represents a dimension entry within a world preset
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorldPresetDimensionEntry {
+    /// Reference to the dimension type (e.g., "minecraft:overworld")
+    #[serde(rename = "type")]
+    pub dimension_type: String,
+    /// Generator configuration (kept as raw Value since we don't need to parse it)
+    #[serde(default)]
+    pub generator: Value,
+}
+
+/// Represents a world preset loaded from assets/minecraft/worldgen/world_preset/{preset}.json
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorldPreset {
+    /// Map of dimension key to dimension entry
+    pub dimensions: HashMap<String, WorldPresetDimensionEntry>,
+}
+
+impl WorldPreset {
+    /// Returns an ordered list of dimension entries as (dimension_key, dimension_type_ref) tuples.
+    /// Order is deterministic: sorted alphabetically by dimension key.
+    pub fn ordered_dimensions(&self) -> Vec<(Ident<String>, Ident<String>)> {
+        let mut dims: Vec<_> = self
+            .dimensions
+            .iter()
+            .map(|(key, entry)| {
+                let dim_key = Ident::from_str(key).expect(&format!("Invalid dimension key: {}", key));
+                let dim_type = Ident::from_str(&entry.dimension_type)
+                    .expect(&format!("Invalid dimension type: {}", entry.dimension_type));
+                (dim_key, dim_type)
+            })
+            .collect();
+        // Sort by dimension key for deterministic ordering
+        dims.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
+        dims
+    }
+}
+
+/// Parse a world preset from the embedded assets
+pub fn parse_world_preset(preset_name: &str) -> Option<WorldPreset> {
+    // Load the preset JSON based on preset name
+    let json_content = match preset_name {
+        "normal" => include_str!("../../../assets/minecraft/worldgen/world_preset/normal.json"),
+        "flat" => include_str!("../../../assets/minecraft/worldgen/world_preset/flat.json"),
+        "amplified" => include_str!("../../../assets/minecraft/worldgen/world_preset/amplified.json"),
+        "large_biomes" => include_str!("../../../assets/minecraft/worldgen/world_preset/large_biomes.json"),
+        "single_biome_surface" => include_str!("../../../assets/minecraft/worldgen/world_preset/single_biome_surface.json"),
+        "debug_all_block_states" => include_str!("../../../assets/minecraft/worldgen/world_preset/debug_all_block_states.json"),
+        _ => {
+            eprintln!("Unknown world preset: '{}', falling back to 'normal'", preset_name);
+            include_str!("../../../assets/minecraft/worldgen/world_preset/normal.json")
+        }
+    };
+
+    match serde_json::from_str::<WorldPreset>(json_content) {
+        Ok(preset) => Some(preset),
+        Err(e) => {
+            eprintln!("Failed to parse world preset '{}': {}", preset_name, e);
+            None
+        }
+    }
 }
