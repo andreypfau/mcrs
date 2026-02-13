@@ -45,6 +45,7 @@ impl ImprovedNoise {
         }
     }
 
+    #[inline(always)]
     pub fn sample(&self, x: f32, y: f32, z: f32, y_scale: f32, y_max: f32) -> f32 {
         let shifted_x = x + self.origin_x;
         let shifted_y = y + self.origin_y;
@@ -75,6 +76,7 @@ impl ImprovedNoise {
         )
     }
 
+    #[inline(always)]
     pub fn sample_and_lerp(
         &self,
         section_x: i32,
@@ -85,87 +87,70 @@ impl ImprovedNoise {
         local_z: f32,
         fade_local_x: f32,
     ) -> f32 {
-        let var0 = section_x & 0xFF;
-        let var1 = (section_x.wrapping_add(1)) & 0xFF;
-        let var2 = self.permutation[var0 as usize] as i32;
-        let var3 = self.permutation[var1 as usize] as i32;
-        let var4 = (var2.wrapping_add(section_y)) & 0xFF;
-        let var5 = (var3.wrapping_add(section_y)) & 0xFF;
-        let var6 = (var2.wrapping_add(section_y).wrapping_add(1)) & 0xFF;
-        let var7 = (var3.wrapping_add(section_y).wrapping_add(1)) & 0xFF;
-        let var8 = self.permutation[var4 as usize] as i32;
-        let var9 = self.permutation[var5 as usize] as i32;
-        let var10 = self.permutation[var6 as usize] as i32;
-        let var11 = self.permutation[var7 as usize] as i32;
+        // SAFETY: All permutation indices are masked with & 0xFF, guaranteeing [0, 255].
+        // All gradient indices are (perm & 15) << 2 = [0, 60], accessed with offsets +0/+1/+2,
+        // so max index is 62, within FLAT_SIMPLEX_GRAD's 64 elements.
+        unsafe {
+            let perm = &self.permutation;
 
-        let var12 = (var8.wrapping_add(section_z)) & 0xFF;
-        let var13 = (var9.wrapping_add(section_z)) & 0xFF;
-        let var14 = (var10.wrapping_add(section_z)) & 0xFF;
-        let var15 = (var11.wrapping_add(section_z)) & 0xFF;
-        let var16 = (var8.wrapping_add(section_z).wrapping_add(1)) & 0xFF;
-        let var17 = (var9.wrapping_add(section_z).wrapping_add(1)) & 0xFF;
-        let var18 = (var10.wrapping_add(section_z).wrapping_add(1)) & 0xFF;
-        let var19 = (var11.wrapping_add(section_z).wrapping_add(1)) & 0xFF;
+            // Hash lookups — first level (X)
+            let var0 = (section_x & 0xFF) as usize;
+            let var1 = (section_x.wrapping_add(1) & 0xFF) as usize;
+            let p0 = *perm.get_unchecked(var0) as usize;
+            let p1 = *perm.get_unchecked(var1) as usize;
 
-        let var20 = (self.permutation[var12 as usize] & 15) as usize * 4;
-        let var21 = (self.permutation[var13 as usize] & 15) as usize * 4;
-        let var22 = (self.permutation[var14 as usize] & 15) as usize * 4;
-        let var23 = (self.permutation[var15 as usize] & 15) as usize * 4;
-        let var24 = (self.permutation[var16 as usize] & 15) as usize * 4;
-        let var25 = (self.permutation[var17 as usize] & 15) as usize * 4;
-        let var26 = (self.permutation[var18 as usize] & 15) as usize * 4;
-        let var27 = (self.permutation[var19 as usize] & 15) as usize * 4;
+            // Second level (X+Y)
+            let sy = section_y as usize;
+            let var4 = (p0.wrapping_add(sy)) & 0xFF;
+            let var5 = (p1.wrapping_add(sy)) & 0xFF;
+            let var6 = (p0.wrapping_add(sy).wrapping_add(1)) & 0xFF;
+            let var7 = (p1.wrapping_add(sy).wrapping_add(1)) & 0xFF;
+            let p4 = *perm.get_unchecked(var4) as usize;
+            let p5 = *perm.get_unchecked(var5) as usize;
+            let p6 = *perm.get_unchecked(var6) as usize;
+            let p7 = *perm.get_unchecked(var7) as usize;
 
-        let var60 = local_x - 1.0;
-        let var61 = local_y - 1.0;
-        let var62 = local_z - 1.0;
+            // Third level (X+Y+Z) — 8 corner gradient indices
+            let sz = section_z as usize;
+            let h000 = ((*perm.get_unchecked((p4.wrapping_add(sz)) & 0xFF) & 15) as usize) << 2;
+            let h100 = ((*perm.get_unchecked((p5.wrapping_add(sz)) & 0xFF) & 15) as usize) << 2;
+            let h010 = ((*perm.get_unchecked((p6.wrapping_add(sz)) & 0xFF) & 15) as usize) << 2;
+            let h110 = ((*perm.get_unchecked((p7.wrapping_add(sz)) & 0xFF) & 15) as usize) << 2;
+            let h001 = ((*perm.get_unchecked((p4.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15) as usize) << 2;
+            let h101 = ((*perm.get_unchecked((p5.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15) as usize) << 2;
+            let h011 = ((*perm.get_unchecked((p6.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15) as usize) << 2;
+            let h111 = ((*perm.get_unchecked((p7.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15) as usize) << 2;
 
-        let var87 = FLAT_SIMPLEX_GRAD[var20] * local_x
-            + FLAT_SIMPLEX_GRAD[var20 + 1] * local_y
-            + FLAT_SIMPLEX_GRAD[var20 + 2] * local_z;
-        let var88 = FLAT_SIMPLEX_GRAD[var21] * var60
-            + FLAT_SIMPLEX_GRAD[var21 + 1] * local_y
-            + FLAT_SIMPLEX_GRAD[var21 + 2] * local_z;
-        let var89 = FLAT_SIMPLEX_GRAD[var22] * local_x
-            + FLAT_SIMPLEX_GRAD[var22 + 1] * var61
-            + FLAT_SIMPLEX_GRAD[var22 + 2] * local_z;
-        let var90 = FLAT_SIMPLEX_GRAD[var23] * var60
-            + FLAT_SIMPLEX_GRAD[var23 + 1] * var61
-            + FLAT_SIMPLEX_GRAD[var23 + 2] * local_z;
-        let var91 = FLAT_SIMPLEX_GRAD[var24] * local_x
-            + FLAT_SIMPLEX_GRAD[var24 + 1] * local_y
-            + FLAT_SIMPLEX_GRAD[var24 + 2] * var62;
-        let var92 = FLAT_SIMPLEX_GRAD[var25] * var60
-            + FLAT_SIMPLEX_GRAD[var25 + 1] * local_y
-            + FLAT_SIMPLEX_GRAD[var25 + 2] * var62;
-        let var93 = FLAT_SIMPLEX_GRAD[var26] * local_x
-            + FLAT_SIMPLEX_GRAD[var26 + 1] * var61
-            + FLAT_SIMPLEX_GRAD[var26 + 2] * var62;
-        let var94 = FLAT_SIMPLEX_GRAD[var27] * var60
-            + FLAT_SIMPLEX_GRAD[var27 + 1] * var61
-            + FLAT_SIMPLEX_GRAD[var27 + 2] * var62;
+            // Relative offsets for the far corner
+            let x1 = local_x - 1.0;
+            let y1 = local_y - 1.0;
+            let z1 = local_z - 1.0;
 
-        let var95 = local_x * 6.0 - 15.0;
-        let var96 = fade_local_x * 6.0 - 15.0;
-        let var97 = local_z * 6.0 - 15.0;
-        let var98 = local_x * var95 + 10.0;
-        let var99 = fade_local_x * var96 + 10.0;
-        let var100 = local_z * var97 + 10.0;
-        let var101 = local_x * local_x * local_x * var98;
-        let var102 = fade_local_x * fade_local_x * fade_local_x * var99;
-        let var103 = local_z * local_z * local_z * var100;
+            // Gradient dot products using FMA (grad · offset)
+            let g = &FLAT_SIMPLEX_GRAD;
+            let d000 = g.get_unchecked(h000 + 2).mul_add(local_z, g.get_unchecked(h000 + 1).mul_add(local_y, *g.get_unchecked(h000) * local_x));
+            let d100 = g.get_unchecked(h100 + 2).mul_add(local_z, g.get_unchecked(h100 + 1).mul_add(local_y, *g.get_unchecked(h100) * x1));
+            let d010 = g.get_unchecked(h010 + 2).mul_add(local_z, g.get_unchecked(h010 + 1).mul_add(y1, *g.get_unchecked(h010) * local_x));
+            let d110 = g.get_unchecked(h110 + 2).mul_add(local_z, g.get_unchecked(h110 + 1).mul_add(y1, *g.get_unchecked(h110) * x1));
+            let d001 = g.get_unchecked(h001 + 2).mul_add(z1, g.get_unchecked(h001 + 1).mul_add(local_y, *g.get_unchecked(h001) * local_x));
+            let d101 = g.get_unchecked(h101 + 2).mul_add(z1, g.get_unchecked(h101 + 1).mul_add(local_y, *g.get_unchecked(h101) * x1));
+            let d011 = g.get_unchecked(h011 + 2).mul_add(z1, g.get_unchecked(h011 + 1).mul_add(y1, *g.get_unchecked(h011) * local_x));
+            let d111 = g.get_unchecked(h111 + 2).mul_add(z1, g.get_unchecked(h111 + 1).mul_add(y1, *g.get_unchecked(h111) * x1));
 
-        let var113 = var87 + var101 * (var88 - var87);
-        let var114 = var93 + var101 * (var94 - var93);
-        let var115 = var91 + var101 * (var92 - var91);
-        let var116 = var89 + var101 * (var90 - var89);
-        let var117 = var114 - var115;
-        let var118 = var102 * (var116 - var113);
-        let var119 = var102 * var117;
-        let var120 = var113 + var118;
-        let var121 = var115 + var119;
+            // Fade curves: t³(6t² - 15t + 10)
+            let fade_x = local_x * local_x * local_x * local_x.mul_add(local_x.mul_add(6.0, -15.0), 10.0);
+            let fade_y = fade_local_x * fade_local_x * fade_local_x * fade_local_x.mul_add(fade_local_x.mul_add(6.0, -15.0), 10.0);
+            let fade_z = local_z * local_z * local_z * local_z.mul_add(local_z.mul_add(6.0, -15.0), 10.0);
 
-        var120 + (var103 * (var121 - var120))
+            // Trilinear interpolation using FMA
+            let l00 = (d100 - d000).mul_add(fade_x, d000);
+            let l10 = (d110 - d010).mul_add(fade_x, d010);
+            let l01 = (d101 - d001).mul_add(fade_x, d001);
+            let l11 = (d111 - d011).mul_add(fade_x, d011);
+            let ll0 = (l10 - l00).mul_add(fade_y, l00);
+            let ll1 = (l11 - l01).mul_add(fade_y, l01);
+            (ll1 - ll0).mul_add(fade_z, ll0)
+        }
     }
 }
 

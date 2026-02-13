@@ -105,7 +105,7 @@ impl OctavePerlinNoise {
         value
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn maintain_precission(value: f32) -> f32 {
         #[cfg(feature = "far-lands")]
         return value;
@@ -113,21 +113,25 @@ impl OctavePerlinNoise {
         return (value - (value / 3.3554432E7 + 0.5).floor() * 3.3554432E7);
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn get(&self, x: f32, y: f32, z: f32) -> f32 {
         let mut lacunarity = self.lacunarity;
         let mut persistence = self.persistence;
-        let mut acc = 0.0;
-        for i in 0..self.octave_samplers.len() {
-            if let Some(sampler) = &self.octave_samplers[i] {
+        let mut acc = 0.0f32;
+        let len = self.octave_samplers.len();
+        for i in 0..len {
+            // SAFETY: i < len, so both indices are in bounds.
+            let sampler = unsafe { self.octave_samplers.get_unchecked(i) };
+            if let Some(sampler) = sampler {
                 let sample = sampler.sample(
-                    OctavePerlinNoise::maintain_precission(x * lacunarity),
-                    OctavePerlinNoise::maintain_precission(y * lacunarity),
-                    OctavePerlinNoise::maintain_precission(z * lacunarity),
+                    Self::maintain_precission(x * lacunarity),
+                    Self::maintain_precission(y * lacunarity),
+                    Self::maintain_precission(z * lacunarity),
                     0.0,
                     0.0,
                 );
-                acc += sample * persistence * self.amplitudes[i];
+                let amp = unsafe { *self.amplitudes.get_unchecked(i) };
+                acc = sample.mul_add(persistence * amp, acc);
             }
             lacunarity *= 2.0;
             persistence *= 0.5;

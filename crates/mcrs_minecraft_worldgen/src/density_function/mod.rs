@@ -2870,10 +2870,9 @@ impl DensityFunction for OldBlendedNoise {
                     xx,
                     yy,
                     zz,
-                    (self.main_smear * factor),
-                    (factored_y * factor),
-                ) as f32
-                    / factor;
+                    self.main_smear * factor,
+                    factored_y * factor,
+                ) / factor;
             }
             factor /= 2.0;
         }

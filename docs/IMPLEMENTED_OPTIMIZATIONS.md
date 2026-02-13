@@ -485,6 +485,75 @@ more throughput). Combined with all other optimizations:
 
 ---
 
+## 14. Perlin Noise Math Audit
+
+**Files**: `noise/improved_noise.rs`, `noise/octave_perlin_noise.rs`,
+`density_function/mod.rs` (OldBlendedNoise)
+
+A set of micro-optimizations applied to the Perlin noise hot path, inspired
+by C2ME's `c2me-opts-math` module. These target `ImprovedNoise::sample_and_lerp`
+(the innermost function in worldgen, called ~40 times per density evaluation via
+octave stacking) and the `OctavePerlinNoise::get` accumulation loop.
+
+### 14.1 Bounds Check Elimination
+
+All 16 permutation table lookups (`self.permutation[idx]`) and 24 gradient
+table lookups (`FLAT_SIMPLEX_GRAD[idx]`) are replaced with
+`unsafe { get_unchecked }`. The indices are provably in-bounds:
+
+- Permutation: all indices are masked with `& 0xFF`, guaranteeing `[0, 255]`
+  into a `[u8; 256]` array.
+- Gradient: indices are `(perm & 15) << 2` = `[0, 60]`, accessed with offsets
+  `+0/+1/+2`, so max index is 62 within the 64-element array.
+
+This eliminates 24 bounds checks per Perlin sample. With 40 octaves in
+`OldBlendedNoise`, that's ~960 bounds checks removed per terrain sample.
+
+### 14.2 Fused Multiply-Add (FMA)
+
+All arithmetic in `sample_and_lerp` is rewritten to use `f32::mul_add()`:
+
+- **8 gradient dot products**: `grad.z * z + grad.y * y + grad.x * x`
+  → `grad_z.mul_add(z, grad_y.mul_add(y, grad_x * x))` (2 FMA per dot)
+- **3 fade curves**: `t³(6t² - 15t + 10)` → Horner form with FMA:
+  `t * t * t * t.mul_add(t.mul_add(6.0, -15.0), 10.0)`
+- **7 trilinear lerp steps**: `a + fade * (b - a)` → `(b - a).mul_add(fade, a)`
+- **Octave accumulation**: `acc += sample * persistence * amp`
+  → `acc = sample.mul_add(persistence * amp, acc)`
+
+FMA compiles to a single hardware instruction on modern CPUs (x86 FMA3,
+ARM NEON) and avoids intermediate rounding, improving both speed and precision.
+
+### 14.3 Forced Inlining
+
+`#[inline(always)]` is applied to:
+- `ImprovedNoise::sample` and `sample_and_lerp`
+- `OctavePerlinNoise::get` and `maintain_precission`
+
+This ensures LLVM inlines the full `sample → sample_and_lerp` chain into the
+octave loop, enabling cross-function register allocation and constant
+propagation (e.g., `y_scale = 0.0` eliminates the Y-smear branch).
+
+### 14.4 Type Conversion Cleanup
+
+- Permutation hash computations work in `usize` throughout, avoiding
+  `i32 → usize` and `usize → i32` round-trips on each lookup.
+- Gradient index computation uses `<< 2` instead of `* 4`.
+- Removed redundant `as f32` cast in `OldBlendedNoise::sample` (the called
+  function already returns `f32`).
+
+**Benchmark** (441 chunks, single-threaded, view distance 10):
+
+| Metric | Before | After | Change |
+|--------|--------|-------|--------|
+| Wall time | 478ms | 415ms | **-13.2%** |
+| Mean/chunk | 1.085ms | 942us | **-13.2%** |
+| Median/chunk | 1.084ms | 941us | **-13.2%** |
+| P95 | 1.143ms | 987us | **-13.7%** |
+| Throughput | 922 col/sec | 1,061 col/sec | **+15.1%** |
+
+---
+
 ## Performance Summary
 
 | Metric | Value |
