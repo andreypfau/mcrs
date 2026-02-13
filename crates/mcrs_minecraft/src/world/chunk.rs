@@ -10,7 +10,7 @@ use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
-use mcrs_engine::world::chunk::{ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos};
+use mcrs_engine::world::chunk::{ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos, ChunkUnloading};
 use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsPlugin, OverworldNoiseRouter};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, HashMap};
@@ -240,8 +240,14 @@ impl ChunkColumnScheduler {
     }
 }
 
+/// Result of a column generation task.
+///
+/// Contains the list of generated sections for a column. Each section includes
+/// the entity, position, and optionally the generated block/biome data.
+/// `None` indicates the section was cancelled before generation could complete.
 struct ChunkColumnResult {
-    sections: Vec<(Entity, ChunkPos, BlockPalette, BiomePalette)>,
+    /// Generated sections. `None` for cancelled sections, `Some((blocks, biomes))` for completed.
+    sections: Vec<(Entity, ChunkPos, Option<(BlockPalette, BiomePalette)>)>,
 }
 
 #[derive(Resource, Default)]
@@ -320,7 +326,7 @@ fn load_chunks(
             let column_sections = sections
                 .into_iter()
                 .zip(results)
-                .map(|((entity, pos), (blocks, biomes))| (entity, pos, blocks, biomes))
+                .map(|((entity, pos), (blocks, biomes))| (entity, pos, Some((blocks, biomes))))
                 .collect();
 
             ChunkColumnResult {
@@ -341,11 +347,23 @@ fn process_generated_chunk(mut loading_chunks: ResMut<LoadingChunks>, mut comman
     loading_chunks.tasks.retain_mut(|task| {
         let res = block_on(future::poll_once(task));
         if let Some(column_result) = res {
-            for (entity, _pos, blocks, biomes) in column_result.sections {
-                commands
-                    .entity(entity)
-                    .insert((ChunkLoaded, blocks, biomes))
-                    .remove::<ChunkGenerating>();
+            for (entity, _pos, result) in column_result.sections {
+                match result {
+                    Some((blocks, biomes)) => {
+                        // Section completed successfully
+                        commands
+                            .entity(entity)
+                            .insert((ChunkLoaded, blocks, biomes))
+                            .remove::<ChunkGenerating>();
+                    }
+                    None => {
+                        // Section was cancelled before generation
+                        commands
+                            .entity(entity)
+                            .insert(ChunkUnloading)
+                            .remove::<ChunkGenerating>();
+                    }
+                }
             }
             false
         } else {
