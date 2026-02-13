@@ -2173,9 +2173,6 @@ impl SectionInterpolator {
                 let density = router.final_density_from_column_cache(pos, column_cache);
                 buf[cz * v_stride + cy] = density;
             }
-            // Reload column for next iteration since final_density_from_column_cache
-            // mutated scratch[column_boundary..]. The load_column at the top of the
-            // next iteration handles this, but the last iteration doesn't need reload.
         }
     }
 

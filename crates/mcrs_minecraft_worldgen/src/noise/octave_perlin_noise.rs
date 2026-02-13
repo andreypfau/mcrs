@@ -91,6 +91,7 @@ impl OctavePerlinNoise {
         return (value - (value / 3.3554432E7 + 0.5).floor() * 3.3554432E7);
     }
 
+    #[inline]
     pub fn get(&self, x: f32, y: f32, z: f32) -> f32 {
         let mut lacunarity = self.lacunarity;
         let mut persistence = self.persistence;
@@ -104,7 +105,7 @@ impl OctavePerlinNoise {
                     0.0,
                     0.0,
                 );
-                acc += sample * persistence * self.amplitudes.get(i).unwrap_or(&0.0);
+                acc += sample * persistence * self.amplitudes[i];
             }
             lacunarity *= 2.0;
             persistence *= 0.5;
