@@ -1,5 +1,3 @@
-#![feature(const_trait_impl)]
-
 use crate::proto::Interval;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;

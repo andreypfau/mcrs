@@ -2,7 +2,6 @@ use crate::{Decode, Encode};
 use bitfield_struct::bitfield;
 use derive_more::From;
 use mcrs_engine::world::chunk::ChunkPos;
-use std::hash::Hasher;
 use std::io::Write;
 use thiserror::Error;
 

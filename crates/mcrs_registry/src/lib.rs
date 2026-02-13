@@ -22,9 +22,7 @@ pub enum RegistryId<E> {
 
 impl<E> From<Ident<String>> for RegistryId<E> {
     fn from(value: Ident<String>) -> Self {
-        RegistryId::Identifier {
-            identifier: value.into(),
-        }
+        RegistryId::Identifier { identifier: value }
     }
 }
 
@@ -106,11 +104,15 @@ impl<E> Registry<E> {
         self.items.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
     pub fn ids(&self) -> impl Iterator<Item = RegistryId<E>> + '_ {
         self.items
             .iter()
             .enumerate()
-            .map(|(i, (k, _))| RegistryId::Index {
+            .map(|(i, (_k, _))| RegistryId::Index {
                 index: i,
                 marker: PhantomData,
             })
@@ -130,10 +132,10 @@ pub enum Holder<E: Debug + Clone + PartialEq> {
     Reference(Ident<Cow<'static, str>>),
 }
 
-impl<E> Into<RegistryId<E>> for RegistryRef<E> {
-    fn into(self) -> RegistryId<E> {
+impl<E> From<RegistryRef<E>> for RegistryId<E> {
+    fn from(value: RegistryRef<E>) -> Self {
         RegistryId::Index {
-            index: self.index,
+            index: value.index,
             marker: PhantomData,
         }
     }

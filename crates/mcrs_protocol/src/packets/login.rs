@@ -53,7 +53,7 @@ pub mod clientbound {
 pub mod serverbound {
     use crate::packets::cookie::serverbound::CookieResponse;
     use crate::{Bounded, RawBytes, VarInt};
-    use derive_more::{From, Into};
+    use derive_more::From;
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use uuid::Uuid;
 

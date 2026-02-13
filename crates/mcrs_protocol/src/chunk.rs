@@ -34,6 +34,7 @@ pub struct LightData<'a> {
     pub block_light_arrays: Cow<'a, [FixedArray<u8, 2048>]>,
 }
 
+#[allow(clippy::large_const_arrays)]
 const SKY_LIGHT_ARRAYS: [FixedArray<u8, 2048>; 26] = [FixedArray([0xff; 2048]); 26];
 
 impl<'a> Default for LightData<'a> {

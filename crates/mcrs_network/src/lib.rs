@@ -1,3 +1,13 @@
+#![allow(
+    dead_code,
+    unused_variables,
+    unused_imports,
+    unused_mut,
+    unused_parens,
+    unreachable_pub,
+    clippy::uninlined_format_args
+)]
+
 pub mod connect;
 pub mod event;
 mod intent;

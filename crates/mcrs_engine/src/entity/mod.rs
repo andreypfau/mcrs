@@ -47,6 +47,7 @@ pub struct EntityNetworkSync;
 #[derive(Component, Default, Deref)]
 struct PlayerSynchronizedEntities(EntityHashSet);
 
+#[allow(dead_code)]
 #[derive(EntityEvent, Debug)]
 struct EntityAddedToChunkEvent {
     pub entity: Entity,
@@ -55,6 +56,7 @@ struct EntityAddedToChunkEvent {
     pub dimension: Entity,
 }
 
+#[allow(dead_code)]
 #[derive(EntityEvent, Debug)]
 struct EntityRemovedFromChunkEvent {
     pub entity: Entity,
@@ -63,6 +65,7 @@ struct EntityRemovedFromChunkEvent {
     pub dimension: Entity,
 }
 
+#[allow(dead_code)]
 #[derive(EntityEvent, Debug)]
 struct EntityChunkMovedEvent {
     pub entity: Entity,
@@ -98,6 +101,7 @@ impl ChunkEntities {
 #[component(storage = "SparseSet")]
 pub struct Despawned;
 
+#[allow(clippy::type_complexity)]
 fn add_entity_to_chunk(
     dim_chunks: Query<&ChunkIndex>,
     mut chunks: Query<&mut ChunkEntities>,
@@ -114,7 +118,7 @@ fn add_entity_to_chunk(
     entities
         .iter()
         .for_each(|(entity, in_dimension, transform)| {
-            let Some(chunk_index) = dim_chunks.get(in_dimension.entity()).ok() else {
+            let Ok(chunk_index) = dim_chunks.get(in_dimension.entity()) else {
                 return;
             };
             let chunk_pos = ChunkPos::from(transform.translation);
@@ -128,8 +132,9 @@ fn add_entity_to_chunk(
         });
 }
 
+#[allow(clippy::type_complexity)]
 fn add_old_transform(
-    mut entities: Query<
+    entities: Query<
         (Entity, &Transform),
         (
             Without<Dimension>,
@@ -140,11 +145,12 @@ fn add_old_transform(
     >,
     mut commands: Commands,
 ) {
-    for (entity, transform) in entities.iter_mut() {
+    for (entity, transform) in entities.iter() {
         commands.entity(entity).insert(OldTransform(*transform));
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn update_chunk_entities(
     dim_chunks: Query<&ChunkIndex>,
     mut chunks: Query<&mut ChunkEntities>,
@@ -173,37 +179,33 @@ fn update_chunk_entities(
         let new_pos = ChunkPos::from(transform.translation);
         let pos_changed = old_pos != new_pos;
 
-        if dimension_changed || pos_changed {
-            if let Ok(old_index) = dim_chunks.get(old_dim) {
-                if let Some(old_chunk) = old_index.get(old_pos) {
-                    if let Ok(mut chunk_entities) = chunks.get_mut(old_chunk) {
-                        if chunk_entities.remove_entity(entity) {
-                            commands.trigger(EntityRemovedFromChunkEvent {
-                                entity,
-                                chunk: old_chunk,
-                                chunk_pos: old_pos,
-                                dimension: old_dim,
-                            });
-                        }
-                    }
-                }
-            }
+        if (dimension_changed || pos_changed)
+            && let Ok(old_index) = dim_chunks.get(old_dim)
+            && let Some(old_chunk) = old_index.get(old_pos)
+            && let Ok(mut chunk_entities) = chunks.get_mut(old_chunk)
+            && chunk_entities.remove_entity(entity)
+        {
+            commands.trigger(EntityRemovedFromChunkEvent {
+                entity,
+                chunk: old_chunk,
+                chunk_pos: old_pos,
+                dimension: old_dim,
+            });
         }
 
         let Ok(new_index) = dim_chunks.get(new_dim) else {
             continue;
         };
-        if let Some(new_chunk) = new_index.get(new_pos) {
-            if let Ok(mut chunk_entities) = chunks.get_mut(new_chunk) {
-                if chunk_entities.add_entity(entity) {
-                    commands.trigger(EntityAddedToChunkEvent {
-                        entity,
-                        chunk: new_chunk,
-                        chunk_pos: new_pos,
-                        dimension: new_dim,
-                    });
-                }
-            }
+        if let Some(new_chunk) = new_index.get(new_pos)
+            && let Ok(mut chunk_entities) = chunks.get_mut(new_chunk)
+            && chunk_entities.add_entity(entity)
+        {
+            commands.trigger(EntityAddedToChunkEvent {
+                entity,
+                chunk: new_chunk,
+                chunk_pos: new_pos,
+                dimension: new_dim,
+            });
         }
     }
 }
@@ -218,7 +220,7 @@ fn remove_entity_despawned(
         .iter()
         .for_each(|(entity, in_dimension, transform)| {
             let dimension = in_dimension.entity();
-            let Some(chunk_index) = dims_chunks.get(dimension).ok() else {
+            let Ok(chunk_index) = dims_chunks.get(dimension) else {
                 return;
             };
             let chunk_pos = ChunkPos::from(transform.translation);
@@ -239,6 +241,7 @@ fn remove_entity_despawned(
         });
 }
 
+#[allow(clippy::type_complexity)]
 fn tick_chunk_entities(
     entities: Query<
         (
@@ -302,6 +305,7 @@ pub struct EntityNetworkRemoveEvent {
     pub player: Entity,
 }
 
+#[allow(clippy::type_complexity)]
 fn add_player_synced_entities(
     mut commands: Commands,
     new_players: Query<Entity, (With<Player>, Added<InDimension>, Without<Despawned>)>,
@@ -313,6 +317,7 @@ fn add_player_synced_entities(
     });
 }
 
+#[allow(clippy::type_complexity)]
 fn sync_entities(
     dim_players: Query<&DimensionPlayers>,
     player_data: Query<

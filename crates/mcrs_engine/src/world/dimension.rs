@@ -70,6 +70,7 @@ fn spawn_dimension(mut commands: Commands) {
     commands.spawn(DimensionBundle::default());
 }
 
+#[allow(clippy::type_complexity)]
 fn update_index(
     entities: Query<(Entity, Has<Despawned>, &OldInDimension, Ref<InDimension>), With<Player>>,
     mut dimensions: Query<&mut DimensionPlayers>,
@@ -78,17 +79,17 @@ fn update_index(
         .iter()
         .for_each(|(player, is_despawned, old_in_dimension, in_dimension)| {
             if is_despawned {
-                if let Ok((mut viewers)) = dimensions.get_mut(**old_in_dimension) {
+                if let Ok(mut viewers) = dimensions.get_mut(**old_in_dimension) {
                     let removed = viewers.0.remove(&player);
                     debug_assert!(removed);
                 }
             } else if in_dimension.is_changed() {
-                if let Ok((mut viewers)) = dimensions.get_mut(**old_in_dimension) {
+                if let Ok(mut viewers) = dimensions.get_mut(**old_in_dimension) {
                     let removed = viewers.0.remove(&player);
                     debug_assert!(removed);
                 }
 
-                if let Ok((mut viewers)) = dimensions.get_mut(**in_dimension) {
+                if let Ok(mut viewers) = dimensions.get_mut(**in_dimension) {
                     let inserted = viewers.0.insert(player);
                     debug_assert!(inserted);
                 }
@@ -96,6 +97,7 @@ fn update_index(
         })
 }
 
+#[allow(clippy::type_complexity)]
 fn add_old_in_dimension(
     mut commands: Commands,
     new_players: Query<(Entity, &InDimension), (With<Player>, Added<InDimension>)>,

@@ -108,6 +108,7 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
         }
     }
 
+    #[allow(dead_code)]
     fn bits_per_entry(&self) -> u8 {
         match self {
             Self::Homogeneous(_) => 0,
