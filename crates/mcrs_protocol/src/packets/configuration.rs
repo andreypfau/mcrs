@@ -2,6 +2,7 @@ pub use self::clientbound::ClientboundFinishConfiguration;
 pub use self::clientbound::ClientboundKeepAlive;
 pub use self::clientbound::ClientboundRegistryData;
 pub use self::clientbound::ClientboundShowDialog;
+pub use self::clientbound::ClientboundUpdateTags;
 
 pub mod clientbound {
     use crate::packets::common::clientbound::{CustomPayload, Disconnect, KeepAlive, Ping};
@@ -37,6 +38,34 @@ pub mod clientbound {
     #[packet(id=0x12, state=Configuration)]
     pub struct ClientboundShowDialog {
         pub dialog: NbtCompound,
+    }
+
+    /// A single tag within a registry, containing the tag name and entry IDs.
+    #[derive(Clone, Debug, Encode, Decode)]
+    pub struct TagGroup<'a> {
+        /// The tag identifier (e.g., "minecraft:mineable/pickaxe")
+        pub name: Ident<Cow<'a, str>>,
+        /// Array of numeric registry entry IDs that belong to this tag
+        pub entries: Vec<crate::VarInt>,
+    }
+
+    /// Tags for a specific registry type.
+    #[derive(Clone, Debug, Encode, Decode)]
+    pub struct RegistryTags<'a> {
+        /// The registry identifier (e.g., "minecraft:block", "minecraft:item")
+        pub registry: Ident<Cow<'a, str>>,
+        /// Array of tags for this registry
+        pub tags: Vec<TagGroup<'a>>,
+    }
+
+    /// Packet sent during Configuration phase to synchronize tags with the client.
+    ///
+    /// Per wiki.vg, packet ID is 0x0D in Configuration state.
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id = 0x0D, state = Configuration)]
+    pub struct ClientboundUpdateTags<'a> {
+        /// Tags grouped by registry type
+        pub registries: Vec<RegistryTags<'a>>,
     }
 
     #[derive(Clone, Debug, Encode, Decode, From)]
