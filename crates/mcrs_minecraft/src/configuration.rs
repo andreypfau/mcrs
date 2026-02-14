@@ -103,7 +103,7 @@ fn process_loaded_world_preset(
                     continue;
                 };
 
-                info!(
+                debug!(
                     preset = %preset_asset.preset_name,
                     dimension_count = preset_asset.dimensions.len(),
                     "World preset loaded with all dimension type dependencies"
@@ -139,7 +139,7 @@ fn process_loaded_world_preset(
                 // Update LoadedDimensionTypes resource
                 loaded_dim_types.0 = dim_types;
 
-                info!(
+                debug!(
                     preset = %preset_asset.preset_name,
                     dimensions = loaded_preset.dimensions.len(),
                     dimension_types = loaded_dim_types.0.len(),
@@ -148,7 +148,7 @@ fn process_loaded_world_preset(
 
                 // Log each dimension that will be spawned
                 for (dim_key, dim_type) in &loaded_preset.dimensions {
-                    info!(
+                    debug!(
                         dimension_key = %dim_key,
                         dimension_type = %dim_type,
                         "  Ready to spawn dimension"

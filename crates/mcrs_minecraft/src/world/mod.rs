@@ -9,7 +9,7 @@ use bevy_ecs::prelude::*;
 use mcrs_engine::world::dimension::{
     Dimension, DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig,
 };
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 pub mod block;
 mod block_update;
@@ -70,7 +70,7 @@ fn spawn_dimensions_from_preset(
         return;
     }
 
-    info!(
+    debug!(
         preset = %world_preset.preset_name,
         dimension_count = world_preset.dimensions.len(),
         "Spawning dimensions from loaded world preset"
