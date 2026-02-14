@@ -1,6 +1,6 @@
 {
   "effects": "minecraft:overworld",
-  "ambient_light": 0.0,
+  "ambient_light": 1.0,
   "cloud_height": 192,
   "piglin_safe": false,
   "has_raids": true,
@@ -10,9 +10,9 @@
     "type": "minecraft:uniform"
   },
   "monster_spawn_block_light_limit": 0,
-  "min_y": -64,
-  "height": 384,
-  "logical_height": 384,
+  "min_y": 0,
+  "height": 256,
+  "logical_height": 256,
   "infiniburn": "#minecraft:infiniburn_overworld",
   "natural": true,
   "coordinate_scale": 1.0,
