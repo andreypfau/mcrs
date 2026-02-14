@@ -9,15 +9,19 @@ use bevy_math::IVec3;
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
 use mcrs_engine::entity::physics::Transform;
-use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_engine::entity::player::Player;
-use mcrs_engine::world::chunk::{ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos, ChunkUnloading};
+use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
+use mcrs_engine::world::chunk::{
+    ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos, ChunkUnloading,
+};
 use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsPlugin, OverworldNoiseRouter};
+use mcrs_protocol::ChunkColumnPos;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
-use tracing::info;
+use cipher::typenum::Pow;
+use tracing::{info, trace};
 
 pub struct ChunkPlugin;
 
@@ -82,20 +86,17 @@ impl Default for CancellationToken {
 #[derive(Ord, PartialOrd, Eq, PartialEq, Clone, Copy, Debug)]
 pub struct ColumnKey {
     /// Squared XZ distance to the nearest player. Primary sort key.
-    pub distance_sq: i64,
-    /// Column X coordinate. Tiebreaker for deterministic ordering.
-    pub col_x: i32,
-    /// Column Z coordinate. Tiebreaker for deterministic ordering.
-    pub col_z: i32,
+    pub distance_sq: i32,
+    /// Column position. Tiebreaker for deterministic ordering.
+    pub chunk_column_pos: ChunkColumnPos,
 }
 
 impl ColumnKey {
     /// Create a new ColumnKey with the given distance and position.
-    pub fn new(distance_sq: i64, col_x: i32, col_z: i32) -> Self {
+    pub fn new(distance_sq: i32, chunk_column_pos: ChunkColumnPos) -> Self {
         Self {
             distance_sq,
-            col_x,
-            col_z,
+            chunk_column_pos,
         }
     }
 }
@@ -122,7 +123,7 @@ impl PendingColumn {
 /// When the task completes or is cancelled, the sections are processed accordingly.
 pub struct InFlightColumn {
     /// Column position (x, z) in chunk coordinates.
-    pub col: (i32, i32),
+    pub col: ChunkColumnPos,
     /// Section entities with their Y coordinates.
     pub sections: Vec<(Entity, i32)>,
     /// Token to signal cancellation to the worker task.
@@ -134,7 +135,7 @@ pub struct InFlightColumn {
 impl InFlightColumn {
     /// Create a new in-flight column with the given parameters.
     pub fn new(
-        col: (i32, i32),
+        col: ChunkColumnPos,
         sections: Vec<(Entity, i32)>,
         cancel: CancellationToken,
         task: Task<ChunkColumnResult>,
@@ -195,10 +196,10 @@ pub struct ChunkColumnScheduler {
     pub pending: BTreeMap<ColumnKey, PendingColumn>,
     /// Reverse index: column position -> current priority key.
     /// Enables O(log n) removal/reprioritization by position.
-    pub column_index: FxHashMap<(i32, i32), ColumnKey>,
+    pub column_index: FxHashMap<ChunkColumnPos, ColumnKey>,
     /// Set of column positions with active generation tasks.
     /// Used to avoid duplicate dispatch.
-    pub in_flight_index: FxHashSet<(i32, i32)>,
+    pub in_flight_index: FxHashSet<ChunkColumnPos>,
     /// Active generation tasks with cancellation tokens.
     pub in_flight: Vec<InFlightColumn>,
     /// Configuration for concurrency limits and dispatch rates.
@@ -234,12 +235,12 @@ impl ChunkColumnScheduler {
     }
 
     /// Check if a column is pending dispatch.
-    pub fn is_pending(&self, col: (i32, i32)) -> bool {
+    pub fn is_pending(&self, col: ChunkColumnPos) -> bool {
         self.column_index.contains_key(&col)
     }
 
     /// Check if a column has an active generation task.
-    pub fn is_in_flight(&self, col: (i32, i32)) -> bool {
+    pub fn is_in_flight(&self, col: ChunkColumnPos) -> bool {
         self.in_flight_index.contains(&col)
     }
 }
@@ -254,19 +255,14 @@ struct ChunkColumnResult {
     sections: Vec<(Entity, ChunkPos, Option<(BlockPalette, BiomePalette)>)>,
 }
 
-
 /// Squared XZ (column) distance from a chunk to the nearest player.
-fn min_column_distance(pos: &ChunkPos, players: &[IVec3]) -> i64 {
+fn min_column_distance(pos: &ChunkColumnPos, players: &[ChunkColumnPos]) -> i32 {
     if players.is_empty() {
         return 0;
     }
     players
         .iter()
-        .map(|p| {
-            let dx = (pos.x - p.x) as i64;
-            let dz = (pos.z - p.z) as i64;
-            dx * dx + dz * dz
-        })
+        .map(|p| pos.distance_squared(*p))
         .min()
         .unwrap_or(0)
 }
@@ -283,8 +279,6 @@ fn min_y_distance(pos: &ChunkPos, players: &[IVec3]) -> i32 {
         .unwrap_or(0)
 }
 
-
-
 /// Process completed column generation tasks from the scheduler.
 ///
 /// This system polls in-flight tasks and processes their results:
@@ -294,18 +288,15 @@ fn min_y_distance(pos: &ChunkPos, players: &[IVec3]) -> i32 {
 /// - Removes completed columns from the `in_flight_index`
 ///
 /// Uses `retain_mut` pattern to efficiently filter completed tasks while iterating.
-fn process_completed_columns(
-    mut scheduler: ResMut<ChunkColumnScheduler>,
-    mut commands: Commands,
-) {
+fn process_completed_columns(mut scheduler: ResMut<ChunkColumnScheduler>, mut commands: Commands) {
     // Collect columns to remove from in_flight_index after iteration
-    let mut columns_to_remove: Vec<(i32, i32)> = Vec::new();
+    let mut columns_to_remove: Vec<ChunkColumnPos> = Vec::new();
 
     scheduler.in_flight.retain_mut(|in_flight| {
         let res = block_on(future::poll_once(&mut in_flight.task));
         if let Some(column_result) = res {
             // Column generation task completed, process all sections
-            for (entity, _pos, result) in column_result.sections {
+            for (entity, pos, result) in column_result.sections {
                 match result {
                     Some((blocks, biomes)) => {
                         // Section completed successfully - mark as loaded with data
@@ -361,53 +352,64 @@ fn enqueue_pending_columns(
     }
 
     // Collect player positions for distance calculations
-    let player_positions: Vec<IVec3> = players
+    let player_positions: Vec<ChunkColumnPos> = players
         .iter()
-        .map(|t| {
-            // Convert world position to chunk coordinates
-            IVec3::new(
-                (t.translation.x / 16.0).floor() as i32,
-                (t.translation.y / 16.0).floor() as i32,
-                (t.translation.z / 16.0).floor() as i32,
-            )
-        })
+        .map(|t| ChunkColumnPos::from(t.translation))
         .collect();
 
-    // Group sections by (x, z) column
-    let mut columns: HashMap<(i32, i32), Vec<(Entity, i32)>> = HashMap::new();
+    // Group sections by (x, z) column without transitioning state yet.
+    // State transition is deferred until we know the column can be enqueued
+    // or merged into an existing pending column.
+    let mut columns: HashMap<ChunkColumnPos, Vec<(Entity, i32)>> = HashMap::new();
     for (entity, pos) in loading_query.iter() {
-        // Transition entity state: ChunkLoading -> ChunkGenerating
-        // This prevents re-discovery on subsequent ticks
-        commands
-            .entity(entity)
-            .insert(ChunkGenerating)
-            .remove::<ChunkLoading>();
+        trace!("Requested generation for chunk section at ({}, {}, {})", pos.x, pos.y, pos.z);
 
         columns
-            .entry((pos.x, pos.z))
+            .entry(ChunkColumnPos::new(pos.x, pos.z))
             .or_default()
             .push((entity, pos.y));
     }
 
-    // Enqueue each new column into the priority queue
-    for ((col_x, col_z), sections) in columns {
-        let col = (col_x, col_z);
-
-        // Skip columns that are already pending or in-flight
-        if scheduler.is_pending(col) || scheduler.is_in_flight(col) {
+    for (col, sections) in columns {
+        if scheduler.is_pending(col) {
+            // Merge new sections into the existing pending column so the
+            // column is dispatched with ALL its sections in a single batch.
+            if let Some(&key) = scheduler.column_index.get(&col) {
+                if let Some(pending) = scheduler.pending.get_mut(&key) {
+                    for &(entity, _) in &sections {
+                        commands
+                            .entity(entity)
+                            .insert(ChunkGenerating)
+                            .remove::<ChunkLoading>();
+                    }
+                    trace!("Merged {} sections into pending column {:?}", sections.len(), col);
+                    pending.sections.extend(sections);
+                }
+            }
             continue;
         }
 
-        // Compute priority: squared XZ distance to nearest player
-        // Create a ChunkPos for distance calculation (Y doesn't matter for XZ distance)
-        let chunk_pos = ChunkPos::new(col_x, 0, col_z);
-        let distance_sq = min_column_distance(&chunk_pos, &player_positions);
+        if scheduler.is_in_flight(col) {
+            // Column is currently being generated. Leave these sections in
+            // ChunkLoading so they will be picked up on a subsequent tick
+            // after the in-flight task completes.
+            continue;
+        }
 
-        // Create the priority key and pending column
-        let key = ColumnKey::new(distance_sq, col_x, col_z);
+        // New column: transition entities and enqueue
+        for &(entity, _) in &sections {
+            commands
+                .entity(entity)
+                .insert(ChunkGenerating)
+                .remove::<ChunkLoading>();
+        }
+
+        let distance_sq = min_column_distance(&col, &player_positions);
+        let key = ColumnKey::new(distance_sq, col);
         let pending_column = PendingColumn::new(sections);
 
-        // Insert into priority queue and reverse index
+        trace!("Enqueued chunk column at ({:?}) for generation - {:?}", key, pending_column.sections);
+
         scheduler.pending.insert(key, pending_column);
         scheduler.column_index.insert(col, key);
     }
@@ -437,6 +439,7 @@ fn cancel_stale_columns(
     let player_views: Vec<_> = players
         .iter()
         .filter_map(|observer| observer.last_last_chunk_tracking_view)
+        // .map(|view| ChunkColumnPos::from(view.center))
         .collect();
 
     // If no players have views, don't cancel anything (edge case during startup)
@@ -444,30 +447,17 @@ fn cancel_stale_columns(
         return;
     }
 
-    // Helper closure: check if a column has any section visible to any player
-    let is_column_visible = |col: (i32, i32), sections: &[(Entity, i32)]| -> bool {
-        for (_, section_y) in sections {
-            let chunk_pos = ChunkPos::new(col.0, *section_y, col.1);
-            for view in &player_views {
-                if view.contains(&chunk_pos) {
-                    return true;
-                }
-            }
-        }
-        false
-    };
-
     // Cancel stale pending columns
     // Collect keys to remove first to avoid borrowing issues
-    let stale_pending: Vec<((i32, i32), ColumnKey, Vec<Entity>)> = scheduler
+    let stale_pending: Vec<(ColumnKey, Vec<Entity>)> = scheduler
         .column_index
         .iter()
         .filter_map(|(col, key)| {
             let pending = scheduler.pending.get(key)?;
-            if !is_column_visible(*col, &pending.sections) {
+            if !player_views.iter().any(|view| view.center.distance_squared(IVec3::new(col.x, view.center.y, col.z)) <= (view.distance as i32).pow(2)) {
                 // Collect section entities for cleanup
                 let entities: Vec<Entity> = pending.sections.iter().map(|(e, _)| *e).collect();
-                Some((*col, *key, entities))
+                Some((*key, entities))
             } else {
                 None
             }
@@ -475,9 +465,11 @@ fn cancel_stale_columns(
         .collect();
 
     // Remove stale pending columns and mark sections for unloading
-    for (col, key, entities) in stale_pending {
+    for (key, entities) in stale_pending {
+        trace!("Canceling stale column {:?}", key);
+
         scheduler.pending.remove(&key);
-        scheduler.column_index.remove(&col);
+        scheduler.column_index.remove(&key.chunk_column_pos);
 
         // Transition all sections to ChunkUnloading state
         for entity in entities {
@@ -491,7 +483,7 @@ fn cancel_stale_columns(
     // Cancel stale in-flight columns
     // For in-flight columns, we just signal cancellation - the worker will check the token
     for in_flight in &scheduler.in_flight {
-        if !is_column_visible(in_flight.col, &in_flight.sections) {
+        if !player_views.iter().any(|view| view.center.distance_squared(IVec3::new(in_flight.col.x, view.center.y, in_flight.col.z)) <= (view.distance as i32).pow(2)) {
             // Signal cancellation to the worker task
             // The task will check is_cancelled() between sections and exit early
             in_flight.cancel.cancel();
@@ -527,15 +519,9 @@ fn reprioritize_columns(
     }
 
     // Collect player positions in chunk coordinates
-    let player_positions: Vec<IVec3> = players
+    let player_positions: Vec<ChunkColumnPos> = players
         .iter()
-        .map(|t| {
-            IVec3::new(
-                (t.translation.x / 16.0).floor() as i32,
-                (t.translation.y / 16.0).floor() as i32,
-                (t.translation.z / 16.0).floor() as i32,
-            )
-        })
+        .map(|t| ChunkColumnPos::from(t.translation))
         .collect();
 
     // If no players, nothing to reprioritize against
@@ -544,28 +530,29 @@ fn reprioritize_columns(
     }
 
     // Collect columns that need reprioritization: (col, old_key, new_key)
-    let mut updates: Vec<((i32, i32), ColumnKey, ColumnKey)> = Vec::new();
+    let mut updates: Vec<(ColumnKey, ColumnKey)> = Vec::new();
 
     for (&col, &old_key) in &scheduler.column_index {
         // Create a ChunkPos for distance calculation (Y doesn't matter for XZ distance)
-        let chunk_pos = ChunkPos::new(col.0, 0, col.1);
-        let new_distance_sq = min_column_distance(&chunk_pos, &player_positions);
+        let new_distance_sq = min_column_distance(&col, &player_positions);
 
         // Only update if distance has changed
         if new_distance_sq != old_key.distance_sq {
-            let new_key = ColumnKey::new(new_distance_sq, col.0, col.1);
-            updates.push((col, old_key, new_key));
+            let new_key = ColumnKey::new(new_distance_sq, col);
+            updates.push((old_key, new_key));
         }
     }
 
     // Apply updates: remove with old key, insert with new key
-    for (col, old_key, new_key) in updates {
+    for (old_key, new_key) in updates {
         // Remove from pending with old key
         if let Some(pending_column) = scheduler.pending.remove(&old_key) {
             // Insert with new key
             scheduler.pending.insert(new_key, pending_column);
             // Update the reverse index
-            scheduler.column_index.insert(col, new_key);
+            scheduler
+                .column_index
+                .insert(new_key.chunk_column_pos, new_key);
         }
     }
 }
@@ -625,13 +612,14 @@ fn dispatch_column_generation(
             break;
         };
 
-        let col = (key.col_x, key.col_z);
+        let col = key.chunk_column_pos;
 
         // Remove from column index
         scheduler.column_index.remove(&col);
 
         // Sort sections by Y (bottom-to-top) for Y-boundary cache reuse
         pending_column.sections.sort_by_key(|(_, y)| *y);
+        trace!("Dispatching chunk column at ({:?}) for generation - {:?}", col, pending_column.sections);
 
         // Prepare data for the async task
         let router = overworld_noise_router.0.clone();
@@ -642,19 +630,17 @@ fn dispatch_column_generation(
         let sections_data: Vec<(Entity, ChunkPos)> = pending_column
             .sections
             .iter()
-            .map(|(entity, y)| (*entity, ChunkPos::new(col.0, *y, col.1)))
+            .map(|(entity, y)| (*entity, ChunkPos::new(col.x, *y, col.z)))
             .collect();
 
         let y_sections: Vec<i32> = pending_column.sections.iter().map(|(_, y)| *y).collect();
-        let col_x = col.0;
-        let col_z = col.1;
 
         // Spawn the generation task
         let task = task_pool.spawn(async move {
             let router = router.as_ref();
             let _span = tracing::info_span!("ChunkColumnGen").entered();
 
-            let results = generate_column(col_x, col_z, &y_sections, router, &cancel_clone);
+            let results = generate_column(col.x, col.z, &y_sections, router, &cancel_clone);
 
             let column_sections = sections_data
                 .into_iter()
@@ -668,12 +654,7 @@ fn dispatch_column_generation(
         });
 
         // Create in-flight entry
-        let in_flight_column = InFlightColumn::new(
-            col,
-            pending_column.sections,
-            cancel,
-            task,
-        );
+        let in_flight_column = InFlightColumn::new(col, pending_column.sections, cancel, task);
 
         // Add to in-flight tracking
         scheduler.in_flight_index.insert(col);
@@ -683,6 +664,6 @@ fn dispatch_column_generation(
     }
 
     if dispatched > 0 {
-        info!("Dispatched generation tasks for {} columns", dispatched);
+        trace!("Dispatched generation tasks for {} columns", dispatched);
     }
 }

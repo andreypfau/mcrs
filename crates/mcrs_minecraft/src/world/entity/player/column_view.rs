@@ -214,7 +214,7 @@ fn send_column_queue(
                 }
                 let column_pos = *column_pos;
                 let mut ready = true;
-                let mut data = Vec::with_capacity(8 * 1024);
+                let mut data = Vec::with_capacity(16 * 1024);
 
                 for &chunk_e in chunks_e {
                     let Ok((blocks, biomes)) = chunks.get(chunk_e) else {
@@ -235,11 +235,16 @@ fn send_column_queue(
                         .expect("Failed to encode chunk block data");
                 }
                 if !ready {
-                    continue;
+                    // Entity data not available yet — stop processing
+                    // this tick and retry on the next one. Do NOT continue,
+                    // as that would re-front the same failing column in a
+                    // tight loop.
+                    break;
                 }
 
                 chunk_view.send_queue.pop_front();
                 chunk_view.sent_columns.insert(column_pos);
+                info!("Sending chunk column {:?}", column_pos);
                 let pkt = ClientboundLevelChunkWithLight {
                     pos: ChunkColumnPos::new(
                         rep.convert_chunk_x(column_pos.x),
