@@ -1,6 +1,9 @@
 use crate::biome::Biome;
 use crate::dimension_type::DimensionType;
+use crate::tag::block::TagRegistry;
 use crate::version::VERSION_ID;
+use crate::world::block::Block;
+use crate::world::item::Item;
 use crate::world_preset_loader::{
     DimensionTypeAsset, DimensionTypeLoader, WorldPresetAsset, WorldPresetLoader,
     resolve_preset_asset_path,
@@ -13,7 +16,9 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
-use mcrs_protocol::packets::configuration::clientbound::ClientboundSelectKnownPacks;
+use mcrs_protocol::packets::configuration::clientbound::{
+    ClientboundSelectKnownPacks, ClientboundUpdateTags,
+};
 use mcrs_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
 use mcrs_protocol::packets::configuration::{
     ClientboundFinishConfiguration, ClientboundRegistryData,
@@ -168,6 +173,8 @@ fn on_configuration_enter(
     res: Res<SyncedRegistries>,
     dimension_types: Res<LoadedDimensionTypes>,
     biomes: Res<LoadedBiomes>,
+    block_tags: Res<TagRegistry<&'static Block>>,
+    item_tags: Res<TagRegistry<&'static Item>>,
 ) {
     for (entity, mut con, conn_state) in query.iter_mut() {
         if *conn_state != ConnectionState::Configuration {
@@ -242,6 +249,27 @@ fn on_configuration_enter(
             registry: ident!("minecraft:worldgen/biome").into(),
             entries: biome_entries,
         });
+
+        // Send tags to client
+        if block_tags.map.is_empty() {
+            warn!("Block tag registry is empty; client may behave unexpectedly");
+        }
+        if item_tags.map.is_empty() {
+            warn!("Item tag registry is empty; client may behave unexpectedly");
+        }
+
+        let block_registry_tags = block_tags.build_registry_tags(ident!("minecraft:block").into());
+        let item_registry_tags = item_tags.build_registry_tags(ident!("minecraft:item").into());
+
+        let update_tags_packet = ClientboundUpdateTags {
+            registries: vec![block_registry_tags, item_registry_tags],
+        };
+        debug!(
+            "Sending UpdateTags packet with {} block tags and {} item tags",
+            block_tags.map.len(),
+            item_tags.map.len()
+        );
+        con.write_packet(&update_tags_packet);
 
         con.write_packet(&ClientboundFinishConfiguration)
     }

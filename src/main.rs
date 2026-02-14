@@ -1,6 +1,5 @@
 use bevy_app::ScheduleRunnerPlugin;
 use bevy_app::prelude::*;
-use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{ExecutorKind, ScheduleLabel};
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
 use mcrs_minecraft::ServerPlugin;
