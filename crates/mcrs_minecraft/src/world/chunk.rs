@@ -20,7 +20,6 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
-use cipher::typenum::Pow;
 use tracing::{info, trace};
 
 pub struct ChunkPlugin;
@@ -454,7 +453,11 @@ fn cancel_stale_columns(
         .iter()
         .filter_map(|(col, key)| {
             let pending = scheduler.pending.get(key)?;
-            if !player_views.iter().any(|view| view.center.distance_squared(IVec3::new(col.x, view.center.y, col.z)) <= (view.distance as i32).pow(2)) {
+            if !player_views.iter().any(|view| {
+                let dx = (col.x - view.center.x).abs();
+                let dz = (col.z - view.center.z).abs();
+                dx <= view.distance as i32 && dz <= view.distance as i32
+            }) {
                 // Collect section entities for cleanup
                 let entities: Vec<Entity> = pending.sections.iter().map(|(e, _)| *e).collect();
                 Some((*key, entities))
@@ -483,7 +486,11 @@ fn cancel_stale_columns(
     // Cancel stale in-flight columns
     // For in-flight columns, we just signal cancellation - the worker will check the token
     for in_flight in &scheduler.in_flight {
-        if !player_views.iter().any(|view| view.center.distance_squared(IVec3::new(in_flight.col.x, view.center.y, in_flight.col.z)) <= (view.distance as i32).pow(2)) {
+        if !player_views.iter().any(|view| {
+            let dx = (in_flight.col.x - view.center.x).abs();
+            let dz = (in_flight.col.z - view.center.z).abs();
+            dx <= view.distance as i32 && dz <= view.distance as i32
+        }) {
             // Signal cancellation to the worker task
             // The task will check is_cancelled() between sections and exit early
             in_flight.cancel.cancel();
