@@ -250,26 +250,26 @@ fn on_configuration_enter(
             entries: biome_entries,
         });
 
-        // Send tags to client
-        if block_tags.map.is_empty() {
-            warn!("Block tag registry is empty; client may behave unexpectedly");
-        }
-        if item_tags.map.is_empty() {
-            warn!("Item tag registry is empty; client may behave unexpectedly");
-        }
-
-        let block_registry_tags = block_tags.build_registry_tags(ident!("minecraft:block").into());
-        let item_registry_tags = item_tags.build_registry_tags(ident!("minecraft:item").into());
-
-        let update_tags_packet = ClientboundUpdateTags {
-            registries: vec![block_registry_tags, item_registry_tags],
-        };
-        debug!(
-            "Sending UpdateTags packet with {} block tags and {} item tags",
-            block_tags.map.len(),
-            item_tags.map.len()
-        );
-        con.write_packet(&update_tags_packet);
+        // // Send tags to client
+        // if block_tags.map.is_empty() {
+        //     warn!("Block tag registry is empty; client may behave unexpectedly");
+        // }
+        // if item_tags.map.is_empty() {
+        //     warn!("Item tag registry is empty; client may behave unexpectedly");
+        // }
+        //
+        // let block_registry_tags = block_tags.build_registry_tags(ident!("minecraft:block").into());
+        // let item_registry_tags = item_tags.build_registry_tags(ident!("minecraft:item").into());
+        //
+        // let update_tags_packet = ClientboundUpdateTags {
+        //     registries: vec![block_registry_tags, item_registry_tags],
+        // };
+        // debug!(
+        //     "Sending UpdateTags packet with {} block tags and {} item tags",
+        //     block_tags.map.len(),
+        //     item_tags.map.len()
+        // );
+        // con.write_packet(&update_tags_packet);
 
         con.write_packet(&ClientboundFinishConfiguration)
     }

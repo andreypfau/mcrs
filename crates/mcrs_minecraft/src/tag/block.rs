@@ -130,8 +130,9 @@ impl Plugin for BlockTagPlugin {
         app.init_asset::<ResourcePackTags>()
             .register_asset_loader(ResourcePackTagsLoader)
             .init_resource::<TagRegistry<&'static Block>>()
-            .add_systems(Startup, load_block_tags)
-            .add_systems(Update, process_loaded_tags::<&'static Block>);
+            // .add_systems(Startup, load_block_tags)
+            // .add_systems(Update, process_loaded_tags::<&'static Block>)
+        ;
     }
 }
 

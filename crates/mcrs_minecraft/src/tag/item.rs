@@ -12,8 +12,9 @@ impl Plugin for ItemTagPlugin {
         app.init_asset::<ResourcePackTags>()
             .register_asset_loader(ResourcePackTagsLoader)
             .init_resource::<TagRegistry<&'static Item>>()
-            .add_systems(Startup, load_item_tags)
-            .add_systems(Update, process_loaded_tags::<&'static Item>);
+            // .add_systems(Startup, load_item_tags)
+            // .add_systems(Update, process_loaded_tags::<&'static Item>)
+        ;
     }
 }
 
