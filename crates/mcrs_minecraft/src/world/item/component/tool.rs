@@ -48,18 +48,6 @@ impl ToolTagRef {
         ToolTagRef::DynamicIdent(ident)
     }
 
-    /// Creates a dynamic tool tag reference from a DynamicBlockTagSet at runtime.
-    ///
-    /// Note: This consumes the DynamicBlockTagSet but only stores a reference to
-    /// a leaked string. This should be used sparingly, preferring `from_dynamic_ident`
-    /// for static identifier strings.
-    pub fn from_dynamic(tag: DynamicBlockTagSet) -> Self {
-        // For runtime creation, we need to leak the string to get a 'static reference.
-        // This is intentional for cases where dynamic tags are created at runtime.
-        let leaked = Box::leak(tag.ident.into_inner().into_boxed_str());
-        ToolTagRef::DynamicIdent(leaked)
-    }
-
     /// Checks if the given block is contained in this tag reference.
     ///
     /// For static tags, this performs a direct comparison.
@@ -136,11 +124,6 @@ impl From<BlockTagSet> for ToolTagRef {
     }
 }
 
-impl From<DynamicBlockTagSet> for ToolTagRef {
-    fn from(tag: DynamicBlockTagSet) -> Self {
-        ToolTagRef::from_dynamic(tag)
-    }
-}
 
 #[derive(Clone, Debug, Default, Component)]
 pub struct Tool {

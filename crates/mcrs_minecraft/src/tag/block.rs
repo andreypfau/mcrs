@@ -1,23 +1,20 @@
 use crate::tag::loader::{
     ResourcePackTags, ResourcePackTagsLoader, TagEntry, TagFileLoaderSettings, TagOrTagFileHandle,
 };
-use crate::world;
 use crate::world::block::Block;
-use bevy_app::{App, FixedUpdate, Plugin, Startup, Update};
+use bevy_app::{App, Plugin, Startup, Update};
 use bevy_asset::{AssetApp, AssetEvent, AssetId, AssetServer, Assets, Handle};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::system::{Res, ResMut};
 use bevy_ecs_macros::Resource;
 use mcrs_protocol::packets::configuration::clientbound::{RegistryTags, TagGroup};
-use mcrs_protocol::{Ident, VarInt, ident};
+use mcrs_protocol::{Ident, VarInt};
 use mcrs_registry::{Registry, RegistryId};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
-use tracing::info;
-use world::block::minecraft;
 
 pub type BlockTagSet = &'static [&'static BlockTag];
 
@@ -126,92 +123,6 @@ impl BlockTagSetExt for BlockTagSet {
     }
 }
 
-#[deprecated(
-    since = "0.1.0",
-    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:mineable/pickaxe\")) with TagRegistry instead"
-)]
-pub const MINEABLE_PICKAXE: BlockTagSet = &[&BlockTag::Tag(&minecraft::STONE)];
-
-#[deprecated(
-    since = "0.1.0",
-    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:mineable/shovel\")) with TagRegistry instead"
-)]
-pub const MINEABLE_SHOVEL: BlockTagSet = &[
-    &BlockTag::Tag(&minecraft::GRASS_BLOCK),
-    &BlockTag::Tag(&minecraft::DIRT),
-];
-
-#[deprecated(
-    since = "0.1.0",
-    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:needs_diamond_tool\")) with TagRegistry instead"
-)]
-pub const NEEDS_DIAMOND_TOOL: BlockTagSet = &[];
-#[deprecated(
-    since = "0.1.0",
-    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:needs_iron_tool\")) with TagRegistry instead"
-)]
-pub const NEEDS_IRON_TOOL: BlockTagSet = &[];
-#[deprecated(
-    since = "0.1.0",
-    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:needs_stone_tool\")) with TagRegistry instead"
-)]
-pub const NEEDS_STONE_TOOL: BlockTagSet = &[];
-
-#[deprecated(
-    since = "0.1.0",
-    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_netherite_tool\")) with TagRegistry instead"
-)]
-pub const INCORRECT_FOR_NETHERITE_TOOL: BlockTagSet = &[];
-#[deprecated(
-    since = "0.1.0",
-    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_diamond_tool\")) with TagRegistry instead"
-)]
-pub const INCORRECT_FOR_DIAMOND_TOOL: BlockTagSet = &[];
-#[deprecated(
-    since = "0.1.0",
-    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_iron_tool\")) with TagRegistry instead"
-)]
-#[allow(deprecated)]
-pub const INCORRECT_FOR_IRON_TOOL: BlockTagSet = &[&BlockTag::TagSet(NEEDS_DIAMOND_TOOL)];
-#[deprecated(
-    since = "0.1.0",
-    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_copper_tool\")) with TagRegistry instead"
-)]
-#[allow(deprecated)]
-pub const INCORRECT_FOR_COPPER_TOOL: BlockTagSet = &[
-    &BlockTag::TagSet(NEEDS_DIAMOND_TOOL),
-    &BlockTag::TagSet(NEEDS_IRON_TOOL),
-];
-#[deprecated(
-    since = "0.1.0",
-    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_stone_tool\")) with TagRegistry instead"
-)]
-#[allow(deprecated)]
-pub const INCORRECT_FOR_STONE_TOOL: BlockTagSet = &[
-    &BlockTag::TagSet(NEEDS_DIAMOND_TOOL),
-    &BlockTag::TagSet(NEEDS_IRON_TOOL),
-];
-#[deprecated(
-    since = "0.1.0",
-    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_gold_tool\")) with TagRegistry instead"
-)]
-#[allow(deprecated)]
-pub const INCORRECT_FOR_GOLD_TOOL: BlockTagSet = &[
-    &BlockTag::TagSet(NEEDS_DIAMOND_TOOL),
-    &BlockTag::TagSet(NEEDS_IRON_TOOL),
-    &BlockTag::TagSet(NEEDS_STONE_TOOL),
-];
-#[deprecated(
-    since = "0.1.0",
-    note = "Use DynamicBlockTagSet::from_static(ident!(\"minecraft:incorrect_for_wooden_tool\")) with TagRegistry instead"
-)]
-#[allow(deprecated)]
-pub const INCORRECT_FOR_WOODEN_TOOL: BlockTagSet = &[
-    &BlockTag::TagSet(NEEDS_DIAMOND_TOOL),
-    &BlockTag::TagSet(NEEDS_IRON_TOOL),
-    &BlockTag::TagSet(NEEDS_STONE_TOOL),
-];
-
 pub struct BlockTagPlugin;
 
 impl Plugin for BlockTagPlugin {
@@ -286,12 +197,6 @@ impl<T: Clone + Send + Sync> TagRegistry<T> {
             .map
             .iter()
             .map(|(tag_name, entries)| {
-                // Convert tag name to the packet format
-                // Strip the directory prefix from the tag name if present
-                // e.g., "minecraft/tags/block/mineable/pickaxe.json" -> "minecraft:mineable/pickaxe"
-                let tag_ident = convert_tag_path_to_ident(tag_name);
-
-                // Convert registry IDs to VarInt
                 let entry_ids: Vec<VarInt> = entries
                     .iter()
                     .filter_map(|id| match id {
@@ -301,7 +206,7 @@ impl<T: Clone + Send + Sync> TagRegistry<T> {
                     .collect();
 
                 TagGroup {
-                    name: Ident::new(Cow::Owned(tag_ident.to_string())).unwrap_or_else(|_| {
+                    name: Ident::new(Cow::Owned(tag_name.to_string())).unwrap_or_else(|_| {
                         Ident::new(Cow::Borrowed("minecraft:unknown")).unwrap()
                     }),
                     entries: entry_ids,
@@ -366,31 +271,48 @@ fn load_block_tags(
     asset_server: ResMut<AssetServer>,
     mut registry: ResMut<TagRegistry<&'static Block>>,
 ) {
-    // Recursively load all block tag files from assets/minecraft/tags/block/
-    let base_path = PathBuf::from("assets/minecraft/tags/block");
+    load_tags_from_directory(&asset_server, &mut registry, "minecraft/tags/block");
+}
+
+/// Loads tag files from a directory into a `TagRegistry`.
+///
+/// The `tag_directory` should be relative to the `assets/` folder,
+/// e.g. `"minecraft/tags/block"` or `"minecraft/tags/item"`.
+pub(crate) fn load_tags_from_directory<T: Clone + Send + Sync + 'static>(
+    asset_server: &AssetServer,
+    registry: &mut TagRegistry<T>,
+    tag_directory: &str,
+) {
+    let base_path = PathBuf::from(format!("assets/{}", tag_directory));
 
     if !base_path.exists() {
-        tracing::warn!("Block tags directory not found: {:?}", base_path);
+        tracing::warn!("Tags directory not found: {:?}", base_path);
         return;
     }
 
-    if let Ok(tag_files) = collect_tag_files(&base_path, &base_path) {
-        tracing::info!("Loading {} block tag files", tag_files.len());
+    match collect_tag_files(&base_path, &base_path) {
+        Ok(tag_files) => {
+            tracing::info!("Loading {} tag files from {}", tag_files.len(), tag_directory);
 
-        for relative_path in tag_files {
-            let asset_path = format!("minecraft/tags/block/{}", relative_path);
-            let handle: Handle<ResourcePackTags> = asset_server.load_with_settings(
-                asset_path.clone(),
-                |settings: &mut TagFileLoaderSettings| {
-                    settings.directory = "minecraft/tags/block".to_string();
-                },
-            );
-            registry.loaded_tags.push(handle);
+            for relative_path in tag_files {
+                let asset_path = format!("{}/{}", tag_directory, relative_path);
+                let dir = tag_directory.to_string();
+                let handle: Handle<ResourcePackTags> = asset_server.load_with_settings(
+                    asset_path,
+                    move |settings: &mut TagFileLoaderSettings| {
+                        settings.directory = dir.clone();
+                    },
+                );
+                registry.loaded_tags.push(handle);
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to read tag files from {:?}: {}", base_path, e);
         }
     }
 }
 
-/// Recursively collects all .json files in the directory
+/// Recursively collects all .json files in the directory.
 fn collect_tag_files(dir: &PathBuf, base_path: &PathBuf) -> Result<Vec<String>, std::io::Error> {
     let mut files = Vec::new();
 
@@ -399,10 +321,8 @@ fn collect_tag_files(dir: &PathBuf, base_path: &PathBuf) -> Result<Vec<String>, 
         let path = entry.path();
 
         if path.is_dir() {
-            // Recursively collect from subdirectories
             files.extend(collect_tag_files(&path, base_path)?);
         } else if path.extension().and_then(|s| s.to_str()) == Some("json") {
-            // Get relative path from base_path
             if let Ok(relative) = path.strip_prefix(base_path) {
                 if let Some(relative_str) = relative.to_str() {
                     files.push(relative_str.to_string());
@@ -452,7 +372,7 @@ pub fn process_loaded_tags<T: Clone + Send + Sync + 'static>(
         if let Some(tag_asset) = tags_assets.get(handle) {
             if let Some(path) = handle.path() {
                 let path_str = path.path().to_string_lossy().into_owned();
-                if let Ok(tag_name) = Ident::<String>::from_str(&path_str) {
+                if let Some(tag_name) = asset_path_to_tag_ident(&path_str) {
                     registry.resolve_tag_entries(
                         tag_name,
                         &tag_asset.values,
@@ -460,48 +380,31 @@ pub fn process_loaded_tags<T: Clone + Send + Sync + 'static>(
                         &block_registry,
                     );
                     registry.processed_tags.insert(asset_id);
+                } else {
+                    tracing::warn!("Could not parse tag asset path '{}' into a valid tag identifier", path_str);
                 }
             }
         }
     }
 }
 
-/// Converts a tag asset path to a Minecraft identifier format.
+/// Converts a tag asset path to a Minecraft tag identifier.
 ///
-/// This function transforms paths like:
+/// Transforms paths like:
 /// - `"minecraft/tags/block/mineable/pickaxe.json"` -> `"minecraft:mineable/pickaxe"`
 /// - `"minecraft/tags/item/logs.json"` -> `"minecraft:logs"`
 ///
-/// The function extracts the namespace and tag name by:
-/// 1. Removing the `.json` extension
-/// 2. Extracting the namespace (part before `/tags/`)
-/// 3. Extracting the tag path (part after `block/` or `item/`)
-/// 4. Combining them as `namespace:tag_path`
-fn convert_tag_path_to_ident(path: &Ident<String>) -> Ident<String> {
-    let path_str = path.as_str();
+/// Returns `None` if the path doesn't match the expected `namespace/tags/type/path.json` format.
+fn asset_path_to_tag_ident(path: &str) -> Option<Ident<String>> {
+    let stripped = path.strip_suffix(".json")?;
 
-    // Try to parse the path format: "namespace/tags/type/tag_path.json"
-    // or just use the ident as-is if it's already in the right format
-    if let Some(stripped) = path_str.strip_suffix(".json") {
-        // Pattern: "minecraft/tags/block/mineable/pickaxe" -> "minecraft:mineable/pickaxe"
-        // Pattern: "minecraft/tags/item/logs" -> "minecraft:logs"
+    let tags_idx = stripped.find("/tags/")?;
+    let namespace = &stripped[..tags_idx];
+    let after_tags = &stripped[tags_idx + 6..]; // skip "/tags/"
 
-        // Find the "/tags/" part
-        if let Some(tags_idx) = stripped.find("/tags/") {
-            let namespace = &stripped[..tags_idx];
-            let after_tags = &stripped[tags_idx + 6..]; // Skip "/tags/"
+    let type_sep_idx = after_tags.find('/')?;
+    let tag_path = &after_tags[type_sep_idx + 1..];
 
-            // Find the first "/" after "tags/" to skip the type (block/item/etc.)
-            if let Some(type_sep_idx) = after_tags.find('/') {
-                let tag_path = &after_tags[type_sep_idx + 1..];
-                let ident_str = format!("{}:{}", namespace, tag_path);
-                if let Ok(ident) = Ident::<String>::from_str(&ident_str) {
-                    return ident;
-                }
-            }
-        }
-    }
-
-    // Fallback: return the original path as an ident
-    path.clone()
+    let ident_str = format!("{}:{}", namespace, tag_path);
+    Ident::<String>::from_str(&ident_str).ok()
 }
