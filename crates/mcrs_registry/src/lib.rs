@@ -108,6 +108,10 @@ impl<E> Registry<E> {
         self.items.is_empty()
     }
 
+    pub fn iter_entries(&self) -> impl Iterator<Item = (&Ident<String>, &E)> + '_ {
+        self.items.iter()
+    }
+
     pub fn ids(&self) -> impl Iterator<Item = RegistryId<E>> + '_ {
         self.items
             .iter()

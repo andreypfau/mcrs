@@ -1,6 +1,6 @@
 pub mod block;
 pub mod item;
-mod loader;
+pub mod loader;
 
 pub use block::BlockTagPlugin;
 pub use item::ItemTagPlugin;

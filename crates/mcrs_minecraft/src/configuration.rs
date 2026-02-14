@@ -1,5 +1,6 @@
 use crate::biome::Biome;
 use crate::dimension_type::DimensionType;
+use crate::enchantment::EnchantmentData;
 use crate::tag::block::TagRegistry;
 use crate::version::VERSION_ID;
 use crate::world::block::Block;
@@ -16,6 +17,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
+use mcrs_registry::Registry;
 use mcrs_protocol::packets::configuration::clientbound::{
     ClientboundSelectKnownPacks, ClientboundUpdateTags,
 };
@@ -173,6 +175,8 @@ fn on_configuration_enter(
     res: Res<SyncedRegistries>,
     dimension_types: Res<LoadedDimensionTypes>,
     biomes: Res<LoadedBiomes>,
+    enchantment_registry: Res<Registry<EnchantmentData>>,
+    enchantment_tags: Res<TagRegistry<EnchantmentData>>,
     block_tags: Res<TagRegistry<&'static Block>>,
     item_tags: Res<TagRegistry<&'static Item>>,
 ) {
@@ -250,26 +254,39 @@ fn on_configuration_enter(
             entries: biome_entries,
         });
 
-        // // Send tags to client
-        // if block_tags.map.is_empty() {
-        //     warn!("Block tag registry is empty; client may behave unexpectedly");
-        // }
-        // if item_tags.map.is_empty() {
-        //     warn!("Item tag registry is empty; client may behave unexpectedly");
-        // }
-        //
-        // let block_registry_tags = block_tags.build_registry_tags(ident!("minecraft:block").into());
-        // let item_registry_tags = item_tags.build_registry_tags(ident!("minecraft:item").into());
-        //
-        // let update_tags_packet = ClientboundUpdateTags {
-        //     registries: vec![block_registry_tags, item_registry_tags],
-        // };
-        // debug!(
-        //     "Sending UpdateTags packet with {} block tags and {} item tags",
-        //     block_tags.map.len(),
-        //     item_tags.map.len()
-        // );
-        // con.write_packet(&update_tags_packet);
+        // Send enchantment registry to client
+        let enchantment_entries: Vec<Entry> = enchantment_registry
+            .iter_entries()
+            .map(|(id, data)| {
+                let enchantment_nbt = nbt::to_nbt_compound(data)
+                    .expect(&format!("Failed to serialize enchantment: {}", id));
+                Entry {
+                    id: Cow::from(id.as_str()).try_into().unwrap(),
+                    data: Some(Cow::Owned(enchantment_nbt)),
+                }
+            })
+            .collect();
+        con.write_packet(&ClientboundRegistryData {
+            registry: ident!("minecraft:enchantment").into(),
+            entries: enchantment_entries,
+        });
+
+        // Send tags to client
+        let mut tag_registries = Vec::new();
+        if !enchantment_tags.map.is_empty() {
+            tag_registries.push(
+                enchantment_tags.build_registry_tags(ident!("minecraft:enchantment").into()),
+            );
+        }
+        if !tag_registries.is_empty() {
+            debug!(
+                enchantment_tags = enchantment_tags.map.len(),
+                "Sending UpdateTags packet"
+            );
+            con.write_packet(&ClientboundUpdateTags {
+                registries: tag_registries,
+            });
+        }
 
         con.write_packet(&ClientboundFinishConfiguration)
     }

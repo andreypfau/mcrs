@@ -9,8 +9,12 @@ use crate::world::entity::player::player_action::{
 use crate::world::inventory::PlayerHotbarSlots;
 use crate::world::item::ItemStack;
 use crate::world::item::component::Tool;
+use crate::world::item::component::Enchantments;
+use crate::world::loot::BlockLootTables;
+use crate::world::loot::context::BlockBreakContext;
 use crate::world::palette::BlockPalette;
 use bevy_app::{FixedUpdate, Plugin, Update};
+use bevy_asset::AssetServer;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use bevy_time::{Fixed, Time};
@@ -341,13 +345,45 @@ pub fn get_tool_destroy_speed(
 fn handle_player_will_destroy_block(
     mut reader: MessageReader<PlayerWillDestroyBlock>,
     mut writer: MessageWriter<BlockSetRequest>,
-    players: Query<&InDimension>,
+    players: Query<(&InDimension, &PlayerHotbarSlots)>,
+    items: Query<(&ItemStack, Option<&Enchantments>)>,
+    mut loot_tables: ResMut<BlockLootTables>,
+    asset_server: Res<AssetServer>,
 ) {
     reader.read().for_each(|event| {
         // TODO: spawn destroy particles
         // TODO: anger piglin if block is guarded by piglins
-        players.get(event.player).ok().map(|dim| {
-            writer.write(BlockSetRequest::remove_block(**dim, event.block_pos));
-        });
+        let Ok((dim, hotbar)) = players.get(event.player) else {
+            return;
+        };
+
+        // Evaluate loot table
+        let block: &Block = event.block_state.as_ref();
+        let block_id = block.identifier;
+
+        let tool_enchantments = hotbar
+            .get_selected_slot()
+            .and_then(|slot| items.get(slot).ok())
+            .and_then(|(_, enchantments)| enchantments);
+
+        if let Some(table) = loot_tables.tables.get(block_id.as_str()) {
+            let ctx = BlockBreakContext {
+                tool_enchantments,
+            };
+            let drops = table.evaluate(&ctx);
+            for drop in &drops {
+                debug!(
+                    block = %block_id,
+                    item = %drop.item_name,
+                    count = drop.count,
+                    "Loot drop"
+                );
+            }
+        } else {
+            // Trigger lazy load for blocks not yet loaded
+            loot_tables.request(&block_id.to_string_ident(), &asset_server);
+        }
+
+        writer.write(BlockSetRequest::remove_block(**dim, event.block_pos));
     });
 }

@@ -36,6 +36,7 @@ mod configuration;
 pub mod dialog;
 mod dimension_type;
 mod direction;
+pub mod enchantment;
 mod keep_alive;
 mod login;
 pub mod sound;
@@ -48,6 +49,7 @@ pub mod world_preset_loader;
 
 use crate::client_info::ClientInfoPlugin;
 use crate::configuration::ConfigurationStatePlugin;
+use crate::enchantment::EnchantmentPlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::LoginPlugin;
 use crate::tag::{BlockTagPlugin, ItemTagPlugin};
@@ -75,6 +77,7 @@ impl Plugin for ServerPlugin {
         //     app.add_plugins(ScheduleRunnerPlugin::default());
         // }
         app.add_plugins(AssetPlugin::default());
+        app.add_plugins(EnchantmentPlugin);
         app.add_plugins(BlockTagPlugin);
         app.add_plugins(ItemTagPlugin);
         app.add_plugins(NetworkPlugin);

@@ -4,6 +4,7 @@ use crate::world::block_update::BlockUpdatePlugin;
 use crate::world::chunk::ChunkPlugin;
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::explosion::ExplosionPlugin;
+use crate::world::loot::LootPlugin;
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::prelude::*;
 use mcrs_engine::world::dimension::{
@@ -20,6 +21,7 @@ mod format;
 mod generate;
 mod inventory;
 pub mod item;
+pub mod loot;
 mod material;
 mod palette;
 
@@ -35,6 +37,7 @@ impl Plugin for WorldPlugin {
         app.add_plugins(MinecraftEntityPlugin);
         app.add_plugins(MinecraftBlockPlugin);
         app.add_plugins(ExplosionPlugin);
+        app.add_plugins(LootPlugin);
     }
 }
 
