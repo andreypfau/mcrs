@@ -5,6 +5,7 @@ use mcrs_protocol::{BlockStateId, ident};
 
 pub const BLOCK: Block = Block {
     identifier: ident!("grass_block"),
+    protocol_id: 8,
     properties: &PROPERTIES,
     default_state: &DEFAULT_STATE,
     states: &[SNOWY_STATE, DEFAULT_STATE],

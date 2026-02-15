@@ -6,6 +6,7 @@ use mcrs_protocol::{BlockStateId, ident};
 
 pub const BLOCK: Block = Block {
     identifier: ident!("stone"),
+    protocol_id: 1,
     properties: &PROPERTIES,
     default_state: &DEFAULT_STATE,
     states: &[DEFAULT_STATE],

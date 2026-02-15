@@ -148,24 +148,43 @@ impl Tool {
         }
     }
 
-    pub fn get_mining_speed(&self, block: &Block) -> f32 {
+    pub fn get_mining_speed(
+        &self,
+        block: &Block,
+        tag_registry: &TagRegistry<&'static Block>,
+        block_registry: &mcrs_registry::Registry<&'static Block>,
+    ) -> f32 {
         for rule in self.rules {
             let Some(speed) = rule.speed else {
                 continue;
             };
-            if rule.blocks.contains_block(block) {
+            if rule.blocks.contains_block_with_registry(block, tag_registry, block_registry) {
                 return speed;
             }
         }
         self.default_mining_speed()
     }
 
-    pub fn is_correct_block_for_drops(&self, block: &Block) -> bool {
-        for rule in self.rules {
+    pub fn is_correct_block_for_drops(
+        &self,
+        block: &Block,
+        tag_registry: &TagRegistry<&'static Block>,
+        block_registry: &mcrs_registry::Registry<&'static Block>,
+    ) -> bool {
+        for (i, rule) in self.rules.iter().enumerate() {
             let Some(correct) = rule.correct_for_drops else {
                 continue;
             };
-            if rule.blocks.contains_block(block) {
+            let matched = rule.blocks.contains_block_with_registry(block, tag_registry, block_registry);
+            tracing::debug!(
+                rule_index = i,
+                block = %block.identifier,
+                tag = ?rule.blocks.as_dynamic_ident(),
+                correct,
+                matched,
+                "is_correct_block_for_drops rule check"
+            );
+            if matched {
                 return correct;
             }
         }

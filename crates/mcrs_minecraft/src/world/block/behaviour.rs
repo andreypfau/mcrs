@@ -20,6 +20,7 @@ pub struct Properties {
     pub sound_type: &'static SoundType,
     pub push_reaction: PushReaction,
     pub instrument: NoteBlockInstrument,
+    pub xp_range: Option<(u32, u32)>,
 }
 
 impl Properties {
@@ -39,6 +40,7 @@ impl Properties {
             sound_type: &SoundType::STONE,
             push_reaction: PushReaction::Normal,
             instrument: NoteBlockInstrument::HARP,
+            xp_range: None,
         }
     }
 
@@ -110,6 +112,11 @@ impl Properties {
 
     pub const fn replacable(mut self) -> Self {
         self.replaceable = true;
+        self
+    }
+
+    pub const fn with_xp_range(mut self, min: u32, max: u32) -> Self {
+        self.xp_range = Some((min, max));
         self
     }
 

@@ -244,7 +244,6 @@ fn send_column_queue(
 
                 chunk_view.send_queue.pop_front();
                 chunk_view.sent_columns.insert(column_pos);
-                info!("Sending chunk column {:?}", column_pos);
                 let pkt = ClientboundLevelChunkWithLight {
                     pos: ChunkColumnPos::new(
                         rep.convert_chunk_x(column_pos.x),

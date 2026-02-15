@@ -29,6 +29,9 @@ bitflags::bitflags! {
 #[derive(Debug)]
 pub struct Block {
     pub identifier: Ident<&'static str>,
+    /// Vanilla `minecraft:block` registry index (protocol ID).
+    /// Must match the client's built-in registry ordering.
+    pub protocol_id: u16,
     pub properties: &'static Properties,
     pub default_state: &'static BlockState,
     pub states: &'static [BlockState],
@@ -58,6 +61,10 @@ impl Block {
 
     pub fn requires_correct_tool_for_drops(&self) -> bool {
         self.properties.requires_correct_tool_for_drops
+    }
+
+    pub fn xp_range(&self) -> Option<(u32, u32)> {
+        self.properties.xp_range
     }
 }
 

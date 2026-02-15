@@ -10,6 +10,7 @@ use mcrs_protocol::{BlockStateId, ident};
 generate_block_states! {
     base_id: 45,
     block_name: "mangrove_propagule",
+    protocol_id: 33,
     state_properties: {
         age: [0, 1, 2, 3, 4],
         hanging: [true, false],

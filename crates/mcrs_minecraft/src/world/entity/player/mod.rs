@@ -136,7 +136,10 @@ fn spawn_player(
                 reduced_debug_info: false,
                 show_death_screen: false,
                 do_limited_crafting: false,
-                player_spawn_info: PlayerSpawnInfo::default(),
+                player_spawn_info: PlayerSpawnInfo {
+                    game_mode: GameMode::Survival,
+                    ..Default::default()
+                },
                 enforces_secure_chat: false,
             });
             con.write_packet(&ClientboundGameEvent {

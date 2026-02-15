@@ -47,7 +47,8 @@ macro_rules! generate_block_states {
     // Single state version (no properties)
     (
         base_id: $base_id:expr,
-        block_name: $block_name:expr
+        block_name: $block_name:expr,
+        protocol_id: $protocol_id:expr
         $(, block_properties: $properties:expr)?
     ) => {
         paste::paste! {
@@ -62,6 +63,7 @@ macro_rules! generate_block_states {
             // Generate BLOCK constant
             pub const BLOCK: Block = Block {
                 identifier: ident!($block_name),
+                protocol_id: $protocol_id,
                 properties: &PROPERTIES,
                 default_state: &DEFAULT_STATE,
                 states: ALL_BLOCK_STATES,
@@ -79,6 +81,7 @@ macro_rules! generate_block_states {
     (
         base_id: $base_id:expr,
         block_name: $block_name:expr,
+        protocol_id: $protocol_id:expr,
         state_properties: {
             $($prop_name:ident: [$($prop_value:tt),+ $(,)?]),+ $(,)?
         },
@@ -103,6 +106,7 @@ macro_rules! generate_block_states {
             // Generate BLOCK constant
             pub const BLOCK: Block = Block {
                 identifier: ident!($block_name),
+                protocol_id: $protocol_id,
                 properties: &PROPERTIES,
                 default_state: &DEFAULT_STATE,
                 states: ALL_BLOCK_STATES,

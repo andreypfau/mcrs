@@ -8,6 +8,7 @@ use mcrs_protocol::{BlockStateId, ident};
 generate_block_states! {
     base_id: 581,
     block_name: "note_block",
+    protocol_id: 109,
     // TODO: try different approach; IDE and compiler blow up with 100% CPU usage
     // state_properties: {
     //     instrument: [harp, basedrum, snare, hat, bass, flute, bell, guitar, chime, xylophone,

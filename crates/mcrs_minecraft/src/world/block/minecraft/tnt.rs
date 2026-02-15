@@ -22,6 +22,7 @@ use rand::{Rng, RngExt, rng};
 
 pub const BLOCK: Block = Block {
     identifier: mcrs_protocol::ident!("tnt"),
+    protocol_id: 176,
     properties: &PROPERTIES,
     default_state: &DEFAULT_STATE,
     states: &[UNSTABLE_STATE, DEFAULT_STATE],

@@ -59,8 +59,6 @@ pub mod clientbound {
     }
 
     /// Packet sent during Configuration phase to synchronize tags with the client.
-    ///
-    /// Per wiki.vg, packet ID is 0x0D in Configuration state.
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id = 0x0D, state = Configuration)]
     pub struct ClientboundUpdateTags<'a> {

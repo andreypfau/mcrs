@@ -130,8 +130,8 @@ impl Plugin for BlockTagPlugin {
         app.init_asset::<ResourcePackTags>()
             .register_asset_loader(ResourcePackTagsLoader)
             .init_resource::<TagRegistry<&'static Block>>()
-            // .add_systems(Startup, load_block_tags)
-            // .add_systems(Update, process_loaded_tags::<&'static Block>)
+            .add_systems(Startup, load_block_tags)
+            .add_systems(Update, process_loaded_tags::<&'static Block>)
         ;
     }
 }
@@ -265,6 +265,49 @@ impl<T: Clone + Send + Sync> TagRegistry<T> {
         }
 
         self.map.insert(tag_name, blocks);
+    }
+}
+
+impl TagRegistry<&'static Block> {
+    /// Builds registry tags for blocks using `Block::protocol_id` instead of the
+    /// server-internal registry index. The vanilla client expects entries indexed
+    /// by the built-in `minecraft:block` registry ordering.
+    pub fn build_block_registry_tags<'a>(
+        &self,
+        registry_name: Ident<Cow<'a, str>>,
+        block_registry: &Registry<&'static Block>,
+    ) -> RegistryTags<'a> {
+        let tags: Vec<TagGroup<'a>> = self
+            .map
+            .iter()
+            .map(|(tag_name, entries)| {
+                let entry_ids: Vec<VarInt> = entries
+                    .iter()
+                    .filter_map(|id| match id {
+                        RegistryId::Index { index, .. } => {
+                            let block = block_registry.get(RegistryId::<&'static Block>::Index {
+                                index: *index,
+                                marker: std::marker::PhantomData,
+                            })?;
+                            Some(VarInt(block.protocol_id as i32))
+                        }
+                        _ => None,
+                    })
+                    .collect();
+
+                TagGroup {
+                    name: Ident::new(Cow::Owned(tag_name.to_string())).unwrap_or_else(|_| {
+                        Ident::new(Cow::Borrowed("minecraft:unknown")).unwrap()
+                    }),
+                    entries: entry_ids,
+                }
+            })
+            .collect();
+
+        RegistryTags {
+            registry: registry_name,
+            tags,
+        }
     }
 }
 

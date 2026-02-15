@@ -99,9 +99,8 @@ declare_blocks! {
     bedrock => BEDROCK,
     note_block => NOTE_BLOCK,
     tnt => TNT [TntBlockPlugin],
+    diamond_ore => DIAMOND_ORE,
 }
-
-fn foo() {}
 
 impl TryFrom<BlockStateId> for &'static Block {
     type Error = ();

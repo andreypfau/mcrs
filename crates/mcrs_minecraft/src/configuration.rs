@@ -178,6 +178,7 @@ fn on_configuration_enter(
     enchantment_registry: Res<Registry<EnchantmentData>>,
     enchantment_tags: Res<TagRegistry<EnchantmentData>>,
     block_tags: Res<TagRegistry<&'static Block>>,
+    block_registry: Res<Registry<&'static Block>>,
     item_tags: Res<TagRegistry<&'static Item>>,
 ) {
     for (entity, mut con, conn_state) in query.iter_mut() {
@@ -273,20 +274,33 @@ fn on_configuration_enter(
 
         // Send tags to client
         let mut tag_registries = Vec::new();
+        if !block_tags.map.is_empty() {
+            tag_registries.push(
+                block_tags.build_block_registry_tags(
+                    ident!("minecraft:block").into(),
+                    &block_registry,
+                ),
+            );
+        }
+        if !item_tags.map.is_empty() {
+            tag_registries.push(
+                item_tags.build_registry_tags(ident!("minecraft:item").into()),
+            );
+        }
         if !enchantment_tags.map.is_empty() {
             tag_registries.push(
                 enchantment_tags.build_registry_tags(ident!("minecraft:enchantment").into()),
             );
         }
-        if !tag_registries.is_empty() {
-            debug!(
-                enchantment_tags = enchantment_tags.map.len(),
-                "Sending UpdateTags packet"
-            );
-            con.write_packet(&ClientboundUpdateTags {
-                registries: tag_registries,
-            });
-        }
+        debug!(
+            block_tags = block_tags.map.len(),
+            item_tags = item_tags.map.len(),
+            enchantment_tags = enchantment_tags.map.len(),
+            "Sending UpdateTags packet"
+        );
+        con.write_packet(&ClientboundUpdateTags {
+            registries: tag_registries,
+        });
 
         con.write_packet(&ClientboundFinishConfiguration)
     }
