@@ -55,7 +55,7 @@ impl Plugin for ConfigurationStatePlugin {
 
         // Add systems
         app.add_systems(Startup, start_loading_world_preset);
-        app.add_systems(Update, process_loaded_world_preset);
+        app.add_systems(Update, (process_loaded_world_preset, sync_dimension_type_changes));
         app.add_systems(bevy_app::FixedPreUpdate, on_configuration_enter);
         app.add_observer(on_configuration_ack);
     }
@@ -163,6 +163,46 @@ fn process_loaded_world_preset(
                 }
             }
             _ => {}
+        }
+    }
+}
+
+/// Watches for hot-reloaded dimension type assets and updates `LoadedDimensionTypes`.
+/// When a player reconnects after a reload, they will receive the updated dimension types.
+fn sync_dimension_type_changes(
+    mut dim_type_events: MessageReader<AssetEvent<DimensionTypeAsset>>,
+    dim_type_assets: Res<Assets<DimensionTypeAsset>>,
+    mut loaded_dim_types: ResMut<LoadedDimensionTypes>,
+) {
+    for event in dim_type_events.read() {
+        let id = match event {
+            AssetEvent::Modified { id } => *id,
+            _ => continue,
+        };
+
+        let Some(asset) = dim_type_assets.get(id) else {
+            continue;
+        };
+
+        // Update the existing entry or add a new one
+        if let Some(entry) = loaded_dim_types
+            .0
+            .iter_mut()
+            .find(|(existing_id, _)| existing_id.as_str() == asset.id.as_str())
+        {
+            entry.1 = asset.dimension_type.clone();
+            info!(
+                dimension_type = %asset.id,
+                "Hot-reloaded dimension type"
+            );
+        } else {
+            loaded_dim_types
+                .0
+                .push((asset.id.clone(), asset.dimension_type.clone()));
+            info!(
+                dimension_type = %asset.id,
+                "Hot-loaded new dimension type"
+            );
         }
     }
 }
