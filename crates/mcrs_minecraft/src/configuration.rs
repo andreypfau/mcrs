@@ -219,6 +219,33 @@ fn on_configuration_enter(
             con.write_packet(&packet);
         }
 
+        // Send environment_attribute registry (keys referenced by dimension type attributes)
+        {
+            let mut attr_keys = Vec::new();
+            for (_, dim_type) in &dimension_types.0 {
+                if let Some(attrs) = &dim_type.attributes {
+                    for (key, _) in &attrs.child_tags {
+                        if !attr_keys.contains(key) {
+                            attr_keys.push(key.clone());
+                        }
+                    }
+                }
+            }
+            if !attr_keys.is_empty() {
+                let entries: Vec<Entry> = attr_keys
+                    .iter()
+                    .map(|key| Entry {
+                        id: Cow::from(key.as_str()).try_into().unwrap(),
+                        data: None,
+                    })
+                    .collect();
+                con.write_packet(&ClientboundRegistryData {
+                    registry: ident!("minecraft:environment_attribute").into(),
+                    entries,
+                });
+            }
+        }
+
         // Send loaded dimension types to client
         let dim_entries: Vec<Entry> = dimension_types
             .0
