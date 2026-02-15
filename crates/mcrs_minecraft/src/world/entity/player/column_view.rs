@@ -107,7 +107,7 @@ fn unload_chunk_request(
         chunk_view.sent_columns.remove(&column_pos);
         if chunk_view.loaded_columns.remove(&column_pos) {
             if let Ok((mut cmds, type_config)) = dims.get_mut(in_dim.entity()) {
-                apply_forced_tickets(&mut cmds, column_pos, offset_sections(rep), type_config.section_count, false);
+                apply_forced_tickets(&mut cmds, column_pos, offset_sections(rep, type_config.min_y), type_config.section_count, false);
             }
         }
     });
@@ -125,7 +125,7 @@ fn load_column_queue(
         while let Some(col) = chunk_view.load_queue.pop_front() {
             if chunk_view.desired_columns.contains(&col) {
                 if chunk_view.loaded_columns.insert(col) {
-                    apply_forced_tickets(&mut cmds, col, offset_sections(rep), section_count, true);
+                    apply_forced_tickets(&mut cmds, col, offset_sections(rep, type_config.min_y), section_count, true);
                     trace!("Added tickets to col: {:?}", col);
                 }
                 chunk_view.loading_queue.push_back(col);
@@ -154,7 +154,7 @@ fn loading_column_queue(
                 continue;
             }
             // Check if all chunks in the column are loaded.
-            let off = offset_sections(rep);
+            let off = offset_sections(rep, type_config.min_y);
             let mut chunks_entities = Vec::with_capacity(section_count as usize);
             for client_y in 0..section_count {
                 let server_y = client_y - off;
@@ -186,15 +186,13 @@ fn send_column_queue(
     mut players: Query<(
         &mut ServerSideConnection,
         &mut ColumnView,
-        &InDimension,
         &Reposition,
     )>,
     chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
 ) {
     players
         .iter_mut()
-        .for_each(|(mut con, mut chunk_view, dim, rep)| {
-            let off = offset_sections(rep);
+        .for_each(|(mut con, mut chunk_view, rep)| {
             let mut sends = 0usize;
 
             loop {
@@ -309,9 +307,9 @@ fn add_player_column_view(
 }
 
 #[inline]
-fn offset_sections(rep: &Reposition) -> i32 {
+fn offset_sections(rep: &Reposition, min_y: i32) -> i32 {
     let bits = mcrs_engine::world::chunk::BLOCKS::BITS as i32;
-    rep.offset_y_blocks() >> bits
+    (rep.offset_y_blocks() >> bits) - (min_y >> bits)
 }
 
 fn apply_forced_tickets(
