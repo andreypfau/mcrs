@@ -1,24 +1,53 @@
 {
-  "effects": "minecraft:overworld",
   "ambient_light": 0.0,
-  "cloud_height": 192,
-  "piglin_safe": false,
-  "has_raids": true,
-  "monster_spawn_light_level": {
-    "min_inclusive": 0,
-    "max_inclusive": 7,
-    "type": "minecraft:uniform"
+  "attributes": {
+    "minecraft:audio/ambient_sounds": {
+      "mood": {
+        "block_search_extent": 8,
+        "offset": 2.0,
+        "sound": "minecraft:ambient.cave",
+        "tick_delay": 6000
+      }
+    },
+    "minecraft:audio/background_music": {
+      "creative": {
+        "max_delay": 24000,
+        "min_delay": 12000,
+        "sound": "minecraft:music.creative"
+      },
+      "default": {
+        "max_delay": 24000,
+        "min_delay": 12000,
+        "sound": "minecraft:music.game"
+      }
+    },
+    "minecraft:gameplay/bed_rule": {
+      "can_set_spawn": "always",
+      "can_sleep": "when_dark",
+      "error_message": {
+        "translate": "block.minecraft.bed.no_sleep"
+      }
+    },
+    "minecraft:gameplay/nether_portal_spawns_piglin": true,
+    "minecraft:gameplay/respawn_anchor_works": false,
+    "minecraft:visual/ambient_light_color": "#0a0a0a",
+    "minecraft:visual/cloud_color": "#ccffffff",
+    "minecraft:visual/cloud_height": 192.33,
+    "minecraft:visual/fog_color": "#c0d8ff",
+    "minecraft:visual/sky_color": "#78a7ff"
   },
-  "monster_spawn_block_light_limit": 0,
-  "min_y": -64,
-  "height": 384,
-  "logical_height": 384,
-  "infiniburn": "#minecraft:infiniburn_overworld",
-  "natural": true,
   "coordinate_scale": 1.0,
-  "bed_works": true,
-  "respawn_anchor_works": false,
-  "has_skylight": true,
   "has_ceiling": true,
-  "ultrawarm": false
+  "has_skylight": true,
+  "height": 384,
+  "infiniburn": "#minecraft:infiniburn_overworld",
+  "logical_height": 384,
+  "min_y": -64,
+  "monster_spawn_block_light_limit": 0,
+  "monster_spawn_light_level": {
+    "type": "minecraft:uniform",
+    "max_inclusive": 7,
+    "min_inclusive": 0
+  },
+  "timelines": "#minecraft:in_overworld"
 }
