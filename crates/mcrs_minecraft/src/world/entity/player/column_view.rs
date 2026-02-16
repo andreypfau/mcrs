@@ -61,7 +61,7 @@ impl Plugin for ColumnViewPlugin {
 }
 
 #[derive(Component, Default)]
-struct ColumnView {
+pub(crate) struct ColumnView {
     desired_columns: FxHashSet<ChunkColumnPos>,
     loaded_columns: FxHashSet<ChunkColumnPos>,
     load_queue: VecDeque<ChunkColumnPos>,

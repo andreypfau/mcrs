@@ -164,6 +164,13 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x50, state=Game)]
+    pub struct ClientboundRespawn<'a> {
+        pub player_spawn_info: PlayerSpawnInfo<'a>,
+        pub data_to_keep: u8,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x51, state=Game)]
     pub struct ClientboundRotateHead {
         pub entity_id: VarInt,
@@ -189,6 +196,10 @@ pub mod clientbound {
     pub struct ClientboundChunkCacheRadius {
         pub radius: VarInt,
     }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x74, state=Game)]
+    pub struct ClientboundStartConfiguration;
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x77, state=Game)]
@@ -370,6 +381,10 @@ pub mod serverbound {
     #[derive(Clone, Debug, Encode, Decode, From, Packet)]
     #[packet(id=0x0D, state=Game)]
     pub struct ServerboundClientInformation<'a>(pub ClientInformation<'a>);
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x0F, state=Game)]
+    pub struct ServerboundConfigurationAcknowledged;
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x11, state=Game)]

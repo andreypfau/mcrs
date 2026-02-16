@@ -4,6 +4,7 @@ use crate::enchantment::EnchantmentData;
 use crate::tag::block::TagRegistry;
 use crate::version::VERSION_ID;
 use crate::world::block::Block;
+use crate::world::entity::player::column_view::ColumnView;
 use crate::world::item::Item;
 use crate::world_preset_loader::{
     DimensionTypeAsset, DimensionTypeLoader, WorldPresetAsset, WorldPresetLoader,
@@ -12,9 +13,10 @@ use crate::world_preset_loader::{
 use bevy_app::{App, Plugin, Startup, Update};
 use bevy_asset::{AssetApp, AssetEvent, AssetServer, Assets, Handle};
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut};
+use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
+use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_registry::Registry;
@@ -22,6 +24,8 @@ use mcrs_protocol::packets::configuration::clientbound::{
     ClientboundSelectKnownPacks, ClientboundUpdateTags,
 };
 use mcrs_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
+use mcrs_protocol::packets::game::clientbound::ClientboundStartConfiguration;
+use mcrs_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
 use mcrs_protocol::packets::configuration::{
     ClientboundFinishConfiguration, ClientboundRegistryData,
 };
@@ -58,6 +62,7 @@ impl Plugin for ConfigurationStatePlugin {
         app.add_systems(Update, (process_loaded_world_preset, sync_dimension_type_changes));
         app.add_systems(bevy_app::FixedPreUpdate, on_configuration_enter);
         app.add_observer(on_configuration_ack);
+        app.add_observer(on_game_configuration_ack);
     }
 }
 
@@ -173,7 +178,11 @@ fn sync_dimension_type_changes(
     mut dim_type_events: MessageReader<AssetEvent<DimensionTypeAsset>>,
     dim_type_assets: Res<Assets<DimensionTypeAsset>>,
     mut loaded_dim_types: ResMut<LoadedDimensionTypes>,
+    mut players: Query<(Entity, &mut ServerSideConnection), With<InGameConnectionState>>,
+    mut commands: Commands,
 ) {
+    let mut changed = false;
+
     for event in dim_type_events.read() {
         let id = match event {
             AssetEvent::Modified { id } => *id,
@@ -203,6 +212,23 @@ fn sync_dimension_type_changes(
                 dimension_type = %asset.id,
                 "Hot-loaded new dimension type"
             );
+        }
+
+        changed = true;
+    }
+
+    // Send all connected players back to configuration to pick up the new registries
+    if changed {
+        for (entity, mut con) in players.iter_mut() {
+            info!("Sending reconfiguration to connected player");
+            con.write_packet(&ClientboundStartConfiguration);
+            // Remove chunk tracking components to prevent game-state packets
+            // from being sent while the client transitions to Configuration.
+            // These will be re-added during the reconfiguration spawn path.
+            commands
+                .entity(entity)
+                .remove::<ColumnView>()
+                .remove::<PlayerChunkObserver>();
         }
     }
 }
@@ -391,6 +417,28 @@ fn on_configuration_ack(
     commands.entity(entity).insert(InGameConnectionState);
 }
 
+/// Handles `ServerboundConfigurationAcknowledged` (packet 0x0F) sent during Game state.
+/// This is the client's response to `ClientboundStartConfiguration` during reconfiguration.
+/// Transitions the connection back to Configuration so registries can be re-sent.
+fn on_game_configuration_ack(
+    event: On<ReceivedPacketEvent>,
+    mut query: Query<(Entity, &mut ConnectionState)>,
+    mut commands: Commands,
+) {
+    let Ok((entity, mut state)) = query.get_mut(event.entity) else {
+        return;
+    };
+    if *state != ConnectionState::Game {
+        return;
+    }
+    let Some(_) = event.decode::<ServerboundConfigurationAcknowledged>() else {
+        return;
+    };
+    info!("Player {:?} acknowledged reconfiguration", entity);
+    *state = ConnectionState::Configuration;
+    commands.entity(entity).remove::<InGameConnectionState>();
+}
+
 #[derive(Default, Resource)]
 struct SyncedRegistries(Vec<(Ident<String>, Vec<Ident<String>>)>);
 
@@ -424,7 +472,7 @@ impl Default for LoadedWorldPreset {
 }
 
 fn init_biomes() -> Vec<(Ident<String>, Biome)> {
-    let synced_registries = include_str!("../../../assets/synced_registries.json");
+    let synced_registries = include_str!("../synced_registries.json");
     let json = serde_json::from_str::<Map<String, Value>>(synced_registries).unwrap();
     let biome_registry = json
         .get("worldgen/biome")
@@ -444,7 +492,7 @@ fn init_biomes() -> Vec<(Ident<String>, Biome)> {
 }
 
 fn init_synced_registries() -> Vec<(Ident<String>, Vec<Ident<String>>)> {
-    let synced_registries = include_str!("../../../assets/synced_registries.json");
+    let synced_registries = include_str!("../synced_registries.json");
     let json = serde_json::from_str::<Map<String, Value>>(synced_registries).unwrap();
     json.iter()
         .map(|(registry_id, registry)| {

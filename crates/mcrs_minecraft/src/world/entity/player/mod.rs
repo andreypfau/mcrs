@@ -17,7 +17,7 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Changed, Commands, Query, RemovedComponents, Res, With};
+use bevy_ecs::prelude::{Changed, Commands, Has, Query, RemovedComponents, Res, With};
 use bevy_ecs::query::Added;
 use bevy_math::DVec3;
 use derive_more::{Deref, DerefMut};
@@ -33,16 +33,17 @@ use mcrs_protocol::item::ComponentPatch;
 use mcrs_protocol::packets::game::clientbound::{
     ClientboundAddEntity, ClientboundContainerSetContent, ClientboundDisconnect,
     ClientboundGameEvent, ClientboundLogin, ClientboundPlayerInfoUpdate,
+    ClientboundPlayerPosition,
 };
 use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
-use mcrs_protocol::{ByteAngle, GameEventKind, GameMode, Slot, Text, VarInt, WritePacket, ident};
+use mcrs_protocol::{ByteAngle, GameEventKind, GameMode, Look, Slot, Text, VarInt, WritePacket, ident};
 use movement::TeleportState;
 use tracing::info;
 
 pub mod ability;
 pub mod attribute;
 mod chat;
-mod column_view;
+pub(crate) mod column_view;
 pub mod digging;
 mod inventory;
 pub mod movement;
@@ -59,7 +60,7 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(PlayerInventoryPlugin);
         app.add_plugins(ChatPlugin);
         app.add_systems(bevy_app::Update, spawn_player);
-        app.add_systems(FixedUpdate, (disconnect_player, added_inventory));
+        app.add_systems(FixedUpdate, (disconnect_player, added_inventory, resync_player));
         app.add_systems(PostUpdate, despawn_disconnected_clients);
         app.add_observer(network_add);
         app.add_observer(player_joined);
@@ -78,6 +79,12 @@ pub struct PlayerBundle {
     pub marker: Player,
 }
 
+/// Marker component that triggers a full re-sync of player state to the client.
+/// Added during reconfiguration to re-send position, inventory, etc.
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct ResyncPlayer;
+
 #[derive(Clone, Debug, PartialEq, Component, Deref, DerefMut)]
 pub struct DisconnectReason(pub Text);
 
@@ -91,6 +98,7 @@ fn spawn_player(
             &ConnectionState,
             &GameProfile,
             &mut ServerSideConnection,
+            Has<Player>,
         ),
         Changed<ConnectionState>,
     >,
@@ -103,7 +111,7 @@ fn spawn_player(
 
     query
         .iter_mut()
-        .for_each(|(entity, distance, con_state, profile, mut con)| {
+        .for_each(|(entity, distance, con_state, profile, mut con, is_reconfiguration)| {
             if *con_state != ConnectionState::Game {
                 return;
             }
@@ -122,52 +130,89 @@ fn spawn_player(
                 tracing::warn!("No dimension found! Can't spawn player yet - dimensions may still be loading.");
                 return;
             };
-            con.write_packet(&ClientboundLogin {
-                player_id: entity.index_u32() as i32,
-                hardcore: false,
-                dimensions: world_preset
-                    .dimensions
-                    .iter()
-                    .map(|(dim_key, _)| dim_key.clone().into())
-                    .collect(),
-                max_players: VarInt(100),
-                chunk_radius: VarInt(12),
-                simulation_distance: VarInt(12),
-                reduced_debug_info: false,
-                show_death_screen: false,
-                do_limited_crafting: false,
-                player_spawn_info: PlayerSpawnInfo {
-                    game_mode: GameMode::Survival,
-                    ..Default::default()
-                },
-                enforces_secure_chat: false,
-            });
-            con.write_packet(&ClientboundGameEvent {
-                game_event: GameEventKind::LevelChunksLoadStart,
-            });
-            let pos = DVec3::new(0.0, 64.0, 0.0);
 
-            let pickaxe = commands.spawn_item_stack(&DIAMOND_PICKAXE, 1);
-            let mut inventory = PlayerInventoryBundle::default();
-            inventory.hotbar.slots[0] = Some(pickaxe);
+            if is_reconfiguration {
+                // Reconfiguration: player already exists, re-send login with updated dimension types
+                info!("Reconfiguring player {:?} with updated registries", entity);
 
-            commands.entity(entity).insert((
-                PlayerChunkObserver {
-                    ..Default::default()
-                },
-                EntityBundle::new(InDimension(dim))
-                    .with_uuid(profile.id)
-                    .with_transform(Transform::default().with_translation(pos)),
-                PlayerBundle {
-                    view_distance: PlayerViewDistance {
-                        distance: **distance,
-                        vert_distance: **distance,
+                con.write_packet(&ClientboundLogin {
+                    player_id: entity.index_u32() as i32,
+                    hardcore: false,
+                    dimensions: world_preset
+                        .dimensions
+                        .iter()
+                        .map(|(dim_key, _)| dim_key.clone().into())
+                        .collect(),
+                    max_players: VarInt(100),
+                    chunk_radius: VarInt(12),
+                    simulation_distance: VarInt(12),
+                    reduced_debug_info: false,
+                    show_death_screen: false,
+                    do_limited_crafting: false,
+                    player_spawn_info: PlayerSpawnInfo {
+                        game_mode: GameMode::Survival,
+                        ..Default::default()
                     },
-                    inventory,
-                    ..Default::default()
-                },
-            ));
-            commands.trigger(PlayerJoinEvent { player: entity });
+                    enforces_secure_chat: false,
+                });
+                con.write_packet(&ClientboundGameEvent {
+                    game_event: GameEventKind::LevelChunksLoadStart,
+                });
+
+                // Insert marker to trigger re-sync of position, inventory, chunks
+                commands.entity(entity).insert((
+                    ResyncPlayer,
+                    PlayerChunkObserver::default(),
+                ));
+            } else {
+                // Initial spawn: full login flow
+                con.write_packet(&ClientboundLogin {
+                    player_id: entity.index_u32() as i32,
+                    hardcore: false,
+                    dimensions: world_preset
+                        .dimensions
+                        .iter()
+                        .map(|(dim_key, _)| dim_key.clone().into())
+                        .collect(),
+                    max_players: VarInt(100),
+                    chunk_radius: VarInt(12),
+                    simulation_distance: VarInt(12),
+                    reduced_debug_info: false,
+                    show_death_screen: false,
+                    do_limited_crafting: false,
+                    player_spawn_info: PlayerSpawnInfo {
+                        game_mode: GameMode::Survival,
+                        ..Default::default()
+                    },
+                    enforces_secure_chat: false,
+                });
+                con.write_packet(&ClientboundGameEvent {
+                    game_event: GameEventKind::LevelChunksLoadStart,
+                });
+                let pos = DVec3::new(0.0, 64.0, 0.0);
+
+                let pickaxe = commands.spawn_item_stack(&DIAMOND_PICKAXE, 1);
+                let mut inventory = PlayerInventoryBundle::default();
+                inventory.hotbar.slots[0] = Some(pickaxe);
+
+                commands.entity(entity).insert((
+                    PlayerChunkObserver {
+                        ..Default::default()
+                    },
+                    EntityBundle::new(InDimension(dim))
+                        .with_uuid(profile.id)
+                        .with_transform(Transform::default().with_translation(pos)),
+                    PlayerBundle {
+                        view_distance: PlayerViewDistance {
+                            distance: **distance,
+                            vert_distance: **distance,
+                        },
+                        inventory,
+                        ..Default::default()
+                    },
+                ));
+                commands.trigger(PlayerJoinEvent { player: entity });
+            }
         });
 }
 
@@ -311,5 +356,58 @@ fn added_inventory(
             carried_item,
         };
         con.write_packet(&pkt);
+    }
+}
+
+fn resync_player(
+    mut players: Query<
+        (
+            Entity,
+            &mut ServerSideConnection,
+            &Transform,
+            PlayerInventoryQuery,
+            &ContainerSeqno,
+        ),
+        Added<ResyncPlayer>,
+    >,
+    items: Query<&ItemStack>,
+    mut commands: Commands,
+) {
+    for (entity, mut con, transform, inventory, seqno) in players.iter_mut() {
+        // Re-send position
+        con.write_packet(&ClientboundPlayerPosition {
+            teleport_id: VarInt(0),
+            position: transform.translation,
+            velocity: DVec3::ZERO,
+            look: Look {
+                yaw: transform.rotation.y,
+                pitch: transform.rotation.x,
+            },
+            flags: vec![],
+        });
+
+        // Re-send inventory
+        let slots = inventory
+            .all_slots()
+            .iter()
+            .map(|slot| {
+                slot.and_then(|slot| items.get(slot).ok())
+                    .map(|item| Slot::new(item.item_id(), item.count(), ComponentPatch::EMPTY))
+                    .unwrap_or(Slot::EMPTY)
+            })
+            .collect();
+        let carried_item = inventory
+            .carried_item
+            .and_then(|slot| items.get(slot).ok())
+            .map(|item| Slot::new(item.item_id(), item.count(), ComponentPatch::EMPTY))
+            .unwrap_or(Slot::EMPTY);
+        con.write_packet(&ClientboundContainerSetContent {
+            container_id: VarInt(0),
+            state_seqno: VarInt((**seqno) as i32),
+            slot_data: slots,
+            carried_item,
+        });
+
+        commands.entity(entity).remove::<ResyncPlayer>();
     }
 }

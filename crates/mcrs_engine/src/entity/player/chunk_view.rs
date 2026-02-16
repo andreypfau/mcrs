@@ -4,8 +4,8 @@ use crate::world::chunk::{ChunkIndex, ChunkLoaded, ChunkPos};
 use crate::world::dimension::InDimension;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{
-    Changed, Component, ContainsEntity, Entity, EntityEvent, IntoScheduleConfigs, MessageWriter,
-    ParallelCommands, Query, With,
+    Added, Changed, Component, ContainsEntity, Entity, EntityEvent, IntoScheduleConfigs,
+    MessageWriter, Or, ParallelCommands, Query, With,
 };
 use bevy_ecs_macros::Message;
 use std::collections::VecDeque;
@@ -54,7 +54,7 @@ fn update_view(
             &Transform,
             &PlayerViewDistance,
         ),
-        Changed<Transform>,
+        Or<(Changed<Transform>, Added<PlayerChunkObserver>)>,
     >,
     commands: ParallelCommands,
 ) {
