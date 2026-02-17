@@ -28,6 +28,7 @@ bevy_asset = { version = "0.18.0", features = ["file_watcher"] }
 bevy_derive = "0.18.0"
 bevy_log = { version = "0.18.0", features = ["tracing-tracy"] }
 bevy_reflect = "0.18.0"
+bevy_state = "0.18.0"
 
 rocksdb = { version = "0.24.0" }
 heck = "0.5.0"
@@ -68,6 +69,7 @@ mcrs_protocol = { path = "crates/mcrs_protocol" }
 mcrs_nbt = { path = "crates/mcrs_nbt" }
 mcrs_network = { path = "crates/mcrs_network" }
 mcrs_engine = { path = "crates/mcrs_engine" }
+mcrs_core = { path = "crates/mcrs_core" }
 mcrs_minecraft = { path = "crates/mcrs_minecraft" }
 mcrs_registry = { path = "crates/mcrs_registry" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
