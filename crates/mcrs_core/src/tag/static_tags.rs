@@ -87,6 +87,19 @@ impl<T: TagRegistryType + 'static> StaticTags<T> {
         self.inner.get(tag_rl)
     }
 
+    /// Number of tags still pending resolution (not yet drained).
+    pub fn pending_handles_count(&self) -> usize {
+        self.handles.len()
+    }
+
+    /// Returns `true` once every pending handle (and all its recursive dependencies)
+    /// is fully loaded by Bevy's asset system.
+    pub fn all_handles_loaded(&self, asset_server: &AssetServer) -> bool {
+        self.handles
+            .values()
+            .all(|h| asset_server.is_loaded_with_dependencies(h.id()))
+    }
+
     /// Returns `true` if no tags have been resolved yet.
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()

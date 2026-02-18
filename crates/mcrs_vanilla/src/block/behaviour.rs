@@ -1,8 +1,7 @@
+use crate::block::minecraft::note_block::NoteBlockInstrument;
+use crate::material::map::MapColor;
+use crate::material::PushReaction;
 use crate::sound::SoundType;
-use crate::world::block::minecraft::note_block::NoteBlockInstrument;
-use crate::world::material::map::MapColor;
-use crate::world::material::PushReaction;
-use mcrs_engine::world::block::BlockPos;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Properties {
@@ -134,13 +133,5 @@ impl Properties {
 impl Default for Properties {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-pub trait BlockBehaviour: Sync + Send {
-    fn properties(&self) -> &Properties;
-
-    fn get_destroy_speed(&self, pos: BlockPos) -> f32 {
-        self.properties().hardness
     }
 }

@@ -1,4 +1,4 @@
-use crate::world::item::component::ItemComponents;
+use crate::item::component::ItemComponents;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Component;
 use mcrs_core::tag::key::TagRegistryType;
@@ -6,6 +6,7 @@ use mcrs_protocol::{Ident, ItemId, Slot};
 
 pub mod component;
 pub mod minecraft;
+pub mod tags;
 
 pub struct Item {
     pub id: ItemId,

@@ -6,7 +6,7 @@ pub mod tag;
 pub use registry::{RegistrySnapshot, StaticId, StaticRegistry};
 pub use resource_location::ResourceLocation;
 pub use state::AppState;
-pub use tag::{TagEntry, TagFile, TagFileLoader, TagFileSettings, TagKey, TagRegistryType};
+pub use tag::{StaticTags, TagEntry, TagFile, TagFileLoader, TagFileSettings, TagKey, TagRegistryType};
 
 use bevy_app::{App, Plugin};
 use bevy_asset::AssetApp;

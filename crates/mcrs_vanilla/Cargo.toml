@@ -1,0 +1,19 @@
+[package]
+name = "mcrs_vanilla"
+description = "Vanilla Minecraft block/item type vocabulary and static registries"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+mcrs_core.workspace = true
+mcrs_protocol.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_asset.workspace = true
+bevy_state.workspace = true
+paste = "1"
+bitflags = "2"
+tracing.workspace = true
+serde.workspace = true
+bevy_ecs_macros.workspace = true
+rustc-hash.workspace = true

@@ -1,5 +1,7 @@
 pub mod block;
+pub mod block_tags;
 pub mod item;
+pub mod item_tags;
 pub mod loader;
 
 pub use block::BlockTagPlugin;

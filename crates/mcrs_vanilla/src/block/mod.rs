@@ -1,12 +1,12 @@
-use crate::world::block::behaviour::{BlockBehaviour, Properties};
-use bevy_ecs::prelude::Resource;
 use mcrs_core::tag::key::TagRegistryType;
 use mcrs_protocol::{BlockStateId, Ident};
 use std::hash::{Hash, Hasher};
 
 pub mod behaviour;
+#[macro_use]
 mod macros;
 pub mod minecraft;
+pub mod tags;
 
 bitflags::bitflags! {
     #[derive(Copy, Clone, Debug)]
@@ -33,7 +33,7 @@ pub struct Block {
     /// Vanilla `minecraft:block` registry index (protocol ID).
     /// Must match the client's built-in registry ordering.
     pub protocol_id: u16,
-    pub properties: &'static Properties,
+    pub properties: &'static behaviour::Properties,
     pub default_state: &'static BlockState,
     pub states: &'static [BlockState],
 }
