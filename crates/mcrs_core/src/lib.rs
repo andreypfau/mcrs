@@ -6,7 +6,11 @@ pub mod tag;
 pub use registry::{RegistrySnapshot, StaticId, StaticRegistry};
 pub use resource_location::ResourceLocation;
 pub use state::AppState;
-pub use tag::{StaticTags, TagEntry, TagFile, TagFileLoader, TagFileSettings, TagKey, TagRegistryType};
+pub use tag::{StaticTags, TagEntry, TagFile, TagFileLoader, TagFileSettings, TagKey, TagRegistryType, Tags};
+
+// Re-export the proc macro for the rl! declarative macro.
+#[doc(hidden)]
+pub use mcrs_core_macros::rl_impl as __rl_impl;
 
 use bevy_app::{App, Plugin};
 use bevy_asset::AssetApp;

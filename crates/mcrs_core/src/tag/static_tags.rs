@@ -5,23 +5,21 @@ use crate::tag::key::{TagKey, TagRegistryType};
 use bevy_asset::{AssetServer, Handle};
 use bevy_ecs::resource::Resource;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 /// Resolved tags for static registry types (blocks, items).
 ///
 /// Acts as both the pending-handles store (Startup) and the resolved-ids store
 /// (after `OnEnter(AppState::WorldgenFreeze)`).
 ///
-/// Usage:
-/// 1. In a Startup system: call `tags.request(&MY_TAG, &asset_server)` for every
-///    tag your code needs. No directory scanning — only explicitly requested tags
-///    are loaded.
-/// 2. In `OnEnter(AppState::WorldgenFreeze)`: call `tags.drain_handles()` to get
-///    the pending handles, resolve them, then call `tags.insert()` per tag.
+/// Internal storage uses `ResourceLocation<Arc<str>>` keys. Lookups accept
+/// `&str` via `Borrow<str>` for zero-allocation access from any
+/// `ResourceLocation` variant.
 #[derive(Resource)]
 pub struct StaticTags<T: TagRegistryType + 'static> {
-    inner: HashMap<ResourceLocation, HashSet<StaticId<T>>>,
+    inner: HashMap<ResourceLocation<Arc<str>>, HashSet<StaticId<T>>>,
     /// Pending handles loaded by `request()`, drained at WorldgenFreeze.
-    handles: HashMap<ResourceLocation, Handle<TagFile>>,
+    handles: HashMap<ResourceLocation<Arc<str>>, Handle<TagFile>>,
 }
 
 impl<T: TagRegistryType + 'static> Default for StaticTags<T> {
@@ -43,8 +41,8 @@ impl<T: TagRegistryType + 'static> StaticTags<T> {
     /// No-op if the tag was already requested. Loading uses `TagFileSettings`
     /// so the loader can resolve nested `#tag` references correctly.
     pub fn request(&mut self, key: &TagKey<T>, asset_server: &AssetServer) {
-        let loc = key.resource_location();
-        if self.handles.contains_key(&loc) {
+        let loc_str = key.resource_location().as_static_str();
+        if self.handles.contains_key(loc_str) {
             return;
         }
         let segment = T::REGISTRY_PATH.to_string();
@@ -52,39 +50,43 @@ impl<T: TagRegistryType + 'static> StaticTags<T> {
             .load_with_settings::<TagFile, TagFileSettings>(key.asset_path(), move |s| {
                 s.registry_segment = segment.clone()
             });
-        self.handles.insert(loc, handle);
+        self.handles.insert(key.resource_location_arc(), handle);
     }
 
     /// Drain all pending tag handles. Call at WorldgenFreeze to get handles for resolution.
-    pub fn drain_handles(&mut self) -> Vec<(ResourceLocation, Handle<TagFile>)> {
+    pub fn drain_handles(&mut self) -> Vec<(ResourceLocation<Arc<str>>, Handle<TagFile>)> {
         self.handles.drain().collect()
     }
 
     /// Insert a resolved tag set (called during the WorldgenFreeze phase).
-    pub fn insert(&mut self, loc: ResourceLocation, ids: HashSet<StaticId<T>>) {
+    pub fn insert(&mut self, loc: ResourceLocation<Arc<str>>, ids: HashSet<StaticId<T>>) {
         self.inner.insert(loc, ids);
     }
 
     /// Check whether `id` is a member of the given tag (typed `TagKey`).
+    /// Zero-alloc: uses `Borrow<str>` for lookup.
     pub fn contains(&self, tag: &TagKey<T>, id: StaticId<T>) -> bool {
-        self.contains_rl(&tag.resource_location(), id)
+        self.inner
+            .get(tag.resource_location().as_str())
+            .map_or(false, |set| set.contains(&id))
     }
 
-    /// Check whether `id` is a member of the tag identified by `tag_rl`.
-    pub fn contains_rl(&self, tag_rl: &ResourceLocation, id: StaticId<T>) -> bool {
+    /// Check whether `id` is a member of the tag identified by its string key.
+    pub fn contains_rl(&self, tag_str: &str, id: StaticId<T>) -> bool {
         self.inner
-            .get(tag_rl)
+            .get(tag_str)
             .map_or(false, |set| set.contains(&id))
     }
 
     /// Return the full set of IDs for a tag (typed `TagKey`), or `None` if not loaded.
+    /// Zero-alloc: uses `Borrow<str>` for lookup.
     pub fn get(&self, tag: &TagKey<T>) -> Option<&HashSet<StaticId<T>>> {
-        self.get_rl(&tag.resource_location())
+        self.inner.get(tag.resource_location().as_str())
     }
 
-    /// Return the full set of IDs for the tag identified by `tag_rl`, or `None` if not loaded.
-    pub fn get_rl(&self, tag_rl: &ResourceLocation) -> Option<&HashSet<StaticId<T>>> {
-        self.inner.get(tag_rl)
+    /// Return the full set of IDs for the tag identified by its string key.
+    pub fn get_rl(&self, tag_str: &str) -> Option<&HashSet<StaticId<T>>> {
+        self.inner.get(tag_str)
     }
 
     /// Number of tags still pending resolution (not yet drained).
@@ -106,7 +108,9 @@ impl<T: TagRegistryType + 'static> StaticTags<T> {
     }
 
     /// Iterate over all resolved (tag RL, id set) pairs.
-    pub fn iter(&self) -> impl Iterator<Item = (&ResourceLocation, &HashSet<StaticId<T>>)> {
+    pub fn iter(
+        &self,
+    ) -> impl Iterator<Item = (&ResourceLocation<Arc<str>>, &HashSet<StaticId<T>>)> {
         self.inner.iter()
     }
 }

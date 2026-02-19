@@ -2,11 +2,12 @@ use crate::resource_location::ResourceLocation;
 use bevy_ecs::resource::Resource;
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 /// A typed index into a `StaticRegistry<T>`.
 ///
 /// `PhantomData<fn() -> T>` makes the ID covariant, `Send + Sync`, and non-`Drop`.
-/// All trait impls are manual so that `T` does not need to satisfy any bounds.
+/// All trait impls are manual so that `T` does not need satisfy any bounds.
 pub struct StaticId<T> {
     pub(crate) id: u32,
     _marker: PhantomData<fn() -> T>,
@@ -43,15 +44,12 @@ impl<T> StaticId<T> {
 
 /// A compile-time registry mapping `ResourceLocation` → `&'static T`.
 ///
-/// All entries must live for `'static` (they are typically `static` variables or
-/// struct fields in `lazy_static!`/`once_cell` statics).
-///
-/// IDs are assigned sequentially in insertion order and are stable for the lifetime
-/// of the process.
+/// Internal storage uses `ResourceLocation<Arc<str>>` keys. Lookups accept
+/// `&str` via `Borrow<str>` for zero-allocation access.
 #[derive(Resource)]
 pub struct StaticRegistry<T: 'static> {
-    entries: Vec<(ResourceLocation, &'static T)>,
-    index: HashMap<ResourceLocation, u32>,
+    entries: Vec<(ResourceLocation<Arc<str>>, &'static T)>,
+    index: HashMap<ResourceLocation<Arc<str>>, u32>,
 }
 
 impl<T: 'static> StaticRegistry<T> {
@@ -64,8 +62,14 @@ impl<T: 'static> StaticRegistry<T> {
 
     /// Register a new entry; returns its `StaticId`.
     ///
+    /// Accepts any `ResourceLocation` variant via `Into<ResourceLocation<Arc<str>>>`.
     /// Panics if `loc` is already registered.
-    pub fn register(&mut self, loc: ResourceLocation, value: &'static T) -> StaticId<T> {
+    pub fn register(
+        &mut self,
+        loc: impl Into<ResourceLocation<Arc<str>>>,
+        value: &'static T,
+    ) -> StaticId<T> {
+        let loc = loc.into();
         let id = self.entries.len() as u32;
         assert!(
             self.index.insert(loc.clone(), id).is_none(),
@@ -82,12 +86,14 @@ impl<T: 'static> StaticRegistry<T> {
         self.entries.get(id.id as usize).map(|(_, v)| *v)
     }
 
-    pub fn get_by_loc(&self, loc: &ResourceLocation) -> Option<&'static T> {
+    /// Look up by string key. Zero-alloc via `Borrow<str>`.
+    pub fn get_by_loc(&self, loc: &str) -> Option<&'static T> {
         let id = *self.index.get(loc)?;
         self.entries.get(id as usize).map(|(_, v)| *v)
     }
 
-    pub fn id_of(&self, loc: &ResourceLocation) -> Option<StaticId<T>> {
+    /// Get the `StaticId` for a resource location string. Zero-alloc via `Borrow<str>`.
+    pub fn id_of(&self, loc: &str) -> Option<StaticId<T>> {
         self.index.get(loc).copied().map(|id| StaticId {
             id,
             _marker: PhantomData,
@@ -102,7 +108,9 @@ impl<T: 'static> StaticRegistry<T> {
         self.entries.is_empty()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (StaticId<T>, &ResourceLocation, &'static T)> + '_ {
+    pub fn iter(
+        &self,
+    ) -> impl Iterator<Item = (StaticId<T>, &ResourceLocation<Arc<str>>, &'static T)> + '_ {
         self.entries.iter().enumerate().map(|(i, (loc, v))| {
             (
                 StaticId {
