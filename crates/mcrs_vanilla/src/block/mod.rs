@@ -1,5 +1,6 @@
+use mcrs_core::resource_location::ResourceLocation;
 use mcrs_core::tag::key::TagRegistryType;
-use mcrs_protocol::{BlockStateId, Ident};
+use mcrs_protocol::BlockStateId;
 use std::hash::{Hash, Hasher};
 
 pub mod behaviour;
@@ -29,7 +30,7 @@ bitflags::bitflags! {
 
 #[derive(Debug)]
 pub struct Block {
-    pub identifier: Ident<&'static str>,
+    pub identifier: ResourceLocation<&'static str>,
     /// Vanilla `minecraft:block` registry index (protocol ID).
     /// Must match the client's built-in registry ordering.
     pub protocol_id: u16,

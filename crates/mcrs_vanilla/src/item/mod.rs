@@ -1,8 +1,9 @@
 use crate::item::component::ItemComponents;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Component;
+use mcrs_core::resource_location::ResourceLocation;
 use mcrs_core::tag::key::TagRegistryType;
-use mcrs_protocol::{Ident, ItemId, Slot};
+use mcrs_protocol::{ItemId, Slot};
 
 pub mod component;
 pub mod minecraft;
@@ -10,7 +11,7 @@ pub mod tags;
 
 pub struct Item {
     pub id: ItemId,
-    pub identifier: Ident<&'static str>,
+    pub identifier: ResourceLocation<&'static str>,
     pub components: &'static ItemComponents,
 }
 

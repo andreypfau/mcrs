@@ -3,7 +3,7 @@ use crate::block::Block;
 use crate::item::component::ItemComponents;
 use bevy_ecs::component::Component;
 use mcrs_core::tag::key::TagKey;
-use mcrs_core::{ResourceLocation, StaticId, StaticRegistry, StaticTags};
+use mcrs_core::{StaticId, StaticRegistry, StaticTags};
 
 /// Reference to a set of blocks via a tag key.
 ///
@@ -73,10 +73,7 @@ impl Tool {
         block_registry: &StaticRegistry<Block>,
         static_tags: &StaticTags<Block>,
     ) -> f32 {
-        let block_id = block_registry.id_of(&ResourceLocation::new(
-            block.identifier.namespace(),
-            block.identifier.path(),
-        ));
+        let block_id = block_registry.id_of(block.identifier.as_str());
         for rule in self.rules {
             let Some(speed) = rule.speed else {
                 continue;
@@ -96,10 +93,7 @@ impl Tool {
         block_registry: &StaticRegistry<Block>,
         static_tags: &StaticTags<Block>,
     ) -> bool {
-        let block_id = block_registry.id_of(&ResourceLocation::new(
-            block.identifier.namespace(),
-            block.identifier.path(),
-        ));
+        let block_id = block_registry.id_of(block.identifier.as_str());
         for (i, rule) in self.rules.iter().enumerate() {
             let Some(correct) = rule.correct_for_drops else {
                 continue;
@@ -205,7 +199,7 @@ pub struct ToolMaterial {
 impl ToolMaterial {
     pub const WOOD: ToolMaterial = ToolMaterial {
         incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::of("minecraft", "incorrect_for_wooden_tool"),
+            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_wooden_tool")),
         },
         durability: 59,
         speed: 2.0,
@@ -214,7 +208,7 @@ impl ToolMaterial {
     };
     pub const STONE: ToolMaterial = ToolMaterial {
         incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::of("minecraft", "incorrect_for_stone_tool"),
+            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_stone_tool")),
         },
         durability: 131,
         speed: 4.0,
@@ -223,7 +217,7 @@ impl ToolMaterial {
     };
     pub const COPPER: ToolMaterial = ToolMaterial {
         incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::of("minecraft", "incorrect_for_copper_tool"),
+            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_copper_tool")),
         },
         durability: 190,
         speed: 5.0,
@@ -232,7 +226,7 @@ impl ToolMaterial {
     };
     pub const IRON: ToolMaterial = ToolMaterial {
         incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::of("minecraft", "incorrect_for_iron_tool"),
+            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_iron_tool")),
         },
         durability: 250,
         speed: 6.0,
@@ -241,7 +235,7 @@ impl ToolMaterial {
     };
     pub const DIAMOND: ToolMaterial = ToolMaterial {
         incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::of("minecraft", "incorrect_for_diamond_tool"),
+            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_diamond_tool")),
         },
         durability: 1561,
         speed: 8.0,
@@ -250,7 +244,7 @@ impl ToolMaterial {
     };
     pub const GOLD: ToolMaterial = ToolMaterial {
         incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::of("minecraft", "incorrect_for_gold_tool"),
+            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_gold_tool")),
         },
         durability: 32,
         speed: 12.0,
@@ -259,7 +253,7 @@ impl ToolMaterial {
     };
     pub const NETHERITE: ToolMaterial = ToolMaterial {
         incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::of("minecraft", "incorrect_for_netherite_tool"),
+            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_netherite_tool")),
         },
         durability: 2031,
         speed: 9.0,

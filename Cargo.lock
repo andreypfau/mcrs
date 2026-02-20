@@ -1715,10 +1715,20 @@ dependencies = [
  "bevy_ecs",
  "bevy_reflect",
  "bevy_state",
+ "mcrs_core_macros",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_core_macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -1879,6 +1889,27 @@ dependencies = [
  "indexmap",
  "serde",
  "valence_ident",
+]
+
+[[package]]
+name = "mcrs_vanilla"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_ecs_macros",
+ "bevy_reflect",
+ "bevy_state",
+ "bitflags 2.10.0",
+ "mcrs_core",
+ "mcrs_protocol",
+ "paste",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]

@@ -2,10 +2,10 @@ use crate::block::behaviour::Properties;
 use crate::block::{Block, BlockState};
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
-use mcrs_protocol::{BlockStateId, ident};
+use mcrs_protocol::BlockStateId;
 
 pub const BLOCK: Block = Block {
-    identifier: ident!("pale_oak_sapling"),
+    identifier: mcrs_core::rl!("pale_oak_sapling"),
     protocol_id: 32,
     properties: &PROPERTIES,
     default_state: &DEFAULT_STATE,

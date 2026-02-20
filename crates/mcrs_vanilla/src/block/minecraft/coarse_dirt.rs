@@ -1,10 +1,10 @@
 use crate::block::behaviour::Properties;
 use crate::block::{Block, BlockState};
 use crate::material::map::MapColor;
-use mcrs_protocol::{BlockStateId, ident};
+use mcrs_protocol::BlockStateId;
 
 pub const BLOCK: Block = Block {
-    identifier: ident!("coarse_dirt"),
+    identifier: mcrs_core::rl!("coarse_dirt"),
     protocol_id: 10,
     properties: &PROPERTIES,
     default_state: &DEFAULT_STATE,

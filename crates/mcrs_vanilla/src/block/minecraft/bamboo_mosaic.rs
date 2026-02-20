@@ -2,10 +2,10 @@ use crate::block::behaviour::Properties;
 use crate::block::minecraft::note_block::NoteBlockInstrument;
 use crate::block::{Block, BlockState};
 use crate::material::map::MapColor;
-use mcrs_protocol::{BlockStateId, ident};
+use mcrs_protocol::BlockStateId;
 
 pub const BLOCK: Block = Block {
-    identifier: ident!("bamboo_mosaic"),
+    identifier: mcrs_core::rl!("bamboo_mosaic"),
     protocol_id: 24,
     properties: &PROPERTIES,
     default_state: &DEFAULT_STATE,

@@ -3,7 +3,7 @@ use crate::sound::SoundType;
 use crate::block::behaviour::Properties;
 use crate::block::{Block, BlockState};
 use crate::material::map::MapColor;
-use mcrs_protocol::{BlockStateId, ident};
+use mcrs_protocol::BlockStateId;
 
 generate_block_states! {
     base_id: 581,

@@ -62,7 +62,7 @@ macro_rules! generate_block_states {
 
             // Generate BLOCK constant
             pub const BLOCK: Block = Block {
-                identifier: ident!($block_name),
+                identifier: mcrs_core::rl!($block_name),
                 protocol_id: $protocol_id,
                 properties: &PROPERTIES,
                 default_state: &DEFAULT_STATE,
@@ -105,7 +105,7 @@ macro_rules! generate_block_states {
 
             // Generate BLOCK constant
             pub const BLOCK: Block = Block {
-                identifier: ident!($block_name),
+                identifier: mcrs_core::rl!($block_name),
                 protocol_id: $protocol_id,
                 properties: &PROPERTIES,
                 default_state: &DEFAULT_STATE,

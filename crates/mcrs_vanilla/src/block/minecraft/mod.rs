@@ -1,7 +1,6 @@
 use crate::block::Block;
-use mcrs_core::{ResourceLocation, StaticRegistry};
-use mcrs_protocol::{BlockStateId, Ident};
-use std::str::FromStr;
+use mcrs_core::StaticRegistry;
+use mcrs_protocol::BlockStateId;
 
 macro_rules! declare_blocks {
     (
@@ -21,11 +20,7 @@ macro_rules! declare_blocks {
 
         pub fn register_all_blocks(registry: &mut StaticRegistry<Block>) {
             $(
-                {
-                    let loc = ResourceLocation::from_str($const_name.identifier.as_str())
-                        .expect("block identifier must be a valid ResourceLocation");
-                    registry.register(loc, &$const_name);
-                }
+                registry.register($const_name.identifier, &$const_name);
             )*
         }
 
@@ -96,24 +91,6 @@ impl TryFrom<BlockStateId> for &'static Block {
     #[inline]
     fn try_from(v: BlockStateId) -> Result<Self, Self::Error> {
         STATE_TO_BLOCK.get(v.0 as usize).and_then(|x| *x).ok_or(())
-    }
-}
-
-impl TryFrom<Ident<String>> for &'static Block {
-    type Error = ();
-
-    fn try_from(value: Ident<String>) -> Result<Self, Self::Error> {
-        STATE_TO_BLOCK
-            .iter()
-            .find(|block_opt| {
-                if let Some(block) = block_opt {
-                    block.identifier.as_str() == value.as_str()
-                } else {
-                    false
-                }
-            })
-            .and_then(|block_opt| *block_opt)
-            .ok_or(())
     }
 }
 

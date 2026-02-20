@@ -2,10 +2,10 @@ use crate::block::behaviour::Properties;
 use crate::block::minecraft::note_block::NoteBlockInstrument;
 use crate::block::{Block, BlockState};
 use crate::material::map::MapColor;
-use mcrs_protocol::{BlockStateId, ident};
+use mcrs_protocol::BlockStateId;
 
 pub const BLOCK: Block = Block {
-    identifier: ident!("spruce_planks"),
+    identifier: mcrs_core::rl!("spruce_planks"),
     protocol_id: 14,
     properties: &PROPERTIES,
     default_state: &DEFAULT_STATE,

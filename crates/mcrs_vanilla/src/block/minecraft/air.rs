@@ -1,10 +1,10 @@
 use crate::block::behaviour::Properties;
 use crate::block::{Block, BlockState};
 use crate::material::map::MapColor;
-use mcrs_protocol::{BlockStateId, ident};
+use mcrs_protocol::BlockStateId;
 
 pub const BLOCK: Block = Block {
-    identifier: ident!("air"),
+    identifier: mcrs_core::rl!("air"),
     protocol_id: 0,
     properties: &PROPERTIES,
     default_state: &DEFAULT_STATE,

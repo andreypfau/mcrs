@@ -2,10 +2,10 @@ use crate::block::behaviour::Properties;
 use crate::block::minecraft::note_block::NoteBlockInstrument;
 use crate::block::{Block, BlockState};
 use crate::material::map::MapColor;
-use mcrs_protocol::{BlockStateId, ident};
+use mcrs_protocol::BlockStateId;
 
 pub const BLOCK: Block = Block {
-    identifier: ident!("diamond_ore"),
+    identifier: mcrs_core::rl!("diamond_ore"),
     protocol_id: 202,
     properties: &PROPERTIES,
     default_state: &DEFAULT_STATE,
