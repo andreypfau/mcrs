@@ -6,7 +6,7 @@ pub mod tag;
 pub use registry::{RegistrySnapshot, StaticId, StaticRegistry};
 pub use resource_location::ResourceLocation;
 pub use state::AppState;
-pub use tag::{StaticTags, TagEntry, TagFile, TagFileLoader, TagFileSettings, TagKey, TagRegistryType, Tags};
+pub use tag::{IdBitSet, StaticTags, TagEntry, TagFile, TagFileLoader, TagFileSettings, TagKey, TagRegistryType, Tags};
 
 // Re-export the proc macro for the rl! declarative macro.
 #[doc(hidden)]

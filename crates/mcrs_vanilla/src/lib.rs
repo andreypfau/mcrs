@@ -59,6 +59,7 @@ impl Plugin for MinecraftCorePlugin {
                     resolve_block_tags,
                     resolve_item_tags,
                     resolve_enchantment_tags,
+                    freeze_static_tags,
                     transition_to_playing,
                 )
                     .chain(),
@@ -86,24 +87,15 @@ fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
 }
 
 fn request_block_tags(mut tags: ResMut<StaticTags<block::Block>>, asset_server: Res<AssetServer>) {
-    tags.request(&block_tags::MINEABLE_PICKAXE, &asset_server);
-    tags.request(&block_tags::MINEABLE_AXE, &asset_server);
-    tags.request(&block_tags::MINEABLE_SHOVEL, &asset_server);
-    tags.request(&block_tags::MINEABLE_HOE, &asset_server);
-    tags.request(&block_tags::NEEDS_CORRECT_TOOL, &asset_server);
-    tags.request(&block_tags::LOGS, &asset_server);
-    tags.request(&block_tags::LEAVES, &asset_server);
-    tags.request(&block_tags::SAND, &asset_server);
-    tags.request(&block_tags::WOOL, &asset_server);
-    tags.request(&block_tags::SNOW, &asset_server);
+    for tag in block_tags::ALL_BLOCK_TAGS {
+        tags.request(tag, &asset_server);
+    }
 }
 
 fn request_item_tags(mut tags: ResMut<StaticTags<item::Item>>, asset_server: Res<AssetServer>) {
-    tags.request(&item_tags::SWORDS, &asset_server);
-    tags.request(&item_tags::PICKAXES, &asset_server);
-    tags.request(&item_tags::AXES, &asset_server);
-    tags.request(&item_tags::SHOVELS, &asset_server);
-    tags.request(&item_tags::HOES, &asset_server);
+    for tag in item_tags::ALL_ITEM_TAGS {
+        tags.request(tag, &asset_server);
+    }
 }
 
 fn request_enchantment_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -206,6 +198,17 @@ fn resolve_enchantment_tags(
         resolved_entries = resolved,
         "resolved Tags<EnchantmentData>"
     );
+}
+
+fn freeze_static_tags(
+    mut block_tags: ResMut<StaticTags<block::Block>>,
+    mut item_tags: ResMut<StaticTags<item::Item>>,
+    block_registry: Res<StaticRegistry<block::Block>>,
+    item_registry: Res<StaticRegistry<item::Item>>,
+) {
+    block_tags.freeze(block_registry.len() as u32);
+    item_tags.freeze(item_registry.len() as u32);
+    tracing::info!("frozen StaticTags<Block> and StaticTags<Item>");
 }
 
 fn transition_to_playing(mut next: ResMut<NextState<AppState>>) {

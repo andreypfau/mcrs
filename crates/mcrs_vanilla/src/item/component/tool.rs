@@ -198,63 +198,49 @@ pub struct ToolMaterial {
 
 impl ToolMaterial {
     pub const WOOD: ToolMaterial = ToolMaterial {
-        incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_wooden_tool")),
-        },
+        incorrect_blocks_for_drops: ToolTagRef::new(block_tags::INCORRECT_FOR_WOODEN_TOOL),
         durability: 59,
         speed: 2.0,
         attack_damage_bonus: 0.0,
         enchantment_value: 15,
     };
     pub const STONE: ToolMaterial = ToolMaterial {
-        incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_stone_tool")),
-        },
+        incorrect_blocks_for_drops: ToolTagRef::new(block_tags::INCORRECT_FOR_STONE_TOOL),
         durability: 131,
         speed: 4.0,
         attack_damage_bonus: 1.0,
         enchantment_value: 5,
     };
     pub const COPPER: ToolMaterial = ToolMaterial {
-        incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_copper_tool")),
-        },
+        incorrect_blocks_for_drops: ToolTagRef::new(block_tags::INCORRECT_FOR_COPPER_TOOL),
         durability: 190,
         speed: 5.0,
         attack_damage_bonus: 1.0,
         enchantment_value: 13,
     };
     pub const IRON: ToolMaterial = ToolMaterial {
-        incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_iron_tool")),
-        },
+        incorrect_blocks_for_drops: ToolTagRef::new(block_tags::INCORRECT_FOR_IRON_TOOL),
         durability: 250,
         speed: 6.0,
         attack_damage_bonus: 2.0,
         enchantment_value: 14,
     };
     pub const DIAMOND: ToolMaterial = ToolMaterial {
-        incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_diamond_tool")),
-        },
+        incorrect_blocks_for_drops: ToolTagRef::new(block_tags::INCORRECT_FOR_DIAMOND_TOOL),
         durability: 1561,
         speed: 8.0,
         attack_damage_bonus: 3.0,
         enchantment_value: 10,
     };
     pub const GOLD: ToolMaterial = ToolMaterial {
-        incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_gold_tool")),
-        },
+        incorrect_blocks_for_drops: ToolTagRef::new(block_tags::INCORRECT_FOR_GOLD_TOOL),
         durability: 32,
         speed: 12.0,
         attack_damage_bonus: 0.0,
         enchantment_value: 22,
     };
     pub const NETHERITE: ToolMaterial = ToolMaterial {
-        incorrect_blocks_for_drops: ToolTagRef {
-            tag_key: TagKey::new(mcrs_core::rl!("minecraft:incorrect_for_netherite_tool")),
-        },
+        incorrect_blocks_for_drops: ToolTagRef::new(block_tags::INCORRECT_FOR_NETHERITE_TOOL),
         durability: 2031,
         speed: 9.0,
         attack_damage_bonus: 4.0,

@@ -6,3 +6,6 @@ pub const PICKAXES: TagKey<Item> = TagKey::new(mcrs_core::rl!("minecraft:pickaxe
 pub const AXES: TagKey<Item> = TagKey::new(mcrs_core::rl!("minecraft:axes"));
 pub const SHOVELS: TagKey<Item> = TagKey::new(mcrs_core::rl!("minecraft:shovels"));
 pub const HOES: TagKey<Item> = TagKey::new(mcrs_core::rl!("minecraft:hoes"));
+
+/// All item tag keys, for bulk loading.
+pub const ALL_ITEM_TAGS: &[TagKey<Item>] = &[SWORDS, PICKAXES, AXES, SHOVELS, HOES];

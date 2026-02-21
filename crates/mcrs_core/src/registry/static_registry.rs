@@ -37,6 +37,13 @@ impl<T> std::fmt::Debug for StaticId<T> {
 }
 
 impl<T> StaticId<T> {
+    pub(crate) fn new(id: u32) -> Self {
+        StaticId {
+            id,
+            _marker: PhantomData,
+        }
+    }
+
     pub fn raw(self) -> u32 {
         self.id
     }
