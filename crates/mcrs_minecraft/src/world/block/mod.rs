@@ -1,6 +1,5 @@
 use crate::world::block::behaviour::{BlockBehaviour, Properties};
 use bevy_ecs::prelude::Resource;
-use mcrs_core::tag::key::TagRegistryType;
 use mcrs_protocol::{BlockStateId, Ident};
 use std::hash::{Hash, Hasher};
 
@@ -67,10 +66,6 @@ impl Block {
     pub fn xp_range(&self) -> Option<(u32, u32)> {
         self.properties.xp_range
     }
-}
-
-impl TagRegistryType for Block {
-    const REGISTRY_PATH: &'static str = "block";
 }
 
 impl From<&'static Block> for BlockStateId {

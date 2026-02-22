@@ -124,6 +124,7 @@ impl From<BlockTagSet> for ToolTagRef {
     }
 }
 
+
 #[derive(Clone, Debug, Default, Component)]
 pub struct Tool {
     pub rules: &'static [ToolRule],
@@ -157,10 +158,7 @@ impl Tool {
             let Some(speed) = rule.speed else {
                 continue;
             };
-            if rule
-                .blocks
-                .contains_block_with_registry(block, tag_registry, block_registry)
-            {
+            if rule.blocks.contains_block_with_registry(block, tag_registry, block_registry) {
                 return speed;
             }
         }
@@ -177,9 +175,7 @@ impl Tool {
             let Some(correct) = rule.correct_for_drops else {
                 continue;
             };
-            let matched =
-                rule.blocks
-                    .contains_block_with_registry(block, tag_registry, block_registry);
+            let matched = rule.blocks.contains_block_with_registry(block, tag_registry, block_registry);
             tracing::debug!(
                 rule_index = i,
                 block = %block.identifier,
@@ -322,9 +318,7 @@ impl ToolMaterial {
         enchantment_value: 14,
     };
     pub const DIAMOND: ToolMaterial = ToolMaterial {
-        incorrect_blocks_for_drops: ToolTagRef::DynamicIdent(
-            "minecraft:incorrect_for_diamond_tool",
-        ),
+        incorrect_blocks_for_drops: ToolTagRef::DynamicIdent("minecraft:incorrect_for_diamond_tool"),
         durability: 1561,
         speed: 8.0,
         attack_damage_bonus: 3.0,
@@ -338,9 +332,7 @@ impl ToolMaterial {
         enchantment_value: 22,
     };
     pub const NETHERITE: ToolMaterial = ToolMaterial {
-        incorrect_blocks_for_drops: ToolTagRef::DynamicIdent(
-            "minecraft:incorrect_for_netherite_tool",
-        ),
+        incorrect_blocks_for_drops: ToolTagRef::DynamicIdent("minecraft:incorrect_for_netherite_tool"),
         durability: 2031,
         speed: 9.0,
         attack_damage_bonus: 4.0,

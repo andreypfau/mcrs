@@ -42,7 +42,6 @@ mod login;
 pub mod sound;
 mod tag;
 mod value;
-mod vanilla_plugin;
 mod version;
 mod weight;
 pub mod world;
@@ -54,12 +53,10 @@ use crate::enchantment::EnchantmentPlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::LoginPlugin;
 use crate::tag::{BlockTagPlugin, ItemTagPlugin};
-use crate::vanilla_plugin::VanillaPlugin;
 use crate::world::WorldPlugin;
 use bevy_app::{App, Plugin};
 use bevy_asset::AssetPlugin;
 use bevy_time::{Fixed, Time, TimePlugin};
-use mcrs_core::MinecraftEnginePlugin;
 use mcrs_network::{EngineConnection, NetworkPlugin};
 use std::num::NonZeroU32;
 
@@ -80,9 +77,6 @@ impl Plugin for ServerPlugin {
         //     app.add_plugins(ScheduleRunnerPlugin::default());
         // }
         app.add_plugins(AssetPlugin::default());
-        // NEW — must come before all mc_* plugins:
-        app.add_plugins(MinecraftEnginePlugin); // AppState, TagFile asset, TagFileLoader
-        app.add_plugins(VanillaPlugin); // StaticRegistry + StaticTags
         app.add_plugins(EnchantmentPlugin);
         app.add_plugins(BlockTagPlugin);
         app.add_plugins(ItemTagPlugin);

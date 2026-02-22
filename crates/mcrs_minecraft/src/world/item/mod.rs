@@ -1,7 +1,6 @@
 use crate::world::item::component::ItemComponents;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Component;
-use mcrs_core::tag::key::TagRegistryType;
 use mcrs_protocol::{Ident, ItemId, Slot};
 
 pub mod component;
@@ -11,10 +10,6 @@ pub struct Item {
     pub id: ItemId,
     pub identifier: Ident<&'static str>,
     pub components: &'static ItemComponents,
-}
-
-impl TagRegistryType for Item {
-    const REGISTRY_PATH: &'static str = "item";
 }
 
 impl From<&'static Item> for ItemId {

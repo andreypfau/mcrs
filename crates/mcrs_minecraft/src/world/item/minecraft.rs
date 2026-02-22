@@ -1,7 +1,7 @@
-use crate::world::item::component::tool::ToolMaterial;
-use crate::world::item::component::ItemComponents;
 use crate::world::item::Item;
-use mcrs_protocol::{ident, ItemId};
+use crate::world::item::component::ItemComponents;
+use crate::world::item::component::tool::ToolMaterial;
+use mcrs_protocol::{ItemId, ident};
 
 /// Dynamic tag identifier for blocks mineable with a pickaxe.
 /// This replaces the hardcoded MINEABLE_PICKAXE constant with a runtime tag lookup.
