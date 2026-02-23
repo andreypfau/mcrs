@@ -1,34 +1,19 @@
-use crate::block::behaviour::Properties;
+use crate::block::behaviour;
 use crate::block::minecraft::note_block::NoteBlockInstrument;
-use crate::block::{Block, BlockState};
+use crate::block::state_properties;
+use crate::block::Block;
 use crate::material::map::MapColor;
-use mcrs_protocol::BlockStateId;
-
-pub const BLOCK: Block = Block {
-    identifier: mcrs_core::rl!("pale_oak_wood"),
-    protocol_id: 20,
-    properties: &PROPERTIES,
-    default_state: DEFAULT_STATE,
-    states: &[X_STATE, Y_STATE, Z_STATE],
-};
-
-pub const X_STATE: BlockState = BlockState {
-    id: BlockStateId(22),
-};
-
-pub const Y_STATE: BlockState = BlockState {
-    id: BlockStateId(23),
-};
-
-pub const Z_STATE: BlockState = BlockState {
-    id: BlockStateId(24),
-};
-
-pub const DEFAULT_STATE: &BlockState = &Y_STATE;
 
 // Block type: RotatedPillarBlock - not fully implemented yet
-pub const PROPERTIES: Properties = Properties::new()
-    .with_map_color(MapColor::STONE)
-    .with_note_block_instrument(NoteBlockInstrument::BASS)
-    .with_strength(2.0)
-    .ignited_by_lava();
+define_block! {
+    name: "pale_oak_wood",
+    protocol_id: 20,
+    base_state_id: 22,
+    properties: [&state_properties::AXIS],
+    default: { axis: y },
+    block_properties: behaviour::Properties::new()
+        .with_map_color(MapColor::STONE)
+        .with_note_block_instrument(NoteBlockInstrument::Bass)
+        .with_strength(2.0)
+        .ignited_by_lava()
+}

@@ -1,26 +1,17 @@
-use crate::block::behaviour::Properties;
-use crate::block::{Block, BlockState};
+use crate::block::behaviour;
+use crate::block::state_properties;
+use crate::block::Block;
 use crate::material::map::MapColor;
-use mcrs_protocol::BlockStateId;
-
-pub const BLOCK: Block = Block {
-    identifier: mcrs_core::rl!("grass_block"),
-    protocol_id: 8,
-    properties: &PROPERTIES,
-    default_state: &DEFAULT_STATE,
-    states: &[SNOWY_STATE, DEFAULT_STATE],
-};
-
-pub const SNOWY_STATE: BlockState = BlockState {
-    id: BlockStateId(8),
-};
-
-pub const DEFAULT_STATE: BlockState = BlockState {
-    id: BlockStateId(9),
-};
 
 // Block type: GrassBlock - not fully implemented yet
-pub const PROPERTIES: Properties = Properties::new()
-    .with_map_color(MapColor::GRASS)
-    .with_strength(0.6)
-    .with_random_ticks();
+define_block! {
+    name: "grass_block",
+    protocol_id: 8,
+    base_state_id: 8,
+    properties: [&state_properties::SNOWY],
+    default: { snowy: false },
+    block_properties: behaviour::Properties::new()
+        .with_map_color(MapColor::GRASS)
+        .with_strength(0.6)
+        .with_random_ticks()
+}

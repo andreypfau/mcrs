@@ -38,7 +38,7 @@ impl Properties {
             map_color: MapColor::NONE,
             sound_type: &SoundType::STONE,
             push_reaction: PushReaction::Normal,
-            instrument: NoteBlockInstrument::HARP,
+            instrument: NoteBlockInstrument::Harp,
             xp_range: None,
         }
     }

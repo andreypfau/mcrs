@@ -1,24 +1,16 @@
-use crate::block::behaviour::Properties;
-use crate::block::{Block, BlockState};
+use crate::block::behaviour;
+use crate::block::Block;
 use crate::material::map::MapColor;
-use mcrs_protocol::BlockStateId;
 
-pub const BLOCK: Block = Block {
-    identifier: mcrs_core::rl!("air"),
+define_block! {
+    name: "air",
     protocol_id: 0,
-    properties: &PROPERTIES,
-    default_state: &DEFAULT_STATE,
-    states: &[DEFAULT_STATE],
-};
-
-pub const DEFAULT_STATE: BlockState = BlockState {
-    id: BlockStateId(0),
-};
-
-pub const PROPERTIES: Properties = Properties::new()
-    .with_map_color(MapColor::NONE)
-    .with_strength(0.0)
-    .no_collision()
-    .replacable()
-    .air()
-    .with_no_loot_table();
+    base_state_id: 0,
+    block_properties: behaviour::Properties::new()
+        .with_map_color(MapColor::NONE)
+        .with_strength(0.0)
+        .no_collision()
+        .replacable()
+        .air()
+        .with_no_loot_table()
+}

@@ -1,24 +1,16 @@
-use crate::block::behaviour::Properties;
+use crate::block::behaviour;
 use crate::block::minecraft::note_block::NoteBlockInstrument;
-use crate::block::{Block, BlockState};
+use crate::block::Block;
 use crate::material::map::MapColor;
-use mcrs_protocol::BlockStateId;
 
-pub const BLOCK: Block = Block {
-    identifier: mcrs_core::rl!("bedrock"),
+define_block! {
+    name: "bedrock",
     protocol_id: 34,
-    properties: &PROPERTIES,
-    default_state: &DEFAULT_STATE,
-    states: &[DEFAULT_STATE],
-};
-
-pub const DEFAULT_STATE: BlockState = BlockState {
-    id: BlockStateId(85),
-};
-
-pub const PROPERTIES: Properties = Properties::new()
-    .with_map_color(MapColor::STONE)
-    .with_note_block_instrument(NoteBlockInstrument::BASEDRUM)
-    .with_hardness(-1.0)
-    .with_explosion_resistance(3600000.0)
-    .with_no_loot_table();
+    base_state_id: 85,
+    block_properties: behaviour::Properties::new()
+        .with_map_color(MapColor::STONE)
+        .with_note_block_instrument(NoteBlockInstrument::Basedrum)
+        .with_hardness(-1.0)
+        .with_explosion_resistance(3600000.0)
+        .with_no_loot_table()
+}

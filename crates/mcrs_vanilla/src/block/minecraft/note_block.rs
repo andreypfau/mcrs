@@ -1,56 +1,65 @@
-use crate::generate_block_states;
-use crate::sound::SoundType;
-use crate::block::behaviour::Properties;
-use crate::block::{Block, BlockState};
+use crate::block::behaviour;
+use crate::block::state_properties;
+use crate::block::Block;
 use crate::material::map::MapColor;
-use mcrs_protocol::BlockStateId;
+use crate::sound::SoundType;
+use mcrs_core::block_state::{Property, PropertyValue};
 
-generate_block_states! {
-    base_id: 581,
-    block_name: "note_block",
+define_block! {
+    name: "note_block",
     protocol_id: 109,
-    // TODO: try different approach; IDE and compiler blow up with 100% CPU usage
-    // state_properties: {
-    //     instrument: [harp, basedrum, snare, hat, bass, flute, bell, guitar, chime, xylophone,
-    //         iron_xylophone, cow_bell, didgeridoo, bit, banjo, pling,
-    //         zombie, skeleton, creeper, dragon, wither_skeleton, piglin, custom_head ],
-    //     note: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-    //         13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
-    //     powered: [true, false],
-    // },
-    // default: { instrument:harp, note:0, powered:false },
-    block_properties: Properties::new()
+    base_state_id: 581,
+    properties: [&state_properties::INSTRUMENT, &state_properties::NOTE, &state_properties::POWERED],
+    default: { instrument: harp, note: 0, powered: false },
+    block_properties: behaviour::Properties::new()
         .with_map_color(MapColor::WOOD)
-        .with_note_block_instrument(NoteBlockInstrument::BASS)
+        .with_note_block_instrument(NoteBlockInstrument::Bass)
         .with_sound(&SoundType::WOOD)
         .with_strength(0.8)
         .ignited_by_lava()
 }
 
+pub static INSTRUMENT_PROP: Property<NoteBlockInstrument> =
+    Property::new(&state_properties::INSTRUMENT);
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum NoteBlockInstrument {
-    HARP,
-    BASEDRUM,
-    SNARE,
-    HAT,
-    BASS,
-    FLUTE,
-    BELL,
-    GUITAR,
-    CHIME,
-    XYLOPHONE,
-    IRON_XYLOPHONE,
-    COW_BELL,
-    DIDGERIDOO,
-    BIT,
-    BANJO,
-    PLING,
-    ZOMBIE,
-    SKELETON,
-    CREEPER,
-    DRAGON,
-    WITHER_SKELETON,
-    PIGLIN,
-    CUSTOM_HEAD,
+    Harp = 0,
+    Basedrum = 1,
+    Snare = 2,
+    Hat = 3,
+    Bass = 4,
+    Flute = 5,
+    Bell = 6,
+    Guitar = 7,
+    Chime = 8,
+    Xylophone = 9,
+    IronXylophone = 10,
+    CowBell = 11,
+    Didgeridoo = 12,
+    Bit = 13,
+    Banjo = 14,
+    Pling = 15,
+    Zombie = 16,
+    Skeleton = 17,
+    Creeper = 18,
+    Dragon = 19,
+    WitherSkeleton = 20,
+    Piglin = 21,
+    CustomHead = 22,
+}
+
+impl PropertyValue for NoteBlockInstrument {
+    fn from_index(index: u8) -> Option<Self> {
+        if index <= 22 {
+            // SAFETY: repr(u8) and all values 0..=22 are valid variants.
+            Some(unsafe { std::mem::transmute(index) })
+        } else {
+            None
+        }
+    }
+    fn to_index(self) -> u8 {
+        self as u8
+    }
 }

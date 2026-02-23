@@ -31,10 +31,13 @@ macro_rules! declare_blocks {
             $(
                 {
                     let block = &$const_name;
-                    let states = block.states;
-                    let mut i = 0;
-                    while i < states.len() {
-                        t[states[i].id.0 as usize] = Some(block);
+                    let base = match block.layout {
+                        Some(l) => l.base_state_id,
+                        None => block.default_state_id.0,
+                    };
+                    let mut i = 0u16;
+                    while i < block.state_count {
+                        t[(base + i) as usize] = Some(block);
                         i += 1;
                     }
                 }

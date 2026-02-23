@@ -1,414 +1,215 @@
-/// # Usage Example 1: Mangrove Propagule
+/// Construct a [`BlockStateId`] from a block's default state with property overrides.
+///
+/// Two syntaxes are supported:
+///
+/// ## Declarative (literal values)
+///
+/// Uses the same property names and value tokens as `define_block!`'s `default:` block.
+/// Starts from the block's default state and overrides only the specified properties.
+///
 /// ```rust,ignore
-/// generate_block_states! {
-///     base_id: 45,
-///     block_name: "mangrove_propagule",
-///     state_properties: {
-///         age: [0, 1, 2, 3, 4],
-///         stage: [0, 1],
-///         waterlogged: [true, false],
-///         hanging: [true, false]
-///     },
-///     default: { age: 0, stage: 0, waterlogged: false, hanging: false }
-/// }
+/// use mcrs_vanilla::block_state;
+/// use mcrs_vanilla::block::minecraft::NOTE_BLOCK;
+///
+/// let id = block_state!(NOTE_BLOCK, { note: 12, powered: true });
+/// let id = block_state!(NOTE_BLOCK, { instrument: harp, note: 24 });
 /// ```
 ///
-/// # Usage Example 2: Custom Door
-/// ```rust,ignore
-/// generate_block_states! {
-///     base_id: 200,
-///     block_name: "oak_door",
-///     state_properties: {
-///         facing: [north, south, east, west],
-///         half: [upper, lower],
-///         hinge: [left, right],
-///         open: [true, false],
-///         powered: [true, false]
-///     },
-///     default: { facing: north, half: lower, hinge: left, open: false, powered: false }
-/// }
-/// ```
+/// ## Typed (expressions + Property handles)
 ///
-/// # Usage Example 3: Single State Block (No Properties)
+/// Uses typed [`Property<T>`](mcrs_core::block_state::Property) handles for type-safe,
+/// dynamic construction.
+///
 /// ```rust,ignore
-/// generate_block_states! {
-///     base_id: 100,
-///     block_name: "bedrock",
-///     block_properties: Properties::new()
-///         .with_map_color(MapColor::STONE)
-///         .with_strength(-1.0)
-///         .is_air(false)
-/// }
-/// // Generates: STATE, DEFAULT_STATE, BLOCK, ALL_BLOCK_STATES, PROPERTIES
+/// use mcrs_vanilla::block_state;
+/// use mcrs_vanilla::block::minecraft::NOTE_BLOCK;
+/// use mcrs_vanilla::block::state_properties::*;
+///
+/// let note: u8 = 12;
+/// let id = block_state!(NOTE_BLOCK, NOTE_PROP => note, POWERED_PROP => true);
 /// ```
-
 #[macro_export]
-macro_rules! generate_block_states {
-    // Single state version (no properties)
-    (
-        base_id: $base_id:expr,
-        block_name: $block_name:expr,
-        protocol_id: $protocol_id:expr
-        $(, block_properties: $properties:expr)?
-    ) => {
-        paste::paste! {
-            // Generate single state constant
-            pub const STATE: BlockState = BlockState {
-                id: BlockStateId($base_id),
-            };
-
-            // Generate the states array with just one state
-            pub const ALL_BLOCK_STATES: &[BlockState] = &[STATE];
-
-            // Generate BLOCK constant
-            pub const BLOCK: Block = Block {
-                identifier: mcrs_core::rl!($block_name),
-                protocol_id: $protocol_id,
-                properties: &PROPERTIES,
-                default_state: &DEFAULT_STATE,
-                states: ALL_BLOCK_STATES,
-            };
-
-            // DEFAULT_STATE is the only state
-            pub const DEFAULT_STATE: &BlockState = &STATE;
-
-            // Generate PROPERTIES
-            pub const PROPERTIES: Properties = generate_block_states!(@get_props $($properties)?);
-        }
+macro_rules! block_state {
+    // Declarative syntax: block_state!(BLOCK, { field: value, ... })
+    ($block:expr, { $($field:ident : $val:tt),* $(,)? }) => {{
+        #[allow(unused_mut)]
+        let mut _id = (&$block).default_state_id;
+        $(
+            _id = (&$block).with_property_str(_id, stringify!($field), stringify!($val))
+                .expect(concat!("invalid property or value: ", stringify!($field), " = ", stringify!($val)));
+        )*
+        _id
+    }};
+    // Typed syntax: block_state!(BLOCK, PROP => val, ...)
+    ($block:expr $(, $prop:expr => $val:expr)* $(,)?) => {
+        (&$block).state()$(.set(&$prop, $val))*.id()
     };
-
-    // Main entry point with properties
-    (
-        base_id: $base_id:expr,
-        block_name: $block_name:expr,
-        protocol_id: $protocol_id:expr,
-        state_properties: {
-            $($prop_name:ident: [$($prop_value:tt),+ $(,)?]),+ $(,)?
-        },
-        default: {
-            $($default_prop:ident: $default_value:tt),+ $(,)?
-        }
-        $(, block_properties: $properties:expr)?
-    ) => {
-        paste::paste! {
-            // Generate all state constants with sequential IDs
-            generate_block_states!(@gen_states
-                base_id: $base_id,
-                id: 0,
-                props: [$($prop_name: [$($prop_value),+]),+]
-            );
-
-            // Generate ALL_BLOCK_STATES array with collected state names
-            pub const ALL_BLOCK_STATES: &[BlockState] = &block_state_idents!(properties: {
-                $($prop_name: [$($prop_value),+]),+
-            });
-
-            // Generate BLOCK constant
-            pub const BLOCK: Block = Block {
-                identifier: mcrs_core::rl!($block_name),
-                protocol_id: $protocol_id,
-                properties: &PROPERTIES,
-                default_state: &DEFAULT_STATE,
-                states: ALL_BLOCK_STATES,
-            };
-
-            // Generate DEFAULT_STATE
-            pub const DEFAULT_STATE: &BlockState = &[<
-                $($default_prop:upper _ $default_value:upper _)+
-                STATE
-            >];
-
-            // Generate PROPERTIES
-            pub const PROPERTIES: Properties = generate_block_states!(@get_props $($properties)?);
-        }
-
-    };
-
-    // Generate all state constants
-    // Strategy: iterate through first property, then recursively handle rest
-    (@gen_states
-        base_id: $base_id:expr,
-        id: $id:expr,
-        props: [$first_prop:ident: [$($first_val:tt),+] $(, $rest_prop:ident: [$($rest_val:tt),+])*]
-    ) => {
-        generate_block_states!(@gen_for_first_prop
-            base_id: $base_id,
-            id: $id,
-            first_prop: $first_prop,
-            first_values: [$($first_val),+],
-            rest_props: [$($rest_prop: [$($rest_val),+]),*],
-            rest_count: generate_block_states!(@total_combinations [$($rest_prop: [$($rest_val),+]),*])
-        );
-    };
-
-    // Iterate through each value of the first property
-    (@gen_for_first_prop
-        base_id: $base_id:expr,
-        id: $id:expr,
-        first_prop: $first_prop:ident,
-        first_values: [$first_val:tt $(, $rest_vals:tt)*],
-        rest_props: [$($rest_prop:ident: [$($rest_val:tt),+]),*],
-        rest_count: $rest_count:expr
-    ) => {
-        // Generate states for this value combined with all rest combinations
-        generate_block_states!(@gen_with_prefix
-            base_id: $base_id,
-            id: $id,
-            prefix: [$first_prop: $first_val],
-            props: [$($rest_prop: [$($rest_val),+]),*]
-        );
-
-        // Continue with remaining values (recursive call)
-        generate_block_states!(@gen_for_first_prop_continue
-            base_id: $base_id,
-            id: $id + $rest_count,
-            first_prop: $first_prop,
-            first_values: [$($rest_vals),*],
-            rest_props: [$($rest_prop: [$($rest_val),+]),*],
-            rest_count: $rest_count
-        );
-    };
-
-    // Helper to continue iteration or stop
-    (@gen_for_first_prop_continue
-        base_id: $base_id:expr,
-        id: $id:expr,
-        first_prop: $first_prop:ident,
-        first_values: [$($vals:tt),+],
-        rest_props: [$($rest_prop:ident: [$($rest_val:tt),+]),*],
-        rest_count: $rest_count:expr
-    ) => {
-        generate_block_states!(@gen_for_first_prop
-            base_id: $base_id,
-            id: $id,
-            first_prop: $first_prop,
-            first_values: [$($vals),+],
-            rest_props: [$($rest_prop: [$($rest_val),+]),*],
-            rest_count: $rest_count
-        );
-    };
-
-    // Base case: no more values to process
-    (@gen_for_first_prop_continue
-        base_id: $base_id:expr,
-        id: $id:expr,
-        first_prop: $first_prop:ident,
-        first_values: [],
-        rest_props: [$($rest_prop:ident: [$($rest_val:tt),+]),*],
-        rest_count: $rest_count:expr
-    ) => {
-        // Done - no more values
-    };
-
-    // Generate states with a prefix (already assigned properties)
-    (@gen_with_prefix
-        base_id: $base_id:expr,
-        id: $id:expr,
-        prefix: [$($prefix_prop:ident: $prefix_val:tt),+],
-        props: [$next_prop:ident: [$($next_val:tt),+] $(, $rest_prop:ident: [$($rest_val:tt),+])*]
-    ) => {
-        generate_block_states!(@gen_for_next_prop
-            base_id: $base_id,
-            id: $id,
-            prefix: [$($prefix_prop: $prefix_val),+],
-            next_prop: $next_prop,
-            next_values: [$($next_val),+],
-            rest_props: [$($rest_prop: [$($rest_val),+]),*],
-            rest_count: generate_block_states!(@total_combinations [$($rest_prop: [$($rest_val),+]),*])
-        );
-    };
-
-    // Base case: no more properties, generate the constant
-    (@gen_with_prefix
-        base_id: $base_id:expr,
-        id: $id:expr,
-        prefix: [$($prefix_prop:ident: $prefix_val:tt),+],
-        props: []
-    ) => {
-        paste::paste! {
-            pub const [<$($prefix_prop:upper _ $prefix_val:upper _)+STATE>]: BlockState = BlockState {
-                id: BlockStateId($base_id + $id),
-            };
-        }
-    };
-
-    // Iterate through next property values
-    (@gen_for_next_prop
-        base_id: $base_id:expr,
-        id: $id:expr,
-        prefix: [$($prefix_prop:ident: $prefix_val:tt),+],
-        next_prop: $next_prop:ident,
-        next_values: [$next_val:tt $(, $rest_vals:tt)*],
-        rest_props: [$($rest_prop:ident: [$($rest_val:tt),+]),*],
-        rest_count: $rest_count:expr
-    ) => {
-        generate_block_states!(@gen_with_prefix
-            base_id: $base_id,
-            id: $id,
-            prefix: [$($prefix_prop: $prefix_val,)+ $next_prop: $next_val],
-            props: [$($rest_prop: [$($rest_val),+]),*]
-        );
-
-        // Continue with remaining values (recursive call)
-        generate_block_states!(@gen_for_next_prop_continue
-            base_id: $base_id,
-            id: $id + $rest_count,
-            prefix: [$($prefix_prop: $prefix_val),+],
-            next_prop: $next_prop,
-            next_values: [$($rest_vals),*],
-            rest_props: [$($rest_prop: [$($rest_val),+]),*],
-            rest_count: $rest_count
-        );
-    };
-
-    // Helper to continue iteration or stop
-    (@gen_for_next_prop_continue
-        base_id: $base_id:expr,
-        id: $id:expr,
-        prefix: [$($prefix_prop:ident: $prefix_val:tt),+],
-        next_prop: $next_prop:ident,
-        next_values: [$($vals:tt),+],
-        rest_props: [$($rest_prop:ident: [$($rest_val:tt),+]),*],
-        rest_count: $rest_count:expr
-    ) => {
-        generate_block_states!(@gen_for_next_prop
-            base_id: $base_id,
-            id: $id,
-            prefix: [$($prefix_prop: $prefix_val),+],
-            next_prop: $next_prop,
-            next_values: [$($vals),+],
-            rest_props: [$($rest_prop: [$($rest_val),+]),*],
-            rest_count: $rest_count
-        );
-    };
-
-    // Base case: no more values to process
-    (@gen_for_next_prop_continue
-        base_id: $base_id:expr,
-        id: $id:expr,
-        prefix: [$($prefix_prop:ident: $prefix_val:tt),+],
-        next_prop: $next_prop:ident,
-        next_values: [],
-        rest_props: [$($rest_prop:ident: [$($rest_val:tt),+]),*],
-        rest_count: $rest_count:expr
-    ) => {
-        // Done - no more values
-    };
-
-        // finish: add _STATE exactly once
-    (@props [ $($acc:ident),* ] ; ) => {
-        paste! { [ $([<$acc _ STATE>]),* ] }
-    };
-
-    (@props [ $($acc:ident),* ] ;
-        $p:ident : [$($v:tt),+ $(,)?]
-        $(, $($rest:tt)*)?
-    ) => {
-        properties_array!(
-            @cross
-            [ $($acc),* ]
-            $p
-            [ $($v),+ ]
-            [ ]
-            ;
-            $($($rest)*)?
-        )
-    };
-
-    (@cross [ ] $p:ident [ $($v:tt),+ ] [ $($out:ident,)* ] ; $($rest:tt)*) => {
-        properties_array!(@props [ $($out),* ] ; $($rest)*)
-    };
-
-    (@cross [ $head:ident $(, $tail:ident)* ] $p:ident [ $($v:tt),+ ] [ $($out:ident,)* ] ; $($rest:tt)*) => {
-        paste::paste! {
-            properties_array!(
-                @cross
-                [ $($tail),* ]
-                $p
-                [ $($v),+ ]
-                [
-                    $($out,)*
-                    $([<$head _ $p:upper _ $v:upper>],)*
-                ]
-                ;
-                $($rest)*
-            )
-        }
-    };
-
-    // Build the states array by recursively collecting all state names
-    // Helper: Calculate total combinations for remaining properties
-    (@total_combinations []) => { 1 };
-    (@total_combinations [$_prop:ident: [$($vals:tt),+] $(, $rest_prop:ident: [$($rest_vals:tt),+])*]) => {
-        generate_block_states!(@count_vals [$($vals),+]) *
-        generate_block_states!(@total_combinations [$($rest_prop: [$($rest_vals),+]),*])
-    };
-
-    // Helper: Count values
-    (@count_vals [$_:tt]) => { 1 };
-    (@count_vals [$_:tt, $($rest:tt),+]) => {
-        1 + generate_block_states!(@count_vals [$($rest),+])
-    };
-
-    // Helper: Get properties expression
-    (@get_props) => { Properties::new() };
-    (@get_props $props:expr) => { $props };
 }
 
+/// Defines a block with optional property-based state layout.
+///
+/// # Single-state block (no properties)
+/// ```rust,ignore
+/// define_block! {
+///     name: "stone",
+///     protocol_id: 1,
+///     base_state_id: 1,
+///     block_properties: Properties::new().with_strength(1.5)
+/// }
+/// ```
+///
+/// # Multi-state block with properties
+/// ```rust,ignore
+/// define_block! {
+///     name: "grass_block",
+///     protocol_id: 8,
+///     base_state_id: 8,
+///     properties: [&state_properties::SNOWY],
+///     default: { snowy: false },
+///     block_properties: Properties::new().with_strength(0.6)
+/// }
+/// ```
+///
+/// # Complex block (note_block with 1150 states)
+/// ```rust,ignore
+/// define_block! {
+///     name: "note_block",
+///     protocol_id: 109,
+///     base_state_id: 581,
+///     properties: [&state_properties::INSTRUMENT, &state_properties::NOTE, &state_properties::POWERED],
+///     default: { instrument: harp, note: 0, powered: false },
+///     block_properties: Properties::new().with_strength(0.8)
+/// }
+/// ```
 #[macro_export]
-macro_rules! block_state_idents {
-    (properties: {
-        $first_p:ident : [$($first_v:tt),+ $(,)?]
-        $(, $($rest:tt)*)?
-    }) => {
-        paste::paste! {
-            block_state_idents!(
-                @props
-                [ $([<$first_p:upper _ $first_v:upper>]),+ ]
-                ;
-                $($($rest)*)?
-            )
-        }
-    };
-
-    // finish: add _STATE exactly once
-    (@props [ $($acc:ident),* ] ; ) => {
-        paste::paste! { [ $([<$acc _ STATE>]),* ] }
-    };
-
-    (@props [ $($acc:ident),* ] ;
-        $p:ident : [$($v:tt),+ $(,)?]
-        $(, $($rest:tt)*)?
+macro_rules! define_block {
+    // ── With properties ──────────────────────────────────────────────
+    (
+        name: $name:expr,
+        protocol_id: $protocol_id:expr,
+        base_state_id: $base_state_id:expr,
+        properties: [$($prop:expr),+ $(,)?],
+        default: { $($default_prop:ident : $default_value:tt),+ $(,)? },
+        block_properties: $block_props:expr $(,)?
     ) => {
-        block_state_idents!(
-            @cross
-            [ $($acc),* ]
-            $p
-            [ $($v),+ ]
-            [ ]
-            ;
-            $($($rest)*)?
-        )
+        use mcrs_core::block_state::{PropertyDef, PropertyLayout, PropertyIndex};
+        use mcrs_protocol::BlockStateId;
+
+        pub const PROPERTIES: behaviour::Properties = $block_props;
+
+        const PROP_COUNT: usize = define_block!(@count $($prop),+);
+
+        static PROP_REFS: [&PropertyDef; PROP_COUNT] = [$($prop),+];
+
+        static STRIDES: [u16; PROP_COUNT] = {
+            let mut strides = [0u16; PROP_COUNT];
+            let mut i = PROP_COUNT;
+            let mut s = 1u16;
+            while i > 0 {
+                i -= 1;
+                strides[i] = s;
+                s *= PROP_REFS[i].count() as u16;
+            }
+            strides
+        };
+
+        const TOTAL_STATES: u16 = {
+            let mut total = 1u16;
+            let mut i = 0;
+            while i < PROP_COUNT {
+                total *= PROP_REFS[i].count() as u16;
+                i += 1;
+            }
+            total
+        };
+
+        const DEFAULT_OFFSET: u16 = {
+            let props: [&PropertyDef; PROP_COUNT] = [$($prop),+];
+            let defaults: [&str; PROP_COUNT] = [$(stringify!($default_value)),+];
+
+            let mut strides = [0u16; PROP_COUNT];
+            let mut i = PROP_COUNT;
+            let mut s = 1u16;
+            while i > 0 {
+                i -= 1;
+                strides[i] = s;
+                s *= props[i].count() as u16;
+            }
+
+            let mut offset = 0u16;
+            let mut j = 0;
+            while j < PROP_COUNT {
+                let idx = match props[j].index_of(defaults[j]) {
+                    Some(v) => v,
+                    None => panic!("default value not found in property"),
+                };
+                offset += idx as u16 * strides[j];
+                j += 1;
+            }
+            offset
+        };
+
+        static LAYOUT: PropertyLayout = PropertyLayout {
+            base_state_id: $base_state_id,
+            properties: &PROP_REFS,
+            strides: &STRIDES,
+            total_states: TOTAL_STATES,
+        };
+
+        pub const BLOCK: Block = Block {
+            identifier: mcrs_core::rl!($name),
+            protocol_id: $protocol_id,
+            properties: &PROPERTIES,
+            default_state_id: BlockStateId($base_state_id + DEFAULT_OFFSET),
+            layout: Some(&LAYOUT),
+            state_count: TOTAL_STATES,
+        };
+
+        // Property index constants for typed access
+        define_block!(@prop_indices 0u8, $($default_prop),+);
     };
 
-    (@cross [ ] $p:ident [ $($v:tt),+ ] [ $($out:ident,)* ] ; $($rest:tt)*) => {
-        block_state_idents!(@props [ $($out),* ] ; $($rest)*)
+    // ── Without properties (single-state) ────────────────────────────
+    (
+        name: $name:expr,
+        protocol_id: $protocol_id:expr,
+        base_state_id: $base_state_id:expr,
+        block_properties: $block_props:expr $(,)?
+    ) => {
+        use mcrs_protocol::BlockStateId;
+
+        pub const PROPERTIES: behaviour::Properties = $block_props;
+
+        pub const BLOCK: Block = Block {
+            identifier: mcrs_core::rl!($name),
+            protocol_id: $protocol_id,
+            properties: &PROPERTIES,
+            default_state_id: BlockStateId($base_state_id),
+            layout: None,
+            state_count: 1,
+        };
     };
 
-    (@cross [ $head:ident $(, $tail:ident)* ] $p:ident [ $($v:tt),+ ] [ $($out:ident,)* ] ; $($rest:tt)*) => {
+    // ── Helpers ──────────────────────────────────────────────────────
+
+    // Count expressions
+    (@count $first:expr $(, $rest:expr)*) => {
+        1usize $(+ define_block!(@count_one $rest))*
+    };
+    (@count_one $x:expr) => { 1usize };
+
+    // Generate property index constants from the default field names
+    (@prop_indices $idx:expr, $name:ident) => {
         paste::paste! {
-            block_state_idents!(
-                @cross
-                [ $($tail),* ]
-                $p
-                [ $($v),+ ]
-                [
-                    $($out,)*
-                    $([<$head _ $p:upper _ $v:upper>],)*
-                ]
-                ;
-                $($rest)*
-            )
+            #[allow(dead_code)]
+            pub const [<$name:upper>]: PropertyIndex = PropertyIndex($idx);
         }
+    };
+    (@prop_indices $idx:expr, $name:ident, $($rest:ident),+) => {
+        paste::paste! {
+            #[allow(dead_code)]
+            pub const [<$name:upper>]: PropertyIndex = PropertyIndex($idx);
+        }
+        define_block!(@prop_indices $idx + 1, $($rest),+);
     };
 }

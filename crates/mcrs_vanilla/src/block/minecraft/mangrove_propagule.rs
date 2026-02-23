@@ -1,24 +1,17 @@
-use crate::block_state_idents;
-use crate::generate_block_states;
-use crate::sound::SoundType;
-use crate::block::behaviour::Properties;
-use crate::block::{Block, BlockState};
-use crate::material::PushReaction;
+use crate::block::behaviour;
+use crate::block::state_properties;
+use crate::block::Block;
 use crate::material::map::MapColor;
-use mcrs_protocol::BlockStateId;
+use crate::material::PushReaction;
+use crate::sound::SoundType;
 
-generate_block_states! {
-    base_id: 45,
-    block_name: "mangrove_propagule",
+define_block! {
+    name: "mangrove_propagule",
     protocol_id: 33,
-    state_properties: {
-        age: [0, 1, 2, 3, 4],
-        hanging: [true, false],
-        stage: [0, 1],
-        waterlogged: [true, false]
-    },
-    default: { age:0, hanging:false, stage:0, waterlogged:false },
-    block_properties: Properties::new()
+    base_state_id: 45,
+    properties: [&state_properties::AGE_4, &state_properties::HANGING, &state_properties::STAGE, &state_properties::WATERLOGGED],
+    default: { age: 0, hanging: false, stage: 0, waterlogged: false },
+    block_properties: behaviour::Properties::new()
         .with_map_color(MapColor::PLANT)
         .no_collision()
         .with_random_ticks()

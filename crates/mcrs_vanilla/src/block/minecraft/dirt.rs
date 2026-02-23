@@ -1,20 +1,12 @@
-use crate::block::behaviour::Properties;
-use crate::block::{Block, BlockState};
+use crate::block::behaviour;
+use crate::block::Block;
 use crate::material::map::MapColor;
-use mcrs_protocol::BlockStateId;
 
-pub const BLOCK: Block = Block {
-    identifier: mcrs_core::rl!("dirt"),
+define_block! {
+    name: "dirt",
     protocol_id: 9,
-    properties: &PROPERTIES,
-    default_state: &DEFAULT_STATE,
-    states: &[DEFAULT_STATE],
-};
-
-pub const DEFAULT_STATE: BlockState = BlockState {
-    id: BlockStateId(10),
-};
-
-pub const PROPERTIES: Properties = Properties::new()
-    .with_map_color(MapColor::DIRT)
-    .with_strength(0.5);
+    base_state_id: 10,
+    block_properties: behaviour::Properties::new()
+        .with_map_color(MapColor::DIRT)
+        .with_strength(0.5)
+}
