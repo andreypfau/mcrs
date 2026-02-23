@@ -20,3 +20,7 @@ bevy_reflect.workspace = true
 bevy_ecs_macros.workspace = true
 rustc-hash.workspace = true
 thiserror.workspace = true
+mcrs_engine.workspace = true
+bevy_math.workspace = true
+rand.workspace = true
+derive_more.workspace = true

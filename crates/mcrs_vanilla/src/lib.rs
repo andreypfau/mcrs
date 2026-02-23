@@ -9,8 +9,11 @@
 
 pub mod block;
 pub mod enchantment;
+pub mod entity;
+pub mod explosion;
 pub mod item;
 pub mod material;
+pub mod player_action;
 pub mod sound;
 
 use crate::block::tags as block_tags;
