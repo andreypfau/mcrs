@@ -1,4 +1,7 @@
 /target
+.DS_Store
+.idea/
+docs/plans/
 
 # Auto Claude data directory
 .auto-claude/
