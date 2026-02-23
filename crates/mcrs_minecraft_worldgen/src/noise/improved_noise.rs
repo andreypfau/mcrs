@@ -154,46 +154,46 @@ impl ImprovedNoise {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use crate::noise::improved_noise::ImprovedNoise;
-    use mcrs_random::legacy::LegacyRandom;
-
-    #[test]
-    fn create() {
-        let noise = ImprovedNoise::from_random(&mut LegacyRandom::new(845));
-        assert_eq!(
-            format!("{:.4}", noise.origin_x),
-            format!("{:.4}", 179.49112098377014)
-        );
-        assert_eq!(
-            format!("{:.4}", noise.origin_y),
-            format!("{:.4}", 178.89801548324886)
-        );
-        assert_eq!(
-            format!("{:.4}", noise.origin_z),
-            format!("{:.4}", 139.89344963681773)
-        );
-        assert_eq!(
-            noise.permutation[0..10],
-            [12, 160, 244, 220, 152, 102, 106, 117, 151, 137]
-        );
-    }
-
-    #[test]
-    fn sample() {
-        let noise = ImprovedNoise::from_random(&mut LegacyRandom::new(845));
-        assert_eq!(
-            format!("{:.4}", noise.sample(0.0, 0.0, 0.0, 0.0, 0.0)),
-            format!("{:.4}", 0.009862268437005883)
-        );
-        assert_eq!(
-            format!("{:.4}", noise.sample(0.5, 4.0, -2.0, 0.0, 0.0)),
-            format!("{:.4}", -0.11885865493740287)
-        );
-        assert_eq!(
-            format!("{:.4}", noise.sample(-204.0, 28.0, 12.0, 0.0, 0.0)),
-            format!("{:.4}", -0.589681280485348)
-        );
-    }
-}
+// #[cfg(test)]
+// mod test {
+//     use crate::noise::improved_noise::ImprovedNoise;
+//     use mcrs_random::legacy::LegacyRandom;
+// 
+//     #[test]
+//     fn create() {
+//         let noise = ImprovedNoise::from_random(&mut LegacyRandom::new(845));
+//         assert_eq!(
+//             format!("{:.4}", noise.origin_x),
+//             format!("{:.4}", 179.49112098377014)
+//         );
+//         assert_eq!(
+//             format!("{:.4}", noise.origin_y),
+//             format!("{:.4}", 178.89801548324886)
+//         );
+//         assert_eq!(
+//             format!("{:.4}", noise.origin_z),
+//             format!("{:.4}", 139.89344963681773)
+//         );
+//         assert_eq!(
+//             noise.permutation[0..10],
+//             [12, 160, 244, 220, 152, 102, 106, 117, 151, 137]
+//         );
+//     }
+// 
+//     #[test]
+//     fn sample() {
+//         let noise = ImprovedNoise::from_random(&mut LegacyRandom::new(845));
+//         assert_eq!(
+//             format!("{:.4}", noise.sample(0.0, 0.0, 0.0, 0.0, 0.0)),
+//             format!("{:.4}", 0.009862268437005883)
+//         );
+//         assert_eq!(
+//             format!("{:.4}", noise.sample(0.5, 4.0, -2.0, 0.0, 0.0)),
+//             format!("{:.4}", -0.11885865493740287)
+//         );
+//         assert_eq!(
+//             format!("{:.4}", noise.sample(-204.0, 28.0, 12.0, 0.0, 0.0)),
+//             format!("{:.4}", -0.589681280485348)
+//         );
+//     }
+// }

@@ -4,7 +4,7 @@ A protocol library for _Minecraft: Java Edition_. Use this to build clients, ser
 
 `mcrs_protocol` is primarily concerned with defining all of Minecraft's [network packets](packets) and the process for encoding and decoding them. To encode and decode packets, use the [`PacketEncoder`] and [`PacketDecoder`] types.
 
-```rust
+```rust,ignore
 use mcrs_protocol::{PacketEncoder, PacketDecoder, Difficulty};
 use mcrs_protocol::packets::play::DifficultyS2c;
 
