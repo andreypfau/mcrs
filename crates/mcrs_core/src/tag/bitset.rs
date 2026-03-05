@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 /// A compact bitset indexed by `StaticId<T>`, backed by `Vec<u64>`.
 ///
-/// After `StaticTags::freeze()` each tag's membership set is stored as an
+/// After `TagRegistry::freeze()` each tag's membership set is stored as an
 /// `IdBitSet` — membership tests become a single array index + bitmask
 /// instead of a `HashSet` hash probe.
 pub struct IdBitSet<T> {
