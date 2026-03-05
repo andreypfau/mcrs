@@ -2,7 +2,7 @@ use crate::item::component::ItemComponents;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Component;
 use mcrs_core::resource_location::ResourceLocation;
-use mcrs_core::tag::key::TagRegistryType;
+use mcrs_core::tag::key::TaggedRegistry;
 use mcrs_protocol::{ItemId, Slot};
 
 pub mod component;
@@ -15,7 +15,7 @@ pub struct Item {
     pub components: &'static ItemComponents,
 }
 
-impl TagRegistryType for Item {
+impl TaggedRegistry for Item {
     const REGISTRY_PATH: &'static str = "item";
 }
 

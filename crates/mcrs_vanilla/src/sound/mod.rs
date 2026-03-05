@@ -1,25 +1,16 @@
-mod minecraft;
+pub mod minecraft;
 
-use mcrs_protocol::Ident;
+use mcrs_core::ResourceLocation;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SoundEvent {
-    sound_id: Ident<String>,
-    range: Option<f32>,
+    pub identifier: ResourceLocation<&'static str>,
+    pub range: Option<f32>,
 }
 
 impl SoundEvent {
-    pub const fn new(sound_id: Ident<String>, range: Option<f32>) -> Self {
-        Self { sound_id, range }
-    }
-}
-
-impl<T> From<T> for SoundEvent
-where
-    T: Into<Ident<String>>,
-{
-    fn from(value: T) -> Self {
-        SoundEvent::new(value.into(), None)
+    pub const fn new(identifier: ResourceLocation<&'static str>, range: Option<f32>) -> Self {
+        Self { identifier, range }
     }
 }
 
@@ -27,11 +18,11 @@ where
 pub struct SoundType {
     pub volume: f32,
     pub pitch: f32,
-    pub break_sound: Ident<&'static str>,
-    pub step_sound: Ident<&'static str>,
-    pub place_sound: Ident<&'static str>,
-    pub hit_sound: Ident<&'static str>,
-    pub fall_sound: Ident<&'static str>,
+    pub break_sound: ResourceLocation<&'static str>,
+    pub step_sound: ResourceLocation<&'static str>,
+    pub place_sound: ResourceLocation<&'static str>,
+    pub hit_sound: ResourceLocation<&'static str>,
+    pub fall_sound: ResourceLocation<&'static str>,
 }
 
 impl SoundType {
@@ -75,11 +66,11 @@ impl SoundType {
     const fn new(
         volume: f32,
         pitch: f32,
-        break_sound: Ident<&'static str>,
-        step_sound: Ident<&'static str>,
-        place_sound: Ident<&'static str>,
-        hit_sound: Ident<&'static str>,
-        fall_sound: Ident<&'static str>,
+        break_sound: ResourceLocation<&'static str>,
+        step_sound: ResourceLocation<&'static str>,
+        place_sound: ResourceLocation<&'static str>,
+        hit_sound: ResourceLocation<&'static str>,
+        fall_sound: ResourceLocation<&'static str>,
     ) -> Self {
         SoundType {
             volume,

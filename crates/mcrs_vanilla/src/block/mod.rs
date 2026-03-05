@@ -1,6 +1,6 @@
 use mcrs_core::block_state::{Property, PropertyDef, PropertyLayout, PropertyValue};
 use mcrs_core::resource_location::ResourceLocation;
-use mcrs_core::tag::key::TagRegistryType;
+use mcrs_core::tag::key::TaggedRegistry;
 use mcrs_protocol::BlockStateId;
 use std::hash::{Hash, Hasher};
 
@@ -208,7 +208,7 @@ impl From<StateBuilder> for BlockStateId {
     }
 }
 
-impl TagRegistryType for Block {
+impl TaggedRegistry for Block {
     const REGISTRY_PATH: &'static str = "block";
 }
 
