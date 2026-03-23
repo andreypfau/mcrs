@@ -1,8 +1,11 @@
+pub mod climate;
+pub mod source;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use bevy_asset::io::Reader;
-use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
+use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
 use serde::de::{self, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
@@ -28,6 +31,12 @@ pub struct Biome {
     pub spawn_costs: HashMap<ResourceLocation<Arc<str>>, SpawnCost>,
     #[serde(default)]
     pub attributes: Option<serde_json::Value>,
+}
+
+impl Biome {
+    pub fn load(ctx: &mut LoadContext<'_>, loc: &ResourceLocation<Arc<str>>) -> Handle<Biome> {
+        ctx.load(format!("{}/worldgen/biome/{}.json", loc.namespace(), loc.path()))
+    }
 }
 
 impl Asset for Biome {}
