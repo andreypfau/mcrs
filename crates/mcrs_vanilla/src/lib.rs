@@ -94,11 +94,25 @@ impl Plugin for MinecraftCorePlugin {
                 .resource_mut::<StaticRegistry<block::Block>>();
             block::minecraft::register_all_blocks(&mut blocks);
             tracing::info!(count = blocks.len(), "registered StaticRegistry<Block>");
+            blocks.freeze();
+            for (id, _loc, block) in blocks.iter() {
+                assert_eq!(
+                    id.raw() as u16,
+                    block.protocol_id,
+                    "block {} registered at index {} but has protocol_id {}",
+                    block.identifier,
+                    id.raw(),
+                    block.protocol_id
+                );
+            }
+            tracing::info!("frozen and validated StaticRegistry<Block>");
         }
         {
             let mut items = app.world_mut().resource_mut::<StaticRegistry<item::Item>>();
             item::minecraft::register_all_items(&mut items);
             tracing::info!(count = items.len(), "registered StaticRegistry<Item>");
+            items.freeze();
+            tracing::info!("frozen StaticRegistry<Item>");
         }
         {
             let mut sounds = app
@@ -106,6 +120,8 @@ impl Plugin for MinecraftCorePlugin {
                 .resource_mut::<StaticRegistry<sound::SoundEvent>>();
             sound::minecraft::register_all_sounds(&mut sounds);
             tracing::info!(count = sounds.len(), "registered StaticRegistry<SoundEvent>");
+            sounds.freeze();
+            tracing::info!("frozen StaticRegistry<SoundEvent>");
         }
     }
 }
