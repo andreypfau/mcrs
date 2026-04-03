@@ -53,6 +53,7 @@ impl Plugin for MinecraftCorePlugin {
         app.init_resource::<StaticRegistry<block::Block>>()
             .init_resource::<StaticRegistry<item::Item>>()
             .init_resource::<StaticRegistry<sound::SoundEvent>>()
+            .init_resource::<StaticRegistry<entity::EntityType>>()
             .init_resource::<TagRegistry<block::Block>>()
             .init_resource::<TagRegistry<item::Item>>()
             .init_asset::<EnchantmentData>()
@@ -122,6 +123,13 @@ impl Plugin for MinecraftCorePlugin {
             tracing::info!(count = sounds.len(), "registered StaticRegistry<SoundEvent>");
             sounds.freeze();
             tracing::info!("frozen StaticRegistry<SoundEvent>");
+        }
+        {
+            let mut entity_types = app.world_mut().resource_mut::<StaticRegistry<entity::EntityType>>();
+            entity::minecraft::register_all_entity_types(&mut entity_types);
+            tracing::info!(count = entity_types.len(), "registered StaticRegistry<EntityType>");
+            entity_types.freeze();
+            tracing::info!("frozen StaticRegistry<EntityType>");
         }
     }
 }
