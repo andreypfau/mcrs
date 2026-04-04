@@ -1,8 +1,6 @@
-use bevy_asset::{Asset, UntypedAssetId, VisitAssetDependencies};
-use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnchantmentData {
     pub description: serde_json::Value,
     pub min_cost: EnchantmentCost,
@@ -22,10 +20,4 @@ pub struct EnchantmentData {
 pub struct EnchantmentCost {
     pub base: u32,
     pub per_level_above_first: u32,
-}
-
-impl Asset for EnchantmentData {}
-
-impl VisitAssetDependencies for EnchantmentData {
-    fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
 }

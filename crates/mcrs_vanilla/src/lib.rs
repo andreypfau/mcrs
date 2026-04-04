@@ -22,10 +22,7 @@ pub mod worldgen;
 
 use crate::block::tags as block_tags;
 use crate::enchantment::data::EnchantmentData;
-use crate::enchantment::registry::{LoadedEnchantments, VANILLA_ENCHANTMENTS};
 use crate::enchantment::tags as enchantment_tags;
-use crate::enchantment::tags::EnchantmentTags;
-use crate::enchantment::EnchantmentDataLoader;
 use crate::item::tags as item_tags;
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::{AssetApp, AssetServer, Assets};
@@ -56,16 +53,13 @@ impl Plugin for MinecraftCorePlugin {
             .init_resource::<StaticRegistry<entity::EntityType>>()
             .init_resource::<TagRegistry<block::Block>>()
             .init_resource::<TagRegistry<item::Item>>()
-            .init_asset::<EnchantmentData>()
-            .register_asset_loader(EnchantmentDataLoader)
-            .init_resource::<EnchantmentTags>()
+            .init_resource::<StaticRegistry<EnchantmentData>>()
             .add_systems(PostStartup, start_loading_data_pack)
             .add_systems(
                 OnEnter(AppState::LoadingDataPack),
                 (
                     request_block_tags,
                     request_item_tags,
-                    request_enchantment_assets,
                     request_enchantment_tags,
                     request_world_preset,
                 ),
@@ -131,6 +125,13 @@ impl Plugin for MinecraftCorePlugin {
             entity_types.freeze();
             tracing::info!("frozen StaticRegistry<EntityType>");
         }
+        {
+            let mut enchantments = app.world_mut().resource_mut::<StaticRegistry<EnchantmentData>>();
+            enchantment::registry::register_all_enchantments(&mut enchantments);
+            tracing::info!(count = enchantments.len(), "registered StaticRegistry<EnchantmentData>");
+            enchantments.freeze();
+            tracing::info!("frozen StaticRegistry<EnchantmentData>");
+        }
     }
 }
 
@@ -148,18 +149,6 @@ fn request_item_tags(mut tags: ResMut<TagRegistry<item::Item>>, asset_server: Re
     for tag in item_tags::ALL_ITEM_TAGS {
         tags.request(tag, &asset_server);
     }
-}
-
-fn request_enchantment_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let mut loaded = LoadedEnchantments::new();
-    for &name in VANILLA_ENCHANTMENTS {
-        let loc = ResourceLocation::parse(name).expect("invalid enchantment RL");
-        let path = format!("{}/enchantment/{}.json", loc.namespace(), loc.path());
-        let handle = asset_server.load::<EnchantmentData>(path);
-        loaded.push(loc, handle);
-    }
-    tracing::info!(count = loaded.len(), "requested enchantment assets");
-    commands.insert_resource(loaded);
 }
 
 fn request_enchantment_tags(asset_server: Res<AssetServer>) {
