@@ -28,6 +28,7 @@ use mcrs_engine::world::dimension::{DimensionPlayers, InDimension};
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::ClientboundBlockDestruction;
 use mcrs_protocol::{BlockStateId, Ident, VarInt, WritePacket};
+use mcrs_core::StaticRegistry;
 use mcrs_registry::Registry;
 use rand::RngExt;
 use std::str::FromStr;
@@ -380,16 +381,15 @@ fn handle_player_will_destroy_block(
     items: Query<(&ItemStack, Option<&Enchantments>, Option<&Tool>)>,
     tag_registry: Res<TagRegistry<&'static Block>>,
     block_registry: Res<Registry<&'static Block>>,
-    enchantment_registry: Res<Registry<EnchantmentData>>,
+    enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
     mut loot_tables: ResMut<BlockLootTables>,
     asset_server: Res<AssetServer>,
     mut silk_touch_id: Local<Option<u16>>,
 ) {
-    if enchantment_registry.is_changed() {
-        *silk_touch_id = Ident::<String>::from_str("minecraft:silk_touch")
-            .ok()
-            .and_then(|id| enchantment_registry.get_full(id))
-            .map(|(idx, _)| idx as u16);
+    if silk_touch_id.is_none() {
+        *silk_touch_id = enchantment_registry
+            .id_of("minecraft:silk_touch")
+            .map(|id| id.raw() as u16);
     }
 
     reader.read().for_each(|event| {
