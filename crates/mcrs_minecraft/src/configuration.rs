@@ -1,8 +1,8 @@
 use crate::biome::Biome;
 use crate::dimension_type::DimensionType;
-use crate::enchantment::EnchantmentData;
 use crate::tag::block::TagRegistry;
 use crate::version::VERSION_ID;
+use mcrs_vanilla::enchantment::EnchantmentData;
 use crate::world::block::Block;
 use crate::world::entity::player::column_view::ColumnView;
 use crate::world::item::Item;
@@ -19,9 +19,10 @@ use bevy_ecs::system::Res;
 use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
+use mcrs_core::StaticRegistry;
 use mcrs_registry::Registry;
 use mcrs_protocol::packets::configuration::clientbound::{
-    ClientboundSelectKnownPacks, ClientboundUpdateTags,
+    ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags, TagGroup,
 };
 use mcrs_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
 use mcrs_protocol::packets::game::clientbound::ClientboundStartConfiguration;
@@ -31,7 +32,7 @@ use mcrs_protocol::packets::configuration::{
 };
 use mcrs_protocol::registry::Entry;
 use mcrs_protocol::resource_pack::KnownPack;
-use mcrs_protocol::{Ident, WritePacket, ident, nbt};
+use mcrs_protocol::{Ident, VarInt, WritePacket, ident, nbt};
 use serde_json::{Map, Value};
 use std::borrow::Cow;
 use std::env;
@@ -241,8 +242,8 @@ fn on_configuration_enter(
     res: Res<SyncedRegistries>,
     dimension_types: Res<LoadedDimensionTypes>,
     biomes: Res<LoadedBiomes>,
-    enchantment_registry: Res<Registry<EnchantmentData>>,
-    enchantment_tags: Res<TagRegistry<EnchantmentData>>,
+    enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
+    enchantment_tags: Res<mcrs_core::TagRegistry<EnchantmentData>>,
     block_tags: Res<TagRegistry<&'static Block>>,
     block_registry: Res<Registry<&'static Block>>,
     item_tags: Res<TagRegistry<&'static Item>>,
@@ -350,12 +351,12 @@ fn on_configuration_enter(
 
         // Send enchantment registry to client
         let enchantment_entries: Vec<Entry> = enchantment_registry
-            .iter_entries()
-            .map(|(id, data)| {
+            .iter()
+            .map(|(_static_id, loc, data)| {
                 let enchantment_nbt = nbt::to_nbt_compound(data)
-                    .expect(&format!("Failed to serialize enchantment: {}", id));
+                    .expect(&format!("Failed to serialize enchantment: {}", loc.as_str()));
                 Entry {
-                    id: Cow::from(id.as_str()).try_into().unwrap(),
+                    id: Cow::from(loc.as_str()).try_into().unwrap(),
                     data: Some(Cow::Owned(enchantment_nbt)),
                 }
             })
@@ -380,15 +381,30 @@ fn on_configuration_enter(
                 item_tags.build_registry_tags(ident!("minecraft:item").into()),
             );
         }
-        if !enchantment_tags.map.is_empty() {
-            tag_registries.push(
-                enchantment_tags.build_registry_tags(ident!("minecraft:enchantment").into()),
-            );
+        if !enchantment_tags.is_empty() {
+            let tags: Vec<_> = enchantment_tags
+                .iter()
+                .map(|(tag_loc, bitset)| {
+                    let entry_ids: Vec<VarInt> = bitset
+                        .iter()
+                        .map(|id| VarInt(id.raw() as i32))
+                        .collect();
+                    TagGroup {
+                        name: Ident::new(Cow::Owned(tag_loc.as_str().to_string()))
+                            .unwrap_or_else(|_| Ident::new(Cow::Borrowed("minecraft:unknown")).unwrap()),
+                        entries: entry_ids,
+                    }
+                })
+                .collect();
+            tag_registries.push(RegistryTags {
+                registry: ident!("minecraft:enchantment").into(),
+                tags,
+            });
         }
         debug!(
             block_tags = block_tags.map.len(),
             item_tags = item_tags.map.len(),
-            enchantment_tags = enchantment_tags.map.len(),
+            enchantment_tags = enchantment_tags.iter().count(),
             "Sending UpdateTags packet"
         );
         con.write_packet(&ClientboundUpdateTags {

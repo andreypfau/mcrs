@@ -8,7 +8,7 @@ use crate::world::entity::player::player_action::{
     PlayerAction, PlayerActionKind, PlayerWillDestroyBlock,
 };
 use crate::world::inventory::PlayerHotbarSlots;
-use crate::world::item::ItemStack;
+use crate::world::item::{Item, ItemStack};
 use crate::world::item::component::Tool;
 use crate::world::item::component::Enchantments;
 use crate::enchantment::EnchantmentData;
@@ -338,7 +338,7 @@ pub fn extract_tool_data(
         return (!requires_correct_tool, 1.0);
     };
     let item_id = stack.item_id();
-    let item = item_id.as_ref();
+    let item: &Item = item_id.as_ref();
     let Some(tool) = tool.or_else(|| item.components.tool.as_ref()) else {
         debug!(block = %block.identifier, item = %item.identifier, "no tool component");
         return (!requires_correct_tool, 1.0);
@@ -406,7 +406,7 @@ fn handle_player_will_destroy_block(
         let has_correct_tool = if block.requires_correct_tool_for_drops() {
             if let Some(slot) = hotbar.get_selected_slot() {
                 if let Ok((stack, _, tool)) = items.get(slot) {
-                    if let Some(tool) = tool.or_else(|| stack.item_id().as_ref().components.tool.as_ref()) {
+                    if let Some(tool) = tool.or_else(|| AsRef::<Item>::as_ref(&stack.item_id()).components.tool.as_ref()) {
                         tool.is_correct_block_for_drops(block, &tag_registry, &block_registry)
                     } else {
                         false
