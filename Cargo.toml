@@ -73,7 +73,6 @@ mcrs_core_macros = { path = "crates/mcrs_core_macros" }
 mcrs_core = { path = "crates/mcrs_core" }
 mcrs_vanilla = { path = "crates/mcrs_vanilla" }
 mcrs_minecraft = { path = "crates/mcrs_minecraft" }
-mcrs_registry = { path = "crates/mcrs_registry" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
 mcrs_random = { path = "crates/mcrs_random" }
 
