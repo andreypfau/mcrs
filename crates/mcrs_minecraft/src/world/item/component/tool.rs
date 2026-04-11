@@ -1,31 +1,15 @@
-use crate::tag::block::{BlockTagSet, BlockTagSetExt, DynamicBlockTagSet, TagRegistry};
+use crate::tag::block::{BlockTagSet, BlockTagSetExt};
 use crate::world::block::Block;
 use crate::world::item::component::ItemComponents;
 use bevy_ecs::component::Component;
-use mcrs_protocol::Ident;
-use std::str::FromStr;
+use mcrs_core::tag::key::TagKey;
+use mcrs_core::tag::registry::TagRegistry;
+use mcrs_core::{ResourceLocation, StaticRegistry};
+use mcrs_vanilla::block::Block as VanillaBlock;
 
-/// Reference to a set of blocks, either static (compile-time) or dynamic (runtime lookup).
-///
-/// This enum allows the tool system to work with both hardcoded block tag constants
-/// and dynamically loaded tags from asset files. The enum is `Copy` to support
-/// use in const contexts.
-///
-/// # Examples
-///
-/// ```ignore
-/// // Static reference (for const contexts)
-/// let static_ref = ToolTagRef::Static(&[&BlockTag::Tag(&minecraft::STONE)]);
-///
-/// // Dynamic reference using a static identifier string (for const contexts)
-/// let dynamic_ref = ToolTagRef::DynamicIdent("minecraft:mineable/pickaxe");
-/// ```
 #[derive(Clone, Copy, Debug)]
 pub enum ToolTagRef {
-    /// A static block tag set defined at compile time.
     Static(BlockTagSet),
-    /// A dynamic tag identifier that will be resolved at runtime against the TagRegistry.
-    /// The string should be in the format "namespace:path" (e.g., "minecraft:mineable/pickaxe").
     DynamicIdent(&'static str),
 }
 
@@ -36,80 +20,49 @@ impl Default for ToolTagRef {
 }
 
 impl ToolTagRef {
-    /// Creates a static tool tag reference from a compile-time block tag set.
     pub const fn from_static(blocks: BlockTagSet) -> Self {
         ToolTagRef::Static(blocks)
     }
 
-    /// Creates a dynamic tool tag reference from a static identifier string.
-    ///
-    /// The identifier should be in the format "namespace:path" (e.g., "minecraft:mineable/pickaxe").
     pub const fn from_dynamic_ident(ident: &'static str) -> Self {
         ToolTagRef::DynamicIdent(ident)
     }
 
-    /// Checks if the given block is contained in this tag reference.
-    ///
-    /// For static tags, this performs a direct comparison.
-    /// For dynamic tags, this requires the TagRegistry to perform the lookup.
-    ///
-    /// Note: For dynamic tags without a registry reference, this returns `false`.
-    /// Use `contains_block_with_registry` for dynamic tag lookups.
     pub fn contains_block(&self, block: &Block) -> bool {
         match self {
             ToolTagRef::Static(tag_set) => tag_set.contains_block(block),
-            ToolTagRef::DynamicIdent(_) => {
-                // Dynamic tags require registry lookup; without registry, return false
-                // Use contains_block_with_registry for proper dynamic lookup
-                false
-            }
+            ToolTagRef::DynamicIdent(_) => false,
         }
     }
 
-    /// Checks if the given block is contained in this tag reference using the tag registry.
-    ///
-    /// This method supports both static and dynamic tag references:
-    /// - Static tags perform direct comparison (registry is ignored)
-    /// - Dynamic tags perform lookup against the provided TagRegistry
     pub fn contains_block_with_registry(
         &self,
         block: &Block,
-        tag_registry: &TagRegistry<&'static Block>,
-        block_registry: &mcrs_registry::Registry<&'static Block>,
+        tag_registry: &TagRegistry<VanillaBlock>,
+        block_registry: &StaticRegistry<VanillaBlock>,
     ) -> bool {
         match self {
             ToolTagRef::Static(tag_set) => tag_set.contains_block(block),
             ToolTagRef::DynamicIdent(ident_str) => {
-                // Parse the identifier string and look up in registry
-                if let Ok(ident) = Ident::<String>::from_str(ident_str) {
-                    let dynamic_tag = DynamicBlockTagSet::new(ident);
-                    // Find the block's registry ID
-                    let reg_id = mcrs_registry::RegistryId::Identifier {
-                        identifier: block.identifier.to_string_ident(),
-                    };
-                    if let Some((index, _)) = block_registry.get_full(reg_id) {
-                        dynamic_tag.contains_block_index(tag_registry, index)
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
+                let tag_key = TagKey::<VanillaBlock>::new(
+                    ResourceLocation::new_static(ident_str),
+                );
+                let Some(static_id) = block_registry.id_of(block.identifier.as_ref()) else {
+                    return false;
+                };
+                tag_registry.contains(&tag_key, static_id)
             }
         }
     }
 
-    /// Returns true if this is a static tag reference.
     pub const fn is_static(&self) -> bool {
         matches!(self, ToolTagRef::Static(_))
     }
 
-    /// Returns true if this is a dynamic tag reference.
     pub const fn is_dynamic(&self) -> bool {
         matches!(self, ToolTagRef::DynamicIdent(_))
     }
 
-    /// Returns the dynamic identifier string if this is a dynamic tag reference.
     pub const fn as_dynamic_ident(&self) -> Option<&'static str> {
         match self {
             ToolTagRef::DynamicIdent(ident) => Some(*ident),
@@ -151,8 +104,8 @@ impl Tool {
     pub fn get_mining_speed(
         &self,
         block: &Block,
-        tag_registry: &TagRegistry<&'static Block>,
-        block_registry: &mcrs_registry::Registry<&'static Block>,
+        tag_registry: &TagRegistry<VanillaBlock>,
+        block_registry: &StaticRegistry<VanillaBlock>,
     ) -> f32 {
         for rule in self.rules {
             let Some(speed) = rule.speed else {
@@ -168,8 +121,8 @@ impl Tool {
     pub fn is_correct_block_for_drops(
         &self,
         block: &Block,
-        tag_registry: &TagRegistry<&'static Block>,
-        block_registry: &mcrs_registry::Registry<&'static Block>,
+        tag_registry: &TagRegistry<VanillaBlock>,
+        block_registry: &StaticRegistry<VanillaBlock>,
     ) -> bool {
         for (i, rule) in self.rules.iter().enumerate() {
             let Some(correct) = rule.correct_for_drops else {
@@ -220,9 +173,6 @@ pub struct ToolRule {
 }
 
 impl ToolRule {
-    /// Creates a tool rule for blocks that can be mined at the given speed and drop items.
-    ///
-    /// This is a const function that works with static BlockTagSet references.
     pub const fn mines_and_drops(blocks: BlockTagSet, speed: f32) -> Self {
         Self {
             blocks: ToolTagRef::Static(blocks),
@@ -231,9 +181,6 @@ impl ToolRule {
         }
     }
 
-    /// Creates a tool rule for blocks that deny drops when mined with this tool.
-    ///
-    /// This is a const function that works with static BlockTagSet references.
     pub const fn denies_drops(blocks: BlockTagSet) -> Self {
         Self {
             blocks: ToolTagRef::Static(blocks),
@@ -242,10 +189,6 @@ impl ToolRule {
         }
     }
 
-    /// Creates a tool rule for blocks that can be mined at the given speed and drop items,
-    /// using a dynamic tag identifier for runtime lookup.
-    ///
-    /// The identifier should be in the format "namespace:path" (e.g., "minecraft:mineable/pickaxe").
     pub const fn mines_and_drops_dynamic(tag_ident: &'static str, speed: f32) -> Self {
         Self {
             blocks: ToolTagRef::DynamicIdent(tag_ident),
@@ -254,10 +197,6 @@ impl ToolRule {
         }
     }
 
-    /// Creates a tool rule for blocks that deny drops when mined with this tool,
-    /// using a dynamic tag identifier for runtime lookup.
-    ///
-    /// The identifier should be in the format "namespace:path" (e.g., "minecraft:mineable/pickaxe").
     pub const fn denies_drops_dynamic(tag_ident: &'static str) -> Self {
         Self {
             blocks: ToolTagRef::DynamicIdent(tag_ident),
@@ -266,7 +205,6 @@ impl ToolRule {
         }
     }
 
-    /// Creates a tool rule with a custom ToolTagRef.
     pub const fn with_tag_ref(
         blocks: ToolTagRef,
         speed: Option<f32>,
@@ -360,13 +298,6 @@ impl ToolMaterial {
         ]
     }
 
-    /// Creates tool rules for blocks mineable with this tool material using a dynamic tag identifier.
-    ///
-    /// This is the dynamic equivalent of `for_mineable_blocks`, using runtime tag lookup
-    /// instead of static block tag sets.
-    ///
-    /// # Arguments
-    /// * `mineable_tag` - The tag identifier for mineable blocks (e.g., "minecraft:mineable/pickaxe")
     pub const fn for_mineable_blocks_dynamic(&self, mineable_tag: &'static str) -> [ToolRule; 2] {
         [
             ToolRule::with_tag_ref(self.incorrect_blocks_for_drops, None, Some(false)),

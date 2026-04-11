@@ -8,7 +8,6 @@ use crate::world::loot::condition::{LootCondition, LootConditionProto};
 use crate::world::loot::context::{BlockBreakContext, LootDrop};
 use crate::world::loot::entry::LootEntryProto;
 use crate::world::loot::function::LootFunctionProto;
-use crate::world::block::Block;
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetApp, AssetEvent, AssetLoader, AssetServer, Assets, Handle, LoadContext, VisitAssetDependencies};
@@ -18,7 +17,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use bevy_reflect::TypePath;
 use mcrs_core::StaticRegistry;
-use mcrs_registry::Registry;
+use mcrs_vanilla::block::Block as VanillaBlock;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -381,12 +380,14 @@ impl BlockLootTables {
 }
 
 fn request_loot_tables_for_registered_blocks(
-    block_registry: Res<Registry<&'static Block>>,
+    block_registry: Res<StaticRegistry<VanillaBlock>>,
     asset_server: Res<AssetServer>,
     mut block_loot_tables: ResMut<BlockLootTables>,
 ) {
-    for (id, _block) in block_registry.iter_entries() {
-        block_loot_tables.request(id, &asset_server);
+    for (_static_id, loc, _block) in block_registry.iter() {
+        if let Ok(ident) = Ident::from_str(loc.as_str()) {
+            block_loot_tables.request(&ident, &asset_server);
+        }
     }
     info!(
         requested = block_loot_tables.pending.len(),

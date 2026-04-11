@@ -1,11 +1,8 @@
 use crate::biome::Biome;
 use crate::dimension_type::DimensionType;
-use crate::tag::block::TagRegistry;
 use crate::version::VERSION_ID;
 use mcrs_vanilla::enchantment::EnchantmentData;
-use crate::world::block::Block;
 use crate::world::entity::player::column_view::ColumnView;
-use crate::world::item::Item;
 use crate::world_preset_loader::{
     DimensionTypeAsset, DimensionTypeLoader, WorldPresetAsset, WorldPresetLoader,
     resolve_preset_asset_path,
@@ -20,7 +17,9 @@ use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_core::StaticRegistry;
-use mcrs_registry::Registry;
+use mcrs_core::tag::registry::TagRegistry;
+use mcrs_vanilla::block::Block as VanillaBlock;
+use mcrs_vanilla::item::Item as VanillaItem;
 use mcrs_protocol::packets::configuration::clientbound::{
     ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags, TagGroup,
 };
@@ -243,10 +242,10 @@ fn on_configuration_enter(
     dimension_types: Res<LoadedDimensionTypes>,
     biomes: Res<LoadedBiomes>,
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
-    enchantment_tags: Res<mcrs_core::TagRegistry<EnchantmentData>>,
-    block_tags: Res<TagRegistry<&'static Block>>,
-    block_registry: Res<Registry<&'static Block>>,
-    item_tags: Res<TagRegistry<&'static Item>>,
+    enchantment_tags: Res<TagRegistry<EnchantmentData>>,
+    block_tags: Res<TagRegistry<VanillaBlock>>,
+    block_registry: Res<StaticRegistry<VanillaBlock>>,
+    item_tags: Res<TagRegistry<VanillaItem>>,
 ) {
     for (entity, mut con, conn_state) in query.iter_mut() {
         if *conn_state != ConnectionState::Configuration {
@@ -368,18 +367,48 @@ fn on_configuration_enter(
 
         // Send tags to client
         let mut tag_registries = Vec::new();
-        if !block_tags.map.is_empty() {
-            tag_registries.push(
-                block_tags.build_block_registry_tags(
-                    ident!("minecraft:block").into(),
-                    &block_registry,
-                ),
-            );
+        if !block_tags.is_empty() {
+            let tags: Vec<TagGroup> = block_tags
+                .iter()
+                .map(|(tag_loc, bitset)| {
+                    let entry_ids: Vec<VarInt> = bitset
+                        .iter()
+                        .filter_map(|id| {
+                            let block = block_registry.get_by_id(id)?;
+                            Some(VarInt(block.protocol_id as i32))
+                        })
+                        .collect();
+                    TagGroup {
+                        name: Ident::new(Cow::Owned(tag_loc.as_str().to_string()))
+                            .unwrap_or_else(|_| Ident::new(Cow::Borrowed("minecraft:unknown")).unwrap()),
+                        entries: entry_ids,
+                    }
+                })
+                .collect();
+            tag_registries.push(RegistryTags {
+                registry: ident!("minecraft:block").into(),
+                tags,
+            });
         }
-        if !item_tags.map.is_empty() {
-            tag_registries.push(
-                item_tags.build_registry_tags(ident!("minecraft:item").into()),
-            );
+        if !item_tags.is_empty() {
+            let tags: Vec<TagGroup> = item_tags
+                .iter()
+                .map(|(tag_loc, bitset)| {
+                    let entry_ids: Vec<VarInt> = bitset
+                        .iter()
+                        .map(|id| VarInt(id.raw() as i32))
+                        .collect();
+                    TagGroup {
+                        name: Ident::new(Cow::Owned(tag_loc.as_str().to_string()))
+                            .unwrap_or_else(|_| Ident::new(Cow::Borrowed("minecraft:unknown")).unwrap()),
+                        entries: entry_ids,
+                    }
+                })
+                .collect();
+            tag_registries.push(RegistryTags {
+                registry: ident!("minecraft:item").into(),
+                tags,
+            });
         }
         if !enchantment_tags.is_empty() {
             let tags: Vec<_> = enchantment_tags
@@ -402,8 +431,8 @@ fn on_configuration_enter(
             });
         }
         debug!(
-            block_tags = block_tags.map.len(),
-            item_tags = item_tags.map.len(),
+            block_tags = block_tags.iter().count(),
+            item_tags = item_tags.iter().count(),
             enchantment_tags = enchantment_tags.iter().count(),
             "Sending UpdateTags packet"
         );

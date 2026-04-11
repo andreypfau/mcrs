@@ -1,4 +1,9 @@
 use crate::world::block::Block;
+use mcrs_core::tag::key::TagKey;
+use mcrs_core::tag::registry::TagRegistry;
+use mcrs_core::{ResourceLocation, StaticId, StaticRegistry};
+use mcrs_vanilla::block::Block as VanillaBlock;
+use std::sync::Arc;
 
 pub type BlockTagSet = &'static [&'static BlockTag];
 
@@ -10,22 +15,31 @@ pub enum BlockTag {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DynamicBlockTagSet {
-    pub ident: mcrs_protocol::Ident<String>,
+    pub tag_key: TagKey<VanillaBlock, Arc<str>>,
 }
 
 impl DynamicBlockTagSet {
-    pub fn new(ident: mcrs_protocol::Ident<String>) -> Self {
-        Self { ident }
-    }
-
-    pub fn from_static(ident: mcrs_protocol::Ident<&'static str>) -> Self {
+    pub fn new(s: &str) -> Self {
+        let rl: ResourceLocation<Arc<str>> = ResourceLocation::parse(s)
+            .unwrap_or_else(|_| panic!("invalid tag identifier: {s}"));
         Self {
-            ident: ident.to_string_ident(),
+            tag_key: TagKey::from_location(rl),
         }
     }
 
-    pub fn ident(&self) -> &mcrs_protocol::Ident<String> {
-        &self.ident
+    pub fn from_static(s: &'static str) -> Self {
+        let rl = ResourceLocation::new_static(s).to_arc();
+        Self {
+            tag_key: TagKey::from_location(rl),
+        }
+    }
+
+    pub fn contains_block(
+        &self,
+        tag_registry: &TagRegistry<VanillaBlock>,
+        id: StaticId<VanillaBlock>,
+    ) -> bool {
+        tag_registry.contains(&self.tag_key, id)
     }
 }
 

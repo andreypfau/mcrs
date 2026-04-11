@@ -1,4 +1,3 @@
-use crate::tag::block::TagRegistry;
 use crate::world::block::Block;
 use crate::world::block_update::BlockSetRequest;
 use crate::world::entity::attribute::Attribute;
@@ -29,7 +28,8 @@ use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::ClientboundBlockDestruction;
 use mcrs_protocol::{BlockStateId, Ident, VarInt, WritePacket};
 use mcrs_core::StaticRegistry;
-use mcrs_registry::Registry;
+use mcrs_core::tag::registry::TagRegistry;
+use mcrs_vanilla::block::Block as VanillaBlock;
 use rand::RngExt;
 use std::str::FromStr;
 use std::time::Duration;
@@ -130,8 +130,8 @@ fn player_start_destroy_block(
         &PlayerHotbarSlots,
     )>,
     items: Query<(&ItemStack, Option<&Tool>)>,
-    tag_registry: Res<TagRegistry<&'static Block>>,
-    block_registry: Res<Registry<&'static Block>>,
+    tag_registry: Res<TagRegistry<VanillaBlock>>,
+    block_registry: Res<StaticRegistry<VanillaBlock>>,
     time: Res<Time<Fixed>>,
     mut player_will_destroy_block: MessageWriter<PlayerWillDestroyBlock>,
     mut commands: Commands,
@@ -302,8 +302,8 @@ fn get_destroy_speed<B>(
     items: &Query<(&ItemStack, Option<&Tool>)>,
     mining_efficiency: &MiningEfficiency,
     block_break_speed: &BlockBreakSpeed,
-    tag_registry: &TagRegistry<&'static Block>,
-    block_registry: &Registry<&'static Block>,
+    tag_registry: &TagRegistry<VanillaBlock>,
+    block_registry: &StaticRegistry<VanillaBlock>,
 ) -> f32
 where
     B: AsRef<Block>,
@@ -326,8 +326,8 @@ pub fn extract_tool_data(
     block: &Block,
     hotbar: &PlayerHotbarSlots,
     items: &Query<(&ItemStack, Option<&Tool>)>,
-    tag_registry: &TagRegistry<&'static Block>,
-    block_registry: &Registry<&'static Block>,
+    tag_registry: &TagRegistry<VanillaBlock>,
+    block_registry: &StaticRegistry<VanillaBlock>,
 ) -> (bool, f32) {
     let requires_correct_tool = block.requires_correct_tool_for_drops();
     let Some(slot) = hotbar.get_selected_slot() else {
@@ -366,8 +366,8 @@ pub fn get_tool_destroy_speed(
     block: &Block,
     hotbar: &PlayerHotbarSlots,
     items: &Query<(&ItemStack, Option<&Tool>)>,
-    tag_registry: &TagRegistry<&'static Block>,
-    block_registry: &Registry<&'static Block>,
+    tag_registry: &TagRegistry<VanillaBlock>,
+    block_registry: &StaticRegistry<VanillaBlock>,
 ) -> f32 {
     let (has_correct_tool, speed) = extract_tool_data(block, hotbar, items, tag_registry, block_registry);
     let modifier = if has_correct_tool { 30.0 } else { 100.0 };
@@ -379,8 +379,8 @@ fn handle_player_will_destroy_block(
     mut writer: MessageWriter<BlockSetRequest>,
     players: Query<(&InDimension, &PlayerHotbarSlots)>,
     items: Query<(&ItemStack, Option<&Enchantments>, Option<&Tool>)>,
-    tag_registry: Res<TagRegistry<&'static Block>>,
-    block_registry: Res<Registry<&'static Block>>,
+    tag_registry: Res<TagRegistry<VanillaBlock>>,
+    block_registry: Res<StaticRegistry<VanillaBlock>>,
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
     mut loot_tables: ResMut<BlockLootTables>,
     asset_server: Res<AssetServer>,
