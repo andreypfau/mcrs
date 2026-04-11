@@ -51,7 +51,6 @@ use crate::client_info::ClientInfoPlugin;
 use crate::configuration::ConfigurationStatePlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::LoginPlugin;
-use crate::tag::{BlockTagPlugin, ItemTagPlugin};
 use crate::world::WorldPlugin;
 use bevy_app::{App, Plugin};
 use bevy_asset::AssetPlugin;
@@ -76,8 +75,6 @@ impl Plugin for ServerPlugin {
         //     app.add_plugins(ScheduleRunnerPlugin::default());
         // }
         app.add_plugins(AssetPlugin::default());
-        app.add_plugins(BlockTagPlugin);
-        app.add_plugins(ItemTagPlugin);
         app.add_plugins(NetworkPlugin);
         app.add_plugins(LoginPlugin);
         app.add_plugins(ConfigurationStatePlugin);
