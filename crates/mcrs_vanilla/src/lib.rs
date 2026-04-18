@@ -33,10 +33,7 @@ pub mod test_types;
 
 use crate::block::tags as block_tags;
 use crate::enchantment::data::EnchantmentData;
-use crate::enchantment::data::EnchantmentDataLoader;
-use crate::enchantment::registry::{LoadedEnchantments, VANILLA_ENCHANTMENTS};
 use crate::enchantment::tags as enchantment_tags;
-use crate::enchantment::tags::EnchantmentTags;
 use crate::item::tags as item_tags;
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::{AssetApp, AssetServer, Assets};
@@ -91,31 +88,20 @@ impl Plugin for MinecraftCorePlugin {
         app.register_asset_loader(jukebox_song::JukeboxSongLoader);
         app.init_asset::<instrument::Instrument>();
         app.register_asset_loader(instrument::InstrumentLoader);
-        app.init_asset::<chat_type::ChatType>();
-        app.register_asset_loader(chat_type::ChatTypeLoader);
-        app.init_asset::<dialog::Dialog>();
-        app.register_asset_loader(dialog::DialogLoader);
-        app.init_asset::<timeline::Timeline>();
-        app.register_asset_loader(timeline::TimelineLoader);
-        app.init_asset::<test_types::TestEnvironment>();
-        app.register_asset_loader(test_types::TestEnvironmentLoader);
-        app.init_asset::<test_types::TestInstance>();
-        app.register_asset_loader(test_types::TestInstanceLoader);
         app.init_resource::<StaticRegistry<block::Block>>()
             .init_resource::<StaticRegistry<item::Item>>()
             .init_resource::<StaticRegistry<sound::SoundEvent>>()
+            .init_resource::<StaticRegistry<entity::EntityType>>()
             .init_resource::<TagRegistry<block::Block>>()
             .init_resource::<TagRegistry<item::Item>>()
-            .init_asset::<EnchantmentData>()
-            .register_asset_loader(EnchantmentDataLoader)
-            .init_resource::<EnchantmentTags>()
+            .init_resource::<StaticRegistry<EnchantmentData>>()
+            .init_resource::<TagRegistry<EnchantmentData>>()
             .add_systems(PostStartup, start_loading_data_pack)
             .add_systems(
                 OnEnter(AppState::LoadingDataPack),
                 (
                     request_block_tags,
                     request_item_tags,
-                    request_enchantment_assets,
                     request_enchantment_tags,
                     request_world_preset,
                 ),
@@ -145,11 +131,25 @@ impl Plugin for MinecraftCorePlugin {
                 .resource_mut::<StaticRegistry<block::Block>>();
             block::minecraft::register_all_blocks(&mut blocks);
             tracing::info!(count = blocks.len(), "registered StaticRegistry<Block>");
+            blocks.freeze();
+            for (id, _loc, block) in blocks.iter() {
+                assert_eq!(
+                    id.raw() as u16,
+                    block.protocol_id,
+                    "block {} registered at index {} but has protocol_id {}",
+                    block.identifier,
+                    id.raw(),
+                    block.protocol_id
+                );
+            }
+            tracing::info!("frozen and validated StaticRegistry<Block>");
         }
         {
             let mut items = app.world_mut().resource_mut::<StaticRegistry<item::Item>>();
             item::minecraft::register_all_items(&mut items);
             tracing::info!(count = items.len(), "registered StaticRegistry<Item>");
+            items.freeze();
+            tracing::info!("frozen StaticRegistry<Item>");
         }
         {
             let mut sounds = app
@@ -157,6 +157,22 @@ impl Plugin for MinecraftCorePlugin {
                 .resource_mut::<StaticRegistry<sound::SoundEvent>>();
             sound::minecraft::register_all_sounds(&mut sounds);
             tracing::info!(count = sounds.len(), "registered StaticRegistry<SoundEvent>");
+            sounds.freeze();
+            tracing::info!("frozen StaticRegistry<SoundEvent>");
+        }
+        {
+            let mut entity_types = app.world_mut().resource_mut::<StaticRegistry<entity::EntityType>>();
+            entity::minecraft::register_all_entity_types(&mut entity_types);
+            tracing::info!(count = entity_types.len(), "registered StaticRegistry<EntityType>");
+            entity_types.freeze();
+            tracing::info!("frozen StaticRegistry<EntityType>");
+        }
+        {
+            let mut enchantments = app.world_mut().resource_mut::<StaticRegistry<EnchantmentData>>();
+            enchantment::registry::register_all_enchantments(&mut enchantments);
+            tracing::info!(count = enchantments.len(), "registered StaticRegistry<EnchantmentData>");
+            enchantments.freeze();
+            tracing::info!("frozen StaticRegistry<EnchantmentData>");
         }
     }
 }
@@ -177,25 +193,14 @@ fn request_item_tags(mut tags: ResMut<TagRegistry<item::Item>>, asset_server: Re
     }
 }
 
-fn request_enchantment_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let mut loaded = LoadedEnchantments::new();
-    for &name in VANILLA_ENCHANTMENTS {
-        let loc = ResourceLocation::parse(name).expect("invalid enchantment RL");
-        let path = format!("{}/enchantment/{}.json", loc.namespace(), loc.path());
-        let handle = asset_server.load::<EnchantmentData>(path);
-        loaded.push(loc, handle);
+fn request_enchantment_tags(
+    mut tags: ResMut<TagRegistry<EnchantmentData>>,
+    asset_server: Res<AssetServer>,
+) {
+    for tag in enchantment_tags::ALL_ENCHANTMENT_TAGS {
+        tags.request(tag, &asset_server);
     }
-    tracing::info!(count = loaded.len(), "requested enchantment assets");
-    commands.insert_resource(loaded);
-}
-
-fn request_enchantment_tags(asset_server: Res<AssetServer>) {
-    // Enchantment tag files are loaded as dependencies of the enchantment data
-    // assets themselves. We just log the count for symmetry.
-    tracing::info!(
-        count = enchantment_tags::ALL_ENCHANTMENT_TAGS.len(),
-        "enchantment tag keys registered"
-    );
+    tracing::info!(count = enchantment_tags::ALL_ENCHANTMENT_TAGS.len(), "requested enchantment tag files");
 }
 
 fn request_world_preset(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -209,12 +214,14 @@ fn request_world_preset(mut commands: Commands, asset_server: Res<AssetServer>) 
 fn check_tags_ready(
     block_tags: Res<TagRegistry<block::Block>>,
     item_tags: Res<TagRegistry<item::Item>>,
+    enchantment_tags: Res<TagRegistry<EnchantmentData>>,
     world_preset: Res<ActiveWorldPreset>,
     asset_server: Res<AssetServer>,
     mut next: ResMut<NextState<AppState>>,
 ) {
     if block_tags.all_handles_loaded(&asset_server)
         && item_tags.all_handles_loaded(&asset_server)
+        && enchantment_tags.all_handles_loaded(&asset_server)
         && asset_server.is_loaded_with_dependencies(&world_preset.handle)
     {
         tracing::info!("all tag files and world preset loaded — entering WorldgenFreeze");
@@ -286,49 +293,36 @@ fn resolve_item_tags(
 }
 
 fn resolve_enchantment_tags(
-    mut tags: ResMut<EnchantmentTags>,
+    mut tags: ResMut<TagRegistry<EnchantmentData>>,
     tag_files: Res<Assets<TagFile>>,
-    loaded: Res<LoadedEnchantments>,
-    enchantment_assets: Res<Assets<EnchantmentData>>,
-    asset_server: Res<AssetServer>,
+    registry: Res<StaticRegistry<EnchantmentData>>,
 ) {
+    let handles = tags.drain_handles();
     let mut resolved = 0usize;
-    for tag_key in enchantment_tags::ALL_ENCHANTMENT_TAGS {
-        let segment = EnchantmentData::REGISTRY_PATH.to_string();
-        let handle = asset_server
-            .load_with_settings::<TagFile, mcrs_core::tag::file::TagFileSettings>(
-                tag_key.asset_path(),
-                move |s| {
-                    s.registry_segment = segment.clone();
-                },
-            );
+    for (loc, handle) in handles {
         if let Some(tf) = tag_files.get(&handle) {
-            let ids =
-                EnchantmentTags::resolve_tag_file(tf, &tag_files, &loaded, &enchantment_assets);
+            let ids = TagRegistry::resolve_tag_file(tf, &tag_files, &registry);
             resolved += ids.len();
-            tags.insert(tag_key.to_arc().location().clone(), ids);
+            tags.insert(loc, ids);
         } else {
-            tracing::warn!(
-                "enchantment tag file not available at WorldgenFreeze: {}",
-                tag_key.as_str()
-            );
+            tracing::warn!("enchantment tag file not available at WorldgenFreeze: {loc}");
         }
     }
-    tracing::info!(
-        resolved_entries = resolved,
-        "resolved EnchantmentTags"
-    );
+    tracing::info!(resolved_entries = resolved, "resolved TagRegistry<EnchantmentData>");
 }
 
 fn freeze_static_tags(
     mut block_tags: ResMut<TagRegistry<block::Block>>,
     mut item_tags: ResMut<TagRegistry<item::Item>>,
+    mut enchantment_tags: ResMut<TagRegistry<EnchantmentData>>,
     block_registry: Res<StaticRegistry<block::Block>>,
     item_registry: Res<StaticRegistry<item::Item>>,
+    enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
 ) {
     block_tags.freeze(block_registry.len() as u32);
     item_tags.freeze(item_registry.len() as u32);
-    tracing::info!("frozen TagRegistry<Block> and TagRegistry<Item>");
+    enchantment_tags.freeze(enchantment_registry.len() as u32);
+    tracing::info!("frozen TagRegistry<Block>, TagRegistry<Item>, and TagRegistry<EnchantmentData>");
 }
 
 fn transition_to_playing(mut next: ResMut<NextState<AppState>>) {
