@@ -26,6 +26,10 @@ pub mod painting_variant;
 pub mod banner_pattern;
 pub mod jukebox_song;
 pub mod instrument;
+pub mod chat_type;
+pub mod dialog;
+pub mod timeline;
+pub mod test_types;
 
 use crate::block::tags as block_tags;
 use crate::enchantment::data::EnchantmentData;
