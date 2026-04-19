@@ -91,6 +91,16 @@ impl Plugin for MinecraftCorePlugin {
         app.register_asset_loader(jukebox_song::JukeboxSongLoader);
         app.init_asset::<instrument::Instrument>();
         app.register_asset_loader(instrument::InstrumentLoader);
+        app.init_asset::<chat_type::ChatType>();
+        app.register_asset_loader(chat_type::ChatTypeLoader);
+        app.init_asset::<dialog::Dialog>();
+        app.register_asset_loader(dialog::DialogLoader);
+        app.init_asset::<timeline::Timeline>();
+        app.register_asset_loader(timeline::TimelineLoader);
+        app.init_asset::<test_types::TestEnvironment>();
+        app.register_asset_loader(test_types::TestEnvironmentLoader);
+        app.init_asset::<test_types::TestInstance>();
+        app.register_asset_loader(test_types::TestInstanceLoader);
         app.init_resource::<StaticRegistry<block::Block>>()
             .init_resource::<StaticRegistry<item::Item>>()
             .init_resource::<StaticRegistry<sound::SoundEvent>>()
