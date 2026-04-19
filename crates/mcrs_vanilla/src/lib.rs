@@ -19,6 +19,13 @@ pub mod biome;
 pub mod dimension;
 pub mod value;
 pub mod worldgen;
+pub mod variant;
+pub mod trim;
+pub mod damage_type;
+pub mod painting_variant;
+pub mod banner_pattern;
+pub mod jukebox_song;
+pub mod instrument;
 
 use crate::block::tags as block_tags;
 use crate::enchantment::data::EnchantmentData;
@@ -50,6 +57,36 @@ impl Plugin for MinecraftCorePlugin {
         app.init_asset::<dimension::level_stem::DimensionDefinition>();
         app.init_asset::<worldgen::world_preset::WorldPreset>();
         app.register_asset_loader(worldgen::world_preset::WorldPresetLoader);
+        app.init_asset::<variant::WolfVariant>();
+        app.register_asset_loader(variant::WolfVariantLoader);
+        app.init_asset::<variant::WolfSoundVariant>();
+        app.register_asset_loader(variant::WolfSoundVariantLoader);
+        app.init_asset::<variant::PigVariant>();
+        app.register_asset_loader(variant::PigVariantLoader);
+        app.init_asset::<variant::FrogVariant>();
+        app.register_asset_loader(variant::FrogVariantLoader);
+        app.init_asset::<variant::CatVariant>();
+        app.register_asset_loader(variant::CatVariantLoader);
+        app.init_asset::<variant::CowVariant>();
+        app.register_asset_loader(variant::CowVariantLoader);
+        app.init_asset::<variant::ChickenVariant>();
+        app.register_asset_loader(variant::ChickenVariantLoader);
+        app.init_asset::<variant::ZombieNautilusVariant>();
+        app.register_asset_loader(variant::ZombieNautilusVariantLoader);
+        app.init_asset::<trim::TrimPattern>();
+        app.register_asset_loader(trim::TrimPatternLoader);
+        app.init_asset::<trim::TrimMaterial>();
+        app.register_asset_loader(trim::TrimMaterialLoader);
+        app.init_asset::<damage_type::DamageType>();
+        app.register_asset_loader(damage_type::DamageTypeLoader);
+        app.init_asset::<painting_variant::PaintingVariant>();
+        app.register_asset_loader(painting_variant::PaintingVariantLoader);
+        app.init_asset::<banner_pattern::BannerPattern>();
+        app.register_asset_loader(banner_pattern::BannerPatternLoader);
+        app.init_asset::<jukebox_song::JukeboxSong>();
+        app.register_asset_loader(jukebox_song::JukeboxSongLoader);
+        app.init_asset::<instrument::Instrument>();
+        app.register_asset_loader(instrument::InstrumentLoader);
         app.init_resource::<StaticRegistry<block::Block>>()
             .init_resource::<StaticRegistry<item::Item>>()
             .init_resource::<StaticRegistry<sound::SoundEvent>>()
