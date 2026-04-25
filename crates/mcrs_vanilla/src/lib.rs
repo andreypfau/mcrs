@@ -39,7 +39,7 @@ use crate::enchantment::tags::EnchantmentTags;
 use crate::enchantment::EnchantmentDataLoader;
 use crate::item::tags as item_tags;
 use bevy_app::{App, Plugin, PostStartup, Update};
-use bevy_asset::{AssetApp, AssetServer, Assets};
+use bevy_asset::{AssetApp, AssetServer, Assets, UntypedHandle};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_core::tag::file::TagFile;
@@ -47,6 +47,11 @@ use mcrs_core::tag::key::TaggedRegistry;
 use mcrs_core::{AppState, ResourceLocation, StaticRegistry, TagRegistry};
 use crate::dimension::dimension_type::DimensionType;
 use crate::worldgen::world_preset::ActiveWorldPreset;
+
+#[derive(Resource, Default)]
+pub struct LoadedRegistryAssets {
+    handles: Vec<UntypedHandle>,
+}
 
 pub struct MinecraftCorePlugin;
 
@@ -109,6 +114,7 @@ impl Plugin for MinecraftCorePlugin {
             .init_asset::<EnchantmentData>()
             .register_asset_loader(EnchantmentDataLoader)
             .init_resource::<EnchantmentTags>()
+            .init_resource::<LoadedRegistryAssets>()
             .add_systems(PostStartup, start_loading_data_pack)
             .add_systems(
                 OnEnter(AppState::LoadingDataPack),
@@ -118,6 +124,31 @@ impl Plugin for MinecraftCorePlugin {
                     request_enchantment_assets,
                     request_enchantment_tags,
                     request_world_preset,
+                    request_chat_types,
+                    request_trim_patterns,
+                    request_trim_materials,
+                    request_damage_types,
+                    request_painting_variants,
+                    request_banner_patterns,
+                    request_jukebox_songs,
+                    request_instruments,
+                ),
+            )
+            .add_systems(
+                OnEnter(AppState::LoadingDataPack),
+                (
+                    request_wolf_variants,
+                    request_wolf_sound_variants,
+                    request_pig_variants,
+                    request_frog_variants,
+                    request_cat_variants,
+                    request_cow_variants,
+                    request_chicken_variants,
+                    request_zombie_nautilus_variants,
+                    request_test_environments,
+                    request_test_instances,
+                    request_dialogs,
+                    request_timelines,
                 ),
             )
             .add_systems(
@@ -205,6 +236,130 @@ fn request_world_preset(mut commands: Commands, asset_server: Res<AssetServer>) 
     tracing::info!("requested world preset: {}", worldgen::world_preset::DEFAULT_WORLD_PRESET);
     commands.insert_resource(ActiveWorldPreset { handle });
 }
+
+macro_rules! request_registry_assets {
+    ($fn_name:ident, $type:ty, $dir:literal, [$($entry:literal),* $(,)?]) => {
+        fn $fn_name(asset_server: Res<AssetServer>, mut loaded: ResMut<LoadedRegistryAssets>) {
+            const ENTRIES: &[&str] = &[
+                $(concat!("minecraft/", $dir, "/", $entry, ".json")),*
+            ];
+            for path in ENTRIES {
+                loaded.handles.push(asset_server.load::<$type>(*path).untyped());
+            }
+            tracing::info!(count = ENTRIES.len(), concat!("requested ", $dir, " assets"));
+        }
+    };
+}
+
+request_registry_assets!(request_chat_types, chat_type::ChatType, "chat_type", [
+    "chat", "emote_command", "msg_command_incoming", "msg_command_outgoing",
+    "say_command", "team_msg_command_incoming", "team_msg_command_outgoing",
+]);
+
+request_registry_assets!(request_trim_patterns, trim::TrimPattern, "trim_pattern", [
+    "bolt", "coast", "dune", "eye", "flow", "host", "raiser", "rib", "sentry",
+    "shaper", "silence", "snout", "spire", "tide", "vex", "ward", "wayfinder", "wild",
+]);
+
+request_registry_assets!(request_trim_materials, trim::TrimMaterial, "trim_material", [
+    "amethyst", "copper", "diamond", "emerald", "gold", "iron", "lapis",
+    "netherite", "quartz", "redstone", "resin",
+]);
+
+request_registry_assets!(request_wolf_variants, variant::WolfVariant, "wolf_variant", [
+    "ashen", "black", "chestnut", "pale", "rusty", "snowy", "spotted", "striped", "woods",
+]);
+
+request_registry_assets!(request_wolf_sound_variants, variant::WolfSoundVariant, "wolf_sound_variant", [
+    "angry", "big", "classic", "cute", "grumpy", "puglin", "sad",
+]);
+
+request_registry_assets!(request_pig_variants, variant::PigVariant, "pig_variant", [
+    "cold", "temperate", "warm",
+]);
+
+request_registry_assets!(request_frog_variants, variant::FrogVariant, "frog_variant", [
+    "cold", "temperate", "warm",
+]);
+
+request_registry_assets!(request_cat_variants, variant::CatVariant, "cat_variant", [
+    "all_black", "black", "british_shorthair", "calico", "jellie", "persian",
+    "ragdoll", "red", "siamese", "tabby", "white",
+]);
+
+request_registry_assets!(request_cow_variants, variant::CowVariant, "cow_variant", [
+    "cold", "temperate", "warm",
+]);
+
+request_registry_assets!(request_chicken_variants, variant::ChickenVariant, "chicken_variant", [
+    "cold", "temperate", "warm",
+]);
+
+request_registry_assets!(request_zombie_nautilus_variants, variant::ZombieNautilusVariant, "zombie_nautilus_variant", [
+    "temperate", "warm",
+]);
+
+request_registry_assets!(request_painting_variants, painting_variant::PaintingVariant, "painting_variant", [
+    "alban", "aztec", "aztec2", "backyard", "baroque", "bomb", "bouquet",
+    "burning_skull", "bust", "cavebird", "changing", "cotan", "courbet", "creebet",
+    "dennis", "donkey_kong", "earth", "endboss", "fern", "fighters", "finding",
+    "fire", "graham", "humble", "kebab", "lowmist", "match", "meditative", "orb",
+    "owlemons", "passage", "pigscene", "plant", "pointer", "pond", "pool",
+    "prairie_ride", "sea", "skeleton", "skull_and_roses", "stage", "sunflowers",
+    "sunset", "tides", "unpacked", "void", "wanderer", "wasteland", "water",
+    "wind", "wither",
+]);
+
+request_registry_assets!(request_damage_types, damage_type::DamageType, "damage_type", [
+    "arrow", "bad_respawn_point", "cactus", "campfire", "cramming", "dragon_breath",
+    "drown", "dry_out", "ender_pearl", "explosion", "fall", "falling_anvil",
+    "falling_block", "falling_stalactite", "fireball", "fireworks", "fly_into_wall",
+    "freeze", "generic", "generic_kill", "hot_floor", "in_fire", "in_wall",
+    "indirect_magic", "lava", "lightning_bolt", "mace_smash", "magic", "mob_attack",
+    "mob_attack_no_aggro", "mob_projectile", "on_fire", "out_of_world",
+    "outside_border", "player_attack", "player_explosion", "sonic_boom", "spit",
+    "stalagmite", "starve", "sting", "sweet_berry_bush", "thorns", "thrown",
+    "trident", "unattributed_fireball", "wind_charge", "wither", "wither_skull",
+]);
+
+request_registry_assets!(request_banner_patterns, banner_pattern::BannerPattern, "banner_pattern", [
+    "base", "border", "bricks", "circle", "creeper", "cross", "curly_border",
+    "diagonal_left", "diagonal_right", "diagonal_up_left", "diagonal_up_right",
+    "flow", "flower", "globe", "gradient", "gradient_up", "guster",
+    "half_horizontal", "half_horizontal_bottom", "half_vertical", "half_vertical_right",
+    "mojang", "piglin", "rhombus", "skull", "small_stripes", "square_bottom_left",
+    "square_bottom_right", "square_top_left", "square_top_right", "straight_cross",
+    "stripe_bottom", "stripe_center", "stripe_downleft", "stripe_downright",
+    "stripe_left", "stripe_middle", "stripe_right", "stripe_top", "triangle_bottom",
+    "triangle_top", "triangles_bottom", "triangles_top",
+]);
+
+request_registry_assets!(request_jukebox_songs, jukebox_song::JukeboxSong, "jukebox_song", [
+    "11", "13", "5", "blocks", "cat", "chirp", "creator", "creator_music_box",
+    "far", "lava_chicken", "mall", "mellohi", "otherside", "pigstep", "precipice",
+    "relic", "stal", "strad", "tears", "wait", "ward",
+]);
+
+request_registry_assets!(request_instruments, instrument::Instrument, "instrument", [
+    "admire_goat_horn", "call_goat_horn", "dream_goat_horn", "feel_goat_horn",
+    "ponder_goat_horn", "seek_goat_horn", "sing_goat_horn", "yearn_goat_horn",
+]);
+
+request_registry_assets!(request_test_environments, test_types::TestEnvironment, "test_environment", [
+    "default",
+]);
+
+request_registry_assets!(request_test_instances, test_types::TestInstance, "test_instance", [
+    "always_pass",
+]);
+
+request_registry_assets!(request_dialogs, dialog::Dialog, "dialog", [
+    "custom_options", "quick_actions", "server_links",
+]);
+
+request_registry_assets!(request_timelines, timeline::Timeline, "timeline", [
+    "day", "early_game", "moon", "villager_schedule",
+]);
 
 fn check_tags_ready(
     block_tags: Res<TagRegistry<block::Block>>,
