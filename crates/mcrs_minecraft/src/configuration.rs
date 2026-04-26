@@ -352,7 +352,8 @@ fn on_configuration_enter(
         let enchantment_entries: Vec<Entry> = enchantment_registry
             .iter()
             .map(|(_static_id, loc, data)| {
-                let enchantment_nbt = nbt::to_nbt_compound(data)
+                let network = mcrs_vanilla::enchantment::NetworkEnchantmentData::from(data);
+                let enchantment_nbt = nbt::to_nbt_compound(&network)
                     .expect(&format!("Failed to serialize enchantment: {}", loc.as_str()));
                 Entry {
                     id: Cow::from(loc.as_str()).try_into().unwrap(),

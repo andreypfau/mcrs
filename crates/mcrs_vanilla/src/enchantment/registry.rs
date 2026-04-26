@@ -1,4 +1,4 @@
-use super::data::EnchantmentData;
+use super::data::{EnchantmentData, ProtoEnchantmentData};
 use mcrs_core::{ResourceLocation, StaticRegistry};
 
 /// The 43 vanilla enchantments in Java bootstrap (protocol) order.
@@ -54,8 +54,11 @@ pub fn register_all_enchantments(registry: &mut StaticRegistry<EnchantmentData>)
         let path = format!("assets/{}/enchantment/{}.json", loc.namespace(), loc.path());
         let json = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("failed to read enchantment file {path}: {e}"));
-        let data: EnchantmentData = serde_json::from_str(&json)
+        let proto: ProtoEnchantmentData = serde_json::from_str(&json)
             .unwrap_or_else(|e| panic!("failed to parse enchantment JSON {path}: {e}"));
+        let data = proto
+            .resolve()
+            .unwrap_or_else(|e| panic!("failed to resolve enchantment {path}: {e}"));
         let leaked: &'static EnchantmentData = Box::leak(Box::new(data));
         registry.register(loc, leaked);
     }
