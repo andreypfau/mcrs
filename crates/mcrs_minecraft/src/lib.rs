@@ -75,6 +75,8 @@ impl Plugin for ServerPlugin {
         //     app.add_plugins(ScheduleRunnerPlugin::default());
         // }
         app.add_plugins(AssetPlugin::default());
+        app.add_plugins(mcrs_core::MinecraftEnginePlugin);
+        app.add_plugins(mcrs_vanilla::MinecraftCorePlugin);
         app.add_plugins(NetworkPlugin);
         app.add_plugins(LoginPlugin);
         app.add_plugins(ConfigurationStatePlugin);
