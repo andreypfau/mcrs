@@ -1,6 +1,7 @@
 use crate::world::block::Block;
 use bevy_app::{App, Plugin};
 use mcrs_protocol::{BlockStateId, Ident};
+use mcrs_registry::Registry;
 
 macro_rules! declare_blocks {
     (
@@ -29,6 +30,14 @@ macro_rules! declare_blocks {
                         app.add_plugins($module::$plugin);
                     )*)?
                 )*
+
+                // Register blocks in registry
+                let mut registry = Registry::<&'static Block>::default();
+                $(
+                    registry.insert($const_name.identifier, &$const_name);
+                )*
+
+                app.insert_resource(registry);
             }
         }
 

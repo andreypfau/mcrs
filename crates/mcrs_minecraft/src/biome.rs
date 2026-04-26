@@ -1,6 +1,6 @@
 use crate::sound::{Music, SoundEvent};
 use crate::weight::Weighted;
-use crate::sound::Holder;
+use mcrs_registry::Holder;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Clone, PartialEq, Debug, Serialize, Deserialize)]

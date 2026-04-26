@@ -8,7 +8,7 @@ use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
 use serde::de::{self, SeqAccess, Visitor};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer};
 
 use crate::ResourceLocation;
 
@@ -39,36 +39,13 @@ impl Biome {
     }
 }
 
-/// Biome data subset for NETWORK_CODEC — omits server-only generation settings.
-///
-/// Sent to clients during Configuration; excludes carvers, features,
-/// spawners, and spawn_costs which are irrelevant to the client.
-#[derive(Debug, Clone, Serialize)]
-pub struct NetworkBiome {
-    pub temperature: f32,
-    pub downfall: f32,
-    pub has_precipitation: bool,
-    pub effects: BiomeEffects,
-}
-
-impl From<&Biome> for NetworkBiome {
-    fn from(biome: &Biome) -> Self {
-        NetworkBiome {
-            temperature: biome.temperature,
-            downfall: biome.downfall,
-            has_precipitation: biome.has_precipitation,
-            effects: biome.effects.clone(),
-        }
-    }
-}
-
 impl Asset for Biome {}
 
 impl VisitAssetDependencies for Biome {
     fn visit_dependencies(&self, _visit: &mut impl FnMut(UntypedAssetId)) {}
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BiomeEffects {
     #[serde(default)]
     pub water_color: Option<String>,
@@ -245,30 +222,6 @@ mod tests {
 
         assert!(count > 0, "no biome files found");
         eprintln!("successfully deserialized {count} biomes");
-    }
-
-    #[test]
-    fn network_biome_omits_server_fields() {
-        let bytes = std::fs::read(
-            assets_dir().join("minecraft/worldgen/biome/plains.json"),
-        )
-        .unwrap();
-        let biome: Biome = serde_json::from_slice(&bytes).unwrap();
-        let network = NetworkBiome::from(&biome);
-
-        let json = serde_json::to_value(&network).unwrap();
-        assert!(json.get("temperature").is_some());
-        assert!(json.get("downfall").is_some());
-        assert!(json.get("has_precipitation").is_some());
-        assert!(json.get("effects").is_some());
-        assert!(json.get("carvers").is_none());
-        assert!(json.get("features").is_none());
-        assert!(json.get("spawners").is_none());
-        assert!(json.get("spawn_costs").is_none());
-
-        assert!((network.temperature - biome.temperature).abs() < f32::EPSILON);
-        assert!((network.downfall - biome.downfall).abs() < f32::EPSILON);
-        assert_eq!(network.has_precipitation, biome.has_precipitation);
     }
 
     #[test]

@@ -1,9 +1,5 @@
-pub mod entity_type;
 pub mod explosive;
-pub mod minecraft;
 pub mod player;
-
-pub use entity_type::EntityType;
 
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::{ContainsEntity, Entity};

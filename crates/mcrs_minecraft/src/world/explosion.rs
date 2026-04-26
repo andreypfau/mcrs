@@ -1,4 +1,4 @@
-use crate::world::block::{Block, BlockState};
+use crate::world::block::BlockState;
 use crate::world::entity::explosive::Explosive;
 use crate::world::palette::BlockPalette;
 use bevy_app::{App, FixedUpdate, Plugin};
@@ -87,7 +87,7 @@ impl<'a, 'b> BlockCache<'a, 'b> {
                     let b = chunk_index.get(chunk_pos)?;
                     let (chunk, palette) = chunks.get(b.entity()).ok()?;
                     let block_state = palette.get(pos);
-                    let resistance = (AsRef::<Block>::as_ref(&block_state).explosion_resistance() + 0.3) * 0.3;
+                    let resistance = (block_state.as_ref().explosion_resistance() + 0.3) * 0.3;
                     Some(BlockCacheItem {
                         pos,
                         block: block_state,

@@ -1,3 +1,4 @@
+use crate::tag::block::TagRegistry;
 use crate::world::block::Block;
 use crate::world::block_update::BlockSetRequest;
 use crate::world::entity::attribute::Attribute;
@@ -7,7 +8,7 @@ use crate::world::entity::player::player_action::{
     PlayerAction, PlayerActionKind, PlayerWillDestroyBlock,
 };
 use crate::world::inventory::PlayerHotbarSlots;
-use crate::world::item::{Item, ItemStack};
+use crate::world::item::ItemStack;
 use crate::world::item::component::Tool;
 use crate::world::item::component::Enchantments;
 use crate::enchantment::EnchantmentData;
@@ -27,9 +28,7 @@ use mcrs_engine::world::dimension::{DimensionPlayers, InDimension};
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::ClientboundBlockDestruction;
 use mcrs_protocol::{BlockStateId, Ident, VarInt, WritePacket};
-use mcrs_core::StaticRegistry;
-use mcrs_core::tag::registry::TagRegistry;
-use mcrs_vanilla::block::Block as VanillaBlock;
+use mcrs_registry::Registry;
 use rand::RngExt;
 use std::str::FromStr;
 use std::time::Duration;
@@ -130,8 +129,8 @@ fn player_start_destroy_block(
         &PlayerHotbarSlots,
     )>,
     items: Query<(&ItemStack, Option<&Tool>)>,
-    tag_registry: Res<TagRegistry<VanillaBlock>>,
-    block_registry: Res<StaticRegistry<VanillaBlock>>,
+    tag_registry: Res<TagRegistry<&'static Block>>,
+    block_registry: Res<Registry<&'static Block>>,
     time: Res<Time<Fixed>>,
     mut player_will_destroy_block: MessageWriter<PlayerWillDestroyBlock>,
     mut commands: Commands,
@@ -302,8 +301,8 @@ fn get_destroy_speed<B>(
     items: &Query<(&ItemStack, Option<&Tool>)>,
     mining_efficiency: &MiningEfficiency,
     block_break_speed: &BlockBreakSpeed,
-    tag_registry: &TagRegistry<VanillaBlock>,
-    block_registry: &StaticRegistry<VanillaBlock>,
+    tag_registry: &TagRegistry<&'static Block>,
+    block_registry: &Registry<&'static Block>,
 ) -> f32
 where
     B: AsRef<Block>,
@@ -326,8 +325,8 @@ pub fn extract_tool_data(
     block: &Block,
     hotbar: &PlayerHotbarSlots,
     items: &Query<(&ItemStack, Option<&Tool>)>,
-    tag_registry: &TagRegistry<VanillaBlock>,
-    block_registry: &StaticRegistry<VanillaBlock>,
+    tag_registry: &TagRegistry<&'static Block>,
+    block_registry: &Registry<&'static Block>,
 ) -> (bool, f32) {
     let requires_correct_tool = block.requires_correct_tool_for_drops();
     let Some(slot) = hotbar.get_selected_slot() else {
@@ -339,7 +338,7 @@ pub fn extract_tool_data(
         return (!requires_correct_tool, 1.0);
     };
     let item_id = stack.item_id();
-    let item: &Item = item_id.as_ref();
+    let item = item_id.as_ref();
     let Some(tool) = tool.or_else(|| item.components.tool.as_ref()) else {
         debug!(block = %block.identifier, item = %item.identifier, "no tool component");
         return (!requires_correct_tool, 1.0);
@@ -366,8 +365,8 @@ pub fn get_tool_destroy_speed(
     block: &Block,
     hotbar: &PlayerHotbarSlots,
     items: &Query<(&ItemStack, Option<&Tool>)>,
-    tag_registry: &TagRegistry<VanillaBlock>,
-    block_registry: &StaticRegistry<VanillaBlock>,
+    tag_registry: &TagRegistry<&'static Block>,
+    block_registry: &Registry<&'static Block>,
 ) -> f32 {
     let (has_correct_tool, speed) = extract_tool_data(block, hotbar, items, tag_registry, block_registry);
     let modifier = if has_correct_tool { 30.0 } else { 100.0 };
@@ -379,17 +378,18 @@ fn handle_player_will_destroy_block(
     mut writer: MessageWriter<BlockSetRequest>,
     players: Query<(&InDimension, &PlayerHotbarSlots)>,
     items: Query<(&ItemStack, Option<&Enchantments>, Option<&Tool>)>,
-    tag_registry: Res<TagRegistry<VanillaBlock>>,
-    block_registry: Res<StaticRegistry<VanillaBlock>>,
-    enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
+    tag_registry: Res<TagRegistry<&'static Block>>,
+    block_registry: Res<Registry<&'static Block>>,
+    enchantment_registry: Res<Registry<EnchantmentData>>,
     mut loot_tables: ResMut<BlockLootTables>,
     asset_server: Res<AssetServer>,
     mut silk_touch_id: Local<Option<u16>>,
 ) {
-    if silk_touch_id.is_none() {
-        *silk_touch_id = enchantment_registry
-            .id_of("minecraft:silk_touch")
-            .map(|id| id.raw() as u16);
+    if enchantment_registry.is_changed() {
+        *silk_touch_id = Ident::<String>::from_str("minecraft:silk_touch")
+            .ok()
+            .and_then(|id| enchantment_registry.get_full(id))
+            .map(|(idx, _)| idx as u16);
     }
 
     reader.read().for_each(|event| {
@@ -406,7 +406,7 @@ fn handle_player_will_destroy_block(
         let has_correct_tool = if block.requires_correct_tool_for_drops() {
             if let Some(slot) = hotbar.get_selected_slot() {
                 if let Ok((stack, _, tool)) = items.get(slot) {
-                    if let Some(tool) = tool.or_else(|| AsRef::<Item>::as_ref(&stack.item_id()).components.tool.as_ref()) {
+                    if let Some(tool) = tool.or_else(|| stack.item_id().as_ref().components.tool.as_ref()) {
                         tool.is_correct_block_for_drops(block, &tag_registry, &block_registry)
                     } else {
                         false

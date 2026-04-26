@@ -1,16 +1,8 @@
 mod minecraft;
 
 use mcrs_protocol::Ident;
+use mcrs_registry::Holder;
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
-use std::fmt::Debug;
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Holder<E: Debug + Clone + PartialEq> {
-    Reference(Ident<Cow<'static, str>>),
-    Direct(E),
-}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SoundEvent {

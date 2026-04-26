@@ -13,5 +13,6 @@ bevy_state.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 mcrs_core_macros.workspace = true
+mcrs_nbt.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
