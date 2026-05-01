@@ -3,5 +3,5 @@ pub mod snapshot;
 pub mod static_registry;
 
 pub use resource_key::ResourceKey;
-pub use snapshot::RegistrySnapshot;
+pub use snapshot::{RegistrySnapshot, SnapshotEntry};
 pub use static_registry::{StaticId, StaticRegistry};

@@ -4,7 +4,7 @@ pub mod resource_location;
 pub mod state;
 pub mod tag;
 
-pub use registry::{RegistrySnapshot, ResourceKey, StaticId, StaticRegistry};
+pub use registry::{RegistrySnapshot, ResourceKey, SnapshotEntry, StaticId, StaticRegistry};
 pub use resource_location::ResourceLocation;
 pub use state::AppState;
 pub use tag::{IdBitSet, TagEntry, TagFile, TagFileLoader, TagFileSettings, TagKey, TagRef, TagRegistry, TaggedRegistry};
@@ -28,6 +28,5 @@ impl Plugin for MinecraftEnginePlugin {
         app.init_state::<AppState>();
         app.init_asset::<TagFile>();
         app.register_asset_loader(TagFileLoader);
-        app.init_resource::<RegistrySnapshot>();
     }
 }
