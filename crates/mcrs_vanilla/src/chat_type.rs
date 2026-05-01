@@ -1,9 +1,9 @@
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct ChatType {
     pub chat: ChatDecoration,
     pub narration: ChatDecoration,
@@ -11,7 +11,7 @@ pub struct ChatType {
     pub overlay: Option<ChatDecoration>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatDecoration {
     pub translation_key: String,
     pub parameters: Vec<String>,

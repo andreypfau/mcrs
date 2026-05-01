@@ -1,7 +1,7 @@
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use mcrs_core::tag::key::TaggedRegistry;
 use mcrs_core::tag::tag_ref::TagRef;
@@ -67,7 +67,7 @@ impl ProtoDialog {
 
 // ── Runtime Dialog ──
 
-#[derive(Debug, Clone, TypePath)]
+#[derive(Debug, Clone, Serialize, TypePath)]
 pub struct Dialog {
     pub dialog_type: String,
     pub title: serde_json::Value,
@@ -75,6 +75,8 @@ pub struct Dialog {
     pub exit_action: Option<serde_json::Value>,
     pub columns: Option<u32>,
     pub button_width: Option<u32>,
+    // TagRef<Dialog> is a runtime-only Handle wrapper; not part of the network payload
+    #[serde(skip_serializing)]
     pub dialogs: Option<TagRef<Dialog>>,
 }
 

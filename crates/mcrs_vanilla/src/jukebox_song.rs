@@ -1,9 +1,9 @@
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct JukeboxSong {
     pub sound_event: String,
     pub description: serde_json::Value,

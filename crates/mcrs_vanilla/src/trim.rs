@@ -1,7 +1,7 @@
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 macro_rules! leaf_asset {
     ($name:ident, $loader:ident, $error:ident) => {
@@ -45,7 +45,7 @@ macro_rules! leaf_asset {
     };
 }
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct TrimPattern {
     pub asset_id: String,
     pub description: serde_json::Value,
@@ -55,7 +55,7 @@ pub struct TrimPattern {
 
 leaf_asset!(TrimPattern, TrimPatternLoader, TrimPatternLoaderError);
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct TrimMaterial {
     pub asset_name: String,
     pub description: serde_json::Value,

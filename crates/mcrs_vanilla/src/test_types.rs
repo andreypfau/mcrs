@@ -1,9 +1,9 @@
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct TestEnvironment {
     #[serde(rename = "type")]
     pub env_type: String,
@@ -49,7 +49,7 @@ impl AssetLoader for TestEnvironmentLoader {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct TestInstance {
     #[serde(rename = "type")]
     pub test_type: String,

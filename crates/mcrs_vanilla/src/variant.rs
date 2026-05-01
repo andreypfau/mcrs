@@ -1,7 +1,7 @@
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 macro_rules! leaf_asset {
     ($name:ident, $loader:ident, $error:ident) => {
@@ -45,21 +45,21 @@ macro_rules! leaf_asset {
     };
 }
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct WolfVariantAssets {
     pub wild: String,
     pub tame: String,
     pub angry: String,
 }
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct WolfVariant {
     pub assets: WolfVariantAssets,
 }
 
 leaf_asset!(WolfVariant, WolfVariantLoader, WolfVariantLoaderError);
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct WolfSoundVariant {
     pub hurt_sound: String,
     pub pant_sound: String,
@@ -75,7 +75,7 @@ leaf_asset!(
     WolfSoundVariantLoaderError
 );
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct PigVariant {
     #[serde(default)]
     pub model: Option<String>,
@@ -84,21 +84,21 @@ pub struct PigVariant {
 
 leaf_asset!(PigVariant, PigVariantLoader, PigVariantLoaderError);
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct FrogVariant {
     pub asset_id: String,
 }
 
 leaf_asset!(FrogVariant, FrogVariantLoader, FrogVariantLoaderError);
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct CatVariant {
     pub asset_id: String,
 }
 
 leaf_asset!(CatVariant, CatVariantLoader, CatVariantLoaderError);
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct CowVariant {
     #[serde(default)]
     pub model: Option<String>,
@@ -107,7 +107,7 @@ pub struct CowVariant {
 
 leaf_asset!(CowVariant, CowVariantLoader, CowVariantLoaderError);
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct ChickenVariant {
     #[serde(default)]
     pub model: Option<String>,
@@ -120,7 +120,7 @@ leaf_asset!(
     ChickenVariantLoaderError
 );
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct ZombieNautilusVariant {
     pub asset_id: String,
     #[serde(default)]

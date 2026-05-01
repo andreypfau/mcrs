@@ -16,7 +16,7 @@ use crate::ResourceLocation;
 ///
 /// This is a leaf asset with no `Handle` references, so it deserializes
 /// directly without a Proto layer.
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct Biome {
     pub temperature: f32,
     pub downfall: f32,
@@ -82,7 +82,7 @@ pub struct BiomeEffects {
     pub dry_foliage_color: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BiomeSpawners {
     #[serde(default)]
     pub ambient: Vec<SpawnerData>,
@@ -102,7 +102,7 @@ pub struct BiomeSpawners {
     pub water_creature: Vec<SpawnerData>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpawnerData {
     #[serde(rename = "type")]
     pub entity_type: ResourceLocation<Arc<str>>,
@@ -113,7 +113,7 @@ pub struct SpawnerData {
     pub weight: u32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpawnCost {
     pub charge: f64,
     pub energy_budget: f64,
