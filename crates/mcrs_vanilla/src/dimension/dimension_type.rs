@@ -131,6 +131,54 @@ impl VisitAssetDependencies for DimensionType {
     }
 }
 
+/// DimensionType data subset for NETWORK_CODEC.
+///
+/// The `infiniburn` field is serialized as a string like
+/// `"#minecraft:infiniburn_overworld"` (the tag key prefixed with `#`).
+#[derive(Debug, Clone, Serialize)]
+pub struct NetworkDimensionType {
+    pub has_skylight: bool,
+    pub has_ceiling: bool,
+    pub coordinate_scale: f64,
+    pub min_y: i32,
+    pub height: u32,
+    pub logical_height: u32,
+    pub infiniburn: String,
+    pub ambient_light: f32,
+    pub monster_spawn_block_light_limit: u32,
+    pub monster_spawn_light_level: IntValueProvider,
+    pub skybox: Skybox,
+    pub cardinal_light: CardinalLight,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_fixed_time: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timelines: Option<Value>,
+}
+
+impl From<&DimensionType> for NetworkDimensionType {
+    fn from(dt: &DimensionType) -> Self {
+        NetworkDimensionType {
+            has_skylight: dt.has_skylight,
+            has_ceiling: dt.has_ceiling,
+            coordinate_scale: dt.coordinate_scale,
+            min_y: dt.min_y,
+            height: dt.height,
+            logical_height: dt.logical_height,
+            infiniburn: format!("#{}", dt.infiniburn.key().as_str()),
+            ambient_light: dt.ambient_light,
+            monster_spawn_block_light_limit: dt.monster_spawn_block_light_limit,
+            monster_spawn_light_level: dt.monster_spawn_light_level.clone(),
+            skybox: dt.skybox.clone(),
+            cardinal_light: dt.cardinal_light.clone(),
+            has_fixed_time: dt.has_fixed_time,
+            attributes: dt.attributes.clone(),
+            timelines: dt.timelines.clone(),
+        }
+    }
+}
+
 // ── Loader ──
 
 /// Bevy `AssetLoader` for dimension type JSON files.

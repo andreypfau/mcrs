@@ -8,7 +8,6 @@ use crate::world::loot::condition::{LootCondition, LootConditionProto};
 use crate::world::loot::context::{BlockBreakContext, LootDrop};
 use crate::world::loot::entry::LootEntryProto;
 use crate::world::loot::function::LootFunctionProto;
-use crate::world::block::Block;
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetApp, AssetEvent, AssetLoader, AssetServer, Assets, Handle, LoadContext, VisitAssetDependencies};
@@ -17,7 +16,8 @@ use bevy_ecs::prelude::ResMut;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use bevy_reflect::TypePath;
-use mcrs_registry::Registry;
+use mcrs_core::StaticRegistry;
+use mcrs_vanilla::block::Block as VanillaBlock;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -88,7 +88,7 @@ pub enum LootEntry {
 // ============================================================================
 
 impl LootTableProto {
-    pub fn resolve(&self, enchantment_registry: &Registry<EnchantmentData>) -> LootTable {
+    pub fn resolve(&self, enchantment_registry: &StaticRegistry<EnchantmentData>) -> LootTable {
         LootTable {
             pools: self
                 .pools
@@ -100,7 +100,7 @@ impl LootTableProto {
 }
 
 impl LootPoolProto {
-    fn resolve(&self, enchantment_registry: &Registry<EnchantmentData>) -> LootPool {
+    fn resolve(&self, enchantment_registry: &StaticRegistry<EnchantmentData>) -> LootPool {
         let rolls = match &self.rolls {
             serde_json::Value::Number(n) => n.as_u64().unwrap_or(1) as u32,
             _ => 1,
@@ -121,7 +121,7 @@ impl LootPoolProto {
     }
 }
 
-fn resolve_entry(entry: &LootEntryProto, enchantment_registry: &Registry<EnchantmentData>) -> LootEntry {
+fn resolve_entry(entry: &LootEntryProto, enchantment_registry: &StaticRegistry<EnchantmentData>) -> LootEntry {
     match entry {
         LootEntryProto::Item {
             name, conditions, ..
@@ -159,7 +159,7 @@ fn resolve_entry(entry: &LootEntryProto, enchantment_registry: &Registry<Enchant
 
 fn resolve_condition(
     condition: &LootConditionProto,
-    enchantment_registry: &Registry<EnchantmentData>,
+    enchantment_registry: &StaticRegistry<EnchantmentData>,
 ) -> LootCondition {
     match condition {
         LootConditionProto::MatchTool { predicate } => {
@@ -167,16 +167,14 @@ fn resolve_condition(
                 if let Some(enchantments) = &predicates.enchantments {
                     if let Some(first) = enchantments.first() {
                         let enchantment_id = &first.enchantments;
-                        if let Some((index, _)) = enchantment_registry.get_full(
-                            enchantment_id.clone()
-                        ) {
+                        if let Some(static_id) = enchantment_registry.id_of(enchantment_id.as_str()) {
                             let min_level = first
                                 .levels
                                 .as_ref()
                                 .and_then(|l| l.min)
                                 .unwrap_or(1);
                             return LootCondition::MatchToolEnchantment {
-                                enchantment_registry_index: index as u16,
+                                enchantment_registry_index: static_id.raw() as u16,
                                 min_level,
                             };
                         }
@@ -382,12 +380,14 @@ impl BlockLootTables {
 }
 
 fn request_loot_tables_for_registered_blocks(
-    block_registry: Res<Registry<&'static Block>>,
+    block_registry: Res<StaticRegistry<VanillaBlock>>,
     asset_server: Res<AssetServer>,
     mut block_loot_tables: ResMut<BlockLootTables>,
 ) {
-    for (id, _block) in block_registry.iter_entries() {
-        block_loot_tables.request(id, &asset_server);
+    for (_static_id, loc, _block) in block_registry.iter() {
+        if let Ok(ident) = Ident::from_str(loc.as_str()) {
+            block_loot_tables.request(&ident, &asset_server);
+        }
     }
     info!(
         requested = block_loot_tables.pending.len(),
@@ -398,7 +398,7 @@ fn request_loot_tables_for_registered_blocks(
 fn process_loaded_loot_tables(
     mut events: MessageReader<AssetEvent<LootTableAsset>>,
     assets: Res<Assets<LootTableAsset>>,
-    enchantment_registry: Res<Registry<EnchantmentData>>,
+    enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
     mut block_loot_tables: ResMut<BlockLootTables>,
 ) {
     for event in events.read() {

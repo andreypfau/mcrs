@@ -57,6 +57,8 @@ impl<T> StaticId<T> {
 pub struct StaticRegistry<T: 'static> {
     entries: Vec<(ResourceLocation<Arc<str>>, &'static T)>,
     index: HashMap<ResourceLocation<Arc<str>>, u32>,
+    reverse: HashMap<usize, u32>,
+    frozen: bool,
 }
 
 impl<T: 'static> StaticRegistry<T> {
@@ -64,6 +66,8 @@ impl<T: 'static> StaticRegistry<T> {
         StaticRegistry {
             entries: Vec::new(),
             index: HashMap::new(),
+            reverse: HashMap::new(),
+            frozen: false,
         }
     }
 
@@ -76,6 +80,7 @@ impl<T: 'static> StaticRegistry<T> {
         loc: impl Into<ResourceLocation<Arc<str>>>,
         value: &'static T,
     ) -> StaticId<T> {
+        assert!(!self.frozen, "register() called after freeze()");
         let loc = loc.into();
         let id = self.entries.len() as u32;
         assert!(
@@ -115,6 +120,26 @@ impl<T: 'static> StaticRegistry<T> {
         self.entries.is_empty()
     }
 
+    pub fn freeze(&mut self) {
+        assert!(!self.frozen, "freeze() called twice");
+        for (i, (_, value)) in self.entries.iter().enumerate() {
+            self.reverse
+                .insert(*value as *const T as usize, i as u32);
+        }
+        self.frozen = true;
+        tracing::info!(count = self.entries.len(), "frozen StaticRegistry");
+    }
+
+    pub fn id_of_value(&self, value: &'static T) -> Option<StaticId<T>> {
+        self.reverse
+            .get(&(value as *const T as usize))
+            .map(|&id| StaticId::new(id))
+    }
+
+    pub fn frozen(&self) -> bool {
+        self.frozen
+    }
+
     pub fn iter(
         &self,
     ) -> impl Iterator<Item = (StaticId<T>, &ResourceLocation<Arc<str>>, &'static T)> + '_ {
@@ -134,5 +159,109 @@ impl<T: 'static> StaticRegistry<T> {
 impl<T: 'static> Default for StaticRegistry<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Dummy(u32);
+
+    static DUMMY_A: Dummy = Dummy(1);
+    static DUMMY_B: Dummy = Dummy(2);
+    static DUMMY_C: Dummy = Dummy(3);
+    static DUMMY_UNKNOWN: Dummy = Dummy(999);
+
+    fn loc(s: &'static str) -> ResourceLocation<Arc<str>> {
+        ResourceLocation::from_str_const(s)
+    }
+
+    fn make_registry() -> StaticRegistry<Dummy> {
+        let mut reg = StaticRegistry::new();
+        reg.register(loc("minecraft:a"), &DUMMY_A);
+        reg.register(loc("minecraft:b"), &DUMMY_B);
+        reg.register(loc("minecraft:c"), &DUMMY_C);
+        reg
+    }
+
+    #[test]
+    fn test_freeze_builds_reverse_index() {
+        let mut reg = make_registry();
+        reg.freeze();
+        assert_eq!(reg.id_of_value(&DUMMY_A).unwrap().raw(), 0);
+        assert_eq!(reg.id_of_value(&DUMMY_B).unwrap().raw(), 1);
+        assert_eq!(reg.id_of_value(&DUMMY_C).unwrap().raw(), 2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_register_after_freeze_panics() {
+        let mut reg = make_registry();
+        reg.freeze();
+        static EXTRA: Dummy = Dummy(4);
+        reg.register(loc("minecraft:extra"), &EXTRA);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_double_freeze_panics() {
+        let mut reg = make_registry();
+        reg.freeze();
+        reg.freeze();
+    }
+
+    #[test]
+    fn test_get_by_id_after_freeze() {
+        let mut reg = make_registry();
+        let id_a = reg.id_of("minecraft:a").unwrap();
+        let id_b = reg.id_of("minecraft:b").unwrap();
+        let id_c = reg.id_of("minecraft:c").unwrap();
+        reg.freeze();
+        assert_eq!(reg.get_by_id(id_a).unwrap().0, 1);
+        assert_eq!(reg.get_by_id(id_b).unwrap().0, 2);
+        assert_eq!(reg.get_by_id(id_c).unwrap().0, 3);
+    }
+
+    #[test]
+    fn test_get_by_loc_after_freeze() {
+        let mut reg = make_registry();
+        reg.freeze();
+        assert_eq!(reg.get_by_loc("minecraft:a").unwrap().0, 1);
+        assert_eq!(reg.get_by_loc("minecraft:b").unwrap().0, 2);
+        assert_eq!(reg.get_by_loc("minecraft:c").unwrap().0, 3);
+    }
+
+    #[test]
+    fn test_id_of_value_returns_none_for_unknown() {
+        let mut reg = make_registry();
+        reg.freeze();
+        assert!(reg.id_of_value(&DUMMY_UNKNOWN).is_none());
+    }
+
+    #[test]
+    fn test_insertion_order_preserved() {
+        let mut reg = make_registry();
+        reg.freeze();
+        let items: Vec<_> = reg.iter().collect();
+        assert_eq!(items[0].0.raw(), 0);
+        assert_eq!(items[0].2.0, 1);
+        assert_eq!(items[1].0.raw(), 1);
+        assert_eq!(items[1].2.0, 2);
+        assert_eq!(items[2].0.raw(), 2);
+        assert_eq!(items[2].2.0, 3);
+    }
+
+    #[test]
+    fn test_frozen_returns_false_before_freeze() {
+        let reg = StaticRegistry::<Dummy>::new();
+        assert!(!reg.frozen());
+    }
+
+    #[test]
+    fn test_frozen_returns_true_after_freeze() {
+        let mut reg = make_registry();
+        reg.freeze();
+        assert!(reg.frozen());
     }
 }
