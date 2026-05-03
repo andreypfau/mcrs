@@ -1896,6 +1896,7 @@ dependencies = [
  "derive_more",
  "mcrs_core",
  "mcrs_engine",
+ "mcrs_nbt",
  "mcrs_protocol",
  "paste",
  "rand 0.10.0",

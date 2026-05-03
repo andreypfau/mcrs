@@ -6,6 +6,7 @@ edition.workspace = true
 
 [dependencies]
 mcrs_core.workspace = true
+mcrs_nbt.workspace = true
 mcrs_protocol.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true

@@ -111,8 +111,34 @@ impl Plugin for MinecraftCorePlugin {
             .init_resource::<TagRegistry<item::Item>>()
             .init_resource::<StaticRegistry<EnchantmentData>>()
             .init_resource::<TagRegistry<EnchantmentData>>()
-            .init_resource::<LoadedRegistryAssets>()
-            .add_systems(PostStartup, start_loading_data_pack)
+            .init_resource::<LoadedRegistryAssets>();
+
+        mcrs_core::snapshot_registry!(app, [
+            (biome::Biome, |b: &biome::Biome| mcrs_nbt::to_nbt_compound(&biome::NetworkBiome::from(b))),
+            (dimension::dimension_type::DimensionType, |d: &dimension::dimension_type::DimensionType| mcrs_nbt::to_nbt_compound(&dimension::dimension_type::NetworkDimensionType::from(d))),
+            (timeline::Timeline, |t: &timeline::Timeline| mcrs_nbt::to_nbt_compound(&timeline::NetworkTimeline::from(t))),
+            (chat_type::ChatType, |v: &chat_type::ChatType| mcrs_nbt::to_nbt_compound(v)),
+            (trim::TrimPattern, |v: &trim::TrimPattern| mcrs_nbt::to_nbt_compound(v)),
+            (trim::TrimMaterial, |v: &trim::TrimMaterial| mcrs_nbt::to_nbt_compound(v)),
+            (variant::WolfVariant, |v: &variant::WolfVariant| mcrs_nbt::to_nbt_compound(v)),
+            (variant::WolfSoundVariant, |v: &variant::WolfSoundVariant| mcrs_nbt::to_nbt_compound(v)),
+            (variant::PigVariant, |v: &variant::PigVariant| mcrs_nbt::to_nbt_compound(v)),
+            (variant::FrogVariant, |v: &variant::FrogVariant| mcrs_nbt::to_nbt_compound(v)),
+            (variant::CatVariant, |v: &variant::CatVariant| mcrs_nbt::to_nbt_compound(v)),
+            (variant::CowVariant, |v: &variant::CowVariant| mcrs_nbt::to_nbt_compound(v)),
+            (variant::ChickenVariant, |v: &variant::ChickenVariant| mcrs_nbt::to_nbt_compound(v)),
+            (variant::ZombieNautilusVariant, |v: &variant::ZombieNautilusVariant| mcrs_nbt::to_nbt_compound(v)),
+            (painting_variant::PaintingVariant, |v: &painting_variant::PaintingVariant| mcrs_nbt::to_nbt_compound(v)),
+            (damage_type::DamageType, |v: &damage_type::DamageType| mcrs_nbt::to_nbt_compound(v)),
+            (banner_pattern::BannerPattern, |v: &banner_pattern::BannerPattern| mcrs_nbt::to_nbt_compound(v)),
+            (jukebox_song::JukeboxSong, |v: &jukebox_song::JukeboxSong| mcrs_nbt::to_nbt_compound(v)),
+            (instrument::Instrument, |v: &instrument::Instrument| mcrs_nbt::to_nbt_compound(v)),
+            (dialog::Dialog, |v: &dialog::Dialog| mcrs_nbt::to_nbt_compound(v)),
+            (test_types::TestEnvironment, |v: &test_types::TestEnvironment| mcrs_nbt::to_nbt_compound(v)),
+            (test_types::TestInstance, |v: &test_types::TestInstance| mcrs_nbt::to_nbt_compound(v)),
+        ]);
+
+        app.add_systems(PostStartup, start_loading_data_pack)
             .add_systems(
                 OnEnter(AppState::LoadingDataPack),
                 (
