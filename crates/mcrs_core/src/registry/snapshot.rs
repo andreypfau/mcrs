@@ -117,6 +117,60 @@ impl<T: Asset> RegistrySnapshot<T> {
     }
 }
 
+/// Convert a Bevy asset path into a `ResourceLocation`.
+///
+/// Asset path shape: `"<namespace>/<registry_dir...>/<name>.json"`.
+/// The namespace is the first path component, the name is the file stem.
+/// Registry directory segments (variable depth) are stripped.
+pub fn rl_from_asset_path(path: &std::path::Path) -> Option<ResourceLocation<Arc<str>>> {
+    let namespace = path.iter().next()?.to_str()?;
+    let stem = path.file_stem()?.to_str()?;
+    ResourceLocation::parse(&format!("{namespace}:{stem}")).ok()
+}
+
+/// Register `RegistrySnapshot<T>` resources and their WorldgenFreeze builder
+/// systems for a list of dynamic registry types.
+///
+/// Each tuple `($ty, $ser)` expands to:
+/// 1. `init_resource::<RegistrySnapshot<$ty>>()`
+/// 2. An `OnEnter(AppState::WorldgenFreeze)` system that iterates `Assets<$ty>`,
+///    maps asset paths to `ResourceLocation`s, and builds the snapshot with `$ser`.
+#[macro_export]
+macro_rules! snapshot_registry {
+    ($app:expr, [ $( ($ty:ty, $ser:expr) ),* $(,)? ]) => {
+        $(
+            $app.init_resource::<$crate::RegistrySnapshot<$ty>>();
+            $app.add_systems(
+                ::bevy_state::state::OnEnter($crate::AppState::WorldgenFreeze),
+                |
+                    mut snapshot: ::bevy_ecs::system::ResMut<$crate::RegistrySnapshot<$ty>>,
+                    assets: ::bevy_ecs::system::Res<::bevy_asset::Assets<$ty>>,
+                    asset_server: ::bevy_ecs::system::Res<::bevy_asset::AssetServer>,
+                | {
+                    let pairs: Vec<(
+                        $crate::ResourceLocation<::std::sync::Arc<str>>,
+                        ::bevy_asset::AssetId<$ty>,
+                    )> = assets
+                        .iter()
+                        .filter_map(|(asset_id, _)| {
+                            let path = asset_server.get_path(asset_id)?;
+                            let rl = $crate::registry::snapshot::rl_from_asset_path(path.path())?;
+                            Some((rl, asset_id))
+                        })
+                        .collect();
+                    let count = pairs.len();
+                    *snapshot = $crate::RegistrySnapshot::<$ty>::build(pairs, &assets, $ser);
+                    ::tracing::info!(
+                        kind = ::std::any::type_name::<$ty>(),
+                        entries = count,
+                        "built RegistrySnapshot"
+                    );
+                },
+            );
+        )*
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,5 +278,26 @@ mod tests {
                 entry.location.as_str()
             );
         }
+    }
+
+    #[test]
+    fn rl_from_asset_path_parses_minecraft_path() {
+        let p = std::path::Path::new("minecraft/worldgen/biome/plains.json");
+        let rl = rl_from_asset_path(p).unwrap();
+        assert_eq!(rl.as_str(), "minecraft:plains");
+    }
+
+    #[test]
+    fn rl_from_asset_path_nested_path() {
+        let p = std::path::Path::new("minecraft/chat_type/msg_command_incoming.json");
+        let rl = rl_from_asset_path(p).unwrap();
+        assert_eq!(rl.as_str(), "minecraft:msg_command_incoming");
+    }
+
+    #[test]
+    fn rl_from_asset_path_no_extension_still_works() {
+        let p = std::path::Path::new("minecraft/chat_type/chat");
+        let rl = rl_from_asset_path(p).unwrap();
+        assert_eq!(rl.as_str(), "minecraft:chat");
     }
 }
