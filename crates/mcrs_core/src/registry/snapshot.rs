@@ -131,41 +131,56 @@ pub fn rl_from_asset_path(path: &std::path::Path) -> Option<ResourceLocation<Arc
 /// Register `RegistrySnapshot<T>` resources and their WorldgenFreeze builder
 /// systems for a list of dynamic registry types.
 ///
-/// Each tuple `($ty, $ser)` expands to:
+/// Each tuple `($ty, $registry_key, $ser)` expands to:
 /// 1. `init_resource::<RegistrySnapshot<$ty>>()`
-/// 2. An `OnEnter(AppState::WorldgenFreeze)` system that iterates `Assets<$ty>`,
-///    maps asset paths to `ResourceLocation`s, and builds the snapshot with `$ser`.
+/// 2. Two chained `OnEnter(AppState::WorldgenFreeze)` systems:
+///    - **Build**: iterates `Assets<$ty>`, maps asset paths to
+///      `ResourceLocation`s, and builds the snapshot with `$ser`.
+///    - **Register**: reads the built snapshot, creates a
+///      `RegistrySnapshotErased`, and inserts it into `RegistryAccess`.
 #[macro_export]
 macro_rules! snapshot_registry {
-    ($app:expr, [ $( ($ty:ty, $ser:expr) ),* $(,)? ]) => {
+    ($app:expr, [ $( ($ty:ty, $registry_key:expr, $ser:expr) ),* $(,)? ]) => {
         $(
             $app.init_resource::<$crate::RegistrySnapshot<$ty>>();
             $app.add_systems(
                 ::bevy_state::state::OnEnter($crate::AppState::WorldgenFreeze),
-                |
-                    mut snapshot: ::bevy_ecs::system::ResMut<$crate::RegistrySnapshot<$ty>>,
-                    assets: ::bevy_ecs::system::Res<::bevy_asset::Assets<$ty>>,
-                    asset_server: ::bevy_ecs::system::Res<::bevy_asset::AssetServer>,
-                | {
-                    let pairs: Vec<(
-                        $crate::ResourceLocation<::std::sync::Arc<str>>,
-                        ::bevy_asset::AssetId<$ty>,
-                    )> = assets
-                        .iter()
-                        .filter_map(|(asset_id, _)| {
-                            let path = asset_server.get_path(asset_id)?;
-                            let rl = $crate::registry::snapshot::rl_from_asset_path(path.path())?;
-                            Some((rl, asset_id))
-                        })
-                        .collect();
-                    let count = pairs.len();
-                    *snapshot = $crate::RegistrySnapshot::<$ty>::build(pairs, &assets, $ser);
-                    ::tracing::info!(
-                        kind = ::std::any::type_name::<$ty>(),
-                        entries = count,
-                        "built RegistrySnapshot"
-                    );
-                },
+                (
+                    |
+                        mut snapshot: ::bevy_ecs::system::ResMut<$crate::RegistrySnapshot<$ty>>,
+                        assets: ::bevy_ecs::system::Res<::bevy_asset::Assets<$ty>>,
+                        asset_server: ::bevy_ecs::system::Res<::bevy_asset::AssetServer>,
+                    | {
+                        let pairs: Vec<(
+                            $crate::ResourceLocation<::std::sync::Arc<str>>,
+                            ::bevy_asset::AssetId<$ty>,
+                        )> = assets
+                            .iter()
+                            .filter_map(|(asset_id, _)| {
+                                let path = asset_server.get_path(asset_id)?;
+                                let rl = $crate::registry::snapshot::rl_from_asset_path(path.path())?;
+                                Some((rl, asset_id))
+                            })
+                            .collect();
+                        let count = pairs.len();
+                        *snapshot = $crate::RegistrySnapshot::<$ty>::build(pairs, &assets, $ser);
+                        ::tracing::info!(
+                            kind = ::std::any::type_name::<$ty>(),
+                            entries = count,
+                            "built RegistrySnapshot"
+                        );
+                    },
+                    |
+                        snapshot: ::bevy_ecs::system::Res<$crate::RegistrySnapshot<$ty>>,
+                        mut access: ::bevy_ecs::system::ResMut<$crate::RegistryAccess>,
+                    | {
+                        let erased = $crate::RegistrySnapshotErased::from_dynamic(
+                            $registry_key,
+                            &snapshot,
+                        );
+                        access.register(::std::boxed::Box::new(erased));
+                    },
+                ).chain(),
             );
         )*
     };

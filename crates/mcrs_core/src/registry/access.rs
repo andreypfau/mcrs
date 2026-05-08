@@ -1,5 +1,7 @@
+use crate::registry::snapshot::RegistrySnapshot;
 use crate::registry::static_registry::StaticRegistry;
 use crate::resource_location::ResourceLocation;
+use bevy_asset::Asset;
 use bevy_ecs::resource::Resource;
 use mcrs_nbt::compound::NbtCompound;
 use std::sync::Arc;
@@ -58,6 +60,21 @@ impl RegistrySnapshotErased {
                     location: loc.clone(),
                     nbt,
                 }
+            })
+            .collect();
+        Self {
+            key: key.to_string(),
+            entries,
+        }
+    }
+
+    pub fn from_dynamic<T: Asset>(key: &str, snapshot: &RegistrySnapshot<T>) -> Self {
+        let entries = snapshot
+            .entries()
+            .iter()
+            .map(|e| ErasedOwnedEntry {
+                location: e.location.clone(),
+                nbt: Some(e.nbt.clone()),
             })
             .collect();
         Self {
