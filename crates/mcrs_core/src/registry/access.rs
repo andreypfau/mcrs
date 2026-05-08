@@ -6,10 +6,30 @@ use bevy_ecs::resource::Resource;
 use mcrs_nbt::compound::NbtCompound;
 use std::sync::Arc;
 
+#[derive(Debug, Clone)]
+pub struct PackSource {
+    pub namespace: Arc<str>,
+    pub id: Arc<str>,
+}
+
+impl PackSource {
+    pub fn new(namespace: &str, id: &str) -> Self {
+        Self {
+            namespace: Arc::from(namespace),
+            id: Arc::from(id),
+        }
+    }
+
+    pub fn vanilla_core() -> Self {
+        Self::new("minecraft", "core")
+    }
+}
+
 pub struct ErasedEntry<'a> {
     pub network_id: u32,
     pub location: &'a ResourceLocation<Arc<str>>,
     pub data: Option<&'a NbtCompound>,
+    pub pack_source: Option<&'a PackSource>,
 }
 
 pub trait ErasedRegistrySnapshot: Send + Sync {
@@ -26,6 +46,7 @@ pub trait ErasedRegistrySnapshot: Send + Sync {
 struct ErasedOwnedEntry {
     location: ResourceLocation<Arc<str>>,
     nbt: Option<NbtCompound>,
+    pack_source: Option<PackSource>,
 }
 
 pub struct RegistrySnapshotErased {
@@ -37,12 +58,17 @@ impl RegistrySnapshotErased {
     pub fn from_entries(
         key: &str,
         entries: Vec<(ResourceLocation<Arc<str>>, Option<NbtCompound>)>,
+        pack_source: Option<PackSource>,
     ) -> Self {
         Self {
             key: key.to_string(),
             entries: entries
                 .into_iter()
-                .map(|(location, nbt)| ErasedOwnedEntry { location, nbt })
+                .map(|(location, nbt)| ErasedOwnedEntry {
+                    location,
+                    nbt,
+                    pack_source: pack_source.clone(),
+                })
                 .collect(),
         }
     }
@@ -51,6 +77,7 @@ impl RegistrySnapshotErased {
         key: &str,
         registry: &StaticRegistry<T>,
         mut serialize: impl FnMut(&ResourceLocation<Arc<str>>, &'static T) -> Option<NbtCompound>,
+        pack_source: Option<PackSource>,
     ) -> Self {
         let entries = registry
             .iter()
@@ -59,6 +86,7 @@ impl RegistrySnapshotErased {
                 ErasedOwnedEntry {
                     location: loc.clone(),
                     nbt,
+                    pack_source: pack_source.clone(),
                 }
             })
             .collect();
@@ -68,13 +96,18 @@ impl RegistrySnapshotErased {
         }
     }
 
-    pub fn from_dynamic<T: Asset>(key: &str, snapshot: &RegistrySnapshot<T>) -> Self {
+    pub fn from_dynamic<T: Asset>(
+        key: &str,
+        snapshot: &RegistrySnapshot<T>,
+        pack_source: Option<PackSource>,
+    ) -> Self {
         let entries = snapshot
             .entries()
             .iter()
             .map(|e| ErasedOwnedEntry {
                 location: e.location.clone(),
                 nbt: Some(e.nbt.clone()),
+                pack_source: pack_source.clone(),
             })
             .collect();
         Self {
@@ -99,6 +132,7 @@ impl ErasedRegistrySnapshot for RegistrySnapshotErased {
                 network_id: i as u32,
                 location: &entry.location,
                 data: entry.nbt.as_ref(),
+                pack_source: entry.pack_source.as_ref(),
             }
         }))
     }
@@ -155,6 +189,7 @@ mod tests {
                     Some(make_nbt("temperature", "2.0")),
                 ),
             ],
+            None,
         );
 
         assert_eq!(erased.registry_key(), "minecraft:worldgen/biome");
@@ -178,6 +213,7 @@ mod tests {
                 (make_location("ambient.cave"), None),
                 (make_location("block.anvil.break"), None),
             ],
+            None,
         );
 
         assert_eq!(erased.len(), 2);
@@ -192,10 +228,12 @@ mod tests {
         let biome = RegistrySnapshotErased::from_entries(
             "minecraft:worldgen/biome",
             vec![(make_location("plains"), Some(make_nbt("t", "0.8")))],
+            None,
         );
         let sound = RegistrySnapshotErased::from_entries(
             "minecraft:sound_event",
             vec![(make_location("ambient.cave"), None)],
+            None,
         );
 
         let mut access = RegistryAccess::default();
@@ -215,6 +253,7 @@ mod tests {
         let snap = RegistrySnapshotErased::from_entries(
             "minecraft:block",
             vec![(make_location("stone"), None)],
+            None,
         );
         access.register(Box::new(snap));
         assert!(!access.is_empty());
@@ -226,7 +265,39 @@ mod tests {
         let erased = RegistrySnapshotErased::from_entries(
             "minecraft:item",
             vec![(make_location("diamond"), None)],
+            None,
         );
         let _: Box<dyn ErasedRegistrySnapshot> = Box::new(erased);
+    }
+
+    #[test]
+    fn pack_source_vanilla_core_fields() {
+        let ps = PackSource::vanilla_core();
+        assert_eq!(&*ps.namespace, "minecraft");
+        assert_eq!(&*ps.id, "core");
+    }
+
+    #[test]
+    fn from_entries_with_pack_source_populates_erased_entry() {
+        let erased = RegistrySnapshotErased::from_entries(
+            "minecraft:biome",
+            vec![(make_location("plains"), None)],
+            Some(PackSource::vanilla_core()),
+        );
+        let entries: Vec<_> = erased.iter_entries().collect();
+        let src = entries[0].pack_source.unwrap();
+        assert_eq!(&*src.namespace, "minecraft");
+        assert_eq!(&*src.id, "core");
+    }
+
+    #[test]
+    fn from_entries_without_pack_source_leaves_none() {
+        let erased = RegistrySnapshotErased::from_entries(
+            "minecraft:biome",
+            vec![(make_location("plains"), None)],
+            None,
+        );
+        let entries: Vec<_> = erased.iter_entries().collect();
+        assert!(entries[0].pack_source.is_none());
     }
 }

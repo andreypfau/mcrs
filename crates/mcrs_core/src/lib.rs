@@ -4,7 +4,7 @@ pub mod resource_location;
 pub mod state;
 pub mod tag;
 
-pub use registry::{RegistryAccess, RegistrySnapshot, RegistrySnapshotErased, ResourceKey, SnapshotEntry, StaticId, StaticRegistry};
+pub use registry::{PackSource, RegistryAccess, RegistrySnapshot, RegistrySnapshotErased, ResourceKey, SnapshotEntry, StaticId, StaticRegistry};
 pub use resource_location::ResourceLocation;
 pub use state::AppState;
 pub use tag::{DynRegistryIndex, DynTagRegistry, IdBitSet, RawBitSet, TagEntry, TagFile, TagFileLoader, TagFileSettings, TagKey, TagRef, TagRegistry, TaggedRegistry};
