@@ -20,7 +20,7 @@ macro_rules! declare_blocks {
 
         pub fn register_all_blocks(registry: &mut StaticRegistry<Block>) {
             $(
-                registry.register($const_name.identifier, &$const_name);
+                $crate::block::register_with_gap_fill(registry, &$const_name);
             )*
         }
 

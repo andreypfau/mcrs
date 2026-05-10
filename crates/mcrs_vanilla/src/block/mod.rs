@@ -218,6 +218,61 @@ impl From<&'static Block> for BlockStateId {
     }
 }
 
+// ── Placeholder blocks for sparse vanilla coverage ─────────────────────
+
+/// Air-like properties used by every gap-filling placeholder. The placeholder
+/// occupies a `protocol_id` slot so the registry's `id.raw() == protocol_id`
+/// invariant holds when only a subset of vanilla blocks is implemented.
+pub static PLACEHOLDER_PROPERTIES: behaviour::Properties = behaviour::Properties::new()
+    .with_map_color(crate::material::map::MapColor::NONE)
+    .with_strength(0.0)
+    .no_collision()
+    .replacable()
+    .air()
+    .with_no_loot_table();
+
+/// Build a placeholder `Block` whose `protocol_id` equals its registry index.
+/// The leaked allocation has program lifetime; this is a one-shot startup cost.
+/// `state_count: 0` keeps placeholders out of `STATE_TO_BLOCK`.
+pub fn make_placeholder_block(protocol_id: u16) -> &'static Block {
+    let id_str: &'static str =
+        Box::leak(format!("mcrs:_placeholder/{protocol_id}").into_boxed_str());
+    Box::leak(Box::new(Block {
+        identifier: ResourceLocation::new_static(id_str),
+        protocol_id,
+        properties: &PLACEHOLDER_PROPERTIES,
+        default_state_id: BlockStateId(0),
+        layout: None,
+        state_count: 0,
+    }))
+}
+
+/// Register `real` after dozaпolняя пробелы placeholder-блоками so the
+/// `id.raw() == block.protocol_id` invariant holds even with sparse coverage.
+/// Panics if `real.protocol_id` is below the current registry length, which
+/// would indicate a non-monotonic registration order.
+pub fn register_with_gap_fill(
+    registry: &mut mcrs_core::StaticRegistry<Block>,
+    real: &'static Block,
+) {
+    let target = real.protocol_id as usize;
+    let mut next = registry.len();
+    assert!(
+        next <= target,
+        "block {} declared with protocol_id {} but registry already has {} entries — \
+         declarations must be in ascending protocol_id order",
+        real.identifier,
+        target,
+        next,
+    );
+    while next < target {
+        let placeholder = make_placeholder_block(next as u16);
+        registry.register(placeholder.identifier, placeholder);
+        next += 1;
+    }
+    registry.register(real.identifier, real);
+}
+
 #[cfg(test)]
 mod tests {
     use super::minecraft::*;
