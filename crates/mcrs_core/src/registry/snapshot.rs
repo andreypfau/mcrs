@@ -140,7 +140,7 @@ pub fn rl_from_asset_path(path: &std::path::Path) -> Option<ResourceLocation<Arc
 ///      `RegistrySnapshotErased`, and inserts it into `RegistryAccess`.
 #[macro_export]
 macro_rules! snapshot_registry {
-    ($app:expr, [ $( ($ty:ty, $registry_key:expr, $ser:expr) ),* $(,)? ]) => {
+    ($app:expr, [ $( ($ty:ty, $registry_key:expr, $ser:expr, $pack_source:expr) ),* $(,)? ]) => {
         $(
             $app.init_resource::<$crate::RegistrySnapshot<$ty>>();
             $app.add_systems(
@@ -177,6 +177,7 @@ macro_rules! snapshot_registry {
                         let erased = $crate::RegistrySnapshotErased::from_dynamic(
                             $registry_key,
                             &snapshot,
+                            $pack_source,
                         );
                         access.register(::std::boxed::Box::new(erased));
                     },
