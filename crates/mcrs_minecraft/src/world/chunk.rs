@@ -185,7 +185,7 @@ impl Default for SchedulerConfig {
 ///
 /// # Structure
 /// - `pending`: Priority queue of columns waiting to be dispatched (ordered by `ColumnKey`)
-/// - `column_index`: Reverse index from column position to its current priority key
+/// - `priority_index`: Reverse index from column position to its current priority key
 /// - `in_flight_index`: Set of column positions currently being generated
 /// - `in_flight`: Active generation tasks with their cancellation tokens
 /// - `config`: Concurrency and dispatch limits
@@ -195,7 +195,7 @@ pub struct ChunkColumnScheduler {
     pub pending: BTreeMap<ColumnKey, PendingColumn>,
     /// Reverse index: column position -> current priority key.
     /// Enables O(log n) removal/reprioritization by position.
-    pub column_index: FxHashMap<ChunkColumnPos, ColumnKey>,
+    pub priority_index: FxHashMap<ChunkColumnPos, ColumnKey>,
     /// Set of column positions with active generation tasks.
     /// Used to avoid duplicate dispatch.
     pub in_flight_index: FxHashSet<ChunkColumnPos>,
@@ -216,7 +216,7 @@ impl ChunkColumnScheduler {
     pub fn new(config: SchedulerConfig) -> Self {
         Self {
             pending: BTreeMap::new(),
-            column_index: FxHashMap::default(),
+            priority_index: FxHashMap::default(),
             in_flight_index: FxHashSet::default(),
             in_flight: Vec::new(),
             config,
@@ -235,7 +235,7 @@ impl ChunkColumnScheduler {
 
     /// Check if a column is pending dispatch.
     pub fn is_pending(&self, col: ChunkColumnPos) -> bool {
-        self.column_index.contains_key(&col)
+        self.priority_index.contains_key(&col)
     }
 
     /// Check if a column has an active generation task.
@@ -373,7 +373,7 @@ fn enqueue_pending_columns(
         if scheduler.is_pending(col) {
             // Merge new sections into the existing pending column so the
             // column is dispatched with ALL its sections in a single batch.
-            if let Some(&key) = scheduler.column_index.get(&col) {
+            if let Some(&key) = scheduler.priority_index.get(&col) {
                 if let Some(pending) = scheduler.pending.get_mut(&key) {
                     for &(entity, _) in &sections {
                         commands
@@ -410,7 +410,7 @@ fn enqueue_pending_columns(
         trace!("Enqueued chunk column at ({:?}) for generation - {:?}", key, pending_column.sections);
 
         scheduler.pending.insert(key, pending_column);
-        scheduler.column_index.insert(col, key);
+        scheduler.priority_index.insert(col, key);
     }
 }
 
@@ -449,7 +449,7 @@ fn cancel_stale_columns(
     // Cancel stale pending columns
     // Collect keys to remove first to avoid borrowing issues
     let stale_pending: Vec<(ColumnKey, Vec<Entity>)> = scheduler
-        .column_index
+        .priority_index
         .iter()
         .filter_map(|(col, key)| {
             let pending = scheduler.pending.get(key)?;
@@ -472,7 +472,7 @@ fn cancel_stale_columns(
         trace!("Canceling stale column {:?}", key);
 
         scheduler.pending.remove(&key);
-        scheduler.column_index.remove(&key.chunk_column_pos);
+        scheduler.priority_index.remove(&key.chunk_column_pos);
 
         // Transition all sections to ChunkUnloading state
         for entity in entities {
@@ -510,7 +510,7 @@ fn cancel_stale_columns(
 /// 3. If the distance changed, update the column's position in the priority queue:
 ///    - Remove from `pending` BTreeMap with the old key
 ///    - Insert into `pending` with the new key
-///    - Update `column_index` to reflect the new key
+///    - Update `priority_index` to reflect the new key
 ///
 /// # Performance
 /// - Run condition: only executes when any player's `Transform` has `Changed`
@@ -539,7 +539,7 @@ fn reprioritize_columns(
     // Collect columns that need reprioritization: (col, old_key, new_key)
     let mut updates: Vec<(ColumnKey, ColumnKey)> = Vec::new();
 
-    for (&col, &old_key) in &scheduler.column_index {
+    for (&col, &old_key) in &scheduler.priority_index {
         // Create a ChunkPos for distance calculation (Y doesn't matter for XZ distance)
         let new_distance_sq = min_column_distance(&col, &player_positions);
 
@@ -558,7 +558,7 @@ fn reprioritize_columns(
             scheduler.pending.insert(new_key, pending_column);
             // Update the reverse index
             scheduler
-                .column_index
+                .priority_index
                 .insert(new_key.chunk_column_pos, new_key);
         }
     }
@@ -622,7 +622,7 @@ fn dispatch_column_generation(
         let col = key.chunk_column_pos;
 
         // Remove from column index
-        scheduler.column_index.remove(&col);
+        scheduler.priority_index.remove(&col);
 
         // Sort sections by Y (bottom-to-top) for Y-boundary cache reuse
         pending_column.sections.sort_by_key(|(_, y)| *y);
