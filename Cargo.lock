@@ -1769,12 +1769,13 @@ dependencies = [
  "cipher",
  "derive_more",
  "indexmap",
+ "mcrs_core",
  "mcrs_engine",
  "mcrs_minecraft_worldgen",
  "mcrs_nbt",
  "mcrs_network",
  "mcrs_protocol",
- "mcrs_registry",
+ "mcrs_vanilla",
  "num-integer",
  "paste",
  "rand 0.10.0",
@@ -1881,16 +1882,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_registry"
-version = "0.1.0"
-dependencies = [
- "bevy_ecs",
- "indexmap",
- "serde",
- "valence_ident",
-]
-
-[[package]]
 name = "mcrs_vanilla"
 version = "0.1.0"
 dependencies = [
@@ -1905,6 +1896,7 @@ dependencies = [
  "derive_more",
  "mcrs_core",
  "mcrs_engine",
+ "mcrs_nbt",
  "mcrs_protocol",
  "paste",
  "rand 0.10.0",
