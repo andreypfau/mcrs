@@ -425,6 +425,137 @@ pub fn propagate_increase(
     workspace.increase_queue.clear();
 }
 
+/// Block-light decrease BFS over one chunk section.
+///
+/// Drains `workspace.decrease_queue` to empty. Cells whose stored level is
+/// dominated solely by the removed source path are zeroed via
+/// `LightStorage::set(_, 0)`. Cells whose stored level exceeds the decrease
+/// pass's path-derived target are NOT touched — instead they are requeued
+/// onto `workspace.increase_queue` with `FLAG_RECHECK_LEVEL` so the
+/// subsequent increase pass re-propagates from them after re-reading the
+/// stored level. Emitter cells encountered en-route are requeued with
+/// `FLAG_WRITE_LEVEL` so the increase pass restores their emission.
+///
+/// Slow-path branch fires when either side has `IS_CONDITIONALLY_OPAQUE`
+/// set; in that case the source's `VoxelShape` is consulted via
+/// `face_occludes`.
+///
+/// The function never calls `propagate_increase`. The two passes are
+/// separated at the system-set level so a deferred barrier sits between
+/// them, allowing other systems to observe the intermediate state.
+pub fn propagate_decrease(
+    table: &BlockLightTable,
+    palette: &BlockPalette,
+    light: &mut LightStorage,
+    workspace: &mut BlockLightWorkspace,
+    egress: &mut BlockEgress,
+) {
+    let mut queue_read_index: usize = 0;
+    while queue_read_index < workspace.decrease_queue.len() {
+        let entry = workspace.decrease_queue[queue_read_index];
+        queue_read_index += 1;
+
+        let x = unpack_bfs_entry_x(entry);
+        let z = unpack_bfs_entry_z(entry);
+        let y_full = unpack_bfs_entry_y(entry);
+        let propagated_level = unpack_bfs_entry_level(entry);
+        let check_dir_bitset = unpack_bfs_entry_dir_bitset(entry);
+        let y_local = (y_full as usize) & 0xF;
+
+        let src_state = palette.get((x as i32, y_local as i32, z as i32));
+        let src_flags = table.flags_for(src_state);
+        let src_conditional = (src_flags & flag_bits::IS_CONDITIONALLY_OPAQUE) != 0;
+        let from_shape: &'static VoxelShape = if src_conditional {
+            table.occlusion_for(src_state)
+        } else {
+            VoxelShape::empty()
+        };
+
+        for &d in DIRECTIONS_FROM_BITSET[check_dir_bitset as usize] {
+            let (dx, dy, dz) = normal_of(d);
+            let off_x = x as i8 + dx;
+            let off_y = y_local as i8 + dy;
+            let off_z = z as i8 + dz;
+
+            if off_x < 0
+                || off_x > 15
+                || off_y < 0
+                || off_y > 15
+                || off_z < 0
+                || off_z > 15
+            {
+                let (cx, cz) = project_face_cell(d, off_x, off_y, off_z);
+                egress
+                    .0
+                    .push(Wavefront::new(d.index() as u8, cx, cz, propagated_level));
+                continue;
+            }
+
+            let off_x_u = off_x as usize;
+            let off_y_u = off_y as usize;
+            let off_z_u = off_z as usize;
+
+            let light_level = light.get(off_x_u, off_y_u, off_z_u);
+            if light_level == 0 {
+                continue;
+            }
+
+            let dst_state = palette.get((off_x as i32, off_y as i32, off_z as i32));
+            let dst_flags = table.flags_for(dst_state);
+            let mut emit_flags: u8 = 0;
+            if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {
+                let culling_face = table.occlusion_for(dst_state).face_shape(d.opposite());
+                if from_shape.face_occludes(culling_face, d) {
+                    continue;
+                }
+                emit_flags |= FLAG_HAS_SIDED_TRANSPARENT_BLOCKS;
+            }
+
+            let opacity = table.dampening_for(dst_state);
+            let target_level = propagated_level.saturating_sub(opacity.max(1));
+
+            if light_level > target_level {
+                workspace.increase_queue.push(pack_bfs_entry(
+                    off_x as u8,
+                    off_z as u8,
+                    off_y as u8,
+                    light_level,
+                    ALL_DIRECTIONS_BITSET,
+                    emit_flags | FLAG_RECHECK_LEVEL,
+                ));
+                continue;
+            }
+
+            let emitted = table.emission_for(dst_state);
+            if emitted != 0 {
+                workspace.increase_queue.push(pack_bfs_entry(
+                    off_x as u8,
+                    off_z as u8,
+                    off_y as u8,
+                    emitted,
+                    ALL_DIRECTIONS_BITSET,
+                    emit_flags | FLAG_WRITE_LEVEL,
+                ));
+            }
+
+            light.set(off_x_u, off_y_u, off_z_u, 0);
+
+            if target_level > 0 {
+                workspace.decrease_queue.push(pack_bfs_entry(
+                    off_x as u8,
+                    off_z as u8,
+                    off_y as u8,
+                    target_level,
+                    DIRECTIONS_EXCEPT_OPPOSITE[d.index()],
+                    emit_flags,
+                ));
+            }
+        }
+    }
+
+    workspace.decrease_queue.clear();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -888,6 +1019,184 @@ mod tests {
             light.get(5, 5, 6),
             0,
             "slow path must block light through Block/Block face"
+        );
+    }
+
+    /// Populate the L1-attenuated field for a single emitter at (ex,ey,ez)
+    /// with emission `e`, in an all-air section, into a Mixed storage.
+    fn seed_l1_field(light: &mut LightStorage, ex: i32, ey: i32, ez: i32, e: u8) {
+        for y in 0..16i32 {
+            for z in 0..16i32 {
+                for x in 0..16i32 {
+                    let dist = ((x - ex).abs() + (y - ey).abs() + (z - ez).abs()) as u8;
+                    let lvl = e.saturating_sub(dist);
+                    if lvl > 0 {
+                        light.set(x as usize, y as usize, z as usize, lvl);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn bfs_decrease_clears_emitter_field() {
+        let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
+        let mut palette = BlockPalette::default();
+        fill_palette_with_air(&mut palette);
+        palette.set((8, 8, 8), BlockStateId(0x1000));
+
+        // Pre-seed the L1-attenuated field as if the torch had been lit.
+        let mut light = zero_light_storage();
+        seed_l1_field(&mut light, 8, 8, 8, 14);
+
+        // Zero out the torch cell — the cell itself stays unaffected by its
+        // own decrease seed, so seeding it 0 reflects the post-removal state.
+        light.set(8, 8, 8, 0);
+
+        let mut workspace = BlockLightWorkspace::default();
+        let mut egress = BlockEgress::default();
+        workspace
+            .decrease_queue
+            .push(pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
+
+        propagate_decrease(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        assert!(
+            workspace.decrease_queue.is_empty(),
+            "decrease_queue must drain to empty"
+        );
+        assert!(
+            workspace.increase_queue.is_empty(),
+            "no other emitter to requeue in all-air-single-torch scenario"
+        );
+        // Every cell whose only source was the now-removed torch reads 0.
+        for y in 0..16 {
+            for z in 0..16 {
+                for x in 0..16 {
+                    assert_eq!(
+                        light.get(x, y, z),
+                        0,
+                        "cell ({}, {}, {}) should be dark",
+                        x,
+                        y,
+                        z
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn bfs_decrease_requeues_higher_stored() {
+        let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
+        let mut palette = BlockPalette::default();
+        fill_palette_with_air(&mut palette);
+        // Surviving emitter at (12, 8, 8); the removed one was at (4, 8, 8).
+        palette.set((12, 8, 8), BlockStateId(0x1000));
+
+        // Pre-seed the cells along (x, 8, 8) for x in 4..=12 with the
+        // max-of-both-emitters L1 field. Outside this line the field is
+        // zero — the BFS terminates on those `light_level == 0` cells.
+        let mut light = zero_light_storage();
+        for x in 4..=12i32 {
+            let lvl_a = 14u8.saturating_sub((x - 4).unsigned_abs() as u8);
+            let lvl_b = 14u8.saturating_sub((x - 12).unsigned_abs() as u8);
+            let lvl = lvl_a.max(lvl_b);
+            if lvl > 0 {
+                light.set(x as usize, 8, 8, lvl);
+            }
+        }
+
+        let mut workspace = BlockLightWorkspace::default();
+        let mut egress = BlockEgress::default();
+        workspace
+            .decrease_queue
+            .push(pack_bfs_entry(4, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
+
+        propagate_decrease(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        assert!(workspace.decrease_queue.is_empty(), "decrease drains");
+        assert!(
+            !workspace.increase_queue.is_empty(),
+            "expected at least one requeue into increase_queue"
+        );
+        // At least one entry carries FLAG_RECHECK_LEVEL.
+        let recheck_count = workspace
+            .increase_queue
+            .iter()
+            .filter(|&&e| unpack_bfs_entry_flags(e) & FLAG_RECHECK_LEVEL != 0)
+            .count();
+        assert!(
+            recheck_count >= 1,
+            "expected at least one FLAG_RECHECK_LEVEL entry"
+        );
+        // The surviving emitter cell must not be cleared by the decrease pass.
+        assert_eq!(
+            light.get(12, 8, 8),
+            14,
+            "surviving emitter cell must keep its stored level"
+        );
+    }
+
+    #[test]
+    fn bfs_decrease_emitter_cell_gets_write_level_flag() {
+        // Removed emitter at (5, 8, 8) emission 14; surviving emitter at
+        // (6, 8, 8) emission 7. The decrease walks east from (5, 8, 8) and
+        // visits the surviving emitter cell, which must be requeued with
+        // FLAG_WRITE_LEVEL (not FLAG_RECHECK_LEVEL) so the increase pass
+        // restores its emission.
+        const TORCH_HI: u16 = 0x1000;
+        const TORCH_LO: u16 = 0x1001;
+        let torch_lo_spec = TableSpec {
+            emission: 7,
+            dampening: 0,
+            occlusion: VoxelShape::empty(),
+            flags: 0,
+        };
+        let table = build_table(&[
+            (0, air_spec()),
+            (TORCH_HI, torch_spec()),
+            (TORCH_LO, torch_lo_spec),
+        ]);
+        let mut palette = BlockPalette::default();
+        fill_palette_with_air(&mut palette);
+        palette.set((5, 8, 8), BlockStateId(TORCH_HI));
+        palette.set((6, 8, 8), BlockStateId(TORCH_LO));
+
+        let mut light = zero_light_storage();
+        // (5, 8, 8) is the removed source — post-removal we treat it as 0.
+        // (6, 8, 8) has its own emission of 7 plus the contribution from the
+        // removed torch (14 - 1 = 13); the max is 13.
+        light.set(6, 8, 8, 13);
+
+        let mut workspace = BlockLightWorkspace::default();
+        let mut egress = BlockEgress::default();
+        workspace
+            .decrease_queue
+            .push(pack_bfs_entry(5, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
+
+        propagate_decrease(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        let write_level_entries: Vec<u64> = workspace
+            .increase_queue
+            .iter()
+            .copied()
+            .filter(|&e| unpack_bfs_entry_flags(e) & FLAG_WRITE_LEVEL != 0)
+            .collect();
+        assert!(
+            !write_level_entries.is_empty(),
+            "expected at least one FLAG_WRITE_LEVEL entry for emitter encountered"
+        );
+        let entry = write_level_entries[0];
+        assert_eq!(
+            unpack_bfs_entry_level(entry),
+            7,
+            "WRITE_LEVEL entry carries dst emission"
+        );
+        assert_eq!(
+            unpack_bfs_entry_flags(entry) & FLAG_RECHECK_LEVEL,
+            0,
+            "WRITE_LEVEL entry must NOT also carry FLAG_RECHECK_LEVEL"
         );
     }
 }
