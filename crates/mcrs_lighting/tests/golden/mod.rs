@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod single_torch;
 pub mod two_torches_one_removed;
 pub mod cross_section_horizontal;
