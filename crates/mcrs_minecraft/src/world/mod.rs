@@ -23,7 +23,7 @@ mod inventory;
 pub mod item;
 pub mod loot;
 mod material;
-mod palette;
+pub mod palette;
 
 pub struct WorldPlugin;
 
