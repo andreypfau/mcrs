@@ -101,10 +101,17 @@ impl BlockPalette {
         }
     }
 
+    // Coupling: this method assumes `BlockStateId(0)` is the air state, which
+    // is the current vanilla convention but is not enforced by `BlockPalette`
+    // itself. Reordering the static block registry so air ends up at a
+    // different ID would silently break this count. The principled fix is to
+    // consult the `IS_NOT_AIR` bit from `BlockLightTable.flags_for`, but that
+    // requires plumbing the table through `non_air_block_count`'s callers in
+    // `column_view`. Tracked as a follow-up.
     pub fn non_air_block_count(&self) -> u16 {
         match &self.0 {
             Homogeneous(registry_id) => {
-                if (**registry_id != 0) {
+                if **registry_id != 0 {
                     chunk::BLOCKS::VOLUME as u16
                 } else {
                     0
@@ -115,7 +122,7 @@ impl BlockPalette {
                 .iter()
                 .zip(data.counts.iter())
                 .filter_map(|(registry_id, count)| {
-                    if (**registry_id != 0) {
+                    if **registry_id != 0 {
                         Some(*count)
                     } else {
                         None
@@ -150,6 +157,21 @@ impl BlockPalette {
             pos.z as usize & chunk::BLOCKS::MASK,
             block.into(),
         )
+    }
+
+    /// Invoke `f` once for each distinct `BlockStateId` present in the
+    /// container. A homogeneous container yields exactly one state.
+    /// A heterogeneous container yields every entry in its palette without
+    /// duplicates.
+    pub fn for_each_distinct_state<F: FnMut(BlockStateId)>(&self, mut f: F) {
+        match &self.0 {
+            Homogeneous(state) => f(*state),
+            Heterogeneous(data) => {
+                for state in data.palette.iter() {
+                    f(*state);
+                }
+            }
+        }
     }
 }
 

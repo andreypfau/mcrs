@@ -2,6 +2,7 @@ use bevy_app::ScheduleRunnerPlugin;
 use bevy_app::prelude::*;
 use bevy_ecs::schedule::{ExecutorKind, ScheduleLabel};
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
+use mcrs_lighting::LightingPlugin;
 use mcrs_minecraft::ServerPlugin;
 
 mod chunk_render_debug;
@@ -32,6 +33,7 @@ async fn main() {
         ..Default::default()
     })
     .add_plugins(ServerPlugin)
+    .add_plugins(LightingPlugin)
     .run();
 }
 

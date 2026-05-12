@@ -12,6 +12,10 @@ pub mod storage;
 pub mod components;
 pub mod bundle;
 pub mod table;
+pub mod lifecycle;
+pub mod plugin;
+
+pub use plugin::LightingPlugin;
 
 #[cfg(feature = "test-bench")]
 pub mod stub;

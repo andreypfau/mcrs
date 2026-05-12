@@ -13,7 +13,7 @@ use mcrs_engine::world::dimension::{
 use tracing::{debug, info, warn};
 
 pub mod block;
-mod block_update;
+pub mod block_update;
 pub mod chunk;
 pub mod entity;
 mod explosion;

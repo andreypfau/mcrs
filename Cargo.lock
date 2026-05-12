@@ -1702,6 +1702,7 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_log",
+ "mcrs_lighting",
  "mcrs_minecraft",
  "tokio",
 ]
