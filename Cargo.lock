@@ -1748,6 +1748,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_lighting"
+version = "0.1.0"
+dependencies = [
+ "bevy_ecs",
+ "mcrs_core",
+ "mcrs_engine",
+ "mcrs_minecraft",
+ "mcrs_protocol",
+]
+
+[[package]]
 name = "mcrs_minecraft"
 version = "0.1.0"
 dependencies = [

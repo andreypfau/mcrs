@@ -1,0 +1,20 @@
+[package]
+name = "mcrs_lighting"
+description = "mcrs_lighting"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bevy_ecs.workspace = true
+mcrs_core.workspace = true
+mcrs_protocol.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft.workspace = true
+mcrs_engine.workspace = true
+
+[features]
+test-bench = []
+
+[profile.dev.package."bevy"]
+opt-level = 3

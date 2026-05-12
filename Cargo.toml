@@ -76,6 +76,7 @@ mcrs_minecraft = { path = "crates/mcrs_minecraft" }
 mcrs_registry = { path = "crates/mcrs_registry" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
 mcrs_random = { path = "crates/mcrs_random" }
+mcrs_lighting = { path = "crates/mcrs_lighting" }
 
 [dependencies]
 bevy_app.workspace = true
