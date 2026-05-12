@@ -7,6 +7,7 @@
     clippy::too_many_arguments
 )]
 
+pub mod bfs;
 pub mod nibble;
 pub mod storage;
 pub mod components;
