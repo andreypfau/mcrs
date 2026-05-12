@@ -166,7 +166,7 @@ pub fn check_block_light_invariants(
                     });
                 }
 
-                if stored > max_inward_support && stored - max_inward_support != emitted {
+                if stored > max_inward_support && stored != emitted {
                     return Err(InvariantViolation {
                         cell,
                         stored,
