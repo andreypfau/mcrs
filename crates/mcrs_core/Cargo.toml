@@ -8,6 +8,7 @@ edition.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_asset.workspace = true
+bevy_math.workspace = true
 bevy_reflect.workspace = true
 bevy_state.workspace = true
 serde.workspace = true

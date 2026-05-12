@@ -1713,6 +1713,7 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
+ "bevy_math",
  "bevy_reflect",
  "bevy_state",
  "mcrs_core_macros",
