@@ -18,14 +18,14 @@ use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Commands, Query, Res};
 use mcrs_minecraft::world::block_update::BlockPlaced;
 
-use crate::bfs::{pack_bfs_entry, ALL_DIRECTIONS_BITSET};
-use crate::components::{BlockLightWorkspace, LightDirty};
+use crate::bfs::{pack_bfs_entry, ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL};
+use crate::components::{BlockLight, BlockLightWorkspace, LightDirty};
 use crate::table::BlockLightTable;
 
 pub fn enqueue_block_light_on_block_placed(
     mut reader: MessageReader<BlockPlaced>,
     table: Res<BlockLightTable>,
-    mut sections: Query<&mut BlockLightWorkspace>,
+    mut sections: Query<(&mut BlockLight, &mut BlockLightWorkspace)>,
     mut commands: Commands,
 ) {
     for placed in reader.read() {
@@ -33,11 +33,11 @@ pub fn enqueue_block_light_on_block_placed(
             continue;
         }
 
-        let Ok(mut workspace) = sections.get_mut(placed.chunk) else {
+        let Ok((mut light, mut workspace)) = sections.get_mut(placed.chunk) else {
             tracing::warn!(
                 chunk = ?placed.chunk,
                 block_pos = ?placed.block_pos,
-                "BlockPlaced.chunk missing BlockLightWorkspace; lifecycle ordering hazard"
+                "BlockPlaced.chunk missing BlockLight/BlockLightWorkspace; lifecycle ordering hazard"
             );
             continue;
         };
@@ -63,6 +63,11 @@ pub fn enqueue_block_light_on_block_placed(
         let mut pushed = false;
 
         if old_emission > new_emission {
+            // The decrease BFS only walks neighbours, so the seed cell itself
+            // must be cleared up front; otherwise the source position keeps
+            // its previous emitted level after the emitter is removed.
+            light.0.set(x as usize, y as usize, z as usize, 0);
+
             workspace.decrease_queue.push(pack_bfs_entry(
                 x,
                 z,
@@ -75,13 +80,16 @@ pub fn enqueue_block_light_on_block_placed(
         }
 
         if new_emission > 0 {
+            // `FLAG_WRITE_LEVEL` makes the BFS write the source cell to
+            // `new_emission` before stepping outward, so the source position
+            // is established before any neighbour is reached.
             workspace.increase_queue.push(pack_bfs_entry(
                 x,
                 z,
                 y,
                 new_emission,
                 ALL_DIRECTIONS_BITSET,
-                0,
+                FLAG_WRITE_LEVEL,
             ));
             pushed = true;
         }
