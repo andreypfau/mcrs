@@ -5,6 +5,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, Component, Query};
 use bevy_ecs::query::{Changed, With, Without};
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos};
@@ -15,15 +16,29 @@ use mcrs_protocol::{BlockStateId, ChunkColumnPos, Encode, Packet, WritePacket};
 use rustc_hash::FxHashSet;
 use std::borrow::Cow::Owned;
 
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum BlockUpdateSet {
+    ApplyChanges,
+    NetworkSync,
+}
+
 pub struct BlockUpdatePlugin;
 
 impl Plugin for BlockUpdatePlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.add_message::<BlockSetRequest>();
         app.add_message::<BlockPlaced>();
+        app.configure_sets(FixedUpdate, BlockUpdateSet::ApplyChanges);
+        app.configure_sets(FixedPostUpdate, BlockUpdateSet::NetworkSync);
         app.add_systems(FixedUpdate, add_changes_set);
-        app.add_systems(FixedUpdate, apply_set_block_request);
-        app.add_systems(FixedPostUpdate, update_client_blocks);
+        app.add_systems(
+            FixedUpdate,
+            apply_set_block_request.in_set(BlockUpdateSet::ApplyChanges),
+        );
+        app.add_systems(
+            FixedPostUpdate,
+            update_client_blocks.in_set(BlockUpdateSet::NetworkSync),
+        );
     }
 }
 
@@ -92,7 +107,7 @@ fn add_changes_set(
     }
 }
 
-fn apply_set_block_request(
+pub fn apply_set_block_request(
     mut reader: MessageReader<BlockSetRequest>,
     dimensions: Query<&ChunkIndex>,
     mut chunks: Query<(
@@ -136,12 +151,12 @@ fn apply_set_block_request(
 
 #[derive(Message)]
 pub struct BlockPlaced {
-    chunk: Entity,
-    chunk_pos: ChunkPos,
-    block_pos: BlockPos,
-    old_state: BlockStateId,
-    new_state: BlockStateId,
-    flags: BlockUpdateFlags,
+    pub chunk: Entity,
+    pub chunk_pos: ChunkPos,
+    pub block_pos: BlockPos,
+    pub old_state: BlockStateId,
+    pub new_state: BlockStateId,
+    pub flags: BlockUpdateFlags,
 }
 
 fn update_client_blocks(
@@ -205,4 +220,27 @@ fn update_client_blocks(
                 flush_packet(&mut players, &pkt, &chunk_column_pos);
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn set_configured_compile_test() {
+        let _ = apply_set_block_request.in_set(BlockUpdateSet::ApplyChanges);
+        let _ = update_client_blocks.in_set(BlockUpdateSet::NetworkSync);
+    }
+
+    #[test]
+    fn block_placed_fields_pub_compile_test() {
+        let _ = BlockPlaced {
+            chunk: Entity::PLACEHOLDER,
+            chunk_pos: ChunkPos::new(0, 0, 0),
+            block_pos: BlockPos::new(0, 0, 0),
+            old_state: BlockStateId(0),
+            new_state: BlockStateId(0),
+            flags: BlockUpdateFlags::all(),
+        };
+    }
 }
