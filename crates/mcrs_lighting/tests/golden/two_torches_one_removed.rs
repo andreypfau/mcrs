@@ -8,5 +8,5 @@ const TORCH_LIT: BlockStateId = BlockStateId(0x1000);
 
 pub static INPUT: &[((i32, i32, i32), BlockStateId)] = &[((4, 8, 8), TORCH_LIT)];
 
-#[rustfmt::skip]
-pub const EXPECTED_BLOCK_LIGHT: [u8; 2048] = [0u8; 2048];
+pub const EXPECTED_BLOCK_LIGHT: [u8; 2048] =
+    super::expected::compute_l1_attenuated_field(&[((4, 8, 8), 14)]);
