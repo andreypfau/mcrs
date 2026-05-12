@@ -17,6 +17,7 @@ pub mod table;
 pub mod lifecycle;
 pub mod heightmap_update;
 pub mod plugin;
+pub mod propagate;
 pub mod sets;
 
 #[cfg(any(test, debug_assertions))]
