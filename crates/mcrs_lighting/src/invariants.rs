@@ -181,3 +181,152 @@ pub fn check_block_light_invariants(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::nibble::NibbleArray;
+    use crate::table::flag_bits;
+    use mcrs_core::voxel_shape::VoxelShape;
+
+    const AIR: BlockStateId = BlockStateId(0);
+    const TORCH: BlockStateId = BlockStateId(0x1000);
+
+    fn make_test_table() -> BlockLightTable {
+        let state_count: usize = 0x1001;
+        let mut emission = vec![0u8; state_count].into_boxed_slice();
+        let mut dampening = vec![0u8; state_count].into_boxed_slice();
+        let occlusion: Box<[&'static VoxelShape]> =
+            vec![VoxelShape::empty(); state_count].into_boxed_slice();
+        let mut flags = vec![0u8; state_count].into_boxed_slice();
+
+        emission[0] = 0;
+        dampening[0] = 0;
+        flags[0] = flag_bits::PROPAGATES_SKYLIGHT_DOWN;
+
+        emission[0x1000] = 14;
+        dampening[0x1000] = 0;
+        flags[0x1000] = flag_bits::PROPAGATES_SKYLIGHT_DOWN;
+
+        BlockLightTable {
+            emission,
+            dampening,
+            occlusion,
+            flags,
+        }
+    }
+
+    fn make_palette(emitters: &[(i32, i32, i32, BlockStateId)]) -> BlockPalette {
+        let mut p = BlockPalette::default();
+        p.fill(AIR);
+        for (x, y, z, state) in emitters {
+            p.set(BlockPos::new(*x, *y, *z), *state);
+        }
+        p
+    }
+
+    fn seed_light(light: &mut LightStorage, cells: &[((usize, usize, usize), u8)]) {
+        for ((x, y, z), val) in cells {
+            light.set(*x, *y, *z, *val);
+        }
+    }
+
+    /// Returns a `LightStorage::Mixed` backed by a zeroed `NibbleArray`. The
+    /// test helpers use this rather than the `Null` default so that
+    /// `LightStorage::set` does not promote the storage to `Uniform(v)` on
+    /// the first nonzero write (which would clobber every other cell with
+    /// the same value and mask the per-cell behaviour under test).
+    fn air_storage() -> LightStorage {
+        LightStorage::Mixed(Box::new(NibbleArray::zeros()))
+    }
+
+    #[test]
+    fn invariants_pass_on_valid_uniform_field() {
+        let table = make_test_table();
+        let palette = make_palette(&[]);
+        let light = air_storage();
+        assert!(check_block_light_invariants(&table, &palette, &light).is_ok());
+    }
+
+    #[test]
+    fn invariants_fail_source_floor_below_emission() {
+        // The torch sits at (0,0,0) so the y/z/x-major iteration hits the
+        // under-lit emitter cell before any neighbour can trip a different
+        // invariant first.
+        let table = make_test_table();
+        let palette = make_palette(&[(0, 0, 0, TORCH)]);
+        let mut light = air_storage();
+        seed_light(&mut light, &[((0, 0, 0), 7)]);
+
+        let err = check_block_light_invariants(&table, &palette, &light)
+            .expect_err("expected SourceFloor violation");
+        assert_eq!(err.kind, ViolationKind::SourceFloor);
+        assert_eq!(err.cell, BlockPos::new(0, 0, 0));
+        assert_eq!(err.stored, 7);
+        assert_eq!(err.emitted, 14);
+    }
+
+    #[test]
+    fn invariants_fail_support_floor() {
+        // Place a torch at (0,0,0) so iteration hits the emitter first and
+        // passes its source/support/excess checks before moving on to
+        // (1,0,0). The next cell sees the torch as a 14-level inward
+        // neighbour but its own stored level is 0, tripping SupportFloor.
+        let table = make_test_table();
+        let palette = make_palette(&[(0, 0, 0, TORCH)]);
+        let mut light = air_storage();
+        seed_light(&mut light, &[((0, 0, 0), 14)]);
+
+        let err = check_block_light_invariants(&table, &palette, &light)
+            .expect_err("expected SupportFloor violation");
+        assert_eq!(err.kind, ViolationKind::SupportFloor);
+        assert_eq!(err.cell, BlockPos::new(1, 0, 0));
+        assert_eq!(err.stored, 0);
+        assert_eq!(err.max_support, 13);
+    }
+
+    #[test]
+    fn invariants_fail_source_excess() {
+        // Air palette with one cell at the iteration origin lit to 14. The
+        // origin has emitted=0 and max_support=0 (all neighbours are 0), so
+        // the bright stored level cannot be justified by either an emitter
+        // or by inward support and SourceExcess fires.
+        let table = make_test_table();
+        let palette = make_palette(&[]);
+        let mut light = air_storage();
+        seed_light(&mut light, &[((0, 0, 0), 14)]);
+
+        let err = check_block_light_invariants(&table, &palette, &light)
+            .expect_err("expected SourceExcess violation");
+        assert_eq!(err.kind, ViolationKind::SourceExcess);
+        assert_eq!(err.cell, BlockPos::new(0, 0, 0));
+        assert_eq!(err.stored, 14);
+        assert_eq!(err.emitted, 0);
+    }
+
+    #[test]
+    fn invariants_skip_outward_face_support() {
+        // L1-attenuated field originating from a torch at (0,0,0):
+        //   level(x, y, z) = max(0, 14 - (x + y + z))
+        // The boundary cells on the -X, -Y, -Z faces have their outward
+        // neighbours in a sibling section, so the support-floor check must
+        // skip those directions; otherwise (0, 0, 0)'s missing neighbours
+        // would read garbage from `BlockPalette::get`'s `& 15` wrap-around.
+        let table = make_test_table();
+        let palette = make_palette(&[(0, 0, 0, TORCH)]);
+        let mut light = air_storage();
+        for y in 0..16 {
+            for z in 0..16 {
+                for x in 0..16 {
+                    let d = (x + y + z) as i32;
+                    let level = (14i32 - d).max(0) as u8;
+                    light.set(x, y, z, level);
+                }
+            }
+        }
+        assert!(
+            check_block_light_invariants(&table, &palette, &light).is_ok(),
+            "expected Ok(()) for the L1-attenuated field from a (0,0,0) torch"
+        );
+    }
+}
