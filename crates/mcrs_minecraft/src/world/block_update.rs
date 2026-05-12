@@ -92,7 +92,7 @@ impl<'s> SetBlock for MessageWriter<'s, BlockSetRequest> {
 }
 
 #[derive(Default, Component)]
-struct ChunkNetworkSyncBlockChangesSet {
+pub struct ChunkNetworkSyncBlockChangesSet {
     pub changes: FxHashSet<BlockPos>,
 }
 

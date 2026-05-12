@@ -13,6 +13,7 @@ pub mod components;
 pub mod bundle;
 pub mod table;
 pub mod lifecycle;
+pub mod heightmap_update;
 pub mod plugin;
 
 pub use plugin::LightingPlugin;
