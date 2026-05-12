@@ -7,3 +7,4 @@ pub mod heightmap_update_on_place;
 pub mod heightmap_update_on_break;
 pub mod sky_attenuation_through_water;
 pub mod expected;
+pub mod light_table;
