@@ -8,6 +8,7 @@
 )]
 
 pub mod bfs;
+pub mod enqueue;
 pub mod nibble;
 pub mod storage;
 pub mod components;
