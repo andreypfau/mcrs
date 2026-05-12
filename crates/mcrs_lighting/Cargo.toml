@@ -8,13 +8,11 @@ edition.workspace = true
 bevy_ecs.workspace = true
 mcrs_core.workspace = true
 mcrs_protocol.workspace = true
-
-[dev-dependencies]
-mcrs_minecraft.workspace = true
-mcrs_engine.workspace = true
+mcrs_engine = { workspace = true, optional = true }
+mcrs_minecraft = { workspace = true, optional = true }
 
 [features]
-test-bench = []
+test-bench = ["dep:mcrs_engine", "dep:mcrs_minecraft"]
 
 [profile.dev.package."bevy"]
 opt-level = 3

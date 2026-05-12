@@ -7,8 +7,7 @@
     clippy::too_many_arguments
 )]
 
-#[cfg(any(test, feature = "test-bench"))]
+#[cfg(feature = "test-bench")]
 pub mod stub;
-
-#[cfg(any(test, feature = "test-bench"))]
+#[cfg(feature = "test-bench")]
 pub mod test_bench;
