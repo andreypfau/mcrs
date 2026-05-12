@@ -16,6 +16,10 @@ pub mod table;
 pub mod lifecycle;
 pub mod heightmap_update;
 pub mod plugin;
+pub mod sets;
+
+#[cfg(any(test, debug_assertions))]
+pub mod invariants;
 
 pub use plugin::LightingPlugin;
 
