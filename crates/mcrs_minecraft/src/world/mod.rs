@@ -8,7 +8,7 @@ use crate::world::loot::LootPlugin;
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::prelude::*;
 use mcrs_engine::world::dimension::{
-    Dimension, DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig,
+    Dimension, DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig, HasSkyLight,
 };
 use tracing::{debug, info, warn};
 
@@ -69,7 +69,11 @@ fn spawn_dimensions_from_preset(
         warn!(
             "LoadedWorldPreset has no dimensions, spawning default overworld dimension"
         );
-        commands.spawn(DimensionBundle::default());
+        // HasSkyLight insertion shares a Commands batch with DimensionBundle spawn so the
+        // downstream lighting lifecycle reliably observes the marker when sections start
+        // loading. The default overworld is sky-having.
+        let mut e = commands.spawn(DimensionBundle::default());
+        e.insert(HasSkyLight);
         return;
     }
 
@@ -95,20 +99,37 @@ fn spawn_dimensions_from_preset(
                 DimensionTypeConfig::default()
             });
 
+        // Pull the dimension's has_skylight flag from the resolved DimensionType; default to
+        // true (overworld semantics) when the type ref does not resolve, matching the
+        // type_config fallback above.
+        let has_sky = dimension_types
+            .0
+            .iter()
+            .find(|(id, _)| id.as_str() == dimension_type_ref.as_str())
+            .map(|(_, dim_type)| dim_type.has_skylight)
+            .unwrap_or(true);
+
         info!(
             dimension_key = %dimension_key,
             dimension_type = %dimension_type_ref,
             min_y = type_config.min_y,
             height = type_config.height,
             sections = type_config.section_count,
+            has_skylight = has_sky,
             "Spawning dimension"
         );
 
-        commands.spawn(DimensionBundle {
+        // HasSkyLight insertion shares a Commands batch with the DimensionBundle spawn so the
+        // downstream lighting lifecycle reliably observes the marker when sections start
+        // loading.
+        let mut e = commands.spawn(DimensionBundle {
             dimension_id: DimensionId::new(dimension_key.as_str()),
             type_config,
             ..Default::default()
         });
+        if has_sky {
+            e.insert(HasSkyLight);
+        }
     }
 
     info!(
