@@ -6,6 +6,12 @@ impl Clone for NibbleArray {
     }
 }
 
+impl std::fmt::Debug for NibbleArray {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("NibbleArray").field(&"<2048 bytes>").finish()
+    }
+}
+
 impl NibbleArray {
     #[inline]
     pub fn zeros() -> Self {

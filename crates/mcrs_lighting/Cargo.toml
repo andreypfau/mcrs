@@ -13,6 +13,8 @@ mcrs_protocol.workspace = true
 mcrs_engine.workspace = true
 mcrs_minecraft.workspace = true
 mcrs_vanilla.workspace = true
+smallvec.workspace = true
+tracing.workspace = true
 
 [features]
 test-bench = []

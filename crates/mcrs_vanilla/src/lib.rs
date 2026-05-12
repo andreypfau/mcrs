@@ -505,7 +505,7 @@ fn resolve_enchantment_tags(
     tracing::info!(resolved_entries = resolved, "resolved TagRegistry<EnchantmentData>");
 }
 
-fn freeze_static_tags(
+pub fn freeze_static_tags(
     mut block_tags: ResMut<TagRegistry<block::Block>>,
     mut item_tags: ResMut<TagRegistry<item::Item>>,
     mut enchantment_tags: ResMut<TagRegistry<EnchantmentData>>,
@@ -554,7 +554,7 @@ fn register_static_registries_with_access(
     tracing::info!(count = access.len(), "populated RegistryAccess");
 }
 
-fn transition_to_playing(mut next: ResMut<NextState<AppState>>) {
+pub fn transition_to_playing(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::Playing);
     tracing::info!("entering Playing state");
 }

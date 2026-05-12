@@ -1760,6 +1760,8 @@ dependencies = [
  "mcrs_minecraft",
  "mcrs_protocol",
  "mcrs_vanilla",
+ "smallvec",
+ "tracing",
 ]
 
 [[package]]

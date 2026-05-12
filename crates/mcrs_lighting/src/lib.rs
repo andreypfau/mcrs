@@ -9,6 +9,9 @@
 
 pub mod nibble;
 pub mod storage;
+pub mod components;
+pub mod bundle;
+pub mod table;
 
 #[cfg(feature = "test-bench")]
 pub mod stub;

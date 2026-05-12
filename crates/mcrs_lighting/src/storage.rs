@@ -1,6 +1,6 @@
 use crate::nibble::NibbleArray;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum LightStorage {
     Null,
     Uniform(u8),
