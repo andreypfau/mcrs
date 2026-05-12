@@ -7,10 +7,13 @@
 //! types differ in width and field set: `BfsEntry` carries Y plus a 6-bit
 //! direction bitset and a 3-bit flag field, neither of which `Wavefront`
 //! needs.
-//!
-//! Bit layout reference: Canvas `StarLightEngine.java:1050-1064`.
 
-use mcrs_core::voxel_shape::Direction;
+use mcrs_core::voxel_shape::{Direction, VoxelShape};
+use mcrs_minecraft::world::palette::BlockPalette;
+
+use crate::components::{BlockEgress, BlockLightWorkspace, Wavefront};
+use crate::storage::LightStorage;
+use crate::table::{flag_bits, BlockLightTable};
 
 pub(crate) const FLAG_HAS_SIDED_TRANSPARENT_BLOCKS: u8 = 1 << 0;
 pub(crate) const FLAG_RECHECK_LEVEL: u8 = 1 << 1;
@@ -291,9 +294,142 @@ pub(crate) const DIRECTIONS_FROM_BITSET: [&'static [Direction]; 64] = [
     &ARR_60, &ARR_61, &ARR_62, &ARR_63,
 ];
 
+/// Extract the two on-face coordinates from a (off_x, off_y, off_z) triple
+/// for the destination face named by `d`. Returns `(cell_x, cell_z)` matching
+/// the `Wavefront::new(face, cell_x, cell_z, level)` constructor in
+/// `components.rs`. The face normal axis is dropped; the remaining two axes
+/// are returned in (first-non-normal, second-non-normal) order:
+///
+/// - Up/Down (Y-normal): `(off_x, off_z)`
+/// - North/South (Z-normal): `(off_x, off_y)`
+/// - East/West (X-normal): `(off_y, off_z)`
+#[inline]
+fn project_face_cell(d: Direction, off_x: i8, off_y: i8, off_z: i8) -> (u8, u8) {
+    match d {
+        Direction::Down | Direction::Up => ((off_x & 0xF) as u8, (off_z & 0xF) as u8),
+        Direction::North | Direction::South => ((off_x & 0xF) as u8, (off_y & 0xF) as u8),
+        Direction::West | Direction::East => ((off_y & 0xF) as u8, (off_z & 0xF) as u8),
+    }
+}
+
+/// Block-light increase BFS over one chunk section.
+///
+/// Drains `workspace.increase_queue` to empty. Cells whose stored level is
+/// raised by this pass are written via `LightStorage::set`. Steps that fall
+/// off the 0..=15 cube are converted into `Wavefront(u32)` entries on
+/// `egress.0` for the cross-section distribute pass; the source section
+/// itself never re-enqueues a boundary cell.
+///
+/// Slow-path branch fires when either side has `IS_CONDITIONALLY_OPAQUE`
+/// set; in that case the source's `VoxelShape` is consulted via
+/// `face_occludes`. The fast path uses `VoxelShape::empty()` as the
+/// source shape, which never occludes.
+pub fn propagate_increase(
+    table: &BlockLightTable,
+    palette: &BlockPalette,
+    light: &mut LightStorage,
+    workspace: &mut BlockLightWorkspace,
+    egress: &mut BlockEgress,
+) {
+    let mut queue_read_index: usize = 0;
+    while queue_read_index < workspace.increase_queue.len() {
+        let entry = workspace.increase_queue[queue_read_index];
+        queue_read_index += 1;
+
+        let x = unpack_bfs_entry_x(entry);
+        let z = unpack_bfs_entry_z(entry);
+        let y_full = unpack_bfs_entry_y(entry);
+        let propagated_level = unpack_bfs_entry_level(entry);
+        let check_dir_bitset = unpack_bfs_entry_dir_bitset(entry);
+        let entry_flags = unpack_bfs_entry_flags(entry);
+        let y_local = (y_full as usize) & 0xF;
+
+        if entry_flags & FLAG_RECHECK_LEVEL != 0 {
+            if light.get(x as usize, y_local, z as usize) != propagated_level {
+                continue;
+            }
+        } else if entry_flags & FLAG_WRITE_LEVEL != 0 {
+            light.set(x as usize, y_local, z as usize, propagated_level);
+        }
+
+        let src_state = palette.get((x as i32, y_local as i32, z as i32));
+        let src_flags = table.flags_for(src_state);
+        let src_conditional = (src_flags & flag_bits::IS_CONDITIONALLY_OPAQUE) != 0;
+        let from_shape: &'static VoxelShape = if src_conditional {
+            table.occlusion_for(src_state)
+        } else {
+            VoxelShape::empty()
+        };
+
+        for &d in DIRECTIONS_FROM_BITSET[check_dir_bitset as usize] {
+            let (dx, dy, dz) = normal_of(d);
+            let off_x = x as i8 + dx;
+            let off_y = y_local as i8 + dy;
+            let off_z = z as i8 + dz;
+
+            if off_x < 0
+                || off_x > 15
+                || off_y < 0
+                || off_y > 15
+                || off_z < 0
+                || off_z > 15
+            {
+                let (cx, cz) = project_face_cell(d, off_x, off_y, off_z);
+                egress
+                    .0
+                    .push(Wavefront::new(d.index() as u8, cx, cz, propagated_level));
+                continue;
+            }
+
+            let off_x_u = off_x as usize;
+            let off_y_u = off_y as usize;
+            let off_z_u = off_z as usize;
+
+            let current_level = light.get(off_x_u, off_y_u, off_z_u);
+            if current_level >= propagated_level.saturating_sub(1) {
+                continue;
+            }
+
+            let dst_state = palette.get((off_x as i32, off_y as i32, off_z as i32));
+            let dst_flags = table.flags_for(dst_state);
+            let mut emit_flags: u8 = 0;
+            if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {
+                let culling_face = table.occlusion_for(dst_state).face_shape(d.opposite());
+                if from_shape.face_occludes(culling_face, d) {
+                    continue;
+                }
+                emit_flags |= FLAG_HAS_SIDED_TRANSPARENT_BLOCKS;
+            }
+
+            let opacity = table.dampening_for(dst_state);
+            let target_level = propagated_level.saturating_sub(opacity.max(1));
+            if target_level <= current_level {
+                continue;
+            }
+
+            light.set(off_x_u, off_y_u, off_z_u, target_level);
+
+            if target_level > 1 {
+                workspace.increase_queue.push(pack_bfs_entry(
+                    off_x as u8,
+                    off_z as u8,
+                    off_y as u8,
+                    target_level,
+                    DIRECTIONS_EXCEPT_OPPOSITE[d.index()],
+                    emit_flags,
+                ));
+            }
+        }
+    }
+
+    workspace.increase_queue.clear();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::nibble::NibbleArray;
+    use mcrs_protocol::BlockStateId;
 
     const ALL_DIRECTIONS: [Direction; 6] = [
         Direction::Down,
@@ -392,5 +528,366 @@ mod tests {
                 d
             );
         }
+    }
+
+    struct TableSpec {
+        emission: u8,
+        dampening: u8,
+        occlusion: &'static VoxelShape,
+        flags: u8,
+    }
+
+    fn build_table(specs: &[(u16, TableSpec)]) -> BlockLightTable {
+        let max_state = specs.iter().map(|(id, _)| *id).max().unwrap_or(0);
+        let size = (max_state as usize) + 1;
+        let mut emission = vec![0u8; size].into_boxed_slice();
+        let mut dampening = vec![0u8; size].into_boxed_slice();
+        let mut occlusion: Box<[&'static VoxelShape]> =
+            vec![VoxelShape::empty(); size].into_boxed_slice();
+        let mut flags = vec![0u8; size].into_boxed_slice();
+        for (id, spec) in specs {
+            let idx = *id as usize;
+            emission[idx] = spec.emission;
+            dampening[idx] = spec.dampening;
+            occlusion[idx] = spec.occlusion;
+            flags[idx] = spec.flags;
+        }
+        BlockLightTable {
+            emission,
+            dampening,
+            occlusion,
+            flags,
+        }
+    }
+
+    fn manhattan(a: (i32, i32, i32), b: (i32, i32, i32)) -> u8 {
+        ((a.0 - b.0).abs() + (a.1 - b.1).abs() + (a.2 - b.2).abs()) as u8
+    }
+
+    fn fill_palette_with_air(palette: &mut BlockPalette) {
+        palette.fill(BlockStateId(0));
+    }
+
+    /// Construct an empty `LightStorage::Mixed` directly. Seeding the source
+    /// cell via `LightStorage::Null::set` produces `Uniform(emission)`, which
+    /// causes `light.get` to report `emission` for every cell and the BFS to
+    /// early-exit before propagating (see 03-RESEARCH.md Pitfall #6).
+    fn zero_light_storage() -> LightStorage {
+        LightStorage::Mixed(Box::new(NibbleArray::zeros()))
+    }
+
+    fn air_spec() -> TableSpec {
+        TableSpec {
+            emission: 0,
+            dampening: 0,
+            occlusion: VoxelShape::empty(),
+            flags: 0,
+        }
+    }
+
+    fn torch_spec() -> TableSpec {
+        TableSpec {
+            emission: 14,
+            dampening: 0,
+            occlusion: VoxelShape::empty(),
+            flags: 0,
+        }
+    }
+
+    #[test]
+    fn bfs_increase_single_emitter_all_air() {
+        let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
+        let mut palette = BlockPalette::default();
+        fill_palette_with_air(&mut palette);
+        palette.set((8, 8, 8), BlockStateId(0x1000));
+
+        let mut light = zero_light_storage();
+        light.set(8, 8, 8, 14);
+
+        let mut workspace = BlockLightWorkspace::default();
+        let mut egress = BlockEgress::default();
+        workspace
+            .increase_queue
+            .push(pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
+
+        propagate_increase(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        assert!(workspace.increase_queue.is_empty());
+        for y in 0..16 {
+            for z in 0..16 {
+                for x in 0..16 {
+                    let dist = manhattan((x, y, z), (8, 8, 8));
+                    let expected = if dist == 0 { 14 } else { 14u8.saturating_sub(dist) };
+                    let actual = light.get(x as usize, y as usize, z as usize);
+                    assert_eq!(
+                        actual, expected,
+                        "cell ({}, {}, {}) at dist {}: got {} expected {}",
+                        x, y, z, dist, actual, expected
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn bfs_increase_attenuates_by_dampening() {
+        const SLAB_HIGH: u16 = 2;
+        const SLAB_ZERO: u16 = 3;
+        let slab_high_spec = TableSpec {
+            emission: 0,
+            dampening: 2,
+            occlusion: VoxelShape::empty(),
+            flags: 0,
+        };
+        let slab_zero_spec = TableSpec {
+            emission: 0,
+            dampening: 0,
+            occlusion: VoxelShape::empty(),
+            flags: 0,
+        };
+
+        // First scenario: dampening=2 produces target = 14 - max(1, 2) = 12 at
+        // the slab cell, then 11 at the cell beyond.
+        {
+            let table = build_table(&[
+                (0, air_spec()),
+                (0x1000, torch_spec()),
+                (SLAB_HIGH, slab_high_spec),
+            ]);
+            let mut palette = BlockPalette::default();
+            fill_palette_with_air(&mut palette);
+            palette.set((8, 8, 8), BlockStateId(0x1000));
+            palette.set((8, 8, 9), BlockStateId(SLAB_HIGH));
+
+            let mut light = zero_light_storage();
+            light.set(8, 8, 8, 14);
+            let mut workspace = BlockLightWorkspace::default();
+            let mut egress = BlockEgress::default();
+            workspace
+                .increase_queue
+                .push(pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
+            propagate_increase(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+            assert_eq!(light.get(8, 8, 9), 14u8.saturating_sub(2), "slab cell");
+            assert_eq!(
+                light.get(8, 8, 10),
+                14u8.saturating_sub(2).saturating_sub(1),
+                "cell beyond slab"
+            );
+        }
+
+        // Control: dampening=0 still attenuates by max(1, 0) = 1.
+        {
+            let table = build_table(&[
+                (0, air_spec()),
+                (0x1000, torch_spec()),
+                (SLAB_ZERO, slab_zero_spec),
+            ]);
+            let mut palette = BlockPalette::default();
+            fill_palette_with_air(&mut palette);
+            palette.set((8, 8, 8), BlockStateId(0x1000));
+            palette.set((8, 8, 9), BlockStateId(SLAB_ZERO));
+
+            let mut light = zero_light_storage();
+            light.set(8, 8, 8, 14);
+            let mut workspace = BlockLightWorkspace::default();
+            let mut egress = BlockEgress::default();
+            workspace
+                .increase_queue
+                .push(pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
+            propagate_increase(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+            assert_eq!(light.get(8, 8, 9), 14u8.saturating_sub(1));
+            assert_eq!(light.get(8, 8, 10), 14u8.saturating_sub(2));
+        }
+    }
+
+    #[test]
+    fn bfs_increase_pushes_face_egress() {
+        let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
+        let mut palette = BlockPalette::default();
+        fill_palette_with_air(&mut palette);
+        palette.set((15, 8, 8), BlockStateId(0x1000));
+
+        let mut light = zero_light_storage();
+        light.set(15, 8, 8, 14);
+        let mut workspace = BlockLightWorkspace::default();
+        let mut egress = BlockEgress::default();
+        workspace
+            .increase_queue
+            .push(pack_bfs_entry(15, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
+
+        propagate_increase(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        assert!(workspace.increase_queue.is_empty());
+        // The source cell's own +X step must produce one egress wavefront
+        // carrying the source level. The cross-section distribute pass is
+        // responsible for the cross-section attenuation; the BFS just records
+        // the pre-step level. Other cells on the x=15 plane that get reached
+        // by the BFS also push East egress entries at lower levels — those
+        // are not checked here.
+        let expected_face = Direction::East.index() as u8;
+        let found = egress.0.iter().any(|w| {
+            w.face() == expected_face && w.cell_x() == 8 && w.cell_z() == 8 && w.level() == 14
+        });
+        assert!(
+            found,
+            "missing East egress wavefront (face=East, cell_x=8, cell_z=8, level=14); egress={:?}",
+            egress.0
+        );
+    }
+
+    #[test]
+    fn bfs_increase_early_exit_dedup() {
+        // One-seed reference run.
+        let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
+        let mut palette = BlockPalette::default();
+        fill_palette_with_air(&mut palette);
+        palette.set((8, 8, 8), BlockStateId(0x1000));
+
+        let mut light_one = zero_light_storage();
+        light_one.set(8, 8, 8, 14);
+        let mut workspace_one = BlockLightWorkspace::default();
+        let mut egress_one = BlockEgress::default();
+        workspace_one
+            .increase_queue
+            .push(pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
+        propagate_increase(
+            &table,
+            &palette,
+            &mut light_one,
+            &mut workspace_one,
+            &mut egress_one,
+        );
+
+        // Two-seed run: the second seed's neighbours all hit the early-exit.
+        let mut light_two = zero_light_storage();
+        light_two.set(8, 8, 8, 14);
+        let mut workspace_two = BlockLightWorkspace::default();
+        let mut egress_two = BlockEgress::default();
+        workspace_two
+            .increase_queue
+            .push(pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
+        workspace_two
+            .increase_queue
+            .push(pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
+        propagate_increase(
+            &table,
+            &palette,
+            &mut light_two,
+            &mut workspace_two,
+            &mut egress_two,
+        );
+
+        assert!(workspace_two.increase_queue.is_empty());
+        for y in 0..16 {
+            for z in 0..16 {
+                for x in 0..16 {
+                    assert_eq!(
+                        light_one.get(x, y, z),
+                        light_two.get(x, y, z),
+                        "field mismatch at ({}, {}, {})",
+                        x,
+                        y,
+                        z
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn bfs_recheck_level_stale_skip_discards() {
+        let table = build_table(&[(0, air_spec())]);
+        let mut palette = BlockPalette::default();
+        fill_palette_with_air(&mut palette);
+
+        let mut light = zero_light_storage();
+        light.set(0, 0, 0, 10);
+        // Capture all neighbour values to assert nothing changed.
+        let baseline: Vec<u8> = (0..6)
+            .map(|i| {
+                let d = ALL_DIRECTIONS[i];
+                let (dx, dy, dz) = normal_of(d);
+                let (nx, ny, nz) = (dx, dy, dz);
+                if nx < 0 || ny < 0 || nz < 0 {
+                    0
+                } else {
+                    light.get(nx as usize, ny as usize, nz as usize)
+                }
+            })
+            .collect();
+
+        let mut workspace = BlockLightWorkspace::default();
+        let mut egress = BlockEgress::default();
+        workspace
+            .increase_queue
+            .push(pack_bfs_entry(0, 0, 0, 5, 0, FLAG_RECHECK_LEVEL));
+
+        propagate_increase(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        assert_eq!(light.get(0, 0, 0), 10, "stale recheck must not touch cell");
+        assert!(workspace.increase_queue.is_empty());
+        assert!(egress.0.is_empty());
+        for (i, d) in ALL_DIRECTIONS.iter().enumerate() {
+            let (dx, dy, dz) = normal_of(*d);
+            if dx < 0 || dy < 0 || dz < 0 {
+                continue;
+            }
+            assert_eq!(
+                light.get(dx as usize, dy as usize, dz as usize),
+                baseline[i],
+                "neighbour mutated for {:?}",
+                d
+            );
+        }
+    }
+
+    #[test]
+    fn bfs_increase_slow_path_face_occluded() {
+        // Source state is a conditionally-opaque, full-cube emitter; the
+        // destination has the same shape. The Block/Block face_occludes pair
+        // returns true, so the BFS must NOT propagate light into dst.
+        let src_spec = TableSpec {
+            emission: 14,
+            dampening: 0,
+            occlusion: VoxelShape::block(),
+            flags: flag_bits::IS_CONDITIONALLY_OPAQUE,
+        };
+        let dst_spec = TableSpec {
+            emission: 0,
+            dampening: 0,
+            occlusion: VoxelShape::block(),
+            flags: flag_bits::IS_CONDITIONALLY_OPAQUE,
+        };
+        let table = build_table(&[
+            (0, air_spec()),
+            (5, src_spec),
+            (6, dst_spec),
+            (0x1000, torch_spec()),
+        ]);
+        let mut palette = BlockPalette::default();
+        fill_palette_with_air(&mut palette);
+        palette.set((5, 5, 5), BlockStateId(5));
+        palette.set((5, 5, 6), BlockStateId(6));
+
+        let mut light = zero_light_storage();
+        light.set(5, 5, 5, 14);
+        let mut workspace = BlockLightWorkspace::default();
+        let mut egress = BlockEgress::default();
+        // Only walk in the +Z (South) direction so the test isolates the
+        // src→dst face check; the bitset is 1 << South.index().
+        let south_only_bitset = 1u8 << Direction::South.index();
+        workspace
+            .increase_queue
+            .push(pack_bfs_entry(5, 5, 5, 14, south_only_bitset, 0));
+
+        propagate_increase(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        assert_eq!(
+            light.get(5, 5, 6),
+            0,
+            "slow path must block light through Block/Block face"
+        );
     }
 }
