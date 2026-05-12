@@ -7,8 +7,6 @@
     clippy::too_many_arguments
 )]
 
-pub mod bfs;
-pub mod enqueue;
 pub mod nibble;
 pub mod storage;
 pub mod components;
@@ -16,14 +14,15 @@ pub mod bundle;
 pub mod table;
 pub mod lifecycle;
 pub mod heightmap_update;
-pub mod plugin;
+pub mod bfs;
+pub mod enqueue;
+pub mod invariants;
 pub mod propagate;
 pub mod sets;
-
-#[cfg(any(test, debug_assertions))]
-pub mod invariants;
+pub mod plugin;
 
 pub use plugin::LightingPlugin;
+pub use sets::LightingSet;
 
 #[cfg(feature = "test-bench")]
 pub mod stub;
