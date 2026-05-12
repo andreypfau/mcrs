@@ -1752,11 +1752,14 @@ dependencies = [
 name = "mcrs_lighting"
 version = "0.1.0"
 dependencies = [
+ "bevy_app",
  "bevy_ecs",
+ "bevy_state",
  "mcrs_core",
  "mcrs_engine",
  "mcrs_minecraft",
  "mcrs_protocol",
+ "mcrs_vanilla",
 ]
 
 [[package]]
