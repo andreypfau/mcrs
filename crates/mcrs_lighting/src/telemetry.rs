@@ -27,14 +27,23 @@ pub fn snapshot() -> LightTelemetrySnapshot {
     }
 }
 
+/// Process-wide test serialisation for counter-observing tests. The four
+/// telemetry counters are global atomics, so any test that snapshots them
+/// before and after a state change must hold this mutex across the
+/// observation window — otherwise concurrent tests in the same binary will
+/// race and the delta becomes non-deterministic.
+#[cfg(test)]
+pub(crate) static TELEMETRY_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn snapshot_reads_counters() {
-        // Counters are process-global and may have been incremented by other
-        // tests in the same binary; compare deltas, not absolute values.
+        let _lock = TELEMETRY_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let before = snapshot();
         LIGHT_CONVERGE_ITERATIONS_TOTAL.fetch_add(7, Ordering::Relaxed);
         LIGHT_CONVERGE_CAPPED_TOTAL.fetch_add(7, Ordering::Relaxed);

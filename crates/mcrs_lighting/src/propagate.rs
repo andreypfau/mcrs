@@ -1,34 +1,93 @@
 //! Thin Bevy system wrappers around `bfs::propagate_increase` and
 //! `bfs::propagate_decrease`. Each system iterates
-//! `Query<..., With<LightDirty>>` sequentially via `iter_mut`; the parallel
-//! upgrade lives behind a future `LightConvergeSchedule` sub-schedule.
+//! `Query<..., With<LightDirty>>` in parallel via `par_iter_mut`. Per-worker
+//! `Commands` accumulation goes through `ParallelCommands`.
+//!
+//! Drain-incoming prelude: every per-section iteration starts by draining
+//! the section's `*Incoming` buffer into `workspace.increase_queue` via
+//! `pack_bfs_entry(..., FLAG_WRITE_LEVEL)`. Each incoming `Wavefront`
+//! encodes the source-frame face plus its on-face `(cell_x, cell_z)` and
+//! `level`; the helper `face_to_section_coords` decodes those to the
+//! destination-section-local `(x, y, z)` cell coordinates expected by the
+//! packed BFS entry layout. The decoded face is inverted at distribute
+//! time, so a wavefront arriving on the destination's West-`Incoming` lives
+//! at `x = 0` inside the destination, and the BFS picks it up as if it
+//! had been seeded at that cell from level `level`.
 //!
 //! `propagate_increase_block_system` removes `LightDirty` at the end of
 //! the loop body when both workspace queues have drained, regardless of
 //! whether `BlockEgress` is empty — the source section is done with
-//! intra-section work, and the cross-section distribute pass (when it
-//! lands) will re-mark `LightDirty` on any section it touches via egress.
+//! intra-section work, and the cross-section distribute pass re-marks
+//! `LightDirty` on any section it touches via egress.
 //!
 //! Ordering between the two systems is set at plugin wiring time:
-//! `LightingSet::PropagateDecrease` is chained before
-//! `LightingSet::PropagateIncrease` so the decrease pass requeues
-//! pre-existing-higher cells onto `increase_queue` before the increase
-//! pass drains it.
+//! the decrease pass is chained before the increase pass so the decrease
+//! pass requeues pre-existing-higher cells onto `increase_queue` before
+//! the increase pass drains it.
 
-use bevy_ecs::prelude::{Commands, Entity, Query, Res, With};
+use bevy_ecs::prelude::{Entity, ParallelCommands, Query, Res, With};
 use mcrs_core::voxel_shape::Direction;
 use mcrs_minecraft::world::palette::BlockPalette;
 
 use crate::bfs::{
-    propagate_decrease, propagate_decrease_sky, propagate_increase, propagate_increase_sky,
-    unpack_bfs_entry_level, unpack_bfs_entry_y,
+    pack_bfs_entry, propagate_decrease, propagate_decrease_sky, propagate_increase,
+    propagate_increase_sky, unpack_bfs_entry_level, unpack_bfs_entry_y, ALL_DIRECTIONS_BITSET,
+    FLAG_WRITE_LEVEL,
 };
 use crate::components::{
-    BlockEgress, BlockLight, BlockLightWorkspace, IsAllAir, LightDirty, SkyEgress, SkyLight,
-    SkyLightWorkspace, Wavefront,
+    BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, IsAllAir, LightDirty, SkyEgress,
+    SkyIncoming, SkyLight, SkyLightWorkspace, Wavefront,
 };
+use crate::distribute::direction_from_index;
 use crate::storage::LightStorage;
 use crate::table::BlockLightTable;
+
+/// Inverse of `bfs::project_face_cell`: given an inbound wavefront's
+/// destination-frame face plus its on-face `(cell_a, cell_b)` packing,
+/// return the destination-section-local `(x, y, z)` cell coordinates.
+///
+/// Y-normal faces drop y, X-normal faces drop x, Z-normal faces drop z.
+/// For `Up` the implicit y is 15; for `Down` the implicit y is 0; for
+/// `East` x is 15; for `West` x is 0; for `South` z is 15; for `North`
+/// z is 0. The two non-normal axes pack the on-face cell coordinates in
+/// the same order as `project_face_cell` — `(cell_a, cell_b)` where
+/// `cell_a` is the first non-normal axis and `cell_b` is the second.
+#[inline]
+pub(crate) fn face_to_section_coords(face: Direction, cell_a: u8, cell_b: u8) -> (u8, u8, u8) {
+    match face {
+        Direction::Down => (cell_a, 0, cell_b),
+        Direction::Up => (cell_a, 15, cell_b),
+        Direction::North => (cell_a, cell_b, 0),
+        Direction::South => (cell_a, cell_b, 15),
+        Direction::West => (0, cell_a, cell_b),
+        Direction::East => (15, cell_a, cell_b),
+    }
+}
+
+/// Drain a `*Incoming` buffer into a workspace's `increase_queue` via
+/// `pack_bfs_entry(..., FLAG_WRITE_LEVEL)`. Each entry is packed at the
+/// destination-section-local cell decoded by `face_to_section_coords`, and
+/// the BFS will write the wavefront's `level` and propagate outward from
+/// there.
+#[inline]
+fn drain_incoming_into_queue(
+    incoming: &mut smallvec::SmallVec<[Wavefront; 8]>,
+    queue: &mut Vec<u64>,
+) {
+    for wavefront in incoming.drain(..) {
+        let face = direction_from_index(wavefront.face());
+        let (x, y, z) =
+            face_to_section_coords(face, wavefront.cell_x(), wavefront.cell_z());
+        queue.push(pack_bfs_entry(
+            x,
+            z,
+            y,
+            wavefront.level(),
+            ALL_DIRECTIONS_BITSET,
+            FLAG_WRITE_LEVEL,
+        ));
+    }
+}
 
 pub fn propagate_decrease_block_system(
     table: Res<BlockLightTable>,
@@ -38,13 +97,17 @@ pub fn propagate_decrease_block_system(
             &mut BlockLight,
             &mut BlockLightWorkspace,
             &mut BlockEgress,
+            &mut BlockIncoming,
         ),
         With<LightDirty>,
     >,
 ) {
-    for (palette, mut light, mut workspace, mut egress) in sections.iter_mut() {
-        propagate_decrease(&table, palette, &mut light.0, &mut workspace, &mut egress);
-    }
+    sections.par_iter_mut().for_each(
+        |(palette, mut light, mut workspace, mut egress, mut incoming)| {
+            drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
+            propagate_decrease(&table, palette, &mut light.0, &mut workspace, &mut egress);
+        },
+    );
 }
 
 pub fn propagate_increase_block_system(
@@ -56,17 +119,23 @@ pub fn propagate_increase_block_system(
             &mut BlockLight,
             &mut BlockLightWorkspace,
             &mut BlockEgress,
+            &mut BlockIncoming,
         ),
         With<LightDirty>,
     >,
-    mut commands: Commands,
+    commands: ParallelCommands,
 ) {
-    for (entity, palette, mut light, mut workspace, mut egress) in sections.iter_mut() {
-        propagate_increase(&table, palette, &mut light.0, &mut workspace, &mut egress);
-        if workspace.increase_queue.is_empty() && workspace.decrease_queue.is_empty() {
-            commands.entity(entity).remove::<LightDirty>();
-        }
-    }
+    sections.par_iter_mut().for_each(
+        |(entity, palette, mut light, mut workspace, mut egress, mut incoming)| {
+            drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
+            propagate_increase(&table, palette, &mut light.0, &mut workspace, &mut egress);
+            if workspace.increase_queue.is_empty() && workspace.decrease_queue.is_empty() {
+                commands.command_scope(|mut cmd| {
+                    cmd.entity(entity).remove::<LightDirty>();
+                });
+            }
+        },
+    );
 }
 
 pub fn propagate_decrease_sky_system(
@@ -77,13 +146,17 @@ pub fn propagate_decrease_sky_system(
             &mut SkyLight,
             &mut SkyLightWorkspace,
             &mut SkyEgress,
+            &mut SkyIncoming,
         ),
         With<LightDirty>,
     >,
 ) {
-    for (palette, mut light, mut workspace, mut egress) in sections.iter_mut() {
-        propagate_decrease_sky(&table, palette, &mut light.0, &mut workspace, &mut egress);
-    }
+    sections.par_iter_mut().for_each(
+        |(palette, mut light, mut workspace, mut egress, mut incoming)| {
+            drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
+            propagate_decrease_sky(&table, palette, &mut light.0, &mut workspace, &mut egress);
+        },
+    );
 }
 
 /// Five non-Up faces used by the column-walker fast path to dump 256 wavefronts
@@ -132,56 +205,63 @@ pub fn propagate_increase_sky_system(
             &mut SkyLight,
             &mut SkyLightWorkspace,
             &mut SkyEgress,
+            &mut SkyIncoming,
             Option<&IsAllAir>,
         ),
         With<LightDirty>,
     >,
-    mut commands: Commands,
+    commands: ParallelCommands,
 ) {
-    for (entity, palette, mut light, mut workspace, mut egress, is_all_air) in
-        sections.iter_mut()
-    {
-        if try_column_walker_fast_path(is_all_air.is_some(), &workspace) {
-            light.0 = LightStorage::Uniform(15);
-            // SmallVec inline capacity is 8; reserve up front so the 1280
-            // per-cell pushes below collapse to a single heap allocation
-            // instead of 7+ incremental reallocations.
-            egress.0.reserve(1280);
-            // Per-face (cell_x, cell_z) pairing follows the project_face_cell
-            // axis contract: Y-normal faces drop y, Z-normal faces drop z and
-            // pack (x, y), X-normal faces drop x and pack (y, z).
-            for face in COLUMN_WALKER_FACES {
-                let face_idx = face.index() as u8;
-                for a in 0..16u8 {
-                    for b in 0..16u8 {
-                        let (cx, cz) = match face {
-                            Direction::Down | Direction::Up => (b, a),
-                            Direction::North | Direction::South => (b, a),
-                            Direction::West | Direction::East => (a, b),
-                        };
-                        egress.0.push(Wavefront::new(face_idx, cx, cz, 15));
+    sections.par_iter_mut().for_each(
+        |(entity, palette, mut light, mut workspace, mut egress, mut incoming, is_all_air)| {
+            drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
+
+            if try_column_walker_fast_path(is_all_air.is_some(), &workspace) {
+                light.0 = LightStorage::Uniform(15);
+                // SmallVec inline capacity is 8; reserve up front so the 1280
+                // per-cell pushes below collapse to a single heap allocation
+                // instead of 7+ incremental reallocations.
+                egress.0.reserve(1280);
+                // Per-face (cell_x, cell_z) pairing follows the project_face_cell
+                // axis contract: Y-normal faces drop y, Z-normal faces drop z and
+                // pack (x, y), X-normal faces drop x and pack (y, z).
+                for face in COLUMN_WALKER_FACES {
+                    let face_idx = face.index() as u8;
+                    for a in 0..16u8 {
+                        for b in 0..16u8 {
+                            let (cx, cz) = match face {
+                                Direction::Down | Direction::Up => (b, a),
+                                Direction::North | Direction::South => (b, a),
+                                Direction::West | Direction::East => (a, b),
+                            };
+                            egress.0.push(Wavefront::new(face_idx, cx, cz, 15));
+                        }
                     }
                 }
+                workspace.increase_queue.clear();
+                if workspace.decrease_queue.is_empty() {
+                    commands.command_scope(|mut cmd| {
+                        cmd.entity(entity).remove::<LightDirty>();
+                    });
+                }
+                return;
             }
-            workspace.increase_queue.clear();
-            if workspace.decrease_queue.is_empty() {
-                commands.entity(entity).remove::<LightDirty>();
-            }
-            continue;
-        }
 
-        propagate_increase_sky(&table, palette, &mut light.0, &mut workspace, &mut egress);
-        if workspace.increase_queue.is_empty() && workspace.decrease_queue.is_empty() {
-            commands.entity(entity).remove::<LightDirty>();
-        }
-    }
+            propagate_increase_sky(&table, palette, &mut light.0, &mut workspace, &mut egress);
+            if workspace.increase_queue.is_empty() && workspace.decrease_queue.is_empty() {
+                commands.command_scope(|mut cmd| {
+                    cmd.entity(entity).remove::<LightDirty>();
+                });
+            }
+        },
+    );
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::bfs::{pack_bfs_entry, ALL_DIRECTIONS_BITSET};
-    use crate::components::{BlockLight, BlockLightWorkspace, LightDirty};
+    use crate::components::{BlockIncoming, BlockLight, BlockLightWorkspace, LightDirty};
     use crate::nibble::NibbleArray;
     use crate::storage::LightStorage;
     use crate::table::flag_bits;
@@ -261,6 +341,7 @@ mod tests {
                 BlockLight(zero_light_storage()),
                 BlockLightWorkspace::default(),
                 BlockEgress::default(),
+                BlockIncoming::default(),
                 LightDirty,
             ))
             .id()
@@ -273,6 +354,7 @@ mod tests {
                 BlockLight(zero_light_storage()),
                 BlockLightWorkspace::default(),
                 BlockEgress::default(),
+                BlockIncoming::default(),
             ))
             .id()
     }
@@ -530,7 +612,7 @@ mod tests {
 
     // -------- sky propagate system tests --------
 
-    use crate::components::{IsAllAir, SkyEgress, SkyLight, SkyLightWorkspace};
+    use crate::components::{IsAllAir, SkyEgress, SkyIncoming, SkyLight, SkyLightWorkspace};
 
     fn build_app_with_sky_increase() -> App {
         let mut app = App::new();
@@ -547,6 +629,7 @@ mod tests {
                 SkyLight(LightStorage::default()),
                 SkyLightWorkspace::default(),
                 SkyEgress::default(),
+                SkyIncoming::default(),
                 IsAllAir,
                 LightDirty,
             ))
@@ -582,6 +665,7 @@ mod tests {
                 SkyLight(LightStorage::default()),
                 SkyLightWorkspace::default(),
                 SkyEgress::default(),
+                SkyIncoming::default(),
                 LightDirty,
             ))
             .id();
@@ -745,6 +829,7 @@ mod tests {
                 BlockLight(zero_light_storage()),
                 BlockLightWorkspace::default(),
                 BlockEgress::default(),
+                BlockIncoming::default(),
                 LightDirty,
             ))
             .id();
@@ -759,5 +844,171 @@ mod tests {
             app.world().entity(section).get::<SkyEgress>().is_none(),
             "skyless-dim section must never gain SkyEgress from the sky propagate systems"
         );
+    }
+
+    // ---- Plan-2 added: drain-incoming + par_iter_mut structural tests ----
+
+    /// Verify drain-Incoming prelude turns one BlockIncoming wavefront into a
+    /// pack_bfs_entry FLAG_WRITE_LEVEL on workspace.increase_queue. East face
+    /// wavefront at (cell_x=0, cell_z=8, level=8) decodes to section-local
+    /// (x=15, y=0, z=8) per face_to_section_coords(East, 0, 8). The drain
+    /// runs at the top of `propagate_decrease_block_system`; the
+    /// decrease pass itself only drains `decrease_queue`, so the prelude's
+    /// FLAG_WRITE_LEVEL entry survives on `increase_queue` for the next
+    /// increase pass to consume.
+    #[test]
+    fn propagate_decrease_drains_block_incoming_at_top_of_body() {
+        let mut app = build_app_with_decrease();
+        let entity = spawn_section_dirty(&mut app);
+        let east = Direction::East.index() as u8;
+        let mut incoming = app
+            .world_mut()
+            .get_mut::<BlockIncoming>(entity)
+            .expect("incoming");
+        incoming.0.push(Wavefront::new(east, 0, 8, 8));
+        drop(incoming);
+
+        app.update();
+
+        let inc = app
+            .world()
+            .get::<BlockIncoming>(entity)
+            .expect("incoming");
+        assert!(inc.0.is_empty(), "drain prelude must empty BlockIncoming");
+        // The decrease pass does not drain `increase_queue`, so the seeded
+        // entry stays in the increase_queue for the next increase pass.
+        let ws = app
+            .world()
+            .get::<BlockLightWorkspace>(entity)
+            .expect("workspace");
+        assert_eq!(
+            ws.increase_queue.len(),
+            1,
+            "drain prelude wrote exactly one entry onto increase_queue; decrease pass does not drain that queue"
+        );
+        // Decode and verify the entry's coordinates + flags.
+        let entry = ws.increase_queue[0];
+        assert_eq!(crate::bfs::unpack_bfs_entry_x(entry), 15);
+        assert_eq!(crate::bfs::unpack_bfs_entry_y(entry) as u8 & 0xF, 0);
+        assert_eq!(crate::bfs::unpack_bfs_entry_z(entry), 8);
+        assert_eq!(crate::bfs::unpack_bfs_entry_level(entry), 8);
+        assert_ne!(
+            crate::bfs::unpack_bfs_entry_flags(entry) & FLAG_WRITE_LEVEL,
+            0,
+            "FLAG_WRITE_LEVEL must be set on the packed entry"
+        );
+    }
+
+    /// Same shape for sky-side. South face wavefront at (cell_x=4, cell_z=7,
+    /// level=12) decodes to section-local (x=4, y=7, z=15) per
+    /// face_to_section_coords(South, 4, 7).
+    #[test]
+    fn propagate_increase_drains_sky_incoming_at_top_of_body() {
+        // Use decrease_sky here because the decrease prelude is the same; the
+        // increase_sky has the column-walker path, which complicates the
+        // assertion. Both systems share the drain helper, so testing one
+        // covers the prelude logic.
+        let mut app = App::new();
+        app.insert_resource(make_test_table());
+        app.add_systems(Update, propagate_decrease_sky_system);
+        let entity = app
+            .world_mut()
+            .spawn((
+                air_palette(),
+                SkyLight(zero_light_storage()),
+                SkyLightWorkspace::default(),
+                SkyEgress::default(),
+                SkyIncoming::default(),
+                LightDirty,
+            ))
+            .id();
+        let south = Direction::South.index() as u8;
+        let mut inc = app
+            .world_mut()
+            .get_mut::<SkyIncoming>(entity)
+            .expect("incoming");
+        inc.0.push(Wavefront::new(south, 4, 7, 12));
+        drop(inc);
+
+        app.update();
+
+        let inc = app
+            .world()
+            .get::<SkyIncoming>(entity)
+            .expect("incoming");
+        assert!(
+            inc.0.is_empty(),
+            "drain prelude must empty SkyIncoming"
+        );
+        // The decrease_sky BFS reads at the decoded (x=4, y=7, z=15) and
+        // walks; FLAG_WRITE_LEVEL is honored on the increase queue, NOT the
+        // decrease queue. The drain pushes onto increase_queue but
+        // propagate_decrease_sky drains decrease_queue, not increase_queue —
+        // so the entry survives the decrease pass. Verify it's still in the
+        // increase_queue.
+        let ws = app
+            .world()
+            .get::<SkyLightWorkspace>(entity)
+            .expect("workspace");
+        assert_eq!(
+            ws.increase_queue.len(),
+            1,
+            "drain prelude wrote one entry onto increase_queue; decrease pass does not drain that queue"
+        );
+    }
+
+    /// Spawn 100 sections each with LightDirty + a seeded BlockLight cell
+    /// + an increase_queue entry, then run propagate_increase_block_system
+    /// which uses par_iter_mut. Assert all 100 sections drain their queues
+    /// and clear LightDirty. This is structural: par_iter_mut must compile,
+    /// run without deadlock, and produce identical results to iter_mut.
+    #[test]
+    fn propagate_decrease_runs_under_par_iter_mut() {
+        let mut app = build_app_with_increase();
+        let mut entities = Vec::with_capacity(100);
+        for _ in 0..100 {
+            let e = spawn_section_dirty(&mut app);
+            app.world_mut()
+                .get_mut::<BlockLight>(e)
+                .expect("BlockLight")
+                .0
+                .set(8, 8, 8, 14);
+            push_increase(
+                &mut app,
+                e,
+                pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0),
+            );
+            entities.push(e);
+        }
+
+        app.update();
+
+        for e in entities {
+            let ws = app
+                .world()
+                .get::<BlockLightWorkspace>(e)
+                .expect("workspace");
+            assert!(
+                ws.increase_queue.is_empty(),
+                "entity {e:?} queue drained under par_iter_mut"
+            );
+            assert!(
+                app.world().get::<LightDirty>(e).is_none(),
+                "entity {e:?} LightDirty cleared under par_iter_mut"
+            );
+        }
+    }
+
+    #[test]
+    fn face_to_section_coords_round_trip() {
+        // face_to_section_coords is the inverse of project_face_cell on the
+        // (cell_a, cell_b) -> (x, y, z) projection. Confirm the y/x/z
+        // implicit values match the project_face_cell axis contract.
+        assert_eq!(face_to_section_coords(Direction::Down, 3, 7), (3, 0, 7));
+        assert_eq!(face_to_section_coords(Direction::Up, 3, 7), (3, 15, 7));
+        assert_eq!(face_to_section_coords(Direction::North, 3, 7), (3, 7, 0));
+        assert_eq!(face_to_section_coords(Direction::South, 3, 7), (3, 7, 15));
+        assert_eq!(face_to_section_coords(Direction::West, 3, 7), (0, 3, 7));
+        assert_eq!(face_to_section_coords(Direction::East, 3, 7), (15, 3, 7));
     }
 }
