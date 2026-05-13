@@ -12,8 +12,8 @@ use mcrs_engine::world::column::ColumnPlugin;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_lighting::components::BlockLight;
-use mcrs_lighting::invariants::check_block_light_invariants;
+use mcrs_lighting::components::{BlockLight, SkyLight};
+use mcrs_lighting::invariants::{check_block_light_invariants, check_sky_light_invariants};
 use mcrs_lighting::storage::LightStorage;
 use mcrs_lighting::stub::{block_light_nibbles, sky_light_nibbles};
 use mcrs_lighting::table::BlockLightTable;
@@ -118,6 +118,36 @@ fn assert_invariants_hold(app: &App, section: Entity, label: &str) {
         .expect("BlockLight missing on section");
     if let Err(v) = check_block_light_invariants(table, palette, &light.0) {
         panic!("BLK-06 invariants violated in '{label}': {v}");
+    }
+}
+
+fn read_sky_nibbles(app: &App, section: Entity) -> [u8; 2048] {
+    let light = app
+        .world()
+        .get::<SkyLight>(section)
+        .expect("SkyLight component missing on section");
+    match &light.0 {
+        LightStorage::Null => [0u8; 2048],
+        LightStorage::Uniform(v) => {
+            let packed = (*v & 0x0F) | ((*v & 0x0F) << 4);
+            [packed; 2048]
+        }
+        LightStorage::Mixed(arr) => *arr.0,
+    }
+}
+
+fn assert_sky_invariants_hold(app: &App, section: Entity, label: &str) {
+    let table = app.world().resource::<BlockLightTable>();
+    let palette = app
+        .world()
+        .get::<BlockPalette>(section)
+        .expect("BlockPalette missing on section");
+    let light = app
+        .world()
+        .get::<SkyLight>(section)
+        .expect("SkyLight missing on section");
+    if let Err(v) = check_sky_light_invariants(table, palette, &light.0, true) {
+        panic!("sky invariants violated in '{label}': {v}");
     }
 }
 
@@ -264,19 +294,29 @@ fn snapshot_vertical_y_boundary() {
 }
 
 #[test]
-#[ignore = "sky-light engine not yet implemented"]
 fn snapshot_empty_sky_above_heightmap() {
-    let palette = from_input(golden::empty_sky_above_heightmap::INPUT);
-    let actual = sky_light_nibbles(&palette);
+    let (mut app, dim) = make_test_app();
+    let chunk_pos = ChunkPos::new(0, 19, 0);
+    let section = spawn_air_section(&mut app, dim, chunk_pos);
+
+    // Tick 1: column reconciliation populates SectionIndex, attach_lighting_state
+    // inserts SkyLightBundle on the section.
+    app.world_mut().run_schedule(FixedUpdate);
+    // Tick 2: Added<SkyLight> fires enqueue_sky_light_initial, then the
+    // column-walker fast path collapses the all-air section to Uniform(15).
+    app.world_mut().run_schedule(FixedUpdate);
+
+    let actual = read_sky_nibbles(&app, section);
     assert_nibbles_eq(
         &actual,
         &golden::empty_sky_above_heightmap::EXPECTED_SKY_LIGHT,
         "empty_sky_above_heightmap",
     );
+    assert_sky_invariants_hold(&app, section, "empty_sky_above_heightmap");
 }
 
 #[test]
-#[ignore = "sky-light engine not yet implemented"]
+#[ignore = "cross-section sky propagation not yet implemented"]
 fn snapshot_heightmap_update_on_place() {
     let palette = from_input(golden::heightmap_update_on_place::INPUT);
     let actual = sky_light_nibbles(&palette);
@@ -288,7 +328,7 @@ fn snapshot_heightmap_update_on_place() {
 }
 
 #[test]
-#[ignore = "sky-light engine not yet implemented"]
+#[ignore = "cross-section sky propagation not yet implemented"]
 fn snapshot_heightmap_update_on_break() {
     let palette = from_input(golden::heightmap_update_on_break::INPUT);
     let actual = sky_light_nibbles(&palette);
@@ -300,13 +340,40 @@ fn snapshot_heightmap_update_on_break() {
 }
 
 #[test]
-#[ignore = "sky-light attenuation engine not yet implemented"]
 fn snapshot_sky_attenuation_through_water() {
-    let palette = from_input(golden::sky_attenuation_through_water::INPUT);
-    let actual = sky_light_nibbles(&palette);
+    let (mut app, dim) = make_test_app();
+    let chunk_pos = ChunkPos::new(0, 19, 0);
+    let section = spawn_air_section(&mut app, dim, chunk_pos);
+
+    // Place water in the palette BEFORE Tick 1 so the lifecycle-time
+    // `is_section_all_air` check sees a non-all-air palette and the section
+    // never gains the `IsAllAir` marker. Without `IsAllAir` the
+    // `propagate_increase_sky_system` column-walker fast path is skipped, and
+    // the BFS attenuates the level through the water cell as expected. The
+    // alternative BlockPlaced-driven flow can't drive this test today because
+    // `IsAllAir` stays stale after a palette mutation; keeping that marker in
+    // sync with mid-run palette changes lives in cross-section work and is
+    // out of scope here.
+    let water_pos = BlockPos::new(8, 19 * 16 + 10, 8);
+    set_palette_cell(
+        &mut app,
+        section,
+        water_pos,
+        golden::light_table::SYNTH_WATER_ID,
+    );
+
+    // Tick 1: column reconciliation populates SectionIndex, attach_lighting_state
+    // inserts SkyLightBundle on the section (no IsAllAir because of the water).
+    app.world_mut().run_schedule(FixedUpdate);
+    // Tick 2: Added<SkyLight> fires enqueue_sky_light_initial; the BFS path
+    // (not the column-walker fast path) attenuates light through the water cell.
+    app.world_mut().run_schedule(FixedUpdate);
+
+    let actual = read_sky_nibbles(&app, section);
     assert_nibbles_eq(
         &actual,
         &golden::sky_attenuation_through_water::EXPECTED_SKY_LIGHT,
         "sky_attenuation_through_water",
     );
+    assert_sky_invariants_hold(&app, section, "sky_attenuation_through_water");
 }

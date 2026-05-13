@@ -30,12 +30,31 @@ impl Default for BlockLightBundle {
     }
 }
 
-#[derive(Bundle, Default)]
+#[derive(Bundle)]
 pub struct SkyLightBundle {
     pub light: SkyLight,
     pub egress: SkyEgress,
     pub incoming: SkyIncoming,
     pub workspace: SkyLightWorkspace,
+}
+
+// Sky-light propagation shares the same Null->Uniform-on-first-write hazard
+// described above for BlockLightBundle. Without explicit `Mixed(zeros)` the
+// first top-face seed at level 15 promotes storage to `Uniform(15)`, which
+// then reports 15 for every cell and short-circuits per-cell BFS
+// attenuation through partial-air sections (e.g. one with a water cell).
+// The column-walker fast path in `propagate_increase_sky_system` writes
+// `Uniform(15)` directly when the section is all-air, so this initial Mixed
+// state only matters for the BFS path.
+impl Default for SkyLightBundle {
+    fn default() -> Self {
+        Self {
+            light: SkyLight(LightStorage::Mixed(Box::new(NibbleArray::zeros()))),
+            egress: SkyEgress::default(),
+            incoming: SkyIncoming::default(),
+            workspace: SkyLightWorkspace::default(),
+        }
+    }
 }
 
 #[cfg(test)]
