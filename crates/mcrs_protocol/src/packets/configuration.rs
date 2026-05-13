@@ -11,7 +11,7 @@ pub mod clientbound {
     use mcrs_nbt::compound::NbtCompound;
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
-    use valence_ident::Ident;
+    use mcrs_ident::Ident;
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x03, state=Configuration)]

@@ -6,7 +6,7 @@ use mcrs_nbt::compound::NbtCompound;
 use mcrs_nbt::deserializer::NbtReadHelper;
 use mcrs_nbt::serializer::WriteAdaptor;
 use uuid::Uuid;
-use valence_ident::{Ident, IdentError};
+use mcrs_ident::{Ident, IdentError};
 
 use crate::{Decode, Encode, ItemId, VarInt};
 

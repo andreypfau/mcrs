@@ -3,7 +3,7 @@ use bevy_ecs::prelude::Component;
 use derive_more::{From, Into};
 use mcrs_nbt::compound::NbtCompound;
 use std::io::Write;
-use valence_text::Text;
+use mcrs_text::Text;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug, From, Into)]
 pub struct ItemId(pub u16);

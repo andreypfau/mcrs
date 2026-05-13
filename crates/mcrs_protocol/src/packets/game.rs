@@ -14,8 +14,8 @@ pub mod clientbound {
     use std::borrow::Cow;
     use std::io::Write;
     use uuid::Uuid;
-    use valence_ident::Ident;
-    use valence_text::Text;
+    use mcrs_ident::Ident;
+    use mcrs_text::Text;
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x01, state=Game)]

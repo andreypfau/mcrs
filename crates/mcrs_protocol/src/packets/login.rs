@@ -5,7 +5,7 @@ pub mod clientbound {
     use derive_more::{From, Into};
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
-    use valence_ident::Ident;
+    use mcrs_ident::Ident;
 
     #[derive(Copy, Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x00, state=Login)]

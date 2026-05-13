@@ -7,7 +7,7 @@ use mcrs_nbt::deserializer::NbtReadHelper;
 use mcrs_nbt::serializer::WriteAdaptor;
 use mcrs_nbt::tag::NbtTag;
 use mcrs_nbt::{STRING_ID, from_bytes_unnamed, to_bytes_unnamed};
-use valence_text::{Text, TextContent};
+use mcrs_text::{Text, TextContent};
 
 const DEFAULT_MAX_STRING_CHARS: usize = 32767;
 

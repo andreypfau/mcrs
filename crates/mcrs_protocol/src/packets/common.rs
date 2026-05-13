@@ -4,8 +4,8 @@ pub mod clientbound {
     use mcrs_protocol_macros::{Decode, Encode};
     use std::borrow::Cow;
     use uuid::Uuid;
-    use valence_ident::Ident;
-    use valence_text::Text;
+    use mcrs_ident::Ident;
+    use mcrs_text::Text;
 
     const MAX_PAYLOAD_SIZE: usize = 0x100000;
 
@@ -51,7 +51,7 @@ pub mod serverbound {
     use mcrs_protocol_macros::{Decode, Encode};
     use std::borrow::Cow;
     use uuid::Uuid;
-    use valence_ident::Ident;
+    use mcrs_ident::Ident;
 
     pub const MAX_PAYLOAD_SIZE: usize = 32767;
 

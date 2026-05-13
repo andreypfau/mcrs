@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use url::Url;
 use uuid::Uuid;
-use valence_text::Text;
+use mcrs_text::Text;
 
 #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode)]
 pub struct GameProfile<'a> {

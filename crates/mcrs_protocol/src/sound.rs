@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::io::Write;
 
-use valence_ident::Ident;
+use mcrs_ident::Ident;
 
 use crate::var_int::VarInt;
 use crate::{Decode, Encode};

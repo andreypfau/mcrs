@@ -1,0 +1,11 @@
+[package]
+name = "mcrs_ident"
+description = "Parse and create Minecraft's resource locations"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+thiserror.workspace = true
+mcrs_ident_macros.workspace = true

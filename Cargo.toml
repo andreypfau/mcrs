@@ -59,8 +59,6 @@ arrayvec = "0.7.6"
 smallvec = "1.13"
 num-integer = "0.1.46"
 tokio = {  version = "1.48.0", features = ["full"] }
-valence_ident = "0.2.0-alpha.1+mc.1.20.1"
-valence_text = "0.2.0-alpha.1+mc.1.20.1"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
 md-5 = "0.11.0-rc.3"
 rand_xoshiro = "0.8.0-rc.0"
@@ -68,6 +66,9 @@ rand_xoshiro = "0.8.0-rc.0"
 mcrs_protocol_macros = { path = "crates/mcrs_protocol_macros" }
 mcrs_protocol = { path = "crates/mcrs_protocol" }
 mcrs_nbt = { path = "crates/mcrs_nbt" }
+mcrs_ident = { path = "crates/mcrs_ident" }
+mcrs_ident_macros = { path = "crates/mcrs_ident_macros" }
+mcrs_text = { path = "crates/mcrs_text" }
 mcrs_network = { path = "crates/mcrs_network" }
 mcrs_engine = { path = "crates/mcrs_engine" }
 mcrs_core_macros = { path = "crates/mcrs_core_macros" }

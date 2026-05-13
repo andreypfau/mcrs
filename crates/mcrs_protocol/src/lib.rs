@@ -98,11 +98,11 @@ pub use raw::RawBytes;
 use serde::{Deserialize, Serialize};
 pub use teleport_flags::PositionFlag;
 pub use text::Text;
-pub use valence_ident::Ident;
+pub use mcrs_ident::Ident;
 pub use var_int::VarInt;
 pub use var_long::VarLong;
 pub use velocity::Velocity;
-pub use {anyhow, bytes, mcrs_nbt as nbt, uuid, valence_ident as ident, valence_text as text};
+pub use {anyhow, bytes, mcrs_nbt as nbt, uuid, mcrs_ident as ident, mcrs_text as text};
 
 /// The maximum number of bytes in a single Minecraft packet.
 pub const MAX_PACKET_SIZE: i32 = 2097152;

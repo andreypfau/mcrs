@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use crate::{Decode, Encode};
 use mcrs_engine::world::block::BlockPos;
-use valence_ident::Ident;
+use mcrs_ident::Ident;
 
 #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode, bevy_ecs::component::Component)]
 pub struct GlobalPos<'a> {

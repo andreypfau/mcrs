@@ -1,0 +1,14 @@
+[package]
+name = "mcrs_text"
+description = "Parsing and writing Minecraft's JSON text format"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true, features = ["backtrace"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+thiserror.workspace = true
+uuid = { workspace = true, features = ["serde"] }
+mcrs_ident.workspace = true

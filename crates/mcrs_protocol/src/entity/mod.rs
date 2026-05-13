@@ -4,7 +4,7 @@ use mcrs_engine::world::block::BlockPos;
 use mcrs_protocol::entity::player::HumanoidArm;
 use mcrs_protocol_macros::{Decode, Encode};
 use uuid::Uuid;
-use valence_text::Text;
+use mcrs_text::Text;
 
 pub mod minecart;
 pub mod player;
