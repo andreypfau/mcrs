@@ -12,9 +12,10 @@ use mcrs_protocol::BlockStateId;
 pub const SYNTH_AIR_ID: BlockStateId = BlockStateId(0);
 pub const SYNTH_STONE_ID: BlockStateId = BlockStateId(1);
 pub const SYNTH_TORCH_ID: BlockStateId = BlockStateId(0x1000);
+pub const SYNTH_WATER_ID: BlockStateId = BlockStateId(0x1002);
 
 pub fn synthetic_block_light_table() -> BlockLightTable {
-    const SIZE: usize = 0x1001;
+    const SIZE: usize = 0x1003;
 
     let mut emission = vec![0u8; SIZE].into_boxed_slice();
     let mut dampening = vec![0u8; SIZE].into_boxed_slice();
@@ -40,6 +41,12 @@ pub fn synthetic_block_light_table() -> BlockLightTable {
     dampening[torch] = 0;
     occlusion[torch] = VoxelShape::empty();
     flags[torch] = flag_bits::PROPAGATES_SKYLIGHT_DOWN;
+
+    let water = SYNTH_WATER_ID.0 as usize;
+    emission[water] = 0;
+    dampening[water] = 1;
+    occlusion[water] = VoxelShape::empty();
+    flags[water] = flag_bits::IS_NOT_AIR;
 
     BlockLightTable {
         emission,
@@ -70,6 +77,19 @@ mod tests {
         assert_ne!(
             table.flags_for(SYNTH_TORCH_ID) & flag_bits::PROPAGATES_SKYLIGHT_DOWN,
             0
+        );
+
+        assert_eq!(table.emission_for(SYNTH_WATER_ID), 0);
+        assert_eq!(table.dampening_for(SYNTH_WATER_ID), 1);
+        assert_eq!(
+            table.flags_for(SYNTH_WATER_ID) & flag_bits::PROPAGATES_SKYLIGHT_DOWN,
+            0,
+            "water must not propagate skylight down (dampening != 0)"
+        );
+        assert_ne!(
+            table.flags_for(SYNTH_WATER_ID) & flag_bits::IS_NOT_AIR,
+            0,
+            "water must carry IS_NOT_AIR"
         );
     }
 }

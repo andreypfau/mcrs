@@ -8,5 +8,5 @@ const WATER_FLOWING: BlockStateId = BlockStateId(0x1002);
 
 pub static INPUT: &[((i32, i32, i32), BlockStateId)] = &[((8, 10, 8), WATER_FLOWING)];
 
-#[rustfmt::skip]
-pub const EXPECTED_SKY_LIGHT: [u8; 2048] = [0u8; 2048];
+pub const EXPECTED_SKY_LIGHT: [u8; 2048] =
+    super::expected::compute_sky_field(&[((8, 10, 8), 1)]);

@@ -11,7 +11,7 @@
 use mcrs_core::voxel_shape::{Direction, VoxelShape};
 use mcrs_minecraft::world::palette::BlockPalette;
 
-use crate::components::{BlockEgress, BlockLightWorkspace, Wavefront};
+use crate::components::{BlockEgress, BlockLightWorkspace, SkyEgress, SkyLightWorkspace, Wavefront};
 use crate::storage::LightStorage;
 use crate::table::{flag_bits, BlockLightTable};
 
@@ -536,6 +536,232 @@ pub fn propagate_decrease(
                     ALL_DIRECTIONS_BITSET,
                     emit_flags | FLAG_WRITE_LEVEL,
                 ));
+            }
+
+            light.set(off_x_u, off_y_u, off_z_u, 0);
+
+            if target_level > 0 {
+                workspace.decrease_queue.push(pack_bfs_entry(
+                    off_x as u8,
+                    off_z as u8,
+                    off_y as u8,
+                    target_level,
+                    DIRECTIONS_EXCEPT_OPPOSITE[d.index()],
+                    emit_flags,
+                ));
+            }
+        }
+    }
+
+    workspace.decrease_queue.clear();
+}
+
+/// Sky-light increase BFS over one chunk section.
+///
+/// Mirrors `propagate_increase` with two differences. First, the workspace
+/// and egress are the sky-side types; the BFS step never reads or writes
+/// `workspace.block_change_tracker`. Second, when the step direction is
+/// `Direction::Down`, the source level is exactly 15, and the destination
+/// cell's `PROPAGATES_SKYLIGHT_DOWN` flag is set, the new level is 15
+/// (vertical free-fall through air). All other steps fall through to the
+/// unified `parent - max(1, dampening)` attenuation shared with block-light.
+pub fn propagate_increase_sky(
+    table: &BlockLightTable,
+    palette: &BlockPalette,
+    light: &mut LightStorage,
+    workspace: &mut SkyLightWorkspace,
+    egress: &mut SkyEgress,
+) {
+    let mut queue_read_index: usize = 0;
+    while queue_read_index < workspace.increase_queue.len() {
+        let entry = workspace.increase_queue[queue_read_index];
+        queue_read_index += 1;
+
+        let x = unpack_bfs_entry_x(entry);
+        let z = unpack_bfs_entry_z(entry);
+        let y_full = unpack_bfs_entry_y(entry);
+        let propagated_level = unpack_bfs_entry_level(entry);
+        let check_dir_bitset = unpack_bfs_entry_dir_bitset(entry);
+        let entry_flags = unpack_bfs_entry_flags(entry);
+        let y_local = (y_full as usize) & 0xF;
+
+        if entry_flags & FLAG_RECHECK_LEVEL != 0 {
+            if light.get(x as usize, y_local, z as usize) != propagated_level {
+                continue;
+            }
+        } else if entry_flags & FLAG_WRITE_LEVEL != 0 {
+            light.set(x as usize, y_local, z as usize, propagated_level);
+        }
+
+        let src_state = palette.get((x as i32, y_local as i32, z as i32));
+        let src_flags = table.flags_for(src_state);
+        let src_conditional = (src_flags & flag_bits::IS_CONDITIONALLY_OPAQUE) != 0;
+        let from_shape: &'static VoxelShape = if src_conditional {
+            table.occlusion_for(src_state)
+        } else {
+            VoxelShape::empty()
+        };
+
+        for &d in DIRECTIONS_FROM_BITSET[check_dir_bitset as usize] {
+            let (dx, dy, dz) = normal_of(d);
+            let off_x = x as i8 + dx;
+            let off_y = y_local as i8 + dy;
+            let off_z = z as i8 + dz;
+
+            if off_x < 0
+                || off_x > 15
+                || off_y < 0
+                || off_y > 15
+                || off_z < 0
+                || off_z > 15
+            {
+                let (cx, cz) = project_face_cell(d, off_x, off_y, off_z);
+                egress
+                    .0
+                    .push(Wavefront::new(d.index() as u8, cx, cz, propagated_level));
+                continue;
+            }
+
+            let off_x_u = off_x as usize;
+            let off_y_u = off_y as usize;
+            let off_z_u = off_z as usize;
+
+            let current_level = light.get(off_x_u, off_y_u, off_z_u);
+            if current_level >= propagated_level.saturating_sub(1) {
+                continue;
+            }
+
+            let dst_state = palette.get((off_x as i32, off_y as i32, off_z as i32));
+            let dst_flags = table.flags_for(dst_state);
+            let mut emit_flags: u8 = 0;
+            if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {
+                let culling_face = table.occlusion_for(dst_state).face_shape(d.opposite());
+                if from_shape.face_occludes(culling_face, d) {
+                    continue;
+                }
+                emit_flags |= FLAG_HAS_SIDED_TRANSPARENT_BLOCKS;
+            }
+
+            let opacity = table.dampening_for(dst_state);
+            let target_level = if d == Direction::Down
+                && propagated_level == 15
+                && (dst_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN) != 0
+            {
+                15
+            } else {
+                propagated_level.saturating_sub(opacity.max(1))
+            };
+            if target_level <= current_level {
+                continue;
+            }
+
+            light.set(off_x_u, off_y_u, off_z_u, target_level);
+
+            if target_level > 1 {
+                workspace.increase_queue.push(pack_bfs_entry(
+                    off_x as u8,
+                    off_z as u8,
+                    off_y as u8,
+                    target_level,
+                    DIRECTIONS_EXCEPT_OPPOSITE[d.index()],
+                    emit_flags,
+                ));
+            }
+        }
+    }
+
+    workspace.increase_queue.clear();
+}
+
+/// Sky-light decrease BFS over one chunk section.
+///
+/// Mirrors `propagate_decrease` with two differences. First, the workspace
+/// and egress are the sky-side types; the BFS step never reads or writes
+/// `workspace.block_change_tracker`. Second, the destination-emission
+/// re-emit branch is omitted entirely — sky-light has no per-cell
+/// emission, so the only re-queue path is `FLAG_RECHECK_LEVEL` when the
+/// neighbour's stored level exceeds the propagated target.
+pub fn propagate_decrease_sky(
+    table: &BlockLightTable,
+    palette: &BlockPalette,
+    light: &mut LightStorage,
+    workspace: &mut SkyLightWorkspace,
+    egress: &mut SkyEgress,
+) {
+    let mut queue_read_index: usize = 0;
+    while queue_read_index < workspace.decrease_queue.len() {
+        let entry = workspace.decrease_queue[queue_read_index];
+        queue_read_index += 1;
+
+        let x = unpack_bfs_entry_x(entry);
+        let z = unpack_bfs_entry_z(entry);
+        let y_full = unpack_bfs_entry_y(entry);
+        let propagated_level = unpack_bfs_entry_level(entry);
+        let check_dir_bitset = unpack_bfs_entry_dir_bitset(entry);
+        let y_local = (y_full as usize) & 0xF;
+
+        let src_state = palette.get((x as i32, y_local as i32, z as i32));
+        let src_flags = table.flags_for(src_state);
+        let src_conditional = (src_flags & flag_bits::IS_CONDITIONALLY_OPAQUE) != 0;
+        let from_shape: &'static VoxelShape = if src_conditional {
+            table.occlusion_for(src_state)
+        } else {
+            VoxelShape::empty()
+        };
+
+        for &d in DIRECTIONS_FROM_BITSET[check_dir_bitset as usize] {
+            let (dx, dy, dz) = normal_of(d);
+            let off_x = x as i8 + dx;
+            let off_y = y_local as i8 + dy;
+            let off_z = z as i8 + dz;
+
+            if off_x < 0
+                || off_x > 15
+                || off_y < 0
+                || off_y > 15
+                || off_z < 0
+                || off_z > 15
+            {
+                let (cx, cz) = project_face_cell(d, off_x, off_y, off_z);
+                egress
+                    .0
+                    .push(Wavefront::new(d.index() as u8, cx, cz, propagated_level));
+                continue;
+            }
+
+            let off_x_u = off_x as usize;
+            let off_y_u = off_y as usize;
+            let off_z_u = off_z as usize;
+
+            let light_level = light.get(off_x_u, off_y_u, off_z_u);
+            if light_level == 0 {
+                continue;
+            }
+
+            let dst_state = palette.get((off_x as i32, off_y as i32, off_z as i32));
+            let dst_flags = table.flags_for(dst_state);
+            let mut emit_flags: u8 = 0;
+            if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {
+                let culling_face = table.occlusion_for(dst_state).face_shape(d.opposite());
+                if from_shape.face_occludes(culling_face, d) {
+                    continue;
+                }
+                emit_flags |= FLAG_HAS_SIDED_TRANSPARENT_BLOCKS;
+            }
+
+            let opacity = table.dampening_for(dst_state);
+            let target_level = propagated_level.saturating_sub(opacity.max(1));
+
+            if light_level > target_level {
+                workspace.increase_queue.push(pack_bfs_entry(
+                    off_x as u8,
+                    off_z as u8,
+                    off_y as u8,
+                    light_level,
+                    ALL_DIRECTIONS_BITSET,
+                    emit_flags | FLAG_RECHECK_LEVEL,
+                ));
+                continue;
             }
 
             light.set(off_x_u, off_y_u, off_z_u, 0);
@@ -1198,5 +1424,287 @@ mod tests {
             0,
             "WRITE_LEVEL entry must NOT also carry FLAG_RECHECK_LEVEL"
         );
+    }
+
+    // -------- sky-light BFS tests --------
+
+    const SYNTH_AIR_ID: u16 = 0;
+    const SYNTH_WATER_ID: u16 = 0x1002;
+    const SYNTH_OPAQUE_SRC_ID: u16 = 0x20;
+    const SYNTH_OPAQUE_DST_ID: u16 = 0x21;
+
+    fn air_sky_spec() -> TableSpec {
+        TableSpec {
+            emission: 0,
+            dampening: 0,
+            occlusion: VoxelShape::empty(),
+            flags: flag_bits::PROPAGATES_SKYLIGHT_DOWN,
+        }
+    }
+
+    fn water_sky_spec() -> TableSpec {
+        TableSpec {
+            emission: 0,
+            dampening: 1,
+            occlusion: VoxelShape::empty(),
+            flags: flag_bits::IS_NOT_AIR,
+        }
+    }
+
+    fn build_sky_air_table() -> BlockLightTable {
+        build_table(&[(SYNTH_AIR_ID, air_sky_spec())])
+    }
+
+    #[test]
+    fn bfs_sky_increase_vertical_drop_through_air() {
+        let table = build_sky_air_table();
+        let mut palette = BlockPalette::default();
+        palette.fill(BlockStateId(SYNTH_AIR_ID));
+
+        let mut light = zero_light_storage();
+        let mut workspace = SkyLightWorkspace::default();
+        let mut egress = SkyEgress::default();
+
+        workspace
+            .increase_queue
+            .push(pack_bfs_entry(8, 8, 15, 15, ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL));
+
+        propagate_increase_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        for y in 0..16usize {
+            assert_eq!(
+                light.get(8, y, 8),
+                15,
+                "expected vertical drop to keep level 15 at (8, {}, 8)",
+                y
+            );
+        }
+    }
+
+    #[test]
+    fn bfs_sky_increase_attenuates_at_water() {
+        let table = build_table(&[
+            (SYNTH_AIR_ID, air_sky_spec()),
+            (SYNTH_WATER_ID, water_sky_spec()),
+        ]);
+        let mut palette = BlockPalette::default();
+        palette.fill(BlockStateId(SYNTH_AIR_ID));
+        palette.set((8, 10, 8), BlockStateId(SYNTH_WATER_ID));
+
+        let mut light = zero_light_storage();
+        let mut workspace = SkyLightWorkspace::default();
+        let mut egress = SkyEgress::default();
+
+        workspace
+            .increase_queue
+            .push(pack_bfs_entry(8, 8, 15, 15, ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL));
+
+        propagate_increase_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        assert_eq!(light.get(8, 15, 8), 15, "top of column stays 15");
+        assert_eq!(light.get(8, 11, 8), 15, "air above water stays 15");
+        assert_eq!(light.get(8, 10, 8), 14, "water cell drops to 14");
+        assert_eq!(light.get(8, 9, 8), 13, "cell below water attenuates by 1");
+        assert_eq!(light.get(8, 8, 8), 12, "two cells below water reads 12");
+    }
+
+    #[test]
+    fn bfs_sky_increase_horizontal_attenuates_by_one() {
+        // Seed an east-going wavefront at level 14 with the east-only direction
+        // bitset so the BFS must use the unified parent - max(1, dampening) rule
+        // on the horizontal step.
+        let table = build_sky_air_table();
+        let mut palette = BlockPalette::default();
+        palette.fill(BlockStateId(SYNTH_AIR_ID));
+
+        let mut light = zero_light_storage();
+        let mut workspace = SkyLightWorkspace::default();
+        let mut egress = SkyEgress::default();
+
+        let east_only_bitset = 1u8 << Direction::East.index();
+        light.set(5, 5, 5, 14);
+        workspace.increase_queue.push(pack_bfs_entry(
+            5,
+            5,
+            5,
+            14,
+            east_only_bitset,
+            0,
+        ));
+
+        propagate_increase_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        assert_eq!(
+            light.get(6, 5, 5),
+            13,
+            "first east step from level 14 attenuates by max(1, 0) = 1"
+        );
+    }
+
+    #[test]
+    fn bfs_sky_increase_slow_path_face_occluded() {
+        // Conditionally-opaque source + destination with full-cube occlusion
+        // shapes — Block/Block face_occludes returns true, BFS must not propagate.
+        let src_spec = TableSpec {
+            emission: 0,
+            dampening: 0,
+            occlusion: VoxelShape::block(),
+            flags: flag_bits::IS_CONDITIONALLY_OPAQUE | flag_bits::PROPAGATES_SKYLIGHT_DOWN,
+        };
+        let dst_spec = TableSpec {
+            emission: 0,
+            dampening: 0,
+            occlusion: VoxelShape::block(),
+            flags: flag_bits::IS_CONDITIONALLY_OPAQUE | flag_bits::PROPAGATES_SKYLIGHT_DOWN,
+        };
+        let table = build_table(&[
+            (SYNTH_AIR_ID, air_sky_spec()),
+            (SYNTH_OPAQUE_SRC_ID, src_spec),
+            (SYNTH_OPAQUE_DST_ID, dst_spec),
+        ]);
+        let mut palette = BlockPalette::default();
+        palette.fill(BlockStateId(SYNTH_AIR_ID));
+        palette.set((5, 5, 5), BlockStateId(SYNTH_OPAQUE_SRC_ID));
+        palette.set((5, 5, 6), BlockStateId(SYNTH_OPAQUE_DST_ID));
+
+        let mut light = zero_light_storage();
+        let mut workspace = SkyLightWorkspace::default();
+        let mut egress = SkyEgress::default();
+
+        light.set(5, 5, 5, 14);
+        let south_only_bitset = 1u8 << Direction::South.index();
+        workspace
+            .increase_queue
+            .push(pack_bfs_entry(5, 5, 5, 14, south_only_bitset, 0));
+
+        propagate_increase_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        assert_eq!(
+            light.get(5, 5, 6),
+            0,
+            "slow path must block sky-light through Block/Block face"
+        );
+    }
+
+    #[test]
+    fn bfs_sky_decrease_requeues_higher_stored() {
+        let table = build_sky_air_table();
+        let mut palette = BlockPalette::default();
+        palette.fill(BlockStateId(SYNTH_AIR_ID));
+
+        let mut light = zero_light_storage();
+        // Neighbour cell holds a higher level than the decrease propagation —
+        // expect the BFS to requeue it with FLAG_RECHECK_LEVEL.
+        light.set(5, 8, 8, 12);
+
+        let mut workspace = SkyLightWorkspace::default();
+        let mut egress = SkyEgress::default();
+        // Push a decrease entry from (4, 8, 8) at level 6 only walking east.
+        let east_only_bitset = 1u8 << Direction::East.index();
+        workspace
+            .decrease_queue
+            .push(pack_bfs_entry(4, 8, 8, 6, east_only_bitset, 0));
+
+        propagate_decrease_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        let recheck_count = workspace
+            .increase_queue
+            .iter()
+            .filter(|&&e| unpack_bfs_entry_flags(e) & FLAG_RECHECK_LEVEL != 0)
+            .count();
+        assert!(
+            recheck_count >= 1,
+            "expected at least one FLAG_RECHECK_LEVEL entry from higher-stored neighbour"
+        );
+        // The higher-stored neighbour must NOT have been cleared.
+        assert_eq!(
+            light.get(5, 8, 8),
+            12,
+            "higher-stored neighbour must not be cleared by decrease pass"
+        );
+    }
+
+    #[test]
+    fn bfs_sky_decrease_no_write_level_reemit() {
+        // Sky has no per-cell emission. Even if the destination state has a
+        // table-recorded emission (which shouldn't happen for real sky data
+        // but we synthesize it here to prove the branch is omitted), the sky
+        // decrease pass must NOT emit any FLAG_WRITE_LEVEL requeue entries.
+        let pseudo_emitter_spec = TableSpec {
+            emission: 7,
+            dampening: 0,
+            occlusion: VoxelShape::empty(),
+            flags: flag_bits::PROPAGATES_SKYLIGHT_DOWN,
+        };
+        let table = build_table(&[
+            (SYNTH_AIR_ID, air_sky_spec()),
+            (SYNTH_OPAQUE_SRC_ID, pseudo_emitter_spec),
+        ]);
+        let mut palette = BlockPalette::default();
+        palette.fill(BlockStateId(SYNTH_AIR_ID));
+        // Place the pseudo-emitter at (6, 8, 8) — the cell visited by the
+        // east-walking decrease pass.
+        palette.set((6, 8, 8), BlockStateId(SYNTH_OPAQUE_SRC_ID));
+
+        let mut light = zero_light_storage();
+        // (6, 8, 8) holds level 6 — equal to the target (14 - 1 - dampening),
+        // so the recheck branch does not fire and we exercise the post-write
+        // region where the block path would emit a WRITE_LEVEL entry.
+        light.set(6, 8, 8, 6);
+
+        let mut workspace = SkyLightWorkspace::default();
+        let mut egress = SkyEgress::default();
+        let east_only_bitset = 1u8 << Direction::East.index();
+        workspace
+            .decrease_queue
+            .push(pack_bfs_entry(5, 8, 8, 14, east_only_bitset, 0));
+
+        propagate_decrease_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        for &entry in workspace.increase_queue.iter() {
+            assert_eq!(
+                unpack_bfs_entry_flags(entry) & FLAG_WRITE_LEVEL,
+                0,
+                "sky decrease must never emit FLAG_WRITE_LEVEL (no per-cell emission)"
+            );
+        }
+    }
+
+    #[test]
+    fn bfs_sky_does_not_touch_tracker() {
+        let table = build_sky_air_table();
+        let mut palette = BlockPalette::default();
+        palette.fill(BlockStateId(SYNTH_AIR_ID));
+
+        let mut light = zero_light_storage();
+        let mut workspace = SkyLightWorkspace::default();
+        let mut egress = SkyEgress::default();
+
+        // Pre-mark every tracker slot with a sentinel that neither BFS function
+        // is permitted to touch.
+        for slot in workspace.block_change_tracker.iter_mut() {
+            *slot = -999;
+        }
+
+        // Drive the increase BFS.
+        workspace.increase_queue.push(pack_bfs_entry(
+            8,
+            8,
+            15,
+            15,
+            ALL_DIRECTIONS_BITSET,
+            FLAG_WRITE_LEVEL,
+        ));
+        propagate_increase_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        // Drive the decrease BFS.
+        workspace
+            .decrease_queue
+            .push(pack_bfs_entry(8, 8, 0, 14, ALL_DIRECTIONS_BITSET, 0));
+        propagate_decrease_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        for &slot in workspace.block_change_tracker.iter() {
+            assert_eq!(slot, -999, "BFS must not write block_change_tracker");
+        }
     }
 }

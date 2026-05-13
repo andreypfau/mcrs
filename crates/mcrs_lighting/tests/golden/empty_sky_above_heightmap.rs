@@ -5,5 +5,4 @@ use mcrs_protocol::BlockStateId;
 
 pub static INPUT: &[((i32, i32, i32), BlockStateId)] = &[];
 
-#[rustfmt::skip]
-pub const EXPECTED_SKY_LIGHT: [u8; 2048] = [0u8; 2048];
+pub const EXPECTED_SKY_LIGHT: [u8; 2048] = super::expected::compute_sky_field(&[]);
