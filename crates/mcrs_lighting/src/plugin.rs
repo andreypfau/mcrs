@@ -78,6 +78,11 @@ impl Plugin for LightingPlugin {
                 .after(BlockUpdateSet::ApplyChanges),
         );
 
+        app.configure_sets(
+            FixedUpdate,
+            LightingSet::Enqueue.after(ChunkColumnLifecycleSet::AttachState),
+        );
+
         app.add_systems(
             FixedUpdate,
             (

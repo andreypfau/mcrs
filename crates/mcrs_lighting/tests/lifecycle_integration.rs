@@ -265,7 +265,7 @@ fn unload_last_section_despawns_column() {
 
     let column_index = world.get::<ColumnIndex>(dim).unwrap();
     assert!(
-        column_index.0.get(&ChunkColumnPos::new(0, 0)).is_none(),
+        !column_index.0.contains_key(&ChunkColumnPos::new(0, 0)),
         "ColumnIndex must drop the entry for the despawned column"
     );
 }

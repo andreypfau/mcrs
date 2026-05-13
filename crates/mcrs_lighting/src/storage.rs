@@ -1,16 +1,11 @@
 use crate::nibble::NibbleArray;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum LightStorage {
+    #[default]
     Null,
     Uniform(u8),
     Mixed(Box<NibbleArray>),
-}
-
-impl Default for LightStorage {
-    fn default() -> Self {
-        LightStorage::Null
-    }
 }
 
 impl LightStorage {

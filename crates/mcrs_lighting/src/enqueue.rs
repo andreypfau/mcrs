@@ -163,7 +163,13 @@ pub fn enqueue_sky_light_initial(
 pub fn enqueue_sky_light_on_block_placed(
     mut reader: MessageReader<BlockPlaced>,
     table: Res<BlockLightTable>,
-    mut sections: Query<(&mut SkyLight, &mut SkyLightWorkspace)>,
+    mut sections: Query<(
+        &mut SkyLight,
+        &mut SkyLightWorkspace,
+        &ChunkPos,
+        &InChunkColumn,
+    )>,
+    columns: Query<&SectionIndex>,
     mut commands: Commands,
 ) {
     for placed in reader.read() {
@@ -171,7 +177,9 @@ pub fn enqueue_sky_light_on_block_placed(
             continue;
         }
 
-        let Ok((light, mut workspace)) = sections.get_mut(placed.chunk) else {
+        let Ok((mut light, mut workspace, chunk_pos, in_column)) =
+            sections.get_mut(placed.chunk)
+        else {
             tracing::warn!(
                 chunk = ?placed.chunk,
                 block_pos = ?placed.block_pos,
@@ -185,18 +193,43 @@ pub fn enqueue_sky_light_on_block_placed(
         let old_flags = table.flags_for(placed.old_state);
         let new_flags = table.flags_for(placed.new_state);
 
+        let occlusion_changed = !std::ptr::eq(
+            table.occlusion_for(placed.old_state) as *const _,
+            table.occlusion_for(placed.new_state) as *const _,
+        );
+
         let sky_changed = old_dampening != new_dampening
             || (old_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN)
-                != (new_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN);
+                != (new_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN)
+            || occlusion_changed;
         if !sky_changed {
             continue;
         }
+
+        let is_topmost = match columns.get(in_column.0) {
+            Ok(section_index) => {
+                let top_chunk_y =
+                    section_index.min_section_y + section_index.sections.len() as i32 - 1;
+                chunk_pos.y == top_chunk_y
+            }
+            Err(_) => false,
+        };
 
         let x = placed.block_pos.x.rem_euclid(16) as u8;
         let y = placed.block_pos.y.rem_euclid(16) as u8;
         let z = placed.block_pos.z.rem_euclid(16) as u8;
 
         let stored = light.0.get(x as usize, y as usize, z as usize);
+        let opacity_rose = new_dampening > old_dampening
+            || ((old_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN) != 0
+                && (new_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN) == 0);
+        // The decrease BFS only walks neighbours, so the seed cell must be
+        // cleared up front whenever the post-change opacity can only fall
+        // below `stored`; otherwise the source position keeps its previous
+        // sky-light level even though the new block opaquifies the cell.
+        if opacity_rose && stored > 0 {
+            light.0.set(x as usize, y as usize, z as usize, 0);
+        }
         workspace.decrease_queue.push(pack_bfs_entry(
             x,
             z,
@@ -206,7 +239,7 @@ pub fn enqueue_sky_light_on_block_placed(
             0,
         ));
 
-        if y == 15 {
+        if y == 15 && is_topmost {
             workspace.increase_queue.push(pack_bfs_entry(
                 x,
                 z,
@@ -661,16 +694,47 @@ mod tests {
         app
     }
 
-    fn spawn_sky_section(app: &mut App) -> bevy_ecs::entity::Entity {
-        app.world_mut()
-            .spawn((SkyLight::default(), SkyLightWorkspace::default()))
-            .id()
+    fn spawn_sky_section_topmost(app: &mut App) -> bevy_ecs::entity::Entity {
+        let section = app.world_mut().spawn_empty().id();
+        let column = app
+            .world_mut()
+            .spawn(SectionIndex {
+                min_section_y: 0,
+                sections: vec![Some(section)].into_boxed_slice(),
+            })
+            .id();
+        app.world_mut().entity_mut(section).insert((
+            SkyLight::default(),
+            SkyLightWorkspace::default(),
+            ChunkPos::new(0, 0, 0),
+            InChunkColumn(column),
+        ));
+        section
+    }
+
+    fn spawn_sky_section_non_topmost(app: &mut App) -> bevy_ecs::entity::Entity {
+        let section = app.world_mut().spawn_empty().id();
+        let dummy_topmost = app.world_mut().spawn_empty().id();
+        let column = app
+            .world_mut()
+            .spawn(SectionIndex {
+                min_section_y: 0,
+                sections: vec![Some(section), Some(dummy_topmost)].into_boxed_slice(),
+            })
+            .id();
+        app.world_mut().entity_mut(section).insert((
+            SkyLight::default(),
+            SkyLightWorkspace::default(),
+            ChunkPos::new(0, 0, 0),
+            InChunkColumn(column),
+        ));
+        section
     }
 
     #[test]
     fn enqueue_sky_on_block_placed_writes_tracker() {
         let mut app = build_sky_on_placed_app();
-        let entity = spawn_sky_section(&mut app);
+        let entity = spawn_sky_section_topmost(&mut app);
         // AIR (damp=0, propagates) -> LEAVES (damp=1, no propagates flag);
         // sky_changed predicate trips on both dampening and flag delta.
         write_placed(
@@ -721,7 +785,7 @@ mod tests {
         // Two BlockPlaced events at the same (x, z) column; tracker must keep
         // the larger world Y to preserve the highest changed cell.
         let mut app = build_sky_on_placed_app();
-        let entity = spawn_sky_section(&mut app);
+        let entity = spawn_sky_section_topmost(&mut app);
         write_placed(
             &mut app,
             block_placed(entity, BlockPos::new(8, 12, 8), AIR, LEAVES),
@@ -748,7 +812,7 @@ mod tests {
         // y == 15 path: a single top-face increase seed instead of six
         // neighbour seeds.
         let mut app = build_sky_on_placed_app();
-        let entity = spawn_sky_section(&mut app);
+        let entity = spawn_sky_section_topmost(&mut app);
         write_placed(
             &mut app,
             block_placed(entity, BlockPos::new(3, 15, 9), AIR, LEAVES),
@@ -780,7 +844,7 @@ mod tests {
     #[test]
     fn enqueue_sky_on_block_placed_skips_when_predicate_false() {
         let mut app = build_sky_on_placed_app();
-        let entity = spawn_sky_section(&mut app);
+        let entity = spawn_sky_section_topmost(&mut app);
         // AIR -> AIR: old_state == new_state, early-out before predicate.
         write_placed(
             &mut app,
@@ -874,6 +938,225 @@ mod tests {
         assert!(
             output.contains("BlockPlaced.chunk missing SkyLight/SkyLightWorkspace"),
             "expected warn substring in captured tracing output, got: {output}"
+        );
+    }
+
+    #[test]
+    fn enqueue_sky_on_block_placed_clears_seed_cell_on_opacity_rise() {
+        let mut app = build_sky_on_placed_app();
+        let entity = spawn_sky_section_topmost(&mut app);
+        app.world_mut()
+            .get_mut::<SkyLight>(entity)
+            .expect("sky light")
+            .0
+            .set(8, 5, 8, 10);
+        write_placed(
+            &mut app,
+            block_placed(entity, BlockPos::new(8, 5, 8), AIR, LEAVES),
+        );
+
+        app.update();
+
+        let light = app.world().get::<SkyLight>(entity).expect("sky light");
+        assert_eq!(
+            light.0.get(8, 5, 8),
+            0,
+            "seed cell cleared because opacity rose"
+        );
+        let workspace = app
+            .world()
+            .get::<SkyLightWorkspace>(entity)
+            .expect("sky workspace");
+        assert_eq!(workspace.decrease_queue.len(), 1);
+        assert_eq!(
+            unpack_bfs_entry_level(workspace.decrease_queue[0]),
+            10,
+            "decrease seed carries pre-clear stored level"
+        );
+    }
+
+    #[test]
+    fn enqueue_sky_on_block_placed_keeps_seed_cell_when_opacity_drops() {
+        let mut app = build_sky_on_placed_app();
+        let entity = spawn_sky_section_topmost(&mut app);
+        app.world_mut()
+            .get_mut::<SkyLight>(entity)
+            .expect("sky light")
+            .0
+            .set(8, 5, 8, 3);
+        write_placed(
+            &mut app,
+            block_placed(entity, BlockPos::new(8, 5, 8), LEAVES, AIR),
+        );
+
+        app.update();
+
+        let light = app.world().get::<SkyLight>(entity).expect("sky light");
+        assert_eq!(
+            light.0.get(8, 5, 8),
+            3,
+            "seed cell unchanged because opacity did not rise"
+        );
+        let workspace = app
+            .world()
+            .get::<SkyLightWorkspace>(entity)
+            .expect("sky workspace");
+        assert_eq!(workspace.decrease_queue.len(), 1);
+        assert_eq!(
+            unpack_bfs_entry_level(workspace.decrease_queue[0]),
+            3,
+            "decrease seed carries stored level"
+        );
+    }
+
+    #[test]
+    fn enqueue_sky_on_block_placed_skips_top_seed_when_not_topmost() {
+        let mut app = build_sky_on_placed_app();
+        let entity = spawn_sky_section_non_topmost(&mut app);
+        write_placed(
+            &mut app,
+            block_placed(entity, BlockPos::new(3, 15, 9), AIR, LEAVES),
+        );
+
+        app.update();
+
+        let workspace = app
+            .world()
+            .get::<SkyLightWorkspace>(entity)
+            .expect("sky workspace");
+        // y=15 sits at the top of the section, so the Up neighbour at y=16
+        // is outside the section and is skipped by the bounds guard. Five
+        // neighbour-recheck seeds remain.
+        assert_eq!(
+            workspace.increase_queue.len(),
+            5,
+            "non-topmost section falls through to neighbour-recheck branch at y=15"
+        );
+        for entry in &workspace.increase_queue {
+            assert_ne!(
+                unpack_bfs_entry_flags(*entry) & FLAG_RECHECK_LEVEL,
+                0,
+                "every neighbour seed carries FLAG_RECHECK_LEVEL"
+            );
+            assert_eq!(
+                unpack_bfs_entry_flags(*entry) & FLAG_WRITE_LEVEL,
+                0,
+                "no neighbour seed carries FLAG_WRITE_LEVEL"
+            );
+        }
+    }
+
+    #[test]
+    fn enqueue_sky_on_block_placed_emits_top_seed_when_topmost() {
+        let mut app = build_sky_on_placed_app();
+        let entity = spawn_sky_section_topmost(&mut app);
+        write_placed(
+            &mut app,
+            block_placed(entity, BlockPos::new(3, 15, 9), AIR, LEAVES),
+        );
+
+        app.update();
+
+        let workspace = app
+            .world()
+            .get::<SkyLightWorkspace>(entity)
+            .expect("sky workspace");
+        assert_eq!(
+            workspace.increase_queue.len(),
+            1,
+            "topmost section emits a single top-face seed at y=15"
+        );
+        let entry = workspace.increase_queue[0];
+        assert_eq!(unpack_bfs_entry_x(entry), 3);
+        assert_eq!(unpack_bfs_entry_y(entry) as u8, 15);
+        assert_eq!(unpack_bfs_entry_z(entry), 9);
+        assert_eq!(unpack_bfs_entry_level(entry), 15);
+        assert_ne!(
+            unpack_bfs_entry_flags(entry) & FLAG_WRITE_LEVEL,
+            0,
+            "top-face seed carries FLAG_WRITE_LEVEL"
+        );
+    }
+
+    #[test]
+    fn enqueue_sky_on_block_placed_trips_on_occlusion_only_change() {
+        const SHAPE_A: BlockStateId = BlockStateId(10);
+        const SHAPE_B: BlockStateId = BlockStateId(11);
+
+        let state_count = 12usize;
+        let mut emission = vec![0u8; state_count].into_boxed_slice();
+        let mut dampening = vec![0u8; state_count].into_boxed_slice();
+        let mut occlusion: Box<[&'static VoxelShape]> =
+            vec![VoxelShape::empty(); state_count].into_boxed_slice();
+        let mut flags = vec![0u8; state_count].into_boxed_slice();
+
+        emission[AIR.0 as usize] = 0;
+        dampening[AIR.0 as usize] = 0;
+        flags[AIR.0 as usize] = flag_bits::PROPAGATES_SKYLIGHT_DOWN;
+
+        // Two states share dampening and flag bits but project distinct
+        // occlusion shapes. `dampening = 5` keeps `PROPAGATES_SKYLIGHT_DOWN`
+        // cleared on both (matching the production `compute_flags` invariant)
+        // so the dampening and flag arms of `sky_changed` stay silent and the
+        // test exclusively exercises the occlusion-shape pointer comparison.
+        dampening[SHAPE_A.0 as usize] = 5;
+        dampening[SHAPE_B.0 as usize] = 5;
+        flags[SHAPE_A.0 as usize] =
+            flag_bits::IS_CONDITIONALLY_OPAQUE | flag_bits::IS_NOT_AIR;
+        flags[SHAPE_B.0 as usize] =
+            flag_bits::IS_CONDITIONALLY_OPAQUE | flag_bits::IS_NOT_AIR;
+        occlusion[SHAPE_A.0 as usize] = VoxelShape::empty();
+        occlusion[SHAPE_B.0 as usize] = VoxelShape::block();
+
+        let table = BlockLightTable {
+            emission,
+            dampening,
+            occlusion,
+            flags,
+        };
+
+        assert!(
+            !std::ptr::eq(
+                table.occlusion_for(SHAPE_A) as *const _,
+                table.occlusion_for(SHAPE_B) as *const _,
+            ),
+            "fixture must mint distinct occlusion shape pointers"
+        );
+        assert_eq!(table.dampening_for(SHAPE_A), table.dampening_for(SHAPE_B));
+        assert_eq!(
+            table.flags_for(SHAPE_A) & flag_bits::PROPAGATES_SKYLIGHT_DOWN,
+            table.flags_for(SHAPE_B) & flag_bits::PROPAGATES_SKYLIGHT_DOWN,
+        );
+
+        let mut app = App::new();
+        app.add_message::<BlockPlaced>();
+        app.insert_resource(table);
+        app.add_systems(Update, enqueue_sky_light_on_block_placed);
+        let entity = spawn_sky_section_topmost(&mut app);
+        write_placed(
+            &mut app,
+            block_placed(entity, BlockPos::new(8, 5, 8), SHAPE_A, SHAPE_B),
+        );
+
+        app.update();
+
+        let workspace = app
+            .world()
+            .get::<SkyLightWorkspace>(entity)
+            .expect("sky workspace");
+        assert_eq!(
+            workspace.decrease_queue.len(),
+            1,
+            "occlusion-only delta still pushes a decrease seed"
+        );
+        assert_eq!(
+            workspace.increase_queue.len(),
+            6,
+            "y != 15 path enqueues six neighbour-recheck seeds"
+        );
+        assert!(
+            app.world().get::<LightDirty>(entity).is_some(),
+            "occlusion-only delta inserts LightDirty"
         );
     }
 }

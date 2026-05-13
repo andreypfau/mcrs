@@ -284,7 +284,7 @@ static ARR_63: [Direction; 6] = [
     Direction::East,
 ];
 
-pub(crate) const DIRECTIONS_FROM_BITSET: [&'static [Direction]; 64] = [
+pub(crate) const DIRECTIONS_FROM_BITSET: [&[Direction]; 64] = [
     &ARR_00, &ARR_01, &ARR_02, &ARR_03, &ARR_04, &ARR_05, &ARR_06, &ARR_07, &ARR_08, &ARR_09,
     &ARR_10, &ARR_11, &ARR_12, &ARR_13, &ARR_14, &ARR_15, &ARR_16, &ARR_17, &ARR_18, &ARR_19,
     &ARR_20, &ARR_21, &ARR_22, &ARR_23, &ARR_24, &ARR_25, &ARR_26, &ARR_27, &ARR_28, &ARR_29,
@@ -367,12 +367,9 @@ pub fn propagate_increase(
             let off_y = y_local as i8 + dy;
             let off_z = z as i8 + dz;
 
-            if off_x < 0
-                || off_x > 15
-                || off_y < 0
-                || off_y > 15
-                || off_z < 0
-                || off_z > 15
+            if !(0..=15).contains(&off_x)
+                || !(0..=15).contains(&off_y)
+                || !(0..=15).contains(&off_z)
             {
                 let (cx, cz) = project_face_cell(d, off_x, off_y, off_z);
                 egress
@@ -477,12 +474,9 @@ pub fn propagate_decrease(
             let off_y = y_local as i8 + dy;
             let off_z = z as i8 + dz;
 
-            if off_x < 0
-                || off_x > 15
-                || off_y < 0
-                || off_y > 15
-                || off_z < 0
-                || off_z > 15
+            if !(0..=15).contains(&off_x)
+                || !(0..=15).contains(&off_y)
+                || !(0..=15).contains(&off_z)
             {
                 let (cx, cz) = project_face_cell(d, off_x, off_y, off_z);
                 egress
@@ -608,12 +602,9 @@ pub fn propagate_increase_sky(
             let off_y = y_local as i8 + dy;
             let off_z = z as i8 + dz;
 
-            if off_x < 0
-                || off_x > 15
-                || off_y < 0
-                || off_y > 15
-                || off_z < 0
-                || off_z > 15
+            if !(0..=15).contains(&off_x)
+                || !(0..=15).contains(&off_y)
+                || !(0..=15).contains(&off_z)
             {
                 let (cx, cz) = project_face_cell(d, off_x, off_y, off_z);
                 egress
@@ -715,12 +706,9 @@ pub fn propagate_decrease_sky(
             let off_y = y_local as i8 + dy;
             let off_z = z as i8 + dz;
 
-            if off_x < 0
-                || off_x > 15
-                || off_y < 0
-                || off_y > 15
-                || off_z < 0
-                || off_z > 15
+            if !(0..=15).contains(&off_x)
+                || !(0..=15).contains(&off_y)
+                || !(0..=15).contains(&off_z)
             {
                 let (cx, cz) = project_face_cell(d, off_x, off_y, off_z);
                 egress
