@@ -1,0 +1,49 @@
+//! Process-wide monotone counters for the cross-section lighting pipeline.
+//!
+//! All counters use `Relaxed` ordering because they are summary metrics, not
+//! synchronisation primitives. Producers `fetch_add` from any thread; observers
+//! call `snapshot()` to read a consistent four-tuple of values.
+use std::sync::atomic::{AtomicU64, Ordering};
+
+pub static LIGHT_CONVERGE_ITERATIONS_TOTAL: AtomicU64 = AtomicU64::new(0);
+pub static LIGHT_CONVERGE_CAPPED_TOTAL: AtomicU64 = AtomicU64::new(0);
+pub static LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL: AtomicU64 = AtomicU64::new(0);
+pub static LIGHT_CROSS_DIM_VIOLATIONS_TOTAL: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Debug, Clone, Copy)]
+pub struct LightTelemetrySnapshot {
+    pub iterations: u64,
+    pub capped: u64,
+    pub overflow: u64,
+    pub cross_dim: u64,
+}
+
+pub fn snapshot() -> LightTelemetrySnapshot {
+    LightTelemetrySnapshot {
+        iterations: LIGHT_CONVERGE_ITERATIONS_TOTAL.load(Ordering::Relaxed),
+        capped: LIGHT_CONVERGE_CAPPED_TOTAL.load(Ordering::Relaxed),
+        overflow: LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL.load(Ordering::Relaxed),
+        cross_dim: LIGHT_CROSS_DIM_VIOLATIONS_TOTAL.load(Ordering::Relaxed),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapshot_reads_counters() {
+        // Counters are process-global and may have been incremented by other
+        // tests in the same binary; compare deltas, not absolute values.
+        let before = snapshot();
+        LIGHT_CONVERGE_ITERATIONS_TOTAL.fetch_add(7, Ordering::Relaxed);
+        LIGHT_CONVERGE_CAPPED_TOTAL.fetch_add(7, Ordering::Relaxed);
+        LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL.fetch_add(7, Ordering::Relaxed);
+        LIGHT_CROSS_DIM_VIOLATIONS_TOTAL.fetch_add(7, Ordering::Relaxed);
+        let after = snapshot();
+        assert_eq!(after.iterations - before.iterations, 7);
+        assert_eq!(after.capped - before.capped, 7);
+        assert_eq!(after.overflow - before.overflow, 7);
+        assert_eq!(after.cross_dim - before.cross_dim, 7);
+    }
+}

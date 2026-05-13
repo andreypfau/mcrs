@@ -1,6 +1,6 @@
 use crate::components::{
-    BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, SkyEgress, SkyIncoming, SkyLight,
-    SkyLightWorkspace,
+    BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, BlockPendingEgress, SkyEgress,
+    SkyIncoming, SkyLight, SkyLightWorkspace, SkyPendingEgress,
 };
 use crate::nibble::NibbleArray;
 use crate::storage::LightStorage;
@@ -12,6 +12,7 @@ pub struct BlockLightBundle {
     pub egress: BlockEgress,
     pub incoming: BlockIncoming,
     pub workspace: BlockLightWorkspace,
+    pub pending_egress: BlockPendingEgress,
 }
 
 // `LightStorage::set` promotes `Null -> Uniform(v)` on the first non-zero write,
@@ -26,6 +27,7 @@ impl Default for BlockLightBundle {
             egress: BlockEgress::default(),
             incoming: BlockIncoming::default(),
             workspace: BlockLightWorkspace::default(),
+            pending_egress: BlockPendingEgress::default(),
         }
     }
 }
@@ -36,6 +38,7 @@ pub struct SkyLightBundle {
     pub egress: SkyEgress,
     pub incoming: SkyIncoming,
     pub workspace: SkyLightWorkspace,
+    pub pending_egress: SkyPendingEgress,
 }
 
 // Sky-light propagation shares the same Null->Uniform-on-first-write hazard
@@ -53,6 +56,7 @@ impl Default for SkyLightBundle {
             egress: SkyEgress::default(),
             incoming: SkyIncoming::default(),
             workspace: SkyLightWorkspace::default(),
+            pending_egress: SkyPendingEgress::default(),
         }
     }
 }

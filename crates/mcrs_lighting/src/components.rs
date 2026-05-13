@@ -53,6 +53,17 @@ pub struct SkyEgress(pub SmallVec<[Wavefront; 8]>);
 #[derive(Component, Clone, Debug, Default)]
 pub struct SkyIncoming(pub SmallVec<[Wavefront; 8]>);
 
+/// Cross-section wavefronts that cannot fit in the destination's `*Incoming`
+/// buffer yet; flushed by the cross-section distribute pass. Hard-capped at
+/// `PENDING_EGRESS_CAP` entries; overflow triggers a `NeedsFullReseed` insert
+/// on the destination column entity.
+#[derive(Component, Clone, Debug, Default)]
+pub struct BlockPendingEgress(pub SmallVec<[Wavefront; 8]>);
+
+/// Sky-light counterpart of `BlockPendingEgress`; same overflow semantics.
+#[derive(Component, Clone, Debug, Default)]
+pub struct SkyPendingEgress(pub SmallVec<[Wavefront; 8]>);
+
 #[derive(Component, Debug, Default)]
 pub struct BlockLightWorkspace {
     pub increase_queue: Vec<u64>,
@@ -87,6 +98,18 @@ pub struct IsAllAir;
 #[derive(Component)]
 #[component(storage = "SparseSet")]
 pub struct ChunkNeedsInitialLight;
+
+/// Inserted on a `ChunkColumn` entity when a pending-egress overflow is
+/// detected; consumed by the full-column reseed system.
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct NeedsFullReseed;
+
+/// Marks a `ChunkSection` whose sky light was seeded as the topmost section
+/// of its column. Invalidated when a new section spawns above this one.
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct SkyLightSeededAsTopmost;
 
 #[cfg(test)]
 mod tests {
@@ -140,10 +163,34 @@ mod tests {
     }
 
     #[test]
+    fn block_pending_egress_default_is_empty() {
+        let e = BlockPendingEgress::default();
+        assert!(e.0.is_empty());
+        let _: SmallVec<[Wavefront; 8]> = e.0;
+    }
+
+    #[test]
+    fn sky_pending_egress_default_is_empty() {
+        let e = SkyPendingEgress::default();
+        assert!(e.0.is_empty());
+        let _: SmallVec<[Wavefront; 8]> = e.0;
+    }
+
+    #[test]
     fn light_dirty_marker_compile_test() {
         let _m = LightDirty;
         let _m2 = IsAllAir;
         let _m3 = ChunkNeedsInitialLight;
+    }
+
+    #[test]
+    fn needs_full_reseed_marker_compile_test() {
+        let _m = NeedsFullReseed;
+    }
+
+    #[test]
+    fn sky_light_seeded_as_topmost_marker_compile_test() {
+        let _m = SkyLightSeededAsTopmost;
     }
 
     #[test]

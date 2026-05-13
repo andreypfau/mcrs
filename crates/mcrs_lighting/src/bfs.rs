@@ -304,7 +304,7 @@ pub(crate) const DIRECTIONS_FROM_BITSET: [&[Direction]; 64] = [
 /// - North/South (Z-normal): `(off_x, off_y)`
 /// - East/West (X-normal): `(off_y, off_z)`
 #[inline]
-fn project_face_cell(d: Direction, off_x: i8, off_y: i8, off_z: i8) -> (u8, u8) {
+pub(crate) fn project_face_cell(d: Direction, off_x: i8, off_y: i8, off_z: i8) -> (u8, u8) {
     match d {
         Direction::Down | Direction::Up => ((off_x & 0xF) as u8, (off_z & 0xF) as u8),
         Direction::North | Direction::South => ((off_x & 0xF) as u8, (off_y & 0xF) as u8),

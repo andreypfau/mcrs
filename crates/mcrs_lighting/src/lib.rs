@@ -20,6 +20,9 @@ pub mod invariants;
 pub mod propagate;
 pub mod sets;
 pub mod plugin;
+pub mod converge;
+pub mod distribute;
+pub mod telemetry;
 
 pub use plugin::LightingPlugin;
 pub use sets::LightingSet;
