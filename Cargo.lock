@@ -1763,6 +1763,7 @@ dependencies = [
  "mcrs_vanilla",
  "smallvec",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
