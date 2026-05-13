@@ -15,16 +15,25 @@
 //! lifecycle-ordering hazard.
 
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Added, Commands, Entity, Query, Res};
+use bevy_ecs::prelude::{Added, Commands, Entity, ParamSet, Query, Res, With, Without};
 use mcrs_core::voxel_shape::Direction;
-use mcrs_engine::world::chunk::ChunkPos;
-use mcrs_engine::world::column::{InChunkColumn, SectionIndex};
+use mcrs_engine::world::block::BlockPos;
+use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
+use mcrs_engine::world::column::{
+    ChunkColumn, ColumnIndex, InChunkColumn, SectionIndex, SectionLookup,
+};
+use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_minecraft::world::block_update::BlockPlaced;
+use mcrs_minecraft::world::palette::BlockPalette;
 
 use crate::bfs::{
     normal_of, pack_bfs_entry, ALL_DIRECTIONS_BITSET, FLAG_RECHECK_LEVEL, FLAG_WRITE_LEVEL,
 };
-use crate::components::{BlockLight, BlockLightWorkspace, LightDirty, SkyLight, SkyLightWorkspace};
+use crate::components::{
+    BlockIncoming, BlockLight, BlockLightWorkspace, BlockPendingEgress, ChunkNeedsInitialLight,
+    LightDirty, NeedsFullReseed, SkyIncoming, SkyLight, SkyLightSeededAsTopmost, SkyLightWorkspace,
+    SkyPendingEgress, Wavefront,
+};
 use crate::table::{flag_bits, BlockLightTable};
 
 pub fn enqueue_block_light_on_block_placed(
@@ -290,6 +299,409 @@ pub fn enqueue_sky_light_on_block_placed(
     }
 }
 
+/// Returns the (x, y, z) coordinates of the neighbour-section face cell that
+/// adjoins us on `from_face` (the face direction in the NEIGHBOUR's frame, i.e.
+/// `face.opposite()` of the face from us to the neighbour). `(cell_a, cell_b)`
+/// are the on-face coordinates; the normal axis is set to the appropriate
+/// boundary value (0 or 15).
+#[inline]
+fn face_cell_coords_in_neighbor_frame(from_face: Direction, cell_a: u8, cell_b: u8) -> (u8, u8, u8) {
+    match from_face {
+        Direction::Down => (cell_a, 0, cell_b),
+        Direction::Up => (cell_a, 15, cell_b),
+        Direction::North => (cell_a, cell_b, 0),
+        Direction::South => (cell_a, cell_b, 15),
+        Direction::West => (0, cell_a, cell_b),
+        Direction::East => (15, cell_a, cell_b),
+    }
+}
+
+const CARDINAL_DIRECTIONS: [Direction; 6] = [
+    Direction::Down,
+    Direction::Up,
+    Direction::North,
+    Direction::South,
+    Direction::West,
+    Direction::East,
+];
+
+/// Resolves a neighbour section by walking through `SectionIndex` (for Y-axis
+/// neighbours) or `ColumnIndex` + `SectionIndex` (for X/Z-axis neighbours).
+/// Returns `Some(entity)` only for `SectionLookup::Loaded(entity)`; padding and
+/// out-of-range and unloaded neighbours all return `None`.
+fn resolve_loaded_neighbor(
+    face: Direction,
+    chunk_pos: ChunkPos,
+    in_col: Entity,
+    in_dim: Entity,
+    column_indexes: &Query<&ColumnIndex>,
+    section_indexes: &Query<&SectionIndex>,
+) -> Option<Entity> {
+    match face {
+        Direction::Up | Direction::Down => {
+            let section_index = section_indexes.get(in_col).ok()?;
+            let dy = if face == Direction::Up { 1 } else { -1 };
+            match section_index.lookup(chunk_pos.y + dy) {
+                SectionLookup::Loaded(e) => Some(e),
+                _ => None,
+            }
+        }
+        _ => {
+            let column_index = column_indexes.get(in_dim).ok()?;
+            let (nx, nz) = match face {
+                Direction::North => (chunk_pos.x, chunk_pos.z - 1),
+                Direction::South => (chunk_pos.x, chunk_pos.z + 1),
+                Direction::West => (chunk_pos.x - 1, chunk_pos.z),
+                Direction::East => (chunk_pos.x + 1, chunk_pos.z),
+                _ => unreachable!(),
+            };
+            let neighbour_col_pos =
+                mcrs_engine::world::column::ChunkColumnPos::new(nx, nz);
+            let slot = column_index.0.get(&neighbour_col_pos)?;
+            let neighbour_section_index = section_indexes.get(slot.entity).ok()?;
+            match neighbour_section_index.lookup(chunk_pos.y) {
+                SectionLookup::Loaded(e) => Some(e),
+                _ => None,
+            }
+        }
+    }
+}
+
+/// Consumes `ChunkNeedsInitialLight` per section: scans the palette for
+/// block-light emitters and seeds `BlockLightWorkspace::increase_queue`; on a
+/// sky-having dimension's topmost section, additionally seeds 256
+/// `SkyLightWorkspace::increase_queue` entries at y=15. On retopping, also
+/// drives a decrease wave through the previously-topmost section.
+///
+/// The query is gated on `Option<Res<BlockLightTable>>` for consistency with
+/// `prime_heightmaps_on_column_spawn` — early-returns if the resource has not
+/// been built yet (registry freeze races early ticks).
+pub fn seed_initial_light(
+    table: Option<Res<BlockLightTable>>,
+    sky_dims: Query<(), With<HasSkyLight>>,
+    section_indexes: Query<&SectionIndex>,
+    mut sections: ParamSet<(
+        Query<
+            (
+                Entity,
+                &BlockPalette,
+                &InChunkColumn,
+                &InDimension,
+                &ChunkPos,
+                &mut BlockLightWorkspace,
+                Option<&mut SkyLightWorkspace>,
+            ),
+            With<ChunkNeedsInitialLight>,
+        >,
+        Query<
+            (Entity, &ChunkPos, &InChunkColumn, &mut SkyLightWorkspace, &SkyLight),
+            With<SkyLightSeededAsTopmost>,
+        >,
+    )>,
+    mut commands: Commands,
+) {
+    let Some(table) = table else {
+        return;
+    };
+
+    // First pass: collect what needs to happen, since we can't hold p0() and
+    // p1() borrows simultaneously. For each section in p0(), determine block
+    // emitters, sky seeding, and a "previously-topmost invalidate" target.
+    struct Plan {
+        section: Entity,
+        column: Entity,
+        seeded_topmost: bool,
+        new_chunk_y: i32,
+    }
+    let mut plans: Vec<Plan> = Vec::new();
+
+    {
+        let mut p0 = sections.p0();
+        for (
+            section_entity,
+            palette,
+            in_col,
+            in_dim,
+            chunk_pos,
+            mut block_ws,
+            mut sky_ws_opt,
+        ) in p0.iter_mut()
+        {
+            // Block-light emitter scan. Always run the cell-by-cell scan: the
+            // for_each_distinct_state check would only skip the 4096-cell loop
+            // for sections with zero emitters, which is the common case, but
+            // BlockPalette doesn't expose a positions-of-state API so the
+            // scan is the path of least new surface.
+            let mut has_emitter = false;
+            palette.for_each_distinct_state(|state| {
+                if table.emission_for(state) > 0 {
+                    has_emitter = true;
+                }
+            });
+            if has_emitter {
+                for y in 0..16i32 {
+                    for z in 0..16i32 {
+                        for x in 0..16i32 {
+                            let state = palette.get(BlockPos::new(x, y, z));
+                            let emission = table.emission_for(state);
+                            if emission > 0 {
+                                block_ws.increase_queue.push(pack_bfs_entry(
+                                    x as u8,
+                                    z as u8,
+                                    y as u8,
+                                    emission,
+                                    ALL_DIRECTIONS_BITSET,
+                                    FLAG_WRITE_LEVEL,
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Sky source seed when the section is topmost-of-column AND the
+            // dimension carries HasSkyLight AND a SkyLightWorkspace is present
+            // (skyless dims do not receive a SkyLightBundle).
+            let dim_has_sky = sky_dims.get(in_dim.0).is_ok();
+            let is_topmost = section_indexes
+                .get(in_col.0)
+                .ok()
+                .map(|si| chunk_pos.y == si.min_section_y + si.sections.len() as i32 - 1)
+                .unwrap_or(false);
+
+            let mut seeded = false;
+            if dim_has_sky && is_topmost {
+                if let Some(sky_ws) = sky_ws_opt.as_deref_mut() {
+                    sky_ws.increase_queue.reserve(256);
+                    for z in 0..16u8 {
+                        for x in 0..16u8 {
+                            sky_ws.increase_queue.push(pack_bfs_entry(
+                                x,
+                                z,
+                                15,
+                                15,
+                                ALL_DIRECTIONS_BITSET,
+                                FLAG_WRITE_LEVEL,
+                            ));
+                        }
+                    }
+                    commands
+                        .entity(section_entity)
+                        .insert(SkyLightSeededAsTopmost);
+                    seeded = true;
+                }
+            }
+
+            commands.entity(section_entity).insert(LightDirty);
+            commands
+                .entity(section_entity)
+                .remove::<ChunkNeedsInitialLight>();
+
+            plans.push(Plan {
+                section: section_entity,
+                column: in_col.0,
+                seeded_topmost: seeded,
+                new_chunk_y: chunk_pos.y,
+            });
+        }
+    }
+
+    // Second pass: for each plan that seeded a new topmost, find any previously-
+    // topmost section in the SAME column with a lower chunk_pos.y and walk a
+    // decrease wave through its top face using the stored sky levels. The pass
+    // owns the &mut SkyLightWorkspace on the previous-topmost entity here
+    // exclusively, since the first pass already released its borrow.
+    if plans.iter().any(|p| p.seeded_topmost) {
+        let mut p1 = sections.p1();
+        for plan in &plans {
+            if !plan.seeded_topmost {
+                continue;
+            }
+            for (prev_entity, prev_chunk_pos, prev_in_col, mut prev_sky_ws, prev_sky_light) in
+                p1.iter_mut()
+            {
+                if prev_in_col.0 != plan.column {
+                    continue;
+                }
+                if prev_chunk_pos.y >= plan.new_chunk_y {
+                    continue;
+                }
+                for z in 0..16u8 {
+                    for x in 0..16u8 {
+                        let stored = prev_sky_light.0.get(x as usize, 15, z as usize);
+                        prev_sky_ws.decrease_queue.push(pack_bfs_entry(
+                            x,
+                            z,
+                            15,
+                            stored,
+                            ALL_DIRECTIONS_BITSET,
+                            0,
+                        ));
+                    }
+                }
+                commands
+                    .entity(prev_entity)
+                    .remove::<SkyLightSeededAsTopmost>();
+                commands.entity(prev_entity).insert(LightDirty);
+            }
+        }
+    }
+}
+
+/// Consumes `Added<ChunkLoaded>` per section: reads each loaded cardinal
+/// neighbour's face cells into the new section's `*Incoming`, then drains any
+/// `*PendingEgress` entries that the neighbour buffered while we were
+/// unloaded. Marks the new section and every touched loaded neighbour
+/// `LightDirty`.
+pub fn pull_neighbor_edge_levels(
+    table: Option<Res<BlockLightTable>>,
+    newly_loaded: Query<(Entity, &ChunkPos, &InDimension, &InChunkColumn), Added<ChunkLoaded>>,
+    column_indexes: Query<&ColumnIndex>,
+    section_indexes: Query<&SectionIndex>,
+    block_light_read: Query<&BlockLight>,
+    sky_light_read: Query<&SkyLight>,
+    mut block_pending: Query<&mut BlockPendingEgress>,
+    mut sky_pending: Query<&mut SkyPendingEgress>,
+    mut block_incoming: Query<&mut BlockIncoming>,
+    mut sky_incoming: Query<&mut SkyIncoming>,
+    mut commands: Commands,
+) {
+    if table.is_none() {
+        return;
+    }
+
+    for (new_section, chunk_pos, in_dim, in_col) in newly_loaded.iter() {
+        for face in CARDINAL_DIRECTIONS {
+            let Some(neighbour_entity) = resolve_loaded_neighbor(
+                face,
+                *chunk_pos,
+                in_col.0,
+                in_dim.0,
+                &column_indexes,
+                &section_indexes,
+            ) else {
+                continue;
+            };
+
+            // `face` is the direction from us (new section) to the neighbour
+            // in OUR (destination) frame, so it doubles as the incoming face
+            // index. `from_face` is the neighbour's frame face pointing back
+            // at us; we use it both to compute the neighbour's face-cell
+            // coordinates and to filter the neighbour's pending-egress entries
+            // (which are tagged in the neighbour's frame).
+            let from_face = face.opposite();
+            let dest_face = face.index() as u8;
+            let neighbour_expected_face = from_face.index() as u8;
+
+            // Read neighbour's face cells into incoming with Manhattan-1
+            // pre-attenuation.
+            for cell_a in 0..16u8 {
+                for cell_b in 0..16u8 {
+                    let (nx, ny, nz) =
+                        face_cell_coords_in_neighbor_frame(from_face, cell_a, cell_b);
+
+                    if let Ok(bl) = block_light_read.get(neighbour_entity) {
+                        let level = bl.0.get(nx as usize, ny as usize, nz as usize);
+                        if level > 0 {
+                            let attenuated = level.saturating_sub(1);
+                            if let Ok(mut inc) = block_incoming.get_mut(new_section) {
+                                inc.0.push(Wavefront::new(
+                                    dest_face, cell_a, cell_b, attenuated,
+                                ));
+                            }
+                        }
+                    }
+
+                    if let Ok(sl) = sky_light_read.get(neighbour_entity) {
+                        let level = sl.0.get(nx as usize, ny as usize, nz as usize);
+                        if level > 0 {
+                            let attenuated = level.saturating_sub(1);
+                            if let Ok(mut inc) = sky_incoming.get_mut(new_section) {
+                                inc.0.push(Wavefront::new(
+                                    dest_face, cell_a, cell_b, attenuated,
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Drain neighbour's *PendingEgress entries addressed back at us.
+            // The neighbour buffered wavefronts with `face` in the neighbour's
+            // frame; an entry targets us iff its face equals
+            // neighbour_expected_face (the neighbour's face pointing at us).
+
+            if let Ok(mut pending) = block_pending.get_mut(neighbour_entity) {
+                if !pending.0.is_empty() {
+                    pending.0.retain(|w| {
+                        if w.face() == neighbour_expected_face {
+                            if let Ok(mut inc) = block_incoming.get_mut(new_section) {
+                                inc.0.push(Wavefront::new(
+                                    dest_face,
+                                    w.cell_x(),
+                                    w.cell_z(),
+                                    w.level(),
+                                ));
+                            }
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                }
+            }
+
+            if let Ok(mut pending) = sky_pending.get_mut(neighbour_entity) {
+                if !pending.0.is_empty() {
+                    pending.0.retain(|w| {
+                        if w.face() == neighbour_expected_face {
+                            if let Ok(mut inc) = sky_incoming.get_mut(new_section) {
+                                inc.0.push(Wavefront::new(
+                                    dest_face,
+                                    w.cell_x(),
+                                    w.cell_z(),
+                                    w.level(),
+                                ));
+                            }
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                }
+            }
+
+            commands.entity(neighbour_entity).insert(LightDirty);
+        }
+
+        // Mark the just-loaded section LightDirty so the first convergence
+        // iteration drains its *Incoming. We unconditionally insert: even
+        // when there are no loaded neighbours, the section still went through
+        // seed_initial_light and needs to be considered dirty.
+        commands.entity(new_section).insert(LightDirty);
+    }
+}
+
+/// Consumes `Added<NeedsFullReseed>` on `ChunkColumn` entities: iterates the
+/// column's `SectionIndex.sections` slots and re-inserts
+/// `ChunkNeedsInitialLight` on every loaded section in the column. Removes
+/// `NeedsFullReseed` from the column entity.
+pub fn consume_needs_full_reseed(
+    newly_marked: Query<(Entity, &SectionIndex), (With<ChunkColumn>, Added<NeedsFullReseed>)>,
+    mut commands: Commands,
+) {
+    for (column_entity, section_index) in newly_marked.iter() {
+        for slot in section_index.sections.iter() {
+            if let Some(section_entity) = slot {
+                commands
+                    .entity(*section_entity)
+                    .insert(ChunkNeedsInitialLight);
+            }
+        }
+        commands.entity(column_entity).remove::<NeedsFullReseed>();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -302,7 +714,8 @@ mod tests {
     use mcrs_core::voxel_shape::VoxelShape;
     use mcrs_engine::world::block::BlockPos;
     use mcrs_engine::world::chunk::ChunkPos;
-    use mcrs_engine::world::column::{InChunkColumn, SectionIndex};
+    use mcrs_engine::world::column::{ChunkColumn, ChunkColumnPos, ColumnIndex, ColumnSlot, InChunkColumn, SectionIndex};
+    use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
     use mcrs_lighting_table_helpers::*;
     use mcrs_minecraft::world::block::BlockUpdateFlags;
     use mcrs_protocol::BlockStateId;
@@ -1157,6 +1570,540 @@ mod tests {
         assert!(
             app.world().get::<LightDirty>(entity).is_some(),
             "occlusion-only delta inserts LightDirty"
+        );
+    }
+
+    fn build_seed_initial_app() -> App {
+        let mut app = App::new();
+        app.insert_resource(make_test_table());
+        app.add_systems(Update, seed_initial_light);
+        app
+    }
+
+    fn spawn_palette_with_torches(positions: &[(i32, i32, i32)]) -> BlockPalette {
+        let mut palette = BlockPalette::default();
+        palette.fill(AIR);
+        for &(x, y, z) in positions {
+            palette.set(BlockPos::new(x, y, z), TORCH_HI);
+        }
+        palette
+    }
+
+    fn spawn_dimension(app: &mut App, with_sky: bool) -> bevy_ecs::entity::Entity {
+        let mut e = app.world_mut().spawn(ColumnIndex::default());
+        if with_sky {
+            e.insert(HasSkyLight);
+        }
+        e.id()
+    }
+
+    fn spawn_topmost_section_for_seed(
+        app: &mut App,
+        dim: bevy_ecs::entity::Entity,
+        palette: BlockPalette,
+        sky: bool,
+    ) -> (bevy_ecs::entity::Entity, bevy_ecs::entity::Entity) {
+        let section = app.world_mut().spawn_empty().id();
+        let column = app
+            .world_mut()
+            .spawn((
+                ChunkColumn,
+                SectionIndex {
+                    min_section_y: 0,
+                    sections: vec![Some(section)].into_boxed_slice(),
+                },
+                InDimension(dim),
+            ))
+            .id();
+        let mut emut = app.world_mut().entity_mut(section);
+        emut.insert((
+            palette,
+            ChunkPos::new(0, 0, 0),
+            InChunkColumn(column),
+            InDimension(dim),
+            BlockLight::default(),
+            BlockLightWorkspace::default(),
+            ChunkNeedsInitialLight,
+        ));
+        if sky {
+            emut.insert((SkyLight::default(), SkyLightWorkspace::default()));
+        }
+        (section, column)
+    }
+
+    #[test]
+    fn seed_initial_light_emits_block_emitters_and_sky_source() {
+        let mut app = build_seed_initial_app();
+        let dim = spawn_dimension(&mut app, true);
+        let palette = spawn_palette_with_torches(&[
+            (0, 0, 0),
+            (5, 5, 5),
+            (10, 1, 8),
+            (3, 12, 7),
+            (15, 15, 15),
+        ]);
+        let (section, _col) = spawn_topmost_section_for_seed(&mut app, dim, palette, true);
+
+        app.update();
+
+        let block_ws = app
+            .world()
+            .get::<BlockLightWorkspace>(section)
+            .expect("block ws");
+        assert_eq!(
+            block_ws.increase_queue.len(),
+            5,
+            "five torches emit five increase seeds"
+        );
+        let sky_ws = app
+            .world()
+            .get::<SkyLightWorkspace>(section)
+            .expect("sky ws");
+        assert_eq!(
+            sky_ws.increase_queue.len(),
+            256,
+            "topmost on sky-having dim seeds 256 sky entries"
+        );
+        assert!(
+            app.world().get::<SkyLightSeededAsTopmost>(section).is_some(),
+            "SkyLightSeededAsTopmost inserted"
+        );
+        assert!(
+            app.world().get::<LightDirty>(section).is_some(),
+            "LightDirty inserted"
+        );
+        assert!(
+            app.world().get::<ChunkNeedsInitialLight>(section).is_none(),
+            "ChunkNeedsInitialLight removed"
+        );
+    }
+
+    #[test]
+    fn seed_initial_light_invalidates_previous_topmost_on_retopping() {
+        let mut app = build_seed_initial_app();
+        let dim = spawn_dimension(&mut app, true);
+
+        // Section A at chunk-Y 0 with SkyLightSeededAsTopmost already; stored
+        // sky level 12 across the top face.
+        let section_a = app.world_mut().spawn_empty().id();
+        let section_b = app.world_mut().spawn_empty().id();
+        let column = app
+            .world_mut()
+            .spawn((
+                ChunkColumn,
+                SectionIndex {
+                    min_section_y: 0,
+                    sections: vec![Some(section_a), Some(section_b)].into_boxed_slice(),
+                },
+                InDimension(dim),
+            ))
+            .id();
+
+        let mut palette_a = BlockPalette::default();
+        palette_a.fill(AIR);
+        let mut a_sky_light = SkyLight::default();
+        for z in 0..16usize {
+            for x in 0..16usize {
+                a_sky_light.0.set(x, 15, z, 12);
+            }
+        }
+        app.world_mut().entity_mut(section_a).insert((
+            palette_a,
+            ChunkPos::new(0, 0, 0),
+            InChunkColumn(column),
+            InDimension(dim),
+            BlockLight::default(),
+            BlockLightWorkspace::default(),
+            a_sky_light,
+            SkyLightWorkspace::default(),
+            SkyLightSeededAsTopmost,
+        ));
+
+        // Section B at chunk-Y 1 (the new topmost) needs initial light.
+        let mut palette_b = BlockPalette::default();
+        palette_b.fill(AIR);
+        app.world_mut().entity_mut(section_b).insert((
+            palette_b,
+            ChunkPos::new(0, 1, 0),
+            InChunkColumn(column),
+            InDimension(dim),
+            BlockLight::default(),
+            BlockLightWorkspace::default(),
+            SkyLight::default(),
+            SkyLightWorkspace::default(),
+            ChunkNeedsInitialLight,
+        ));
+
+        app.update();
+
+        // Previous topmost A: marker removed, LightDirty inserted, decrease
+        // wave seeded with stored level 12.
+        assert!(
+            app.world().get::<SkyLightSeededAsTopmost>(section_a).is_none(),
+            "previous topmost's SkyLightSeededAsTopmost removed"
+        );
+        assert!(
+            app.world().get::<LightDirty>(section_a).is_some(),
+            "previous topmost marked LightDirty"
+        );
+        let a_ws = app
+            .world()
+            .get::<SkyLightWorkspace>(section_a)
+            .expect("sky ws on A");
+        assert_eq!(
+            a_ws.decrease_queue.len(),
+            256,
+            "previous topmost gets 256 decrease seeds"
+        );
+        for entry in &a_ws.decrease_queue {
+            assert_eq!(
+                unpack_bfs_entry_level(*entry),
+                12,
+                "decrease seed carries stored level"
+            );
+            assert_eq!(unpack_bfs_entry_y(*entry) as u8, 15);
+        }
+
+        // New topmost B: marker inserted, increase queue seeded.
+        assert!(
+            app.world().get::<SkyLightSeededAsTopmost>(section_b).is_some(),
+            "new topmost seeded"
+        );
+        let b_ws = app
+            .world()
+            .get::<SkyLightWorkspace>(section_b)
+            .expect("sky ws on B");
+        assert_eq!(b_ws.increase_queue.len(), 256);
+    }
+
+    #[test]
+    fn seed_initial_light_skips_skyless_dim_for_sky_seed() {
+        let mut app = build_seed_initial_app();
+        let dim = spawn_dimension(&mut app, false);
+        let palette = spawn_palette_with_torches(&[(2, 2, 2)]);
+        // Skyless dim: spawn the section without a SkyLight/SkyLightWorkspace
+        // (matching the skyless-dimension contract).
+        let (section, _col) = spawn_topmost_section_for_seed(&mut app, dim, palette, false);
+
+        app.update();
+
+        // Block-light emitter seed lands as usual.
+        let block_ws = app
+            .world()
+            .get::<BlockLightWorkspace>(section)
+            .expect("block ws");
+        assert_eq!(block_ws.increase_queue.len(), 1);
+
+        // No sky workspace was attached, so sky pathways are inert.
+        assert!(
+            app.world().get::<SkyLightWorkspace>(section).is_none(),
+            "skyless dim has no sky workspace"
+        );
+        assert!(
+            app.world().get::<SkyLightSeededAsTopmost>(section).is_none(),
+            "skyless dim section does not insert SkyLightSeededAsTopmost"
+        );
+        assert!(
+            app.world().get::<LightDirty>(section).is_some(),
+            "section still marked LightDirty"
+        );
+    }
+
+    fn build_pull_neighbor_app() -> App {
+        let mut app = App::new();
+        app.insert_resource(make_test_table());
+        app.add_systems(Update, pull_neighbor_edge_levels);
+        app
+    }
+
+    #[test]
+    fn pull_neighbor_edge_levels_seeds_from_loaded_neighbors() {
+        let mut app = build_pull_neighbor_app();
+        let dim = spawn_dimension(&mut app, true);
+
+        // Two adjacent columns: column_a at x=0, column_b at x=1, both at z=0.
+        // Section A in column_a at chunk_pos (0,0,0) with BlockLight Uniform(8).
+        // Section B in column_b at chunk_pos (1,0,0) with BlockLight Null;
+        // when B gets Added<ChunkLoaded>, it should pull face cells from A
+        // (A is West of B; from B's frame, light enters via the West face).
+        let section_a = app.world_mut().spawn_empty().id();
+        let section_b = app.world_mut().spawn_empty().id();
+        let column_a = app
+            .world_mut()
+            .spawn((
+                ChunkColumn,
+                SectionIndex {
+                    min_section_y: 0,
+                    sections: vec![Some(section_a)].into_boxed_slice(),
+                },
+                InDimension(dim),
+            ))
+            .id();
+        let column_b = app
+            .world_mut()
+            .spawn((
+                ChunkColumn,
+                SectionIndex {
+                    min_section_y: 0,
+                    sections: vec![Some(section_b)].into_boxed_slice(),
+                },
+                InDimension(dim),
+            ))
+            .id();
+
+        // Populate dim's ColumnIndex so resolve_loaded_neighbor finds neighbours.
+        let mut col_index = app
+            .world_mut()
+            .get_mut::<ColumnIndex>(dim)
+            .expect("column index");
+        col_index.0.insert(
+            ChunkColumnPos::new(0, 0),
+            ColumnSlot {
+                entity: column_a,
+                section_count: 1,
+            },
+        );
+        col_index.0.insert(
+            ChunkColumnPos::new(1, 0),
+            ColumnSlot {
+                entity: column_b,
+                section_count: 1,
+            },
+        );
+
+        // Section A: already loaded, with uniform block light = 8.
+        app.world_mut().entity_mut(section_a).insert((
+            ChunkPos::new(0, 0, 0),
+            InChunkColumn(column_a),
+            InDimension(dim),
+            BlockLight(crate::storage::LightStorage::Uniform(8)),
+            BlockPendingEgress::default(),
+            BlockIncoming::default(),
+            SkyLight::default(),
+            SkyPendingEgress::default(),
+            SkyIncoming::default(),
+            ChunkLoaded,
+        ));
+
+        // Section B: just-loaded; Added<ChunkLoaded> fires on its insertion.
+        app.world_mut().entity_mut(section_b).insert((
+            ChunkPos::new(1, 0, 0),
+            InChunkColumn(column_b),
+            InDimension(dim),
+            BlockLight::default(),
+            BlockPendingEgress::default(),
+            BlockIncoming::default(),
+            SkyLight::default(),
+            SkyPendingEgress::default(),
+            SkyIncoming::default(),
+        ));
+
+        // Drain the existing Added<ChunkLoaded> flag for section_a by running
+        // one tick first with section_b not yet ChunkLoaded; otherwise A would
+        // also match the Added filter and start pulling from a non-existent
+        // east neighbour (which is fine but obscures the assertion).
+        app.update();
+
+        // Now insert ChunkLoaded on section_b — that triggers Added on the
+        // next app.update() for pull_neighbor_edge_levels.
+        app.world_mut().entity_mut(section_b).insert(ChunkLoaded);
+        app.update();
+
+        let incoming = app
+            .world()
+            .get::<BlockIncoming>(section_b)
+            .expect("incoming on B");
+        assert_eq!(
+            incoming.0.len(),
+            256,
+            "B pulls 16x16 face cells from A (block-light)"
+        );
+        // The face direction from B's perspective: A is west of B, so the
+        // face is West (index 4); from B's frame, light enters via West.
+        let west_index = Direction::West.index() as u8;
+        for w in incoming.0.iter() {
+            assert_eq!(w.face(), west_index, "face index is West (entry from A)");
+            assert_eq!(w.level(), 7, "level = 8 - 1 manhattan attenuation");
+        }
+        assert!(
+            app.world().get::<LightDirty>(section_b).is_some(),
+            "B marked LightDirty"
+        );
+        assert!(
+            app.world().get::<LightDirty>(section_a).is_some(),
+            "neighbour A marked LightDirty"
+        );
+    }
+
+    #[test]
+    fn pull_neighbor_edge_levels_drains_pending_egress_on_load() {
+        let mut app = build_pull_neighbor_app();
+        let dim = spawn_dimension(&mut app, true);
+
+        let section_a = app.world_mut().spawn_empty().id();
+        let section_b = app.world_mut().spawn_empty().id();
+        let column_a = app
+            .world_mut()
+            .spawn((
+                ChunkColumn,
+                SectionIndex {
+                    min_section_y: 0,
+                    sections: vec![Some(section_a)].into_boxed_slice(),
+                },
+                InDimension(dim),
+            ))
+            .id();
+        let column_b = app
+            .world_mut()
+            .spawn((
+                ChunkColumn,
+                SectionIndex {
+                    min_section_y: 0,
+                    sections: vec![Some(section_b)].into_boxed_slice(),
+                },
+                InDimension(dim),
+            ))
+            .id();
+
+        let mut col_index = app
+            .world_mut()
+            .get_mut::<ColumnIndex>(dim)
+            .expect("column index");
+        col_index.0.insert(
+            ChunkColumnPos::new(0, 0),
+            ColumnSlot {
+                entity: column_a,
+                section_count: 1,
+            },
+        );
+        col_index.0.insert(
+            ChunkColumnPos::new(1, 0),
+            ColumnSlot {
+                entity: column_b,
+                section_count: 1,
+            },
+        );
+
+        // A is West of B. From A's frame, the East face (index 5) points
+        // toward B. So A's BlockPendingEgress entry with face=East addresses
+        // B; the pull system should drain it.
+        let east_index = Direction::East.index() as u8;
+        let mut pending = BlockPendingEgress::default();
+        pending.0.push(Wavefront::new(east_index, 3, 5, 9));
+
+        app.world_mut().entity_mut(section_a).insert((
+            ChunkPos::new(0, 0, 0),
+            InChunkColumn(column_a),
+            InDimension(dim),
+            BlockLight::default(),
+            pending,
+            BlockIncoming::default(),
+            SkyLight::default(),
+            SkyPendingEgress::default(),
+            SkyIncoming::default(),
+            ChunkLoaded,
+        ));
+
+        app.world_mut().entity_mut(section_b).insert((
+            ChunkPos::new(1, 0, 0),
+            InChunkColumn(column_b),
+            InDimension(dim),
+            BlockLight::default(),
+            BlockPendingEgress::default(),
+            BlockIncoming::default(),
+            SkyLight::default(),
+            SkyPendingEgress::default(),
+            SkyIncoming::default(),
+        ));
+
+        // Tick once to consume the initial Added<ChunkLoaded> on A.
+        app.update();
+
+        // Confirm A's pending egress still has the entry (B wasn't loaded
+        // during the first tick so the pull system saw no Added<ChunkLoaded>
+        // events from B).
+        let a_pending_before = app
+            .world()
+            .get::<BlockPendingEgress>(section_a)
+            .expect("pending on A");
+        assert_eq!(a_pending_before.0.len(), 1, "pending entry survives first tick");
+
+        // Insert ChunkLoaded on section_b — Added<ChunkLoaded> fires next tick.
+        app.world_mut().entity_mut(section_b).insert(ChunkLoaded);
+        app.update();
+
+        // A's pending egress drained (the East-facing entry moved to B).
+        let a_pending_after = app
+            .world()
+            .get::<BlockPendingEgress>(section_a)
+            .expect("pending on A");
+        assert!(
+            a_pending_after.0.is_empty(),
+            "A's pending egress drained after B loaded"
+        );
+
+        // B's BlockIncoming contains both the face-cell pull entries AND the
+        // drained pending entry (face=West in B's frame).
+        let b_incoming = app
+            .world()
+            .get::<BlockIncoming>(section_b)
+            .expect("incoming on B");
+        let west_index = Direction::West.index() as u8;
+        let drained = b_incoming
+            .0
+            .iter()
+            .find(|w| w.cell_x() == 3 && w.cell_z() == 5 && w.level() == 9);
+        assert!(
+            drained.is_some(),
+            "drained pending wavefront landed in B's incoming"
+        );
+        assert_eq!(drained.unwrap().face(), west_index);
+
+        assert!(
+            app.world().get::<LightDirty>(section_a).is_some(),
+            "A marked LightDirty"
+        );
+    }
+
+    fn build_consume_needs_full_reseed_app() -> App {
+        let mut app = App::new();
+        app.add_systems(Update, consume_needs_full_reseed);
+        app
+    }
+
+    #[test]
+    fn consume_needs_full_reseed_marks_all_loaded_sections() {
+        let mut app = build_consume_needs_full_reseed_app();
+
+        let section_a = app.world_mut().spawn_empty().id();
+        let section_b = app.world_mut().spawn_empty().id();
+        let section_unloaded_slot: Option<bevy_ecs::entity::Entity> = None;
+        let column = app
+            .world_mut()
+            .spawn((
+                ChunkColumn,
+                SectionIndex {
+                    min_section_y: 0,
+                    sections: vec![Some(section_a), section_unloaded_slot, Some(section_b)]
+                        .into_boxed_slice(),
+                },
+            ))
+            .id();
+        app.world_mut().entity_mut(column).insert(NeedsFullReseed);
+
+        app.update();
+
+        assert!(
+            app.world().get::<ChunkNeedsInitialLight>(section_a).is_some(),
+            "section A re-marked ChunkNeedsInitialLight"
+        );
+        assert!(
+            app.world().get::<ChunkNeedsInitialLight>(section_b).is_some(),
+            "section B re-marked ChunkNeedsInitialLight"
+        );
+        assert!(
+            app.world().get::<NeedsFullReseed>(column).is_none(),
+            "NeedsFullReseed removed from column"
         );
     }
 }

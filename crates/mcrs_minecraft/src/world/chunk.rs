@@ -3,7 +3,7 @@ use crate::world::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Query, Resource, With, resource_exists};
-use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_math::IVec3;
 use bevy_tasks::futures_lite::future;
@@ -14,6 +14,7 @@ use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_engine::world::chunk::{
     ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos, ChunkUnloading,
 };
+use mcrs_engine::world::lighting::LightTicket;
 use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsPlugin, OverworldNoiseRouter};
 use mcrs_protocol::ChunkColumnPos;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -21,6 +22,15 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use tracing::{info, trace};
+
+/// Ordering anchor for the worldgen ingest path. The lighting plugin chains
+/// its enqueue set after `WorldgenIngestSet::ProcessCompletedColumns` so the
+/// `Added<ChunkLoaded>` filters in the enqueue systems observe the newly-
+/// generated sections within the same tick.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum WorldgenIngestSet {
+    ProcessCompletedColumns,
+}
 
 pub struct ChunkPlugin;
 
@@ -34,10 +44,11 @@ impl Plugin for ChunkPlugin {
                 .build()
         });
         app.insert_resource(ChunkColumnScheduler::default());
+        app.configure_sets(FixedPreUpdate, WorldgenIngestSet::ProcessCompletedColumns);
         app.add_systems(
             FixedPreUpdate,
             (
-                process_completed_columns,
+                process_completed_columns.in_set(WorldgenIngestSet::ProcessCompletedColumns),
                 enqueue_pending_columns,
                 cancel_stale_columns,
                 reprioritize_columns,
@@ -433,6 +444,7 @@ fn cancel_stale_columns(
     mut scheduler: ResMut<ChunkColumnScheduler>,
     mut commands: Commands,
     players: Query<&PlayerChunkObserver>,
+    light_tickets: Query<Entity, With<LightTicket>>,
 ) {
     // Collect all player views for visibility checks
     let player_views: Vec<_> = players
@@ -445,6 +457,11 @@ fn cancel_stale_columns(
     if player_views.is_empty() {
         return;
     }
+
+    // Sections holding a LightTicket must stay loaded until their cross-section
+    // lighting work drains. Materialise the set once so the per-entity check
+    // inside the unload loop is O(1).
+    let light_ticket_set: FxHashSet<Entity> = light_tickets.iter().collect();
 
     // Cancel stale pending columns
     // Collect keys to remove first to avoid borrowing issues
@@ -467,15 +484,21 @@ fn cancel_stale_columns(
         })
         .collect();
 
-    // Remove stale pending columns and mark sections for unloading
+    // Remove stale pending columns and mark sections for unloading. Skip any
+    // section that currently holds a `LightTicket`; the ticket is cleared
+    // deterministically once the section's egress/incoming/workspace queues
+    // are empty, and the next eval will pick the section up if it is still
+    // stale at that point.
     for (key, entities) in stale_pending {
         trace!("Canceling stale column {:?}", key);
 
         scheduler.pending.remove(&key);
         scheduler.priority_index.remove(&key.chunk_column_pos);
 
-        // Transition all sections to ChunkUnloading state
         for entity in entities {
+            if light_ticket_set.contains(&entity) {
+                continue;
+            }
             commands
                 .entity(entity)
                 .insert(ChunkUnloading)
@@ -672,5 +695,117 @@ fn dispatch_column_generation(
 
     if dispatched > 0 {
         trace!("Dispatched generation tasks for {} columns", dispatched);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_app::{App, Update};
+    use mcrs_engine::entity::player::chunk_view::ChunkTrackingView;
+
+    #[test]
+    fn worldgen_ingest_set_variants_compile() {
+        // Sanity check that the SystemSet variant exists with the expected
+        // shape; matched by the lighting plugin's `.after(...)` ordering.
+        let _ = WorldgenIngestSet::ProcessCompletedColumns;
+    }
+
+    fn spawn_observer_with_view(
+        app: &mut App,
+        center: ChunkPos,
+        distance: u8,
+    ) -> Entity {
+        let mut observer = PlayerChunkObserver::default();
+        observer.last_last_chunk_tracking_view = Some(ChunkTrackingView {
+            center,
+            distance,
+            vert_distance: 8,
+        });
+        app.world_mut().spawn(observer).id()
+    }
+
+    #[test]
+    fn cancel_stale_columns_skips_sections_with_light_ticket() {
+        let mut app = App::new();
+        app.insert_resource(ChunkColumnScheduler::default());
+        app.add_systems(Update, cancel_stale_columns);
+
+        // Observer at chunk (0, 0, 0) with view distance 2; any column at
+        // dx/dz > 2 is stale.
+        spawn_observer_with_view(&mut app, ChunkPos::new(0, 0, 0), 2);
+
+        // Spawn a section entity with ChunkGenerating + LightTicket, far
+        // from the observer so the column is considered stale.
+        let stale_pos = ChunkPos::new(100, 0, 100);
+        let stale_section = app
+            .world_mut()
+            .spawn((stale_pos, ChunkGenerating, LightTicket))
+            .id();
+
+        // Register the stale column in the scheduler so cancel_stale_columns
+        // finds it in the priority_index.
+        let stale_col = ChunkColumnPos::new(stale_pos.x, stale_pos.z);
+        let key = ColumnKey::new(0, stale_col);
+        let pending = PendingColumn::new(vec![(stale_section, stale_pos.y)]);
+        {
+            let mut scheduler = app.world_mut().resource_mut::<ChunkColumnScheduler>();
+            scheduler.pending.insert(key, pending);
+            scheduler.priority_index.insert(stale_col, key);
+        }
+
+        app.update();
+
+        assert!(
+            app.world().get::<LightTicket>(stale_section).is_some(),
+            "LightTicket retained on the stale section"
+        );
+        assert!(
+            app.world().get::<ChunkUnloading>(stale_section).is_none(),
+            "ChunkUnloading must NOT be inserted on a ticketed section"
+        );
+        // ChunkGenerating stays because the unload path was skipped.
+        assert!(
+            app.world().get::<ChunkGenerating>(stale_section).is_some(),
+            "ChunkGenerating retained because the unload was deferred"
+        );
+    }
+
+    #[test]
+    fn cancel_stale_columns_unloads_untickted_stale_sections() {
+        // Control check: a stale section WITHOUT a LightTicket still gets
+        // ChunkUnloading, confirming the only behavioural delta is the
+        // LightTicket exclusion.
+        let mut app = App::new();
+        app.insert_resource(ChunkColumnScheduler::default());
+        app.add_systems(Update, cancel_stale_columns);
+
+        spawn_observer_with_view(&mut app, ChunkPos::new(0, 0, 0), 2);
+
+        let stale_pos = ChunkPos::new(100, 0, 100);
+        let stale_section = app
+            .world_mut()
+            .spawn((stale_pos, ChunkGenerating))
+            .id();
+
+        let stale_col = ChunkColumnPos::new(stale_pos.x, stale_pos.z);
+        let key = ColumnKey::new(0, stale_col);
+        let pending = PendingColumn::new(vec![(stale_section, stale_pos.y)]);
+        {
+            let mut scheduler = app.world_mut().resource_mut::<ChunkColumnScheduler>();
+            scheduler.pending.insert(key, pending);
+            scheduler.priority_index.insert(stale_col, key);
+        }
+
+        app.update();
+
+        assert!(
+            app.world().get::<ChunkUnloading>(stale_section).is_some(),
+            "stale section without LightTicket gets ChunkUnloading"
+        );
+        assert!(
+            app.world().get::<ChunkGenerating>(stale_section).is_none(),
+            "ChunkGenerating removed alongside the unload"
+        );
     }
 }
