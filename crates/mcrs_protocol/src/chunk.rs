@@ -1,4 +1,4 @@
-use crate::{FixedArray, VarInt, VarLong};
+use crate::{VarInt, VarLong};
 use bitfield_struct::bitfield;
 use mcrs_nbt::compound::NbtCompound;
 use mcrs_protocol_macros::{Decode, Encode};
@@ -30,8 +30,8 @@ pub struct LightData<'a> {
     pub block_light_mask: Cow<'a, [u64]>,
     pub empty_sky_light_mask: Cow<'a, [u64]>,
     pub empty_block_light_mask: Cow<'a, [u64]>,
-    pub sky_light_arrays: Cow<'a, [FixedArray<u8, 2048>]>,
-    pub block_light_arrays: Cow<'a, [FixedArray<u8, 2048>]>,
+    pub sky_light_arrays: Cow<'a, [[u8; 2048]]>,
+    pub block_light_arrays: Cow<'a, [[u8; 2048]]>,
 }
 
 impl<'a> Default for LightData<'a> {
@@ -117,5 +117,54 @@ impl<V: Into<VarInt> + Copy> mcrs_protocol::Encode for PalettedContainer<V> {
                 .expect("Failed to encode packed data entry");
         });
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Encode;
+    use std::borrow::Cow;
+
+    #[test]
+    fn light_data_encodes_2048_raw_bytes_with_no_inner_prefix() {
+        let data = LightData {
+            sky_light_mask: Cow::Owned(vec![1u64]),
+            block_light_mask: Cow::Borrowed(&[]),
+            empty_sky_light_mask: Cow::Borrowed(&[]),
+            empty_block_light_mask: Cow::Borrowed(&[]),
+            sky_light_arrays: Cow::Owned(vec![[0xABu8; 2048]]),
+            block_light_arrays: Cow::Borrowed(&[]),
+        };
+        let mut buf = Vec::new();
+        data.encode(&mut buf).expect("encode LightData");
+
+        let needle = [0xABu8; 2048];
+        let pos = buf
+            .windows(2048)
+            .position(|w| w == needle)
+            .expect("2048 contiguous 0xAB bytes present in encoded LightData");
+
+        assert!(pos > 0, "no preceding bytes; encoding malformed");
+        let prefix_byte = buf[pos - 1];
+        assert_eq!(
+            prefix_byte, 0x01,
+            "outer Cow slice length-prefix expected to be VarInt(1) = 0x01, got 0x{:02X}; inner VarInt(2048) prefix would be 0x10 here",
+            prefix_byte
+        );
+        if pos >= 2 {
+            let prefix_byte_prev = buf[pos - 2];
+            assert_ne!(
+                prefix_byte_prev, 0x80,
+                "if 0x80 appears at pos-2 followed by 0x10 at pos-1, the inner array is incorrectly length-prefixed"
+            );
+        }
+
+        let exact_run_len = buf[pos..].iter().take_while(|&&b| b == 0xAB).count();
+        assert_eq!(
+            exact_run_len, 2048,
+            "expected exactly 2048 contiguous 0xAB bytes, got {}",
+            exact_run_len
+        );
     }
 }

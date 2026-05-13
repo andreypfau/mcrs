@@ -97,6 +97,14 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x2F, state=Game)]
+    pub struct ClientboundLightUpdate<'a> {
+        pub x: VarInt,
+        pub z: VarInt,
+        pub light_data: crate::chunk::LightData<'a>,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x30, state=Game)]
     pub struct ClientboundLogin<'a> {
         pub player_id: i32,
