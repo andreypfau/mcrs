@@ -16,10 +16,18 @@
 //! pass drains it.
 
 use bevy_ecs::prelude::{Commands, Entity, Query, Res, With};
+use mcrs_core::voxel_shape::Direction;
 use mcrs_minecraft::world::palette::BlockPalette;
 
-use crate::bfs::{propagate_decrease, propagate_increase};
-use crate::components::{BlockEgress, BlockLight, BlockLightWorkspace, LightDirty};
+use crate::bfs::{
+    propagate_decrease, propagate_decrease_sky, propagate_increase, propagate_increase_sky,
+    unpack_bfs_entry_level, unpack_bfs_entry_y,
+};
+use crate::components::{
+    BlockEgress, BlockLight, BlockLightWorkspace, IsAllAir, LightDirty, SkyEgress, SkyLight,
+    SkyLightWorkspace, Wavefront,
+};
+use crate::storage::LightStorage;
 use crate::table::BlockLightTable;
 
 pub fn propagate_decrease_block_system(
@@ -55,6 +63,106 @@ pub fn propagate_increase_block_system(
 ) {
     for (entity, palette, mut light, mut workspace, mut egress) in sections.iter_mut() {
         propagate_increase(&table, palette, &mut light.0, &mut workspace, &mut egress);
+        if workspace.increase_queue.is_empty() && workspace.decrease_queue.is_empty() {
+            commands.entity(entity).remove::<LightDirty>();
+        }
+    }
+}
+
+pub fn propagate_decrease_sky_system(
+    table: Res<BlockLightTable>,
+    mut sections: Query<
+        (
+            &BlockPalette,
+            &mut SkyLight,
+            &mut SkyLightWorkspace,
+            &mut SkyEgress,
+        ),
+        With<LightDirty>,
+    >,
+) {
+    for (palette, mut light, mut workspace, mut egress) in sections.iter_mut() {
+        propagate_decrease_sky(&table, palette, &mut light.0, &mut workspace, &mut egress);
+    }
+}
+
+/// Five non-Up faces used by the column-walker fast path to dump 256 wavefronts
+/// per face onto `SkyEgress` (1280 entries total) when an `IsAllAir` section
+/// short-circuits the BFS.
+const COLUMN_WALKER_FACES: [Direction; 5] = [
+    Direction::Down,
+    Direction::North,
+    Direction::South,
+    Direction::West,
+    Direction::East,
+];
+
+/// Column-walker predicate: an all-air section whose only queued work is the
+/// 256 top-face level-15 seeds is advanced in O(1) by writing
+/// `LightStorage::Uniform(15)` and dumping wavefronts onto the five non-Up
+/// faces, instead of running the per-cell BFS.
+///
+/// All three conditions must hold:
+/// - `is_all_air` is true,
+/// - `workspace.decrease_queue` is empty,
+/// - every entry in `workspace.increase_queue` is at y=15 with level=15.
+fn try_column_walker_fast_path(is_all_air: bool, workspace: &SkyLightWorkspace) -> bool {
+    if !is_all_air {
+        return false;
+    }
+    if !workspace.decrease_queue.is_empty() {
+        return false;
+    }
+    if workspace.increase_queue.is_empty() {
+        return false;
+    }
+    workspace.increase_queue.iter().all(|&e| {
+        let y = (unpack_bfs_entry_y(e) as usize) & 0xF;
+        let lvl = unpack_bfs_entry_level(e);
+        y == 15 && lvl == 15
+    })
+}
+
+pub fn propagate_increase_sky_system(
+    table: Res<BlockLightTable>,
+    mut sections: Query<
+        (
+            Entity,
+            &BlockPalette,
+            &mut SkyLight,
+            &mut SkyLightWorkspace,
+            &mut SkyEgress,
+            Option<&IsAllAir>,
+        ),
+        With<LightDirty>,
+    >,
+    mut commands: Commands,
+) {
+    for (entity, palette, mut light, mut workspace, mut egress, is_all_air) in
+        sections.iter_mut()
+    {
+        if try_column_walker_fast_path(is_all_air.is_some(), &workspace) {
+            light.0 = LightStorage::Uniform(15);
+            // SmallVec inline capacity is 8; reserve up front so the 1280
+            // per-cell pushes below collapse to a single heap allocation
+            // instead of 7+ incremental reallocations.
+            egress.0.reserve(1280);
+            for face in COLUMN_WALKER_FACES {
+                let face_idx = face.index() as u8;
+                for cz in 0..16u8 {
+                    for cx in 0..16u8 {
+                        egress.0.push(Wavefront::new(face_idx, cx, cz, 15));
+                    }
+                }
+            }
+            workspace.increase_queue.clear();
+            if workspace.decrease_queue.is_empty() {
+                commands.entity(entity).remove::<LightDirty>();
+            }
+            continue;
+        }
+
+        propagate_increase_sky(&table, palette, &mut light.0, &mut workspace, &mut egress);
         if workspace.increase_queue.is_empty() && workspace.decrease_queue.is_empty() {
             commands.entity(entity).remove::<LightDirty>();
         }
@@ -409,6 +517,197 @@ mod tests {
         assert!(
             app.world().get::<LightDirty>(dirty).is_none(),
             "dirty section's LightDirty cleared"
+        );
+    }
+
+    // -------- sky propagate system tests --------
+
+    use crate::components::{IsAllAir, SkyEgress, SkyLight, SkyLightWorkspace};
+
+    fn build_app_with_sky_increase() -> App {
+        let mut app = App::new();
+        app.insert_resource(make_test_table());
+        app.add_systems(Update, propagate_increase_sky_system);
+        app
+    }
+
+    fn spawn_sky_section_all_air_with_top_seeds(app: &mut App) -> Entity {
+        let entity = app
+            .world_mut()
+            .spawn((
+                air_palette(),
+                SkyLight(LightStorage::default()),
+                SkyLightWorkspace::default(),
+                SkyEgress::default(),
+                IsAllAir,
+                LightDirty,
+            ))
+            .id();
+
+        // Push 256 top-face level-15 seeds (one per (x, z) at y=15).
+        let mut ws = app
+            .world_mut()
+            .get_mut::<SkyLightWorkspace>(entity)
+            .expect("SkyLightWorkspace");
+        for z in 0..16u8 {
+            for x in 0..16u8 {
+                ws.increase_queue.push(pack_bfs_entry(
+                    x,
+                    z,
+                    15,
+                    15,
+                    ALL_DIRECTIONS_BITSET,
+                    crate::bfs::FLAG_WRITE_LEVEL,
+                ));
+            }
+        }
+        entity
+    }
+
+    fn spawn_sky_section_partial_air_with_top_seeds(app: &mut App) -> Entity {
+        // Same as the all-air spawner but WITHOUT the IsAllAir marker — the
+        // column-walker prelude must NOT fire.
+        let entity = app
+            .world_mut()
+            .spawn((
+                air_palette(),
+                SkyLight(LightStorage::default()),
+                SkyLightWorkspace::default(),
+                SkyEgress::default(),
+                LightDirty,
+            ))
+            .id();
+
+        let mut ws = app
+            .world_mut()
+            .get_mut::<SkyLightWorkspace>(entity)
+            .expect("SkyLightWorkspace");
+        for z in 0..16u8 {
+            for x in 0..16u8 {
+                ws.increase_queue.push(pack_bfs_entry(
+                    x,
+                    z,
+                    15,
+                    15,
+                    ALL_DIRECTIONS_BITSET,
+                    crate::bfs::FLAG_WRITE_LEVEL,
+                ));
+            }
+        }
+        entity
+    }
+
+    #[test]
+    fn propagate_sky_column_walker_collapses_all_air() {
+        let mut app = build_app_with_sky_increase();
+        let entity = spawn_sky_section_all_air_with_top_seeds(&mut app);
+
+        app.update();
+
+        let light = app
+            .world()
+            .get::<SkyLight>(entity)
+            .expect("SkyLight");
+        assert!(
+            matches!(light.0, LightStorage::Uniform(15)),
+            "column-walker must collapse the all-air section to Uniform(15); got {:?}",
+            light.0
+        );
+        let ws = app
+            .world()
+            .get::<SkyLightWorkspace>(entity)
+            .expect("SkyLightWorkspace");
+        assert!(
+            ws.increase_queue.is_empty(),
+            "column-walker must clear the increase_queue"
+        );
+    }
+
+    #[test]
+    fn propagate_sky_column_walker_pushes_1280_wavefronts() {
+        let mut app = build_app_with_sky_increase();
+        let entity = spawn_sky_section_all_air_with_top_seeds(&mut app);
+
+        app.update();
+
+        let egress = app
+            .world()
+            .get::<SkyEgress>(entity)
+            .expect("SkyEgress");
+        assert_eq!(
+            egress.0.len(),
+            1280,
+            "column-walker must push 1280 wavefronts (5 non-Up faces x 256 cells)"
+        );
+
+        // Decode the first entry: face index must be one of the five non-Up
+        // faces (Down=0, North=2, South=3, West=4, East=5), level must be 15.
+        let first = egress.0[0];
+        assert!(
+            matches!(first.face(), 0 | 2 | 3 | 4 | 5),
+            "wavefront face must be one of the five non-Up faces; got {}",
+            first.face()
+        );
+        assert_eq!(first.level(), 15, "wavefront level must be 15");
+    }
+
+    #[test]
+    fn propagate_sky_column_walker_skips_partial_air() {
+        let mut app = build_app_with_sky_increase();
+        let entity = spawn_sky_section_partial_air_with_top_seeds(&mut app);
+
+        app.update();
+
+        // The column-walker prelude excludes the Up face from its 1280-entry
+        // dump (`COLUMN_WALKER_FACES` is the five non-Up faces only). The BFS
+        // path, by contrast, re-evaluates every direction from each seed and
+        // pushes Up-face wavefronts as the y=15 seeds step off the top of the
+        // section. Presence of any Up-face (index 1) wavefront proves the BFS
+        // ran instead of the fast path.
+        let egress = app
+            .world()
+            .get::<SkyEgress>(entity)
+            .expect("SkyEgress");
+        let up_face_count = egress.0.iter().filter(|w| w.face() == 1).count();
+        assert!(
+            up_face_count > 0,
+            "BFS path must push Up-face wavefronts; column-walker fast path excludes Up. egress.len()={}, up_face_count={}",
+            egress.0.len(),
+            up_face_count
+        );
+        assert_ne!(
+            egress.0.len(),
+            1280,
+            "BFS path produces a different wavefront count than the column-walker's exact 1280"
+        );
+    }
+
+    #[test]
+    fn propagate_sky_skyless_dim_iterates_nothing() {
+        // Skyless-dim section: BlockPalette + BlockLight + BlockLightWorkspace
+        // only, no SkyLight components. The Query<&mut SkyLight, ...> in the
+        // increase system filters this section out by archetype mismatch.
+        let mut app = build_app_with_sky_increase();
+        let section = app
+            .world_mut()
+            .spawn((
+                air_palette(),
+                BlockLight(zero_light_storage()),
+                BlockLightWorkspace::default(),
+                BlockEgress::default(),
+                LightDirty,
+            ))
+            .id();
+
+        app.update();
+
+        assert!(
+            app.world().entity(section).get::<SkyLight>().is_none(),
+            "skyless-dim section must never gain SkyLight from the sky propagate systems"
+        );
+        assert!(
+            app.world().entity(section).get::<SkyEgress>().is_none(),
+            "skyless-dim section must never gain SkyEgress from the sky propagate systems"
         );
     }
 }

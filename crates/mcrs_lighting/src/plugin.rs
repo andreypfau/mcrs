@@ -1,7 +1,13 @@
-use crate::enqueue::enqueue_block_light_on_block_placed;
+use crate::enqueue::{
+    enqueue_block_light_on_block_placed, enqueue_sky_light_initial,
+    enqueue_sky_light_on_block_placed,
+};
 use crate::heightmap_update::update_heightmaps_on_block_placed;
 use crate::lifecycle::{attach_lighting_state, prime_heightmaps_on_column_spawn};
-use crate::propagate::{propagate_decrease_block_system, propagate_increase_block_system};
+use crate::propagate::{
+    propagate_decrease_block_system, propagate_decrease_sky_system,
+    propagate_increase_block_system, propagate_increase_sky_system,
+};
 use crate::sets::LightingSet;
 use crate::table::build_block_light_table;
 use bevy_app::{App, FixedUpdate, Plugin};
@@ -75,11 +81,24 @@ impl Plugin for LightingPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                enqueue_block_light_on_block_placed.in_set(LightingSet::Enqueue),
+                (
+                    enqueue_block_light_on_block_placed,
+                    enqueue_sky_light_on_block_placed,
+                    enqueue_sky_light_initial,
+                )
+                    .in_set(LightingSet::Enqueue),
                 ApplyDeferred,
-                propagate_decrease_block_system.in_set(LightingSet::PropagateDecrease),
+                (
+                    propagate_decrease_block_system,
+                    propagate_decrease_sky_system,
+                )
+                    .in_set(LightingSet::PropagateDecrease),
                 ApplyDeferred,
-                propagate_increase_block_system.in_set(LightingSet::PropagateIncrease),
+                (
+                    propagate_increase_block_system,
+                    propagate_increase_sky_system,
+                )
+                    .in_set(LightingSet::PropagateIncrease),
             )
                 .chain(),
         );

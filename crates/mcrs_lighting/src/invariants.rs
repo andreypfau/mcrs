@@ -55,6 +55,30 @@ impl std::fmt::Display for InvariantViolation {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkyViolationKind {
+    TopRowFloor,
+    SupportFloor,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SkyInvariantViolation {
+    pub cell: BlockPos,
+    pub stored: u8,
+    pub max_support: u8,
+    pub kind: SkyViolationKind,
+}
+
+impl std::fmt::Display for SkyInvariantViolation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "SkyInvariantViolation {{ kind: {:?}, cell: {:?}, stored: {}, max_support: {} }}",
+            self.kind, self.cell, self.stored, self.max_support
+        )
+    }
+}
+
 const SECTION_DIM: i32 = 16;
 
 const DIRECTIONS: [Direction; 6] = [
@@ -173,6 +197,70 @@ pub fn check_block_light_invariants(
                         emitted,
                         max_support: max_inward_support,
                         kind: ViolationKind::SourceExcess,
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Per-cell sky-light invariant checker for a single `ChunkSection`.
+///
+/// Differs from the block-light variant in two ways:
+/// - Drops the per-cell emission floor (`SourceFloor`) and the source-excess
+///   check, because sky-light has no per-cell emitters.
+/// - Adds a top-row floor check: when the section is the topmost of a
+///   sky-having column, every y=15 air cell (`PROPAGATES_SKYLIGHT_DOWN`)
+///   must store the sky maximum (15).
+///
+/// The `is_topmost_in_skyhaving_column` flag is passed by the caller rather
+/// than derived from ECS state so the checker stays a pure function reachable
+/// from both unit tests and a debug-only verification system.
+pub fn check_sky_light_invariants(
+    table: &BlockLightTable,
+    palette: &BlockPalette,
+    light: &LightStorage,
+    is_topmost_in_skyhaving_column: bool,
+) -> Result<(), SkyInvariantViolation> {
+    for y in 0..SECTION_DIM {
+        for z in 0..SECTION_DIM {
+            for x in 0..SECTION_DIM {
+                let state = palette.get(BlockPos::new(x, y, z));
+                let stored = light.get(x as usize, y as usize, z as usize);
+                let cell = BlockPos::new(x, y, z);
+
+                if y == 15
+                    && is_topmost_in_skyhaving_column
+                    && (table.flags_for(state) & flag_bits::PROPAGATES_SKYLIGHT_DOWN) != 0
+                    && stored != 15
+                {
+                    return Err(SkyInvariantViolation {
+                        cell,
+                        stored,
+                        max_support: 15,
+                        kind: SkyViolationKind::TopRowFloor,
+                    });
+                }
+
+                let mut max_inward_support: u8 = 0;
+                for d in DIRECTIONS {
+                    if let Some(contribution) =
+                        neighbour_contribution(d, x, y, z, state, table, palette, light)
+                    {
+                        if contribution > max_inward_support {
+                            max_inward_support = contribution;
+                        }
+                    }
+                }
+
+                if stored < max_inward_support {
+                    return Err(SkyInvariantViolation {
+                        cell,
+                        stored,
+                        max_support: max_inward_support,
+                        kind: SkyViolationKind::SupportFloor,
                     });
                 }
             }
@@ -328,5 +416,49 @@ mod tests {
             check_block_light_invariants(&table, &palette, &light).is_ok(),
             "expected Ok(()) for the L1-attenuated field from a (0,0,0) torch"
         );
+    }
+
+    #[test]
+    fn sky_invariants_pass_on_all_air_topmost() {
+        // All-air section, topmost in a sky-having column, every cell at
+        // level 15. The TopRowFloor check at y=15 holds because every cell
+        // stores 15. The SupportFloor check holds because every neighbour
+        // contributes saturating_sub(max(1, dampening=0)=1) = 14, which is
+        // less than the stored 15.
+        let table = make_test_table();
+        let palette = make_palette(&[]);
+        let light = LightStorage::Uniform(15);
+        let result = check_sky_light_invariants(&table, &palette, &light, /* is_topmost */ true);
+        assert!(
+            result.is_ok(),
+            "expected Ok(()) for all-air topmost section at uniform 15; got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn sky_invariants_fail_top_row_floor_below_15() {
+        // All-air topmost section, but the top-row cell (8, 15, 8) stores 7
+        // instead of 15. TopRowFloor must fire on that cell.
+        let table = make_test_table();
+        let palette = make_palette(&[]);
+        let mut light = air_storage();
+        // Seed every cell to 15 first so the SupportFloor invariant does not
+        // fire on a different cell before iteration reaches (8, 15, 8).
+        for y in 0..16usize {
+            for z in 0..16usize {
+                for x in 0..16usize {
+                    light.set(x, y, z, 15);
+                }
+            }
+        }
+        light.set(8, 15, 8, 7);
+
+        let err = check_sky_light_invariants(&table, &palette, &light, /* is_topmost */ true)
+            .expect_err("expected TopRowFloor violation");
+        assert_eq!(err.kind, SkyViolationKind::TopRowFloor);
+        assert_eq!(err.cell.y, 15);
+        assert_eq!(err.stored, 7);
+        assert_eq!(err.max_support, 15);
     }
 }
