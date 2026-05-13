@@ -23,6 +23,7 @@ pub mod plugin;
 pub mod converge;
 pub mod distribute;
 pub mod emit_dirty;
+pub mod codec;
 pub mod telemetry;
 
 pub use plugin::LightingPlugin;
