@@ -349,6 +349,16 @@ pub fn propagate_increase(
                 continue;
             }
         } else if entry_flags & FLAG_WRITE_LEVEL != 0 {
+            // Ingress and seed entries use WRITE_LEVEL to establish the
+            // cell's level. The max-guard prevents a reflection from a
+            // brighter source from overwriting a stronger pre-existing
+            // value: each cross-section round trip loses one Manhattan
+            // step, and an unconditional overwrite at the source face
+            // would monotonically drain the source.
+            let current = light.get(x as usize, y_local, z as usize);
+            if propagated_level <= current {
+                continue;
+            }
             light.set(x as usize, y_local, z as usize, propagated_level);
         }
 
@@ -584,6 +594,16 @@ pub fn propagate_increase_sky(
                 continue;
             }
         } else if entry_flags & FLAG_WRITE_LEVEL != 0 {
+            // Ingress and seed entries use WRITE_LEVEL to establish the
+            // cell's level. The max-guard prevents a reflection from a
+            // brighter source from overwriting a stronger pre-existing
+            // value: each cross-section round trip loses one Manhattan
+            // step, and an unconditional overwrite at the source face
+            // would monotonically drain the source.
+            let current = light.get(x as usize, y_local, z as usize);
+            if propagated_level <= current {
+                continue;
+            }
             light.set(x as usize, y_local, z as usize, propagated_level);
         }
 

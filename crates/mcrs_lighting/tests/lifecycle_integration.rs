@@ -160,9 +160,14 @@ fn single_section_in_sky_dim_attaches_all_components() {
         world.get::<SkyLightWorkspace>(section).is_some(),
         "SkyLightWorkspace missing"
     );
+    // ChunkNeedsInitialLight is inserted by attach_lighting_state and consumed
+    // by seed_initial_light within the same FixedUpdate tick under the
+    // CROSS-08 chain. After one tick the marker must be gone (it would only
+    // remain if seed_initial_light failed to run, which would break
+    // single-tick convergence).
     assert!(
-        world.get::<ChunkNeedsInitialLight>(section).is_some(),
-        "ChunkNeedsInitialLight missing"
+        world.get::<ChunkNeedsInitialLight>(section).is_none(),
+        "ChunkNeedsInitialLight must be consumed by seed_initial_light within the tick"
     );
     assert!(
         world.get::<IsAllAir>(section).is_some(),
@@ -295,9 +300,13 @@ fn single_section_in_skyless_dim_has_no_sky_components() {
         world.get::<SkyLightWorkspace>(section).is_none(),
         "SkyLightWorkspace leaked"
     );
+    // The marker is inserted by attach_lighting_state and consumed by
+    // seed_initial_light within the same tick (skyless dims still receive
+    // the marker for their emitter-scan path); after one tick it must be
+    // gone.
     assert!(
-        world.get::<ChunkNeedsInitialLight>(section).is_some(),
-        "Skyless dimensions still need the initial-light seed for emitters"
+        world.get::<ChunkNeedsInitialLight>(section).is_none(),
+        "ChunkNeedsInitialLight must be consumed by seed_initial_light within the tick"
     );
 }
 
