@@ -147,10 +147,18 @@ pub fn propagate_increase_sky_system(
             // per-cell pushes below collapse to a single heap allocation
             // instead of 7+ incremental reallocations.
             egress.0.reserve(1280);
+            // Per-face (cell_x, cell_z) pairing follows the project_face_cell
+            // axis contract: Y-normal faces drop y, Z-normal faces drop z and
+            // pack (x, y), X-normal faces drop x and pack (y, z).
             for face in COLUMN_WALKER_FACES {
                 let face_idx = face.index() as u8;
-                for cz in 0..16u8 {
-                    for cx in 0..16u8 {
+                for a in 0..16u8 {
+                    for b in 0..16u8 {
+                        let (cx, cz) = match face {
+                            Direction::Down | Direction::Up => (b, a),
+                            Direction::North | Direction::South => (b, a),
+                            Direction::West | Direction::East => (a, b),
+                        };
                         egress.0.push(Wavefront::new(face_idx, cx, cz, 15));
                     }
                 }
@@ -649,6 +657,48 @@ mod tests {
             first.face()
         );
         assert_eq!(first.level(), 15, "wavefront level must be 15");
+    }
+
+    /// Asserts the column-walker fast path emits West-face wavefronts whose
+    /// `(cell_x, cell_z)` pairs decode consistently with the `project_face_cell`
+    /// axis contract. The defective code pushes `(cz=outer, cx=inner)` for all
+    /// faces, so the first 16 West entries would be `(0,0),(1,0),...,(15,0)`.
+    /// The correct West/East emission is `(cx=outer, cz=inner)`, so the first
+    /// 16 entries are `(0,0),(0,1),...,(0,15)`. Ordered equality on West is the
+    /// cleanest gate because Down/North/South share the `(b,a)` pairing with
+    /// the bug and would not discriminate.
+    #[test]
+    fn propagate_sky_column_walker_face_coordinates() {
+        let mut app = build_app_with_sky_increase();
+        let entity = spawn_sky_section_all_air_with_top_seeds(&mut app);
+
+        app.update();
+
+        let egress = app
+            .world()
+            .get::<SkyEgress>(entity)
+            .expect("SkyEgress");
+        assert_eq!(egress.0.len(), 1280, "column-walker must push 1280 wavefronts");
+
+        let west_face = Direction::West.index() as u8;
+        let actual: Vec<(u8, u8)> = egress
+            .0
+            .iter()
+            .filter(|w| w.face() == west_face)
+            .map(|w| (w.cell_x(), w.cell_z()))
+            .collect();
+        assert_eq!(actual.len(), 256, "expected 256 West-face wavefronts");
+
+        let mut expected: Vec<(u8, u8)> = Vec::with_capacity(256);
+        for a in 0..16u8 {
+            for b in 0..16u8 {
+                expected.push((a, b));
+            }
+        }
+        assert_eq!(
+            actual, expected,
+            "West-face cells must follow (cell_x=a, cell_z=b) where a is outer and b is inner"
+        );
     }
 
     #[test]
