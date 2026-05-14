@@ -1,7 +1,8 @@
-//! Intra-section subset of `LightingSet`. Later work extends this enum with
-//! convergence-loop, emit-dirty, and codec variants chained in
-//! `FixedPostUpdate`. The intra-section variants are deliberately not
-//! pre-declared alongside the convergence variants to avoid dead-code lints.
+//! `LightingSet` covers the per-tick lighting pipeline. `Enqueue` /
+//! `Converge` / `EmitDirty` run in `FixedUpdate`; `Codec` runs strictly after
+//! them in `FixedPostUpdate` so the wire codec reads the converged storage
+//! without racing the propagate systems' `&mut BlockLight` / `&mut SkyLight`
+//! writes.
 
 use bevy_ecs::schedule::SystemSet;
 
@@ -20,6 +21,7 @@ pub enum LightingSet {
     PropagateIncrease,
     Converge,
     EmitDirty,
+    Codec,
 }
 
 #[cfg(test)]
@@ -33,5 +35,6 @@ mod tests {
         let _ = LightingSet::PropagateIncrease;
         let _ = LightingSet::Converge;
         let _ = LightingSet::EmitDirty;
+        let _ = LightingSet::Codec;
     }
 }

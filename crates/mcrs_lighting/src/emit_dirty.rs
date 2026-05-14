@@ -19,9 +19,14 @@
 //!    once everything is empty, the ticket can be dropped and the chunk
 //!    unload path becomes free to evict the section if it goes stale.
 
+use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Commands, Entity, Query, With, Without};
+use mcrs_engine::world::column::{
+    ChunkColumnPosComponent, InChunkColumn, SectionIndex, SectionLookup,
+};
 use mcrs_engine::world::lighting::LightTicket;
 
+use crate::codec::{BlockLightDirty, SkyLightDirty};
 use crate::components::{
     BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, LightDirty, SkyEgress,
     SkyIncoming, SkyLight, SkyLightWorkspace,
@@ -123,6 +128,68 @@ pub fn clear_light_tickets(
         {
             commands.entity(entity).remove::<LightTicket>();
         }
+    }
+}
+
+#[inline]
+fn chunk_y_for_section(index: &SectionIndex, target: Entity) -> Option<i32> {
+    let min_y = index.min_section_y;
+    index.iter_wire().enumerate().find_map(|(idx, lookup)| {
+        if let SectionLookup::Loaded(e) = lookup {
+            if e == target {
+                return Some(min_y + idx as i32 - 1);
+            }
+        }
+        None
+    })
+}
+
+// Producer half of the lighting codec wire. The per-iteration BFS inserts
+// `LightDirty` whenever a section's block- or sky-light storage is touched;
+// v1 dirty signaling is per-section, not per-layer, so both producer systems
+// may fan out a message for a single-layer change. The downstream codec
+// dedups by section and consults the actual `LightStorage` before setting any
+// wire-mask bit, so an over-fanned-out message is a negligible NULL pass at
+// the consumer. Per-layer-precise dirty markers (e.g. sparse
+// `BlockLightTouchedThisTick` / `SkyLightTouchedThisTick`) are a follow-up if
+// profiling shows the dedup work is hot.
+pub fn emit_block_light_dirty(
+    sections: Query<(Entity, &InChunkColumn), (With<LightDirty>, With<BlockLight>)>,
+    columns: Query<(&ChunkColumnPosComponent, &SectionIndex)>,
+    mut writer: MessageWriter<BlockLightDirty>,
+) {
+    for (section, in_column) in sections.iter() {
+        let Ok((column_pos, section_index)) = columns.get(in_column.0) else {
+            continue;
+        };
+        let Some(chunk_y) = chunk_y_for_section(section_index, section) else {
+            continue;
+        };
+        writer.write(BlockLightDirty {
+            section,
+            column_pos: column_pos.0,
+            chunk_y,
+        });
+    }
+}
+
+pub fn emit_sky_light_dirty(
+    sections: Query<(Entity, &InChunkColumn), (With<LightDirty>, With<SkyLight>)>,
+    columns: Query<(&ChunkColumnPosComponent, &SectionIndex)>,
+    mut writer: MessageWriter<SkyLightDirty>,
+) {
+    for (section, in_column) in sections.iter() {
+        let Ok((column_pos, section_index)) = columns.get(in_column.0) else {
+            continue;
+        };
+        let Some(chunk_y) = chunk_y_for_section(section_index, section) else {
+            continue;
+        };
+        writer.write(SkyLightDirty {
+            section,
+            column_pos: column_pos.0,
+            chunk_y,
+        });
     }
 }
 

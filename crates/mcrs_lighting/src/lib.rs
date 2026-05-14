@@ -26,6 +26,7 @@ pub mod emit_dirty;
 pub mod codec;
 pub mod telemetry;
 
+pub use codec::{BlockLightDirty, ColumnLightUpdate, SkyLightDirty};
 pub use plugin::LightingPlugin;
 pub use sets::LightingSet;
 

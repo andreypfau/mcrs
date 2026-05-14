@@ -19,11 +19,15 @@
 //! The `'static` lifetime on the returned `LightData` is required because
 //! downstream `Message<T>` types must be `Send + Sync + 'static`.
 
+use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Entity, Query, With};
-use bevy_ecs::system::SystemParam;
-use mcrs_engine::world::column::{SectionIndex, SectionLookup};
+use bevy_ecs::system::{Local, SystemParam};
+use mcrs_engine::world::column::{
+    ChunkColumnPos, ChunkColumnPosComponent, InChunkColumn, SectionIndex, SectionLookup,
+};
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_protocol::chunk::LightData;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;
 
 use crate::components::{BlockLight, SkyLight};
@@ -196,6 +200,184 @@ pub fn build_full_light_data(
         sky_light_arrays: Cow::Owned(sky_arrays),
         block_light_arrays: Cow::Owned(block_arrays),
     }
+}
+
+/// Per-section block-light dirty signal emitted by the propagation engine and
+/// consumed by the codec. Disjoint from `SkyLightDirty` so the block- and sky-
+/// engines can write to independent `MessageWriter`s without contention.
+#[derive(Message)]
+pub struct BlockLightDirty {
+    pub section: Entity,
+    pub column_pos: ChunkColumnPos,
+    pub chunk_y: i32,
+}
+
+/// Per-section sky-light dirty signal. Mirror of `BlockLightDirty` for the
+/// sky-light engine; emitted on a disjoint `MessageWriter<SkyLightDirty>`.
+#[derive(Message)]
+pub struct SkyLightDirty {
+    pub section: Entity,
+    pub column_pos: ChunkColumnPos,
+    pub chunk_y: i32,
+}
+
+/// Per-column delta packet emitted by `emit_column_light_updates`. Carries
+/// only the sections that were dirty this tick; sections that did not change
+/// have both mask bits clear so the client retains its prior state.
+#[derive(Message)]
+pub struct ColumnLightUpdate {
+    pub dim: Entity,
+    pub column: Entity,
+    pub column_pos: ChunkColumnPos,
+    pub light_data: LightData<'static>,
+}
+
+pub struct ColumnDirtyAccumulator {
+    dim: Entity,
+    column_pos: ChunkColumnPos,
+    dirty_block: FxHashSet<i32>,
+    dirty_sky: FxHashSet<i32>,
+}
+
+impl ColumnDirtyAccumulator {
+    fn new(dim: Entity, column_pos: ChunkColumnPos) -> Self {
+        Self {
+            dim,
+            column_pos,
+            dirty_block: FxHashSet::default(),
+            dirty_sky: FxHashSet::default(),
+        }
+    }
+}
+
+/// Aggregates per-section `BlockLightDirty` / `SkyLightDirty` Messages into
+/// one delta `ColumnLightUpdate` Message per column per tick. Runs in
+/// `LightingSet::Codec` (FixedPostUpdate) so the source `&BlockLight` /
+/// `&SkyLight` reads cannot race the FixedUpdate propagate `&mut` writes.
+///
+/// Delta semantics: only sections present in this tick's accumulator get a
+/// mask bit set; untouched sections leave both the populated and empty masks
+/// clear so the vanilla client preserves the values it already cached.
+pub fn emit_column_light_updates(
+    mut block_dirty: MessageReader<BlockLightDirty>,
+    mut sky_dirty: MessageReader<SkyLightDirty>,
+    in_chunk_columns: Query<&InChunkColumn>,
+    column_positions: Query<&ChunkColumnPosComponent>,
+    in_dimensions: Query<&InDimension>,
+    codec_params: LightCodecParams,
+    mut dirty_accum: Local<FxHashMap<Entity, ColumnDirtyAccumulator>>,
+    mut writer: MessageWriter<ColumnLightUpdate>,
+) {
+    for msg in block_dirty.read() {
+        let Ok(in_column) = in_chunk_columns.get(msg.section) else {
+            continue;
+        };
+        let column = in_column.0;
+        let Ok(in_dim) = in_dimensions.get(column) else {
+            continue;
+        };
+        let entry = dirty_accum
+            .entry(column)
+            .or_insert_with(|| ColumnDirtyAccumulator::new(in_dim.0, msg.column_pos));
+        entry.dirty_block.insert(msg.chunk_y);
+    }
+
+    for msg in sky_dirty.read() {
+        let Ok(in_column) = in_chunk_columns.get(msg.section) else {
+            continue;
+        };
+        let column = in_column.0;
+        let Ok(in_dim) = in_dimensions.get(column) else {
+            continue;
+        };
+        let entry = dirty_accum
+            .entry(column)
+            .or_insert_with(|| ColumnDirtyAccumulator::new(in_dim.0, msg.column_pos));
+        entry.dirty_sky.insert(msg.chunk_y);
+    }
+
+    for (column_entity, accumulator) in dirty_accum.iter() {
+        let Ok(section_index) = codec_params.section_indexes.get(*column_entity) else {
+            continue;
+        };
+        let column_pos = column_positions
+            .get(*column_entity)
+            .map(|c| c.0)
+            .unwrap_or(accumulator.column_pos);
+        let has_sky_light = codec_params.has_sky_lights.get(accumulator.dim).is_ok();
+
+        let mut sky_mask: Vec<u64> = Vec::new();
+        let mut block_mask: Vec<u64> = Vec::new();
+        let mut empty_sky_mask: Vec<u64> = Vec::new();
+        let mut empty_block_mask: Vec<u64> = Vec::new();
+        let mut sky_arrays: Vec<[u8; 2048]> = Vec::new();
+        let mut block_arrays: Vec<[u8; 2048]> = Vec::new();
+
+        let min_section_y = section_index.min_section_y;
+
+        for (bit_idx, lookup) in section_index.iter_wire().enumerate() {
+            let chunk_y = min_section_y + (bit_idx as i32) - 1;
+            let block_is_dirty = accumulator.dirty_block.contains(&chunk_y);
+            let sky_is_dirty = accumulator.dirty_sky.contains(&chunk_y);
+
+            if block_is_dirty {
+                let section_entity = match lookup {
+                    SectionLookup::Loaded(e) => Some(e),
+                    _ => None,
+                };
+                let block_storage = section_entity
+                    .and_then(|e| codec_params.block_lights.get(e).ok())
+                    .map(|bl| &bl.0);
+                pack_section(
+                    lookup,
+                    block_storage,
+                    Layer::Block,
+                    has_sky_light,
+                    bit_idx,
+                    &mut block_mask,
+                    &mut empty_block_mask,
+                    &mut block_arrays,
+                );
+            }
+            if sky_is_dirty {
+                let section_entity = match lookup {
+                    SectionLookup::Loaded(e) => Some(e),
+                    _ => None,
+                };
+                let sky_storage = section_entity
+                    .and_then(|e| codec_params.sky_lights.get(e).ok())
+                    .map(|sl| &sl.0);
+                pack_section(
+                    lookup,
+                    sky_storage,
+                    Layer::Sky,
+                    has_sky_light,
+                    bit_idx,
+                    &mut sky_mask,
+                    &mut empty_sky_mask,
+                    &mut sky_arrays,
+                );
+            }
+        }
+
+        let light_data = LightData {
+            sky_light_mask: Cow::Owned(sky_mask),
+            block_light_mask: Cow::Owned(block_mask),
+            empty_sky_light_mask: Cow::Owned(empty_sky_mask),
+            empty_block_light_mask: Cow::Owned(empty_block_mask),
+            sky_light_arrays: Cow::Owned(sky_arrays),
+            block_light_arrays: Cow::Owned(block_arrays),
+        };
+
+        writer.write(ColumnLightUpdate {
+            dim: accumulator.dim,
+            column: *column_entity,
+            column_pos,
+            light_data,
+        });
+    }
+
+    dirty_accum.clear();
 }
 
 #[cfg(test)]

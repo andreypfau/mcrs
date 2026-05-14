@@ -1,9 +1,13 @@
+use crate::codec::{
+    emit_column_light_updates, BlockLightDirty, ColumnLightUpdate, SkyLightDirty,
+};
 use crate::converge::{
     light_converge_driver, set_tick_start, LightConvergeSchedule, LightConvergeSet, TickStart,
 };
 use crate::distribute::{distribute_decrease, distribute_increase};
 use crate::emit_dirty::{
     clear_light_dirty_safety_net, clear_light_tickets, downgrade_light_storage,
+    emit_block_light_dirty, emit_sky_light_dirty,
 };
 use crate::enqueue::{
     consume_needs_full_reseed, enqueue_block_light_on_block_placed, enqueue_sky_light_initial,
@@ -17,7 +21,7 @@ use crate::propagate::{
 };
 use crate::sets::LightingSet;
 use crate::table::build_block_light_table;
-use bevy_app::{App, FixedUpdate, Plugin};
+use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{ApplyDeferred, IntoScheduleConfigs};
 use bevy_ecs::schedule::{ExecutorKind, Schedule};
 use bevy_state::prelude::OnEnter;
@@ -44,6 +48,7 @@ impl Plugin for LightingPlugin {
             app.add_message::<BlockPlaced>();
         }
 
+        app.init_resource::<crate::table::BlockLightTable>();
         app.add_systems(
             OnEnter(AppState::WorldgenFreeze),
             build_block_light_table
@@ -203,10 +208,22 @@ impl Plugin for LightingPlugin {
             FixedUpdate,
             (
                 downgrade_light_storage,
+                emit_block_light_dirty,
+                emit_sky_light_dirty,
                 clear_light_dirty_safety_net,
                 clear_light_tickets,
             )
+                .chain()
                 .in_set(LightingSet::EmitDirty),
+        );
+
+        app.add_message::<BlockLightDirty>();
+        app.add_message::<SkyLightDirty>();
+        app.add_message::<ColumnLightUpdate>();
+        app.configure_sets(FixedPostUpdate, LightingSet::Codec);
+        app.add_systems(
+            FixedPostUpdate,
+            emit_column_light_updates.in_set(LightingSet::Codec),
         );
     }
 }

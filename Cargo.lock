@@ -1779,6 +1779,7 @@ dependencies = [
  "mcrs_minecraft",
  "mcrs_protocol",
  "mcrs_vanilla",
+ "rustc-hash",
  "smallvec",
  "tracing",
  "tracing-subscriber",
