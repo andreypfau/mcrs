@@ -79,8 +79,7 @@ mcrs_registry = { path = "crates/mcrs_registry" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
 mcrs_random = { path = "crates/mcrs_random" }
-mcrs_lighting = { path = "crates/mcrs_lighting" }
-mcrs_light_codec = { path = "crates/mcrs_light_codec" }
+mcrs_minecraft_lighting = { path = "crates/mcrs_minecraft_lighting" }
 
 [dependencies]
 bevy_app.workspace = true
@@ -88,7 +87,6 @@ bevy_ecs.workspace = true
 bevy_log.workspace = true
 tokio = { version = "1", features = ["full"] }
 mcrs_minecraft.workspace = true
-mcrs_lighting.workspace = true
 
 [profile.dev]
 opt-level = 0

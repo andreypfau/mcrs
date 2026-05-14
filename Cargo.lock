@@ -1702,7 +1702,6 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_log",
- "mcrs_lighting",
  "mcrs_minecraft",
  "tokio",
 ]
@@ -1768,38 +1767,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_light_codec"
-version = "0.1.0"
-dependencies = [
- "bevy_app",
- "bevy_ecs",
- "mcrs_engine",
- "mcrs_protocol",
- "rustc-hash",
- "smallvec",
-]
-
-[[package]]
-name = "mcrs_lighting"
-version = "0.1.0"
-dependencies = [
- "bevy_app",
- "bevy_ecs",
- "bevy_state",
- "mcrs_core",
- "mcrs_engine",
- "mcrs_light_codec",
- "mcrs_minecraft",
- "mcrs_minecraft_block",
- "mcrs_protocol",
- "mcrs_vanilla",
- "rustc-hash",
- "smallvec",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "mcrs_minecraft"
 version = "0.1.0"
 dependencies = [
@@ -1823,8 +1790,8 @@ dependencies = [
  "indexmap",
  "mcrs_core",
  "mcrs_engine",
- "mcrs_light_codec",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_lighting",
  "mcrs_minecraft_worldgen",
  "mcrs_nbt",
  "mcrs_network",
@@ -1855,6 +1822,25 @@ dependencies = [
  "mcrs_protocol",
  "rustc-hash",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_lighting"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_state",
+ "mcrs_core",
+ "mcrs_engine",
+ "mcrs_minecraft",
+ "mcrs_minecraft_block",
+ "mcrs_protocol",
+ "mcrs_vanilla",
+ "rustc-hash",
+ "smallvec",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
