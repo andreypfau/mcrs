@@ -393,7 +393,12 @@ pub fn propagate_increase(
             let off_z_u = off_z as usize;
 
             let current_level = light.get(off_x_u, off_y_u, off_z_u);
-            if current_level >= propagated_level.saturating_sub(1) {
+            let cheap_out_threshold = if d == Direction::Down && propagated_level == 15 {
+                propagated_level
+            } else {
+                propagated_level.saturating_sub(1)
+            };
+            if current_level >= cheap_out_threshold {
                 continue;
             }
 
@@ -638,7 +643,12 @@ pub fn propagate_increase_sky(
             let off_z_u = off_z as usize;
 
             let current_level = light.get(off_x_u, off_y_u, off_z_u);
-            if current_level >= propagated_level.saturating_sub(1) {
+            let cheap_out_threshold = if d == Direction::Down && propagated_level == 15 {
+                propagated_level
+            } else {
+                propagated_level.saturating_sub(1)
+            };
+            if current_level >= cheap_out_threshold {
                 continue;
             }
 
@@ -1484,6 +1494,47 @@ mod tests {
                 light.get(8, y, 8),
                 15,
                 "expected vertical drop to keep level 15 at (8, {}, 8)",
+                y
+            );
+        }
+    }
+
+    #[test]
+    fn bfs_sky_increase_down_through_pre_attenuated_column() {
+        // Reproduces the chunk-border off-by-one regression: when a column
+        // already holds level 14 (because cross-chunk horizontal wavefronts at
+        // attenuated level 14 arrived first and wrote those cells), a
+        // subsequent Down propagation from a level-15 cell above must still
+        // upgrade the cells underneath to 15, not skip them. The PROPAGATES_
+        // SKYLIGHT_DOWN flag preserves level 15 unattenuated through air.
+        let table = build_sky_air_table();
+        let mut palette = BlockPalette::default();
+        palette.fill(BlockStateId(SYNTH_AIR_ID));
+
+        let mut light = zero_light_storage();
+        for y in 0..15usize {
+            light.set(15, y, 15, 14);
+        }
+
+        let mut workspace = SkyLightWorkspace::default();
+        let mut egress = SkyEgress::default();
+
+        workspace.increase_queue.push(pack_bfs_entry(
+            15,
+            15,
+            15,
+            15,
+            ALL_DIRECTIONS_BITSET,
+            FLAG_WRITE_LEVEL,
+        ));
+
+        propagate_increase_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+
+        for y in 0..16usize {
+            assert_eq!(
+                light.get(15, y, 15),
+                15,
+                "Down propagation must upgrade pre-attenuated cell at (15, {}, 15) from 14 to 15",
                 y
             );
         }
