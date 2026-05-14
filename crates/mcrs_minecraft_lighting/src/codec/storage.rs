@@ -23,7 +23,9 @@ impl LightStorage {
         match self {
             LightStorage::Null => {
                 if val != 0 {
-                    *self = LightStorage::Uniform(val);
+                    let mut arr = NibbleArray::zeros();
+                    arr.set(x, y, z, val);
+                    *self = LightStorage::Mixed(Box::new(arr));
                 }
             }
             LightStorage::Uniform(current) => {
@@ -83,10 +85,13 @@ mod tests {
     }
 
     #[test]
-    fn null_set_nonzero_becomes_uniform() {
+    fn null_set_nonzero_becomes_mixed_with_single_cell() {
         let mut s = LightStorage::Null;
-        s.set(0, 0, 0, 7);
-        assert!(matches!(s, LightStorage::Uniform(7)));
+        s.set(3, 7, 11, 9);
+        assert!(matches!(s, LightStorage::Mixed(_)));
+        assert_eq!(s.get(3, 7, 11), 9, "written cell holds the value");
+        assert_eq!(s.get(0, 0, 0), 0, "other cells remain zero");
+        assert_eq!(s.get(15, 15, 15), 0, "other cells remain zero");
     }
 
     #[test]
