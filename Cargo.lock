@@ -1768,6 +1768,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_light_codec"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "mcrs_engine",
+ "mcrs_protocol",
+ "rustc-hash",
+ "smallvec",
+]
+
+[[package]]
 name = "mcrs_lighting"
 version = "0.1.0"
 dependencies = [
@@ -1776,6 +1788,7 @@ dependencies = [
  "bevy_state",
  "mcrs_core",
  "mcrs_engine",
+ "mcrs_light_codec",
  "mcrs_minecraft",
  "mcrs_protocol",
  "mcrs_vanilla",
@@ -1809,6 +1822,7 @@ dependencies = [
  "indexmap",
  "mcrs_core",
  "mcrs_engine",
+ "mcrs_light_codec",
  "mcrs_minecraft_worldgen",
  "mcrs_nbt",
  "mcrs_network",

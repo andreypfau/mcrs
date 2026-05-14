@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::world::palette::{BiomePalette, BlockPalette};
-use bevy_app::{App, FixedUpdate, Plugin, PreUpdate};
+use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{
     Added, Changed, Component, ContainsEntity, Message, MessageReader, On, Query, With,
@@ -16,10 +16,16 @@ use mcrs_engine::entity::player::chunk_view::{
 use mcrs_engine::entity::player::reposition::{Reposition, RepositionConfig};
 use mcrs_engine::world::chunk::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkLoaded, ChunkPos};
+use mcrs_engine::world::column::{
+    ChunkColumnPos as EngineChunkColumnPos, ColumnIndex,
+};
 use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
+use mcrs_light_codec::codec::{build_full_light_data, ColumnLightUpdate, LightCodecParams};
+use mcrs_light_codec::sets::LightingSet;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::{
-    ClientboundChunkCacheRadius, ClientboundLevelChunkWithLight, ClientboundSetChunkCacheCenter,
+    ClientboundChunkCacheRadius, ClientboundLevelChunkWithLight, ClientboundLightUpdate,
+    ClientboundSetChunkCacheCenter,
 };
 use mcrs_protocol::{ChunkColumnPos, ChunkData, Encode, LightData, VarInt, WritePacket};
 use rustc_hash::FxHashSet;
@@ -46,6 +52,11 @@ impl Plugin for ColumnViewPlugin {
                 .chain(),
         );
 
+        app.add_systems(
+            FixedPostUpdate,
+            send_light_updates.after(LightingSet::Codec),
+        );
+
         // React to ChunkTrackingView changes (xz-distance changes, movement).
         app.add_observer(on_view_update);
 
@@ -61,13 +72,13 @@ impl Plugin for ColumnViewPlugin {
 }
 
 #[derive(Component, Default)]
-pub(crate) struct ColumnView {
+pub struct ColumnView {
     desired_columns: FxHashSet<ChunkColumnPos>,
     loaded_columns: FxHashSet<ChunkColumnPos>,
     load_queue: VecDeque<ChunkColumnPos>,
     loading_queue: VecDeque<ChunkColumnPos>,
     send_queue: VecDeque<(ChunkColumnPos, Vec<Entity>)>,
-    sent_columns: FxHashSet<ChunkColumnPos>,
+    pub sent_columns: FxHashSet<ChunkColumnPos>,
 }
 
 fn load_chunk_request(
@@ -187,12 +198,16 @@ fn send_column_queue(
         &mut ServerSideConnection,
         &mut ColumnView,
         &Reposition,
+        &InDimension,
     )>,
     chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
+    dim_column_indexes: Query<&ColumnIndex>,
+    codec_params: LightCodecParams,
 ) {
     players
         .iter_mut()
-        .for_each(|(mut con, mut chunk_view, rep)| {
+        .for_each(|(mut con, mut chunk_view, rep, in_dim)| {
+            let column_index = dim_column_indexes.get(in_dim.entity()).ok();
             let mut sends = 0usize;
 
             loop {
@@ -240,6 +255,15 @@ fn send_column_queue(
                     break;
                 }
 
+                let light_data = column_index
+                    .and_then(|idx| {
+                        idx.0
+                            .get(&EngineChunkColumnPos::new(column_pos.x, column_pos.z))
+                            .map(|slot| slot.entity)
+                    })
+                    .map(|column_entity| build_full_light_data(column_entity, &codec_params))
+                    .unwrap_or_default();
+
                 chunk_view.send_queue.pop_front();
                 chunk_view.sent_columns.insert(column_pos);
                 let pkt = ClientboundLevelChunkWithLight {
@@ -251,12 +275,36 @@ fn send_column_queue(
                         data: data.as_slice(),
                         ..Default::default()
                     },
-                    light_data: LightData::default(),
+                    light_data,
                 };
                 con.write_packet(&pkt);
                 sends += 1;
             }
         })
+}
+
+/// Bridges codec-emitted `ColumnLightUpdate` messages to per-player wire
+/// dispatch. The `ColumnView::sent_columns` set gates the ordering: a light
+/// update is only forwarded to a player after that player has already
+/// received the corresponding `ClientboundLevelChunkWithLight`.
+pub(crate) fn send_light_updates(
+    mut reader: MessageReader<ColumnLightUpdate>,
+    mut players: Query<(&ColumnView, &mut ServerSideConnection)>,
+) {
+    for msg in reader.read() {
+        let col_pos = ChunkColumnPos::new(msg.column_pos.x, msg.column_pos.z);
+        for (view, mut con) in players.iter_mut() {
+            if !view.sent_columns.contains(&col_pos) {
+                continue;
+            }
+            let pkt = ClientboundLightUpdate {
+                x: VarInt(col_pos.x),
+                z: VarInt(col_pos.z),
+                light_data: msg.light_data.clone(),
+            };
+            con.write_packet(&pkt);
+        }
+    }
 }
 
 #[derive(Debug, Message)]

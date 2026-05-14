@@ -26,7 +26,7 @@ use mcrs_engine::world::column::{
     ChunkColumnPos, ChunkColumnPosComponent, InChunkColumn, SectionIndex, SectionLookup,
 };
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
-use mcrs_protocol::chunk::LightData;
+use mcrs_protocol::chunk::{LightData, LightSection};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;
 
@@ -60,7 +60,7 @@ pub fn pack_section(
     bit_idx: usize,
     mask: &mut Vec<u64>,
     empty_mask: &mut Vec<u64>,
-    arrays: &mut Vec<[u8; 2048]>,
+    arrays: &mut Vec<LightSection>,
 ) {
     match section {
         SectionLookup::BottomPadding => {
@@ -70,7 +70,7 @@ pub fn pack_section(
             Layer::Sky => {
                 if has_sky_light {
                     set_bit(mask, bit_idx);
-                    arrays.push([0xFFu8; 2048]);
+                    arrays.push(LightSection([0xFFu8; 2048]));
                 } else {
                     set_bit(empty_mask, bit_idx);
                 }
@@ -91,11 +91,11 @@ pub fn pack_section(
                 Some(LightStorage::Uniform(n)) => {
                     set_bit(mask, bit_idx);
                     let packed = *n | (*n << 4);
-                    arrays.push([packed; 2048]);
+                    arrays.push(LightSection([packed; 2048]));
                 }
                 Some(LightStorage::Mixed(arr)) => {
                     set_bit(mask, bit_idx);
-                    arrays.push(*arr.0);
+                    arrays.push(LightSection(*arr.0));
                 }
             }
         }
@@ -155,8 +155,8 @@ pub fn build_full_light_data(
     let mut block_mask: Vec<u64> = Vec::new();
     let mut empty_sky_mask: Vec<u64> = Vec::new();
     let mut empty_block_mask: Vec<u64> = Vec::new();
-    let mut sky_arrays: Vec<[u8; 2048]> = Vec::new();
-    let mut block_arrays: Vec<[u8; 2048]> = Vec::new();
+    let mut sky_arrays: Vec<LightSection> = Vec::new();
+    let mut block_arrays: Vec<LightSection> = Vec::new();
 
     for (bit_idx, lookup) in section_index.iter_wire().enumerate() {
         let section_entity = match lookup {
@@ -310,8 +310,8 @@ pub fn emit_column_light_updates(
         let mut block_mask: Vec<u64> = Vec::new();
         let mut empty_sky_mask: Vec<u64> = Vec::new();
         let mut empty_block_mask: Vec<u64> = Vec::new();
-        let mut sky_arrays: Vec<[u8; 2048]> = Vec::new();
-        let mut block_arrays: Vec<[u8; 2048]> = Vec::new();
+        let mut sky_arrays: Vec<LightSection> = Vec::new();
+        let mut block_arrays: Vec<LightSection> = Vec::new();
 
         let min_section_y = section_index.min_section_y;
 
@@ -390,7 +390,7 @@ mod tests {
         Entity::from_raw_u32(index + 1).expect("valid entity index")
     }
 
-    fn fresh_buffers() -> (Vec<u64>, Vec<u64>, Vec<[u8; 2048]>) {
+    fn fresh_buffers() -> (Vec<u64>, Vec<u64>, Vec<LightSection>) {
         (Vec::new(), Vec::new(), Vec::new())
     }
 
@@ -699,8 +699,8 @@ mod tests {
         let mut sky_mask: Vec<u64> = Vec::new();
         let mut empty_block_mask: Vec<u64> = Vec::new();
         let mut empty_sky_mask: Vec<u64> = Vec::new();
-        let mut block_arrays: Vec<[u8; 2048]> = Vec::new();
-        let mut sky_arrays: Vec<[u8; 2048]> = Vec::new();
+        let mut block_arrays: Vec<LightSection> = Vec::new();
+        let mut sky_arrays: Vec<LightSection> = Vec::new();
 
         let has_sky_light = true;
 

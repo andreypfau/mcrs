@@ -8,7 +8,7 @@ use mcrs_minecraft::ServerPlugin;
 mod chunk_render_debug;
 
 const LOG_FILTER: &str =
-    "mcrs_minecraft=debug,mcrs_minecraft::world::entity::player::digging=trace";
+    "mcrs_minecraft=debug,mcrs_minecraft::world::entity::player::digging=trace,mcrs_minecraft::world::entity::player::column_view=trace,mcrs_engine::entity::player::chunk_view=trace,mcrs_engine::world::chunk=debug,mcrs_network=debug";
 
 #[tokio::main]
 async fn main() {

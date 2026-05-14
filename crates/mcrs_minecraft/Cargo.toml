@@ -7,6 +7,7 @@ edition.workspace = true
 [dependencies]
 bevy_ecs_macros.workspace = true
 mcrs_engine.workspace = true
+mcrs_light_codec.workspace = true
 mcrs_network.workspace = true
 mcrs_protocol.workspace = true
 mcrs_core.workspace = true

@@ -1,4 +1,5 @@
-use crate::{VarInt, VarLong};
+use crate::{Decode as DecodeTrait, Encode as EncodeTrait, VarInt, VarLong};
+use anyhow::ensure;
 use bitfield_struct::bitfield;
 use mcrs_nbt::compound::NbtCompound;
 use mcrs_protocol_macros::{Decode, Encode};
@@ -24,14 +25,97 @@ impl<'a> Default for ChunkData<'a> {
     }
 }
 
+/// A single 2048-byte light nibble payload (4 bits per block × 4096 blocks).
+///
+/// Encoded on the wire as `VarInt(2048) + 2048 bytes` to match vanilla's
+/// `ByteBufCodecs.byteArray(2048)` codec used inside `ClientboundLightUpdatePacketData`.
+/// We keep it as a newtype so a `Cow<'_, [LightSection]>` keeps zero-copy semantics
+/// while the per-element prefix is emitted automatically.
+#[derive(Clone, Copy)]
+pub struct LightSection(pub [u8; 2048]);
+
+impl LightSection {
+    pub const ZERO: LightSection = LightSection([0u8; 2048]);
+
+    pub const fn new(bytes: [u8; 2048]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 2048] {
+        &self.0
+    }
+}
+
+impl Default for LightSection {
+    fn default() -> Self {
+        LightSection::ZERO
+    }
+}
+
+impl PartialEq for LightSection {
+    fn eq(&self, other: &Self) -> bool {
+        self.0[..] == other.0[..]
+    }
+}
+
+impl Eq for LightSection {}
+
+impl std::fmt::Debug for LightSection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LightSection")
+            .field("len", &self.0.len())
+            .finish()
+    }
+}
+
+impl std::ops::Deref for LightSection {
+    type Target = [u8; 2048];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<[u8; 2048]> for LightSection {
+    fn from(value: [u8; 2048]) -> Self {
+        Self(value)
+    }
+}
+
+impl EncodeTrait for LightSection {
+    fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+        VarInt(2048).encode(&mut w)?;
+        w.write_all(&self.0)?;
+        Ok(())
+    }
+}
+
+impl<'a> DecodeTrait<'a> for LightSection {
+    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        let len = VarInt::decode(r)?.0;
+        ensure!(
+            len == 2048,
+            "expected light section length 2048, got {len}"
+        );
+        ensure!(
+            r.len() >= 2048,
+            "not enough data to decode light section (need 2048, have {})",
+            r.len()
+        );
+        let mut bytes = [0u8; 2048];
+        bytes.copy_from_slice(&r[..2048]);
+        *r = &r[2048..];
+        Ok(LightSection(bytes))
+    }
+}
+
 #[derive(Clone, PartialEq, Debug, Encode, Decode)]
 pub struct LightData<'a> {
     pub sky_light_mask: Cow<'a, [u64]>,
     pub block_light_mask: Cow<'a, [u64]>,
     pub empty_sky_light_mask: Cow<'a, [u64]>,
     pub empty_block_light_mask: Cow<'a, [u64]>,
-    pub sky_light_arrays: Cow<'a, [[u8; 2048]]>,
-    pub block_light_arrays: Cow<'a, [[u8; 2048]]>,
+    pub sky_light_arrays: Cow<'a, [LightSection]>,
+    pub block_light_arrays: Cow<'a, [LightSection]>,
 }
 
 impl<'a> Default for LightData<'a> {
@@ -126,14 +210,18 @@ mod tests {
     use crate::Encode;
     use std::borrow::Cow;
 
+    /// Vanilla `ClientboundLightUpdatePacketData` uses
+    /// `ByteBufCodecs.byteArray(2048)` for each light section, which writes
+    /// `VarInt(len) + bytes`. Each section therefore has to land on the wire as
+    /// `0x80 0x10` (VarInt(2048)) followed by 2048 raw bytes.
     #[test]
-    fn light_data_encodes_2048_raw_bytes_with_no_inner_prefix() {
+    fn light_data_emits_inner_varint_prefix_per_section() {
         let data = LightData {
             sky_light_mask: Cow::Owned(vec![1u64]),
             block_light_mask: Cow::Borrowed(&[]),
             empty_sky_light_mask: Cow::Borrowed(&[]),
             empty_block_light_mask: Cow::Borrowed(&[]),
-            sky_light_arrays: Cow::Owned(vec![[0xABu8; 2048]]),
+            sky_light_arrays: Cow::Owned(vec![LightSection([0xABu8; 2048])]),
             block_light_arrays: Cow::Borrowed(&[]),
         };
         let mut buf = Vec::new();
@@ -145,20 +233,19 @@ mod tests {
             .position(|w| w == needle)
             .expect("2048 contiguous 0xAB bytes present in encoded LightData");
 
-        assert!(pos > 0, "no preceding bytes; encoding malformed");
-        let prefix_byte = buf[pos - 1];
+        // Expect: [outer_len=0x01][inner_len_varint=0x80 0x10][0xAB ... ].
+        assert!(pos >= 3, "not enough preceding bytes for outer+inner prefix");
+        assert_eq!(buf[pos - 2], 0x80, "first VarInt(2048) byte must be 0x80");
         assert_eq!(
-            prefix_byte, 0x01,
-            "outer Cow slice length-prefix expected to be VarInt(1) = 0x01, got 0x{:02X}; inner VarInt(2048) prefix would be 0x10 here",
-            prefix_byte
+            buf[pos - 1],
+            0x10,
+            "second VarInt(2048) byte must be 0x10"
         );
-        if pos >= 2 {
-            let prefix_byte_prev = buf[pos - 2];
-            assert_ne!(
-                prefix_byte_prev, 0x80,
-                "if 0x80 appears at pos-2 followed by 0x10 at pos-1, the inner array is incorrectly length-prefixed"
-            );
-        }
+        assert_eq!(
+            buf[pos - 3],
+            0x01,
+            "outer slice length-prefix must be VarInt(1) = 0x01"
+        );
 
         let exact_run_len = buf[pos..].iter().take_while(|&&b| b == 0xAB).count();
         assert_eq!(

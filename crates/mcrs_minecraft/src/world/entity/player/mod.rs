@@ -43,7 +43,7 @@ use tracing::info;
 pub mod ability;
 pub mod attribute;
 mod chat;
-pub(crate) mod column_view;
+pub mod column_view;
 pub mod digging;
 mod inventory;
 pub mod movement;

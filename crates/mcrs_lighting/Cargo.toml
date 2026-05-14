@@ -11,6 +11,7 @@ bevy_state.workspace = true
 mcrs_core.workspace = true
 mcrs_protocol.workspace = true
 mcrs_engine.workspace = true
+mcrs_light_codec.workspace = true
 mcrs_minecraft.workspace = true
 mcrs_vanilla.workspace = true
 rustc-hash.workspace = true

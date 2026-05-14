@@ -7,9 +7,8 @@
     clippy::too_many_arguments
 )]
 
-pub mod nibble;
-pub mod storage;
-pub mod components;
+pub use mcrs_light_codec::{codec, components, nibble, sets, storage};
+
 pub mod bundle;
 pub mod table;
 pub mod lifecycle;
@@ -18,17 +17,15 @@ pub mod bfs;
 pub mod enqueue;
 pub mod invariants;
 pub mod propagate;
-pub mod sets;
 pub mod plugin;
 pub mod converge;
 pub mod distribute;
 pub mod emit_dirty;
-pub mod codec;
 pub mod telemetry;
 
-pub use codec::{BlockLightDirty, ColumnLightUpdate, SkyLightDirty};
+pub use mcrs_light_codec::codec::{BlockLightDirty, ColumnLightUpdate, SkyLightDirty};
+pub use mcrs_light_codec::sets::LightingSet;
 pub use plugin::LightingPlugin;
-pub use sets::LightingSet;
 
 #[cfg(feature = "test-bench")]
 pub mod stub;

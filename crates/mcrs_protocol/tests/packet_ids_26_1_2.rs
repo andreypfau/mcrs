@@ -2,6 +2,7 @@
 //! (no leading VarInt(packet_id) prefix). Tests that need framed-wire round-trips prepend
 //! the packet-id themselves.
 
+use mcrs_protocol::chunk::LightSection;
 use mcrs_protocol::packets::game::clientbound::ClientboundLightUpdate;
 use mcrs_protocol::{Decode, Encode, LightData, Packet, VarInt};
 use std::borrow::Cow;
@@ -79,7 +80,7 @@ fn clientbound_light_update_one_section_round_trip() {
             block_light_mask: Cow::Borrowed(&[]),
             empty_sky_light_mask: Cow::Borrowed(&[]),
             empty_block_light_mask: Cow::Owned(vec![1u64]),
-            sky_light_arrays: Cow::Owned(vec![[0xFFu8; 2048]]),
+            sky_light_arrays: Cow::Owned(vec![LightSection([0xFFu8; 2048])]),
             block_light_arrays: Cow::Borrowed(&[]),
         },
     };
@@ -111,7 +112,7 @@ fn clientbound_light_update_one_section_round_trip() {
         "no populated block-light sections"
     );
     assert_eq!(
-        &decoded.light_data.sky_light_arrays[0][..],
+        &decoded.light_data.sky_light_arrays[0].0[..],
         &[0xFFu8; 2048][..],
         "populated sky-light section bytes must round-trip exactly"
     );
