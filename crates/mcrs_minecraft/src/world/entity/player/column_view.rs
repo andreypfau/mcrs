@@ -21,6 +21,7 @@ use mcrs_engine::world::column::{
 };
 use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_lighting::codec::{build_full_light_data, ColumnLightUpdate, LightCodecParams};
+use mcrs_minecraft_lighting::components::LightDirty;
 use mcrs_minecraft_lighting::sets::LightingSet;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::{
@@ -40,6 +41,15 @@ impl Plugin for ColumnViewPlugin {
         // Initialize per-player column state.
         app.add_systems(PreUpdate, add_player_column_view);
 
+        // `send_column_queue` reads `BlockLight`/`SkyLight` storage to build the
+        // first-send light data via `build_full_light_data`. Without an explicit
+        // ordering, the Bevy scheduler may run it before `LightingSet::Converge`
+        // writes storage for a chunk that just loaded this tick — the player
+        // receives a `LevelChunkWithLight` packet with zero light values and
+        // never recovers (subsequent `ColumnLightUpdate` deltas only fire on
+        // `Changed<*Light>`, which doesn't trigger if the section converged
+        // before the first send). Anchor the chain after `EmitDirty` so the
+        // initial send always sees converged storage.
         app.add_systems(
             FixedUpdate,
             (
@@ -49,7 +59,8 @@ impl Plugin for ColumnViewPlugin {
                 loading_column_queue,
                 send_column_queue,
             )
-                .chain(),
+                .chain()
+                .after(LightingSet::EmitDirty),
         );
 
         app.add_systems(
@@ -202,6 +213,12 @@ fn send_column_queue(
     )>,
     chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
     dim_column_indexes: Query<&ColumnIndex>,
+    // Sections still cascading sky-light through the bounded converge loop carry
+    // `LightDirty`. Defer first-send of any column with at least one such section
+    // — otherwise the codec snapshots default `Mixed(NibbleArray::zeros())` from
+    // pre-converged storage and the client caches darkness. The column re-enters
+    // the queue on the next tick once propagation drains.
+    light_dirty: Query<(), With<LightDirty>>,
     codec_params: LightCodecParams,
 ) {
     players
@@ -234,6 +251,10 @@ fn send_column_queue(
                         ready = false;
                         break;
                     };
+                    if light_dirty.contains(chunk_e) {
+                        ready = false;
+                        break;
+                    }
                     // Section layout per vanilla LevelChunkSection.write:
                     //   short non_empty_block_count
                     //   short fluid_count
