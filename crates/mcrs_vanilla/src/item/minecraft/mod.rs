@@ -7,6 +7,7 @@ use mcrs_protocol::ItemId;
 
 pub fn register_all_items(registry: &mut StaticRegistry<Item>) {
     let items: &[&'static Item] = &[
+        &TORCH,
         &WOODEN_PICKAXE,
         &STONE_PICKAXE,
         &GOLDEN_PICKAXE,
@@ -17,6 +18,12 @@ pub fn register_all_items(registry: &mut StaticRegistry<Item>) {
         registry.register(item.identifier, *item);
     }
 }
+
+pub const TORCH: Item = Item {
+    id: ItemId(323),
+    identifier: mcrs_core::rl!("minecraft:torch"),
+    components: &ItemComponents::new(),
+};
 
 pub const WOODEN_PICKAXE: Item = Item {
     id: ItemId(913),
@@ -78,6 +85,7 @@ const STATE_TABLE_LEN: usize = 1 << 16;
 // todo: macros
 static ID_TO_ITEM: [Option<&'static Item>; STATE_TABLE_LEN] = {
     let mut t: [Option<&'static Item>; STATE_TABLE_LEN] = [None; STATE_TABLE_LEN];
+    t[TORCH.id.0 as usize] = Some(&TORCH);
     t[WOODEN_PICKAXE.id.0 as usize] = Some(&WOODEN_PICKAXE);
     t[STONE_PICKAXE.id.0 as usize] = Some(&STONE_PICKAXE);
     t[GOLDEN_PICKAXE.id.0 as usize] = Some(&GOLDEN_PICKAXE);

@@ -6,10 +6,11 @@ use crate::world::entity::player::column_view::ColumnViewPlugin;
 use crate::world::entity::player::digging::DiggingPlugin;
 use crate::world::entity::player::inventory::PlayerInventoryPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
+use crate::world::entity::player::placing::PlacingPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
 use crate::world::entity::{EntityBundle, MinecraftEntityType};
 use crate::world::inventory::{ContainerSeqno, PlayerInventoryBundle, PlayerInventoryQuery};
-use crate::world::item::minecraft::DIAMOND_PICKAXE;
+use crate::world::item::minecraft::{DIAMOND_PICKAXE, TORCH};
 use crate::world::item::{ItemCommands, ItemStack};
 use bevy_app::{FixedUpdate, Plugin, PostUpdate};
 use bevy_ecs::bundle::Bundle;
@@ -47,6 +48,7 @@ pub mod column_view;
 pub mod digging;
 mod inventory;
 pub mod movement;
+mod placing;
 pub mod player_action;
 
 pub struct PlayerPlugin;
@@ -59,6 +61,7 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(ColumnViewPlugin);
         app.add_plugins(PlayerInventoryPlugin);
         app.add_plugins(ChatPlugin);
+        app.add_plugins(PlacingPlugin);
         app.add_systems(bevy_app::Update, spawn_player);
         app.add_systems(FixedUpdate, (disconnect_player, added_inventory, resync_player));
         app.add_systems(PostUpdate, despawn_disconnected_clients);
@@ -192,8 +195,10 @@ fn spawn_player(
                 let pos = DVec3::new(0.0, 64.0, 0.0);
 
                 let pickaxe = commands.spawn_item_stack(&DIAMOND_PICKAXE, 1);
+                let torches = commands.spawn_item_stack(&TORCH, 64);
                 let mut inventory = PlayerInventoryBundle::default();
                 inventory.hotbar.slots[0] = Some(pickaxe);
+                inventory.hotbar.slots[1] = Some(torches);
 
                 commands.entity(entity).insert((
                     PlayerChunkObserver {

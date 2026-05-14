@@ -85,6 +85,8 @@ declare_blocks! {
     bedrock => BEDROCK,
     note_block => NOTE_BLOCK,
     tnt => TNT,
+    torch => TORCH,
+    wall_torch => WALL_TORCH,
     diamond_ore => DIAMOND_ORE,
 }
 

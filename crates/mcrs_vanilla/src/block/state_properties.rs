@@ -115,6 +115,16 @@ pub static NOTE: PropertyDef = PropertyDef {
     ],
 };
 
+pub static FACING_HORIZONTAL: PropertyDef = PropertyDef {
+    name: PropertyStr::new("facing"),
+    values: &[
+        PropertyStr::new("north"),
+        PropertyStr::new("south"),
+        PropertyStr::new("west"),
+        PropertyStr::new("east"),
+    ],
+};
+
 // ── Typed Property handles ──────────────────────────────────────────────
 
 pub static SNOWY_PROP: Property<bool> = Property::new(&SNOWY);
@@ -126,6 +136,7 @@ pub static STAGE_PROP: Property<u8> = Property::new(&STAGE);
 pub static AGE_4_PROP: Property<u8> = Property::new(&AGE_4);
 pub static NOTE_PROP: Property<u8> = Property::new(&NOTE);
 pub static AXIS_PROP: Property<Axis> = Property::new(&AXIS);
+pub static FACING_HORIZONTAL_PROP: Property<HorizontalFacing> = Property::new(&FACING_HORIZONTAL);
 
 // ── Axis enum ───────────────────────────────────────────────────────────
 
@@ -143,6 +154,32 @@ impl PropertyValue for Axis {
             0 => Some(Axis::X),
             1 => Some(Axis::Y),
             2 => Some(Axis::Z),
+            _ => None,
+        }
+    }
+    fn to_index(self) -> u8 {
+        self as u8
+    }
+}
+
+// ── HorizontalFacing enum ───────────────────────────────────────────────
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum HorizontalFacing {
+    North = 0,
+    South = 1,
+    West = 2,
+    East = 3,
+}
+
+impl PropertyValue for HorizontalFacing {
+    fn from_index(index: u8) -> Option<Self> {
+        match index {
+            0 => Some(HorizontalFacing::North),
+            1 => Some(HorizontalFacing::South),
+            2 => Some(HorizontalFacing::West),
+            3 => Some(HorizontalFacing::East),
             _ => None,
         }
     }

@@ -452,4 +452,18 @@ pub mod serverbound {
     pub struct ServerboundSetCarriedItem {
         pub slot: u16,
     }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x3B, state=Game)]
+    pub struct ServerboundUseItemOn {
+        pub hand: crate::Hand,
+        pub block_pos: BlockPos,
+        pub face: Direction,
+        pub cursor_x: f32,
+        pub cursor_y: f32,
+        pub cursor_z: f32,
+        pub inside_block: bool,
+        pub world_border_hit: bool,
+        pub sequence: VarInt,
+    }
 }

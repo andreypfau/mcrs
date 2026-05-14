@@ -7,6 +7,12 @@ use mcrs_protocol::{ItemId, ident};
 /// This replaces the hardcoded MINEABLE_PICKAXE constant with a runtime tag lookup.
 const MINEABLE_PICKAXE_TAG: &str = "minecraft:mineable/pickaxe";
 
+pub const TORCH: Item = Item {
+    id: ItemId(323),
+    identifier: ident!("torch"),
+    components: &ItemComponents::new(),
+};
+
 pub const WOODEN_PICKAXE: Item = Item {
     id: ItemId(913),
     identifier: ident!("wooden_pickaxe"),
@@ -67,6 +73,7 @@ const STATE_TABLE_LEN: usize = 1 << 16;
 // todo: macros
 static ID_TO_ITEM: [Option<&'static Item>; STATE_TABLE_LEN] = {
     let mut t: [Option<&'static Item>; STATE_TABLE_LEN] = [None; STATE_TABLE_LEN];
+    t[TORCH.id.0 as usize] = Some(&TORCH);
     t[WOODEN_PICKAXE.id.0 as usize] = Some(&WOODEN_PICKAXE);
     t[STONE_PICKAXE.id.0 as usize] = Some(&STONE_PICKAXE);
     t[GOLDEN_PICKAXE.id.0 as usize] = Some(&GOLDEN_PICKAXE);
