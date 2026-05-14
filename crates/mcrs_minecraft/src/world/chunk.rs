@@ -1,5 +1,5 @@
 use crate::world::generate::generate_column;
-use crate::world::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Query, Resource, With, resource_exists};

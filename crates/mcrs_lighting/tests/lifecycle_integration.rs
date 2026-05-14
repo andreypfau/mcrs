@@ -32,7 +32,7 @@ use mcrs_lighting::components::{
 };
 use mcrs_lighting::table::{flag_bits, BlockLightTable};
 use mcrs_lighting::LightingPlugin;
-use mcrs_minecraft::world::palette::BlockPalette;
+use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 
 const TEST_DIM_HEIGHT: u32 = 384;

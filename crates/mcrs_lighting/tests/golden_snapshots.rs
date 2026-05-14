@@ -21,9 +21,9 @@ use mcrs_lighting::stub::{block_light_nibbles, sky_light_nibbles};
 use mcrs_lighting::table::BlockLightTable;
 use mcrs_lighting::test_bench::{assert_nibbles_eq, from_input};
 use mcrs_lighting::LightingPlugin;
-use mcrs_minecraft::world::block::BlockUpdateFlags;
-use mcrs_minecraft::world::block_update::BlockPlaced;
-use mcrs_minecraft::world::palette::BlockPalette;
+use mcrs_minecraft_block::block::BlockUpdateFlags;
+use mcrs_minecraft_block::block_update::BlockPlaced;
+use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 
 #[path = "golden/mod.rs"]

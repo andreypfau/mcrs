@@ -23,8 +23,8 @@ use mcrs_engine::world::column::{
     ChunkColumn, ColumnIndex, InChunkColumn, SectionIndex, SectionLookup,
 };
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
-use mcrs_minecraft::world::block_update::BlockPlaced;
-use mcrs_minecraft::world::palette::BlockPalette;
+use mcrs_minecraft_block::block_update::BlockPlaced;
+use mcrs_minecraft_block::palette::BlockPalette;
 
 use crate::bfs::{
     normal_of, pack_bfs_entry, ALL_DIRECTIONS_BITSET, FLAG_RECHECK_LEVEL, FLAG_WRITE_LEVEL,
@@ -717,7 +717,7 @@ mod tests {
     use mcrs_engine::world::column::{ChunkColumn, ChunkColumnPos, ColumnIndex, ColumnSlot, InChunkColumn, SectionIndex};
     use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
     use mcrs_lighting_table_helpers::*;
-    use mcrs_minecraft::world::block::BlockUpdateFlags;
+    use mcrs_minecraft_block::block::BlockUpdateFlags;
     use mcrs_protocol::BlockStateId;
 
     mod mcrs_lighting_table_helpers {

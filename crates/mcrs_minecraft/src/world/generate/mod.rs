@@ -1,6 +1,6 @@
 use crate::world::block::minecraft::{DIAMOND_ORE, STONE};
 use crate::world::chunk::CancellationToken;
-use crate::world::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_worldgen::density_function::{
     ChunkColumnCache, NoiseRouter, SectionInterpolator,

@@ -12,7 +12,7 @@ use bevy_ecs::prelude::{Added, Commands, Entity, Query, Res, With};
 use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{ChunkColumn, Heightmaps, SectionIndex, SectionLookup};
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
-use mcrs_minecraft::world::palette::BlockPalette;
+use mcrs_minecraft_block::palette::BlockPalette;
 
 const SECTION_SIZE: i32 = 16;
 

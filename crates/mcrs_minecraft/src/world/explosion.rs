@@ -1,6 +1,6 @@
 use crate::world::block::{Block, BlockState};
 use crate::world::entity::explosive::Explosive;
-use crate::world::palette::BlockPalette;
+use mcrs_minecraft_block::palette::BlockPalette;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::{ContainsEntity, Entity};
@@ -237,7 +237,7 @@ where
 }
 
 use crate::world::block::minecraft::AIR;
-use crate::world::block_update::BlockSetRequest;
+use mcrs_minecraft_block::block_update::BlockSetRequest;
 use crate::world::entity::explosive::primed_tnt::Detonator;
 use bevy_ecs::event::Event;
 use bevy_ecs::message::{Message, MessageWriter};

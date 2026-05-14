@@ -2,7 +2,7 @@ use crate::generate_block_states;
 use crate::sound::SoundType;
 use crate::world::block::behaviour::Properties;
 use crate::world::block::{Block, BlockState};
-use crate::world::material::map::MapColor;
+use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_protocol::{BlockStateId, ident};
 
 generate_block_states! {

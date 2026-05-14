@@ -464,7 +464,7 @@ mod tests {
         assert!(bit_is_set(&mask, 3));
         assert!(!bit_is_set(&empty_mask, 3));
         assert_eq!(arrays.len(), 1);
-        assert_eq!(arrays[0], *nibble.0, "appended bytes must equal Mixed payload");
+        assert_eq!(arrays[0], mcrs_protocol::chunk::LightSection(*nibble.0), "appended bytes must equal Mixed payload");
     }
 
     #[test]
@@ -504,7 +504,7 @@ mod tests {
         assert!(!bit_is_set(&empty_mask, 65));
         assert_eq!(arrays.len(), 1);
         let expected = [0x77u8; 2048];
-        assert_eq!(arrays[0], expected);
+        assert_eq!(arrays[0], mcrs_protocol::chunk::LightSection(expected));
         assert!(mask.len() >= 2, "mask must grow to cover bit 65");
     }
 
@@ -604,7 +604,7 @@ mod tests {
         assert!(bit_is_set(&mask, 25), "sky mask bit must be set");
         assert!(!bit_is_set(&empty_mask, 25));
         assert_eq!(arrays.len(), 1);
-        assert_eq!(arrays[0], [0xFFu8; 2048]);
+        assert_eq!(arrays[0], mcrs_protocol::chunk::LightSection([0xFFu8; 2048]));
 
         // Block layer at TopPadding in a sky-having dim still goes to the
         // empty mask — only the sky layer synthesizes the 0xFF payload.
@@ -799,6 +799,6 @@ mod tests {
 
         // Spot-check that the topmost sky array (TopPadding synth) is 0xFF.
         let top_array = &sky_arrays[sky_arrays.len() - 1];
-        assert_eq!(*top_array, [0xFFu8; 2048]);
+        assert_eq!(*top_array, mcrs_protocol::chunk::LightSection([0xFFu8; 2048]));
     }
 }

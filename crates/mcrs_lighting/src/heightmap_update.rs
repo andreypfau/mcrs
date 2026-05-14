@@ -25,8 +25,8 @@ use crate::table::{flag_bits, BlockLightTable};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, Query, Res};
 use mcrs_engine::world::column::{Heightmaps, InChunkColumn, SectionIndex};
-use mcrs_minecraft::world::block_update::BlockPlaced;
-use mcrs_minecraft::world::palette::BlockPalette;
+use mcrs_minecraft_block::block_update::BlockPlaced;
+use mcrs_minecraft_block::palette::BlockPalette;
 
 const SECTION_SIZE: i32 = 16;
 

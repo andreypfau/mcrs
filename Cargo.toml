@@ -77,6 +77,7 @@ mcrs_vanilla = { path = "crates/mcrs_vanilla" }
 mcrs_minecraft = { path = "crates/mcrs_minecraft" }
 mcrs_registry = { path = "crates/mcrs_registry" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
+mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
 mcrs_random = { path = "crates/mcrs_random" }
 mcrs_lighting = { path = "crates/mcrs_lighting" }
 mcrs_light_codec = { path = "crates/mcrs_light_codec" }

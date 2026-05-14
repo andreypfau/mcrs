@@ -26,7 +26,7 @@ use crate::storage::LightStorage;
 use crate::table::{flag_bits, BlockLightTable};
 use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::world::block::BlockPos;
-use mcrs_minecraft::world::palette::BlockPalette;
+use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

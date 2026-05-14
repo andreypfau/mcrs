@@ -1,6 +1,6 @@
 use crate::world::block::behaviour::Properties;
 use crate::world::block::{Block, BlockState};
-use crate::world::material::map::MapColor;
+use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_protocol::{BlockStateId, ident};
 
 pub const BLOCK: Block = Block {

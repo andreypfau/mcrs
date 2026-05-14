@@ -5,8 +5,8 @@
 use bevy_ecs::entity::Entity;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::ChunkPos;
-use mcrs_minecraft::world::block::BlockUpdateFlags;
-use mcrs_minecraft::world::block_update::BlockPlaced;
+use mcrs_minecraft_block::block::BlockUpdateFlags;
+use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_protocol::BlockStateId;
 
 #[test]

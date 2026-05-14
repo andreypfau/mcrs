@@ -9,7 +9,7 @@
 //! needs.
 
 use mcrs_core::voxel_shape::{Direction, VoxelShape};
-use mcrs_minecraft::world::palette::BlockPalette;
+use mcrs_minecraft_block::palette::BlockPalette;
 
 use crate::components::{BlockEgress, BlockLightWorkspace, SkyEgress, SkyLightWorkspace, Wavefront};
 use crate::storage::LightStorage;

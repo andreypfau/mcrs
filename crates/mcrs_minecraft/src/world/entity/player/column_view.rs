@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::world::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{
