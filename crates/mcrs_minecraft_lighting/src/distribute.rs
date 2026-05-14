@@ -370,6 +370,17 @@ fn drain_block_egress(
         commands.entity(src_entity).insert(LightTicket);
 
         let src_dim = in_dim.0;
+        // Pre-resolve all six neighbour faces once per source instead of once
+        // per wavefront; see comment in `drain_sky_egress`.
+        let resolved_faces: [Option<ResolveOutcome>; 6] = [
+            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::Down,  column_indexes, section_indexes),
+            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::Up,    column_indexes, section_indexes),
+            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::North, column_indexes, section_indexes),
+            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::South, column_indexes, section_indexes),
+            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::West,  column_indexes, section_indexes),
+            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::East,  column_indexes, section_indexes),
+        ];
+
         let drained: smallvec::SmallVec<[Wavefront; 8]> = egress.0.drain(..).collect();
         for wavefront in drained {
             let face = direction_from_index(wavefront.face());
@@ -380,14 +391,7 @@ fn drain_block_egress(
             // diagonal wavefronts.
             let pre_attenuated_level = manhattan_preattenuate(wavefront.level(), 1);
 
-            let outcome = resolve_neighbor_section(
-                *chunk_pos,
-                *in_col,
-                *in_dim,
-                face,
-                column_indexes,
-                section_indexes,
-            );
+            let outcome = resolved_faces[face.index()];
 
             match outcome {
                 Some(ResolveOutcome::Loaded { dst_entity, .. }) => {
@@ -455,6 +459,22 @@ fn drain_sky_egress(
         commands.entity(src_entity).insert(LightTicket);
 
         let src_dim = in_dim.0;
+        // The column-walker fast path emits 1280 wavefronts (5 faces × 256
+        // cells) per source per iteration. Calling `resolve_neighbor_section`
+        // for each one walks `SectionIndex` / `ColumnIndex` hash lookups
+        // afresh, which dominates the sub-schedule's wall clock at chunk-load
+        // time. Resolve each of the six faces once up front and index into
+        // the array per wavefront. Same destination semantics, ~250x fewer
+        // hash lookups per source.
+        let resolved_faces: [Option<ResolveOutcome>; 6] = [
+            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::Down,  column_indexes, section_indexes),
+            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::Up,    column_indexes, section_indexes),
+            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::North, column_indexes, section_indexes),
+            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::South, column_indexes, section_indexes),
+            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::West,  column_indexes, section_indexes),
+            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::East,  column_indexes, section_indexes),
+        ];
+
         let drained: smallvec::SmallVec<[Wavefront; 8]> = egress.0.drain(..).collect();
         for wavefront in drained {
             let face = direction_from_index(wavefront.face());
@@ -478,14 +498,7 @@ fn drain_sky_egress(
                 manhattan_preattenuate(wavefront.level(), 1)
             };
 
-            let outcome = resolve_neighbor_section(
-                *chunk_pos,
-                *in_col,
-                *in_dim,
-                face,
-                column_indexes,
-                section_indexes,
-            );
+            let outcome = resolved_faces[face.index()];
 
             match outcome {
                 Some(ResolveOutcome::Loaded { dst_entity, .. }) => {
