@@ -492,7 +492,18 @@ pub fn seed_initial_light(
                 }
             }
 
-            commands.entity(section_entity).insert(LightDirty);
+            // Only sections that actually seeded work (block emitters or the
+            // topmost sky-source) need `LightDirty`. Unconditional insertion
+            // used to mark every loaded section dirty, even the hundreds of
+            // empty mid-column sections that have no seeds and no incoming —
+            // forcing the convergence sub-schedule to par-iterate over all of
+            // them every iteration just to remove the marker again. Skipping
+            // those keeps `propagate_*_system` working sets bounded to actual
+            // cascade frontiers, and `distribute_*` re-marks any section as
+            // soon as a wavefront actually reaches it.
+            if has_emitter || seeded {
+                commands.entity(section_entity).insert(LightDirty);
+            }
             commands
                 .entity(section_entity)
                 .remove::<ChunkNeedsInitialLight>();
@@ -571,6 +582,11 @@ pub fn pull_neighbor_edge_levels(
     }
 
     for (new_section, chunk_pos, in_dim, in_col) in newly_loaded.iter() {
+        // Tracks whether anything was actually pushed into the new section's
+        // `BlockIncoming` / `SkyIncoming`. Without a payload there is no
+        // pending cascade work, so `LightDirty` would just force a no-op pass
+        // through the par-iter scan in the convergence sub-schedule.
+        let mut new_section_has_incoming = false;
         for face in CARDINAL_DIRECTIONS {
             let Some(neighbour_entity) = resolve_loaded_neighbor(
                 face,
@@ -608,6 +624,7 @@ pub fn pull_neighbor_edge_levels(
                                 inc.0.push(Wavefront::new(
                                     dest_face, cell_a, cell_b, attenuated,
                                 ));
+                                new_section_has_incoming = true;
                             }
                         }
                     }
@@ -620,6 +637,7 @@ pub fn pull_neighbor_edge_levels(
                                 inc.0.push(Wavefront::new(
                                     dest_face, cell_a, cell_b, attenuated,
                                 ));
+                                new_section_has_incoming = true;
                             }
                         }
                     }
@@ -642,6 +660,7 @@ pub fn pull_neighbor_edge_levels(
                                     w.cell_z(),
                                     w.level(),
                                 ));
+                                new_section_has_incoming = true;
                             }
                             false
                         } else {
@@ -662,6 +681,7 @@ pub fn pull_neighbor_edge_levels(
                                     w.cell_z(),
                                     w.level(),
                                 ));
+                                new_section_has_incoming = true;
                             }
                             false
                         } else {
@@ -674,11 +694,13 @@ pub fn pull_neighbor_edge_levels(
             commands.entity(neighbour_entity).insert(LightDirty);
         }
 
-        // Mark the just-loaded section LightDirty so the first convergence
-        // iteration drains its *Incoming. We unconditionally insert: even
-        // when there are no loaded neighbours, the section still went through
-        // seed_initial_light and needs to be considered dirty.
-        commands.entity(new_section).insert(LightDirty);
+        // Only mark the new section dirty if a neighbour actually pushed
+        // something into its incoming buffer. An isolated load with no loaded
+        // neighbours has no pending cascade work, and `distribute_*` will
+        // re-mark the section as soon as wavefronts arrive later.
+        if new_section_has_incoming {
+            commands.entity(new_section).insert(LightDirty);
+        }
     }
 }
 
