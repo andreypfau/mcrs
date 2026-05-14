@@ -33,7 +33,7 @@ pub fn snapshot() -> LightTelemetrySnapshot {
 /// observation window — otherwise concurrent tests in the same binary will
 /// race and the delta becomes non-deterministic.
 #[cfg(test)]
-pub(crate) static TELEMETRY_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+pub static TELEMETRY_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[cfg(test)]
 mod tests {

@@ -52,8 +52,10 @@ use crate::configuration::ConfigurationStatePlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::LoginPlugin;
 use crate::world::WorldPlugin;
-use bevy_app::{App, Plugin};
+use bevy_app::prelude::*;
+use bevy_app::{App, Plugin, TaskPoolOptions, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
+use bevy_ecs::schedule::{ExecutorKind, ScheduleLabel};
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_network::{EngineConnection, NetworkPlugin};
 use std::num::NonZeroU32;
@@ -67,13 +69,23 @@ pub struct ServerPlugin;
 
 impl Plugin for ServerPlugin {
     fn build(&self, app: &mut App) {
+        #[cfg(debug_assertions)]
+        app.add_plugins(TaskPoolPlugin {
+            task_pool_options: TaskPoolOptions::with_num_threads(1),
+        });
+        #[cfg(not(debug_assertions))]
+        app.add_plugins(TaskPoolPlugin::default());
+
+        app.edit_schedule(Update, |schedule| {
+            schedule.set_executor_kind(ExecutorKind::SingleThreaded);
+        });
+        #[cfg(debug_assertions)]
+        force_singlethread_schedules(app);
+
         if !app.is_plugin_added::<TimePlugin>() {
             app.add_plugins(TimePlugin);
         }
         app.insert_resource(Time::<Fixed>::from_hz(DEFAULT_TPS.get() as f64));
-        // if !app.is_plugin_added::<ScheduleRunnerPlugin>() {
-        //     app.add_plugins(ScheduleRunnerPlugin::default());
-        // }
         app.add_plugins(AssetPlugin::default());
         app.add_plugins(mcrs_core::MinecraftEnginePlugin);
         app.add_plugins(mcrs_vanilla::MinecraftCorePlugin);
@@ -82,6 +94,31 @@ impl Plugin for ServerPlugin {
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);
         app.add_plugins(WorldPlugin);
+        app.add_plugins(mcrs_minecraft_lighting::LightingPlugin);
         app.add_plugins(ClientInfoPlugin);
+    }
+}
+
+#[cfg(debug_assertions)]
+fn force_singlethread_schedules(app: &mut App) {
+    for label in [
+        PreStartup.intern(),
+        Startup.intern(),
+        PostStartup.intern(),
+        First.intern(),
+        PreUpdate.intern(),
+        RunFixedMainLoop.intern(),
+        Update.intern(),
+        PostUpdate.intern(),
+        Last.intern(),
+        FixedFirst.intern(),
+        FixedPreUpdate.intern(),
+        FixedUpdate.intern(),
+        FixedPostUpdate.intern(),
+        FixedLast.intern(),
+    ] {
+        app.edit_schedule(label, |s| {
+            s.set_executor_kind(ExecutorKind::SingleThreaded);
+        });
     }
 }

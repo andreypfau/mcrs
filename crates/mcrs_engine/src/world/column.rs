@@ -1,7 +1,7 @@
-// IMPORTANT: this module MUST NOT depend on mcrs_lighting. The four-stage
+// IMPORTANT: this module MUST NOT depend on mcrs_minecraft_lighting. The four-stage
 // ChunkColumnLifecycleSet splits into engine-side (Reconcile, ReconcileIndex) and
 // lighting-side (PrimeHeightmaps, AttachState) stages precisely because mcrs_engine
-// sits upstream of mcrs_lighting in the workspace graph.
+// sits upstream of mcrs_minecraft_lighting in the workspace graph.
 //
 // Heightmaps zero-init convention: `Heightmaps::new(height)` zero-initializes the
 // backing PackedBitStorage long arrays. `surface_get(x, z) = min_y` for unprimed
@@ -492,7 +492,7 @@ fn reconcile_column_existence(
 /// `SectionIndex` and attach the `InChunkColumn` back-link.
 ///
 /// Pitfall #1 safety check: this function does NOT take a lighting-table
-/// resource. Heightmap priming (Stage 2.5) lives in `mcrs_lighting`.
+/// resource. Heightmap priming (Stage 2.5) lives in `mcrs_minecraft_lighting`.
 fn reconcile_section_index(
     newly_loaded: Query<(Entity, &ChunkPos, &InDimension), Added<ChunkLoaded>>,
     newly_unloading: Query<(&ChunkPos, &InDimension), Added<ChunkUnloading>>,

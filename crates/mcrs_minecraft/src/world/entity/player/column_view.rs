@@ -20,8 +20,8 @@ use mcrs_engine::world::column::{
     ChunkColumnPos as EngineChunkColumnPos, ColumnIndex,
 };
 use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
-use mcrs_light_codec::codec::{build_full_light_data, ColumnLightUpdate, LightCodecParams};
-use mcrs_light_codec::sets::LightingSet;
+use mcrs_minecraft_lighting::codec::{build_full_light_data, ColumnLightUpdate, LightCodecParams};
+use mcrs_minecraft_lighting::sets::LightingSet;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundLevelChunkWithLight, ClientboundLightUpdate,

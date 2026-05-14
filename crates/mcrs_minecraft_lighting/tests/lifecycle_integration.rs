@@ -26,12 +26,12 @@ use mcrs_engine::world::column::{
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_lighting::components::{
+use mcrs_minecraft_lighting::components::{
     BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, ChunkNeedsInitialLight, IsAllAir,
     SkyEgress, SkyIncoming, SkyLight, SkyLightWorkspace,
 };
-use mcrs_lighting::table::{flag_bits, BlockLightTable};
-use mcrs_lighting::LightingPlugin;
+use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 

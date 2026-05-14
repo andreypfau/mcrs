@@ -21,11 +21,11 @@ use mcrs_engine::world::column::{
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_lighting::components::{BlockLight, LightDirty, SkyLight};
-use mcrs_lighting::nibble::NibbleArray;
-use mcrs_lighting::storage::LightStorage;
-use mcrs_lighting::table::{flag_bits, BlockLightTable};
-use mcrs_lighting::{BlockLightDirty, ColumnLightUpdate, LightingPlugin, SkyLightDirty};
+use mcrs_minecraft_lighting::components::{BlockLight, LightDirty, SkyLight};
+use mcrs_minecraft_lighting::nibble::NibbleArray;
+use mcrs_minecraft_lighting::storage::LightStorage;
+use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::{BlockLightDirty, ColumnLightUpdate, LightingPlugin, SkyLightDirty};
 
 const TEST_DIM_HEIGHT: u32 = 384;
 const TEST_DIM_MIN_Y: i32 = -64;
