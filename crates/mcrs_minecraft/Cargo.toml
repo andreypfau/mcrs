@@ -12,6 +12,7 @@ mcrs_network.workspace = true
 mcrs_protocol.workspace = true
 mcrs_core.workspace = true
 mcrs_vanilla.workspace = true
+mcrs_minecraft_block.workspace = true
 mcrs_minecraft_worldgen.workspace = true
 mcrs_nbt.workspace = true
 bevy_math.workspace = true

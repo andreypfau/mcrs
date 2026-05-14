@@ -27,7 +27,7 @@
 
 use bevy_ecs::prelude::{Entity, ParallelCommands, Query, Res, With};
 use mcrs_core::voxel_shape::Direction;
-use mcrs_minecraft::world::palette::BlockPalette;
+use mcrs_minecraft_block::palette::BlockPalette;
 
 use crate::bfs::{
     pack_bfs_entry, propagate_decrease, propagate_decrease_sky, propagate_increase,

@@ -1,5 +1,5 @@
 use mcrs_engine::world::block::BlockPos;
-use mcrs_minecraft::world::palette::BlockPalette;
+use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 
 pub fn from_input(input: &[((i32, i32, i32), BlockStateId)]) -> BlockPalette {

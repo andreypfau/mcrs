@@ -1,6 +1,5 @@
 use crate::configuration::{LoadedDimensionTypes, LoadedWorldPreset};
 use crate::world::block::minecraft::MinecraftBlockPlugin;
-use crate::world::block_update::BlockUpdatePlugin;
 use crate::world::chunk::ChunkPlugin;
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::explosion::ExplosionPlugin;
@@ -10,10 +9,10 @@ use bevy_ecs::prelude::*;
 use mcrs_engine::world::dimension::{
     Dimension, DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig, HasSkyLight,
 };
+use mcrs_minecraft_block::block_update::BlockUpdatePlugin;
 use tracing::{debug, info, warn};
 
 pub mod block;
-pub mod block_update;
 pub mod chunk;
 pub mod entity;
 mod explosion;
@@ -22,8 +21,6 @@ mod generate;
 mod inventory;
 pub mod item;
 pub mod loot;
-mod material;
-pub mod palette;
 
 pub struct WorldPlugin;
 

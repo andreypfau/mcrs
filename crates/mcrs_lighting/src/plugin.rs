@@ -27,7 +27,7 @@ use bevy_ecs::schedule::{ExecutorKind, Schedule};
 use bevy_state::prelude::OnEnter;
 use mcrs_core::AppState;
 use mcrs_engine::world::column::ChunkColumnLifecycleSet;
-use mcrs_minecraft::world::block_update::{apply_set_block_request, BlockPlaced, BlockUpdateSet};
+use mcrs_minecraft_block::block_update::{apply_set_block_request, BlockPlaced, BlockUpdateSet};
 use mcrs_vanilla::{freeze_static_tags, transition_to_playing};
 
 pub struct LightingPlugin;

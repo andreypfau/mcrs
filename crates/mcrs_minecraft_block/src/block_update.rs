@@ -1,5 +1,5 @@
-use crate::world::block::BlockUpdateFlags;
-use crate::world::palette::BlockPalette;
+use crate::block::BlockUpdateFlags;
+use crate::palette::BlockPalette;
 use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};

@@ -1,4 +1,4 @@
-use mcrs_minecraft::world::palette::BlockPalette;
+use mcrs_minecraft_block::palette::BlockPalette;
 
 pub fn block_light_nibbles(palette: &BlockPalette) -> [u8; 2048] {
     [0; 2048]

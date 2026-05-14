@@ -1,5 +1,5 @@
 use crate::world::block::Block;
-use crate::world::block_update::BlockSetRequest;
+use mcrs_minecraft_block::block_update::BlockSetRequest;
 use crate::world::entity::attribute::Attribute;
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::attribute::{BlockBreakSpeed, MiningEfficiency};
@@ -13,7 +13,7 @@ use crate::world::item::component::Enchantments;
 use crate::enchantment::EnchantmentData;
 use crate::world::loot::BlockLootTables;
 use crate::world::loot::context::BlockBreakContext;
-use crate::world::palette::BlockPalette;
+use mcrs_minecraft_block::palette::BlockPalette;
 use bevy_app::{FixedUpdate, Plugin, Update};
 use bevy_asset::AssetServer;
 use bevy_ecs::prelude::*;

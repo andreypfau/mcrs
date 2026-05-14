@@ -12,7 +12,7 @@ mcrs_core.workspace = true
 mcrs_protocol.workspace = true
 mcrs_engine.workspace = true
 mcrs_light_codec.workspace = true
-mcrs_minecraft.workspace = true
+mcrs_minecraft_block.workspace = true
 mcrs_vanilla.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
@@ -22,4 +22,5 @@ tracing.workspace = true
 test-bench = []
 
 [dev-dependencies]
+mcrs_minecraft.workspace = true
 tracing-subscriber = "0.3"

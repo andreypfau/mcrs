@@ -1,0 +1,16 @@
+[package]
+name = "mcrs_minecraft_block"
+description = "mcrs_minecraft_block"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+mcrs_engine.workspace = true
+mcrs_network.workspace = true
+mcrs_protocol.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_ecs_macros.workspace = true
+rustc-hash.workspace = true
+bitflags = "2.10.0"
+tracing.workspace = true

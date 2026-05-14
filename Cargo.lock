@@ -1790,6 +1790,7 @@ dependencies = [
  "mcrs_engine",
  "mcrs_light_codec",
  "mcrs_minecraft",
+ "mcrs_minecraft_block",
  "mcrs_protocol",
  "mcrs_vanilla",
  "rustc-hash",
@@ -1823,6 +1824,7 @@ dependencies = [
  "mcrs_core",
  "mcrs_engine",
  "mcrs_light_codec",
+ "mcrs_minecraft_block",
  "mcrs_minecraft_worldgen",
  "mcrs_nbt",
  "mcrs_network",
@@ -1837,6 +1839,21 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_block"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_ecs_macros",
+ "bitflags 2.10.0",
+ "mcrs_engine",
+ "mcrs_network",
+ "mcrs_protocol",
+ "rustc-hash",
  "tracing",
 ]
 
