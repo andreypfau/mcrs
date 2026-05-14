@@ -38,21 +38,17 @@ pub const HARD_BUDGET: Duration = Duration::from_millis(25);
 pub const SOFT_BUDGET: Duration = Duration::from_millis(10);
 pub const PENDING_EGRESS_CAP: usize = 256;
 
-#[derive(Resource, Copy, Clone)]
-pub struct TickStart(pub Instant);
-
-impl Default for TickStart {
-    fn default() -> Self {
-        Self(Instant::now())
-    }
-}
-
-pub fn set_tick_start(mut tick_start: ResMut<TickStart>) {
-    tick_start.0 = Instant::now();
-}
-
 pub fn light_converge_driver(world: &mut World) {
-    let tick_start = world.resource::<TickStart>().0;
+    // Budget the cascade against the driver's own start, not against the
+    // global tick start. Upstream systems (worldgen, chunk reconcile,
+    // block updates) routinely burn 30-100 ms before the lighting stage
+    // even runs; sharing the deadline with them meant the driver would
+    // cap-on-iteration-1 every tick during chunk load, regardless of how
+    // little lighting work was actually pending. Anchoring the budget
+    // here gives the driver a predictable per-tick wall-clock slice
+    // (`HARD_BUDGET`) and keeps the cap signal meaningful — it fires only
+    // when the cascade itself is starved, not because the tick was busy.
+    let driver_start = Instant::now();
 
     for iteration in 0..MAX_ITERATIONS {
         world.run_schedule(LightConvergeSchedule);
@@ -68,7 +64,7 @@ pub fn light_converge_driver(world: &mut World) {
             return;
         }
 
-        let elapsed = Instant::now().duration_since(tick_start);
+        let elapsed = Instant::now().duration_since(driver_start);
         if elapsed >= HARD_BUDGET {
             LIGHT_CONVERGE_ITERATIONS_TOTAL
                 .fetch_add(iteration as u64 + 1, Ordering::Relaxed);
@@ -109,15 +105,6 @@ mod tests {
     }
 
     #[test]
-    fn tick_start_default_uses_instant_now() {
-        let before = Instant::now();
-        let t = TickStart::default();
-        let after = Instant::now();
-        assert!(t.0 >= before);
-        assert!(t.0 <= after);
-    }
-
-    #[test]
     fn light_converge_set_variants_compile() {
         let _ = LightConvergeSet::PropagateDecrease;
         let _ = LightConvergeSet::DistributeDecrease;
@@ -148,7 +135,6 @@ mod tests {
         F: FnOnce() -> Schedule,
     {
         let mut app = App::new();
-        app.insert_resource(TickStart::default());
         app.world_mut().add_schedule(schedule_builder());
         app
     }
@@ -187,15 +173,15 @@ mod tests {
         let _lock = TELEMETRY_TEST_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        // TickStart at now so HARD_BUDGET is in the future. The stub system
-        // re-inserts LightDirty every iteration, so the driver runs the full
-        // MAX_ITERATIONS.
+        // Stub schedule re-inserts LightDirty every iteration so the driver
+        // never reaches quiescence; each iteration is sub-millisecond so the
+        // 25 ms `HARD_BUDGET` is well out of reach. The driver must exit via
+        // the `MAX_ITERATIONS` ceiling.
         let mut app = build_driver_app_with_schedule(|| {
             let mut schedule = Schedule::new(LightConvergeSchedule);
             schedule.add_systems(re_insert_dirty);
             schedule
         });
-        app.world_mut().insert_resource(TickStart(Instant::now()));
 
         let _section = app.world_mut().spawn(LightDirty).id();
 
@@ -215,6 +201,19 @@ mod tests {
         );
     }
 
+    /// Stub schedule body that sleeps long enough for a single iteration to
+    /// blow the `HARD_BUDGET` wall-clock budget, and re-marks the section
+    /// dirty so the driver doesn't exit via the quiescence path first.
+    fn slow_redirty_30ms(
+        mut commands: Commands,
+        dirty: Query<Entity, With<LightDirty>>,
+    ) {
+        std::thread::sleep(Duration::from_millis(30));
+        for e in dirty.iter() {
+            commands.entity(e).insert(LightDirty);
+        }
+    }
+
     #[test]
     fn light_converge_driver_terminates_on_hard_budget() {
         let _lock = TELEMETRY_TEST_LOCK
@@ -222,15 +221,9 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         let mut app = build_driver_app_with_schedule(|| {
             let mut schedule = Schedule::new(LightConvergeSchedule);
-            schedule.add_systems(re_insert_dirty);
+            schedule.add_systems(slow_redirty_30ms);
             schedule
         });
-        // Force TickStart 30 ms in the past so HARD_BUDGET (25 ms) is already
-        // exceeded after the first iteration's run.
-        let past = Instant::now()
-            .checked_sub(Duration::from_millis(30))
-            .expect("instant subtraction supported on this platform");
-        app.world_mut().insert_resource(TickStart(past));
 
         let _section = app.world_mut().spawn(LightDirty).id();
 
@@ -238,9 +231,9 @@ mod tests {
         light_converge_driver(app.world_mut());
         let after = crate::telemetry::snapshot();
 
-        // The driver runs one iteration (the schedule's stub re-inserts
-        // LightDirty), then checks elapsed >= HARD_BUDGET and exits with
-        // cap fire.
+        // The schedule body sleeps 30 ms before re-inserting LightDirty.
+        // After the first run_schedule the driver observes elapsed >=
+        // HARD_BUDGET (25 ms) and exits via the cap path.
         assert_eq!(
             after.iterations - before.iterations,
             1,
@@ -280,7 +273,6 @@ mod tests {
             s.add_systems(re_insert_dirty);
             s
         });
-        app2.world_mut().insert_resource(TickStart(Instant::now()));
         let _ = app2.world_mut().spawn(LightDirty).id();
         let b2 = crate::telemetry::snapshot();
         light_converge_driver(app2.world_mut());

@@ -2,7 +2,7 @@ use crate::codec::{
     emit_column_light_updates, BlockLightDirty, ColumnLightUpdate, SkyLightDirty,
 };
 use crate::converge::{
-    light_converge_driver, set_tick_start, LightConvergeSchedule, LightConvergeSet, TickStart,
+    light_converge_driver, LightConvergeSchedule, LightConvergeSet,
 };
 use crate::distribute::{distribute_decrease, distribute_increase};
 use crate::emit_dirty::{
@@ -90,13 +90,6 @@ impl Plugin for LightingPlugin {
         app.edit_schedule(LightConvergeSchedule, |schedule| {
             schedule.set_executor_kind(ExecutorKind::SingleThreaded);
         });
-
-        app.insert_resource(TickStart::default());
-
-        app.add_systems(
-            FixedUpdate,
-            set_tick_start.before(BlockUpdateSet::ApplyChanges),
-        );
 
         // WorldgenIngestSet::ProcessCompletedColumns runs in FixedPreUpdate per
         // mcrs_minecraft's chunk plugin; Bevy executes FixedPreUpdate strictly
