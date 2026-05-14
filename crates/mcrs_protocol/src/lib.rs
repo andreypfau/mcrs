@@ -108,11 +108,11 @@ pub use {anyhow, bytes, mcrs_nbt as nbt, uuid, valence_ident as ident, valence_t
 pub const MAX_PACKET_SIZE: i32 = 2097152;
 
 /// The Minecraft protocol version this library currently targets.
-pub const PROTOCOL_VERSION: i32 = 763;
+pub const PROTOCOL_VERSION: i32 = 775;
 
 /// The stringified name of the Minecraft version this library currently
 /// targets.
-pub const MINECRAFT_VERSION: &str = "1.20.1";
+pub const MINECRAFT_VERSION: &str = "26.1.2";
 
 /// How large a packet should be before it is compressed by the packet encoder.
 ///
@@ -324,6 +324,17 @@ pub enum ConnectionState {
     Login,
     Configuration,
     Game,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn protocol_version_is_26_1_2() {
+        assert_eq!(PROTOCOL_VERSION, 775);
+        assert_eq!(MINECRAFT_VERSION, "26.1.2");
+    }
 }
 
 // #[allow(dead_code)]
