@@ -166,6 +166,7 @@ impl Plugin for LightingPlugin {
                     .in_set(LightConvergeSet::PropagateIncrease),
                 ApplyDeferred,
                 distribute_increase.in_set(LightConvergeSet::DistributeIncrease),
+                ApplyDeferred,
             )
                 .chain(),
         );
