@@ -32,7 +32,6 @@ pub fn snapshot() -> LightTelemetrySnapshot {
 /// before and after a state change must hold this mutex across the
 /// observation window — otherwise concurrent tests in the same binary will
 /// race and the delta becomes non-deterministic.
-#[cfg(test)]
 pub static TELEMETRY_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[cfg(test)]
