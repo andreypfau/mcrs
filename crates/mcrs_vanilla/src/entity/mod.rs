@@ -2,6 +2,7 @@ pub mod entity_type;
 pub mod explosive;
 pub mod minecraft;
 pub mod player;
+pub mod tags;
 
 pub use entity_type::EntityType;
 

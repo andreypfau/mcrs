@@ -30,13 +30,15 @@ pub mod chat_type;
 pub mod dialog;
 pub mod timeline;
 pub mod test_types;
+pub mod world_clock;
 
 use crate::block::tags as block_tags;
 use crate::enchantment::data::EnchantmentData;
 use crate::enchantment::tags as enchantment_tags;
+use crate::entity::tags as entity_type_tags;
 use crate::item::tags as item_tags;
 use bevy_app::{App, Plugin, PostStartup, Update};
-use bevy_asset::{AssetApp, AssetServer, Assets, UntypedHandle};
+use bevy_asset::{Asset, AssetApp, AssetServer, Assets, UntypedHandle};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_core::tag::file::TagFile;
@@ -50,6 +52,21 @@ pub struct LoadedRegistryAssets {
     handles: Vec<UntypedHandle>,
 }
 
+impl LoadedRegistryAssets {
+    /// True once every handle has either finished loading successfully or
+    /// failed to load. Missing or malformed files do not stall the gate;
+    /// they are logged once `WorldgenFreeze` proceeds.
+    pub fn all_handles_settled(&self, asset_server: &AssetServer) -> bool {
+        use bevy_asset::LoadState;
+        self.handles.iter().all(|h| {
+            matches!(
+                asset_server.load_state(h.id()),
+                LoadState::Loaded | LoadState::Failed(_)
+            )
+        })
+    }
+}
+
 pub struct MinecraftCorePlugin;
 
 impl Plugin for MinecraftCorePlugin {
@@ -59,6 +76,7 @@ impl Plugin for MinecraftCorePlugin {
         app.init_asset::<biome::Biome>();
         app.register_asset_loader(biome::BiomeLoader);
         app.init_asset::<worldgen::noise_settings::NoiseGeneratorSettings>();
+        app.register_asset_loader(worldgen::noise_settings::NoiseGeneratorSettingsLoader);
         app.init_asset::<worldgen::structure_set::StructureSet>();
         app.init_asset::<dimension::level_stem::DimensionDefinition>();
         app.init_asset::<worldgen::world_preset::WorldPreset>();
@@ -67,6 +85,14 @@ impl Plugin for MinecraftCorePlugin {
         app.register_asset_loader(variant::WolfVariantLoader);
         app.init_asset::<variant::WolfSoundVariant>();
         app.register_asset_loader(variant::WolfSoundVariantLoader);
+        app.init_asset::<variant::PigSoundVariant>();
+        app.register_asset_loader(variant::PigSoundVariantLoader);
+        app.init_asset::<variant::CatSoundVariant>();
+        app.register_asset_loader(variant::CatSoundVariantLoader);
+        app.init_asset::<variant::CowSoundVariant>();
+        app.register_asset_loader(variant::CowSoundVariantLoader);
+        app.init_asset::<variant::ChickenSoundVariant>();
+        app.register_asset_loader(variant::ChickenSoundVariantLoader);
         app.init_asset::<variant::PigVariant>();
         app.register_asset_loader(variant::PigVariantLoader);
         app.init_asset::<variant::FrogVariant>();
@@ -103,12 +129,15 @@ impl Plugin for MinecraftCorePlugin {
         app.register_asset_loader(test_types::TestEnvironmentLoader);
         app.init_asset::<test_types::TestInstance>();
         app.register_asset_loader(test_types::TestInstanceLoader);
+        app.init_asset::<world_clock::WorldClock>();
+        app.register_asset_loader(world_clock::WorldClockLoader);
         app.init_resource::<StaticRegistry<block::Block>>()
             .init_resource::<StaticRegistry<item::Item>>()
             .init_resource::<StaticRegistry<sound::SoundEvent>>()
             .init_resource::<StaticRegistry<entity::EntityType>>()
             .init_resource::<TagRegistry<block::Block>>()
             .init_resource::<TagRegistry<item::Item>>()
+            .init_resource::<TagRegistry<entity::EntityType>>()
             .init_resource::<StaticRegistry<EnchantmentData>>()
             .init_resource::<TagRegistry<EnchantmentData>>()
             .init_resource::<LoadedRegistryAssets>();
@@ -124,6 +153,10 @@ impl Plugin for MinecraftCorePlugin {
             (trim::TrimMaterial, "minecraft:trim_material", |v: &trim::TrimMaterial| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
             (variant::WolfVariant, "minecraft:wolf_variant", |v: &variant::WolfVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
             (variant::WolfSoundVariant, "minecraft:wolf_sound_variant", |v: &variant::WolfSoundVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
+            (variant::PigSoundVariant, "minecraft:pig_sound_variant", |v: &variant::PigSoundVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
+            (variant::CatSoundVariant, "minecraft:cat_sound_variant", |v: &variant::CatSoundVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
+            (variant::CowSoundVariant, "minecraft:cow_sound_variant", |v: &variant::CowSoundVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
+            (variant::ChickenSoundVariant, "minecraft:chicken_sound_variant", |v: &variant::ChickenSoundVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
             (variant::PigVariant, "minecraft:pig_variant", |v: &variant::PigVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
             (variant::FrogVariant, "minecraft:frog_variant", |v: &variant::FrogVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
             (variant::CatVariant, "minecraft:cat_variant", |v: &variant::CatVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
@@ -138,6 +171,7 @@ impl Plugin for MinecraftCorePlugin {
             (dialog::Dialog, "minecraft:dialog", |v: &dialog::Dialog| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
             (test_types::TestEnvironment, "minecraft:test_environment", |v: &test_types::TestEnvironment| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
             (test_types::TestInstance, "minecraft:test_instance", |v: &test_types::TestInstance| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
+            (world_clock::WorldClock, "minecraft:world_clock", |v: &world_clock::WorldClock| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
         ]);
 
         app.add_systems(PostStartup, start_loading_data_pack)
@@ -147,32 +181,9 @@ impl Plugin for MinecraftCorePlugin {
                     request_block_tags,
                     request_item_tags,
                     request_enchantment_tags,
+                    request_entity_type_tags,
                     request_world_preset,
-                    request_chat_types,
-                    request_trim_patterns,
-                    request_trim_materials,
-                    request_damage_types,
-                    request_painting_variants,
-                    request_banner_patterns,
-                    request_jukebox_songs,
-                    request_instruments,
-                ),
-            )
-            .add_systems(
-                OnEnter(AppState::LoadingDataPack),
-                (
-                    request_wolf_variants,
-                    request_wolf_sound_variants,
-                    request_pig_variants,
-                    request_frog_variants,
-                    request_cat_variants,
-                    request_cow_variants,
-                    request_chicken_variants,
-                    request_zombie_nautilus_variants,
-                    request_test_environments,
-                    request_test_instances,
-                    request_dialogs,
-                    request_timelines,
+                    request_data_pack_assets,
                 ),
             )
             .add_systems(
@@ -186,6 +197,7 @@ impl Plugin for MinecraftCorePlugin {
                     resolve_infiniburn_tags,
                     resolve_item_tags,
                     resolve_enchantment_tags,
+                    resolve_entity_type_tags,
                     freeze_static_tags,
                     register_static_registries_with_access,
                     transition_to_playing,
@@ -263,6 +275,19 @@ fn request_item_tags(mut tags: ResMut<TagRegistry<item::Item>>, asset_server: Re
     }
 }
 
+fn request_entity_type_tags(
+    mut tags: ResMut<TagRegistry<entity::EntityType>>,
+    asset_server: Res<AssetServer>,
+) {
+    for tag in entity_type_tags::ALL_ENTITY_TYPE_TAGS {
+        tags.request(tag, &asset_server);
+    }
+    tracing::info!(
+        count = entity_type_tags::ALL_ENTITY_TYPE_TAGS.len(),
+        "requested entity_type tag files"
+    );
+}
+
 fn request_enchantment_tags(
     mut tags: ResMut<TagRegistry<EnchantmentData>>,
     asset_server: Res<AssetServer>,
@@ -281,144 +306,142 @@ fn request_world_preset(mut commands: Commands, asset_server: Res<AssetServer>) 
     commands.insert_resource(ActiveWorldPreset { handle });
 }
 
-macro_rules! request_registry_assets {
-    ($fn_name:ident, $type:ty, $dir:literal, [$($entry:literal),* $(,)?]) => {
-        fn $fn_name(asset_server: Res<AssetServer>, mut loaded: ResMut<LoadedRegistryAssets>) {
-            const ENTRIES: &[&str] = &[
-                $(concat!("minecraft/", $dir, "/", $entry, ".json")),*
-            ];
-            for path in ENTRIES {
-                loaded.handles.push(asset_server.load::<$type>(*path).untyped());
-            }
-            tracing::info!(count = ENTRIES.len(), concat!("requested ", $dir, " assets"));
-        }
-    };
+// File listings baked from `assets/` at build time. Used as the fallback
+// manifest when the active `AssetSource` cannot enumerate directories
+// (HTTP/WASM, embedded packs without an index, etc.).
+mod registry_files {
+    include!(concat!(env!("OUT_DIR"), "/registry_files.rs"));
 }
 
-request_registry_assets!(request_chat_types, chat_type::ChatType, "chat_type", [
-    "chat", "emote_command", "msg_command_incoming", "msg_command_outgoing",
-    "say_command", "team_msg_command_incoming", "team_msg_command_outgoing",
-]);
+/// Resolve the set of `<folder>/<file>.json` paths that should be loaded
+/// for a registry folder.
+///
+/// First tries `AssetReader::read_directory` on the default `AssetSource` —
+/// this picks up files that the active source can enumerate, including
+/// future resource packs mounted as file-system folders or ZIPs.
+/// Falls back to the build-time manifest baked from the vanilla `assets/`
+/// tree for sources that cannot list directories (HTTP/WASM).
+fn list_registry_files(
+    asset_server: &AssetServer,
+    folder: &str,
+    fallback: &'static [&'static str],
+) -> Vec<String> {
+    use bevy_asset::io::AssetSourceId;
+    use bevy_tasks::block_on;
+    use futures_lite::StreamExt;
 
-request_registry_assets!(request_trim_patterns, trim::TrimPattern, "trim_pattern", [
-    "bolt", "coast", "dune", "eye", "flow", "host", "raiser", "rib", "sentry",
-    "shaper", "silence", "snout", "spire", "tide", "vex", "ward", "wayfinder", "wild",
-]);
+    let dynamic: Vec<String> = match asset_server.get_source(AssetSourceId::Default) {
+        Ok(source) => {
+            let reader = source.reader();
+            let folder_path = std::path::Path::new(folder);
+            block_on(async move {
+                let mut out = Vec::new();
+                if let Ok(mut stream) = reader.read_directory(folder_path).await {
+                    while let Some(p) = stream.next().await {
+                        if p.extension().and_then(|s| s.to_str()) != Some("json") {
+                            continue;
+                        }
+                        if let Some(s) = p.to_str() {
+                            out.push(s.to_owned());
+                        }
+                    }
+                }
+                out
+            })
+        }
+        Err(err) => {
+            tracing::warn!(folder, %err, "default AssetSource missing");
+            Vec::new()
+        }
+    };
 
-request_registry_assets!(request_trim_materials, trim::TrimMaterial, "trim_material", [
-    "amethyst", "copper", "diamond", "emerald", "gold", "iron", "lapis",
-    "netherite", "quartz", "redstone", "resin",
-]);
+    if !dynamic.is_empty() {
+        let mut sorted = dynamic;
+        sorted.sort();
+        return sorted;
+    }
 
-request_registry_assets!(request_wolf_variants, variant::WolfVariant, "wolf_variant", [
-    "ashen", "black", "chestnut", "pale", "rusty", "snowy", "spotted", "striped", "woods",
-]);
+    fallback.iter().map(|s| (*s).to_owned()).collect()
+}
 
-request_registry_assets!(request_wolf_sound_variants, variant::WolfSoundVariant, "wolf_sound_variant", [
-    "angry", "big", "classic", "cute", "grumpy", "puglin", "sad",
-]);
+fn request_registry<T: Asset>(
+    asset_server: &AssetServer,
+    loaded: &mut LoadedRegistryAssets,
+    folder: &str,
+    fallback: &'static [&'static str],
+) {
+    let files = list_registry_files(asset_server, folder, fallback);
+    let count = files.len();
+    for path in files {
+        loaded.handles.push(asset_server.load::<T>(path).untyped());
+    }
+    tracing::info!(folder, count, kind = std::any::type_name::<T>(), "requested registry assets");
+}
 
-request_registry_assets!(request_pig_variants, variant::PigVariant, "pig_variant", [
-    "cold", "temperate", "warm",
-]);
-
-request_registry_assets!(request_frog_variants, variant::FrogVariant, "frog_variant", [
-    "cold", "temperate", "warm",
-]);
-
-request_registry_assets!(request_cat_variants, variant::CatVariant, "cat_variant", [
-    "all_black", "black", "british_shorthair", "calico", "jellie", "persian",
-    "ragdoll", "red", "siamese", "tabby", "white",
-]);
-
-request_registry_assets!(request_cow_variants, variant::CowVariant, "cow_variant", [
-    "cold", "temperate", "warm",
-]);
-
-request_registry_assets!(request_chicken_variants, variant::ChickenVariant, "chicken_variant", [
-    "cold", "temperate", "warm",
-]);
-
-request_registry_assets!(request_zombie_nautilus_variants, variant::ZombieNautilusVariant, "zombie_nautilus_variant", [
-    "temperate", "warm",
-]);
-
-request_registry_assets!(request_painting_variants, painting_variant::PaintingVariant, "painting_variant", [
-    "alban", "aztec", "aztec2", "backyard", "baroque", "bomb", "bouquet",
-    "burning_skull", "bust", "cavebird", "changing", "cotan", "courbet", "creebet",
-    "dennis", "donkey_kong", "earth", "endboss", "fern", "fighters", "finding",
-    "fire", "graham", "humble", "kebab", "lowmist", "match", "meditative", "orb",
-    "owlemons", "passage", "pigscene", "plant", "pointer", "pond", "pool",
-    "prairie_ride", "sea", "skeleton", "skull_and_roses", "stage", "sunflowers",
-    "sunset", "tides", "unpacked", "void", "wanderer", "wasteland", "water",
-    "wind", "wither",
-]);
-
-request_registry_assets!(request_damage_types, damage_type::DamageType, "damage_type", [
-    "arrow", "bad_respawn_point", "cactus", "campfire", "cramming", "dragon_breath",
-    "drown", "dry_out", "ender_pearl", "explosion", "fall", "falling_anvil",
-    "falling_block", "falling_stalactite", "fireball", "fireworks", "fly_into_wall",
-    "freeze", "generic", "generic_kill", "hot_floor", "in_fire", "in_wall",
-    "indirect_magic", "lava", "lightning_bolt", "mace_smash", "magic", "mob_attack",
-    "mob_attack_no_aggro", "mob_projectile", "on_fire", "out_of_world",
-    "outside_border", "player_attack", "player_explosion", "sonic_boom", "spit",
-    "stalagmite", "starve", "sting", "sweet_berry_bush", "thorns", "thrown",
-    "trident", "unattributed_fireball", "wind_charge", "wither", "wither_skull",
-]);
-
-request_registry_assets!(request_banner_patterns, banner_pattern::BannerPattern, "banner_pattern", [
-    "base", "border", "bricks", "circle", "creeper", "cross", "curly_border",
-    "diagonal_left", "diagonal_right", "diagonal_up_left", "diagonal_up_right",
-    "flow", "flower", "globe", "gradient", "gradient_up", "guster",
-    "half_horizontal", "half_horizontal_bottom", "half_vertical", "half_vertical_right",
-    "mojang", "piglin", "rhombus", "skull", "small_stripes", "square_bottom_left",
-    "square_bottom_right", "square_top_left", "square_top_right", "straight_cross",
-    "stripe_bottom", "stripe_center", "stripe_downleft", "stripe_downright",
-    "stripe_left", "stripe_middle", "stripe_right", "stripe_top", "triangle_bottom",
-    "triangle_top", "triangles_bottom", "triangles_top",
-]);
-
-request_registry_assets!(request_jukebox_songs, jukebox_song::JukeboxSong, "jukebox_song", [
-    "11", "13", "5", "blocks", "cat", "chirp", "creator", "creator_music_box",
-    "far", "lava_chicken", "mall", "mellohi", "otherside", "pigstep", "precipice",
-    "relic", "stal", "strad", "tears", "wait", "ward",
-]);
-
-request_registry_assets!(request_instruments, instrument::Instrument, "instrument", [
-    "admire_goat_horn", "call_goat_horn", "dream_goat_horn", "feel_goat_horn",
-    "ponder_goat_horn", "seek_goat_horn", "sing_goat_horn", "yearn_goat_horn",
-]);
-
-request_registry_assets!(request_test_environments, test_types::TestEnvironment, "test_environment", [
-    "default",
-]);
-
-request_registry_assets!(request_test_instances, test_types::TestInstance, "test_instance", [
-    "always_pass",
-]);
-
-request_registry_assets!(request_dialogs, dialog::Dialog, "dialog", [
-    "custom_options", "quick_actions", "server_links",
-]);
-
-request_registry_assets!(request_timelines, timeline::Timeline, "timeline", [
-    "day", "early_game", "moon", "villager_schedule",
-]);
+fn request_data_pack_assets(
+    asset_server: Res<AssetServer>,
+    mut loaded: ResMut<LoadedRegistryAssets>,
+) {
+    use registry_files::*;
+    request_registry::<biome::Biome>(&asset_server, &mut loaded, FOLDER_BIOME, FILES_BIOME);
+    request_registry::<chat_type::ChatType>(&asset_server, &mut loaded, FOLDER_CHAT_TYPE, FILES_CHAT_TYPE);
+    request_registry::<trim::TrimPattern>(&asset_server, &mut loaded, FOLDER_TRIM_PATTERN, FILES_TRIM_PATTERN);
+    request_registry::<trim::TrimMaterial>(&asset_server, &mut loaded, FOLDER_TRIM_MATERIAL, FILES_TRIM_MATERIAL);
+    request_registry::<variant::WolfVariant>(&asset_server, &mut loaded, FOLDER_WOLF_VARIANT, FILES_WOLF_VARIANT);
+    request_registry::<variant::WolfSoundVariant>(&asset_server, &mut loaded, FOLDER_WOLF_SOUND_VARIANT, FILES_WOLF_SOUND_VARIANT);
+    request_registry::<variant::PigSoundVariant>(&asset_server, &mut loaded, FOLDER_PIG_SOUND_VARIANT, FILES_PIG_SOUND_VARIANT);
+    request_registry::<variant::CatSoundVariant>(&asset_server, &mut loaded, FOLDER_CAT_SOUND_VARIANT, FILES_CAT_SOUND_VARIANT);
+    request_registry::<variant::CowSoundVariant>(&asset_server, &mut loaded, FOLDER_COW_SOUND_VARIANT, FILES_COW_SOUND_VARIANT);
+    request_registry::<variant::ChickenSoundVariant>(&asset_server, &mut loaded, FOLDER_CHICKEN_SOUND_VARIANT, FILES_CHICKEN_SOUND_VARIANT);
+    request_registry::<variant::PigVariant>(&asset_server, &mut loaded, FOLDER_PIG_VARIANT, FILES_PIG_VARIANT);
+    request_registry::<variant::FrogVariant>(&asset_server, &mut loaded, FOLDER_FROG_VARIANT, FILES_FROG_VARIANT);
+    request_registry::<variant::CatVariant>(&asset_server, &mut loaded, FOLDER_CAT_VARIANT, FILES_CAT_VARIANT);
+    request_registry::<variant::CowVariant>(&asset_server, &mut loaded, FOLDER_COW_VARIANT, FILES_COW_VARIANT);
+    request_registry::<variant::ChickenVariant>(&asset_server, &mut loaded, FOLDER_CHICKEN_VARIANT, FILES_CHICKEN_VARIANT);
+    request_registry::<variant::ZombieNautilusVariant>(&asset_server, &mut loaded, FOLDER_ZOMBIE_NAUTILUS_VARIANT, FILES_ZOMBIE_NAUTILUS_VARIANT);
+    request_registry::<painting_variant::PaintingVariant>(&asset_server, &mut loaded, FOLDER_PAINTING_VARIANT, FILES_PAINTING_VARIANT);
+    request_registry::<damage_type::DamageType>(&asset_server, &mut loaded, FOLDER_DAMAGE_TYPE, FILES_DAMAGE_TYPE);
+    request_registry::<banner_pattern::BannerPattern>(&asset_server, &mut loaded, FOLDER_BANNER_PATTERN, FILES_BANNER_PATTERN);
+    request_registry::<jukebox_song::JukeboxSong>(&asset_server, &mut loaded, FOLDER_JUKEBOX_SONG, FILES_JUKEBOX_SONG);
+    request_registry::<instrument::Instrument>(&asset_server, &mut loaded, FOLDER_INSTRUMENT, FILES_INSTRUMENT);
+    request_registry::<dialog::Dialog>(&asset_server, &mut loaded, FOLDER_DIALOG, FILES_DIALOG);
+    request_registry::<timeline::Timeline>(&asset_server, &mut loaded, FOLDER_TIMELINE, FILES_TIMELINE);
+    request_registry::<world_clock::WorldClock>(&asset_server, &mut loaded, FOLDER_WORLD_CLOCK, FILES_WORLD_CLOCK);
+    request_registry::<test_types::TestEnvironment>(&asset_server, &mut loaded, FOLDER_TEST_ENVIRONMENT, FILES_TEST_ENVIRONMENT);
+    request_registry::<test_types::TestInstance>(&asset_server, &mut loaded, FOLDER_TEST_INSTANCE, FILES_TEST_INSTANCE);
+}
 
 fn check_tags_ready(
     block_tags: Res<TagRegistry<block::Block>>,
     item_tags: Res<TagRegistry<item::Item>>,
     enchantment_tags: Res<TagRegistry<EnchantmentData>>,
+    entity_type_tags: Res<TagRegistry<entity::EntityType>>,
     world_preset: Res<ActiveWorldPreset>,
+    registry_assets: Res<LoadedRegistryAssets>,
     asset_server: Res<AssetServer>,
     mut next: ResMut<NextState<AppState>>,
 ) {
-    if block_tags.all_handles_loaded(&asset_server)
-        && item_tags.all_handles_loaded(&asset_server)
-        && enchantment_tags.all_handles_loaded(&asset_server)
-        && asset_server.is_loaded_with_dependencies(&world_preset.handle)
+    let preset_state = asset_server.load_state(world_preset.handle.id());
+    let preset_dep_state =
+        asset_server.recursive_dependency_load_state(world_preset.handle.id());
+    let preset_settled = matches!(
+        preset_state,
+        bevy_asset::LoadState::Loaded | bevy_asset::LoadState::Failed(_)
+    ) && matches!(
+        preset_dep_state,
+        bevy_asset::RecursiveDependencyLoadState::Loaded
+            | bevy_asset::RecursiveDependencyLoadState::Failed(_)
+    );
+    if block_tags.all_handles_settled(&asset_server)
+        && item_tags.all_handles_settled(&asset_server)
+        && enchantment_tags.all_handles_settled(&asset_server)
+        && entity_type_tags.all_handles_settled(&asset_server)
+        && preset_settled
+        && registry_assets.all_handles_settled(&asset_server)
     {
-        tracing::info!("all tag files and world preset loaded — entering WorldgenFreeze");
+        tracing::info!(
+            "all tag files, world preset, and registry assets settled — entering WorldgenFreeze"
+        );
         next.set(AppState::WorldgenFreeze);
     }
 }
@@ -505,18 +528,45 @@ fn resolve_enchantment_tags(
     tracing::info!(resolved_entries = resolved, "resolved TagRegistry<EnchantmentData>");
 }
 
+fn resolve_entity_type_tags(
+    mut tags: ResMut<TagRegistry<entity::EntityType>>,
+    tag_files: Res<Assets<TagFile>>,
+    registry: Res<StaticRegistry<entity::EntityType>>,
+) {
+    let handles = tags.drain_handles();
+    let mut resolved = 0usize;
+    for (loc, handle) in handles {
+        if let Some(tf) = tag_files.get(&handle) {
+            let ids = TagRegistry::resolve_tag_file(tf, &tag_files, &registry);
+            resolved += ids.len();
+            tags.insert(loc, ids);
+        } else {
+            tracing::warn!("entity_type tag file not available at WorldgenFreeze: {loc}");
+        }
+    }
+    tracing::info!(
+        resolved_entries = resolved,
+        "resolved TagRegistry<EntityType>"
+    );
+}
+
 pub fn freeze_static_tags(
     mut block_tags: ResMut<TagRegistry<block::Block>>,
     mut item_tags: ResMut<TagRegistry<item::Item>>,
     mut enchantment_tags: ResMut<TagRegistry<EnchantmentData>>,
+    mut entity_type_tags: ResMut<TagRegistry<entity::EntityType>>,
     block_registry: Res<StaticRegistry<block::Block>>,
     item_registry: Res<StaticRegistry<item::Item>>,
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
+    entity_type_registry: Res<StaticRegistry<entity::EntityType>>,
 ) {
     block_tags.freeze(block_registry.len() as u32);
     item_tags.freeze(item_registry.len() as u32);
     enchantment_tags.freeze(enchantment_registry.len() as u32);
-    tracing::info!("frozen TagRegistry<Block>, TagRegistry<Item>, and TagRegistry<EnchantmentData>");
+    entity_type_tags.freeze(entity_type_registry.len() as u32);
+    tracing::info!(
+        "frozen TagRegistry<Block>, TagRegistry<Item>, TagRegistry<EnchantmentData>, and TagRegistry<EntityType>"
+    );
 }
 
 fn register_static_registries_with_access(

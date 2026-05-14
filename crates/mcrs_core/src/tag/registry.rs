@@ -161,6 +161,22 @@ impl<T: TaggedRegistry + 'static> TagRegistry<T> {
         }
     }
 
+    /// Returns `true` once every pending handle has either fully loaded or
+    /// failed to load. Use this gate when missing tag files must not stall
+    /// startup forever; resolution will emit a warning per missing file.
+    pub fn all_handles_settled(&self, asset_server: &AssetServer) -> bool {
+        use bevy_asset::LoadState;
+        match &self.loading {
+            Some(m) => m.handles.values().all(|h| {
+                matches!(
+                    asset_server.load_state(h.id()),
+                    LoadState::Loaded | LoadState::Failed(_)
+                )
+            }),
+            None => true,
+        }
+    }
+
     /// Returns `true` if no tags have been resolved yet.
     pub fn is_empty(&self) -> bool {
         if let Some(m) = &self.loading {

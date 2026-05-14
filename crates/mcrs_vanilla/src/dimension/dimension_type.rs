@@ -21,6 +21,8 @@ use mcrs_core::tag::tag_ref::TagRef;
 pub(crate) struct ProtoDimensionType {
     pub has_skylight: bool,
     pub has_ceiling: bool,
+    #[serde(default)]
+    pub has_ender_dragon_fight: bool,
     pub coordinate_scale: f64,
     pub min_y: i32,
     pub height: u32,
@@ -29,7 +31,9 @@ pub(crate) struct ProtoDimensionType {
     pub ambient_light: f32,
     pub monster_spawn_block_light_limit: u32,
     pub monster_spawn_light_level: IntValueProvider,
+    #[serde(default)]
     pub skybox: Skybox,
+    #[serde(default)]
     pub cardinal_light: CardinalLight,
     #[serde(default)]
     pub has_fixed_time: Option<bool>,
@@ -37,6 +41,8 @@ pub(crate) struct ProtoDimensionType {
     pub attributes: Option<Value>,
     #[serde(default)]
     pub timelines: Option<Value>,
+    #[serde(default)]
+    pub default_clock: Option<String>,
 }
 
 /// Error when converting a [`ProtoDimensionType`] to [`DimensionType`].
@@ -65,6 +71,7 @@ impl ProtoDimensionType {
         Ok(DimensionType {
             has_skylight: self.has_skylight,
             has_ceiling: self.has_ceiling,
+            has_ender_dragon_fight: self.has_ender_dragon_fight,
             coordinate_scale: self.coordinate_scale,
             min_y: self.min_y,
             height: self.height,
@@ -78,6 +85,7 @@ impl ProtoDimensionType {
             has_fixed_time: self.has_fixed_time,
             attributes: self.attributes,
             timelines: self.timelines,
+            default_clock: self.default_clock,
         })
     }
 }
@@ -95,6 +103,7 @@ impl ProtoDimensionType {
 pub struct DimensionType {
     pub has_skylight: bool,
     pub has_ceiling: bool,
+    pub has_ender_dragon_fight: bool,
     pub coordinate_scale: f64,
     pub min_y: i32,
     pub height: u32,
@@ -108,6 +117,7 @@ pub struct DimensionType {
     pub has_fixed_time: Option<bool>,
     pub attributes: Option<Value>,
     pub timelines: Option<Value>,
+    pub default_clock: Option<String>,
 }
 
 impl DimensionType {
@@ -139,6 +149,7 @@ impl VisitAssetDependencies for DimensionType {
 pub struct NetworkDimensionType {
     pub has_skylight: bool,
     pub has_ceiling: bool,
+    pub has_ender_dragon_fight: bool,
     pub coordinate_scale: f64,
     pub min_y: i32,
     pub height: u32,
@@ -155,6 +166,8 @@ pub struct NetworkDimensionType {
     pub attributes: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timelines: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_clock: Option<String>,
 }
 
 impl From<&DimensionType> for NetworkDimensionType {
@@ -162,6 +175,7 @@ impl From<&DimensionType> for NetworkDimensionType {
         NetworkDimensionType {
             has_skylight: dt.has_skylight,
             has_ceiling: dt.has_ceiling,
+            has_ender_dragon_fight: dt.has_ender_dragon_fight,
             coordinate_scale: dt.coordinate_scale,
             min_y: dt.min_y,
             height: dt.height,
@@ -175,6 +189,7 @@ impl From<&DimensionType> for NetworkDimensionType {
             has_fixed_time: dt.has_fixed_time,
             attributes: dt.attributes.clone(),
             timelines: dt.timelines.clone(),
+            default_clock: dt.default_clock.clone(),
         }
     }
 }

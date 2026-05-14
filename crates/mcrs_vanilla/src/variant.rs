@@ -55,18 +55,28 @@ pub struct WolfVariantAssets {
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct WolfVariant {
     pub assets: WolfVariantAssets,
+    pub baby_assets: WolfVariantAssets,
+    #[serde(default, skip_serializing)]
+    pub spawn_conditions: Option<serde_json::Value>,
 }
 
 leaf_asset!(WolfVariant, WolfVariantLoader, WolfVariantLoaderError);
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
-pub struct WolfSoundVariant {
-    pub hurt_sound: String,
-    pub pant_sound: String,
-    pub whine_sound: String,
+pub struct WolfSounds {
     pub ambient_sound: String,
     pub death_sound: String,
     pub growl_sound: String,
+    pub hurt_sound: String,
+    pub pant_sound: String,
+    pub whine_sound: String,
+    pub step_sound: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+pub struct WolfSoundVariant {
+    pub adult_sounds: WolfSounds,
+    pub baby_sounds: WolfSounds,
 }
 
 leaf_asset!(
@@ -76,10 +86,123 @@ leaf_asset!(
 );
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
-pub struct PigVariant {
+pub struct PigSounds {
     #[serde(default)]
+    pub ambient_sound: Option<String>,
+    #[serde(default)]
+    pub death_sound: Option<String>,
+    #[serde(default)]
+    pub eat_sound: Option<String>,
+    #[serde(default)]
+    pub hurt_sound: Option<String>,
+    #[serde(default)]
+    pub step_sound: Option<String>,
+    #[serde(default)]
+    pub saddle_sound: Option<String>,
+    #[serde(default)]
+    pub boost_sound: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+pub struct PigSoundVariant {
+    pub adult_sounds: PigSounds,
+    pub baby_sounds: PigSounds,
+}
+
+leaf_asset!(
+    PigSoundVariant,
+    PigSoundVariantLoader,
+    PigSoundVariantLoaderError
+);
+
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+pub struct CatSounds {
+    #[serde(default)]
+    pub ambient_sound: Option<String>,
+    #[serde(default)]
+    pub beg_for_food_sound: Option<String>,
+    #[serde(default)]
+    pub death_sound: Option<String>,
+    #[serde(default)]
+    pub eat_sound: Option<String>,
+    #[serde(default)]
+    pub hiss_sound: Option<String>,
+    #[serde(default)]
+    pub hurt_sound: Option<String>,
+    #[serde(default)]
+    pub purr_sound: Option<String>,
+    #[serde(default)]
+    pub purreow_sound: Option<String>,
+    #[serde(default)]
+    pub stray_ambient_sound: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+pub struct CatSoundVariant {
+    pub adult_sounds: CatSounds,
+    pub baby_sounds: CatSounds,
+}
+
+leaf_asset!(
+    CatSoundVariant,
+    CatSoundVariantLoader,
+    CatSoundVariantLoaderError
+);
+
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+pub struct CowSoundVariant {
+    #[serde(default)]
+    pub ambient_sound: Option<String>,
+    #[serde(default)]
+    pub death_sound: Option<String>,
+    #[serde(default)]
+    pub hurt_sound: Option<String>,
+    #[serde(default)]
+    pub step_sound: Option<String>,
+    #[serde(default)]
+    pub milk_sound: Option<String>,
+}
+
+leaf_asset!(
+    CowSoundVariant,
+    CowSoundVariantLoader,
+    CowSoundVariantLoaderError
+);
+
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+pub struct ChickenSounds {
+    #[serde(default)]
+    pub ambient_sound: Option<String>,
+    #[serde(default)]
+    pub death_sound: Option<String>,
+    #[serde(default)]
+    pub hurt_sound: Option<String>,
+    #[serde(default)]
+    pub step_sound: Option<String>,
+    #[serde(default)]
+    pub egg_sound: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+pub struct ChickenSoundVariant {
+    pub adult_sounds: ChickenSounds,
+    pub baby_sounds: ChickenSounds,
+}
+
+leaf_asset!(
+    ChickenSoundVariant,
+    ChickenSoundVariantLoader,
+    ChickenSoundVariantLoaderError
+);
+
+#[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
+pub struct PigVariant {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     pub asset_id: String,
+    pub baby_asset_id: String,
+    #[serde(default, skip_serializing)]
+    pub spawn_conditions: Option<serde_json::Value>,
 }
 
 leaf_asset!(PigVariant, PigVariantLoader, PigVariantLoaderError);
@@ -87,6 +210,8 @@ leaf_asset!(PigVariant, PigVariantLoader, PigVariantLoaderError);
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct FrogVariant {
     pub asset_id: String,
+    #[serde(default, skip_serializing)]
+    pub spawn_conditions: Option<serde_json::Value>,
 }
 
 leaf_asset!(FrogVariant, FrogVariantLoader, FrogVariantLoaderError);
@@ -94,24 +219,33 @@ leaf_asset!(FrogVariant, FrogVariantLoader, FrogVariantLoaderError);
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct CatVariant {
     pub asset_id: String,
+    pub baby_asset_id: String,
+    #[serde(default, skip_serializing)]
+    pub spawn_conditions: Option<serde_json::Value>,
 }
 
 leaf_asset!(CatVariant, CatVariantLoader, CatVariantLoaderError);
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct CowVariant {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     pub asset_id: String,
+    pub baby_asset_id: String,
+    #[serde(default, skip_serializing)]
+    pub spawn_conditions: Option<serde_json::Value>,
 }
 
 leaf_asset!(CowVariant, CowVariantLoader, CowVariantLoaderError);
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct ChickenVariant {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     pub asset_id: String,
+    pub baby_asset_id: String,
+    #[serde(default, skip_serializing)]
+    pub spawn_conditions: Option<serde_json::Value>,
 }
 
 leaf_asset!(
@@ -123,10 +257,10 @@ leaf_asset!(
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct ZombieNautilusVariant {
     pub asset_id: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
-    #[serde(default)]
-    pub spawn_conditions: Option<Vec<serde_json::Value>>,
+    #[serde(default, skip_serializing)]
+    pub spawn_conditions: Option<serde_json::Value>,
 }
 
 leaf_asset!(

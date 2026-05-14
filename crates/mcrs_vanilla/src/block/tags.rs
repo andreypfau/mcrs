@@ -33,6 +33,13 @@ pub const SAND: TagKey<Block> = TagKey::new(mcrs_core::rl!("minecraft:sand"));
 pub const WOOL: TagKey<Block> = TagKey::new(mcrs_core::rl!("minecraft:wool"));
 pub const SNOW: TagKey<Block> = TagKey::new(mcrs_core::rl!("minecraft:snow"));
 
+// Enchantment-referenced tags
+pub const LIGHTNING_RODS: TagKey<Block> = TagKey::new(mcrs_core::rl!("minecraft:lightning_rods"));
+pub const SOUL_SPEED_BLOCKS: TagKey<Block> =
+    TagKey::new(mcrs_core::rl!("minecraft:soul_speed_blocks"));
+pub const BLOCKS_WIND_CHARGE_EXPLOSIONS: TagKey<Block> =
+    TagKey::new(mcrs_core::rl!("minecraft:blocks_wind_charge_explosions"));
+
 /// All block tag keys, for bulk loading.
 pub const ALL_BLOCK_TAGS: &[TagKey<Block>] = &[
     MINEABLE_PICKAXE,
@@ -52,4 +59,7 @@ pub const ALL_BLOCK_TAGS: &[TagKey<Block>] = &[
     SAND,
     WOOL,
     SNOW,
+    LIGHTNING_RODS,
+    SOUL_SPEED_BLOCKS,
+    BLOCKS_WIND_CHARGE_EXPLOSIONS,
 ];

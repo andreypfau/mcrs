@@ -7,9 +7,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, TypePath)]
 pub struct Timeline {
+    pub clock: String,
     #[serde(default)]
     pub period_ticks: Option<u32>,
+    #[serde(default)]
     pub tracks: HashMap<String, Track>,
+    #[serde(default)]
+    pub time_markers: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,18 +31,25 @@ pub struct Keyframe {
     pub value: serde_json::Value,
 }
 
-/// Timeline data subset for NETWORK_CODEC — omits server-only scheduling.
-///
-/// The `period_ticks` field is server scheduling data not needed by clients.
+/// Timeline data subset for NETWORK_CODEC — mirrors the fields the vanilla
+/// 26.1 client expects: clock, optional period_ticks, tracks, time_markers.
 #[derive(Debug, Clone, Serialize)]
 pub struct NetworkTimeline {
+    pub clock: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub period_ticks: Option<u32>,
     pub tracks: HashMap<String, Track>,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub time_markers: HashMap<String, serde_json::Value>,
 }
 
 impl From<&Timeline> for NetworkTimeline {
     fn from(tl: &Timeline) -> Self {
         NetworkTimeline {
+            clock: tl.clock.clone(),
+            period_ticks: tl.period_ticks,
             tracks: tl.tracks.clone(),
+            time_markers: tl.time_markers.clone(),
         }
     }
 }
@@ -96,21 +107,18 @@ mod tests {
     }
 
     #[test]
-    fn network_timeline_omits_period_ticks() {
-        let dir = assets_dir().join("minecraft/timeline");
-        let first_file = std::fs::read_dir(&dir)
-            .expect("timeline dir must exist")
-            .filter_map(|e| e.ok())
-            .find(|e| e.path().extension().and_then(|s| s.to_str()) == Some("json"))
-            .expect("at least one timeline file");
-        let bytes = std::fs::read(first_file.path()).unwrap();
+    fn network_timeline_round_trips_required_fields() {
+        let bytes =
+            std::fs::read(assets_dir().join("minecraft/timeline/villager_schedule.json")).unwrap();
         let timeline: Timeline = serde_json::from_slice(&bytes).unwrap();
         let network = NetworkTimeline::from(&timeline);
-
         let json = serde_json::to_value(&network).unwrap();
+        assert!(json.get("clock").is_some());
         assert!(json.get("tracks").is_some());
-        assert!(json.get("period_ticks").is_none());
-        assert_eq!(network.tracks.len(), timeline.tracks.len());
+        assert_eq!(
+            json.get("period_ticks").and_then(|v| v.as_u64()),
+            Some(24000)
+        );
     }
 
     #[test]

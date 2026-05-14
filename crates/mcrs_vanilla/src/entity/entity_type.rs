@@ -1,3 +1,4 @@
+use mcrs_core::tag::key::TaggedRegistry;
 use mcrs_core::ResourceLocation;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -13,4 +14,8 @@ impl EntityType {
             protocol_id,
         }
     }
+}
+
+impl TaggedRegistry for EntityType {
+    const REGISTRY_PATH: &'static str = "entity_type";
 }

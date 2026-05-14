@@ -12,72 +12,30 @@ impl TaggedRegistry for Dialog {
 
 // ── Proto (deserialization-only) ──
 
-#[derive(Debug, Clone, Deserialize)]
-pub(crate) struct ProtoDialog {
-    #[serde(rename = "type")]
-    pub dialog_type: String,
-    pub title: serde_json::Value,
-    #[serde(default)]
-    pub external_title: Option<serde_json::Value>,
-    #[serde(default)]
-    pub exit_action: Option<serde_json::Value>,
-    #[serde(default)]
-    pub columns: Option<u32>,
-    #[serde(default)]
-    pub button_width: Option<u32>,
-    #[serde(default)]
-    pub dialogs: Option<String>,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum DialogResolveError {
-    #[error("dialogs field `{0}` does not start with '#'")]
-    MissingHashPrefix(String),
     #[error("invalid resource location in dialogs: {0}")]
     InvalidResourceLocation(#[from] mcrs_core::resource_location::ResourceLocationError),
 }
 
-impl ProtoDialog {
-    fn resolve(
-        self,
-        load_context: &mut LoadContext<'_>,
-    ) -> Result<Dialog, DialogResolveError> {
-        let dialogs = self
-            .dialogs
-            .map(|s| {
-                let tag_str = s
-                    .strip_prefix('#')
-                    .ok_or_else(|| DialogResolveError::MissingHashPrefix(s.clone()))?;
-                TagRef::<Dialog>::load(tag_str, load_context)
-                    .map_err(DialogResolveError::from)
-            })
-            .transpose()?;
-
-        Ok(Dialog {
-            dialog_type: self.dialog_type,
-            title: self.title,
-            external_title: self.external_title,
-            exit_action: self.exit_action,
-            columns: self.columns,
-            button_width: self.button_width,
-            dialogs,
-        })
-    }
-}
-
 // ── Runtime Dialog ──
 
-#[derive(Debug, Clone, Serialize, TypePath)]
+/// Round-trips the dialog JSON verbatim. The vanilla 26.1 client uses a
+/// dispatching codec keyed on `type` and accepts any payload shape the
+/// dispatcher recognizes, so the simplest correct approach is to preserve
+/// the source JSON object unchanged and let the client interpret it.
+#[derive(Debug, Clone, TypePath)]
 pub struct Dialog {
-    pub dialog_type: String,
-    pub title: serde_json::Value,
-    pub external_title: Option<serde_json::Value>,
-    pub exit_action: Option<serde_json::Value>,
-    pub columns: Option<u32>,
-    pub button_width: Option<u32>,
-    // TagRef<Dialog> is a runtime-only Handle wrapper; not part of the network payload
-    #[serde(skip_serializing)]
+    pub raw: serde_json::Map<String, serde_json::Value>,
+    /// Sub-asset handle for the `dialogs` tag reference (e.g.
+    /// `#minecraft:pause_screen_additions`). Runtime-only; not serialized.
     pub dialogs: Option<TagRef<Dialog>>,
+}
+
+impl Serialize for Dialog {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.raw.serialize(serializer)
+    }
 }
 
 impl Asset for Dialog {}
@@ -118,8 +76,15 @@ impl AssetLoader for DialogLoader {
     ) -> Result<Dialog, DialogLoaderError> {
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;
-        let proto: ProtoDialog = serde_json::from_slice(&bytes)?;
-        Ok(proto.resolve(load_context)?)
+        let raw: serde_json::Map<String, serde_json::Value> = serde_json::from_slice(&bytes)?;
+        let dialogs = match raw.get("dialogs").and_then(|v| v.as_str()) {
+            Some(s) if s.starts_with('#') => {
+                let tag_str = &s[1..];
+                Some(TagRef::<Dialog>::load(tag_str, load_context).map_err(DialogResolveError::from)?)
+            }
+            _ => None,
+        };
+        Ok(Dialog { raw, dialogs })
     }
 
     fn extensions(&self) -> &[&str] {
@@ -154,8 +119,11 @@ mod tests {
                 continue;
             }
             let bytes = std::fs::read(&path).unwrap();
-            match serde_json::from_slice::<ProtoDialog>(&bytes) {
-                Ok(_) => count += 1,
+            match serde_json::from_slice::<serde_json::Map<String, serde_json::Value>>(&bytes) {
+                Ok(map) => {
+                    assert!(map.contains_key("type"), "{}", path.display());
+                    count += 1;
+                }
                 Err(e) => failures.push((path.display().to_string(), e.to_string())),
             }
         }

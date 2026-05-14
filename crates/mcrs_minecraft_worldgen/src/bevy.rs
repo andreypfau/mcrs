@@ -7,7 +7,7 @@ use bevy_app::{App, FixedUpdate, Plugin, Startup, Update};
 use bevy_asset::io::Reader;
 use bevy_asset::{
     Asset, AssetApp, AssetEvent, AssetLoader, AssetServer, Assets, Handle, LoadContext,
-    LoadDirectError,
+    LoadDirectError, LoadState, RecursiveDependencyLoadState,
 };
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Commands, Res, Resource};
@@ -27,9 +27,46 @@ impl Plugin for NoiseGeneratorSettingsPlugin {
             .register_asset_loader(DensityFunctionLoader)
             .register_asset_loader(NoiseGeneratorSettingsLoader)
             .register_asset_loader(NoiseParamLoader)
-            .add_systems(Update, print_loaded_noise_settings);
+            .add_systems(Update, (panic_on_noise_settings_load_failure, print_loaded_noise_settings));
 
         app.add_systems(Startup, setup_overworld_noise_settings);
+    }
+}
+
+/// Watches the overworld noise settings handle (and its full dependency tree)
+/// for load failures. Any failed asset under that root is treated as a fatal
+/// startup error so we do not silently fall back to an empty world.
+fn panic_on_noise_settings_load_failure(
+    handle: Option<Res<OverworldNoiseSettings>>,
+    asset_server: Res<AssetServer>,
+) {
+    let Some(handle) = handle else {
+        return;
+    };
+    let root_id = handle.0.id();
+    match asset_server.load_state(root_id) {
+        LoadState::Failed(err) => {
+            panic!(
+                "failed to load overworld noise settings: {err}\n\
+                 hint: this asset is required to generate the world; \
+                 fix the source file before retrying"
+            );
+        }
+        _ => {}
+    }
+    match asset_server.recursive_dependency_load_state(root_id) {
+        RecursiveDependencyLoadState::Failed(err) => {
+            let path = asset_server
+                .get_path(root_id)
+                .map(|p| p.to_string())
+                .unwrap_or_else(|| "<unknown>".to_string());
+            panic!(
+                "failed to load a dependency of overworld noise settings ({path}): {err}\n\
+                 hint: one of the referenced density_function / noise / surface_rule \
+                 assets is malformed; fix the source file before retrying"
+            );
+        }
+        _ => {}
     }
 }
 

@@ -34,6 +34,7 @@ use mcrs_protocol::resource_pack::KnownPack;
 use mcrs_protocol::{Ident, VarInt, WritePacket, ident};
 use mcrs_vanilla::block::Block as VanillaBlock;
 use mcrs_vanilla::enchantment::EnchantmentData;
+use mcrs_vanilla::entity::EntityType as VanillaEntityType;
 use mcrs_vanilla::item::Item as VanillaItem;
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -56,9 +57,12 @@ const DEFAULT_WORLD_PRESET: &str = "normal";
 /// deterministic and reproducible across restarts.
 const SYNCED_REGISTRIES: &[&str] = &[
     "minecraft:banner_pattern",
+    "minecraft:cat_sound_variant",
     "minecraft:cat_variant",
     "minecraft:chat_type",
+    "minecraft:chicken_sound_variant",
     "minecraft:chicken_variant",
+    "minecraft:cow_sound_variant",
     "minecraft:cow_variant",
     "minecraft:damage_type",
     "minecraft:dialog",
@@ -68,6 +72,7 @@ const SYNCED_REGISTRIES: &[&str] = &[
     "minecraft:instrument",
     "minecraft:jukebox_song",
     "minecraft:painting_variant",
+    "minecraft:pig_sound_variant",
     "minecraft:pig_variant",
     "minecraft:test_environment",
     "minecraft:test_instance",
@@ -76,6 +81,7 @@ const SYNCED_REGISTRIES: &[&str] = &[
     "minecraft:trim_pattern",
     "minecraft:wolf_sound_variant",
     "minecraft:wolf_variant",
+    "minecraft:world_clock",
     "minecraft:worldgen/biome",
     "minecraft:zombie_nautilus_variant",
 ];
@@ -93,6 +99,97 @@ const TAG_CAPABLE_REGISTRIES: &[&str] = &[
     "minecraft:item",
     "minecraft:worldgen/biome",
 ];
+
+/// Load all `assets/minecraft/tags/<dir>/*.json` tag files, resolve each
+/// referenced entry through `index_of`, and return the corresponding
+/// `TagGroup` list ready to send via `ClientboundUpdateTags`. Tag references
+/// (entries starting with `#`) are flattened by re-reading the referenced
+/// tag file recursively; cycles are guarded by a visited set.
+fn load_dynamic_registry_tags(
+    tag_dir: &str,
+    index_of: &dyn Fn(&str) -> Option<i32>,
+) -> Vec<TagGroup<'static>> {
+    use std::collections::HashSet;
+    use std::path::{Path, PathBuf};
+    let base = PathBuf::from("assets/minecraft/tags").join(tag_dir);
+    let mut groups = Vec::new();
+
+    fn walk(dir: &Path, base: &Path, files: &mut Vec<(String, PathBuf)>) {
+        let entries = match std::fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk(&path, base, files);
+                continue;
+            }
+            if path.extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+            let rel = match path.strip_prefix(base).ok().and_then(|p| p.to_str()) {
+                Some(s) => s.trim_end_matches(".json").to_string(),
+                None => continue,
+            };
+            files.push((rel.replace('\\', "/"), path));
+        }
+    }
+
+    fn collect(
+        base: &Path,
+        tag_name: &str,
+        index_of: &dyn Fn(&str) -> Option<i32>,
+        visited: &mut HashSet<String>,
+        out: &mut Vec<i32>,
+    ) {
+        if !visited.insert(tag_name.to_string()) {
+            return;
+        }
+        let rel = tag_name.strip_prefix("minecraft:").unwrap_or(tag_name);
+        let path = base.join(format!("{rel}.json"));
+        let bytes = match std::fs::read(&path) {
+            Ok(b) => b,
+            Err(_) => return,
+        };
+        let parsed: serde_json::Value = match serde_json::from_slice(&bytes) {
+            Ok(v) => v,
+            Err(_) => return,
+        };
+        let values = match parsed.get("values").and_then(|v| v.as_array()) {
+            Some(v) => v,
+            None => return,
+        };
+        for v in values {
+            let s = match v.as_str() {
+                Some(s) => s,
+                None => continue,
+            };
+            if let Some(rest) = s.strip_prefix('#') {
+                collect(base, rest, index_of, visited, out);
+            } else if let Some(idx) = index_of(s) {
+                out.push(idx);
+            }
+        }
+    }
+
+    let mut files = Vec::new();
+    walk(&base, &base, &mut files);
+    for (rel, _path) in files {
+        let tag_name = format!("minecraft:{rel}");
+        let mut visited = HashSet::new();
+        let mut ids = Vec::new();
+        collect(&base, &tag_name, index_of, &mut visited, &mut ids);
+        ids.sort();
+        ids.dedup();
+        groups.push(TagGroup {
+            name: Ident::new(Cow::Owned(tag_name)).unwrap(),
+            entries: ids.into_iter().map(VarInt).collect(),
+        });
+    }
+    groups.sort_by(|a, b| a.name.path().cmp(b.name.path()));
+    groups
+}
 
 /// Marker for a connection that has been sent `ClientboundSelectKnownPacks`
 /// and is awaiting the client's `ServerboundSelectKnownPacks` response
@@ -337,6 +434,7 @@ fn on_known_packs_response(
     block_tags: Res<TagRegistry<VanillaBlock>>,
     item_tags: Res<TagRegistry<VanillaItem>>,
     enchantment_tags: Res<TagRegistry<EnchantmentData>>,
+    entity_type_tags: Res<TagRegistry<VanillaEntityType>>,
     mut commands: Commands,
 ) {
     let Ok((entity, mut con)) = query.get_mut(event.entity) else {
@@ -470,11 +568,61 @@ fn on_known_packs_response(
             tags: groups,
         });
     }
+    if !entity_type_tags.is_empty() {
+        let groups: Vec<TagGroup> = entity_type_tags
+            .iter()
+            .map(|(tag_loc, bitset)| TagGroup {
+                name: Ident::new(Cow::Owned(tag_loc.as_str().to_string()))
+                    .unwrap_or_else(|_| Ident::new(Cow::Borrowed("minecraft:unknown")).unwrap()),
+                entries: bitset.iter().map(|id| VarInt(id.raw() as i32)).collect(),
+            })
+            .collect();
+        tag_registries.push(RegistryTags {
+            registry: ident!("minecraft:entity_type").into(),
+            tags: groups,
+        });
+    }
+
+    // Dynamic registries that need their full tag set declared (so item /
+    // enchantment data components and dimension_type references can resolve
+    // tag pointers). For registries the client knows about, every referenced
+    // tag must be declared even when the resolved entry list is empty.
+    for (registry_key, tag_dir) in [
+        ("minecraft:damage_type", "damage_type"),
+        ("minecraft:dialog", "dialog"),
+        ("minecraft:timeline", "timeline"),
+        ("minecraft:banner_pattern", "banner_pattern"),
+        ("minecraft:instrument", "instrument"),
+        ("minecraft:painting_variant", "painting_variant"),
+        ("minecraft:cat_variant", "cat_variant"),
+        ("minecraft:wolf_variant", "wolf_variant"),
+        ("minecraft:trim_material", "trim_material"),
+        ("minecraft:trim_pattern", "trim_pattern"),
+        ("minecraft:jukebox_song", "jukebox_song"),
+    ] {
+        let index_of = |name: &str| -> Option<i32> {
+            access
+                .iter()
+                .find(|r| r.registry_key() == registry_key)?
+                .iter_entries()
+                .enumerate()
+                .find(|(_, e)| e.location.as_str() == name)
+                .map(|(i, _)| i as i32)
+        };
+        let groups = load_dynamic_registry_tags(tag_dir, &index_of);
+        if !groups.is_empty() {
+            tag_registries.push(RegistryTags {
+                registry: Ident::new(Cow::Owned(registry_key.to_string())).unwrap(),
+                tags: groups,
+            });
+        }
+    }
 
     for &reg_key in TAG_CAPABLE_REGISTRIES {
         if reg_key == "minecraft:block"
             || reg_key == "minecraft:item"
             || reg_key == "minecraft:enchantment"
+            || reg_key == "minecraft:entity_type"
         {
             continue;
         }
@@ -608,7 +756,7 @@ mod tests {
 
     #[test]
     fn synced_registries_count() {
-        assert_eq!(SYNCED_REGISTRIES.len(), 23);
+        assert_eq!(SYNCED_REGISTRIES.len(), 28);
     }
 
     #[test]

@@ -234,10 +234,21 @@ fn send_column_queue(
                         ready = false;
                         break;
                     };
+                    // Section layout per vanilla LevelChunkSection.write:
+                    //   short non_empty_block_count
+                    //   short fluid_count
+                    //   PalettedContainer<BlockState>
+                    //   PalettedContainer<Biome>
+                    //
+                    // The client reads both shorts unconditionally; omitting the
+                    // fluid count desynchronises the reader by two bytes per
+                    // section and turns the rest of the column into garbage.
                     blocks
                         .non_air_block_count()
                         .encode(&mut data)
                         .expect("Failed to encode chunk block count");
+                    0u16.encode(&mut data)
+                        .expect("Failed to encode chunk fluid count");
                     blocks
                         .convert_network()
                         .encode(&mut data)
