@@ -32,7 +32,10 @@ pub fn snapshot() -> LightTelemetrySnapshot {
 /// before and after a state change must hold this mutex across the
 /// observation window — otherwise concurrent tests in the same binary will
 /// race and the delta becomes non-deterministic.
-#[cfg(test)]
+///
+/// Visible to integration tests in the `tests/` directory: those compile as
+/// separate binaries and see the lighting crate as an external dependency
+/// without test-config visibility, so the lock cannot be `#[cfg(test)]`-gated.
 pub static TELEMETRY_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[cfg(test)]

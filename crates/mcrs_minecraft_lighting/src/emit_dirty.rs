@@ -20,7 +20,7 @@
 //!    unload path becomes free to evict the section if it goes stale.
 
 use bevy_ecs::message::MessageWriter;
-use bevy_ecs::prelude::{Commands, Entity, Query, With, Without};
+use bevy_ecs::prelude::{Changed, Commands, Entity, Query, With, Without};
 use mcrs_engine::world::column::{
     ChunkColumnPosComponent, InChunkColumn, SectionIndex, SectionLookup,
 };
@@ -144,17 +144,23 @@ fn chunk_y_for_section(index: &SectionIndex, target: Entity) -> Option<i32> {
     })
 }
 
-// Producer half of the lighting codec wire. The per-iteration BFS inserts
-// `LightDirty` whenever a section's block- or sky-light storage is touched;
-// v1 dirty signaling is per-section, not per-layer, so both producer systems
-// may fan out a message for a single-layer change. The downstream codec
-// dedups by section and consults the actual `LightStorage` before setting any
-// wire-mask bit, so an over-fanned-out message is a negligible NULL pass at
-// the consumer. Per-layer-precise dirty markers (e.g. sparse
-// `BlockLightTouchedThisTick` / `SkyLightTouchedThisTick`) are a follow-up if
-// profiling shows the dedup work is hot.
+// Producer half of the lighting codec wire. Filtered on `Changed<BlockLight>`
+// (sky-layer counterpart filters on `Changed<SkyLight>`) so a section is
+// announced whenever its light storage was `&mut`-accessed since the last
+// tick — covering both the steady-state propagation pass and the post-attach
+// initial seeding, even when the upstream propagate systems cleared
+// `LightDirty` mid-tick under `LightConvergeSchedule`.
+//
+// Bevy 0.18 `Mut::deref_mut` marks the component changed for the lifetime of
+// the query iteration; the `par_iter_mut` body in `propagate_increase_block`
+// /`propagate_decrease_block` consistently dereferences `&mut light.0` for
+// every matched section, so any tick that touches a section's BFS queue
+// surfaces here, regardless of whether the propagate phase removed
+// `LightDirty` once its queues drained. The downstream codec dedups by
+// section before consulting the actual `LightStorage`, so over-fanning at
+// warm-up is a negligible NULL pass at the consumer.
 pub fn emit_block_light_dirty(
-    sections: Query<(Entity, &InChunkColumn), (With<LightDirty>, With<BlockLight>)>,
+    sections: Query<(Entity, &InChunkColumn), (Changed<BlockLight>, With<BlockLight>)>,
     columns: Query<(&ChunkColumnPosComponent, &SectionIndex)>,
     mut writer: MessageWriter<BlockLightDirty>,
 ) {
@@ -174,7 +180,7 @@ pub fn emit_block_light_dirty(
 }
 
 pub fn emit_sky_light_dirty(
-    sections: Query<(Entity, &InChunkColumn), (With<LightDirty>, With<SkyLight>)>,
+    sections: Query<(Entity, &InChunkColumn), (Changed<SkyLight>, With<SkyLight>)>,
     columns: Query<(&ChunkColumnPosComponent, &SectionIndex)>,
     mut writer: MessageWriter<SkyLightDirty>,
 ) {
