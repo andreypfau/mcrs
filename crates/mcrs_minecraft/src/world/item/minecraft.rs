@@ -14,7 +14,7 @@ pub const TORCH: Item = Item {
 };
 
 pub const WOODEN_PICKAXE: Item = Item {
-    id: ItemId(913),
+    id: ItemId(914),
     identifier: ident!("wooden_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::WOOD,
@@ -25,7 +25,7 @@ pub const WOODEN_PICKAXE: Item = Item {
 };
 
 pub const STONE_PICKAXE: Item = Item {
-    id: ItemId(923),
+    id: ItemId(924),
     identifier: ident!("stone_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::STONE,
@@ -36,7 +36,7 @@ pub const STONE_PICKAXE: Item = Item {
 };
 
 pub const GOLDEN_PICKAXE: Item = Item {
-    id: ItemId(928),
+    id: ItemId(929),
     identifier: ident!("golden_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::GOLD,
@@ -47,7 +47,7 @@ pub const GOLDEN_PICKAXE: Item = Item {
 };
 
 pub const IRON_PICKAXE: Item = Item {
-    id: ItemId(933),
+    id: ItemId(934),
     identifier: ident!("iron_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::IRON,
@@ -58,7 +58,7 @@ pub const IRON_PICKAXE: Item = Item {
 };
 
 pub const DIAMOND_PICKAXE: Item = Item {
-    id: ItemId(938),
+    id: ItemId(939),
     identifier: ident!("diamond_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::DIAMOND,
