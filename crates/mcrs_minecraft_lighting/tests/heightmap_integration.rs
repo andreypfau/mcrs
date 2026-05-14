@@ -26,8 +26,8 @@ use mcrs_engine::world::column::{ColumnPlugin, Heightmaps, InChunkColumn};
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_lighting::LightingPlugin;
-use mcrs_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::LightingPlugin;
+use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;

@@ -15,7 +15,7 @@ use bevy_ecs::prelude::*;
 use std::borrow::Cow;
 
 use mcrs_engine::world::column::ChunkColumnPos as EngineChunkColumnPos;
-use mcrs_light_codec::codec::ColumnLightUpdate;
+use mcrs_minecraft_lighting::codec::ColumnLightUpdate;
 use mcrs_minecraft::world::entity::player::column_view::ColumnView;
 use mcrs_protocol::chunk::LightData;
 use mcrs_protocol::ChunkColumnPos;

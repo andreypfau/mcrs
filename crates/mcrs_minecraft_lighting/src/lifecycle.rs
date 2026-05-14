@@ -21,7 +21,7 @@ const SECTION_SIZE: i32 = 16;
 /// from `BlockLightTable.flags`. Cells with `IS_NOT_AIR` populate
 /// `world_surface`; cells with `IS_MOTION_BLOCKING` populate `motion_blocking`.
 ///
-/// Pitfall #1 safety: this system lives in `mcrs_lighting` because it consumes
+/// Pitfall #1 safety: this system lives in `mcrs_minecraft_lighting` because it consumes
 /// `BlockLightTable`. The engine crate stays free of any lighting-side imports.
 ///
 /// Runs after `ChunkColumnLifecycleSet::ReconcileIndex` (Stage 2) so the

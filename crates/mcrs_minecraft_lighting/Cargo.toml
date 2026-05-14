@@ -1,6 +1,6 @@
 [package]
-name = "mcrs_lighting"
-description = "mcrs_lighting"
+name = "mcrs_minecraft_lighting"
+description = "mcrs_minecraft_lighting"
 version.workspace = true
 edition.workspace = true
 
@@ -11,7 +11,6 @@ bevy_state.workspace = true
 mcrs_core.workspace = true
 mcrs_protocol.workspace = true
 mcrs_engine.workspace = true
-mcrs_light_codec.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_vanilla.workspace = true
 rustc-hash.workspace = true

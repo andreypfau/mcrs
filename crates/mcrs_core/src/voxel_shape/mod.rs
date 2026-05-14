@@ -1,7 +1,7 @@
 //! `VoxelShape` and `ShapeRegistry` — the v1 geometric primitive consumed by
 //! the block light table and by vanilla block retrofits.
 //!
-//! Why this lives in `mcrs_core` rather than `mcrs_lighting` or `mcrs_vanilla`:
+//! Why this lives in `mcrs_core` rather than `mcrs_minecraft_lighting` or `mcrs_vanilla`:
 //! both downstream crates need to reference `&'static VoxelShape`, so the type
 //! must live in the upstream-most crate to preserve the workspace dep arrow.
 //!

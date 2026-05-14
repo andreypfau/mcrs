@@ -6,7 +6,7 @@
 //! reference.
 
 use mcrs_core::voxel_shape::VoxelShape;
-use mcrs_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
 use mcrs_protocol::BlockStateId;
 
 pub const SYNTH_AIR_ID: BlockStateId = BlockStateId(0);

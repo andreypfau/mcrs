@@ -7,7 +7,7 @@
     clippy::too_many_arguments
 )]
 
-pub use mcrs_light_codec::{codec, components, nibble, sets, storage};
+pub mod codec;
 
 pub mod bundle;
 pub mod table;
@@ -23,8 +23,9 @@ pub mod distribute;
 pub mod emit_dirty;
 pub mod telemetry;
 
-pub use mcrs_light_codec::codec::{BlockLightDirty, ColumnLightUpdate, SkyLightDirty};
-pub use mcrs_light_codec::sets::LightingSet;
+pub use codec::{components, nibble, sets, storage};
+pub use codec::codec::{BlockLightDirty, ColumnLightUpdate, SkyLightDirty};
+pub use codec::sets::LightingSet;
 pub use plugin::LightingPlugin;
 
 #[cfg(feature = "test-bench")]
