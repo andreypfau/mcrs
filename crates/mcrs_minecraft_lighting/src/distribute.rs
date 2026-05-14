@@ -458,7 +458,25 @@ fn drain_sky_egress(
         let drained: smallvec::SmallVec<[Wavefront; 8]> = egress.0.drain(..).collect();
         for wavefront in drained {
             let face = direction_from_index(wavefront.face());
-            let pre_attenuated_level = manhattan_preattenuate(wavefront.level(), 1);
+            // Sky-light entering a destination cell via its Up face (i.e. the
+            // source pushed it through its Down face) propagates without
+            // attenuation when the destination cell carries
+            // `PROPAGATES_SKYLIGHT_DOWN`. distribute lacks access to the
+            // destination palette, but for sky-light the only Down-face
+            // wavefronts come from cells that themselves passed the
+            // `PROPAGATES_SKYLIGHT_DOWN` check in the source BFS or from the
+            // column-walker fast path (which only fires on all-air sections).
+            // Skip the cross-boundary -1 in that case so the receiving
+            // section's column-walker condition (`level == 15`) keeps
+            // triggering down the column. The destination section's BFS
+            // re-applies opacity attenuation per cell, so opaque cells in the
+            // destination still cap their level via the `dst_flags` /
+            // `opacity` check in `propagate_increase_sky`.
+            let pre_attenuated_level = if face == Direction::Down {
+                wavefront.level()
+            } else {
+                manhattan_preattenuate(wavefront.level(), 1)
+            };
 
             let outcome = resolve_neighbor_section(
                 *chunk_pos,
