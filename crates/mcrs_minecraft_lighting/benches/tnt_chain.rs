@@ -7,7 +7,7 @@ fn bench_tnt_chain(c: &mut Criterion) {
     let before = snapshot();
 
     let mut group = c.benchmark_group("tnt_chain");
-    group.bench_function("propagate_to_quiescence", |b| {
+    group.bench_function("cascade_to_quiescence", |b| {
         b.iter_batched(
             || bench_helpers::build_tnt_chain_app(),
             |mut app| bench_helpers::run_until_converged(&mut app),
