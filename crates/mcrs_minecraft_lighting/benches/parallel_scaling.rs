@@ -1,0 +1,57 @@
+use bevy_app::{TaskPoolPlugin, TaskPoolOptions};
+use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
+use mcrs_minecraft_lighting::telemetry::{snapshot, TELEMETRY_TEST_LOCK};
+use mcrs_minecraft_lighting::test_bench::bench_helpers;
+
+fn read_threads_env() -> usize {
+    std::env::var("MCRS_BENCH_THREADS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(1)
+}
+
+fn bench_parallel_scaling(c: &mut Criterion) {
+    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let before = snapshot();
+
+    let threads = read_threads_env();
+    let group_id = format!("parallel_scaling/threads_{threads}");
+    let mut group = c.benchmark_group(group_id);
+    group.sample_size(10);
+
+    group.bench_function("spawn_warmup", |b| {
+        b.iter_batched(
+            || {
+                let mut app = bevy_app::App::new();
+                app.add_plugins(TaskPoolPlugin {
+                    task_pool_options: TaskPoolOptions::with_num_threads(threads),
+                });
+                let _dim = bench_helpers::install_lighting_plugins(&mut app);
+                bench_helpers::build_warmed_vd12_app_in_place(&mut app);
+                app
+            },
+            |mut app| {
+                bench_helpers::spawn_edge_column(&mut app);
+                bench_helpers::run_until_converged(&mut app);
+            },
+            BatchSize::SmallInput,
+        );
+    });
+    group.finish();
+
+    let after = snapshot();
+    assert_eq!(
+        after.cross_dim, before.cross_dim,
+        "cross-dim guard fired during parallel_scaling — structural bug"
+    );
+    eprintln!(
+        "parallel_scaling (threads={}) counter deltas: iters={} capped={} overflow={}",
+        threads,
+        after.iterations - before.iterations,
+        after.capped - before.capped,
+        after.overflow - before.overflow,
+    );
+}
+
+criterion_group!(benches, bench_parallel_scaling);
+criterion_main!(benches);

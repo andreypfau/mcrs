@@ -16,11 +16,50 @@ mcrs_vanilla.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
+dhat = { version = "0.3", optional = true }
 
 [features]
 test-bench = []
+bench-helpers = []
 lighting-trace = []
+profile-memory = ["dep:dhat"]
 
 [dev-dependencies]
 mcrs_minecraft.workspace = true
+mcrs_minecraft_worldgen.workspace = true
 tracing-subscriber = "0.3"
+criterion = { version = "0.7", features = ["html_reports"] }
+
+[[bench]]
+name = "single_torch"
+harness = false
+required-features = ["bench-helpers"]
+
+[[bench]]
+name = "tnt_chain"
+harness = false
+required-features = ["bench-helpers"]
+
+[[bench]]
+name = "spawn_warmup_vd12_one_column_at_edge"
+harness = false
+required-features = ["bench-helpers"]
+
+[[bench]]
+name = "roof_removal_16x16"
+harness = false
+required-features = ["bench-helpers"]
+
+[[bench]]
+name = "pit_dig_16x16x64"
+harness = false
+required-features = ["bench-helpers"]
+
+[[bench]]
+name = "parallel_scaling"
+harness = false
+required-features = ["bench-helpers"]
+
+[[example]]
+name = "memory_profile"
+required-features = ["bench-helpers"]

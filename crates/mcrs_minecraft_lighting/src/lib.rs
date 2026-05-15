@@ -30,5 +30,5 @@ pub use plugin::LightingPlugin;
 
 #[cfg(feature = "test-bench")]
 pub mod stub;
-#[cfg(feature = "test-bench")]
+#[cfg(any(feature = "test-bench", feature = "bench-helpers"))]
 pub mod test_bench;
