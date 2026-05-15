@@ -1,18 +1,28 @@
-use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use mcrs_minecraft_lighting::telemetry::{snapshot, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
+use std::time::{Duration, Instant};
 
 fn bench_single_torch(c: &mut Criterion) {
     let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let before = snapshot();
 
     let mut group = c.benchmark_group("single_torch");
+    // `iter_custom` keeps the per-iteration `App` construction AND its drop
+    // outside the timing window so the bench number tracks lighting work
+    // only — not the cost of allocating + tearing down the Bevy world.
     group.bench_function("propagate_to_quiescence", |b| {
-        b.iter_batched(
-            || bench_helpers::build_single_torch_app(),
-            |mut app| bench_helpers::run_until_converged(&mut app),
-            BatchSize::SmallInput,
-        );
+        b.iter_custom(|iters| {
+            let mut total = Duration::ZERO;
+            for _ in 0..iters {
+                let mut app = bench_helpers::build_single_torch_app();
+                let start = Instant::now();
+                bench_helpers::run_until_converged(&mut app);
+                total += start.elapsed();
+                drop(app);
+            }
+            total
+        });
     });
     group.finish();
 

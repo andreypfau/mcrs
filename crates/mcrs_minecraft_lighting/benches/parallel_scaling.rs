@@ -1,7 +1,8 @@
 use bevy_app::{App, TaskPoolOptions, TaskPoolPlugin};
-use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use mcrs_minecraft_lighting::telemetry::{snapshot, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
+use std::time::{Duration, Instant};
 
 fn read_threads_env() -> usize {
     std::env::var("MCRS_BENCH_THREADS")
@@ -20,23 +21,28 @@ fn bench_parallel_scaling(c: &mut Criterion) {
     let mut group = c.benchmark_group(group_id);
     group.sample_size(20);
 
+    // `iter_custom` keeps per-iteration `App` construction (which warms up
+    // the 25×25 VD12 grid — a 220 ms operation) AND its drop (which tears
+    // down 15 000+ entities — 3-4 ms) both outside the timing window. The
+    // bench number tracks the edge-column spawn + cascade only.
     group.bench_function("spawn_warmup_edge_column", |b| {
-        b.iter_batched(
-            || {
+        b.iter_custom(|iters| {
+            let mut total = Duration::ZERO;
+            for _ in 0..iters {
                 let mut app = App::new();
                 app.add_plugins(TaskPoolPlugin {
                     task_pool_options: TaskPoolOptions::with_num_threads(threads),
                 });
                 bench_helpers::install_lighting_plugins(&mut app);
                 bench_helpers::build_warmed_vd12_app_in_place(&mut app);
-                app
-            },
-            |mut app| {
+                let start = Instant::now();
                 bench_helpers::spawn_edge_column(&mut app);
                 bench_helpers::run_until_converged(&mut app);
-            },
-            BatchSize::SmallInput,
-        );
+                total += start.elapsed();
+                drop(app);
+            }
+            total
+        });
     });
     group.finish();
 

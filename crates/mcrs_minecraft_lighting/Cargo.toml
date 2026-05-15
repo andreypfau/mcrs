@@ -65,3 +65,7 @@ required-features = ["bench-helpers"]
 [[example]]
 name = "memory_profile"
 required-features = ["bench-helpers"]
+
+[[example]]
+name = "profile_spawn_warmup"
+required-features = ["bench-helpers"]
