@@ -238,7 +238,7 @@ impl Heightmaps {
 
 /// Result of looking up a chunk-section by `chunk_y` inside a column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SectionLookup {
+pub enum ChunkLookup {
     Loaded(Entity),
     Unloaded,
     BottomPadding,
@@ -250,12 +250,12 @@ pub enum SectionLookup {
 /// `real_count` entries (no padding); `iter_wire()` adds the two padding rows
 /// expected by the network wire format.
 #[derive(Component, Debug, Clone)]
-pub struct SectionIndex {
+pub struct ColumnChunks {
     pub min_section_y: i32,
     pub sections: Box<[Option<Entity>]>,
 }
 
-impl SectionIndex {
+impl ColumnChunks {
     pub fn new(min_section_y: i32, real_count: usize) -> Self {
         Self {
             min_section_y,
@@ -263,31 +263,31 @@ impl SectionIndex {
         }
     }
 
-    pub fn lookup(&self, chunk_y: i32) -> SectionLookup {
+    pub fn lookup(&self, chunk_y: i32) -> ChunkLookup {
         let rel = chunk_y - self.min_section_y;
         let len = self.sections.len() as i32;
         if rel == -1 {
-            return SectionLookup::BottomPadding;
+            return ChunkLookup::BottomPadding;
         }
         if rel == len {
-            return SectionLookup::TopPadding;
+            return ChunkLookup::TopPadding;
         }
         if rel < -1 || rel > len {
-            return SectionLookup::OutOfRange;
+            return ChunkLookup::OutOfRange;
         }
         match self.sections[rel as usize] {
-            Some(e) => SectionLookup::Loaded(e),
-            None => SectionLookup::Unloaded,
+            Some(e) => ChunkLookup::Loaded(e),
+            None => ChunkLookup::Unloaded,
         }
     }
 
-    pub fn iter_wire(&self) -> impl Iterator<Item = SectionLookup> + '_ {
-        std::iter::once(SectionLookup::BottomPadding)
+    pub fn iter_wire(&self) -> impl Iterator<Item = ChunkLookup> + '_ {
+        std::iter::once(ChunkLookup::BottomPadding)
             .chain(self.sections.iter().map(|slot| match slot {
-                Some(e) => SectionLookup::Loaded(*e),
-                None => SectionLookup::Unloaded,
+                Some(e) => ChunkLookup::Loaded(*e),
+                None => ChunkLookup::Unloaded,
             }))
-            .chain(std::iter::once(SectionLookup::TopPadding))
+            .chain(std::iter::once(ChunkLookup::TopPadding))
     }
 
     pub fn set_loaded(&mut self, chunk_y: i32, entity: Entity) {
@@ -319,7 +319,7 @@ impl SectionIndex {
     }
 }
 
-impl Default for SectionIndex {
+impl Default for ColumnChunks {
     fn default() -> Self {
         Self::new(0, 0)
     }
@@ -332,7 +332,7 @@ pub struct ColumnBundle {
     pub col_pos: ColumnPosComponent,
     pub dim: InDimension,
     pub heightmaps: Heightmaps,
-    pub sections: SectionIndex,
+    pub sections: ColumnChunks,
     marker: Column,
 }
 
@@ -353,7 +353,7 @@ impl ColumnBundle {
             col_pos: ColumnPosComponent(col_pos),
             dim,
             heightmaps: Heightmaps::with_min_y(dim_config.height, dim_config.min_y),
-            sections: SectionIndex::new(min_section_y, dim_config.section_count as usize),
+            sections: ColumnChunks::new(min_section_y, dim_config.section_count as usize),
             marker: Column,
         }
     }
@@ -392,6 +392,12 @@ pub type ChunkColumnBundle = ColumnBundle;
 #[allow(dead_code, deprecated)]
 #[deprecated(note = "use ColumnLifecycleSet")]
 pub type ChunkColumnLifecycleSet = ColumnLifecycleSet;
+#[allow(dead_code, deprecated)]
+#[deprecated(note = "use ColumnChunks")]
+pub type SectionIndex = ColumnChunks;
+#[allow(deprecated)]
+#[deprecated(note = "use ChunkLookup")]
+pub use self::ChunkLookup as SectionLookup;
 
 /// Stage 1: when a section becomes `ChunkLoaded` (or `ChunkUnloading`),
 /// create / refcount its owning chunk-column entity.
@@ -466,7 +472,7 @@ fn reconcile_column_existence(
 
 /// Stage 2: after Stage 1's `ApplyDeferred` flushes the spawn commands, the
 /// new column entities are visible. Insert the section into its column's
-/// `SectionIndex` and attach the `InColumn` back-link.
+/// `ColumnChunks` and attach the `InColumn` back-link.
 ///
 /// Pitfall #1 safety check: this function does NOT take a lighting-table
 /// resource. Heightmap priming (Stage 2.5) lives in `mcrs_minecraft_lighting`.
@@ -474,7 +480,7 @@ fn reconcile_section_index(
     newly_loaded: Query<(Entity, &ChunkPos, &InDimension), Added<ChunkLoaded>>,
     newly_unloading: Query<(&ChunkPos, &InDimension), Added<ChunkUnloading>>,
     dimensions: Query<&ColumnIndex>,
-    mut columns: Query<&mut SectionIndex>,
+    mut columns: Query<&mut ColumnChunks>,
     mut commands: Commands,
 ) {
     for (section_entity, chunk_pos, in_dim) in newly_loaded.iter() {
@@ -649,77 +655,77 @@ mod tests {
 
     #[test]
     fn section_lookup_loaded() {
-        let mut si = SectionIndex::new(-4, 24);
+        let mut si = ColumnChunks::new(-4, 24);
         let e = fake_entity(7);
         si.set_loaded(2, e);
-        assert_eq!(si.lookup(2), SectionLookup::Loaded(e));
+        assert_eq!(si.lookup(2), ChunkLookup::Loaded(e));
     }
 
     #[test]
     fn section_lookup_unloaded() {
-        let si = SectionIndex::new(-4, 24);
-        assert_eq!(si.lookup(0), SectionLookup::Unloaded);
+        let si = ColumnChunks::new(-4, 24);
+        assert_eq!(si.lookup(0), ChunkLookup::Unloaded);
     }
 
     #[test]
     fn section_lookup_bottom_padding() {
-        let si = SectionIndex::new(-4, 24);
-        assert_eq!(si.lookup(-5), SectionLookup::BottomPadding);
+        let si = ColumnChunks::new(-4, 24);
+        assert_eq!(si.lookup(-5), ChunkLookup::BottomPadding);
     }
 
     #[test]
     fn section_lookup_top_padding() {
-        let si = SectionIndex::new(-4, 24);
+        let si = ColumnChunks::new(-4, 24);
         // min_section_y=-4, len=24 -> real range is -4..=19, top padding = 20.
-        assert_eq!(si.lookup(20), SectionLookup::TopPadding);
+        assert_eq!(si.lookup(20), ChunkLookup::TopPadding);
     }
 
     #[test]
     fn section_lookup_out_of_range_low() {
-        let si = SectionIndex::new(-4, 24);
-        assert_eq!(si.lookup(-6), SectionLookup::OutOfRange);
+        let si = ColumnChunks::new(-4, 24);
+        assert_eq!(si.lookup(-6), ChunkLookup::OutOfRange);
     }
 
     #[test]
     fn section_lookup_out_of_range_high() {
-        let si = SectionIndex::new(-4, 24);
-        assert_eq!(si.lookup(21), SectionLookup::OutOfRange);
+        let si = ColumnChunks::new(-4, 24);
+        assert_eq!(si.lookup(21), ChunkLookup::OutOfRange);
     }
 
     #[test]
     fn iter_wire_length_equals_real_plus_two() {
-        let si = SectionIndex::new(-4, 24);
+        let si = ColumnChunks::new(-4, 24);
         assert_eq!(si.iter_wire().count(), 26);
     }
 
     #[test]
     fn iter_wire_first_is_bottom_padding() {
-        let si = SectionIndex::new(-4, 24);
+        let si = ColumnChunks::new(-4, 24);
         let first = si.iter_wire().next().unwrap();
-        assert_eq!(first, SectionLookup::BottomPadding);
+        assert_eq!(first, ChunkLookup::BottomPadding);
     }
 
     #[test]
     fn iter_wire_last_is_top_padding() {
-        let si = SectionIndex::new(-4, 24);
+        let si = ColumnChunks::new(-4, 24);
         let last = si.iter_wire().last().unwrap();
-        assert_eq!(last, SectionLookup::TopPadding);
+        assert_eq!(last, ChunkLookup::TopPadding);
     }
 
     #[test]
     fn iter_wire_passes_loaded_and_unloaded() {
-        let mut si = SectionIndex::new(0, 3);
+        let mut si = ColumnChunks::new(0, 3);
         let e = fake_entity(11);
         si.set_loaded(1, e);
         let collected: Vec<_> = si.iter_wire().collect();
         assert_eq!(
             collected,
             vec![
-                SectionLookup::BottomPadding,
-                SectionLookup::Unloaded,
-                SectionLookup::Loaded(e),
-                SectionLookup::Unloaded,
-                SectionLookup::TopPadding,
+                ChunkLookup::BottomPadding,
+                ChunkLookup::Unloaded,
+                ChunkLookup::Loaded(e),
+                ChunkLookup::Unloaded,
+                ChunkLookup::TopPadding,
             ]
         );
     }
