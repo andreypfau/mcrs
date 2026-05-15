@@ -126,15 +126,29 @@ pub fn enqueue_block_light_on_block_placed(
 /// never receive a `SkyLight` component (the `SkyLightBundle` insertion gate
 /// in `lifecycle::attach_lighting_state` keys on `HasSkyLight`), so the
 /// `Added<SkyLight>` filter self-gates this system.
+///
+/// Skips when `SkyLight` storage is already non-`Null`: the heightmap
+/// fast-path in `seed_initial_light` initialises the topmost section to
+/// `LightStorage::Uniform(15)` directly when the column's surface lies
+/// fully below the section. Pushing 256 BFS seeds in that case would re-
+/// arm the column-walker fast path in `propagate_increase_sky_system` and
+/// emit 1280 cross-section wavefronts to every neighbour, restarting the
+/// multi-section cascade the heightmap fast-path was designed to
+/// eliminate. The `.after(seed_initial_light)` ordering on the system
+/// registration in `plugin.rs` guarantees this gate sees the fast-path's
+/// storage state.
 pub fn enqueue_sky_light_initial(
     mut newly_added: Query<
-        (Entity, &ChunkPos, &InChunkColumn, &mut SkyLightWorkspace),
+        (Entity, &ChunkPos, &InChunkColumn, &mut SkyLightWorkspace, &SkyLight),
         Added<SkyLight>,
     >,
     columns: Query<&SectionIndex>,
     mut commands: Commands,
 ) {
-    for (section_entity, chunk_pos, in_column, mut workspace) in newly_added.iter_mut() {
+    for (section_entity, chunk_pos, in_column, mut workspace, sky_light) in newly_added.iter_mut() {
+        if !matches!(sky_light.0, LightStorage::Null) {
+            continue;
+        }
         let Ok(section_index) = columns.get(in_column.0) else {
             continue;
         };
@@ -689,12 +703,40 @@ pub fn pull_neighbor_edge_levels(
         return;
     }
 
+    // All newly-loaded section entities this tick. Pull only makes sense
+    // for bootstrapping a new section against an *already-settled*
+    // neighbour. When a neighbour is also brand-new, it was just processed
+    // by `seed_initial_light` (heightmap fast-path), and the natural
+    // egress→distribute cascade in `LightConvergeSchedule` will route
+    // wavefronts between them if needed. Pulling redundantly fires a 256-
+    // entry incoming buffer + `LightDirty` marker for a section that
+    // otherwise had no work — and on stone-capped boundary cells that
+    // re-arms a 6-iteration converge cascade.
+    let newly_loaded_set: rustc_hash::FxHashSet<Entity> =
+        newly_loaded.iter().map(|(e, _, _, _)| e).collect();
+
     for (new_section, chunk_pos, in_dim, in_col) in newly_loaded.iter() {
         // Tracks whether anything was actually pushed into the new section's
         // `BlockIncoming` / `SkyIncoming`. Without a payload there is no
         // pending cascade work, so `LightDirty` would just force a no-op pass
         // through the par-iter scan in the convergence sub-schedule.
         let mut new_section_has_incoming = false;
+
+        // Cell-level pull cannot beat a `Uniform(15)` destination, so a
+        // pre-check on the new section's storage lets us skip the per-face
+        // 256-cell read loop entirely when the heightmap fast-path has
+        // already filled the section to max. Cached once per new_section.
+        let new_sky_already_max = sky_light_read
+            .get(new_section)
+            .ok()
+            .map(|sl| matches!(sl.0, LightStorage::Uniform(15)))
+            .unwrap_or(false);
+        let new_block_already_max = block_light_read
+            .get(new_section)
+            .ok()
+            .map(|bl| matches!(bl.0, LightStorage::Uniform(15)))
+            .unwrap_or(false);
+
         for face in CARDINAL_DIRECTIONS {
             let Some(neighbour_entity) = resolve_loaded_neighbor(
                 face,
@@ -707,6 +749,14 @@ pub fn pull_neighbor_edge_levels(
                 continue;
             };
 
+            // Skip neighbours that were also Added<ChunkLoaded> this tick —
+            // they have no pre-existing state for us to bootstrap against,
+            // and the egress→distribute cascade handles any actual flow
+            // between fresh sections during convergence.
+            if newly_loaded_set.contains(&neighbour_entity) {
+                continue;
+            }
+
             // `face` is the direction from us (new section) to the neighbour
             // in OUR (destination) frame, so it doubles as the incoming face
             // index. `from_face` is the neighbour's frame face pointing back
@@ -717,35 +767,51 @@ pub fn pull_neighbor_edge_levels(
             let dest_face = face.index() as u8;
             let neighbour_expected_face = from_face.index() as u8;
 
-            // Read neighbour's face cells into incoming with Manhattan-1
-            // pre-attenuation.
-            for cell_a in 0..16u8 {
-                for cell_b in 0..16u8 {
-                    let (nx, ny, nz) =
-                        face_cell_coords_in_neighbor_frame(from_face, cell_a, cell_b);
+            // Per-face tracker for the optional neighbour `LightDirty` insert.
+            // Marking a quiescent neighbour dirty without having drained
+            // any wavefronts from it just forces a no-op converge pass
+            // through it; the natural egress→distribute path re-dirties
+            // the neighbour later if our new section actually emits
+            // anything.
+            let mut drained_pending_from_neighbour = false;
 
-                    if let Ok(bl) = block_light_read.get(neighbour_entity) {
-                        let level = bl.0.get(nx as usize, ny as usize, nz as usize);
-                        if level > 0 {
-                            let attenuated = level.saturating_sub(1);
-                            if let Ok(mut inc) = block_incoming.get_mut(new_section) {
-                                inc.0.push(Wavefront::new(
-                                    dest_face, cell_a, cell_b, attenuated,
-                                ));
-                                new_section_has_incoming = true;
+            // Read neighbour's face cells into incoming with Manhattan-1
+            // pre-attenuation. Skipped per light-channel when the new
+            // section's storage is already `Uniform(15)`, since any pulled
+            // level ≤ 14 cannot improve on a max-stored cell.
+            if !new_sky_already_max || !new_block_already_max {
+                for cell_a in 0..16u8 {
+                    for cell_b in 0..16u8 {
+                        let (nx, ny, nz) =
+                            face_cell_coords_in_neighbor_frame(from_face, cell_a, cell_b);
+
+                        if !new_block_already_max {
+                            if let Ok(bl) = block_light_read.get(neighbour_entity) {
+                                let level = bl.0.get(nx as usize, ny as usize, nz as usize);
+                                if level > 0 {
+                                    let attenuated = level.saturating_sub(1);
+                                    if let Ok(mut inc) = block_incoming.get_mut(new_section) {
+                                        inc.0.push(Wavefront::new(
+                                            dest_face, cell_a, cell_b, attenuated,
+                                        ));
+                                        new_section_has_incoming = true;
+                                    }
+                                }
                             }
                         }
-                    }
 
-                    if let Ok(sl) = sky_light_read.get(neighbour_entity) {
-                        let level = sl.0.get(nx as usize, ny as usize, nz as usize);
-                        if level > 0 {
-                            let attenuated = level.saturating_sub(1);
-                            if let Ok(mut inc) = sky_incoming.get_mut(new_section) {
-                                inc.0.push(Wavefront::new(
-                                    dest_face, cell_a, cell_b, attenuated,
-                                ));
-                                new_section_has_incoming = true;
+                        if !new_sky_already_max {
+                            if let Ok(sl) = sky_light_read.get(neighbour_entity) {
+                                let level = sl.0.get(nx as usize, ny as usize, nz as usize);
+                                if level > 0 {
+                                    let attenuated = level.saturating_sub(1);
+                                    if let Ok(mut inc) = sky_incoming.get_mut(new_section) {
+                                        inc.0.push(Wavefront::new(
+                                            dest_face, cell_a, cell_b, attenuated,
+                                        ));
+                                        new_section_has_incoming = true;
+                                    }
+                                }
                             }
                         }
                     }
@@ -769,6 +835,7 @@ pub fn pull_neighbor_edge_levels(
                                     w.level(),
                                 ));
                                 new_section_has_incoming = true;
+                                drained_pending_from_neighbour = true;
                             }
                             false
                         } else {
@@ -790,6 +857,7 @@ pub fn pull_neighbor_edge_levels(
                                     w.level(),
                                 ));
                                 new_section_has_incoming = true;
+                                drained_pending_from_neighbour = true;
                             }
                             false
                         } else {
@@ -799,7 +867,15 @@ pub fn pull_neighbor_edge_levels(
                 }
             }
 
-            commands.entity(neighbour_entity).insert(LightDirty);
+            // Mark the neighbour dirty only when the pull actually changed
+            // its state (drained an entry from its pending egress). A pure
+            // read of the neighbour's face cells is non-mutating, so the
+            // neighbour does not need to converge on our behalf; if our new
+            // section emits wavefronts outward later, `distribute_*` will
+            // re-dirty the neighbour at that point.
+            if drained_pending_from_neighbour {
+                commands.entity(neighbour_entity).insert(LightDirty);
+            }
         }
 
         // Only mark the new section dirty if a neighbour actually pushed
@@ -2057,11 +2133,18 @@ mod tests {
         }
         assert!(
             app.world().get::<LightDirty>(section_b).is_some(),
-            "B marked LightDirty"
+            "B marked LightDirty (pulled face cells into its incoming)"
         );
+        // The pull from A's face is a non-mutating read on A — A's stored
+        // levels and queues did not change. Marking A `LightDirty` here
+        // would force a no-op converge pass through it; the natural
+        // egress→distribute path re-dirties A automatically if B emits
+        // anything toward it during convergence. The pending-egress drain
+        // test below covers the case where the neighbour DOES need to be
+        // marked dirty (it actually lost a buffered wavefront).
         assert!(
-            app.world().get::<LightDirty>(section_a).is_some(),
-            "neighbour A marked LightDirty"
+            app.world().get::<LightDirty>(section_a).is_none(),
+            "neighbour A stays clean — non-mutating face-cell pull is not a state change on A"
         );
     }
 

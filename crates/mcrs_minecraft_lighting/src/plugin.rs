@@ -205,9 +205,14 @@ impl Plugin for LightingPlugin {
             (
                 enqueue_block_light_on_block_placed,
                 enqueue_sky_light_on_block_placed,
-                enqueue_sky_light_initial,
                 consume_needs_full_reseed,
                 seed_initial_light,
+                // `enqueue_sky_light_initial` runs strictly after
+                // `seed_initial_light` so its non-Null gate observes the
+                // heightmap fast-path's `Uniform(15)` write and skips the
+                // 256-seed push that would otherwise re-trigger the
+                // column-walker cascade.
+                enqueue_sky_light_initial.after(seed_initial_light),
                 pull_neighbor_edge_levels.after(seed_initial_light),
             )
                 .in_set(LightingSet::Enqueue),

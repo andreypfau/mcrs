@@ -52,6 +52,26 @@ pub fn light_converge_driver(world: &mut World) {
     #[cfg(feature = "lighting-trace")]
     let _span = tracing::info_span!("light_converge_driver", iter = tracing::field::Empty).entered();
 
+    // Pre-check: skip the entire `LightConvergeSchedule` when no section
+    // is currently `LightDirty`. The schedule's four stages each kick off
+    // a `par_iter_mut` that walks every section's archetype to evaluate
+    // the `With<LightDirty>` filter — for a populated world with thousands
+    // of sections that scan dominates the tick cost (profile-measured at
+    // ~650 us / tick on the spawn_warmup_vd12 fixture, ≈64 % of the whole
+    // tick) even though the body is a no-op for every section. Quiet
+    // ticks — the common case after the heightmap fast-path eliminated
+    // the multi-section cascade — collapse to a single archetype-narrowed
+    // existence check.
+    let any_dirty = world
+        .query_filtered::<(), With<LightDirty>>()
+        .iter(world)
+        .next()
+        .is_some();
+    if !any_dirty {
+        LIGHT_CONVERGE_ITERATIONS_TOTAL.fetch_add(1, Ordering::Relaxed);
+        return;
+    }
+
     for iteration in 0..MAX_ITERATIONS {
         world.run_schedule(LightConvergeSchedule);
 
