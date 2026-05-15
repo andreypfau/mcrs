@@ -1,5 +1,4 @@
 use crate::world::generate::generate_column;
-use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Query, Resource, With, resource_exists};
@@ -22,6 +21,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use tracing::{info, trace};
+use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 
 /// Ordering anchor for the worldgen ingest path. The lighting plugin chains
 /// its enqueue set after `WorldgenIngestSet::ProcessCompletedColumns` so the
@@ -721,6 +721,8 @@ mod tests {
             center,
             distance,
             vert_distance: 8,
+            min_section_y: i32::MIN,
+            max_section_y: i32::MAX,
         });
         app.world_mut().spawn(observer).id()
     }

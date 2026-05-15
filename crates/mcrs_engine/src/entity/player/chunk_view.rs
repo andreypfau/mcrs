@@ -1,7 +1,7 @@
 use crate::entity::physics::Transform;
 use crate::world::chunk::ticket::{ChunkTicketsCommands, Ticket, TicketCommand, TicketKind};
 use crate::world::chunk::{ChunkIndex, ChunkLoaded, ChunkPos};
-use crate::world::dimension::InDimension;
+use crate::world::dimension::{DimensionTypeConfig, InDimension};
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{
     Added, Changed, Component, ContainsEntity, Entity, EntityEvent, IntoScheduleConfigs,
@@ -53,19 +53,36 @@ fn update_view(
             &mut PlayerChunkObserver,
             &Transform,
             &PlayerViewDistance,
+            &InDimension,
         ),
         Or<(Changed<Transform>, Added<PlayerChunkObserver>)>,
     >,
+    dimensions: Query<&DimensionTypeConfig>,
     commands: ParallelCommands,
 ) {
     query
         .par_iter_mut()
-        .for_each(|(player, mut observer, transform, client_view_distance)| {
+        .for_each(|(player, mut observer, transform, client_view_distance, in_dim)| {
             let observer = &mut *observer;
             let chunk_pos = ChunkPos::from(transform.translation);
             let distance = client_view_distance.distance;
             let vert_distance = client_view_distance.vert_distance;
-            let new_view = ChunkTrackingView::new(chunk_pos, distance + 1, vert_distance + 1);
+            let y_bounds = dimensions
+                .get(in_dim.entity())
+                .ok()
+                .map(|cfg| {
+                    let min_section_y = cfg.min_y >> 4;
+                    let max_section_y = min_section_y + cfg.section_count as i32 - 1;
+                    (min_section_y, max_section_y)
+                })
+                .unwrap_or((i32::MIN, i32::MAX));
+            let new_view = ChunkTrackingView::with_y_bounds(
+                chunk_pos,
+                distance + 1,
+                vert_distance + 1,
+                y_bounds.0,
+                y_bounds.1,
+            );
 
             let Some(last_view) = observer.last_last_chunk_tracking_view else {
                 let capacity = new_view.size();
@@ -262,6 +279,11 @@ pub struct ChunkTrackingView {
     pub center: ChunkPos,
     pub distance: u8,
     pub vert_distance: u8,
+    /// Inclusive lower bound on section_y; iteration and `contains` will
+    /// reject positions below this. `i32::MIN` disables the floor.
+    pub min_section_y: i32,
+    /// Inclusive upper bound on section_y; `i32::MAX` disables the ceiling.
+    pub max_section_y: i32,
 }
 
 impl Default for ChunkTrackingView {
@@ -270,6 +292,8 @@ impl Default for ChunkTrackingView {
             center: ChunkPos::new(0, 0, 0),
             distance: 12,
             vert_distance: 8,
+            min_section_y: i32::MIN,
+            max_section_y: i32::MAX,
         }
     }
 }
@@ -281,10 +305,22 @@ pub enum ChunkViewAction {
 
 impl ChunkTrackingView {
     pub fn new(center: ChunkPos, distance: u8, vert_distance: u8) -> Self {
+        Self::with_y_bounds(center, distance, vert_distance, i32::MIN, i32::MAX)
+    }
+
+    pub fn with_y_bounds(
+        center: ChunkPos,
+        distance: u8,
+        vert_distance: u8,
+        min_section_y: i32,
+        max_section_y: i32,
+    ) -> Self {
         Self {
             center,
             distance,
             vert_distance,
+            min_section_y,
+            max_section_y,
         }
     }
 
@@ -292,7 +328,8 @@ impl ChunkTrackingView {
         self.center.x - (self.distance as i32 + 1)
     }
     fn min_y(&self) -> i32 {
-        self.center.y - (self.vert_distance as i32 + 1)
+        let raw = self.center.y.saturating_sub(self.vert_distance as i32 + 1);
+        raw.max(self.min_section_y)
     }
     fn min_z(&self) -> i32 {
         self.center.z - (self.distance as i32 + 1)
@@ -301,16 +338,16 @@ impl ChunkTrackingView {
         self.center.x + (self.distance as i32 + 1)
     }
     fn max_y(&self) -> i32 {
-        self.center.y + (self.vert_distance as i32 + 1)
+        let raw = self.center.y.saturating_add(self.vert_distance as i32 + 1);
+        raw.min(self.max_section_y)
     }
     fn max_z(&self) -> i32 {
         self.center.z + (self.distance as i32 + 1)
     }
 
-    const fn size(&self) -> usize {
-        (self.distance as usize * 2 + 1)
-            * (self.distance as usize * 2 + 1)
-            * (self.vert_distance as usize * 2 + 1)
+    fn size(&self) -> usize {
+        let y_extent = (self.max_y() - self.min_y() + 1).max(0) as usize;
+        (self.distance as usize * 2 + 1) * (self.distance as usize * 2 + 1) * y_extent
     }
 
     fn intersects(&self, other: &ChunkTrackingView) -> bool {
@@ -323,7 +360,9 @@ impl ChunkTrackingView {
     }
 
     pub fn contains(&self, pos: &ChunkPos) -> bool {
-        (pos.y - self.center.y).abs() <= self.vert_distance as i32
+        pos.y >= self.min_section_y
+            && pos.y <= self.max_section_y
+            && (pos.y - self.center.y).abs() <= self.vert_distance as i32
             && (pos.x - self.center.x).abs() <= self.distance as i32
             && (pos.z - self.center.z).abs() <= self.distance as i32
     }
@@ -337,7 +376,9 @@ impl ChunkTrackingView {
         let cx = self.center.x;
         let cy = self.center.y;
         let cz = self.center.z;
-        for y in (cy - vd)..=(cy + vd) {
+        let y_lo = (cy - vd).max(self.min_section_y);
+        let y_hi = (cy + vd).min(self.max_section_y);
+        for y in y_lo..=y_hi {
             for x in (cx - d)..=(cx + d) {
                 for z in (cz - d)..=(cz + d) {
                     f(ChunkPos::new(x, y, z));

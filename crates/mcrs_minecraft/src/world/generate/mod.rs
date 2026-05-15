@@ -1,10 +1,10 @@
-use crate::world::block::minecraft::{DIAMOND_ORE, STONE};
 use crate::world::chunk::CancellationToken;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_worldgen::density_function::{
     ChunkColumnCache, NoiseRouter, SectionInterpolator,
 };
+use mcrs_vanilla::block::minecraft::STONE;
 
 /// Generate a single section using a pre-populated column cache and interpolator.
 /// The column cache and interpolator are passed in so they can be reused across
@@ -99,11 +99,7 @@ fn generate_section(
                                 let bx = (cell_x * h_cell_blocks + local_x) as i32;
                                 let by = (cell_y * v_cell_blocks + local_y) as i32;
                                 let bz = (cell_z * h_cell_blocks + local_z) as i32;
-                                if bx == 0 && bz == 0 {
-                                    block_states.set(BlockPos::new(bx, by, bz), &DIAMOND_ORE);
-                                } else {
-                                    block_states.set(BlockPos::new(bx, by, bz), &STONE);
-                                }
+                                block_states.set(BlockPos::new(bx, by, bz), &STONE);
                             }
                         }
                     }
