@@ -1266,7 +1266,7 @@ pub struct DensityCache {
 ///
 /// The 17x17 grid covers local coordinates 0..=16 in both X and Z, which is needed because
 /// `fill_plane` samples corner positions at block_x+0, block_x+4, ..., block_x+16.
-pub struct ChunkColumnCache {
+pub struct ColumnCache {
     /// `column_data[xz_idx * zone_a_count + entry_idx]`
     /// where `xz_idx = local_x * GRID_SIDE + local_z` (row-major).
     column_data: Vec<f32>,
@@ -1290,7 +1290,7 @@ pub struct ChunkColumnCache {
     batch_noise_positions: [(f32, f32, f32); MAX_BATCH],
 }
 
-impl ChunkColumnCache {
+impl ColumnCache {
     const GRID_SIDE: i32 = 17;
 
     /// Read a single Zone A value for a given (local_x, local_z) without loading the full column.
@@ -1852,7 +1852,7 @@ impl NoiseRouter {
     /// Solving `(y_gradient + offset) * factor + noise_max = 0`:
     ///   `y = (1.5 + offset + noise_max/factor) * 128 - 64`
     #[cfg(feature = "surface-skip")]
-    pub fn estimate_max_surface_y(&self, cache: &ChunkColumnCache) -> Option<i32> {
+    pub fn estimate_max_surface_y(&self, cache: &ColumnCache) -> Option<i32> {
         let offset_idx = self.offset_za_index?;
         let factor_idx = self.factor_za_index?;
         let step = self.h_cell_blocks as i32;
@@ -2017,11 +2017,11 @@ impl NoiseRouter {
         ok
     }
 
-    /// Create a new `ChunkColumnCache` for a 17x17 chunk column grid starting at block (base_block_x, base_block_z).
+    /// Create a new `ColumnCache` for a 17x17 chunk column grid starting at block (base_block_x, base_block_z).
     /// The 17x17 grid covers local coordinates 0..=16 to include boundary corner positions.
-    pub fn new_column_cache(&self, base_block_x: i32, base_block_z: i32) -> ChunkColumnCache {
-        let grid_positions = (ChunkColumnCache::GRID_SIDE * ChunkColumnCache::GRID_SIDE) as usize;
-        ChunkColumnCache {
+    pub fn new_column_cache(&self, base_block_x: i32, base_block_z: i32) -> ColumnCache {
+        let grid_positions = (ColumnCache::GRID_SIDE * ColumnCache::GRID_SIDE) as usize;
+        ColumnCache {
             column_data: vec![0.0f32; grid_positions * self.column_boundary],
             zone_a_count: self.column_boundary,
             base_block_x,
@@ -2041,9 +2041,9 @@ impl NoiseRouter {
     /// Pre-populate Zone A values at cell corner positions in the chunk column grid.
     /// Only evaluates the (h_cells+1)^2 = 25 corner positions (step by h_cell_blocks),
     /// not every block position. This matches exactly the positions sampled by `fill_plane`.
-    pub fn populate_columns(&self, cache: &mut ChunkColumnCache) {
+    pub fn populate_columns(&self, cache: &mut ColumnCache) {
         let zone_a_count = cache.zone_a_count;
-        let grid_side = ChunkColumnCache::GRID_SIDE;
+        let grid_side = ColumnCache::GRID_SIDE;
         let step = self.h_cell_blocks as i32;
         let corners = (16 / step) + 1; // h_cells + 1
         for cx in 0..corners {
@@ -2071,7 +2071,7 @@ impl NoiseRouter {
     /// Zone A values must already be loaded into `cache.scratch` via `load_column`.
     /// Only evaluates Zone B entries (branchless, no column_changed check).
     #[inline]
-    pub fn final_density_from_column_cache(&self, pos: IVec3, cache: &mut ChunkColumnCache) -> f32 {
+    pub fn final_density_from_column_cache(&self, pos: IVec3, cache: &mut ColumnCache) -> f32 {
         #[cfg(feature = "lazy-range-choice")]
         if let Some(rc) = &self.lazy_rc {
             // Phase 1: Evaluate the common prefix up to the RangeChoice input.
@@ -2133,7 +2133,7 @@ impl NoiseRouter {
     pub fn final_density_from_column_cache_prefetched(
         &self,
         pos: IVec3,
-        cache: &mut ChunkColumnCache,
+        cache: &mut ColumnCache,
         obn_value: f32,
     ) -> f32 {
         // usize::MAX sentinel means "no OBN to skip"
@@ -2192,7 +2192,7 @@ impl NoiseRouter {
     fn evaluate_zone_b_batch(
         &self,
         positions: &[IVec3],
-        cache: &mut ChunkColumnCache,
+        cache: &mut ColumnCache,
         results: &mut [f32],
     ) {
         let n = positions.len();
@@ -2440,7 +2440,7 @@ impl NoiseRouter {
     pub fn final_density_from_column_cache_batch(
         &self,
         positions: &[IVec3],
-        cache: &mut ChunkColumnCache,
+        cache: &mut ColumnCache,
         results: &mut [f32],
     ) {
         let n = positions.len();
@@ -2482,7 +2482,7 @@ impl NoiseRouter {
         positions: &[IVec3],
         column_local_xz: &[(i32, i32)],
         per_col: usize,
-        cache: &mut ChunkColumnCache,
+        cache: &mut ColumnCache,
         results: &mut [f32],
     ) {
         let n = positions.len();
@@ -3002,7 +3002,7 @@ impl SectionInterpolator {
     ///
     /// Uses `DensityCache` which handles Zone A column caching internally via
     /// the `column_changed` check. Corner positions can be at +16 (outside the
-    /// 16x16 chunk), so `ChunkColumnCache` cannot be used here.
+    /// 16x16 chunk), so `ColumnCache` cannot be used here.
     pub fn fill_plane(
         &mut self,
         is_start: bool,
@@ -3030,7 +3030,7 @@ impl SectionInterpolator {
     }
 
     /// Evaluate `final_density` at all corner positions on a Y-Z plane for a given X,
-    /// using a pre-populated `ChunkColumnCache` instead of `DensityCache`.
+    /// using a pre-populated `ColumnCache` instead of `DensityCache`.
     ///
     /// This eliminates the `column_changed` branch entirely — Zone A values are loaded
     /// from the cache, and only Zone B is evaluated per corner.
@@ -3041,7 +3041,7 @@ impl SectionInterpolator {
         base_y: i32,
         base_z: i32,
         router: &NoiseRouter,
-        column_cache: &mut ChunkColumnCache,
+        column_cache: &mut ColumnCache,
     ) {
         let buf = if is_start {
             &mut self.start_buf
@@ -3079,7 +3079,7 @@ impl SectionInterpolator {
         base_y: i32,
         base_z: i32,
         router: &NoiseRouter,
-        column_cache: &mut ChunkColumnCache,
+        column_cache: &mut ColumnCache,
     ) {
         let buf = if is_start {
             &mut self.start_buf
