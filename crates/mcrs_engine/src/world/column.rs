@@ -8,7 +8,6 @@
 // columns; downstream lighting code overwrites with real values before any consumer
 // reads, and uses `min_y` as the "no surface found" sentinel.
 
-use crate::world::block::BlockPos;
 use crate::world::chunk::{ChunkLoaded, ChunkPos, ChunkUnloading};
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
 use bevy_app::{App, FixedUpdate, Plugin};
@@ -17,57 +16,13 @@ use bevy_ecs::prelude::{
     Added, ApplyDeferred, Bundle, Commands, Component, Entity, IntoScheduleConfigs, Query,
     SystemSet,
 };
-use bevy_math::IVec2;
 use rustc_hash::FxHashMap;
-use std::fmt::Debug;
 
-/// The XZ position of a chunk column. Engine-local twin of the wire-side
-/// `mcrs_protocol::ChunkColumnPos`; defined here so the engine has a column-key
-/// type without depending on the protocol crate.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
-pub struct ChunkColumnPos {
-    pub x: i32,
-    pub z: i32,
-}
+pub use crate::geometry::ColumnPos;
 
-impl Debug for ChunkColumnPos {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self.x, self.z).fmt(f)
-    }
-}
-
-impl ChunkColumnPos {
-    pub const fn new(x: i32, z: i32) -> Self {
-        Self { x, z }
-    }
-}
-
-impl From<ChunkPos> for ChunkColumnPos {
-    fn from(pos: ChunkPos) -> Self {
-        Self { x: pos.x, z: pos.z }
-    }
-}
-
-impl From<BlockPos> for ChunkColumnPos {
-    fn from(pos: BlockPos) -> Self {
-        Self {
-            x: pos.x.div_euclid(16),
-            z: pos.z.div_euclid(16),
-        }
-    }
-}
-
-impl From<IVec2> for ChunkColumnPos {
-    fn from(v: IVec2) -> Self {
-        Self { x: v.x, z: v.y }
-    }
-}
-
-impl From<(i32, i32)> for ChunkColumnPos {
-    fn from((x, z): (i32, i32)) -> Self {
-        Self { x, z }
-    }
-}
+#[allow(deprecated)]
+#[deprecated(note = "use ColumnPos")]
+pub type ChunkColumnPos = ColumnPos;
 
 /// Sparse marker component placed on chunk-column entities.
 #[derive(Component, Debug, Default)]
@@ -86,10 +41,10 @@ pub struct ColumnSlot {
     pub section_count: u32,
 }
 
-/// Per-dimension lookup from `ChunkColumnPos` to the column entity + refcount.
+/// Per-dimension lookup from `ColumnPos` to the column entity + refcount.
 /// Lives on the Dimension entity (added as a `DimensionBundle` field).
 #[derive(Component, Debug, Default, Deref, DerefMut)]
-pub struct ColumnIndex(pub FxHashMap<ChunkColumnPos, ColumnSlot>);
+pub struct ColumnIndex(pub FxHashMap<ColumnPos, ColumnSlot>);
 
 /// Packed-bit storage backing for heightmaps. Each `u64` long holds
 /// `entries_per_long = 64 / bits_per_entry` entries; the lowest entry occupies
@@ -381,18 +336,18 @@ pub struct ChunkColumnBundle {
     marker: ChunkColumn,
 }
 
-/// Component wrapper for `ChunkColumnPos` so it can live on the column entity.
+/// Component wrapper for `ColumnPos` so it can live on the column entity.
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut)]
-pub struct ChunkColumnPosComponent(pub ChunkColumnPos);
+pub struct ChunkColumnPosComponent(pub ColumnPos);
 
-impl From<ChunkColumnPos> for ChunkColumnPosComponent {
-    fn from(p: ChunkColumnPos) -> Self {
+impl From<ColumnPos> for ChunkColumnPosComponent {
+    fn from(p: ColumnPos) -> Self {
         Self(p)
     }
 }
 
 impl ChunkColumnBundle {
-    pub fn new(col_pos: ChunkColumnPos, dim: InDimension, dim_config: &DimensionTypeConfig) -> Self {
+    pub fn new(col_pos: ColumnPos, dim: InDimension, dim_config: &DimensionTypeConfig) -> Self {
         let min_section_y = dim_config.min_y.div_euclid(16);
         Self {
             col_pos: ChunkColumnPosComponent(col_pos),
@@ -426,7 +381,7 @@ fn reconcile_column_existence(
     mut commands: Commands,
 ) {
     for (chunk_pos, in_dim) in newly_loaded.iter() {
-        let col_pos = ChunkColumnPos::from(*chunk_pos);
+        let col_pos = ColumnPos::from(*chunk_pos);
         let Ok(mut column_index) = dimensions.get_mut(in_dim.0) else {
             continue;
         };
@@ -450,7 +405,7 @@ fn reconcile_column_existence(
     }
 
     for (chunk_pos, in_dim) in newly_unloading.iter() {
-        let col_pos = ChunkColumnPos::from(*chunk_pos);
+        let col_pos = ColumnPos::from(*chunk_pos);
         let Ok(mut column_index) = dimensions.get_mut(in_dim.0) else {
             continue;
         };
@@ -501,7 +456,7 @@ fn reconcile_section_index(
     mut commands: Commands,
 ) {
     for (section_entity, chunk_pos, in_dim) in newly_loaded.iter() {
-        let col_pos = ChunkColumnPos::from(*chunk_pos);
+        let col_pos = ColumnPos::from(*chunk_pos);
         let Ok(column_index) = dimensions.get(in_dim.0) else {
             continue;
         };
@@ -522,7 +477,7 @@ fn reconcile_section_index(
     }
 
     for (chunk_pos, in_dim) in newly_unloading.iter() {
-        let col_pos = ChunkColumnPos::from(*chunk_pos);
+        let col_pos = ColumnPos::from(*chunk_pos);
         let Ok(column_index) = dimensions.get(in_dim.0) else {
             continue;
         };
@@ -557,6 +512,7 @@ impl Plugin for ColumnPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geometry::BlockPos;
     use bevy_ecs::entity::Entity;
 
     fn fake_entity(index: u32) -> Entity {
@@ -750,7 +706,7 @@ mod tests {
     fn column_bundle_constructor_uses_dim_config() {
         let dim_config = DimensionTypeConfig::new(-64, 384);
         let in_dim = InDimension(fake_entity(0));
-        let col_pos = ChunkColumnPos::new(3, -5);
+        let col_pos = ColumnPos::new(3, -5);
         let bundle = ChunkColumnBundle::new(col_pos, in_dim, &dim_config);
         assert_eq!(bundle.col_pos.0, col_pos);
         assert_eq!(bundle.sections.min_section_y, -4);
@@ -764,7 +720,7 @@ mod tests {
         // Nether: min_y=0, height=256, section_count=16. min_section_y=0.
         let dim_config = DimensionTypeConfig::new(0, 256);
         let in_dim = InDimension(fake_entity(0));
-        let col_pos = ChunkColumnPos::new(0, 0);
+        let col_pos = ColumnPos::new(0, 0);
         let bundle = ChunkColumnBundle::new(col_pos, in_dim, &dim_config);
         assert_eq!(bundle.sections.min_section_y, 0);
         assert_eq!(bundle.sections.sections.len(), 16);
@@ -784,14 +740,14 @@ mod tests {
     #[test]
     fn chunk_column_pos_from_chunk_pos_drops_y() {
         let cp = ChunkPos::new(3, 7, -5);
-        let ccp: ChunkColumnPos = cp.into();
-        assert_eq!(ccp, ChunkColumnPos::new(3, -5));
+        let ccp: ColumnPos = cp.into();
+        assert_eq!(ccp, ColumnPos::new(3, -5));
     }
 
     #[test]
     fn chunk_column_pos_from_block_pos_uses_div_euclid() {
         let bp = BlockPos::new(-1, 0, 17);
-        let ccp: ChunkColumnPos = bp.into();
-        assert_eq!(ccp, ChunkColumnPos::new(-1, 1));
+        let ccp: ColumnPos = bp.into();
+        assert_eq!(ccp, ColumnPos::new(-1, 1));
     }
 }
