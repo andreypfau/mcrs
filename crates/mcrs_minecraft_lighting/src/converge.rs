@@ -49,6 +49,8 @@ pub fn light_converge_driver(world: &mut World) {
     // (`HARD_BUDGET`) and keeps the cap signal meaningful — it fires only
     // when the cascade itself is starved, not because the tick was busy.
     let driver_start = Instant::now();
+    #[cfg(feature = "lighting-trace")]
+    let _span = tracing::info_span!("light_converge_driver", iter = tracing::field::Empty).entered();
 
     for iteration in 0..MAX_ITERATIONS {
         world.run_schedule(LightConvergeSchedule);
@@ -59,6 +61,8 @@ pub fn light_converge_driver(world: &mut World) {
             .count();
 
         if dirty_count == 0 {
+            #[cfg(feature = "lighting-trace")]
+            _span.record("iter", iteration + 1);
             LIGHT_CONVERGE_ITERATIONS_TOTAL
                 .fetch_add(iteration as u64 + 1, Ordering::Relaxed);
             return;
@@ -66,6 +70,8 @@ pub fn light_converge_driver(world: &mut World) {
 
         let elapsed = Instant::now().duration_since(driver_start);
         if elapsed >= HARD_BUDGET {
+            #[cfg(feature = "lighting-trace")]
+            _span.record("iter", iteration + 1);
             LIGHT_CONVERGE_ITERATIONS_TOTAL
                 .fetch_add(iteration as u64 + 1, Ordering::Relaxed);
             LIGHT_CONVERGE_CAPPED_TOTAL.fetch_add(1, Ordering::Relaxed);
@@ -85,6 +91,8 @@ pub fn light_converge_driver(world: &mut World) {
         }
     }
 
+    #[cfg(feature = "lighting-trace")]
+    _span.record("iter", MAX_ITERATIONS);
     LIGHT_CONVERGE_ITERATIONS_TOTAL.fetch_add(MAX_ITERATIONS as u64, Ordering::Relaxed);
     LIGHT_CONVERGE_CAPPED_TOTAL.fetch_add(1, Ordering::Relaxed);
     tracing::warn!(iteration = MAX_ITERATIONS, "light converge hit MAX_ITERATIONS cap");
