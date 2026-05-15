@@ -17,7 +17,7 @@ use mcrs_engine::entity::player::reposition::{Reposition, RepositionConfig};
 use mcrs_engine::world::chunk::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{
-    ChunkColumnPos as EngineChunkColumnPos, ColumnIndex,
+    ColumnPos as EngineColumnPos, ColumnIndex,
 };
 use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_lighting::codec::{build_full_light_data, ColumnLightUpdate, LightCodecParams};
@@ -28,7 +28,7 @@ use mcrs_protocol::packets::game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundLevelChunkWithLight, ClientboundLightUpdate,
     ClientboundSetChunkCacheCenter,
 };
-use mcrs_protocol::{ChunkColumnPos, ChunkData, Encode, LightData, VarInt, WritePacket};
+use mcrs_protocol::{ColumnPos, ChunkData, Encode, LightData, VarInt, WritePacket};
 use rustc_hash::FxHashSet;
 use tracing::{debug, info, trace};
 
@@ -84,12 +84,12 @@ impl Plugin for ColumnViewPlugin {
 
 #[derive(Component, Default)]
 pub struct ColumnView {
-    desired_columns: FxHashSet<ChunkColumnPos>,
-    loaded_columns: FxHashSet<ChunkColumnPos>,
-    load_queue: VecDeque<ChunkColumnPos>,
-    loading_queue: VecDeque<ChunkColumnPos>,
-    send_queue: VecDeque<(ChunkColumnPos, Vec<Entity>)>,
-    pub sent_columns: FxHashSet<ChunkColumnPos>,
+    desired_columns: FxHashSet<ColumnPos>,
+    loaded_columns: FxHashSet<ColumnPos>,
+    load_queue: VecDeque<ColumnPos>,
+    loading_queue: VecDeque<ColumnPos>,
+    send_queue: VecDeque<(ColumnPos, Vec<Entity>)>,
+    pub sent_columns: FxHashSet<ColumnPos>,
 }
 
 fn load_chunk_request(
@@ -100,7 +100,7 @@ fn load_chunk_request(
         let Ok(mut chunk_view) = players.get_mut(req.player) else {
             return;
         };
-        let column_pos = ChunkColumnPos::from(req.chunk_pos);
+        let column_pos = ColumnPos::from(req.chunk_pos);
         if chunk_view.sent_columns.contains(&column_pos) {
             return;
         }
@@ -124,7 +124,7 @@ fn unload_chunk_request(
         let Ok((mut chunk_view, in_dim, rep)) = players.get_mut(req.player) else {
             return;
         };
-        let column_pos = ChunkColumnPos::from(req.chunk_pos);
+        let column_pos = ColumnPos::from(req.chunk_pos);
         chunk_view.desired_columns.remove(&column_pos);
         chunk_view.sent_columns.remove(&column_pos);
         if chunk_view.loaded_columns.remove(&column_pos) {
@@ -290,7 +290,7 @@ fn send_column_queue(
                 let light_data = column_index
                     .and_then(|idx| {
                         idx.0
-                            .get(&EngineChunkColumnPos::new(column_pos.x, column_pos.z))
+                            .get(&EngineColumnPos::new(column_pos.x, column_pos.z))
                             .map(|slot| slot.entity)
                     })
                     .map(|column_entity| build_full_light_data(column_entity, &codec_params))
@@ -299,7 +299,7 @@ fn send_column_queue(
                 chunk_view.send_queue.pop_front();
                 chunk_view.sent_columns.insert(column_pos);
                 let pkt = ClientboundLevelChunkWithLight {
-                    pos: ChunkColumnPos::new(
+                    pos: ColumnPos::new(
                         rep.convert_chunk_x(column_pos.x),
                         rep.convert_chunk_z(column_pos.z),
                     ),
@@ -324,7 +324,7 @@ pub(crate) fn send_light_updates(
     mut players: Query<(&ColumnView, &mut ServerSideConnection)>,
 ) {
     for msg in reader.read() {
-        let col_pos = ChunkColumnPos::new(msg.column_pos.x, msg.column_pos.z);
+        let col_pos = ColumnPos::new(msg.column_pos.x, msg.column_pos.z);
         for (view, mut con) in players.iter_mut() {
             if !view.sent_columns.contains(&col_pos) {
                 continue;
@@ -340,38 +340,38 @@ pub(crate) fn send_light_updates(
 }
 
 #[derive(Debug, Message)]
-pub struct PlayerChunkColumnLoadRequest {
+pub struct PlayerColumnLoadRequest {
     pub player: Entity,
-    pub column_pos: ChunkColumnPos,
+    pub column_pos: ColumnPos,
     /// Server chunk entities in **client section order** (index 0..15 == client Y sections).
     pub sections: Vec<Entity>,
 }
 
 #[derive(Debug, Message)]
-pub struct PlayerChunkColumnUnloadRequest {
+pub struct PlayerColumnUnloadRequest {
     pub player: Entity,
-    pub column_pos: ChunkColumnPos,
+    pub column_pos: ColumnPos,
 }
 
 #[derive(Component, Default)]
 pub struct PlayerColumnView {
     /// Columns the player should currently have (xz only).
-    desired_columns: FxHashSet<ChunkColumnPos>,
+    desired_columns: FxHashSet<ColumnPos>,
 
     /// Columns that have already been sent at least once (xz only).
-    sent_columns: FxHashSet<ChunkColumnPos>,
+    sent_columns: FxHashSet<ColumnPos>,
 
     /// Prevent duplicate enqueues.
-    queued_columns: FxHashSet<ChunkColumnPos>,
+    queued_columns: FxHashSet<ColumnPos>,
 
     /// Columns for which forced tickets have been added (chunk spawning requested).
-    ticketed_columns: FxHashSet<ChunkColumnPos>,
+    ticketed_columns: FxHashSet<ColumnPos>,
 
     /// Columns pending (re)send.
-    load_queue: VecDeque<ChunkColumnPos>,
+    load_queue: VecDeque<ColumnPos>,
 
     /// Columns pending unload.
-    unload_queue: VecDeque<ChunkColumnPos>,
+    unload_queue: VecDeque<ColumnPos>,
 
     /// Last applied vertical offset, in chunk-sections (blocks >> 4).
     last_offset_sections: i32,
@@ -394,7 +394,7 @@ fn offset_sections(rep: &Reposition, min_y: i32) -> i32 {
 
 fn apply_forced_tickets(
     tickets: &mut ChunkTicketsCommands,
-    col: ChunkColumnPos,
+    col: ColumnPos,
     off_sections: i32,
     section_count: u32,
     add: bool,
@@ -464,7 +464,7 @@ fn on_view_update(
     //
     // // Added columns — only enqueue; tickets are added progressively by
     // // `ticket_pending_columns` so close chunks are generated first.
-    // let center = ChunkColumnPos::from(event.new_view.center);
+    // let center = ColumnPos::from(event.new_view.center);
     // let mut load_queue = Vec::with_capacity(new_cols.len());
     // for col in new_cols.iter() {
     //     if !col_view.desired_columns.contains(col) {
@@ -582,7 +582,7 @@ fn on_view_update(
 //                 break;
 //             };
 //             if view.sent_columns.remove(&col) {
-//                 // unload_out.write(PlayerChunkColumnUnloadRequest { player, column_pos: col });
+//                 // unload_out.write(PlayerColumnUnloadRequest { player, column_pos: col });
 //                 sends += 1;
 //             }
 //         }
@@ -641,7 +641,7 @@ fn on_view_update(
 //             view.queued_columns.remove(&column_pos);
 //             view.sent_columns.insert(column_pos);
 //             let pkt = ClientboundLevelChunkWithLight {
-//                 pos: ChunkColumnPos::new(
+//                 pos: ColumnPos::new(
 //                     rep.convert_chunk_x(column_pos.x),
 //                     rep.convert_chunk_z(column_pos.z),
 //                 ),

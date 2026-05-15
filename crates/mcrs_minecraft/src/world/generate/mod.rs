@@ -2,7 +2,7 @@ use crate::world::chunk::CancellationToken;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_worldgen::density_function::{
-    ChunkColumnCache, NoiseRouter, SectionInterpolator,
+    ColumnCache, NoiseRouter, SectionInterpolator,
 };
 use mcrs_vanilla::block::minecraft::STONE;
 
@@ -19,7 +19,7 @@ fn generate_section(
     block_z: i32,
     block_states: &mut BlockPalette,
     noise_router: &NoiseRouter,
-    column_cache: &mut ChunkColumnCache,
+    column_cache: &mut ColumnCache,
     interp: &mut SectionInterpolator,
 ) {
     let h_cell_blocks = interp.h_cell_blocks();
@@ -114,7 +114,7 @@ fn generate_section(
     interp.end_section();
 }
 
-/// Generate all sections in a column using a pre-populated ChunkColumnCache.
+/// Generate all sections in a column using a pre-populated ColumnCache.
 /// Zone A (column-only density functions) is computed once for all 17x17 XZ positions
 /// and reused across all Y sections, eliminating per-block column-change branches.
 ///
