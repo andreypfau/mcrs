@@ -7,7 +7,7 @@ use thiserror::Error;
 
 impl Encode for ChunkPos {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        match PackedChunkSectionPos::try_from(*self) {
+        match PackedChunkPos::try_from(*self) {
             Ok(p) => p.encode(w),
             Err(e) => anyhow::bail!("{e}: {self}"),
         }
@@ -16,13 +16,13 @@ impl Encode for ChunkPos {
 
 impl<'a> Decode<'a> for ChunkPos {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        PackedChunkSectionPos::decode(r).map(Into::into)
+        PackedChunkPos::decode(r).map(Into::into)
     }
 }
 
 #[bitfield(u64)]
 #[derive(PartialEq, Eq, Ord, PartialOrd, Encode, Decode)]
-pub struct PackedChunkSectionPos {
+pub struct PackedChunkPos {
     #[bits(20)]
     pub y: i32,
     #[bits(22)]
@@ -31,19 +31,19 @@ pub struct PackedChunkSectionPos {
     pub x: i32,
 }
 
-impl From<PackedChunkSectionPos> for ChunkPos {
-    fn from(pos: PackedChunkSectionPos) -> Self {
+impl From<PackedChunkPos> for ChunkPos {
+    fn from(pos: PackedChunkPos) -> Self {
         Self::new(pos.x(), pos.y(), pos.z())
     }
 }
 
-impl TryFrom<ChunkPos> for PackedChunkSectionPos {
+impl TryFrom<ChunkPos> for PackedChunkPos {
     type Error = Error;
 
     fn try_from(pos: ChunkPos) -> Result<Self, Self::Error> {
         match (pos.x, pos.y, pos.z) {
             (-2097152..=2097151, -524288..=524287, -2097152..=2097151) => {
-                Ok(PackedChunkSectionPos::new()
+                Ok(PackedChunkPos::new()
                     .with_x(pos.x)
                     .with_y(pos.y)
                     .with_z(pos.z))
@@ -54,5 +54,5 @@ impl TryFrom<ChunkPos> for PackedChunkSectionPos {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Error, From)]
-#[error("chunk section position of {0} is out of range")]
+#[error("packed chunk position of {0} is out of range")]
 pub struct Error(pub ChunkPos);

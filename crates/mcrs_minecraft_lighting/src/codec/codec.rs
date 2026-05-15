@@ -26,7 +26,7 @@ use mcrs_engine::world::column::{
     ColumnPos, ColumnPosComponent, InColumn, ColumnChunks, ChunkLookup,
 };
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
-use mcrs_protocol::chunk::{LightData, LightSection};
+use mcrs_protocol::chunk::{LightData, LightChunk};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;
 
@@ -60,7 +60,7 @@ pub fn pack_section(
     bit_idx: usize,
     mask: &mut Vec<u64>,
     empty_mask: &mut Vec<u64>,
-    arrays: &mut Vec<LightSection>,
+    arrays: &mut Vec<LightChunk>,
 ) {
     match section {
         ChunkLookup::BottomPadding => {
@@ -70,7 +70,7 @@ pub fn pack_section(
             Layer::Sky => {
                 if has_sky_light {
                     set_bit(mask, bit_idx);
-                    arrays.push(LightSection([0xFFu8; 2048]));
+                    arrays.push(LightChunk([0xFFu8; 2048]));
                 } else {
                     set_bit(empty_mask, bit_idx);
                 }
@@ -91,11 +91,11 @@ pub fn pack_section(
                 Some(LightStorage::Uniform(n)) => {
                     set_bit(mask, bit_idx);
                     let packed = *n | (*n << 4);
-                    arrays.push(LightSection([packed; 2048]));
+                    arrays.push(LightChunk([packed; 2048]));
                 }
                 Some(LightStorage::Mixed(arr)) => {
                     set_bit(mask, bit_idx);
-                    arrays.push(LightSection(*arr.0));
+                    arrays.push(LightChunk(*arr.0));
                 }
             }
         }
@@ -155,8 +155,8 @@ pub fn build_full_light_data(
     let mut block_mask: Vec<u64> = Vec::new();
     let mut empty_sky_mask: Vec<u64> = Vec::new();
     let mut empty_block_mask: Vec<u64> = Vec::new();
-    let mut sky_arrays: Vec<LightSection> = Vec::new();
-    let mut block_arrays: Vec<LightSection> = Vec::new();
+    let mut sky_arrays: Vec<LightChunk> = Vec::new();
+    let mut block_arrays: Vec<LightChunk> = Vec::new();
 
     for (bit_idx, lookup) in section_index.iter_wire().enumerate() {
         let section_entity = match lookup {
@@ -310,8 +310,8 @@ pub fn emit_column_light_updates(
         let mut block_mask: Vec<u64> = Vec::new();
         let mut empty_sky_mask: Vec<u64> = Vec::new();
         let mut empty_block_mask: Vec<u64> = Vec::new();
-        let mut sky_arrays: Vec<LightSection> = Vec::new();
-        let mut block_arrays: Vec<LightSection> = Vec::new();
+        let mut sky_arrays: Vec<LightChunk> = Vec::new();
+        let mut block_arrays: Vec<LightChunk> = Vec::new();
 
         let min_section_y = section_index.min_section_y;
 
@@ -390,7 +390,7 @@ mod tests {
         Entity::from_raw_u32(index + 1).expect("valid entity index")
     }
 
-    fn fresh_buffers() -> (Vec<u64>, Vec<u64>, Vec<LightSection>) {
+    fn fresh_buffers() -> (Vec<u64>, Vec<u64>, Vec<LightChunk>) {
         (Vec::new(), Vec::new(), Vec::new())
     }
 
@@ -464,7 +464,7 @@ mod tests {
         assert!(bit_is_set(&mask, 3));
         assert!(!bit_is_set(&empty_mask, 3));
         assert_eq!(arrays.len(), 1);
-        assert_eq!(arrays[0], mcrs_protocol::chunk::LightSection(*nibble.0), "appended bytes must equal Mixed payload");
+        assert_eq!(arrays[0], mcrs_protocol::chunk::LightChunk(*nibble.0), "appended bytes must equal Mixed payload");
     }
 
     #[test]
@@ -504,7 +504,7 @@ mod tests {
         assert!(!bit_is_set(&empty_mask, 65));
         assert_eq!(arrays.len(), 1);
         let expected = [0x77u8; 2048];
-        assert_eq!(arrays[0], mcrs_protocol::chunk::LightSection(expected));
+        assert_eq!(arrays[0], mcrs_protocol::chunk::LightChunk(expected));
         assert!(mask.len() >= 2, "mask must grow to cover bit 65");
     }
 
@@ -604,7 +604,7 @@ mod tests {
         assert!(bit_is_set(&mask, 25), "sky mask bit must be set");
         assert!(!bit_is_set(&empty_mask, 25));
         assert_eq!(arrays.len(), 1);
-        assert_eq!(arrays[0], mcrs_protocol::chunk::LightSection([0xFFu8; 2048]));
+        assert_eq!(arrays[0], mcrs_protocol::chunk::LightChunk([0xFFu8; 2048]));
 
         // Block layer at TopPadding in a sky-having dim still goes to the
         // empty mask — only the sky layer synthesizes the 0xFF payload.
@@ -699,8 +699,8 @@ mod tests {
         let mut sky_mask: Vec<u64> = Vec::new();
         let mut empty_block_mask: Vec<u64> = Vec::new();
         let mut empty_sky_mask: Vec<u64> = Vec::new();
-        let mut block_arrays: Vec<LightSection> = Vec::new();
-        let mut sky_arrays: Vec<LightSection> = Vec::new();
+        let mut block_arrays: Vec<LightChunk> = Vec::new();
+        let mut sky_arrays: Vec<LightChunk> = Vec::new();
 
         let has_sky_light = true;
 
@@ -799,6 +799,6 @@ mod tests {
 
         // Spot-check that the topmost sky array (TopPadding synth) is 0xFF.
         let top_array = &sky_arrays[sky_arrays.len() - 1];
-        assert_eq!(*top_array, mcrs_protocol::chunk::LightSection([0xFFu8; 2048]));
+        assert_eq!(*top_array, mcrs_protocol::chunk::LightChunk([0xFFu8; 2048]));
     }
 }

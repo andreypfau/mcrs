@@ -25,17 +25,23 @@ impl<'a> Default for ChunkData<'a> {
     }
 }
 
-/// A single 2048-byte light nibble payload (4 bits per block × 4096 blocks).
+/// A single 2048-byte light nibble payload (4 bits per block × 4096 blocks)
+/// for one 16×16×16 chunk.
 ///
 /// Encoded on the wire as `VarInt(2048) + 2048 bytes` to match vanilla's
 /// `ByteBufCodecs.byteArray(2048)` codec used inside `ClientboundLightUpdatePacketData`.
-/// We keep it as a newtype so a `Cow<'_, [LightSection]>` keeps zero-copy semantics
+/// We keep it as a newtype so a `Cow<'_, [LightChunk]>` keeps zero-copy semantics
 /// while the per-element prefix is emitted automatically.
+///
+/// The vanilla Minecraft protocol documentation (wiki.vg
+/// `ClientboundLevelChunkWithLight`) calls this structure a "light section";
+/// the Rust identifier uses `LightChunk` to align with the engine's
+/// Spout-style chunk vocabulary.
 #[derive(Clone, Copy)]
-pub struct LightSection(pub [u8; 2048]);
+pub struct LightChunk(pub [u8; 2048]);
 
-impl LightSection {
-    pub const ZERO: LightSection = LightSection([0u8; 2048]);
+impl LightChunk {
+    pub const ZERO: LightChunk = LightChunk([0u8; 2048]);
 
     pub const fn new(bytes: [u8; 2048]) -> Self {
         Self(bytes)
@@ -46,42 +52,42 @@ impl LightSection {
     }
 }
 
-impl Default for LightSection {
+impl Default for LightChunk {
     fn default() -> Self {
-        LightSection::ZERO
+        LightChunk::ZERO
     }
 }
 
-impl PartialEq for LightSection {
+impl PartialEq for LightChunk {
     fn eq(&self, other: &Self) -> bool {
         self.0[..] == other.0[..]
     }
 }
 
-impl Eq for LightSection {}
+impl Eq for LightChunk {}
 
-impl std::fmt::Debug for LightSection {
+impl std::fmt::Debug for LightChunk {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LightSection")
+        f.debug_struct("LightChunk")
             .field("len", &self.0.len())
             .finish()
     }
 }
 
-impl std::ops::Deref for LightSection {
+impl std::ops::Deref for LightChunk {
     type Target = [u8; 2048];
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl From<[u8; 2048]> for LightSection {
+impl From<[u8; 2048]> for LightChunk {
     fn from(value: [u8; 2048]) -> Self {
         Self(value)
     }
 }
 
-impl EncodeTrait for LightSection {
+impl EncodeTrait for LightChunk {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         VarInt(2048).encode(&mut w)?;
         w.write_all(&self.0)?;
@@ -89,7 +95,7 @@ impl EncodeTrait for LightSection {
     }
 }
 
-impl<'a> DecodeTrait<'a> for LightSection {
+impl<'a> DecodeTrait<'a> for LightChunk {
     fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let len = VarInt::decode(r)?.0;
         ensure!(
@@ -104,7 +110,7 @@ impl<'a> DecodeTrait<'a> for LightSection {
         let mut bytes = [0u8; 2048];
         bytes.copy_from_slice(&r[..2048]);
         *r = &r[2048..];
-        Ok(LightSection(bytes))
+        Ok(LightChunk(bytes))
     }
 }
 
@@ -114,8 +120,8 @@ pub struct LightData<'a> {
     pub block_light_mask: Cow<'a, [u64]>,
     pub empty_sky_light_mask: Cow<'a, [u64]>,
     pub empty_block_light_mask: Cow<'a, [u64]>,
-    pub sky_light_arrays: Cow<'a, [LightSection]>,
-    pub block_light_arrays: Cow<'a, [LightSection]>,
+    pub sky_light_arrays: Cow<'a, [LightChunk]>,
+    pub block_light_arrays: Cow<'a, [LightChunk]>,
 }
 
 impl<'a> Default for LightData<'a> {
@@ -221,7 +227,7 @@ mod tests {
             block_light_mask: Cow::Borrowed(&[]),
             empty_sky_light_mask: Cow::Borrowed(&[]),
             empty_block_light_mask: Cow::Borrowed(&[]),
-            sky_light_arrays: Cow::Owned(vec![LightSection([0xABu8; 2048])]),
+            sky_light_arrays: Cow::Owned(vec![LightChunk([0xABu8; 2048])]),
             block_light_arrays: Cow::Borrowed(&[]),
         };
         let mut buf = Vec::new();

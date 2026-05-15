@@ -38,7 +38,7 @@ mod byte_angle;
 mod cell_pos;
 pub mod chunk;
 pub mod chunk_pos;
-pub mod chunk_section_pos;
+pub mod packed_chunk_pos;
 pub mod decode;
 mod dialog;
 mod difficulty;
