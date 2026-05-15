@@ -20,17 +20,13 @@ use rustc_hash::FxHashMap;
 
 pub use crate::geometry::ColumnPos;
 
-#[allow(deprecated)]
-#[deprecated(note = "use ColumnPos")]
-pub type ChunkColumnPos = ColumnPos;
-
 /// Sparse marker component placed on chunk-column entities.
 #[derive(Component, Debug, Default)]
 #[component(storage = "SparseSet")]
 pub struct Column;
 
 /// Back-link from a chunk entity to its owning column entity.
-/// Inserted by `reconcile_section_index` (Stage 2).
+/// Inserted by `reconcile_column_chunks` (Stage 2).
 #[derive(Component, Clone, Copy, Debug)]
 pub struct InColumn(pub Entity);
 
@@ -236,7 +232,7 @@ impl Heightmaps {
 // 256). Callers that need a fresh heightmap must go through
 // `DimensionTypeConfig` so the right shape is plumbed in.
 
-/// Result of looking up a chunk-section by `chunk_y` inside a column.
+/// Result of looking up a chunk by `chunk_y` inside a column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChunkLookup {
     Loaded(Entity),
@@ -246,7 +242,7 @@ pub enum ChunkLookup {
     OutOfRange,
 }
 
-/// Per-column index of real chunk-section entities. The backing storage holds
+/// Per-column index of real chunk entities. The backing storage holds
 /// `real_count` entries (no padding); `iter_wire()` adds the two padding rows
 /// expected by the network wire format.
 #[derive(Component, Debug, Clone)]
@@ -371,36 +367,8 @@ pub enum ColumnLifecycleSet {
     AttachState,
 }
 
-// Stage 2 naming-refactor compatibility shims. The old `ChunkColumn*` names
-// stay usable so downstream crates keep compiling unchanged during the
-// migration. `pub use` re-exports are needed for unit/tuple structs because
-// `pub type` aliases cannot stand in as constructors (E0423) — a known
-// stable-Rust limitation; only the `pub type` aliases below actually emit
-// deprecation warnings at use sites. All shims here are removed in Stage 8.
-#[allow(deprecated)]
-#[deprecated(note = "use Column")]
-pub use self::Column as ChunkColumn;
-#[allow(deprecated)]
-#[deprecated(note = "use InColumn")]
-pub use self::InColumn as InChunkColumn;
-#[allow(deprecated)]
-#[deprecated(note = "use ColumnPosComponent")]
-pub use self::ColumnPosComponent as ChunkColumnPosComponent;
-#[allow(dead_code, deprecated)]
-#[deprecated(note = "use ColumnBundle")]
-pub type ChunkColumnBundle = ColumnBundle;
-#[allow(dead_code, deprecated)]
-#[deprecated(note = "use ColumnLifecycleSet")]
-pub type ChunkColumnLifecycleSet = ColumnLifecycleSet;
-#[allow(dead_code, deprecated)]
-#[deprecated(note = "use ColumnChunks")]
-pub type SectionIndex = ColumnChunks;
-#[allow(deprecated)]
-#[deprecated(note = "use ChunkLookup")]
-pub use self::ChunkLookup as SectionLookup;
-
-/// Stage 1: when a section becomes `ChunkLoaded` (or `ChunkUnloading`),
-/// create / refcount its owning chunk-column entity.
+/// Stage 1: when a chunk becomes `ChunkLoaded` (or `ChunkUnloading`),
+/// create / refcount its owning column entity.
 fn reconcile_column_existence(
     newly_loaded: Query<(&ChunkPos, &InDimension), Added<ChunkLoaded>>,
     newly_unloading: Query<(&ChunkPos, &InDimension), Added<ChunkUnloading>>,
@@ -458,7 +426,7 @@ fn reconcile_column_existence(
                 tracing::warn!(
                     ?col_pos,
                     dim = ?in_dim.0,
-                    "ChunkUnloading observed for section with no matching ColumnSlot entry"
+                    "ChunkUnloading observed for chunk with no matching ColumnSlot entry"
                 );
                 None
             }
@@ -471,19 +439,19 @@ fn reconcile_column_existence(
 }
 
 /// Stage 2: after Stage 1's `ApplyDeferred` flushes the spawn commands, the
-/// new column entities are visible. Insert the section into its column's
+/// new column entities are visible. Insert the chunk into its column's
 /// `ColumnChunks` and attach the `InColumn` back-link.
 ///
 /// Pitfall #1 safety check: this function does NOT take a lighting-table
 /// resource. Heightmap priming (Stage 2.5) lives in `mcrs_minecraft_lighting`.
-fn reconcile_section_index(
+fn reconcile_column_chunks(
     newly_loaded: Query<(Entity, &ChunkPos, &InDimension), Added<ChunkLoaded>>,
     newly_unloading: Query<(&ChunkPos, &InDimension), Added<ChunkUnloading>>,
     dimensions: Query<&ColumnIndex>,
     mut columns: Query<&mut ColumnChunks>,
     mut commands: Commands,
 ) {
-    for (section_entity, chunk_pos, in_dim) in newly_loaded.iter() {
+    for (chunk_entity, chunk_pos, in_dim) in newly_loaded.iter() {
         let col_pos = ColumnPos::from(*chunk_pos);
         let Ok(column_index) = dimensions.get(in_dim.0) else {
             continue;
@@ -496,11 +464,11 @@ fn reconcile_section_index(
             );
             continue;
         };
-        if let Ok(mut section_index) = columns.get_mut(slot.entity) {
-            section_index.set_loaded(chunk_pos.y, section_entity);
+        if let Ok(mut column_chunks) = columns.get_mut(slot.entity) {
+            column_chunks.set_loaded(chunk_pos.y, chunk_entity);
         }
         commands
-            .entity(section_entity)
+            .entity(chunk_entity)
             .insert(InColumn(slot.entity));
     }
 
@@ -512,8 +480,8 @@ fn reconcile_section_index(
         let Some(slot) = column_index.0.get(&col_pos) else {
             continue;
         };
-        if let Ok(mut section_index) = columns.get_mut(slot.entity) {
-            section_index.set_unloaded(chunk_pos.y);
+        if let Ok(mut column_chunks) = columns.get_mut(slot.entity) {
+            column_chunks.set_unloaded(chunk_pos.y);
         }
     }
 }
@@ -527,7 +495,7 @@ impl Plugin for ColumnPlugin {
             (
                 reconcile_column_existence.in_set(ColumnLifecycleSet::Reconcile),
                 ApplyDeferred,
-                reconcile_section_index.in_set(ColumnLifecycleSet::ReconcileIndex),
+                reconcile_column_chunks.in_set(ColumnLifecycleSet::ReconcileIndex),
                 // W6: trailing post-Stage-2 ApplyDeferred is intentionally omitted; the
                 // lighting plugin owns the Stage 2 -> Stage 2.5 barrier with a leading
                 // ApplyDeferred at the head of its own chain.

@@ -4,10 +4,6 @@ use crate::{BiomePos, Decode, Encode, Position};
 
 pub use mcrs_engine::geometry::ColumnPos;
 
-#[allow(deprecated)]
-#[deprecated(note = "use ColumnPos")]
-pub type ChunkColumnPos = ColumnPos;
-
 impl Encode for ColumnPos {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         self.x.encode(&mut w)?;

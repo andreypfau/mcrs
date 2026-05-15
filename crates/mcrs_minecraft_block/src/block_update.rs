@@ -12,7 +12,7 @@ use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos};
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::chunk::ChunkBlockUpdateEntry;
 use mcrs_protocol::packets::game::clientbound::ClientboundBlockUpdate;
-use mcrs_protocol::{BlockStateId, ChunkColumnPos, Encode, Packet, WritePacket};
+use mcrs_protocol::{BlockStateId, ColumnPos, Encode, Packet, WritePacket};
 use rustc_hash::FxHashSet;
 use std::borrow::Cow::Owned;
 
@@ -173,7 +173,7 @@ fn update_client_blocks(
     fn flush_packet<P>(
         players: &mut Query<(&PlayerChunkObserver, &mut ServerSideConnection)>,
         packet: &P,
-        column: &ChunkColumnPos,
+        column: &ColumnPos,
     ) where
         P: Packet + Encode + Sync,
     {
@@ -191,14 +191,14 @@ fn update_client_blocks(
     chunks
         .iter_mut()
         .for_each(|(chunk_pos, storage, mut changes)| {
-            let chunk_column_pos = ChunkColumnPos::from(*chunk_pos);
+            let column_pos = ColumnPos::from(*chunk_pos);
             if changes.changes.len() <= 1 {
                 changes.changes.retain(|pos| {
                     let pkt = ClientboundBlockUpdate {
                         block_pos: *pos,
                         block_state_id: storage.get(*pos),
                     };
-                    flush_packet(&mut players, &pkt, &chunk_column_pos);
+                    flush_packet(&mut players, &pkt, &column_pos);
                     false
                 });
             } else {
@@ -217,7 +217,7 @@ fn update_client_blocks(
                         chunk_pos: *chunk_pos,
                         blocks: Owned(updates),
                     };
-                flush_packet(&mut players, &pkt, &chunk_column_pos);
+                flush_packet(&mut players, &pkt, &column_pos);
             }
         });
 }

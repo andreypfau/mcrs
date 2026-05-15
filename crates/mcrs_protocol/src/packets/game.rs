@@ -5,7 +5,7 @@ pub mod clientbound {
     use crate::game_event::GameEventKind;
     use crate::packets::common::clientbound::KeepAlive;
     use crate::profile::{PlayerListActions, PlayerListEntry};
-    use crate::{ChunkColumnPos, Look, PositionFlag, Slot, VarInt};
+    use crate::{ColumnPos, Look, PositionFlag, Slot, VarInt};
     use bevy_math::DVec3;
     use mcrs_engine::world::block::BlockPos;
     use mcrs_engine::world::chunk::ChunkPos;
@@ -91,7 +91,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x2D, state=Game)]
     pub struct ClientboundLevelChunkWithLight<'a> {
-        pub pos: ChunkColumnPos,
+        pub pos: ColumnPos,
         pub chunk_data: crate::chunk::ChunkData<'a>,
         pub light_data: crate::chunk::LightData<'a>,
     }

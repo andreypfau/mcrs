@@ -78,8 +78,6 @@ pub use byte_angle::ByteAngle;
 pub use cell_pos::CellPos;
 pub use chunk::ChunkData;
 pub use chunk::LightData;
-#[allow(deprecated)]
-pub use chunk_pos::ChunkColumnPos;
 pub use chunk_pos::ColumnPos;
 pub use decode::PacketDecoder;
 use derive_more::{From, Into};
