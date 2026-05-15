@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "git_commit_sha": "06c958873a695cca33e5cd2ae363d7ea837d7019",
+  "fixture_seed": 30790115674516585,
+  "timestamp_iso": "2026-05-15T05:49:43Z",
+  "categories": [
+    {
+      "name": "light_nibbles",
+      "bytes": 10720000
+    },
+    {
+      "name": "wavefront_buffers",
+      "bytes": 157676160
+    },
+    {
+      "name": "workspaces",
+      "bytes": 272756160
+    },
+    {
+      "name": "heightmaps",
+      "bytes": 425000
+    },
+    {
+      "name": "section_indexes",
+      "bytes": 135000
+    },
+    {
+      "name": "column_indexes",
+      "bytes": 15064
+    },
+    {
+      "name": "sparse_markers",
+      "bytes": 65016
+    }
+  ],
+  "total_bytes": 441792400,
+  "total_mb": 421.32606506347656,
+  "budget_mb": 40,
+  "exceeded_budget": true,
+  "dhat_total_bytes": null,
+  "dhat_in_process_delta_pct": null,
+  "telemetry_iterations": 21
+}

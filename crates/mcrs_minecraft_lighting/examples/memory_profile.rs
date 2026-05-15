@@ -2,30 +2,30 @@
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
+use bevy_state::prelude::NextState;
+use mcrs_core::AppState;
 use mcrs_engine::world::column::{ColumnIndex, Heightmaps, SectionIndex};
 use mcrs_engine::world::dimension::HasSkyLight;
 use mcrs_engine::world::lighting::LightTicket;
-use mcrs_minecraft::ServerPlugin;
 use mcrs_minecraft_lighting::components::{
     BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, BlockPendingEgress,
     ChunkNeedsInitialLight, IsAllAir, LightDirty, SkyEgress, SkyIncoming, SkyLight,
     SkyLightSeededAsTopmost, SkyLightWorkspace, SkyPendingEgress,
 };
 use mcrs_minecraft_lighting::storage::LightStorage;
+use mcrs_minecraft_lighting::test_bench::bench_helpers::{
+    build_warmed_vd12_app_in_place, install_lighting_plugins,
+};
 use serde::Serialize;
 use smallvec::SmallVec;
 use std::mem;
 
 const MEMORY_BUDGET_BYTES: usize = 40 * 1024 * 1024;
+// Identifier for this profile run; bench-helpers palettes are themselves deterministic.
 const FIXTURE_SEED: u64 = 0x6d6372735f6c69;
 const JSON_OUT_PATH: &str = "crates/mcrs_minecraft_lighting/benches/results/memory-profile.json";
 const HTML_OUT_DIR: &str = "target/memory-profile";
 const HTML_OUT_PATH: &str = "target/memory-profile/report.html";
-
-// Maximum ticks before giving up on convergence
-const MAX_DRIVE_TICKS: usize = 30000;
-// How many chunk columns (25x25 disk) we expect for VD12
-const VD12_COLUMN_COUNT: usize = 625;
 
 #[derive(Serialize)]
 struct CategoryBytes {
@@ -53,76 +53,16 @@ fn main() {
     #[cfg(feature = "profile-memory")]
     let _profiler = dhat::Profiler::new_heap();
 
-    let mut app = bevy_app::App::new();
-    app.add_plugins(ServerPlugin);
-
-    // seed injection: the worldgen crate does not expose a seed resource in its
-    // public surface (seed is baked into NoiseRouter via build_functions); FIXTURE_SEED
-    // documents the intended reproducibility identifier for this profile run
     let _ = FIXTURE_SEED;
 
-    let mut ticks = 0usize;
-    let mut playing = false;
-    let mut columns_ready = false;
-    let mut converged = false;
+    let mut app = bevy_app::App::new();
+    let _stub_dim = install_lighting_plugins(&mut app);
 
-    loop {
-        app.update();
-        ticks += 1;
+    app.world_mut()
+        .resource_mut::<NextState<AppState>>()
+        .set(AppState::Playing);
 
-        if ticks > MAX_DRIVE_TICKS {
-            eprintln!(
-                "memory_profile: drive loop hit {MAX_DRIVE_TICKS}-tick cap without convergence; \
-                 exiting with non-zero status"
-            );
-            std::process::exit(1);
-        }
-
-        // Check AppState::Playing
-        if !playing {
-            use bevy_state::state::State;
-            use mcrs_core::AppState;
-            let state = app.world().get_resource::<State<AppState>>();
-            if matches!(state.map(|s| s.get()), Some(AppState::Playing)) {
-                playing = true;
-            }
-            if !playing {
-                continue;
-            }
-        }
-
-        // Check 625 columns loaded (Heightmaps as proxy — column entities receive
-        // Heightmaps when the column lifecycle primes them)
-        if !columns_ready {
-            let count = app
-                .world_mut()
-                .query_filtered::<(), bevy_ecs::prelude::With<Heightmaps>>()
-                .iter(app.world())
-                .count();
-            if count >= VD12_COLUMN_COUNT {
-                columns_ready = true;
-            }
-            if !columns_ready {
-                continue;
-            }
-        }
-
-        // Check full convergence: no LightDirty entities remain
-        if !converged {
-            let dirty = app
-                .world_mut()
-                .query_filtered::<(), bevy_ecs::prelude::With<LightDirty>>()
-                .iter(app.world())
-                .count();
-            if dirty == 0 {
-                converged = true;
-            }
-        }
-
-        if playing && columns_ready && converged {
-            break;
-        }
-    }
+    build_warmed_vd12_app_in_place(&mut app);
 
     // One extra tick to ensure downgrade_light_storage has fired (runs in EmitDirty
     // stage which executes after convergence; without this tick the Mixed→Uniform/Null
