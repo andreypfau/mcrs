@@ -20,7 +20,7 @@ use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{
-    ChunkColumn, ColumnIndex, Heightmaps, InChunkColumn, SectionIndex, SectionLookup,
+    Column, ColumnIndex, Heightmaps, InColumn, SectionIndex, SectionLookup,
 };
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_minecraft_block::block_update::BlockPlaced;
@@ -139,7 +139,7 @@ pub fn enqueue_block_light_on_block_placed(
 /// storage state.
 pub fn enqueue_sky_light_initial(
     mut newly_added: Query<
-        (Entity, &ChunkPos, &InChunkColumn, &mut SkyLightWorkspace, &SkyLight),
+        (Entity, &ChunkPos, &InColumn, &mut SkyLightWorkspace, &SkyLight),
         Added<SkyLight>,
     >,
     columns: Query<&SectionIndex>,
@@ -192,7 +192,7 @@ pub fn enqueue_sky_light_on_block_placed(
         &mut SkyLight,
         &mut SkyLightWorkspace,
         &ChunkPos,
-        &InChunkColumn,
+        &InColumn,
     )>,
     columns: Query<&SectionIndex>,
     mut commands: Commands,
@@ -372,7 +372,7 @@ fn resolve_loaded_neighbor(
                 _ => unreachable!(),
             };
             let neighbour_col_pos =
-                mcrs_engine::world::column::ChunkColumnPos::new(nx, nz);
+                mcrs_engine::world::column::ColumnPos::new(nx, nz);
             let slot = column_index.0.get(&neighbour_col_pos)?;
             let neighbour_section_index = section_indexes.get(slot.entity).ok()?;
             match neighbour_section_index.lookup(chunk_pos.y) {
@@ -402,7 +402,7 @@ pub fn seed_initial_light(
             (
                 Entity,
                 &BlockPalette,
-                &InChunkColumn,
+                &InColumn,
                 &InDimension,
                 &ChunkPos,
                 &mut BlockLightWorkspace,
@@ -412,7 +412,7 @@ pub fn seed_initial_light(
             With<ChunkNeedsInitialLight>,
         >,
         Query<
-            (Entity, &ChunkPos, &InChunkColumn, &mut SkyLightWorkspace, &SkyLight),
+            (Entity, &ChunkPos, &InColumn, &mut SkyLightWorkspace, &SkyLight),
             With<SkyLightSeededAsTopmost>,
         >,
     )>,
@@ -688,7 +688,7 @@ pub fn seed_initial_light(
 /// `LightDirty`.
 pub fn pull_neighbor_edge_levels(
     table: Option<Res<BlockLightTable>>,
-    newly_loaded: Query<(Entity, &ChunkPos, &InDimension, &InChunkColumn), Added<ChunkLoaded>>,
+    newly_loaded: Query<(Entity, &ChunkPos, &InDimension, &InColumn), Added<ChunkLoaded>>,
     column_indexes: Query<&ColumnIndex>,
     section_indexes: Query<&SectionIndex>,
     block_light_read: Query<&BlockLight>,
@@ -888,12 +888,12 @@ pub fn pull_neighbor_edge_levels(
     }
 }
 
-/// Consumes `Added<NeedsFullReseed>` on `ChunkColumn` entities: iterates the
+/// Consumes `Added<NeedsFullReseed>` on `Column` entities: iterates the
 /// column's `SectionIndex.sections` slots and re-inserts
 /// `ChunkNeedsInitialLight` on every loaded section in the column. Removes
 /// `NeedsFullReseed` from the column entity.
 pub fn consume_needs_full_reseed(
-    newly_marked: Query<(Entity, &SectionIndex), (With<ChunkColumn>, Added<NeedsFullReseed>)>,
+    newly_marked: Query<(Entity, &SectionIndex), (With<Column>, Added<NeedsFullReseed>)>,
     mut commands: Commands,
 ) {
     for (column_entity, section_index) in newly_marked.iter() {
@@ -920,7 +920,7 @@ mod tests {
     use mcrs_core::voxel_shape::VoxelShape;
     use mcrs_engine::world::block::BlockPos;
     use mcrs_engine::world::chunk::ChunkPos;
-    use mcrs_engine::world::column::{ChunkColumn, ChunkColumnPos, ColumnIndex, ColumnSlot, InChunkColumn, SectionIndex};
+    use mcrs_engine::world::column::{Column, ColumnPos, ColumnIndex, ColumnSlot, InColumn, SectionIndex};
     use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
     use mcrs_lighting_table_helpers::*;
     use mcrs_minecraft_block::block::BlockUpdateFlags;
@@ -1229,7 +1229,7 @@ mod tests {
         let column = spawn_column_with_sections(&mut app, 0, vec![Some(section)]);
         app.world_mut().entity_mut(section).insert((
             ChunkPos::new(0, 0, 0),
-            InChunkColumn(column),
+            InColumn(column),
             SkyLight::default(),
             SkyLightWorkspace::default(),
         ));
@@ -1280,7 +1280,7 @@ mod tests {
         // so this single test does not also seed an unrelated section.
         app.world_mut().entity_mut(section_below).insert((
             ChunkPos::new(0, 0, 0),
-            InChunkColumn(column),
+            InColumn(column),
             SkyLight::default(),
             SkyLightWorkspace::default(),
         ));
@@ -1326,7 +1326,7 @@ mod tests {
             SkyLight::default(),
             SkyLightWorkspace::default(),
             ChunkPos::new(0, 0, 0),
-            InChunkColumn(column),
+            InColumn(column),
         ));
         section
     }
@@ -1345,7 +1345,7 @@ mod tests {
             SkyLight::default(),
             SkyLightWorkspace::default(),
             ChunkPos::new(0, 0, 0),
-            InChunkColumn(column),
+            InColumn(column),
         ));
         section
     }
@@ -1813,7 +1813,7 @@ mod tests {
         let column = app
             .world_mut()
             .spawn((
-                ChunkColumn,
+                Column,
                 SectionIndex {
                     min_section_y: 0,
                     sections: vec![Some(section)].into_boxed_slice(),
@@ -1825,7 +1825,7 @@ mod tests {
         emut.insert((
             palette,
             ChunkPos::new(0, 0, 0),
-            InChunkColumn(column),
+            InColumn(column),
             InDimension(dim),
             BlockLight::default(),
             BlockLightWorkspace::default(),
@@ -1896,7 +1896,7 @@ mod tests {
         let column = app
             .world_mut()
             .spawn((
-                ChunkColumn,
+                Column,
                 SectionIndex {
                     min_section_y: 0,
                     sections: vec![Some(section_a), Some(section_b)].into_boxed_slice(),
@@ -1916,7 +1916,7 @@ mod tests {
         app.world_mut().entity_mut(section_a).insert((
             palette_a,
             ChunkPos::new(0, 0, 0),
-            InChunkColumn(column),
+            InColumn(column),
             InDimension(dim),
             BlockLight::default(),
             BlockLightWorkspace::default(),
@@ -1931,7 +1931,7 @@ mod tests {
         app.world_mut().entity_mut(section_b).insert((
             palette_b,
             ChunkPos::new(0, 1, 0),
-            InChunkColumn(column),
+            InColumn(column),
             InDimension(dim),
             BlockLight::default(),
             BlockLightWorkspace::default(),
@@ -2037,7 +2037,7 @@ mod tests {
         let column_a = app
             .world_mut()
             .spawn((
-                ChunkColumn,
+                Column,
                 SectionIndex {
                     min_section_y: 0,
                     sections: vec![Some(section_a)].into_boxed_slice(),
@@ -2048,7 +2048,7 @@ mod tests {
         let column_b = app
             .world_mut()
             .spawn((
-                ChunkColumn,
+                Column,
                 SectionIndex {
                     min_section_y: 0,
                     sections: vec![Some(section_b)].into_boxed_slice(),
@@ -2063,14 +2063,14 @@ mod tests {
             .get_mut::<ColumnIndex>(dim)
             .expect("column index");
         col_index.0.insert(
-            ChunkColumnPos::new(0, 0),
+            ColumnPos::new(0, 0),
             ColumnSlot {
                 entity: column_a,
                 section_count: 1,
             },
         );
         col_index.0.insert(
-            ChunkColumnPos::new(1, 0),
+            ColumnPos::new(1, 0),
             ColumnSlot {
                 entity: column_b,
                 section_count: 1,
@@ -2080,7 +2080,7 @@ mod tests {
         // Section A: already loaded, with uniform block light = 8.
         app.world_mut().entity_mut(section_a).insert((
             ChunkPos::new(0, 0, 0),
-            InChunkColumn(column_a),
+            InColumn(column_a),
             InDimension(dim),
             BlockLight(crate::storage::LightStorage::Uniform(8)),
             BlockPendingEgress::default(),
@@ -2094,7 +2094,7 @@ mod tests {
         // Section B: just-loaded; Added<ChunkLoaded> fires on its insertion.
         app.world_mut().entity_mut(section_b).insert((
             ChunkPos::new(1, 0, 0),
-            InChunkColumn(column_b),
+            InColumn(column_b),
             InDimension(dim),
             BlockLight::default(),
             BlockPendingEgress::default(),
@@ -2158,7 +2158,7 @@ mod tests {
         let column_a = app
             .world_mut()
             .spawn((
-                ChunkColumn,
+                Column,
                 SectionIndex {
                     min_section_y: 0,
                     sections: vec![Some(section_a)].into_boxed_slice(),
@@ -2169,7 +2169,7 @@ mod tests {
         let column_b = app
             .world_mut()
             .spawn((
-                ChunkColumn,
+                Column,
                 SectionIndex {
                     min_section_y: 0,
                     sections: vec![Some(section_b)].into_boxed_slice(),
@@ -2183,14 +2183,14 @@ mod tests {
             .get_mut::<ColumnIndex>(dim)
             .expect("column index");
         col_index.0.insert(
-            ChunkColumnPos::new(0, 0),
+            ColumnPos::new(0, 0),
             ColumnSlot {
                 entity: column_a,
                 section_count: 1,
             },
         );
         col_index.0.insert(
-            ChunkColumnPos::new(1, 0),
+            ColumnPos::new(1, 0),
             ColumnSlot {
                 entity: column_b,
                 section_count: 1,
@@ -2206,7 +2206,7 @@ mod tests {
 
         app.world_mut().entity_mut(section_a).insert((
             ChunkPos::new(0, 0, 0),
-            InChunkColumn(column_a),
+            InColumn(column_a),
             InDimension(dim),
             BlockLight::default(),
             pending,
@@ -2219,7 +2219,7 @@ mod tests {
 
         app.world_mut().entity_mut(section_b).insert((
             ChunkPos::new(1, 0, 0),
-            InChunkColumn(column_b),
+            InColumn(column_b),
             InDimension(dim),
             BlockLight::default(),
             BlockPendingEgress::default(),
@@ -2294,7 +2294,7 @@ mod tests {
         let column = app
             .world_mut()
             .spawn((
-                ChunkColumn,
+                Column,
                 SectionIndex {
                     min_section_y: 0,
                     sections: vec![Some(section_a), section_unloaded_slot, Some(section_b)]

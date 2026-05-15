@@ -99,7 +99,7 @@ pub struct IsAllAir;
 #[component(storage = "SparseSet")]
 pub struct ChunkNeedsInitialLight;
 
-/// Inserted on a `ChunkColumn` entity when a pending-egress overflow is
+/// Inserted on a `Column` entity when a pending-egress overflow is
 /// detected; consumed by the full-column reseed system.
 #[derive(Component)]
 #[component(storage = "SparseSet")]

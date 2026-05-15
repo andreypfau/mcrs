@@ -15,7 +15,7 @@ use bevy_state::app::StatesPlugin;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
 use mcrs_engine::world::column::{
-    ChunkColumn, ChunkColumnPos, ChunkColumnPosComponent, ColumnPlugin, InChunkColumn,
+    Column, ColumnPos, ColumnPosComponent, ColumnPlugin, InColumn,
     SectionIndex,
 };
 use mcrs_engine::world::dimension::{
@@ -80,19 +80,19 @@ fn spawn_test_dimension(app: &mut App) -> Entity {
 
 struct ColumnHandles {
     column: Entity,
-    column_pos: ChunkColumnPos,
+    column_pos: ColumnPos,
     sections: Vec<Entity>,
 }
 
-fn spawn_test_column(app: &mut App, dim: Entity, column_pos: ChunkColumnPos) -> ColumnHandles {
+fn spawn_test_column(app: &mut App, dim: Entity, column_pos: ColumnPos) -> ColumnHandles {
     let mut section_index = SectionIndex::new(MIN_SECTION_Y, SECTION_COUNT);
     let mut section_entities: Vec<Entity> = Vec::with_capacity(SECTION_COUNT);
     let column = app
         .world_mut()
         .spawn((
-            ChunkColumnPosComponent(column_pos),
+            ColumnPosComponent(column_pos),
             InDimension(dim),
-            ChunkColumn,
+            Column,
         ))
         .id();
     for i in 0..SECTION_COUNT {
@@ -102,7 +102,7 @@ fn spawn_test_column(app: &mut App, dim: Entity, column_pos: ChunkColumnPos) -> 
             .spawn((
                 BlockLight(LightStorage::Null),
                 SkyLight(LightStorage::Null),
-                InChunkColumn(column),
+                InColumn(column),
             ))
             .id();
         section_index.set_loaded(chunk_y, section_entity);
@@ -132,7 +132,7 @@ fn popcount(mask: &[u64]) -> u32 {
     mask.iter().map(|w| w.count_ones()).sum()
 }
 
-fn inject_block_dirty(app: &mut App, section: Entity, column_pos: ChunkColumnPos, chunk_y: i32) {
+fn inject_block_dirty(app: &mut App, section: Entity, column_pos: ColumnPos, chunk_y: i32) {
     app.world_mut()
         .resource_mut::<Messages<BlockLightDirty>>()
         .write(BlockLightDirty {
@@ -142,7 +142,7 @@ fn inject_block_dirty(app: &mut App, section: Entity, column_pos: ChunkColumnPos
         });
 }
 
-fn inject_sky_dirty(app: &mut App, section: Entity, column_pos: ChunkColumnPos, chunk_y: i32) {
+fn inject_sky_dirty(app: &mut App, section: Entity, column_pos: ColumnPos, chunk_y: i32) {
     app.world_mut()
         .resource_mut::<Messages<SkyLightDirty>>()
         .write(SkyLightDirty {
@@ -169,7 +169,7 @@ fn drain_block_light_dirty(app: &mut App) -> Vec<BlockLightDirty> {
 #[test]
 fn codec_emits_column_light_update_for_dirty_sections() {
     let (mut app, dim) = make_codec_test_app();
-    let handles = spawn_test_column(&mut app, dim, ChunkColumnPos::new(3, -7));
+    let handles = spawn_test_column(&mut app, dim, ColumnPos::new(3, -7));
 
     let chunk_y: i32 = 5;
     let target_section = handles.sections[(chunk_y - MIN_SECTION_Y) as usize];
@@ -222,7 +222,7 @@ fn codec_emits_column_light_update_for_dirty_sections() {
 #[test]
 fn codec_merges_block_and_sky_dirty_into_one_packet() {
     let (mut app, dim) = make_codec_test_app();
-    let handles = spawn_test_column(&mut app, dim, ChunkColumnPos::new(0, 0));
+    let handles = spawn_test_column(&mut app, dim, ColumnPos::new(0, 0));
 
     let chunk_y: i32 = 2;
     let target_section = handles.sections[(chunk_y - MIN_SECTION_Y) as usize];
@@ -262,7 +262,7 @@ fn codec_merges_block_and_sky_dirty_into_one_packet() {
 #[test]
 fn codec_emits_no_message_when_no_dirty_inputs() {
     let (mut app, dim) = make_codec_test_app();
-    let _handles = spawn_test_column(&mut app, dim, ChunkColumnPos::new(4, 4));
+    let _handles = spawn_test_column(&mut app, dim, ColumnPos::new(4, 4));
 
     app.world_mut().run_schedule(FixedPostUpdate);
 
@@ -277,7 +277,7 @@ fn codec_emits_no_message_when_no_dirty_inputs() {
 #[test]
 fn emit_dirty_writes_block_light_dirty_for_modified_section() {
     let (mut app, dim) = make_codec_test_app();
-    let handles = spawn_test_column(&mut app, dim, ChunkColumnPos::new(-1, 1));
+    let handles = spawn_test_column(&mut app, dim, ColumnPos::new(-1, 1));
 
     let chunk_y: i32 = 3;
     let target_section = handles.sections[(chunk_y - MIN_SECTION_Y) as usize];

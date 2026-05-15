@@ -34,7 +34,7 @@ use crate::telemetry::{LIGHT_CROSS_DIM_VIOLATIONS_TOTAL, LIGHT_PENDING_EGRESS_OV
 use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::world::chunk::ChunkPos;
 use mcrs_engine::world::column::{
-    ChunkColumnPos, ColumnIndex, InChunkColumn, SectionIndex, SectionLookup,
+    ColumnPos, ColumnIndex, InColumn, SectionIndex, SectionLookup,
 };
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::lighting::LightTicket;
@@ -101,7 +101,7 @@ pub(crate) enum ResolvePath {
 /// concurrent tick), or when the source's column has no `SectionIndex`.
 pub(crate) fn resolve_neighbor_section(
     src_chunk_pos: ChunkPos,
-    src_in_col: InChunkColumn,
+    src_in_col: InColumn,
     src_in_dim: InDimension,
     face: Direction,
     column_indexes: &Query<&ColumnIndex>,
@@ -142,7 +142,7 @@ pub(crate) fn resolve_neighbor_section(
                 _ => unreachable!(),
             };
             let neighbour_col_pos =
-                ChunkColumnPos::new(src_chunk_pos.x + dx, src_chunk_pos.z + dz);
+                ColumnPos::new(src_chunk_pos.x + dx, src_chunk_pos.z + dz);
             let column_index = column_indexes.get(src_in_dim.0).ok()?;
             let slot = column_index.0.get(&neighbour_col_pos)?;
             let dst_column = slot.entity;
@@ -172,7 +172,7 @@ pub(crate) fn resolve_neighbor_section(
 #[cfg(debug_assertions)]
 pub(crate) fn resolve_neighbor_section_tagged(
     src_chunk_pos: ChunkPos,
-    src_in_col: InChunkColumn,
+    src_in_col: InColumn,
     src_in_dim: InDimension,
     face: Direction,
     column_indexes: &Query<&ColumnIndex>,
@@ -219,8 +219,8 @@ fn rate_limited_xdim_log(
 }
 
 pub fn distribute_decrease(
-    block_sources: Query<(Entity, &ChunkPos, &InDimension, &InChunkColumn, &mut BlockEgress)>,
-    sky_sources: Query<(Entity, &ChunkPos, &InDimension, &InChunkColumn, &mut SkyEgress)>,
+    block_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut BlockEgress)>,
+    sky_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut SkyEgress)>,
     block_incoming: Query<&mut BlockIncoming>,
     sky_incoming: Query<&mut SkyIncoming>,
     block_pending: Query<&mut BlockPendingEgress>,
@@ -259,8 +259,8 @@ pub fn distribute_decrease(
 }
 
 pub fn distribute_increase(
-    block_sources: Query<(Entity, &ChunkPos, &InDimension, &InChunkColumn, &mut BlockEgress)>,
-    sky_sources: Query<(Entity, &ChunkPos, &InDimension, &InChunkColumn, &mut SkyEgress)>,
+    block_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut BlockEgress)>,
+    sky_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut SkyEgress)>,
     block_incoming: Query<&mut BlockIncoming>,
     sky_incoming: Query<&mut SkyIncoming>,
     block_pending: Query<&mut BlockPendingEgress>,
@@ -304,8 +304,8 @@ pub fn distribute_increase(
 }
 
 fn distribute_inner(
-    mut block_sources: Query<(Entity, &ChunkPos, &InDimension, &InChunkColumn, &mut BlockEgress)>,
-    mut sky_sources: Query<(Entity, &ChunkPos, &InDimension, &InChunkColumn, &mut SkyEgress)>,
+    mut block_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut BlockEgress)>,
+    mut sky_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut SkyEgress)>,
     mut block_incoming: Query<&mut BlockIncoming>,
     mut sky_incoming: Query<&mut SkyIncoming>,
     mut block_pending: Query<&mut BlockPendingEgress>,
@@ -366,7 +366,7 @@ fn distribute_inner(
 }
 
 fn drain_block_egress(
-    sources: &mut Query<(Entity, &ChunkPos, &InDimension, &InChunkColumn, &mut BlockEgress)>,
+    sources: &mut Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut BlockEgress)>,
     pending: &mut Query<&mut BlockPendingEgress>,
     in_dimensions: &Query<&InDimension>,
     section_indexes: &Query<&SectionIndex>,
@@ -455,7 +455,7 @@ fn drain_block_egress(
 }
 
 fn drain_sky_egress(
-    sources: &mut Query<(Entity, &ChunkPos, &InDimension, &InChunkColumn, &mut SkyEgress)>,
+    sources: &mut Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut SkyEgress)>,
     pending: &mut Query<&mut SkyPendingEgress>,
     in_dimensions: &Query<&InDimension>,
     section_indexes: &Query<&SectionIndex>,
@@ -573,7 +573,7 @@ fn _project_face_cell_anchor() {
 mod tests {
     use super::*;
     use bevy_app::{App, Update};
-    use mcrs_engine::world::column::{ChunkColumnPos, ColumnSlot};
+    use mcrs_engine::world::column::{ColumnPos, ColumnSlot};
     use smallvec::SmallVec;
 
     use crate::telemetry::TELEMETRY_TEST_LOCK;
@@ -594,7 +594,7 @@ mod tests {
             .id()
     }
 
-    fn register_column(app: &mut App, dim: Entity, col_pos: ChunkColumnPos, col_entity: Entity) {
+    fn register_column(app: &mut App, dim: Entity, col_pos: ColumnPos, col_entity: Entity) {
         let mut ci = app
             .world_mut()
             .get_mut::<ColumnIndex>(dim)
@@ -620,7 +620,7 @@ mod tests {
             .spawn((
                 chunk_pos,
                 InDimension(dim),
-                InChunkColumn(column),
+                InColumn(column),
                 BlockEgress(egress),
                 BlockIncoming::default(),
                 BlockPendingEgress::default(),
@@ -642,8 +642,8 @@ mod tests {
         let dim = spawn_dimension(app);
         let col_a = spawn_column(app, 0, 1);
         let col_b = spawn_column(app, 0, 1);
-        register_column(app, dim, ChunkColumnPos::new(0, 0), col_a);
-        register_column(app, dim, ChunkColumnPos::new(1, 0), col_b);
+        register_column(app, dim, ColumnPos::new(0, 0), col_a);
+        register_column(app, dim, ColumnPos::new(1, 0), col_b);
         let section_a = spawn_block_section(app, ChunkPos::new(0, 0, 0), col_a, dim, egress_a);
         let section_b =
             spawn_block_section(app, ChunkPos::new(1, 0, 0), col_b, dim, SmallVec::new());
@@ -709,8 +709,8 @@ mod tests {
         let dim = spawn_dimension(&mut app);
         let col_a = spawn_column(&mut app, 0, 1);
         let col_b = spawn_column(&mut app, 0, 1);
-        register_column(&mut app, dim, ChunkColumnPos::new(0, 0), col_a);
-        register_column(&mut app, dim, ChunkColumnPos::new(1, 0), col_b);
+        register_column(&mut app, dim, ColumnPos::new(0, 0), col_a);
+        register_column(&mut app, dim, ColumnPos::new(1, 0), col_b);
         // col_b's section slot stays None — destination resolves to Unloaded.
 
         let east = Direction::East.index() as u8;
@@ -725,7 +725,7 @@ mod tests {
             .spawn((
                 ChunkPos::new(0, 0, 0),
                 InDimension(dim),
-                InChunkColumn(col_a),
+                InColumn(col_a),
                 BlockEgress(egress),
                 BlockIncoming::default(),
                 BlockPendingEgress(prefill),
@@ -789,8 +789,8 @@ mod tests {
         let dim = spawn_dimension(&mut app);
         let col_a = spawn_column(&mut app, 0, 2);
         let col_b = spawn_column(&mut app, 0, 1);
-        register_column(&mut app, dim, ChunkColumnPos::new(0, 0), col_a);
-        register_column(&mut app, dim, ChunkColumnPos::new(1, 0), col_b);
+        register_column(&mut app, dim, ColumnPos::new(0, 0), col_a);
+        register_column(&mut app, dim, ColumnPos::new(1, 0), col_b);
         let _section_a0 = spawn_block_section(
             &mut app,
             ChunkPos::new(0, 0, 0),
@@ -822,7 +822,7 @@ mod tests {
         app.insert_resource(Probe::default());
 
         let src_chunk_pos = ChunkPos::new(0, 0, 0);
-        let src_in_col = InChunkColumn(col_a);
+        let src_in_col = InColumn(col_a);
         let src_in_dim = InDimension(dim);
         app.add_systems(
             Update,
@@ -867,8 +867,8 @@ mod tests {
         let dim_b = spawn_dimension(&mut app);
         let col_a = spawn_column(&mut app, 0, 1);
         let col_b = spawn_column(&mut app, 0, 1);
-        register_column(&mut app, dim_a, ChunkColumnPos::new(0, 0), col_a);
-        register_column(&mut app, dim_a, ChunkColumnPos::new(1, 0), col_b);
+        register_column(&mut app, dim_a, ColumnPos::new(0, 0), col_a);
+        register_column(&mut app, dim_a, ColumnPos::new(1, 0), col_b);
 
         let east = Direction::East.index() as u8;
         let mut egress = SmallVec::new();
@@ -902,8 +902,8 @@ mod tests {
         let dim_b = spawn_dimension(&mut app);
         let col_a = spawn_column(&mut app, 0, 1);
         let col_b = spawn_column(&mut app, 0, 1);
-        register_column(&mut app, dim_a, ChunkColumnPos::new(0, 0), col_a);
-        register_column(&mut app, dim_a, ChunkColumnPos::new(1, 0), col_b);
+        register_column(&mut app, dim_a, ColumnPos::new(0, 0), col_a);
+        register_column(&mut app, dim_a, ColumnPos::new(1, 0), col_b);
 
         let east = Direction::East.index() as u8;
         let mut egress = SmallVec::new();
@@ -990,7 +990,7 @@ mod tests {
         let mut app = build_app();
         let dim = spawn_dimension(&mut app);
         let col_a = spawn_column(&mut app, 0, 1);
-        register_column(&mut app, dim, ChunkColumnPos::new(0, 0), col_a);
+        register_column(&mut app, dim, ColumnPos::new(0, 0), col_a);
 
         let down = Direction::Down.index() as u8;
         let mut egress = SmallVec::new();

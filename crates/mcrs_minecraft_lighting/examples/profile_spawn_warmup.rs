@@ -12,7 +12,7 @@
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use mcrs_engine::world::column::ChunkColumnLifecycleSet;
+use mcrs_engine::world::column::ColumnLifecycleSet;
 use mcrs_minecraft_lighting::components::LightDirty;
 use mcrs_minecraft_block::block_update::BlockUpdateSet;
 use mcrs_minecraft_lighting::sets::LightingSet;
@@ -136,7 +136,7 @@ impl Plugin for PhaseTimingPlugin {
                 (|t: Res<PhaseTimings>| {
                     t.0.tick_start.store(anchor_nanos(), Ordering::Relaxed);
                 })
-                .before(ChunkColumnLifecycleSet::Reconcile),
+                .before(ColumnLifecycleSet::Reconcile),
                 (|t: Res<PhaseTimings>| {
                     let start = t.0.tick_start.load(Ordering::Relaxed);
                     let now = anchor_nanos();
@@ -152,10 +152,10 @@ impl Plugin for PhaseTimingPlugin {
             FixedUpdate,
             (
                 start_phase!(reconcile_index_start)
-                    .before(ChunkColumnLifecycleSet::Reconcile),
+                    .before(ColumnLifecycleSet::Reconcile),
                 end_phase!(reconcile_index_start, reconcile_index_total)
-                    .after(ChunkColumnLifecycleSet::ReconcileIndex)
-                    .before(ChunkColumnLifecycleSet::PrimeHeightmaps),
+                    .after(ColumnLifecycleSet::ReconcileIndex)
+                    .before(ColumnLifecycleSet::PrimeHeightmaps),
             ),
         );
 
@@ -164,11 +164,11 @@ impl Plugin for PhaseTimingPlugin {
             FixedUpdate,
             (
                 start_phase!(prime_heightmaps_start)
-                    .after(ChunkColumnLifecycleSet::ReconcileIndex)
-                    .before(ChunkColumnLifecycleSet::PrimeHeightmaps),
+                    .after(ColumnLifecycleSet::ReconcileIndex)
+                    .before(ColumnLifecycleSet::PrimeHeightmaps),
                 end_phase!(prime_heightmaps_start, prime_heightmaps_total)
-                    .after(ChunkColumnLifecycleSet::PrimeHeightmaps)
-                    .before(ChunkColumnLifecycleSet::AttachState),
+                    .after(ColumnLifecycleSet::PrimeHeightmaps)
+                    .before(ColumnLifecycleSet::AttachState),
             ),
         );
 
@@ -177,10 +177,10 @@ impl Plugin for PhaseTimingPlugin {
             FixedUpdate,
             (
                 start_phase!(attach_state_start)
-                    .after(ChunkColumnLifecycleSet::PrimeHeightmaps)
-                    .before(ChunkColumnLifecycleSet::AttachState),
+                    .after(ColumnLifecycleSet::PrimeHeightmaps)
+                    .before(ColumnLifecycleSet::AttachState),
                 end_phase!(attach_state_start, attach_state_total)
-                    .after(ChunkColumnLifecycleSet::AttachState)
+                    .after(ColumnLifecycleSet::AttachState)
                     .before(BlockUpdateSet::ApplyChanges),
             ),
         );

@@ -24,7 +24,7 @@
 use crate::table::{flag_bits, BlockLightTable};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, Query, Res};
-use mcrs_engine::world::column::{Heightmaps, InChunkColumn, SectionIndex};
+use mcrs_engine::world::column::{Heightmaps, InColumn, SectionIndex};
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 
@@ -32,7 +32,7 @@ const SECTION_SIZE: i32 = 16;
 
 /// HEIGHT-02 eager fused two-type heightmap update. Reads
 /// `MessageReader<BlockPlaced>` and updates `Heightmaps` on the affected
-/// `ChunkColumn`. Applies the `y + 2 <= current_height` early-out per type;
+/// `Column`. Applies the `y + 2 <= current_height` early-out per type;
 /// falls back to a single top-down rescan when the early-out fails.
 ///
 /// Runs in `FixedUpdate` with `.after(apply_set_block_request)` so the
@@ -42,7 +42,7 @@ const SECTION_SIZE: i32 = 16;
 /// `FixedPostUpdate` observe up-to-date heightmap state.
 pub fn update_heightmaps_on_block_placed(
     mut reader: MessageReader<BlockPlaced>,
-    sections: Query<&InChunkColumn>,
+    sections: Query<&InColumn>,
     mut columns: Query<(&mut Heightmaps, &SectionIndex)>,
     palettes: Query<&BlockPalette>,
     table: Res<BlockLightTable>,

@@ -22,7 +22,7 @@ use mcrs_core::AppState;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
-use mcrs_engine::world::column::{ColumnPlugin, InChunkColumn};
+use mcrs_engine::world::column::{ColumnPlugin, InColumn};
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
@@ -150,8 +150,8 @@ fn playing_tick_warmup_propagates_initial_light_without_residual_dirty() {
             "SkyLight component must be populated after warm-up (sky-having dim)"
         );
         let in_col = world
-            .get::<InChunkColumn>(section)
-            .expect("section must have InChunkColumn back-link after lifecycle reconcile");
+            .get::<InColumn>(section)
+            .expect("section must have InColumn back-link after lifecycle reconcile");
         assert_ne!(in_col.0, Entity::PLACEHOLDER);
     }
 

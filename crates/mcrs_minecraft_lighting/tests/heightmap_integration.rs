@@ -22,7 +22,7 @@ use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
-use mcrs_engine::world::column::{ColumnPlugin, Heightmaps, InChunkColumn};
+use mcrs_engine::world::column::{ColumnPlugin, Heightmaps, InColumn};
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
@@ -149,8 +149,8 @@ fn eager_update_below_surface_early_out() {
 
     let col_entity = app
         .world()
-        .get::<InChunkColumn>(section)
-        .expect("InChunkColumn back-link missing after prime")
+        .get::<InColumn>(section)
+        .expect("InColumn back-link missing after prime")
         .0;
     let (surface_before, motion_before) = surface_above_topmost(app.world(), col_entity, 0, 0);
     assert_eq!(surface_before, 4, "primed surface must be 4 above topmost solid");
@@ -190,7 +190,7 @@ fn eager_update_above_surface_rescan() {
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col_entity = app.world().get::<InChunkColumn>(section).unwrap().0;
+    let col_entity = app.world().get::<InColumn>(section).unwrap().0;
     let (surface_before, _) = surface_above_topmost(app.world(), col_entity, 0, 0);
     assert_eq!(surface_before, 4);
 
@@ -234,7 +234,7 @@ fn eager_update_break_above_surface_rescan() {
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col_entity = app.world().get::<InChunkColumn>(section).unwrap().0;
+    let col_entity = app.world().get::<InColumn>(section).unwrap().0;
 
     app.world_mut()
         .get_mut::<BlockPalette>(section)
@@ -287,7 +287,7 @@ fn initial_prime_on_column_spawn_air_only() {
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col_entity = app.world().get::<InChunkColumn>(section).unwrap().0;
+    let col_entity = app.world().get::<InColumn>(section).unwrap().0;
     for &(x, z) in &[(0, 0), (5, 7), (15, 15)] {
         let (surface, motion) = surface_above_topmost(app.world(), col_entity, x, z);
         assert_eq!(
@@ -309,7 +309,7 @@ fn initial_prime_on_column_spawn_with_solid_floor() {
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col_entity = app.world().get::<InChunkColumn>(section).unwrap().0;
+    let col_entity = app.world().get::<InColumn>(section).unwrap().0;
     for &(x, z) in &[(0, 0), (8, 12), (15, 0)] {
         let (surface, motion) = surface_above_topmost(app.world(), col_entity, x, z);
         assert_eq!(

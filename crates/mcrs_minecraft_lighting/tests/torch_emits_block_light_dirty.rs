@@ -23,7 +23,7 @@ use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{Chunk, ChunkIndex, ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{
-    ChunkColumnPos, ChunkColumnPosComponent, ColumnPlugin, InChunkColumn,
+    ColumnPos, ColumnPosComponent, ColumnPlugin, InColumn,
 };
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
@@ -163,16 +163,16 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
     let column_pos = {
         let world = app.world();
         let in_col = world
-            .get::<InChunkColumn>(section)
-            .expect("section must have InChunkColumn back-link after warm-up");
+            .get::<InColumn>(section)
+            .expect("section must have InColumn back-link after warm-up");
         let col_pos_component = world
-            .get::<ChunkColumnPosComponent>(in_col.0)
-            .expect("column entity must carry ChunkColumnPosComponent");
+            .get::<ColumnPosComponent>(in_col.0)
+            .expect("column entity must carry ColumnPosComponent");
         col_pos_component.0
     };
-    // `ChunkPos -> ChunkColumnPos` strips the y axis; the column at chunk_pos
+    // `ChunkPos -> ColumnPos` strips the y axis; the column at chunk_pos
     // (0, 0, 0) lives at column pos (0, 0).
-    assert_eq!(column_pos, ChunkColumnPos::new(0, 0));
+    assert_eq!(column_pos, ColumnPos::new(0, 0));
 
     // Sanity check: warm-up must have populated the dimension's ChunkIndex
     // mapping and added the ChunkNetworkSyncBlockChangesSet so that
@@ -245,6 +245,6 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
     );
     assert_eq!(
         collected[0].column_pos, column_pos,
-        "BlockLightDirty must carry the parent column's ChunkColumnPos"
+        "BlockLightDirty must carry the parent column's ColumnPos"
     );
 }

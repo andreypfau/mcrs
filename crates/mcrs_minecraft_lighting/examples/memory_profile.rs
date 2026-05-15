@@ -168,9 +168,9 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
     // "column_indexes": per-dimension ColumnIndex (FxHashMap)
     let mut column_indexes: usize = 0;
     for idx in world.query::<&ColumnIndex>().iter(world) {
-        use mcrs_engine::world::column::{ChunkColumnPos, ColumnSlot};
+        use mcrs_engine::world::column::{ColumnPos, ColumnSlot};
         column_indexes += mem::size_of_val(idx)
-            + idx.len() * (mem::size_of::<ChunkColumnPos>() + mem::size_of::<ColumnSlot>());
+            + idx.len() * (mem::size_of::<ColumnPos>() + mem::size_of::<ColumnSlot>());
     }
 
     // "sparse_markers": six sparse-set marker components (8 bytes per entry approximation)

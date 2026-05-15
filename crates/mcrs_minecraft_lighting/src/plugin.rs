@@ -26,7 +26,7 @@ use bevy_ecs::prelude::{ApplyDeferred, IntoScheduleConfigs};
 use bevy_ecs::schedule::{ExecutorKind, Schedule};
 use bevy_state::prelude::OnEnter;
 use mcrs_core::AppState;
-use mcrs_engine::world::column::ChunkColumnLifecycleSet;
+use mcrs_engine::world::column::ColumnLifecycleSet;
 use mcrs_minecraft_block::block_update::{apply_set_block_request, BlockPlaced, BlockUpdateSet};
 use mcrs_vanilla::{freeze_static_tags, transition_to_playing};
 
@@ -78,7 +78,7 @@ impl Plugin for LightingPlugin {
 
         // Cross-plugin barrier: the chain begins with a leading `ApplyDeferred`
         // so the spawn `Commands` queued upstream by `reconcile_section_index`
-        // are flushed before the heightmap-prime query reads `ChunkColumn` and
+        // are flushed before the heightmap-prime query reads `Column` and
         // `SectionIndex` state. The upstream `ColumnPlugin` intentionally
         // omits a trailing post-reconcile `ApplyDeferred`; the responsibility
         // lives here on the consumer side.
@@ -87,12 +87,12 @@ impl Plugin for LightingPlugin {
             (
                 ApplyDeferred,
                 prime_heightmaps_on_column_spawn
-                    .in_set(ChunkColumnLifecycleSet::PrimeHeightmaps),
+                    .in_set(ColumnLifecycleSet::PrimeHeightmaps),
                 ApplyDeferred,
-                attach_lighting_state.in_set(ChunkColumnLifecycleSet::AttachState),
+                attach_lighting_state.in_set(ColumnLifecycleSet::AttachState),
             )
                 .chain()
-                .after(ChunkColumnLifecycleSet::ReconcileIndex),
+                .after(ColumnLifecycleSet::ReconcileIndex),
         );
 
         app.add_systems(
@@ -123,10 +123,10 @@ impl Plugin for LightingPlugin {
         app.configure_sets(
             FixedUpdate,
             (
-                ChunkColumnLifecycleSet::Reconcile,
-                ChunkColumnLifecycleSet::ReconcileIndex,
-                ChunkColumnLifecycleSet::PrimeHeightmaps,
-                ChunkColumnLifecycleSet::AttachState,
+                ColumnLifecycleSet::Reconcile,
+                ColumnLifecycleSet::ReconcileIndex,
+                ColumnLifecycleSet::PrimeHeightmaps,
+                ColumnLifecycleSet::AttachState,
                 BlockUpdateSet::ApplyChanges,
                 LightingSet::Enqueue,
                 LightingSet::Converge,
@@ -145,7 +145,7 @@ impl Plugin for LightingPlugin {
             FixedUpdate,
             (
                 ApplyDeferred
-                    .after(ChunkColumnLifecycleSet::AttachState)
+                    .after(ColumnLifecycleSet::AttachState)
                     .before(BlockUpdateSet::ApplyChanges),
                 ApplyDeferred
                     .after(BlockUpdateSet::ApplyChanges)

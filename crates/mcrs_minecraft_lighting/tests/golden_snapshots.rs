@@ -9,7 +9,7 @@ use mcrs_core::AppState;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
-use mcrs_engine::world::column::{ChunkColumnPos, ColumnIndex, ColumnPlugin};
+use mcrs_engine::world::column::{ColumnPos, ColumnIndex, ColumnPlugin};
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
@@ -180,7 +180,7 @@ fn spawn_two_section_column(app: &mut App, dim: Entity) -> (Entity, Entity, Enti
         .get::<ColumnIndex>(dim)
         .expect("dimension has ColumnIndex")
         .0
-        .get(&ChunkColumnPos::new(0, 0))
+        .get(&ColumnPos::new(0, 0))
         .expect("column reconciled for (0, 0)")
         .entity;
     (section_a, section_b, column)
@@ -201,12 +201,12 @@ fn spawn_column_pair(app: &mut App, dim: Entity) -> (Entity, Entity, Entity, Ent
         .expect("dimension has ColumnIndex");
     let column_a = column_index
         .0
-        .get(&ChunkColumnPos::new(0, 0))
+        .get(&ColumnPos::new(0, 0))
         .expect("column reconciled for (0, 0)")
         .entity;
     let column_b = column_index
         .0
-        .get(&ChunkColumnPos::new(1, 0))
+        .get(&ColumnPos::new(1, 0))
         .expect("column reconciled for (1, 0)")
         .entity;
     (section_a, section_b, column_a, column_b)

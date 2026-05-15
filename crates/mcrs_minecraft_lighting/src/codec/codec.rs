@@ -23,7 +23,7 @@ use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Entity, Query, With};
 use bevy_ecs::system::{Local, SystemParam};
 use mcrs_engine::world::column::{
-    ChunkColumnPos, ChunkColumnPosComponent, InChunkColumn, SectionIndex, SectionLookup,
+    ColumnPos, ColumnPosComponent, InColumn, SectionIndex, SectionLookup,
 };
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_protocol::chunk::{LightData, LightSection};
@@ -208,7 +208,7 @@ pub fn build_full_light_data(
 #[derive(Message)]
 pub struct BlockLightDirty {
     pub section: Entity,
-    pub column_pos: ChunkColumnPos,
+    pub column_pos: ColumnPos,
     pub chunk_y: i32,
 }
 
@@ -217,7 +217,7 @@ pub struct BlockLightDirty {
 #[derive(Message)]
 pub struct SkyLightDirty {
     pub section: Entity,
-    pub column_pos: ChunkColumnPos,
+    pub column_pos: ColumnPos,
     pub chunk_y: i32,
 }
 
@@ -228,19 +228,19 @@ pub struct SkyLightDirty {
 pub struct ColumnLightUpdate {
     pub dim: Entity,
     pub column: Entity,
-    pub column_pos: ChunkColumnPos,
+    pub column_pos: ColumnPos,
     pub light_data: LightData<'static>,
 }
 
 pub struct ColumnDirtyAccumulator {
     dim: Entity,
-    column_pos: ChunkColumnPos,
+    column_pos: ColumnPos,
     dirty_block: FxHashSet<i32>,
     dirty_sky: FxHashSet<i32>,
 }
 
 impl ColumnDirtyAccumulator {
-    fn new(dim: Entity, column_pos: ChunkColumnPos) -> Self {
+    fn new(dim: Entity, column_pos: ColumnPos) -> Self {
         Self {
             dim,
             column_pos,
@@ -261,8 +261,8 @@ impl ColumnDirtyAccumulator {
 pub fn emit_column_light_updates(
     mut block_dirty: MessageReader<BlockLightDirty>,
     mut sky_dirty: MessageReader<SkyLightDirty>,
-    in_chunk_columns: Query<&InChunkColumn>,
-    column_positions: Query<&ChunkColumnPosComponent>,
+    in_chunk_columns: Query<&InColumn>,
+    column_positions: Query<&ColumnPosComponent>,
     in_dimensions: Query<&InDimension>,
     codec_params: LightCodecParams,
     mut dirty_accum: Local<FxHashMap<Entity, ColumnDirtyAccumulator>>,

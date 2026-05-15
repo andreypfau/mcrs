@@ -14,14 +14,14 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use std::borrow::Cow;
 
-use mcrs_engine::world::column::ChunkColumnPos as EngineChunkColumnPos;
+use mcrs_engine::world::column::ColumnPos as EngineColumnPos;
 use mcrs_minecraft_lighting::codec::ColumnLightUpdate;
 use mcrs_minecraft::world::entity::player::column_view::ColumnView;
 use mcrs_protocol::chunk::LightData;
-use mcrs_protocol::ChunkColumnPos;
+use mcrs_protocol::ColumnPos;
 
 #[derive(Resource, Default)]
-struct TestLightUpdateLog(pub Vec<(ChunkColumnPos, &'static str)>);
+struct TestLightUpdateLog(pub Vec<(ColumnPos, &'static str)>);
 
 fn record_light_update_sends(
     mut reader: MessageReader<ColumnLightUpdate>,
@@ -29,7 +29,7 @@ fn record_light_update_sends(
     mut log: ResMut<TestLightUpdateLog>,
 ) {
     for msg in reader.read() {
-        let col_pos = ChunkColumnPos::new(msg.column_pos.x, msg.column_pos.z);
+        let col_pos = ColumnPos::new(msg.column_pos.x, msg.column_pos.z);
         for view in players.iter() {
             if view.sent_columns.contains(&col_pos) {
                 log.0.push((col_pos, "sent"));
@@ -57,7 +57,7 @@ fn empty_light_data() -> LightData<'static> {
     }
 }
 
-fn write_update(app: &mut App, column_pos: EngineChunkColumnPos) {
+fn write_update(app: &mut App, column_pos: EngineColumnPos) {
     app.world_mut()
         .resource_mut::<Messages<ColumnLightUpdate>>()
         .write(ColumnLightUpdate {
@@ -74,7 +74,7 @@ fn light_update_blocked_before_first_send() {
     // Spawn a player with an empty sent_columns set.
     app.world_mut().spawn(ColumnView::default());
 
-    write_update(&mut app, EngineChunkColumnPos::new(0, 0));
+    write_update(&mut app, EngineColumnPos::new(0, 0));
     app.world_mut().run_schedule(FixedPostUpdate);
 
     let log = app.world().resource::<TestLightUpdateLog>();
@@ -88,8 +88,8 @@ fn light_update_blocked_before_first_send() {
 #[test]
 fn light_update_sent_after_first_send() {
     let mut app = build_test_app();
-    let col_pos_protocol = ChunkColumnPos::new(0, 0);
-    let col_pos_engine = EngineChunkColumnPos::new(0, 0);
+    let col_pos_protocol = ColumnPos::new(0, 0);
+    let col_pos_engine = EngineColumnPos::new(0, 0);
 
     // Spawn a player whose sent_columns already contains the column —
     // simulates "the chunk packet has been delivered to this client".

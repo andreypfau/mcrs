@@ -20,7 +20,7 @@ use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{
-    ChunkColumn, ChunkColumnPos, ColumnIndex, ColumnPlugin, InChunkColumn, SectionIndex,
+    Column, ColumnPos, ColumnIndex, ColumnPlugin, InColumn, SectionIndex,
     SectionLookup,
 };
 use mcrs_engine::world::dimension::{
@@ -130,14 +130,14 @@ fn single_section_in_sky_dim_attaches_all_components() {
 
     let mut q = app
         .world_mut()
-        .query_filtered::<Entity, With<ChunkColumn>>();
+        .query_filtered::<Entity, With<Column>>();
     let column_count = q.iter(app.world()).count();
     let world = app.world();
-    assert_eq!(column_count, 1, "exactly one ChunkColumn entity expected");
+    assert_eq!(column_count, 1, "exactly one Column entity expected");
 
     let in_col = world
-        .get::<InChunkColumn>(section)
-        .expect("section must have InChunkColumn back-link");
+        .get::<InColumn>(section)
+        .expect("section must have InColumn back-link");
     let col_entity = in_col.0;
 
     assert!(world.get::<BlockLight>(section).is_some(), "BlockLight missing");
@@ -179,7 +179,7 @@ fn single_section_in_sky_dim_attaches_all_components() {
         .expect("dimension must have ColumnIndex");
     let slot = column_index
         .0
-        .get(&ChunkColumnPos::from(chunk_pos))
+        .get(&ColumnPos::from(chunk_pos))
         .expect("ColumnSlot must exist for the spawned section's column");
     assert_eq!(slot.section_count, 1);
     assert_eq!(slot.entity, col_entity);
@@ -203,19 +203,19 @@ fn multi_section_in_same_column_share_column() {
 
     let mut q = app
         .world_mut()
-        .query_filtered::<Entity, With<ChunkColumn>>();
+        .query_filtered::<Entity, With<Column>>();
     let column_count = q.iter(app.world()).count();
     let world = app.world();
     assert_eq!(column_count, 1, "two sections at same XZ share one column");
 
-    let col_low = world.get::<InChunkColumn>(s_low).unwrap().0;
-    let col_high = world.get::<InChunkColumn>(s_high).unwrap().0;
+    let col_low = world.get::<InColumn>(s_low).unwrap().0;
+    let col_high = world.get::<InColumn>(s_high).unwrap().0;
     assert_eq!(col_low, col_high);
 
     let column_index = world.get::<ColumnIndex>(dim).unwrap();
     let slot = column_index
         .0
-        .get(&ChunkColumnPos::new(0, 0))
+        .get(&ColumnPos::new(0, 0))
         .expect("column slot missing");
     assert_eq!(slot.section_count, 2);
 }
@@ -234,7 +234,7 @@ fn unload_one_section_keeps_column_alive() {
 
     let mut q = app
         .world_mut()
-        .query_filtered::<Entity, With<ChunkColumn>>();
+        .query_filtered::<Entity, With<Column>>();
     let column_count = q.iter(app.world()).count();
     let world = app.world();
     assert_eq!(column_count, 1, "column entity must outlive partial unload");
@@ -242,7 +242,7 @@ fn unload_one_section_keeps_column_alive() {
     let column_index = world.get::<ColumnIndex>(dim).unwrap();
     let slot = column_index
         .0
-        .get(&ChunkColumnPos::new(0, 0))
+        .get(&ColumnPos::new(0, 0))
         .expect("column slot must still exist");
     assert_eq!(slot.section_count, 1);
 }
@@ -260,7 +260,7 @@ fn unload_last_section_despawns_column() {
 
     let mut q = app
         .world_mut()
-        .query_filtered::<Entity, With<ChunkColumn>>();
+        .query_filtered::<Entity, With<Column>>();
     let column_count = q.iter(app.world()).count();
     let world = app.world();
     assert_eq!(
@@ -270,7 +270,7 @@ fn unload_last_section_despawns_column() {
 
     let column_index = world.get::<ColumnIndex>(dim).unwrap();
     assert!(
-        !column_index.0.contains_key(&ChunkColumnPos::new(0, 0)),
+        !column_index.0.contains_key(&ColumnPos::new(0, 0)),
         "ColumnIndex must drop the entry for the despawned column"
     );
 }
@@ -342,8 +342,8 @@ fn cross_dim_partitioning_smoke() {
     app.world_mut().run_schedule(FixedUpdate);
 
     let world = app.world();
-    let col_a = world.get::<InChunkColumn>(sec_a).unwrap().0;
-    let col_b = world.get::<InChunkColumn>(sec_b).unwrap().0;
+    let col_a = world.get::<InColumn>(sec_a).unwrap().0;
+    let col_b = world.get::<InColumn>(sec_b).unwrap().0;
     assert_ne!(col_a, col_b, "columns in different dimensions must differ");
 
     let col_a_dim = world.get::<InDimension>(col_a).unwrap().0;
