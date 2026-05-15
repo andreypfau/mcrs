@@ -30,6 +30,26 @@ use mcrs_engine::world::column::ChunkColumnLifecycleSet;
 use mcrs_minecraft_block::block_update::{apply_set_block_request, BlockPlaced, BlockUpdateSet};
 use mcrs_vanilla::{freeze_static_tags, transition_to_playing};
 
+#[cfg(feature = "lighting-trace")]
+fn span_lighting_enqueue() {
+    let _span = tracing::info_span!("lighting::enqueue").entered();
+}
+
+#[cfg(feature = "lighting-trace")]
+fn span_lighting_converge() {
+    let _span = tracing::info_span!("lighting::converge").entered();
+}
+
+#[cfg(feature = "lighting-trace")]
+fn span_lighting_emit_dirty() {
+    let _span = tracing::info_span!("lighting::emit_dirty").entered();
+}
+
+#[cfg(feature = "lighting-trace")]
+fn span_lighting_codec() {
+    let _span = tracing::info_span!("lighting::codec").entered();
+}
+
 pub struct LightingPlugin;
 
 impl Plugin for LightingPlugin {
@@ -218,6 +238,35 @@ impl Plugin for LightingPlugin {
         app.add_systems(
             FixedPostUpdate,
             emit_column_light_updates.in_set(LightingSet::Codec),
+        );
+
+        #[cfg(feature = "lighting-trace")]
+        app.add_systems(
+            FixedUpdate,
+            span_lighting_enqueue
+                .in_set(LightingSet::Enqueue)
+                .before(seed_initial_light),
+        );
+        #[cfg(feature = "lighting-trace")]
+        app.add_systems(
+            FixedUpdate,
+            span_lighting_converge
+                .in_set(LightingSet::Converge)
+                .before(light_converge_driver),
+        );
+        #[cfg(feature = "lighting-trace")]
+        app.add_systems(
+            FixedUpdate,
+            span_lighting_emit_dirty
+                .in_set(LightingSet::EmitDirty)
+                .before(downgrade_light_storage),
+        );
+        #[cfg(feature = "lighting-trace")]
+        app.add_systems(
+            FixedPostUpdate,
+            span_lighting_codec
+                .in_set(LightingSet::Codec)
+                .before(emit_column_light_updates),
         );
     }
 }

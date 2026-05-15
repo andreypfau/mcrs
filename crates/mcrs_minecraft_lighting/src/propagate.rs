@@ -93,6 +93,7 @@ pub fn propagate_decrease_block_system(
     table: Res<BlockLightTable>,
     mut sections: Query<
         (
+            Entity,
             &BlockPalette,
             &mut BlockLight,
             &mut BlockLightWorkspace,
@@ -102,10 +103,16 @@ pub fn propagate_decrease_block_system(
         With<LightDirty>,
     >,
 ) {
+    #[cfg(feature = "lighting-trace")]
+    let section_count = sections.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let _span = tracing::info_span!("propagate_decrease", section_count = section_count).entered();
     sections.par_iter_mut().for_each(
-        |(palette, mut light, mut workspace, mut egress, mut incoming)| {
+        |(entity, palette, mut light, mut workspace, mut egress, mut incoming)| {
             drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
             propagate_decrease(&table, palette, &mut light.0, &mut workspace, &mut egress);
+            #[cfg(feature = "lighting-trace")]
+            tracing::debug!(section = ?entity, queue_len = workspace.decrease_queue.len(), "section bfs decrease block");
         },
     );
 }
@@ -125,6 +132,10 @@ pub fn propagate_increase_block_system(
     >,
     commands: ParallelCommands,
 ) {
+    #[cfg(feature = "lighting-trace")]
+    let section_count = sections.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let _span = tracing::info_span!("propagate_increase", section_count = section_count).entered();
     sections.par_iter_mut().for_each(
         |(entity, palette, mut light, mut workspace, mut egress, mut incoming)| {
             drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
@@ -134,6 +145,8 @@ pub fn propagate_increase_block_system(
                     cmd.entity(entity).remove::<LightDirty>();
                 });
             }
+            #[cfg(feature = "lighting-trace")]
+            tracing::debug!(section = ?entity, queue_len = workspace.increase_queue.len(), "section bfs increase block");
         },
     );
 }
@@ -142,6 +155,7 @@ pub fn propagate_decrease_sky_system(
     table: Res<BlockLightTable>,
     mut sections: Query<
         (
+            Entity,
             &BlockPalette,
             &mut SkyLight,
             &mut SkyLightWorkspace,
@@ -151,10 +165,16 @@ pub fn propagate_decrease_sky_system(
         With<LightDirty>,
     >,
 ) {
+    #[cfg(feature = "lighting-trace")]
+    let section_count = sections.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let _span = tracing::info_span!("propagate_decrease_sky", section_count = section_count).entered();
     sections.par_iter_mut().for_each(
-        |(palette, mut light, mut workspace, mut egress, mut incoming)| {
+        |(entity, palette, mut light, mut workspace, mut egress, mut incoming)| {
             drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
             propagate_decrease_sky(&table, palette, &mut light.0, &mut workspace, &mut egress);
+            #[cfg(feature = "lighting-trace")]
+            tracing::debug!(section = ?entity, queue_len = workspace.decrease_queue.len(), "section bfs decrease sky");
         },
     );
 }
@@ -212,6 +232,10 @@ pub fn propagate_increase_sky_system(
     >,
     commands: ParallelCommands,
 ) {
+    #[cfg(feature = "lighting-trace")]
+    let section_count = sections.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let _span = tracing::info_span!("propagate_increase_sky", section_count = section_count).entered();
     sections.par_iter_mut().for_each(
         |(entity, palette, mut light, mut workspace, mut egress, mut incoming, is_all_air)| {
             drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
@@ -253,6 +277,8 @@ pub fn propagate_increase_sky_system(
                     cmd.entity(entity).remove::<LightDirty>();
                 });
             }
+            #[cfg(feature = "lighting-trace")]
+            tracing::debug!(section = ?entity, queue_len = workspace.increase_queue.len(), "section bfs increase sky");
         },
     );
 }

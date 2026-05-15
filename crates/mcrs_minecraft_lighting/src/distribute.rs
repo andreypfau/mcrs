@@ -234,6 +234,12 @@ pub fn distribute_decrease(
     last_xdim_log: Local<Option<Instant>>,
     commands: Commands,
 ) {
+    #[cfg(feature = "lighting-trace")]
+    let block_egress_count = block_sources.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let sky_egress_count = sky_sources.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let _span = tracing::info_span!("distribute_decrease", block_egress_count = block_egress_count, sky_egress_count = sky_egress_count).entered();
     distribute_inner(
         block_sources,
         sky_sources,
@@ -268,6 +274,12 @@ pub fn distribute_increase(
     last_xdim_log: Local<Option<Instant>>,
     commands: Commands,
 ) {
+    #[cfg(feature = "lighting-trace")]
+    let block_egress_count = block_sources.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let sky_egress_count = sky_sources.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let _span = tracing::info_span!("distribute_increase", block_egress_count = block_egress_count, sky_egress_count = sky_egress_count).entered();
     // `distribute_increase` and `distribute_decrease` route wavefronts the
     // same way; the increase-versus-decrease distinction lives entirely in
     // the intra-section BFS that produced the wavefront. The two systems
