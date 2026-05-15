@@ -1,5 +1,5 @@
 use crate::geometry::{BlockPos, ChunkPos};
-use bevy_math::IVec2;
+use bevy_math::{DVec3, IVec2};
 use std::fmt::Debug;
 
 /// The X and Z position of a chunk column.
@@ -50,6 +50,15 @@ impl From<BlockPos> for ColumnPos {
 impl From<IVec2> for ColumnPos {
     fn from(v: IVec2) -> Self {
         Self { x: v.x, z: v.y }
+    }
+}
+
+impl From<DVec3> for ColumnPos {
+    fn from(pos: DVec3) -> Self {
+        Self {
+            x: (pos.x / 16.0).floor() as i32,
+            z: (pos.z / 16.0).floor() as i32,
+        }
     }
 }
 
