@@ -1,3 +1,15 @@
+//! Chunk tickets and the engine-wide `LightTicket` sparse marker.
+//!
+//! `LightTicket` lives here (rather than alongside the other lighting
+//! components in `mcrs_minecraft_lighting::components`) because both
+//! `mcrs_minecraft` and `mcrs_minecraft_lighting` need to reference it from
+//! upstream paths. Hosting the marker in `mcrs_minecraft_lighting` would force
+//! a `mcrs_minecraft -> mcrs_minecraft_lighting` dependency for the
+//! chunk-cancellation guard, which is exactly what the workspace split avoids.
+//! Both downstream crates depend on `mcrs_engine`, so this module is the only
+//! valid shared anchor for the marker. `mcrs_engine` carries no other
+//! lighting knowledge.
+
 use crate::world::chunk::{
     Chunk, ChunkBundle, ChunkIndex, ChunkLoaded, ChunkPos, ChunkUnloaded, ChunkUnloading,
 };
@@ -8,6 +20,10 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::query::With;
 use indexmap::IndexMap;
 use rustc_hash::{FxBuildHasher, FxHashSet};
+
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct LightTicket;
 
 const MAX_DESPAWNS_PER_TICK: usize = 1024;
 const MAX_SPAWNS_PER_TICK: usize = 512;

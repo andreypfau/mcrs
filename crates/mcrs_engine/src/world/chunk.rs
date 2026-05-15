@@ -1,11 +1,10 @@
-pub mod palette;
-pub mod ticket;
-
 pub use crate::geometry::ChunkPos;
 pub use crate::geometry::chunk_pos::BLOCKS;
+pub use crate::world::lifecycle::ticket;
+pub use crate::world::storage::palette;
 
 use crate::entity::ChunkEntities;
-use crate::world::chunk::ticket::TicketPlugin;
+use crate::world::lifecycle::ticket::TicketPlugin;
 use crate::world::dimension::InDimension;
 use bevy_app::{App, Plugin};
 use bevy_derive::Deref;
