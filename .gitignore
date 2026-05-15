@@ -16,3 +16,7 @@ logs/security/
 .worktrees/*
 worktrees/*
 .claude/worktrees/
+
+# Ephemeral memory profiling outputs
+dhat-heap.json
+target/memory-profile/

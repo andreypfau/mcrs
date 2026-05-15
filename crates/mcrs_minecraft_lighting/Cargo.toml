@@ -29,6 +29,8 @@ mcrs_minecraft.workspace = true
 mcrs_minecraft_worldgen.workspace = true
 tracing-subscriber = "0.3"
 criterion = { version = "0.7", features = ["html_reports"] }
+serde.workspace = true
+serde_json.workspace = true
 
 [[bench]]
 name = "single_torch"

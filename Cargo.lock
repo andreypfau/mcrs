@@ -1996,6 +1996,8 @@ dependencies = [
  "mcrs_protocol",
  "mcrs_vanilla",
  "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
  "smallvec",
  "tracing",
  "tracing-subscriber",
