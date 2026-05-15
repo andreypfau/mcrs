@@ -1,4 +1,4 @@
-use bevy_app::{TaskPoolPlugin, TaskPoolOptions};
+use bevy_app::{App, TaskPoolOptions, TaskPoolPlugin};
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use mcrs_minecraft_lighting::telemetry::{snapshot, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
@@ -15,18 +15,19 @@ fn bench_parallel_scaling(c: &mut Criterion) {
     let before = snapshot();
 
     let threads = read_threads_env();
+    eprintln!("MCRS_BENCH_THREADS={threads}");
     let group_id = format!("parallel_scaling/threads_{threads}");
     let mut group = c.benchmark_group(group_id);
-    group.sample_size(10);
+    group.sample_size(20);
 
-    group.bench_function("spawn_warmup", |b| {
+    group.bench_function("spawn_warmup_edge_column", |b| {
         b.iter_batched(
             || {
-                let mut app = bevy_app::App::new();
+                let mut app = App::new();
                 app.add_plugins(TaskPoolPlugin {
                     task_pool_options: TaskPoolOptions::with_num_threads(threads),
                 });
-                let _dim = bench_helpers::install_lighting_plugins(&mut app);
+                bench_helpers::install_lighting_plugins(&mut app);
                 bench_helpers::build_warmed_vd12_app_in_place(&mut app);
                 app
             },
