@@ -19,6 +19,7 @@ tracing.workspace = true
 
 [features]
 test-bench = []
+lighting-trace = []
 
 [dev-dependencies]
 mcrs_minecraft.workspace = true
