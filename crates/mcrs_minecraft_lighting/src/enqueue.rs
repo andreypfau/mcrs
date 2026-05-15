@@ -20,7 +20,7 @@ use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{
-    ChunkColumn, ColumnIndex, InChunkColumn, SectionIndex, SectionLookup,
+    ChunkColumn, ColumnIndex, Heightmaps, InChunkColumn, SectionIndex, SectionLookup,
 };
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_minecraft_block::block_update::BlockPlaced;
@@ -34,6 +34,8 @@ use crate::components::{
     LightDirty, NeedsFullReseed, SkyIncoming, SkyLight, SkyLightSeededAsTopmost, SkyLightWorkspace,
     SkyPendingEgress, Wavefront,
 };
+use crate::nibble::NibbleArray;
+use crate::storage::LightStorage;
 use crate::table::{flag_bits, BlockLightTable};
 
 pub fn enqueue_block_light_on_block_placed(
@@ -380,6 +382,7 @@ pub fn seed_initial_light(
     table: Option<Res<BlockLightTable>>,
     sky_dims: Query<(), With<HasSkyLight>>,
     section_indexes: Query<&SectionIndex>,
+    heightmaps: Query<&Heightmaps>,
     mut sections: ParamSet<(
         Query<
             (
@@ -390,6 +393,7 @@ pub fn seed_initial_light(
                 &ChunkPos,
                 &mut BlockLightWorkspace,
                 Option<&mut SkyLightWorkspace>,
+                Option<&mut SkyLight>,
             ),
             With<ChunkNeedsInitialLight>,
         >,
@@ -425,6 +429,7 @@ pub fn seed_initial_light(
             chunk_pos,
             mut block_ws,
             mut sky_ws_opt,
+            mut sky_light_opt,
         ) in p0.iter_mut()
         {
             // Block-light emitter scan. Always run the cell-by-cell scan: the
@@ -459,9 +464,18 @@ pub fn seed_initial_light(
                 }
             }
 
-            // Sky source seed when the section is topmost-of-column AND the
-            // dimension carries HasSkyLight AND a SkyLightWorkspace is present
-            // (skyless dims do not receive a SkyLightBundle).
+            // Sky-light seeding: heightmap fast-path.
+            //
+            // For sky-having dimensions, classify this section against the
+            // column's primed `Heightmaps` so all-air sections above the
+            // surface skip BFS entirely (Case A: Uniform(15)), straddling
+            // sections fill above-surface cells directly and seed BFS only
+            // at the surface line (Case B), and all-below sections stay at
+            // 0 (Case C). Replaces the prior unconditional 256-seed push at
+            // y=15 on the topmost section, which forced an N-section cascade
+            // through every air section above the surface during initial
+            // load. Vanilla Starlight uses the same strategy via
+            // `tryPropagateSkylight`.
             let dim_has_sky = sky_dims.get(in_dim.0).is_ok();
             let is_topmost = section_indexes
                 .get(in_col.0)
@@ -469,39 +483,133 @@ pub fn seed_initial_light(
                 .map(|si| chunk_pos.y == si.min_section_y + si.sections.len() as i32 - 1)
                 .unwrap_or(false);
 
-            let mut seeded = false;
-            if dim_has_sky && is_topmost {
+            let mut sky_seeded = false;
+            let mut seeded_topmost = false;
+
+            if dim_has_sky {
                 if let Some(sky_ws) = sky_ws_opt.as_deref_mut() {
-                    sky_ws.increase_queue.reserve(256);
-                    for z in 0..16u8 {
-                        for x in 0..16u8 {
-                            sky_ws.increase_queue.push(pack_bfs_entry(
-                                x,
-                                z,
-                                15,
-                                15,
-                                ALL_DIRECTIONS_BITSET,
-                                FLAG_WRITE_LEVEL,
-                            ));
+                    let section_base_y = chunk_pos.y * 16;
+                    let section_top_y = section_base_y + 15;
+
+                    match heightmaps.get(in_col.0) {
+                        Ok(hm) => {
+                            let mut all_above = true;
+                            let mut all_below = true;
+                            for z in 0..16usize {
+                                for x in 0..16usize {
+                                    let s = hm.surface_get(x, z);
+                                    if s > section_base_y {
+                                        all_above = false;
+                                    }
+                                    if s <= section_top_y {
+                                        all_below = false;
+                                    }
+                                }
+                            }
+
+                            if all_above {
+                                // Case A: every column's first-air-above-surface
+                                // is at or below this section's base. All 4096
+                                // cells are air at level 15. Store the compressed
+                                // Uniform(15) form and skip LightDirty — there is
+                                // no work to converge.
+                                if let Some(sky_light) = sky_light_opt.as_deref_mut() {
+                                    sky_light.0 = LightStorage::Uniform(15);
+                                }
+                            } else if all_below {
+                                // Case C: every column's surface is at or above
+                                // this section's top. No sky light reaches here;
+                                // storage stays Null (=0).
+                            } else {
+                                // Case B: straddling. Start from a uniform-15
+                                // nibble array (single 2 KiB memset) and zero
+                                // out only the below-surface cells per (x, z)
+                                // column. For a typical surface section the
+                                // dark region is at the bottom of a small
+                                // subset of columns, so this is far cheaper
+                                // than per-cell sets of the lit region.
+                                // Seed BFS at the topmost-air cell of every
+                                // column whose surface falls within the
+                                // section so horizontal flow into adjacent
+                                // below-surface columns (caves, overhangs)
+                                // propagates correctly. The seed carries no
+                                // flag — the cell is already at level 15 in
+                                // storage, so the BFS only walks neighbours
+                                // from it.
+                                let mut arr = NibbleArray::filled(15);
+                                for z in 0..16usize {
+                                    for x in 0..16usize {
+                                        let s = hm.surface_get(x, z);
+                                        let max_dark_local_y = if s > section_base_y {
+                                            (s - section_base_y).min(16) as usize
+                                        } else {
+                                            0
+                                        };
+                                        for y_local in 0..max_dark_local_y {
+                                            arr.set(x, y_local, z, 0);
+                                        }
+                                        if s >= section_base_y && s <= section_top_y {
+                                            let y_seed_local = (s - section_base_y) as u8;
+                                            sky_ws.increase_queue.push(pack_bfs_entry(
+                                                x as u8,
+                                                z as u8,
+                                                y_seed_local,
+                                                15,
+                                                ALL_DIRECTIONS_BITSET,
+                                                0,
+                                            ));
+                                            sky_seeded = true;
+                                        }
+                                    }
+                                }
+                                if let Some(sky_light) = sky_light_opt.as_deref_mut() {
+                                    sky_light.0 = LightStorage::Mixed(Box::new(arr));
+                                }
+                            }
+
+                            if is_topmost {
+                                commands
+                                    .entity(section_entity)
+                                    .insert(SkyLightSeededAsTopmost);
+                                seeded_topmost = true;
+                            }
+                        }
+                        Err(_) => {
+                            // Defensive fallback when `Heightmaps` is missing.
+                            // Reproduces the pre-fast-path behaviour: only the
+                            // topmost section gets 256 seeds at y=15.
+                            if is_topmost {
+                                sky_ws.increase_queue.reserve(256);
+                                for z in 0..16u8 {
+                                    for x in 0..16u8 {
+                                        sky_ws.increase_queue.push(pack_bfs_entry(
+                                            x,
+                                            z,
+                                            15,
+                                            15,
+                                            ALL_DIRECTIONS_BITSET,
+                                            FLAG_WRITE_LEVEL,
+                                        ));
+                                    }
+                                }
+                                commands
+                                    .entity(section_entity)
+                                    .insert(SkyLightSeededAsTopmost);
+                                sky_seeded = true;
+                                seeded_topmost = true;
+                            }
                         }
                     }
-                    commands
-                        .entity(section_entity)
-                        .insert(SkyLightSeededAsTopmost);
-                    seeded = true;
                 }
             }
 
-            // Only sections that actually seeded work (block emitters or the
-            // topmost sky-source) need `LightDirty`. Unconditional insertion
-            // used to mark every loaded section dirty, even the hundreds of
-            // empty mid-column sections that have no seeds and no incoming —
-            // forcing the convergence sub-schedule to par-iterate over all of
-            // them every iteration just to remove the marker again. Skipping
-            // those keeps `propagate_*_system` working sets bounded to actual
-            // cascade frontiers, and `distribute_*` re-marks any section as
-            // soon as a wavefront actually reaches it.
-            if has_emitter || seeded {
+            // Only sections that actually seeded work (block emitters or a
+            // straddling-surface sky seed) need `LightDirty`. Case A writes
+            // Uniform(15) directly and Case C leaves storage at 0 — neither
+            // requires the converge loop, so neither marks `LightDirty`.
+            // `distribute_*` will re-mark any of these as soon as an actual
+            // wavefront reaches them.
+            if has_emitter || sky_seeded {
                 commands.entity(section_entity).insert(LightDirty);
             }
             commands
@@ -511,7 +619,7 @@ pub fn seed_initial_light(
             plans.push(Plan {
                 section: section_entity,
                 column: in_col.0,
-                seeded_topmost: seeded,
+                seeded_topmost,
                 new_chunk_y: chunk_pos.y,
             });
         }
