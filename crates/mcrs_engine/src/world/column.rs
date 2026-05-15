@@ -1,5 +1,5 @@
 // IMPORTANT: this module MUST NOT depend on mcrs_minecraft_lighting. The four-stage
-// ChunkColumnLifecycleSet splits into engine-side (Reconcile, ReconcileIndex) and
+// ColumnLifecycleSet splits into engine-side (Reconcile, ReconcileIndex) and
 // lighting-side (PrimeHeightmaps, AttachState) stages precisely because mcrs_engine
 // sits upstream of mcrs_minecraft_lighting in the workspace graph.
 //
@@ -27,12 +27,12 @@ pub type ChunkColumnPos = ColumnPos;
 /// Sparse marker component placed on chunk-column entities.
 #[derive(Component, Debug, Default)]
 #[component(storage = "SparseSet")]
-pub struct ChunkColumn;
+pub struct Column;
 
-/// Back-link from a ChunkSection entity to its owning ChunkColumn entity.
+/// Back-link from a chunk entity to its owning column entity.
 /// Inserted by `reconcile_section_index` (Stage 2).
 #[derive(Component, Clone, Copy, Debug)]
-pub struct InChunkColumn(pub Entity);
+pub struct InColumn(pub Entity);
 
 /// Per-column entry in `ColumnIndex`.
 #[derive(Debug, Clone, Copy)]
@@ -325,36 +325,36 @@ impl Default for SectionIndex {
     }
 }
 
-/// Bundle for chunk-column entities. Built via `ChunkColumnBundle::new` so the
+/// Bundle for chunk-column entities. Built via `ColumnBundle::new` so the
 /// `marker` field stays crate-private.
 #[derive(Bundle)]
-pub struct ChunkColumnBundle {
-    pub col_pos: ChunkColumnPosComponent,
+pub struct ColumnBundle {
+    pub col_pos: ColumnPosComponent,
     pub dim: InDimension,
     pub heightmaps: Heightmaps,
     pub sections: SectionIndex,
-    marker: ChunkColumn,
+    marker: Column,
 }
 
 /// Component wrapper for `ColumnPos` so it can live on the column entity.
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut)]
-pub struct ChunkColumnPosComponent(pub ColumnPos);
+pub struct ColumnPosComponent(pub ColumnPos);
 
-impl From<ColumnPos> for ChunkColumnPosComponent {
+impl From<ColumnPos> for ColumnPosComponent {
     fn from(p: ColumnPos) -> Self {
         Self(p)
     }
 }
 
-impl ChunkColumnBundle {
+impl ColumnBundle {
     pub fn new(col_pos: ColumnPos, dim: InDimension, dim_config: &DimensionTypeConfig) -> Self {
         let min_section_y = dim_config.min_y.div_euclid(16);
         Self {
-            col_pos: ChunkColumnPosComponent(col_pos),
+            col_pos: ColumnPosComponent(col_pos),
             dim,
             heightmaps: Heightmaps::with_min_y(dim_config.height, dim_config.min_y),
             sections: SectionIndex::new(min_section_y, dim_config.section_count as usize),
-            marker: ChunkColumn,
+            marker: Column,
         }
     }
 }
@@ -364,12 +364,34 @@ impl ChunkColumnBundle {
 /// the lighting plugin (downstream); this plugin only registers
 /// `Reconcile` and `ReconcileIndex`.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ChunkColumnLifecycleSet {
+pub enum ColumnLifecycleSet {
     Reconcile,
     ReconcileIndex,
     PrimeHeightmaps,
     AttachState,
 }
+
+// Stage 2 naming-refactor compatibility shims. The old `ChunkColumn*` names
+// stay usable so downstream crates keep compiling unchanged during the
+// migration. `pub use` re-exports are needed for unit/tuple structs because
+// `pub type` aliases cannot stand in as constructors (E0423) — a known
+// stable-Rust limitation; only the `pub type` aliases below actually emit
+// deprecation warnings at use sites. All shims here are removed in Stage 8.
+#[allow(deprecated)]
+#[deprecated(note = "use Column")]
+pub use self::Column as ChunkColumn;
+#[allow(deprecated)]
+#[deprecated(note = "use InColumn")]
+pub use self::InColumn as InChunkColumn;
+#[allow(deprecated)]
+#[deprecated(note = "use ColumnPosComponent")]
+pub use self::ColumnPosComponent as ChunkColumnPosComponent;
+#[allow(dead_code, deprecated)]
+#[deprecated(note = "use ColumnBundle")]
+pub type ChunkColumnBundle = ColumnBundle;
+#[allow(dead_code, deprecated)]
+#[deprecated(note = "use ColumnLifecycleSet")]
+pub type ChunkColumnLifecycleSet = ColumnLifecycleSet;
 
 /// Stage 1: when a section becomes `ChunkLoaded` (or `ChunkUnloading`),
 /// create / refcount its owning chunk-column entity.
@@ -391,7 +413,7 @@ fn reconcile_column_existence(
         match column_index.0.entry(col_pos) {
             std::collections::hash_map::Entry::Vacant(v) => {
                 let col_entity = commands
-                    .spawn(ChunkColumnBundle::new(col_pos, *in_dim, dim_config))
+                    .spawn(ColumnBundle::new(col_pos, *in_dim, dim_config))
                     .id();
                 v.insert(ColumnSlot {
                     entity: col_entity,
@@ -444,7 +466,7 @@ fn reconcile_column_existence(
 
 /// Stage 2: after Stage 1's `ApplyDeferred` flushes the spawn commands, the
 /// new column entities are visible. Insert the section into its column's
-/// `SectionIndex` and attach the `InChunkColumn` back-link.
+/// `SectionIndex` and attach the `InColumn` back-link.
 ///
 /// Pitfall #1 safety check: this function does NOT take a lighting-table
 /// resource. Heightmap priming (Stage 2.5) lives in `mcrs_minecraft_lighting`.
@@ -473,7 +495,7 @@ fn reconcile_section_index(
         }
         commands
             .entity(section_entity)
-            .insert(InChunkColumn(slot.entity));
+            .insert(InColumn(slot.entity));
     }
 
     for (chunk_pos, in_dim) in newly_unloading.iter() {
@@ -497,9 +519,9 @@ impl Plugin for ColumnPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                reconcile_column_existence.in_set(ChunkColumnLifecycleSet::Reconcile),
+                reconcile_column_existence.in_set(ColumnLifecycleSet::Reconcile),
                 ApplyDeferred,
-                reconcile_section_index.in_set(ChunkColumnLifecycleSet::ReconcileIndex),
+                reconcile_section_index.in_set(ColumnLifecycleSet::ReconcileIndex),
                 // W6: trailing post-Stage-2 ApplyDeferred is intentionally omitted; the
                 // lighting plugin owns the Stage 2 -> Stage 2.5 barrier with a leading
                 // ApplyDeferred at the head of its own chain.
@@ -707,7 +729,7 @@ mod tests {
         let dim_config = DimensionTypeConfig::new(-64, 384);
         let in_dim = InDimension(fake_entity(0));
         let col_pos = ColumnPos::new(3, -5);
-        let bundle = ChunkColumnBundle::new(col_pos, in_dim, &dim_config);
+        let bundle = ColumnBundle::new(col_pos, in_dim, &dim_config);
         assert_eq!(bundle.col_pos.0, col_pos);
         assert_eq!(bundle.sections.min_section_y, -4);
         assert_eq!(bundle.sections.sections.len(), 24);
@@ -721,7 +743,7 @@ mod tests {
         let dim_config = DimensionTypeConfig::new(0, 256);
         let in_dim = InDimension(fake_entity(0));
         let col_pos = ColumnPos::new(0, 0);
-        let bundle = ChunkColumnBundle::new(col_pos, in_dim, &dim_config);
+        let bundle = ColumnBundle::new(col_pos, in_dim, &dim_config);
         assert_eq!(bundle.sections.min_section_y, 0);
         assert_eq!(bundle.sections.sections.len(), 16);
         assert_eq!(bundle.heightmaps.height(), 256);
