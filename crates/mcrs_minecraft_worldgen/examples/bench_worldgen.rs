@@ -131,7 +131,7 @@ fn generate_column(
     section_z: i32,
     y_sections: &[i32],
 ) -> (u64, u64) {
-    let mut interp = router.new_section_interpolator();
+    let mut interp = router.new_noise_cell_interpolator();
     let block_x = section_x * 16;
     let block_z = section_z * 16;
 

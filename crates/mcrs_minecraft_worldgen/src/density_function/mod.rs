@@ -2908,9 +2908,9 @@ impl NoiseRouter {
         cache.scratch[root]
     }
 
-    /// Create a new `SectionInterpolator` matching this router's cell dimensions.
-    pub fn new_section_interpolator(&self) -> SectionInterpolator {
-        SectionInterpolator::new(self.h_cell_blocks, self.v_cell_blocks)
+    /// Create a new `NoiseCellInterpolator` matching this router's cell dimensions.
+    pub fn new_noise_cell_interpolator(&self) -> NoiseCellInterpolator {
+        NoiseCellInterpolator::new(self.h_cell_blocks, self.v_cell_blocks)
     }
 }
 
@@ -2919,7 +2919,7 @@ impl NoiseRouter {
 /// Samples `final_density` only at cell corners and trilinearly interpolates
 /// interior block positions. With cell sizes of 4x8x4, this reduces expensive
 /// density evaluations from 4,096 to 75 per 16x16x16 section.
-pub struct SectionInterpolator {
+pub struct NoiseCellInterpolator {
     h_cell_blocks: usize,
     v_cell_blocks: usize,
     h_cells: usize,
@@ -2954,7 +2954,7 @@ pub struct SectionInterpolator {
     section_boundary_valid: bool,
 }
 
-impl SectionInterpolator {
+impl NoiseCellInterpolator {
     pub fn new(h_cell_blocks: usize, v_cell_blocks: usize) -> Self {
         let h_cells = 16 / h_cell_blocks;
         let v_cells = 16 / v_cell_blocks;

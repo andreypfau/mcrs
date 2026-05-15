@@ -2,7 +2,7 @@ use crate::world::chunk::CancellationToken;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_worldgen::density_function::{
-    ColumnCache, NoiseRouter, SectionInterpolator,
+    ColumnCache, NoiseRouter, NoiseCellInterpolator,
 };
 use mcrs_vanilla::block::minecraft::STONE;
 
@@ -20,7 +20,7 @@ fn generate_section(
     block_states: &mut BlockPalette,
     noise_router: &NoiseRouter,
     column_cache: &mut ColumnCache,
-    interp: &mut SectionInterpolator,
+    interp: &mut NoiseCellInterpolator,
 ) {
     let h_cell_blocks = interp.h_cell_blocks();
     let v_cell_blocks = interp.v_cell_blocks();
@@ -131,7 +131,7 @@ pub fn generate_column(
     noise_router: &NoiseRouter,
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
-    let mut interp = noise_router.new_section_interpolator();
+    let mut interp = noise_router.new_noise_cell_interpolator();
     let block_x = section_x * 16;
     let block_z = section_z * 16;
 
