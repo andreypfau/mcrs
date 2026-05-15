@@ -4,7 +4,7 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 
 use bevy_state::prelude::NextState;
 use mcrs_core::AppState;
-use mcrs_engine::world::column::{ColumnIndex, Heightmaps, SectionIndex};
+use mcrs_engine::world::column::{ColumnIndex, Heightmaps, ColumnChunks};
 use mcrs_engine::world::dimension::HasSkyLight;
 use mcrs_engine::world::lighting::LightTicket;
 use mcrs_minecraft_lighting::components::{
@@ -158,9 +158,9 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
             + hm.motion_blocking.raw_longs().len() * 8;
     }
 
-    // "section_indexes": per-column SectionIndex (Box<[Option<Entity>]>)
+    // "section_indexes": per-column ColumnChunks (Box<[Option<Entity>]>)
     let mut section_indexes: usize = 0;
-    for idx in world.query::<&SectionIndex>().iter(world) {
+    for idx in world.query::<&ColumnChunks>().iter(world) {
         section_indexes +=
             mem::size_of_val(idx) + idx.sections.len() * mem::size_of::<Option<bevy_ecs::prelude::Entity>>();
     }

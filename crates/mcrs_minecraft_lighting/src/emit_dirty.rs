@@ -22,7 +22,7 @@
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Commands, Entity, Query, With, Without};
 use mcrs_engine::world::column::{
-    ColumnPosComponent, InColumn, SectionIndex, SectionLookup,
+    ColumnPosComponent, InColumn, ColumnChunks, ChunkLookup,
 };
 use mcrs_engine::world::lighting::LightTicket;
 
@@ -132,10 +132,10 @@ pub fn clear_light_tickets(
 }
 
 #[inline]
-fn chunk_y_for_section(index: &SectionIndex, target: Entity) -> Option<i32> {
+fn chunk_y_for_section(index: &ColumnChunks, target: Entity) -> Option<i32> {
     let min_y = index.min_section_y;
     index.iter_wire().enumerate().find_map(|(idx, lookup)| {
-        if let SectionLookup::Loaded(e) = lookup {
+        if let ChunkLookup::Loaded(e) = lookup {
             if e == target {
                 return Some(min_y + idx as i32 - 1);
             }
@@ -161,7 +161,7 @@ fn chunk_y_for_section(index: &SectionIndex, target: Entity) -> Option<i32> {
 // warm-up is a negligible NULL pass at the consumer.
 pub fn emit_block_light_dirty(
     sections: Query<(Entity, &InColumn), (Changed<BlockLight>, With<BlockLight>)>,
-    columns: Query<(&ColumnPosComponent, &SectionIndex)>,
+    columns: Query<(&ColumnPosComponent, &ColumnChunks)>,
     mut writer: MessageWriter<BlockLightDirty>,
 ) {
     for (section, in_column) in sections.iter() {
@@ -181,7 +181,7 @@ pub fn emit_block_light_dirty(
 
 pub fn emit_sky_light_dirty(
     sections: Query<(Entity, &InColumn), (Changed<SkyLight>, With<SkyLight>)>,
-    columns: Query<(&ColumnPosComponent, &SectionIndex)>,
+    columns: Query<(&ColumnPosComponent, &ColumnChunks)>,
     mut writer: MessageWriter<SkyLightDirty>,
 ) {
     for (section, in_column) in sections.iter() {

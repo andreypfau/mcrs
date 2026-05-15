@@ -16,7 +16,7 @@ use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
 use mcrs_engine::world::column::{
     Column, ColumnPos, ColumnPosComponent, ColumnPlugin, InColumn,
-    SectionIndex,
+    ColumnChunks,
 };
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
@@ -85,7 +85,7 @@ struct ColumnHandles {
 }
 
 fn spawn_test_column(app: &mut App, dim: Entity, column_pos: ColumnPos) -> ColumnHandles {
-    let mut section_index = SectionIndex::new(MIN_SECTION_Y, SECTION_COUNT);
+    let mut section_index = ColumnChunks::new(MIN_SECTION_Y, SECTION_COUNT);
     let mut section_entities: Vec<Entity> = Vec::with_capacity(SECTION_COUNT);
     let column = app
         .world_mut()

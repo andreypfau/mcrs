@@ -20,8 +20,8 @@ use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{
-    Column, ColumnPos, ColumnIndex, ColumnPlugin, InColumn, SectionIndex,
-    SectionLookup,
+    Column, ColumnPos, ColumnIndex, ColumnPlugin, InColumn, ColumnChunks,
+    ChunkLookup,
 };
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
@@ -185,11 +185,11 @@ fn single_section_in_sky_dim_attaches_all_components() {
     assert_eq!(slot.entity, col_entity);
 
     let section_index = world
-        .get::<SectionIndex>(col_entity)
-        .expect("column entity must have SectionIndex");
+        .get::<ColumnChunks>(col_entity)
+        .expect("column entity must have ColumnChunks");
     assert_eq!(
         section_index.lookup(chunk_pos.y),
-        SectionLookup::Loaded(section)
+        ChunkLookup::Loaded(section)
     );
 }
 

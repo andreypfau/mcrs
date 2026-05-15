@@ -485,7 +485,7 @@ fn snapshot_empty_sky_above_heightmap() {
     let chunk_pos = ChunkPos::new(0, 19, 0);
     let section = spawn_air_section(&mut app, dim, chunk_pos);
 
-    // Tick 1: column reconciliation populates SectionIndex, attach_lighting_state
+    // Tick 1: column reconciliation populates ColumnChunks, attach_lighting_state
     // inserts SkyLightBundle on the section.
     app.world_mut().run_schedule(FixedUpdate);
     // Tick 2: Added<SkyLight> fires enqueue_sky_light_initial, then the
@@ -513,7 +513,7 @@ fn snapshot_heightmap_update_on_place() {
     let section_lower = spawn_air_section(&mut app, dim, chunk_pos_lower);
     let section_upper = spawn_air_section(&mut app, dim, chunk_pos_upper);
 
-    // Tick 1: column reconciliation populates SectionIndex, attach_lighting_state
+    // Tick 1: column reconciliation populates ColumnChunks, attach_lighting_state
     // inserts the per-section bundles, and seed_initial_light queues initial
     // light on the next tick.
     app.world_mut().run_schedule(FixedUpdate);
@@ -628,7 +628,7 @@ fn snapshot_sky_attenuation_through_water() {
         golden::light_table::SYNTH_WATER_ID,
     );
 
-    // Tick 1: column reconciliation populates SectionIndex, attach_lighting_state
+    // Tick 1: column reconciliation populates ColumnChunks, attach_lighting_state
     // inserts SkyLightBundle on the section (no IsAllAir because of the water).
     app.world_mut().run_schedule(FixedUpdate);
     // Tick 2: Added<SkyLight> fires enqueue_sky_light_initial; the BFS path

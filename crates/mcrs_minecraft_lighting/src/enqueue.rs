@@ -20,7 +20,7 @@ use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{
-    Column, ColumnIndex, Heightmaps, InColumn, SectionIndex, SectionLookup,
+    Column, ColumnIndex, Heightmaps, InColumn, ColumnChunks, ChunkLookup,
 };
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_minecraft_block::block_update::BlockPlaced;
@@ -119,7 +119,7 @@ pub fn enqueue_block_light_on_block_placed(
 /// Seeds the top face of every newly-attached topmost-of-column `ChunkSection`
 /// with 256 BFS entries at `(x, z, 15)` level `15` carrying `FLAG_WRITE_LEVEL`.
 ///
-/// "Topmost of column" is decided against the column's `SectionIndex`:
+/// "Topmost of column" is decided against the column's `ColumnChunks`:
 /// `chunk_pos.y == min_section_y + sections.len() - 1`. Non-topmost sections
 /// (lower in the column) seed nothing — sky light reaches them only via the
 /// downward BFS step from the section above. Sections in skyless dimensions
@@ -142,7 +142,7 @@ pub fn enqueue_sky_light_initial(
         (Entity, &ChunkPos, &InColumn, &mut SkyLightWorkspace, &SkyLight),
         Added<SkyLight>,
     >,
-    columns: Query<&SectionIndex>,
+    columns: Query<&ColumnChunks>,
     mut commands: Commands,
 ) {
     for (section_entity, chunk_pos, in_column, mut workspace, sky_light) in newly_added.iter_mut() {
@@ -194,7 +194,7 @@ pub fn enqueue_sky_light_on_block_placed(
         &ChunkPos,
         &InColumn,
     )>,
-    columns: Query<&SectionIndex>,
+    columns: Query<&ColumnChunks>,
     mut commands: Commands,
 ) {
     for placed in reader.read() {
@@ -341,9 +341,9 @@ const CARDINAL_DIRECTIONS: [Direction; 6] = [
     Direction::East,
 ];
 
-/// Resolves a neighbour section by walking through `SectionIndex` (for Y-axis
-/// neighbours) or `ColumnIndex` + `SectionIndex` (for X/Z-axis neighbours).
-/// Returns `Some(entity)` only for `SectionLookup::Loaded(entity)`; padding and
+/// Resolves a neighbour section by walking through `ColumnChunks` (for Y-axis
+/// neighbours) or `ColumnIndex` + `ColumnChunks` (for X/Z-axis neighbours).
+/// Returns `Some(entity)` only for `ChunkLookup::Loaded(entity)`; padding and
 /// out-of-range and unloaded neighbours all return `None`.
 fn resolve_loaded_neighbor(
     face: Direction,
@@ -351,14 +351,14 @@ fn resolve_loaded_neighbor(
     in_col: Entity,
     in_dim: Entity,
     column_indexes: &Query<&ColumnIndex>,
-    section_indexes: &Query<&SectionIndex>,
+    section_indexes: &Query<&ColumnChunks>,
 ) -> Option<Entity> {
     match face {
         Direction::Up | Direction::Down => {
             let section_index = section_indexes.get(in_col).ok()?;
             let dy = if face == Direction::Up { 1 } else { -1 };
             match section_index.lookup(chunk_pos.y + dy) {
-                SectionLookup::Loaded(e) => Some(e),
+                ChunkLookup::Loaded(e) => Some(e),
                 _ => None,
             }
         }
@@ -376,7 +376,7 @@ fn resolve_loaded_neighbor(
             let slot = column_index.0.get(&neighbour_col_pos)?;
             let neighbour_section_index = section_indexes.get(slot.entity).ok()?;
             match neighbour_section_index.lookup(chunk_pos.y) {
-                SectionLookup::Loaded(e) => Some(e),
+                ChunkLookup::Loaded(e) => Some(e),
                 _ => None,
             }
         }
@@ -395,7 +395,7 @@ fn resolve_loaded_neighbor(
 pub fn seed_initial_light(
     table: Option<Res<BlockLightTable>>,
     sky_dims: Query<(), With<HasSkyLight>>,
-    section_indexes: Query<&SectionIndex>,
+    section_indexes: Query<&ColumnChunks>,
     heightmaps: Query<&Heightmaps>,
     mut sections: ParamSet<(
         Query<
@@ -690,7 +690,7 @@ pub fn pull_neighbor_edge_levels(
     table: Option<Res<BlockLightTable>>,
     newly_loaded: Query<(Entity, &ChunkPos, &InDimension, &InColumn), Added<ChunkLoaded>>,
     column_indexes: Query<&ColumnIndex>,
-    section_indexes: Query<&SectionIndex>,
+    section_indexes: Query<&ColumnChunks>,
     block_light_read: Query<&BlockLight>,
     sky_light_read: Query<&SkyLight>,
     mut block_pending: Query<&mut BlockPendingEgress>,
@@ -889,11 +889,11 @@ pub fn pull_neighbor_edge_levels(
 }
 
 /// Consumes `Added<NeedsFullReseed>` on `Column` entities: iterates the
-/// column's `SectionIndex.sections` slots and re-inserts
+/// column's `ColumnChunks.sections` slots and re-inserts
 /// `ChunkNeedsInitialLight` on every loaded section in the column. Removes
 /// `NeedsFullReseed` from the column entity.
 pub fn consume_needs_full_reseed(
-    newly_marked: Query<(Entity, &SectionIndex), (With<Column>, Added<NeedsFullReseed>)>,
+    newly_marked: Query<(Entity, &ColumnChunks), (With<Column>, Added<NeedsFullReseed>)>,
     mut commands: Commands,
 ) {
     for (column_entity, section_index) in newly_marked.iter() {
@@ -920,7 +920,7 @@ mod tests {
     use mcrs_core::voxel_shape::VoxelShape;
     use mcrs_engine::world::block::BlockPos;
     use mcrs_engine::world::chunk::ChunkPos;
-    use mcrs_engine::world::column::{Column, ColumnPos, ColumnIndex, ColumnSlot, InColumn, SectionIndex};
+    use mcrs_engine::world::column::{Column, ColumnPos, ColumnIndex, ColumnSlot, InColumn, ColumnChunks};
     use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
     use mcrs_lighting_table_helpers::*;
     use mcrs_minecraft_block::block::BlockUpdateFlags;
@@ -1214,7 +1214,7 @@ mod tests {
         section_slots: Vec<Option<bevy_ecs::entity::Entity>>,
     ) -> bevy_ecs::entity::Entity {
         app.world_mut()
-            .spawn(SectionIndex {
+            .spawn(ColumnChunks {
                 min_section_y,
                 sections: section_slots.into_boxed_slice(),
             })
@@ -1317,7 +1317,7 @@ mod tests {
         let section = app.world_mut().spawn_empty().id();
         let column = app
             .world_mut()
-            .spawn(SectionIndex {
+            .spawn(ColumnChunks {
                 min_section_y: 0,
                 sections: vec![Some(section)].into_boxed_slice(),
             })
@@ -1336,7 +1336,7 @@ mod tests {
         let dummy_topmost = app.world_mut().spawn_empty().id();
         let column = app
             .world_mut()
-            .spawn(SectionIndex {
+            .spawn(ColumnChunks {
                 min_section_y: 0,
                 sections: vec![Some(section), Some(dummy_topmost)].into_boxed_slice(),
             })
@@ -1814,7 +1814,7 @@ mod tests {
             .world_mut()
             .spawn((
                 Column,
-                SectionIndex {
+                ColumnChunks {
                     min_section_y: 0,
                     sections: vec![Some(section)].into_boxed_slice(),
                 },
@@ -1897,7 +1897,7 @@ mod tests {
             .world_mut()
             .spawn((
                 Column,
-                SectionIndex {
+                ColumnChunks {
                     min_section_y: 0,
                     sections: vec![Some(section_a), Some(section_b)].into_boxed_slice(),
                 },
@@ -2038,7 +2038,7 @@ mod tests {
             .world_mut()
             .spawn((
                 Column,
-                SectionIndex {
+                ColumnChunks {
                     min_section_y: 0,
                     sections: vec![Some(section_a)].into_boxed_slice(),
                 },
@@ -2049,7 +2049,7 @@ mod tests {
             .world_mut()
             .spawn((
                 Column,
-                SectionIndex {
+                ColumnChunks {
                     min_section_y: 0,
                     sections: vec![Some(section_b)].into_boxed_slice(),
                 },
@@ -2159,7 +2159,7 @@ mod tests {
             .world_mut()
             .spawn((
                 Column,
-                SectionIndex {
+                ColumnChunks {
                     min_section_y: 0,
                     sections: vec![Some(section_a)].into_boxed_slice(),
                 },
@@ -2170,7 +2170,7 @@ mod tests {
             .world_mut()
             .spawn((
                 Column,
-                SectionIndex {
+                ColumnChunks {
                     min_section_y: 0,
                     sections: vec![Some(section_b)].into_boxed_slice(),
                 },
@@ -2295,7 +2295,7 @@ mod tests {
             .world_mut()
             .spawn((
                 Column,
-                SectionIndex {
+                ColumnChunks {
                     min_section_y: 0,
                     sections: vec![Some(section_a), section_unloaded_slot, Some(section_b)]
                         .into_boxed_slice(),

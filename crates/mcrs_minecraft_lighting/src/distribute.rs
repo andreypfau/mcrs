@@ -34,7 +34,7 @@ use crate::telemetry::{LIGHT_CROSS_DIM_VIOLATIONS_TOTAL, LIGHT_PENDING_EGRESS_OV
 use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::world::chunk::ChunkPos;
 use mcrs_engine::world::column::{
-    ColumnPos, ColumnIndex, InColumn, SectionIndex, SectionLookup,
+    ColumnPos, ColumnIndex, InColumn, ColumnChunks, ChunkLookup,
 };
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::lighting::LightTicket;
@@ -94,18 +94,18 @@ pub(crate) enum ResolvePath {
 }
 
 /// Resolve the destination of a wavefront. Up/Down route through the source
-/// column's `SectionIndex`; N/S/E/W route through the dimension's
+/// column's `ColumnChunks`; N/S/E/W route through the dimension's
 /// `ColumnIndex` to find the neighbour column entity, then its
-/// `SectionIndex`. Returns `None` only when the column entity itself is
+/// `ColumnChunks`. Returns `None` only when the column entity itself is
 /// missing from `ColumnIndex` (e.g., source's column was despawned in a
-/// concurrent tick), or when the source's column has no `SectionIndex`.
+/// concurrent tick), or when the source's column has no `ColumnChunks`.
 pub(crate) fn resolve_neighbor_section(
     src_chunk_pos: ChunkPos,
     src_in_col: InColumn,
     src_in_dim: InDimension,
     face: Direction,
     column_indexes: &Query<&ColumnIndex>,
-    section_indexes: &Query<&SectionIndex>,
+    section_indexes: &Query<&ColumnChunks>,
 ) -> Option<ResolveOutcome> {
     match face {
         Direction::Up | Direction::Down => {
@@ -118,19 +118,19 @@ pub(crate) fn resolve_neighbor_section(
             let lookup = section_index.lookup(dst_y);
             let dst_chunk_pos = ChunkPos::new(src_chunk_pos.x, dst_y, src_chunk_pos.z);
             Some(match lookup {
-                SectionLookup::Loaded(dst_entity) => ResolveOutcome::Loaded {
+                ChunkLookup::Loaded(dst_entity) => ResolveOutcome::Loaded {
                     dst_entity,
                     dst_chunk_pos,
                     dst_column: src_in_col.0,
                 },
-                SectionLookup::Unloaded => ResolveOutcome::Unloaded {
+                ChunkLookup::Unloaded => ResolveOutcome::Unloaded {
                     dst_column: src_in_col.0,
                     dst_chunk_pos,
                 },
-                SectionLookup::BottomPadding | SectionLookup::TopPadding => {
+                ChunkLookup::BottomPadding | ChunkLookup::TopPadding => {
                     ResolveOutcome::Padding
                 }
-                SectionLookup::OutOfRange => ResolveOutcome::OutOfRange,
+                ChunkLookup::OutOfRange => ResolveOutcome::OutOfRange,
             })
         }
         Direction::North | Direction::South | Direction::West | Direction::East => {
@@ -151,19 +151,19 @@ pub(crate) fn resolve_neighbor_section(
             let dst_chunk_pos =
                 ChunkPos::new(neighbour_col_pos.x, src_chunk_pos.y, neighbour_col_pos.z);
             Some(match lookup {
-                SectionLookup::Loaded(dst_entity) => ResolveOutcome::Loaded {
+                ChunkLookup::Loaded(dst_entity) => ResolveOutcome::Loaded {
                     dst_entity,
                     dst_chunk_pos,
                     dst_column,
                 },
-                SectionLookup::Unloaded => ResolveOutcome::Unloaded {
+                ChunkLookup::Unloaded => ResolveOutcome::Unloaded {
                     dst_column,
                     dst_chunk_pos,
                 },
-                SectionLookup::BottomPadding | SectionLookup::TopPadding => {
+                ChunkLookup::BottomPadding | ChunkLookup::TopPadding => {
                     ResolveOutcome::Padding
                 }
-                SectionLookup::OutOfRange => ResolveOutcome::OutOfRange,
+                ChunkLookup::OutOfRange => ResolveOutcome::OutOfRange,
             })
         }
     }
@@ -176,7 +176,7 @@ pub(crate) fn resolve_neighbor_section_tagged(
     src_in_dim: InDimension,
     face: Direction,
     column_indexes: &Query<&ColumnIndex>,
-    section_indexes: &Query<&SectionIndex>,
+    section_indexes: &Query<&ColumnChunks>,
 ) -> Option<(ResolveOutcome, ResolvePath)> {
     let path = match face {
         Direction::Up | Direction::Down => ResolvePath::Vertical,
@@ -226,7 +226,7 @@ pub fn distribute_decrease(
     block_pending: Query<&mut BlockPendingEgress>,
     sky_pending: Query<&mut SkyPendingEgress>,
     in_dimensions: Query<&InDimension>,
-    section_indexes: Query<&SectionIndex>,
+    section_indexes: Query<&ColumnChunks>,
     column_indexes: Query<&ColumnIndex>,
     block_stage: Local<Vec<(Entity, Wavefront)>>,
     sky_stage: Local<Vec<(Entity, Wavefront)>>,
@@ -266,7 +266,7 @@ pub fn distribute_increase(
     block_pending: Query<&mut BlockPendingEgress>,
     sky_pending: Query<&mut SkyPendingEgress>,
     in_dimensions: Query<&InDimension>,
-    section_indexes: Query<&SectionIndex>,
+    section_indexes: Query<&ColumnChunks>,
     column_indexes: Query<&ColumnIndex>,
     block_stage: Local<Vec<(Entity, Wavefront)>>,
     sky_stage: Local<Vec<(Entity, Wavefront)>>,
@@ -311,7 +311,7 @@ fn distribute_inner(
     mut block_pending: Query<&mut BlockPendingEgress>,
     mut sky_pending: Query<&mut SkyPendingEgress>,
     in_dimensions: Query<&InDimension>,
-    section_indexes: Query<&SectionIndex>,
+    section_indexes: Query<&ColumnChunks>,
     column_indexes: Query<&ColumnIndex>,
     mut block_stage: Local<Vec<(Entity, Wavefront)>>,
     mut sky_stage: Local<Vec<(Entity, Wavefront)>>,
@@ -369,7 +369,7 @@ fn drain_block_egress(
     sources: &mut Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut BlockEgress)>,
     pending: &mut Query<&mut BlockPendingEgress>,
     in_dimensions: &Query<&InDimension>,
-    section_indexes: &Query<&SectionIndex>,
+    section_indexes: &Query<&ColumnChunks>,
     column_indexes: &Query<&ColumnIndex>,
     stage: &mut Vec<(Entity, Wavefront)>,
     last_xdim_log: &mut Option<Instant>,
@@ -458,7 +458,7 @@ fn drain_sky_egress(
     sources: &mut Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut SkyEgress)>,
     pending: &mut Query<&mut SkyPendingEgress>,
     in_dimensions: &Query<&InDimension>,
-    section_indexes: &Query<&SectionIndex>,
+    section_indexes: &Query<&ColumnChunks>,
     column_indexes: &Query<&ColumnIndex>,
     stage: &mut Vec<(Entity, Wavefront)>,
     last_xdim_log: &mut Option<Instant>,
@@ -473,7 +473,7 @@ fn drain_sky_egress(
         let src_dim = in_dim.0;
         // The column-walker fast path emits 1280 wavefronts (5 faces × 256
         // cells) per source per iteration. Calling `resolve_neighbor_section`
-        // for each one walks `SectionIndex` / `ColumnIndex` hash lookups
+        // for each one walks `ColumnChunks` / `ColumnIndex` hash lookups
         // afresh, which dominates the sub-schedule's wall clock at chunk-load
         // time. Resolve each of the six faces once up front and index into
         // the array per wavefront. Same destination semantics, ~250x fewer
@@ -590,7 +590,7 @@ mod tests {
 
     fn spawn_column(app: &mut App, min_section_y: i32, slot_count: usize) -> Entity {
         app.world_mut()
-            .spawn(SectionIndex::new(min_section_y, slot_count))
+            .spawn(ColumnChunks::new(min_section_y, slot_count))
             .id()
     }
 
@@ -626,7 +626,7 @@ mod tests {
                 BlockPendingEgress::default(),
             ))
             .id();
-        if let Some(mut si) = app.world_mut().get_mut::<SectionIndex>(column) {
+        if let Some(mut si) = app.world_mut().get_mut::<ColumnChunks>(column) {
             si.set_loaded(chunk_pos.y, section);
         }
         section
@@ -731,7 +731,7 @@ mod tests {
                 BlockPendingEgress(prefill),
             ))
             .id();
-        if let Some(mut si) = app.world_mut().get_mut::<SectionIndex>(col_a) {
+        if let Some(mut si) = app.world_mut().get_mut::<ColumnChunks>(col_a) {
             si.set_loaded(0, section_a);
         }
 
@@ -827,7 +827,7 @@ mod tests {
         app.add_systems(
             Update,
             move |column_indexes: Query<&ColumnIndex>,
-                  section_indexes: Query<&SectionIndex>,
+                  section_indexes: Query<&ColumnChunks>,
                   mut probe: ResMut<Probe>| {
                 if let Some((_o, p)) = resolve_neighbor_section_tagged(
                     src_chunk_pos,
@@ -983,7 +983,7 @@ mod tests {
 
     #[test]
     fn distribute_drops_wavefronts_to_padding() {
-        // Source at chunk-Y 0 in a column whose SectionIndex only covers y=0.
+        // Source at chunk-Y 0 in a column whose ColumnChunks only covers y=0.
         // A Down-face wavefront lands on BottomPadding (relative y=-1) which
         // must be dropped silently — no LightDirty/LightTicket on the source,
         // no pending egress, no incoming written anywhere.

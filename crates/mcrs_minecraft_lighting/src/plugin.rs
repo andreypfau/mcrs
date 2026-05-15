@@ -79,7 +79,7 @@ impl Plugin for LightingPlugin {
         // Cross-plugin barrier: the chain begins with a leading `ApplyDeferred`
         // so the spawn `Commands` queued upstream by `reconcile_section_index`
         // are flushed before the heightmap-prime query reads `Column` and
-        // `SectionIndex` state. The upstream `ColumnPlugin` intentionally
+        // `ColumnChunks` state. The upstream `ColumnPlugin` intentionally
         // omits a trailing post-reconcile `ApplyDeferred`; the responsibility
         // lives here on the consumer side.
         app.add_systems(

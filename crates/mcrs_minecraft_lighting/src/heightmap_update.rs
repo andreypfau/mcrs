@@ -24,7 +24,7 @@
 use crate::table::{flag_bits, BlockLightTable};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, Query, Res};
-use mcrs_engine::world::column::{Heightmaps, InColumn, SectionIndex};
+use mcrs_engine::world::column::{Heightmaps, InColumn, ColumnChunks};
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 
@@ -43,7 +43,7 @@ const SECTION_SIZE: i32 = 16;
 pub fn update_heightmaps_on_block_placed(
     mut reader: MessageReader<BlockPlaced>,
     sections: Query<&InColumn>,
-    mut columns: Query<(&mut Heightmaps, &SectionIndex)>,
+    mut columns: Query<(&mut Heightmaps, &ColumnChunks)>,
     palettes: Query<&BlockPalette>,
     table: Res<BlockLightTable>,
 ) {
@@ -110,7 +110,7 @@ pub fn update_heightmaps_on_block_placed(
 /// empty cell directly above the topmost matching solid cell. An air-only
 /// column returns `(min_y, min_y)`.
 fn rescan_column_xz(
-    section_index: &SectionIndex,
+    section_index: &ColumnChunks,
     palettes: &Query<&BlockPalette>,
     table: &BlockLightTable,
     x: usize,

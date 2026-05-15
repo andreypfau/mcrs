@@ -10,7 +10,7 @@ use crate::components::{ChunkNeedsInitialLight, IsAllAir};
 use crate::table::{flag_bits, BlockLightTable};
 use bevy_ecs::prelude::{Added, Commands, Entity, Query, Res, With};
 use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
-use mcrs_engine::world::column::{Column, Heightmaps, SectionIndex, SectionLookup};
+use mcrs_engine::world::column::{Column, Heightmaps, ColumnChunks, ChunkLookup};
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_minecraft_block::palette::BlockPalette;
 
@@ -25,7 +25,7 @@ const SECTION_SIZE: i32 = 16;
 /// `BlockLightTable`. The engine crate stays free of any lighting-side imports.
 ///
 /// Runs after `ColumnLifecycleSet::ReconcileIndex` (Stage 2) so the
-/// column's `SectionIndex` is fully populated for the sections that triggered
+/// column's `ColumnChunks` is fully populated for the sections that triggered
 /// the column spawn. The leading `ApplyDeferred` in `LightingPlugin::build`
 /// flushes Stage 1 + 2's commands so this query observes the spawned column
 /// and the inserted section back-link.
@@ -35,7 +35,7 @@ const SECTION_SIZE: i32 = 16;
 /// (on `OnEnter(AppState::WorldgenFreeze)`). Integration tests must insert
 /// a stub `BlockLightTable` resource before spawning sections.
 pub fn prime_heightmaps_on_column_spawn(
-    newly_spawned: Query<(Entity, &SectionIndex), (With<Column>, Added<Column>)>,
+    newly_spawned: Query<(Entity, &ColumnChunks), (With<Column>, Added<Column>)>,
     sections: Query<&BlockPalette>,
     mut heightmaps: Query<&mut Heightmaps>,
     table: Res<BlockLightTable>,
