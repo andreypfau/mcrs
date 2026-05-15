@@ -4,5 +4,5 @@
 set -euo pipefail
 
 for n in 1 2 4 8; do
-    MCRS_BENCH_THREADS=$n cargo bench --bench parallel_scaling --features mcrs_minecraft_lighting/bench-helpers
+    MCRS_BENCH_THREADS=$n cargo bench --bench parallel_scaling -p mcrs_minecraft_lighting --features bench-helpers
 done
