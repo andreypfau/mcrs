@@ -19,8 +19,10 @@
 //! `LightDirty` + `LightTicket` markers on each unique destination via a
 //! `Local` dedup set.
 
+use bevy_ecs::component::Mutable;
 use bevy_ecs::entity::EntityHashSet;
 use bevy_ecs::prelude::*;
+use smallvec::SmallVec;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
@@ -184,82 +186,57 @@ fn rate_limited_xdim_log(
     }
 }
 
-/// Single cross-chunk routing body registered at both
-/// `LightConvergeSet::DistributeDecrease` and `LightConvergeSet::DistributeIncrease`.
-/// The two registrations produce distinct `SystemId`s with independent `Local` state;
-/// the body is identical.
-pub fn distribute_cross_chunk_wavefronts(
-    mut block_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut BlockEgress)>,
-    mut sky_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut SkyEgress)>,
-    mut block_incoming: Query<&mut BlockIncoming>,
-    mut sky_incoming: Query<&mut SkyIncoming>,
-    mut block_pending: Query<&mut BlockPendingEgress>,
-    mut sky_pending: Query<&mut SkyPendingEgress>,
-    in_dimensions: Query<&InDimension>,
-    chunk_indexes: Query<&ColumnChunks>,
-    column_indexes: Query<&ColumnIndex>,
-    mut block_stage: Local<Vec<(Entity, Wavefront)>>,
-    mut sky_stage: Local<Vec<(Entity, Wavefront)>>,
-    mut dirty_dedup: Local<EntityHashSet>,
-    mut last_xdim_log: Local<Option<Instant>>,
-    mut commands: Commands,
-) {
-    #[cfg(feature = "lighting-trace")]
-    let block_egress_count = block_sources.iter().count();
-    #[cfg(feature = "lighting-trace")]
-    let sky_egress_count = sky_sources.iter().count();
-    #[cfg(feature = "lighting-trace")]
-    let _span = tracing::info_span!("distribute_cross_chunk", block_egress_count, sky_egress_count).entered();
-
-    block_stage.clear();
-    sky_stage.clear();
-    dirty_dedup.clear();
-
-    drain_block_egress(
-        &mut block_sources,
-        &mut block_pending,
-        &in_dimensions,
-        &chunk_indexes,
-        &column_indexes,
-        &mut block_stage,
-        &mut last_xdim_log,
-        &mut commands,
-    );
-
-    drain_sky_egress(
-        &mut sky_sources,
-        &mut sky_pending,
-        &in_dimensions,
-        &chunk_indexes,
-        &column_indexes,
-        &mut sky_stage,
-        &mut last_xdim_log,
-        &mut commands,
-    );
-
-    for (dst_entity, wavefront) in block_stage.drain(..) {
-        if let Ok(mut incoming) = block_incoming.get_mut(dst_entity) {
-            incoming.0.push(wavefront);
-            dirty_dedup.insert(dst_entity);
-        }
-    }
-
-    for (dst_entity, wavefront) in sky_stage.drain(..) {
-        if let Ok(mut incoming) = sky_incoming.get_mut(dst_entity) {
-            incoming.0.push(wavefront);
-            dirty_dedup.insert(dst_entity);
-        }
-    }
-
-    for dst in dirty_dedup.drain() {
-        commands.entity(dst).insert(LightDirty);
-        commands.entity(dst).insert(LightTicket);
-    }
+/// Compile-time channel dispatch for the cross-chunk egress drain.
+///
+/// `BlockChannel` and `SkyChannel` are uninhabited marker types that select
+/// the per-channel `Egress` / `Pending` newtypes, the Down-face attenuation
+/// skip (sky only), and the overflow-log `kind` / `channel` fields. Trait
+/// methods are pure projections into the inner `SmallVec<[Wavefront; 8]>`;
+/// the generic body monomorphises per impl.
+pub(crate) trait DrainChannel {
+    type Egress: Component<Mutability = Mutable>;
+    type Pending: Component<Mutability = Mutable>;
+    const DOWN_SKIPS_ATTENUATION: bool;
+    const OVERFLOW_KIND: &'static str;
+    const OVERFLOW_COUNTER_LABEL: &'static str;
+    fn egress_inner_mut(c: &mut Self::Egress) -> &mut SmallVec<[Wavefront; 8]>;
+    fn pending_inner_mut(c: &mut Self::Pending) -> &mut SmallVec<[Wavefront; 8]>;
 }
 
-fn drain_block_egress(
-    sources: &mut Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut BlockEgress)>,
-    pending: &mut Query<&mut BlockPendingEgress>,
+pub(crate) enum BlockChannel {}
+pub(crate) enum SkyChannel {}
+
+impl DrainChannel for BlockChannel {
+    type Egress = BlockEgress;
+    type Pending = BlockPendingEgress;
+    const DOWN_SKIPS_ATTENUATION: bool = false;
+    const OVERFLOW_KIND: &'static str = "block_egress_overflow";
+    const OVERFLOW_COUNTER_LABEL: &'static str = "block";
+    fn egress_inner_mut(c: &mut BlockEgress) -> &mut SmallVec<[Wavefront; 8]> { &mut c.0 }
+    fn pending_inner_mut(c: &mut BlockPendingEgress) -> &mut SmallVec<[Wavefront; 8]> { &mut c.0 }
+}
+
+impl DrainChannel for SkyChannel {
+    type Egress = SkyEgress;
+    type Pending = SkyPendingEgress;
+    const DOWN_SKIPS_ATTENUATION: bool = true;
+    const OVERFLOW_KIND: &'static str = "sky_egress_overflow";
+    const OVERFLOW_COUNTER_LABEL: &'static str = "sky";
+    fn egress_inner_mut(c: &mut SkyEgress) -> &mut SmallVec<[Wavefront; 8]> { &mut c.0 }
+    fn pending_inner_mut(c: &mut SkyPendingEgress) -> &mut SmallVec<[Wavefront; 8]> { &mut c.0 }
+}
+
+/// Channel-generic cross-chunk wavefront drain.
+///
+/// Per source chunk: insert `LightTicket`, pre-resolve six face neighbours,
+/// drain egress via `std::mem::take`, decode per-wavefront face, apply
+/// Manhattan attenuation (skipped on sky Down per `C::DOWN_SKIPS_ATTENUATION`),
+/// guard against cross-dim routes, push to `stage` for the caller's
+/// destination-side merge, park unloaded routes onto `Pending` until
+/// `PENDING_EGRESS_CAP` triggers `NeedsFullReseed`.
+fn drain_channel_egress<C: DrainChannel>(
+    sources: &mut Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut C::Egress)>,
+    pending: &mut Query<&mut C::Pending>,
     in_dimensions: &Query<&InDimension>,
     chunk_indexes: &Query<&ColumnChunks>,
     column_indexes: &Query<&ColumnIndex>,
@@ -268,14 +245,12 @@ fn drain_block_egress(
     commands: &mut Commands,
 ) {
     for (src_entity, chunk_pos, in_dim, in_col, mut egress) in sources.iter_mut() {
-        if egress.0.is_empty() {
+        if C::egress_inner_mut(&mut egress).is_empty() {
             continue;
         }
         commands.entity(src_entity).insert(LightTicket);
 
         let src_dim = in_dim.0;
-        // Pre-resolve all six neighbour faces once per source instead of once
-        // per wavefront; see comment in `drain_sky_egress`.
         let resolved_faces: [Option<ResolveOutcome>; 6] = [
             resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::Down,  column_indexes, chunk_indexes),
             resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::Up,    column_indexes, chunk_indexes),
@@ -285,114 +260,10 @@ fn drain_block_egress(
             resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::East,  column_indexes, chunk_indexes),
         ];
 
-        let drained = std::mem::take(&mut egress.0);
+        let drained = std::mem::take(C::egress_inner_mut(&mut egress));
         for wavefront in drained {
             let face = direction_from_index(wavefront.face());
-            // The intra-chunk BFS emits face-adjacent wavefronts only
-            // (adjacency = 1). Edge (2) / corner (3) paths live in
-            // `manhattan_preattenuate` for completeness and are exercised
-            // by dedicated unit tests; the active BFS does not yet emit
-            // diagonal wavefronts.
-            let pre_attenuated_level = manhattan_preattenuate(wavefront.level(), 1);
-
-            let outcome = resolved_faces[face.index()];
-
-            match outcome {
-                Some(ResolveOutcome::Loaded { dst_entity, .. }) => {
-                    let dst_dim_opt = in_dimensions.get(dst_entity).map(|d| d.0).ok();
-                    let src_dim_opt = Some(src_dim);
-                    debug_assert_eq!(
-                        dst_dim_opt, src_dim_opt,
-                        "cross-dim wavefront route attempted"
-                    );
-                    if dst_dim_opt != src_dim_opt {
-                        LIGHT_CROSS_DIM_VIOLATIONS_TOTAL.fetch_add(1, Ordering::Relaxed);
-                        rate_limited_xdim_log(
-                            last_xdim_log,
-                            src_entity,
-                            dst_entity,
-                            src_dim_opt,
-                            dst_dim_opt,
-                        );
-                        continue;
-                    }
-                    let dest_face = face.opposite().index() as u8;
-                    stage.push((
-                        dst_entity,
-                        Wavefront::new(
-                            dest_face,
-                            wavefront.cell_x(),
-                            wavefront.cell_z(),
-                            pre_attenuated_level,
-                        ),
-                    ));
-                }
-                Some(ResolveOutcome::Unloaded { dst_column, .. }) => {
-                    if let Ok(mut pend) = pending.get_mut(src_entity) {
-                        if pend.0.len() >= PENDING_EGRESS_CAP {
-                            LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL
-                                .fetch_add(1, Ordering::Relaxed);
-                            tracing::warn!(
-                                target: "mcrs_lighting::needs_full_reseed",
-                                src = ?src_entity,
-                                dst_column = ?dst_column,
-                                src_chunk_x = chunk_pos.x,
-                                src_chunk_y = chunk_pos.y,
-                                src_chunk_z = chunk_pos.z,
-                                kind = "block_egress_overflow",
-                                pending_cap = PENDING_EGRESS_CAP,
-                                "Block-egress pending overflow — inserting NeedsFullReseed on destination column."
-                            );
-                            commands.entity(dst_column).insert(NeedsFullReseed);
-                        } else {
-                            pend.0.push(wavefront);
-                        }
-                    }
-                }
-                Some(ResolveOutcome::Padding)
-                | Some(ResolveOutcome::OutOfRange)
-                | None => {}
-            }
-        }
-    }
-}
-
-fn drain_sky_egress(
-    sources: &mut Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut SkyEgress)>,
-    pending: &mut Query<&mut SkyPendingEgress>,
-    in_dimensions: &Query<&InDimension>,
-    chunk_indexes: &Query<&ColumnChunks>,
-    column_indexes: &Query<&ColumnIndex>,
-    stage: &mut Vec<(Entity, Wavefront)>,
-    last_xdim_log: &mut Option<Instant>,
-    commands: &mut Commands,
-) {
-    for (src_entity, chunk_pos, in_dim, in_col, mut egress) in sources.iter_mut() {
-        if egress.0.is_empty() {
-            continue;
-        }
-        commands.entity(src_entity).insert(LightTicket);
-
-        let src_dim = in_dim.0;
-        // The column-walker fast path emits 1280 wavefronts (5 faces × 256
-        // cells) per source per iteration. Calling `resolve_neighbor_chunk`
-        // for each one walks `ColumnChunks` / `ColumnIndex` hash lookups
-        // afresh, which dominates the sub-schedule's wall clock at chunk-load
-        // time. Resolve each of the six faces once up front and index into
-        // the array per wavefront. Same destination semantics, roughly 250x
-        // fewer hash lookups per source.
-        let resolved_faces: [Option<ResolveOutcome>; 6] = [
-            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::Down,  column_indexes, chunk_indexes),
-            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::Up,    column_indexes, chunk_indexes),
-            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::North, column_indexes, chunk_indexes),
-            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::South, column_indexes, chunk_indexes),
-            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::West,  column_indexes, chunk_indexes),
-            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::East,  column_indexes, chunk_indexes),
-        ];
-
-        let drained = std::mem::take(&mut egress.0);
-        for wavefront in drained {
-            let face = direction_from_index(wavefront.face());
+            // Sky-channel only (when C::DOWN_SKIPS_ATTENUATION = true):
             // Sky-light entering a destination cell via its Up face (i.e. the
             // source pushed it through its Down face) propagates without
             // attenuation when the destination cell carries
@@ -407,7 +278,7 @@ fn drain_sky_egress(
             // re-applies opacity attenuation per cell, so opaque cells in the
             // destination still cap their level via the `dst_flags` /
             // `opacity` check in `propagate_increase_sky`.
-            let pre_attenuated_level = if face == Direction::Down {
+            let pre_attenuated_level = if C::DOWN_SKIPS_ATTENUATION && face == Direction::Down {
                 wavefront.level()
             } else {
                 manhattan_preattenuate(wavefront.level(), 1)
@@ -447,7 +318,7 @@ fn drain_sky_egress(
                 }
                 Some(ResolveOutcome::Unloaded { dst_column, .. }) => {
                     if let Ok(mut pend) = pending.get_mut(src_entity) {
-                        if pend.0.len() >= PENDING_EGRESS_CAP {
+                        if C::pending_inner_mut(&mut pend).len() >= PENDING_EGRESS_CAP {
                             LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL
                                 .fetch_add(1, Ordering::Relaxed);
                             tracing::warn!(
@@ -457,15 +328,15 @@ fn drain_sky_egress(
                                 src_chunk_x = chunk_pos.x,
                                 src_chunk_y = chunk_pos.y,
                                 src_chunk_z = chunk_pos.z,
-                                kind = "sky_egress_overflow",
+                                kind = C::OVERFLOW_KIND,
+                                channel = C::OVERFLOW_COUNTER_LABEL,
                                 pending_cap = PENDING_EGRESS_CAP,
-                                "Sky-egress pending overflow — inserting NeedsFullReseed on destination column. \
-                                 This will re-mark every loaded chunk in the destination column for initial-light seeding, \
-                                 which can re-fire seed_initial_light against a heightmap that may still be at sentinel."
+                                "Light pending overflow — inserting NeedsFullReseed on destination \
+                                 column; cascade risk if many chunks remain unloaded."
                             );
                             commands.entity(dst_column).insert(NeedsFullReseed);
                         } else {
-                            pend.0.push(wavefront);
+                            C::pending_inner_mut(&mut pend).push(wavefront);
                         }
                     }
                 }
@@ -474,6 +345,79 @@ fn drain_sky_egress(
                 | None => {}
             }
         }
+    }
+}
+
+/// Single cross-chunk routing body registered at both
+/// `LightConvergeSet::DistributeDecrease` and `LightConvergeSet::DistributeIncrease`.
+/// The two registrations produce distinct `SystemId`s with independent `Local` state;
+/// the body is identical.
+pub fn distribute_cross_chunk_wavefronts(
+    mut block_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut BlockEgress)>,
+    mut sky_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut SkyEgress)>,
+    mut block_incoming: Query<&mut BlockIncoming>,
+    mut sky_incoming: Query<&mut SkyIncoming>,
+    mut block_pending: Query<&mut BlockPendingEgress>,
+    mut sky_pending: Query<&mut SkyPendingEgress>,
+    in_dimensions: Query<&InDimension>,
+    chunk_indexes: Query<&ColumnChunks>,
+    column_indexes: Query<&ColumnIndex>,
+    mut block_stage: Local<Vec<(Entity, Wavefront)>>,
+    mut sky_stage: Local<Vec<(Entity, Wavefront)>>,
+    mut dirty_dedup: Local<EntityHashSet>,
+    mut last_xdim_log: Local<Option<Instant>>,
+    mut commands: Commands,
+) {
+    #[cfg(feature = "lighting-trace")]
+    let block_egress_count = block_sources.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let sky_egress_count = sky_sources.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let _span = tracing::info_span!("distribute_cross_chunk", block_egress_count, sky_egress_count).entered();
+
+    block_stage.clear();
+    sky_stage.clear();
+    dirty_dedup.clear();
+
+    drain_channel_egress::<BlockChannel>(
+        &mut block_sources,
+        &mut block_pending,
+        &in_dimensions,
+        &chunk_indexes,
+        &column_indexes,
+        &mut block_stage,
+        &mut last_xdim_log,
+        &mut commands,
+    );
+
+    drain_channel_egress::<SkyChannel>(
+        &mut sky_sources,
+        &mut sky_pending,
+        &in_dimensions,
+        &chunk_indexes,
+        &column_indexes,
+        &mut sky_stage,
+        &mut last_xdim_log,
+        &mut commands,
+    );
+
+    for (dst_entity, wavefront) in block_stage.drain(..) {
+        if let Ok(mut incoming) = block_incoming.get_mut(dst_entity) {
+            incoming.0.push(wavefront);
+            dirty_dedup.insert(dst_entity);
+        }
+    }
+
+    for (dst_entity, wavefront) in sky_stage.drain(..) {
+        if let Ok(mut incoming) = sky_incoming.get_mut(dst_entity) {
+            incoming.0.push(wavefront);
+            dirty_dedup.insert(dst_entity);
+        }
+    }
+
+    for dst in dirty_dedup.drain() {
+        commands.entity(dst).insert(LightDirty);
+        commands.entity(dst).insert(LightTicket);
     }
 }
 
@@ -797,6 +741,105 @@ mod tests {
             .get::<BlockIncoming>(chunk_b)
             .expect("chunk_b has BlockIncoming");
         assert_eq!(incoming.0[0].level(), 9, "10 - 1 = 9 on face-adjacent route");
+    }
+
+    /// Spawn a two-chunk column (chunk_above at Y=1, chunk_below at Y=0) in
+    /// the same dimension and column. Returns (dim_entity, column_entity,
+    /// chunk_above_entity, chunk_below_entity). Both chunks carry the full
+    /// block + sky component set; non-seeded channels receive empty SmallVecs.
+    fn make_two_chunk_column(
+        app: &mut App,
+        block_egress: SmallVec<[Wavefront; 8]>,
+        sky_egress: SmallVec<[Wavefront; 8]>,
+    ) -> (Entity, Entity, Entity, Entity) {
+        let dim = spawn_dimension(app);
+        let col = spawn_column(app, 0, 2);
+        register_column(app, dim, ColumnPos::new(0, 0), col);
+
+        let chunk_below = app
+            .world_mut()
+            .spawn((
+                ChunkPos::new(0, 0, 0),
+                InDimension(dim),
+                InColumn(col),
+                BlockEgress::default(),
+                SkyEgress::default(),
+                BlockIncoming::default(),
+                SkyIncoming::default(),
+                BlockPendingEgress::default(),
+                SkyPendingEgress::default(),
+            ))
+            .id();
+
+        let chunk_above = app
+            .world_mut()
+            .spawn((
+                ChunkPos::new(0, 1, 0),
+                InDimension(dim),
+                InColumn(col),
+                BlockEgress(block_egress),
+                SkyEgress(sky_egress),
+                BlockIncoming::default(),
+                SkyIncoming::default(),
+                BlockPendingEgress::default(),
+                SkyPendingEgress::default(),
+            ))
+            .id();
+
+        if let Some(mut cc) = app.world_mut().get_mut::<ColumnChunks>(col) {
+            cc.set_loaded(0, chunk_below);
+            cc.set_loaded(1, chunk_above);
+        }
+
+        (dim, col, chunk_above, chunk_below)
+    }
+
+    #[test]
+    fn block_down_face_egress_attenuates() {
+        let mut app = build_app();
+        let down = Direction::Down.index() as u8;
+        let mut block_egress: SmallVec<[Wavefront; 8]> = SmallVec::new();
+        block_egress.push(Wavefront::new(down, 0, 0, 15));
+        let sky_egress: SmallVec<[Wavefront; 8]> = SmallVec::new();
+        let (_dim, _col, _above, chunk_below) =
+            make_two_chunk_column(&mut app, block_egress, sky_egress);
+
+        app.update();
+
+        let incoming = app
+            .world()
+            .get::<BlockIncoming>(chunk_below)
+            .expect("chunk_below has BlockIncoming");
+        assert_eq!(incoming.0.len(), 1, "exactly one wavefront delivered");
+        let w = incoming.0[0];
+        assert_eq!(w.face(), Direction::Up.index() as u8, "dest frame: Up");
+        assert_eq!(w.cell_x(), 0);
+        assert_eq!(w.cell_z(), 0);
+        assert_eq!(w.level(), 14, "block Down-face: manhattan_preattenuate(15, 1) = 14");
+    }
+
+    #[test]
+    fn sky_down_face_egress_keeps_full_level() {
+        let mut app = build_app();
+        let down = Direction::Down.index() as u8;
+        let block_egress: SmallVec<[Wavefront; 8]> = SmallVec::new();
+        let mut sky_egress: SmallVec<[Wavefront; 8]> = SmallVec::new();
+        sky_egress.push(Wavefront::new(down, 0, 0, 15));
+        let (_dim, _col, _above, chunk_below) =
+            make_two_chunk_column(&mut app, block_egress, sky_egress);
+
+        app.update();
+
+        let incoming = app
+            .world()
+            .get::<SkyIncoming>(chunk_below)
+            .expect("chunk_below has SkyIncoming");
+        assert_eq!(incoming.0.len(), 1, "exactly one wavefront delivered");
+        let w = incoming.0[0];
+        assert_eq!(w.face(), Direction::Up.index() as u8, "dest frame: Up");
+        assert_eq!(w.cell_x(), 0);
+        assert_eq!(w.cell_z(), 0);
+        assert_eq!(w.level(), 15, "sky Down-face: no attenuation (column-walker free-fall)");
     }
 
     #[test]
