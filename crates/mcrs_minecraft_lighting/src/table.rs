@@ -130,7 +130,7 @@ pub fn build_block_light_table(
 mod tests {
     use super::*;
     use mcrs_core::resource_location::ResourceLocation;
-    use mcrs_vanilla::block::behaviour::{LightSpec, OcclusionSpec};
+    use mcrs_vanilla::block::behaviour::LightSpec;
 
     fn make_block(
         id: &'static str,

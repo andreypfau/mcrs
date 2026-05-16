@@ -1,12 +1,11 @@
 //! Internal block-light BFS state.
 //!
-//! `BfsEntry(u64)` is the per-cell queue entry used by `propagate_increase`
-//! and `propagate_decrease`. It is intentionally distinct from
-//! `components::Wavefront(u32)`, which is the cross-section egress
-//! representation pushed onto `BlockEgress` at face boundaries. The two
-//! types differ in width and field set: `BfsEntry` carries Y plus a 6-bit
-//! direction bitset and a 3-bit flag field, neither of which `Wavefront`
-//! needs.
+//! The per-cell queue entry is a packed `u64` built by `pack_bfs_entry`
+//! and consumed in place by the BFS bodies. It is intentionally distinct
+//! from `components::Wavefront(u32)`, which is the cross-section egress
+//! representation pushed onto `BlockEgress` at face boundaries. The
+//! intra-cell entry carries Y plus a 6-bit direction bitset and a 3-bit
+//! flag field, none of which `Wavefront` needs.
 
 use mcrs_core::voxel_shape::{Direction, VoxelShape};
 use mcrs_minecraft_block::palette::BlockPalette;
@@ -19,8 +18,6 @@ pub(crate) const FLAG_HAS_SIDED_TRANSPARENT_BLOCKS: u8 = 1 << 0;
 pub(crate) const FLAG_RECHECK_LEVEL: u8 = 1 << 1;
 pub(crate) const FLAG_WRITE_LEVEL: u8 = 1 << 2;
 pub(crate) const ALL_DIRECTIONS_BITSET: u8 = 0b111111;
-
-pub(crate) struct BfsEntry(pub(crate) u64);
 
 #[inline]
 pub(crate) const fn pack_bfs_entry(

@@ -83,15 +83,6 @@ pub(crate) enum ResolveOutcome {
     OutOfRange,
 }
 
-/// Debug-only resolve-path tag used by the vertical/horizontal parity unit
-/// test to assert vertical and horizontal traverse the same helper code path.
-#[cfg(debug_assertions)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ResolvePath {
-    Vertical,
-    Horizontal,
-}
-
 /// Resolve the destination of a wavefront. Up/Down route through the source
 /// column's `ColumnChunks`; N/S/E/W route through the dimension's
 /// `ColumnIndex` to find the neighbour column entity, then its
@@ -166,30 +157,6 @@ pub(crate) fn resolve_neighbor_section(
             })
         }
     }
-}
-
-#[cfg(debug_assertions)]
-pub(crate) fn resolve_neighbor_section_tagged(
-    src_chunk_pos: ChunkPos,
-    src_in_col: InColumn,
-    src_in_dim: InDimension,
-    face: Direction,
-    column_indexes: &Query<&ColumnIndex>,
-    section_indexes: &Query<&ColumnChunks>,
-) -> Option<(ResolveOutcome, ResolvePath)> {
-    let path = match face {
-        Direction::Up | Direction::Down => ResolvePath::Vertical,
-        _ => ResolvePath::Horizontal,
-    };
-    resolve_neighbor_section(
-        src_chunk_pos,
-        src_in_col,
-        src_in_dim,
-        face,
-        column_indexes,
-        section_indexes,
-    )
-    .map(|out| (out, path))
 }
 
 #[inline]
@@ -790,87 +757,6 @@ mod tests {
             .get::<BlockIncoming>(section_b)
             .expect("section_b has BlockIncoming");
         assert_eq!(incoming.0[0].level(), 9, "10 - 1 = 9 on face-adjacent route");
-    }
-
-    #[test]
-    #[cfg(debug_assertions)]
-    fn distribute_vertical_resolve_path_equals_horizontal() {
-        // Vertical (Up/Down) and horizontal (N/S/E/W) wavefronts both go
-        // through `resolve_neighbor_section`. The debug-only tagged variant
-        // returns `ResolvePath::Vertical` for Up/Down and
-        // `ResolvePath::Horizontal` for N/S/E/W, proving both share the same
-        // helper.
-        let mut app = App::new();
-        let dim = spawn_dimension(&mut app);
-        let col_a = spawn_column(&mut app, 0, 2);
-        let col_b = spawn_column(&mut app, 0, 1);
-        register_column(&mut app, dim, ColumnPos::new(0, 0), col_a);
-        register_column(&mut app, dim, ColumnPos::new(1, 0), col_b);
-        let _section_a0 = spawn_block_section(
-            &mut app,
-            ChunkPos::new(0, 0, 0),
-            col_a,
-            dim,
-            SmallVec::new(),
-        );
-        let _section_a1 = spawn_block_section(
-            &mut app,
-            ChunkPos::new(0, 1, 0),
-            col_a,
-            dim,
-            SmallVec::new(),
-        );
-        let _section_b = spawn_block_section(
-            &mut app,
-            ChunkPos::new(1, 0, 0),
-            col_b,
-            dim,
-            SmallVec::new(),
-        );
-
-        #[derive(Resource, Default)]
-        struct Probe {
-            vertical: Option<ResolvePath>,
-            horizontal: Option<ResolvePath>,
-        }
-
-        app.insert_resource(Probe::default());
-
-        let src_chunk_pos = ChunkPos::new(0, 0, 0);
-        let src_in_col = InColumn(col_a);
-        let src_in_dim = InDimension(dim);
-        app.add_systems(
-            Update,
-            move |column_indexes: Query<&ColumnIndex>,
-                  section_indexes: Query<&ColumnChunks>,
-                  mut probe: ResMut<Probe>| {
-                if let Some((_o, p)) = resolve_neighbor_section_tagged(
-                    src_chunk_pos,
-                    src_in_col,
-                    src_in_dim,
-                    Direction::Up,
-                    &column_indexes,
-                    &section_indexes,
-                ) {
-                    probe.vertical = Some(p);
-                }
-                if let Some((_o, p)) = resolve_neighbor_section_tagged(
-                    src_chunk_pos,
-                    src_in_col,
-                    src_in_dim,
-                    Direction::East,
-                    &column_indexes,
-                    &section_indexes,
-                ) {
-                    probe.horizontal = Some(p);
-                }
-            },
-        );
-        app.update();
-
-        let probe = app.world().resource::<Probe>();
-        assert_eq!(probe.vertical, Some(ResolvePath::Vertical));
-        assert_eq!(probe.horizontal, Some(ResolvePath::Horizontal));
     }
 
     #[test]

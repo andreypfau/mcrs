@@ -13,8 +13,3 @@ pub enum LightingSet {
     EmitDirty,
     Codec,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-}

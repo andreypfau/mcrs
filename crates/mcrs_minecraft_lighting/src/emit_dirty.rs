@@ -42,7 +42,7 @@ pub fn downgrade_light_storage(
 ) {
     for (mut block_light, mut sky_light_opt) in sections.iter_mut() {
         downgrade_storage_in_place(&mut block_light.0);
-        if let Some(mut sky_light) = sky_light_opt.as_deref_mut() {
+        if let Some(sky_light) = sky_light_opt.as_deref_mut() {
             downgrade_storage_in_place(&mut sky_light.0);
         }
     }
@@ -204,7 +204,7 @@ mod tests {
     use super::*;
     use crate::components::{
         BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, LightDirty, SkyEgress,
-        SkyIncoming, SkyLight, SkyLightWorkspace, Wavefront,
+        SkyIncoming, SkyLightWorkspace, Wavefront,
     };
     use crate::nibble::NibbleArray;
     use bevy_app::{App, Update};

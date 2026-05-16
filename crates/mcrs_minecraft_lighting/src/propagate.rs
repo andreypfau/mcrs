@@ -108,11 +108,11 @@ pub fn propagate_decrease_block_system(
     #[cfg(feature = "lighting-trace")]
     let _span = tracing::info_span!("propagate_decrease", section_count = section_count).entered();
     sections.par_iter_mut().for_each(
-        |(entity, palette, mut light, mut workspace, mut egress, mut incoming)| {
+        |(_entity, palette, mut light, mut workspace, mut egress, mut incoming)| {
             drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
             propagate_decrease(&table, palette, &mut light.0, &mut workspace, &mut egress);
             #[cfg(feature = "lighting-trace")]
-            tracing::debug!(section = ?entity, queue_len = workspace.decrease_queue.len(), "section bfs decrease block");
+            tracing::debug!(section = ?_entity, queue_len = workspace.decrease_queue.len(), "section bfs decrease block");
         },
     );
 }
@@ -170,11 +170,11 @@ pub fn propagate_decrease_sky_system(
     #[cfg(feature = "lighting-trace")]
     let _span = tracing::info_span!("propagate_decrease_sky", section_count = section_count).entered();
     sections.par_iter_mut().for_each(
-        |(entity, palette, mut light, mut workspace, mut egress, mut incoming)| {
+        |(_entity, palette, mut light, mut workspace, mut egress, mut incoming)| {
             drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
             propagate_decrease_sky(&table, palette, &mut light.0, &mut workspace, &mut egress);
             #[cfg(feature = "lighting-trace")]
-            tracing::debug!(section = ?entity, queue_len = workspace.decrease_queue.len(), "section bfs decrease sky");
+            tracing::debug!(section = ?_entity, queue_len = workspace.decrease_queue.len(), "section bfs decrease sky");
         },
     );
 }

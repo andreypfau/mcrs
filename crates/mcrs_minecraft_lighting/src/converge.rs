@@ -13,7 +13,6 @@
 //! every termination path increments `LIGHT_CONVERGE_ITERATIONS_TOTAL` by
 //! the number of iterations consumed this tick.
 
-use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::ScheduleLabel;
 use std::sync::atomic::Ordering;
@@ -122,6 +121,7 @@ pub fn light_converge_driver(world: &mut World) {
 mod tests {
     use super::*;
     use crate::telemetry::TELEMETRY_TEST_LOCK;
+    use bevy_app::App;
     use bevy_ecs::schedule::Schedule;
 
     #[test]

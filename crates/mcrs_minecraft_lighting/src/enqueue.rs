@@ -15,7 +15,7 @@
 //! lifecycle-ordering hazard.
 
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Added, Commands, Entity, ParamSet, Query, Res, With, Without};
+use bevy_ecs::prelude::{Added, Commands, Entity, ParamSet, Query, Res, With};
 use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
@@ -426,7 +426,6 @@ pub fn seed_initial_light(
     // p1() borrows simultaneously. For each section in p0(), determine block
     // emitters, sky seeding, and a "previously-topmost invalidate" target.
     struct Plan {
-        section: Entity,
         column: Entity,
         seeded_topmost: bool,
         new_chunk_y: i32,
@@ -691,7 +690,6 @@ pub fn seed_initial_light(
                 .remove::<ChunkNeedsInitialLight>();
 
             plans.push(Plan {
-                section: section_entity,
                 column: in_col.0,
                 seeded_topmost,
                 new_chunk_y: chunk_pos.y,

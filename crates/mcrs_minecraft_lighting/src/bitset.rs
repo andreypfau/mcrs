@@ -8,9 +8,6 @@
 pub struct BitSet256([u64; 4]);
 
 impl BitSet256 {
-    /// All 256 bits set.
-    pub const FULL: Self = Self([u64::MAX; 4]);
-
     #[inline]
     pub fn is_set(&self, idx: usize) -> bool {
         debug_assert!(idx < 256);
@@ -55,7 +52,6 @@ mod tests {
             all.set(idx);
         }
         assert!(all.is_full(), "bitset with every bit set must report full");
-        assert_eq!(all, BitSet256::FULL, "bitset matches FULL constant");
 
         // High-word boundary: setting bits 0..=254 must leave is_full() == false.
         let mut almost = BitSet256::default();
@@ -71,12 +67,11 @@ mod tests {
     }
 
     #[test]
-    fn full_constant_matches_repeated_set() {
+    fn full_bitset_is_full() {
         let mut b = BitSet256::default();
         for idx in 0..256 {
             b.set(idx);
         }
-        assert_eq!(b, BitSet256::FULL);
         assert!(b.is_full());
     }
 

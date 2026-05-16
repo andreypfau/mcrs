@@ -23,7 +23,7 @@
 // duration of the system; no manual locking is needed.
 use crate::table::{flag_bits, BlockLightTable};
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Entity, Query, Res};
+use bevy_ecs::prelude::{Query, Res};
 use mcrs_engine::world::column::{Heightmaps, InColumn, ColumnChunks};
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
