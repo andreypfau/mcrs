@@ -33,8 +33,14 @@ use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 
-const TEST_DIM_HEIGHT: u32 = 384;
-const TEST_DIM_MIN_Y: i32 = -64;
+// Single-pass scan contract: the heightmap reflects only XZ columns the
+// scan has already closed. The tests below spawn a section at chunk_y=0,
+// so the dim is sized so chunk_y=0 is the topmost section — guaranteeing
+// the scan finalizes immediately on the section's first row. A 3-section
+// dim with min_y=-32 keeps the BlockPos(0, -30, 0) below-surface case
+// inside the dimension's Y bounds.
+const TEST_DIM_HEIGHT: u32 = 48;
+const TEST_DIM_MIN_Y: i32 = -32;
 const AIR_STATE: BlockStateId = BlockStateId(0);
 const SOLID_STATE: BlockStateId = BlockStateId(1);
 
