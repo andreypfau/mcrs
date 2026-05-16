@@ -6,7 +6,7 @@ use mcrs_minecraft::ServerPlugin;
 mod chunk_render_debug;
 
 const LOG_FILTER: &str =
-    "mcrs_minecraft=debug,mcrs_minecraft::world::entity::player::digging=trace,mcrs_minecraft::world::entity::player::column_view=trace,mcrs_engine::entity::player::chunk_view=trace,mcrs_engine::world::chunk=debug,mcrs_network=debug";
+    "mcrs_minecraft=debug,mcrs_minecraft::world::entity::player::digging=trace,mcrs_minecraft::world::entity::player::column_view=trace,mcrs_engine::entity::player::chunk_view=trace,mcrs_engine::world::chunk=debug,mcrs_network=debug,mcrs_lighting::case_a_cave=warn,mcrs_lighting::chimney_to_bedrock=warn,mcrs_lighting::needs_full_reseed=warn,mcrs_lighting::consume_reseed=warn";
 
 #[tokio::main]
 async fn main() {
