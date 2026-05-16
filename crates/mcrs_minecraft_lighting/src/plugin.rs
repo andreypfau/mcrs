@@ -227,8 +227,7 @@ impl Plugin for LightingPlugin {
             FixedUpdate,
             (
                 downgrade_light_storage,
-                emit_block_light_dirty,
-                emit_sky_light_dirty,
+                (emit_block_light_dirty, emit_sky_light_dirty),
                 clear_light_dirty_safety_net,
                 clear_light_tickets,
             )
@@ -279,6 +278,7 @@ impl Plugin for LightingPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy_ecs::prelude::SystemSet;
     use bevy_ecs::schedule::Schedules;
     use bevy_state::app::{AppExtStates, StatesPlugin};
     use mcrs_engine::world::column::ColumnPlugin;
@@ -313,6 +313,65 @@ mod tests {
             schedule.systems_len() >= 4,
             "LightConvergeSchedule should contain at least four systems; got {}",
             schedule.systems_len()
+        );
+    }
+
+    #[test]
+    fn emit_systems_register_in_parallel_after_downgrade() {
+        let app = build_test_app();
+        let schedules = app.world().resource::<Schedules>();
+        let schedule = schedules
+            .get(FixedUpdate)
+            .expect("FixedUpdate schedule registered");
+        let graph = schedule.graph();
+
+        let find_key = |needle: &str| -> bevy_ecs::schedule::SystemKey {
+            graph
+                .systems
+                .iter()
+                .find_map(|(key, system, _conditions)| {
+                    format!("{}", system.name()).contains(needle).then_some(key)
+                })
+                .unwrap_or_else(|| panic!("system `{needle}` not found in FixedUpdate"))
+        };
+
+        let block_key = find_key("emit_block_light_dirty");
+        let sky_key = find_key("emit_sky_light_dirty");
+        let downgrade_key = find_key("downgrade_light_storage");
+
+        let emit_dirty_set_key = graph
+            .system_sets
+            .get_key(LightingSet::EmitDirty.intern())
+            .expect("LightingSet::EmitDirty registered as a SystemSet");
+        let emit_dirty_node: bevy_ecs::schedule::NodeId = emit_dirty_set_key.into();
+
+        let hierarchy = graph.hierarchy().graph();
+        for (member, label) in [
+            (block_key, "emit_block_light_dirty"),
+            (sky_key, "emit_sky_light_dirty"),
+            (downgrade_key, "downgrade_light_storage"),
+        ] {
+            assert!(
+                hierarchy.contains_edge(emit_dirty_node, member.into()),
+                "{label} should sit inside LightingSet::EmitDirty"
+            );
+        }
+
+        let dependency = graph.dependency().graph();
+        let edge_between_emit = dependency.contains_edge(block_key.into(), sky_key.into())
+            || dependency.contains_edge(sky_key.into(), block_key.into());
+        assert!(
+            !edge_between_emit,
+            "emit_block_light_dirty and emit_sky_light_dirty should have no required ordering edge — the inner tuple slots them in parallel"
+        );
+
+        assert!(
+            dependency.contains_edge(downgrade_key.into(), block_key.into()),
+            "outer chain should order downgrade_light_storage before emit_block_light_dirty"
+        );
+        assert!(
+            dependency.contains_edge(downgrade_key.into(), sky_key.into()),
+            "outer chain should order downgrade_light_storage before emit_sky_light_dirty"
         );
     }
 }
