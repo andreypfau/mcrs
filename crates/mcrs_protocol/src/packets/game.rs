@@ -62,6 +62,13 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x22, state=Game)]
+    pub struct ClientboundEntityEvent {
+        pub entity_id: i32,
+        pub entity_status: i8,
+    }
+
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x23, state=Game)]
     pub struct ClientboundEntityPositionSync {
         pub entity_id: VarInt,

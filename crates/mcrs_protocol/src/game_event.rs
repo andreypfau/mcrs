@@ -1,4 +1,4 @@
-use crate::{Decode, Encode};
+use crate::{Decode, Encode, GameMode};
 use std::io::Write;
 
 #[derive(Debug, Clone, Copy)]
@@ -6,7 +6,7 @@ pub enum GameEventKind {
     NoRespawnBlockAvailable,
     EndRaining,
     BeginRaining,
-    ChangeGameMode,
+    ChangeGameMode(GameMode),
     WinGame(EnterCredits),
     DemoEvent(DemoMessage),
     PlayArrowHitSound,
@@ -25,7 +25,7 @@ impl Encode for GameEventKind {
             GameEventKind::NoRespawnBlockAvailable => (0, 0f32),
             GameEventKind::EndRaining => (1, 0f32),
             GameEventKind::BeginRaining => (2, 0f32),
-            GameEventKind::ChangeGameMode => (3, 0f32),
+            GameEventKind::ChangeGameMode(mode) => (3, *mode as u8 as f32),
             GameEventKind::WinGame(credits) => (
                 4,
                 match credits {
@@ -68,7 +68,16 @@ impl<'a> Decode<'a> for GameEventKind {
             0 => Ok(GameEventKind::NoRespawnBlockAvailable),
             1 => Ok(GameEventKind::EndRaining),
             2 => Ok(GameEventKind::BeginRaining),
-            3 => Ok(GameEventKind::ChangeGameMode),
+            3 => {
+                let mode = match param as i32 {
+                    0 => GameMode::Survival,
+                    1 => GameMode::Creative,
+                    2 => GameMode::Adventure,
+                    3 => GameMode::Spectator,
+                    _ => return Err(anyhow::anyhow!("invalid GameMode value: {param}")),
+                };
+                Ok(GameEventKind::ChangeGameMode(mode))
+            }
             4 => {
                 let credits = match param as i32 {
                     0 => EnterCredits::SeenBefore,
