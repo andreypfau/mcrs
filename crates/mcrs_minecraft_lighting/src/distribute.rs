@@ -24,7 +24,6 @@ use bevy_ecs::prelude::*;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use crate::bfs::project_face_cell;
 use crate::components::{
     BlockEgress, BlockIncoming, BlockPendingEgress, LightDirty, NeedsFullReseed, SkyEgress,
     SkyIncoming, SkyPendingEgress, Wavefront,
@@ -583,14 +582,6 @@ fn drain_sky_egress(
             }
         }
     }
-}
-
-// Anchor symbol consumed by the neighbour-edge pull system in `enqueue.rs`.
-// Reference documents the export contract without introducing an
-// unused-import warning while that system is still being filled in.
-#[allow(dead_code)]
-fn _project_face_cell_anchor() {
-    let _ = project_face_cell;
 }
 
 #[cfg(test)]
