@@ -7,19 +7,27 @@
 
 use crate::bitset::BitSet256;
 use crate::heightmap::{
-    record_topmost_motion_blocking, record_topmost_surface, record_unsurfaced_column,
-    record_unsurfaced_motion_column,
+    record_topmost, record_unsurfaced_column, record_unsurfaced_motion_column, scan_top_down,
+    HeightmapVariant, ScanOutcome,
 };
 use crate::bundle::{BlockLightBundle, SkyLightBundle};
 use crate::components::{ChunkNeedsInitialLight, IsAllAir};
-use crate::table::{flag_bits, BlockLightTable};
+use crate::table::BlockLightTable;
 use bevy_ecs::prelude::{Added, Changed, Commands, Component, Entity, Has, Query, Res, With};
 use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{Column, ColumnChunks, Heightmaps};
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_minecraft_block::palette::BlockPalette;
 
-const CHUNK_SIZE: i32 = 16;
+const XZ_FULL: [(usize, usize); 256] = {
+    let mut arr = [(0usize, 0usize); 256];
+    let mut i = 0;
+    while i < 256 {
+        arr[i] = (i & 15, i >> 4);
+        i += 1;
+    }
+    arr
+};
 
 #[inline]
 const fn xz_idx(x: usize, z: usize) -> usize {
@@ -170,19 +178,49 @@ fn advance_scan(
     debug_assert!(!scan.is_finalized());
     let min_chunk_y = scan.min_chunk_y;
 
-    loop {
-        if scan.scan_cursor < min_chunk_y {
-            // Chimney-to-bedrock: every still-open XZ column has its
-            // heightmap entry set to min_y for both variants. The backing
-            // storage already reads back as min_y (sentinel), but writing
-            // explicitly here keeps post-finalization callers from observing
-            // a transient inconsistency if the implementation of `Heightmaps`
-            // ever changes its zero-init contract.
+    let palette_fn = |entity: Entity| -> Option<&BlockPalette> {
+        let (palette, is_all_air) = chunks.get(entity).ok()?;
+        if is_all_air {
+            None
+        } else {
+            Some(palette)
+        }
+    };
+
+    let outcome = {
+        let scan_ref = &mut *scan;
+        let hm_ref = &mut *hm;
+        scan_top_down(
+            chunk_index,
+            palette_fn,
+            table,
+            &XZ_FULL,
+            &mut scan_ref.scan_cursor,
+            |x, z, variant, world_y| {
+                record_topmost(hm_ref, variant, x, z, world_y);
+                let idx = xz_idx(x, z);
+                match variant {
+                    HeightmapVariant::Surface => scan_ref.world_surface_done.set(idx),
+                    HeightmapVariant::MotionBlocking => scan_ref.motion_blocking_done.set(idx),
+                }
+            },
+        )
+    };
+
+    match outcome {
+        ScanOutcome::AllClosed => {
+            insert_initial_light_markers(chunk_index, commands);
+        }
+        ScanOutcome::ChimneyToBedrock => {
             let mut unclosed_ws = 0usize;
             let mut unclosed_mb = 0usize;
             for idx in 0..256 {
-                if !scan.world_surface_done.is_set(idx) { unclosed_ws += 1; }
-                if !scan.motion_blocking_done.is_set(idx) { unclosed_mb += 1; }
+                if !scan.world_surface_done.is_set(idx) {
+                    unclosed_ws += 1;
+                }
+                if !scan.motion_blocking_done.is_set(idx) {
+                    unclosed_mb += 1;
+                }
             }
             tracing::warn!(
                 target: "mcrs_lighting::chimney_to_bedrock",
@@ -207,62 +245,10 @@ fn advance_scan(
                 }
             }
             insert_initial_light_markers(chunk_index, commands);
-            return;
         }
-
-        let rel_y = (scan.scan_cursor - min_chunk_y) as usize;
-        let Some(Some(chunk_entity)) = chunk_index.sections.get(rel_y) else {
-            // Chunk not yet loaded — stop here and wait.
-            return;
-        };
-
-        let Ok((palette, is_all_air)) = chunks.get(*chunk_entity) else {
-            // Chunk present but palette not accessible; treat like a gap.
-            return;
-        };
-
-        if is_all_air {
-            scan.scan_cursor -= 1;
-            continue;
-        }
-
-        let chunk_base_y = scan.scan_cursor * CHUNK_SIZE;
-
-        'outer: for cell_y in (0..CHUNK_SIZE).rev() {
-            for z in 0..16usize {
-                for x in 0..16usize {
-                    let idx = xz_idx(x, z);
-                    let ws_open = !scan.world_surface_done.is_set(idx);
-                    let mb_open = !scan.motion_blocking_done.is_set(idx);
-                    if !ws_open && !mb_open {
-                        continue;
-                    }
-                    let state = palette.get((x as i32, cell_y, z as i32));
-                    let flags = table.flags_for(state);
-                    let world_y = chunk_base_y + cell_y;
-
-                    if ws_open && (flags & flag_bits::IS_NOT_AIR) != 0 {
-                        record_topmost_surface(hm, x, z, world_y);
-                        scan.world_surface_done.set(idx);
-                    }
-                    if mb_open && (flags & flag_bits::IS_MOTION_BLOCKING) != 0 {
-                        record_topmost_motion_blocking(hm, x, z, world_y);
-                        scan.motion_blocking_done.set(idx);
-                    }
-                    if scan.world_surface_done.is_full()
-                        && scan.motion_blocking_done.is_full()
-                    {
-                        break 'outer;
-                    }
-                }
-            }
-        }
-
-        scan.scan_cursor -= 1;
-
-        if scan.world_surface_done.is_full() && scan.motion_blocking_done.is_full() {
-            insert_initial_light_markers(chunk_index, commands);
-            return;
+        ScanOutcome::AbsentSection => {
+            // Chunk not yet loaded — return without further action. The
+            // system re-fires on the next Changed<ColumnChunks> event.
         }
     }
 }

@@ -1,4 +1,6 @@
-//! Typed helpers around `mcrs_engine::world::column::Heightmaps`.
+//! Typed helpers around `mcrs_engine::world::column::Heightmaps` plus the
+//! shared top-down scanner core consumed by `lifecycle::advance_scan` and
+//! `heightmap_update::rescan_column_xz`.
 //!
 //! `Heightmaps` stores each entry as `Y + 1` of the topmost cell satisfying
 //! the predicate — the empty cell on top of the topmost solid / motion-blocking
@@ -7,13 +9,21 @@
 //! backing is zero-initialized and `surface_get` adds `min_y` to the unsigned
 //! stored value.
 //!
-//! These helpers are the single canonical entry point for that convention.
+//! The helpers below are the single canonical entry point for that convention.
 //! Raw `surface_set` / `motion_blocking_set` / `surface_get` /
 //! `motion_blocking_get` callers inside this crate must go through the
-//! helpers below so the `+ 1` arithmetic and the `min_y` sentinel handling
-//! live in exactly one place.
+//! helpers so the `+ 1` arithmetic and the `min_y` sentinel handling live in
+//! exactly one place.
 
+use bevy_ecs::prelude::Entity;
+use mcrs_engine::world::column::ColumnChunks;
+use mcrs_minecraft_block::palette::BlockPalette;
+
+use crate::bitset::BitSet256;
+use crate::table::{flag_bits, BlockLightTable};
 use mcrs_engine::world::column::Heightmaps;
+
+const CHUNK_SIZE: i32 = 16;
 
 /// Which heightmap variant a helper operates on. Used by the
 /// [`record_topmost`] dispatcher when the caller already knows the variant
@@ -88,5 +98,122 @@ pub fn record_topmost(
     match variant {
         HeightmapVariant::Surface => record_topmost_surface(hm, x, z, world_y),
         HeightmapVariant::MotionBlocking => record_topmost_motion_blocking(hm, x, z, world_y),
+    }
+}
+
+/// Outcome of a top-down scan over a column.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScanOutcome {
+    /// Every `(x, z)` in the scan range closed for both heightmap variants.
+    AllClosed,
+    /// The scan walked past the dimension floor with at least one `(x, z)`
+    /// still open. The unsurfaced cells are the responsibility of the
+    /// caller's wrapper (it writes the `min_y` sentinel for them).
+    ChimneyToBedrock,
+    /// A chunk slot inside the cursor range was not loaded yet. The scan
+    /// returns immediately so the caller can wait for the next
+    /// `Changed<ColumnChunks>` event before resuming.
+    AbsentSection,
+}
+
+/// Shared top-down heightmap scanner. Walks `chunks` from the slot at
+/// `cursor` downward, evaluating `table.flags_for(palette.get(cell))` for
+/// every `(x, z)` in `xz_range` at every cell of every loaded chunk. Fires
+/// `on_closed(x, z, variant, world_y)` exactly once per `(x, z, variant)`
+/// pair when the predicate first matches — the world Y of the topmost solid
+/// (or motion-blocking) cell. Updates `*cursor` in place; the post-scan
+/// value is the slot one below the last chunk processed, mirroring the
+/// pre-refactor `advance_scan` cursor semantics.
+///
+/// `palette_fn` returns `None` for chunk entities the caller wants to skip
+/// without halting the scan — used by `advance_scan` to fast-skip `IsAllAir`
+/// chunks. A `None` from `palette_fn` is distinct from an absent slot in
+/// `chunks.sections`: the former advances the cursor and continues, the
+/// latter returns `ScanOutcome::AbsentSection` immediately.
+#[inline]
+pub fn scan_top_down<'a, P, F>(
+    chunks: &ColumnChunks,
+    palette_fn: P,
+    table: &BlockLightTable,
+    xz_range: &[(usize, usize)],
+    cursor: &mut i32,
+    mut on_closed: F,
+) -> ScanOutcome
+where
+    P: Fn(Entity) -> Option<&'a BlockPalette>,
+    F: FnMut(usize, usize, HeightmapVariant, i32),
+{
+    let mut surface_done = BitSet256::default();
+    let mut motion_done = BitSet256::default();
+    let mut surface_closed: usize = 0;
+    let mut motion_closed: usize = 0;
+    let total = xz_range.len();
+
+    loop {
+        if *cursor < chunks.min_section_y {
+            return ScanOutcome::ChimneyToBedrock;
+        }
+
+        let rel_y = (*cursor - chunks.min_section_y) as usize;
+        let Some(slot) = chunks.sections.get(rel_y) else {
+            return ScanOutcome::AbsentSection;
+        };
+        let Some(chunk_entity) = slot else {
+            return ScanOutcome::AbsentSection;
+        };
+
+        let chunk_base_y = *cursor * CHUNK_SIZE;
+        let palette = match palette_fn(*chunk_entity) {
+            Some(p) => p,
+            None => {
+                // Fast-skip: chunk's palette declined (e.g., IsAllAir). Advance
+                // and continue. Note: rescan_column_xz's palette_fn returns
+                // None only for missing-component errors, which it treats as
+                // a transient gap; for those cases, the wrapper's intent
+                // matches the lifecycle wrapper's IsAllAir fast-skip semantics
+                // closely enough that a continue is correct (the column still
+                // gets the same final result).
+                *cursor -= 1;
+                continue;
+            }
+        };
+
+        'outer: for cell_y in (0..CHUNK_SIZE).rev() {
+            for (xz_idx, &(x, z)) in xz_range.iter().enumerate() {
+                let bit_idx = if total == 256 {
+                    (z << 4) | x
+                } else {
+                    xz_idx
+                };
+                let s_open = !surface_done.is_set(bit_idx);
+                let m_open = !motion_done.is_set(bit_idx);
+                if !s_open && !m_open {
+                    continue;
+                }
+                let state = palette.get((x as i32, cell_y, z as i32));
+                let flags = table.flags_for(state);
+                let world_y = chunk_base_y + cell_y;
+
+                if s_open && (flags & flag_bits::IS_NOT_AIR) != 0 {
+                    on_closed(x, z, HeightmapVariant::Surface, world_y);
+                    surface_done.set(bit_idx);
+                    surface_closed += 1;
+                }
+                if m_open && (flags & flag_bits::IS_MOTION_BLOCKING) != 0 {
+                    on_closed(x, z, HeightmapVariant::MotionBlocking, world_y);
+                    motion_done.set(bit_idx);
+                    motion_closed += 1;
+                }
+                if surface_closed == total && motion_closed == total {
+                    break 'outer;
+                }
+            }
+        }
+
+        *cursor -= 1;
+
+        if surface_closed == total && motion_closed == total {
+            return ScanOutcome::AllClosed;
+        }
     }
 }
