@@ -184,92 +184,11 @@ fn rate_limited_xdim_log(
     }
 }
 
-pub fn distribute_decrease(
-    block_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut BlockEgress)>,
-    sky_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut SkyEgress)>,
-    block_incoming: Query<&mut BlockIncoming>,
-    sky_incoming: Query<&mut SkyIncoming>,
-    block_pending: Query<&mut BlockPendingEgress>,
-    sky_pending: Query<&mut SkyPendingEgress>,
-    in_dimensions: Query<&InDimension>,
-    chunk_indexes: Query<&ColumnChunks>,
-    column_indexes: Query<&ColumnIndex>,
-    block_stage: Local<Vec<(Entity, Wavefront)>>,
-    sky_stage: Local<Vec<(Entity, Wavefront)>>,
-    dirty_dedup: Local<EntityHashSet>,
-    last_xdim_log: Local<Option<Instant>>,
-    commands: Commands,
-) {
-    #[cfg(feature = "lighting-trace")]
-    let block_egress_count = block_sources.iter().count();
-    #[cfg(feature = "lighting-trace")]
-    let sky_egress_count = sky_sources.iter().count();
-    #[cfg(feature = "lighting-trace")]
-    let _span = tracing::info_span!("distribute_decrease", block_egress_count = block_egress_count, sky_egress_count = sky_egress_count).entered();
-    distribute_inner(
-        block_sources,
-        sky_sources,
-        block_incoming,
-        sky_incoming,
-        block_pending,
-        sky_pending,
-        in_dimensions,
-        chunk_indexes,
-        column_indexes,
-        block_stage,
-        sky_stage,
-        dirty_dedup,
-        last_xdim_log,
-        commands,
-    );
-}
-
-pub fn distribute_increase(
-    block_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut BlockEgress)>,
-    sky_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut SkyEgress)>,
-    block_incoming: Query<&mut BlockIncoming>,
-    sky_incoming: Query<&mut SkyIncoming>,
-    block_pending: Query<&mut BlockPendingEgress>,
-    sky_pending: Query<&mut SkyPendingEgress>,
-    in_dimensions: Query<&InDimension>,
-    chunk_indexes: Query<&ColumnChunks>,
-    column_indexes: Query<&ColumnIndex>,
-    block_stage: Local<Vec<(Entity, Wavefront)>>,
-    sky_stage: Local<Vec<(Entity, Wavefront)>>,
-    dirty_dedup: Local<EntityHashSet>,
-    last_xdim_log: Local<Option<Instant>>,
-    commands: Commands,
-) {
-    #[cfg(feature = "lighting-trace")]
-    let block_egress_count = block_sources.iter().count();
-    #[cfg(feature = "lighting-trace")]
-    let sky_egress_count = sky_sources.iter().count();
-    #[cfg(feature = "lighting-trace")]
-    let _span = tracing::info_span!("distribute_increase", block_egress_count = block_egress_count, sky_egress_count = sky_egress_count).entered();
-    // `distribute_increase` and `distribute_decrease` route wavefronts the
-    // same way; the increase-versus-decrease distinction lives entirely in
-    // the intra-chunk BFS that produced the wavefront. The two systems
-    // exist separately so they can be scheduled at distinct points in
-    // `LightConvergeSchedule` even though they share the same body.
-    distribute_inner(
-        block_sources,
-        sky_sources,
-        block_incoming,
-        sky_incoming,
-        block_pending,
-        sky_pending,
-        in_dimensions,
-        chunk_indexes,
-        column_indexes,
-        block_stage,
-        sky_stage,
-        dirty_dedup,
-        last_xdim_log,
-        commands,
-    );
-}
-
-fn distribute_inner(
+/// Single cross-chunk routing body registered at both
+/// `LightConvergeSet::DistributeDecrease` and `LightConvergeSet::DistributeIncrease`.
+/// The two registrations produce distinct `SystemId`s with independent `Local` state;
+/// the body is identical.
+pub fn distribute_cross_chunk_wavefronts(
     mut block_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut BlockEgress)>,
     mut sky_sources: Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut SkyEgress)>,
     mut block_incoming: Query<&mut BlockIncoming>,
@@ -285,6 +204,13 @@ fn distribute_inner(
     mut last_xdim_log: Local<Option<Instant>>,
     mut commands: Commands,
 ) {
+    #[cfg(feature = "lighting-trace")]
+    let block_egress_count = block_sources.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let sky_egress_count = sky_sources.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let _span = tracing::info_span!("distribute_cross_chunk", block_egress_count, sky_egress_count).entered();
+
     block_stage.clear();
     sky_stage.clear();
     dirty_dedup.clear();
@@ -555,14 +481,28 @@ fn drain_sky_egress(
 mod tests {
     use super::*;
     use bevy_app::{App, Update};
+    use bevy_ecs::prelude::IntoScheduleConfigs;
+    use bevy_ecs::schedule::Schedule;
     use mcrs_engine::world::column::{ColumnPos, ColumnSlot};
     use smallvec::SmallVec;
 
+    use crate::converge::{LightConvergeSchedule, LightConvergeSet};
     use crate::telemetry::TELEMETRY_TEST_LOCK;
 
     fn build_app() -> App {
         let mut app = App::new();
-        app.add_systems(Update, distribute_decrease);
+        app.add_systems(Update, distribute_cross_chunk_wavefronts);
+        app
+    }
+
+    fn build_single_stage_app(stage: LightConvergeSet) -> App {
+        let mut app = App::new();
+        app.add_schedule(Schedule::new(LightConvergeSchedule));
+        app.add_systems(
+            LightConvergeSchedule,
+            distribute_cross_chunk_wavefronts.in_set(stage.clone()),
+        );
+        app.configure_sets(LightConvergeSchedule, stage);
         app
     }
 
@@ -669,6 +609,106 @@ mod tests {
 
         assert!(app.world().get::<LightDirty>(chunk_b).is_some());
         assert!(app.world().get::<LightTicket>(chunk_b).is_some());
+    }
+
+    #[test]
+    fn dual_stage_routing_is_identical_block() {
+        let east = Direction::East.index() as u8;
+
+        let mut app_dec = build_single_stage_app(LightConvergeSet::DistributeDecrease);
+        let mut egress_dec = SmallVec::new();
+        egress_dec.push(Wavefront::new(east, 4, 7, 8));
+        let (_dim, _col_a, _col_b, _chunk_a, chunk_b_dec) =
+            make_two_column_world(&mut app_dec, egress_dec);
+        app_dec.world_mut().run_schedule(LightConvergeSchedule);
+        let snap_decrease: Vec<Wavefront> = app_dec
+            .world()
+            .get::<BlockIncoming>(chunk_b_dec)
+            .expect("chunk_b has BlockIncoming")
+            .0
+            .to_vec();
+
+        let mut app_inc = build_single_stage_app(LightConvergeSet::DistributeIncrease);
+        let mut egress_inc = SmallVec::new();
+        egress_inc.push(Wavefront::new(east, 4, 7, 8));
+        let (_dim, _col_a, _col_b, _chunk_a, chunk_b_inc) =
+            make_two_column_world(&mut app_inc, egress_inc);
+        app_inc.world_mut().run_schedule(LightConvergeSchedule);
+        let snap_increase: Vec<Wavefront> = app_inc
+            .world()
+            .get::<BlockIncoming>(chunk_b_inc)
+            .expect("chunk_b has BlockIncoming")
+            .0
+            .to_vec();
+
+        assert_eq!(
+            snap_decrease, snap_increase,
+            "DistributeDecrease and DistributeIncrease produce identical BlockIncoming routing"
+        );
+        assert_eq!(snap_decrease.len(), 1, "exactly one wavefront delivered");
+        let w = snap_decrease[0];
+        assert_eq!(w.face(), Direction::West.index() as u8);
+        assert_eq!(w.cell_x(), 4);
+        assert_eq!(w.cell_z(), 7);
+        assert_eq!(w.level(), 7, "Manhattan-1 attenuated from 8 to 7");
+    }
+
+    #[test]
+    fn dual_stage_routing_is_identical_sky() {
+        let east = Direction::East.index() as u8;
+
+        let mut app_dec = build_single_stage_app(LightConvergeSet::DistributeDecrease);
+        let mut egress_dec: SmallVec<[Wavefront; 8]> = SmallVec::new();
+        egress_dec.push(Wavefront::new(east, 4, 7, 8));
+        let (_dim, _col_a, _col_b, chunk_a_dec, chunk_b_dec) =
+            make_two_column_world(&mut app_dec, SmallVec::new());
+        app_dec
+            .world_mut()
+            .entity_mut(chunk_a_dec)
+            .insert((SkyEgress(egress_dec), SkyPendingEgress::default()));
+        app_dec
+            .world_mut()
+            .entity_mut(chunk_b_dec)
+            .insert((SkyIncoming::default(), SkyPendingEgress::default()));
+        app_dec.world_mut().run_schedule(LightConvergeSchedule);
+        let snap_decrease: Vec<Wavefront> = app_dec
+            .world()
+            .get::<SkyIncoming>(chunk_b_dec)
+            .expect("chunk_b has SkyIncoming")
+            .0
+            .to_vec();
+
+        let mut app_inc = build_single_stage_app(LightConvergeSet::DistributeIncrease);
+        let mut egress_inc: SmallVec<[Wavefront; 8]> = SmallVec::new();
+        egress_inc.push(Wavefront::new(east, 4, 7, 8));
+        let (_dim, _col_a, _col_b, chunk_a_inc, chunk_b_inc) =
+            make_two_column_world(&mut app_inc, SmallVec::new());
+        app_inc
+            .world_mut()
+            .entity_mut(chunk_a_inc)
+            .insert((SkyEgress(egress_inc), SkyPendingEgress::default()));
+        app_inc
+            .world_mut()
+            .entity_mut(chunk_b_inc)
+            .insert((SkyIncoming::default(), SkyPendingEgress::default()));
+        app_inc.world_mut().run_schedule(LightConvergeSchedule);
+        let snap_increase: Vec<Wavefront> = app_inc
+            .world()
+            .get::<SkyIncoming>(chunk_b_inc)
+            .expect("chunk_b has SkyIncoming")
+            .0
+            .to_vec();
+
+        assert_eq!(
+            snap_decrease, snap_increase,
+            "DistributeDecrease and DistributeIncrease produce identical SkyIncoming routing"
+        );
+        assert_eq!(snap_decrease.len(), 1, "exactly one wavefront delivered");
+        let w = snap_decrease[0];
+        assert_eq!(w.face(), Direction::West.index() as u8);
+        assert_eq!(w.cell_x(), 4);
+        assert_eq!(w.cell_z(), 7);
+        assert_eq!(w.level(), 7, "East-face wavefront: Manhattan-1 attenuation (sky Down-skip does not apply to East)");
     }
 
     #[test]

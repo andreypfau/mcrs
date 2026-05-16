@@ -4,7 +4,7 @@ use crate::codec::{
 use crate::converge::{
     light_converge_driver, LightConvergeSchedule, LightConvergeSet,
 };
-use crate::distribute::{distribute_decrease, distribute_increase};
+use crate::distribute::distribute_cross_chunk_wavefronts;
 use crate::emit_dirty::{
     clear_light_dirty_safety_net, clear_light_tickets, downgrade_light_storage,
     emit_block_light_dirty, emit_sky_light_dirty,
@@ -170,7 +170,7 @@ impl Plugin for LightingPlugin {
                 )
                     .in_set(LightConvergeSet::PropagateDecrease),
                 ApplyDeferred,
-                distribute_decrease.in_set(LightConvergeSet::DistributeDecrease),
+                distribute_cross_chunk_wavefronts.in_set(LightConvergeSet::DistributeDecrease),
                 ApplyDeferred,
                 (
                     propagate_increase_block_system,
@@ -178,7 +178,7 @@ impl Plugin for LightingPlugin {
                 )
                     .in_set(LightConvergeSet::PropagateIncrease),
                 ApplyDeferred,
-                distribute_increase.in_set(LightConvergeSet::DistributeIncrease),
+                distribute_cross_chunk_wavefronts.in_set(LightConvergeSet::DistributeIncrease),
                 ApplyDeferred,
             )
                 .chain(),
