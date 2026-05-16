@@ -17,7 +17,6 @@ use mcrs_engine::world::lighting::LightTicket;
 use mcrs_minecraft_lighting::components::{BlockLight, LightDirty, SkyLight};
 use mcrs_minecraft_lighting::invariants::{check_block_light_invariants, check_sky_light_invariants};
 use mcrs_minecraft_lighting::storage::LightStorage;
-use mcrs_minecraft_lighting::stub::{block_light_nibbles, sky_light_nibbles};
 use mcrs_minecraft_lighting::table::BlockLightTable;
 use mcrs_minecraft_lighting::test_bench::{assert_nibbles_eq, from_input};
 use mcrs_minecraft_lighting::LightingPlugin;

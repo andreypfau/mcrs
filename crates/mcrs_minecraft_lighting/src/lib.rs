@@ -30,7 +30,5 @@ pub use codec::sets::LightingSet;
 pub use lifecycle::ColumnHeightmapScan;
 pub use plugin::LightingPlugin;
 
-#[cfg(feature = "test-bench")]
-pub mod stub;
 #[cfg(any(feature = "test-bench", feature = "bench-helpers"))]
 pub mod test_bench;
