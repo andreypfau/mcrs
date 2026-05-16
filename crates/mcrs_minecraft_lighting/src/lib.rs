@@ -9,6 +9,7 @@ pub mod codec;
 pub mod bundle;
 pub mod table;
 mod bitset;
+mod heightmap;
 pub mod lifecycle;
 pub mod heightmap_update;
 pub mod bfs;

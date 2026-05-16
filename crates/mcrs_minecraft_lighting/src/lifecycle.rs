@@ -6,6 +6,10 @@
 // "no surface found" sentinel to stay deterministic.
 
 use crate::bitset::BitSet256;
+use crate::heightmap::{
+    record_topmost_motion_blocking, record_topmost_surface, record_unsurfaced_column,
+    record_unsurfaced_motion_column,
+};
 use crate::bundle::{BlockLightBundle, SkyLightBundle};
 use crate::components::{ChunkNeedsInitialLight, IsAllAir};
 use crate::table::{flag_bits, BlockLightTable};
@@ -155,13 +159,6 @@ pub fn prime_heightmaps_on_column_spawn(
     }
 }
 
-/// Advance the scan cursor as far as possible given the currently-loaded
-/// chunks, writing the heightmap for each XZ column the moment it closes
-/// for that variant. When `is_finalized()` would return true, finishes by
-/// inserting `ChunkNeedsInitialLight` on every currently-loaded chunk.
-///
-/// Invariant: callers must not invoke `advance_scan` on an already-finalized
-/// scan. The outer system takes the late-arrival path instead.
 fn advance_scan(
     scan: &mut ColumnHeightmapScan,
     hm: &mut Heightmaps,
@@ -172,7 +169,6 @@ fn advance_scan(
 ) {
     debug_assert!(!scan.is_finalized());
     let min_chunk_y = scan.min_chunk_y;
-    let min_y = hm.min_y();
 
     loop {
         if scan.scan_cursor < min_chunk_y {
@@ -204,10 +200,10 @@ fn advance_scan(
             for idx in 0..256 {
                 let (x, z) = idx_to_xz(idx);
                 if !scan.world_surface_done.is_set(idx) {
-                    hm.surface_set(x, z, min_y);
+                    record_unsurfaced_column(hm, x, z);
                 }
                 if !scan.motion_blocking_done.is_set(idx) {
-                    hm.motion_blocking_set(x, z, min_y);
+                    record_unsurfaced_motion_column(hm, x, z);
                 }
             }
             insert_initial_light_markers(chunk_index, commands);
@@ -246,11 +242,11 @@ fn advance_scan(
                     let world_y = chunk_base_y + cell_y;
 
                     if ws_open && (flags & flag_bits::IS_NOT_AIR) != 0 {
-                        hm.surface_set(x, z, world_y + 1);
+                        record_topmost_surface(hm, x, z, world_y);
                         scan.world_surface_done.set(idx);
                     }
                     if mb_open && (flags & flag_bits::IS_MOTION_BLOCKING) != 0 {
-                        hm.motion_blocking_set(x, z, world_y + 1);
+                        record_topmost_motion_blocking(hm, x, z, world_y);
                         scan.motion_blocking_done.set(idx);
                     }
                     if scan.world_surface_done.is_full()

@@ -29,6 +29,7 @@ use mcrs_minecraft_block::palette::BlockPalette;
 use crate::bfs::{
     normal_of, pack_bfs_entry, ALL_DIRECTIONS_BITSET, FLAG_RECHECK_LEVEL, FLAG_WRITE_LEVEL,
 };
+use crate::heightmap::topmost_surface_world_y;
 use crate::components::{
     BlockIncoming, BlockLight, BlockLightWorkspace, BlockPendingEgress, ChunkNeedsInitialLight,
     LightDirty, NeedsFullReseed, SkyIncoming, SkyLight, SkyLightSeededAsTopmost, SkyLightWorkspace,
@@ -502,12 +503,18 @@ pub fn seed_initial_light(
                             let mut all_below = true;
                             for z in 0..16usize {
                                 for x in 0..16usize {
-                                    let s = hm.surface_get(x, z);
-                                    if s > chunk_base_y {
-                                        all_above = false;
-                                    }
-                                    if s <= chunk_top_y {
-                                        all_below = false;
+                                    match topmost_surface_world_y(hm, x, z) {
+                                        None => {
+                                            all_below = false;
+                                        }
+                                        Some(s) => {
+                                            if s > chunk_base_y {
+                                                all_above = false;
+                                            }
+                                            if s <= chunk_top_y {
+                                                all_below = false;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -589,11 +596,12 @@ pub fn seed_initial_light(
                                 let mut arr = NibbleArray::filled(15);
                                 for z in 0..16usize {
                                     for x in 0..16usize {
-                                        let s = hm.surface_get(x, z);
-                                        let max_dark_local_y = if s > chunk_base_y {
-                                            (s - chunk_base_y).min(16) as usize
-                                        } else {
-                                            0
+                                        let s_opt = topmost_surface_world_y(hm, x, z);
+                                        let max_dark_local_y = match s_opt {
+                                            Some(s) if s > chunk_base_y => {
+                                                (s - chunk_base_y).min(16) as usize
+                                            }
+                                            _ => 0,
                                         };
                                         for y_local in 0..max_dark_local_y {
                                             arr.set(x, y_local, z, 0);
@@ -606,13 +614,19 @@ pub fn seed_initial_light(
                                         // propagate outward at the wrong attenuation.
                                         // Those columns receive light from adjacent
                                         // lit columns via the BFS or cross-chunk pull.
-                                        if s <= chunk_top_y {
-                                            let first_seed_y: u8 =
-                                                if s >= chunk_base_y {
+                                        // Unsurfaced columns are entirely lit up to
+                                        // chunk_top_y; the None arm matches the
+                                        // original behaviour where the sentinel
+                                        // (s == min_y) compared as s <= chunk_top_y.
+                                        let lit_in_chunk =
+                                            s_opt.map_or(true, |s| s <= chunk_top_y);
+                                        if lit_in_chunk {
+                                            let first_seed_y: u8 = match s_opt {
+                                                Some(s) if s >= chunk_base_y => {
                                                     (s - chunk_base_y) as u8
-                                                } else {
-                                                    0
-                                                };
+                                                }
+                                                _ => 0,
+                                            };
                                             for y_seed_local in first_seed_y..=15u8 {
                                                 sky_ws.increase_queue.push(pack_bfs_entry(
                                                     x as u8,
