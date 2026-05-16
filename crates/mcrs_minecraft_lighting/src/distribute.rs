@@ -1,14 +1,14 @@
-//! Cross-section distribute pass: drains `*Egress` wavefronts from source
-//! sections and pre-attenuates them onto the destination section's
+//! Cross-chunk distribute pass: drains `*Egress` wavefronts from source
+//! chunks and pre-attenuates them onto the destination chunk's
 //! `*Incoming` (or `*PendingEgress` on overflow).
 //!
 //! Face-direction contract:
 //!
 //! * BFS emits to `*Egress` with `face = direction-from-source-cell OUT of
-//!   the source section` (source frame).
+//!   the source chunk` (source frame).
 //! * Distribute pre-attenuates and writes to the destination's `*Incoming`
 //!   with `face = direction-from-destination-cell IN from the source
-//!   section` (destination frame — the opposite of the source's face).
+//!   chunk` (destination frame — the opposite of the source's face).
 //! * The neighbor-edge pull system reuses the destination-frame convention.
 //!
 //! Three-pass shape (mandated by Bevy's borrow checker — a single query
@@ -40,8 +40,8 @@ use mcrs_engine::world::lighting::LightTicket;
 
 /// Manhattan attenuation: face-adjacent (1), edge (2), corner (3). The
 /// `max(1)` floor guarantees at least one step of attenuation even if a
-/// caller passes `adjacency = 0`, matching the cross-section invariant that
-/// emission across a section boundary always loses at least one level.
+/// caller passes `adjacency = 0`, matching the cross-chunk invariant that
+/// emission across a chunk boundary always loses at least one level.
 #[inline]
 pub(crate) fn manhattan_preattenuate(level: u8, adjacency: u8) -> u8 {
     level.saturating_sub(adjacency.max(1))
@@ -62,16 +62,16 @@ pub(crate) fn direction_from_index(byte: u8) -> Direction {
     }
 }
 
-/// Outcome of resolving the destination section for a wavefront.
+/// Outcome of resolving the destination chunk for a wavefront.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ResolveOutcome {
-    /// Destination section is loaded and addressable as a single entity.
+    /// Destination chunk is loaded and addressable as a single entity.
     Loaded {
         dst_entity: Entity,
         dst_chunk_pos: ChunkPos,
         dst_column: Entity,
     },
-    /// Destination column exists but the section at the target Y is not yet
+    /// Destination column exists but the chunk at the target Y is not yet
     /// loaded. Wavefront must be parked on the source's `*PendingEgress`.
     Unloaded {
         dst_column: Entity,
@@ -89,13 +89,13 @@ pub(crate) enum ResolveOutcome {
 /// `ColumnChunks`. Returns `None` only when the column entity itself is
 /// missing from `ColumnIndex` (e.g., source's column was despawned in a
 /// concurrent tick), or when the source's column has no `ColumnChunks`.
-pub(crate) fn resolve_neighbor_section(
+pub(crate) fn resolve_neighbor_chunk(
     src_chunk_pos: ChunkPos,
     src_in_col: InColumn,
     src_in_dim: InDimension,
     face: Direction,
     column_indexes: &Query<&ColumnIndex>,
-    section_indexes: &Query<&ColumnChunks>,
+    chunk_indexes: &Query<&ColumnChunks>,
 ) -> Option<ResolveOutcome> {
     match face {
         Direction::Up | Direction::Down => {
@@ -104,8 +104,8 @@ pub(crate) fn resolve_neighbor_section(
                 Direction::Down => src_chunk_pos.y - 1,
                 _ => unreachable!(),
             };
-            let section_index = section_indexes.get(src_in_col.0).ok()?;
-            let lookup = section_index.lookup(dst_y);
+            let chunk_index = chunk_indexes.get(src_in_col.0).ok()?;
+            let lookup = chunk_index.lookup(dst_y);
             let dst_chunk_pos = ChunkPos::new(src_chunk_pos.x, dst_y, src_chunk_pos.z);
             Some(match lookup {
                 ChunkLookup::Loaded(dst_entity) => ResolveOutcome::Loaded {
@@ -136,8 +136,8 @@ pub(crate) fn resolve_neighbor_section(
             let column_index = column_indexes.get(src_in_dim.0).ok()?;
             let slot = column_index.0.get(&neighbour_col_pos)?;
             let dst_column = slot.entity;
-            let section_index = section_indexes.get(dst_column).ok()?;
-            let lookup = section_index.lookup(src_chunk_pos.y);
+            let chunk_index = chunk_indexes.get(dst_column).ok()?;
+            let lookup = chunk_index.lookup(src_chunk_pos.y);
             let dst_chunk_pos =
                 ChunkPos::new(neighbour_col_pos.x, src_chunk_pos.y, neighbour_col_pos.z);
             Some(match lookup {
@@ -192,7 +192,7 @@ pub fn distribute_decrease(
     block_pending: Query<&mut BlockPendingEgress>,
     sky_pending: Query<&mut SkyPendingEgress>,
     in_dimensions: Query<&InDimension>,
-    section_indexes: Query<&ColumnChunks>,
+    chunk_indexes: Query<&ColumnChunks>,
     column_indexes: Query<&ColumnIndex>,
     block_stage: Local<Vec<(Entity, Wavefront)>>,
     sky_stage: Local<Vec<(Entity, Wavefront)>>,
@@ -214,7 +214,7 @@ pub fn distribute_decrease(
         block_pending,
         sky_pending,
         in_dimensions,
-        section_indexes,
+        chunk_indexes,
         column_indexes,
         block_stage,
         sky_stage,
@@ -232,7 +232,7 @@ pub fn distribute_increase(
     block_pending: Query<&mut BlockPendingEgress>,
     sky_pending: Query<&mut SkyPendingEgress>,
     in_dimensions: Query<&InDimension>,
-    section_indexes: Query<&ColumnChunks>,
+    chunk_indexes: Query<&ColumnChunks>,
     column_indexes: Query<&ColumnIndex>,
     block_stage: Local<Vec<(Entity, Wavefront)>>,
     sky_stage: Local<Vec<(Entity, Wavefront)>>,
@@ -248,7 +248,7 @@ pub fn distribute_increase(
     let _span = tracing::info_span!("distribute_increase", block_egress_count = block_egress_count, sky_egress_count = sky_egress_count).entered();
     // `distribute_increase` and `distribute_decrease` route wavefronts the
     // same way; the increase-versus-decrease distinction lives entirely in
-    // the intra-section BFS that produced the wavefront. The two systems
+    // the intra-chunk BFS that produced the wavefront. The two systems
     // exist separately so they can be scheduled at distinct points in
     // `LightConvergeSchedule` even though they share the same body.
     distribute_inner(
@@ -259,7 +259,7 @@ pub fn distribute_increase(
         block_pending,
         sky_pending,
         in_dimensions,
-        section_indexes,
+        chunk_indexes,
         column_indexes,
         block_stage,
         sky_stage,
@@ -277,7 +277,7 @@ fn distribute_inner(
     mut block_pending: Query<&mut BlockPendingEgress>,
     mut sky_pending: Query<&mut SkyPendingEgress>,
     in_dimensions: Query<&InDimension>,
-    section_indexes: Query<&ColumnChunks>,
+    chunk_indexes: Query<&ColumnChunks>,
     column_indexes: Query<&ColumnIndex>,
     mut block_stage: Local<Vec<(Entity, Wavefront)>>,
     mut sky_stage: Local<Vec<(Entity, Wavefront)>>,
@@ -293,7 +293,7 @@ fn distribute_inner(
         &mut block_sources,
         &mut block_pending,
         &in_dimensions,
-        &section_indexes,
+        &chunk_indexes,
         &column_indexes,
         &mut block_stage,
         &mut last_xdim_log,
@@ -304,7 +304,7 @@ fn distribute_inner(
         &mut sky_sources,
         &mut sky_pending,
         &in_dimensions,
-        &section_indexes,
+        &chunk_indexes,
         &column_indexes,
         &mut sky_stage,
         &mut last_xdim_log,
@@ -335,7 +335,7 @@ fn drain_block_egress(
     sources: &mut Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut BlockEgress)>,
     pending: &mut Query<&mut BlockPendingEgress>,
     in_dimensions: &Query<&InDimension>,
-    section_indexes: &Query<&ColumnChunks>,
+    chunk_indexes: &Query<&ColumnChunks>,
     column_indexes: &Query<&ColumnIndex>,
     stage: &mut Vec<(Entity, Wavefront)>,
     last_xdim_log: &mut Option<Instant>,
@@ -351,18 +351,18 @@ fn drain_block_egress(
         // Pre-resolve all six neighbour faces once per source instead of once
         // per wavefront; see comment in `drain_sky_egress`.
         let resolved_faces: [Option<ResolveOutcome>; 6] = [
-            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::Down,  column_indexes, section_indexes),
-            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::Up,    column_indexes, section_indexes),
-            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::North, column_indexes, section_indexes),
-            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::South, column_indexes, section_indexes),
-            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::West,  column_indexes, section_indexes),
-            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::East,  column_indexes, section_indexes),
+            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::Down,  column_indexes, chunk_indexes),
+            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::Up,    column_indexes, chunk_indexes),
+            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::North, column_indexes, chunk_indexes),
+            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::South, column_indexes, chunk_indexes),
+            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::West,  column_indexes, chunk_indexes),
+            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::East,  column_indexes, chunk_indexes),
         ];
 
         let drained: smallvec::SmallVec<[Wavefront; 8]> = egress.0.drain(..).collect();
         for wavefront in drained {
             let face = direction_from_index(wavefront.face());
-            // The intra-section BFS emits face-adjacent wavefronts only
+            // The intra-chunk BFS emits face-adjacent wavefronts only
             // (adjacency = 1). Edge (2) / corner (3) paths live in
             // `manhattan_preattenuate` for completeness and are exercised
             // by dedicated unit tests; the active BFS does not yet emit
@@ -435,7 +435,7 @@ fn drain_sky_egress(
     sources: &mut Query<(Entity, &ChunkPos, &InDimension, &InColumn, &mut SkyEgress)>,
     pending: &mut Query<&mut SkyPendingEgress>,
     in_dimensions: &Query<&InDimension>,
-    section_indexes: &Query<&ColumnChunks>,
+    chunk_indexes: &Query<&ColumnChunks>,
     column_indexes: &Query<&ColumnIndex>,
     stage: &mut Vec<(Entity, Wavefront)>,
     last_xdim_log: &mut Option<Instant>,
@@ -449,19 +449,19 @@ fn drain_sky_egress(
 
         let src_dim = in_dim.0;
         // The column-walker fast path emits 1280 wavefronts (5 faces × 256
-        // cells) per source per iteration. Calling `resolve_neighbor_section`
+        // cells) per source per iteration. Calling `resolve_neighbor_chunk`
         // for each one walks `ColumnChunks` / `ColumnIndex` hash lookups
         // afresh, which dominates the sub-schedule's wall clock at chunk-load
         // time. Resolve each of the six faces once up front and index into
-        // the array per wavefront. Same destination semantics, ~250x fewer
-        // hash lookups per source.
+        // the array per wavefront. Same destination semantics, roughly 250x
+        // fewer hash lookups per source.
         let resolved_faces: [Option<ResolveOutcome>; 6] = [
-            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::Down,  column_indexes, section_indexes),
-            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::Up,    column_indexes, section_indexes),
-            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::North, column_indexes, section_indexes),
-            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::South, column_indexes, section_indexes),
-            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::West,  column_indexes, section_indexes),
-            resolve_neighbor_section(*chunk_pos, *in_col, *in_dim, Direction::East,  column_indexes, section_indexes),
+            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::Down,  column_indexes, chunk_indexes),
+            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::Up,    column_indexes, chunk_indexes),
+            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::North, column_indexes, chunk_indexes),
+            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::South, column_indexes, chunk_indexes),
+            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::West,  column_indexes, chunk_indexes),
+            resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::East,  column_indexes, chunk_indexes),
         ];
 
         let drained: smallvec::SmallVec<[Wavefront; 8]> = egress.0.drain(..).collect();
@@ -474,10 +474,10 @@ fn drain_sky_egress(
             // destination palette, but for sky-light the only Down-face
             // wavefronts come from cells that themselves passed the
             // `PROPAGATES_SKYLIGHT_DOWN` check in the source BFS or from the
-            // column-walker fast path (which only fires on all-air sections).
+            // column-walker fast path (which only fires on all-air chunks).
             // Skip the cross-boundary -1 in that case so the receiving
-            // section's column-walker condition (`level == 15`) keeps
-            // triggering down the column. The destination section's BFS
+            // chunk's column-walker condition (`level == 15`) keeps
+            // triggering down the column. The destination chunk's BFS
             // re-applies opacity attenuation per cell, so opaque cells in the
             // destination still cap their level via the `dst_flags` /
             // `opacity` check in `propagate_increase_sky`.
@@ -534,7 +534,7 @@ fn drain_sky_egress(
                                 kind = "sky_egress_overflow",
                                 pending_cap = PENDING_EGRESS_CAP,
                                 "Sky-egress pending overflow — inserting NeedsFullReseed on destination column. \
-                                 This will re-mark every loaded section in the destination column for initial-light seeding, \
+                                 This will re-mark every loaded chunk in the destination column for initial-light seeding, \
                                  which can re-fire seed_initial_light against a heightmap that may still be at sentinel."
                             );
                             commands.entity(dst_column).insert(NeedsFullReseed);
@@ -570,9 +570,9 @@ mod tests {
         app.world_mut().spawn(ColumnIndex::default()).id()
     }
 
-    fn spawn_column(app: &mut App, min_section_y: i32, slot_count: usize) -> Entity {
+    fn spawn_column(app: &mut App, min_chunk_y: i32, slot_count: usize) -> Entity {
         app.world_mut()
-            .spawn(ColumnChunks::new(min_section_y, slot_count))
+            .spawn(ColumnChunks::new(min_chunk_y, slot_count))
             .id()
     }
 
@@ -590,14 +590,14 @@ mod tests {
         );
     }
 
-    fn spawn_block_section(
+    fn spawn_block_chunk(
         app: &mut App,
         chunk_pos: ChunkPos,
         column: Entity,
         dim: Entity,
         egress: SmallVec<[Wavefront; 8]>,
     ) -> Entity {
-        let section = app
+        let chunk = app
             .world_mut()
             .spawn((
                 chunk_pos,
@@ -609,13 +609,13 @@ mod tests {
             ))
             .id();
         if let Some(mut si) = app.world_mut().get_mut::<ColumnChunks>(column) {
-            si.set_loaded(chunk_pos.y, section);
+            si.set_loaded(chunk_pos.y, chunk);
         }
-        section
+        chunk
     }
 
-    /// (dim, col_a, col_b, section_a, section_b) — two columns at (0,0) and (1,0)
-    /// each with one section at chunk-Y 0. Both sections live in the same
+    /// (dim, col_a, col_b, chunk_a, chunk_b) — two columns at (0,0) and (1,0)
+    /// each with one chunk at chunk-Y 0. Both chunks live in the same
     /// dimension.
     fn make_two_column_world(
         app: &mut App,
@@ -626,10 +626,10 @@ mod tests {
         let col_b = spawn_column(app, 0, 1);
         register_column(app, dim, ColumnPos::new(0, 0), col_a);
         register_column(app, dim, ColumnPos::new(1, 0), col_b);
-        let section_a = spawn_block_section(app, ChunkPos::new(0, 0, 0), col_a, dim, egress_a);
-        let section_b =
-            spawn_block_section(app, ChunkPos::new(1, 0, 0), col_b, dim, SmallVec::new());
-        (dim, col_a, col_b, section_a, section_b)
+        let chunk_a = spawn_block_chunk(app, ChunkPos::new(0, 0, 0), col_a, dim, egress_a);
+        let chunk_b =
+            spawn_block_chunk(app, ChunkPos::new(1, 0, 0), col_b, dim, SmallVec::new());
+        (dim, col_a, col_b, chunk_a, chunk_b)
     }
 
     #[test]
@@ -646,14 +646,14 @@ mod tests {
         let east = Direction::East.index() as u8;
         let mut egress = SmallVec::new();
         egress.push(Wavefront::new(east, 4, 7, 8));
-        let (_dim, _col_a, _col_b, section_a, section_b) = make_two_column_world(&mut app, egress);
+        let (_dim, _col_a, _col_b, chunk_a, chunk_b) = make_two_column_world(&mut app, egress);
 
         app.update();
 
         let incoming = app
             .world()
-            .get::<BlockIncoming>(section_b)
-            .expect("section_b has BlockIncoming");
+            .get::<BlockIncoming>(chunk_b)
+            .expect("chunk_b has BlockIncoming");
         assert_eq!(incoming.0.len(), 1, "exactly one wavefront delivered");
         let w = incoming.0[0];
         assert_eq!(w.face(), Direction::West.index() as u8);
@@ -663,12 +663,12 @@ mod tests {
 
         let src_egress = app
             .world()
-            .get::<BlockEgress>(section_a)
-            .expect("section_a");
+            .get::<BlockEgress>(chunk_a)
+            .expect("chunk_a");
         assert!(src_egress.0.is_empty(), "source egress drained");
 
-        assert!(app.world().get::<LightDirty>(section_b).is_some());
-        assert!(app.world().get::<LightTicket>(section_b).is_some());
+        assert!(app.world().get::<LightDirty>(chunk_b).is_some());
+        assert!(app.world().get::<LightTicket>(chunk_b).is_some());
     }
 
     #[test]
@@ -693,7 +693,7 @@ mod tests {
         let col_b = spawn_column(&mut app, 0, 1);
         register_column(&mut app, dim, ColumnPos::new(0, 0), col_a);
         register_column(&mut app, dim, ColumnPos::new(1, 0), col_b);
-        // col_b's section slot stays None — destination resolves to Unloaded.
+        // col_b's chunk slot stays None — destination resolves to Unloaded.
 
         let east = Direction::East.index() as u8;
         let mut egress = SmallVec::new();
@@ -702,7 +702,7 @@ mod tests {
         for i in 0..PENDING_EGRESS_CAP {
             prefill.push(Wavefront::new(east, (i % 16) as u8, ((i / 16) % 16) as u8, 5));
         }
-        let section_a = app
+        let chunk_a = app
             .world_mut()
             .spawn((
                 ChunkPos::new(0, 0, 0),
@@ -714,7 +714,7 @@ mod tests {
             ))
             .id();
         if let Some(mut si) = app.world_mut().get_mut::<ColumnChunks>(col_a) {
-            si.set_loaded(0, section_a);
+            si.set_loaded(0, chunk_a);
         }
 
         let snap_before = crate::telemetry::snapshot();
@@ -728,7 +728,7 @@ mod tests {
         );
         let pend = app
             .world()
-            .get::<BlockPendingEgress>(section_a)
+            .get::<BlockPendingEgress>(chunk_a)
             .expect("source pending");
         assert_eq!(
             pend.0.len(),
@@ -747,15 +747,15 @@ mod tests {
         let east = Direction::East.index() as u8;
         let mut egress = SmallVec::new();
         egress.push(Wavefront::new(east, 0, 0, 10));
-        let (_dim, _col_a, _col_b, _section_a, section_b) =
+        let (_dim, _col_a, _col_b, _chunk_a, chunk_b) =
             make_two_column_world(&mut app, egress);
 
         app.update();
 
         let incoming = app
             .world()
-            .get::<BlockIncoming>(section_b)
-            .expect("section_b has BlockIncoming");
+            .get::<BlockIncoming>(chunk_b)
+            .expect("chunk_b has BlockIncoming");
         assert_eq!(incoming.0[0].level(), 9, "10 - 1 = 9 on face-adjacent route");
     }
 
@@ -775,7 +775,7 @@ mod tests {
         let mut egress = SmallVec::new();
         egress.push(Wavefront::new(east, 0, 0, 10));
 
-        let _section_b = spawn_block_section(
+        let _chunk_b = spawn_block_chunk(
             &mut app,
             ChunkPos::new(1, 0, 0),
             col_b,
@@ -783,7 +783,7 @@ mod tests {
             SmallVec::new(),
         );
 
-        let _section_a = spawn_block_section(
+        let _chunk_a = spawn_block_chunk(
             &mut app,
             ChunkPos::new(0, 0, 0),
             col_a,
@@ -810,7 +810,7 @@ mod tests {
         let mut egress = SmallVec::new();
         egress.push(Wavefront::new(east, 0, 0, 10));
 
-        let section_b = spawn_block_section(
+        let chunk_b = spawn_block_chunk(
             &mut app,
             ChunkPos::new(1, 0, 0),
             col_b,
@@ -818,7 +818,7 @@ mod tests {
             SmallVec::new(),
         );
 
-        let _section_a = spawn_block_section(
+        let _chunk_a = spawn_block_chunk(
             &mut app,
             ChunkPos::new(0, 0, 0),
             col_a,
@@ -833,8 +833,8 @@ mod tests {
         assert_eq!(after.cross_dim - before.cross_dim, 1);
         let incoming = app
             .world()
-            .get::<BlockIncoming>(section_b)
-            .expect("section_b has BlockIncoming");
+            .get::<BlockIncoming>(chunk_b)
+            .expect("chunk_b has BlockIncoming");
         assert!(
             incoming.0.is_empty(),
             "cross-dim wavefront dropped, not written"
@@ -847,13 +847,13 @@ mod tests {
         let east = Direction::East.index() as u8;
         let mut egress = SmallVec::new();
         egress.push(Wavefront::new(east, 0, 0, 8));
-        let (_dim, _col_a, _col_b, section_a, _section_b) =
+        let (_dim, _col_a, _col_b, chunk_a, _chunk_b) =
             make_two_column_world(&mut app, egress);
 
         app.update();
 
         assert!(
-            app.world().get::<LightTicket>(section_a).is_some(),
+            app.world().get::<LightTicket>(chunk_a).is_some(),
             "source with non-empty egress got LightTicket"
         );
     }
@@ -868,17 +868,17 @@ mod tests {
         for cz in 0..8u8 {
             egress.push(Wavefront::new(east, 0, cz, 8));
         }
-        let (_dim, _col_a, _col_b, _section_a, section_b) =
+        let (_dim, _col_a, _col_b, _chunk_a, chunk_b) =
             make_two_column_world(&mut app, egress);
 
         app.update();
 
-        assert!(app.world().get::<LightDirty>(section_b).is_some());
-        assert!(app.world().get::<LightTicket>(section_b).is_some());
+        assert!(app.world().get::<LightDirty>(chunk_b).is_some());
+        assert!(app.world().get::<LightTicket>(chunk_b).is_some());
         let incoming = app
             .world()
-            .get::<BlockIncoming>(section_b)
-            .expect("section_b incoming");
+            .get::<BlockIncoming>(chunk_b)
+            .expect("chunk_b incoming");
         assert_eq!(incoming.0.len(), 8, "all 8 wavefronts delivered");
     }
 
@@ -897,20 +897,20 @@ mod tests {
         let mut egress = SmallVec::new();
         egress.push(Wavefront::new(down, 5, 5, 8));
 
-        let section_a =
-            spawn_block_section(&mut app, ChunkPos::new(0, 0, 0), col_a, dim, egress);
+        let chunk_a =
+            spawn_block_chunk(&mut app, ChunkPos::new(0, 0, 0), col_a, dim, egress);
 
         app.update();
 
         let src_egress = app
             .world()
-            .get::<BlockEgress>(section_a)
-            .expect("section_a");
+            .get::<BlockEgress>(chunk_a)
+            .expect("chunk_a");
         assert!(src_egress.0.is_empty(), "source egress drained");
         let pend = app
             .world()
-            .get::<BlockPendingEgress>(section_a)
-            .expect("section_a pending");
+            .get::<BlockPendingEgress>(chunk_a)
+            .expect("chunk_a pending");
         assert!(pend.0.is_empty(), "padding drop does not enter pending");
         // No NeedsFullReseed insertion (which the overflow path would emit).
         assert!(

@@ -1,8 +1,8 @@
 #![cfg(any(test, debug_assertions))]
 
-//! Per-cell block-light invariant checker for a single `ChunkSection`.
+//! Per-cell block-light invariant checker for a single chunk.
 //!
-//! Verifies three invariants for every cell in the 16×16×16 section:
+//! Verifies three invariants for every cell in the 16×16×16 chunk:
 //!
 //! 1. **Source floor:** the stored level is at least the cell's own emission.
 //! 2. **Support floor:** the stored level is at least the maximum inward
@@ -13,10 +13,10 @@
 //!    support, the excess equals the cell's own emission — i.e. only
 //!    emitter cells may be brighter than the surrounding field supports.
 //!
-//! Single-section variant: cells on the section boundary (any of x/y/z is 0
+//! Single-chunk variant: cells on the chunk boundary (any of x/y/z is 0
 //! or 15) skip the support-floor contribution from the outward-facing
-//! neighbour because that neighbour lives in a sibling section the checker
-//! cannot resolve from intra-section state alone.
+//! neighbour because that neighbour lives in a sibling chunk the checker
+//! cannot resolve from intra-chunk state alone.
 //!
 //! Gated under `#[cfg(any(test, debug_assertions))]` because the check is
 //! only ever called from tests or from a debug-only verification system —
@@ -80,7 +80,7 @@ impl std::fmt::Display for SkyInvariantViolation {
     }
 }
 
-const SECTION_DIM: i32 = 16;
+const CHUNK_DIM: i32 = 16;
 
 const DIRECTIONS: [Direction; 6] = [
     Direction::Down,
@@ -105,8 +105,8 @@ fn direction_offset(d: Direction) -> (i32, i32, i32) {
 
 /// Inward contribution from `neighbour` to `(x,y,z)` along direction `d`
 /// (which steps from the cell towards the neighbour). Returns `None` when
-/// the neighbour is outside the section — the single-section checker
-/// cannot resolve cross-section state and so the outward face is skipped.
+/// the neighbour is outside the chunk — the single-chunk checker
+/// cannot resolve cross-chunk state and so the outward face is skipped.
 fn neighbour_contribution(
     d: Direction,
     x: i32,
@@ -121,9 +121,9 @@ fn neighbour_contribution(
     let nx = x + dx;
     let ny = y + dy;
     let nz = z + dz;
-    if !(0..SECTION_DIM).contains(&nx)
-        || !(0..SECTION_DIM).contains(&ny)
-        || !(0..SECTION_DIM).contains(&nz)
+    if !(0..CHUNK_DIM).contains(&nx)
+        || !(0..CHUNK_DIM).contains(&ny)
+        || !(0..CHUNK_DIM).contains(&nz)
     {
         return None;
     }
@@ -171,9 +171,9 @@ fn sky_neighbour_contribution(
     let nx = x + dx;
     let ny = y + dy;
     let nz = z + dz;
-    if !(0..SECTION_DIM).contains(&nx)
-        || !(0..SECTION_DIM).contains(&ny)
-        || !(0..SECTION_DIM).contains(&nz)
+    if !(0..CHUNK_DIM).contains(&nx)
+        || !(0..CHUNK_DIM).contains(&ny)
+        || !(0..CHUNK_DIM).contains(&nz)
     {
         return None;
     }
@@ -215,9 +215,9 @@ pub fn check_block_light_invariants(
     palette: &BlockPalette,
     light: &LightStorage,
 ) -> Result<(), InvariantViolation> {
-    for y in 0..SECTION_DIM {
-        for z in 0..SECTION_DIM {
-            for x in 0..SECTION_DIM {
+    for y in 0..CHUNK_DIM {
+        for z in 0..CHUNK_DIM {
+            for x in 0..CHUNK_DIM {
                 let state = palette.get(BlockPos::new(x, y, z));
                 let emitted = table.emission_for(state);
                 let stored = light.get(x as usize, y as usize, z as usize);
@@ -269,17 +269,17 @@ pub fn check_block_light_invariants(
     Ok(())
 }
 
-/// Per-cell sky-light invariant checker for a single `ChunkSection`.
+/// Per-cell sky-light invariant checker for a single chunk.
 ///
 /// Enforces three invariants:
-/// - `TopRowFloor`: when the section is the topmost of a sky-having column,
+/// - `TopRowFloor`: when the chunk is the topmost of a sky-having column,
 ///   every y=15 air cell (`PROPAGATES_SKYLIGHT_DOWN`) must store the sky
 ///   maximum (15).
 /// - `SupportFloor`: every cell's stored level is at least the maximum
 ///   sky-aware inward contribution from its six cardinal neighbours.
 /// - `SourceExcess`: no cell may exceed its inward support, except for the
-///   top-row air cells of a topmost-of-column section which receive their
-///   light from the open-sky source above the section.
+///   top-row air cells of a topmost-of-column chunk which receive their
+///   light from the open-sky source above the chunk.
 ///
 /// Inward contributions are computed against the sky-aware oracle, which
 /// mirrors the BFS vertical-drop rule: a downward step from a level-15 cell
@@ -295,9 +295,9 @@ pub fn check_sky_light_invariants(
     light: &LightStorage,
     is_topmost_in_skyhaving_column: bool,
 ) -> Result<(), SkyInvariantViolation> {
-    for y in 0..SECTION_DIM {
-        for z in 0..SECTION_DIM {
-            for x in 0..SECTION_DIM {
+    for y in 0..CHUNK_DIM {
+        for z in 0..CHUNK_DIM {
+            for x in 0..CHUNK_DIM {
                 let state = palette.get(BlockPos::new(x, y, z));
                 let stored = light.get(x as usize, y as usize, z as usize);
                 let cell = BlockPos::new(x, y, z);
@@ -479,7 +479,7 @@ mod tests {
         // L1-attenuated field originating from a torch at (0,0,0):
         //   level(x, y, z) = max(0, 14 - (x + y + z))
         // The boundary cells on the -X, -Y, -Z faces have their outward
-        // neighbours in a sibling section, so the support-floor check must
+        // neighbours in a sibling chunk, so the support-floor check must
         // skip those directions; otherwise (0, 0, 0)'s missing neighbours
         // would read garbage from `BlockPalette::get`'s `& 15` wrap-around.
         let table = make_test_table();
@@ -502,7 +502,7 @@ mod tests {
 
     #[test]
     fn sky_invariants_pass_on_all_air_topmost() {
-        // All-air section, topmost in a sky-having column, every cell at
+        // All-air chunk, topmost in a sky-having column, every cell at
         // level 15. TopRowFloor passes because every y=15 cell stores 15.
         // SupportFloor passes because every interior cell sees an above
         // neighbour at level 15 and, via the BFS vertical-drop rule, the
@@ -515,14 +515,14 @@ mod tests {
         let result = check_sky_light_invariants(&table, &palette, &light, /* is_topmost */ true);
         assert!(
             result.is_ok(),
-            "expected Ok(()) for all-air topmost section at uniform 15; got {:?}",
+            "expected Ok(()) for all-air topmost chunk at uniform 15; got {:?}",
             result
         );
     }
 
     #[test]
     fn sky_invariants_fail_top_row_floor_below_15() {
-        // All-air topmost section, but the top-row cell (8, 15, 8) stores 7
+        // All-air topmost chunk, but the top-row cell (8, 15, 8) stores 7
         // instead of 15. TopRowFloor must fire on that cell.
         //
         // The column directly under the broken top-row cell is filled with 14
@@ -595,12 +595,12 @@ mod tests {
 
     #[test]
     fn sky_invariants_fail_source_excess_at_top_row_when_not_topmost() {
-        // Uniform-15 all-air field but the section is NOT topmost in its
+        // Uniform-15 all-air field but the chunk is NOT topmost in its
         // sky-having column. Under the new invariants, cells at y=15 are no
         // longer covered by the top-row exception, and the unified sky-aware
         // oracle attenuates the Down-neighbour at y=14 to 14 (the
         // vertical-drop rule fires only on the Up neighbour, which is
-        // out-of-section at y=15). SourceExcess fires on (0, 15, 0).
+        // out-of-chunk at y=15). SourceExcess fires on (0, 15, 0).
         let table = make_test_table();
         let palette = make_palette(&[]);
         let light = LightStorage::Uniform(15);

@@ -105,7 +105,7 @@ fn smallvec_bytes<T>(sv: &SmallVec<[T; 8]>) -> usize {
 fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
     let world = app.world_mut();
 
-    // "light_nibbles": per-section BlockLight + SkyLight storage
+    // "light_nibbles": per-chunk BlockLight + SkyLight storage
     let mut light_nibbles: usize = 0;
     for block_light in world.query::<&BlockLight>().iter(world) {
         light_nibbles += light_storage_bytes(&block_light.0);
@@ -114,7 +114,7 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
         light_nibbles += light_storage_bytes(&sky_light.0);
     }
 
-    // "wavefront_buffers": all six per-section egress/incoming SmallVec buffers
+    // "wavefront_buffers": all six per-chunk egress/incoming SmallVec buffers
     let mut wavefront_buffers: usize = 0;
     for c in world.query::<&BlockEgress>().iter(world) {
         wavefront_buffers += smallvec_bytes(&c.0);
@@ -156,10 +156,10 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
             + hm.motion_blocking.raw_longs().len() * 8;
     }
 
-    // "section_indexes": per-column ColumnChunks (Box<[Option<Entity>]>)
-    let mut section_indexes: usize = 0;
+    // "chunk_indexes": per-column ColumnChunks (Box<[Option<Entity>]>)
+    let mut chunk_indexes: usize = 0;
     for idx in world.query::<&ColumnChunks>().iter(world) {
-        section_indexes +=
+        chunk_indexes +=
             mem::size_of_val(idx) + idx.sections.len() * mem::size_of::<Option<bevy_ecs::prelude::Entity>>();
     }
 
@@ -209,7 +209,7 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
         CategoryBytes { name: "wavefront_buffers".into(), bytes: wavefront_buffers },
         CategoryBytes { name: "workspaces".into(), bytes: workspaces },
         CategoryBytes { name: "heightmaps".into(), bytes: heightmaps },
-        CategoryBytes { name: "section_indexes".into(), bytes: section_indexes },
+        CategoryBytes { name: "chunk_indexes".into(), bytes: chunk_indexes },
         CategoryBytes { name: "column_indexes".into(), bytes: column_indexes },
         CategoryBytes { name: "sparse_markers".into(), bytes: sparse_markers },
     ];

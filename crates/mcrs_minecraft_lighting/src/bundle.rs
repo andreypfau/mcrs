@@ -17,9 +17,9 @@ pub struct BlockLightBundle {
 
 // `LightStorage::set` promotes `Null -> Uniform(v)` on the first non-zero write,
 // which blanket-fills every cell with `v` and breaks per-cell BFS propagation.
-// Sections that participate in block-light propagation start with explicit
+// Chunks that participate in block-light propagation start with explicit
 // `Mixed(zeros)` so per-cell writes stay independent. An idle-time compaction
-// pass will revisit empty sections later.
+// pass will revisit empty chunks later.
 impl Default for BlockLightBundle {
     fn default() -> Self {
         Self {
@@ -45,9 +45,9 @@ pub struct SkyLightBundle {
 // described above for BlockLightBundle. Without explicit `Mixed(zeros)` the
 // first top-face seed at level 15 promotes storage to `Uniform(15)`, which
 // then reports 15 for every cell and short-circuits per-cell BFS
-// attenuation through partial-air sections (e.g. one with a water cell).
+// attenuation through partial-air chunks (e.g. one with a water cell).
 // The column-walker fast path in `propagate_increase_sky_system` writes
-// `Uniform(15)` directly when the section is all-air, so this initial Mixed
+// `Uniform(15)` directly when the chunk is all-air, so this initial Mixed
 // state only matters for the BFS path.
 impl Default for SkyLightBundle {
     fn default() -> Self {

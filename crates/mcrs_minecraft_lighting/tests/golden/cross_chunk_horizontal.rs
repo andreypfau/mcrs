@@ -1,6 +1,6 @@
-// A torch sitting on the east face of the section; downstream cross-section
-// propagation should carry light into the neighbouring section along the +X
-// axis. This fixture only captures the source section.
+// A torch sitting on the east face of the chunk; downstream cross-chunk
+// propagation should carry light into the neighbouring chunk along the +X
+// axis. This fixture only captures the source chunk.
 
 use mcrs_protocol::BlockStateId;
 

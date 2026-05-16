@@ -1,7 +1,7 @@
 // Specification tests for the single-pass incremental top-down heightmap
 // scan.
 //
-// The scan walks section slots top-down. For each XZ column it writes the
+// The scan walks chunk slots top-down. For each XZ column it writes the
 // heightmap (both world_surface and motion_blocking variants) the moment it
 // finds the first qualifying block, and records closure in a per-variant
 // 256-bit bitset. Finalization is fully derived (`is_finalized()`): the
@@ -11,9 +11,9 @@
 // Test geometry convention
 // ─────────────────────────
 // All tests use a small synthetic dimension so the logic is easy to trace
-// without spawning 24 real sections. The dimension is
-//   min_y = 0, height = 48  →  section_count = 3, min_section_y = 0
-//   sections: y=0 (bottom), y=1 (middle), y=2 (top / max_section_y)
+// without spawning 24 real chunks. The dimension is
+//   min_y = 0, height = 48  →  chunk_count = 3, min_section_y = 0
+//   chunks: y=0 (bottom), y=1 (middle), y=2 (top / max_chunk_y)
 //
 // The stub block-light table has three states:
 //   state 0 = AIR    (dampening=0, IS_NOT_AIR clear, PROPAGATES_SKYLIGHT_DOWN set)
@@ -47,7 +47,7 @@ const AIR: BlockStateId = BlockStateId(0);
 const STONE: BlockStateId = BlockStateId(1);
 const LEAVES: BlockStateId = BlockStateId(2);
 
-// Three-section dimension: sections at chunk_y ∈ {0, 1, 2}, max_section_y = 2.
+// Three-chunk dimension: chunks at chunk_y ∈ {0, 1, 2}, max_chunk_y = 2.
 const DIM_MIN_Y: i32 = 0;
 const DIM_HEIGHT: u32 = 48;
 
@@ -101,7 +101,7 @@ fn make_stub_table() -> BlockLightTable {
     }
 }
 
-fn spawn_section(app: &mut App, dim: Entity, chunk_y: i32, palette: BlockPalette) -> Entity {
+fn spawn_chunk(app: &mut App, dim: Entity, chunk_y: i32, palette: BlockPalette) -> Entity {
     app.world_mut()
         .spawn((
             InDimension(dim),
@@ -126,9 +126,9 @@ fn all_stone() -> BlockPalette {
     p
 }
 
-fn column_entity(app: &App, section: Entity) -> Entity {
+fn column_entity(app: &App, chunk: Entity) -> Entity {
     app.world()
-        .get::<InColumn>(section)
+        .get::<InColumn>(chunk)
         .expect("InColumn back-link missing")
         .0
 }
@@ -140,30 +140,30 @@ fn scan_state(app: &App, col: Entity) -> &ColumnHeightmapScan {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// T1: top_down_scan_finalizes_after_surface_section_only
+// T1: top_down_scan_finalizes_after_surface_chunk_only
 // ─────────────────────────────────────────────────────────────────────────
 //
-// Geometry: 3-section dim (chunk_y ∈ {0,1,2}). Only the top section (y=2)
-// is spawned, with all-stone terrain. The scan starts at max_section_y=2,
+// Geometry: 3-chunk dim (chunk_y ∈ {0,1,2}). Only the top chunk (y=2)
+// is spawned, with all-stone terrain. The scan starts at max_chunk_y=2,
 // finds it loaded, scans it — all 256 XZ columns hit STONE at cell_y=15,
 // so both bitsets become full at the first row. Finalization fires.
-// ChunkNeedsInitialLight is inserted on the top section (and consumed by
-// seed_initial_light in the same tick's Enqueue stage). Sections y=0 and
+// ChunkNeedsInitialLight is inserted on the top chunk (and consumed by
+// seed_initial_light in the same tick's Enqueue stage). Chunks y=0 and
 // y=1 are absent and must NOT receive ChunkNeedsInitialLight.
 #[test]
-fn top_down_scan_finalizes_after_surface_section_only() {
+fn top_down_scan_finalizes_after_surface_chunk_only() {
     let (mut app, dim) = make_test_app();
 
-    let top_section = spawn_section(&mut app, dim, 2, all_stone());
+    let top_chunk = spawn_chunk(&mut app, dim, 2, all_stone());
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col = column_entity(&app, top_section);
+    let col = column_entity(&app, top_chunk);
     let scan = scan_state(&app, col);
 
     assert!(
         scan.is_finalized(),
-        "scan must finalize after topmost section loaded with a complete stone surface"
+        "scan must finalize after topmost chunk loaded with a complete stone surface"
     );
 
     // Heightmap must report surface = 48 (world_y=47 + 1) for all XZ.
@@ -173,50 +173,50 @@ fn top_down_scan_finalizes_after_surface_section_only() {
             assert_eq!(
                 h.surface_get(x, z),
                 48,
-                "surface at ({x},{z}) must be 48 after all-stone top section"
+                "surface at ({x},{z}) must be 48 after all-stone top chunk"
             );
             assert_eq!(
                 h.motion_blocking_get(x, z),
                 48,
-                "motion_blocking at ({x},{z}) must be 48 after all-stone top section"
+                "motion_blocking at ({x},{z}) must be 48 after all-stone top chunk"
             );
         }
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// T2: air_section_fast_skip
+// T2: air_chunk_fast_skip
 // ─────────────────────────────────────────────────────────────────────────
 //
-// Top section (y=2) is all air. Middle section (y=1) has stone everywhere.
-// Bottom section (y=0) is absent.
+// Top chunk (y=2) is all air. Middle chunk (y=1) has stone everywhere.
+// Bottom chunk (y=0) is absent.
 //
-// Scan starts at max=2: section y=2 is present, IsAllAir set → fast-skip
-// (no per-block work, no closure). Cursor advances to 1. Section y=1 is
+// Scan starts at max=2: chunk y=2 is present, IsAllAir set → fast-skip
+// (no per-block work, no closure). Cursor advances to 1. Chunk y=1 is
 // present, not IsAllAir. First row scan finds opaque at every XZ →
 // bitsets fill → finalized.
 //
-// Surface = section_base_y(y=1) + 15 + 1 = 32 for all XZ.
+// Surface = chunk_base_y(y=1) + 15 + 1 = 32 for all XZ.
 #[test]
-fn air_section_fast_skip() {
+fn air_chunk_fast_skip() {
     let (mut app, dim) = make_test_app();
 
-    let top_section = spawn_section(&mut app, dim, 2, all_air());
-    let _mid_section = spawn_section(&mut app, dim, 1, all_stone());
+    let top_chunk = spawn_chunk(&mut app, dim, 2, all_air());
+    let _mid_chunk = spawn_chunk(&mut app, dim, 1, all_stone());
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col = column_entity(&app, top_section);
+    let col = column_entity(&app, top_chunk);
 
     assert!(
-        app.world().get::<IsAllAir>(top_section).is_some(),
-        "top section (all-air palette) must carry IsAllAir marker"
+        app.world().get::<IsAllAir>(top_chunk).is_some(),
+        "top chunk (all-air palette) must carry IsAllAir marker"
     );
 
     let scan = scan_state(&app, col);
     assert!(
         scan.is_finalized(),
-        "scan must finalize: air top section skipped, stone middle section closes all columns"
+        "scan must finalize: air top chunk skipped, stone middle chunk closes all columns"
     );
 
     let h = app.world().get::<Heightmaps>(col).unwrap();
@@ -225,7 +225,7 @@ fn air_section_fast_skip() {
             assert_eq!(
                 h.surface_get(x, z),
                 32,
-                "surface at ({x},{z}) must be 32 after all-stone section at chunk_y=1"
+                "surface at ({x},{z}) must be 32 after all-stone chunk at chunk_y=1"
             );
         }
     }
@@ -235,58 +235,58 @@ fn air_section_fast_skip() {
 // T3: out_of_order_arrival_completes_scan
 // ─────────────────────────────────────────────────────────────────────────
 //
-// Sections arrive across ticks:
+// Chunks arrive across ticks:
 //   Tick 1: spawn top (y=2, all-air).
 //   Tick 2: spawn bottom (y=0, all-stone) — NOT the middle (y=1).
 //   Tick 3: spawn middle (y=1, all-stone).
 //
-// After tick 1: scan at cursor=2, section y=2 loaded → fast-skip. Cursor
-// advances to 1. Section y=1 absent → pause. NOT finalized.
+// After tick 1: scan at cursor=2, chunk y=2 loaded → fast-skip. Cursor
+// advances to 1. Chunk y=1 absent → pause. NOT finalized.
 //
 // After tick 2: Changed<ColumnChunks> fires (y=0 registered). Cursor is at
-// 1. Section y=1 still absent → still no progress. NOT finalized.
+// 1. Chunk y=1 still absent → still no progress. NOT finalized.
 //
 // After tick 3: Changed<ColumnChunks> fires (y=1 registered). Cursor is at
-// 1. Section y=1 now loaded, all-stone → scans, bitsets fill → Finalized.
+// 1. Chunk y=1 now loaded, all-stone → scans, bitsets fill → Finalized.
 #[test]
 fn out_of_order_arrival_completes_scan() {
     let (mut app, dim) = make_test_app();
 
-    // Tick 1: top section (all air).
-    let top_section = spawn_section(&mut app, dim, 2, all_air());
+    // Tick 1: top chunk (all air).
+    let top_chunk = spawn_chunk(&mut app, dim, 2, all_air());
     app.world_mut().run_schedule(FixedUpdate);
 
     {
-        let col = column_entity(&app, top_section);
+        let col = column_entity(&app, top_chunk);
         let scan = scan_state(&app, col);
         assert!(
             !scan.is_finalized(),
-            "must NOT finalize after only top (air) section with y=1 still absent"
+            "must NOT finalize after only top (air) chunk with y=1 still absent"
         );
     }
 
-    // Tick 2: bottom section arrives — still missing the middle.
-    let _bottom_section = spawn_section(&mut app, dim, 0, all_stone());
+    // Tick 2: bottom chunk arrives — still missing the middle.
+    let _bottom_chunk = spawn_chunk(&mut app, dim, 0, all_stone());
     app.world_mut().run_schedule(FixedUpdate);
 
     {
-        let col = column_entity(&app, top_section);
+        let col = column_entity(&app, top_chunk);
         let scan = scan_state(&app, col);
         assert!(
             !scan.is_finalized(),
-            "must NOT finalize when middle section (y=1) is still absent"
+            "must NOT finalize when middle chunk (y=1) is still absent"
         );
     }
 
-    // Tick 3: middle section arrives — scan can now advance past y=1.
-    let _mid_section = spawn_section(&mut app, dim, 1, all_stone());
+    // Tick 3: middle chunk arrives — scan can now advance past y=1.
+    let _mid_chunk = spawn_chunk(&mut app, dim, 1, all_stone());
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col = column_entity(&app, top_section);
+    let col = column_entity(&app, top_chunk);
     let scan = scan_state(&app, col);
     assert!(
         scan.is_finalized(),
-        "scan must finalize once the blocking middle section (y=1) arrives"
+        "scan must finalize once the blocking middle chunk (y=1) arrives"
     );
 }
 
@@ -294,7 +294,7 @@ fn out_of_order_arrival_completes_scan() {
 // T4: chimney_to_bedrock_finalizes_at_floor
 // ─────────────────────────────────────────────────────────────────────────
 //
-// All three sections fully air. After all three arrive, the scan walks
+// All three chunks fully air. After all three arrive, the scan walks
 // y=2 (air, skip), y=1 (air, skip), y=0 (air, skip), then scan_cursor
 // falls below min_section_y (0). The bedrock-floor termination fires.
 // is_finalized() returns true; the bitsets remain all-zero (no opaque
@@ -307,19 +307,19 @@ fn out_of_order_arrival_completes_scan() {
 fn chimney_to_bedrock_finalizes_at_floor() {
     let (mut app, dim) = make_test_app();
 
-    let top_section = spawn_section(&mut app, dim, 2, all_air());
-    let _mid_section = spawn_section(&mut app, dim, 1, all_air());
-    let _bot_section = spawn_section(&mut app, dim, 0, all_air());
+    let top_chunk = spawn_chunk(&mut app, dim, 2, all_air());
+    let _mid_chunk = spawn_chunk(&mut app, dim, 1, all_air());
+    let _bot_chunk = spawn_chunk(&mut app, dim, 0, all_air());
 
     for _ in 0..3 {
         app.world_mut().run_schedule(FixedUpdate);
     }
 
-    let col = column_entity(&app, top_section);
+    let col = column_entity(&app, top_chunk);
     let scan = scan_state(&app, col);
     assert!(
         scan.is_finalized(),
-        "scan must finalize at bedrock floor when all sections are air"
+        "scan must finalize at bedrock floor when all chunks are air"
     );
     // Chimney path indicator: cursor dropped below min_section_y.
     assert!(
@@ -346,7 +346,7 @@ fn chimney_to_bedrock_finalizes_at_floor() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// T5: late_arriving_section_gets_initial_light_immediately
+// T5: late_arriving_chunk_gets_initial_light_immediately
 // ─────────────────────────────────────────────────────────────────────────
 //
 // Spawn top (y=2, all-stone) → scan finalizes on tick 1. Then in tick 2
@@ -354,33 +354,33 @@ fn chimney_to_bedrock_finalizes_at_floor() {
 // (consumed by seed_initial_light in the same tick), so SkyLight ends up
 // populated.
 #[test]
-fn late_arriving_section_gets_initial_light_immediately() {
+fn late_arriving_chunk_gets_initial_light_immediately() {
     let (mut app, dim) = make_test_app();
 
-    let top_section = spawn_section(&mut app, dim, 2, all_stone());
+    let top_chunk = spawn_chunk(&mut app, dim, 2, all_stone());
 
     app.world_mut().run_schedule(FixedUpdate);
 
     {
-        let col = column_entity(&app, top_section);
+        let col = column_entity(&app, top_chunk);
         assert!(
             scan_state(&app, col).is_finalized(),
-            "scan must finalize after all-stone top section"
+            "scan must finalize after all-stone top chunk"
         );
     }
 
-    let mid_section = spawn_section(&mut app, dim, 1, all_air());
+    let mid_chunk = spawn_chunk(&mut app, dim, 1, all_air());
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col = column_entity(&app, top_section);
+    let col = column_entity(&app, top_chunk);
     assert!(
         scan_state(&app, col).is_finalized(),
-        "finalized state must remain after late section arrival"
+        "finalized state must remain after late chunk arrival"
     );
     use mcrs_minecraft_lighting::components::SkyLight;
     assert!(
-        app.world().get::<SkyLight>(mid_section).is_some(),
-        "late-arriving section must have SkyLight component attached"
+        app.world().get::<SkyLight>(mid_chunk).is_some(),
+        "late-arriving chunk must have SkyLight component attached"
     );
 }
 
@@ -391,22 +391,22 @@ fn late_arriving_section_gets_initial_light_immediately() {
 // Pins the partial-column contract: until the scan finalizes, entries for
 // XZ columns the scan has not yet closed hold the sentinel value (min_y).
 //
-// Step 1: spawn only a lower section. Scan cursor pauses at the topmost
+// Step 1: spawn only a lower chunk. Scan cursor pauses at the topmost
 // missing slot. Every XZ reads back as min_y.
-// Step 2: spawn the topmost section with a complete stone surface. Scan
+// Step 2: spawn the topmost chunk with a complete stone surface. Scan
 // finalizes. Every XZ now reads back the surface value.
 #[test]
 fn partial_column_heightmap_is_sentinel_until_finalized() {
     let (mut app, dim) = make_test_app();
 
-    // Step 1: only a lower section.
-    let bottom_section = spawn_section(&mut app, dim, 0, all_stone());
+    // Step 1: only a lower chunk.
+    let bottom_chunk = spawn_chunk(&mut app, dim, 0, all_stone());
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col = column_entity(&app, bottom_section);
+    let col = column_entity(&app, bottom_chunk);
     assert!(
         !scan_state(&app, col).is_finalized(),
-        "scan must NOT finalize while the topmost section is absent"
+        "scan must NOT finalize while the topmost chunk is absent"
     );
     {
         let h = app.world().get::<Heightmaps>(col).unwrap();
@@ -424,13 +424,13 @@ fn partial_column_heightmap_is_sentinel_until_finalized() {
         }
     }
 
-    // Step 2: spawn the topmost section with a stone surface row.
-    let _top_section = spawn_section(&mut app, dim, 2, all_stone());
+    // Step 2: spawn the topmost chunk with a stone surface row.
+    let _top_chunk = spawn_chunk(&mut app, dim, 2, all_stone());
     app.world_mut().run_schedule(FixedUpdate);
 
     assert!(
         scan_state(&app, col).is_finalized(),
-        "scan must finalize after the topmost stone section arrives"
+        "scan must finalize after the topmost stone chunk arrives"
     );
     let h = app.world().get::<Heightmaps>(col).unwrap();
     for z in 0..16usize {
@@ -449,12 +449,12 @@ fn partial_column_heightmap_is_sentinel_until_finalized() {
 // ─────────────────────────────────────────────────────────────────────────
 //
 // Constructs a column where one specific XZ has LEAVES at cell_y=8 and
-// STONE at cell_y=4 in the top section, while every other XZ has STONE
+// STONE at cell_y=4 in the top chunk, while every other XZ has STONE
 // at cell_y=15. LEAVES set IS_NOT_AIR but not IS_MOTION_BLOCKING — so
 // world_surface closes one row earlier than motion_blocking at the
 // special XZ. After finalization:
-//   - At the special XZ: surface = section_base_y + 9, motion = section_base_y + 5.
-//   - At every other XZ: surface = motion = section_base_y + 16.
+//   - At the special XZ: surface = chunk_base_y + 9, motion = chunk_base_y + 5.
+//   - At every other XZ: surface = motion = chunk_base_y + 16.
 // Pins the independence of the two heightmap variants.
 #[test]
 fn multi_variant_divergence() {
@@ -474,32 +474,32 @@ fn multi_variant_divergence() {
     top_palette.set(BlockPos::new(5, 8, 5), LEAVES);
     top_palette.set(BlockPos::new(5, 4, 5), STONE);
 
-    let top_section = spawn_section(&mut app, dim, 2, top_palette);
+    let top_chunk = spawn_chunk(&mut app, dim, 2, top_palette);
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col = column_entity(&app, top_section);
+    let col = column_entity(&app, top_chunk);
     let scan = scan_state(&app, col);
-    assert!(scan.is_finalized(), "scan must finalize on top-section row");
+    assert!(scan.is_finalized(), "scan must finalize on top-chunk row");
 
     let h = app.world().get::<Heightmaps>(col).unwrap();
-    let section_base_y = 32; // chunk_y=2 * 16
+    let chunk_base_y = 32; // chunk_y=2 * 16
 
     // Special XZ: surface from leaves, motion_blocking from stone below.
     assert_eq!(
         h.surface_get(5, 5),
-        section_base_y + 9,
+        chunk_base_y + 9,
         "surface at the leaf column must be one above the leaves (cell_y=8)"
     );
     assert_eq!(
         h.motion_blocking_get(5, 5),
-        section_base_y + 5,
+        chunk_base_y + 5,
         "motion_blocking at the leaf column must be one above the stone (cell_y=4)"
     );
 
     // Other XZs: both variants close on the top row.
     for &(x, z) in &[(0usize, 0usize), (1, 1), (15, 15)] {
-        assert_eq!(h.surface_get(x, z), section_base_y + 16);
-        assert_eq!(h.motion_blocking_get(x, z), section_base_y + 16);
+        assert_eq!(h.surface_get(x, z), chunk_base_y + 16);
+        assert_eq!(h.motion_blocking_get(x, z), chunk_base_y + 16);
     }
 }
 
@@ -511,8 +511,8 @@ fn multi_variant_divergence() {
 // authoritative writer for post-finalization heightmap edits and is not
 // interfered with by the scan.
 //
-// Adapted to the 3-section test dim:
-//   1. Top section has stone at cell_y=14 for ALL XZ (creating surface at
+// Adapted to the 3-chunk test dim:
+//   1. Top chunk has stone at cell_y=14 for ALL XZ (creating surface at
 //      world_y=47 for all). Additional stone at (0, 12, 0) (world_y=44)
 //      provides a next-lower opaque block at XZ=(0,0).
 //   2. Scan finalizes on tick 1 — every XZ closes on cell_y=14.
@@ -533,13 +533,13 @@ fn heightmap_updates_correctly_after_block_break_post_finalize() {
     }
     top_palette.set(BlockPos::new(0, 12, 0), STONE);
 
-    let top_section = spawn_section(&mut app, dim, 2, top_palette);
+    let top_chunk = spawn_chunk(&mut app, dim, 2, top_palette);
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col = column_entity(&app, top_section);
+    let col = column_entity(&app, top_chunk);
     assert!(
         scan_state(&app, col).is_finalized(),
-        "scan must finalize after the full-row top section"
+        "scan must finalize after the full-row top chunk"
     );
     {
         let h = app.world().get::<Heightmaps>(col).unwrap();
@@ -548,11 +548,11 @@ fn heightmap_updates_correctly_after_block_break_post_finalize() {
 
     // Break the topmost stone at (0, 46, 0).
     app.world_mut()
-        .get_mut::<BlockPalette>(top_section)
+        .get_mut::<BlockPalette>(top_chunk)
         .expect("palette missing")
         .set(BlockPos::new(0, 14, 0), AIR);
     let placed = BlockPlaced {
-        chunk: top_section,
+        chunk: top_chunk,
         chunk_pos: ChunkPos::new(0, 2, 0),
         block_pos: BlockPos::new(0, 46, 0),
         old_state: STONE,
@@ -579,20 +579,20 @@ fn heightmap_updates_correctly_after_block_break_post_finalize() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// T9: re_trigger_changed_without_new_sections_is_noop
+// T9: re_trigger_changed_without_new_chunks_is_noop
 // ─────────────────────────────────────────────────────────────────────────
 //
 // After the scan finalizes, spuriously marking `ColumnChunks` as changed
 // (without adding a slot) must not panic, must not corrupt the heightmap,
 // and must leave the scan in its finalized state.
 #[test]
-fn re_trigger_changed_without_new_sections_is_noop() {
+fn re_trigger_changed_without_new_chunks_is_noop() {
     let (mut app, dim) = make_test_app();
 
-    let top_section = spawn_section(&mut app, dim, 2, all_stone());
+    let top_chunk = spawn_chunk(&mut app, dim, 2, all_stone());
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col = column_entity(&app, top_section);
+    let col = column_entity(&app, top_chunk);
     assert!(
         scan_state(&app, col).is_finalized(),
         "scan must finalize on tick 1"
@@ -634,29 +634,29 @@ fn re_trigger_changed_without_new_sections_is_noop() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// T10: single_section_dimension_finalizes_immediately
+// T10: single_chunk_dimension_finalizes_immediately
 // ─────────────────────────────────────────────────────────────────────────
 //
-// A one-section dimension (min_section_y == max_section_y). The single
-// section IS the topmost. Spawning it must finalize the scan in this
-// single event and insert ChunkNeedsInitialLight on the section.
+// A one-chunk dimension (min_section_y == max_chunk_y). The single
+// chunk IS the topmost. Spawning it must finalize the scan in this
+// single event and insert ChunkNeedsInitialLight on the chunk.
 #[test]
-fn single_section_dimension_finalizes_immediately() {
+fn single_chunk_dimension_finalizes_immediately() {
     let (mut app, dim) = make_test_app_with_dim(0, 16);
 
-    let only_section = spawn_section(&mut app, dim, 0, all_stone());
+    let only_chunk = spawn_chunk(&mut app, dim, 0, all_stone());
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col = column_entity(&app, only_section);
+    let col = column_entity(&app, only_chunk);
     assert!(
         scan_state(&app, col).is_finalized(),
-        "single-section dim must finalize on the first event"
+        "single-chunk dim must finalize on the first event"
     );
 
     use mcrs_minecraft_lighting::components::SkyLight;
     assert!(
-        app.world().get::<SkyLight>(only_section).is_some(),
-        "the only section must have SkyLight attached"
+        app.world().get::<SkyLight>(only_chunk).is_some(),
+        "the only chunk must have SkyLight attached"
     );
 
     let h = app.world().get::<Heightmaps>(col).unwrap();
@@ -665,7 +665,7 @@ fn single_section_dimension_finalizes_immediately() {
             assert_eq!(
                 h.surface_get(x, z),
                 16,
-                "single-section dim surface at ({x},{z}) must be 16"
+                "single-chunk dim surface at ({x},{z}) must be 16"
             );
         }
     }

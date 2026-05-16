@@ -79,7 +79,7 @@ pub fn spawn_test_dimension(app: &mut App, sky: bool) -> Entity {
     entity
 }
 
-pub fn spawn_test_section(
+pub fn spawn_test_chunk(
     app: &mut App,
     dim: Entity,
     chunk_pos: ChunkPos,
@@ -163,7 +163,7 @@ pub fn build_single_torch_app() -> App {
     app.add_plugins(LightingPlugin);
     app.insert_resource(make_stub_block_light_table_with_torch());
     let dim = spawn_test_dimension(&mut app, true);
-    spawn_test_section(&mut app, dim, ChunkPos::new(0, 0, 0), torch_palette_with_one_emitter());
+    spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), torch_palette_with_one_emitter());
     app
 }
 
@@ -175,7 +175,7 @@ pub fn build_tnt_chain_app() -> App {
     app.add_plugins(LightingPlugin);
     app.insert_resource(make_stub_block_light_table());
     let dim = spawn_test_dimension(&mut app, true);
-    spawn_test_section(&mut app, dim, ChunkPos::new(0, 0, 0), tnt_3x3x3_palette());
+    spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), tnt_3x3x3_palette());
     app
 }
 
@@ -187,7 +187,7 @@ pub fn build_roof_removal_app() -> App {
     app.add_plugins(LightingPlugin);
     app.insert_resource(make_stub_block_light_table());
     let dim = spawn_test_dimension(&mut app, true);
-    spawn_test_section(&mut app, dim, ChunkPos::new(0, 0, 0), stone_cap_then_air_palette());
+    spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), stone_cap_then_air_palette());
     app
 }
 
@@ -200,7 +200,7 @@ pub fn build_pit_dig_app() -> App {
     app.insert_resource(make_stub_block_light_table());
     let dim = spawn_test_dimension(&mut app, true);
     for chunk_y in 0..4i32 {
-        spawn_test_section(&mut app, dim, ChunkPos::new(0, chunk_y, 0), solid_column_palette());
+        spawn_test_chunk(&mut app, dim, ChunkPos::new(0, chunk_y, 0), solid_column_palette());
     }
     app
 }
@@ -222,7 +222,7 @@ pub fn build_warmed_vd12_app_factory() -> Box<dyn Fn() -> App + Send + Sync> {
                     } else {
                         air_palette()
                     };
-                    spawn_test_section(&mut app, dim, ChunkPos::new(chunk_x, chunk_y, chunk_z), palette);
+                    spawn_test_chunk(&mut app, dim, ChunkPos::new(chunk_x, chunk_y, chunk_z), palette);
                 }
             }
         }
@@ -244,7 +244,7 @@ pub fn build_warmed_vd12_app_in_place(app: &mut App) {
                 } else {
                     air_palette()
                 };
-                spawn_test_section(app, dim, ChunkPos::new(chunk_x, chunk_y, chunk_z), palette);
+                spawn_test_chunk(app, dim, ChunkPos::new(chunk_x, chunk_y, chunk_z), palette);
             }
         }
     }
@@ -261,9 +261,9 @@ pub fn spawn_edge_column(app: &mut App) -> Entity {
         .iter(app.world())
         .find(|&e| app.world().get::<HasSkyLight>(e).is_some())
         .expect("no sky-having dimension entity found");
-    let first = spawn_test_section(app, dim, ChunkPos::new(13, 0, 0), stone_cap_then_air_palette());
+    let first = spawn_test_chunk(app, dim, ChunkPos::new(13, 0, 0), stone_cap_then_air_palette());
     for chunk_y in 1..24i32 {
-        spawn_test_section(app, dim, ChunkPos::new(13, chunk_y, 0), air_palette());
+        spawn_test_chunk(app, dim, ChunkPos::new(13, chunk_y, 0), air_palette());
     }
     first
 }

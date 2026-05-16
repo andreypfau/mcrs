@@ -1,7 +1,7 @@
 // INT-04: cold-boot warm-up via `Added<ChunkLoaded>` in `AppState::Playing`.
 //
 // Builds the minimum app surface that exercises the full warm-up chain:
-// `attach_lighting_state` (`AttachState` set) inserts the per-section storage
+// `attach_lighting_state` (`AttachState` set) inserts the per-chunk storage
 // components and `ChunkNeedsInitialLight`; `seed_initial_light` consumes the
 // marker and seeds emitter / sky sources; `pull_neighbor_edge_levels` (driven
 // by `Added<ChunkLoaded>`) merges the neighbour edge cells; the bounded
@@ -10,7 +10,7 @@
 // `LightDirty` markers once queues drain.
 //
 // The test asserts (a) the storage components are populated, (b) no
-// `LightDirty` marker remains on any section after warm-up, and (c) none of
+// `LightDirty` marker remains on any chunk after warm-up, and (c) none of
 // the bounded-loop / pending-egress / cross-dim telemetry counters
 // incremented across the run.
 
@@ -88,7 +88,7 @@ fn spawn_test_dimension(app: &mut App, sky: bool) -> Entity {
     entity
 }
 
-fn spawn_test_section(
+fn spawn_test_chunk(
     app: &mut App,
     dim: Entity,
     chunk_pos: ChunkPos,
@@ -128,9 +128,9 @@ fn playing_tick_warmup_propagates_initial_light_without_residual_dirty() {
         .resource_mut::<NextState<AppState>>()
         .set(AppState::Playing);
 
-    let section = spawn_test_section(&mut app, dim, ChunkPos::new(0, 0, 0), air_palette());
+    let chunk = spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), air_palette());
 
-    // Three ticks: tick 1 reconciles the column + section index and attaches
+    // Three ticks: tick 1 reconciles the column + chunk index and attaches
     // lighting state; tick 2 runs `seed_initial_light` +
     // `pull_neighbor_edge_levels` + convergence + emit-dirty; tick 3 lets
     // the safety-net `clear_light_dirty_safety_net` drain any residual
@@ -142,16 +142,16 @@ fn playing_tick_warmup_propagates_initial_light_without_residual_dirty() {
     {
         let world = app.world();
         assert!(
-            world.get::<BlockLight>(section).is_some(),
+            world.get::<BlockLight>(chunk).is_some(),
             "BlockLight component must be populated after warm-up"
         );
         assert!(
-            world.get::<SkyLight>(section).is_some(),
+            world.get::<SkyLight>(chunk).is_some(),
             "SkyLight component must be populated after warm-up (sky-having dim)"
         );
         let in_col = world
-            .get::<InColumn>(section)
-            .expect("section must have InColumn back-link after lifecycle reconcile");
+            .get::<InColumn>(chunk)
+            .expect("chunk must have InColumn back-link after lifecycle reconcile");
         assert_ne!(in_col.0, Entity::PLACEHOLDER);
     }
 

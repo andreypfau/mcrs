@@ -25,8 +25,8 @@ fn bench_roof_removal(c: &mut Criterion) {
                 // the timing window like the App build itself.
                 {
                     let mut q = app.world_mut().query_filtered::<Entity, With<BlockPalette>>();
-                    let sections: Vec<Entity> = q.iter(app.world()).collect();
-                    for entity in sections {
+                    let chunks: Vec<Entity> = q.iter(app.world()).collect();
+                    for entity in chunks {
                         let mut palette = app.world_mut().get_mut::<BlockPalette>(entity).unwrap();
                         for x in 0i32..16 {
                             for z in 0i32..16 {

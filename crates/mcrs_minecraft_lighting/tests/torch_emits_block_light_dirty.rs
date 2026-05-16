@@ -99,13 +99,13 @@ fn spawn_test_dimension(app: &mut App, sky: bool) -> Entity {
     entity
 }
 
-fn spawn_test_section(
+fn spawn_test_chunk(
     app: &mut App,
     dim: Entity,
     chunk_pos: ChunkPos,
     palette: BlockPalette,
 ) -> Entity {
-    let section = app
+    let chunk = app
         .world_mut()
         .spawn((
             InDimension(dim),
@@ -116,18 +116,18 @@ fn spawn_test_section(
             palette,
         ))
         .id();
-    // Manually register the section in the dimension's `ChunkIndex`. The
+    // Manually register the chunk in the dimension's `ChunkIndex`. The
     // production path runs this via the ticket / spawn_chunks pipeline; tests
-    // bypass that surface and spawn sections directly, so the index must be
-    // primed by hand. `apply_set_block_request` looks the section up through
+    // bypass that surface and spawn chunks directly, so the index must be
+    // primed by hand. `apply_set_block_request` looks the chunk up through
     // `ChunkIndex::get(chunk_pos)`, so without this mapping the request is
     // silently dropped.
     app.world_mut()
         .entity_mut(dim)
         .get_mut::<ChunkIndex>()
         .expect("dimension must have ChunkIndex from DimensionBundle")
-        .insert(chunk_pos, section);
-    section
+        .insert(chunk_pos, chunk);
+    chunk
 }
 
 fn air_palette() -> BlockPalette {
@@ -149,7 +149,7 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
         .set(AppState::Playing);
 
     let chunk_pos = ChunkPos::new(0, 0, 0);
-    let section = spawn_test_section(&mut app, dim, chunk_pos, air_palette());
+    let chunk = spawn_test_chunk(&mut app, dim, chunk_pos, air_palette());
 
     // Quiesce the cold-boot warm-up before placing the torch so the resulting
     // BlockLightDirty count is attributable to the placement alone.
@@ -163,8 +163,8 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
     let column_pos = {
         let world = app.world();
         let in_col = world
-            .get::<InColumn>(section)
-            .expect("section must have InColumn back-link after warm-up");
+            .get::<InColumn>(chunk)
+            .expect("chunk must have InColumn back-link after warm-up");
         let col_pos_component = world
             .get::<ColumnPosComponent>(in_col.0)
             .expect("column entity must carry ColumnPosComponent");
@@ -176,7 +176,7 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
 
     // Sanity check: warm-up must have populated the dimension's ChunkIndex
     // mapping and added the ChunkNetworkSyncBlockChangesSet so that
-    // `apply_set_block_request` can locate the section and mutate its
+    // `apply_set_block_request` can locate the chunk and mutate its
     // BlockPalette in the same tick the request is read.
     {
         let world = app.world();
@@ -185,19 +185,19 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
             .expect("dimension must have ChunkIndex");
         assert_eq!(
             idx.get(chunk_pos),
-            Some(section),
-            "ChunkIndex must point chunk_pos -> section before the torch placement"
+            Some(chunk),
+            "ChunkIndex must point chunk_pos -> chunk before the torch placement"
         );
         assert!(
             world
-                .get::<mcrs_minecraft_block::block_update::ChunkNetworkSyncBlockChangesSet>(section)
+                .get::<mcrs_minecraft_block::block_update::ChunkNetworkSyncBlockChangesSet>(chunk)
                 .is_some(),
             "BlockUpdatePlugin::add_changes_set must have attached the changes set during warm-up"
         );
     }
 
-    // Place a torch at the section center. `BlockPos::new(8, 8, 8) >> 4` lands
-    // in `ChunkPos::new(0, 0, 0)`, matching the spawned section. ALL_IMMEDIATE
+    // Place a torch at the chunk center. `BlockPos::new(8, 8, 8) >> 4` lands
+    // in `ChunkPos::new(0, 0, 0)`, matching the spawned chunk. ALL_IMMEDIATE
     // sets NEIGHBORS | CLIENTS | IMMEDIATE so the apply system actually
     // executes the write.
     app.world_mut()
@@ -217,9 +217,9 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
     // BlockLightDirty assertion would mis-diagnose the failure.
     let world = app.world();
     let palette_state = world
-        .get::<BlockPalette>(section)
+        .get::<BlockPalette>(chunk)
         .map(|p| p.get(BlockPos::new(8, 8, 8)))
-        .expect("section must still have BlockPalette");
+        .expect("chunk must still have BlockPalette");
     assert_eq!(
         palette_state, BlockStateId(2),
         "apply_set_block_request must have replaced the cell with the torch state"
@@ -233,15 +233,15 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
     assert_eq!(
         collected.len(),
         1,
-        "exactly one BlockLightDirty message expected for one torch in one section, got: {:?}",
+        "exactly one BlockLightDirty message expected for one torch in one chunk, got: {:?}",
         collected
             .iter()
-            .map(|m| (m.section, m.column_pos, m.chunk_y))
+            .map(|m| (m.chunk, m.column_pos, m.chunk_y))
             .collect::<Vec<_>>()
     );
     assert_eq!(
-        collected[0].section, section,
-        "BlockLightDirty must target the section receiving the torch placement"
+        collected[0].chunk, chunk,
+        "BlockLightDirty must target the chunk receiving the torch placement"
     );
     assert_eq!(
         collected[0].column_pos, column_pos,

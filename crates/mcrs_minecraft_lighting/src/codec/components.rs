@@ -53,8 +53,8 @@ pub struct SkyEgress(pub SmallVec<[Wavefront; 8]>);
 #[derive(Component, Clone, Debug, Default)]
 pub struct SkyIncoming(pub SmallVec<[Wavefront; 8]>);
 
-/// Cross-section wavefronts that cannot fit in the destination's `*Incoming`
-/// buffer yet; flushed by the cross-section distribute pass. Hard-capped at
+/// Cross-chunk wavefronts that cannot fit in the destination's `*Incoming`
+/// buffer yet; flushed by the cross-chunk distribute pass. Hard-capped at
 /// `PENDING_EGRESS_CAP` entries; overflow triggers a `NeedsFullReseed` insert
 /// on the destination column entity.
 #[derive(Component, Clone, Debug, Default)]
@@ -94,8 +94,8 @@ pub struct ChunkNeedsInitialLight;
 #[component(storage = "SparseSet")]
 pub struct NeedsFullReseed;
 
-/// Marks a `ChunkSection` whose sky light was seeded as the topmost section
-/// of its column. Invalidated when a new section spawns above this one.
+/// Marks a chunk whose sky light was seeded as the topmost chunk
+/// of its column. Invalidated when a new chunk spawns above this one.
 #[derive(Component)]
 #[component(storage = "SparseSet")]
 pub struct SkyLightSeededAsTopmost;

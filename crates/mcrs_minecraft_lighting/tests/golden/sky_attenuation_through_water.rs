@@ -1,4 +1,4 @@
-// A flowing water block placed in an otherwise empty section: the sky-light
+// A flowing water block placed in an otherwise empty chunk: the sky-light
 // engine drops the level by `max(1, dampening) == 1` at the water cell. Light
 // in surrounding cells reaches the column below the water laterally (the
 // engine's 3D BFS wraps around the obstacle): every cell directly under the

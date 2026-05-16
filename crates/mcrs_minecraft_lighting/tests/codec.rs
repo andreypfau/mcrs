@@ -1,9 +1,9 @@
 // Integration tests for the lighting wire codec.
 //
-// `codec_emits_column_light_update_for_dirty_sections` and the per-column
+// `codec_emits_column_light_update_for_dirty_chunks` and the per-column
 // merge test inject synthetic `BlockLightDirty` / `SkyLightDirty` messages
 // directly into the message buffer and exercise the consumer side of the
-// codec. `emit_dirty_writes_block_light_dirty_for_modified_section` drives
+// codec. `emit_dirty_writes_block_light_dirty_for_modified_chunk` drives
 // the producer wiring via the `LightDirty` marker and confirms the emit-pass
 // systems fan that marker out to the per-layer message stream.
 
@@ -29,8 +29,8 @@ use mcrs_minecraft_lighting::{BlockLightDirty, ColumnLightUpdate, LightingPlugin
 
 const TEST_DIM_HEIGHT: u32 = 384;
 const TEST_DIM_MIN_Y: i32 = -64;
-const MIN_SECTION_Y: i32 = TEST_DIM_MIN_Y / 16; // -4
-const SECTION_COUNT: usize = (TEST_DIM_HEIGHT / 16) as usize; // 24
+const MIN_CHUNK_Y: i32 = TEST_DIM_MIN_Y / 16; // -4
+const CHUNK_COUNT: usize = (TEST_DIM_HEIGHT / 16) as usize; // 24
 
 fn make_codec_test_app() -> (App, Entity) {
     let mut app = App::new();
@@ -81,12 +81,12 @@ fn spawn_test_dimension(app: &mut App) -> Entity {
 struct ColumnHandles {
     column: Entity,
     column_pos: ColumnPos,
-    sections: Vec<Entity>,
+    chunks: Vec<Entity>,
 }
 
 fn spawn_test_column(app: &mut App, dim: Entity, column_pos: ColumnPos) -> ColumnHandles {
-    let mut section_index = ColumnChunks::new(MIN_SECTION_Y, SECTION_COUNT);
-    let mut section_entities: Vec<Entity> = Vec::with_capacity(SECTION_COUNT);
+    let mut chunk_index = ColumnChunks::new(MIN_CHUNK_Y, CHUNK_COUNT);
+    let mut chunk_entities: Vec<Entity> = Vec::with_capacity(CHUNK_COUNT);
     let column = app
         .world_mut()
         .spawn((
@@ -95,9 +95,9 @@ fn spawn_test_column(app: &mut App, dim: Entity, column_pos: ColumnPos) -> Colum
             Column,
         ))
         .id();
-    for i in 0..SECTION_COUNT {
-        let chunk_y = MIN_SECTION_Y + i as i32;
-        let section_entity = app
+    for i in 0..CHUNK_COUNT {
+        let chunk_y = MIN_CHUNK_Y + i as i32;
+        let chunk_entity = app
             .world_mut()
             .spawn((
                 BlockLight(LightStorage::Null),
@@ -105,19 +105,19 @@ fn spawn_test_column(app: &mut App, dim: Entity, column_pos: ColumnPos) -> Colum
                 InColumn(column),
             ))
             .id();
-        section_index.set_loaded(chunk_y, section_entity);
-        section_entities.push(section_entity);
+        chunk_index.set_loaded(chunk_y, chunk_entity);
+        chunk_entities.push(chunk_entity);
     }
-    app.world_mut().entity_mut(column).insert(section_index);
+    app.world_mut().entity_mut(column).insert(chunk_index);
     ColumnHandles {
         column,
         column_pos,
-        sections: section_entities,
+        chunks: chunk_entities,
     }
 }
 
 fn wire_bit_for_chunk_y(chunk_y: i32) -> usize {
-    (chunk_y - MIN_SECTION_Y + 1) as usize
+    (chunk_y - MIN_CHUNK_Y + 1) as usize
 }
 
 fn bit_is_set(mask: &[u64], bit_idx: usize) -> bool {
@@ -132,21 +132,21 @@ fn popcount(mask: &[u64]) -> u32 {
     mask.iter().map(|w| w.count_ones()).sum()
 }
 
-fn inject_block_dirty(app: &mut App, section: Entity, column_pos: ColumnPos, chunk_y: i32) {
+fn inject_block_dirty(app: &mut App, chunk: Entity, column_pos: ColumnPos, chunk_y: i32) {
     app.world_mut()
         .resource_mut::<Messages<BlockLightDirty>>()
         .write(BlockLightDirty {
-            section,
+            chunk,
             column_pos,
             chunk_y,
         });
 }
 
-fn inject_sky_dirty(app: &mut App, section: Entity, column_pos: ColumnPos, chunk_y: i32) {
+fn inject_sky_dirty(app: &mut App, chunk: Entity, column_pos: ColumnPos, chunk_y: i32) {
     app.world_mut()
         .resource_mut::<Messages<SkyLightDirty>>()
         .write(SkyLightDirty {
-            section,
+            chunk,
             column_pos,
             chunk_y,
         });
@@ -167,23 +167,23 @@ fn drain_block_light_dirty(app: &mut App) -> Vec<BlockLightDirty> {
 }
 
 #[test]
-fn codec_emits_column_light_update_for_dirty_sections() {
+fn codec_emits_column_light_update_for_dirty_chunks() {
     let (mut app, dim) = make_codec_test_app();
     let handles = spawn_test_column(&mut app, dim, ColumnPos::new(3, -7));
 
     let chunk_y: i32 = 5;
-    let target_section = handles.sections[(chunk_y - MIN_SECTION_Y) as usize];
+    let target_chunk = handles.chunks[(chunk_y - MIN_CHUNK_Y) as usize];
 
-    // Give the dirty section a non-default block-light storage so the codec
+    // Give the dirty chunk a non-default block-light storage so the codec
     // emits a populated mask bit (a Null storage would route to the empty
     // mask instead).
     let mut nibble = NibbleArray::zeros();
     nibble.set(2, 4, 6, 0xA);
     app.world_mut()
-        .entity_mut(target_section)
+        .entity_mut(target_chunk)
         .insert(BlockLight(LightStorage::Mixed(Box::new(nibble))));
 
-    inject_block_dirty(&mut app, target_section, handles.column_pos, chunk_y);
+    inject_block_dirty(&mut app, target_chunk, handles.column_pos, chunk_y);
 
     app.world_mut().run_schedule(FixedPostUpdate);
 
@@ -211,7 +211,7 @@ fn codec_emits_column_light_update_for_dirty_sections() {
     assert_eq!(
         update.light_data.block_light_arrays.len(),
         1,
-        "one block-light payload appended for the dirty section"
+        "one block-light payload appended for the dirty chunk"
     );
     // No sky-light bits should be set because only BlockLightDirty was
     // injected.
@@ -225,7 +225,7 @@ fn codec_merges_block_and_sky_dirty_into_one_packet() {
     let handles = spawn_test_column(&mut app, dim, ColumnPos::new(0, 0));
 
     let chunk_y: i32 = 2;
-    let target_section = handles.sections[(chunk_y - MIN_SECTION_Y) as usize];
+    let target_chunk = handles.chunks[(chunk_y - MIN_CHUNK_Y) as usize];
 
     // Both layers get a non-default storage so the codec emits populated
     // mask bits on each side rather than empty-mask placeholders.
@@ -233,13 +233,13 @@ fn codec_merges_block_and_sky_dirty_into_one_packet() {
     block_nibble.set(0, 0, 0, 0x7);
     let mut sky_nibble = NibbleArray::zeros();
     sky_nibble.set(0, 0, 0, 0xF);
-    app.world_mut().entity_mut(target_section).insert((
+    app.world_mut().entity_mut(target_chunk).insert((
         BlockLight(LightStorage::Mixed(Box::new(block_nibble))),
         SkyLight(LightStorage::Mixed(Box::new(sky_nibble))),
     ));
 
-    inject_block_dirty(&mut app, target_section, handles.column_pos, chunk_y);
-    inject_sky_dirty(&mut app, target_section, handles.column_pos, chunk_y);
+    inject_block_dirty(&mut app, target_chunk, handles.column_pos, chunk_y);
+    inject_sky_dirty(&mut app, target_chunk, handles.column_pos, chunk_y);
 
     app.world_mut().run_schedule(FixedPostUpdate);
 
@@ -275,19 +275,19 @@ fn codec_emits_no_message_when_no_dirty_inputs() {
 }
 
 #[test]
-fn emit_dirty_writes_block_light_dirty_for_modified_section() {
+fn emit_dirty_writes_block_light_dirty_for_modified_chunk() {
     let (mut app, dim) = make_codec_test_app();
     let handles = spawn_test_column(&mut app, dim, ColumnPos::new(-1, 1));
 
     let chunk_y: i32 = 3;
-    let target_section = handles.sections[(chunk_y - MIN_SECTION_Y) as usize];
+    let target_chunk = handles.chunks[(chunk_y - MIN_CHUNK_Y) as usize];
 
-    // Simulate a propagation pass having touched this section: replace the
+    // Simulate a propagation pass having touched this chunk: replace the
     // default Null storage with a Mixed buffer and insert the LightDirty
     // marker the propagate systems would have left behind.
     let mut nibble = NibbleArray::zeros();
     nibble.set(1, 1, 1, 0x5);
-    app.world_mut().entity_mut(target_section).insert((
+    app.world_mut().entity_mut(target_chunk).insert((
         BlockLight(LightStorage::Mixed(Box::new(nibble))),
         LightDirty,
     ));
@@ -297,16 +297,16 @@ fn emit_dirty_writes_block_light_dirty_for_modified_section() {
     let block_dirty = drain_block_light_dirty(&mut app);
     assert!(
         !block_dirty.is_empty(),
-        "emit_block_light_dirty must produce at least one message for the LightDirty section"
+        "emit_block_light_dirty must produce at least one message for the LightDirty chunk"
     );
     let from_target: Vec<_> = block_dirty
         .iter()
-        .filter(|msg| msg.section == target_section)
+        .filter(|msg| msg.chunk == target_chunk)
         .collect();
     assert_eq!(
         from_target.len(),
         1,
-        "exactly one BlockLightDirty for the target section; got {} of {}",
+        "exactly one BlockLightDirty for the target chunk; got {} of {}",
         from_target.len(),
         block_dirty.len()
     );

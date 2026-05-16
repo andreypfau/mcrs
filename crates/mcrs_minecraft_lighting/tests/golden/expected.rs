@@ -1,10 +1,10 @@
 //! Compile-time L1-attenuated field generator for golden-snapshot fixtures.
 //!
-//! This is NOT a reference BFS — only the all-air-section case where
+//! This is NOT a reference BFS — only the all-air-chunk case where
 //! `level = max(0, emission - manhattan_distance_to_emitter)` holds. Per cell
 //! the helper takes the per-emitter max.
 
-/// Compute the all-air-section L1 (Manhattan) attenuated field for the given
+/// Compute the all-air-chunk L1 (Manhattan) attenuated field for the given
 /// emitters. Returns the packed nibble array in vanilla YZX-major byte layout.
 ///
 /// `level(x,y,z) = max over emitters of max(0, emission - manhattan_distance)`
@@ -50,7 +50,7 @@ pub const fn compute_l1_attenuated_field(
     out
 }
 
-/// Compute the ground-truth sky-light field for a chunk section with
+/// Compute the ground-truth sky-light field for a chunk chunk with
 /// optional obstacles. Each obstacle is `((x, y, z), dampening)`. The
 /// algorithm mirrors the vertical-drop and unified attenuation rule
 /// implemented by `propagate_increase_sky`: walking each `(x, z)` column

@@ -1,4 +1,4 @@
-//! Process-wide monotone counters for the cross-section lighting pipeline.
+//! Process-wide monotone counters for the cross-chunk lighting pipeline.
 //!
 //! All counters use `Relaxed` ordering because they are summary metrics, not
 //! synchronisation primitives. Producers `fetch_add` from any thread; observers

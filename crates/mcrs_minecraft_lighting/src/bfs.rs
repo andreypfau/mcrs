@@ -2,7 +2,7 @@
 //!
 //! The per-cell queue entry is a packed `u64` built by `pack_bfs_entry`
 //! and consumed in place by the BFS bodies. It is intentionally distinct
-//! from `components::Wavefront(u32)`, which is the cross-section egress
+//! from `components::Wavefront(u32)`, which is the cross-chunk egress
 //! representation pushed onto `BlockEgress` at face boundaries. The
 //! per-cell entry carries Y plus a 6-bit direction bitset and a 3-bit
 //! flag field, none of which `Wavefront` needs.
@@ -309,12 +309,12 @@ pub(crate) fn project_face_cell(d: Direction, off_x: i8, off_y: i8, off_z: i8) -
     }
 }
 
-/// Block-light increase BFS over one chunk section.
+/// Block-light increase BFS over one chunk.
 ///
 /// Drains `workspace.increase_queue` to empty. Cells whose stored level is
 /// raised by this pass are written via `LightStorage::set`. Steps that fall
 /// off the 0..=15 cube are converted into `Wavefront(u32)` entries on
-/// `egress.0` for the cross-section distribute pass; the source section
+/// `egress.0` for the cross-chunk distribute pass; the source chunk
 /// itself never re-enqueues a boundary cell.
 ///
 /// Slow-path branch fires when either side has `IS_CONDITIONALLY_OPAQUE`
@@ -349,7 +349,7 @@ pub fn propagate_increase(
             // Ingress and seed entries use WRITE_LEVEL to establish the
             // cell's level. The max-guard prevents a reflection from a
             // brighter source from overwriting a stronger pre-existing
-            // value: each cross-section round trip loses one Manhattan
+            // value: each cross-chunk round trip loses one Manhattan
             // step, and an unconditional overwrite at the source face
             // would monotonically drain the source.
             let current = light.get(x as usize, y_local, z as usize);
@@ -434,7 +434,7 @@ pub fn propagate_increase(
     workspace.increase_queue.clear();
 }
 
-/// Block-light decrease BFS over one chunk section.
+/// Block-light decrease BFS over one chunk.
 ///
 /// Drains `workspace.decrease_queue` to empty. Cells whose stored level is
 /// dominated solely by the removed source path are zeroed via
@@ -562,7 +562,7 @@ pub fn propagate_decrease(
     workspace.decrease_queue.clear();
 }
 
-/// Sky-light increase BFS over one chunk section.
+/// Sky-light increase BFS over one chunk.
 ///
 /// Mirrors `propagate_increase` with two differences. First, the workspace
 /// and egress are the sky-side types. Second, when the step direction is
@@ -598,7 +598,7 @@ pub fn propagate_increase_sky(
             // Ingress and seed entries use WRITE_LEVEL to establish the
             // cell's level. The max-guard prevents a reflection from a
             // brighter source from overwriting a stronger pre-existing
-            // value: each cross-section round trip loses one Manhattan
+            // value: each cross-chunk round trip loses one Manhattan
             // step, and an unconditional overwrite at the source face
             // would monotonically drain the source.
             let current = light.get(x as usize, y_local, z as usize);
@@ -690,7 +690,7 @@ pub fn propagate_increase_sky(
     workspace.increase_queue.clear();
 }
 
-/// Sky-light decrease BFS over one chunk section.
+/// Sky-light decrease BFS over one chunk.
 ///
 /// Mirrors `propagate_decrease` with two differences. First, the workspace
 /// and egress are the sky-side types. Second, the destination-emission
@@ -1091,8 +1091,8 @@ mod tests {
 
         assert!(workspace.increase_queue.is_empty());
         // The source cell's own +X step must produce one egress wavefront
-        // carrying the source level. The cross-section distribute pass is
-        // responsible for the cross-section attenuation; the BFS just records
+        // carrying the source level. The cross-chunk distribute pass is
+        // responsible for the cross-chunk attenuation; the BFS just records
         // the pre-step level. Other cells on the x=15 plane that get reached
         // by the BFS also push East egress entries at lower levels — those
         // are not checked here.
@@ -1262,7 +1262,7 @@ mod tests {
     }
 
     /// Populate the L1-attenuated field for a single emitter at (ex,ey,ez)
-    /// with emission `e`, in an all-air section, into a Mixed storage.
+    /// with emission `e`, in an all-air chunk, into a Mixed storage.
     fn seed_l1_field(light: &mut LightStorage, ex: i32, ey: i32, ez: i32, e: u8) {
         for y in 0..16i32 {
             for z in 0..16i32 {

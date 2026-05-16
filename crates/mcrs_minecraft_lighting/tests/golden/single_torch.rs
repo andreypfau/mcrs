@@ -1,4 +1,4 @@
-// A single lit torch placed at the centre of an otherwise empty section;
+// A single lit torch placed at the centre of an otherwise empty chunk;
 // the block-light engine should produce a radial decay field around it.
 
 use mcrs_protocol::BlockStateId;

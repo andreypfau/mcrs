@@ -7,7 +7,7 @@
 //
 // A player observer at (0, 80, 0) triggers the scheduler. All generated columns
 // within the view distance are allowed to converge. After convergence, every
-// section cell with world_y <= 0 must have sky_light == 0.
+// chunk cell with world_y <= 0 must have sky_light == 0.
 //
 // The specific cell (-59, -32, -60) (chunk_x=-4, chunk_z=-4, chunk_y=-2, local
 // (5, 0, 4)) is checked explicitly as the user-reported reproduction case.
@@ -409,8 +409,8 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
         }
     }
 
-    // Collect section entities in the dimension (avoids borrow issues).
-    let sections: Vec<(Entity, ChunkPos)> = {
+    // Collect chunk entities in the dimension (avoids borrow issues).
+    let chunks: Vec<(Entity, ChunkPos)> = {
         let mut q = app
             .world_mut()
             .query::<(Entity, &ChunkPos, &InDimension, &SkyLight)>();
@@ -420,14 +420,14 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
             .collect()
     };
 
-    eprintln!("Scanning {} sections for sky_light violations at world_y <= 0", sections.len());
+    eprintln!("Scanning {} chunks for sky_light violations at world_y <= 0", chunks.len());
 
     // Hard check on the user-reported cell. Must be loaded; must be dark.
     // World cell (-59, -32, -60) → chunk_x=-4, chunk_z=-4, chunk_y=-2,
     // local_x = (-59).rem_euclid(16) = 5, local_y = (-32).rem_euclid(16) = 0,
     // local_z = (-60).rem_euclid(16) = 4.
     let reported_chunk = ChunkPos::new(-4, -2, -4);
-    let (reported_entity, _) = sections
+    let (reported_entity, _) = chunks
         .iter()
         .find(|(_, p)| *p == reported_chunk)
         .copied()
@@ -440,7 +440,7 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
     let sky = app
         .world()
         .get::<SkyLight>(reported_entity)
-        .expect("user-reported section missing SkyLight");
+        .expect("user-reported chunk missing SkyLight");
     let level = sky.0.get(5, 0, 4);
     assert_eq!(
         level, 0,
@@ -451,15 +451,15 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
     let mut first_violation: Option<String> = None;
     let mut checked_cells = 0u64;
 
-    for (section_entity, chunk_pos) in &sections {
-        let section_base_world_y = chunk_pos.y * 16;
-        let sky = match app.world().get::<SkyLight>(*section_entity) {
+    for (chunk_entity, chunk_pos) in &chunks {
+        let chunk_base_world_y = chunk_pos.y * 16;
+        let sky = match app.world().get::<SkyLight>(*chunk_entity) {
             Some(s) => &s.0,
             None => continue,
         };
 
         for local_y in 0..16usize {
-            let world_y = section_base_world_y + local_y as i32;
+            let world_y = chunk_base_world_y + local_y as i32;
             if world_y > 0 {
                 continue;
             }

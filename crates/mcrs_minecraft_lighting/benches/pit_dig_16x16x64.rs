@@ -24,8 +24,8 @@ fn bench_pit_dig(c: &mut Criterion) {
                 // setup-equivalent for this scenario — outside timing.
                 {
                     let mut q = app.world_mut().query_filtered::<Entity, With<BlockPalette>>();
-                    let sections: Vec<Entity> = q.iter(app.world()).collect();
-                    for entity in sections {
+                    let chunks: Vec<Entity> = q.iter(app.world()).collect();
+                    for entity in chunks {
                         let mut palette = app.world_mut().get_mut::<BlockPalette>(entity).unwrap();
                         for x in 0i32..16 {
                             for y in 0i32..16 {

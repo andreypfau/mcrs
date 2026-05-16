@@ -1,15 +1,15 @@
 // cross-dim isolation regression guard: a torch placement in one Dimension produces zero
-// observable effect on any section of another Dimension. Three orthogonal
+// observable effect on any chunk of another Dimension. Three orthogonal
 // assertions on the same invariant:
 //
-//   1. Byte-equality on the unaffected dim's per-section storage snapshot —
+//   1. Byte-equality on the unaffected dim's per-chunk storage snapshot —
 //      every `BlockLight` and `SkyLight` storage component on every Dim B
-//      section is byte-identical pre/post the Dim A torch placement.
+//      chunk is byte-identical pre/post the Dim A torch placement.
 //
 //   2. Message-leak filter — every `BlockLightDirty` and `SkyLightDirty`
-//      message emitted in the torch-placement tick references a section whose
+//      message emitted in the torch-placement tick references a chunk whose
 //      parent `InDimension` is Dim A. Zero messages reference any Dim B
-//      section.
+//      chunk.
 //
 //   3. Counter-delta — `LIGHT_CROSS_DIM_VIOLATIONS_TOTAL` shows no increment
 //      across the entire scenario (the `debug_assert!(neighbor_dim ==
@@ -21,10 +21,10 @@
 //
 // Scaffolding is duplicated inline from `lifecycle_integration.rs:41-121`
 // following the established sibling-test pattern. The torch trigger writes
-// `BlockPlaced` directly against the target section entity (the same proven
+// `BlockPlaced` directly against the target chunk entity (the same proven
 // pattern as `golden_snapshots.rs:76-94`). Going through `BlockSetRequest`
 // would also require manually populating each dimension's `ChunkIndex` with
-// the spawned section entities — work that `ColumnPlugin` does not perform
+// the spawned chunk entities — work that `ColumnPlugin` does not perform
 // in this test-app shape — and `BlockPlaced` is exactly what the lighting
 // engine observes (`crates/mcrs_minecraft_lighting/src/enqueue.rs:39-115`).
 
@@ -105,7 +105,7 @@ fn spawn_test_dimension(app: &mut App, sky: bool) -> Entity {
     entity
 }
 
-fn spawn_test_section(
+fn spawn_test_chunk(
     app: &mut App,
     dim: Entity,
     chunk_pos: ChunkPos,
@@ -147,14 +147,14 @@ fn storage_bytes(storage: &LightStorage) -> [u8; 2048] {
 }
 
 // `SkyLight` is gated on `HasSkyLight` per the lifecycle attachment system;
-// skyless-dim sections never carry it. `Option<[u8; 2048]>` so the equality
+// skyless-dim chunks never carry it. `Option<[u8; 2048]>` so the equality
 // check survives the absence of the component.
-fn section_light_bytes(world: &World, section: Entity) -> ([u8; 2048], Option<[u8; 2048]>) {
+fn chunk_light_bytes(world: &World, chunk: Entity) -> ([u8; 2048], Option<[u8; 2048]>) {
     let bl = world
-        .get::<BlockLight>(section)
+        .get::<BlockLight>(chunk)
         .map(|c| storage_bytes(&c.0))
-        .expect("every section must carry a BlockLight component after warm-up");
-    let sl = world.get::<SkyLight>(section).map(|c| storage_bytes(&c.0));
+        .expect("every chunk must carry a BlockLight component after warm-up");
+    let sl = world.get::<SkyLight>(chunk).map(|c| storage_bytes(&c.0));
     (bl, sl)
 }
 
@@ -179,15 +179,15 @@ fn torch_in_dim_a_leaves_dim_b_byte_identical_and_no_cross_dim_violation() {
     let dim_a = spawn_test_dimension(&mut app, true);
     let dim_b = spawn_test_dimension(&mut app, false);
 
-    let sec_a0 = spawn_test_section(&mut app, dim_a, ChunkPos::new(0, 0, 0), air_palette());
-    let _sec_a1 = spawn_test_section(&mut app, dim_a, ChunkPos::new(1, 0, 0), air_palette());
-    let sec_b0 = spawn_test_section(&mut app, dim_b, ChunkPos::new(0, 0, 0), air_palette());
-    let sec_b1 = spawn_test_section(&mut app, dim_b, ChunkPos::new(1, 0, 0), air_palette());
+    let sec_a0 = spawn_test_chunk(&mut app, dim_a, ChunkPos::new(0, 0, 0), air_palette());
+    let _sec_a1 = spawn_test_chunk(&mut app, dim_a, ChunkPos::new(1, 0, 0), air_palette());
+    let sec_b0 = spawn_test_chunk(&mut app, dim_b, ChunkPos::new(0, 0, 0), air_palette());
+    let sec_b1 = spawn_test_chunk(&mut app, dim_b, ChunkPos::new(1, 0, 0), air_palette());
 
     // Drive initial convergence to quiescence. Four ticks: the
     // `Added<ChunkLoaded>` first-observation path can settle in three on a
-    // one-section dim, but the two-section-per-dim layout gives the cross-
-    // section distribute pass extra work and the warm-up may need a fourth
+    // one-chunk dim, but the two-chunk-per-dim layout gives the cross-
+    // chunk distribute pass extra work and the warm-up may need a fourth
     // tick to fully drain.
     for _ in 0..4 {
         app.world_mut().run_schedule(FixedUpdate);
@@ -202,31 +202,31 @@ fn torch_in_dim_a_leaves_dim_b_byte_identical_and_no_cross_dim_violation() {
         .resource_mut::<Messages<SkyLightDirty>>()
         .clear();
 
-    // Snapshot the pre-tick Dim B storage. Skyless-dim sections do not carry
+    // Snapshot the pre-tick Dim B storage. Skyless-dim chunks do not carry
     // `SkyLight`, so the helper returns `None` for the sky byte block.
-    let dim_b_sections = [sec_b0, sec_b1];
+    let dim_b_chunks = [sec_b0, sec_b1];
     let pre_b: Vec<([u8; 2048], Option<[u8; 2048]>)> = {
         let world = app.world();
-        dim_b_sections
+        dim_b_chunks
             .iter()
-            .map(|&e| section_light_bytes(world, e))
+            .map(|&e| chunk_light_bytes(world, e))
             .collect()
     };
 
-    // Snapshot Dim A's target section block-light bytes as a sanity guard so
+    // Snapshot Dim A's target chunk block-light bytes as a sanity guard so
     // the byte-equality result below is meaningful — if the torch placement
     // somehow produced no observable change in Dim A either, the cross-dim isolation
     // assertion would trivially hold and mask the regression it is meant to
     // catch.
-    let pre_a_bytes = section_light_bytes(app.world(), sec_a0).0;
+    let pre_a_bytes = chunk_light_bytes(app.world(), sec_a0).0;
 
-    // Place a torch in Dim A's section (0, 0, 0) by mutating the palette and
-    // writing a `BlockPlaced` message directly against the section entity.
+    // Place a torch in Dim A's chunk (0, 0, 0) by mutating the palette and
+    // writing a `BlockPlaced` message directly against the chunk entity.
     // This is the proven pattern from `tests/golden_snapshots.rs:76-94`.
     let torch_pos = BlockPos::new(8, 8, 8);
     app.world_mut()
         .get_mut::<BlockPalette>(sec_a0)
-        .expect("Dim A section must have BlockPalette")
+        .expect("Dim A chunk must have BlockPalette")
         .set(torch_pos, TORCH_STATE);
     app.world_mut()
         .resource_mut::<Messages<BlockPlaced>>()
@@ -242,9 +242,9 @@ fn torch_in_dim_a_leaves_dim_b_byte_identical_and_no_cross_dim_violation() {
     app.world_mut().run_schedule(FixedUpdate);
 
     // Cross-dim leak assertion: every emitted dirty-light message references
-    // a section whose parent dim is Dim A. The current production wire only
+    // a chunk whose parent dim is Dim A. The current production wire only
     // fires when `LightDirty` survives the in-tick convergence (e.g., bounded-
-    // loop cap, cross-section back-pressure); under simple-load scenarios the
+    // loop cap, cross-chunk back-pressure); under simple-load scenarios the
     // chain may emit zero messages, in which case the loop trivially passes —
     // the byte-equality and counter-delta assertions below are the load-
     // bearing cross-dim isolation guards.
@@ -253,57 +253,57 @@ fn torch_in_dim_a_leaves_dim_b_byte_identical_and_no_cross_dim_violation() {
         let block_dirty = world.resource::<Messages<BlockLightDirty>>();
         for msg in block_dirty.iter_current_update_messages() {
             let in_dim = world
-                .get::<InDimension>(msg.section)
-                .expect("BlockLightDirty.section must carry InDimension")
+                .get::<InDimension>(msg.chunk)
+                .expect("BlockLightDirty.chunk must carry InDimension")
                 .0;
             assert_eq!(
                 in_dim, dim_a,
-                "BlockLightDirty referenced a section outside Dim A (entity = {:?})",
-                msg.section
+                "BlockLightDirty referenced a chunk outside Dim A (entity = {:?})",
+                msg.chunk
             );
         }
 
         let sky_dirty = world.resource::<Messages<SkyLightDirty>>();
         for msg in sky_dirty.iter_current_update_messages() {
             let in_dim = world
-                .get::<InDimension>(msg.section)
-                .expect("SkyLightDirty.section must carry InDimension")
+                .get::<InDimension>(msg.chunk)
+                .expect("SkyLightDirty.chunk must carry InDimension")
                 .0;
             assert_eq!(
                 in_dim, dim_a,
-                "SkyLightDirty referenced a section outside Dim A (entity = {:?})",
-                msg.section
+                "SkyLightDirty referenced a chunk outside Dim A (entity = {:?})",
+                msg.chunk
             );
         }
     }
 
-    // Byte-equality assertion: every section in Dim B has identical block-
+    // Byte-equality assertion: every chunk in Dim B has identical block-
     // and sky-light storage pre/post the Dim A torch tick.
     let post_b: Vec<([u8; 2048], Option<[u8; 2048]>)> = {
         let world = app.world();
-        dim_b_sections
+        dim_b_chunks
             .iter()
-            .map(|&e| section_light_bytes(world, e))
+            .map(|&e| chunk_light_bytes(world, e))
             .collect()
     };
     for (idx, (pre, post)) in pre_b.iter().zip(post_b.iter()).enumerate() {
         assert_eq!(
             pre.0, post.0,
-            "Dim B section {idx} BlockLight bytes drifted across the Dim A torch tick"
+            "Dim B chunk {idx} BlockLight bytes drifted across the Dim A torch tick"
         );
         assert_eq!(
             pre.1, post.1,
-            "Dim B section {idx} SkyLight bytes drifted across the Dim A torch tick"
+            "Dim B chunk {idx} SkyLight bytes drifted across the Dim A torch tick"
         );
     }
 
     // Sanity guard: the torch placement must have changed Dim A's storage so
     // the Dim B equality result is meaningful. If propagation never reached
-    // the section, the test would be a tautology against a no-op scenario.
-    let post_a_bytes = section_light_bytes(app.world(), sec_a0).0;
+    // the chunk, the test would be a tautology against a no-op scenario.
+    let post_a_bytes = chunk_light_bytes(app.world(), sec_a0).0;
     assert_ne!(
         pre_a_bytes, post_a_bytes,
-        "Dim A target section BlockLight must change after a torch placement \
+        "Dim A target chunk BlockLight must change after a torch placement \
          — without this, the Dim B equality assertion is a tautology"
     );
 

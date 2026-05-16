@@ -196,7 +196,7 @@ impl Plugin for LightingPlugin {
         );
 
         // Enqueue stage: six systems. `seed_initial_light` runs strictly
-        // before `pull_neighbor_edge_levels` so the just-loaded section's own
+        // before `pull_neighbor_edge_levels` so the just-loaded chunk's own
         // emitter/sky seeds land first, then the neighbour-edge merge layers
         // on top. The other systems are unordered relative to one another
         // (their queries are disjoint).

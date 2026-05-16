@@ -2,7 +2,7 @@
 //
 // Each test builds a minimal Bevy `App` registering `ColumnPlugin` +
 // `LightingPlugin`, inserts a stub `BlockLightTable` resource keyed by
-// `BlockStateId`, spawns dimensions and sections directly, runs a single
+// `BlockStateId`, spawns dimensions and chunks directly, runs a single
 // `FixedUpdate` tick, and asserts on the resulting component graph.
 //
 // The stub table replaces the production `build_block_light_table` path:
@@ -90,7 +90,7 @@ fn spawn_test_dimension(app: &mut App, sky: bool) -> Entity {
     entity
 }
 
-fn spawn_test_section(
+fn spawn_test_chunk(
     app: &mut App,
     dim: Entity,
     chunk_pos: ChunkPos,
@@ -121,10 +121,10 @@ fn air_palette() -> BlockPalette {
 }
 
 #[test]
-fn single_section_in_sky_dim_attaches_all_components() {
+fn single_chunk_in_sky_dim_attaches_all_components() {
     let (mut app, dim) = make_test_app(true);
     let chunk_pos = ChunkPos::new(0, 0, 0);
-    let section = spawn_test_section(&mut app, dim, chunk_pos, air_palette());
+    let chunk = spawn_test_chunk(&mut app, dim, chunk_pos, air_palette());
 
     app.world_mut().run_schedule(FixedUpdate);
 
@@ -136,28 +136,28 @@ fn single_section_in_sky_dim_attaches_all_components() {
     assert_eq!(column_count, 1, "exactly one Column entity expected");
 
     let in_col = world
-        .get::<InColumn>(section)
-        .expect("section must have InColumn back-link");
+        .get::<InColumn>(chunk)
+        .expect("chunk must have InColumn back-link");
     let col_entity = in_col.0;
 
-    assert!(world.get::<BlockLight>(section).is_some(), "BlockLight missing");
-    assert!(world.get::<BlockEgress>(section).is_some(), "BlockEgress missing");
+    assert!(world.get::<BlockLight>(chunk).is_some(), "BlockLight missing");
+    assert!(world.get::<BlockEgress>(chunk).is_some(), "BlockEgress missing");
     assert!(
-        world.get::<BlockIncoming>(section).is_some(),
+        world.get::<BlockIncoming>(chunk).is_some(),
         "BlockIncoming missing"
     );
     assert!(
-        world.get::<BlockLightWorkspace>(section).is_some(),
+        world.get::<BlockLightWorkspace>(chunk).is_some(),
         "BlockLightWorkspace missing"
     );
-    assert!(world.get::<SkyLight>(section).is_some(), "SkyLight missing");
-    assert!(world.get::<SkyEgress>(section).is_some(), "SkyEgress missing");
+    assert!(world.get::<SkyLight>(chunk).is_some(), "SkyLight missing");
+    assert!(world.get::<SkyEgress>(chunk).is_some(), "SkyEgress missing");
     assert!(
-        world.get::<SkyIncoming>(section).is_some(),
+        world.get::<SkyIncoming>(chunk).is_some(),
         "SkyIncoming missing"
     );
     assert!(
-        world.get::<SkyLightWorkspace>(section).is_some(),
+        world.get::<SkyLightWorkspace>(chunk).is_some(),
         "SkyLightWorkspace missing"
     );
     // ChunkNeedsInitialLight is inserted by attach_lighting_state and consumed
@@ -166,11 +166,11 @@ fn single_section_in_sky_dim_attaches_all_components() {
     // remain if seed_initial_light failed to run, which would break
     // single-tick convergence).
     assert!(
-        world.get::<ChunkNeedsInitialLight>(section).is_none(),
+        world.get::<ChunkNeedsInitialLight>(chunk).is_none(),
         "ChunkNeedsInitialLight must be consumed by seed_initial_light within the tick"
     );
     assert!(
-        world.get::<IsAllAir>(section).is_some(),
+        world.get::<IsAllAir>(chunk).is_some(),
         "IsAllAir must be set for all-air palette"
     );
 
@@ -180,24 +180,24 @@ fn single_section_in_sky_dim_attaches_all_components() {
     let slot = column_index
         .0
         .get(&ColumnPos::from(chunk_pos))
-        .expect("ColumnSlot must exist for the spawned section's column");
+        .expect("ColumnSlot must exist for the spawned chunk's column");
     assert_eq!(slot.section_count, 1);
     assert_eq!(slot.entity, col_entity);
 
-    let section_index = world
+    let chunk_index = world
         .get::<ColumnChunks>(col_entity)
         .expect("column entity must have ColumnChunks");
     assert_eq!(
-        section_index.lookup(chunk_pos.y),
-        ChunkLookup::Loaded(section)
+        chunk_index.lookup(chunk_pos.y),
+        ChunkLookup::Loaded(chunk)
     );
 }
 
 #[test]
-fn multi_section_in_same_column_share_column() {
+fn multi_chunk_in_same_column_share_column() {
     let (mut app, dim) = make_test_app(true);
-    let s_low = spawn_test_section(&mut app, dim, ChunkPos::new(0, 0, 0), air_palette());
-    let s_high = spawn_test_section(&mut app, dim, ChunkPos::new(0, 5, 0), air_palette());
+    let s_low = spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), air_palette());
+    let s_high = spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 5, 0), air_palette());
 
     app.world_mut().run_schedule(FixedUpdate);
 
@@ -206,7 +206,7 @@ fn multi_section_in_same_column_share_column() {
         .query_filtered::<Entity, With<Column>>();
     let column_count = q.iter(app.world()).count();
     let world = app.world();
-    assert_eq!(column_count, 1, "two sections at same XZ share one column");
+    assert_eq!(column_count, 1, "two chunks at same XZ share one column");
 
     let col_low = world.get::<InColumn>(s_low).unwrap().0;
     let col_high = world.get::<InColumn>(s_high).unwrap().0;
@@ -221,12 +221,12 @@ fn multi_section_in_same_column_share_column() {
 }
 
 #[test]
-fn unload_one_section_keeps_column_alive() {
+fn unload_one_chunk_keeps_column_alive() {
     use mcrs_engine::world::chunk::ChunkUnloading;
 
     let (mut app, dim) = make_test_app(true);
-    let s_low = spawn_test_section(&mut app, dim, ChunkPos::new(0, 0, 0), air_palette());
-    let _s_high = spawn_test_section(&mut app, dim, ChunkPos::new(0, 5, 0), air_palette());
+    let s_low = spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), air_palette());
+    let _s_high = spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 5, 0), air_palette());
 
     app.world_mut().run_schedule(FixedUpdate);
     app.world_mut().entity_mut(s_low).insert(ChunkUnloading);
@@ -248,14 +248,14 @@ fn unload_one_section_keeps_column_alive() {
 }
 
 #[test]
-fn unload_last_section_despawns_column() {
+fn unload_last_chunk_despawns_column() {
     use mcrs_engine::world::chunk::ChunkUnloading;
 
     let (mut app, dim) = make_test_app(true);
-    let section = spawn_test_section(&mut app, dim, ChunkPos::new(0, 0, 0), air_palette());
+    let chunk = spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), air_palette());
 
     app.world_mut().run_schedule(FixedUpdate);
-    app.world_mut().entity_mut(section).insert(ChunkUnloading);
+    app.world_mut().entity_mut(chunk).insert(ChunkUnloading);
     app.world_mut().run_schedule(FixedUpdate);
 
     let mut q = app
@@ -265,7 +265,7 @@ fn unload_last_section_despawns_column() {
     let world = app.world();
     assert_eq!(
         column_count, 0,
-        "column entity must despawn when its last section unloads"
+        "column entity must despawn when its last chunk unloads"
     );
 
     let column_index = world.get::<ColumnIndex>(dim).unwrap();
@@ -276,28 +276,28 @@ fn unload_last_section_despawns_column() {
 }
 
 #[test]
-fn single_section_in_skyless_dim_has_no_sky_components() {
+fn single_chunk_in_skyless_dim_has_no_sky_components() {
     let (mut app, dim) = make_test_app(false);
-    let section = spawn_test_section(&mut app, dim, ChunkPos::new(0, 0, 0), air_palette());
+    let chunk = spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), air_palette());
 
     app.world_mut().run_schedule(FixedUpdate);
 
     let world = app.world();
-    assert!(world.get::<BlockLight>(section).is_some());
-    assert!(world.get::<BlockEgress>(section).is_some());
-    assert!(world.get::<BlockIncoming>(section).is_some());
-    assert!(world.get::<BlockLightWorkspace>(section).is_some());
+    assert!(world.get::<BlockLight>(chunk).is_some());
+    assert!(world.get::<BlockEgress>(chunk).is_some());
+    assert!(world.get::<BlockIncoming>(chunk).is_some());
+    assert!(world.get::<BlockLightWorkspace>(chunk).is_some());
     assert!(
-        world.get::<SkyLight>(section).is_none(),
+        world.get::<SkyLight>(chunk).is_none(),
         "SkyLight must not exist in a skyless dimension"
     );
-    assert!(world.get::<SkyEgress>(section).is_none(), "SkyEgress leaked");
+    assert!(world.get::<SkyEgress>(chunk).is_none(), "SkyEgress leaked");
     assert!(
-        world.get::<SkyIncoming>(section).is_none(),
+        world.get::<SkyIncoming>(chunk).is_none(),
         "SkyIncoming leaked"
     );
     assert!(
-        world.get::<SkyLightWorkspace>(section).is_none(),
+        world.get::<SkyLightWorkspace>(chunk).is_none(),
         "SkyLightWorkspace leaked"
     );
     // The marker is inserted by attach_lighting_state and consumed by
@@ -305,21 +305,21 @@ fn single_section_in_skyless_dim_has_no_sky_components() {
     // the marker for their emitter-scan path); after one tick it must be
     // gone.
     assert!(
-        world.get::<ChunkNeedsInitialLight>(section).is_none(),
+        world.get::<ChunkNeedsInitialLight>(chunk).is_none(),
         "ChunkNeedsInitialLight must be consumed by seed_initial_light within the tick"
     );
 }
 
 #[test]
-fn mixed_palette_section_has_no_is_all_air() {
+fn mixed_palette_chunk_has_no_is_all_air() {
     let (mut app, dim) = make_test_app(true);
-    let section = spawn_test_section(&mut app, dim, ChunkPos::new(0, 0, 0), solid_palette());
+    let chunk = spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), solid_palette());
 
     app.world_mut().run_schedule(FixedUpdate);
 
     let world = app.world();
     assert!(
-        world.get::<IsAllAir>(section).is_none(),
+        world.get::<IsAllAir>(chunk).is_none(),
         "Solid palette must not be marked IsAllAir"
     );
 }
@@ -336,8 +336,8 @@ fn cross_dim_partitioning_smoke() {
     let dim_a = spawn_test_dimension(&mut app, true);
     let dim_b = spawn_test_dimension(&mut app, false);
 
-    let sec_a = spawn_test_section(&mut app, dim_a, ChunkPos::new(0, 0, 0), air_palette());
-    let sec_b = spawn_test_section(&mut app, dim_b, ChunkPos::new(0, 0, 0), air_palette());
+    let sec_a = spawn_test_chunk(&mut app, dim_a, ChunkPos::new(0, 0, 0), air_palette());
+    let sec_b = spawn_test_chunk(&mut app, dim_b, ChunkPos::new(0, 0, 0), air_palette());
 
     app.world_mut().run_schedule(FixedUpdate);
 

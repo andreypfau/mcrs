@@ -28,7 +28,7 @@ use mcrs_engine::world::column::{Heightmaps, InColumn, ColumnChunks};
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 
-const SECTION_SIZE: i32 = 16;
+const CHUNK_SIZE: i32 = 16;
 
 /// HEIGHT-02 eager fused two-type heightmap update. Reads
 /// `MessageReader<BlockPlaced>` and updates `Heightmaps` on the affected
@@ -42,17 +42,17 @@ const SECTION_SIZE: i32 = 16;
 /// `FixedPostUpdate` observe up-to-date heightmap state.
 pub fn update_heightmaps_on_block_placed(
     mut reader: MessageReader<BlockPlaced>,
-    sections: Query<&InColumn>,
+    chunks: Query<&InColumn>,
     mut columns: Query<(&mut Heightmaps, &ColumnChunks)>,
     palettes: Query<&BlockPalette>,
     table: Res<BlockLightTable>,
 ) {
     for placed in reader.read() {
-        let Ok(in_column) = sections.get(placed.chunk) else {
+        let Ok(in_column) = chunks.get(placed.chunk) else {
             continue;
         };
         let col_entity = in_column.0;
-        let Ok((mut heightmaps, section_index)) = columns.get_mut(col_entity) else {
+        let Ok((mut heightmaps, chunk_index)) = columns.get_mut(col_entity) else {
             continue;
         };
 
@@ -97,7 +97,7 @@ pub fn update_heightmaps_on_block_placed(
         }
 
         let (new_surface, new_motion) =
-            rescan_column_xz(section_index, &palettes, &table, x, z, min_y);
+            rescan_column_xz(chunk_index, &palettes, &table, x, z, min_y);
         heightmaps.surface_set(x, z, new_surface);
         heightmaps.motion_blocking_set(x, z, new_motion);
     }
@@ -110,7 +110,7 @@ pub fn update_heightmaps_on_block_placed(
 /// empty cell directly above the topmost matching solid cell. An air-only
 /// column returns `(min_y, min_y)`.
 fn rescan_column_xz(
-    section_index: &ColumnChunks,
+    chunk_index: &ColumnChunks,
     palettes: &Query<&BlockPalette>,
     table: &BlockLightTable,
     x: usize,
@@ -120,23 +120,23 @@ fn rescan_column_xz(
     let mut world_surface: Option<i32> = None;
     let mut motion_blocking: Option<i32> = None;
 
-    for (rel_y, slot) in section_index.sections.iter().enumerate().rev() {
+    for (rel_y, slot) in chunk_index.sections.iter().enumerate().rev() {
         if world_surface.is_some() && motion_blocking.is_some() {
             break;
         }
-        let Some(section_entity) = slot else {
+        let Some(chunk_entity) = slot else {
             continue;
         };
-        let Ok(palette) = palettes.get(*section_entity) else {
+        let Ok(palette) = palettes.get(*chunk_entity) else {
             continue;
         };
-        let section_base_y = (section_index.min_section_y + rel_y as i32) * SECTION_SIZE;
+        let chunk_base_y = (chunk_index.min_section_y + rel_y as i32) * CHUNK_SIZE;
 
-        for cell_y in (0..SECTION_SIZE).rev() {
+        for cell_y in (0..CHUNK_SIZE).rev() {
             if world_surface.is_some() && motion_blocking.is_some() {
                 break;
             }
-            let world_y = section_base_y + cell_y;
+            let world_y = chunk_base_y + cell_y;
             let state = palette.get((x as i32, cell_y, z as i32));
             let flags = table.flags_for(state);
             if world_surface.is_none() && (flags & flag_bits::IS_NOT_AIR) != 0 {

@@ -14,7 +14,7 @@ fn bench_spawn_warmup(c: &mut Criterion) {
 
     // `iter_custom` gives us explicit control over what lands inside the
     // measurement window. `iter_batched(SmallInput)` previously folded the
-    // teardown of the 15 000+ section warmup grid (Box<NibbleArray> drops,
+    // teardown of the 15 000+ chunk warmup grid (Box<NibbleArray> drops,
     // SmallVec drops, archetype despawn cascade) into criterion's timing
     // window — that 3.5 ms of pure destructor work swamped the ~0.9 ms of
     // actual lighting work and made the bench number track teardown

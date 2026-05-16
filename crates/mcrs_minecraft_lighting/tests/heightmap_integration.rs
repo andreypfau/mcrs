@@ -2,7 +2,7 @@
 //
 // Each test builds a fresh Bevy `App` registering `ColumnPlugin` +
 // `LightingPlugin`, inserts a stub `BlockLightTable` resource, registers the
-// `BlockPlaced` message buffer manually, spawns a dimension and a section,
+// `BlockPlaced` message buffer manually, spawns a dimension and a chunk,
 // runs `FixedUpdate` to let Stage 2.5 prime the heightmap, then either
 // asserts the prime result or emits a synthetic `BlockPlaced` and asserts
 // the eager-update result.
@@ -34,9 +34,9 @@ use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 
 // Single-pass scan contract: the heightmap reflects only XZ columns the
-// scan has already closed. The tests below spawn a section at chunk_y=0,
-// so the dim is sized so chunk_y=0 is the topmost section — guaranteeing
-// the scan finalizes immediately on the section's first row. A 3-section
+// scan has already closed. The tests below spawn a chunk at chunk_y=0,
+// so the dim is sized so chunk_y=0 is the topmost chunk — guaranteeing
+// the scan finalizes immediately on the chunk's first row. A 3-chunk
 // dim with min_y=-32 keeps the BlockPos(0, -30, 0) below-surface case
 // inside the dimension's Y bounds.
 const TEST_DIM_HEIGHT: u32 = 48;
@@ -90,7 +90,7 @@ fn spawn_test_dimension(app: &mut App) -> Entity {
     entity
 }
 
-fn spawn_test_section(
+fn spawn_test_chunk(
     app: &mut App,
     dim: Entity,
     chunk_pos: ChunkPos,
@@ -115,7 +115,7 @@ fn air_palette() -> BlockPalette {
 }
 
 fn solid_floor_palette() -> BlockPalette {
-    // Solid blocks at intra-section Y = 0..=3, air above.
+    // Solid blocks at intra-chunk Y = 0..=3, air above.
     let mut p = BlockPalette::default();
     p.fill(AIR_STATE);
     for y in 0..=3i32 {
@@ -143,19 +143,19 @@ fn surface_above_topmost(world: &World, col_entity: Entity, x: usize, z: usize) 
 
 #[test]
 fn eager_update_below_surface_early_out() {
-    // Solid-floor palette has surface = Y + 1 of topmost solid (intra-section Y=3
-    // means absolute Y=3, surface stored as 4). Section is at chunk_pos.y=0 so
-    // section base Y = 0. After Stage 2.5 prime: surface = 4, motion_blocking = 4.
+    // Solid-floor palette has surface = Y + 1 of topmost solid (intra-chunk Y=3
+    // means absolute Y=3, surface stored as 4). Chunk is at chunk_pos.y=0 so
+    // chunk base Y = 0. After Stage 2.5 prime: surface = 4, motion_blocking = 4.
     // Placing a non-air block at absolute Y=-30 (well below) must not change either.
     let (mut app, dim) = make_heightmap_test_app();
     let chunk_pos = ChunkPos::new(0, 0, 0);
-    let section = spawn_test_section(&mut app, dim, chunk_pos, solid_floor_palette());
+    let chunk = spawn_test_chunk(&mut app, dim, chunk_pos, solid_floor_palette());
 
     app.world_mut().run_schedule(FixedUpdate);
 
     let col_entity = app
         .world()
-        .get::<InColumn>(section)
+        .get::<InColumn>(chunk)
         .expect("InColumn back-link missing after prime")
         .0;
     let (surface_before, motion_before) = surface_above_topmost(app.world(), col_entity, 0, 0);
@@ -165,7 +165,7 @@ fn eager_update_below_surface_early_out() {
     send_block_placed(
         &mut app,
         BlockPlaced {
-            chunk: section,
+            chunk: chunk,
             chunk_pos,
             block_pos: BlockPos::new(0, -30, 0),
             old_state: AIR_STATE,
@@ -188,27 +188,27 @@ fn eager_update_above_surface_rescan() {
     // Start with the solid-floor palette (surface=4). In production
     // `apply_set_block_request` writes the palette before emitting BlockPlaced,
     // so the test mutates the palette directly then emits the message manually.
-    // Placing a solid block at intra-section Y=10 (absolute Y=10) should
+    // Placing a solid block at intra-chunk Y=10 (absolute Y=10) should
     // raise both heightmaps to 11.
     let (mut app, dim) = make_heightmap_test_app();
     let chunk_pos = ChunkPos::new(0, 0, 0);
-    let section = spawn_test_section(&mut app, dim, chunk_pos, solid_floor_palette());
+    let chunk = spawn_test_chunk(&mut app, dim, chunk_pos, solid_floor_palette());
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col_entity = app.world().get::<InColumn>(section).unwrap().0;
+    let col_entity = app.world().get::<InColumn>(chunk).unwrap().0;
     let (surface_before, _) = surface_above_topmost(app.world(), col_entity, 0, 0);
     assert_eq!(surface_before, 4);
 
     app.world_mut()
-        .get_mut::<BlockPalette>(section)
+        .get_mut::<BlockPalette>(chunk)
         .expect("palette missing")
         .set(BlockPos::new(0, 10, 0), SOLID_STATE);
 
     send_block_placed(
         &mut app,
         BlockPlaced {
-            chunk: section,
+            chunk: chunk,
             chunk_pos,
             block_pos: BlockPos::new(0, 10, 0),
             old_state: AIR_STATE,
@@ -236,20 +236,20 @@ fn eager_update_break_above_surface_rescan() {
     // The break triggers a rescan that should drop the surface back to 4.
     let (mut app, dim) = make_heightmap_test_app();
     let chunk_pos = ChunkPos::new(0, 0, 0);
-    let section = spawn_test_section(&mut app, dim, chunk_pos, solid_floor_palette());
+    let chunk = spawn_test_chunk(&mut app, dim, chunk_pos, solid_floor_palette());
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col_entity = app.world().get::<InColumn>(section).unwrap().0;
+    let col_entity = app.world().get::<InColumn>(chunk).unwrap().0;
 
     app.world_mut()
-        .get_mut::<BlockPalette>(section)
+        .get_mut::<BlockPalette>(chunk)
         .unwrap()
         .set(BlockPos::new(0, 10, 0), SOLID_STATE);
     send_block_placed(
         &mut app,
         BlockPlaced {
-            chunk: section,
+            chunk: chunk,
             chunk_pos,
             block_pos: BlockPos::new(0, 10, 0),
             old_state: AIR_STATE,
@@ -261,13 +261,13 @@ fn eager_update_break_above_surface_rescan() {
     assert_eq!(surface_above_topmost(app.world(), col_entity, 0, 0).0, 11);
 
     app.world_mut()
-        .get_mut::<BlockPalette>(section)
+        .get_mut::<BlockPalette>(chunk)
         .unwrap()
         .set(BlockPos::new(0, 10, 0), AIR_STATE);
     send_block_placed(
         &mut app,
         BlockPlaced {
-            chunk: section,
+            chunk: chunk,
             chunk_pos,
             block_pos: BlockPos::new(0, 10, 0),
             old_state: SOLID_STATE,
@@ -289,11 +289,11 @@ fn eager_update_break_above_surface_rescan() {
 fn initial_prime_on_column_spawn_air_only() {
     let (mut app, dim) = make_heightmap_test_app();
     let chunk_pos = ChunkPos::new(0, 0, 0);
-    let section = spawn_test_section(&mut app, dim, chunk_pos, air_palette());
+    let chunk = spawn_test_chunk(&mut app, dim, chunk_pos, air_palette());
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col_entity = app.world().get::<InColumn>(section).unwrap().0;
+    let col_entity = app.world().get::<InColumn>(chunk).unwrap().0;
     for &(x, z) in &[(0, 0), (5, 7), (15, 15)] {
         let (surface, motion) = surface_above_topmost(app.world(), col_entity, x, z);
         assert_eq!(
@@ -311,11 +311,11 @@ fn initial_prime_on_column_spawn_air_only() {
 fn initial_prime_on_column_spawn_with_solid_floor() {
     let (mut app, dim) = make_heightmap_test_app();
     let chunk_pos = ChunkPos::new(0, 0, 0);
-    let section = spawn_test_section(&mut app, dim, chunk_pos, solid_floor_palette());
+    let chunk = spawn_test_chunk(&mut app, dim, chunk_pos, solid_floor_palette());
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    let col_entity = app.world().get::<InColumn>(section).unwrap().0;
+    let col_entity = app.world().get::<InColumn>(chunk).unwrap().0;
     for &(x, z) in &[(0, 0), (8, 12), (15, 0)] {
         let (surface, motion) = surface_above_topmost(app.world(), col_entity, x, z);
         assert_eq!(

@@ -3,12 +3,12 @@
 //! `Query<..., With<LightDirty>>` in parallel via `par_iter_mut`. Per-worker
 //! `Commands` accumulation goes through `ParallelCommands`.
 //!
-//! Drain-incoming prelude: every per-section iteration starts by draining
-//! the section's `*Incoming` buffer into `workspace.increase_queue` via
+//! Drain-incoming prelude: every per-chunk iteration starts by draining
+//! the chunk's `*Incoming` buffer into `workspace.increase_queue` via
 //! `pack_bfs_entry(..., FLAG_WRITE_LEVEL)`. Each incoming `Wavefront`
 //! encodes the source-frame face plus its on-face `(cell_x, cell_z)` and
-//! `level`; the helper `face_to_section_coords` decodes those to the
-//! destination-section-local `(x, y, z)` cell coordinates expected by the
+//! `level`; the helper `face_to_chunk_coords` decodes those to the
+//! destination-chunk-local `(x, y, z)` cell coordinates expected by the
 //! packed BFS entry layout. The decoded face is inverted at distribute
 //! time, so a wavefront arriving on the destination's West-`Incoming` lives
 //! at `x = 0` inside the destination, and the BFS picks it up as if it
@@ -16,9 +16,9 @@
 //!
 //! `propagate_increase_block_system` removes `LightDirty` at the end of
 //! the loop body when both workspace queues have drained, regardless of
-//! whether `BlockEgress` is empty — the source section is done with
-//! intra-section work, and the cross-section distribute pass re-marks
-//! `LightDirty` on any section it touches via egress.
+//! whether `BlockEgress` is empty — the source chunk is done with
+//! intra-chunk work, and the cross-chunk distribute pass re-marks
+//! `LightDirty` on any chunk it touches via egress.
 //!
 //! Ordering between the two systems is set at plugin wiring time:
 //! the decrease pass is chained before the increase pass so the decrease
@@ -44,7 +44,7 @@ use crate::table::BlockLightTable;
 
 /// Inverse of `bfs::project_face_cell`: given an inbound wavefront's
 /// destination-frame face plus its on-face `(cell_a, cell_b)` packing,
-/// return the destination-section-local `(x, y, z)` cell coordinates.
+/// return the destination-chunk-local `(x, y, z)` cell coordinates.
 ///
 /// Y-normal faces drop y, X-normal faces drop x, Z-normal faces drop z.
 /// For `Up` the implicit y is 15; for `Down` the implicit y is 0; for
@@ -53,7 +53,7 @@ use crate::table::BlockLightTable;
 /// the same order as `project_face_cell` — `(cell_a, cell_b)` where
 /// `cell_a` is the first non-normal axis and `cell_b` is the second.
 #[inline]
-pub(crate) fn face_to_section_coords(face: Direction, cell_a: u8, cell_b: u8) -> (u8, u8, u8) {
+pub(crate) fn face_to_chunk_coords(face: Direction, cell_a: u8, cell_b: u8) -> (u8, u8, u8) {
     match face {
         Direction::Down => (cell_a, 0, cell_b),
         Direction::Up => (cell_a, 15, cell_b),
@@ -66,7 +66,7 @@ pub(crate) fn face_to_section_coords(face: Direction, cell_a: u8, cell_b: u8) ->
 
 /// Drain a `*Incoming` buffer into a workspace's `increase_queue` via
 /// `pack_bfs_entry(..., FLAG_WRITE_LEVEL)`. Each entry is packed at the
-/// destination-section-local cell decoded by `face_to_section_coords`, and
+/// destination-chunk-local cell decoded by `face_to_chunk_coords`, and
 /// the BFS will write the wavefront's `level` and propagate outward from
 /// there.
 #[inline]
@@ -77,7 +77,7 @@ fn drain_incoming_into_queue(
     for wavefront in incoming.drain(..) {
         let face = direction_from_index(wavefront.face());
         let (x, y, z) =
-            face_to_section_coords(face, wavefront.cell_x(), wavefront.cell_z());
+            face_to_chunk_coords(face, wavefront.cell_x(), wavefront.cell_z());
         queue.push(pack_bfs_entry(
             x,
             z,
@@ -91,7 +91,7 @@ fn drain_incoming_into_queue(
 
 pub fn propagate_decrease_block_system(
     table: Res<BlockLightTable>,
-    mut sections: Query<
+    mut chunks: Query<
         (
             Entity,
             &BlockPalette,
@@ -104,22 +104,22 @@ pub fn propagate_decrease_block_system(
     >,
 ) {
     #[cfg(feature = "lighting-trace")]
-    let section_count = sections.iter().count();
+    let chunk_count = chunks.iter().count();
     #[cfg(feature = "lighting-trace")]
-    let _span = tracing::info_span!("propagate_decrease", section_count = section_count).entered();
-    sections.par_iter_mut().for_each(
+    let _span = tracing::info_span!("propagate_decrease", chunk_count = chunk_count).entered();
+    chunks.par_iter_mut().for_each(
         |(_entity, palette, mut light, mut workspace, mut egress, mut incoming)| {
             drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
             propagate_decrease(&table, palette, &mut light.0, &mut workspace, &mut egress);
             #[cfg(feature = "lighting-trace")]
-            tracing::debug!(section = ?_entity, queue_len = workspace.decrease_queue.len(), "section bfs decrease block");
+            tracing::debug!(chunk = ?_entity, queue_len = workspace.decrease_queue.len(), "chunk bfs decrease block");
         },
     );
 }
 
 pub fn propagate_increase_block_system(
     table: Res<BlockLightTable>,
-    mut sections: Query<
+    mut chunks: Query<
         (
             Entity,
             &BlockPalette,
@@ -133,10 +133,10 @@ pub fn propagate_increase_block_system(
     commands: ParallelCommands,
 ) {
     #[cfg(feature = "lighting-trace")]
-    let section_count = sections.iter().count();
+    let chunk_count = chunks.iter().count();
     #[cfg(feature = "lighting-trace")]
-    let _span = tracing::info_span!("propagate_increase", section_count = section_count).entered();
-    sections.par_iter_mut().for_each(
+    let _span = tracing::info_span!("propagate_increase", chunk_count = chunk_count).entered();
+    chunks.par_iter_mut().for_each(
         |(entity, palette, mut light, mut workspace, mut egress, mut incoming)| {
             drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
             propagate_increase(&table, palette, &mut light.0, &mut workspace, &mut egress);
@@ -146,14 +146,14 @@ pub fn propagate_increase_block_system(
                 });
             }
             #[cfg(feature = "lighting-trace")]
-            tracing::debug!(section = ?entity, queue_len = workspace.increase_queue.len(), "section bfs increase block");
+            tracing::debug!(chunk = ?entity, queue_len = workspace.increase_queue.len(), "chunk bfs increase block");
         },
     );
 }
 
 pub fn propagate_decrease_sky_system(
     table: Res<BlockLightTable>,
-    mut sections: Query<
+    mut chunks: Query<
         (
             Entity,
             &BlockPalette,
@@ -166,21 +166,21 @@ pub fn propagate_decrease_sky_system(
     >,
 ) {
     #[cfg(feature = "lighting-trace")]
-    let section_count = sections.iter().count();
+    let chunk_count = chunks.iter().count();
     #[cfg(feature = "lighting-trace")]
-    let _span = tracing::info_span!("propagate_decrease_sky", section_count = section_count).entered();
-    sections.par_iter_mut().for_each(
+    let _span = tracing::info_span!("propagate_decrease_sky", chunk_count = chunk_count).entered();
+    chunks.par_iter_mut().for_each(
         |(_entity, palette, mut light, mut workspace, mut egress, mut incoming)| {
             drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
             propagate_decrease_sky(&table, palette, &mut light.0, &mut workspace, &mut egress);
             #[cfg(feature = "lighting-trace")]
-            tracing::debug!(section = ?_entity, queue_len = workspace.decrease_queue.len(), "section bfs decrease sky");
+            tracing::debug!(chunk = ?_entity, queue_len = workspace.decrease_queue.len(), "chunk bfs decrease sky");
         },
     );
 }
 
 /// Five non-Up faces used by the column-walker fast path to dump 256 wavefronts
-/// per face onto `SkyEgress` (1280 entries total) when an `IsAllAir` section
+/// per face onto `SkyEgress` (1280 entries total) when an `IsAllAir` chunk
 /// short-circuits the BFS.
 const COLUMN_WALKER_FACES: [Direction; 5] = [
     Direction::Down,
@@ -190,7 +190,7 @@ const COLUMN_WALKER_FACES: [Direction; 5] = [
     Direction::East,
 ];
 
-/// Column-walker predicate: an all-air section whose only queued work is the
+/// Column-walker predicate: an all-air chunk whose only queued work is the
 /// 256 top-face level-15 seeds is advanced in O(1) by writing
 /// `LightStorage::Uniform(15)` and dumping wavefronts onto the five non-Up
 /// faces, instead of running the per-cell BFS.
@@ -218,7 +218,7 @@ fn try_column_walker_fast_path(is_all_air: bool, workspace: &SkyLightWorkspace) 
 
 pub fn propagate_increase_sky_system(
     table: Res<BlockLightTable>,
-    mut sections: Query<
+    mut chunks: Query<
         (
             Entity,
             &BlockPalette,
@@ -233,10 +233,10 @@ pub fn propagate_increase_sky_system(
     commands: ParallelCommands,
 ) {
     #[cfg(feature = "lighting-trace")]
-    let section_count = sections.iter().count();
+    let chunk_count = chunks.iter().count();
     #[cfg(feature = "lighting-trace")]
-    let _span = tracing::info_span!("propagate_increase_sky", section_count = section_count).entered();
-    sections.par_iter_mut().for_each(
+    let _span = tracing::info_span!("propagate_increase_sky", chunk_count = chunk_count).entered();
+    chunks.par_iter_mut().for_each(
         |(entity, palette, mut light, mut workspace, mut egress, mut incoming, is_all_air)| {
             drain_incoming_into_queue(&mut incoming.0, &mut workspace.increase_queue);
 
@@ -278,7 +278,7 @@ pub fn propagate_increase_sky_system(
                 });
             }
             #[cfg(feature = "lighting-trace")]
-            tracing::debug!(section = ?entity, queue_len = workspace.increase_queue.len(), "section bfs increase sky");
+            tracing::debug!(chunk = ?entity, queue_len = workspace.increase_queue.len(), "chunk bfs increase sky");
         },
     );
 }
@@ -360,7 +360,7 @@ mod tests {
         app
     }
 
-    fn spawn_section_dirty(app: &mut App) -> Entity {
+    fn spawn_chunk_dirty(app: &mut App) -> Entity {
         app.world_mut()
             .spawn((
                 air_palette(),
@@ -373,7 +373,7 @@ mod tests {
             .id()
     }
 
-    fn spawn_section_clean(app: &mut App) -> Entity {
+    fn spawn_chunk_clean(app: &mut App) -> Entity {
         app.world_mut()
             .spawn((
                 air_palette(),
@@ -404,7 +404,7 @@ mod tests {
     #[test]
     fn propagate_decrease_drains_queue() {
         let mut app = build_app_with_decrease();
-        let entity = spawn_section_dirty(&mut app);
+        let entity = spawn_chunk_dirty(&mut app);
         // Seed the L1 field so the decrease BFS has cells to walk through.
         let mut storage = zero_light_storage();
         seed_l1_field(&mut storage, 8, 8, 8, 14);
@@ -438,7 +438,7 @@ mod tests {
     #[test]
     fn propagate_increase_drains_queue() {
         let mut app = build_app_with_increase();
-        let entity = spawn_section_dirty(&mut app);
+        let entity = spawn_chunk_dirty(&mut app);
         // Seed the source cell so the BFS reads 14 from the stored level on
         // the first non-recheck step.
         app.world_mut()
@@ -477,7 +477,7 @@ mod tests {
     #[test]
     fn propagate_clears_light_dirty_when_drained() {
         let mut app = build_app_with_increase();
-        let entity = spawn_section_dirty(&mut app);
+        let entity = spawn_chunk_dirty(&mut app);
         app.world_mut()
             .get_mut::<BlockLight>(entity)
             .expect("BlockLight")
@@ -500,8 +500,8 @@ mod tests {
     #[test]
     fn propagate_clears_light_dirty_with_egress_nonempty() {
         let mut app = build_app_with_increase();
-        let entity = spawn_section_dirty(&mut app);
-        // Seed at (15, 8, 8) so the +X (East) step falls off the section and
+        let entity = spawn_chunk_dirty(&mut app);
+        // Seed at (15, 8, 8) so the +X (East) step falls off the chunk and
         // ends up in BlockEgress while the BFS still drains queues.
         app.world_mut()
             .get_mut::<BlockLight>(entity)
@@ -537,9 +537,9 @@ mod tests {
     }
 
     #[test]
-    fn propagate_skips_clean_sections() {
+    fn propagate_skips_clean_chunks() {
         let mut app = build_app_with_increase();
-        let entity = spawn_section_clean(&mut app);
+        let entity = spawn_chunk_clean(&mut app);
         // Push a stale entry that, if visited, would mutate light.
         push_increase(
             &mut app,
@@ -556,7 +556,7 @@ mod tests {
         assert_eq!(
             ws.increase_queue.len(),
             1,
-            "queue NOT drained — clean section is skipped by With<LightDirty>"
+            "queue NOT drained — clean chunk is skipped by With<LightDirty>"
         );
         let light = app
             .world()
@@ -568,7 +568,7 @@ mod tests {
                     assert_eq!(
                         light.0.get(x, y, z),
                         0,
-                        "no cell should be written on a clean section"
+                        "no cell should be written on a clean chunk"
                     );
                 }
             }
@@ -576,10 +576,10 @@ mod tests {
     }
 
     #[test]
-    fn propagate_only_runs_on_dirty_sections() {
+    fn propagate_only_runs_on_dirty_chunks() {
         // Chain decrease before increase to match production ordering, so the
-        // dirty section's seed is drained by `propagate_increase` and its
-        // LightDirty is cleared, while the clean section sees neither system
+        // dirty chunk's seed is drained by `propagate_increase` and its
+        // LightDirty is cleared, while the clean chunk sees neither system
         // touch its workspace.
         let mut app = App::new();
         app.insert_resource(make_test_table());
@@ -592,8 +592,8 @@ mod tests {
                 .chain(),
         );
 
-        let dirty = spawn_section_dirty(&mut app);
-        let clean = spawn_section_clean(&mut app);
+        let dirty = spawn_chunk_dirty(&mut app);
+        let clean = spawn_chunk_clean(&mut app);
 
         app.world_mut()
             .get_mut::<BlockLight>(dirty)
@@ -623,16 +623,16 @@ mod tests {
             .expect("workspace");
         assert!(
             dirty_ws.increase_queue.is_empty(),
-            "dirty section's queue drained"
+            "dirty chunk's queue drained"
         );
         assert_eq!(
             clean_ws.increase_queue.len(),
             1,
-            "clean section untouched — stale seed still in queue"
+            "clean chunk untouched — stale seed still in queue"
         );
         assert!(
             app.world().get::<LightDirty>(dirty).is_none(),
-            "dirty section's LightDirty cleared"
+            "dirty chunk's LightDirty cleared"
         );
     }
 
@@ -647,7 +647,7 @@ mod tests {
         app
     }
 
-    fn spawn_sky_section_all_air_with_top_seeds(app: &mut App) -> Entity {
+    fn spawn_sky_chunk_all_air_with_top_seeds(app: &mut App) -> Entity {
         let entity = app
             .world_mut()
             .spawn((
@@ -681,7 +681,7 @@ mod tests {
         entity
     }
 
-    fn spawn_sky_section_partial_air_with_top_seeds(app: &mut App) -> Entity {
+    fn spawn_sky_chunk_partial_air_with_top_seeds(app: &mut App) -> Entity {
         // Same as the all-air spawner but WITHOUT the IsAllAir marker — the
         // column-walker prelude must NOT fire.
         let entity = app
@@ -718,7 +718,7 @@ mod tests {
     #[test]
     fn propagate_sky_column_walker_collapses_all_air() {
         let mut app = build_app_with_sky_increase();
-        let entity = spawn_sky_section_all_air_with_top_seeds(&mut app);
+        let entity = spawn_sky_chunk_all_air_with_top_seeds(&mut app);
 
         app.update();
 
@@ -728,7 +728,7 @@ mod tests {
             .expect("SkyLight");
         assert!(
             matches!(light.0, LightStorage::Uniform(15)),
-            "column-walker must collapse the all-air section to Uniform(15); got {:?}",
+            "column-walker must collapse the all-air chunk to Uniform(15); got {:?}",
             light.0
         );
         let ws = app
@@ -744,7 +744,7 @@ mod tests {
     #[test]
     fn propagate_sky_column_walker_pushes_1280_wavefronts() {
         let mut app = build_app_with_sky_increase();
-        let entity = spawn_sky_section_all_air_with_top_seeds(&mut app);
+        let entity = spawn_sky_chunk_all_air_with_top_seeds(&mut app);
 
         app.update();
 
@@ -780,7 +780,7 @@ mod tests {
     #[test]
     fn propagate_sky_column_walker_face_coordinates() {
         let mut app = build_app_with_sky_increase();
-        let entity = spawn_sky_section_all_air_with_top_seeds(&mut app);
+        let entity = spawn_sky_chunk_all_air_with_top_seeds(&mut app);
 
         app.update();
 
@@ -814,7 +814,7 @@ mod tests {
     #[test]
     fn propagate_sky_column_walker_skips_partial_air() {
         let mut app = build_app_with_sky_increase();
-        let entity = spawn_sky_section_partial_air_with_top_seeds(&mut app);
+        let entity = spawn_sky_chunk_partial_air_with_top_seeds(&mut app);
 
         app.update();
 
@@ -822,7 +822,7 @@ mod tests {
         // dump (`COLUMN_WALKER_FACES` is the five non-Up faces only). The BFS
         // path, by contrast, re-evaluates every direction from each seed and
         // pushes Up-face wavefronts as the y=15 seeds step off the top of the
-        // section. Presence of any Up-face (index 1) wavefront proves the BFS
+        // chunk. Presence of any Up-face (index 1) wavefront proves the BFS
         // ran instead of the fast path.
         let egress = app
             .world()
@@ -844,11 +844,11 @@ mod tests {
 
     #[test]
     fn propagate_sky_skyless_dim_iterates_nothing() {
-        // Skyless-dim section: BlockPalette + BlockLight + BlockLightWorkspace
+        // Skyless-dim chunk: BlockPalette + BlockLight + BlockLightWorkspace
         // only, no SkyLight components. The Query<&mut SkyLight, ...> in the
-        // increase system filters this section out by archetype mismatch.
+        // increase system filters this chunk out by archetype mismatch.
         let mut app = build_app_with_sky_increase();
-        let section = app
+        let chunk = app
             .world_mut()
             .spawn((
                 air_palette(),
@@ -863,12 +863,12 @@ mod tests {
         app.update();
 
         assert!(
-            app.world().entity(section).get::<SkyLight>().is_none(),
-            "skyless-dim section must never gain SkyLight from the sky propagate systems"
+            app.world().entity(chunk).get::<SkyLight>().is_none(),
+            "skyless-dim chunk must never gain SkyLight from the sky propagate systems"
         );
         assert!(
-            app.world().entity(section).get::<SkyEgress>().is_none(),
-            "skyless-dim section must never gain SkyEgress from the sky propagate systems"
+            app.world().entity(chunk).get::<SkyEgress>().is_none(),
+            "skyless-dim chunk must never gain SkyEgress from the sky propagate systems"
         );
     }
 
@@ -876,8 +876,8 @@ mod tests {
 
     /// Verify drain-Incoming prelude turns one BlockIncoming wavefront into a
     /// pack_bfs_entry FLAG_WRITE_LEVEL on workspace.increase_queue. East face
-    /// wavefront at (cell_x=0, cell_z=8, level=8) decodes to section-local
-    /// (x=15, y=0, z=8) per face_to_section_coords(East, 0, 8). The drain
+    /// wavefront at (cell_x=0, cell_z=8, level=8) decodes to chunk-local
+    /// (x=15, y=0, z=8) per face_to_chunk_coords(East, 0, 8). The drain
     /// runs at the top of `propagate_decrease_block_system`; the
     /// decrease pass itself only drains `decrease_queue`, so the prelude's
     /// FLAG_WRITE_LEVEL entry survives on `increase_queue` for the next
@@ -885,7 +885,7 @@ mod tests {
     #[test]
     fn propagate_decrease_drains_block_incoming_at_top_of_body() {
         let mut app = build_app_with_decrease();
-        let entity = spawn_section_dirty(&mut app);
+        let entity = spawn_chunk_dirty(&mut app);
         let east = Direction::East.index() as u8;
         let mut incoming = app
             .world_mut()
@@ -926,8 +926,8 @@ mod tests {
     }
 
     /// Same shape for sky-side. South face wavefront at (cell_x=4, cell_z=7,
-    /// level=12) decodes to section-local (x=4, y=7, z=15) per
-    /// face_to_section_coords(South, 4, 7).
+    /// level=12) decodes to chunk-local (x=4, y=7, z=15) per
+    /// face_to_chunk_coords(South, 4, 7).
     #[test]
     fn propagate_increase_drains_sky_incoming_at_top_of_body() {
         // Use decrease_sky here because the decrease prelude is the same; the
@@ -983,9 +983,9 @@ mod tests {
         );
     }
 
-    /// Spawn 100 sections each with LightDirty + a seeded BlockLight cell
+    /// Spawn 100 chunks each with LightDirty + a seeded BlockLight cell
     /// + an increase_queue entry, then run propagate_increase_block_system
-    /// which uses par_iter_mut. Assert all 100 sections drain their queues
+    /// which uses par_iter_mut. Assert all 100 chunks drain their queues
     /// and clear LightDirty. This is structural: par_iter_mut must compile,
     /// run without deadlock, and produce identical results to iter_mut.
     #[test]
@@ -993,7 +993,7 @@ mod tests {
         let mut app = build_app_with_increase();
         let mut entities = Vec::with_capacity(100);
         for _ in 0..100 {
-            let e = spawn_section_dirty(&mut app);
+            let e = spawn_chunk_dirty(&mut app);
             app.world_mut()
                 .get_mut::<BlockLight>(e)
                 .expect("BlockLight")
@@ -1026,15 +1026,15 @@ mod tests {
     }
 
     #[test]
-    fn face_to_section_coords_round_trip() {
-        // face_to_section_coords is the inverse of project_face_cell on the
+    fn face_to_chunk_coords_round_trip() {
+        // face_to_chunk_coords is the inverse of project_face_cell on the
         // (cell_a, cell_b) -> (x, y, z) projection. Confirm the y/x/z
         // implicit values match the project_face_cell axis contract.
-        assert_eq!(face_to_section_coords(Direction::Down, 3, 7), (3, 0, 7));
-        assert_eq!(face_to_section_coords(Direction::Up, 3, 7), (3, 15, 7));
-        assert_eq!(face_to_section_coords(Direction::North, 3, 7), (3, 7, 0));
-        assert_eq!(face_to_section_coords(Direction::South, 3, 7), (3, 7, 15));
-        assert_eq!(face_to_section_coords(Direction::West, 3, 7), (0, 3, 7));
-        assert_eq!(face_to_section_coords(Direction::East, 3, 7), (15, 3, 7));
+        assert_eq!(face_to_chunk_coords(Direction::Down, 3, 7), (3, 0, 7));
+        assert_eq!(face_to_chunk_coords(Direction::Up, 3, 7), (3, 15, 7));
+        assert_eq!(face_to_chunk_coords(Direction::North, 3, 7), (3, 7, 0));
+        assert_eq!(face_to_chunk_coords(Direction::South, 3, 7), (3, 7, 15));
+        assert_eq!(face_to_chunk_coords(Direction::West, 3, 7), (0, 3, 7));
+        assert_eq!(face_to_chunk_coords(Direction::East, 3, 7), (15, 3, 7));
     }
 }

@@ -105,7 +105,7 @@ impl Plugin for PhaseTimingPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(PhaseTimings(&PHASE_ACCUMULATORS));
 
-        // Probe: count `LightDirty` sections immediately before
+        // Probe: count `LightDirty` chunks immediately before
         // `LightingSet::Converge` runs, and remember the first one's
         // chunk_pos so the harness can identify it.
         app.add_systems(
@@ -282,7 +282,7 @@ fn build_instrumented_factory() -> Box<dyn Fn() -> App + Send + Sync> {
                     } else {
                         bench_helpers::air_palette()
                     };
-                    bench_helpers::spawn_test_section(
+                    bench_helpers::spawn_test_chunk(
                         &mut app,
                         dim,
                         ChunkPos::new(chunk_x, chunk_y, chunk_z),
@@ -318,7 +318,7 @@ fn main() {
     let mut iters_deltas = Vec::with_capacity(SAMPLES);
     let mut dirty_at_converge_entry: Vec<usize> = Vec::with_capacity(SAMPLES);
 
-    // Probe one sample to see how many sections are dirty AT THE MOMENT
+    // Probe one sample to see how many chunks are dirty AT THE MOMENT
     // light_converge_driver starts (after Enqueue, before Converge).
     {
         use mcrs_engine::world::chunk::ChunkPos as CPos;
@@ -328,7 +328,7 @@ fn main() {
         let mut q0 = probe_app.world_mut().query_filtered::<&CPos, With<LightDirty>>();
         let factory_residue: Vec<CPos> = q0.iter(probe_app.world()).copied().collect();
         println!(
-            "## PROBE: dirty after factory (untimed) = {} sections {:?}",
+            "## PROBE: dirty after factory (untimed) = {} chunks {:?}",
             factory_residue.len(),
             &factory_residue[..factory_residue.len().min(8)]
         );
@@ -379,7 +379,7 @@ fn main() {
         let iters_after = lighting_snapshot().iterations;
         iters_deltas.push(iters_after - iters_before);
 
-        // Count dirty sections IMMEDIATELY after the tick — gives us the
+        // Count dirty chunks IMMEDIATELY after the tick — gives us the
         // residual count that the in-tick converge driver did NOT clear.
         // Not the same as what the driver saw on entry (post-Enqueue), but
         // a useful signal: if 0, the driver started with no dirty AND

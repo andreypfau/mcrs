@@ -6,8 +6,8 @@
 // pipeline. They verify that sky_light > 0 at each reported air-block
 // coordinate after a complete FixedUpdate convergence run.
 //
-// Coordinate summary (world space → section-local for section_y=4):
-//   Scenario A: intra-section overhang.  Air at (lx=8, local_y=14, lz=4)
+// Coordinate summary (world space → chunk-local for chunk_y=4):
+//   Scenario A: intra-chunk overhang.  Air at (lx=8, local_y=14, lz=4)
 //               of chunk (0,4,0).  Open-sky column at lx=7 has surface at
 //               local_y=5; cells above are at 15.  The air pocket at lx=8
 //               is enclosed except toward lx=7 at y=14.
@@ -84,7 +84,7 @@ fn make_stub_table() -> BlockLightTable {
     }
 }
 
-fn spawn_section_with_palette(app: &mut App, dim: Entity, chunk_pos: ChunkPos, palette: BlockPalette) -> Entity {
+fn spawn_chunk_with_palette(app: &mut App, dim: Entity, chunk_pos: ChunkPos, palette: BlockPalette) -> Entity {
     app.world_mut()
         .spawn((
             InDimension(dim),
@@ -97,24 +97,24 @@ fn spawn_section_with_palette(app: &mut App, dim: Entity, chunk_pos: ChunkPos, p
         .id()
 }
 
-fn sky_level_at(app: &App, section: Entity, lx: usize, local_y: usize, lz: usize) -> u8 {
+fn sky_level_at(app: &App, chunk: Entity, lx: usize, local_y: usize, lz: usize) -> u8 {
     app.world()
-        .get::<SkyLight>(section)
+        .get::<SkyLight>(chunk)
         .expect("SkyLight missing")
         .0
         .get(lx, local_y, lz)
 }
 
-/// Builds an all-air palette for the given section.
+/// Builds an all-air palette for the given chunk.
 fn all_air_palette() -> BlockPalette {
     let mut p = BlockPalette::default();
     p.fill(AIR);
     p
 }
 
-// ── Intra-section overhang regression ────────────────────────────────────
+// ── Intra-chunk overhang regression ────────────────────────────────────
 //
-// Geometry (single chunk, chunk_pos=(0,4,0), section_y=4, world y=64..79):
+// Geometry (single chunk, chunk_pos=(0,4,0), chunk_y=4, world y=64..79):
 //
 //   Column lx=7, lz=4: solid y=64..67 (local_y=0..3), air y=68..79
 //   (local_y=4..15).  Heightmap surface = world_y 67+1 = 68 → local_y=4.
@@ -125,14 +125,14 @@ fn all_air_palette() -> BlockPalette {
 //   cavity).  Top two cells (local_y=14..15) are actually: local_y=15=solid,
 //   local_y=14=air, local_y=13..0=solid.
 //   Heightmap surface = world_y 79+1 = 80 (first non-air from top =
-//   local_y=15 = world y=79) → s=80 > section_top_y=79.
+//   local_y=15 = world y=79) → s=80 > chunk_top_y=79.
 //   All 16 cells zeroed by Case-B seeding.  Under the bug, no BFS entry
 //   exists for column lx=7 at local_y=14, so (lx=8, local_y=14, lz=4)
 //   remains at 0.  The fix seeds all y ≥ surface_local for Case-B columns.
 //
 // Expected: sky_light at (lx=8, local_y=14, lz=4) > 0 after convergence.
 #[test]
-fn intra_section_overhang_air_pocket_gets_lit() {
+fn intra_chunk_overhang_air_pocket_gets_lit() {
     let (mut app, dim) = make_test_app();
 
     let chunk_pos = ChunkPos::new(0, 4, 0);
@@ -161,13 +161,13 @@ fn intra_section_overhang_air_pocket_gets_lit() {
         );
     }
 
-    let section = spawn_section_with_palette(&mut app, dim, chunk_pos, palette);
+    let chunk = spawn_chunk_with_palette(&mut app, dim, chunk_pos, palette);
 
     for _ in 0..3 {
         app.world_mut().run_schedule(FixedUpdate);
     }
 
-    let level = sky_level_at(&app, section, 8, 14, 4);
+    let level = sky_level_at(&app, chunk, 8, 14, 4);
     assert!(
         level > 0,
         "overhang regression: sky_light at (lx=8, local_y=14, lz=4) must be > 0 after \
@@ -179,19 +179,19 @@ fn intra_section_overhang_air_pocket_gets_lit() {
 //
 // Geometry (two chunks, chunk A at (0,4,0) and chunk B at (1,4,0)):
 //
-//   Chunk A: all columns fully open sky (all air) → section_y=4 becomes
+//   Chunk A: all columns fully open sky (all air) → chunk_y=4 becomes
 //   Uniform(15).
 //
 //   Chunk B: column (lx=8, lz=4) has solid at local_y=0..3 and local_y=5..15,
 //   with air at local_y=4 only.  All other columns are all-solid (simulating a
 //   mountain wall with a single horizontal tunnel at y=68).  The Heightmap
-//   surface for column (lx=8, lz=4) in chunk B is far above section_top_y
+//   surface for column (lx=8, lz=4) in chunk B is far above chunk_top_y
 //   (the top of the column visible from the sky is the solid at local_y=5 and
 //   above, but since the whole column above the air pocket is solid, the scanner
 //   finds solid at local_y=5 and records s = world_y(5)+1 = 70).
 //   Wait — actually: column (8,4) in chunk B has solid at local_y=5..15 and
 //   air at local_y=4, solid at local_y=0..3.  Scanning from top: local_y=15
-//   solid → s = 64+15+1 = 80 > section_top_y=79.  All cells zeroed.
+//   solid → s = 64+15+1 = 80 > chunk_top_y=79.  All cells zeroed.
 //
 //   Both chunks Added<ChunkLoaded> in same tick.  The pull-from-Uniform(15)
 //   path must fire even when both neighbours are newly-loaded.
@@ -221,14 +221,14 @@ fn cross_chunk_uniform_neighbour_lights_lower_air_pocket() {
         palette_b.set(BlockPos::new(base_bx + lx, base_by + 4, base_bz + 4), AIR);
     }
 
-    let _section_a = spawn_section_with_palette(&mut app, dim, chunk_a_pos, palette_a);
-    let section_b = spawn_section_with_palette(&mut app, dim, chunk_b_pos, palette_b);
+    let _chunk_a = spawn_chunk_with_palette(&mut app, dim, chunk_a_pos, palette_a);
+    let chunk_b = spawn_chunk_with_palette(&mut app, dim, chunk_b_pos, palette_b);
 
     for _ in 0..3 {
         app.world_mut().run_schedule(FixedUpdate);
     }
 
-    let level = sky_level_at(&app, section_b, 8, 4, 4);
+    let level = sky_level_at(&app, chunk_b, 8, 4, 4);
     assert!(
         level > 0,
         "cross-chunk regression: sky_light at chunk B (lx=8, local_y=4, lz=4) must be > 0 \
@@ -251,7 +251,7 @@ fn cross_chunk_uniform_neighbour_lights_lower_air_pocket() {
 //   To let the BFS reach lx=8 at local_y=13 via the West face pull, the
 //   horizontal path at local_y=13 must also be open.  Make lx=0..8 air at
 //   local_y=13, lz=4 in chunk B.  (The path could also be reached via an
-//   adjacent column in the same section seeding at local_y=13, but the
+//   adjacent column in the same chunk seeding at local_y=13, but the
 //   horizontal-path approach is the cleaner direct test.)
 //
 //   After the fix (seeding all y levels for both kinds of Case-B columns),
@@ -276,7 +276,7 @@ fn cross_chunk_uniform_neighbour_lights_both_air_pockets() {
     let mut palette_b = BlockPalette::default();
     palette_b.fill(STONE);
 
-    // Horizontal tunnel at local_y=4, lz=4 across the full section width.
+    // Horizontal tunnel at local_y=4, lz=4 across the full chunk width.
     for lx in 0..16i32 {
         palette_b.set(BlockPos::new(base_bx + lx, base_by + 4, base_bz + 4), AIR);
     }
@@ -285,20 +285,20 @@ fn cross_chunk_uniform_neighbour_lights_both_air_pockets() {
         palette_b.set(BlockPos::new(base_bx + lx, base_by + 13, base_bz + 4), AIR);
     }
 
-    let _section_a = spawn_section_with_palette(&mut app, dim, chunk_a_pos, palette_a);
-    let section_b = spawn_section_with_palette(&mut app, dim, chunk_b_pos, palette_b);
+    let _chunk_a = spawn_chunk_with_palette(&mut app, dim, chunk_a_pos, palette_a);
+    let chunk_b = spawn_chunk_with_palette(&mut app, dim, chunk_b_pos, palette_b);
 
     for _ in 0..3 {
         app.world_mut().run_schedule(FixedUpdate);
     }
 
-    let level_lower = sky_level_at(&app, section_b, 8, 4, 4);
+    let level_lower = sky_level_at(&app, chunk_b, 8, 4, 4);
     assert!(
         level_lower > 0,
         "two-pocket regression (lower pocket): sky_light at (lx=8, local_y=4, lz=4) must be > 0; got {level_lower}"
     );
 
-    let level_upper = sky_level_at(&app, section_b, 8, 13, 4);
+    let level_upper = sky_level_at(&app, chunk_b, 8, 13, 4);
     assert!(
         level_upper > 0,
         "two-pocket regression (upper pocket): sky_light at (lx=8, local_y=13, lz=4) must be > 0; got {level_upper}"

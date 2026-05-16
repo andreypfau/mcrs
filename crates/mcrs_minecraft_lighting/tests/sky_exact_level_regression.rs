@@ -1,5 +1,5 @@
 // Exact-equality regression tests for sky-light attenuation in
-// straddling-surface sections.
+// straddling-surface chunks.
 //
 // All twelve world coordinates reported as failing attenuation are modelled
 // as synthetic terrain in two scenarios:
@@ -14,13 +14,13 @@
 //     Distance = 2 → expected sky_light = 13.
 //
 // The underlying bug: `seed_initial_light` Case B seeded BFS entries at all
-// y=0..15 for fully-dark columns (surface s > section_top_y), including the
+// y=0..15 for fully-dark columns (surface s > chunk_top_y), including the
 // zero-storage cells. Those false level-15 seeds propagated outward at 15,
 // filling the air pockets with levels 14–15 instead of the correct
 // attenuated values computed from the nearest open-sky column.
 //
 // Additionally, the twelve coordinates cover eight distinct chunk clusters:
-//   cluster1: (8,*,-188) and (9,*,-188) — intra-section, adjacent columns
+//   cluster1: (8,*,-188) and (9,*,-188) — intra-chunk, adjacent columns
 //   cluster2: (72,73,40)
 //   cluster3: (57,72,52) and (56,72,53)
 //   cluster4: (0,72,73) and (0,74,73)
@@ -95,7 +95,7 @@ fn make_stub_table() -> BlockLightTable {
     }
 }
 
-fn spawn_section(app: &mut App, dim: Entity, chunk_pos: ChunkPos, palette: BlockPalette) -> Entity {
+fn spawn_chunk(app: &mut App, dim: Entity, chunk_pos: ChunkPos, palette: BlockPalette) -> Entity {
     app.world_mut()
         .spawn((
             InDimension(dim),
@@ -108,9 +108,9 @@ fn spawn_section(app: &mut App, dim: Entity, chunk_pos: ChunkPos, palette: Block
         .id()
 }
 
-fn sky_level_at(app: &App, section: Entity, lx: usize, local_y: usize, lz: usize) -> u8 {
+fn sky_level_at(app: &App, chunk: Entity, lx: usize, local_y: usize, lz: usize) -> u8 {
     app.world()
-        .get::<SkyLight>(section)
+        .get::<SkyLight>(chunk)
         .expect("SkyLight missing")
         .0
         .get(lx, local_y, lz)
@@ -118,13 +118,13 @@ fn sky_level_at(app: &App, section: Entity, lx: usize, local_y: usize, lz: usize
 
 // ── Scenario A: one-step dark pocket (expect level 14) ──────────────────────
 //
-// Geometry (single section, chunk_pos=(0,4,0)):
+// Geometry (single chunk, chunk_pos=(0,4,0)):
 //   All columns solid stone except:
 //   - Open-sky column lx=7, lz=4: solid at y=0..3 (local), air at y=4..15.
 //     Heightmap surface s = 64+4 = 68, s is within [64,79] (straddling Case B).
 //     Lit cells: y=4..15.  BFS seeds pushed at y=4..15, level=15.
 //   - Dark column lx=8, lz=4: air at y=4 only, solid everywhere else.
-//     Heightmap surface s = 64+15+1 = 80 > section_top_y=79 → fully-dark column.
+//     Heightmap surface s = 64+15+1 = 80 > chunk_top_y=79 → fully-dark column.
 //     Storage zeroed for all y. Under the bug: seeded at y=0..15 level=15
 //     (wrong). After fix: no seeds for this column; wavefront arrives from lx=7.
 //   - Dark column lx=8, lz=5: air at y=7 only. Same geometry as lx=8,lz=4.
@@ -160,20 +160,20 @@ fn one_step_dark_pocket_exact_level_14() {
     // Dark air pocket at lx=8, lz=4, local_y=11 (models (8,75,-188)).
     palette.set(BlockPos::new(base_x + 8, base_y + 11, base_z + 4), AIR);
 
-    let section = spawn_section(&mut app, dim, chunk_pos, palette);
+    let chunk = spawn_chunk(&mut app, dim, chunk_pos, palette);
 
     for _ in 0..6 {
         app.world_mut().run_schedule(FixedUpdate);
     }
 
-    let level_ly4 = sky_level_at(&app, section, 8, 4, 4);
+    let level_ly4 = sky_level_at(&app, chunk, 8, 4, 4);
     assert_eq!(
         level_ly4, 14,
         "one-step (lx=8,ly=4): sky_light must be exactly 14 \
          (1 Manhattan step from open-sky column at lx=7); got {level_ly4}"
     );
 
-    let level_ly11 = sky_level_at(&app, section, 8, 11, 4);
+    let level_ly11 = sky_level_at(&app, chunk, 8, 11, 4);
     assert_eq!(
         level_ly11, 14,
         "one-step (lx=8,ly=11): sky_light must be exactly 14 \
@@ -183,7 +183,7 @@ fn one_step_dark_pocket_exact_level_14() {
 
 // ── Scenario B: two-step dark pocket (expect level 13) ──────────────────────
 //
-// Geometry (single section, chunk_pos=(0,4,0)):
+// Geometry (single chunk, chunk_pos=(0,4,0)):
 //   - Open-sky column lx=7, lz=4: solid at y=0..3, air at y=4..15.
 //   - Relay column lx=8, lz=4: air at y=4 and y=11. One step from lx=7.
 //     After fix: receives level 14 from lx=7. Propagates outward to lx=9.
@@ -223,27 +223,27 @@ fn two_step_dark_pocket_exact_level_13() {
     palette.set(BlockPos::new(base_x + 9, base_y + 7, base_z + 4), AIR);
     palette.set(BlockPos::new(base_x + 9, base_y + 11, base_z + 4), AIR);
 
-    let section = spawn_section(&mut app, dim, chunk_pos, palette);
+    let chunk = spawn_chunk(&mut app, dim, chunk_pos, palette);
 
     for _ in 0..6 {
         app.world_mut().run_schedule(FixedUpdate);
     }
 
-    let level_ly4 = sky_level_at(&app, section, 9, 4, 4);
+    let level_ly4 = sky_level_at(&app, chunk, 9, 4, 4);
     assert_eq!(
         level_ly4, 13,
         "two-step (lx=9,ly=4): sky_light must be exactly 13 \
          (2 Manhattan steps from open-sky column at lx=7); got {level_ly4}"
     );
 
-    let level_ly7 = sky_level_at(&app, section, 9, 7, 4);
+    let level_ly7 = sky_level_at(&app, chunk, 9, 7, 4);
     assert_eq!(
         level_ly7, 13,
         "two-step (lx=9,ly=7): sky_light must be exactly 13 \
          (models (9,71,-188)); got {level_ly7}"
     );
 
-    let level_ly11 = sky_level_at(&app, section, 9, 11, 4);
+    let level_ly11 = sky_level_at(&app, chunk, 9, 11, 4);
     assert_eq!(
         level_ly11, 13,
         "two-step (lx=9,ly=11): sky_light must be exactly 13 \
@@ -277,13 +277,13 @@ fn overhang_air_pocket_exact_level_14() {
     // (models the overhang at (-72, 78, 94)).
     palette.set(BlockPos::new(base_x + 8, base_y + 4, base_z + 4), AIR);
 
-    let section = spawn_section(&mut app, dim, chunk_pos, palette);
+    let chunk = spawn_chunk(&mut app, dim, chunk_pos, palette);
 
     for _ in 0..6 {
         app.world_mut().run_schedule(FixedUpdate);
     }
 
-    let level = sky_level_at(&app, section, 8, 4, 4);
+    let level = sky_level_at(&app, chunk, 8, 4, 4);
     assert_eq!(
         level, 14,
         "overhang regression (exact): sky_light at (lx=8,ly=4) must be \
@@ -326,14 +326,14 @@ fn cross_chunk_boundary_cell_exact_level_14() {
     palette_b.fill(STONE);
     palette_b.set(BlockPos::new(base_bx, base_by + 4, base_bz + 4), AIR);
 
-    let _section_a = spawn_section(&mut app, dim, chunk_a_pos, palette_a);
-    let section_b = spawn_section(&mut app, dim, chunk_b_pos, palette_b);
+    let _chunk_a = spawn_chunk(&mut app, dim, chunk_a_pos, palette_a);
+    let chunk_b = spawn_chunk(&mut app, dim, chunk_b_pos, palette_b);
 
     for _ in 0..6 {
         app.world_mut().run_schedule(FixedUpdate);
     }
 
-    let level = sky_level_at(&app, section_b, 0, 4, 4);
+    let level = sky_level_at(&app, chunk_b, 0, 4, 4);
     assert_eq!(
         level, 14,
         "cycle-4 cross-chunk boundary (lx=0,ly=4 in chunk B): sky_light must be \

@@ -1,9 +1,9 @@
-//! Cross-section convergence driver and sub-schedule label.
+//! Cross-chunk convergence driver and sub-schedule label.
 //!
 //! `light_converge_driver` is the workspace's only sanctioned intra-tick
 //! `for`/`loop` per the concurrency conventions exception for the bounded
 //! intra-tick convergence loop. It is gated on `MAX_ITERATIONS` iterations,
-//! `HARD_BUDGET` wall time, and absence of dirty sections.
+//! `HARD_BUDGET` wall time, and absence of dirty chunks.
 //!
 //! The driver runs `LightConvergeSchedule` against the host `World` and
 //! polls `Query<(), With<LightDirty>>` after each iteration. Quiescence
@@ -51,16 +51,16 @@ pub fn light_converge_driver(world: &mut World) {
     #[cfg(feature = "lighting-trace")]
     let _span = tracing::info_span!("light_converge_driver", iter = tracing::field::Empty).entered();
 
-    // Pre-check: skip the entire `LightConvergeSchedule` when no section
+    // Pre-check: skip the entire `LightConvergeSchedule` when no chunk
     // is currently `LightDirty`. The schedule's four stages each kick off
-    // a `par_iter_mut` that walks every section's archetype to evaluate
+    // a `par_iter_mut` that walks every chunk's archetype to evaluate
     // the `With<LightDirty>` filter — for a populated world with thousands
-    // of sections that scan dominates the tick cost (profile-measured at
-    // ~650 us / tick on the spawn_warmup_vd12 fixture, ≈64 % of the whole
-    // tick) even though the body is a no-op for every section. Quiet
-    // ticks — the common case after the heightmap fast-path eliminated
-    // the multi-section cascade — collapse to a single archetype-narrowed
-    // existence check.
+    // of chunks that scan dominates the tick cost (profile-measured at
+    // roughly 650 us per tick on the spawn_warmup_vd12 fixture, around 64
+    // percent of the whole tick) even though the body is a no-op for every
+    // chunk. Quiet ticks — the common case after the heightmap fast-path
+    // eliminated the multi-chunk cascade — collapse to a single
+    // archetype-narrowed existence check.
     let any_dirty = world
         .query_filtered::<(), With<LightDirty>>()
         .iter(world)
@@ -142,14 +142,14 @@ mod tests {
 
     /// Helper: clear-`LightDirty` system used as a stub schedule body in
     /// the quiescence test.
-    fn clear_one_dirty_section(mut commands: Commands, dirty: Query<Entity, With<LightDirty>>) {
+    fn clear_one_dirty_chunk(mut commands: Commands, dirty: Query<Entity, With<LightDirty>>) {
         for e in dirty.iter() {
             commands.entity(e).remove::<LightDirty>();
         }
     }
 
-    /// Helper: re-mark every section dirty (idempotent under With<LightDirty>
-    /// filter — the section will be queried again next iteration because
+    /// Helper: re-mark every chunk dirty (idempotent under With<LightDirty>
+    /// filter — the chunk will be queried again next iteration because
     /// `Commands::insert` re-applies the marker). Forces the convergence
     /// driver to never reach quiescence.
     fn re_insert_dirty(mut commands: Commands, dirty: Query<Entity, With<LightDirty>>) {
@@ -174,11 +174,11 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         let mut app = build_driver_app_with_schedule(|| {
             let mut schedule = Schedule::new(LightConvergeSchedule);
-            schedule.add_systems(clear_one_dirty_section);
+            schedule.add_systems(clear_one_dirty_chunk);
             schedule
         });
 
-        let _section = app.world_mut().spawn(LightDirty).id();
+        let _chunk = app.world_mut().spawn(LightDirty).id();
 
         let before = crate::telemetry::snapshot();
         light_converge_driver(app.world_mut());
@@ -211,7 +211,7 @@ mod tests {
             schedule
         });
 
-        let _section = app.world_mut().spawn(LightDirty).id();
+        let _chunk = app.world_mut().spawn(LightDirty).id();
 
         let before = crate::telemetry::snapshot();
         light_converge_driver(app.world_mut());
@@ -230,7 +230,7 @@ mod tests {
     }
 
     /// Stub schedule body that sleeps long enough for a single iteration to
-    /// blow the `HARD_BUDGET` wall-clock budget, and re-marks the section
+    /// blow the `HARD_BUDGET` wall-clock budget, and re-marks the chunk
     /// dirty so the driver doesn't exit via the quiescence path first.
     fn slow_redirty_30ms(
         mut commands: Commands,
@@ -253,7 +253,7 @@ mod tests {
             schedule
         });
 
-        let _section = app.world_mut().spawn(LightDirty).id();
+        let _chunk = app.world_mut().spawn(LightDirty).id();
 
         let before = crate::telemetry::snapshot();
         light_converge_driver(app.world_mut());
@@ -285,7 +285,7 @@ mod tests {
         // Quiescence path: iterations += 1, capped unchanged.
         let mut app1 = build_driver_app_with_schedule(|| {
             let mut s = Schedule::new(LightConvergeSchedule);
-            s.add_systems(clear_one_dirty_section);
+            s.add_systems(clear_one_dirty_chunk);
             s
         });
         let _ = app1.world_mut().spawn(LightDirty).id();

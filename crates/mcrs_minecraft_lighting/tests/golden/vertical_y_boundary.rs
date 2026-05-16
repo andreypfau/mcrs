@@ -1,6 +1,6 @@
-// A torch placed at the top face of the section, exercising the vertical
-// section boundary on the +Y axis; light should propagate upward into the
-// section above once the engine runs.
+// A torch placed at the top face of the chunk, exercising the vertical
+// chunk boundary on the +Y axis; light should propagate upward into the
+// chunk above once the engine runs.
 
 use mcrs_protocol::BlockStateId;
 

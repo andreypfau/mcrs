@@ -2,22 +2,22 @@
 //!
 //! Three sequential systems run after the convergence sub-schedule terminates:
 //!
-//! 1. `downgrade_light_storage` inspects every `LightDirty` section's
+//! 1. `downgrade_light_storage` inspects every `LightDirty` chunk's
 //!    `LightStorage::Mixed(arr)` field and downgrades to `Null` (all-zero
 //!    nibbles) or `Uniform(15)` (all-0xFF bytes — every cell holds 15) when
-//!    the homogeneity check passes. Only just-touched sections need the
-//!    check; running on all sections every tick is wasted work.
+//!    the homogeneity check passes. Only just-touched chunks need the
+//!    check; running on all chunks every tick is wasted work.
 //!
-//! 2. `clear_light_dirty_safety_net` removes `LightDirty` from sections
+//! 2. `clear_light_dirty_safety_net` removes `LightDirty` from chunks
 //!    whose `*Egress`, `*Incoming`, and workspaces are all empty. Each clear
 //!    indicates a missed per-iteration clear inside the propagate systems —
 //!    emit `tracing::debug!` so the discrepancy is observable.
 //!
-//! 3. `clear_light_tickets` removes `LightTicket` from sections that no
+//! 3. `clear_light_tickets` removes `LightTicket` from chunks that no
 //!    longer have any pending work AND are not `LightDirty`. The ticket
 //!    represents "my neighbours must stay loaded until I drain my queues";
 //!    once everything is empty, the ticket can be dropped and the chunk
-//!    unload path becomes free to evict the section if it goes stale.
+//!    unload path becomes free to evict the chunk if it goes stale.
 
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Commands, Entity, Query, With, Without};
@@ -34,13 +34,13 @@ use crate::components::{
 use crate::storage::LightStorage;
 
 /// Downgrades `LightStorage::Mixed` to `Null` (all-zero) or `Uniform(15)`
-/// (all-fifteen) on every section flagged `LightDirty`. The check inspects
+/// (all-fifteen) on every chunk flagged `LightDirty`. The check inspects
 /// the raw 2048-byte nibble array for the two homogeneous patterns and
 /// leaves Mixed as-is otherwise.
 pub fn downgrade_light_storage(
-    mut sections: Query<(&mut BlockLight, Option<&mut SkyLight>), With<LightDirty>>,
+    mut chunks: Query<(&mut BlockLight, Option<&mut SkyLight>), With<LightDirty>>,
 ) {
-    for (mut block_light, mut sky_light_opt) in sections.iter_mut() {
+    for (mut block_light, mut sky_light_opt) in chunks.iter_mut() {
         downgrade_storage_in_place(&mut block_light.0);
         if let Some(sky_light) = sky_light_opt.as_deref_mut() {
             downgrade_storage_in_place(&mut sky_light.0);
@@ -62,12 +62,12 @@ fn downgrade_storage_in_place(storage: &mut LightStorage) {
     }
 }
 
-/// Removes `LightDirty` from sections whose egress, incoming, and workspace
+/// Removes `LightDirty` from chunks whose egress, incoming, and workspace
 /// queues are all empty. Emits `tracing::debug!` each time it clears anything
 /// — every clear indicates a leftover `LightDirty` that the per-iteration
 /// clear inside the propagate systems missed.
 pub fn clear_light_dirty_safety_net(
-    sections: Query<
+    chunks: Query<
         (
             Entity,
             &BlockEgress,
@@ -81,7 +81,7 @@ pub fn clear_light_dirty_safety_net(
     >,
     mut commands: Commands,
 ) {
-    for (entity, be, bi, se, si, bws, sws) in sections.iter() {
+    for (entity, be, bi, se, si, bws, sws) in chunks.iter() {
         if be.0.is_empty()
             && bi.0.is_empty()
             && se.0.is_empty()
@@ -97,12 +97,12 @@ pub fn clear_light_dirty_safety_net(
     }
 }
 
-/// Removes `LightTicket` from sections that no longer have any pending work
+/// Removes `LightTicket` from chunks that no longer have any pending work
 /// (egress / incoming / workspace queues all empty) and are not `LightDirty`.
 /// Once the ticket is gone, the chunk-unload path is free to evict the
-/// section if no observer view keeps it loaded.
+/// chunk if no observer view keeps it loaded.
 pub fn clear_light_tickets(
-    sections: Query<
+    chunks: Query<
         (
             Entity,
             &BlockEgress,
@@ -116,7 +116,7 @@ pub fn clear_light_tickets(
     >,
     mut commands: Commands,
 ) {
-    for (entity, be, bi, se, si, bws, sws) in sections.iter() {
+    for (entity, be, bi, se, si, bws, sws) in chunks.iter() {
         if be.0.is_empty()
             && bi.0.is_empty()
             && se.0.is_empty()
@@ -132,7 +132,7 @@ pub fn clear_light_tickets(
 }
 
 #[inline]
-fn chunk_y_for_section(index: &ColumnChunks, target: Entity) -> Option<i32> {
+fn chunk_y_for_chunk(index: &ColumnChunks, target: Entity) -> Option<i32> {
     let min_y = index.min_section_y;
     index.iter_wire().enumerate().find_map(|(idx, lookup)| {
         if let ChunkLookup::Loaded(e) = lookup {
@@ -145,7 +145,7 @@ fn chunk_y_for_section(index: &ColumnChunks, target: Entity) -> Option<i32> {
 }
 
 // Producer half of the lighting codec wire. Filtered on `Changed<BlockLight>`
-// (sky-layer counterpart filters on `Changed<SkyLight>`) so a section is
+// (sky-layer counterpart filters on `Changed<SkyLight>`) so a chunk is
 // announced whenever its light storage was `&mut`-accessed since the last
 // tick — covering both the steady-state propagation pass and the post-attach
 // initial seeding, even when the upstream propagate systems cleared
@@ -154,25 +154,25 @@ fn chunk_y_for_section(index: &ColumnChunks, target: Entity) -> Option<i32> {
 // Bevy 0.18 `Mut::deref_mut` marks the component changed for the lifetime of
 // the query iteration; the `par_iter_mut` body in `propagate_increase_block`
 // /`propagate_decrease_block` consistently dereferences `&mut light.0` for
-// every matched section, so any tick that touches a section's BFS queue
+// every matched chunk, so any tick that touches a chunk's BFS queue
 // surfaces here, regardless of whether the propagate phase removed
 // `LightDirty` once its queues drained. The downstream codec dedups by
-// section before consulting the actual `LightStorage`, so over-fanning at
+// chunk before consulting the actual `LightStorage`, so over-fanning at
 // warm-up is a negligible NULL pass at the consumer.
 pub fn emit_block_light_dirty(
-    sections: Query<(Entity, &InColumn), (Changed<BlockLight>, With<BlockLight>)>,
+    chunks: Query<(Entity, &InColumn), (Changed<BlockLight>, With<BlockLight>)>,
     columns: Query<(&ColumnPosComponent, &ColumnChunks)>,
     mut writer: MessageWriter<BlockLightDirty>,
 ) {
-    for (section, in_column) in sections.iter() {
-        let Ok((column_pos, section_index)) = columns.get(in_column.0) else {
+    for (chunk, in_column) in chunks.iter() {
+        let Ok((column_pos, chunk_index)) = columns.get(in_column.0) else {
             continue;
         };
-        let Some(chunk_y) = chunk_y_for_section(section_index, section) else {
+        let Some(chunk_y) = chunk_y_for_chunk(chunk_index, chunk) else {
             continue;
         };
         writer.write(BlockLightDirty {
-            section,
+            chunk,
             column_pos: column_pos.0,
             chunk_y,
         });
@@ -180,19 +180,19 @@ pub fn emit_block_light_dirty(
 }
 
 pub fn emit_sky_light_dirty(
-    sections: Query<(Entity, &InColumn), (Changed<SkyLight>, With<SkyLight>)>,
+    chunks: Query<(Entity, &InColumn), (Changed<SkyLight>, With<SkyLight>)>,
     columns: Query<(&ColumnPosComponent, &ColumnChunks)>,
     mut writer: MessageWriter<SkyLightDirty>,
 ) {
-    for (section, in_column) in sections.iter() {
-        let Ok((column_pos, section_index)) = columns.get(in_column.0) else {
+    for (chunk, in_column) in chunks.iter() {
+        let Ok((column_pos, chunk_index)) = columns.get(in_column.0) else {
             continue;
         };
-        let Some(chunk_y) = chunk_y_for_section(section_index, section) else {
+        let Some(chunk_y) = chunk_y_for_chunk(chunk_index, chunk) else {
             continue;
         };
         writer.write(SkyLightDirty {
-            section,
+            chunk,
             column_pos: column_pos.0,
             chunk_y,
         });
@@ -298,7 +298,7 @@ mod tests {
         }
     }
 
-    fn spawn_clean_section(app: &mut App, dirty: bool, ticket: bool) -> bevy_ecs::entity::Entity {
+    fn spawn_clean_chunk(app: &mut App, dirty: bool, ticket: bool) -> bevy_ecs::entity::Entity {
         let mut e = app.world_mut().spawn((
             BlockEgress::default(),
             BlockIncoming::default(),
@@ -319,7 +319,7 @@ mod tests {
     #[test]
     fn clear_light_dirty_safety_net_clears_when_all_queues_and_buffers_empty() {
         let mut app = build_safety_net_app();
-        let entity = spawn_clean_section(&mut app, true, false);
+        let entity = spawn_clean_chunk(&mut app, true, false);
         app.update();
         assert!(
             app.world().get::<LightDirty>(entity).is_none(),
@@ -330,7 +330,7 @@ mod tests {
     #[test]
     fn clear_light_dirty_safety_net_keeps_when_egress_nonempty() {
         let mut app = build_safety_net_app();
-        let entity = spawn_clean_section(&mut app, true, false);
+        let entity = spawn_clean_chunk(&mut app, true, false);
         let mut e = BlockEgress::default();
         e.0.push(Wavefront::new(0, 1, 2, 3));
         app.world_mut().entity_mut(entity).insert(e);
@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn clear_light_dirty_safety_net_keeps_when_workspace_queue_nonempty() {
         let mut app = build_safety_net_app();
-        let entity = spawn_clean_section(&mut app, true, false);
+        let entity = spawn_clean_chunk(&mut app, true, false);
         let mut ws = BlockLightWorkspace::default();
         ws.increase_queue.push(0u64);
         app.world_mut().entity_mut(entity).insert(ws);
@@ -356,9 +356,9 @@ mod tests {
     }
 
     #[test]
-    fn clear_light_tickets_skips_sections_with_pending_work() {
+    fn clear_light_tickets_skips_chunks_with_pending_work() {
         let mut app = build_clear_tickets_app();
-        let entity = spawn_clean_section(&mut app, false, true);
+        let entity = spawn_clean_chunk(&mut app, false, true);
         let mut i = BlockIncoming::default();
         i.0.push(Wavefront::new(0, 1, 2, 3));
         app.world_mut().entity_mut(entity).insert(i);
@@ -372,7 +372,7 @@ mod tests {
     #[test]
     fn clear_light_tickets_removes_when_all_pending_work_drained() {
         let mut app = build_clear_tickets_app();
-        let entity = spawn_clean_section(&mut app, false, true);
+        let entity = spawn_clean_chunk(&mut app, false, true);
         app.update();
         assert!(
             app.world().get::<LightTicket>(entity).is_none(),
@@ -381,13 +381,13 @@ mod tests {
     }
 
     #[test]
-    fn clear_light_tickets_skips_dirty_sections() {
+    fn clear_light_tickets_skips_dirty_chunks() {
         let mut app = build_clear_tickets_app();
-        let entity = spawn_clean_section(&mut app, true, true);
+        let entity = spawn_clean_chunk(&mut app, true, true);
         app.update();
         assert!(
             app.world().get::<LightTicket>(entity).is_some(),
-            "LightTicket retained on LightDirty sections (Without<LightDirty> filter)"
+            "LightTicket retained on LightDirty chunks (Without<LightDirty> filter)"
         );
     }
 }

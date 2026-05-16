@@ -1,9 +1,9 @@
 //! Lighting wire codec.
 //!
-//! Pure transformation core that converts per-section `BlockLight` / `SkyLight`
+//! Pure transformation core that converts per-chunk `BlockLight` / `SkyLight`
 //! state into the protocol's `LightData` payload. Two public entry points:
 //!
-//! 1. `pack_section` — the per-section, per-layer wire-mapping decision matrix.
+//! 1. `pack_chunk` — the per-chunk, per-layer wire-mapping decision matrix.
 //!    Given a `ChunkLookup` row (Loaded / Unloaded / BottomPadding /
 //!    TopPadding / OutOfRange) and the optional `LightStorage` for the
 //!    requested `Layer`, it updates the four wire masks (`*_light_mask` and
@@ -11,11 +11,11 @@
 //!    arrays builder.
 //!
 //! 2. `build_full_light_data` — iterates `ColumnChunks::iter_wire()` for a
-//!    column entity, dispatches `pack_section` per row per layer, and returns
+//!    column entity, dispatches `pack_chunk` per row per layer, and returns
 //!    a wire-ready `LightData<'static>` with `Cow::Owned` payloads.
 //!
 //! The codec is read-only against ECS state and allocates only the output
-//! buffers (worst case 24 sections × 2 layers × 2048 bytes = 96 KB per column).
+//! buffers (worst case 24 chunks × 2 layers × 2048 bytes = 96 KB per column).
 //! The `'static` lifetime on the returned `LightData` is required because
 //! downstream `Message<T>` types must be `Send + Sync + 'static`.
 
@@ -33,14 +33,16 @@ use std::borrow::Cow;
 use crate::components::{BlockLight, SkyLight};
 use crate::storage::LightStorage;
 
-/// Which light layer a `pack_section` call is operating on.
+/// Which light layer a `pack_chunk` call is operating on.
+// Note: function name `pack_chunk` is kept as part of the public wire-codec
+// surface (re-exported via `pub use codec::codec::pack_chunk`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Layer {
     Block,
     Sky,
 }
 
-/// Wire-mapping decision matrix dispatcher for a single (section, layer) pair.
+/// Wire-mapping decision matrix dispatcher for a single (chunk, layer) pair.
 ///
 /// The bit `bit_idx` is interpreted relative to the mask `Vec<u64>` words:
 /// the bit is at position `bit_idx % 64` within word `bit_idx / 64`. Masks are
@@ -52,8 +54,8 @@ pub enum Layer {
 /// `TopPadding` (sky synthesis is gated on the dimension having a sky) and for
 /// the Loaded+sky-missing-in-skyless-dim row.
 #[allow(clippy::too_many_arguments)]
-pub fn pack_section(
-    section: ChunkLookup,
+pub fn pack_chunk(
+    chunk: ChunkLookup,
     storage: Option<&LightStorage>,
     layer: Layer,
     has_sky_light: bool,
@@ -62,7 +64,7 @@ pub fn pack_section(
     empty_mask: &mut Vec<u64>,
     arrays: &mut Vec<LightChunk>,
 ) {
-    match section {
+    match chunk {
         ChunkLookup::BottomPadding => {
             set_bit(empty_mask, bit_idx);
         }
@@ -100,7 +102,7 @@ pub fn pack_section(
             }
         }
         ChunkLookup::Unloaded => {
-            // Neither mask bit is set — vanilla treats unloaded sections as
+            // Neither mask bit is set — vanilla treats unloaded chunks as
             // "absent from the column" rather than "present but empty". The
             // bit index still advances in the outer iterator so wire ordering
             // stays aligned with `ColumnChunks::iter_wire()` indices.
@@ -126,7 +128,7 @@ fn set_bit(mask: &mut Vec<u64>, bit_idx: usize) {
 
 #[derive(SystemParam)]
 pub struct LightCodecParams<'w, 's> {
-    pub section_indexes: Query<'w, 's, &'static ColumnChunks>,
+    pub chunk_indexes: Query<'w, 's, &'static ColumnChunks>,
     pub block_lights: Query<'w, 's, &'static BlockLight>,
     pub sky_lights: Query<'w, 's, &'static SkyLight>,
     pub in_dimensions: Query<'w, 's, &'static InDimension>,
@@ -143,7 +145,7 @@ pub fn build_full_light_data(
     column_entity: Entity,
     params: &LightCodecParams,
 ) -> LightData<'static> {
-    let Ok(section_index) = params.section_indexes.get(column_entity) else {
+    let Ok(chunk_index) = params.chunk_indexes.get(column_entity) else {
         return LightData::default();
     };
     let Ok(in_dim) = params.in_dimensions.get(column_entity) else {
@@ -158,19 +160,19 @@ pub fn build_full_light_data(
     let mut sky_arrays: Vec<LightChunk> = Vec::new();
     let mut block_arrays: Vec<LightChunk> = Vec::new();
 
-    for (bit_idx, lookup) in section_index.iter_wire().enumerate() {
-        let section_entity = match lookup {
+    for (bit_idx, lookup) in chunk_index.iter_wire().enumerate() {
+        let chunk_entity = match lookup {
             ChunkLookup::Loaded(e) => Some(e),
             _ => None,
         };
-        let block_storage = section_entity
+        let block_storage = chunk_entity
             .and_then(|e| params.block_lights.get(e).ok())
             .map(|bl| &bl.0);
-        let sky_storage = section_entity
+        let sky_storage = chunk_entity
             .and_then(|e| params.sky_lights.get(e).ok())
             .map(|sl| &sl.0);
 
-        pack_section(
+        pack_chunk(
             lookup,
             block_storage,
             Layer::Block,
@@ -180,7 +182,7 @@ pub fn build_full_light_data(
             &mut empty_block_mask,
             &mut block_arrays,
         );
-        pack_section(
+        pack_chunk(
             lookup,
             sky_storage,
             Layer::Sky,
@@ -202,27 +204,27 @@ pub fn build_full_light_data(
     }
 }
 
-/// Per-section block-light dirty signal emitted by the propagation engine and
+/// Per-chunk block-light dirty signal emitted by the propagation engine and
 /// consumed by the codec. Disjoint from `SkyLightDirty` so the block- and sky-
 /// engines can write to independent `MessageWriter`s without contention.
 #[derive(Message)]
 pub struct BlockLightDirty {
-    pub section: Entity,
+    pub chunk: Entity,
     pub column_pos: ColumnPos,
     pub chunk_y: i32,
 }
 
-/// Per-section sky-light dirty signal. Mirror of `BlockLightDirty` for the
+/// Per-chunk sky-light dirty signal. Mirror of `BlockLightDirty` for the
 /// sky-light engine; emitted on a disjoint `MessageWriter<SkyLightDirty>`.
 #[derive(Message)]
 pub struct SkyLightDirty {
-    pub section: Entity,
+    pub chunk: Entity,
     pub column_pos: ColumnPos,
     pub chunk_y: i32,
 }
 
 /// Per-column delta packet emitted by `emit_column_light_updates`. Carries
-/// only the sections that were dirty this tick; sections that did not change
+/// only the chunks that were dirty this tick; chunks that did not change
 /// have both mask bits clear so the client retains its prior state.
 #[derive(Message)]
 pub struct ColumnLightUpdate {
@@ -250,13 +252,13 @@ impl ColumnDirtyAccumulator {
     }
 }
 
-/// Aggregates per-section `BlockLightDirty` / `SkyLightDirty` Messages into
+/// Aggregates per-chunk `BlockLightDirty` / `SkyLightDirty` Messages into
 /// one delta `ColumnLightUpdate` Message per column per tick. Runs in
 /// `LightingSet::Codec` (FixedPostUpdate) so the source `&BlockLight` /
 /// `&SkyLight` reads cannot race the FixedUpdate propagate `&mut` writes.
 ///
-/// Delta semantics: only sections present in this tick's accumulator get a
-/// mask bit set; untouched sections leave both the populated and empty masks
+/// Delta semantics: only chunks present in this tick's accumulator get a
+/// mask bit set; untouched chunks leave both the populated and empty masks
 /// clear so the vanilla client preserves the values it already cached.
 pub fn emit_column_light_updates(
     mut block_dirty: MessageReader<BlockLightDirty>,
@@ -269,7 +271,7 @@ pub fn emit_column_light_updates(
     mut writer: MessageWriter<ColumnLightUpdate>,
 ) {
     for msg in block_dirty.read() {
-        let Ok(in_column) = in_chunk_columns.get(msg.section) else {
+        let Ok(in_column) = in_chunk_columns.get(msg.chunk) else {
             continue;
         };
         let column = in_column.0;
@@ -283,7 +285,7 @@ pub fn emit_column_light_updates(
     }
 
     for msg in sky_dirty.read() {
-        let Ok(in_column) = in_chunk_columns.get(msg.section) else {
+        let Ok(in_column) = in_chunk_columns.get(msg.chunk) else {
             continue;
         };
         let column = in_column.0;
@@ -297,7 +299,7 @@ pub fn emit_column_light_updates(
     }
 
     for (column_entity, accumulator) in dirty_accum.iter() {
-        let Ok(section_index) = codec_params.section_indexes.get(*column_entity) else {
+        let Ok(chunk_index) = codec_params.chunk_indexes.get(*column_entity) else {
             continue;
         };
         let column_pos = column_positions
@@ -313,22 +315,22 @@ pub fn emit_column_light_updates(
         let mut sky_arrays: Vec<LightChunk> = Vec::new();
         let mut block_arrays: Vec<LightChunk> = Vec::new();
 
-        let min_section_y = section_index.min_section_y;
+        let min_chunk_y = chunk_index.min_section_y;
 
-        for (bit_idx, lookup) in section_index.iter_wire().enumerate() {
-            let chunk_y = min_section_y + (bit_idx as i32) - 1;
+        for (bit_idx, lookup) in chunk_index.iter_wire().enumerate() {
+            let chunk_y = min_chunk_y + (bit_idx as i32) - 1;
             let block_is_dirty = accumulator.dirty_block.contains(&chunk_y);
             let sky_is_dirty = accumulator.dirty_sky.contains(&chunk_y);
 
             if block_is_dirty {
-                let section_entity = match lookup {
+                let chunk_entity = match lookup {
                     ChunkLookup::Loaded(e) => Some(e),
                     _ => None,
                 };
-                let block_storage = section_entity
+                let block_storage = chunk_entity
                     .and_then(|e| codec_params.block_lights.get(e).ok())
                     .map(|bl| &bl.0);
-                pack_section(
+                pack_chunk(
                     lookup,
                     block_storage,
                     Layer::Block,
@@ -340,14 +342,14 @@ pub fn emit_column_light_updates(
                 );
             }
             if sky_is_dirty {
-                let section_entity = match lookup {
+                let chunk_entity = match lookup {
                     ChunkLookup::Loaded(e) => Some(e),
                     _ => None,
                 };
-                let sky_storage = section_entity
+                let sky_storage = chunk_entity
                     .and_then(|e| codec_params.sky_lights.get(e).ok())
                     .map(|sl| &sl.0);
-                pack_section(
+                pack_chunk(
                     lookup,
                     sky_storage,
                     Layer::Sky,
@@ -407,10 +409,10 @@ mod tests {
     }
 
     #[test]
-    fn pack_section_bottom_padding_sets_both_empty_masks() {
+    fn pack_chunk_bottom_padding_sets_both_empty_masks() {
         // Block layer.
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
-        pack_section(
+        pack_chunk(
             ChunkLookup::BottomPadding,
             None,
             Layer::Block,
@@ -427,7 +429,7 @@ mod tests {
         // Sky layer (independent of has_sky_light per the matrix).
         for sky in [false, true] {
             let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
-            pack_section(
+            pack_chunk(
                 ChunkLookup::BottomPadding,
                 None,
                 Layer::Sky,
@@ -444,13 +446,13 @@ mod tests {
     }
 
     #[test]
-    fn pack_section_loaded_mixed_block_sets_block_mask_and_appends_array() {
+    fn pack_chunk_loaded_mixed_block_sets_block_mask_and_appends_array() {
         let mut nibble = NibbleArray::zeros();
         nibble.set(3, 7, 11, 0xA);
         let storage = LightStorage::Mixed(Box::new(nibble.clone()));
 
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
-        pack_section(
+        pack_chunk(
             ChunkLookup::Loaded(fake_entity(1)),
             Some(&storage),
             Layer::Block,
@@ -468,10 +470,10 @@ mod tests {
     }
 
     #[test]
-    fn pack_section_loaded_uniform_zero_block_sets_empty_block_mask() {
+    fn pack_chunk_loaded_uniform_zero_block_sets_empty_block_mask() {
         let storage = LightStorage::Uniform(0);
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
-        pack_section(
+        pack_chunk(
             ChunkLookup::Loaded(fake_entity(2)),
             Some(&storage),
             Layer::Block,
@@ -487,10 +489,10 @@ mod tests {
     }
 
     #[test]
-    fn pack_section_loaded_uniform_nonzero_block_sets_block_mask_and_synthesizes_payload() {
+    fn pack_chunk_loaded_uniform_nonzero_block_sets_block_mask_and_synthesizes_payload() {
         let storage = LightStorage::Uniform(0x7);
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
-        pack_section(
+        pack_chunk(
             ChunkLookup::Loaded(fake_entity(3)),
             Some(&storage),
             Layer::Block,
@@ -509,10 +511,10 @@ mod tests {
     }
 
     #[test]
-    fn pack_section_loaded_null_block_sets_empty_block_mask() {
+    fn pack_chunk_loaded_null_block_sets_empty_block_mask() {
         let storage = LightStorage::Null;
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
-        pack_section(
+        pack_chunk(
             ChunkLookup::Loaded(fake_entity(4)),
             Some(&storage),
             Layer::Block,
@@ -528,10 +530,10 @@ mod tests {
     }
 
     #[test]
-    fn pack_section_loaded_skyless_dim_sets_empty_sky_mask() {
+    fn pack_chunk_loaded_skyless_dim_sets_empty_sky_mask() {
         let storage = LightStorage::Uniform(0xF);
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
-        pack_section(
+        pack_chunk(
             ChunkLookup::Loaded(fake_entity(5)),
             Some(&storage),
             Layer::Sky,
@@ -545,10 +547,10 @@ mod tests {
         assert!(bit_is_set(&empty_mask, 8), "empty sky mask must be set");
         assert!(arrays.is_empty(), "no sky payload in skyless dim");
 
-        // Same row with storage = None (component absent on the section)
+        // Same row with storage = None (component absent on the chunk)
         // must reach the same result.
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
-        pack_section(
+        pack_chunk(
             ChunkLookup::Loaded(fake_entity(5)),
             None,
             Layer::Sky,
@@ -564,11 +566,11 @@ mod tests {
     }
 
     #[test]
-    fn pack_section_unloaded_sets_no_mask_bit() {
+    fn pack_chunk_unloaded_sets_no_mask_bit() {
         for layer in [Layer::Block, Layer::Sky] {
             for has_sky in [false, true] {
                 let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
-                pack_section(
+                pack_chunk(
                     ChunkLookup::Unloaded,
                     None,
                     layer,
@@ -589,9 +591,9 @@ mod tests {
     }
 
     #[test]
-    fn pack_section_top_padding_sky_having_sets_sky_mask_and_appends_0xff() {
+    fn pack_chunk_top_padding_sky_having_sets_sky_mask_and_appends_0xff() {
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
-        pack_section(
+        pack_chunk(
             ChunkLookup::TopPadding,
             None,
             Layer::Sky,
@@ -609,7 +611,7 @@ mod tests {
         // Block layer at TopPadding in a sky-having dim still goes to the
         // empty mask — only the sky layer synthesizes the 0xFF payload.
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
-        pack_section(
+        pack_chunk(
             ChunkLookup::TopPadding,
             None,
             Layer::Block,
@@ -625,10 +627,10 @@ mod tests {
     }
 
     #[test]
-    fn pack_section_top_padding_skyless_sets_both_empty_masks() {
+    fn pack_chunk_top_padding_skyless_sets_both_empty_masks() {
         // Sky layer.
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
-        pack_section(
+        pack_chunk(
             ChunkLookup::TopPadding,
             None,
             Layer::Sky,
@@ -644,7 +646,7 @@ mod tests {
 
         // Block layer.
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
-        pack_section(
+        pack_chunk(
             ChunkLookup::TopPadding,
             None,
             Layer::Block,
@@ -660,7 +662,7 @@ mod tests {
     }
 
     #[test]
-    fn codec_wire_ordering_invariant_holds_for_synthetic_24_section_column() {
+    fn codec_wire_ordering_invariant_holds_for_synthetic_24_chunk_column() {
         // Synthesize a column-shaped iter_wire output that exercises every
         // matrix row at least once. Wire-ordering invariant:
         // arrays.len() == popcount(mask) per layer, AND arrays must appear
@@ -704,9 +706,9 @@ mod tests {
 
         let has_sky_light = true;
 
-        for (bit_idx, (section, block_storage, sky_storage)) in rows.iter().enumerate() {
-            pack_section(
-                *section,
+        for (bit_idx, (chunk, block_storage, sky_storage)) in rows.iter().enumerate() {
+            pack_chunk(
+                *chunk,
                 block_storage.as_ref(),
                 Layer::Block,
                 has_sky_light,
@@ -715,8 +717,8 @@ mod tests {
                 &mut empty_block_mask,
                 &mut block_arrays,
             );
-            pack_section(
-                *section,
+            pack_chunk(
+                *chunk,
                 sky_storage.as_ref(),
                 Layer::Sky,
                 has_sky_light,

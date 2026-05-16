@@ -1,4 +1,4 @@
-// Two torches were placed at opposite halves of the section and one was then
+// Two torches were placed at opposite halves of the chunk and one was then
 // broken; the snapshot captures the post-removal state with only the surviving
 // torch contributing to the block-light field.
 
