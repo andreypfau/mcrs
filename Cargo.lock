@@ -389,6 +389,7 @@ dependencies = [
  "slotmap",
  "smallvec",
  "thiserror 2.0.18",
+ "tracing",
  "variadics_please",
 ]
 
@@ -1984,6 +1985,7 @@ name = "mcrs_minecraft_lighting"
 version = "0.1.0"
 dependencies = [
  "bevy_app",
+ "bevy_asset",
  "bevy_ecs",
  "bevy_state",
  "criterion",

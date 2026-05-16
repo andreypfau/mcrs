@@ -1,9 +1,11 @@
 use crate::client_info::ClientViewDistance;
 use crate::configuration::LoadedWorldPreset;
 use crate::login::GameProfile;
+use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
 use crate::world::entity::player::column_view::ColumnViewPlugin;
 use crate::world::entity::player::digging::DiggingPlugin;
+use crate::world::entity::player::game_mode::GameModePlugin;
 use crate::world::entity::player::inventory::PlayerInventoryPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
@@ -32,7 +34,7 @@ use mcrs_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_protocol::item::ComponentPatch;
 use mcrs_protocol::packets::game::clientbound::{
     ClientboundAddEntity, ClientboundContainerSetContent, ClientboundDisconnect,
-    ClientboundGameEvent, ClientboundLogin, ClientboundPlayerInfoUpdate,
+    ClientboundEntityEvent, ClientboundGameEvent, ClientboundLogin, ClientboundPlayerInfoUpdate,
     ClientboundPlayerPosition,
 };
 use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
@@ -45,6 +47,7 @@ pub mod attribute;
 mod chat;
 pub mod column_view;
 pub mod digging;
+mod game_mode;
 mod inventory;
 pub mod movement;
 pub mod player_action;
@@ -59,6 +62,7 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(ColumnViewPlugin);
         app.add_plugins(PlayerInventoryPlugin);
         app.add_plugins(ChatPlugin);
+        app.add_plugins(GameModePlugin);
         app.add_systems(bevy_app::Update, spawn_player);
         app.add_systems(FixedUpdate, (disconnect_player, added_inventory, resync_player));
         app.add_systems(PostUpdate, despawn_disconnected_clients);
@@ -76,6 +80,8 @@ pub struct PlayerBundle {
     pub attributes: attribute::PlayerAttributesBundle,
     pub inventory: PlayerInventoryBundle,
     pub container_seqno: ContainerSeqno,
+    pub game_mode: PlayerGameMode,
+    pub op_level: PlayerOpLevel,
     pub marker: Player,
 }
 
@@ -99,6 +105,8 @@ fn spawn_player(
             &GameProfile,
             &mut ServerSideConnection,
             Has<Player>,
+            Option<&PlayerGameMode>,
+            Option<&PlayerOpLevel>,
         ),
         Changed<ConnectionState>,
     >,
@@ -111,10 +119,16 @@ fn spawn_player(
 
     query
         .iter_mut()
-        .for_each(|(entity, distance, con_state, profile, mut con, is_reconfiguration)| {
+        .for_each(|(entity, distance, con_state, profile, mut con, is_reconfiguration, existing_game_mode, existing_op_level)| {
             if *con_state != ConnectionState::Game {
                 return;
             }
+            let game_mode = existing_game_mode
+                .map(|gm| gm.0)
+                .unwrap_or(GameMode::Creative);
+            let op_level = existing_op_level
+                .copied()
+                .unwrap_or(PlayerOpLevel(PlayerOpLevel::MAX));
             // Find dimension by first DimensionId in preset order
             let dim = if let Some((first_dim_key, _)) = world_preset.dimensions.first() {
                 // Look for the dimension entity matching the first preset dimension
@@ -150,13 +164,17 @@ fn spawn_player(
                     show_death_screen: false,
                     do_limited_crafting: false,
                     player_spawn_info: PlayerSpawnInfo {
-                        game_mode: GameMode::Survival,
+                        game_mode,
                         ..Default::default()
                     },
                     enforces_secure_chat: false,
                 });
                 con.write_packet(&ClientboundGameEvent {
                     game_event: GameEventKind::LevelChunksLoadStart,
+                });
+                con.write_packet(&ClientboundEntityEvent {
+                    entity_id: entity.index_u32() as i32,
+                    entity_status: op_level.entity_status(),
                 });
 
                 // Insert marker to trigger re-sync of position, inventory, chunks
@@ -181,13 +199,17 @@ fn spawn_player(
                     show_death_screen: false,
                     do_limited_crafting: false,
                     player_spawn_info: PlayerSpawnInfo {
-                        game_mode: GameMode::Survival,
+                        game_mode,
                         ..Default::default()
                     },
                     enforces_secure_chat: false,
                 });
                 con.write_packet(&ClientboundGameEvent {
                     game_event: GameEventKind::LevelChunksLoadStart,
+                });
+                con.write_packet(&ClientboundEntityEvent {
+                    entity_id: entity.index_u32() as i32,
+                    entity_status: op_level.entity_status(),
                 });
                 let pos = DVec3::new(0.0, 64.0, 0.0);
 
@@ -208,6 +230,8 @@ fn spawn_player(
                             ..Default::default()
                         },
                         inventory,
+                        game_mode: PlayerGameMode(game_mode),
+                        op_level,
                         ..Default::default()
                     },
                 ));
@@ -254,10 +278,10 @@ fn network_add(
 
 fn player_joined(
     event: On<PlayerJoinEvent>,
-    mut players: Query<(&mut ServerSideConnection, &GameProfile)>,
+    mut players: Query<(&mut ServerSideConnection, &GameProfile, &PlayerGameMode)>,
     positions: Query<(&Transform), With<Player>>,
 ) {
-    let Ok((con, joined_player)) = players.get(event.player) else {
+    let Ok((con, joined_player, _)) = players.get(event.player) else {
         return;
     };
 
@@ -274,17 +298,17 @@ fn player_joined(
 
     let names = players
         .iter()
-        .map(|(_, profile)| profile.username.clone())
+        .map(|(_, profile, _)| profile.username.clone())
         .collect::<Vec<_>>();
     let entries: Vec<PlayerListEntry> = players
         .iter()
         .zip(names.iter())
-        .map(|((_, profile), name)| PlayerListEntry {
+        .map(|((_, profile, game_mode), name)| PlayerListEntry {
             username: name.as_str(),
             player_uuid: profile.id,
             properties: profile.properties.iter().cloned().collect(),
             listed: true,
-            game_mode: GameMode::Survival,
+            game_mode: game_mode.0,
             ..Default::default()
         })
         .collect();
@@ -299,7 +323,7 @@ fn player_joined(
 
     players
         .iter_mut()
-        .for_each(|(mut connection, _)| connection.write_packet(&pkt));
+        .for_each(|(mut connection, _, _)| connection.write_packet(&pkt));
 }
 
 fn disconnect_player(
