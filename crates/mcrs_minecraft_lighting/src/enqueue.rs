@@ -527,6 +527,49 @@ pub fn seed_initial_light(
                                 // cells are air at level 15. Store the compressed
                                 // Uniform(15) form and skip LightDirty — there is
                                 // no work to converge.
+                                if section_base_y <= 0 {
+                                    // Cave-or-deeper sections must never reach
+                                    // Case A on a real overworld. If they do,
+                                    // the column's heightmap is at sentinel
+                                    // when seed_initial_light fired — capture
+                                    // the offending column for diagnosis.
+                                    let min_y = hm.min_y();
+                                    let mut sample = [0i32; 9];
+                                    let pts = [
+                                        (0usize, 0usize), (15, 0), (0, 15), (15, 15),
+                                        (7, 7), (0, 7), (15, 7), (7, 0), (7, 15),
+                                    ];
+                                    let mut sentinel_count = 0u16;
+                                    let mut min_read = i32::MAX;
+                                    let mut max_read = i32::MIN;
+                                    for z in 0..16usize {
+                                        for x in 0..16usize {
+                                            let s = hm.surface_get(x, z);
+                                            min_read = min_read.min(s);
+                                            max_read = max_read.max(s);
+                                            if s == min_y { sentinel_count += 1; }
+                                        }
+                                    }
+                                    for (i, (x, z)) in pts.iter().enumerate() {
+                                        sample[i] = hm.surface_get(*x, *z);
+                                    }
+                                    tracing::warn!(
+                                        target: "mcrs_lighting::case_a_cave",
+                                        chunk_x = chunk_pos.x,
+                                        chunk_y = chunk_pos.y,
+                                        chunk_z = chunk_pos.z,
+                                        section_base_y,
+                                        section_top_y,
+                                        column = ?in_col.0,
+                                        section = ?section_entity,
+                                        heightmap_min_y = min_y,
+                                        heightmap_min_read = min_read,
+                                        heightmap_max_read = max_read,
+                                        heightmap_sentinel_count = sentinel_count,
+                                        heightmap_sample = ?sample,
+                                        "Case A fired for cave section: section will be Uniform(15) but is below y=0 — heightmap likely unprimed"
+                                    );
+                                }
                                 if let Some(sky_light) = sky_light_opt.as_deref_mut() {
                                     sky_light.0 = LightStorage::Uniform(15);
                                 }
@@ -542,14 +585,16 @@ pub fn seed_initial_light(
                                 // dark region is at the bottom of a small
                                 // subset of columns, so this is far cheaper
                                 // than per-cell sets of the lit region.
-                                // Seed BFS at the topmost-air cell of every
-                                // column whose surface falls within the
-                                // section so horizontal flow into adjacent
-                                // below-surface columns (caves, overhangs)
-                                // propagates correctly. The seed carries no
-                                // flag — the cell is already at level 15 in
-                                // storage, so the BFS only walks neighbours
-                                // from it.
+                                // Seed BFS at every lit y-level per column
+                                // so the wavefront reaches dark cells at any
+                                // height in adjacent columns (overhangs,
+                                // multi-level cave pockets). Seeding only
+                                // the surface-transition cell leaves the
+                                // already-lit cells above it without BFS
+                                // entries; the BFS cheap-out skips them
+                                // before emitting horizontal wavefronts.
+                                // Flags=0: storage is already at 15 for lit
+                                // cells, no write needed.
                                 let mut arr = NibbleArray::filled(15);
                                 for z in 0..16usize {
                                     for x in 0..16usize {
@@ -562,16 +607,31 @@ pub fn seed_initial_light(
                                         for y_local in 0..max_dark_local_y {
                                             arr.set(x, y_local, z, 0);
                                         }
-                                        if s >= section_base_y && s <= section_top_y {
-                                            let y_seed_local = (s - section_base_y) as u8;
-                                            sky_ws.increase_queue.push(pack_bfs_entry(
-                                                x as u8,
-                                                z as u8,
-                                                y_seed_local,
-                                                15,
-                                                ALL_DIRECTIONS_BITSET,
-                                                0,
-                                            ));
+                                        // Only seed columns with lit cells in
+                                        // this section. Fully-dark columns
+                                        // (s > section_top_y) have storage=0 for
+                                        // every cell; seeding them at level 15
+                                        // would produce false level-15 seeds that
+                                        // propagate outward at the wrong attenuation.
+                                        // Those columns receive light from adjacent
+                                        // lit columns via the BFS or cross-chunk pull.
+                                        if s <= section_top_y {
+                                            let first_seed_y: u8 =
+                                                if s >= section_base_y {
+                                                    (s - section_base_y) as u8
+                                                } else {
+                                                    0
+                                                };
+                                            for y_seed_local in first_seed_y..=15u8 {
+                                                sky_ws.increase_queue.push(pack_bfs_entry(
+                                                    x as u8,
+                                                    z as u8,
+                                                    y_seed_local,
+                                                    15,
+                                                    ALL_DIRECTIONS_BITSET,
+                                                    0,
+                                                ));
+                                            }
                                             sky_seeded = true;
                                         }
                                     }
@@ -749,12 +809,23 @@ pub fn pull_neighbor_edge_levels(
                 continue;
             };
 
-            // Skip neighbours that were also Added<ChunkLoaded> this tick —
-            // they have no pre-existing state for us to bootstrap against,
-            // and the egress→distribute cascade handles any actual flow
-            // between fresh sections during convergence.
+            // Skip neighbours that were also Added<ChunkLoaded> this tick,
+            // UNLESS the neighbour already has settled Uniform(15) sky light.
+            // A Uniform(15) section (Case A: all columns fully above this
+            // section's top) is written directly by seed_initial_light with no
+            // BFS work remaining — its storage is final and must be pulled now
+            // so the dark (Case B/C) new section receives the correct initial
+            // wavefront. For all other newly-loaded neighbours, the
+            // egress→distribute cascade handles any actual flow between fresh
+            // sections during convergence.
             if newly_loaded_set.contains(&neighbour_entity) {
-                continue;
+                let neighbour_sky_is_uniform_15 = sky_light_read
+                    .get(neighbour_entity)
+                    .map(|sl| matches!(sl.0, LightStorage::Uniform(15)))
+                    .unwrap_or(false);
+                if !neighbour_sky_is_uniform_15 {
+                    continue;
+                }
             }
 
             // `face` is the direction from us (new section) to the neighbour
@@ -892,11 +963,45 @@ pub fn pull_neighbor_edge_levels(
 /// column's `ColumnChunks.sections` slots and re-inserts
 /// `ChunkNeedsInitialLight` on every loaded section in the column. Removes
 /// `NeedsFullReseed` from the column entity.
+///
+/// Gated on `ColumnHeightmapScan::is_finalized()`. When the scan is not yet
+/// finalized, `Heightmaps::surface_get` returns the sentinel `min_y` for
+/// every unclosed XZ column. Re-marking sections with `ChunkNeedsInitialLight`
+/// in that state causes `seed_initial_light` to misclassify cave sections as
+/// Case A (Uniform(15)). The natural lifecycle in
+/// `prime_heightmaps_on_column_spawn` inserts the marker once the scan
+/// finalizes with a correctly primed heightmap, so deferring is safe: the
+/// in-flight wavefronts that triggered the overflow were entering a column
+/// whose initial seed has not yet been computed, and that initial seed will
+/// produce the correct lighting state from scratch once the heightmap is
+/// closed.
 pub fn consume_needs_full_reseed(
-    newly_marked: Query<(Entity, &ColumnChunks), (With<Column>, Added<NeedsFullReseed>)>,
+    newly_marked: Query<
+        (Entity, &ColumnChunks, Option<&crate::lifecycle::ColumnHeightmapScan>),
+        (With<Column>, Added<NeedsFullReseed>),
+    >,
     mut commands: Commands,
 ) {
-    for (column_entity, section_index) in newly_marked.iter() {
+    for (column_entity, section_index, scan_opt) in newly_marked.iter() {
+        let loaded = section_index.sections.iter().filter(|s| s.is_some()).count();
+        let total = section_index.sections.len();
+        let scan_finalized = scan_opt.map_or(false, |s| s.is_finalized());
+
+        if !scan_finalized {
+            tracing::warn!(
+                target: "mcrs_lighting::consume_reseed",
+                column = ?column_entity,
+                sections_loaded = loaded,
+                sections_total = total,
+                scan_present = scan_opt.is_some(),
+                "Dropping NeedsFullReseed: heightmap scan not finalized. The natural lifecycle in \
+                 prime_heightmaps_on_column_spawn will insert ChunkNeedsInitialLight when the scan \
+                 closes; reseeding now would read sentinel min_y and mis-Uniform(15) cave sections."
+            );
+            commands.entity(column_entity).remove::<NeedsFullReseed>();
+            continue;
+        }
+
         for slot in section_index.sections.iter() {
             if let Some(section_entity) = slot {
                 commands
@@ -2285,12 +2390,17 @@ mod tests {
     }
 
     #[test]
-    fn consume_needs_full_reseed_marks_all_loaded_sections() {
+    fn consume_needs_full_reseed_marks_all_loaded_sections_when_scan_finalized() {
         let mut app = build_consume_needs_full_reseed_app();
 
         let section_a = app.world_mut().spawn_empty().id();
         let section_b = app.world_mut().spawn_empty().id();
         let section_unloaded_slot: Option<bevy_ecs::entity::Entity> = None;
+        // Attach a finalized scan so the system treats the heightmap as
+        // primed and proceeds with the reseed.
+        let mut scan = crate::lifecycle::ColumnHeightmapScan::new(0, 2);
+        scan.scan_cursor = -1;
+        assert!(scan.is_finalized());
         let column = app
             .world_mut()
             .spawn((
@@ -2300,6 +2410,7 @@ mod tests {
                     sections: vec![Some(section_a), section_unloaded_slot, Some(section_b)]
                         .into_boxed_slice(),
                 },
+                scan,
             ))
             .id();
         app.world_mut().entity_mut(column).insert(NeedsFullReseed);
@@ -2317,6 +2428,202 @@ mod tests {
         assert!(
             app.world().get::<NeedsFullReseed>(column).is_none(),
             "NeedsFullReseed removed from column"
+        );
+    }
+
+    /// Regression: when the column's heightmap scan is not yet finalized
+    /// (sentinel reads), `consume_needs_full_reseed` must DROP the reseed
+    /// instead of re-marking sections. Re-marking now would cause
+    /// `seed_initial_light` to read sentinel `min_y` and misclassify cave
+    /// sections as Case A (Uniform(15)). The natural lifecycle in
+    /// `prime_heightmaps_on_column_spawn` inserts the marker once the scan
+    /// closes.
+    #[test]
+    fn consume_needs_full_reseed_drops_reseed_when_scan_not_finalized() {
+        let mut app = build_consume_needs_full_reseed_app();
+
+        let section_a = app.world_mut().spawn_empty().id();
+        let section_b = app.world_mut().spawn_empty().id();
+        // No ColumnHeightmapScan attached → unfinalized.
+        let column = app
+            .world_mut()
+            .spawn((
+                Column,
+                ColumnChunks {
+                    min_section_y: 0,
+                    sections: vec![Some(section_a), None, Some(section_b)]
+                        .into_boxed_slice(),
+                },
+            ))
+            .id();
+        app.world_mut().entity_mut(column).insert(NeedsFullReseed);
+
+        app.update();
+
+        assert!(
+            app.world().get::<ChunkNeedsInitialLight>(section_a).is_none(),
+            "section A must NOT be re-marked when scan unfinalized"
+        );
+        assert!(
+            app.world().get::<ChunkNeedsInitialLight>(section_b).is_none(),
+            "section B must NOT be re-marked when scan unfinalized"
+        );
+        assert!(
+            app.world().get::<NeedsFullReseed>(column).is_none(),
+            "NeedsFullReseed cleared from column"
+        );
+    }
+
+    /// A scan present but still mid-scan (not finalized) must also drop the
+    /// reseed. Same rationale as the no-scan case.
+    #[test]
+    fn consume_needs_full_reseed_drops_reseed_when_scan_mid_progress() {
+        let mut app = build_consume_needs_full_reseed_app();
+
+        let section_a = app.world_mut().spawn_empty().id();
+        // Mid-scan: cursor still at top of range, no bits closed.
+        let scan = crate::lifecycle::ColumnHeightmapScan::new(0, 2);
+        assert!(!scan.is_finalized());
+        let column = app
+            .world_mut()
+            .spawn((
+                Column,
+                ColumnChunks {
+                    min_section_y: 0,
+                    sections: vec![Some(section_a), None, None].into_boxed_slice(),
+                },
+                scan,
+            ))
+            .id();
+        app.world_mut().entity_mut(column).insert(NeedsFullReseed);
+
+        app.update();
+
+        assert!(
+            app.world().get::<ChunkNeedsInitialLight>(section_a).is_none(),
+            "section must NOT be re-marked when scan is mid-progress"
+        );
+        assert!(
+            app.world().get::<NeedsFullReseed>(column).is_none(),
+            "NeedsFullReseed cleared from column"
+        );
+    }
+
+    #[test]
+    fn pull_neighbor_edge_levels_pulls_from_uniform15_on_simultaneous_load() {
+        // Regression test for the case where a Case-A (Uniform(15)) neighbour
+        // and a dark (Case-B) section both receive Added<ChunkLoaded> in the
+        // same tick. The old skip at newly_loaded_set skipped the pull
+        // unconditionally, so the dark section never received the neighbour's
+        // level-15 face cells and remained at 0. The fix: only skip when the
+        // neighbour is NOT already Uniform(15).
+        let mut app = build_pull_neighbor_app();
+        let dim = spawn_dimension(&mut app, true);
+
+        let section_a = app.world_mut().spawn_empty().id();
+        let section_b = app.world_mut().spawn_empty().id();
+
+        let column_a = app
+            .world_mut()
+            .spawn((
+                Column,
+                ColumnChunks {
+                    min_section_y: 0,
+                    sections: vec![Some(section_a)].into_boxed_slice(),
+                },
+                InDimension(dim),
+            ))
+            .id();
+        let column_b = app
+            .world_mut()
+            .spawn((
+                Column,
+                ColumnChunks {
+                    min_section_y: 0,
+                    sections: vec![Some(section_b)].into_boxed_slice(),
+                },
+                InDimension(dim),
+            ))
+            .id();
+
+        let mut col_index = app
+            .world_mut()
+            .get_mut::<ColumnIndex>(dim)
+            .expect("column index");
+        col_index.0.insert(
+            ColumnPos::new(0, 0),
+            ColumnSlot {
+                entity: column_a,
+                section_count: 1,
+            },
+        );
+        col_index.0.insert(
+            ColumnPos::new(1, 0),
+            ColumnSlot {
+                entity: column_b,
+                section_count: 1,
+            },
+        );
+
+        // Section A: Case A — sky light already at Uniform(15) (set by
+        // seed_initial_light before pull_neighbor_edge_levels runs).
+        app.world_mut().entity_mut(section_a).insert((
+            ChunkPos::new(0, 0, 0),
+            InColumn(column_a),
+            InDimension(dim),
+            BlockLight::default(),
+            BlockPendingEgress::default(),
+            BlockIncoming::default(),
+            SkyLight(crate::storage::LightStorage::Uniform(15)),
+            SkyPendingEgress::default(),
+            SkyIncoming::default(),
+        ));
+
+        // Section B: Case B — sky light starts at Null (dark), has a
+        // SkyIncoming buffer for the pull to write into.
+        app.world_mut().entity_mut(section_b).insert((
+            ChunkPos::new(1, 0, 0),
+            InColumn(column_b),
+            InDimension(dim),
+            BlockLight::default(),
+            BlockPendingEgress::default(),
+            BlockIncoming::default(),
+            SkyLight::default(),
+            SkyPendingEgress::default(),
+            SkyIncoming::default(),
+        ));
+
+        // Insert ChunkLoaded on both in the same tick so both land in
+        // newly_loaded_set. The pull system runs once after both inserts.
+        app.world_mut().entity_mut(section_a).insert(ChunkLoaded);
+        app.world_mut().entity_mut(section_b).insert(ChunkLoaded);
+        app.update();
+
+        let incoming = app
+            .world()
+            .get::<SkyIncoming>(section_b)
+            .expect("sky incoming on B");
+        assert_eq!(
+            incoming.0.len(),
+            256,
+            "B must receive 256 sky-light face-cell entries from A (16x16 at level 14)"
+        );
+        let west_index = Direction::West.index() as u8;
+        for w in incoming.0.iter() {
+            assert_eq!(
+                w.face(),
+                west_index,
+                "all entries enter from the West face (A is West of B)"
+            );
+            assert_eq!(
+                w.level(),
+                14,
+                "level = 15 - 1 manhattan attenuation"
+            );
+        }
+        assert!(
+            app.world().get::<LightDirty>(section_b).is_some(),
+            "B must be marked LightDirty so the BFS converge loop runs"
         );
     }
 }

@@ -440,6 +440,17 @@ fn drain_block_egress(
                         if pend.0.len() >= PENDING_EGRESS_CAP {
                             LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL
                                 .fetch_add(1, Ordering::Relaxed);
+                            tracing::warn!(
+                                target: "mcrs_lighting::needs_full_reseed",
+                                src = ?src_entity,
+                                dst_column = ?dst_column,
+                                src_chunk_x = chunk_pos.x,
+                                src_chunk_y = chunk_pos.y,
+                                src_chunk_z = chunk_pos.z,
+                                kind = "block_egress_overflow",
+                                pending_cap = PENDING_EGRESS_CAP,
+                                "Block-egress pending overflow — inserting NeedsFullReseed on destination column."
+                            );
                             commands.entity(dst_column).insert(NeedsFullReseed);
                         } else {
                             pend.0.push(wavefront);
@@ -547,6 +558,19 @@ fn drain_sky_egress(
                         if pend.0.len() >= PENDING_EGRESS_CAP {
                             LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL
                                 .fetch_add(1, Ordering::Relaxed);
+                            tracing::warn!(
+                                target: "mcrs_lighting::needs_full_reseed",
+                                src = ?src_entity,
+                                dst_column = ?dst_column,
+                                src_chunk_x = chunk_pos.x,
+                                src_chunk_y = chunk_pos.y,
+                                src_chunk_z = chunk_pos.z,
+                                kind = "sky_egress_overflow",
+                                pending_cap = PENDING_EGRESS_CAP,
+                                "Sky-egress pending overflow — inserting NeedsFullReseed on destination column. \
+                                 This will re-mark every loaded section in the destination column for initial-light seeding, \
+                                 which can re-fire seed_initial_light against a heightmap that may still be at sentinel."
+                            );
                             commands.entity(dst_column).insert(NeedsFullReseed);
                         } else {
                             pend.0.push(wavefront);

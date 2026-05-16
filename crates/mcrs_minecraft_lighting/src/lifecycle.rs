@@ -182,6 +182,25 @@ fn advance_scan(
             // explicitly here keeps post-finalization callers from observing
             // a transient inconsistency if the implementation of `Heightmaps`
             // ever changes its zero-init contract.
+            let mut unclosed_ws = 0usize;
+            let mut unclosed_mb = 0usize;
+            for idx in 0..256 {
+                if !scan.world_surface_done.is_set(idx) { unclosed_ws += 1; }
+                if !scan.motion_blocking_done.is_set(idx) { unclosed_mb += 1; }
+            }
+            tracing::warn!(
+                target: "mcrs_lighting::chimney_to_bedrock",
+                min_section_y,
+                final_cursor = scan.scan_cursor,
+                unclosed_world_surface = unclosed_ws,
+                unclosed_motion_blocking = unclosed_mb,
+                sections_present = section_index.sections.iter().filter(|s| s.is_some()).count(),
+                section_count = section_index.sections.len(),
+                "Heightmap scan reached chimney-to-bedrock: every unclosed XZ column gets sentinel min_y. \
+                 This is correct ONLY if the column is genuinely all-air top-to-bottom. \
+                 For a normal overworld column with a real surface, this path firing means \
+                 the surface section was never observed by the scan (race or all-air mis-classification)."
+            );
             for idx in 0..256 {
                 let (x, z) = idx_to_xz(idx);
                 if !scan.world_surface_done.is_set(idx) {
