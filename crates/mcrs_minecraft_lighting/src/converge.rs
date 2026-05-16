@@ -74,12 +74,13 @@ pub fn light_converge_driver(world: &mut World) {
     for iteration in 0..MAX_ITERATIONS {
         world.run_schedule(LightConvergeSchedule);
 
-        let dirty_count = world
+        let any_dirty = world
             .query_filtered::<(), With<LightDirty>>()
             .iter(world)
-            .count();
+            .next()
+            .is_some();
 
-        if dirty_count == 0 {
+        if !any_dirty {
             #[cfg(feature = "lighting-trace")]
             _span.record("iter", iteration + 1);
             LIGHT_CONVERGE_ITERATIONS_TOTAL

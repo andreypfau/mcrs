@@ -40,12 +40,12 @@ use crate::storage::LightStorage;
 pub fn downgrade_light_storage(
     mut chunks: Query<(&mut BlockLight, Option<&mut SkyLight>), With<LightDirty>>,
 ) {
-    for (mut block_light, mut sky_light_opt) in chunks.iter_mut() {
+    chunks.par_iter_mut().for_each(|(mut block_light, mut sky_light_opt)| {
         downgrade_storage_in_place(&mut block_light.0);
         if let Some(sky_light) = sky_light_opt.as_deref_mut() {
             downgrade_storage_in_place(&mut sky_light.0);
         }
-    }
+    });
 }
 
 #[inline]

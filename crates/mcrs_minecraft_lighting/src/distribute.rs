@@ -359,7 +359,7 @@ fn drain_block_egress(
             resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::East,  column_indexes, chunk_indexes),
         ];
 
-        let drained: smallvec::SmallVec<[Wavefront; 8]> = egress.0.drain(..).collect();
+        let drained = std::mem::take(&mut egress.0);
         for wavefront in drained {
             let face = direction_from_index(wavefront.face());
             // The intra-chunk BFS emits face-adjacent wavefronts only
@@ -464,7 +464,7 @@ fn drain_sky_egress(
             resolve_neighbor_chunk(*chunk_pos, *in_col, *in_dim, Direction::East,  column_indexes, chunk_indexes),
         ];
 
-        let drained: smallvec::SmallVec<[Wavefront; 8]> = egress.0.drain(..).collect();
+        let drained = std::mem::take(&mut egress.0);
         for wavefront in drained {
             let face = direction_from_index(wavefront.face());
             // Sky-light entering a destination cell via its Up face (i.e. the

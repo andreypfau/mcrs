@@ -74,6 +74,7 @@ fn drain_incoming_into_queue(
     incoming: &mut smallvec::SmallVec<[Wavefront; 8]>,
     queue: &mut Vec<u64>,
 ) {
+    queue.reserve(incoming.len());
     for wavefront in incoming.drain(..) {
         let face = direction_from_index(wavefront.face());
         let (x, y, z) =
