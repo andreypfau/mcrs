@@ -234,11 +234,12 @@ fn spawn_lit_torch_in_chunk(
 
 /// Test-local mapping from a face-frame `(face, cell_a, cell_b)` triple to the
 /// destination-chunk-local `(x, y, z)` cell coordinates expected by
-/// `LightStorage::get(usize, usize, usize)`. Distinct from the production
-/// `face_to_chunk_coords` in `propagate.rs` (`pub(crate)`, returns `u8`)
-/// because the production helper feeds `pack_bfs_entry` while this helper
-/// feeds `LightStorage::get`.
-fn face_to_chunk_coords_usize(face: Direction, cell_a: u8, cell_b: u8) -> (usize, usize, usize) {
+/// `LightStorage::get(usize, usize, usize)`. Mirrors `crate::geom::face_cell_to_chunk_xyz`
+/// but returns `usize` to feed `LightStorage::get` rather than `u8` to feed
+/// `pack_bfs_entry`. Body is inlined here because integration tests cannot reach
+/// `pub(crate)` items; this helper mirrors the same six-face match the
+/// production helper does.
+fn face_cell_to_chunk_xyz_usize(face: Direction, cell_a: u8, cell_b: u8) -> (usize, usize, usize) {
     match face {
         Direction::Down => (cell_a as usize, 0, cell_b as usize),
         Direction::Up => (cell_a as usize, 15, cell_b as usize),
@@ -254,7 +255,7 @@ fn face_to_chunk_coords_usize(face: Direction, cell_a: u8, cell_b: u8) -> (usize
 /// example, `Direction::West` with `(cell_a=8, cell_b=8)` reads the cell at
 /// the chunk's local `(x=0, y=8, z=8)`.
 fn read_face_cell(app: &App, chunk: Entity, face: Direction, cell_a: u8, cell_b: u8) -> u8 {
-    let (x, y, z) = face_to_chunk_coords_usize(face, cell_a, cell_b);
+    let (x, y, z) = face_cell_to_chunk_xyz_usize(face, cell_a, cell_b);
     let light = app
         .world()
         .get::<BlockLight>(chunk)
@@ -264,7 +265,7 @@ fn read_face_cell(app: &App, chunk: Entity, face: Direction, cell_a: u8, cell_b:
 
 /// Sky-light counterpart of `read_face_cell`.
 fn read_sky_face_cell(app: &App, chunk: Entity, face: Direction, cell_a: u8, cell_b: u8) -> u8 {
-    let (x, y, z) = face_to_chunk_coords_usize(face, cell_a, cell_b);
+    let (x, y, z) = face_cell_to_chunk_xyz_usize(face, cell_a, cell_b);
     let light = app
         .world()
         .get::<SkyLight>(chunk)

@@ -7,7 +7,7 @@
 //! the chunk's `*Incoming` buffer into `workspace.increase_queue` via
 //! `pack_bfs_entry(..., FLAG_WRITE_LEVEL)`. Each incoming `Wavefront`
 //! encodes the source-frame face plus its on-face `(cell_x, cell_z)` and
-//! `level`; the helper `face_to_chunk_coords` decodes those to the
+//! `level`; the helper `face_cell_to_chunk_xyz` decodes those to the
 //! destination-chunk-local `(x, y, z)` cell coordinates expected by the
 //! packed BFS entry layout. The decoded face is inverted at distribute
 //! time, so a wavefront arriving on the destination's West-`Incoming` lives
@@ -39,34 +39,13 @@ use crate::components::{
     SkyIncoming, SkyLight, SkyLightWorkspace, Wavefront,
 };
 use crate::distribute::direction_from_index;
+use crate::geom::face_cell_to_chunk_xyz;
 use crate::storage::LightStorage;
 use crate::table::BlockLightTable;
 
-/// Inverse of `bfs::project_face_cell`: given an inbound wavefront's
-/// destination-frame face plus its on-face `(cell_a, cell_b)` packing,
-/// return the destination-chunk-local `(x, y, z)` cell coordinates.
-///
-/// Y-normal faces drop y, X-normal faces drop x, Z-normal faces drop z.
-/// For `Up` the implicit y is 15; for `Down` the implicit y is 0; for
-/// `East` x is 15; for `West` x is 0; for `South` z is 15; for `North`
-/// z is 0. The two non-normal axes pack the on-face cell coordinates in
-/// the same order as `project_face_cell` — `(cell_a, cell_b)` where
-/// `cell_a` is the first non-normal axis and `cell_b` is the second.
-#[inline]
-pub(crate) fn face_to_chunk_coords(face: Direction, cell_a: u8, cell_b: u8) -> (u8, u8, u8) {
-    match face {
-        Direction::Down => (cell_a, 0, cell_b),
-        Direction::Up => (cell_a, 15, cell_b),
-        Direction::North => (cell_a, cell_b, 0),
-        Direction::South => (cell_a, cell_b, 15),
-        Direction::West => (0, cell_a, cell_b),
-        Direction::East => (15, cell_a, cell_b),
-    }
-}
-
 /// Drain a `*Incoming` buffer into a workspace's `increase_queue` via
 /// `pack_bfs_entry(..., FLAG_WRITE_LEVEL)`. Each entry is packed at the
-/// destination-chunk-local cell decoded by `face_to_chunk_coords`, and
+/// destination-chunk-local cell decoded by `face_cell_to_chunk_xyz`, and
 /// the BFS will write the wavefront's `level` and propagate outward from
 /// there.
 #[inline]
@@ -78,7 +57,7 @@ fn drain_incoming_into_queue(
     for wavefront in incoming.drain(..) {
         let face = direction_from_index(wavefront.face());
         let (x, y, z) =
-            face_to_chunk_coords(face, wavefront.cell_x(), wavefront.cell_z());
+            face_cell_to_chunk_xyz(face, wavefront.cell_x(), wavefront.cell_z());
         queue.push(pack_bfs_entry(
             x,
             z,
@@ -247,7 +226,7 @@ pub fn propagate_increase_sky_system(
                 // per-cell pushes below collapse to a single heap allocation
                 // instead of 7+ incremental reallocations.
                 egress.0.reserve(1280);
-                // Per-face (cell_x, cell_z) pairing follows the project_face_cell
+                // Per-face (cell_x, cell_z) pairing follows the chunk_xyz_to_face_cell
                 // axis contract: Y-normal faces drop y, Z-normal faces drop z and
                 // pack (x, y), X-normal faces drop x and pack (y, z).
                 for face in COLUMN_WALKER_FACES {
@@ -771,7 +750,7 @@ mod tests {
     }
 
     /// Asserts the column-walker fast path emits West-face wavefronts whose
-    /// `(cell_x, cell_z)` pairs decode consistently with the `project_face_cell`
+    /// `(cell_x, cell_z)` pairs decode consistently with the `chunk_xyz_to_face_cell`
     /// axis contract. The defective code pushes `(cz=outer, cx=inner)` for all
     /// faces, so the first 16 West entries would be `(0,0),(1,0),...,(15,0)`.
     /// The correct West/East emission is `(cx=outer, cz=inner)`, so the first
@@ -878,7 +857,7 @@ mod tests {
     /// Verify drain-Incoming prelude turns one BlockIncoming wavefront into a
     /// pack_bfs_entry FLAG_WRITE_LEVEL on workspace.increase_queue. East face
     /// wavefront at (cell_x=0, cell_z=8, level=8) decodes to chunk-local
-    /// (x=15, y=0, z=8) per face_to_chunk_coords(East, 0, 8). The drain
+    /// (x=15, y=0, z=8) per face_cell_to_chunk_xyz(East, 0, 8). The drain
     /// runs at the top of `propagate_decrease_block_system`; the
     /// decrease pass itself only drains `decrease_queue`, so the prelude's
     /// FLAG_WRITE_LEVEL entry survives on `increase_queue` for the next
@@ -928,7 +907,7 @@ mod tests {
 
     /// Same shape for sky-side. South face wavefront at (cell_x=4, cell_z=7,
     /// level=12) decodes to chunk-local (x=4, y=7, z=15) per
-    /// face_to_chunk_coords(South, 4, 7).
+    /// face_cell_to_chunk_xyz(South, 4, 7).
     #[test]
     fn propagate_increase_drains_sky_incoming_at_top_of_body() {
         // Use decrease_sky here because the decrease prelude is the same; the
@@ -1026,16 +1005,4 @@ mod tests {
         }
     }
 
-    #[test]
-    fn face_to_chunk_coords_round_trip() {
-        // face_to_chunk_coords is the inverse of project_face_cell on the
-        // (cell_a, cell_b) -> (x, y, z) projection. Confirm the y/x/z
-        // implicit values match the project_face_cell axis contract.
-        assert_eq!(face_to_chunk_coords(Direction::Down, 3, 7), (3, 0, 7));
-        assert_eq!(face_to_chunk_coords(Direction::Up, 3, 7), (3, 15, 7));
-        assert_eq!(face_to_chunk_coords(Direction::North, 3, 7), (3, 7, 0));
-        assert_eq!(face_to_chunk_coords(Direction::South, 3, 7), (3, 7, 15));
-        assert_eq!(face_to_chunk_coords(Direction::West, 3, 7), (0, 3, 7));
-        assert_eq!(face_to_chunk_coords(Direction::East, 3, 7), (15, 3, 7));
-    }
 }

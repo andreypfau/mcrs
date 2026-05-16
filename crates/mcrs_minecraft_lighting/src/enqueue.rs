@@ -29,6 +29,7 @@ use mcrs_minecraft_block::palette::BlockPalette;
 use crate::bfs::{
     normal_of, pack_bfs_entry, ALL_DIRECTIONS_BITSET, FLAG_RECHECK_LEVEL, FLAG_WRITE_LEVEL,
 };
+use crate::geom::face_cell_to_chunk_xyz;
 use crate::heightmap::topmost_surface_world_y;
 use crate::components::{
     BlockIncoming, BlockLight, BlockLightWorkspace, BlockPendingEgress, ChunkNeedsInitialLight,
@@ -305,23 +306,6 @@ pub fn enqueue_sky_light_on_block_placed(
         }
 
         commands.entity(placed.chunk).insert(LightDirty);
-    }
-}
-
-/// Returns the (x, y, z) coordinates of the neighbour-chunk face cell that
-/// adjoins us on `from_face` (the face direction in the NEIGHBOUR's frame, i.e.
-/// `face.opposite()` of the face from us to the neighbour). `(cell_a, cell_b)`
-/// are the on-face coordinates; the normal axis is set to the appropriate
-/// boundary value (0 or 15).
-#[inline]
-fn face_cell_coords_in_neighbor_frame(from_face: Direction, cell_a: u8, cell_b: u8) -> (u8, u8, u8) {
-    match from_face {
-        Direction::Down => (cell_a, 0, cell_b),
-        Direction::Up => (cell_a, 15, cell_b),
-        Direction::North => (cell_a, cell_b, 0),
-        Direction::South => (cell_a, cell_b, 15),
-        Direction::West => (0, cell_a, cell_b),
-        Direction::East => (15, cell_a, cell_b),
     }
 }
 
@@ -858,7 +842,7 @@ pub fn pull_neighbor_edge_levels(
                 for cell_a in 0..16u8 {
                     for cell_b in 0..16u8 {
                         let (nx, ny, nz) =
-                            face_cell_coords_in_neighbor_frame(from_face, cell_a, cell_b);
+                            face_cell_to_chunk_xyz(from_face, cell_a, cell_b);
 
                         if !new_block_already_max {
                             if let Ok(bl) = block_light_read.get(neighbour_entity) {

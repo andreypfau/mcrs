@@ -11,6 +11,7 @@ use mcrs_core::voxel_shape::{Direction, VoxelShape};
 use mcrs_minecraft_block::palette::BlockPalette;
 
 use crate::components::{BlockEgress, BlockLightWorkspace, SkyEgress, SkyLightWorkspace, Wavefront};
+use crate::geom::chunk_xyz_to_face_cell;
 use crate::storage::LightStorage;
 use crate::table::{flag_bits, BlockLightTable};
 
@@ -291,24 +292,6 @@ pub(crate) const DIRECTIONS_FROM_BITSET: [&[Direction]; 64] = [
     &ARR_60, &ARR_61, &ARR_62, &ARR_63,
 ];
 
-/// Extract the two on-face coordinates from a (off_x, off_y, off_z) triple
-/// for the destination face named by `d`. Returns `(cell_x, cell_z)` matching
-/// the `Wavefront::new(face, cell_x, cell_z, level)` constructor in
-/// `components.rs`. The face normal axis is dropped; the remaining two axes
-/// are returned in (first-non-normal, second-non-normal) order:
-///
-/// - Up/Down (Y-normal): `(off_x, off_z)`
-/// - North/South (Z-normal): `(off_x, off_y)`
-/// - East/West (X-normal): `(off_y, off_z)`
-#[inline]
-pub(crate) fn project_face_cell(d: Direction, off_x: i8, off_y: i8, off_z: i8) -> (u8, u8) {
-    match d {
-        Direction::Down | Direction::Up => ((off_x & 0xF) as u8, (off_z & 0xF) as u8),
-        Direction::North | Direction::South => ((off_x & 0xF) as u8, (off_y & 0xF) as u8),
-        Direction::West | Direction::East => ((off_y & 0xF) as u8, (off_z & 0xF) as u8),
-    }
-}
-
 /// Block-light increase BFS over one chunk.
 ///
 /// Drains `workspace.increase_queue` to empty. Cells whose stored level is
@@ -378,7 +361,7 @@ pub fn propagate_increase(
                 || !(0..=15).contains(&off_y)
                 || !(0..=15).contains(&off_z)
             {
-                let (cx, cz) = project_face_cell(d, off_x, off_y, off_z);
+                let (cx, cz) = chunk_xyz_to_face_cell(d, off_x, off_y, off_z);
                 egress
                     .0
                     .push(Wavefront::new(d.index() as u8, cx, cz, propagated_level));
@@ -490,7 +473,7 @@ pub fn propagate_decrease(
                 || !(0..=15).contains(&off_y)
                 || !(0..=15).contains(&off_z)
             {
-                let (cx, cz) = project_face_cell(d, off_x, off_y, off_z);
+                let (cx, cz) = chunk_xyz_to_face_cell(d, off_x, off_y, off_z);
                 egress
                     .0
                     .push(Wavefront::new(d.index() as u8, cx, cz, propagated_level));
@@ -627,7 +610,7 @@ pub fn propagate_increase_sky(
                 || !(0..=15).contains(&off_y)
                 || !(0..=15).contains(&off_z)
             {
-                let (cx, cz) = project_face_cell(d, off_x, off_y, off_z);
+                let (cx, cz) = chunk_xyz_to_face_cell(d, off_x, off_y, off_z);
                 egress
                     .0
                     .push(Wavefront::new(d.index() as u8, cx, cz, propagated_level));
@@ -735,7 +718,7 @@ pub fn propagate_decrease_sky(
                 || !(0..=15).contains(&off_y)
                 || !(0..=15).contains(&off_z)
             {
-                let (cx, cz) = project_face_cell(d, off_x, off_y, off_z);
+                let (cx, cz) = chunk_xyz_to_face_cell(d, off_x, off_y, off_z);
                 egress
                     .0
                     .push(Wavefront::new(d.index() as u8, cx, cz, propagated_level));
