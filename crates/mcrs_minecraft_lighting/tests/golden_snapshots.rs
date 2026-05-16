@@ -18,7 +18,7 @@ use mcrs_minecraft_lighting::components::{BlockLight, LightDirty, SkyLight};
 use mcrs_minecraft_lighting::invariants::{check_block_light_invariants, check_sky_light_invariants};
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::BlockLightTable;
-use mcrs_minecraft_lighting::test_bench::{assert_nibbles_eq, from_input};
+use mcrs_minecraft_lighting::test_bench::assert_nibbles_eq;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;

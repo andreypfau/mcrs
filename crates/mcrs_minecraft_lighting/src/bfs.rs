@@ -4,7 +4,7 @@
 //! and consumed in place by the BFS bodies. It is intentionally distinct
 //! from `components::Wavefront(u32)`, which is the cross-section egress
 //! representation pushed onto `BlockEgress` at face boundaries. The
-//! intra-cell entry carries Y plus a 6-bit direction bitset and a 3-bit
+//! per-cell entry carries Y plus a 6-bit direction bitset and a 3-bit
 //! flag field, none of which `Wavefront` needs.
 
 use mcrs_core::voxel_shape::{Direction, VoxelShape};
@@ -565,8 +565,7 @@ pub fn propagate_decrease(
 /// Sky-light increase BFS over one chunk section.
 ///
 /// Mirrors `propagate_increase` with two differences. First, the workspace
-/// and egress are the sky-side types; the BFS step never reads or writes
-/// `workspace.block_change_tracker`. Second, when the step direction is
+/// and egress are the sky-side types. Second, when the step direction is
 /// `Direction::Down`, the source level is exactly 15, and the destination
 /// cell's `PROPAGATES_SKYLIGHT_DOWN` flag is set, the new level is 15
 /// (vertical free-fall through air). All other steps fall through to the
@@ -694,8 +693,7 @@ pub fn propagate_increase_sky(
 /// Sky-light decrease BFS over one chunk section.
 ///
 /// Mirrors `propagate_decrease` with two differences. First, the workspace
-/// and egress are the sky-side types; the BFS step never reads or writes
-/// `workspace.block_change_tracker`. Second, the destination-emission
+/// and egress are the sky-side types. Second, the destination-emission
 /// re-emit branch is omitted entirely — sky-light has no per-cell
 /// emission, so the only re-queue path is `FLAG_RECHECK_LEVEL` when the
 /// neighbour's stored level exceeds the propagated target.
@@ -1726,41 +1724,4 @@ mod tests {
         }
     }
 
-    #[test]
-    fn bfs_sky_does_not_touch_tracker() {
-        let table = build_sky_air_table();
-        let mut palette = BlockPalette::default();
-        palette.fill(BlockStateId(SYNTH_AIR_ID));
-
-        let mut light = zero_light_storage();
-        let mut workspace = SkyLightWorkspace::default();
-        let mut egress = SkyEgress::default();
-
-        // Pre-mark every tracker slot with a sentinel that neither BFS function
-        // is permitted to touch.
-        for slot in workspace.block_change_tracker.iter_mut() {
-            *slot = -999;
-        }
-
-        // Drive the increase BFS.
-        workspace.increase_queue.push(pack_bfs_entry(
-            8,
-            8,
-            15,
-            15,
-            ALL_DIRECTIONS_BITSET,
-            FLAG_WRITE_LEVEL,
-        ));
-        propagate_increase_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
-
-        // Drive the decrease BFS.
-        workspace
-            .decrease_queue
-            .push(pack_bfs_entry(8, 8, 0, 14, ALL_DIRECTIONS_BITSET, 0));
-        propagate_decrease_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
-
-        for &slot in workspace.block_change_tracker.iter() {
-            assert_eq!(slot, -999, "BFS must not write block_change_tracker");
-        }
-    }
 }

@@ -70,21 +70,10 @@ pub struct BlockLightWorkspace {
     pub decrease_queue: Vec<u64>,
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Default)]
 pub struct SkyLightWorkspace {
     pub increase_queue: Vec<u64>,
     pub decrease_queue: Vec<u64>,
-    pub block_change_tracker: Box<[i32; 256]>,
-}
-
-impl Default for SkyLightWorkspace {
-    fn default() -> Self {
-        Self {
-            increase_queue: Vec::new(),
-            decrease_queue: Vec::new(),
-            block_change_tracker: Box::new([0; 256]),
-        }
-    }
 }
 
 #[derive(Component)]
@@ -145,13 +134,6 @@ mod tests {
         assert!(ws.decrease_queue.is_empty());
         assert_eq!(ws.increase_queue.capacity(), 0);
         assert_eq!(ws.decrease_queue.capacity(), 0);
-    }
-
-    #[test]
-    fn sky_light_workspace_block_change_tracker_zeroed() {
-        let ws = SkyLightWorkspace::default();
-        assert_eq!(ws.block_change_tracker.len(), 256);
-        assert!(ws.block_change_tracker.iter().all(|&v| v == 0));
     }
 
     #[test]

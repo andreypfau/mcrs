@@ -177,9 +177,7 @@ pub fn enqueue_sky_light_initial(
 
 /// Reacts to `BlockPlaced` by enqueuing sky-light decrease and increase seeds
 /// whenever the placed block changes either its dampening or its
-/// `PROPAGATES_SKYLIGHT_DOWN` flag. The system also records the world Y of the
-/// change into the per-column `block_change_tracker` so the downstream
-/// heightmap-update pass can decide whether the column's surface dropped.
+/// `PROPAGATES_SKYLIGHT_DOWN` flag.
 ///
 /// Missing `SkyLight`/`SkyLightWorkspace` components on the target section
 /// emit a `tracing::warn!` and skip without panic; this defends against
@@ -303,12 +301,6 @@ pub fn enqueue_sky_light_on_block_placed(
                     FLAG_RECHECK_LEVEL,
                 ));
             }
-        }
-
-        let column_idx = (z as usize) * 16 + (x as usize);
-        let world_y = placed.block_pos.y;
-        if world_y > workspace.block_change_tracker[column_idx] {
-            workspace.block_change_tracker[column_idx] = world_y;
         }
 
         commands.entity(placed.chunk).insert(LightDirty);
@@ -1454,7 +1446,7 @@ mod tests {
     }
 
     #[test]
-    fn enqueue_sky_on_block_placed_writes_tracker() {
+    fn enqueue_sky_on_block_placed_pushes_decrease_and_neighbour_seeds() {
         let mut app = build_sky_on_placed_app();
         let entity = spawn_sky_section_topmost(&mut app);
         // AIR (damp=0, propagates) -> LEAVES (damp=1, no propagates flag);
@@ -1470,11 +1462,6 @@ mod tests {
             .world()
             .get::<SkyLightWorkspace>(entity)
             .expect("sky workspace");
-        // column_idx = z * 16 + x = 8 * 16 + 8 = 136; world_y = 10.
-        assert_eq!(
-            workspace.block_change_tracker[136], 10,
-            "block_change_tracker[z*16+x] holds the world Y of the change"
-        );
         assert!(
             !workspace.decrease_queue.is_empty(),
             "dampening change pushes a decrease seed"
@@ -1499,33 +1486,6 @@ mod tests {
         assert!(
             app.world().get::<LightDirty>(entity).is_some(),
             "LightDirty inserted after dampening change"
-        );
-    }
-
-    #[test]
-    fn enqueue_sky_on_block_placed_writes_tracker_keeps_max() {
-        // Two BlockPlaced events at the same (x, z) column; tracker must keep
-        // the larger world Y to preserve the highest changed cell.
-        let mut app = build_sky_on_placed_app();
-        let entity = spawn_sky_section_topmost(&mut app);
-        write_placed(
-            &mut app,
-            block_placed(entity, BlockPos::new(8, 12, 8), AIR, LEAVES),
-        );
-        write_placed(
-            &mut app,
-            block_placed(entity, BlockPos::new(8, 5, 8), AIR, LEAVES),
-        );
-
-        app.update();
-
-        let workspace = app
-            .world()
-            .get::<SkyLightWorkspace>(entity)
-            .expect("sky workspace");
-        assert_eq!(
-            workspace.block_change_tracker[136], 12,
-            "tracker keeps max(existing, world_y); 12 > 5 wins"
         );
     }
 
@@ -1587,10 +1547,6 @@ mod tests {
             .expect("sky workspace");
         assert!(workspace.increase_queue.is_empty());
         assert!(workspace.decrease_queue.is_empty());
-        assert!(
-            workspace.block_change_tracker.iter().all(|&v| v == 0),
-            "tracker untouched when predicate is false"
-        );
         assert!(
             app.world().get::<LightDirty>(entity).is_none(),
             "LightDirty NOT inserted on no-op sky enqueue"

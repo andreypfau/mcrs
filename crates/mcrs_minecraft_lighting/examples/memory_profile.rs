@@ -143,11 +143,9 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
             + ws.decrease_queue.capacity() * 8;
     }
     for ws in world.query::<&SkyLightWorkspace>().iter(world) {
-        // block_change_tracker is Box<[i32; 256]> = 1024 bytes on heap
         workspaces += mem::size_of_val(ws)
             + ws.increase_queue.capacity() * 8
-            + ws.decrease_queue.capacity() * 8
-            + 1024;
+            + ws.decrease_queue.capacity() * 8;
     }
 
     // "heightmaps": per-column Heightmaps (two PackedBitStorage backing Vec<u64>)
