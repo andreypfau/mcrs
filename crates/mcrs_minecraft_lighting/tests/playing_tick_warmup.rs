@@ -14,7 +14,7 @@
 //
 // The test asserts (a) the storage components are populated, (b) no
 // per-channel BfsPending marker remains on any chunk after warm-up, and
-// (c) none of the bounded-loop / pending-egress / cross-dim telemetry
+// (c) none of the bounded-loop / parked-outbox / cross-dim telemetry
 // counters incremented across the run.
 
 use bevy_app::{App, FixedUpdate};
@@ -31,7 +31,7 @@ use mcrs_engine::world::dimension::{
 };
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyBfsPending, SkyLight};
-use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
 use mcrs_minecraft_lighting::telemetry::{snapshot, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_protocol::BlockStateId;
@@ -50,7 +50,7 @@ fn make_test_app(sky: bool) -> (App, Entity) {
     (app, dim_entity)
 }
 
-fn make_stub_block_light_table() -> BlockLightTable {
+fn make_stub_block_light_table() -> BlockStateLightTable {
     let state_count = 2usize;
     let mut emission = vec![0u8; state_count].into_boxed_slice();
     let mut dampening = vec![0u8; state_count].into_boxed_slice();
@@ -64,7 +64,7 @@ fn make_stub_block_light_table() -> BlockLightTable {
     dampening[1] = 15;
     flags[1] =
         flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
-    BlockLightTable {
+    BlockStateLightTable {
         emission,
         dampening,
         occlusion,

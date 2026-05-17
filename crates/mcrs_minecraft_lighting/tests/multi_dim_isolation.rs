@@ -48,7 +48,7 @@ use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::codec::{BlockLightDirty, SkyLightDirty};
 use mcrs_minecraft_lighting::components::{BlockLight, SkyLight};
 use mcrs_minecraft_lighting::storage::LightStorage;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
 use mcrs_minecraft_lighting::telemetry::{snapshot, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_protocol::BlockStateId;
@@ -58,7 +58,7 @@ const TEST_DIM_MIN_Y: i32 = -64;
 
 const TORCH_STATE: BlockStateId = BlockStateId(2);
 
-fn make_stub_block_light_table_with_torch() -> BlockLightTable {
+fn make_stub_block_light_table_with_torch() -> BlockStateLightTable {
     let state_count = 3usize;
     let mut emission = vec![0u8; state_count].into_boxed_slice();
     let mut dampening = vec![0u8; state_count].into_boxed_slice();
@@ -78,7 +78,7 @@ fn make_stub_block_light_table_with_torch() -> BlockLightTable {
     emission[2] = 14;
     dampening[2] = 0;
     flags[2] = flag_bits::IS_NOT_AIR;
-    BlockLightTable {
+    BlockStateLightTable {
         emission,
         dampening,
         occlusion,
@@ -131,18 +131,18 @@ fn air_palette() -> BlockPalette {
 
 // Normalises any `LightStorage` variant to a flat 2048-byte representation so
 // pre/post snapshots can be compared with `assert_eq!`. The production types
-// (`BlockLight`, `SkyLight`, `LightStorage`, `NibbleArray`) do not derive
+// (`BlockLight`, `SkyLight`, `LightStorage`, `LightNibbles`) do not derive
 // `PartialEq`; converting to bytes is the cheapest way to assert structural
 // equality without changing production derives. Mirrors the helper at
 // `tests/golden_snapshots.rs:96-109`.
 fn storage_bytes(storage: &LightStorage) -> [u8; 2048] {
     match storage {
-        LightStorage::Null => [0u8; 2048],
+        LightStorage::Empty => [0u8; 2048],
         LightStorage::Uniform(v) => {
             let packed = (*v & 0x0F) | ((*v & 0x0F) << 4);
             [packed; 2048]
         }
-        LightStorage::Mixed(arr) => *arr.0,
+        LightStorage::Dense(arr) => *arr.0,
     }
 }
 

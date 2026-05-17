@@ -29,8 +29,7 @@ use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_protocol::chunk::{LightData, LightChunk};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;
-
-use crate::components::{BlockLight, SkyLight};
+use crate::{BlockLight, SkyLight};
 use crate::storage::LightStorage;
 
 /// Which light layer a `pack_chunk` call is operating on.
@@ -87,7 +86,7 @@ pub fn pack_chunk(
                 return;
             }
             match storage {
-                None | Some(LightStorage::Null) | Some(LightStorage::Uniform(0)) => {
+                None | Some(LightStorage::Empty) | Some(LightStorage::Uniform(0)) => {
                     set_bit(empty_mask, bit_idx);
                 }
                 Some(LightStorage::Uniform(n)) => {
@@ -95,7 +94,7 @@ pub fn pack_chunk(
                     let packed = *n | (*n << 4);
                     arrays.push(LightChunk([packed; 2048]));
                 }
-                Some(LightStorage::Mixed(arr)) => {
+                Some(LightStorage::Dense(arr)) => {
                     set_bit(mask, bit_idx);
                     arrays.push(LightChunk(*arr.0));
                 }
@@ -385,7 +384,7 @@ pub fn emit_column_light_updates(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nibble::NibbleArray;
+    use crate::nibble::LightNibbles;
     use bevy_ecs::entity::Entity;
 
     fn fake_entity(index: u32) -> Entity {
@@ -447,9 +446,9 @@ mod tests {
 
     #[test]
     fn pack_chunk_loaded_mixed_block_sets_block_mask_and_appends_array() {
-        let mut nibble = NibbleArray::zeros();
+        let mut nibble = LightNibbles::zeros();
         nibble.set(3, 7, 11, 0xA);
-        let storage = LightStorage::Mixed(Box::new(nibble.clone()));
+        let storage = LightStorage::Dense(Box::new(nibble.clone()));
 
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
@@ -512,7 +511,7 @@ mod tests {
 
     #[test]
     fn pack_chunk_loaded_null_block_sets_empty_block_mask() {
-        let storage = LightStorage::Null;
+        let storage = LightStorage::Empty;
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
             ChunkLookup::Loaded(fake_entity(4)),
@@ -667,7 +666,7 @@ mod tests {
         // matrix row at least once. Wire-ordering invariant:
         // arrays.len() == popcount(mask) per layer, AND arrays must appear
         // in strictly increasing bit order (i.e., the lowest set bit first).
-        let mut nibble = NibbleArray::zeros();
+        let mut nibble = LightNibbles::zeros();
         nibble.set(0, 0, 0, 0xC);
 
         let rows: Vec<(ChunkLookup, Option<LightStorage>, Option<LightStorage>)> = vec![
@@ -675,7 +674,7 @@ mod tests {
             (ChunkLookup::Unloaded, None, None),
             (
                 ChunkLookup::Loaded(fake_entity(1)),
-                Some(LightStorage::Mixed(Box::new(nibble.clone()))),
+                Some(LightStorage::Dense(Box::new(nibble.clone()))),
                 Some(LightStorage::Uniform(0xF)),
             ),
             (
@@ -685,13 +684,13 @@ mod tests {
             ),
             (
                 ChunkLookup::Loaded(fake_entity(3)),
-                Some(LightStorage::Null),
-                Some(LightStorage::Null),
+                Some(LightStorage::Empty),
+                Some(LightStorage::Empty),
             ),
             (
                 ChunkLookup::Loaded(fake_entity(4)),
                 Some(LightStorage::Uniform(0)),
-                Some(LightStorage::Mixed(Box::new(nibble))),
+                Some(LightStorage::Dense(Box::new(nibble))),
             ),
             (ChunkLookup::Unloaded, None, None),
             (ChunkLookup::TopPadding, None, None),

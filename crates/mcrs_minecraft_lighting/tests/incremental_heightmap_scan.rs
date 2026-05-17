@@ -39,7 +39,7 @@ use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::components::IsAllAir;
 use mcrs_minecraft_lighting::lifecycle::ColumnHeightmapScan;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_protocol::BlockStateId;
 
@@ -74,7 +74,7 @@ fn make_test_app_with_dim(min_y: i32, height: u32) -> (App, Entity) {
     (app, dim)
 }
 
-fn make_stub_table() -> BlockLightTable {
+fn make_stub_table() -> BlockStateLightTable {
     let state_count = 3usize;
     let mut emission = vec![0u8; state_count].into_boxed_slice();
     let mut dampening = vec![0u8; state_count].into_boxed_slice();
@@ -93,7 +93,7 @@ fn make_stub_table() -> BlockLightTable {
     emission[2] = 0;
     dampening[2] = 1;
     flags[2] = flag_bits::IS_NOT_AIR;
-    BlockLightTable {
+    BlockStateLightTable {
         emission,
         dampening,
         occlusion,

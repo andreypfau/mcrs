@@ -20,7 +20,7 @@ use mcrs_engine::world::column::ColumnChunks;
 use mcrs_minecraft_block::palette::BlockPalette;
 
 use crate::bitset::BitSet256;
-use crate::table::{flag_bits, BlockLightTable};
+use crate::table::{flag_bits, BlockStateLightTable};
 use mcrs_engine::world::column::Heightmaps;
 
 const CHUNK_SIZE: i32 = 16;
@@ -134,7 +134,7 @@ pub enum ScanOutcome {
 pub fn scan_top_down<'a, P, F>(
     chunks: &ColumnChunks,
     palette_fn: P,
-    table: &BlockLightTable,
+    table: &BlockStateLightTable,
     xz_range: &[(usize, usize)],
     cursor: &mut i32,
     mut on_closed: F,

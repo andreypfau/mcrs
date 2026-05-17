@@ -1,9 +1,9 @@
 use bevy_ecs::prelude::Component;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Wavefront(pub u32);
+pub struct CrossChunkWavefront(pub u32);
 
-impl Wavefront {
+impl CrossChunkWavefront {
     pub const fn new(face: u8, cell_x: u8, cell_z: u8, level: u8) -> Self {
         debug_assert!(face < 8);
         debug_assert!(cell_x < 16);
@@ -13,7 +13,7 @@ impl Wavefront {
             | ((cell_x as u32 & 0b1111) << 3)
             | ((cell_z as u32 & 0b1111) << 7)
             | ((level as u32 & 0b1111) << 11);
-        Wavefront(packed)
+        CrossChunkWavefront(packed)
     }
 
     pub const fn face(self) -> u8 {
@@ -37,13 +37,13 @@ impl Wavefront {
 #[component(storage = "SparseSet")]
 pub struct IsAllAir;
 
-/// Inserted on a `Column` entity when a pending-egress overflow is
+/// Inserted on a `Column` entity when a parked-outbox overflow is
 /// detected; consumed by the full-column reseed system.
 #[derive(Component)]
 #[component(storage = "SparseSet")]
 pub struct NeedsFullReseed;
 
-/// Baseline BFS-queue capacity for both workspace queues.
+/// Baseline BFS-queue capacity for both queues queues.
 ///
 /// Measured 2026-05-17 via `examples/memory_profile.rs` on the VD12 warmup
 /// fixture (`bench_helpers::build_warmed_vd12_app_in_place`, 15000
@@ -75,7 +75,7 @@ mod tests {
             for cell_x in [0u8, 7, 15] {
                 for cell_z in [0u8, 7, 15] {
                     for level in [0u8, 7, 15] {
-                        let w = Wavefront::new(face, cell_x, cell_z, level);
+                        let w = CrossChunkWavefront::new(face, cell_x, cell_z, level);
                         assert_eq!(w.face(), face, "face mismatch for {face},{cell_x},{cell_z},{level}");
                         assert_eq!(w.cell_x(), cell_x, "cell_x mismatch");
                         assert_eq!(w.cell_z(), cell_z, "cell_z mismatch");
@@ -88,7 +88,7 @@ mod tests {
 
     #[test]
     fn wavefront_reserved_bits_are_zero() {
-        let w = Wavefront::new(7, 15, 15, 15);
+        let w = CrossChunkWavefront::new(7, 15, 15, 15);
         assert_eq!(w.0 >> 15, 0, "reserved bits 15..31 must be zero");
     }
 
@@ -104,7 +104,7 @@ mod tests {
 
     #[test]
     fn wavefront_default_is_zero() {
-        let w = Wavefront::default();
+        let w = CrossChunkWavefront::default();
         assert_eq!(w.0, 0);
         assert_eq!(w.face(), 0);
         assert_eq!(w.cell_x(), 0);

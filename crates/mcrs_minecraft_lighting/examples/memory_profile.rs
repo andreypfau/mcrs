@@ -8,9 +8,9 @@ use mcrs_engine::world::column::{ColumnIndex, Heightmaps, ColumnChunks};
 use mcrs_engine::world::dimension::HasSkyLight;
 use mcrs_engine::world::lighting::LightTicket;
 use mcrs_minecraft_lighting::components::{
-    BlockBfsPending, BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace,
-    BlockNeedsInitialSeed, BlockPendingEgress, IsAllAir, SkyBfsPending, SkyEgress, SkyIncoming,
-    SkyLight, SkyLightSeededAsTopmost, SkyLightWorkspace, SkyNeedsInitialSeed, SkyPendingEgress,
+    BlockBfsPending, BlockOutbox, BlockInbox, BlockLight, BlockBfsQueues,
+    BlockNeedsInitialSeed, BlockParkedEgress, IsAllAir, SkyBfsPending, SkyOutbox, SkyInbox,
+    SkyLight, WasTopmostAtSeed, SkyBfsQueues, SkyNeedsInitialSeed, SkyParkedEgress,
 };
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::test_bench::bench_helpers::{
@@ -79,7 +79,7 @@ struct AllocationDiscipline {
     sky_decrease_queue_len: DepthDistribution,
     // Snapshot-time `capacity()` of each queue. `Vec` never shrinks unless
     // explicitly told to, so this is the high-water mark observed during warmup
-    // and is the right signal for the workspace baseline-capacity decision.
+    // and is the right signal for the queues baseline-capacity decision.
     block_increase_queue_cap: DepthDistribution,
     block_decrease_queue_cap: DepthDistribution,
     sky_increase_queue_cap: DepthDistribution,
@@ -91,11 +91,11 @@ struct AllocationDiscipline {
     block_decrease_queue_cap_nonzero: DepthDistribution,
     sky_increase_queue_cap_nonzero: DepthDistribution,
     sky_decrease_queue_cap_nonzero: DepthDistribution,
-    block_egress: SmallVecOccupancy,
-    block_incoming: SmallVecOccupancy,
+    block_outbox: SmallVecOccupancy,
+    block_inbox: SmallVecOccupancy,
     block_pending_egress: SmallVecOccupancy,
-    sky_egress: SmallVecOccupancy,
-    sky_incoming: SmallVecOccupancy,
+    sky_outbox: SmallVecOccupancy,
+    sky_inbox: SmallVecOccupancy,
     sky_pending_egress: SmallVecOccupancy,
 }
 
@@ -155,7 +155,7 @@ fn main() {
 fn light_storage_bytes(storage: &LightStorage) -> usize {
     mem::size_of_val(storage)
         + match storage {
-            LightStorage::Mixed(_) => 2048,
+            LightStorage::Dense(_) => 2048,
             _ => 0,
         }
 }
@@ -221,41 +221,41 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
         light_nibbles += light_storage_bytes(&sky_light.0);
     }
 
-    // "wavefront_buffers": all six per-chunk egress/incoming SmallVec buffers
+    // "wavefront_buffers": all six per-chunk outbox/inbox SmallVec buffers
     let mut wavefront_buffers: usize = 0;
     let mut alloc = AllocationDiscipline::default();
-    for c in world.query::<&BlockEgress>().iter(world) {
+    for c in world.query::<&BlockOutbox>().iter(world) {
         wavefront_buffers += smallvec_bytes(&c.0);
-        record_smallvec_sample(&c.0, &mut alloc.block_egress);
+        record_smallvec_sample(&c.0, &mut alloc.block_outbox);
     }
-    for c in world.query::<&SkyEgress>().iter(world) {
+    for c in world.query::<&SkyOutbox>().iter(world) {
         wavefront_buffers += smallvec_bytes(&c.0);
-        record_smallvec_sample(&c.0, &mut alloc.sky_egress);
+        record_smallvec_sample(&c.0, &mut alloc.sky_outbox);
     }
-    for c in world.query::<&BlockIncoming>().iter(world) {
+    for c in world.query::<&BlockInbox>().iter(world) {
         wavefront_buffers += smallvec_bytes(&c.0);
-        record_smallvec_sample(&c.0, &mut alloc.block_incoming);
+        record_smallvec_sample(&c.0, &mut alloc.block_inbox);
     }
-    for c in world.query::<&SkyIncoming>().iter(world) {
+    for c in world.query::<&SkyInbox>().iter(world) {
         wavefront_buffers += smallvec_bytes(&c.0);
-        record_smallvec_sample(&c.0, &mut alloc.sky_incoming);
+        record_smallvec_sample(&c.0, &mut alloc.sky_inbox);
     }
-    for c in world.query::<&BlockPendingEgress>().iter(world) {
+    for c in world.query::<&BlockParkedEgress>().iter(world) {
         wavefront_buffers += smallvec_bytes(&c.0);
         record_smallvec_sample(&c.0, &mut alloc.block_pending_egress);
     }
-    for c in world.query::<&SkyPendingEgress>().iter(world) {
+    for c in world.query::<&SkyParkedEgress>().iter(world) {
         wavefront_buffers += smallvec_bytes(&c.0);
         record_smallvec_sample(&c.0, &mut alloc.sky_pending_egress);
     }
 
-    // "workspaces": BlockLightWorkspace and SkyLightWorkspace BFS queues
+    // "workspaces": BlockBfsQueues and SkyBfsQueues BFS queues
     let mut workspaces: usize = 0;
     let mut block_inc_lens: Vec<usize> = Vec::new();
     let mut block_dec_lens: Vec<usize> = Vec::new();
     let mut block_inc_caps: Vec<usize> = Vec::new();
     let mut block_dec_caps: Vec<usize> = Vec::new();
-    for ws in world.query::<&BlockLightWorkspace>().iter(world) {
+    for ws in world.query::<&BlockBfsQueues>().iter(world) {
         workspaces += mem::size_of_val(ws)
             + ws.increase_queue.capacity() * 8
             + ws.decrease_queue.capacity() * 8;
@@ -268,7 +268,7 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
     let mut sky_dec_lens: Vec<usize> = Vec::new();
     let mut sky_inc_caps: Vec<usize> = Vec::new();
     let mut sky_dec_caps: Vec<usize> = Vec::new();
-    for ws in world.query::<&SkyLightWorkspace>().iter(world) {
+    for ws in world.query::<&SkyBfsQueues>().iter(world) {
         workspaces += mem::size_of_val(ws)
             + ws.increase_queue.capacity() * 8
             + ws.decrease_queue.capacity() * 8;
@@ -346,7 +346,7 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
         .iter(world)
         .count();
     let topmost_count = world
-        .query_filtered::<(), bevy_ecs::prelude::With<SkyLightSeededAsTopmost>>()
+        .query_filtered::<(), bevy_ecs::prelude::With<WasTopmostAtSeed>>()
         .iter(world)
         .count();
     let sparse_markers = (dirty_count
@@ -489,7 +489,7 @@ fn write_allocation_discipline(snap: &MemorySnapshot) {
     println!();
     println!("## Queue `capacity()` distribution (per-chunk, high-water mark)");
     println!("Vec never shrinks, so capacity reflects peak depth observed during warmup.");
-    println!("This is the signal used to pick the workspace baseline capacity.");
+    println!("This is the signal used to pick the queues baseline capacity.");
     println!();
     println!("| Queue | n | min | p50 | mean | p95 | p99 | max |");
     println!("|-------|---|-----|-----|------|-----|-----|-----|");
@@ -520,12 +520,12 @@ fn write_allocation_discipline(snap: &MemorySnapshot) {
             name, o.samples, o.spilled_pct(), o.over_8_pct(), o.over_16_pct(),
         );
     };
-    occ_row("BlockEgress", &alloc.block_egress);
-    occ_row("BlockIncoming", &alloc.block_incoming);
-    occ_row("BlockPendingEgress", &alloc.block_pending_egress);
-    occ_row("SkyEgress", &alloc.sky_egress);
-    occ_row("SkyIncoming", &alloc.sky_incoming);
-    occ_row("SkyPendingEgress", &alloc.sky_pending_egress);
+    occ_row("BlockOutbox", &alloc.block_outbox);
+    occ_row("BlockInbox", &alloc.block_inbox);
+    occ_row("BlockParkedEgress", &alloc.block_pending_egress);
+    occ_row("SkyOutbox", &alloc.sky_outbox);
+    occ_row("SkyInbox", &alloc.sky_inbox);
+    occ_row("SkyParkedEgress", &alloc.sky_pending_egress);
 
     println!();
     println!("## Steady-state heap");

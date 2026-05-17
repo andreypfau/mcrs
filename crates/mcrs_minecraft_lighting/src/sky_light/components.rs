@@ -1,4 +1,4 @@
-use crate::common::components::{Wavefront, WORKSPACE_QUEUE_BASELINE_CAPACITY};
+use crate::common::components::{CrossChunkWavefront, WORKSPACE_QUEUE_BASELINE_CAPACITY};
 use crate::storage::LightStorage;
 use bevy_ecs::prelude::Component;
 use smallvec::SmallVec;
@@ -7,22 +7,22 @@ use smallvec::SmallVec;
 pub struct SkyLight(pub LightStorage);
 
 #[derive(Component, Clone, Debug, Default)]
-pub struct SkyEgress(pub SmallVec<[Wavefront; 16]>);
+pub struct SkyOutbox(pub SmallVec<[CrossChunkWavefront; 16]>);
 
 #[derive(Component, Clone, Debug, Default)]
-pub struct SkyIncoming(pub SmallVec<[Wavefront; 16]>);
+pub struct SkyInbox(pub SmallVec<[CrossChunkWavefront; 16]>);
 
-/// Sky-light counterpart of `BlockPendingEgress`; same overflow semantics.
+/// Sky-light counterpart of `BlockParkedEgress`; same overflow semantics.
 #[derive(Component, Clone, Debug, Default)]
-pub struct SkyPendingEgress(pub SmallVec<[Wavefront; 16]>);
+pub struct SkyParkedEgress(pub SmallVec<[CrossChunkWavefront; 16]>);
 
 #[derive(Component, Debug)]
-pub struct SkyLightWorkspace {
+pub struct SkyBfsQueues {
     pub increase_queue: Vec<u64>,
     pub decrease_queue: Vec<u64>,
 }
 
-impl Default for SkyLightWorkspace {
+impl Default for SkyBfsQueues {
     fn default() -> Self {
         Self {
             increase_queue: Vec::with_capacity(WORKSPACE_QUEUE_BASELINE_CAPACITY),
@@ -31,7 +31,7 @@ impl Default for SkyLightWorkspace {
     }
 }
 
-/// Per-channel pending-BFS marker for the sky-light engine.
+/// Per-channel parked-BFS marker for the sky-light engine.
 /// Inserted by enqueue / seed / pull / distribute when a chunk's
 /// sky-light state needs another BFS pass; consumed by
 /// `propagate_increase_sky_system` at quiescence and by
@@ -52,7 +52,7 @@ pub struct SkyNeedsInitialSeed;
 /// of its column. Invalidated when a new chunk spawns above this one.
 #[derive(Component)]
 #[component(storage = "SparseSet")]
-pub struct SkyLightSeededAsTopmost;
+pub struct WasTopmostAtSeed;
 
 /// Self-cleaning queue for retopping decrease waves between `seed_sky_initial`
 /// and `invalidate_previous_topmost`. The producer (`seed_sky_initial`) inserts
@@ -72,7 +72,7 @@ mod tests {
 
     #[test]
     fn sky_light_workspace_default_is_empty_with_baseline_capacity() {
-        let ws = SkyLightWorkspace::default();
+        let ws = SkyBfsQueues::default();
         assert!(ws.increase_queue.is_empty());
         assert!(ws.decrease_queue.is_empty());
         assert_eq!(ws.increase_queue.capacity(), WORKSPACE_QUEUE_BASELINE_CAPACITY);
@@ -81,9 +81,9 @@ mod tests {
 
     #[test]
     fn sky_pending_egress_default_is_empty() {
-        let e = SkyPendingEgress::default();
+        let e = SkyParkedEgress::default();
         assert!(e.0.is_empty());
-        let _: SmallVec<[Wavefront; 16]> = e.0;
+        let _: SmallVec<[CrossChunkWavefront; 16]> = e.0;
     }
 
     #[test]
@@ -95,6 +95,6 @@ mod tests {
 
     #[test]
     fn sky_light_seeded_as_topmost_marker_compile_test() {
-        let _m = SkyLightSeededAsTopmost;
+        let _m = WasTopmostAtSeed;
     }
 }

@@ -1,12 +1,12 @@
-//! Test-only synthetic `BlockLightTable` factory.
+//! Test-only synthetic `BlockStateLightTable` factory.
 //!
 //! Sidesteps the deferred vanilla emitter retrofit by directly constructing
-//! the `BlockLightTable` for state ids 0 (air), 1 (solid stone), and
+//! the `BlockStateLightTable` for state ids 0 (air), 1 (solid stone), and
 //! `0x1000` (torch) — the only state ids the golden-snapshot fixtures
 //! reference.
 
 use mcrs_core::voxel_shape::VoxelShape;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
 use mcrs_protocol::BlockStateId;
 
 pub const SYNTH_AIR_ID: BlockStateId = BlockStateId(0);
@@ -14,7 +14,7 @@ pub const SYNTH_STONE_ID: BlockStateId = BlockStateId(1);
 pub const SYNTH_TORCH_ID: BlockStateId = BlockStateId(0x1000);
 pub const SYNTH_WATER_ID: BlockStateId = BlockStateId(0x1002);
 
-pub fn synthetic_block_light_table() -> BlockLightTable {
+pub fn synthetic_block_light_table() -> BlockStateLightTable {
     const SIZE: usize = 0x1003;
 
     let mut emission = vec![0u8; SIZE].into_boxed_slice();
@@ -48,7 +48,7 @@ pub fn synthetic_block_light_table() -> BlockLightTable {
     occlusion[water] = VoxelShape::empty();
     flags[water] = flag_bits::IS_NOT_AIR;
 
-    BlockLightTable {
+    BlockStateLightTable {
         emission,
         dampening,
         occlusion,

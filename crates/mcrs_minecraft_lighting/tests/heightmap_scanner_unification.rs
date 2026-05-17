@@ -2,7 +2,7 @@
 // powers both `lifecycle::advance_scan` and `heightmap_update::rescan_column_xz`.
 //
 // The core walks `ColumnChunks` top-down, evaluates a per-cell predicate
-// against `BlockLightTable::flags_for`, and fires `on_closed(x, z, variant,
+// against `BlockStateLightTable::flags_for`, and fires `on_closed(x, z, variant,
 // world_y)` exactly once per (x, z, variant) pair. The shared body keeps
 // both call sites byte-identical to the pre-refactor scanners — the
 // fixtures below pin the documented behaviours so any future bug in the
@@ -22,7 +22,7 @@ use mcrs_engine::world::dimension::{
 };
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::lifecycle::ColumnHeightmapScan;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_protocol::BlockStateId;
 
@@ -51,7 +51,7 @@ fn make_test_app() -> (App, Entity) {
     (app, dim)
 }
 
-fn make_stub_table() -> BlockLightTable {
+fn make_stub_table() -> BlockStateLightTable {
     let state_count = 3usize;
     let mut emission = vec![0u8; state_count].into_boxed_slice();
     let mut dampening = vec![0u8; state_count].into_boxed_slice();
@@ -64,7 +64,7 @@ fn make_stub_table() -> BlockLightTable {
     dampening[2] = 1;
     flags[2] = flag_bits::IS_NOT_AIR;
     let _ = emission.iter_mut();
-    BlockLightTable {
+    BlockStateLightTable {
         emission,
         dampening,
         occlusion,

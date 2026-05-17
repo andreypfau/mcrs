@@ -8,7 +8,7 @@
 // enqueue_block_light_on_block_placed → propagate → emit_block_light_dirty
 // → BlockLightDirty`, all within one `FixedUpdate` run.
 //
-// The stub `BlockLightTable` is extended to a third state (BlockStateId(2))
+// The stub `BlockStateLightTable` is extended to a third state (BlockStateId(2))
 // with emission = 14 (vanilla torch level) so the placement actually seeds
 // a block-light source and the dirty marker fires.
 
@@ -32,7 +32,7 @@ use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::{BlockSetRequest, BlockUpdatePlugin};
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::codec::BlockLightDirty;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
 use mcrs_minecraft_lighting::telemetry::TELEMETRY_TEST_LOCK;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_protocol::BlockStateId;
@@ -52,7 +52,7 @@ fn make_test_app_with_block_update(sky: bool) -> (App, Entity) {
     (app, dim_entity)
 }
 
-fn make_stub_block_light_table_with_torch() -> BlockLightTable {
+fn make_stub_block_light_table_with_torch() -> BlockStateLightTable {
     let state_count = 3usize;
     let mut emission = vec![0u8; state_count].into_boxed_slice();
     let mut dampening = vec![0u8; state_count].into_boxed_slice();
@@ -72,7 +72,7 @@ fn make_stub_block_light_table_with_torch() -> BlockLightTable {
     emission[2] = 14;
     dampening[2] = 0;
     flags[2] = flag_bits::IS_NOT_AIR;
-    BlockLightTable {
+    BlockStateLightTable {
         emission,
         dampening,
         occlusion,

@@ -175,7 +175,7 @@ fn reseed_write_level_for_every_lit_cell(fixture: &mut fixture::Fixture) {
             for x in 0..16u8 {
                 let block_level = fixture.block_light.get(x as usize, y as usize, z as usize);
                 if block_level != 0 {
-                    fixture.block_workspace.increase_queue.push(pack_bfs_entry(
+                    fixture.block_queues.increase_queue.push(pack_bfs_entry(
                         x,
                         z,
                         y,
@@ -186,7 +186,7 @@ fn reseed_write_level_for_every_lit_cell(fixture: &mut fixture::Fixture) {
                 }
                 let sky_level = fixture.sky_light.get(x as usize, y as usize, z as usize);
                 if sky_level != 0 {
-                    fixture.sky_workspace.increase_queue.push(pack_bfs_entry(
+                    fixture.sky_queues.increase_queue.push(pack_bfs_entry(
                         x,
                         z,
                         y,
@@ -209,10 +209,10 @@ fn drive_to_fixed_point(fixture: &mut fixture::Fixture) -> Option<([u8; 2048], [
     const MAX_SWEEPS: usize = 8;
     for _ in 0..MAX_SWEEPS {
         let snap = fixture::run_propagation_and_serialize(fixture);
-        if fixture.block_workspace.increase_queue.is_empty()
-            && fixture.block_workspace.decrease_queue.is_empty()
-            && fixture.sky_workspace.increase_queue.is_empty()
-            && fixture.sky_workspace.decrease_queue.is_empty()
+        if fixture.block_queues.increase_queue.is_empty()
+            && fixture.block_queues.decrease_queue.is_empty()
+            && fixture.sky_queues.increase_queue.is_empty()
+            && fixture.sky_queues.decrease_queue.is_empty()
         {
             return Some(snap);
         }

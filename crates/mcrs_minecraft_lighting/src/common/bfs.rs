@@ -2,18 +2,17 @@
 //!
 //! The per-cell queue entry is a packed `u64` built by `pack_bfs_entry`
 //! and consumed in place by the BFS bodies. It is intentionally distinct
-//! from `components::Wavefront(u32)`, which is the cross-chunk egress
-//! representation pushed onto `BlockEgress` at face boundaries. The
+//! from `components::CrossChunkWavefront(u32)`, which is the cross-chunk outbox
+//! representation pushed onto `BlockOutbox` at face boundaries. The
 //! per-cell entry carries Y plus a 6-bit direction bitset and a 3-bit
-//! flag field, none of which `Wavefront` needs.
+//! flag field, none of which `CrossChunkWavefront` needs.
 
 use mcrs_core::voxel_shape::{Direction, VoxelShape};
 use mcrs_minecraft_block::palette::BlockPalette;
-
-use crate::components::{BlockEgress, BlockLightWorkspace, SkyEgress, SkyLightWorkspace, Wavefront};
+use crate::{BlockBfsQueues, BlockOutbox, CrossChunkWavefront, SkyBfsQueues, SkyOutbox};
 use crate::geom::chunk_xyz_to_face_cell;
 use crate::storage::LightStorage;
-use crate::table::{flag_bits, BlockLightTable};
+use crate::table::{flag_bits, BlockStateLightTable};
 
 pub(crate) const FLAG_HAS_SIDED_TRANSPARENT_BLOCKS: u8 = 1 << 0;
 // Promoted from pub(crate) to pub so external snapshot / property
@@ -315,12 +314,12 @@ pub(crate) const WAVE_DECREASE: u8 = FLAG_RECHECK_LEVEL;
 /// and the BFS body in `propagate_core` calls into them; no dynamic
 /// dispatch is involved.
 pub(crate) trait BfsChannel {
-    type Workspace;
-    type Egress;
+    type Queues;
+    type Outbox;
 
-    fn increase_queue(workspace: &mut Self::Workspace) -> &mut Vec<u64>;
-    fn decrease_queue(workspace: &mut Self::Workspace) -> &mut Vec<u64>;
-    fn push_egress(egress: &mut Self::Egress, wavefront: Wavefront);
+    fn increase_queue(queues: &mut Self::Queues) -> &mut Vec<u64>;
+    fn decrease_queue(queues: &mut Self::Queues) -> &mut Vec<u64>;
+    fn push_outbox(outbox: &mut Self::Outbox, wavefront: CrossChunkWavefront);
 
     /// Increase-wave target level for the neighbour cell in direction `d`.
     /// Block channel returns `propagated_level.saturating_sub(opacity.max(1))`.
@@ -337,29 +336,29 @@ pub(crate) trait BfsChannel {
     /// `Some(emission)` for emitter cells encountered en-route so the
     /// increase pass restores their emission via `FLAG_WRITE_LEVEL`. Sky
     /// channel returns `None` unconditionally (no per-cell emission).
-    fn emission_for(table: &BlockLightTable, dst_state: mcrs_protocol::BlockStateId) -> Option<u8>;
+    fn emission_for(table: &BlockStateLightTable, dst_state: mcrs_protocol::BlockStateId) -> Option<u8>;
 }
 
 pub(crate) struct BlockBfs;
 pub(crate) struct SkyBfs;
 
 impl BfsChannel for BlockBfs {
-    type Workspace = BlockLightWorkspace;
-    type Egress = BlockEgress;
+    type Queues = BlockBfsQueues;
+    type Outbox = BlockOutbox;
 
     #[inline(always)]
-    fn increase_queue(workspace: &mut Self::Workspace) -> &mut Vec<u64> {
-        &mut workspace.increase_queue
+    fn increase_queue(queues: &mut Self::Queues) -> &mut Vec<u64> {
+        &mut queues.increase_queue
     }
 
     #[inline(always)]
-    fn decrease_queue(workspace: &mut Self::Workspace) -> &mut Vec<u64> {
-        &mut workspace.decrease_queue
+    fn decrease_queue(queues: &mut Self::Queues) -> &mut Vec<u64> {
+        &mut queues.decrease_queue
     }
 
     #[inline(always)]
-    fn push_egress(egress: &mut Self::Egress, wavefront: Wavefront) {
-        egress.0.push(wavefront);
+    fn push_outbox(outbox: &mut Self::Outbox, wavefront: CrossChunkWavefront) {
+        outbox.0.push(wavefront);
     }
 
     #[inline(always)]
@@ -374,7 +373,7 @@ impl BfsChannel for BlockBfs {
 
     #[inline(always)]
     fn emission_for(
-        table: &BlockLightTable,
+        table: &BlockStateLightTable,
         dst_state: mcrs_protocol::BlockStateId,
     ) -> Option<u8> {
         let emitted = table.emission_for(dst_state);
@@ -387,22 +386,22 @@ impl BfsChannel for BlockBfs {
 }
 
 impl BfsChannel for SkyBfs {
-    type Workspace = SkyLightWorkspace;
-    type Egress = SkyEgress;
+    type Queues = SkyBfsQueues;
+    type Outbox = SkyOutbox;
 
     #[inline(always)]
-    fn increase_queue(workspace: &mut Self::Workspace) -> &mut Vec<u64> {
-        &mut workspace.increase_queue
+    fn increase_queue(queues: &mut Self::Queues) -> &mut Vec<u64> {
+        &mut queues.increase_queue
     }
 
     #[inline(always)]
-    fn decrease_queue(workspace: &mut Self::Workspace) -> &mut Vec<u64> {
-        &mut workspace.decrease_queue
+    fn decrease_queue(queues: &mut Self::Queues) -> &mut Vec<u64> {
+        &mut queues.decrease_queue
     }
 
     #[inline(always)]
-    fn push_egress(egress: &mut Self::Egress, wavefront: Wavefront) {
-        egress.0.push(wavefront);
+    fn push_outbox(outbox: &mut Self::Outbox, wavefront: CrossChunkWavefront) {
+        outbox.0.push(wavefront);
     }
 
     #[inline(always)]
@@ -424,7 +423,7 @@ impl BfsChannel for SkyBfs {
 
     #[inline(always)]
     fn emission_for(
-        _table: &BlockLightTable,
+        _table: &BlockStateLightTable,
         _dst_state: mcrs_protocol::BlockStateId,
     ) -> Option<u8> {
         None
@@ -444,19 +443,19 @@ impl BfsChannel for SkyBfs {
 /// source shape, which never occludes.
 #[inline]
 pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
-    table: &BlockLightTable,
+    table: &BlockStateLightTable,
     palette: &BlockPalette,
     light: &mut LightStorage,
-    workspace: &mut C::Workspace,
-    egress: &mut C::Egress,
+    queues: &mut C::Queues,
+    outbox: &mut C::Outbox,
 ) {
     let mut queue_read_index: usize = 0;
     loop {
         let entry = {
             let queue = if FLAGS == WAVE_INCREASE {
-                C::increase_queue(workspace)
+                C::increase_queue(queues)
             } else {
-                C::decrease_queue(workspace)
+                C::decrease_queue(queues)
             };
             if queue_read_index >= queue.len() {
                 break;
@@ -519,9 +518,9 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
                 || !(0..=15).contains(&off_z)
             {
                 let (cx, cz) = chunk_xyz_to_face_cell(d, off_x, off_y, off_z);
-                C::push_egress(
-                    egress,
-                    Wavefront::new(d.index() as u8, cx, cz, propagated_level),
+                C::push_outbox(
+                    outbox,
+                    CrossChunkWavefront::new(d.index() as u8, cx, cz, propagated_level),
                 );
                 continue;
             }
@@ -562,7 +561,7 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
                 light.set(off_x_u, off_y_u, off_z_u, target_level);
 
                 if target_level > 1 {
-                    C::increase_queue(workspace).push(pack_bfs_entry(
+                    C::increase_queue(queues).push(pack_bfs_entry(
                         off_x as u8,
                         off_z as u8,
                         off_y as u8,
@@ -593,7 +592,7 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
                 let target_level = propagated_level.saturating_sub(opacity.max(1));
 
                 if light_level > target_level {
-                    C::increase_queue(workspace).push(pack_bfs_entry(
+                    C::increase_queue(queues).push(pack_bfs_entry(
                         off_x as u8,
                         off_z as u8,
                         off_y as u8,
@@ -605,7 +604,7 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
                 }
 
                 if let Some(emitted) = C::emission_for(table, dst_state) {
-                    C::increase_queue(workspace).push(pack_bfs_entry(
+                    C::increase_queue(queues).push(pack_bfs_entry(
                         off_x as u8,
                         off_z as u8,
                         off_y as u8,
@@ -618,7 +617,7 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
                 light.set(off_x_u, off_y_u, off_z_u, 0);
 
                 if target_level > 0 {
-                    C::decrease_queue(workspace).push(pack_bfs_entry(
+                    C::decrease_queue(queues).push(pack_bfs_entry(
                         off_x as u8,
                         off_z as u8,
                         off_y as u8,
@@ -632,18 +631,18 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
     }
 
     if FLAGS == WAVE_INCREASE {
-        C::increase_queue(workspace).clear();
+        C::increase_queue(queues).clear();
     } else {
-        C::decrease_queue(workspace).clear();
+        C::decrease_queue(queues).clear();
     }
 }
 
 /// Block-light increase BFS over one chunk.
 ///
-/// Drains `workspace.increase_queue` to empty. Cells whose stored level is
+/// Drains `queues.increase_queue` to empty. Cells whose stored level is
 /// raised by this pass are written via `LightStorage::set`. Steps that fall
-/// off the 0..=15 cube are converted into `Wavefront(u32)` entries on
-/// `egress.0` for the cross-chunk distribute pass; the source chunk
+/// off the 0..=15 cube are converted into `CrossChunkWavefront(u32)` entries on
+/// `outbox.0` for the cross-chunk distribute pass; the source chunk
 /// itself never re-enqueues a boundary cell.
 ///
 /// Slow-path branch fires when either side has `IS_CONDITIONALLY_OPAQUE`
@@ -651,22 +650,22 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
 /// `face_occludes`. The fast path uses `VoxelShape::empty()` as the
 /// source shape, which never occludes.
 pub fn propagate_increase(
-    table: &BlockLightTable,
+    table: &BlockStateLightTable,
     palette: &BlockPalette,
     light: &mut LightStorage,
-    workspace: &mut BlockLightWorkspace,
-    egress: &mut BlockEgress,
+    queues: &mut BlockBfsQueues,
+    outbox: &mut BlockOutbox,
 ) {
-    propagate_core::<BlockBfs, { WAVE_INCREASE }>(table, palette, light, workspace, egress);
+    propagate_core::<BlockBfs, { WAVE_INCREASE }>(table, palette, light, queues, outbox);
 }
 
 /// Block-light decrease BFS over one chunk.
 ///
-/// Drains `workspace.decrease_queue` to empty. Cells whose stored level is
+/// Drains `queues.decrease_queue` to empty. Cells whose stored level is
 /// dominated solely by the removed source path are zeroed via
 /// `LightStorage::set(_, 0)`. Cells whose stored level exceeds the decrease
 /// pass's path-derived target are NOT touched — instead they are requeued
-/// onto `workspace.increase_queue` with `FLAG_RECHECK_LEVEL` so the
+/// onto `queues.increase_queue` with `FLAG_RECHECK_LEVEL` so the
 /// subsequent increase pass re-propagates from them after re-reading the
 /// stored level. Emitter cells encountered en-route are requeued with
 /// `FLAG_WRITE_LEVEL` so the increase pass restores their emission.
@@ -679,54 +678,54 @@ pub fn propagate_increase(
 /// separated at the system-set level so a deferred barrier sits between
 /// them, allowing other systems to observe the intermediate state.
 pub fn propagate_decrease(
-    table: &BlockLightTable,
+    table: &BlockStateLightTable,
     palette: &BlockPalette,
     light: &mut LightStorage,
-    workspace: &mut BlockLightWorkspace,
-    egress: &mut BlockEgress,
+    queues: &mut BlockBfsQueues,
+    outbox: &mut BlockOutbox,
 ) {
-    propagate_core::<BlockBfs, { WAVE_DECREASE }>(table, palette, light, workspace, egress);
+    propagate_core::<BlockBfs, { WAVE_DECREASE }>(table, palette, light, queues, outbox);
 }
 
 /// Sky-light increase BFS over one chunk.
 ///
-/// Mirrors `propagate_increase` with two differences. First, the workspace
-/// and egress are the sky-side types. Second, when the step direction is
+/// Mirrors `propagate_increase` with two differences. First, the queues
+/// and outbox are the sky-side types. Second, when the step direction is
 /// `Direction::Down`, the source level is exactly 15, and the destination
 /// cell's `PROPAGATES_SKYLIGHT_DOWN` flag is set, the new level is 15
 /// (vertical free-fall through air). All other steps fall through to the
 /// unified `parent - max(1, dampening)` attenuation shared with block-light.
 pub fn propagate_increase_sky(
-    table: &BlockLightTable,
+    table: &BlockStateLightTable,
     palette: &BlockPalette,
     light: &mut LightStorage,
-    workspace: &mut SkyLightWorkspace,
-    egress: &mut SkyEgress,
+    queues: &mut SkyBfsQueues,
+    outbox: &mut SkyOutbox,
 ) {
-    propagate_core::<SkyBfs, { WAVE_INCREASE }>(table, palette, light, workspace, egress);
+    propagate_core::<SkyBfs, { WAVE_INCREASE }>(table, palette, light, queues, outbox);
 }
 
 /// Sky-light decrease BFS over one chunk.
 ///
-/// Mirrors `propagate_decrease` with two differences. First, the workspace
-/// and egress are the sky-side types. Second, the destination-emission
+/// Mirrors `propagate_decrease` with two differences. First, the queues
+/// and outbox are the sky-side types. Second, the destination-emission
 /// re-emit branch is omitted entirely — sky-light has no per-cell
 /// emission, so the only re-queue path is `FLAG_RECHECK_LEVEL` when the
 /// neighbour's stored level exceeds the propagated target.
 pub fn propagate_decrease_sky(
-    table: &BlockLightTable,
+    table: &BlockStateLightTable,
     palette: &BlockPalette,
     light: &mut LightStorage,
-    workspace: &mut SkyLightWorkspace,
-    egress: &mut SkyEgress,
+    queues: &mut SkyBfsQueues,
+    outbox: &mut SkyOutbox,
 ) {
-    propagate_core::<SkyBfs, { WAVE_DECREASE }>(table, palette, light, workspace, egress);
+    propagate_core::<SkyBfs, { WAVE_DECREASE }>(table, palette, light, queues, outbox);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nibble::NibbleArray;
+    use crate::nibble::LightNibbles;
     use mcrs_protocol::BlockStateId;
 
     const ALL_DIRECTIONS: [Direction; 6] = [
@@ -835,7 +834,7 @@ mod tests {
         flags: u8,
     }
 
-    fn build_table(specs: &[(u16, TableSpec)]) -> BlockLightTable {
+    fn build_table(specs: &[(u16, TableSpec)]) -> BlockStateLightTable {
         let max_state = specs.iter().map(|(id, _)| *id).max().unwrap_or(0);
         let size = (max_state as usize) + 1;
         let mut emission = vec![0u8; size].into_boxed_slice();
@@ -850,7 +849,7 @@ mod tests {
             occlusion[idx] = spec.occlusion;
             flags[idx] = spec.flags;
         }
-        BlockLightTable {
+        BlockStateLightTable {
             emission,
             dampening,
             occlusion,
@@ -866,12 +865,12 @@ mod tests {
         palette.fill(BlockStateId(0));
     }
 
-    /// Construct an empty `LightStorage::Mixed` directly. Seeding the source
-    /// cell via `LightStorage::Null::set` produces `Uniform(emission)`, which
+    /// Construct an empty `LightStorage::Dense` directly. Seeding the source
+    /// cell via `LightStorage::Empty::set` produces `Uniform(emission)`, which
     /// causes `light.get` to report `emission` for every cell and the BFS to
     /// early-exit before propagating (see 03-RESEARCH.md Pitfall #6).
     fn zero_light_storage() -> LightStorage {
-        LightStorage::Mixed(Box::new(NibbleArray::zeros()))
+        LightStorage::Dense(Box::new(LightNibbles::zeros()))
     }
 
     fn air_spec() -> TableSpec {
@@ -902,15 +901,15 @@ mod tests {
         let mut light = zero_light_storage();
         light.set(8, 8, 8, 14);
 
-        let mut workspace = BlockLightWorkspace::default();
-        let mut egress = BlockEgress::default();
-        workspace
+        let mut queues = BlockBfsQueues::default();
+        let mut outbox = BlockOutbox::default();
+        queues
             .increase_queue
             .push(pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
 
-        propagate_increase(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_increase(&table, &palette, &mut light, &mut queues, &mut outbox);
 
-        assert!(workspace.increase_queue.is_empty());
+        assert!(queues.increase_queue.is_empty());
         for y in 0..16 {
             for z in 0..16 {
                 for x in 0..16 {
@@ -959,12 +958,12 @@ mod tests {
 
             let mut light = zero_light_storage();
             light.set(8, 8, 8, 14);
-            let mut workspace = BlockLightWorkspace::default();
-            let mut egress = BlockEgress::default();
-            workspace
+            let mut queues = BlockBfsQueues::default();
+            let mut outbox = BlockOutbox::default();
+            queues
                 .increase_queue
                 .push(pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
-            propagate_increase(&table, &palette, &mut light, &mut workspace, &mut egress);
+            propagate_increase(&table, &palette, &mut light, &mut queues, &mut outbox);
 
             assert_eq!(light.get(8, 8, 9), 14u8.saturating_sub(2), "slab cell");
             assert_eq!(
@@ -988,12 +987,12 @@ mod tests {
 
             let mut light = zero_light_storage();
             light.set(8, 8, 8, 14);
-            let mut workspace = BlockLightWorkspace::default();
-            let mut egress = BlockEgress::default();
-            workspace
+            let mut queues = BlockBfsQueues::default();
+            let mut outbox = BlockOutbox::default();
+            queues
                 .increase_queue
                 .push(pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
-            propagate_increase(&table, &palette, &mut light, &mut workspace, &mut egress);
+            propagate_increase(&table, &palette, &mut light, &mut queues, &mut outbox);
 
             assert_eq!(light.get(8, 8, 9), 14u8.saturating_sub(1));
             assert_eq!(light.get(8, 8, 10), 14u8.saturating_sub(2));
@@ -1009,29 +1008,29 @@ mod tests {
 
         let mut light = zero_light_storage();
         light.set(15, 8, 8, 14);
-        let mut workspace = BlockLightWorkspace::default();
-        let mut egress = BlockEgress::default();
-        workspace
+        let mut queues = BlockBfsQueues::default();
+        let mut outbox = BlockOutbox::default();
+        queues
             .increase_queue
             .push(pack_bfs_entry(15, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
 
-        propagate_increase(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_increase(&table, &palette, &mut light, &mut queues, &mut outbox);
 
-        assert!(workspace.increase_queue.is_empty());
-        // The source cell's own +X step must produce one egress wavefront
+        assert!(queues.increase_queue.is_empty());
+        // The source cell's own +X step must produce one outbox wavefront
         // carrying the source level. The cross-chunk distribute pass is
         // responsible for the cross-chunk attenuation; the BFS just records
         // the pre-step level. Other cells on the x=15 plane that get reached
-        // by the BFS also push East egress entries at lower levels — those
+        // by the BFS also push East outbox entries at lower levels — those
         // are not checked here.
         let expected_face = Direction::East.index() as u8;
-        let found = egress.0.iter().any(|w| {
+        let found = outbox.0.iter().any(|w| {
             w.face() == expected_face && w.cell_x() == 8 && w.cell_z() == 8 && w.level() == 14
         });
         assert!(
             found,
-            "missing East egress wavefront (face=East, cell_x=8, cell_z=8, level=14); egress={:?}",
-            egress.0
+            "missing East outbox wavefront (face=East, cell_x=8, cell_z=8, level=14); outbox={:?}",
+            outbox.0
         );
     }
 
@@ -1045,8 +1044,8 @@ mod tests {
 
         let mut light_one = zero_light_storage();
         light_one.set(8, 8, 8, 14);
-        let mut workspace_one = BlockLightWorkspace::default();
-        let mut egress_one = BlockEgress::default();
+        let mut workspace_one = BlockBfsQueues::default();
+        let mut egress_one = BlockOutbox::default();
         workspace_one
             .increase_queue
             .push(pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
@@ -1061,8 +1060,8 @@ mod tests {
         // Two-seed run: the second seed's neighbours all hit the early-exit.
         let mut light_two = zero_light_storage();
         light_two.set(8, 8, 8, 14);
-        let mut workspace_two = BlockLightWorkspace::default();
-        let mut egress_two = BlockEgress::default();
+        let mut workspace_two = BlockBfsQueues::default();
+        let mut egress_two = BlockOutbox::default();
         workspace_two
             .increase_queue
             .push(pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
@@ -1116,17 +1115,17 @@ mod tests {
             })
             .collect();
 
-        let mut workspace = BlockLightWorkspace::default();
-        let mut egress = BlockEgress::default();
-        workspace
+        let mut queues = BlockBfsQueues::default();
+        let mut outbox = BlockOutbox::default();
+        queues
             .increase_queue
             .push(pack_bfs_entry(0, 0, 0, 5, 0, FLAG_RECHECK_LEVEL));
 
-        propagate_increase(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_increase(&table, &palette, &mut light, &mut queues, &mut outbox);
 
         assert_eq!(light.get(0, 0, 0), 10, "stale recheck must not touch cell");
-        assert!(workspace.increase_queue.is_empty());
-        assert!(egress.0.is_empty());
+        assert!(queues.increase_queue.is_empty());
+        assert!(outbox.0.is_empty());
         for (i, d) in ALL_DIRECTIONS.iter().enumerate() {
             let (dx, dy, dz) = normal_of(*d);
             if dx < 0 || dy < 0 || dz < 0 {
@@ -1171,16 +1170,16 @@ mod tests {
 
         let mut light = zero_light_storage();
         light.set(5, 5, 5, 14);
-        let mut workspace = BlockLightWorkspace::default();
-        let mut egress = BlockEgress::default();
+        let mut queues = BlockBfsQueues::default();
+        let mut outbox = BlockOutbox::default();
         // Only walk in the +Z (South) direction so the test isolates the
         // src→dst face check; the bitset is 1 << South.index().
         let south_only_bitset = 1u8 << Direction::South.index();
-        workspace
+        queues
             .increase_queue
             .push(pack_bfs_entry(5, 5, 5, 14, south_only_bitset, 0));
 
-        propagate_increase(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_increase(&table, &palette, &mut light, &mut queues, &mut outbox);
 
         assert_eq!(
             light.get(5, 5, 6),
@@ -1220,20 +1219,20 @@ mod tests {
         // own decrease seed, so seeding it 0 reflects the post-removal state.
         light.set(8, 8, 8, 0);
 
-        let mut workspace = BlockLightWorkspace::default();
-        let mut egress = BlockEgress::default();
-        workspace
+        let mut queues = BlockBfsQueues::default();
+        let mut outbox = BlockOutbox::default();
+        queues
             .decrease_queue
             .push(pack_bfs_entry(8, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
 
-        propagate_decrease(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_decrease(&table, &palette, &mut light, &mut queues, &mut outbox);
 
         assert!(
-            workspace.decrease_queue.is_empty(),
+            queues.decrease_queue.is_empty(),
             "decrease_queue must drain to empty"
         );
         assert!(
-            workspace.increase_queue.is_empty(),
+            queues.increase_queue.is_empty(),
             "no other emitter to requeue in all-air-single-torch scenario"
         );
         // Every cell whose only source was the now-removed torch reads 0.
@@ -1274,21 +1273,21 @@ mod tests {
             }
         }
 
-        let mut workspace = BlockLightWorkspace::default();
-        let mut egress = BlockEgress::default();
-        workspace
+        let mut queues = BlockBfsQueues::default();
+        let mut outbox = BlockOutbox::default();
+        queues
             .decrease_queue
             .push(pack_bfs_entry(4, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
 
-        propagate_decrease(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_decrease(&table, &palette, &mut light, &mut queues, &mut outbox);
 
-        assert!(workspace.decrease_queue.is_empty(), "decrease drains");
+        assert!(queues.decrease_queue.is_empty(), "decrease drains");
         assert!(
-            !workspace.increase_queue.is_empty(),
+            !queues.increase_queue.is_empty(),
             "expected at least one requeue into increase_queue"
         );
         // At least one entry carries FLAG_RECHECK_LEVEL.
-        let recheck_count = workspace
+        let recheck_count = queues
             .increase_queue
             .iter()
             .filter(|&&e| unpack_bfs_entry_flags(e) & FLAG_RECHECK_LEVEL != 0)
@@ -1336,15 +1335,15 @@ mod tests {
         // removed torch (14 - 1 = 13); the max is 13.
         light.set(6, 8, 8, 13);
 
-        let mut workspace = BlockLightWorkspace::default();
-        let mut egress = BlockEgress::default();
-        workspace
+        let mut queues = BlockBfsQueues::default();
+        let mut outbox = BlockOutbox::default();
+        queues
             .decrease_queue
             .push(pack_bfs_entry(5, 8, 8, 14, ALL_DIRECTIONS_BITSET, 0));
 
-        propagate_decrease(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_decrease(&table, &palette, &mut light, &mut queues, &mut outbox);
 
-        let write_level_entries: Vec<u64> = workspace
+        let write_level_entries: Vec<u64> = queues
             .increase_queue
             .iter()
             .copied()
@@ -1392,7 +1391,7 @@ mod tests {
         }
     }
 
-    fn build_sky_air_table() -> BlockLightTable {
+    fn build_sky_air_table() -> BlockStateLightTable {
         build_table(&[(SYNTH_AIR_ID, air_sky_spec())])
     }
 
@@ -1403,14 +1402,14 @@ mod tests {
         palette.fill(BlockStateId(SYNTH_AIR_ID));
 
         let mut light = zero_light_storage();
-        let mut workspace = SkyLightWorkspace::default();
-        let mut egress = SkyEgress::default();
+        let mut queues = SkyBfsQueues::default();
+        let mut outbox = SkyOutbox::default();
 
-        workspace
+        queues
             .increase_queue
             .push(pack_bfs_entry(8, 8, 15, 15, ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL));
 
-        propagate_increase_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_increase_sky(&table, &palette, &mut light, &mut queues, &mut outbox);
 
         for y in 0..16usize {
             assert_eq!(
@@ -1439,10 +1438,10 @@ mod tests {
             light.set(15, y, 15, 14);
         }
 
-        let mut workspace = SkyLightWorkspace::default();
-        let mut egress = SkyEgress::default();
+        let mut queues = SkyBfsQueues::default();
+        let mut outbox = SkyOutbox::default();
 
-        workspace.increase_queue.push(pack_bfs_entry(
+        queues.increase_queue.push(pack_bfs_entry(
             15,
             15,
             15,
@@ -1451,7 +1450,7 @@ mod tests {
             FLAG_WRITE_LEVEL,
         ));
 
-        propagate_increase_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_increase_sky(&table, &palette, &mut light, &mut queues, &mut outbox);
 
         for y in 0..16usize {
             assert_eq!(
@@ -1474,14 +1473,14 @@ mod tests {
         palette.set((8, 10, 8), BlockStateId(SYNTH_WATER_ID));
 
         let mut light = zero_light_storage();
-        let mut workspace = SkyLightWorkspace::default();
-        let mut egress = SkyEgress::default();
+        let mut queues = SkyBfsQueues::default();
+        let mut outbox = SkyOutbox::default();
 
-        workspace
+        queues
             .increase_queue
             .push(pack_bfs_entry(8, 8, 15, 15, ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL));
 
-        propagate_increase_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_increase_sky(&table, &palette, &mut light, &mut queues, &mut outbox);
 
         assert_eq!(light.get(8, 15, 8), 15, "top of column stays 15");
         assert_eq!(light.get(8, 11, 8), 15, "air above water stays 15");
@@ -1500,12 +1499,12 @@ mod tests {
         palette.fill(BlockStateId(SYNTH_AIR_ID));
 
         let mut light = zero_light_storage();
-        let mut workspace = SkyLightWorkspace::default();
-        let mut egress = SkyEgress::default();
+        let mut queues = SkyBfsQueues::default();
+        let mut outbox = SkyOutbox::default();
 
         let east_only_bitset = 1u8 << Direction::East.index();
         light.set(5, 5, 5, 14);
-        workspace.increase_queue.push(pack_bfs_entry(
+        queues.increase_queue.push(pack_bfs_entry(
             5,
             5,
             5,
@@ -1514,7 +1513,7 @@ mod tests {
             0,
         ));
 
-        propagate_increase_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_increase_sky(&table, &palette, &mut light, &mut queues, &mut outbox);
 
         assert_eq!(
             light.get(6, 5, 5),
@@ -1550,16 +1549,16 @@ mod tests {
         palette.set((5, 5, 6), BlockStateId(SYNTH_OPAQUE_DST_ID));
 
         let mut light = zero_light_storage();
-        let mut workspace = SkyLightWorkspace::default();
-        let mut egress = SkyEgress::default();
+        let mut queues = SkyBfsQueues::default();
+        let mut outbox = SkyOutbox::default();
 
         light.set(5, 5, 5, 14);
         let south_only_bitset = 1u8 << Direction::South.index();
-        workspace
+        queues
             .increase_queue
             .push(pack_bfs_entry(5, 5, 5, 14, south_only_bitset, 0));
 
-        propagate_increase_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_increase_sky(&table, &palette, &mut light, &mut queues, &mut outbox);
 
         assert_eq!(
             light.get(5, 5, 6),
@@ -1579,17 +1578,17 @@ mod tests {
         // expect the BFS to requeue it with FLAG_RECHECK_LEVEL.
         light.set(5, 8, 8, 12);
 
-        let mut workspace = SkyLightWorkspace::default();
-        let mut egress = SkyEgress::default();
+        let mut queues = SkyBfsQueues::default();
+        let mut outbox = SkyOutbox::default();
         // Push a decrease entry from (4, 8, 8) at level 6 only walking east.
         let east_only_bitset = 1u8 << Direction::East.index();
-        workspace
+        queues
             .decrease_queue
             .push(pack_bfs_entry(4, 8, 8, 6, east_only_bitset, 0));
 
-        propagate_decrease_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_decrease_sky(&table, &palette, &mut light, &mut queues, &mut outbox);
 
-        let recheck_count = workspace
+        let recheck_count = queues
             .increase_queue
             .iter()
             .filter(|&&e| unpack_bfs_entry_flags(e) & FLAG_RECHECK_LEVEL != 0)
@@ -1634,16 +1633,16 @@ mod tests {
         // region where the block path would emit a WRITE_LEVEL entry.
         light.set(6, 8, 8, 6);
 
-        let mut workspace = SkyLightWorkspace::default();
-        let mut egress = SkyEgress::default();
+        let mut queues = SkyBfsQueues::default();
+        let mut outbox = SkyOutbox::default();
         let east_only_bitset = 1u8 << Direction::East.index();
-        workspace
+        queues
             .decrease_queue
             .push(pack_bfs_entry(5, 8, 8, 14, east_only_bitset, 0));
 
-        propagate_decrease_sky(&table, &palette, &mut light, &mut workspace, &mut egress);
+        propagate_decrease_sky(&table, &palette, &mut light, &mut queues, &mut outbox);
 
-        for &entry in workspace.increase_queue.iter() {
+        for &entry in queues.increase_queue.iter() {
             assert_eq!(
                 unpack_bfs_entry_flags(entry) & FLAG_WRITE_LEVEL,
                 0,

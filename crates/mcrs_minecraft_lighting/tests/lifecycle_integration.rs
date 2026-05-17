@@ -1,7 +1,7 @@
 // ECS smoke tests for the chunk-column lighting lifecycle.
 //
 // Each test builds a minimal Bevy `App` registering `ColumnPlugin` +
-// `LightingPlugin`, inserts a stub `BlockLightTable` resource keyed by
+// `LightingPlugin`, inserts a stub `BlockStateLightTable` resource keyed by
 // `BlockStateId`, spawns dimensions and chunks directly, runs a single
 // `FixedUpdate` tick, and asserts on the resulting component graph.
 //
@@ -27,10 +27,10 @@ use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_minecraft_lighting::components::{
-    BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, BlockNeedsInitialSeed, IsAllAir,
-    SkyEgress, SkyIncoming, SkyLight, SkyLightWorkspace, SkyNeedsInitialSeed,
+    BlockOutbox, BlockInbox, BlockLight, BlockBfsQueues, BlockNeedsInitialSeed, IsAllAir,
+    SkyOutbox, SkyInbox, SkyLight, SkyBfsQueues, SkyNeedsInitialSeed,
 };
-use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
@@ -49,7 +49,7 @@ fn make_test_app(sky: bool) -> (App, Entity) {
     (app, dim_entity)
 }
 
-fn make_stub_block_light_table() -> BlockLightTable {
+fn make_stub_block_light_table() -> BlockStateLightTable {
     let state_count = 2usize;
     let mut emission = vec![0u8; state_count].into_boxed_slice();
     let mut dampening = vec![0u8; state_count].into_boxed_slice();
@@ -63,7 +63,7 @@ fn make_stub_block_light_table() -> BlockLightTable {
     dampening[1] = 15;
     flags[1] =
         flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
-    BlockLightTable {
+    BlockStateLightTable {
         emission,
         dampening,
         occlusion,
@@ -141,24 +141,24 @@ fn single_chunk_in_sky_dim_attaches_all_components() {
     let col_entity = in_col.0;
 
     assert!(world.get::<BlockLight>(chunk).is_some(), "BlockLight missing");
-    assert!(world.get::<BlockEgress>(chunk).is_some(), "BlockEgress missing");
+    assert!(world.get::<BlockOutbox>(chunk).is_some(), "BlockOutbox missing");
     assert!(
-        world.get::<BlockIncoming>(chunk).is_some(),
-        "BlockIncoming missing"
+        world.get::<BlockInbox>(chunk).is_some(),
+        "BlockInbox missing"
     );
     assert!(
-        world.get::<BlockLightWorkspace>(chunk).is_some(),
-        "BlockLightWorkspace missing"
+        world.get::<BlockBfsQueues>(chunk).is_some(),
+        "BlockBfsQueues missing"
     );
     assert!(world.get::<SkyLight>(chunk).is_some(), "SkyLight missing");
-    assert!(world.get::<SkyEgress>(chunk).is_some(), "SkyEgress missing");
+    assert!(world.get::<SkyOutbox>(chunk).is_some(), "SkyOutbox missing");
     assert!(
-        world.get::<SkyIncoming>(chunk).is_some(),
-        "SkyIncoming missing"
+        world.get::<SkyInbox>(chunk).is_some(),
+        "SkyInbox missing"
     );
     assert!(
-        world.get::<SkyLightWorkspace>(chunk).is_some(),
-        "SkyLightWorkspace missing"
+        world.get::<SkyBfsQueues>(chunk).is_some(),
+        "SkyBfsQueues missing"
     );
     // The per-channel needs-initial markers are inserted by
     // `prime_heightmaps_on_column_spawn` once the heightmap scan finalises,
@@ -289,21 +289,21 @@ fn single_chunk_in_skyless_dim_has_no_sky_components() {
 
     let world = app.world();
     assert!(world.get::<BlockLight>(chunk).is_some());
-    assert!(world.get::<BlockEgress>(chunk).is_some());
-    assert!(world.get::<BlockIncoming>(chunk).is_some());
-    assert!(world.get::<BlockLightWorkspace>(chunk).is_some());
+    assert!(world.get::<BlockOutbox>(chunk).is_some());
+    assert!(world.get::<BlockInbox>(chunk).is_some());
+    assert!(world.get::<BlockBfsQueues>(chunk).is_some());
     assert!(
         world.get::<SkyLight>(chunk).is_none(),
         "SkyLight must not exist in a skyless dimension"
     );
-    assert!(world.get::<SkyEgress>(chunk).is_none(), "SkyEgress leaked");
+    assert!(world.get::<SkyOutbox>(chunk).is_none(), "SkyOutbox leaked");
     assert!(
-        world.get::<SkyIncoming>(chunk).is_none(),
-        "SkyIncoming leaked"
+        world.get::<SkyInbox>(chunk).is_none(),
+        "SkyInbox leaked"
     );
     assert!(
-        world.get::<SkyLightWorkspace>(chunk).is_none(),
-        "SkyLightWorkspace leaked"
+        world.get::<SkyBfsQueues>(chunk).is_none(),
+        "SkyBfsQueues leaked"
     );
     // `BlockNeedsInitialSeed` is inserted by `prime_heightmaps_on_column_spawn`
     // and consumed by `seed_block_emitters` within the same tick (skyless dims

@@ -15,11 +15,11 @@ use mcrs_minecraft_lighting::bfs::{
     propagate_increase_sky, ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL,
 };
 use mcrs_minecraft_lighting::components::{
-    BlockEgress, BlockLightWorkspace, SkyEgress, SkyLightWorkspace,
+    BlockOutbox, BlockBfsQueues, SkyOutbox, SkyBfsQueues,
 };
-use mcrs_minecraft_lighting::nibble::NibbleArray;
+use mcrs_minecraft_lighting::nibble::LightNibbles;
 use mcrs_minecraft_lighting::storage::LightStorage;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
 use mcrs_protocol::BlockStateId;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -32,7 +32,7 @@ const AIR_ID: BlockStateId = BlockStateId(0);
 const STONE_ID: BlockStateId = BlockStateId(1);
 const TORCH_ID: BlockStateId = BlockStateId(0x1000);
 
-pub fn build_table() -> BlockLightTable {
+pub fn build_table() -> BlockStateLightTable {
     const SIZE: usize = 0x1001;
     let mut emission = vec![0u8; SIZE].into_boxed_slice();
     let mut dampening = vec![0u8; SIZE].into_boxed_slice();
@@ -53,7 +53,7 @@ pub fn build_table() -> BlockLightTable {
     emission[torch] = 14;
     flags[torch] = flag_bits::PROPAGATES_SKYLIGHT_DOWN;
 
-    BlockLightTable {
+    BlockStateLightTable {
         emission,
         dampening,
         occlusion,
@@ -62,18 +62,18 @@ pub fn build_table() -> BlockLightTable {
 }
 
 pub struct Fixture {
-    pub table: BlockLightTable,
+    pub table: BlockStateLightTable,
     pub palette: BlockPalette,
     pub block_light: LightStorage,
     pub sky_light: LightStorage,
-    pub block_workspace: BlockLightWorkspace,
-    pub sky_workspace: SkyLightWorkspace,
-    pub block_egress: BlockEgress,
-    pub sky_egress: SkyEgress,
+    pub block_queues: BlockBfsQueues,
+    pub sky_queues: SkyBfsQueues,
+    pub block_outbox: BlockOutbox,
+    pub sky_outbox: SkyOutbox,
 }
 
 pub fn zero_storage() -> LightStorage {
-    LightStorage::Mixed(Box::new(NibbleArray::zeros()))
+    LightStorage::Dense(Box::new(LightNibbles::zeros()))
 }
 
 /// Build a fixture from `seed`. The protocol is:
@@ -83,13 +83,13 @@ pub fn zero_storage() -> LightStorage {
 ///    canonical y-major / z-mid / x-minor scan.
 /// 2. Pick `1..=3` block emitters at random `(x, y, z)`; for each, place
 ///    `TORCH_ID` at the cell, write the emission level into `block_light`,
-///    and push the seed entry onto `block_workspace.increase_queue` with
+///    and push the seed entry onto `block_queues.increase_queue` with
 ///    `FLAG_WRITE_LEVEL`.
 /// 3. Pick `1..=3` sky source columns at random `(x, z)`; for each, write
 ///    level 15 at `(x, 15, z)` into `sky_light` and push onto
-///    `sky_workspace.increase_queue` with `FLAG_WRITE_LEVEL`.
+///    `sky_queues.increase_queue` with `FLAG_WRITE_LEVEL`.
 /// 4. Pick `0..=2` random decrease seeds at random `(x, y, z, prev_level)`;
-///    push onto `block_workspace.decrease_queue` (no `sky_workspace` seeds
+///    push onto `block_queues.decrease_queue` (no `sky_queues` seeds
 ///    here — sky-decrease is exercised by Step 2 indirectly through the
 ///    increase-then-decrease passes the caller runs).
 pub fn build_fixture(seed: u64) -> Fixture {
@@ -110,8 +110,8 @@ pub fn build_fixture(seed: u64) -> Fixture {
 
     let mut block_light = zero_storage();
     let mut sky_light = zero_storage();
-    let mut block_workspace = BlockLightWorkspace::default();
-    let mut sky_workspace = SkyLightWorkspace::default();
+    let mut block_queues = BlockBfsQueues::default();
+    let mut sky_queues = SkyBfsQueues::default();
 
     let n_emitters = rng.random_range(1..=3u32);
     for _ in 0..n_emitters {
@@ -121,7 +121,7 @@ pub fn build_fixture(seed: u64) -> Fixture {
         let level = rng.random_range(1..=15u8);
         palette.set(BlockPos::new(x as i32, y as i32, z as i32), TORCH_ID);
         block_light.set(x as usize, y as usize, z as usize, level);
-        block_workspace.increase_queue.push(pack_bfs_entry(
+        block_queues.increase_queue.push(pack_bfs_entry(
             x,
             z,
             y,
@@ -136,7 +136,7 @@ pub fn build_fixture(seed: u64) -> Fixture {
         let x = rng.random_range(0..16u8);
         let z = rng.random_range(0..16u8);
         sky_light.set(x as usize, 15, z as usize, 15);
-        sky_workspace.increase_queue.push(pack_bfs_entry(
+        sky_queues.increase_queue.push(pack_bfs_entry(
             x,
             z,
             15,
@@ -152,7 +152,7 @@ pub fn build_fixture(seed: u64) -> Fixture {
         let y = rng.random_range(0..16u8);
         let z = rng.random_range(0..16u8);
         let level = rng.random_range(1..=15u8);
-        block_workspace.decrease_queue.push(pack_bfs_entry(
+        block_queues.decrease_queue.push(pack_bfs_entry(
             x,
             z,
             y,
@@ -167,10 +167,10 @@ pub fn build_fixture(seed: u64) -> Fixture {
         palette,
         block_light,
         sky_light,
-        block_workspace,
-        sky_workspace,
-        block_egress: BlockEgress::default(),
-        sky_egress: SkyEgress::default(),
+        block_queues,
+        sky_queues,
+        block_outbox: BlockOutbox::default(),
+        sky_outbox: SkyOutbox::default(),
     }
 }
 
@@ -185,29 +185,29 @@ pub fn run_propagation_and_serialize(fixture: &mut Fixture) -> ([u8; 2048], [u8;
         &fixture.table,
         &fixture.palette,
         &mut fixture.block_light,
-        &mut fixture.block_workspace,
-        &mut fixture.block_egress,
+        &mut fixture.block_queues,
+        &mut fixture.block_outbox,
     );
     propagate_decrease(
         &fixture.table,
         &fixture.palette,
         &mut fixture.block_light,
-        &mut fixture.block_workspace,
-        &mut fixture.block_egress,
+        &mut fixture.block_queues,
+        &mut fixture.block_outbox,
     );
     propagate_increase_sky(
         &fixture.table,
         &fixture.palette,
         &mut fixture.sky_light,
-        &mut fixture.sky_workspace,
-        &mut fixture.sky_egress,
+        &mut fixture.sky_queues,
+        &mut fixture.sky_outbox,
     );
     propagate_decrease_sky(
         &fixture.table,
         &fixture.palette,
         &mut fixture.sky_light,
-        &mut fixture.sky_workspace,
-        &mut fixture.sky_egress,
+        &mut fixture.sky_queues,
+        &mut fixture.sky_outbox,
     );
     (
         storage_to_bytes(&fixture.block_light),
@@ -217,12 +217,12 @@ pub fn run_propagation_and_serialize(fixture: &mut Fixture) -> ([u8; 2048], [u8;
 
 fn storage_to_bytes(s: &LightStorage) -> [u8; 2048] {
     match s {
-        LightStorage::Null => [0u8; 2048],
+        LightStorage::Empty => [0u8; 2048],
         LightStorage::Uniform(v) => {
             let packed = (*v & 0x0F) | ((*v & 0x0F) << 4);
             [packed; 2048]
         }
-        LightStorage::Mixed(arr) => *arr.0,
+        LightStorage::Dense(arr) => *arr.0,
     }
 }
 

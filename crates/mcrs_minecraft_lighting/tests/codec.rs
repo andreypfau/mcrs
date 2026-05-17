@@ -22,9 +22,9 @@ use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyLight};
-use mcrs_minecraft_lighting::nibble::NibbleArray;
+use mcrs_minecraft_lighting::nibble::LightNibbles;
 use mcrs_minecraft_lighting::storage::LightStorage;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
 use mcrs_minecraft_lighting::{BlockLightDirty, ColumnLightUpdate, LightingPlugin, SkyLightDirty};
 
 const TEST_DIM_HEIGHT: u32 = 384;
@@ -43,7 +43,7 @@ fn make_codec_test_app() -> (App, Entity) {
     (app, dim_entity)
 }
 
-fn make_stub_block_light_table() -> BlockLightTable {
+fn make_stub_block_light_table() -> BlockStateLightTable {
     let state_count = 2usize;
     let mut emission = vec![0u8; state_count].into_boxed_slice();
     let mut dampening = vec![0u8; state_count].into_boxed_slice();
@@ -57,7 +57,7 @@ fn make_stub_block_light_table() -> BlockLightTable {
     dampening[1] = 15;
     flags[1] =
         flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
-    BlockLightTable {
+    BlockStateLightTable {
         emission,
         dampening,
         occlusion,
@@ -100,8 +100,8 @@ fn spawn_test_column(app: &mut App, dim: Entity, column_pos: ColumnPos) -> Colum
         let chunk_entity = app
             .world_mut()
             .spawn((
-                BlockLight(LightStorage::Null),
-                SkyLight(LightStorage::Null),
+                BlockLight(LightStorage::Empty),
+                SkyLight(LightStorage::Empty),
                 InColumn(column),
             ))
             .id();
@@ -177,11 +177,11 @@ fn codec_emits_column_light_update_for_dirty_chunks() {
     // Give the dirty chunk a non-default block-light storage so the codec
     // emits a populated mask bit (a Null storage would route to the empty
     // mask instead).
-    let mut nibble = NibbleArray::zeros();
+    let mut nibble = LightNibbles::zeros();
     nibble.set(2, 4, 6, 0xA);
     app.world_mut()
         .entity_mut(target_chunk)
-        .insert(BlockLight(LightStorage::Mixed(Box::new(nibble))));
+        .insert(BlockLight(LightStorage::Dense(Box::new(nibble))));
 
     inject_block_dirty(&mut app, target_chunk, handles.column_pos, chunk_y);
 
@@ -229,13 +229,13 @@ fn codec_merges_block_and_sky_dirty_into_one_packet() {
 
     // Both layers get a non-default storage so the codec emits populated
     // mask bits on each side rather than empty-mask placeholders.
-    let mut block_nibble = NibbleArray::zeros();
+    let mut block_nibble = LightNibbles::zeros();
     block_nibble.set(0, 0, 0, 0x7);
-    let mut sky_nibble = NibbleArray::zeros();
+    let mut sky_nibble = LightNibbles::zeros();
     sky_nibble.set(0, 0, 0, 0xF);
     app.world_mut().entity_mut(target_chunk).insert((
-        BlockLight(LightStorage::Mixed(Box::new(block_nibble))),
-        SkyLight(LightStorage::Mixed(Box::new(sky_nibble))),
+        BlockLight(LightStorage::Dense(Box::new(block_nibble))),
+        SkyLight(LightStorage::Dense(Box::new(sky_nibble))),
     ));
 
     inject_block_dirty(&mut app, target_chunk, handles.column_pos, chunk_y);
@@ -285,10 +285,10 @@ fn emit_dirty_writes_block_light_dirty_for_modified_chunk() {
     // Simulate a propagation pass having touched this chunk: replace the
     // default Null storage with a Mixed buffer and insert the
     // BlockBfsPending marker the propagate systems would have left behind.
-    let mut nibble = NibbleArray::zeros();
+    let mut nibble = LightNibbles::zeros();
     nibble.set(1, 1, 1, 0x5);
     app.world_mut().entity_mut(target_chunk).insert((
-        BlockLight(LightStorage::Mixed(Box::new(nibble))),
+        BlockLight(LightStorage::Dense(Box::new(nibble))),
         BlockBfsPending,
     ));
 

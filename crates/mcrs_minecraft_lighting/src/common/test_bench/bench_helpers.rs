@@ -13,13 +13,13 @@ use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 
 use crate::components::{BlockBfsPending, SkyBfsPending};
-use crate::table::{flag_bits, BlockLightTable};
+use crate::table::{flag_bits, BlockStateLightTable};
 use crate::LightingPlugin;
 
 pub const TEST_DIM_HEIGHT: u32 = 384;
 pub const TEST_DIM_MIN_Y: i32 = -64;
 
-pub fn make_stub_block_light_table() -> BlockLightTable {
+pub fn make_stub_block_light_table() -> BlockStateLightTable {
     let state_count = 2usize;
     let mut emission = vec![0u8; state_count].into_boxed_slice();
     let mut dampening = vec![0u8; state_count].into_boxed_slice();
@@ -32,7 +32,7 @@ pub fn make_stub_block_light_table() -> BlockLightTable {
     emission[1] = 0;
     dampening[1] = 15;
     flags[1] = flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
-    BlockLightTable {
+    BlockStateLightTable {
         emission,
         dampening,
         occlusion,
@@ -40,7 +40,7 @@ pub fn make_stub_block_light_table() -> BlockLightTable {
     }
 }
 
-pub fn make_stub_block_light_table_with_torch() -> BlockLightTable {
+pub fn make_stub_block_light_table_with_torch() -> BlockStateLightTable {
     let state_count = 3usize;
     let mut emission = vec![0u8; state_count].into_boxed_slice();
     let mut dampening = vec![0u8; state_count].into_boxed_slice();
@@ -56,7 +56,7 @@ pub fn make_stub_block_light_table_with_torch() -> BlockLightTable {
     emission[2] = 14;
     dampening[2] = 0;
     flags[2] = 0;
-    BlockLightTable {
+    BlockStateLightTable {
         emission,
         dampening,
         occlusion,

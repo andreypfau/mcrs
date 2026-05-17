@@ -22,7 +22,7 @@
 // give the scheduler exclusive write access to heightmap state for the
 // duration of the system; no manual locking is needed.
 use crate::heightmap::{scan_top_down, HeightmapVariant};
-use crate::table::{flag_bits, BlockLightTable};
+use crate::table::{flag_bits, BlockStateLightTable};
 use bevy_ecs::entity::EntityHashMap;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, Local, Query, Res};
@@ -53,7 +53,7 @@ pub fn update_heightmaps_on_block_placed(
     chunks: Query<&InColumn>,
     mut columns: Query<(Entity, &mut Heightmaps, &ColumnChunks)>,
     palettes: Query<&BlockPalette>,
-    table: Res<BlockLightTable>,
+    table: Res<BlockStateLightTable>,
     mut partitions: Local<EntityHashMap<Vec<BlockPlaced>>>,
 ) {
     // Drop empty buckets to bound memory under long-running sessions where the
@@ -168,7 +168,7 @@ pub fn update_heightmaps_on_block_placed(
 fn rescan_column_xz(
     chunk_index: &ColumnChunks,
     palettes: &Query<&BlockPalette>,
-    table: &BlockLightTable,
+    table: &BlockStateLightTable,
     x: usize,
     z: usize,
     min_y: i32,
@@ -222,7 +222,7 @@ mod tests {
     const DIM_MIN_Y: i32 = 0;
     const DIM_HEIGHT: u32 = 16;
 
-    fn make_test_table() -> BlockLightTable {
+    fn make_test_table() -> BlockStateLightTable {
         let state_count = 2usize;
         let mut emission = vec![0u8; state_count].into_boxed_slice();
         let mut dampening = vec![0u8; state_count].into_boxed_slice();
@@ -237,7 +237,7 @@ mod tests {
         flags[1] = flag_bits::IS_NOT_AIR
             | flag_bits::IS_SOLID_OPAQUE
             | flag_bits::IS_MOTION_BLOCKING;
-        BlockLightTable {
+        BlockStateLightTable {
             emission,
             dampening,
             occlusion,

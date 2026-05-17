@@ -49,7 +49,7 @@ use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_minecraft_lighting::components::SkyLight;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
@@ -82,7 +82,7 @@ fn make_test_app() -> (App, Entity) {
     (app, dim)
 }
 
-fn make_stub_table() -> BlockLightTable {
+fn make_stub_table() -> BlockStateLightTable {
     let state_count = 2usize;
     let mut emission = vec![0u8; state_count].into_boxed_slice();
     let mut dampening = vec![0u8; state_count].into_boxed_slice();
@@ -95,7 +95,7 @@ fn make_stub_table() -> BlockLightTable {
     emission[1] = 0;
     dampening[1] = 15;
     flags[1] = flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
-    BlockLightTable {
+    BlockStateLightTable {
         emission,
         dampening,
         occlusion,

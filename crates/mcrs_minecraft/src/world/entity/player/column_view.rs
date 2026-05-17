@@ -21,7 +21,6 @@ use mcrs_engine::world::column::{
 };
 use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_lighting::codec::{build_full_light_data, ColumnLightUpdate, LightCodecParams};
-use mcrs_minecraft_lighting::components::{BlockBfsPending, SkyBfsPending};
 use mcrs_minecraft_lighting::sets::LightingSet;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::{
@@ -31,6 +30,7 @@ use mcrs_protocol::packets::game::clientbound::{
 use mcrs_protocol::{ColumnPos, ChunkData, Encode, LightData, VarInt, WritePacket};
 use rustc_hash::FxHashSet;
 use tracing::{debug, info, trace};
+use mcrs_minecraft_lighting::{BlockBfsPending, SkyBfsPending};
 
 pub struct ColumnViewPlugin;
 
@@ -216,7 +216,7 @@ fn send_column_queue(
     // Sections still cascading light through the bounded converge loop carry
     // `BlockBfsPending` or `SkyBfsPending`. Defer first-send of any column
     // with at least one such section — otherwise the codec snapshots default
-    // `Mixed(NibbleArray::zeros())` from pre-converged storage and the client
+    // `Mixed(LightNibbles::zeros())` from pre-converged storage and the client
     // caches darkness. The column re-enters the queue on the next tick once
     // propagation drains.
     light_dirty: Query<(), Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>,

@@ -1,18 +1,18 @@
-pub struct NibbleArray(pub Box<[u8; 2048]>);
+pub struct LightNibbles(pub Box<[u8; 2048]>);
 
-impl Clone for NibbleArray {
+impl Clone for LightNibbles {
     fn clone(&self) -> Self {
         Self(Box::new(*self.0))
     }
 }
 
-impl std::fmt::Debug for NibbleArray {
+impl std::fmt::Debug for LightNibbles {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("NibbleArray").field(&"<2048 bytes>").finish()
+        f.debug_tuple("LightNibbles").field(&"<2048 bytes>").finish()
     }
 }
 
-impl NibbleArray {
+impl LightNibbles {
     #[inline]
     pub fn zeros() -> Self {
         Self(Box::new([0u8; 2048]))
@@ -53,14 +53,14 @@ mod tests {
 
     #[test]
     fn nibble_low_byte_index_zero() {
-        let mut arr = NibbleArray::zeros();
+        let mut arr = LightNibbles::zeros();
         arr.set(0, 0, 0, 0x0F);
         assert_eq!(arr.0[0], 0x0F);
     }
 
     #[test]
     fn nibble_high_byte_index_one_preserves_low() {
-        let mut arr = NibbleArray::zeros();
+        let mut arr = LightNibbles::zeros();
         arr.set(0, 0, 0, 0x0F);
         arr.set(1, 0, 0, 0x0A);
         assert_eq!(arr.0[0], 0xAF);
@@ -68,9 +68,9 @@ mod tests {
 
     #[test]
     fn nibble_y_stride_256() {
-        let mut arr = NibbleArray::zeros();
+        let mut arr = LightNibbles::zeros();
         arr.set(0, 1, 0, 5);
-        let linear = NibbleArray::index(0, 1, 0);
+        let linear = LightNibbles::index(0, 1, 0);
         assert_eq!(linear, 256);
         let byte_index = linear >> 1;
         assert_eq!(byte_index, 128);
@@ -80,9 +80,9 @@ mod tests {
 
     #[test]
     fn nibble_z_stride_16() {
-        let mut arr = NibbleArray::zeros();
+        let mut arr = LightNibbles::zeros();
         arr.set(0, 0, 1, 3);
-        let linear = NibbleArray::index(0, 0, 1);
+        let linear = LightNibbles::index(0, 0, 1);
         assert_eq!(linear, 16);
         let byte_index = linear >> 1;
         assert_eq!(byte_index, 8);
@@ -92,9 +92,9 @@ mod tests {
 
     #[test]
     fn nibble_max_coord_x_15_y_15_z_15() {
-        let mut arr = NibbleArray::zeros();
+        let mut arr = LightNibbles::zeros();
         arr.set(15, 15, 15, 0xC);
-        let linear = NibbleArray::index(15, 15, 15);
+        let linear = LightNibbles::index(15, 15, 15);
         assert_eq!(linear, 0xFFF);
         let byte_index = linear >> 1;
         assert_eq!(byte_index, 0x7FF);
@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn nibble_filled_constructor() {
-        let arr = NibbleArray::filled(0x07);
+        let arr = LightNibbles::filled(0x07);
         for i in 0..2048 {
             assert_eq!(arr.0[i], 0x77, "byte {i} should be 0x77");
         }
@@ -124,7 +124,7 @@ mod tests {
             (7, 3, 6, 0x1),
             (8, 8, 8, 0x4),
         ];
-        let mut arr = NibbleArray::zeros();
+        let mut arr = LightNibbles::zeros();
         for &(x, y, z, v) in &cells {
             arr.set(x, y, z, v);
         }
@@ -135,7 +135,7 @@ mod tests {
 
     #[test]
     fn nibble_independent_bytes() {
-        let mut arr = NibbleArray::zeros();
+        let mut arr = LightNibbles::zeros();
         arr.set(0, 0, 0, 0x6);
         arr.set(2, 0, 0, 0xB);
         assert_eq!(arr.get(0, 0, 0), 0x6);
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn nibble_clone_is_deep() {
-        let mut a = NibbleArray::zeros();
+        let mut a = LightNibbles::zeros();
         a.set(5, 5, 5, 0xE);
         let b = a.clone();
         a.set(5, 5, 5, 0x1);

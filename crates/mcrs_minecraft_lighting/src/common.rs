@@ -8,7 +8,9 @@ pub mod enqueue;
 pub mod geom;
 pub mod heightmap;
 pub mod heightmap_update;
+pub mod invariants;
 pub mod lifecycle;
+pub mod propagate;
 pub mod table;
 pub mod telemetry;
 

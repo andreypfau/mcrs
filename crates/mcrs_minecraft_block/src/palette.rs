@@ -105,7 +105,7 @@ impl BlockPalette {
     // is the current vanilla convention but is not enforced by `BlockPalette`
     // itself. Reordering the static block registry so air ends up at a
     // different ID would silently break this count. The principled fix is to
-    // consult the `IS_NOT_AIR` bit from `BlockLightTable.flags_for`, but that
+    // consult the `IS_NOT_AIR` bit from `BlockStateLightTable.flags_for`, but that
     // requires plumbing the table through `non_air_block_count`'s callers in
     // `column_view`. Tracked as a follow-up.
     pub fn non_air_block_count(&self) -> u16 {

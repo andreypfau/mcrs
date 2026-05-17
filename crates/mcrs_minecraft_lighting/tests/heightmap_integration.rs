@@ -1,7 +1,7 @@
 // HEIGHT-02 eager-update + initial-prime integration tests.
 //
 // Each test builds a fresh Bevy `App` registering `ColumnPlugin` +
-// `LightingPlugin`, inserts a stub `BlockLightTable` resource, registers the
+// `LightingPlugin`, inserts a stub `BlockStateLightTable` resource, registers the
 // `BlockPlaced` message buffer manually, spawns a dimension and a chunk,
 // runs `FixedUpdate` to let Stage 2.5 prime the heightmap, then either
 // asserts the prime result or emits a synthetic `BlockPlaced` and asserts
@@ -27,7 +27,7 @@ use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
+use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
@@ -55,7 +55,7 @@ fn make_heightmap_test_app() -> (App, Entity) {
     (app, dim_entity)
 }
 
-fn make_stub_block_light_table() -> BlockLightTable {
+fn make_stub_block_light_table() -> BlockStateLightTable {
     let state_count = 2usize;
     let mut emission = vec![0u8; state_count].into_boxed_slice();
     let mut dampening = vec![0u8; state_count].into_boxed_slice();
@@ -69,7 +69,7 @@ fn make_stub_block_light_table() -> BlockLightTable {
     dampening[1] = 15;
     flags[1] =
         flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
-    BlockLightTable {
+    BlockStateLightTable {
         emission,
         dampening,
         occlusion,

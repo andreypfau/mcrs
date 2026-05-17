@@ -105,7 +105,7 @@ impl Plugin for PhaseTimingPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(PhaseTimings(&PHASE_ACCUMULATORS));
 
-        // Probe: count any chunk with pending work on either channel
+        // Probe: count any chunk with parked work on either channel
         // immediately before `LightingSet::Converge` runs, and remember
         // the first one's chunk_pos so the harness can identify it.
         app.add_systems(

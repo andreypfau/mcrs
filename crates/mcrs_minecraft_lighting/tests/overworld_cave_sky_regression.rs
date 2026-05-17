@@ -38,7 +38,7 @@ use mcrs_minecraft::world::chunk::{ColumnScheduler, ChunkPlugin as WorldgenChunk
 use mcrs_minecraft_lighting::components::{
     BlockBfsPending, BlockNeedsInitialSeed, SkyBfsPending, SkyLight, SkyNeedsInitialSeed,
 };
-use mcrs_minecraft_lighting::table::BlockLightTable;
+use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::density_function::proto::{
@@ -56,7 +56,7 @@ const DIM_HEIGHT: u32 = 384;
 
 fn workspace_assets_path() -> PathBuf {
     // CARGO_MANIFEST_DIR points to crates/mcrs_minecraft_lighting/ at test time.
-    // The workspace assets/ directory is two levels up.
+    // The queues assets/ directory is two levels up.
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     manifest_dir
         .parent()
@@ -157,9 +157,9 @@ fn load_overworld_noise_router(assets_path: &std::path::Path) -> OverworldNoiseR
     OverworldNoiseRouter(Arc::new(router))
 }
 
-// ---- BlockLightTable from block registry ------------------------------------
+// ---- BlockStateLightTable from block registry ------------------------------------
 
-fn build_production_block_light_table() -> BlockLightTable {
+fn build_production_block_light_table() -> BlockStateLightTable {
     use mcrs_minecraft_lighting::table::flag_bits;
 
     // Register and freeze the block registry in an isolated StaticRegistry
@@ -218,7 +218,7 @@ fn build_production_block_light_table() -> BlockLightTable {
         }
     }
 
-    BlockLightTable { emission, dampening, occlusion, flags }
+    BlockStateLightTable { emission, dampening, occlusion, flags }
 }
 
 // ---- Convergence helpers -----------------------------------------------------
@@ -383,7 +383,7 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
                 let loading = count_chunk_loading(app.world_mut(), dim_entity);
                 let sched = app.world().resource::<ColumnScheduler>();
                 eprintln!(
-                    "phase {} tick {}: pending={} in_flight={} loading={} dirty={} needs_init={}",
+                    "phase {} tick {}: parked={} in_flight={} loading={} dirty={} needs_init={}",
                     step_idx, tick,
                     sched.pending.len(),
                     sched.in_flight.len(),
@@ -401,7 +401,7 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
             let sched = app.world().resource::<ColumnScheduler>();
             panic!(
                 "phase {} ({:.0}, {:.0}, {:.0}) failed to converge in {} ticks; \
-                 scheduler pending={} in_flight={} loading={}",
+                 scheduler parked={} in_flight={} loading={}",
                 step_idx,
                 px, py, pz,
                 hard_cap_per_phase,

@@ -6,20 +6,13 @@ use crate::converge::{
 };
 use crate::distribute::distribute_cross_chunk_wavefronts;
 use crate::emit_dirty::{
-    clear_block_bfs_pending_safety_net, clear_light_tickets, clear_sky_bfs_pending_safety_net,
-    downgrade_light_storage, emit_block_light_dirty, emit_sky_light_dirty,
+    clear_light_tickets,
+    downgrade_light_storage,
 };
-use crate::enqueue::{
-    consume_needs_full_reseed, enqueue_block_light_on_block_placed,
-    enqueue_sky_light_on_block_placed, invalidate_previous_topmost, pull_block_neighbor_edges,
-    pull_sky_neighbor_edges, seed_block_emitters, seed_sky_initial,
-};
+use crate::enqueue::consume_needs_full_reseed;
+use crate::sky_light::enqueue::invalidate_previous_topmost;
 use crate::heightmap_update::update_heightmaps_on_block_placed;
 use crate::lifecycle::{attach_lighting_state, prime_heightmaps_on_column_spawn};
-use crate::propagate::{
-    propagate_decrease_block_system, propagate_decrease_sky_system,
-    propagate_increase_block_system, propagate_increase_sky_system,
-};
 use crate::sets::LightingSet;
 use crate::table::build_block_light_table;
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
@@ -30,6 +23,12 @@ use mcrs_core::AppState;
 use mcrs_engine::world::column::ColumnLifecycleSet;
 use mcrs_minecraft_block::block_update::{apply_set_block_request, BlockPlaced, BlockUpdateSet};
 use mcrs_vanilla::{freeze_static_tags, transition_to_playing};
+use crate::block_light::emit_dirty::{clear_block_bfs_pending_safety_net, emit_block_light_dirty};
+use crate::block_light::enqueue::{enqueue_block_light_on_block_placed, pull_block_neighbor_edges, seed_block_emitters};
+use crate::block_light::propagate::{propagate_decrease_block_system, propagate_increase_block_system};
+use crate::sky_light::emit_dirty::{clear_sky_bfs_pending_safety_net, emit_sky_light_dirty};
+use crate::sky_light::enqueue::{enqueue_sky_light_on_block_placed, pull_sky_neighbor_edges, seed_sky_initial};
+use crate::sky_light::propagate::{propagate_decrease_sky_system, propagate_increase_sky_system};
 
 #[cfg(feature = "lighting-trace")]
 fn span_lighting_enqueue() {
@@ -58,7 +57,7 @@ impl Plugin for LightingPlugin {
         // `update_heightmaps_on_block_placed` reads `MessageReader<BlockPlaced>`.
         // The production binary also registers `BlockUpdatePlugin`, which calls
         // `add_message::<BlockPlaced>()`. Registering twice would re-initialize
-        // the message buffer and drop pending messages, so guard against the
+        // the message buffer and drop parked messages, so guard against the
         // duplicate so the lighting plugin stays self-contained for integration
         // tests but no-ops when `BlockUpdatePlugin` has already initialized the
         // buffer.
@@ -69,7 +68,7 @@ impl Plugin for LightingPlugin {
             app.add_message::<BlockPlaced>();
         }
 
-        app.init_resource::<crate::table::BlockLightTable>();
+        app.init_resource::<crate::table::BlockStateLightTable>();
         app.add_systems(
             OnEnter(AppState::WorldgenFreeze),
             build_block_light_table
@@ -198,7 +197,7 @@ impl Plugin for LightingPlugin {
 
         // Enqueue stage: the just-loaded chunk's own emitter/sky seeds land
         // first via the parallel `(seed_block_emitters, seed_sky_initial)`
-        // pair (disjoint workspace queries — slotted in parallel by Bevy's
+        // pair (disjoint queues queries — slotted in parallel by Bevy's
         // conflict graph). `invalidate_previous_topmost` runs after
         // `seed_sky_initial` so the `NeedsRetop` handoff is visible across
         // the `apply_deferred` barrier between Enqueue substages. The

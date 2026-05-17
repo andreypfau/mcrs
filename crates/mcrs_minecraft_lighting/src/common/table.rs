@@ -6,14 +6,14 @@ use mcrs_vanilla::block::behaviour::Properties;
 use mcrs_vanilla::block::Block;
 
 #[derive(Resource, Debug, Default)]
-pub struct BlockLightTable {
+pub struct BlockStateLightTable {
     pub emission: Box<[u8]>,
     pub dampening: Box<[u8]>,
     pub occlusion: Box<[&'static VoxelShape]>,
     pub flags: Box<[u8]>,
 }
 
-impl BlockLightTable {
+impl BlockStateLightTable {
     #[inline]
     pub fn len(&self) -> usize {
         self.emission.len()
@@ -82,7 +82,7 @@ pub fn build_block_light_table(
 ) {
     debug_assert!(
         blocks.frozen(),
-        "BlockLightTable::build called before registry freeze"
+        "BlockStateLightTable::build called before registry freeze"
     );
 
     let mut total_states = 0usize;
@@ -107,7 +107,7 @@ pub fn build_block_light_table(
                 .base_state_id()
                 .0
                 .checked_add(offset)
-                .expect("block state ID overflow during BlockLightTable build");
+                .expect("block state ID overflow during BlockStateLightTable build");
             let state = BlockStateId(state_id);
             let idx = base + offset as usize;
             emission[idx] = block.properties.light_emission.eval(block, state);
@@ -117,8 +117,8 @@ pub fn build_block_light_table(
         }
     }
 
-    tracing::info!(state_count = total_states, "built BlockLightTable");
-    commands.insert_resource(BlockLightTable {
+    tracing::info!(state_count = total_states, "built BlockStateLightTable");
+    commands.insert_resource(BlockStateLightTable {
         emission,
         dampening,
         occlusion,
@@ -149,7 +149,7 @@ mod tests {
         }))
     }
 
-    fn build_table(blocks: Vec<&'static Block>) -> BlockLightTable {
+    fn build_table(blocks: Vec<&'static Block>) -> BlockStateLightTable {
         let mut registry: StaticRegistry<Block> = StaticRegistry::new();
         for block in blocks {
             registry.register(block.identifier, block);
@@ -178,7 +178,7 @@ mod tests {
                     .base_state_id()
                     .0
                     .checked_add(offset)
-                    .expect("block state ID overflow during BlockLightTable build");
+                    .expect("block state ID overflow during BlockStateLightTable build");
                 let state = BlockStateId(state_id);
                 let idx = base + offset as usize;
                 emission[idx] = block.properties.light_emission.eval(block, state);
@@ -188,7 +188,7 @@ mod tests {
             }
         }
 
-        BlockLightTable {
+        BlockStateLightTable {
             emission,
             dampening,
             occlusion,

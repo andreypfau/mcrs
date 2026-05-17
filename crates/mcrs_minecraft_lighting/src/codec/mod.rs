@@ -5,7 +5,6 @@
 )]
 
 pub mod codec;
-pub mod components;
 pub mod nibble;
 pub mod sets;
 pub mod storage;

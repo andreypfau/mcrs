@@ -1,4 +1,4 @@
-use crate::common::components::{Wavefront, WORKSPACE_QUEUE_BASELINE_CAPACITY};
+use crate::common::components::{CrossChunkWavefront, WORKSPACE_QUEUE_BASELINE_CAPACITY};
 use crate::storage::LightStorage;
 use bevy_ecs::prelude::Component;
 use smallvec::SmallVec;
@@ -13,27 +13,27 @@ pub struct BlockLight(pub LightStorage);
 //
 // | Type                  | spilled% | len>8% | len>16% |
 // | --------------------- | -------- | ------ | ------- |
-// | BlockEgress           |    0.00% |  0.00% |   0.00% |
-// | BlockIncoming         |    0.00% |  0.00% |   0.00% |
-// | BlockPendingEgress    |    0.00% |  0.00% |   0.00% |
-// | SkyEgress             |    0.00% |  0.00% |   0.00% |
-// | SkyIncoming           |   87.50% |  0.00% |   0.00% |
-// | SkyPendingEgress      |    4.17% |  4.17% |   4.17% |
+// | BlockOutbox           |    0.00% |  0.00% |   0.00% |
+// | BlockInbox         |    0.00% |  0.00% |   0.00% |
+// | BlockParkedEgress    |    0.00% |  0.00% |   0.00% |
+// | SkyOutbox             |    0.00% |  0.00% |   0.00% |
+// | SkyInbox           |   87.50% |  0.00% |   0.00% |
+// | SkyParkedEgress      |    4.17% |  4.17% |   4.17% |
 //
-// SkyIncoming clears the >50% spill threshold by a wide margin: ~87% of
+// SkyInbox clears the >50% spill threshold by a wide margin: ~87% of
 // sections had `len > 8` at some point during warmup (forcing a heap spill
 // that persists for the lifetime of the SmallVec, since we never call
-// `shrink_to_fit`). The post-bump snapshot then shows SkyIncoming still at
+// `shrink_to_fit`). The post-bump snapshot then shows SkyInbox still at
 // ~87% spilled - meaning the per-section peak is in fact above 16 for
 // most chunks, not in the 9..=16 sweet spot. The bump therefore does NOT
-// eliminate the SkyIncoming heap allocations.
+// eliminate the SkyInbox heap allocations.
 //
 // We keep the bump anyway because:
 //   1. The plan-decision threshold (>50% spill -> bump to 16) is the
-//      pre-registered rule, and SkyIncoming clearly satisfies it. Reverting
+//      pre-registered rule, and SkyInbox clearly satisfies it. Reverting
 //      based on a post-hoc "the bump didn't help enough" reading would be
 //      a moving-goalpost change.
-//   2. Workloads with smaller SkyIncoming peaks (single torch, isolated
+//   2. Workloads with smaller SkyInbox peaks (single torch, isolated
 //      pit dig) are likely in the 9..=16 sweet spot, and the bump moves
 //      them from "heap" to "inline" exactly as intended.
 //   3. The cost is bounded: per-section inline grows from 32 B to 64 B,
@@ -42,29 +42,29 @@ pub struct BlockLight(pub LightStorage);
 //      in the measurement; the rest of the delta is SmallVec headers).
 //
 // The trait `WavefrontFanOut::{egress_inner_mut, pending_inner_mut}` in
-// `distribute.rs` requires uniform inline size across egress/pending
+// `distribute.rs` requires uniform inline size across outbox/parked
 // implementations, so the six types move together rather than per-type.
 
 #[derive(Component, Clone, Debug, Default)]
-pub struct BlockEgress(pub SmallVec<[Wavefront; 16]>);
+pub struct BlockOutbox(pub SmallVec<[CrossChunkWavefront; 16]>);
 
 #[derive(Component, Clone, Debug, Default)]
-pub struct BlockIncoming(pub SmallVec<[Wavefront; 16]>);
+pub struct BlockInbox(pub SmallVec<[CrossChunkWavefront; 16]>);
 
 /// Cross-chunk wavefronts that cannot fit in the destination's `*Incoming`
 /// buffer yet; flushed by the cross-chunk distribute pass. Hard-capped at
 /// `PENDING_EGRESS_CAP` entries; overflow triggers a `NeedsFullReseed` insert
 /// on the destination column entity.
 #[derive(Component, Clone, Debug, Default)]
-pub struct BlockPendingEgress(pub SmallVec<[Wavefront; 16]>);
+pub struct BlockParkedEgress(pub SmallVec<[CrossChunkWavefront; 16]>);
 
 #[derive(Component, Debug)]
-pub struct BlockLightWorkspace {
+pub struct BlockBfsQueues {
     pub increase_queue: Vec<u64>,
     pub decrease_queue: Vec<u64>,
 }
 
-impl Default for BlockLightWorkspace {
+impl Default for BlockBfsQueues {
     fn default() -> Self {
         Self {
             increase_queue: Vec::with_capacity(WORKSPACE_QUEUE_BASELINE_CAPACITY),
@@ -73,7 +73,7 @@ impl Default for BlockLightWorkspace {
     }
 }
 
-/// Per-channel pending-BFS marker for the block-light engine.
+/// Per-channel parked-BFS marker for the block-light engine.
 /// Inserted by enqueue / seed / pull / distribute when a chunk's
 /// block-light state needs another BFS pass; consumed by
 /// `propagate_increase_block_system` at quiescence and by
@@ -96,7 +96,7 @@ mod tests {
 
     #[test]
     fn block_light_workspace_default_is_empty_with_baseline_capacity() {
-        let ws = BlockLightWorkspace::default();
+        let ws = BlockBfsQueues::default();
         assert!(ws.increase_queue.is_empty());
         assert!(ws.decrease_queue.is_empty());
         assert_eq!(ws.increase_queue.capacity(), WORKSPACE_QUEUE_BASELINE_CAPACITY);
@@ -105,18 +105,18 @@ mod tests {
 
     #[test]
     fn block_egress_default_is_empty() {
-        let e = BlockEgress::default();
+        let e = BlockOutbox::default();
         assert!(e.0.is_empty());
         // SmallVec inline capacity is exactly 16; see the type doc above
         // for the measurement that motivates the 16-entry choice.
-        let _: SmallVec<[Wavefront; 16]> = e.0;
+        let _: SmallVec<[CrossChunkWavefront; 16]> = e.0;
     }
 
     #[test]
     fn block_pending_egress_default_is_empty() {
-        let e = BlockPendingEgress::default();
+        let e = BlockParkedEgress::default();
         assert!(e.0.is_empty());
-        let _: SmallVec<[Wavefront; 16]> = e.0;
+        let _: SmallVec<[CrossChunkWavefront; 16]> = e.0;
     }
 
     #[test]

@@ -10,14 +10,15 @@ use crate::heightmap::{
     record_topmost, record_unsurfaced_column, record_unsurfaced_motion_column, scan_top_down,
     HeightmapVariant, ScanOutcome,
 };
-use crate::bundle::{BlockLightBundle, SkyLightBundle};
-use crate::components::{BlockNeedsInitialSeed, IsAllAir, SkyNeedsInitialSeed};
-use crate::table::BlockLightTable;
+use crate::table::BlockStateLightTable;
 use bevy_ecs::prelude::{Added, Changed, Commands, Component, Entity, Has, Query, Res, With};
 use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{Column, ColumnChunks, Heightmaps};
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_minecraft_block::palette::BlockPalette;
+use crate::block_light::bundle::BlockLightBundle;
+use crate::{BlockNeedsInitialSeed, IsAllAir, SkyNeedsInitialSeed};
+use crate::sky_light::bundle::SkyLightBundle;
 
 const XZ_FULL: [(usize, usize); 256] = {
     let mut arr = [(0usize, 0usize); 256];
@@ -124,7 +125,7 @@ impl ColumnHeightmapScan {
 /// chunks without per-block work.
 ///
 /// Pitfall #1 safety: this system lives in `mcrs_minecraft_lighting`
-/// because it consumes `BlockLightTable`. The engine crate stays free of
+/// because it consumes `BlockStateLightTable`. The engine crate stays free of
 /// any lighting-side imports. Runs after `ColumnLifecycleSet::ReconcileIndex`
 /// (Stage 2) so the column's `ColumnChunks` is fully populated for the
 /// chunks that triggered the column spawn.
@@ -134,7 +135,7 @@ pub fn prime_heightmaps_on_column_spawn(
     mut col_state: Query<(&mut Heightmaps, Option<&mut ColumnHeightmapScan>)>,
     in_dimensions: Query<&InDimension>,
     sky_dims: Query<(), With<HasSkyLight>>,
-    table: Res<BlockLightTable>,
+    table: Res<BlockStateLightTable>,
     mut commands: Commands,
 ) {
     for (column_entity, chunk_index) in changed_columns.iter() {
@@ -151,7 +152,7 @@ pub fn prime_heightmaps_on_column_spawn(
                 // Late-arrival: insert the per-channel needs-initial markers on
                 // any chunk slot present. The Changed event fired because a new
                 // chunk just landed; the older chunks already have the markers
-                // (consumed or pending) so the re-insert is a no-op for them.
+                // (consumed or parked) so the re-insert is a no-op for them.
                 for slot in chunk_index.sections.iter() {
                     let Some(chunk_entity) = slot else { continue };
                     let mut e = commands.entity(*chunk_entity);
@@ -201,7 +202,7 @@ fn advance_scan(
     chunks: &Query<(&BlockPalette, Has<IsAllAir>)>,
     in_dimensions: &Query<&InDimension>,
     sky_dims: &Query<(), With<HasSkyLight>>,
-    table: &BlockLightTable,
+    table: &BlockStateLightTable,
     commands: &mut Commands,
 ) {
     debug_assert!(!scan.is_finalized());
@@ -323,7 +324,7 @@ fn insert_initial_light_markers(
 pub fn attach_lighting_state(
     newly_loaded: Query<(Entity, &BlockPalette, &InDimension, &ChunkPos), Added<ChunkLoaded>>,
     sky_dims: Query<(), With<HasSkyLight>>,
-    table: Res<BlockLightTable>,
+    table: Res<BlockStateLightTable>,
     mut commands: Commands,
 ) {
     for (chunk_entity, palette, in_dim, _chunk_pos) in newly_loaded.iter() {
@@ -342,7 +343,7 @@ pub fn attach_lighting_state(
 /// `true` if every cell in the chunk's palette has `emission == 0` and
 /// `dampening == 0`. Uses `BlockPalette::for_each_distinct_state` to avoid
 /// scanning all 4096 cells when the palette holds only a handful of states.
-fn is_chunk_all_air(palette: &BlockPalette, table: &BlockLightTable) -> bool {
+fn is_chunk_all_air(palette: &BlockPalette, table: &BlockStateLightTable) -> bool {
     let mut all_air = true;
     palette.for_each_distinct_state(|state| {
         if !all_air {
@@ -359,9 +360,8 @@ fn is_chunk_all_air(palette: &BlockPalette, table: &BlockLightTable) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::components::{BlockLight, SkyLight};
     use crate::table::flag_bits;
-    use crate::LightingPlugin;
+    use crate::{BlockLight, LightingPlugin, SkyLight};
     use bevy_app::{App, FixedUpdate, Update};
     use bevy_state::app::{AppExtStates, StatesPlugin};
     use mcrs_core::voxel_shape::VoxelShape;
@@ -376,7 +376,7 @@ mod tests {
     const TEST_DIM_HEIGHT: u32 = 384;
     const TEST_DIM_MIN_Y: i32 = -64;
 
-    fn stub_block_light_table() -> BlockLightTable {
+    fn stub_block_light_table() -> BlockStateLightTable {
         let state_count = 2usize;
         let mut emission = vec![0u8; state_count].into_boxed_slice();
         let mut dampening = vec![0u8; state_count].into_boxed_slice();
@@ -390,7 +390,7 @@ mod tests {
         dampening[1] = 15;
         flags[1] =
             flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
-        BlockLightTable {
+        BlockStateLightTable {
             emission,
             dampening,
             occlusion,

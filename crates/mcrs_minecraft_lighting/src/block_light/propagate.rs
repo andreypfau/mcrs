@@ -3,4 +3,72 @@
 //! surface so callers can land on `crate::block_light::propagate::*`
 //! as the canonical path. A future refactor will move the bodies here.
 
-pub use crate::propagate::{propagate_decrease_block_system, propagate_increase_block_system};
+use bevy_ecs::change_detection::Res;
+use bevy_ecs::prelude::{ParallelCommands, Query, With};
+use bevy_ecs::entity::Entity;
+use mcrs_minecraft_block::palette::BlockPalette;
+use crate::{propagate, BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockOutbox};
+use crate::bfs::{propagate_decrease, propagate_increase};
+use crate::table::BlockStateLightTable;
+
+pub fn propagate_decrease_block_system(
+    table: Res<BlockStateLightTable>,
+    mut chunks: Query<
+        (
+            Entity,
+            &BlockPalette,
+            &mut BlockLight,
+            &mut BlockBfsQueues,
+            &mut BlockOutbox,
+            &mut BlockInbox,
+        ),
+        With<BlockBfsPending>,
+    >,
+) {
+    #[cfg(feature = "lighting-trace")]
+    let chunk_count = chunks.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let _span = tracing::info_span!("propagate_decrease", chunk_count = chunk_count).entered();
+    chunks.par_iter_mut().for_each(
+        |(_entity, palette, mut light, mut queues, mut outbox, mut inbox)| {
+            propagate::drain_incoming_into_queue(&mut inbox.0, &mut queues.increase_queue);
+            propagate_decrease(&table, palette, &mut light.0, &mut queues, &mut outbox);
+            #[cfg(feature = "lighting-trace")]
+            tracing::debug!(chunk = ?_entity, queue_len = queues.decrease_queue.len(), "chunk bfs decrease block");
+        },
+    );
+}
+
+pub fn propagate_increase_block_system(
+    table: Res<BlockStateLightTable>,
+    mut chunks: Query<
+        (
+            Entity,
+            &BlockPalette,
+            &mut BlockLight,
+            &mut BlockBfsQueues,
+            &mut BlockOutbox,
+            &mut BlockInbox,
+        ),
+        With<BlockBfsPending>,
+    >,
+    commands: ParallelCommands,
+) {
+    #[cfg(feature = "lighting-trace")]
+    let chunk_count = chunks.iter().count();
+    #[cfg(feature = "lighting-trace")]
+    let _span = tracing::info_span!("propagate_increase", chunk_count = chunk_count).entered();
+    chunks.par_iter_mut().for_each(
+        |(entity, palette, mut light, mut queues, mut outbox, mut inbox)| {
+            propagate::drain_incoming_into_queue(&mut inbox.0, &mut queues.increase_queue);
+            propagate_increase(&table, palette, &mut light.0, &mut queues, &mut outbox);
+            if queues.increase_queue.is_empty() && queues.decrease_queue.is_empty() {
+                commands.command_scope(|mut cmd| {
+                    cmd.entity(entity).remove::<BlockBfsPending>();
+                });
+            }
+            #[cfg(feature = "lighting-trace")]
+            tracing::debug!(chunk = ?entity, queue_len = queues.increase_queue.len(), "chunk bfs increase block");
+        },
+    );
+}

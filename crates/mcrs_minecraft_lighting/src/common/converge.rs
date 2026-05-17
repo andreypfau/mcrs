@@ -1,13 +1,13 @@
 //! Cross-chunk convergence driver and sub-schedule label.
 //!
-//! `light_converge_driver` is the workspace's only sanctioned intra-tick
+//! `light_converge_driver` is the queues's only sanctioned intra-tick
 //! `for`/`loop` per the concurrency conventions exception for the bounded
 //! intra-tick convergence loop. It is gated on `MAX_ITERATIONS` iterations,
 //! `HARD_BUDGET` wall time, and absence of dirty chunks.
 //!
 //! The driver runs `LightConvergeSchedule` against the host `World` and
 //! polls `Query<(), Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>`
-//! after each iteration. Quiescence (zero pending matches on either
+//! after each iteration. Quiescence (zero parked matches on either
 //! channel) is the primary termination condition; the hard wall-clock
 //! budget and the max-iteration cap are the safety nets.
 //! Cap-fire emits a `tracing::warn!` and increments `LIGHT_CONVERGE_CAPPED_TOTAL`;
@@ -18,8 +18,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::ScheduleLabel;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
-
-use crate::components::{BlockBfsPending, SkyBfsPending};
+use crate::{BlockBfsPending, SkyBfsPending};
 use crate::telemetry::{LIGHT_CONVERGE_CAPPED_TOTAL, LIGHT_CONVERGE_ITERATIONS_TOTAL};
 
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
@@ -44,7 +43,7 @@ pub fn light_converge_driver(world: &mut World) {
     // block updates) routinely burn 30-100 ms before the lighting stage
     // even runs; sharing the deadline with them meant the driver would
     // cap-on-iteration-1 every tick during chunk load, regardless of how
-    // little lighting work was actually pending. Anchoring the budget
+    // little lighting work was actually parked. Anchoring the budget
     // here gives the driver a predictable per-tick wall-clock slice
     // (`HARD_BUDGET`) and keeps the cap signal meaningful — it fires only
     // when the cascade itself is starved, not because the tick was busy.
@@ -53,9 +52,9 @@ pub fn light_converge_driver(world: &mut World) {
     let _span = tracing::info_span!("light_converge_driver", iter = tracing::field::Empty).entered();
 
     // Pre-check: skip the entire `LightConvergeSchedule` when no chunk
-    // is currently pending on either channel. The schedule's four stages
+    // is currently parked on either channel. The schedule's four stages
     // each kick off a `par_iter_mut` that walks every chunk's archetype
-    // to evaluate the per-channel pending filter — for a populated world
+    // to evaluate the per-channel parked filter — for a populated world
     // with thousands of chunks that scan dominates the tick cost
     // (profile-measured at roughly 650 us per tick on the spawn_warmup_vd12
     // fixture, around 64 percent of the whole tick) even though the body
@@ -152,7 +151,7 @@ mod tests {
         }
     }
 
-    /// Helper: re-mark every chunk pending (idempotent under
+    /// Helper: re-mark every chunk parked (idempotent under
     /// `With<BlockBfsPending>` filter — the chunk will be queried again next
     /// iteration because `Commands::insert` re-applies the marker). Forces
     /// the convergence driver to never reach quiescence.
@@ -316,7 +315,7 @@ mod tests {
     /// Helper analog of `clear_one_dirty_chunk` keyed on the sky-channel
     /// marker. Used by `driver_terminates_with_only_one_channel_pending`
     /// to verify the `Or<...>` quiescence probe detects single-channel
-    /// pending state on the sky side.
+    /// parked state on the sky side.
     fn clear_one_sky_pending_chunk(
         mut commands: Commands,
         dirty: Query<Entity, With<SkyBfsPending>>,
@@ -328,8 +327,8 @@ mod tests {
 
     /// Verifies the converge driver's
     /// `Or<(With<BlockBfsPending>, With<SkyBfsPending>)>` probe correctly
-    /// detects single-channel pending state. The driver runs one iteration
-    /// to clear the single pending marker, then terminates via the
+    /// detects single-channel parked state. The driver runs one iteration
+    /// to clear the single parked marker, then terminates via the
     /// quiescence path.
     #[test]
     fn driver_terminates_with_only_one_channel_pending() {
@@ -337,7 +336,7 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
 
-        // Block-only pending: a schedule that clears BlockBfsPending must
+        // Block-only parked: a schedule that clears BlockBfsPending must
         // make the driver observe quiescence after one iteration.
         let mut app_block = build_driver_app_with_schedule(|| {
             let mut schedule = Schedule::new(LightConvergeSchedule);
@@ -351,16 +350,16 @@ mod tests {
         assert_eq!(
             b_after.iterations - b_before.iterations,
             1,
-            "block-only pending: driver runs one iteration then quiesces"
+            "block-only parked: driver runs one iteration then quiesces"
         );
         assert_eq!(
             b_after.capped - b_before.capped,
             0,
-            "block-only pending: quiescence path, no cap"
+            "block-only parked: quiescence path, no cap"
         );
 
-        // Sky-only pending: schedule clears SkyBfsPending; the driver's
-        // `Or<...>` probe must detect sky-side pending and run / terminate
+        // Sky-only parked: schedule clears SkyBfsPending; the driver's
+        // `Or<...>` probe must detect sky-side parked and run / terminate
         // symmetrically.
         let mut app_sky = build_driver_app_with_schedule(|| {
             let mut schedule = Schedule::new(LightConvergeSchedule);
@@ -374,12 +373,12 @@ mod tests {
         assert_eq!(
             s_after.iterations - s_before.iterations,
             1,
-            "sky-only pending: driver runs one iteration then quiesces"
+            "sky-only parked: driver runs one iteration then quiesces"
         );
         assert_eq!(
             s_after.capped - s_before.capped,
             0,
-            "sky-only pending: quiescence path, no cap"
+            "sky-only parked: quiescence path, no cap"
         );
     }
 }

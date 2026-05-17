@@ -13,7 +13,7 @@ use mcrs_core::voxel_shape::Direction;
 
 /// Extract the two on-face coordinates from a `(off_x, off_y, off_z)` triple
 /// for the destination face named by `d`. Returns `(cell_x, cell_z)` matching
-/// the `Wavefront::new(face, cell_x, cell_z, level)` constructor. The face
+/// the `CrossChunkWavefront::new(face, cell_x, cell_z, level)` constructor. The face
 /// normal axis is dropped; the remaining two axes are returned in
 /// (first-non-normal, second-non-normal) order:
 ///

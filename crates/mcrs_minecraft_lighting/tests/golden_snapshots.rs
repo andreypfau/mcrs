@@ -9,7 +9,7 @@ use mcrs_core::AppState;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
-use mcrs_engine::world::column::{ColumnPos, ColumnIndex, ColumnPlugin};
+use mcrs_engine::world::column::{ColumnIndex, ColumnPlugin, ColumnPos};
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
@@ -17,14 +17,15 @@ use mcrs_engine::world::lighting::LightTicket;
 use mcrs_minecraft_lighting::components::{
     BlockBfsPending, BlockLight, SkyBfsPending, SkyLight,
 };
-use mcrs_minecraft_lighting::invariants::{check_block_light_invariants, check_sky_light_invariants};
+use mcrs_minecraft_lighting::invariants::check_block_light_invariants;
 use mcrs_minecraft_lighting::storage::LightStorage;
-use mcrs_minecraft_lighting::table::BlockLightTable;
+use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_minecraft_lighting::test_bench::assert_nibbles_eq;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_lighting::sky_light::invariants::check_sky_light_invariants;
 use mcrs_protocol::BlockStateId;
 
 #[path = "golden/mod.rs"]
@@ -100,17 +101,17 @@ fn read_nibbles(app: &App, chunk: Entity) -> [u8; 2048] {
         .get::<BlockLight>(chunk)
         .expect("BlockLight component missing on chunk");
     match &light.0 {
-        LightStorage::Null => [0u8; 2048],
+        LightStorage::Empty => [0u8; 2048],
         LightStorage::Uniform(v) => {
             let packed = (*v & 0x0F) | ((*v & 0x0F) << 4);
             [packed; 2048]
         }
-        LightStorage::Mixed(arr) => *arr.0,
+        LightStorage::Dense(arr) => *arr.0,
     }
 }
 
 fn assert_invariants_hold(app: &App, chunk: Entity, label: &str) {
-    let table = app.world().resource::<BlockLightTable>();
+    let table = app.world().resource::<BlockStateLightTable>();
     let palette = app
         .world()
         .get::<BlockPalette>(chunk)
@@ -130,12 +131,12 @@ fn read_sky_nibbles(app: &App, chunk: Entity) -> [u8; 2048] {
         .get::<SkyLight>(chunk)
         .expect("SkyLight component missing on chunk");
     match &light.0 {
-        LightStorage::Null => [0u8; 2048],
+        LightStorage::Empty => [0u8; 2048],
         LightStorage::Uniform(v) => {
             let packed = (*v & 0x0F) | ((*v & 0x0F) << 4);
             [packed; 2048]
         }
-        LightStorage::Mixed(arr) => *arr.0,
+        LightStorage::Dense(arr) => *arr.0,
     }
 }
 
@@ -149,7 +150,7 @@ fn assert_sky_invariants_hold_with(
     is_topmost_in_skyhaving_column: bool,
     label: &str,
 ) {
-    let table = app.world().resource::<BlockLightTable>();
+    let table = app.world().resource::<BlockStateLightTable>();
     let palette = app
         .world()
         .get::<BlockPalette>(chunk)
@@ -400,7 +401,7 @@ fn snapshot_cross_chunk_horizontal() {
 
     let chunk_pos_a = ChunkPos::new(0, 0, 0);
     // Place the torch on chunk A's east boundary (local x=15) so the
-    // intra-chunk BFS hits the east face and pushes egress for the
+    // intra-chunk BFS hits the east face and pushes outbox for the
     // cross-chunk distribute pass to route into chunk B's west face.
     let torch_pos = BlockPos::new(15, 8, 8);
     spawn_lit_torch_in_chunk(
@@ -664,7 +665,7 @@ fn snapshot_light_ticket_clears_when_pending_work_drains() {
     // Tick 2: `(seed_block_emitters, seed_sky_initial)` fires; for an
     // all-air chunk in a sky-light dim that chunk also becomes the
     // topmost-of-column and seeds sky level 15. The convergence loop drains
-    // the workspace queues; the safety-net clears the per-channel BfsPending
+    // the queues queues; the safety-net clears the per-channel BfsPending
     // markers.
     app.world_mut().run_schedule(FixedUpdate);
 
@@ -699,6 +700,6 @@ fn snapshot_light_ticket_clears_when_pending_work_drains() {
     app.world_mut().run_schedule(FixedUpdate);
     assert!(
         app.world().get::<LightTicket>(chunk).is_none(),
-        "LightTicket must clear once pending work has drained"
+        "LightTicket must clear once parked work has drained"
     );
 }
