@@ -5,7 +5,7 @@ use mcrs_protocol::BlockStateId;
 use mcrs_vanilla::block::behaviour::Properties;
 use mcrs_vanilla::block::Block;
 
-#[derive(Resource, Debug, Default)]
+#[derive(Resource, Debug, Default, Clone)]
 pub struct BlockStateLightTable {
     pub emission: Box<[u8]>,
     pub dampening: Box<[u8]>,

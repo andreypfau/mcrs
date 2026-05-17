@@ -9,6 +9,7 @@ use bevy_ecs::prelude::*;
 use mcrs_engine::world::dimension::{
     Dimension, DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig, HasSkyLight,
 };
+use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue};
 use mcrs_minecraft_block::block_update::BlockUpdatePlugin;
 use tracing::{debug, info, warn};
 
@@ -21,11 +22,14 @@ mod generate;
 mod inventory;
 pub mod item;
 pub mod loot;
+pub mod sub_app_builder;
 
 pub struct WorldPlugin;
 
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
+        app.init_resource::<DimSpawnQueue>();
+        app.init_resource::<DimDespawnQueue>();
         app.add_plugins(DimensionPlugin);
         // Spawn dimensions in Update after world preset is loaded via Bevy assets
         app.add_systems(Update, spawn_dimensions_from_preset);

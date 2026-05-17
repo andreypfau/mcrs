@@ -61,6 +61,19 @@ pub struct StaticRegistry<T: 'static> {
     frozen: bool,
 }
 
+// Cloning a frozen registry is the path that hands a copy to each per-dimension
+// sub-app. Values are `&'static T`, so no `T: Clone` bound is required.
+impl<T: 'static> Clone for StaticRegistry<T> {
+    fn clone(&self) -> Self {
+        Self {
+            entries: self.entries.clone(),
+            index: self.index.clone(),
+            reverse: self.reverse.clone(),
+            frozen: self.frozen,
+        }
+    }
+}
+
 impl<T: 'static> StaticRegistry<T> {
     pub fn new() -> Self {
         StaticRegistry {
