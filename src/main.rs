@@ -1,7 +1,8 @@
 use bevy_app::App;
-use bevy_app::ScheduleRunnerPlugin;
-use bevy_log::{Level, LogPlugin, tracing_subscriber};
-use mcrs_minecraft::ServerPlugin;
+use bevy_log::{tracing_subscriber, Level, LogPlugin};
+use mcrs_minecraft::world::sub_app_builder::{drain_dim_despawn_queue, drain_dim_spawn_queue};
+use mcrs_minecraft::{ServerPlugin, DEFAULT_TPS};
+use std::time::{Duration, Instant};
 
 mod chunk_render_debug;
 
@@ -10,22 +11,37 @@ const LOG_FILTER: &str =
 
 #[tokio::main]
 async fn main() {
-    App::new()
-        .add_plugins(ScheduleRunnerPlugin::run_loop(
-            std::time::Duration::from_secs_f64(1.0 / mcrs_minecraft::DEFAULT_TPS.get() as f64),
-        ))
-        .add_plugins(LogPlugin {
-            filter: LOG_FILTER.to_string(),
-            level: Level::INFO,
-            fmt_layer: |_| {
-                Some(Box::new(
-                    tracing_subscriber::fmt::Layer::default()
-                        .with_writer(std::io::stderr)
-                        .with_ansi(false),
-                ))
-            },
-            ..Default::default()
-        })
-        .add_plugins(ServerPlugin)
-        .run();
+    let mut app = App::new();
+    app.add_plugins(LogPlugin {
+        filter: LOG_FILTER.to_string(),
+        level: Level::INFO,
+        fmt_layer: |_| {
+            Some(Box::new(
+                tracing_subscriber::fmt::Layer::default()
+                    .with_writer(std::io::stderr)
+                    .with_ansi(false),
+            ))
+        },
+        ..Default::default()
+    });
+    app.add_plugins(ServerPlugin);
+    run_server_loop(app);
+}
+
+/// Manual tick loop. Owns `&mut App` between ticks so the sub-app spawn and
+/// despawn drains can call `App::insert_sub_app` and `App::remove_sub_app`.
+fn run_server_loop(mut app: App) {
+    let tick = Duration::from_secs_f64(1.0 / DEFAULT_TPS.get() as f64);
+    app.finish();
+    app.cleanup();
+    loop {
+        let start = Instant::now();
+        app.update();
+        drain_dim_spawn_queue(&mut app);
+        drain_dim_despawn_queue(&mut app);
+        let elapsed = start.elapsed();
+        if elapsed < tick {
+            std::thread::sleep(tick - elapsed);
+        }
+    }
 }
