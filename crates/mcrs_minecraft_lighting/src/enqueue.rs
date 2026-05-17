@@ -15,8 +15,9 @@
 //! `chunk` entity also emit a warning and skip — defensive against any
 //! lifecycle-ordering hazard.
 
+use bevy_ecs::entity::EntityHashMap;
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Added, Commands, Entity, Or, Query, Res, With, Without};
+use bevy_ecs::prelude::{Added, Commands, Entity, Local, Or, ParallelCommands, Query, Res, With, Without};
 use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
@@ -44,77 +45,117 @@ use crate::table::{flag_bits, BlockLightTable};
 pub fn enqueue_block_light_on_block_placed(
     mut reader: MessageReader<BlockPlaced>,
     table: Res<BlockLightTable>,
-    mut chunks: Query<(&mut BlockLight, &mut BlockLightWorkspace)>,
-    mut commands: Commands,
+    mut chunks: Query<(Entity, &mut BlockLight, &mut BlockLightWorkspace)>,
+    chunks_lookup: Query<(), (With<BlockLight>, With<BlockLightWorkspace>)>,
+    mut partitions: Local<EntityHashMap<Vec<BlockPlaced>>>,
+    par_commands: ParallelCommands,
 ) {
+    // Reuse the EntityHashMap across ticks but clear each bucket so chunks that
+    // receive BlockPlaced events tick-after-tick amortise the hash-insert cost.
+    for bucket in partitions.values_mut() {
+        bucket.clear();
+    }
+
     for placed in reader.read() {
         if placed.old_state == placed.new_state {
             continue;
         }
+        partitions.entry(placed.chunk).or_default().push(*placed);
+    }
 
-        let Ok((mut light, mut workspace)) = chunks.get_mut(placed.chunk) else {
+    // One task per chunk entity; the per-entity body owns the entire bucket of
+    // events for that chunk so two parallel tasks never touch the same workspace.
+    let partitions_ref = &*partitions;
+    chunks
+        .par_iter_mut()
+        .for_each(|(entity, mut light, mut workspace)| {
+            let Some(events) = partitions_ref.get(&entity) else {
+                return;
+            };
+            if events.is_empty() {
+                return;
+            }
+
+            let mut pushed = false;
+
+            for placed in events {
+                let old_emission = table.emission_for(placed.old_state);
+                let new_emission = table.emission_for(placed.new_state);
+                let old_dampening = table.dampening_for(placed.old_state);
+                let new_dampening = table.dampening_for(placed.new_state);
+
+                if old_emission == new_emission && old_dampening != new_dampening {
+                    tracing::warn!(
+                        chunk = ?placed.chunk,
+                        block_pos = ?placed.block_pos,
+                        "dampening-only change not yet handled; light will desync until cross-chunk distribute lands"
+                    );
+                    continue;
+                }
+
+                let x = placed.block_pos.x.rem_euclid(16) as u8;
+                let y = placed.block_pos.y.rem_euclid(16) as u8;
+                let z = placed.block_pos.z.rem_euclid(16) as u8;
+
+                if old_emission > new_emission {
+                    // The decrease BFS only walks neighbours, so the seed cell
+                    // itself must be cleared up front; otherwise the source
+                    // position keeps its previous emitted level after the
+                    // emitter is removed.
+                    light.0.set(x as usize, y as usize, z as usize, 0);
+
+                    workspace.decrease_queue.push(pack_bfs_entry(
+                        x,
+                        z,
+                        y,
+                        old_emission,
+                        ALL_DIRECTIONS_BITSET,
+                        0,
+                    ));
+                    pushed = true;
+                }
+
+                if new_emission > 0 {
+                    // `FLAG_WRITE_LEVEL` makes the BFS write the source cell to
+                    // `new_emission` before stepping outward, so the source
+                    // position is established before any neighbour is reached.
+                    workspace.increase_queue.push(pack_bfs_entry(
+                        x,
+                        z,
+                        y,
+                        new_emission,
+                        ALL_DIRECTIONS_BITSET,
+                        FLAG_WRITE_LEVEL,
+                    ));
+                    pushed = true;
+                }
+            }
+
+            if pushed {
+                par_commands.command_scope(|mut cmd| {
+                    cmd.entity(entity).insert(BlockBfsPending);
+                });
+            }
+        });
+
+    // Emit the lifecycle warning for chunks whose entities don't match the
+    // workspace query at all. The par_iter_mut body cannot do this because the
+    // query filter excludes those entities, and tracing inside a parallel task
+    // would interleave warning lines from different entities.
+    for (entity, events) in partitions.iter() {
+        if events.is_empty() {
+            continue;
+        }
+        if chunks_lookup.get(*entity).is_err() {
+            // Surface the first event's block_pos so the warning carries a
+            // concrete coordinate (matches the previous per-event behaviour
+            // closely enough for diagnostics).
+            let first = events.first().unwrap();
             tracing::warn!(
-                chunk = ?placed.chunk,
-                block_pos = ?placed.block_pos,
+                chunk = ?entity,
+                block_pos = ?first.block_pos,
                 "BlockPlaced.chunk missing BlockLight/BlockLightWorkspace; lifecycle ordering hazard"
             );
-            continue;
-        };
-
-        let old_emission = table.emission_for(placed.old_state);
-        let new_emission = table.emission_for(placed.new_state);
-        let old_dampening = table.dampening_for(placed.old_state);
-        let new_dampening = table.dampening_for(placed.new_state);
-
-        if old_emission == new_emission && old_dampening != new_dampening {
-            tracing::warn!(
-                chunk = ?placed.chunk,
-                block_pos = ?placed.block_pos,
-                "dampening-only change not yet handled; light will desync until cross-chunk distribute lands"
-            );
-            continue;
-        }
-
-        let x = placed.block_pos.x.rem_euclid(16) as u8;
-        let y = placed.block_pos.y.rem_euclid(16) as u8;
-        let z = placed.block_pos.z.rem_euclid(16) as u8;
-
-        let mut pushed = false;
-
-        if old_emission > new_emission {
-            // The decrease BFS only walks neighbours, so the seed cell itself
-            // must be cleared up front; otherwise the source position keeps
-            // its previous emitted level after the emitter is removed.
-            light.0.set(x as usize, y as usize, z as usize, 0);
-
-            workspace.decrease_queue.push(pack_bfs_entry(
-                x,
-                z,
-                y,
-                old_emission,
-                ALL_DIRECTIONS_BITSET,
-                0,
-            ));
-            pushed = true;
-        }
-
-        if new_emission > 0 {
-            // `FLAG_WRITE_LEVEL` makes the BFS write the source cell to
-            // `new_emission` before stepping outward, so the source position
-            // is established before any neighbour is reached.
-            workspace.increase_queue.push(pack_bfs_entry(
-                x,
-                z,
-                y,
-                new_emission,
-                ALL_DIRECTIONS_BITSET,
-                FLAG_WRITE_LEVEL,
-            ));
-            pushed = true;
-        }
-
-        if pushed {
-            commands.entity(placed.chunk).insert(BlockBfsPending);
         }
     }
 }
@@ -131,123 +172,162 @@ pub fn enqueue_sky_light_on_block_placed(
     mut reader: MessageReader<BlockPlaced>,
     table: Res<BlockLightTable>,
     mut chunks: Query<(
+        Entity,
         &mut SkyLight,
         &mut SkyLightWorkspace,
         &ChunkPos,
         &InColumn,
     )>,
+    chunks_lookup: Query<(), (With<SkyLight>, With<SkyLightWorkspace>)>,
     columns: Query<&ColumnChunks>,
-    mut commands: Commands,
+    mut partitions: Local<EntityHashMap<Vec<BlockPlaced>>>,
+    par_commands: ParallelCommands,
 ) {
+    for bucket in partitions.values_mut() {
+        bucket.clear();
+    }
+
     for placed in reader.read() {
         if placed.old_state == placed.new_state {
             continue;
         }
+        partitions.entry(placed.chunk).or_default().push(*placed);
+    }
 
-        let Ok((mut light, mut workspace, chunk_pos, in_column)) =
-            chunks.get_mut(placed.chunk)
-        else {
-            tracing::warn!(
-                chunk = ?placed.chunk,
-                block_pos = ?placed.block_pos,
-                "BlockPlaced.chunk missing SkyLight/SkyLightWorkspace; skipping sky enqueue"
-            );
-            continue;
-        };
-
-        let old_dampening = table.dampening_for(placed.old_state);
-        let new_dampening = table.dampening_for(placed.new_state);
-        let old_flags = table.flags_for(placed.old_state);
-        let new_flags = table.flags_for(placed.new_state);
-
-        let occlusion_changed = !std::ptr::eq(
-            table.occlusion_for(placed.old_state) as *const _,
-            table.occlusion_for(placed.new_state) as *const _,
-        );
-
-        let sky_changed = old_dampening != new_dampening
-            || (old_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN)
-                != (new_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN)
-            || occlusion_changed;
-        if !sky_changed {
-            continue;
-        }
-
-        let is_topmost = match columns.get(in_column.0) {
-            Ok(chunk_index) => {
-                let top_chunk_y =
-                    chunk_index.min_section_y + chunk_index.sections.len() as i32 - 1;
-                chunk_pos.y == top_chunk_y
+    let partitions_ref = &*partitions;
+    let columns_ref = &columns;
+    chunks
+        .par_iter_mut()
+        .for_each(|(entity, mut light, mut workspace, chunk_pos, in_column)| {
+            let Some(events) = partitions_ref.get(&entity) else {
+                return;
+            };
+            if events.is_empty() {
+                return;
             }
-            Err(_) => false,
-        };
 
-        let x = placed.block_pos.x.rem_euclid(16) as u8;
-        let y = placed.block_pos.y.rem_euclid(16) as u8;
-        let z = placed.block_pos.z.rem_euclid(16) as u8;
+            // Resolve topmost-of-column once per task; the column's section
+            // count does not change within a tick, so caching here avoids N
+            // redundant ColumnChunks reads on a section that receives multiple
+            // BlockPlaced events.
+            let is_topmost = match columns_ref.get(in_column.0) {
+                Ok(chunk_index) => {
+                    let top_chunk_y =
+                        chunk_index.min_section_y + chunk_index.sections.len() as i32 - 1;
+                    chunk_pos.y == top_chunk_y
+                }
+                Err(_) => false,
+            };
 
-        let stored = light.0.get(x as usize, y as usize, z as usize);
-        let opacity_rose = new_dampening > old_dampening
-            || ((old_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN) != 0
-                && (new_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN) == 0);
-        // The decrease BFS only walks neighbours, so the seed cell must be
-        // cleared up front whenever the post-change opacity can only fall
-        // below `stored`; otherwise the source position keeps its previous
-        // sky-light level even though the new block opaquifies the cell.
-        if opacity_rose && stored > 0 {
-            light.0.set(x as usize, y as usize, z as usize, 0);
-        }
-        workspace.decrease_queue.push(pack_bfs_entry(
-            x,
-            z,
-            y,
-            stored,
-            ALL_DIRECTIONS_BITSET,
-            0,
-        ));
+            let mut pushed = false;
 
-        if y == 15 && is_topmost {
-            workspace.increase_queue.push(pack_bfs_entry(
-                x,
-                z,
-                15,
-                15,
-                ALL_DIRECTIONS_BITSET,
-                FLAG_WRITE_LEVEL,
-            ));
-        } else {
-            for d in [
-                Direction::Down,
-                Direction::Up,
-                Direction::North,
-                Direction::South,
-                Direction::West,
-                Direction::East,
-            ] {
-                let (dx, dy, dz) = normal_of(d);
-                let nx = x as i8 + dx;
-                let ny = y as i8 + dy;
-                let nz = z as i8 + dz;
-                if !(0..16).contains(&nx)
-                    || !(0..16).contains(&ny)
-                    || !(0..16).contains(&nz)
-                {
+            for placed in events {
+                let old_dampening = table.dampening_for(placed.old_state);
+                let new_dampening = table.dampening_for(placed.new_state);
+                let old_flags = table.flags_for(placed.old_state);
+                let new_flags = table.flags_for(placed.new_state);
+
+                let occlusion_changed = !std::ptr::eq(
+                    table.occlusion_for(placed.old_state) as *const _,
+                    table.occlusion_for(placed.new_state) as *const _,
+                );
+
+                let sky_changed = old_dampening != new_dampening
+                    || (old_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN)
+                        != (new_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN)
+                    || occlusion_changed;
+                if !sky_changed {
                     continue;
                 }
-                let neighbour_level =
-                    light.0.get(nx as usize, ny as usize, nz as usize);
-                workspace.increase_queue.push(pack_bfs_entry(
-                    nx as u8,
-                    nz as u8,
-                    ny as u8,
-                    neighbour_level,
-                    ALL_DIRECTIONS_BITSET,
-                    FLAG_RECHECK_LEVEL,
-                ));
-            }
-        }
 
-        commands.entity(placed.chunk).insert(SkyBfsPending);
+                let x = placed.block_pos.x.rem_euclid(16) as u8;
+                let y = placed.block_pos.y.rem_euclid(16) as u8;
+                let z = placed.block_pos.z.rem_euclid(16) as u8;
+
+                let stored = light.0.get(x as usize, y as usize, z as usize);
+                let opacity_rose = new_dampening > old_dampening
+                    || ((old_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN) != 0
+                        && (new_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN) == 0);
+                // The decrease BFS only walks neighbours, so the seed cell
+                // must be cleared up front whenever the post-change opacity
+                // can only fall below `stored`; otherwise the source position
+                // keeps its previous sky-light level even though the new block
+                // opaquifies the cell.
+                if opacity_rose && stored > 0 {
+                    light.0.set(x as usize, y as usize, z as usize, 0);
+                }
+                workspace.decrease_queue.push(pack_bfs_entry(
+                    x,
+                    z,
+                    y,
+                    stored,
+                    ALL_DIRECTIONS_BITSET,
+                    0,
+                ));
+
+                if y == 15 && is_topmost {
+                    workspace.increase_queue.push(pack_bfs_entry(
+                        x,
+                        z,
+                        15,
+                        15,
+                        ALL_DIRECTIONS_BITSET,
+                        FLAG_WRITE_LEVEL,
+                    ));
+                } else {
+                    for d in [
+                        Direction::Down,
+                        Direction::Up,
+                        Direction::North,
+                        Direction::South,
+                        Direction::West,
+                        Direction::East,
+                    ] {
+                        let (dx, dy, dz) = normal_of(d);
+                        let nx = x as i8 + dx;
+                        let ny = y as i8 + dy;
+                        let nz = z as i8 + dz;
+                        if !(0..16).contains(&nx)
+                            || !(0..16).contains(&ny)
+                            || !(0..16).contains(&nz)
+                        {
+                            continue;
+                        }
+                        let neighbour_level =
+                            light.0.get(nx as usize, ny as usize, nz as usize);
+                        workspace.increase_queue.push(pack_bfs_entry(
+                            nx as u8,
+                            nz as u8,
+                            ny as u8,
+                            neighbour_level,
+                            ALL_DIRECTIONS_BITSET,
+                            FLAG_RECHECK_LEVEL,
+                        ));
+                    }
+                }
+
+                pushed = true;
+            }
+
+            if pushed {
+                par_commands.command_scope(|mut cmd| {
+                    cmd.entity(entity).insert(SkyBfsPending);
+                });
+            }
+        });
+
+    for (entity, events) in partitions.iter() {
+        if events.is_empty() {
+            continue;
+        }
+        if chunks_lookup.get(*entity).is_err() {
+            let first = events.first().unwrap();
+            tracing::warn!(
+                chunk = ?entity,
+                block_pos = ?first.block_pos,
+                "BlockPlaced.chunk missing SkyLight/SkyLightWorkspace; skipping sky enqueue"
+            );
+        }
     }
 }
 
@@ -2851,5 +2931,247 @@ mod tests {
             app.world().get::<SkyBfsPending>(chunk_b).is_some(),
             "B must be marked SkyBfsPending so the BFS converge loop runs"
         );
+    }
+
+    // ---- Determinism stress tests for the parallel enqueue systems ----
+
+    // splitmix64: a 64-bit PRNG with a 64-bit state. Inlined here so the
+    // determinism tests don't need a dev-dep on `rand`. Same algorithm Java's
+    // SplittableRandom seeds from; output is deterministic for a given seed.
+    fn splitmix64(state: &mut u64) -> u64 {
+        *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = *state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    // Fisher-Yates shuffle driven by splitmix64. Deterministic for a given seed.
+    fn deterministic_shuffle<T>(slice: &mut [T], seed: u64) {
+        let mut state = seed;
+        let n = slice.len();
+        for i in (1..n).rev() {
+            let r = (splitmix64(&mut state) % ((i + 1) as u64)) as usize;
+            slice.swap(i, r);
+        }
+    }
+
+    fn sorted_queue(q: &[u64]) -> Vec<u64> {
+        let mut v = q.to_vec();
+        v.sort_unstable();
+        v
+    }
+
+    #[test]
+    fn enqueue_block_light_dirty_set_is_message_order_independent() {
+        // Build 32 events across 8 distinct chunks (4 events per chunk).
+        // Each event targets a unique (x,y,z) cell inside its chunk so the
+        // per-bucket processing is commutative — the same events shuffled
+        // produce the same multiset of queue entries plus the same
+        // BlockBfsPending marker set.
+        const N_CHUNKS: usize = 8;
+        const EVENTS_PER_CHUNK: usize = 4;
+
+        let build_events = |chunks: &[bevy_ecs::entity::Entity]| -> Vec<BlockPlaced> {
+            let mut events = Vec::with_capacity(N_CHUNKS * EVENTS_PER_CHUNK);
+            for (ci, chunk) in chunks.iter().enumerate() {
+                for ei in 0..EVENTS_PER_CHUNK {
+                    let x = ((ci * 2 + ei) % 16) as i32;
+                    let y = (ei * 3) as i32;
+                    let z = ((ci + ei * 5) % 16) as i32;
+                    // Alternate AIR <-> TORCH_HI per event so we exercise
+                    // both the increase and decrease branches.
+                    let (old_state, new_state) = if ei % 2 == 0 {
+                        (AIR, TORCH_HI)
+                    } else {
+                        (TORCH_HI, AIR)
+                    };
+                    events.push(block_placed(
+                        *chunk,
+                        BlockPos::new(x, y, z),
+                        old_state,
+                        new_state,
+                    ));
+                }
+            }
+            events
+        };
+
+        // Build the prototype event list with placeholder chunk entities so
+        // the same logical events can be remapped onto each run's actual
+        // chunks. Use a throwaway App to mint stable placeholder entity ids.
+        let mut proto_app = App::new();
+        let proto_chunks: Vec<bevy_ecs::entity::Entity> = (0..N_CHUNKS)
+            .map(|_| proto_app.world_mut().spawn_empty().id())
+            .collect();
+        let baseline_events = build_events(&proto_chunks);
+
+        // The proto_chunks list is what defines "chunk index N" across runs;
+        // captured by reference so every run uses the same proto -> real
+        // mapping regardless of event order. (collecting unique chunks from
+        // the shuffled stream would re-index per shuffle and defeat the test.)
+        let run_with_events = |events: &[BlockPlaced]| -> (
+            Vec<(usize, Vec<u64>, Vec<u64>)>,
+            std::collections::BTreeSet<usize>,
+        ) {
+            let mut app = build_app();
+            let chunks: Vec<bevy_ecs::entity::Entity> =
+                (0..N_CHUNKS).map(|_| spawn_chunk(&mut app)).collect();
+            let proto_to_real: std::collections::HashMap<bevy_ecs::entity::Entity, bevy_ecs::entity::Entity> =
+                proto_chunks
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| (*p, chunks[i]))
+                    .collect();
+
+            for placed in events {
+                let mut remapped = *placed;
+                remapped.chunk = *proto_to_real.get(&placed.chunk).unwrap();
+                write_placed(&mut app, remapped);
+            }
+            app.update();
+
+            let mut per_chunk: Vec<(usize, Vec<u64>, Vec<u64>)> = Vec::with_capacity(N_CHUNKS);
+            let mut marker_set: std::collections::BTreeSet<usize> =
+                std::collections::BTreeSet::new();
+            for (i, c) in chunks.iter().enumerate() {
+                if let Some(ws) = app.world().get::<BlockLightWorkspace>(*c) {
+                    per_chunk.push((
+                        i,
+                        sorted_queue(&ws.increase_queue),
+                        sorted_queue(&ws.decrease_queue),
+                    ));
+                }
+                if app.world().get::<BlockBfsPending>(*c).is_some() {
+                    marker_set.insert(i);
+                }
+            }
+            (per_chunk, marker_set)
+        };
+
+        let baseline = run_with_events(&baseline_events);
+
+        // Re-run with at least 4 deterministic shuffles and assert
+        // multiset-equivalent per-chunk queue contents plus identical marker
+        // sets.
+        for seed in 1u64..=6 {
+            let mut shuffled = baseline_events.clone();
+            deterministic_shuffle(&mut shuffled, seed);
+            let actual = run_with_events(&shuffled);
+            assert_eq!(
+                actual.0, baseline.0,
+                "per-chunk sorted queues must match baseline under seed {seed}"
+            );
+            assert_eq!(
+                actual.1, baseline.1,
+                "BlockBfsPending marker set must match baseline under seed {seed}"
+            );
+        }
+    }
+
+    #[test]
+    fn enqueue_sky_light_dirty_set_is_message_order_independent() {
+        // Sky-side determinism stress test. Same shape as the block-side test
+        // but every chunk is a topmost-of-column sky chunk so the body's
+        // y == 15 && is_topmost path also gets exercised.
+        const N_CHUNKS: usize = 8;
+        const EVENTS_PER_CHUNK: usize = 4;
+
+        let build_events = |chunks: &[bevy_ecs::entity::Entity]| -> Vec<BlockPlaced> {
+            let mut events = Vec::with_capacity(N_CHUNKS * EVENTS_PER_CHUNK);
+            for (ci, chunk) in chunks.iter().enumerate() {
+                for ei in 0..EVENTS_PER_CHUNK {
+                    let x = ((ci * 2 + ei) % 16) as i32;
+                    // Mix y values including 15 so the top-face branch trips.
+                    let y = match ei % 4 {
+                        0 => 0,
+                        1 => 7,
+                        2 => 12,
+                        _ => 15,
+                    };
+                    let z = ((ci + ei * 5) % 16) as i32;
+                    // AIR -> LEAVES trips sky_changed (dampening and flags both
+                    // change). LEAVES -> AIR reverses it; combined the per-chunk
+                    // bucket exercises both polarities of the predicate.
+                    let (old_state, new_state) = if ei % 2 == 0 {
+                        (AIR, LEAVES)
+                    } else {
+                        (LEAVES, AIR)
+                    };
+                    events.push(block_placed(
+                        *chunk,
+                        BlockPos::new(x, y, z),
+                        old_state,
+                        new_state,
+                    ));
+                }
+            }
+            events
+        };
+
+        let mut proto_app = App::new();
+        let proto_chunks: Vec<bevy_ecs::entity::Entity> = (0..N_CHUNKS)
+            .map(|_| proto_app.world_mut().spawn_empty().id())
+            .collect();
+        let baseline_events = build_events(&proto_chunks);
+
+        // Same fix as the block-side test: capture proto_chunks by reference
+        // so each run uses an identical proto -> real mapping regardless of
+        // event order.
+        let run_with_events = |events: &[BlockPlaced]| -> (
+            Vec<(usize, Vec<u64>, Vec<u64>)>,
+            std::collections::BTreeSet<usize>,
+        ) {
+            let mut app = build_sky_on_placed_app();
+            let chunks: Vec<bevy_ecs::entity::Entity> = (0..N_CHUNKS)
+                .map(|_| spawn_sky_chunk_topmost(&mut app))
+                .collect();
+            let proto_to_real: std::collections::HashMap<bevy_ecs::entity::Entity, bevy_ecs::entity::Entity> =
+                proto_chunks
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| (*p, chunks[i]))
+                    .collect();
+
+            for placed in events {
+                let mut remapped = *placed;
+                remapped.chunk = *proto_to_real.get(&placed.chunk).unwrap();
+                write_placed(&mut app, remapped);
+            }
+            app.update();
+
+            let mut per_chunk: Vec<(usize, Vec<u64>, Vec<u64>)> = Vec::with_capacity(N_CHUNKS);
+            let mut marker_set: std::collections::BTreeSet<usize> =
+                std::collections::BTreeSet::new();
+            for (i, c) in chunks.iter().enumerate() {
+                if let Some(ws) = app.world().get::<SkyLightWorkspace>(*c) {
+                    per_chunk.push((
+                        i,
+                        sorted_queue(&ws.increase_queue),
+                        sorted_queue(&ws.decrease_queue),
+                    ));
+                }
+                if app.world().get::<SkyBfsPending>(*c).is_some() {
+                    marker_set.insert(i);
+                }
+            }
+            (per_chunk, marker_set)
+        };
+
+        let baseline = run_with_events(&baseline_events);
+
+        for seed in 1u64..=6 {
+            let mut shuffled = baseline_events.clone();
+            deterministic_shuffle(&mut shuffled, seed);
+            let actual = run_with_events(&shuffled);
+            assert_eq!(
+                actual.0, baseline.0,
+                "per-chunk sorted sky queues must match baseline under seed {seed}"
+            );
+            assert_eq!(
+                actual.1, baseline.1,
+                "SkyBfsPending marker set must match baseline under seed {seed}"
+            );
+        }
     }
 }

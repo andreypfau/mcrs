@@ -149,7 +149,7 @@ pub fn apply_set_block_request(
     });
 }
 
-#[derive(Message)]
+#[derive(Message, Clone, Copy)]
 pub struct BlockPlaced {
     pub chunk: Entity,
     pub chunk_pos: ChunkPos,
