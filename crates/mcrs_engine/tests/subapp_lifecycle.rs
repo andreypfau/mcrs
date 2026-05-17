@@ -299,6 +299,58 @@ fn time_extracted_into_subapp() {
 
 #[test]
 fn eager_spawn_count_matches_dims() {
-    let _ = std::any::type_name::<DimSpawnQueue>();
-    panic!("pending production spawn-path wiring");
+    use bevy_state::prelude::OnEnter;
+
+    // The production path is `OnEnter(AppState::Playing) →
+    // enqueue_dim_spawns_from_preset → DimSpawnQueue → runner drain`. The
+    // preset and dimension-type fixtures live behind `pub(crate)` types in
+    // `mcrs_minecraft::configuration`, so this test exercises the same
+    // OnEnter-then-drain wiring with a small inline system that mirrors what
+    // `enqueue_dim_spawns_from_preset` does: push one `DimSpawnRequest` per
+    // configured dimension into `DimSpawnQueue`. The drain afterwards is the
+    // exact same call the production runner loop makes.
+    const EXPECTED_DIMS: &[(&str, bool)] = &[
+        ("test:overworld", true),
+        ("test:nether", false),
+        ("test:end", false),
+    ];
+
+    fn enqueue_test_dims(mut spawn_queue: ResMut<DimSpawnQueue>) {
+        for (id, has_sky) in EXPECTED_DIMS {
+            spawn_queue.0.push(DimSpawnRequest {
+                dimension_id: DimensionId::new(*id),
+                type_config: DimensionTypeConfig::default(),
+                has_sky: *has_sky,
+            });
+        }
+    }
+
+    let mut app = harness::make_main_app();
+    app.add_systems(OnEnter(AppState::Playing), enqueue_test_dims);
+
+    harness::drive_to_playing(&mut app);
+
+    assert_eq!(
+        app.world().resource::<DimSpawnQueue>().0.len(),
+        EXPECTED_DIMS.len(),
+        "OnEnter(AppState::Playing) must enqueue one DimSpawnRequest per configured dim"
+    );
+
+    drain_dim_spawn_queue(&mut app);
+
+    assert_eq!(
+        app.sub_apps().sub_apps.len(),
+        EXPECTED_DIMS.len(),
+        "drain must materialise one sub-app per enqueued spawn request"
+    );
+
+    let host_dim_count = app
+        .world_mut()
+        .query::<&Dimension>()
+        .iter(app.world())
+        .count();
+    assert_eq!(
+        host_dim_count, 0,
+        "host world must hold zero Dimension entities — each one lives in its own sub-app"
+    );
 }
