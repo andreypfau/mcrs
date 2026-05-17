@@ -296,29 +296,175 @@ pub(crate) const DIRECTIONS_FROM_BITSET: [&[Direction]; 64] = [
     &ARR_60, &ARR_61, &ARR_62, &ARR_63,
 ];
 
-/// Block-light increase BFS over one chunk.
+/// Compile-time wave selector passed to `propagate_core` by the four
+/// wrappers. Reusing `FLAG_WRITE_LEVEL` / `FLAG_RECHECK_LEVEL` as the
+/// discriminator values keeps the bit pattern unique without introducing
+/// a parallel constant namespace; the values intentionally match the
+/// per-entry flag bits the wave is most associated with at the source
+/// (increase seeds use `WRITE_LEVEL`; decrease cells re-emit via
+/// `RECHECK_LEVEL`). The const-generic dispatch produces dead-code
+/// elimination of the unused branch in each monomorphization.
+pub(crate) const WAVE_INCREASE: u8 = FLAG_WRITE_LEVEL;
+pub(crate) const WAVE_DECREASE: u8 = FLAG_RECHECK_LEVEL;
+
+/// Per-channel hook surface for the shared BFS body.
 ///
-/// Drains `workspace.increase_queue` to empty. Cells whose stored level is
-/// raised by this pass are written via `LightStorage::set`. Steps that fall
-/// off the 0..=15 cube are converted into `Wavefront(u32)` entries on
-/// `egress.0` for the cross-chunk distribute pass; the source chunk
-/// itself never re-enqueues a boundary cell.
+/// Monomorphized once per channel marker; every method is annotated
+/// `#[inline(always)]` on both impls so LLVM erases the trait boundary
+/// during codegen. The two impls live in this module immediately below
+/// and the BFS body in `propagate_core` calls into them; no dynamic
+/// dispatch is involved.
+pub(crate) trait BfsChannel {
+    type Workspace;
+    type Egress;
+
+    fn increase_queue(workspace: &mut Self::Workspace) -> &mut Vec<u64>;
+    fn decrease_queue(workspace: &mut Self::Workspace) -> &mut Vec<u64>;
+    fn push_egress(egress: &mut Self::Egress, wavefront: Wavefront);
+
+    /// Increase-wave target level for the neighbour cell in direction `d`.
+    /// Block channel returns `propagated_level.saturating_sub(opacity.max(1))`.
+    /// Sky channel returns 15 for the Down + level==15 + PROPAGATES_SKYLIGHT_DOWN
+    /// vertical free-fall case and the same block formula otherwise.
+    fn increase_target_level(
+        propagated_level: u8,
+        d: Direction,
+        opacity: u8,
+        dst_flags: u8,
+    ) -> u8;
+
+    /// Decrease-wave emission re-emit. Block channel returns
+    /// `Some(emission)` for emitter cells encountered en-route so the
+    /// increase pass restores their emission via `FLAG_WRITE_LEVEL`. Sky
+    /// channel returns `None` unconditionally (no per-cell emission).
+    fn emission_for(table: &BlockLightTable, dst_state: mcrs_protocol::BlockStateId) -> Option<u8>;
+}
+
+pub(crate) struct BlockBfs;
+pub(crate) struct SkyBfs;
+
+impl BfsChannel for BlockBfs {
+    type Workspace = BlockLightWorkspace;
+    type Egress = BlockEgress;
+
+    #[inline(always)]
+    fn increase_queue(workspace: &mut Self::Workspace) -> &mut Vec<u64> {
+        &mut workspace.increase_queue
+    }
+
+    #[inline(always)]
+    fn decrease_queue(workspace: &mut Self::Workspace) -> &mut Vec<u64> {
+        &mut workspace.decrease_queue
+    }
+
+    #[inline(always)]
+    fn push_egress(egress: &mut Self::Egress, wavefront: Wavefront) {
+        egress.0.push(wavefront);
+    }
+
+    #[inline(always)]
+    fn increase_target_level(
+        propagated_level: u8,
+        _d: Direction,
+        opacity: u8,
+        _dst_flags: u8,
+    ) -> u8 {
+        propagated_level.saturating_sub(opacity.max(1))
+    }
+
+    #[inline(always)]
+    fn emission_for(
+        table: &BlockLightTable,
+        dst_state: mcrs_protocol::BlockStateId,
+    ) -> Option<u8> {
+        let emitted = table.emission_for(dst_state);
+        if emitted != 0 {
+            Some(emitted)
+        } else {
+            None
+        }
+    }
+}
+
+impl BfsChannel for SkyBfs {
+    type Workspace = SkyLightWorkspace;
+    type Egress = SkyEgress;
+
+    #[inline(always)]
+    fn increase_queue(workspace: &mut Self::Workspace) -> &mut Vec<u64> {
+        &mut workspace.increase_queue
+    }
+
+    #[inline(always)]
+    fn decrease_queue(workspace: &mut Self::Workspace) -> &mut Vec<u64> {
+        &mut workspace.decrease_queue
+    }
+
+    #[inline(always)]
+    fn push_egress(egress: &mut Self::Egress, wavefront: Wavefront) {
+        egress.0.push(wavefront);
+    }
+
+    #[inline(always)]
+    fn increase_target_level(
+        propagated_level: u8,
+        d: Direction,
+        opacity: u8,
+        dst_flags: u8,
+    ) -> u8 {
+        if d == Direction::Down
+            && propagated_level == 15
+            && (dst_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN) != 0
+        {
+            15
+        } else {
+            propagated_level.saturating_sub(opacity.max(1))
+        }
+    }
+
+    #[inline(always)]
+    fn emission_for(
+        _table: &BlockLightTable,
+        _dst_state: mcrs_protocol::BlockStateId,
+    ) -> Option<u8> {
+        None
+    }
+}
+
+/// Shared per-chunk BFS outer loop. Const-generic `FLAGS` selects the
+/// wave (`WAVE_INCREASE` or `WAVE_DECREASE`); the channel `C` selects
+/// which queue is drained, where pushes land, how target levels are
+/// computed, and whether decrease re-emits emission. Every wrapper passes
+/// a literal `FLAGS`, so each branch on `FLAGS` constant-folds and the
+/// unused arm is dead-code-eliminated per monomorphization.
 ///
 /// Slow-path branch fires when either side has `IS_CONDITIONALLY_OPAQUE`
 /// set; in that case the source's `VoxelShape` is consulted via
 /// `face_occludes`. The fast path uses `VoxelShape::empty()` as the
 /// source shape, which never occludes.
-pub fn propagate_increase(
+#[inline]
+pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
     table: &BlockLightTable,
     palette: &BlockPalette,
     light: &mut LightStorage,
-    workspace: &mut BlockLightWorkspace,
-    egress: &mut BlockEgress,
+    workspace: &mut C::Workspace,
+    egress: &mut C::Egress,
 ) {
     let mut queue_read_index: usize = 0;
-    while queue_read_index < workspace.increase_queue.len() {
-        let entry = workspace.increase_queue[queue_read_index];
-        queue_read_index += 1;
+    loop {
+        let entry = {
+            let queue = if FLAGS == WAVE_INCREASE {
+                C::increase_queue(workspace)
+            } else {
+                C::decrease_queue(workspace)
+            };
+            if queue_read_index >= queue.len() {
+                break;
+            }
+            let e = queue[queue_read_index];
+            queue_read_index += 1;
+            e
+        };
 
         let x = unpack_bfs_entry_x(entry);
         let z = unpack_bfs_entry_z(entry);
@@ -328,22 +474,24 @@ pub fn propagate_increase(
         let entry_flags = unpack_bfs_entry_flags(entry);
         let y_local = (y_full as usize) & 0xF;
 
-        if entry_flags & FLAG_RECHECK_LEVEL != 0 {
-            if light.get(x as usize, y_local, z as usize) != propagated_level {
-                continue;
+        if FLAGS == WAVE_INCREASE {
+            if entry_flags & FLAG_RECHECK_LEVEL != 0 {
+                if light.get(x as usize, y_local, z as usize) != propagated_level {
+                    continue;
+                }
+            } else if entry_flags & FLAG_WRITE_LEVEL != 0 {
+                // Ingress and seed entries use WRITE_LEVEL to establish
+                // the cell's level. The max-guard prevents a reflection
+                // from a brighter source from overwriting a stronger
+                // pre-existing value: each cross-chunk round trip loses
+                // one Manhattan step, and an unconditional overwrite at
+                // the source face would monotonically drain the source.
+                let current = light.get(x as usize, y_local, z as usize);
+                if propagated_level <= current {
+                    continue;
+                }
+                light.set(x as usize, y_local, z as usize, propagated_level);
             }
-        } else if entry_flags & FLAG_WRITE_LEVEL != 0 {
-            // Ingress and seed entries use WRITE_LEVEL to establish the
-            // cell's level. The max-guard prevents a reflection from a
-            // brighter source from overwriting a stronger pre-existing
-            // value: each cross-chunk round trip loses one Manhattan
-            // step, and an unconditional overwrite at the source face
-            // would monotonically drain the source.
-            let current = light.get(x as usize, y_local, z as usize);
-            if propagated_level <= current {
-                continue;
-            }
-            light.set(x as usize, y_local, z as usize, propagated_level);
         }
 
         let src_state = palette.get((x as i32, y_local as i32, z as i32));
@@ -366,9 +514,10 @@ pub fn propagate_increase(
                 || !(0..=15).contains(&off_z)
             {
                 let (cx, cz) = chunk_xyz_to_face_cell(d, off_x, off_y, off_z);
-                egress
-                    .0
-                    .push(Wavefront::new(d.index() as u8, cx, cz, propagated_level));
+                C::push_egress(
+                    egress,
+                    Wavefront::new(d.index() as u8, cx, cz, propagated_level),
+                );
                 continue;
             }
 
@@ -376,49 +525,134 @@ pub fn propagate_increase(
             let off_y_u = off_y as usize;
             let off_z_u = off_z as usize;
 
-            let current_level = light.get(off_x_u, off_y_u, off_z_u);
-            let cheap_out_threshold = if d == Direction::Down && propagated_level == 15 {
-                propagated_level
-            } else {
-                propagated_level.saturating_sub(1)
-            };
-            if current_level >= cheap_out_threshold {
-                continue;
-            }
-
-            let dst_state = palette.get((off_x as i32, off_y as i32, off_z as i32));
-            let dst_flags = table.flags_for(dst_state);
-            let mut emit_flags: u8 = 0;
-            if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {
-                let culling_face = table.occlusion_for(dst_state).face_shape(d.opposite());
-                if from_shape.face_occludes(culling_face, d) {
+            if FLAGS == WAVE_INCREASE {
+                let current_level = light.get(off_x_u, off_y_u, off_z_u);
+                let cheap_out_threshold = if d == Direction::Down && propagated_level == 15 {
+                    propagated_level
+                } else {
+                    propagated_level.saturating_sub(1)
+                };
+                if current_level >= cheap_out_threshold {
                     continue;
                 }
-                emit_flags |= FLAG_HAS_SIDED_TRANSPARENT_BLOCKS;
-            }
 
-            let opacity = table.dampening_for(dst_state);
-            let target_level = propagated_level.saturating_sub(opacity.max(1));
-            if target_level <= current_level {
-                continue;
-            }
+                let dst_state = palette.get((off_x as i32, off_y as i32, off_z as i32));
+                let dst_flags = table.flags_for(dst_state);
+                let mut emit_flags: u8 = 0;
+                if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {
+                    let culling_face = table.occlusion_for(dst_state).face_shape(d.opposite());
+                    if from_shape.face_occludes(culling_face, d) {
+                        continue;
+                    }
+                    emit_flags |= FLAG_HAS_SIDED_TRANSPARENT_BLOCKS;
+                }
 
-            light.set(off_x_u, off_y_u, off_z_u, target_level);
+                let opacity = table.dampening_for(dst_state);
+                let target_level =
+                    C::increase_target_level(propagated_level, d, opacity, dst_flags);
+                if target_level <= current_level {
+                    continue;
+                }
 
-            if target_level > 1 {
-                workspace.increase_queue.push(pack_bfs_entry(
-                    off_x as u8,
-                    off_z as u8,
-                    off_y as u8,
-                    target_level,
-                    DIRECTIONS_EXCEPT_OPPOSITE[d.index()],
-                    emit_flags,
-                ));
+                light.set(off_x_u, off_y_u, off_z_u, target_level);
+
+                if target_level > 1 {
+                    C::increase_queue(workspace).push(pack_bfs_entry(
+                        off_x as u8,
+                        off_z as u8,
+                        off_y as u8,
+                        target_level,
+                        DIRECTIONS_EXCEPT_OPPOSITE[d.index()],
+                        emit_flags,
+                    ));
+                }
+            } else {
+                // WAVE_DECREASE
+                let light_level = light.get(off_x_u, off_y_u, off_z_u);
+                if light_level == 0 {
+                    continue;
+                }
+
+                let dst_state = palette.get((off_x as i32, off_y as i32, off_z as i32));
+                let dst_flags = table.flags_for(dst_state);
+                let mut emit_flags: u8 = 0;
+                if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {
+                    let culling_face = table.occlusion_for(dst_state).face_shape(d.opposite());
+                    if from_shape.face_occludes(culling_face, d) {
+                        continue;
+                    }
+                    emit_flags |= FLAG_HAS_SIDED_TRANSPARENT_BLOCKS;
+                }
+
+                let opacity = table.dampening_for(dst_state);
+                let target_level = propagated_level.saturating_sub(opacity.max(1));
+
+                if light_level > target_level {
+                    C::increase_queue(workspace).push(pack_bfs_entry(
+                        off_x as u8,
+                        off_z as u8,
+                        off_y as u8,
+                        light_level,
+                        ALL_DIRECTIONS_BITSET,
+                        emit_flags | FLAG_RECHECK_LEVEL,
+                    ));
+                    continue;
+                }
+
+                if let Some(emitted) = C::emission_for(table, dst_state) {
+                    C::increase_queue(workspace).push(pack_bfs_entry(
+                        off_x as u8,
+                        off_z as u8,
+                        off_y as u8,
+                        emitted,
+                        ALL_DIRECTIONS_BITSET,
+                        emit_flags | FLAG_WRITE_LEVEL,
+                    ));
+                }
+
+                light.set(off_x_u, off_y_u, off_z_u, 0);
+
+                if target_level > 0 {
+                    C::decrease_queue(workspace).push(pack_bfs_entry(
+                        off_x as u8,
+                        off_z as u8,
+                        off_y as u8,
+                        target_level,
+                        DIRECTIONS_EXCEPT_OPPOSITE[d.index()],
+                        emit_flags,
+                    ));
+                }
             }
         }
     }
 
-    workspace.increase_queue.clear();
+    if FLAGS == WAVE_INCREASE {
+        C::increase_queue(workspace).clear();
+    } else {
+        C::decrease_queue(workspace).clear();
+    }
+}
+
+/// Block-light increase BFS over one chunk.
+///
+/// Drains `workspace.increase_queue` to empty. Cells whose stored level is
+/// raised by this pass are written via `LightStorage::set`. Steps that fall
+/// off the 0..=15 cube are converted into `Wavefront(u32)` entries on
+/// `egress.0` for the cross-chunk distribute pass; the source chunk
+/// itself never re-enqueues a boundary cell.
+///
+/// Slow-path branch fires when either side has `IS_CONDITIONALLY_OPAQUE`
+/// set; in that case the source's `VoxelShape` is consulted via
+/// `face_occludes`. The fast path uses `VoxelShape::empty()` as the
+/// source shape, which never occludes.
+pub fn propagate_increase(
+    table: &BlockLightTable,
+    palette: &BlockPalette,
+    light: &mut LightStorage,
+    workspace: &mut BlockLightWorkspace,
+    egress: &mut BlockEgress,
+) {
+    propagate_core::<BlockBfs, { WAVE_INCREASE }>(table, palette, light, workspace, egress);
 }
 
 /// Block-light decrease BFS over one chunk.
@@ -446,107 +680,7 @@ pub fn propagate_decrease(
     workspace: &mut BlockLightWorkspace,
     egress: &mut BlockEgress,
 ) {
-    let mut queue_read_index: usize = 0;
-    while queue_read_index < workspace.decrease_queue.len() {
-        let entry = workspace.decrease_queue[queue_read_index];
-        queue_read_index += 1;
-
-        let x = unpack_bfs_entry_x(entry);
-        let z = unpack_bfs_entry_z(entry);
-        let y_full = unpack_bfs_entry_y(entry);
-        let propagated_level = unpack_bfs_entry_level(entry);
-        let check_dir_bitset = unpack_bfs_entry_dir_bitset(entry);
-        let y_local = (y_full as usize) & 0xF;
-
-        let src_state = palette.get((x as i32, y_local as i32, z as i32));
-        let src_flags = table.flags_for(src_state);
-        let src_conditional = (src_flags & flag_bits::IS_CONDITIONALLY_OPAQUE) != 0;
-        let from_shape: &'static VoxelShape = if src_conditional {
-            table.occlusion_for(src_state)
-        } else {
-            VoxelShape::empty()
-        };
-
-        for &d in DIRECTIONS_FROM_BITSET[check_dir_bitset as usize] {
-            let (dx, dy, dz) = normal_of(d);
-            let off_x = x as i8 + dx;
-            let off_y = y_local as i8 + dy;
-            let off_z = z as i8 + dz;
-
-            if !(0..=15).contains(&off_x)
-                || !(0..=15).contains(&off_y)
-                || !(0..=15).contains(&off_z)
-            {
-                let (cx, cz) = chunk_xyz_to_face_cell(d, off_x, off_y, off_z);
-                egress
-                    .0
-                    .push(Wavefront::new(d.index() as u8, cx, cz, propagated_level));
-                continue;
-            }
-
-            let off_x_u = off_x as usize;
-            let off_y_u = off_y as usize;
-            let off_z_u = off_z as usize;
-
-            let light_level = light.get(off_x_u, off_y_u, off_z_u);
-            if light_level == 0 {
-                continue;
-            }
-
-            let dst_state = palette.get((off_x as i32, off_y as i32, off_z as i32));
-            let dst_flags = table.flags_for(dst_state);
-            let mut emit_flags: u8 = 0;
-            if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {
-                let culling_face = table.occlusion_for(dst_state).face_shape(d.opposite());
-                if from_shape.face_occludes(culling_face, d) {
-                    continue;
-                }
-                emit_flags |= FLAG_HAS_SIDED_TRANSPARENT_BLOCKS;
-            }
-
-            let opacity = table.dampening_for(dst_state);
-            let target_level = propagated_level.saturating_sub(opacity.max(1));
-
-            if light_level > target_level {
-                workspace.increase_queue.push(pack_bfs_entry(
-                    off_x as u8,
-                    off_z as u8,
-                    off_y as u8,
-                    light_level,
-                    ALL_DIRECTIONS_BITSET,
-                    emit_flags | FLAG_RECHECK_LEVEL,
-                ));
-                continue;
-            }
-
-            let emitted = table.emission_for(dst_state);
-            if emitted != 0 {
-                workspace.increase_queue.push(pack_bfs_entry(
-                    off_x as u8,
-                    off_z as u8,
-                    off_y as u8,
-                    emitted,
-                    ALL_DIRECTIONS_BITSET,
-                    emit_flags | FLAG_WRITE_LEVEL,
-                ));
-            }
-
-            light.set(off_x_u, off_y_u, off_z_u, 0);
-
-            if target_level > 0 {
-                workspace.decrease_queue.push(pack_bfs_entry(
-                    off_x as u8,
-                    off_z as u8,
-                    off_y as u8,
-                    target_level,
-                    DIRECTIONS_EXCEPT_OPPOSITE[d.index()],
-                    emit_flags,
-                ));
-            }
-        }
-    }
-
-    workspace.decrease_queue.clear();
+    propagate_core::<BlockBfs, { WAVE_DECREASE }>(table, palette, light, workspace, egress);
 }
 
 /// Sky-light increase BFS over one chunk.
@@ -564,117 +698,7 @@ pub fn propagate_increase_sky(
     workspace: &mut SkyLightWorkspace,
     egress: &mut SkyEgress,
 ) {
-    let mut queue_read_index: usize = 0;
-    while queue_read_index < workspace.increase_queue.len() {
-        let entry = workspace.increase_queue[queue_read_index];
-        queue_read_index += 1;
-
-        let x = unpack_bfs_entry_x(entry);
-        let z = unpack_bfs_entry_z(entry);
-        let y_full = unpack_bfs_entry_y(entry);
-        let propagated_level = unpack_bfs_entry_level(entry);
-        let check_dir_bitset = unpack_bfs_entry_dir_bitset(entry);
-        let entry_flags = unpack_bfs_entry_flags(entry);
-        let y_local = (y_full as usize) & 0xF;
-
-        if entry_flags & FLAG_RECHECK_LEVEL != 0 {
-            if light.get(x as usize, y_local, z as usize) != propagated_level {
-                continue;
-            }
-        } else if entry_flags & FLAG_WRITE_LEVEL != 0 {
-            // Ingress and seed entries use WRITE_LEVEL to establish the
-            // cell's level. The max-guard prevents a reflection from a
-            // brighter source from overwriting a stronger pre-existing
-            // value: each cross-chunk round trip loses one Manhattan
-            // step, and an unconditional overwrite at the source face
-            // would monotonically drain the source.
-            let current = light.get(x as usize, y_local, z as usize);
-            if propagated_level <= current {
-                continue;
-            }
-            light.set(x as usize, y_local, z as usize, propagated_level);
-        }
-
-        let src_state = palette.get((x as i32, y_local as i32, z as i32));
-        let src_flags = table.flags_for(src_state);
-        let src_conditional = (src_flags & flag_bits::IS_CONDITIONALLY_OPAQUE) != 0;
-        let from_shape: &'static VoxelShape = if src_conditional {
-            table.occlusion_for(src_state)
-        } else {
-            VoxelShape::empty()
-        };
-
-        for &d in DIRECTIONS_FROM_BITSET[check_dir_bitset as usize] {
-            let (dx, dy, dz) = normal_of(d);
-            let off_x = x as i8 + dx;
-            let off_y = y_local as i8 + dy;
-            let off_z = z as i8 + dz;
-
-            if !(0..=15).contains(&off_x)
-                || !(0..=15).contains(&off_y)
-                || !(0..=15).contains(&off_z)
-            {
-                let (cx, cz) = chunk_xyz_to_face_cell(d, off_x, off_y, off_z);
-                egress
-                    .0
-                    .push(Wavefront::new(d.index() as u8, cx, cz, propagated_level));
-                continue;
-            }
-
-            let off_x_u = off_x as usize;
-            let off_y_u = off_y as usize;
-            let off_z_u = off_z as usize;
-
-            let current_level = light.get(off_x_u, off_y_u, off_z_u);
-            let cheap_out_threshold = if d == Direction::Down && propagated_level == 15 {
-                propagated_level
-            } else {
-                propagated_level.saturating_sub(1)
-            };
-            if current_level >= cheap_out_threshold {
-                continue;
-            }
-
-            let dst_state = palette.get((off_x as i32, off_y as i32, off_z as i32));
-            let dst_flags = table.flags_for(dst_state);
-            let mut emit_flags: u8 = 0;
-            if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {
-                let culling_face = table.occlusion_for(dst_state).face_shape(d.opposite());
-                if from_shape.face_occludes(culling_face, d) {
-                    continue;
-                }
-                emit_flags |= FLAG_HAS_SIDED_TRANSPARENT_BLOCKS;
-            }
-
-            let opacity = table.dampening_for(dst_state);
-            let target_level = if d == Direction::Down
-                && propagated_level == 15
-                && (dst_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN) != 0
-            {
-                15
-            } else {
-                propagated_level.saturating_sub(opacity.max(1))
-            };
-            if target_level <= current_level {
-                continue;
-            }
-
-            light.set(off_x_u, off_y_u, off_z_u, target_level);
-
-            if target_level > 1 {
-                workspace.increase_queue.push(pack_bfs_entry(
-                    off_x as u8,
-                    off_z as u8,
-                    off_y as u8,
-                    target_level,
-                    DIRECTIONS_EXCEPT_OPPOSITE[d.index()],
-                    emit_flags,
-                ));
-            }
-        }
-    }
-
-    workspace.increase_queue.clear();
+    propagate_core::<SkyBfs, { WAVE_INCREASE }>(table, palette, light, workspace, egress);
 }
 
 /// Sky-light decrease BFS over one chunk.
@@ -691,95 +715,7 @@ pub fn propagate_decrease_sky(
     workspace: &mut SkyLightWorkspace,
     egress: &mut SkyEgress,
 ) {
-    let mut queue_read_index: usize = 0;
-    while queue_read_index < workspace.decrease_queue.len() {
-        let entry = workspace.decrease_queue[queue_read_index];
-        queue_read_index += 1;
-
-        let x = unpack_bfs_entry_x(entry);
-        let z = unpack_bfs_entry_z(entry);
-        let y_full = unpack_bfs_entry_y(entry);
-        let propagated_level = unpack_bfs_entry_level(entry);
-        let check_dir_bitset = unpack_bfs_entry_dir_bitset(entry);
-        let y_local = (y_full as usize) & 0xF;
-
-        let src_state = palette.get((x as i32, y_local as i32, z as i32));
-        let src_flags = table.flags_for(src_state);
-        let src_conditional = (src_flags & flag_bits::IS_CONDITIONALLY_OPAQUE) != 0;
-        let from_shape: &'static VoxelShape = if src_conditional {
-            table.occlusion_for(src_state)
-        } else {
-            VoxelShape::empty()
-        };
-
-        for &d in DIRECTIONS_FROM_BITSET[check_dir_bitset as usize] {
-            let (dx, dy, dz) = normal_of(d);
-            let off_x = x as i8 + dx;
-            let off_y = y_local as i8 + dy;
-            let off_z = z as i8 + dz;
-
-            if !(0..=15).contains(&off_x)
-                || !(0..=15).contains(&off_y)
-                || !(0..=15).contains(&off_z)
-            {
-                let (cx, cz) = chunk_xyz_to_face_cell(d, off_x, off_y, off_z);
-                egress
-                    .0
-                    .push(Wavefront::new(d.index() as u8, cx, cz, propagated_level));
-                continue;
-            }
-
-            let off_x_u = off_x as usize;
-            let off_y_u = off_y as usize;
-            let off_z_u = off_z as usize;
-
-            let light_level = light.get(off_x_u, off_y_u, off_z_u);
-            if light_level == 0 {
-                continue;
-            }
-
-            let dst_state = palette.get((off_x as i32, off_y as i32, off_z as i32));
-            let dst_flags = table.flags_for(dst_state);
-            let mut emit_flags: u8 = 0;
-            if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {
-                let culling_face = table.occlusion_for(dst_state).face_shape(d.opposite());
-                if from_shape.face_occludes(culling_face, d) {
-                    continue;
-                }
-                emit_flags |= FLAG_HAS_SIDED_TRANSPARENT_BLOCKS;
-            }
-
-            let opacity = table.dampening_for(dst_state);
-            let target_level = propagated_level.saturating_sub(opacity.max(1));
-
-            if light_level > target_level {
-                workspace.increase_queue.push(pack_bfs_entry(
-                    off_x as u8,
-                    off_z as u8,
-                    off_y as u8,
-                    light_level,
-                    ALL_DIRECTIONS_BITSET,
-                    emit_flags | FLAG_RECHECK_LEVEL,
-                ));
-                continue;
-            }
-
-            light.set(off_x_u, off_y_u, off_z_u, 0);
-
-            if target_level > 0 {
-                workspace.decrease_queue.push(pack_bfs_entry(
-                    off_x as u8,
-                    off_z as u8,
-                    off_y as u8,
-                    target_level,
-                    DIRECTIONS_EXCEPT_OPPOSITE[d.index()],
-                    emit_flags,
-                ));
-            }
-        }
-    }
-
-    workspace.decrease_queue.clear();
+    propagate_core::<SkyBfs, { WAVE_DECREASE }>(table, palette, light, workspace, egress);
 }
 
 #[cfg(test)]
