@@ -3,9 +3,10 @@
 //! `Res<BlockLightTable>`, and pushes a decrease and/or increase seed into
 //! the chunk's `BlockLightWorkspace` queues per the emission-diff rule:
 //! `old_emission > new_emission` → decrease seed at `old_emission`,
-//! `new_emission > 0` → increase seed at `new_emission`. `LightDirty` is
-//! inserted via `Commands::entity(placed.chunk).insert(LightDirty)` when at
-//! least one seed was pushed.
+//! `new_emission > 0` → increase seed at `new_emission`. `BlockBfsPending`
+//! is inserted via `Commands::entity(placed.chunk).insert(BlockBfsPending)`
+//! when at least one seed was pushed; the sky-channel counterpart inserts
+//! `SkyBfsPending` analogously.
 //!
 //! Dampening-only changes (`old_emission == new_emission &&
 //! old_dampening != new_dampening`) emit a `tracing::warn!` and skip; the
@@ -15,7 +16,7 @@
 //! lifecycle-ordering hazard.
 
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Added, Commands, Entity, Or, Query, Res, With};
+use bevy_ecs::prelude::{Added, Commands, Entity, Or, Query, Res, With, Without};
 use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
@@ -32,9 +33,9 @@ use crate::bfs::{
 use crate::geom::face_cell_to_chunk_xyz;
 use crate::heightmap::topmost_surface_world_y;
 use crate::components::{
-    BlockIncoming, BlockLight, BlockLightWorkspace, BlockNeedsInitialSeed, BlockPendingEgress,
-    LightDirty, NeedsFullReseed, NeedsRetop, SkyIncoming, SkyLight, SkyLightSeededAsTopmost,
-    SkyLightWorkspace, SkyNeedsInitialSeed, SkyPendingEgress, Wavefront,
+    BlockBfsPending, BlockIncoming, BlockLight, BlockLightWorkspace, BlockNeedsInitialSeed,
+    BlockPendingEgress, NeedsFullReseed, NeedsRetop, SkyBfsPending, SkyIncoming, SkyLight,
+    SkyLightSeededAsTopmost, SkyLightWorkspace, SkyNeedsInitialSeed, SkyPendingEgress, Wavefront,
 };
 use crate::nibble::NibbleArray;
 use crate::storage::LightStorage;
@@ -113,7 +114,7 @@ pub fn enqueue_block_light_on_block_placed(
         }
 
         if pushed {
-            commands.entity(placed.chunk).insert(LightDirty);
+            commands.entity(placed.chunk).insert(BlockBfsPending);
         }
     }
 }
@@ -246,7 +247,7 @@ pub fn enqueue_sky_light_on_block_placed(
             }
         }
 
-        commands.entity(placed.chunk).insert(LightDirty);
+        commands.entity(placed.chunk).insert(SkyBfsPending);
     }
 }
 
@@ -347,7 +348,7 @@ pub fn seed_block_emitters(
                     }
                 }
             }
-            commands.entity(chunk_entity).insert(LightDirty);
+            commands.entity(chunk_entity).insert(BlockBfsPending);
         }
         commands
             .entity(chunk_entity)
@@ -389,6 +390,7 @@ pub fn seed_sky_initial(
             &mut SkyLightWorkspace,
             &mut SkyLight,
             Option<&SkyNeedsInitialSeed>,
+            Option<&SkyLightSeededAsTopmost>,
         ),
         (
             With<SkyLight>,
@@ -416,6 +418,7 @@ pub fn seed_sky_initial(
         mut sky_ws,
         mut sky_light,
         marker_opt,
+        _topmost_marker_opt,
     ) in chunks.iter_mut()
     {
         let dim_has_sky = sky_dims.get(in_dim.0).is_ok();
@@ -472,7 +475,7 @@ pub fn seed_sky_initial(
                         // Case A: every column's first-air-above-surface is
                         // at or below this chunk's base. All 4096 cells are
                         // air at level 15. Store the compressed Uniform(15)
-                        // form and skip LightDirty — there is no work to
+                        // form and skip SkyBfsPending — there is no work to
                         // converge.
                         if chunk_base_y <= 0 {
                             // Cave-or-deeper chunks must never reach Case A
@@ -632,7 +635,7 @@ pub fn seed_sky_initial(
         }
 
         if sky_seeded {
-            commands.entity(chunk_entity).insert(LightDirty);
+            commands.entity(chunk_entity).insert(SkyBfsPending);
         }
         if marker_opt.is_some() {
             commands
@@ -642,12 +645,11 @@ pub fn seed_sky_initial(
         if seeded_topmost {
             retop_targets.push(chunk_entity);
         }
-        let _ = retop_targets.last();
     }
 
     // For each chunk that just became the new topmost, locate any prior
     // topmost (in the same column at a lower chunk_pos.y) and tag it with
-    // `NeedsRetop` + `LightDirty`. The decrease wave itself runs in
+    // `NeedsRetop` + `SkyBfsPending`. The decrease wave itself runs in
     // `invalidate_previous_topmost` after the `apply_deferred` barrier.
     if !retop_targets.is_empty() {
         // We need access to (Entity, ChunkPos, InColumn, SkyLightSeededAsTopmost)
@@ -660,7 +662,7 @@ pub fn seed_sky_initial(
         // iteration above by recovering data through `chunks.get` (the query
         // is read-only here so the &mut SkyLight borrow is dropped).
         for new_topmost_entity in &retop_targets {
-            let Ok((_, _, new_in_col, _, new_chunk_pos, _, _, _)) =
+            let Ok((_, _, new_in_col, _, new_chunk_pos, _, _, _, _)) =
                 chunks.get(*new_topmost_entity)
             else {
                 continue;
@@ -668,40 +670,47 @@ pub fn seed_sky_initial(
             let new_column = new_in_col.0;
             let new_chunk_y = new_chunk_pos.y;
             // Walk the column's chunk_index sections and find any loaded slot
-            // below new_chunk_y; if the chunk-pos check + SkyLightSeededAsTopmost
-            // marker both hold, schedule the handoff.
+            // below new_chunk_y. If the slot matches our query filter we read
+            // `SkyLightSeededAsTopmost` and tag only the actual predecessor;
+            // otherwise (the mask in `prime_heightmaps_on_column_spawn` didn't
+            // re-insert `SkyNeedsInitialSeed` on this slot) we fall back to a
+            // conservative tag and rely on `invalidate_previous_topmost`'s
+            // `With<SkyLight>` filter plus its non-sky cleanup pass to drop
+            // spurious markers.
             let Ok(chunk_index) = chunk_indexes.get(new_column) else {
                 continue;
             };
-            for slot in chunk_index.sections.iter() {
+            for (section_idx, slot) in chunk_index.sections.iter().enumerate() {
                 let Some(slot_entity) = slot else { continue };
                 if *slot_entity == *new_topmost_entity {
                     continue;
                 }
-                let Ok((_, _, slot_in_col, _, slot_chunk_pos, _, _, _)) =
-                    chunks.get(*slot_entity)
-                else {
-                    // Not in our filtered query (no SkyLight or no markers
-                    // matched). Fall back to a probe via Commands —
-                    // SkyLightSeededAsTopmost is the canonical predecessor
-                    // marker; we can't read it from this query, so we
-                    // unconditionally tag any column-mate below the new
-                    // topmost. The consumer `invalidate_previous_topmost`
-                    // filters on `With<NeedsRetop>`, so spurious tags on
-                    // chunks that don't carry storage are harmless.
-                    continue;
-                };
-                if slot_in_col.0 != new_column {
+                let slot_chunk_y = chunk_index.min_section_y + section_idx as i32;
+                if slot_chunk_y >= new_chunk_y {
                     continue;
                 }
-                if slot_chunk_pos.y >= new_chunk_y {
-                    continue;
+                match chunks.get(*slot_entity) {
+                    Ok((_, _, slot_in_col, _, _, _, _, _, slot_topmost_marker)) => {
+                        if slot_in_col.0 != new_column {
+                            continue;
+                        }
+                        if slot_topmost_marker.is_none() {
+                            continue;
+                        }
+                        commands
+                            .entity(*slot_entity)
+                            .remove::<SkyLightSeededAsTopmost>()
+                            .insert(NeedsRetop)
+                            .insert(SkyBfsPending);
+                    }
+                    Err(_) => {
+                        commands
+                            .entity(*slot_entity)
+                            .remove::<SkyLightSeededAsTopmost>()
+                            .insert(NeedsRetop)
+                            .insert(SkyBfsPending);
+                    }
                 }
-                commands
-                    .entity(*slot_entity)
-                    .remove::<SkyLightSeededAsTopmost>()
-                    .insert(NeedsRetop)
-                    .insert(LightDirty);
             }
         }
     }
@@ -718,11 +727,18 @@ pub fn seed_sky_initial(
 /// requirement: `invalidate_previous_topmost.after(seed_sky_initial)` so the
 /// producer's `commands.insert(NeedsRetop)` is visible after the
 /// `apply_deferred` barrier between `LightingSet::Enqueue` substages.
+///
+/// Cleanup pass: the producer's Err-branch fallback tags column-mates without
+/// being able to verify they carry `SkyLight`. The `prev_chunks` query's
+/// `With<SkyLight>` filter drops those silently, so without a cleanup pass
+/// the `NeedsRetop` marker would persist on non-sky entities indefinitely.
+/// `orphan_chunks` strips the marker from any chunk that lacks `SkyLight`.
 pub(crate) fn invalidate_previous_topmost(
     mut prev_chunks: Query<
         (Entity, &ChunkPos, &InColumn, &mut SkyLightWorkspace, &SkyLight),
         With<NeedsRetop>,
     >,
+    orphan_chunks: Query<Entity, (With<NeedsRetop>, Without<SkyLight>)>,
     mut commands: Commands,
 ) {
     for (prev_entity, _prev_chunk_pos, _prev_in_col, mut prev_sky_ws, prev_sky_light) in
@@ -742,7 +758,10 @@ pub(crate) fn invalidate_previous_topmost(
             }
         }
         commands.entity(prev_entity).remove::<NeedsRetop>();
-        commands.entity(prev_entity).insert(LightDirty);
+        commands.entity(prev_entity).insert(SkyBfsPending);
+    }
+    for orphan_entity in orphan_chunks.iter() {
+        commands.entity(orphan_entity).remove::<NeedsRetop>();
     }
 }
 
@@ -751,7 +770,7 @@ pub(crate) fn invalidate_previous_topmost(
 /// face-cell `BlockLight` values into the new chunk's `BlockIncoming`, then
 /// drains any `BlockPendingEgress` entries that the neighbour buffered
 /// while we were unloaded. Marks the new chunk and every touched loaded
-/// neighbour `LightDirty` when something actually moved.
+/// neighbour `BlockBfsPending` when something actually moved.
 ///
 /// Scheduled in parallel with `pull_sky_neighbor_edges`. The two systems
 /// take disjoint `&BlockLight`/`&SkyLight` reads and disjoint
@@ -866,19 +885,20 @@ pub fn pull_block_neighbor_edges(
             }
 
             if drained_pending_from_neighbour {
-                commands.entity(neighbour_entity).insert(LightDirty);
+                commands.entity(neighbour_entity).insert(BlockBfsPending);
             }
         }
 
         if new_chunk_has_incoming {
-            commands.entity(new_chunk).insert(LightDirty);
+            commands.entity(new_chunk).insert(BlockBfsPending);
         }
     }
 }
 
 /// Sky-light half of the per-channel chunk-edge pull. Mirror of
 /// `pull_block_neighbor_edges` operating on `SkyLight` / `SkyPendingEgress`
-/// / `SkyIncoming`.
+/// / `SkyIncoming`. Marks every touched loaded neighbour and the new chunk
+/// itself with `SkyBfsPending` when something actually moved.
 ///
 /// Retains the sky-only escape hatch: if a newly-loaded neighbour already
 /// holds `LightStorage::Uniform(15)` (the Case A heightmap fast-path
@@ -987,12 +1007,12 @@ pub fn pull_sky_neighbor_edges(
             }
 
             if drained_pending_from_neighbour {
-                commands.entity(neighbour_entity).insert(LightDirty);
+                commands.entity(neighbour_entity).insert(SkyBfsPending);
             }
         }
 
         if new_chunk_has_incoming {
-            commands.entity(new_chunk).insert(LightDirty);
+            commands.entity(new_chunk).insert(SkyBfsPending);
         }
     }
 }
@@ -1182,8 +1202,8 @@ mod tests {
         assert_eq!(unpack_bfs_entry_z(entry), 9);
         assert_eq!(unpack_bfs_entry_level(entry), 14);
         assert!(
-            app.world().get::<LightDirty>(entity).is_some(),
-            "LightDirty inserted"
+            app.world().get::<BlockBfsPending>(entity).is_some(),
+            "BlockBfsPending inserted"
         );
     }
 
@@ -1212,7 +1232,7 @@ mod tests {
         assert_eq!(unpack_bfs_entry_y(entry) as u8, 8);
         assert_eq!(unpack_bfs_entry_z(entry), 8);
         assert_eq!(unpack_bfs_entry_level(entry), 14);
-        assert!(app.world().get::<LightDirty>(entity).is_some());
+        assert!(app.world().get::<BlockBfsPending>(entity).is_some());
     }
 
     #[test]
@@ -1242,7 +1262,7 @@ mod tests {
             7,
             "increase at new emission"
         );
-        assert!(app.world().get::<LightDirty>(entity).is_some());
+        assert!(app.world().get::<BlockBfsPending>(entity).is_some());
     }
 
     #[test]
@@ -1266,8 +1286,8 @@ mod tests {
         assert!(workspace.increase_queue.is_empty());
         assert!(workspace.decrease_queue.is_empty());
         assert!(
-            app.world().get::<LightDirty>(entity).is_none(),
-            "LightDirty NOT inserted on no-op"
+            app.world().get::<BlockBfsPending>(entity).is_none(),
+            "BlockBfsPending NOT inserted on no-op"
         );
     }
 
@@ -1297,8 +1317,8 @@ mod tests {
             "dampening-only skips decrease"
         );
         assert!(
-            app.world().get::<LightDirty>(entity).is_none(),
-            "LightDirty NOT inserted on dampening-only change"
+            app.world().get::<BlockBfsPending>(entity).is_none(),
+            "BlockBfsPending NOT inserted on dampening-only change"
         );
     }
 
@@ -1320,8 +1340,8 @@ mod tests {
             "entity still has no workspace"
         );
         assert!(
-            app.world().get::<LightDirty>(entity).is_none(),
-            "LightDirty must NOT be inserted on missing components"
+            app.world().get::<BlockBfsPending>(entity).is_none(),
+            "BlockBfsPending must NOT be inserted on missing components"
         );
     }
 
@@ -1424,8 +1444,8 @@ mod tests {
             );
         }
         assert!(
-            app.world().get::<LightDirty>(chunk).is_some(),
-            "LightDirty inserted on topmost-of-column seed"
+            app.world().get::<SkyBfsPending>(chunk).is_some(),
+            "SkyBfsPending inserted on topmost-of-column seed"
         );
     }
 
@@ -1475,8 +1495,8 @@ mod tests {
             "non-topmost chunk seeds no decrease"
         );
         assert!(
-            app.world().get::<LightDirty>(chunk_below).is_none(),
-            "LightDirty NOT inserted on non-topmost-of-column chunk"
+            app.world().get::<SkyBfsPending>(chunk_below).is_none(),
+            "SkyBfsPending NOT inserted on non-topmost-of-column chunk"
         );
     }
 
@@ -1564,8 +1584,8 @@ mod tests {
             );
         }
         assert!(
-            app.world().get::<LightDirty>(entity).is_some(),
-            "LightDirty inserted after dampening change"
+            app.world().get::<SkyBfsPending>(entity).is_some(),
+            "SkyBfsPending inserted after dampening change"
         );
     }
 
@@ -1628,8 +1648,8 @@ mod tests {
         assert!(workspace.increase_queue.is_empty());
         assert!(workspace.decrease_queue.is_empty());
         assert!(
-            app.world().get::<LightDirty>(entity).is_none(),
-            "LightDirty NOT inserted on no-op sky enqueue"
+            app.world().get::<SkyBfsPending>(entity).is_none(),
+            "SkyBfsPending NOT inserted on no-op sky enqueue"
         );
     }
 
@@ -1686,8 +1706,8 @@ mod tests {
                 "entity still has no sky workspace"
             );
             assert!(
-                app.world().get::<LightDirty>(entity).is_none(),
-                "LightDirty must NOT be inserted when SkyLight is missing"
+                app.world().get::<SkyBfsPending>(entity).is_none(),
+                "SkyBfsPending must NOT be inserted when SkyLight is missing"
             );
         });
 
@@ -1913,8 +1933,8 @@ mod tests {
             "y != 15 path enqueues six neighbour-recheck seeds"
         );
         assert!(
-            app.world().get::<LightDirty>(entity).is_some(),
-            "occlusion-only delta inserts LightDirty"
+            app.world().get::<SkyBfsPending>(entity).is_some(),
+            "occlusion-only delta inserts SkyBfsPending"
         );
     }
 
@@ -2028,8 +2048,12 @@ mod tests {
             "SkyLightSeededAsTopmost inserted"
         );
         assert!(
-            app.world().get::<LightDirty>(chunk).is_some(),
-            "LightDirty inserted"
+            app.world().get::<BlockBfsPending>(chunk).is_some(),
+            "BlockBfsPending inserted by seed_block_emitters"
+        );
+        assert!(
+            app.world().get::<SkyBfsPending>(chunk).is_some(),
+            "SkyBfsPending inserted by seed_sky_initial"
         );
         assert!(
             app.world().get::<BlockNeedsInitialSeed>(chunk).is_none(),
@@ -2106,7 +2130,7 @@ mod tests {
 
         app.update();
 
-        // Previous topmost A: marker removed, LightDirty inserted, decrease
+        // Previous topmost A: marker removed, SkyBfsPending inserted, decrease
         // wave seeded with stored level 12.
         assert!(
             app.world().get::<SkyLightSeededAsTopmost>(chunk_a).is_none(),
@@ -2117,8 +2141,8 @@ mod tests {
             "NeedsRetop consumed by invalidate_previous_topmost"
         );
         assert!(
-            app.world().get::<LightDirty>(chunk_a).is_some(),
-            "previous topmost marked LightDirty"
+            app.world().get::<SkyBfsPending>(chunk_a).is_some(),
+            "previous topmost marked SkyBfsPending"
         );
         let a_ws = app
             .world()
@@ -2178,8 +2202,12 @@ mod tests {
             "skyless dim chunk does not insert SkyLightSeededAsTopmost"
         );
         assert!(
-            app.world().get::<LightDirty>(chunk).is_some(),
-            "chunk still marked LightDirty"
+            app.world().get::<SkyBfsPending>(chunk).is_none(),
+            "skyless-dim chunk must not be marked SkyBfsPending"
+        );
+        assert!(
+            app.world().get::<BlockBfsPending>(chunk).is_some(),
+            "block-light emitter seed still marks the chunk BlockBfsPending"
         );
     }
 
@@ -2232,12 +2260,48 @@ mod tests {
             "fallback arm seeds 256 entries on topmost-of-column"
         );
         assert!(
-            app.world().get::<LightDirty>(chunk).is_some(),
-            "LightDirty inserted by the fallback branch"
+            app.world().get::<SkyBfsPending>(chunk).is_some(),
+            "SkyBfsPending inserted by the fallback branch"
         );
         assert!(
             app.world().get::<SkyNeedsInitialSeed>(chunk).is_none(),
             "marker was never inserted; fallback path does not remove what isn't there"
+        );
+    }
+
+    /// Regression test for the orphan-marker cleanup pass: a chunk carrying
+    /// `NeedsRetop` but lacking `SkyLight` (skyless dim, or a non-storage
+    /// entity that the producer's Err-branch fallback tagged conservatively)
+    /// must have the marker stripped by `invalidate_previous_topmost` so it
+    /// cannot accumulate across ticks.
+    #[test]
+    fn invalidate_previous_topmost_clears_orphan_needs_retop_on_non_sky_chunks() {
+        let mut app = build_seed_initial_app();
+        let dim = spawn_dimension(&mut app, true);
+
+        let orphan = app
+            .world_mut()
+            .spawn((
+                ChunkPos::new(0, 0, 0),
+                InColumn(dim),
+                InDimension(dim),
+                NeedsRetop,
+            ))
+            .id();
+
+        app.update();
+
+        assert!(
+            app.world().get::<NeedsRetop>(orphan).is_none(),
+            "non-sky chunk's NeedsRetop must be cleared by the cleanup pass"
+        );
+        assert!(
+            app.world().get::<SkyLightWorkspace>(orphan).is_none(),
+            "cleanup pass must not synthesize a SkyLightWorkspace"
+        );
+        assert!(
+            app.world().get::<SkyBfsPending>(orphan).is_none(),
+            "cleanup pass must not tag the orphan SkyBfsPending"
         );
     }
 
@@ -2367,12 +2431,12 @@ mod tests {
             assert_eq!(w.level(), 7, "level = 8 - 1 manhattan attenuation");
         }
         assert!(
-            app.world().get::<LightDirty>(chunk_b).is_some(),
-            "B marked LightDirty (pulled face cells into its incoming)"
+            app.world().get::<BlockBfsPending>(chunk_b).is_some(),
+            "B marked BlockBfsPending (pulled face cells into its incoming)"
         );
         // Pure non-mutating face-cell read on A — no state change on A.
         assert!(
-            app.world().get::<LightDirty>(chunk_a).is_none(),
+            app.world().get::<BlockBfsPending>(chunk_a).is_none(),
             "neighbour A stays clean — non-mutating face-cell pull is not a state change on A"
         );
     }
@@ -2428,11 +2492,11 @@ mod tests {
             assert_eq!(w.level(), 7, "level = 8 - 1 manhattan attenuation");
         }
         assert!(
-            app.world().get::<LightDirty>(chunk_b).is_some(),
-            "B marked LightDirty (pulled face cells into its incoming)"
+            app.world().get::<SkyBfsPending>(chunk_b).is_some(),
+            "B marked SkyBfsPending (pulled face cells into its incoming)"
         );
         assert!(
-            app.world().get::<LightDirty>(chunk_a).is_none(),
+            app.world().get::<SkyBfsPending>(chunk_a).is_none(),
             "neighbour A stays clean — non-mutating face-cell pull is not a state change on A"
         );
     }
@@ -2513,8 +2577,8 @@ mod tests {
         assert_eq!(drained.unwrap().face(), west_index);
 
         assert!(
-            app.world().get::<LightDirty>(chunk_a).is_some(),
-            "A marked LightDirty"
+            app.world().get::<BlockBfsPending>(chunk_a).is_some(),
+            "A marked BlockBfsPending"
         );
     }
 
@@ -2568,8 +2632,8 @@ mod tests {
             "B must NOT receive face cells from A — block channel has no Uniform(15) escape hatch"
         );
         assert!(
-            app.world().get::<LightDirty>(chunk_b).is_none(),
-            "B has no incoming wavefronts, so no LightDirty marker should be inserted"
+            app.world().get::<BlockBfsPending>(chunk_b).is_none(),
+            "B has no incoming wavefronts, so no BlockBfsPending marker should be inserted"
         );
     }
 
@@ -2784,8 +2848,8 @@ mod tests {
             );
         }
         assert!(
-            app.world().get::<LightDirty>(chunk_b).is_some(),
-            "B must be marked LightDirty so the BFS converge loop runs"
+            app.world().get::<SkyBfsPending>(chunk_b).is_some(),
+            "B must be marked SkyBfsPending so the BFS converge loop runs"
         );
     }
 }

@@ -6,8 +6,8 @@ use crate::converge::{
 };
 use crate::distribute::distribute_cross_chunk_wavefronts;
 use crate::emit_dirty::{
-    clear_light_dirty_safety_net, clear_light_tickets, downgrade_light_storage,
-    emit_block_light_dirty, emit_sky_light_dirty,
+    clear_block_bfs_pending_safety_net, clear_light_tickets, clear_sky_bfs_pending_safety_net,
+    downgrade_light_storage, emit_block_light_dirty, emit_sky_light_dirty,
 };
 use crate::enqueue::{
     consume_needs_full_reseed, enqueue_block_light_on_block_placed,
@@ -231,7 +231,10 @@ impl Plugin for LightingPlugin {
             (
                 downgrade_light_storage,
                 (emit_block_light_dirty, emit_sky_light_dirty),
-                clear_light_dirty_safety_net,
+                (
+                    clear_block_bfs_pending_safety_net,
+                    clear_sky_bfs_pending_safety_net,
+                ),
                 clear_light_tickets,
             )
                 .chain()

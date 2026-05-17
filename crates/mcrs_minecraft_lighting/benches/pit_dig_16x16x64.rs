@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
 use criterion::{criterion_group, criterion_main, Criterion};
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_minecraft_lighting::components::LightDirty;
+use mcrs_minecraft_lighting::components::BlockBfsPending;
 use mcrs_minecraft_lighting::telemetry::{snapshot, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
 use mcrs_protocol::BlockStateId;
@@ -20,7 +20,7 @@ fn bench_pit_dig(c: &mut Criterion) {
             let mut total = Duration::ZERO;
             for _ in 0..iters {
                 let mut app = bench_helpers::build_pit_dig_app();
-                // The palette-mutation + LightDirty insertion is the
+                // The palette-mutation + BlockBfsPending insertion is the
                 // setup-equivalent for this scenario — outside timing.
                 {
                     let mut q = app.world_mut().query_filtered::<Entity, With<BlockPalette>>();
@@ -34,7 +34,7 @@ fn bench_pit_dig(c: &mut Criterion) {
                                 }
                             }
                         }
-                        app.world_mut().entity_mut(entity).insert(LightDirty);
+                        app.world_mut().entity_mut(entity).insert(BlockBfsPending);
                     }
                 }
                 let start = Instant::now();

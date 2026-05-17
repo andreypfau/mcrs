@@ -1,7 +1,8 @@
 //! Thin Bevy system wrappers around `bfs::propagate_increase` and
 //! `bfs::propagate_decrease`. Each system iterates
-//! `Query<..., With<LightDirty>>` in parallel via `par_iter_mut`. Per-worker
-//! `Commands` accumulation goes through `ParallelCommands`.
+//! `Query<..., With<{Block,Sky}BfsPending>>` in parallel via
+//! `par_iter_mut`. Per-worker `Commands` accumulation goes through
+//! `ParallelCommands`.
 //!
 //! Drain-incoming prelude: every per-chunk iteration starts by draining
 //! the chunk's `*Incoming` buffer into `workspace.increase_queue` via
@@ -14,11 +15,12 @@
 //! at `x = 0` inside the destination, and the BFS picks it up as if it
 //! had been seeded at that cell from level `level`.
 //!
-//! `propagate_increase_block_system` removes `LightDirty` at the end of
-//! the loop body when both workspace queues have drained, regardless of
+//! `propagate_increase_block_system` removes `BlockBfsPending` at the end
+//! of the loop body when both workspace queues have drained, regardless of
 //! whether `BlockEgress` is empty — the source chunk is done with
 //! intra-chunk work, and the cross-chunk distribute pass re-marks
-//! `LightDirty` on any chunk it touches via egress.
+//! `BlockBfsPending` on any chunk it touches via egress. The sky-side
+//! mirror system manages `SkyBfsPending` analogously.
 //!
 //! Ordering between the two systems is set at plugin wiring time:
 //! the decrease pass is chained before the increase pass so the decrease
@@ -35,8 +37,8 @@ use crate::bfs::{
     FLAG_WRITE_LEVEL,
 };
 use crate::components::{
-    BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, IsAllAir, LightDirty, SkyEgress,
-    SkyIncoming, SkyLight, SkyLightWorkspace, Wavefront,
+    BlockBfsPending, BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, IsAllAir,
+    SkyBfsPending, SkyEgress, SkyIncoming, SkyLight, SkyLightWorkspace, Wavefront,
 };
 use crate::distribute::direction_from_index;
 use crate::geom::face_cell_to_chunk_xyz;
@@ -80,7 +82,7 @@ pub fn propagate_decrease_block_system(
             &mut BlockEgress,
             &mut BlockIncoming,
         ),
-        With<LightDirty>,
+        With<BlockBfsPending>,
     >,
 ) {
     #[cfg(feature = "lighting-trace")]
@@ -108,7 +110,7 @@ pub fn propagate_increase_block_system(
             &mut BlockEgress,
             &mut BlockIncoming,
         ),
-        With<LightDirty>,
+        With<BlockBfsPending>,
     >,
     commands: ParallelCommands,
 ) {
@@ -122,7 +124,7 @@ pub fn propagate_increase_block_system(
             propagate_increase(&table, palette, &mut light.0, &mut workspace, &mut egress);
             if workspace.increase_queue.is_empty() && workspace.decrease_queue.is_empty() {
                 commands.command_scope(|mut cmd| {
-                    cmd.entity(entity).remove::<LightDirty>();
+                    cmd.entity(entity).remove::<BlockBfsPending>();
                 });
             }
             #[cfg(feature = "lighting-trace")]
@@ -142,7 +144,7 @@ pub fn propagate_decrease_sky_system(
             &mut SkyEgress,
             &mut SkyIncoming,
         ),
-        With<LightDirty>,
+        With<SkyBfsPending>,
     >,
 ) {
     #[cfg(feature = "lighting-trace")]
@@ -208,7 +210,7 @@ pub fn propagate_increase_sky_system(
             &mut SkyIncoming,
             Option<&IsAllAir>,
         ),
-        With<LightDirty>,
+        With<SkyBfsPending>,
     >,
     commands: ParallelCommands,
 ) {
@@ -245,7 +247,7 @@ pub fn propagate_increase_sky_system(
                 workspace.increase_queue.clear();
                 if workspace.decrease_queue.is_empty() {
                     commands.command_scope(|mut cmd| {
-                        cmd.entity(entity).remove::<LightDirty>();
+                        cmd.entity(entity).remove::<SkyBfsPending>();
                     });
                 }
                 return;
@@ -254,7 +256,7 @@ pub fn propagate_increase_sky_system(
             propagate_increase_sky(&table, palette, &mut light.0, &mut workspace, &mut egress);
             if workspace.increase_queue.is_empty() && workspace.decrease_queue.is_empty() {
                 commands.command_scope(|mut cmd| {
-                    cmd.entity(entity).remove::<LightDirty>();
+                    cmd.entity(entity).remove::<SkyBfsPending>();
                 });
             }
             #[cfg(feature = "lighting-trace")]
@@ -267,7 +269,7 @@ pub fn propagate_increase_sky_system(
 mod tests {
     use super::*;
     use crate::bfs::{pack_bfs_entry, ALL_DIRECTIONS_BITSET};
-    use crate::components::{BlockIncoming, BlockLight, BlockLightWorkspace, LightDirty};
+    use crate::components::{BlockBfsPending, BlockIncoming, BlockLight, BlockLightWorkspace, SkyBfsPending};
     use crate::nibble::NibbleArray;
     use crate::storage::LightStorage;
     use crate::table::flag_bits;
@@ -348,7 +350,7 @@ mod tests {
                 BlockLightWorkspace::default(),
                 BlockEgress::default(),
                 BlockIncoming::default(),
-                LightDirty,
+                BlockBfsPending,
             ))
             .id()
     }
@@ -410,8 +412,8 @@ mod tests {
             "decrease_queue must drain to empty"
         );
         assert!(
-            app.world().get::<LightDirty>(entity).is_some(),
-            "decrease system does not clear LightDirty (that is the increase system's job)"
+            app.world().get::<BlockBfsPending>(entity).is_some(),
+            "decrease system does not clear BlockBfsPending (that is the increase system's job)"
         );
     }
 
@@ -472,8 +474,8 @@ mod tests {
         app.update();
 
         assert!(
-            app.world().get::<LightDirty>(entity).is_none(),
-            "LightDirty cleared when both queues empty"
+            app.world().get::<BlockBfsPending>(entity).is_none(),
+            "BlockBfsPending cleared when both queues empty"
         );
     }
 
@@ -511,8 +513,8 @@ mod tests {
             "egress must contain at least one East face wavefront"
         );
         assert!(
-            app.world().get::<LightDirty>(entity).is_none(),
-            "LightDirty cleared even when BlockEgress is non-empty"
+            app.world().get::<BlockBfsPending>(entity).is_none(),
+            "BlockBfsPending cleared even when BlockEgress is non-empty"
         );
     }
 
@@ -536,7 +538,7 @@ mod tests {
         assert_eq!(
             ws.increase_queue.len(),
             1,
-            "queue NOT drained — clean chunk is skipped by With<LightDirty>"
+            "queue NOT drained — clean chunk is skipped by With<BlockBfsPending>"
         );
         let light = app
             .world()
@@ -559,7 +561,7 @@ mod tests {
     fn propagate_only_runs_on_dirty_chunks() {
         // Chain decrease before increase to match production ordering, so the
         // dirty chunk's seed is drained by `propagate_increase` and its
-        // LightDirty is cleared, while the clean chunk sees neither system
+        // BlockBfsPending is cleared, while the clean chunk sees neither system
         // touch its workspace.
         let mut app = App::new();
         app.insert_resource(make_test_table());
@@ -611,8 +613,8 @@ mod tests {
             "clean chunk untouched — stale seed still in queue"
         );
         assert!(
-            app.world().get::<LightDirty>(dirty).is_none(),
-            "dirty chunk's LightDirty cleared"
+            app.world().get::<BlockBfsPending>(dirty).is_none(),
+            "dirty chunk's BlockBfsPending cleared"
         );
     }
 
@@ -637,7 +639,7 @@ mod tests {
                 SkyEgress::default(),
                 SkyIncoming::default(),
                 IsAllAir,
-                LightDirty,
+                SkyBfsPending,
             ))
             .id();
 
@@ -672,7 +674,7 @@ mod tests {
                 SkyLightWorkspace::default(),
                 SkyEgress::default(),
                 SkyIncoming::default(),
-                LightDirty,
+                SkyBfsPending,
             ))
             .id();
 
@@ -836,7 +838,7 @@ mod tests {
                 BlockLightWorkspace::default(),
                 BlockEgress::default(),
                 BlockIncoming::default(),
-                LightDirty,
+                SkyBfsPending,
             ))
             .id();
 
@@ -925,7 +927,7 @@ mod tests {
                 SkyLightWorkspace::default(),
                 SkyEgress::default(),
                 SkyIncoming::default(),
-                LightDirty,
+                SkyBfsPending,
             ))
             .id();
         let south = Direction::South.index() as u8;
@@ -963,10 +965,10 @@ mod tests {
         );
     }
 
-    /// Spawn 100 chunks each with LightDirty + a seeded BlockLight cell
+    /// Spawn 100 chunks each with BlockBfsPending + a seeded BlockLight cell
     /// + an increase_queue entry, then run propagate_increase_block_system
     /// which uses par_iter_mut. Assert all 100 chunks drain their queues
-    /// and clear LightDirty. This is structural: par_iter_mut must compile,
+    /// and clear BlockBfsPending. This is structural: par_iter_mut must compile,
     /// run without deadlock, and produce identical results to iter_mut.
     #[test]
     fn propagate_decrease_runs_under_par_iter_mut() {
@@ -999,10 +1001,167 @@ mod tests {
                 "entity {e:?} queue drained under par_iter_mut"
             );
             assert!(
-                app.world().get::<LightDirty>(e).is_none(),
-                "entity {e:?} LightDirty cleared under par_iter_mut"
+                app.world().get::<BlockBfsPending>(e).is_none(),
+                "entity {e:?} BlockBfsPending cleared under par_iter_mut"
             );
         }
     }
 
+    // ---- per-channel marker isolation tests ----
+
+    /// A block-light-relevant `BlockPlaced` event (here an emitter change
+    /// AIR → TORCH on a chunk with `BlockLight`/`BlockLightWorkspace` but no
+    /// `SkyLight`) inserts only `BlockBfsPending` on the affected chunk; the
+    /// sky-channel marker `SkyBfsPending` must not appear. The chunk lacks
+    /// `SkyLight`, so the sky enqueue system's archetype filter excludes it
+    /// and the sky marker stays absent.
+    #[test]
+    fn block_only_event_inserts_only_block_bfs_pending() {
+        use bevy_ecs::message::Messages;
+        use mcrs_engine::world::block::BlockPos;
+        use mcrs_engine::world::chunk::ChunkPos;
+        use mcrs_minecraft_block::block::BlockUpdateFlags;
+        use mcrs_minecraft_block::block_update::BlockPlaced;
+        use crate::enqueue::{
+            enqueue_block_light_on_block_placed, enqueue_sky_light_on_block_placed,
+        };
+        use mcrs_protocol::BlockStateId;
+
+        const TORCH: BlockStateId = BlockStateId(1);
+
+        let mut app = App::new();
+        app.add_message::<BlockPlaced>();
+        app.insert_resource(make_test_table());
+        app.add_systems(
+            Update,
+            (
+                enqueue_block_light_on_block_placed,
+                enqueue_sky_light_on_block_placed,
+            ),
+        );
+
+        // Chunk with block-light state only — no SkyLight bundle attached.
+        let chunk = app
+            .world_mut()
+            .spawn((BlockLight::default(), BlockLightWorkspace::default()))
+            .id();
+
+        app.world_mut()
+            .resource_mut::<Messages<BlockPlaced>>()
+            .write(BlockPlaced {
+                chunk,
+                chunk_pos: ChunkPos::new(0, 0, 0),
+                block_pos: BlockPos::new(3, 5, 9),
+                old_state: AIR,
+                new_state: TORCH,
+                flags: BlockUpdateFlags::empty(),
+            });
+
+        app.update();
+
+        assert!(
+            app.world().get::<BlockBfsPending>(chunk).is_some(),
+            "block-emitter change must insert BlockBfsPending on the chunk"
+        );
+        assert!(
+            app.world().get::<SkyBfsPending>(chunk).is_none(),
+            "block-only event must NOT insert SkyBfsPending on a chunk lacking SkyLight"
+        );
+    }
+
+    /// An opacity-only sky-light-relevant `BlockPlaced` event
+    /// (AIR → LEAVES, where LEAVES has non-zero dampening and no emission)
+    /// inserts only `SkyBfsPending` on the affected chunk; the block-channel
+    /// marker `BlockBfsPending` must not appear because the block-channel
+    /// enqueue system warns and skips on a dampening-only change.
+    #[test]
+    fn sky_only_opacity_change_inserts_only_sky_bfs_pending() {
+        use bevy_ecs::message::Messages;
+        use mcrs_engine::world::block::BlockPos;
+        use mcrs_engine::world::chunk::ChunkPos;
+        use mcrs_engine::world::column::{ColumnChunks, InColumn};
+        use mcrs_minecraft_block::block::BlockUpdateFlags;
+        use mcrs_minecraft_block::block_update::BlockPlaced;
+        use crate::enqueue::{
+            enqueue_block_light_on_block_placed, enqueue_sky_light_on_block_placed,
+        };
+        use mcrs_protocol::BlockStateId;
+        use crate::table::flag_bits;
+
+        const LEAVES: BlockStateId = BlockStateId(4);
+
+        // Custom test table: AIR has dampening=0 + PROPAGATES_SKYLIGHT_DOWN,
+        // LEAVES has dampening=1 + NOT PROPAGATES_SKYLIGHT_DOWN. Both have
+        // emission=0 — block-channel sees AIR→LEAVES as a dampening-only
+        // change and skips; sky-channel sees both dampening and flag deltas.
+        let state_count = 5usize;
+        let mut emission = vec![0u8; state_count].into_boxed_slice();
+        let mut dampening = vec![0u8; state_count].into_boxed_slice();
+        let occlusion: Box<[&'static VoxelShape]> =
+            vec![VoxelShape::empty(); state_count].into_boxed_slice();
+        let mut flags = vec![0u8; state_count].into_boxed_slice();
+        emission[AIR.0 as usize] = 0;
+        dampening[AIR.0 as usize] = 0;
+        flags[AIR.0 as usize] = flag_bits::PROPAGATES_SKYLIGHT_DOWN;
+        emission[LEAVES.0 as usize] = 0;
+        dampening[LEAVES.0 as usize] = 1;
+        flags[LEAVES.0 as usize] = 0;
+
+        let mut app = App::new();
+        app.add_message::<BlockPlaced>();
+        app.insert_resource(BlockLightTable {
+            emission,
+            dampening,
+            occlusion,
+            flags,
+        });
+        app.add_systems(
+            Update,
+            (
+                enqueue_block_light_on_block_placed,
+                enqueue_sky_light_on_block_placed,
+            ),
+        );
+
+        // Chunk with both block- and sky-light state; topmost of its column
+        // so the sky enqueue takes the y<15 neighbour-seed path (y=10 below).
+        let chunk = app.world_mut().spawn_empty().id();
+        let column = app
+            .world_mut()
+            .spawn(ColumnChunks {
+                min_section_y: 0,
+                sections: vec![Some(chunk)].into_boxed_slice(),
+            })
+            .id();
+        app.world_mut().entity_mut(chunk).insert((
+            BlockLight::default(),
+            BlockLightWorkspace::default(),
+            SkyLight::default(),
+            SkyLightWorkspace::default(),
+            ChunkPos::new(0, 0, 0),
+            InColumn(column),
+        ));
+
+        app.world_mut()
+            .resource_mut::<Messages<BlockPlaced>>()
+            .write(BlockPlaced {
+                chunk,
+                chunk_pos: ChunkPos::new(0, 0, 0),
+                block_pos: BlockPos::new(8, 10, 8),
+                old_state: AIR,
+                new_state: LEAVES,
+                flags: BlockUpdateFlags::empty(),
+            });
+
+        app.update();
+
+        assert!(
+            app.world().get::<SkyBfsPending>(chunk).is_some(),
+            "opacity-only change must insert SkyBfsPending on the chunk"
+        );
+        assert!(
+            app.world().get::<BlockBfsPending>(chunk).is_none(),
+            "dampening-only change must NOT insert BlockBfsPending (block enqueue skips)"
+        );
+    }
 }

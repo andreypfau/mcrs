@@ -4,7 +4,7 @@ use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{
-    Added, Changed, Component, ContainsEntity, Message, MessageReader, On, Query, With,
+    Added, Changed, Component, ContainsEntity, Message, MessageReader, On, Or, Query, With,
 };
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Res};
@@ -21,7 +21,7 @@ use mcrs_engine::world::column::{
 };
 use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_lighting::codec::{build_full_light_data, ColumnLightUpdate, LightCodecParams};
-use mcrs_minecraft_lighting::components::LightDirty;
+use mcrs_minecraft_lighting::components::{BlockBfsPending, SkyBfsPending};
 use mcrs_minecraft_lighting::sets::LightingSet;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::{
@@ -213,12 +213,13 @@ fn send_column_queue(
     )>,
     chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
     dim_column_indexes: Query<&ColumnIndex>,
-    // Sections still cascading sky-light through the bounded converge loop carry
-    // `LightDirty`. Defer first-send of any column with at least one such section
-    // — otherwise the codec snapshots default `Mixed(NibbleArray::zeros())` from
-    // pre-converged storage and the client caches darkness. The column re-enters
-    // the queue on the next tick once propagation drains.
-    light_dirty: Query<(), With<LightDirty>>,
+    // Sections still cascading light through the bounded converge loop carry
+    // `BlockBfsPending` or `SkyBfsPending`. Defer first-send of any column
+    // with at least one such section — otherwise the codec snapshots default
+    // `Mixed(NibbleArray::zeros())` from pre-converged storage and the client
+    // caches darkness. The column re-enters the queue on the next tick once
+    // propagation drains.
+    light_dirty: Query<(), Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>,
     codec_params: LightCodecParams,
 ) {
     players

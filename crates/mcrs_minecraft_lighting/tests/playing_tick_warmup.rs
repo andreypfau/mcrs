@@ -10,12 +10,12 @@
 // neighbour edge cells; the bounded
 // `light_converge_driver` runs the BFS-style convergence under
 // `LightConvergeSchedule`; the `EmitDirty` stage clears the safety-net
-// `LightDirty` markers once queues drain.
+// per-channel BfsPending markers once queues drain.
 //
 // The test asserts (a) the storage components are populated, (b) no
-// `LightDirty` marker remains on any chunk after warm-up, and (c) none of
-// the bounded-loop / pending-egress / cross-dim telemetry counters
-// incremented across the run.
+// per-channel BfsPending marker remains on any chunk after warm-up, and
+// (c) none of the bounded-loop / pending-egress / cross-dim telemetry
+// counters incremented across the run.
 
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::*;
@@ -30,7 +30,7 @@ use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_minecraft_lighting::components::{BlockLight, LightDirty, SkyLight};
+use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyBfsPending, SkyLight};
 use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
 use mcrs_minecraft_lighting::telemetry::{snapshot, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_lighting::LightingPlugin;
@@ -137,8 +137,9 @@ fn playing_tick_warmup_propagates_initial_light_without_residual_dirty() {
     // lighting state; tick 2 runs `(seed_block_emitters, seed_sky_initial)` +
     // `invalidate_previous_topmost` + `(pull_block_neighbor_edges,
     // pull_sky_neighbor_edges)` + convergence + emit-dirty; tick 3 lets the
-    // safety-net `clear_light_dirty_safety_net` drain any residual marker
-    // observed after queues are empty.
+    // per-channel safety-net pair `(clear_block_bfs_pending_safety_net,
+    // clear_sky_bfs_pending_safety_net)` drain any residual marker observed
+    // after queues are empty.
     for _ in 0..3 {
         app.world_mut().run_schedule(FixedUpdate);
     }
@@ -161,11 +162,11 @@ fn playing_tick_warmup_propagates_initial_light_without_residual_dirty() {
 
     let mut dirty_q = app
         .world_mut()
-        .query_filtered::<Entity, With<LightDirty>>();
+        .query_filtered::<Entity, Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>();
     let dirty_count = dirty_q.iter(app.world()).count();
     assert_eq!(
         dirty_count, 0,
-        "no residual LightDirty marker must remain after 3 warm-up ticks"
+        "no residual per-channel BfsPending marker must remain after 3 warm-up ticks"
     );
 
     let after = snapshot();

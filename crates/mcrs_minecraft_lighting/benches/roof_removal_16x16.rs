@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
 use criterion::{criterion_group, criterion_main, Criterion};
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_minecraft_lighting::components::LightDirty;
+use mcrs_minecraft_lighting::components::SkyBfsPending;
 use mcrs_minecraft_lighting::telemetry::{snapshot, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
 use mcrs_protocol::BlockStateId;
@@ -20,7 +20,7 @@ fn bench_roof_removal(c: &mut Criterion) {
             let mut total = Duration::ZERO;
             for _ in 0..iters {
                 let mut app = bench_helpers::build_roof_removal_app();
-                // The palette-mutation + LightDirty insertion is the
+                // The palette-mutation + SkyBfsPending insertion is the
                 // setup-equivalent for this scenario — it lives outside
                 // the timing window like the App build itself.
                 {
@@ -33,7 +33,7 @@ fn bench_roof_removal(c: &mut Criterion) {
                                 palette.set((x, 15i32, z), BlockStateId(0));
                             }
                         }
-                        app.world_mut().entity_mut(entity).insert(LightDirty);
+                        app.world_mut().entity_mut(entity).insert(SkyBfsPending);
                     }
                 }
                 let start = Instant::now();

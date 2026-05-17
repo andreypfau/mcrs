@@ -243,7 +243,7 @@ fn torch_in_dim_a_leaves_dim_b_byte_identical_and_no_cross_dim_violation() {
 
     // Cross-dim leak assertion: every emitted dirty-light message references
     // a chunk whose parent dim is Dim A. The current production wire only
-    // fires when `LightDirty` survives the in-tick convergence (e.g., bounded-
+    // fires when `BlockBfsPending` or `SkyBfsPending` survives the in-tick convergence (e.g., bounded-
     // loop cap, cross-chunk back-pressure); under simple-load scenarios the
     // chain may emit zero messages, in which case the loop trivially passes —
     // the byte-equality and counter-delta assertions below are the load-

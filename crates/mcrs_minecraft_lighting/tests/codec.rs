@@ -4,8 +4,8 @@
 // merge test inject synthetic `BlockLightDirty` / `SkyLightDirty` messages
 // directly into the message buffer and exercise the consumer side of the
 // codec. `emit_dirty_writes_block_light_dirty_for_modified_chunk` drives
-// the producer wiring via the `LightDirty` marker and confirms the emit-pass
-// systems fan that marker out to the per-layer message stream.
+// the producer wiring via the `BlockBfsPending` marker and confirms the
+// emit-pass systems fan that marker out to the per-layer message stream.
 
 use bevy_app::{App, FixedPostUpdate, FixedUpdate};
 use bevy_ecs::message::Messages;
@@ -21,7 +21,7 @@ use mcrs_engine::world::column::{
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_minecraft_lighting::components::{BlockLight, LightDirty, SkyLight};
+use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyLight};
 use mcrs_minecraft_lighting::nibble::NibbleArray;
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
@@ -283,13 +283,13 @@ fn emit_dirty_writes_block_light_dirty_for_modified_chunk() {
     let target_chunk = handles.chunks[(chunk_y - MIN_CHUNK_Y) as usize];
 
     // Simulate a propagation pass having touched this chunk: replace the
-    // default Null storage with a Mixed buffer and insert the LightDirty
-    // marker the propagate systems would have left behind.
+    // default Null storage with a Mixed buffer and insert the
+    // BlockBfsPending marker the propagate systems would have left behind.
     let mut nibble = NibbleArray::zeros();
     nibble.set(1, 1, 1, 0x5);
     app.world_mut().entity_mut(target_chunk).insert((
         BlockLight(LightStorage::Mixed(Box::new(nibble))),
-        LightDirty,
+        BlockBfsPending,
     ));
 
     app.world_mut().run_schedule(FixedUpdate);
@@ -297,7 +297,7 @@ fn emit_dirty_writes_block_light_dirty_for_modified_chunk() {
     let block_dirty = drain_block_light_dirty(&mut app);
     assert!(
         !block_dirty.is_empty(),
-        "emit_block_light_dirty must produce at least one message for the LightDirty chunk"
+        "emit_block_light_dirty must produce at least one message for the BlockBfsPending chunk"
     );
     let from_target: Vec<_> = block_dirty
         .iter()

@@ -76,9 +76,23 @@ pub struct SkyLightWorkspace {
     pub decrease_queue: Vec<u64>,
 }
 
+/// Per-channel pending-BFS marker for the block-light engine.
+/// Inserted by enqueue / seed / pull / distribute when a chunk's
+/// block-light state needs another BFS pass; consumed by
+/// `propagate_increase_block_system` at quiescence and by
+/// `clear_block_bfs_pending_safety_net` as a post-converge sweep.
 #[derive(Component)]
 #[component(storage = "SparseSet")]
-pub struct LightDirty;
+pub struct BlockBfsPending;
+
+/// Per-channel pending-BFS marker for the sky-light engine.
+/// Inserted by enqueue / seed / pull / distribute when a chunk's
+/// sky-light state needs another BFS pass; consumed by
+/// `propagate_increase_sky_system` at quiescence and by
+/// `clear_sky_bfs_pending_safety_net` as a post-converge sweep.
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct SkyBfsPending;
 
 #[derive(Component)]
 #[component(storage = "SparseSet")]
@@ -184,7 +198,8 @@ mod tests {
 
     #[test]
     fn light_dirty_marker_compile_test() {
-        let _m = LightDirty;
+        let _block_bfs = BlockBfsPending;
+        let _sky_bfs = SkyBfsPending;
         let _m2 = IsAllAir;
         let _m4 = BlockNeedsInitialSeed;
         let _m5 = SkyNeedsInitialSeed;

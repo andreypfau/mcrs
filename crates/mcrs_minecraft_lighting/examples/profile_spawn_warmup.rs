@@ -13,7 +13,7 @@ use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use mcrs_engine::world::column::ColumnLifecycleSet;
-use mcrs_minecraft_lighting::components::LightDirty;
+use mcrs_minecraft_lighting::components::{BlockBfsPending, SkyBfsPending};
 use mcrs_minecraft_block::block_update::BlockUpdateSet;
 use mcrs_minecraft_lighting::sets::LightingSet;
 use mcrs_minecraft_lighting::telemetry::snapshot as lighting_snapshot;
@@ -105,12 +105,15 @@ impl Plugin for PhaseTimingPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(PhaseTimings(&PHASE_ACCUMULATORS));
 
-        // Probe: count `LightDirty` chunks immediately before
-        // `LightingSet::Converge` runs, and remember the first one's
-        // chunk_pos so the harness can identify it.
+        // Probe: count any chunk with pending work on either channel
+        // immediately before `LightingSet::Converge` runs, and remember
+        // the first one's chunk_pos so the harness can identify it.
         app.add_systems(
             FixedUpdate,
-            (|q: Query<&mcrs_engine::world::chunk::ChunkPos, With<LightDirty>>| {
+            (|q: Query<
+                &mcrs_engine::world::chunk::ChunkPos,
+                Or<(With<BlockBfsPending>, With<SkyBfsPending>)>,
+            >| {
                 let positions: Vec<_> = q.iter().copied().collect();
                 DIRTY_AT_CONVERGE_ENTRY.store(positions.len() as u64, Ordering::Relaxed);
                 if let Some(p) = positions.first() {
@@ -325,7 +328,9 @@ fn main() {
 
         let mut probe_app = factory();
         // Check if factory left anything dirty.
-        let mut q0 = probe_app.world_mut().query_filtered::<&CPos, With<LightDirty>>();
+        let mut q0 = probe_app
+            .world_mut()
+            .query_filtered::<&CPos, Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>();
         let factory_residue: Vec<CPos> = q0.iter(probe_app.world()).copied().collect();
         println!(
             "## PROBE: dirty after factory (untimed) = {} chunks {:?}",
@@ -348,7 +353,9 @@ fn main() {
             iters_after - iters_before
         );
         // Walk a second tick to see what's left dirty
-        let mut q = probe_app.world_mut().query_filtered::<&CPos, With<LightDirty>>();
+        let mut q = probe_app
+            .world_mut()
+            .query_filtered::<&CPos, Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>();
         let still: Vec<CPos> = q.iter(probe_app.world()).copied().collect();
         println!(
             "## PROBE: dirty after tick 1 = {} {:?}",
@@ -384,7 +391,9 @@ fn main() {
         // Not the same as what the driver saw on entry (post-Enqueue), but
         // a useful signal: if 0, the driver started with no dirty AND
         // emit_dirty didn't introduce any.
-        let mut q = app.world_mut().query_filtered::<(), With<LightDirty>>();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<(), Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>();
         dirty_at_converge_entry.push(q.iter(app.world()).count());
 
         let mut ticks = 1;
@@ -461,7 +470,9 @@ fn main() {
 }
 
 fn has_any_light_dirty(app: &mut App) -> bool {
-    let mut q = app.world_mut().query_filtered::<(), With<LightDirty>>();
+    let mut q = app
+        .world_mut()
+        .query_filtered::<(), Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>();
     q.iter(app.world()).next().is_some()
 }
 

@@ -12,7 +12,7 @@ use mcrs_engine::world::dimension::{
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 
-use crate::components::LightDirty;
+use crate::components::{BlockBfsPending, SkyBfsPending};
 use crate::table::{flag_bits, BlockLightTable};
 use crate::LightingPlugin;
 
@@ -283,6 +283,8 @@ pub fn run_until_converged(app: &mut App) -> usize {
 }
 
 pub fn has_any_light_dirty(app: &mut App) -> bool {
-    let mut q = app.world_mut().query_filtered::<(), With<LightDirty>>();
+    let mut q = app
+        .world_mut()
+        .query_filtered::<(), Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>();
     q.iter(app.world()).next().is_some()
 }

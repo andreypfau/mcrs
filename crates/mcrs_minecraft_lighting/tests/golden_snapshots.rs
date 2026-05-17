@@ -14,7 +14,9 @@ use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_engine::world::lighting::LightTicket;
-use mcrs_minecraft_lighting::components::{BlockLight, LightDirty, SkyLight};
+use mcrs_minecraft_lighting::components::{
+    BlockBfsPending, BlockLight, SkyBfsPending, SkyLight,
+};
 use mcrs_minecraft_lighting::invariants::{check_block_light_invariants, check_sky_light_invariants};
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::BlockLightTable;
@@ -662,15 +664,21 @@ fn snapshot_light_ticket_clears_when_pending_work_drains() {
     // Tick 2: `(seed_block_emitters, seed_sky_initial)` fires; for an
     // all-air chunk in a sky-light dim that chunk also becomes the
     // topmost-of-column and seeds sky level 15. The convergence loop drains
-    // the workspace queues; the safety-net clears LightDirty.
+    // the workspace queues; the safety-net clears the per-channel BfsPending
+    // markers.
     app.world_mut().run_schedule(FixedUpdate);
 
     // Sanity: by this point the chunk's queues should all be empty and
-    // LightDirty should be gone. If LightDirty is still present, draining the
-    // workspaces isn't done yet and the next tick will keep working.
+    // neither BlockBfsPending nor SkyBfsPending should remain. If either
+    // marker is still present, draining the workspaces isn't done yet and
+    // the next tick will keep working.
     assert!(
-        app.world().get::<LightDirty>(chunk).is_none(),
-        "LightDirty must be cleared before the ticket-clear path runs"
+        app.world().get::<BlockBfsPending>(chunk).is_none(),
+        "BlockBfsPending must be cleared before the ticket-clear path runs"
+    );
+    assert!(
+        app.world().get::<SkyBfsPending>(chunk).is_none(),
+        "SkyBfsPending must be cleared before the ticket-clear path runs"
     );
 
     // Now install a LightTicket manually (this is the contract: upstream
@@ -683,11 +691,11 @@ fn snapshot_light_ticket_clears_when_pending_work_drains() {
     );
 
     // Tick 3: clear_light_tickets in LightingSet::EmitDirty observes the
-    // chunk has no LightDirty and all eight queues empty, so it removes
-    // LightTicket. The negative case (ticket stays while work is present)
-    // is covered by the co-located emit_dirty unit tests that drive
-    // clear_light_tickets in isolation; here we just validate the integrated
-    // happy path.
+    // chunk has neither per-channel BfsPending marker and all eight queues
+    // empty, so it removes LightTicket. The negative case (ticket stays
+    // while work is present) is covered by the co-located emit_dirty unit
+    // tests that drive clear_light_tickets in isolation; here we just
+    // validate the integrated happy path.
     app.world_mut().run_schedule(FixedUpdate);
     assert!(
         app.world().get::<LightTicket>(chunk).is_none(),

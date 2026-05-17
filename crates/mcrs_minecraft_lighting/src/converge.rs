@@ -6,9 +6,10 @@
 //! `HARD_BUDGET` wall time, and absence of dirty chunks.
 //!
 //! The driver runs `LightConvergeSchedule` against the host `World` and
-//! polls `Query<(), With<LightDirty>>` after each iteration. Quiescence
-//! (zero dirty matches) is the primary termination condition; the hard
-//! wall-clock budget and the max-iteration cap are the safety nets.
+//! polls `Query<(), Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>`
+//! after each iteration. Quiescence (zero pending matches on either
+//! channel) is the primary termination condition; the hard wall-clock
+//! budget and the max-iteration cap are the safety nets.
 //! Cap-fire emits a `tracing::warn!` and increments `LIGHT_CONVERGE_CAPPED_TOTAL`;
 //! every termination path increments `LIGHT_CONVERGE_ITERATIONS_TOTAL` by
 //! the number of iterations consumed this tick.
@@ -18,7 +19,7 @@ use bevy_ecs::schedule::ScheduleLabel;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use crate::components::LightDirty;
+use crate::components::{BlockBfsPending, SkyBfsPending};
 use crate::telemetry::{LIGHT_CONVERGE_CAPPED_TOTAL, LIGHT_CONVERGE_ITERATIONS_TOTAL};
 
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
@@ -52,17 +53,17 @@ pub fn light_converge_driver(world: &mut World) {
     let _span = tracing::info_span!("light_converge_driver", iter = tracing::field::Empty).entered();
 
     // Pre-check: skip the entire `LightConvergeSchedule` when no chunk
-    // is currently `LightDirty`. The schedule's four stages each kick off
-    // a `par_iter_mut` that walks every chunk's archetype to evaluate
-    // the `With<LightDirty>` filter — for a populated world with thousands
-    // of chunks that scan dominates the tick cost (profile-measured at
-    // roughly 650 us per tick on the spawn_warmup_vd12 fixture, around 64
-    // percent of the whole tick) even though the body is a no-op for every
-    // chunk. Quiet ticks — the common case after the heightmap fast-path
-    // eliminated the multi-chunk cascade — collapse to a single
-    // archetype-narrowed existence check.
+    // is currently pending on either channel. The schedule's four stages
+    // each kick off a `par_iter_mut` that walks every chunk's archetype
+    // to evaluate the per-channel pending filter — for a populated world
+    // with thousands of chunks that scan dominates the tick cost
+    // (profile-measured at roughly 650 us per tick on the spawn_warmup_vd12
+    // fixture, around 64 percent of the whole tick) even though the body
+    // is a no-op for every chunk. Quiet ticks — the common case after the
+    // heightmap fast-path eliminated the multi-chunk cascade — collapse
+    // to a single archetype-narrowed existence check.
     let any_dirty = world
-        .query_filtered::<(), With<LightDirty>>()
+        .query_filtered::<(), Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>()
         .iter(world)
         .next()
         .is_some();
@@ -75,7 +76,7 @@ pub fn light_converge_driver(world: &mut World) {
         world.run_schedule(LightConvergeSchedule);
 
         let any_dirty = world
-            .query_filtered::<(), With<LightDirty>>()
+            .query_filtered::<(), Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>()
             .iter(world)
             .next()
             .is_some();
@@ -141,21 +142,23 @@ mod tests {
         let _ = LightConvergeSet::DistributeIncrease;
     }
 
-    /// Helper: clear-`LightDirty` system used as a stub schedule body in
-    /// the quiescence test.
-    fn clear_one_dirty_chunk(mut commands: Commands, dirty: Query<Entity, With<LightDirty>>) {
+    /// Helper: clear-`BlockBfsPending` system used as a stub schedule body in
+    /// the quiescence test. Uses the block-channel marker as the canonical
+    /// channel-agnostic choice — converge driver tests don't exercise sky vs
+    /// block semantics.
+    fn clear_one_dirty_chunk(mut commands: Commands, dirty: Query<Entity, With<BlockBfsPending>>) {
         for e in dirty.iter() {
-            commands.entity(e).remove::<LightDirty>();
+            commands.entity(e).remove::<BlockBfsPending>();
         }
     }
 
-    /// Helper: re-mark every chunk dirty (idempotent under With<LightDirty>
-    /// filter — the chunk will be queried again next iteration because
-    /// `Commands::insert` re-applies the marker). Forces the convergence
-    /// driver to never reach quiescence.
-    fn re_insert_dirty(mut commands: Commands, dirty: Query<Entity, With<LightDirty>>) {
+    /// Helper: re-mark every chunk pending (idempotent under
+    /// `With<BlockBfsPending>` filter — the chunk will be queried again next
+    /// iteration because `Commands::insert` re-applies the marker). Forces
+    /// the convergence driver to never reach quiescence.
+    fn re_insert_dirty(mut commands: Commands, dirty: Query<Entity, With<BlockBfsPending>>) {
         for e in dirty.iter() {
-            commands.entity(e).insert(LightDirty);
+            commands.entity(e).insert(BlockBfsPending);
         }
     }
 
@@ -179,7 +182,7 @@ mod tests {
             schedule
         });
 
-        let _chunk = app.world_mut().spawn(LightDirty).id();
+        let _chunk = app.world_mut().spawn(BlockBfsPending).id();
 
         let before = crate::telemetry::snapshot();
         light_converge_driver(app.world_mut());
@@ -202,17 +205,17 @@ mod tests {
         let _lock = TELEMETRY_TEST_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        // Stub schedule re-inserts LightDirty every iteration so the driver
-        // never reaches quiescence; each iteration is sub-millisecond so the
-        // 25 ms `HARD_BUDGET` is well out of reach. The driver must exit via
-        // the `MAX_ITERATIONS` ceiling.
+        // Stub schedule re-inserts BlockBfsPending every iteration so the
+        // driver never reaches quiescence; each iteration is sub-millisecond
+        // so the 25 ms `HARD_BUDGET` is well out of reach. The driver must
+        // exit via the `MAX_ITERATIONS` ceiling.
         let mut app = build_driver_app_with_schedule(|| {
             let mut schedule = Schedule::new(LightConvergeSchedule);
             schedule.add_systems(re_insert_dirty);
             schedule
         });
 
-        let _chunk = app.world_mut().spawn(LightDirty).id();
+        let _chunk = app.world_mut().spawn(BlockBfsPending).id();
 
         let before = crate::telemetry::snapshot();
         light_converge_driver(app.world_mut());
@@ -235,11 +238,11 @@ mod tests {
     /// dirty so the driver doesn't exit via the quiescence path first.
     fn slow_redirty_30ms(
         mut commands: Commands,
-        dirty: Query<Entity, With<LightDirty>>,
+        dirty: Query<Entity, With<BlockBfsPending>>,
     ) {
         std::thread::sleep(Duration::from_millis(30));
         for e in dirty.iter() {
-            commands.entity(e).insert(LightDirty);
+            commands.entity(e).insert(BlockBfsPending);
         }
     }
 
@@ -254,13 +257,13 @@ mod tests {
             schedule
         });
 
-        let _chunk = app.world_mut().spawn(LightDirty).id();
+        let _chunk = app.world_mut().spawn(BlockBfsPending).id();
 
         let before = crate::telemetry::snapshot();
         light_converge_driver(app.world_mut());
         let after = crate::telemetry::snapshot();
 
-        // The schedule body sleeps 30 ms before re-inserting LightDirty.
+        // The schedule body sleeps 30 ms before re-inserting BlockBfsPending.
         // After the first run_schedule the driver observes elapsed >=
         // HARD_BUDGET (25 ms) and exits via the cap path.
         assert_eq!(
@@ -289,7 +292,7 @@ mod tests {
             s.add_systems(clear_one_dirty_chunk);
             s
         });
-        let _ = app1.world_mut().spawn(LightDirty).id();
+        let _ = app1.world_mut().spawn(BlockBfsPending).id();
         let b1 = crate::telemetry::snapshot();
         light_converge_driver(app1.world_mut());
         let a1 = crate::telemetry::snapshot();
@@ -302,11 +305,81 @@ mod tests {
             s.add_systems(re_insert_dirty);
             s
         });
-        let _ = app2.world_mut().spawn(LightDirty).id();
+        let _ = app2.world_mut().spawn(BlockBfsPending).id();
         let b2 = crate::telemetry::snapshot();
         light_converge_driver(app2.world_mut());
         let a2 = crate::telemetry::snapshot();
         assert_eq!(a2.iterations - b2.iterations, MAX_ITERATIONS as u64);
         assert_eq!(a2.capped - b2.capped, 1);
+    }
+
+    /// Helper analog of `clear_one_dirty_chunk` keyed on the sky-channel
+    /// marker. Used by `driver_terminates_with_only_one_channel_pending`
+    /// to verify the `Or<...>` quiescence probe detects single-channel
+    /// pending state on the sky side.
+    fn clear_one_sky_pending_chunk(
+        mut commands: Commands,
+        dirty: Query<Entity, With<SkyBfsPending>>,
+    ) {
+        for e in dirty.iter() {
+            commands.entity(e).remove::<SkyBfsPending>();
+        }
+    }
+
+    /// Verifies the converge driver's
+    /// `Or<(With<BlockBfsPending>, With<SkyBfsPending>)>` probe correctly
+    /// detects single-channel pending state. The driver runs one iteration
+    /// to clear the single pending marker, then terminates via the
+    /// quiescence path.
+    #[test]
+    fn driver_terminates_with_only_one_channel_pending() {
+        let _lock = TELEMETRY_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+
+        // Block-only pending: a schedule that clears BlockBfsPending must
+        // make the driver observe quiescence after one iteration.
+        let mut app_block = build_driver_app_with_schedule(|| {
+            let mut schedule = Schedule::new(LightConvergeSchedule);
+            schedule.add_systems(clear_one_dirty_chunk);
+            schedule
+        });
+        let _ = app_block.world_mut().spawn(BlockBfsPending).id();
+        let b_before = crate::telemetry::snapshot();
+        light_converge_driver(app_block.world_mut());
+        let b_after = crate::telemetry::snapshot();
+        assert_eq!(
+            b_after.iterations - b_before.iterations,
+            1,
+            "block-only pending: driver runs one iteration then quiesces"
+        );
+        assert_eq!(
+            b_after.capped - b_before.capped,
+            0,
+            "block-only pending: quiescence path, no cap"
+        );
+
+        // Sky-only pending: schedule clears SkyBfsPending; the driver's
+        // `Or<...>` probe must detect sky-side pending and run / terminate
+        // symmetrically.
+        let mut app_sky = build_driver_app_with_schedule(|| {
+            let mut schedule = Schedule::new(LightConvergeSchedule);
+            schedule.add_systems(clear_one_sky_pending_chunk);
+            schedule
+        });
+        let _ = app_sky.world_mut().spawn(SkyBfsPending).id();
+        let s_before = crate::telemetry::snapshot();
+        light_converge_driver(app_sky.world_mut());
+        let s_after = crate::telemetry::snapshot();
+        assert_eq!(
+            s_after.iterations - s_before.iterations,
+            1,
+            "sky-only pending: driver runs one iteration then quiesces"
+        );
+        assert_eq!(
+            s_after.capped - s_before.capped,
+            0,
+            "sky-only pending: quiescence path, no cap"
+        );
     }
 }

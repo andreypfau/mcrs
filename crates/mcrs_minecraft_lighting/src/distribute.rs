@@ -16,8 +16,8 @@
 //! destination simultaneously when both may resolve to the same entity at
 //! adjacent ticks): Pass A drains `*Egress` into a `Local` staging buffer,
 //! Pass B applies staged wavefronts to `*Incoming`, Pass C inserts the
-//! `LightDirty` + `LightTicket` markers on each unique destination via a
-//! `Local` dedup set.
+//! per-channel `{Block,Sky}BfsPending` + unified `LightTicket` markers on
+//! each unique destination via per-channel `Local` dedup sets.
 
 use bevy_ecs::component::Mutable;
 use bevy_ecs::entity::EntityHashSet;
@@ -27,8 +27,8 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use crate::components::{
-    BlockEgress, BlockIncoming, BlockPendingEgress, LightDirty, NeedsFullReseed, SkyEgress,
-    SkyIncoming, SkyPendingEgress, Wavefront,
+    BlockBfsPending, BlockEgress, BlockIncoming, BlockPendingEgress, NeedsFullReseed, SkyBfsPending,
+    SkyEgress, SkyIncoming, SkyPendingEgress, Wavefront,
 };
 use crate::converge::PENDING_EGRESS_CAP;
 use crate::telemetry::{LIGHT_CROSS_DIM_VIOLATIONS_TOTAL, LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL};
@@ -364,7 +364,8 @@ pub fn distribute_cross_chunk_wavefronts(
     column_indexes: Query<&ColumnIndex>,
     mut block_stage: Local<Vec<(Entity, Wavefront)>>,
     mut sky_stage: Local<Vec<(Entity, Wavefront)>>,
-    mut dirty_dedup: Local<EntityHashSet>,
+    mut block_dirty_dedup: Local<EntityHashSet>,
+    mut sky_dirty_dedup: Local<EntityHashSet>,
     mut last_xdim_log: Local<Option<Instant>>,
     mut commands: Commands,
 ) {
@@ -377,7 +378,8 @@ pub fn distribute_cross_chunk_wavefronts(
 
     block_stage.clear();
     sky_stage.clear();
-    dirty_dedup.clear();
+    block_dirty_dedup.clear();
+    sky_dirty_dedup.clear();
 
     drain_channel_egress::<BlockChannel>(
         &mut block_sources,
@@ -404,19 +406,27 @@ pub fn distribute_cross_chunk_wavefronts(
     for (dst_entity, wavefront) in block_stage.drain(..) {
         if let Ok(mut incoming) = block_incoming.get_mut(dst_entity) {
             incoming.0.push(wavefront);
-            dirty_dedup.insert(dst_entity);
+            block_dirty_dedup.insert(dst_entity);
         }
     }
 
     for (dst_entity, wavefront) in sky_stage.drain(..) {
         if let Ok(mut incoming) = sky_incoming.get_mut(dst_entity) {
             incoming.0.push(wavefront);
-            dirty_dedup.insert(dst_entity);
+            sky_dirty_dedup.insert(dst_entity);
         }
     }
 
-    for dst in dirty_dedup.drain() {
-        commands.entity(dst).insert(LightDirty);
+    // Per-channel `Commands::insert` of the channel-specific BFS-pending
+    // marker plus the unified `LightTicket`. Sparse-set inserts are
+    // idempotent at the storage level so a chunk dirty on both channels
+    // gets exactly one `LightTicket` entry regardless of insert order.
+    for dst in block_dirty_dedup.drain() {
+        commands.entity(dst).insert(BlockBfsPending);
+        commands.entity(dst).insert(LightTicket);
+    }
+    for dst in sky_dirty_dedup.drain() {
+        commands.entity(dst).insert(SkyBfsPending);
         commands.entity(dst).insert(LightTicket);
     }
 }
@@ -551,7 +561,7 @@ mod tests {
             .expect("chunk_a");
         assert!(src_egress.0.is_empty(), "source egress drained");
 
-        assert!(app.world().get::<LightDirty>(chunk_b).is_some());
+        assert!(app.world().get::<BlockBfsPending>(chunk_b).is_some());
         assert!(app.world().get::<LightTicket>(chunk_b).is_some());
     }
 
@@ -946,7 +956,7 @@ mod tests {
         let mut app = build_app();
         let east = Direction::East.index() as u8;
         // 8 wavefronts all targeting the same destination — dedup must
-        // collapse to one LightDirty + LightTicket insert.
+        // collapse to one BlockBfsPending + LightTicket insert.
         let mut egress = SmallVec::new();
         for cz in 0..8u8 {
             egress.push(Wavefront::new(east, 0, cz, 8));
@@ -956,7 +966,7 @@ mod tests {
 
         app.update();
 
-        assert!(app.world().get::<LightDirty>(chunk_b).is_some());
+        assert!(app.world().get::<BlockBfsPending>(chunk_b).is_some());
         assert!(app.world().get::<LightTicket>(chunk_b).is_some());
         let incoming = app
             .world()
@@ -969,7 +979,7 @@ mod tests {
     fn distribute_drops_wavefronts_to_padding() {
         // Source at chunk-Y 0 in a column whose ColumnChunks only covers y=0.
         // A Down-face wavefront lands on BottomPadding (relative y=-1) which
-        // must be dropped silently — no LightDirty/LightTicket on the source,
+        // must be dropped silently — no per-channel BfsPending/LightTicket on the source,
         // no pending egress, no incoming written anywhere.
         let mut app = build_app();
         let dim = spawn_dimension(&mut app);

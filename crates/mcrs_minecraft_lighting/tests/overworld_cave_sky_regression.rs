@@ -36,7 +36,7 @@ use mcrs_engine::world::dimension::{
 };
 use mcrs_minecraft::world::chunk::{ColumnScheduler, ChunkPlugin as WorldgenChunkPlugin};
 use mcrs_minecraft_lighting::components::{
-    BlockNeedsInitialSeed, LightDirty, SkyLight, SkyNeedsInitialSeed,
+    BlockBfsPending, BlockNeedsInitialSeed, SkyBfsPending, SkyLight, SkyNeedsInitialSeed,
 };
 use mcrs_minecraft_lighting::table::BlockLightTable;
 use mcrs_minecraft_lighting::LightingPlugin;
@@ -229,7 +229,7 @@ fn is_scheduler_idle(world: &World) -> bool {
 }
 
 fn has_light_dirty(world: &mut World) -> bool {
-    let mut q = world.query_filtered::<(), With<LightDirty>>();
+    let mut q = world.query_filtered::<(), Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>();
     q.iter(world).next().is_some()
 }
 
