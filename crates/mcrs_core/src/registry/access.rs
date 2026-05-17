@@ -138,26 +138,32 @@ impl ErasedRegistrySnapshot for RegistrySnapshotErased {
     }
 }
 
-#[derive(Resource, Default)]
-pub struct RegistryAccess {
+#[derive(Resource, Clone, Default)]
+pub struct RegistryAccess(Arc<RegistryAccessInner>);
+
+#[derive(Default)]
+pub struct RegistryAccessInner {
     registries: Vec<Box<dyn ErasedRegistrySnapshot>>,
 }
 
 impl RegistryAccess {
     pub fn register(&mut self, snapshot: Box<dyn ErasedRegistrySnapshot>) {
-        self.registries.push(snapshot);
+        let inner = Arc::get_mut(&mut self.0).expect(
+            "RegistryAccess: registry mutation attempted after the registry was cloned into a DimSubApp; mutation must complete before WorldgenFreeze",
+        );
+        inner.registries.push(snapshot);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &dyn ErasedRegistrySnapshot> {
-        self.registries.iter().map(|b| &**b)
+        self.0.registries.iter().map(|b| &**b)
     }
 
     pub fn len(&self) -> usize {
-        self.registries.len()
+        self.0.registries.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.registries.is_empty()
+        self.0.registries.is_empty()
     }
 }
 
@@ -299,5 +305,24 @@ mod tests {
         );
         let entries: Vec<_> = erased.iter_entries().collect();
         assert!(entries[0].pack_source.is_none());
+    }
+
+    #[test]
+    fn clone_is_o1_pointer_equal() {
+        let mut original = RegistryAccess::default();
+        original.register(Box::new(RegistrySnapshotErased::from_entries(
+            "minecraft:block",
+            vec![(make_location("stone"), None)],
+            None,
+        )));
+
+        let cloned = original.clone();
+
+        assert!(
+            Arc::ptr_eq(&original.0, &cloned.0),
+            "RegistryAccess::clone must share the inner Arc, not deep-copy"
+        );
+        assert_eq!(cloned.len(), 1);
+        assert_eq!(original.len(), 1);
     }
 }
