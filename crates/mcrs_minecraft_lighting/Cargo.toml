@@ -30,6 +30,8 @@ mcrs_minecraft.workspace = true
 mcrs_minecraft_worldgen.workspace = true
 tracing-subscriber = "0.3"
 criterion = { version = "0.7", features = ["html_reports"] }
+proptest = "1.11.0"
+rand = "0.9"
 serde.workspace = true
 serde_json.workspace = true
 

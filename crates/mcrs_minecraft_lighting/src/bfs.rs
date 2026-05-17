@@ -16,12 +16,16 @@ use crate::storage::LightStorage;
 use crate::table::{flag_bits, BlockLightTable};
 
 pub(crate) const FLAG_HAS_SIDED_TRANSPARENT_BLOCKS: u8 = 1 << 0;
-pub(crate) const FLAG_RECHECK_LEVEL: u8 = 1 << 1;
-pub(crate) const FLAG_WRITE_LEVEL: u8 = 1 << 2;
-pub(crate) const ALL_DIRECTIONS_BITSET: u8 = 0b111111;
+// Promoted from pub(crate) to pub so external snapshot / property
+// harnesses can pack initial BFS entries without reaching into the crate
+// via cfg-gated shims. Production behavior is unchanged; this is API
+// surface only.
+pub const FLAG_RECHECK_LEVEL: u8 = 1 << 1;
+pub const FLAG_WRITE_LEVEL: u8 = 1 << 2;
+pub const ALL_DIRECTIONS_BITSET: u8 = 0b111111;
 
 #[inline]
-pub(crate) const fn pack_bfs_entry(
+pub const fn pack_bfs_entry(
     x: u8,
     z: u8,
     y: u8,
