@@ -729,56 +729,48 @@ pub fn seed_initial_light(
     }
 }
 
-/// Consumes `Added<ChunkLoaded>` per chunk: reads each loaded cardinal
-/// neighbour's face cells into the new chunk's `*Incoming`, then drains any
-/// `*PendingEgress` entries that the neighbour buffered while we were
-/// unloaded. Marks the new chunk and every touched loaded neighbour
-/// `LightDirty`.
-pub fn pull_neighbor_edge_levels(
+/// Block-light half of the per-channel chunk-edge pull. Consumes
+/// `Added<ChunkLoaded>` per chunk: reads each loaded cardinal neighbour's
+/// face-cell `BlockLight` values into the new chunk's `BlockIncoming`, then
+/// drains any `BlockPendingEgress` entries that the neighbour buffered
+/// while we were unloaded. Marks the new chunk and every touched loaded
+/// neighbour `LightDirty` when something actually moved.
+///
+/// Scheduled in parallel with `pull_sky_neighbor_edges`. The two systems
+/// take disjoint `&BlockLight`/`&SkyLight` reads and disjoint
+/// `&mut BlockPendingEgress`/`&mut SkyPendingEgress` writes, so Bevy's
+/// conflict graph slots them simultaneously.
+///
+/// Unlike the sky channel, this system unconditionally skips a neighbour
+/// that was also `Added<ChunkLoaded>` this tick. There is no block-light
+/// fast-path that produces `LightStorage::Uniform(15)` at seed time (the
+/// `Uniform(15)` heightmap fast-path is sky-only), so an `Uniform(15)`-
+/// neighbour escape hatch would never legitimately fire and would risk
+/// pulling from hand-authored uniforms that have not yet settled.
+pub fn pull_block_neighbor_edges(
     table: Option<Res<BlockLightTable>>,
     newly_loaded: Query<(Entity, &ChunkPos, &InDimension, &InColumn), Added<ChunkLoaded>>,
     column_indexes: Query<&ColumnIndex>,
     chunk_indexes: Query<&ColumnChunks>,
     block_light_read: Query<&BlockLight>,
-    sky_light_read: Query<&SkyLight>,
     mut block_pending: Query<&mut BlockPendingEgress>,
-    mut sky_pending: Query<&mut SkyPendingEgress>,
     mut block_incoming: Query<&mut BlockIncoming>,
-    mut sky_incoming: Query<&mut SkyIncoming>,
     mut commands: Commands,
 ) {
     if table.is_none() {
         return;
     }
 
-    // All newly-loaded chunk entities this tick. Pull only makes sense
-    // for bootstrapping a new chunk against an *already-settled*
-    // neighbour. When a neighbour is also brand-new, it was just processed
-    // by `seed_initial_light` (heightmap fast-path), and the natural
-    // egress→distribute cascade in `LightConvergeSchedule` will route
-    // wavefronts between them if needed. Pulling redundantly fires a 256-
-    // entry incoming buffer + `LightDirty` marker for a chunk that
-    // otherwise had no work — and on stone-capped boundary cells that
-    // re-arms a 6-iteration converge cascade.
     let newly_loaded_set: rustc_hash::FxHashSet<Entity> =
         newly_loaded.iter().map(|(e, _, _, _)| e).collect();
 
     for (new_chunk, chunk_pos, in_dim, in_col) in newly_loaded.iter() {
-        // Tracks whether anything was actually pushed into the new chunk's
-        // `BlockIncoming` / `SkyIncoming`. Without a payload there is no
-        // pending cascade work, so `LightDirty` would just force a no-op pass
-        // through the par-iter scan in the convergence sub-schedule.
         let mut new_chunk_has_incoming = false;
 
         // Cell-level pull cannot beat a `Uniform(15)` destination, so a
-        // pre-check on the new chunk's storage lets us skip the per-face
-        // 256-cell read loop entirely when the heightmap fast-path has
-        // already filled the chunk to max. Cached once per new_chunk.
-        let new_sky_already_max = sky_light_read
-            .get(new_chunk)
-            .ok()
-            .map(|sl| matches!(sl.0, LightStorage::Uniform(15)))
-            .unwrap_or(false);
+        // pre-check on the new chunk's block storage lets us skip the
+        // per-face 256-cell read loop entirely when the chunk is already
+        // saturated.
         let new_block_already_max = block_light_read
             .get(new_chunk)
             .ok()
@@ -797,90 +789,42 @@ pub fn pull_neighbor_edge_levels(
                 continue;
             };
 
-            // Skip neighbours that were also Added<ChunkLoaded> this tick,
-            // UNLESS the neighbour already has settled Uniform(15) sky light.
-            // A Uniform(15) chunk (Case A: all columns fully above this
-            // chunk's top) is written directly by seed_initial_light with no
-            // BFS work remaining — its storage is final and must be pulled now
-            // so the dark (Case B/C) new chunk receives the correct initial
-            // wavefront. For all other newly-loaded neighbours, the
-            // egress→distribute cascade handles any actual flow between fresh
-            // chunks during convergence.
+            // Block channel: no `Uniform(15)`-neighbour escape hatch (sky
+            // has one because the Case A heightmap fast-path writes
+            // `Uniform(15)` skies at seed time). Always skip newly-loaded
+            // neighbours; the natural egress→distribute cascade routes
+            // any flow between fresh chunks during convergence.
             if newly_loaded_set.contains(&neighbour_entity) {
-                let neighbour_sky_is_uniform_15 = sky_light_read
-                    .get(neighbour_entity)
-                    .map(|sl| matches!(sl.0, LightStorage::Uniform(15)))
-                    .unwrap_or(false);
-                if !neighbour_sky_is_uniform_15 {
-                    continue;
-                }
+                continue;
             }
 
-            // `face` is the direction from us (new chunk) to the neighbour
-            // in OUR (destination) frame, so it doubles as the incoming face
-            // index. `from_face` is the neighbour's frame face pointing back
-            // at us; we use it both to compute the neighbour's face-cell
-            // coordinates and to filter the neighbour's pending-egress entries
-            // (which are tagged in the neighbour's frame).
             let from_face = face.opposite();
             let dest_face = face.index() as u8;
             let neighbour_expected_face = from_face.index() as u8;
 
-            // Per-face tracker for the optional neighbour `LightDirty` insert.
-            // Marking a quiescent neighbour dirty without having drained
-            // any wavefronts from it just forces a no-op converge pass
-            // through it; the natural egress→distribute path re-dirties
-            // the neighbour later if our new chunk actually emits
-            // anything.
             let mut drained_pending_from_neighbour = false;
 
-            // Read neighbour's face cells into incoming with Manhattan-1
-            // pre-attenuation. Skipped per light-channel when the new
-            // chunk's storage is already `Uniform(15)`, since any pulled
-            // level ≤ 14 cannot improve on a max-stored cell.
-            if !new_sky_already_max || !new_block_already_max {
+            if !new_block_already_max {
                 for cell_a in 0..16u8 {
                     for cell_b in 0..16u8 {
                         let (nx, ny, nz) =
                             face_cell_to_chunk_xyz(from_face, cell_a, cell_b);
 
-                        if !new_block_already_max {
-                            if let Ok(bl) = block_light_read.get(neighbour_entity) {
-                                let level = bl.0.get(nx as usize, ny as usize, nz as usize);
-                                if level > 0 {
-                                    let attenuated = level.saturating_sub(1);
-                                    if let Ok(mut inc) = block_incoming.get_mut(new_chunk) {
-                                        inc.0.push(Wavefront::new(
-                                            dest_face, cell_a, cell_b, attenuated,
-                                        ));
-                                        new_chunk_has_incoming = true;
-                                    }
-                                }
-                            }
-                        }
-
-                        if !new_sky_already_max {
-                            if let Ok(sl) = sky_light_read.get(neighbour_entity) {
-                                let level = sl.0.get(nx as usize, ny as usize, nz as usize);
-                                if level > 0 {
-                                    let attenuated = level.saturating_sub(1);
-                                    if let Ok(mut inc) = sky_incoming.get_mut(new_chunk) {
-                                        inc.0.push(Wavefront::new(
-                                            dest_face, cell_a, cell_b, attenuated,
-                                        ));
-                                        new_chunk_has_incoming = true;
-                                    }
+                        if let Ok(bl) = block_light_read.get(neighbour_entity) {
+                            let level = bl.0.get(nx as usize, ny as usize, nz as usize);
+                            if level > 0 {
+                                let attenuated = level.saturating_sub(1);
+                                if let Ok(mut inc) = block_incoming.get_mut(new_chunk) {
+                                    inc.0.push(Wavefront::new(
+                                        dest_face, cell_a, cell_b, attenuated,
+                                    ));
+                                    new_chunk_has_incoming = true;
                                 }
                             }
                         }
                     }
                 }
             }
-
-            // Drain neighbour's *PendingEgress entries addressed back at us.
-            // The neighbour buffered wavefronts with `face` in the neighbour's
-            // frame; an entry targets us iff its face equals
-            // neighbour_expected_face (the neighbour's face pointing at us).
 
             if let Ok(mut pending) = block_pending.get_mut(neighbour_entity) {
                 if !pending.0.is_empty() {
@@ -901,6 +845,105 @@ pub fn pull_neighbor_edge_levels(
                             true
                         }
                     });
+                }
+            }
+
+            if drained_pending_from_neighbour {
+                commands.entity(neighbour_entity).insert(LightDirty);
+            }
+        }
+
+        if new_chunk_has_incoming {
+            commands.entity(new_chunk).insert(LightDirty);
+        }
+    }
+}
+
+/// Sky-light half of the per-channel chunk-edge pull. Mirror of
+/// `pull_block_neighbor_edges` operating on `SkyLight` / `SkyPendingEgress`
+/// / `SkyIncoming`.
+///
+/// Retains the sky-only escape hatch: if a newly-loaded neighbour already
+/// holds `LightStorage::Uniform(15)` (the Case A heightmap fast-path
+/// outcome, written by `seed_initial_light`), pull from it even though it
+/// was also `Added<ChunkLoaded>` this tick. The neighbour's storage is
+/// final and must be observed now so that a dark (Case B/C) new chunk
+/// receives the correct initial wavefront at its shared face. For all
+/// other newly-loaded neighbours the egress→distribute cascade routes any
+/// flow during convergence.
+pub fn pull_sky_neighbor_edges(
+    table: Option<Res<BlockLightTable>>,
+    newly_loaded: Query<(Entity, &ChunkPos, &InDimension, &InColumn), Added<ChunkLoaded>>,
+    column_indexes: Query<&ColumnIndex>,
+    chunk_indexes: Query<&ColumnChunks>,
+    sky_light_read: Query<&SkyLight>,
+    mut sky_pending: Query<&mut SkyPendingEgress>,
+    mut sky_incoming: Query<&mut SkyIncoming>,
+    mut commands: Commands,
+) {
+    if table.is_none() {
+        return;
+    }
+
+    let newly_loaded_set: rustc_hash::FxHashSet<Entity> =
+        newly_loaded.iter().map(|(e, _, _, _)| e).collect();
+
+    for (new_chunk, chunk_pos, in_dim, in_col) in newly_loaded.iter() {
+        let mut new_chunk_has_incoming = false;
+
+        let new_sky_already_max = sky_light_read
+            .get(new_chunk)
+            .ok()
+            .map(|sl| matches!(sl.0, LightStorage::Uniform(15)))
+            .unwrap_or(false);
+
+        for face in CARDINAL_DIRECTIONS {
+            let Some(neighbour_entity) = resolve_loaded_neighbor(
+                face,
+                *chunk_pos,
+                in_col.0,
+                in_dim.0,
+                &column_indexes,
+                &chunk_indexes,
+            ) else {
+                continue;
+            };
+
+            if newly_loaded_set.contains(&neighbour_entity) {
+                let neighbour_sky_is_uniform_15 = sky_light_read
+                    .get(neighbour_entity)
+                    .map(|sl| matches!(sl.0, LightStorage::Uniform(15)))
+                    .unwrap_or(false);
+                if !neighbour_sky_is_uniform_15 {
+                    continue;
+                }
+            }
+
+            let from_face = face.opposite();
+            let dest_face = face.index() as u8;
+            let neighbour_expected_face = from_face.index() as u8;
+
+            let mut drained_pending_from_neighbour = false;
+
+            if !new_sky_already_max {
+                for cell_a in 0..16u8 {
+                    for cell_b in 0..16u8 {
+                        let (nx, ny, nz) =
+                            face_cell_to_chunk_xyz(from_face, cell_a, cell_b);
+
+                        if let Ok(sl) = sky_light_read.get(neighbour_entity) {
+                            let level = sl.0.get(nx as usize, ny as usize, nz as usize);
+                            if level > 0 {
+                                let attenuated = level.saturating_sub(1);
+                                if let Ok(mut inc) = sky_incoming.get_mut(new_chunk) {
+                                    inc.0.push(Wavefront::new(
+                                        dest_face, cell_a, cell_b, attenuated,
+                                    ));
+                                    new_chunk_has_incoming = true;
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -926,21 +969,11 @@ pub fn pull_neighbor_edge_levels(
                 }
             }
 
-            // Mark the neighbour dirty only when the pull actually changed
-            // its state (drained an entry from its pending egress). A pure
-            // read of the neighbour's face cells is non-mutating, so the
-            // neighbour does not need to converge on our behalf; if our new
-            // chunk emits wavefronts outward later, `distribute_*` will
-            // re-dirty the neighbour at that point.
             if drained_pending_from_neighbour {
                 commands.entity(neighbour_entity).insert(LightDirty);
             }
         }
 
-        // Only mark the new chunk dirty if a neighbour actually pushed
-        // something into its incoming buffer. An isolated load with no loaded
-        // neighbours has no pending cascade work, and `distribute_*` will
-        // re-mark the chunk as soon as wavefronts arrive later.
         if new_chunk_has_incoming {
             commands.entity(new_chunk).insert(LightDirty);
         }
@@ -2072,25 +2105,30 @@ mod tests {
         );
     }
 
-    fn build_pull_neighbor_app() -> App {
+    fn build_pull_block_neighbor_app() -> App {
         let mut app = App::new();
         app.insert_resource(make_test_table());
-        app.add_systems(Update, pull_neighbor_edge_levels);
+        app.add_systems(Update, pull_block_neighbor_edges);
         app
     }
 
-    #[test]
-    fn pull_neighbor_edge_levels_seeds_from_loaded_neighbors() {
-        let mut app = build_pull_neighbor_app();
-        let dim = spawn_dimension(&mut app, true);
+    fn build_pull_sky_neighbor_app() -> App {
+        let mut app = App::new();
+        app.insert_resource(make_test_table());
+        app.add_systems(Update, pull_sky_neighbor_edges);
+        app
+    }
 
-        // Two adjacent columns: column_a at x=0, column_b at x=1, both at z=0.
-        // Chunk A in column_a at chunk_pos (0,0,0) with BlockLight Uniform(8).
-        // Chunk B in column_b at chunk_pos (1,0,0) with BlockLight Null;
-        // when B gets Added<ChunkLoaded>, it should pull face cells from A
-        // (A is West of B; from B's frame, light enters via the West face).
-        let chunk_a = app.world_mut().spawn_empty().id();
-        let chunk_b = app.world_mut().spawn_empty().id();
+    /// Spawns two single-chunk columns at (0,0) and (1,0), wires the
+    /// dimension's `ColumnIndex` so `resolve_loaded_neighbor` finds them,
+    /// and returns `(column_a, column_b)`. The caller fills in per-chunk
+    /// components.
+    fn spawn_two_neighbor_columns(
+        app: &mut App,
+        dim: bevy_ecs::entity::Entity,
+        chunk_a: bevy_ecs::entity::Entity,
+        chunk_b: bevy_ecs::entity::Entity,
+    ) -> (bevy_ecs::entity::Entity, bevy_ecs::entity::Entity) {
         let column_a = app
             .world_mut()
             .spawn((
@@ -2114,7 +2152,6 @@ mod tests {
             ))
             .id();
 
-        // Populate dim's ColumnIndex so resolve_loaded_neighbor finds neighbours.
         let mut col_index = app
             .world_mut()
             .get_mut::<ColumnIndex>(dim)
@@ -2134,6 +2171,23 @@ mod tests {
             },
         );
 
+        (column_a, column_b)
+    }
+
+    #[test]
+    fn pull_block_neighbor_edges_pulls_from_loaded_neighbor() {
+        let mut app = build_pull_block_neighbor_app();
+        let dim = spawn_dimension(&mut app, true);
+
+        // Two adjacent columns: column_a at x=0, column_b at x=1, both at z=0.
+        // Chunk A in column_a at chunk_pos (0,0,0) with BlockLight Uniform(8).
+        // Chunk B in column_b at chunk_pos (1,0,0) with BlockLight Null;
+        // when B gets Added<ChunkLoaded>, it should pull face cells from A
+        // (A is West of B; from B's frame, light enters via the West face).
+        let chunk_a = app.world_mut().spawn_empty().id();
+        let chunk_b = app.world_mut().spawn_empty().id();
+        let (column_a, column_b) = spawn_two_neighbor_columns(&mut app, dim, chunk_a, chunk_b);
+
         // Chunk A: already loaded, with uniform block light = 8.
         app.world_mut().entity_mut(chunk_a).insert((
             ChunkPos::new(0, 0, 0),
@@ -2142,9 +2196,6 @@ mod tests {
             BlockLight(crate::storage::LightStorage::Uniform(8)),
             BlockPendingEgress::default(),
             BlockIncoming::default(),
-            SkyLight::default(),
-            SkyPendingEgress::default(),
-            SkyIncoming::default(),
             ChunkLoaded,
         ));
 
@@ -2156,19 +2207,12 @@ mod tests {
             BlockLight::default(),
             BlockPendingEgress::default(),
             BlockIncoming::default(),
-            SkyLight::default(),
-            SkyPendingEgress::default(),
-            SkyIncoming::default(),
         ));
 
         // Drain the existing Added<ChunkLoaded> flag for chunk_a by running
-        // one tick first with chunk_b not yet ChunkLoaded; otherwise A would
-        // also match the Added filter and start pulling from a non-existent
-        // east neighbour (which is fine but obscures the assertion).
+        // one tick first with chunk_b not yet ChunkLoaded.
         app.update();
 
-        // Now insert ChunkLoaded on chunk_b — that triggers Added on the
-        // next app.update() for pull_neighbor_edge_levels.
         app.world_mut().entity_mut(chunk_b).insert(ChunkLoaded);
         app.update();
 
@@ -2181,8 +2225,6 @@ mod tests {
             256,
             "B pulls 16x16 face cells from A (block-light)"
         );
-        // The face direction from B's perspective: A is west of B, so the
-        // face is West (index 4); from B's frame, light enters via West.
         let west_index = Direction::West.index() as u8;
         for w in incoming.0.iter() {
             assert_eq!(w.face(), west_index, "face index is West (entry from A)");
@@ -2192,13 +2234,7 @@ mod tests {
             app.world().get::<LightDirty>(chunk_b).is_some(),
             "B marked LightDirty (pulled face cells into its incoming)"
         );
-        // The pull from A's face is a non-mutating read on A — A's stored
-        // levels and queues did not change. Marking A `LightDirty` here
-        // would force a no-op converge pass through it; the natural
-        // egress→distribute path re-dirties A automatically if B emits
-        // anything toward it during convergence. The pending-egress drain
-        // test below covers the case where the neighbour DOES need to be
-        // marked dirty (it actually lost a buffered wavefront).
+        // Pure non-mutating face-cell read on A — no state change on A.
         assert!(
             app.world().get::<LightDirty>(chunk_a).is_none(),
             "neighbour A stays clean — non-mutating face-cell pull is not a state change on A"
@@ -2206,53 +2242,73 @@ mod tests {
     }
 
     #[test]
-    fn pull_neighbor_edge_levels_drains_pending_egress_on_load() {
-        let mut app = build_pull_neighbor_app();
+    fn pull_sky_neighbor_edges_pulls_from_loaded_neighbor() {
+        let mut app = build_pull_sky_neighbor_app();
+        let dim = spawn_dimension(&mut app, true);
+
+        // Mirror of the block-side test on the sky channel.
+        let chunk_a = app.world_mut().spawn_empty().id();
+        let chunk_b = app.world_mut().spawn_empty().id();
+        let (column_a, column_b) = spawn_two_neighbor_columns(&mut app, dim, chunk_a, chunk_b);
+
+        // Chunk A: already loaded, with uniform sky light = 8.
+        app.world_mut().entity_mut(chunk_a).insert((
+            ChunkPos::new(0, 0, 0),
+            InColumn(column_a),
+            InDimension(dim),
+            SkyLight(crate::storage::LightStorage::Uniform(8)),
+            SkyPendingEgress::default(),
+            SkyIncoming::default(),
+            ChunkLoaded,
+        ));
+
+        // Chunk B: just-loaded; Added<ChunkLoaded> fires on its insertion.
+        app.world_mut().entity_mut(chunk_b).insert((
+            ChunkPos::new(1, 0, 0),
+            InColumn(column_b),
+            InDimension(dim),
+            SkyLight::default(),
+            SkyPendingEgress::default(),
+            SkyIncoming::default(),
+        ));
+
+        app.update();
+
+        app.world_mut().entity_mut(chunk_b).insert(ChunkLoaded);
+        app.update();
+
+        let incoming = app
+            .world()
+            .get::<SkyIncoming>(chunk_b)
+            .expect("sky incoming on B");
+        assert_eq!(
+            incoming.0.len(),
+            256,
+            "B pulls 16x16 face cells from A (sky-light)"
+        );
+        let west_index = Direction::West.index() as u8;
+        for w in incoming.0.iter() {
+            assert_eq!(w.face(), west_index, "face index is West (entry from A)");
+            assert_eq!(w.level(), 7, "level = 8 - 1 manhattan attenuation");
+        }
+        assert!(
+            app.world().get::<LightDirty>(chunk_b).is_some(),
+            "B marked LightDirty (pulled face cells into its incoming)"
+        );
+        assert!(
+            app.world().get::<LightDirty>(chunk_a).is_none(),
+            "neighbour A stays clean — non-mutating face-cell pull is not a state change on A"
+        );
+    }
+
+    #[test]
+    fn pull_block_neighbor_edges_drains_pending_egress_on_load() {
+        let mut app = build_pull_block_neighbor_app();
         let dim = spawn_dimension(&mut app, true);
 
         let chunk_a = app.world_mut().spawn_empty().id();
         let chunk_b = app.world_mut().spawn_empty().id();
-        let column_a = app
-            .world_mut()
-            .spawn((
-                Column,
-                ColumnChunks {
-                    min_section_y: 0,
-                    sections: vec![Some(chunk_a)].into_boxed_slice(),
-                },
-                InDimension(dim),
-            ))
-            .id();
-        let column_b = app
-            .world_mut()
-            .spawn((
-                Column,
-                ColumnChunks {
-                    min_section_y: 0,
-                    sections: vec![Some(chunk_b)].into_boxed_slice(),
-                },
-                InDimension(dim),
-            ))
-            .id();
-
-        let mut col_index = app
-            .world_mut()
-            .get_mut::<ColumnIndex>(dim)
-            .expect("column index");
-        col_index.0.insert(
-            ColumnPos::new(0, 0),
-            ColumnSlot {
-                entity: column_a,
-                section_count: 1,
-            },
-        );
-        col_index.0.insert(
-            ColumnPos::new(1, 0),
-            ColumnSlot {
-                entity: column_b,
-                section_count: 1,
-            },
-        );
+        let (column_a, column_b) = spawn_two_neighbor_columns(&mut app, dim, chunk_a, chunk_b);
 
         // A is West of B. From A's frame, the East face (index 5) points
         // toward B. So A's BlockPendingEgress entry with face=East addresses
@@ -2268,9 +2324,6 @@ mod tests {
             BlockLight::default(),
             pending,
             BlockIncoming::default(),
-            SkyLight::default(),
-            SkyPendingEgress::default(),
-            SkyIncoming::default(),
             ChunkLoaded,
         ));
 
@@ -2281,28 +2334,24 @@ mod tests {
             BlockLight::default(),
             BlockPendingEgress::default(),
             BlockIncoming::default(),
-            SkyLight::default(),
-            SkyPendingEgress::default(),
-            SkyIncoming::default(),
         ));
 
         // Tick once to consume the initial Added<ChunkLoaded> on A.
         app.update();
 
-        // Confirm A's pending egress still has the entry (B wasn't loaded
-        // during the first tick so the pull system saw no Added<ChunkLoaded>
-        // events from B).
         let a_pending_before = app
             .world()
             .get::<BlockPendingEgress>(chunk_a)
             .expect("pending on A");
-        assert_eq!(a_pending_before.0.len(), 1, "pending entry survives first tick");
+        assert_eq!(
+            a_pending_before.0.len(),
+            1,
+            "pending entry survives first tick"
+        );
 
-        // Insert ChunkLoaded on chunk_b — Added<ChunkLoaded> fires next tick.
         app.world_mut().entity_mut(chunk_b).insert(ChunkLoaded);
         app.update();
 
-        // A's pending egress drained (the East-facing entry moved to B).
         let a_pending_after = app
             .world()
             .get::<BlockPendingEgress>(chunk_a)
@@ -2312,8 +2361,6 @@ mod tests {
             "A's pending egress drained after B loaded"
         );
 
-        // B's BlockIncoming contains both the face-cell pull entries AND the
-        // drained pending entry (face=West in B's frame).
         let b_incoming = app
             .world()
             .get::<BlockIncoming>(chunk_b)
@@ -2332,6 +2379,61 @@ mod tests {
         assert!(
             app.world().get::<LightDirty>(chunk_a).is_some(),
             "A marked LightDirty"
+        );
+    }
+
+    /// Block-channel asymmetry: there is no `Uniform(15)`-neighbour escape
+    /// hatch on the block side (Assumption A2 — no block-light fast-path
+    /// produces `Uniform(15)` at seed time). Two chunks loading in the same
+    /// tick must NOT pull from each other, even if one neighbour happens to
+    /// carry a hand-authored `Uniform(15)` block-light value.
+    #[test]
+    fn pull_block_neighbor_skips_newly_loaded_neighbor() {
+        let mut app = build_pull_block_neighbor_app();
+        let dim = spawn_dimension(&mut app, true);
+
+        let chunk_a = app.world_mut().spawn_empty().id();
+        let chunk_b = app.world_mut().spawn_empty().id();
+        let (column_a, column_b) = spawn_two_neighbor_columns(&mut app, dim, chunk_a, chunk_b);
+
+        // Chunk A: hand-authored `Uniform(15)` block light. In production no
+        // seed-time fast-path ever produces this for block channel, but the
+        // test fixture sets it to confirm the system still skips A because
+        // A is `Added<ChunkLoaded>` this tick.
+        app.world_mut().entity_mut(chunk_a).insert((
+            ChunkPos::new(0, 0, 0),
+            InColumn(column_a),
+            InDimension(dim),
+            BlockLight(crate::storage::LightStorage::Uniform(15)),
+            BlockPendingEgress::default(),
+            BlockIncoming::default(),
+        ));
+
+        app.world_mut().entity_mut(chunk_b).insert((
+            ChunkPos::new(1, 0, 0),
+            InColumn(column_b),
+            InDimension(dim),
+            BlockLight::default(),
+            BlockPendingEgress::default(),
+            BlockIncoming::default(),
+        ));
+
+        // Both chunks land in newly_loaded_set in the same tick.
+        app.world_mut().entity_mut(chunk_a).insert(ChunkLoaded);
+        app.world_mut().entity_mut(chunk_b).insert(ChunkLoaded);
+        app.update();
+
+        let b_incoming = app
+            .world()
+            .get::<BlockIncoming>(chunk_b)
+            .expect("incoming on B");
+        assert!(
+            b_incoming.0.is_empty(),
+            "B must NOT receive face cells from A — block channel has no Uniform(15) escape hatch"
+        );
+        assert!(
+            app.world().get::<LightDirty>(chunk_b).is_none(),
+            "B has no incoming wavefronts, so no LightDirty marker should be inserted"
         );
     }
 
@@ -2462,70 +2564,27 @@ mod tests {
     }
 
     #[test]
-    fn pull_neighbor_edge_levels_pulls_from_uniform15_on_simultaneous_load() {
+    fn pull_sky_neighbor_pulls_uniform_15_neighbor_even_when_newly_loaded() {
         // Regression test for the case where a Case-A (Uniform(15)) neighbour
         // and a dark (Case-B) chunk both receive Added<ChunkLoaded> in the
-        // same tick. The old skip at newly_loaded_set skipped the pull
-        // unconditionally, so the dark chunk never received the neighbour's
-        // level-15 face cells and remained at 0. The fix: only skip when the
-        // neighbour is NOT already Uniform(15).
-        let mut app = build_pull_neighbor_app();
+        // same tick. An unconditional skip on newly-loaded neighbours would
+        // leave the dark chunk at 0 because A's level-15 face cells never
+        // reach it. The escape hatch in `pull_sky_neighbor_edges` lets the
+        // pull fire when the neighbour is already settled `Uniform(15)`.
+        let mut app = build_pull_sky_neighbor_app();
         let dim = spawn_dimension(&mut app, true);
 
         let chunk_a = app.world_mut().spawn_empty().id();
         let chunk_b = app.world_mut().spawn_empty().id();
+        let (column_a, column_b) = spawn_two_neighbor_columns(&mut app, dim, chunk_a, chunk_b);
 
-        let column_a = app
-            .world_mut()
-            .spawn((
-                Column,
-                ColumnChunks {
-                    min_section_y: 0,
-                    sections: vec![Some(chunk_a)].into_boxed_slice(),
-                },
-                InDimension(dim),
-            ))
-            .id();
-        let column_b = app
-            .world_mut()
-            .spawn((
-                Column,
-                ColumnChunks {
-                    min_section_y: 0,
-                    sections: vec![Some(chunk_b)].into_boxed_slice(),
-                },
-                InDimension(dim),
-            ))
-            .id();
-
-        let mut col_index = app
-            .world_mut()
-            .get_mut::<ColumnIndex>(dim)
-            .expect("column index");
-        col_index.0.insert(
-            ColumnPos::new(0, 0),
-            ColumnSlot {
-                entity: column_a,
-                section_count: 1,
-            },
-        );
-        col_index.0.insert(
-            ColumnPos::new(1, 0),
-            ColumnSlot {
-                entity: column_b,
-                section_count: 1,
-            },
-        );
-
-        // Chunk A: Case A — sky light already at Uniform(15) (set by
-        // seed_initial_light before pull_neighbor_edge_levels runs).
+        // Chunk A: Case A — sky light already at Uniform(15) (the heightmap
+        // fast-path outcome from seed_initial_light, observable here before
+        // the pull system runs).
         app.world_mut().entity_mut(chunk_a).insert((
             ChunkPos::new(0, 0, 0),
             InColumn(column_a),
             InDimension(dim),
-            BlockLight::default(),
-            BlockPendingEgress::default(),
-            BlockIncoming::default(),
             SkyLight(crate::storage::LightStorage::Uniform(15)),
             SkyPendingEgress::default(),
             SkyIncoming::default(),
@@ -2537,9 +2596,6 @@ mod tests {
             ChunkPos::new(1, 0, 0),
             InColumn(column_b),
             InDimension(dim),
-            BlockLight::default(),
-            BlockPendingEgress::default(),
-            BlockIncoming::default(),
             SkyLight::default(),
             SkyPendingEgress::default(),
             SkyIncoming::default(),

@@ -295,7 +295,7 @@ fn overhang_air_pocket_exact_level_14() {
 //
 // Chunk A at (0,4,0): all air → Uniform(15).
 // Chunk B at (1,4,0): all stone except a horizontal tunnel at lx=0..8, ly=4, lz=4.
-// Both chunks load simultaneously. The pull_neighbor_edge_levels system copies
+// Both chunks load simultaneously. The pull_sky_neighbor_edges system copies
 // level 15 from chunk A's East face to chunk B's West-face cells (level 14 after
 // pre-attenuation). BFS propagates from lx=0 to lx=8 at ly=4: each step -1.
 // lx=0 gets level 14, lx=1 gets 13, ... lx=8 gets 14-8 = 6. But the positions

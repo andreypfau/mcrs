@@ -11,7 +11,8 @@ use crate::emit_dirty::{
 };
 use crate::enqueue::{
     consume_needs_full_reseed, enqueue_block_light_on_block_placed, enqueue_sky_light_initial,
-    enqueue_sky_light_on_block_placed, pull_neighbor_edge_levels, seed_initial_light,
+    enqueue_sky_light_on_block_placed, pull_block_neighbor_edges, pull_sky_neighbor_edges,
+    seed_initial_light,
 };
 use crate::heightmap_update::update_heightmaps_on_block_placed;
 use crate::lifecycle::{attach_lighting_state, prime_heightmaps_on_column_spawn};
@@ -195,11 +196,13 @@ impl Plugin for LightingPlugin {
                 .chain(),
         );
 
-        // Enqueue stage: six systems. `seed_initial_light` runs strictly
-        // before `pull_neighbor_edge_levels` so the just-loaded chunk's own
-        // emitter/sky seeds land first, then the neighbour-edge merge layers
-        // on top. The other systems are unordered relative to one another
-        // (their queries are disjoint).
+        // Enqueue stage: the just-loaded chunk's own emitter/sky seeds land
+        // first via `seed_initial_light`, then the per-channel neighbour-edge
+        // merge layers on top. The block/sky pull pair takes disjoint
+        // `&BlockLight`/`&SkyLight` and `&mut Block*`/`&mut Sky*` access, so
+        // Bevy's conflict graph slots them in parallel after the seed barrier.
+        // The other systems are unordered relative to one another (their
+        // queries are disjoint).
         app.add_systems(
             FixedUpdate,
             (
@@ -213,7 +216,8 @@ impl Plugin for LightingPlugin {
                 // 256-seed push that would otherwise re-trigger the
                 // column-walker cascade.
                 enqueue_sky_light_initial.after(seed_initial_light),
-                pull_neighbor_edge_levels.after(seed_initial_light),
+                (pull_block_neighbor_edges, pull_sky_neighbor_edges)
+                    .after(seed_initial_light),
             )
                 .in_set(LightingSet::Enqueue),
         );
