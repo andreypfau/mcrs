@@ -10,9 +10,9 @@ use crate::emit_dirty::{
     emit_block_light_dirty, emit_sky_light_dirty,
 };
 use crate::enqueue::{
-    consume_needs_full_reseed, enqueue_block_light_on_block_placed, enqueue_sky_light_initial,
-    enqueue_sky_light_on_block_placed, pull_block_neighbor_edges, pull_sky_neighbor_edges,
-    seed_initial_light,
+    consume_needs_full_reseed, enqueue_block_light_on_block_placed,
+    enqueue_sky_light_on_block_placed, invalidate_previous_topmost, pull_block_neighbor_edges,
+    pull_sky_neighbor_edges, seed_block_emitters, seed_sky_initial,
 };
 use crate::heightmap_update::update_heightmaps_on_block_placed;
 use crate::lifecycle::{attach_lighting_state, prime_heightmaps_on_column_spawn};
@@ -197,27 +197,26 @@ impl Plugin for LightingPlugin {
         );
 
         // Enqueue stage: the just-loaded chunk's own emitter/sky seeds land
-        // first via `seed_initial_light`, then the per-channel neighbour-edge
-        // merge layers on top. The block/sky pull pair takes disjoint
-        // `&BlockLight`/`&SkyLight` and `&mut Block*`/`&mut Sky*` access, so
-        // Bevy's conflict graph slots them in parallel after the seed barrier.
-        // The other systems are unordered relative to one another (their
-        // queries are disjoint).
+        // first via the parallel `(seed_block_emitters, seed_sky_initial)`
+        // pair (disjoint workspace queries — slotted in parallel by Bevy's
+        // conflict graph). `invalidate_previous_topmost` runs after
+        // `seed_sky_initial` so the `NeedsRetop` handoff is visible across
+        // the `apply_deferred` barrier between Enqueue substages. The
+        // per-channel neighbour-edge merge layers on top via the
+        // `(pull_block_neighbor_edges, pull_sky_neighbor_edges)` tuple,
+        // reanchored to `seed_sky_initial` so the sky-side pull's
+        // `Uniform(15)`-neighbour observation depends on the Case A
+        // heightmap fast-path writes from `seed_sky_initial`.
         app.add_systems(
             FixedUpdate,
             (
                 enqueue_block_light_on_block_placed,
                 enqueue_sky_light_on_block_placed,
                 consume_needs_full_reseed,
-                seed_initial_light,
-                // `enqueue_sky_light_initial` runs strictly after
-                // `seed_initial_light` so its non-Null gate observes the
-                // heightmap fast-path's `Uniform(15)` write and skips the
-                // 256-seed push that would otherwise re-trigger the
-                // column-walker cascade.
-                enqueue_sky_light_initial.after(seed_initial_light),
+                (seed_block_emitters, seed_sky_initial),
+                invalidate_previous_topmost.after(seed_sky_initial),
                 (pull_block_neighbor_edges, pull_sky_neighbor_edges)
-                    .after(seed_initial_light),
+                    .after(seed_sky_initial),
             )
                 .in_set(LightingSet::Enqueue),
         );
@@ -253,7 +252,7 @@ impl Plugin for LightingPlugin {
             FixedUpdate,
             span_lighting_enqueue
                 .in_set(LightingSet::Enqueue)
-                .before(seed_initial_light),
+                .before(seed_block_emitters),
         );
         #[cfg(feature = "lighting-trace")]
         app.add_systems(

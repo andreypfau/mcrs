@@ -8,9 +8,9 @@ use mcrs_engine::world::column::{ColumnIndex, Heightmaps, ColumnChunks};
 use mcrs_engine::world::dimension::HasSkyLight;
 use mcrs_engine::world::lighting::LightTicket;
 use mcrs_minecraft_lighting::components::{
-    BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, BlockPendingEgress,
-    ChunkNeedsInitialLight, IsAllAir, LightDirty, SkyEgress, SkyIncoming, SkyLight,
-    SkyLightSeededAsTopmost, SkyLightWorkspace, SkyPendingEgress,
+    BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, BlockNeedsInitialSeed,
+    BlockPendingEgress, IsAllAir, LightDirty, SkyEgress, SkyIncoming, SkyLight,
+    SkyLightSeededAsTopmost, SkyLightWorkspace, SkyNeedsInitialSeed, SkyPendingEgress,
 };
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::test_bench::bench_helpers::{
@@ -181,7 +181,10 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
         .iter(world)
         .count();
     let needs_initial_count = world
-        .query_filtered::<(), bevy_ecs::prelude::With<ChunkNeedsInitialLight>>()
+        .query_filtered::<(), bevy_ecs::prelude::Or<(
+            bevy_ecs::prelude::With<BlockNeedsInitialSeed>,
+            bevy_ecs::prelude::With<SkyNeedsInitialSeed>,
+        )>>()
         .iter(world)
         .count();
     let all_air_count = world

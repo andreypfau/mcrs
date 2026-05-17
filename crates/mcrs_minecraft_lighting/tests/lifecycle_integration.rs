@@ -27,8 +27,8 @@ use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_minecraft_lighting::components::{
-    BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, ChunkNeedsInitialLight, IsAllAir,
-    SkyEgress, SkyIncoming, SkyLight, SkyLightWorkspace,
+    BlockEgress, BlockIncoming, BlockLight, BlockLightWorkspace, BlockNeedsInitialSeed, IsAllAir,
+    SkyEgress, SkyIncoming, SkyLight, SkyLightWorkspace, SkyNeedsInitialSeed,
 };
 use mcrs_minecraft_lighting::table::{flag_bits, BlockLightTable};
 use mcrs_minecraft_lighting::LightingPlugin;
@@ -160,14 +160,19 @@ fn single_chunk_in_sky_dim_attaches_all_components() {
         world.get::<SkyLightWorkspace>(chunk).is_some(),
         "SkyLightWorkspace missing"
     );
-    // ChunkNeedsInitialLight is inserted by attach_lighting_state and consumed
-    // by seed_initial_light within the same FixedUpdate tick under the
-    // CROSS-08 chain. After one tick the marker must be gone (it would only
-    // remain if seed_initial_light failed to run, which would break
-    // single-tick convergence).
+    // The per-channel needs-initial markers are inserted by
+    // `prime_heightmaps_on_column_spawn` once the heightmap scan finalises,
+    // and consumed by `seed_block_emitters` / `seed_sky_initial` within the
+    // same FixedUpdate tick under the CROSS-08 chain. After one tick both
+    // markers must be gone (they would only remain if the seed systems
+    // failed to run, which would break single-tick convergence).
     assert!(
-        world.get::<ChunkNeedsInitialLight>(chunk).is_none(),
-        "ChunkNeedsInitialLight must be consumed by seed_initial_light within the tick"
+        world.get::<BlockNeedsInitialSeed>(chunk).is_none(),
+        "BlockNeedsInitialSeed must be consumed by seed_block_emitters within the tick"
+    );
+    assert!(
+        world.get::<SkyNeedsInitialSeed>(chunk).is_none(),
+        "SkyNeedsInitialSeed must be consumed by seed_sky_initial within the tick"
     );
     assert!(
         world.get::<IsAllAir>(chunk).is_some(),
@@ -300,13 +305,18 @@ fn single_chunk_in_skyless_dim_has_no_sky_components() {
         world.get::<SkyLightWorkspace>(chunk).is_none(),
         "SkyLightWorkspace leaked"
     );
-    // The marker is inserted by attach_lighting_state and consumed by
-    // seed_initial_light within the same tick (skyless dims still receive
-    // the marker for their emitter-scan path); after one tick it must be
-    // gone.
+    // `BlockNeedsInitialSeed` is inserted by `prime_heightmaps_on_column_spawn`
+    // and consumed by `seed_block_emitters` within the same tick (skyless dims
+    // still receive the block-channel marker for their emitter-scan path).
+    // `SkyNeedsInitialSeed` is never inserted in a skyless dim. After one tick
+    // both must be absent.
     assert!(
-        world.get::<ChunkNeedsInitialLight>(chunk).is_none(),
-        "ChunkNeedsInitialLight must be consumed by seed_initial_light within the tick"
+        world.get::<BlockNeedsInitialSeed>(chunk).is_none(),
+        "BlockNeedsInitialSeed must be consumed by seed_block_emitters within the tick"
+    );
+    assert!(
+        world.get::<SkyNeedsInitialSeed>(chunk).is_none(),
+        "SkyNeedsInitialSeed must never appear on a skyless-dim chunk"
     );
 }
 

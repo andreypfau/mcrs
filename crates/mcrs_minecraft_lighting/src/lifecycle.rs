@@ -11,7 +11,7 @@ use crate::heightmap::{
     HeightmapVariant, ScanOutcome,
 };
 use crate::bundle::{BlockLightBundle, SkyLightBundle};
-use crate::components::{ChunkNeedsInitialLight, IsAllAir};
+use crate::components::{BlockNeedsInitialSeed, IsAllAir, SkyNeedsInitialSeed};
 use crate::table::BlockLightTable;
 use bevy_ecs::prelude::{Added, Changed, Commands, Component, Entity, Has, Query, Res, With};
 use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
@@ -111,10 +111,13 @@ impl ColumnHeightmapScan {
 /// it closes each XZ column for that variant. When both variants have
 /// closed every XZ column — or the cursor drops below `min_chunk_y`
 /// (chimney-to-bedrock) — `is_finalized()` flips to true and
-/// `ChunkNeedsInitialLight` is inserted on every currently-loaded chunk.
+/// `BlockNeedsInitialSeed` is inserted on every currently-loaded chunk;
+/// `SkyNeedsInitialSeed` is also inserted on chunks whose parent dimension
+/// carries `HasSkyLight`.
 ///
 /// Late-arrival path: once the scan is finalized, any newly-registered
-/// chunk receives `ChunkNeedsInitialLight` immediately.
+/// chunk receives `BlockNeedsInitialSeed` (and `SkyNeedsInitialSeed` when
+/// the dimension carries `HasSkyLight`) immediately.
 ///
 /// `IsAllAir` is a fast-skip: chunks where every block is air-equivalent
 /// cannot contribute a qualifying block. The cursor advances past such
@@ -129,6 +132,8 @@ pub fn prime_heightmaps_on_column_spawn(
     changed_columns: Query<(Entity, &ColumnChunks), (With<Column>, Changed<ColumnChunks>)>,
     chunks: Query<(&BlockPalette, Has<IsAllAir>)>,
     mut col_state: Query<(&mut Heightmaps, Option<&mut ColumnHeightmapScan>)>,
+    in_dimensions: Query<&InDimension>,
+    sky_dims: Query<(), With<HasSkyLight>>,
     table: Res<BlockLightTable>,
     mut commands: Commands,
 ) {
@@ -143,25 +148,47 @@ pub fn prime_heightmaps_on_column_spawn(
 
         if let Some(mut scan) = scan_opt {
             if scan.is_finalized() {
-                // Late-arrival: insert ChunkNeedsInitialLight on any chunk
-                // slot present. The Changed event fired because a new chunk
-                // just landed; the older chunks already have the marker
+                // Late-arrival: insert the per-channel needs-initial markers on
+                // any chunk slot present. The Changed event fired because a new
+                // chunk just landed; the older chunks already have the markers
                 // (consumed or pending) so the re-insert is a no-op for them.
                 for slot in chunk_index.sections.iter() {
                     let Some(chunk_entity) = slot else { continue };
-                    commands
-                        .entity(*chunk_entity)
-                        .insert(ChunkNeedsInitialLight);
+                    let mut e = commands.entity(*chunk_entity);
+                    e.insert(BlockNeedsInitialSeed);
+                    if let Ok(in_dim) = in_dimensions.get(*chunk_entity) {
+                        if sky_dims.get(in_dim.0).is_ok() {
+                            e.insert(SkyNeedsInitialSeed);
+                        }
+                    }
                 }
                 continue;
             }
 
-            advance_scan(&mut scan, &mut hm, chunk_index, &chunks, &table, &mut commands);
+            advance_scan(
+                &mut scan,
+                &mut hm,
+                chunk_index,
+                &chunks,
+                &in_dimensions,
+                &sky_dims,
+                &table,
+                &mut commands,
+            );
         } else {
             // First observation of this column: init the scan state and
             // attempt to advance it in the same tick.
             let mut scan = ColumnHeightmapScan::new(min_chunk_y, max_chunk_y);
-            advance_scan(&mut scan, &mut hm, chunk_index, &chunks, &table, &mut commands);
+            advance_scan(
+                &mut scan,
+                &mut hm,
+                chunk_index,
+                &chunks,
+                &in_dimensions,
+                &sky_dims,
+                &table,
+                &mut commands,
+            );
             commands.entity(column_entity).insert(scan);
         }
     }
@@ -172,6 +199,8 @@ fn advance_scan(
     hm: &mut Heightmaps,
     chunk_index: &ColumnChunks,
     chunks: &Query<(&BlockPalette, Has<IsAllAir>)>,
+    in_dimensions: &Query<&InDimension>,
+    sky_dims: &Query<(), With<HasSkyLight>>,
     table: &BlockLightTable,
     commands: &mut Commands,
 ) {
@@ -209,7 +238,7 @@ fn advance_scan(
 
     match outcome {
         ScanOutcome::AllClosed => {
-            insert_initial_light_markers(chunk_index, commands);
+            insert_initial_light_markers(chunk_index, commands, in_dimensions, sky_dims);
         }
         ScanOutcome::ChimneyToBedrock => {
             let mut unclosed_ws = 0usize;
@@ -244,7 +273,7 @@ fn advance_scan(
                     record_unsurfaced_motion_column(hm, x, z);
                 }
             }
-            insert_initial_light_markers(chunk_index, commands);
+            insert_initial_light_markers(chunk_index, commands, in_dimensions, sky_dims);
         }
         ScanOutcome::AbsentSection => {
             // Chunk not yet loaded — return without further action. The
@@ -253,15 +282,25 @@ fn advance_scan(
     }
 }
 
-/// Insert `ChunkNeedsInitialLight` on every currently-loaded chunk in the
-/// column. Does not mutate scan state — finalization is read from
+/// Insert `BlockNeedsInitialSeed` on every currently-loaded chunk in the
+/// column, plus `SkyNeedsInitialSeed` on chunks whose parent dimension carries
+/// `HasSkyLight`. Does not mutate scan state — finalization is read from
 /// `is_finalized()`.
-fn insert_initial_light_markers(chunk_index: &ColumnChunks, commands: &mut Commands) {
+fn insert_initial_light_markers(
+    chunk_index: &ColumnChunks,
+    commands: &mut Commands,
+    in_dimensions: &Query<&InDimension>,
+    sky_dims: &Query<(), With<HasSkyLight>>,
+) {
     for slot in chunk_index.sections.iter() {
         let Some(chunk_entity) = slot else { continue };
-        commands
-            .entity(*chunk_entity)
-            .insert(ChunkNeedsInitialLight);
+        let mut e = commands.entity(*chunk_entity);
+        e.insert(BlockNeedsInitialSeed);
+        if let Ok(in_dim) = in_dimensions.get(*chunk_entity) {
+            if sky_dims.get(in_dim.0).is_ok() {
+                e.insert(SkyNeedsInitialSeed);
+            }
+        }
     }
 }
 
@@ -274,11 +313,13 @@ fn insert_initial_light_markers(chunk_index: &ColumnChunks, commands: &mut Comma
 /// `IsAllAir` is inserted when the chunk's `BlockPalette` contains only
 /// air-equivalent states (`emission == 0 && dampening == 0`).
 ///
-/// `ChunkNeedsInitialLight` is NOT inserted here. It is inserted by
-/// `prime_heightmaps_on_column_spawn` once the column's heightmap scan
-/// finalizes, so that `seed_initial_light` always reads a fully-primed
-/// heightmap. Inserting it here (before the scan finalizes) would cause
-/// cave-air chunks to be seeded with stale heightmap data.
+/// The per-channel `BlockNeedsInitialSeed` and `SkyNeedsInitialSeed` markers
+/// are NOT inserted here. They are inserted by `prime_heightmaps_on_column_spawn`
+/// (on the heightmap-scan-finalise path) and by `consume_needs_full_reseed` (on
+/// the full-column reseed path), so that `seed_block_emitters` and
+/// `seed_sky_initial` always read a fully-primed heightmap. Inserting them here
+/// (before the scan finalizes) would cause cave-air chunks to be seeded with
+/// stale heightmap data.
 pub fn attach_lighting_state(
     newly_loaded: Query<(Entity, &BlockPalette, &InDimension, &ChunkPos), Added<ChunkLoaded>>,
     sky_dims: Query<(), With<HasSkyLight>>,
@@ -313,4 +354,204 @@ fn is_chunk_all_air(palette: &BlockPalette, table: &BlockLightTable) -> bool {
         }
     });
     all_air
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::components::{BlockLight, SkyLight};
+    use crate::table::flag_bits;
+    use crate::LightingPlugin;
+    use bevy_app::{App, FixedUpdate, Update};
+    use bevy_state::app::{AppExtStates, StatesPlugin};
+    use mcrs_core::voxel_shape::VoxelShape;
+    use mcrs_core::AppState;
+    use mcrs_engine::entity::ChunkEntities;
+    use mcrs_engine::world::chunk::{Chunk, ChunkLoaded};
+    use mcrs_engine::world::column::ColumnPlugin;
+    use mcrs_engine::world::dimension::{
+        DimensionBundle, DimensionId, DimensionTypeConfig,
+    };
+
+    const TEST_DIM_HEIGHT: u32 = 384;
+    const TEST_DIM_MIN_Y: i32 = -64;
+
+    fn stub_block_light_table() -> BlockLightTable {
+        let state_count = 2usize;
+        let mut emission = vec![0u8; state_count].into_boxed_slice();
+        let mut dampening = vec![0u8; state_count].into_boxed_slice();
+        let occlusion: Box<[&'static VoxelShape]> =
+            vec![VoxelShape::empty(); state_count].into_boxed_slice();
+        let mut flags = vec![0u8; state_count].into_boxed_slice();
+        emission[0] = 0;
+        dampening[0] = 0;
+        flags[0] = flag_bits::PROPAGATES_SKYLIGHT_DOWN;
+        emission[1] = 0;
+        dampening[1] = 15;
+        flags[1] =
+            flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
+        BlockLightTable {
+            emission,
+            dampening,
+            occlusion,
+            flags,
+        }
+    }
+
+    fn build_lifecycle_app(sky: bool) -> (App, Entity) {
+        let mut app = App::new();
+        app.add_plugins(StatesPlugin);
+        app.init_state::<AppState>();
+        app.add_plugins(ColumnPlugin);
+        app.add_plugins(LightingPlugin);
+        app.insert_resource(stub_block_light_table());
+        let dim = app
+            .world_mut()
+            .spawn(DimensionBundle {
+                type_config: DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
+                dimension_id: DimensionId::new(if sky { "test:sky" } else { "test:skyless" }),
+                ..Default::default()
+            })
+            .id();
+        if sky {
+            app.world_mut().entity_mut(dim).insert(HasSkyLight);
+        }
+        (app, dim)
+    }
+
+    fn air_palette() -> BlockPalette {
+        let mut p = BlockPalette::default();
+        p.fill(mcrs_protocol::BlockStateId(0));
+        p
+    }
+
+    fn spawn_test_chunk(app: &mut App, dim: Entity, chunk_pos: ChunkPos) -> Entity {
+        app.world_mut()
+            .spawn((
+                InDimension(dim),
+                chunk_pos,
+                ChunkEntities::default(),
+                Chunk,
+                ChunkLoaded,
+                air_palette(),
+            ))
+            .id()
+    }
+
+    #[test]
+    fn attach_lighting_state_does_not_insert_needs_initial() {
+        // Build a single-system app with only `attach_lighting_state` registered
+        // so we observe its behaviour in isolation: it must attach the per-chunk
+        // bundles but never insert the per-channel needs-initial markers.
+        let mut app = App::new();
+        app.insert_resource(stub_block_light_table());
+        app.add_systems(Update, attach_lighting_state);
+
+        let dim = app
+            .world_mut()
+            .spawn(DimensionBundle {
+                type_config: DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
+                dimension_id: DimensionId::new("test:sky"),
+                ..Default::default()
+            })
+            .id();
+        app.world_mut().entity_mut(dim).insert(HasSkyLight);
+
+        let chunk = app
+            .world_mut()
+            .spawn((
+                InDimension(dim),
+                ChunkPos::new(0, 0, 0),
+                Chunk,
+                ChunkLoaded,
+                air_palette(),
+            ))
+            .id();
+
+        app.update();
+
+        let world = app.world();
+        assert!(
+            world.get::<BlockLight>(chunk).is_some(),
+            "attach_lighting_state must insert BlockLightBundle"
+        );
+        assert!(
+            world.get::<SkyLight>(chunk).is_some(),
+            "attach_lighting_state must insert SkyLightBundle in sky dim"
+        );
+        assert!(
+            world.get::<BlockNeedsInitialSeed>(chunk).is_none(),
+            "attach_lighting_state must NOT insert BlockNeedsInitialSeed"
+        );
+        assert!(
+            world.get::<SkyNeedsInitialSeed>(chunk).is_none(),
+            "attach_lighting_state must NOT insert SkyNeedsInitialSeed"
+        );
+    }
+
+    #[test]
+    fn prime_heightmaps_inserts_block_needs_initial_seed_on_finalize() {
+        // Full-plugin smoke test: under the LightingPlugin's wiring, a
+        // single-chunk all-air column receives `BlockNeedsInitialSeed` via
+        // `prime_heightmaps_on_column_spawn` (heightmap scan finalises in one
+        // tick) and the marker is consumed by `seed_block_emitters` within
+        // the same FixedUpdate tick. After one tick the marker must be gone,
+        // but the BlockLight bundle must be present — proving the
+        // attach→prime→seed pipeline worked end-to-end.
+        let (mut app, dim) = build_lifecycle_app(true);
+        let chunk = spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0));
+        app.world_mut().run_schedule(FixedUpdate);
+
+        let world = app.world();
+        assert!(
+            world.get::<BlockLight>(chunk).is_some(),
+            "BlockLight must be attached by attach_lighting_state"
+        );
+        assert!(
+            world.get::<BlockNeedsInitialSeed>(chunk).is_none(),
+            "BlockNeedsInitialSeed must be inserted by prime_heightmaps then consumed by seed_block_emitters within the tick"
+        );
+    }
+
+    #[test]
+    fn prime_heightmaps_inserts_sky_needs_initial_seed_only_in_sky_dim() {
+        // Sky case: SkyLight bundle attaches; SkyNeedsInitialSeed is inserted
+        // by prime and consumed by seed_sky_initial within one tick.
+        // Skyless case: SkyLight bundle is NOT attached; SkyNeedsInitialSeed
+        // never appears on the chunk.
+        for sky in [true, false] {
+            let (mut app, dim) = build_lifecycle_app(sky);
+            let chunk = spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0));
+            app.world_mut().run_schedule(FixedUpdate);
+
+            let world = app.world();
+            assert!(
+                world.get::<BlockLight>(chunk).is_some(),
+                "BlockLight must be attached regardless of sky (sky={sky})"
+            );
+            assert!(
+                world.get::<BlockNeedsInitialSeed>(chunk).is_none(),
+                "BlockNeedsInitialSeed must be consumed within the tick (sky={sky})"
+            );
+            if sky {
+                assert!(
+                    world.get::<SkyLight>(chunk).is_some(),
+                    "SkyLight bundle must attach in sky-having dim"
+                );
+                assert!(
+                    world.get::<SkyNeedsInitialSeed>(chunk).is_none(),
+                    "SkyNeedsInitialSeed must be consumed within the tick (sky-having dim)"
+                );
+            } else {
+                assert!(
+                    world.get::<SkyLight>(chunk).is_none(),
+                    "SkyLight bundle must NOT attach in skyless dim"
+                );
+                assert!(
+                    world.get::<SkyNeedsInitialSeed>(chunk).is_none(),
+                    "SkyNeedsInitialSeed must NEVER appear in skyless dim"
+                );
+            }
+        }
+    }
 }

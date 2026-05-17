@@ -13,7 +13,7 @@
 //     Same as A but the air pocket is at local_x+2 from the open-sky column.
 //     Distance = 2 → expected sky_light = 13.
 //
-// The underlying bug: `seed_initial_light` Case B seeded BFS entries at all
+// The underlying bug: `seed_sky_initial` Case B seeded BFS entries at all
 // y=0..15 for fully-dark columns (surface s > chunk_top_y), including the
 // zero-storage cells. Those false level-15 seeds propagated outward at 15,
 // filling the air pockets with levels 14–15 instead of the correct

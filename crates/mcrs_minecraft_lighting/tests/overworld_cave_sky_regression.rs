@@ -35,7 +35,9 @@ use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_minecraft::world::chunk::{ColumnScheduler, ChunkPlugin as WorldgenChunkPlugin};
-use mcrs_minecraft_lighting::components::{ChunkNeedsInitialLight, LightDirty, SkyLight};
+use mcrs_minecraft_lighting::components::{
+    BlockNeedsInitialSeed, LightDirty, SkyLight, SkyNeedsInitialSeed,
+};
 use mcrs_minecraft_lighting::table::BlockLightTable;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_worldgen::density_function::build_functions;
@@ -232,7 +234,8 @@ fn has_light_dirty(world: &mut World) -> bool {
 }
 
 fn has_needs_initial_light(world: &mut World) -> bool {
-    let mut q = world.query_filtered::<(), With<ChunkNeedsInitialLight>>();
+    let mut q = world
+        .query_filtered::<(), Or<(With<BlockNeedsInitialSeed>, With<SkyNeedsInitialSeed>)>>();
     q.iter(world).next().is_some()
 }
 

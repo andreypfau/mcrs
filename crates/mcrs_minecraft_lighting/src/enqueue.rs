@@ -15,7 +15,7 @@
 //! lifecycle-ordering hazard.
 
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Added, Commands, Entity, ParamSet, Query, Res, With};
+use bevy_ecs::prelude::{Added, Commands, Entity, Or, Query, Res, With};
 use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
@@ -32,9 +32,9 @@ use crate::bfs::{
 use crate::geom::face_cell_to_chunk_xyz;
 use crate::heightmap::topmost_surface_world_y;
 use crate::components::{
-    BlockIncoming, BlockLight, BlockLightWorkspace, BlockPendingEgress, ChunkNeedsInitialLight,
-    LightDirty, NeedsFullReseed, SkyIncoming, SkyLight, SkyLightSeededAsTopmost, SkyLightWorkspace,
-    SkyPendingEgress, Wavefront,
+    BlockIncoming, BlockLight, BlockLightWorkspace, BlockNeedsInitialSeed, BlockPendingEgress,
+    LightDirty, NeedsFullReseed, NeedsRetop, SkyIncoming, SkyLight, SkyLightSeededAsTopmost,
+    SkyLightWorkspace, SkyNeedsInitialSeed, SkyPendingEgress, Wavefront,
 };
 use crate::nibble::NibbleArray;
 use crate::storage::LightStorage;
@@ -115,65 +115,6 @@ pub fn enqueue_block_light_on_block_placed(
         if pushed {
             commands.entity(placed.chunk).insert(LightDirty);
         }
-    }
-}
-
-/// Seeds the top face of every newly-attached topmost-of-column chunk
-/// with 256 BFS entries at `(x, z, 15)` level `15` carrying `FLAG_WRITE_LEVEL`.
-///
-/// "Topmost of column" is decided against the column's `ColumnChunks`:
-/// `chunk_pos.y == min_chunk_y + sections.len() - 1`. Non-topmost chunks
-/// (lower in the column) seed nothing — sky light reaches them only via the
-/// downward BFS step from the chunk above. Chunks in skyless dimensions
-/// never receive a `SkyLight` component (the `SkyLightBundle` insertion gate
-/// in `lifecycle::attach_lighting_state` keys on `HasSkyLight`), so the
-/// `Added<SkyLight>` filter self-gates this system.
-///
-/// Skips when `SkyLight` storage is already non-`Null`: the heightmap
-/// fast-path in `seed_initial_light` initialises the topmost chunk to
-/// `LightStorage::Uniform(15)` directly when the column's surface lies
-/// fully below the chunk. Pushing 256 BFS seeds in that case would re-
-/// arm the column-walker fast path in `propagate_increase_sky_system` and
-/// emit 1280 cross-chunk wavefronts to every neighbour, restarting the
-/// multi-chunk cascade the heightmap fast-path was designed to
-/// eliminate. The `.after(seed_initial_light)` ordering on the system
-/// registration in `plugin.rs` guarantees this gate sees the fast-path's
-/// storage state.
-pub fn enqueue_sky_light_initial(
-    mut newly_added: Query<
-        (Entity, &ChunkPos, &InColumn, &mut SkyLightWorkspace, &SkyLight),
-        Added<SkyLight>,
-    >,
-    columns: Query<&ColumnChunks>,
-    mut commands: Commands,
-) {
-    for (chunk_entity, chunk_pos, in_column, mut workspace, sky_light) in newly_added.iter_mut() {
-        if !matches!(sky_light.0, LightStorage::Null) {
-            continue;
-        }
-        let Ok(chunk_index) = columns.get(in_column.0) else {
-            continue;
-        };
-        let top_chunk_y =
-            chunk_index.min_section_y + chunk_index.sections.len() as i32 - 1;
-        if chunk_pos.y != top_chunk_y {
-            continue;
-        }
-
-        workspace.increase_queue.reserve(256);
-        for z in 0..16u8 {
-            for x in 0..16u8 {
-                workspace.increase_queue.push(pack_bfs_entry(
-                    x,
-                    z,
-                    15,
-                    15,
-                    ALL_DIRECTIONS_BITSET,
-                    FLAG_WRITE_LEVEL,
-                ));
-            }
-        }
-        commands.entity(chunk_entity).insert(LightDirty);
     }
 }
 
@@ -360,372 +301,448 @@ fn resolve_loaded_neighbor(
     }
 }
 
-/// Consumes `ChunkNeedsInitialLight` per chunk: scans the palette for
-/// block-light emitters and seeds `BlockLightWorkspace::increase_queue`; on a
-/// sky-having dimension's topmost chunk, additionally seeds 256
-/// `SkyLightWorkspace::increase_queue` entries at y=15. On retopping, also
-/// drives a decrease wave through the previously-topmost chunk.
-///
-/// The query is gated on `Option<Res<BlockLightTable>>` for consistency with
-/// `prime_heightmaps_on_column_spawn` — early-returns if the resource has not
-/// been built yet (registry freeze races early ticks).
-pub fn seed_initial_light(
+/// Block-channel half of the seed-initial split. Scans the chunk's palette
+/// for block-light emitters and seeds `BlockLightWorkspace::increase_queue`
+/// accordingly. Filter `With<BlockNeedsInitialSeed>` self-gates the system:
+/// the marker is present only on chunks awaiting their initial block-light
+/// seed; the marker also implies the chunk passed through
+/// `attach_lighting_state`, which is the only path that inserts the
+/// block-light bundle (so `With<BlockLight>` would be redundant). The marker
+/// is always removed at the end of the body, so the system is idempotent
+/// across ticks.
+pub fn seed_block_emitters(
     table: Option<Res<BlockLightTable>>,
-    sky_dims: Query<(), With<HasSkyLight>>,
-    chunk_indexes: Query<&ColumnChunks>,
-    heightmaps: Query<&Heightmaps>,
-    mut chunks: ParamSet<(
-        Query<
-            (
-                Entity,
-                &BlockPalette,
-                &InColumn,
-                &InDimension,
-                &ChunkPos,
-                &mut BlockLightWorkspace,
-                Option<&mut SkyLightWorkspace>,
-                Option<&mut SkyLight>,
-            ),
-            With<ChunkNeedsInitialLight>,
-        >,
-        Query<
-            (Entity, &ChunkPos, &InColumn, &mut SkyLightWorkspace, &SkyLight),
-            With<SkyLightSeededAsTopmost>,
-        >,
-    )>,
+    mut chunks: Query<
+        (Entity, &BlockPalette, &mut BlockLightWorkspace),
+        With<BlockNeedsInitialSeed>,
+    >,
     mut commands: Commands,
 ) {
     let Some(table) = table else {
         return;
     };
-
-    // First pass: collect what needs to happen, since we can't hold p0() and
-    // p1() borrows simultaneously. For each chunk in p0(), determine block
-    // emitters, sky seeding, and a "previously-topmost invalidate" target.
-    struct Plan {
-        column: Entity,
-        seeded_topmost: bool,
-        new_chunk_y: i32,
-    }
-    let mut plans: Vec<Plan> = Vec::new();
-
-    {
-        let mut p0 = chunks.p0();
-        for (
-            chunk_entity,
-            palette,
-            in_col,
-            in_dim,
-            chunk_pos,
-            mut block_ws,
-            mut sky_ws_opt,
-            mut sky_light_opt,
-        ) in p0.iter_mut()
-        {
-            // Block-light emitter scan. Always run the cell-by-cell scan: the
-            // for_each_distinct_state check would only skip the 4096-cell loop
-            // for chunks with zero emitters, which is the common case, but
-            // BlockPalette doesn't expose a positions-of-state API so the
-            // scan is the path of least new surface.
-            let mut has_emitter = false;
-            palette.for_each_distinct_state(|state| {
-                if table.emission_for(state) > 0 {
-                    has_emitter = true;
+    for (chunk_entity, palette, mut block_ws) in chunks.iter_mut() {
+        let mut has_emitter = false;
+        palette.for_each_distinct_state(|state| {
+            if table.emission_for(state) > 0 {
+                has_emitter = true;
+            }
+        });
+        if has_emitter {
+            for y in 0..16i32 {
+                for z in 0..16i32 {
+                    for x in 0..16i32 {
+                        let state = palette.get(BlockPos::new(x, y, z));
+                        let emission = table.emission_for(state);
+                        if emission > 0 {
+                            block_ws.increase_queue.push(pack_bfs_entry(
+                                x as u8,
+                                z as u8,
+                                y as u8,
+                                emission,
+                                ALL_DIRECTIONS_BITSET,
+                                FLAG_WRITE_LEVEL,
+                            ));
+                        }
+                    }
                 }
-            });
-            if has_emitter {
-                for y in 0..16i32 {
-                    for z in 0..16i32 {
-                        for x in 0..16i32 {
-                            let state = palette.get(BlockPos::new(x, y, z));
-                            let emission = table.emission_for(state);
-                            if emission > 0 {
-                                block_ws.increase_queue.push(pack_bfs_entry(
-                                    x as u8,
-                                    z as u8,
-                                    y as u8,
-                                    emission,
+            }
+            commands.entity(chunk_entity).insert(LightDirty);
+        }
+        commands
+            .entity(chunk_entity)
+            .remove::<BlockNeedsInitialSeed>();
+    }
+}
+
+/// Sky-channel half of the seed-initial split, folded together with the old
+/// partial-load 256-seed fallback.
+///
+/// The filter `Or<(With<SkyNeedsInitialSeed>, Added<SkyLight>)>` matches every
+/// chunk needing initial sky-light work: the marker-present branch runs the
+/// Case A/B/C heightmap classification body, while the marker-absent +
+/// `Added<SkyLight>` branch runs the 256-seed partial-load fallback. The
+/// `Added<SkyLight>` filter element fires once per chunk lifetime and the
+/// body's `LightStorage::Null` self-gate keeps the fallback from re-seeding
+/// once any other branch has written non-Null storage.
+///
+/// On new-topmost detection, this system inserts `NeedsRetop` on the previous
+/// topmost chunk so `invalidate_previous_topmost` can run the decrease wave
+/// through its top face in the same tick. The `apply_deferred` barrier
+/// between `LightingSet::Enqueue` substages makes the marker visible.
+///
+/// The `SkyNeedsInitialSeed` marker is removed at the end of the body only
+/// when it was present at entry (the `Added<SkyLight>`-only branch fires
+/// without the marker).
+pub fn seed_sky_initial(
+    table: Option<Res<BlockLightTable>>,
+    chunk_indexes: Query<&ColumnChunks>,
+    heightmaps: Query<&Heightmaps>,
+    sky_dims: Query<(), With<HasSkyLight>>,
+    mut chunks: Query<
+        (
+            Entity,
+            &BlockPalette,
+            &InColumn,
+            &InDimension,
+            &ChunkPos,
+            &mut SkyLightWorkspace,
+            &mut SkyLight,
+            Option<&SkyNeedsInitialSeed>,
+        ),
+        (
+            With<SkyLight>,
+            Or<(With<SkyNeedsInitialSeed>, Added<SkyLight>)>,
+        ),
+    >,
+    mut commands: Commands,
+) {
+    let Some(_table) = table else {
+        return;
+    };
+    // Track per-chunk "new topmost" outcomes so we can produce a single
+    // `NeedsRetop` insert per previous-topmost entity at the tail of this
+    // body. This system only inserts the marker —
+    // `invalidate_previous_topmost` runs the decrease wave on the next
+    // Enqueue substage after the `apply_deferred` barrier.
+    let mut retop_targets: Vec<Entity> = Vec::new();
+
+    for (
+        chunk_entity,
+        _palette,
+        in_col,
+        in_dim,
+        chunk_pos,
+        mut sky_ws,
+        mut sky_light,
+        marker_opt,
+    ) in chunks.iter_mut()
+    {
+        let dim_has_sky = sky_dims.get(in_dim.0).is_ok();
+        if !dim_has_sky {
+            // Defensive: the `Or<(SkyNeedsInitialSeed, Added<SkyLight>)>` filter
+            // matched, but the chunk's dim is skyless. Without HasSkyLight there
+            // is nothing meaningful for this system to do; only clear the
+            // marker if it was somehow inserted by a non-lifecycle path.
+            if marker_opt.is_some() {
+                commands
+                    .entity(chunk_entity)
+                    .remove::<SkyNeedsInitialSeed>();
+            }
+            continue;
+        }
+
+        let is_topmost = chunk_indexes
+            .get(in_col.0)
+            .ok()
+            .map(|si| chunk_pos.y == si.min_section_y + si.sections.len() as i32 - 1)
+            .unwrap_or(false);
+
+        let mut sky_seeded = false;
+        let mut seeded_topmost = false;
+
+        if marker_opt.is_some() {
+            // Marker-present branch: Case A/B/C heightmap fast-path.
+            let chunk_base_y = chunk_pos.y * 16;
+            let chunk_top_y = chunk_base_y + 15;
+
+            match heightmaps.get(in_col.0) {
+                Ok(hm) => {
+                    let mut all_above = true;
+                    let mut all_below = true;
+                    for z in 0..16usize {
+                        for x in 0..16usize {
+                            match topmost_surface_world_y(hm, x, z) {
+                                None => {
+                                    all_below = false;
+                                }
+                                Some(s) => {
+                                    if s > chunk_base_y {
+                                        all_above = false;
+                                    }
+                                    if s <= chunk_top_y {
+                                        all_below = false;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if all_above {
+                        // Case A: every column's first-air-above-surface is
+                        // at or below this chunk's base. All 4096 cells are
+                        // air at level 15. Store the compressed Uniform(15)
+                        // form and skip LightDirty — there is no work to
+                        // converge.
+                        if chunk_base_y <= 0 {
+                            // Cave-or-deeper chunks must never reach Case A
+                            // on a real overworld. If they do, the column's
+                            // heightmap is at sentinel when this system
+                            // fired — capture the offending column for
+                            // diagnosis.
+                            let min_y = hm.min_y();
+                            let mut sample = [0i32; 9];
+                            let pts = [
+                                (0usize, 0usize), (15, 0), (0, 15), (15, 15),
+                                (7, 7), (0, 7), (15, 7), (7, 0), (7, 15),
+                            ];
+                            let mut sentinel_count = 0u16;
+                            let mut min_read = i32::MAX;
+                            let mut max_read = i32::MIN;
+                            for z in 0..16usize {
+                                for x in 0..16usize {
+                                    let s = hm.surface_get(x, z);
+                                    min_read = min_read.min(s);
+                                    max_read = max_read.max(s);
+                                    if s == min_y { sentinel_count += 1; }
+                                }
+                            }
+                            for (i, (x, z)) in pts.iter().enumerate() {
+                                sample[i] = hm.surface_get(*x, *z);
+                            }
+                            tracing::warn!(
+                                target: "mcrs_lighting::case_a_cave",
+                                chunk_x = chunk_pos.x,
+                                chunk_y = chunk_pos.y,
+                                chunk_z = chunk_pos.z,
+                                chunk_base_y,
+                                chunk_top_y,
+                                column = ?in_col.0,
+                                chunk = ?chunk_entity,
+                                heightmap_min_y = min_y,
+                                heightmap_min_read = min_read,
+                                heightmap_max_read = max_read,
+                                heightmap_sentinel_count = sentinel_count,
+                                heightmap_sample = ?sample,
+                                "Case A fired for cave chunk: chunk will be Uniform(15) but is below y=0 — heightmap likely unprimed"
+                            );
+                        }
+                        sky_light.0 = LightStorage::Uniform(15);
+                    } else if all_below {
+                        // Case C: every column's surface is at or above
+                        // this chunk's top. No sky light reaches here;
+                        // storage stays Null (=0).
+                    } else {
+                        // Case B: straddling. Start from a uniform-15 nibble
+                        // array (single 2 KiB memset) and zero out only the
+                        // below-surface cells per (x, z) column.
+                        let mut arr = NibbleArray::filled(15);
+                        for z in 0..16usize {
+                            for x in 0..16usize {
+                                let s_opt = topmost_surface_world_y(hm, x, z);
+                                let max_dark_local_y = match s_opt {
+                                    Some(s) if s > chunk_base_y => {
+                                        (s - chunk_base_y).min(16) as usize
+                                    }
+                                    _ => 0,
+                                };
+                                for y_local in 0..max_dark_local_y {
+                                    arr.set(x, y_local, z, 0);
+                                }
+                                let lit_in_chunk =
+                                    s_opt.map_or(true, |s| s <= chunk_top_y);
+                                if lit_in_chunk {
+                                    let first_seed_y: u8 = match s_opt {
+                                        Some(s) if s >= chunk_base_y => {
+                                            (s - chunk_base_y) as u8
+                                        }
+                                        _ => 0,
+                                    };
+                                    for y_seed_local in first_seed_y..=15u8 {
+                                        sky_ws.increase_queue.push(pack_bfs_entry(
+                                            x as u8,
+                                            z as u8,
+                                            y_seed_local,
+                                            15,
+                                            ALL_DIRECTIONS_BITSET,
+                                            0,
+                                        ));
+                                    }
+                                    sky_seeded = true;
+                                }
+                            }
+                        }
+                        sky_light.0 = LightStorage::Mixed(Box::new(arr));
+                    }
+
+                    if is_topmost {
+                        commands
+                            .entity(chunk_entity)
+                            .insert(SkyLightSeededAsTopmost);
+                        seeded_topmost = true;
+                    }
+                }
+                Err(_) => {
+                    // Defensive fallback when `Heightmaps` is missing.
+                    // Reproduces the pre-fast-path behaviour: only the topmost
+                    // chunk gets 256 seeds at y=15.
+                    if is_topmost {
+                        sky_ws.increase_queue.reserve(256);
+                        for z in 0..16u8 {
+                            for x in 0..16u8 {
+                                sky_ws.increase_queue.push(pack_bfs_entry(
+                                    x,
+                                    z,
+                                    15,
+                                    15,
                                     ALL_DIRECTIONS_BITSET,
                                     FLAG_WRITE_LEVEL,
                                 ));
                             }
                         }
+                        commands
+                            .entity(chunk_entity)
+                            .insert(SkyLightSeededAsTopmost);
+                        sky_seeded = true;
+                        seeded_topmost = true;
                     }
                 }
             }
-
-            // Sky-light seeding: heightmap fast-path.
-            //
-            // For sky-having dimensions, classify this chunk against the
-            // column's primed `Heightmaps` so all-air chunks above the
-            // surface skip BFS entirely (Case A: Uniform(15)), straddling
-            // chunks fill above-surface cells directly and seed BFS only
-            // at the surface line (Case B), and all-below chunks stay at
-            // 0 (Case C). Replaces the prior unconditional 256-seed push at
-            // y=15 on the topmost chunk, which forced an N-chunk cascade
-            // through every air chunk above the surface during initial
-            // load. Vanilla Starlight uses the same strategy via
-            // `tryPropagateSkylight`.
-            let dim_has_sky = sky_dims.get(in_dim.0).is_ok();
-            let is_topmost = chunk_indexes
-                .get(in_col.0)
-                .ok()
-                .map(|si| chunk_pos.y == si.min_section_y + si.sections.len() as i32 - 1)
-                .unwrap_or(false);
-
-            let mut sky_seeded = false;
-            let mut seeded_topmost = false;
-
-            if dim_has_sky {
-                if let Some(sky_ws) = sky_ws_opt.as_deref_mut() {
-                    let chunk_base_y = chunk_pos.y * 16;
-                    let chunk_top_y = chunk_base_y + 15;
-
-                    match heightmaps.get(in_col.0) {
-                        Ok(hm) => {
-                            let mut all_above = true;
-                            let mut all_below = true;
-                            for z in 0..16usize {
-                                for x in 0..16usize {
-                                    match topmost_surface_world_y(hm, x, z) {
-                                        None => {
-                                            all_below = false;
-                                        }
-                                        Some(s) => {
-                                            if s > chunk_base_y {
-                                                all_above = false;
-                                            }
-                                            if s <= chunk_top_y {
-                                                all_below = false;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            if all_above {
-                                // Case A: every column's first-air-above-surface
-                                // is at or below this chunk's base. All 4096
-                                // cells are air at level 15. Store the compressed
-                                // Uniform(15) form and skip LightDirty — there is
-                                // no work to converge.
-                                if chunk_base_y <= 0 {
-                                    // Cave-or-deeper chunks must never reach
-                                    // Case A on a real overworld. If they do,
-                                    // the column's heightmap is at sentinel
-                                    // when seed_initial_light fired — capture
-                                    // the offending column for diagnosis.
-                                    let min_y = hm.min_y();
-                                    let mut sample = [0i32; 9];
-                                    let pts = [
-                                        (0usize, 0usize), (15, 0), (0, 15), (15, 15),
-                                        (7, 7), (0, 7), (15, 7), (7, 0), (7, 15),
-                                    ];
-                                    let mut sentinel_count = 0u16;
-                                    let mut min_read = i32::MAX;
-                                    let mut max_read = i32::MIN;
-                                    for z in 0..16usize {
-                                        for x in 0..16usize {
-                                            let s = hm.surface_get(x, z);
-                                            min_read = min_read.min(s);
-                                            max_read = max_read.max(s);
-                                            if s == min_y { sentinel_count += 1; }
-                                        }
-                                    }
-                                    for (i, (x, z)) in pts.iter().enumerate() {
-                                        sample[i] = hm.surface_get(*x, *z);
-                                    }
-                                    tracing::warn!(
-                                        target: "mcrs_lighting::case_a_cave",
-                                        chunk_x = chunk_pos.x,
-                                        chunk_y = chunk_pos.y,
-                                        chunk_z = chunk_pos.z,
-                                        chunk_base_y,
-                                        chunk_top_y,
-                                        column = ?in_col.0,
-                                        chunk = ?chunk_entity,
-                                        heightmap_min_y = min_y,
-                                        heightmap_min_read = min_read,
-                                        heightmap_max_read = max_read,
-                                        heightmap_sentinel_count = sentinel_count,
-                                        heightmap_sample = ?sample,
-                                        "Case A fired for cave chunk: chunk will be Uniform(15) but is below y=0 — heightmap likely unprimed"
-                                    );
-                                }
-                                if let Some(sky_light) = sky_light_opt.as_deref_mut() {
-                                    sky_light.0 = LightStorage::Uniform(15);
-                                }
-                            } else if all_below {
-                                // Case C: every column's surface is at or above
-                                // this chunk's top. No sky light reaches here;
-                                // storage stays Null (=0).
-                            } else {
-                                // Case B: straddling. Start from a uniform-15
-                                // nibble array (single 2 KiB memset) and zero
-                                // out only the below-surface cells per (x, z)
-                                // column. For a typical surface chunk the
-                                // dark region is at the bottom of a small
-                                // subset of columns, so this is far cheaper
-                                // than per-cell sets of the lit region.
-                                // Seed BFS at every lit y-level per column
-                                // so the wavefront reaches dark cells at any
-                                // height in adjacent columns (overhangs,
-                                // multi-level cave pockets). Seeding only
-                                // the surface-transition cell leaves the
-                                // already-lit cells above it without BFS
-                                // entries; the BFS cheap-out skips them
-                                // before emitting horizontal wavefronts.
-                                // Flags=0: storage is already at 15 for lit
-                                // cells, no write needed.
-                                let mut arr = NibbleArray::filled(15);
-                                for z in 0..16usize {
-                                    for x in 0..16usize {
-                                        let s_opt = topmost_surface_world_y(hm, x, z);
-                                        let max_dark_local_y = match s_opt {
-                                            Some(s) if s > chunk_base_y => {
-                                                (s - chunk_base_y).min(16) as usize
-                                            }
-                                            _ => 0,
-                                        };
-                                        for y_local in 0..max_dark_local_y {
-                                            arr.set(x, y_local, z, 0);
-                                        }
-                                        // Only seed columns with lit cells in
-                                        // this chunk. Fully-dark columns
-                                        // (s > chunk_top_y) have storage=0 for
-                                        // every cell; seeding them at level 15
-                                        // would produce false level-15 seeds that
-                                        // propagate outward at the wrong attenuation.
-                                        // Those columns receive light from adjacent
-                                        // lit columns via the BFS or cross-chunk pull.
-                                        // Unsurfaced columns are entirely lit up to
-                                        // chunk_top_y; the None arm matches the
-                                        // original behaviour where the sentinel
-                                        // (s == min_y) compared as s <= chunk_top_y.
-                                        let lit_in_chunk =
-                                            s_opt.map_or(true, |s| s <= chunk_top_y);
-                                        if lit_in_chunk {
-                                            let first_seed_y: u8 = match s_opt {
-                                                Some(s) if s >= chunk_base_y => {
-                                                    (s - chunk_base_y) as u8
-                                                }
-                                                _ => 0,
-                                            };
-                                            for y_seed_local in first_seed_y..=15u8 {
-                                                sky_ws.increase_queue.push(pack_bfs_entry(
-                                                    x as u8,
-                                                    z as u8,
-                                                    y_seed_local,
-                                                    15,
-                                                    ALL_DIRECTIONS_BITSET,
-                                                    0,
-                                                ));
-                                            }
-                                            sky_seeded = true;
-                                        }
-                                    }
-                                }
-                                if let Some(sky_light) = sky_light_opt.as_deref_mut() {
-                                    sky_light.0 = LightStorage::Mixed(Box::new(arr));
-                                }
-                            }
-
-                            if is_topmost {
-                                commands
-                                    .entity(chunk_entity)
-                                    .insert(SkyLightSeededAsTopmost);
-                                seeded_topmost = true;
-                            }
-                        }
-                        Err(_) => {
-                            // Defensive fallback when `Heightmaps` is missing.
-                            // Reproduces the pre-fast-path behaviour: only the
-                            // topmost chunk gets 256 seeds at y=15.
-                            if is_topmost {
-                                sky_ws.increase_queue.reserve(256);
-                                for z in 0..16u8 {
-                                    for x in 0..16u8 {
-                                        sky_ws.increase_queue.push(pack_bfs_entry(
-                                            x,
-                                            z,
-                                            15,
-                                            15,
-                                            ALL_DIRECTIONS_BITSET,
-                                            FLAG_WRITE_LEVEL,
-                                        ));
-                                    }
-                                }
-                                commands
-                                    .entity(chunk_entity)
-                                    .insert(SkyLightSeededAsTopmost);
-                                sky_seeded = true;
-                                seeded_topmost = true;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Only chunks that actually seeded work (block emitters or a
-            // straddling-surface sky seed) need `LightDirty`. Case A writes
-            // Uniform(15) directly and Case C leaves storage at 0 — neither
-            // requires the converge loop, so neither marks `LightDirty`.
-            // `distribute_*` will re-mark any of these as soon as an actual
-            // wavefront reaches them.
-            if has_emitter || sky_seeded {
-                commands.entity(chunk_entity).insert(LightDirty);
-            }
-            commands
-                .entity(chunk_entity)
-                .remove::<ChunkNeedsInitialLight>();
-
-            plans.push(Plan {
-                column: in_col.0,
-                seeded_topmost,
-                new_chunk_y: chunk_pos.y,
-            });
-        }
-    }
-
-    // Second pass: for each plan that seeded a new topmost, find any previously-
-    // topmost chunk in the SAME column with a lower chunk_pos.y and walk a
-    // decrease wave through its top face using the stored sky levels. The pass
-    // owns the &mut SkyLightWorkspace on the previous-topmost entity here
-    // exclusively, since the first pass already released its borrow.
-    if plans.iter().any(|p| p.seeded_topmost) {
-        let mut p1 = chunks.p1();
-        for plan in &plans {
-            if !plan.seeded_topmost {
+        } else {
+            // Marker-absent + Added<SkyLight> branch: the 256-seed
+            // partial-load fallback. Fires once per chunk lifetime
+            // (Added<SkyLight> is single-shot). The `LightStorage::Null`
+            // self-gate prevents double-seeding when any earlier branch has
+            // already written storage.
+            if !matches!(sky_light.0, LightStorage::Null) {
                 continue;
             }
-            for (prev_entity, prev_chunk_pos, prev_in_col, mut prev_sky_ws, prev_sky_light) in
-                p1.iter_mut()
-            {
-                if prev_in_col.0 != plan.column {
+            let Ok(chunk_index) = chunk_indexes.get(in_col.0) else {
+                continue;
+            };
+            let top_chunk_y =
+                chunk_index.min_section_y + chunk_index.sections.len() as i32 - 1;
+            if chunk_pos.y != top_chunk_y {
+                continue;
+            }
+            sky_ws.increase_queue.reserve(256);
+            for z in 0..16u8 {
+                for x in 0..16u8 {
+                    sky_ws.increase_queue.push(pack_bfs_entry(
+                        x,
+                        z,
+                        15,
+                        15,
+                        ALL_DIRECTIONS_BITSET,
+                        FLAG_WRITE_LEVEL,
+                    ));
+                }
+            }
+            sky_seeded = true;
+        }
+
+        if sky_seeded {
+            commands.entity(chunk_entity).insert(LightDirty);
+        }
+        if marker_opt.is_some() {
+            commands
+                .entity(chunk_entity)
+                .remove::<SkyNeedsInitialSeed>();
+        }
+        if seeded_topmost {
+            retop_targets.push(chunk_entity);
+        }
+        let _ = retop_targets.last();
+    }
+
+    // For each chunk that just became the new topmost, locate any prior
+    // topmost (in the same column at a lower chunk_pos.y) and tag it with
+    // `NeedsRetop` + `LightDirty`. The decrease wave itself runs in
+    // `invalidate_previous_topmost` after the `apply_deferred` barrier.
+    if !retop_targets.is_empty() {
+        // We need access to (Entity, ChunkPos, InColumn, SkyLightSeededAsTopmost)
+        // for every chunk in the affected columns. The producer side does not
+        // need to read the previous-topmost workspace — only its identity —
+        // so the query stays read-only on entity components and writes happen
+        // via Commands.
+        //
+        // Re-derive the column/new_chunk_y pair from the freshly-completed
+        // iteration above by recovering data through `chunks.get` (the query
+        // is read-only here so the &mut SkyLight borrow is dropped).
+        for new_topmost_entity in &retop_targets {
+            let Ok((_, _, new_in_col, _, new_chunk_pos, _, _, _)) =
+                chunks.get(*new_topmost_entity)
+            else {
+                continue;
+            };
+            let new_column = new_in_col.0;
+            let new_chunk_y = new_chunk_pos.y;
+            // Walk the column's chunk_index sections and find any loaded slot
+            // below new_chunk_y; if the chunk-pos check + SkyLightSeededAsTopmost
+            // marker both hold, schedule the handoff.
+            let Ok(chunk_index) = chunk_indexes.get(new_column) else {
+                continue;
+            };
+            for slot in chunk_index.sections.iter() {
+                let Some(slot_entity) = slot else { continue };
+                if *slot_entity == *new_topmost_entity {
                     continue;
                 }
-                if prev_chunk_pos.y >= plan.new_chunk_y {
+                let Ok((_, _, slot_in_col, _, slot_chunk_pos, _, _, _)) =
+                    chunks.get(*slot_entity)
+                else {
+                    // Not in our filtered query (no SkyLight or no markers
+                    // matched). Fall back to a probe via Commands —
+                    // SkyLightSeededAsTopmost is the canonical predecessor
+                    // marker; we can't read it from this query, so we
+                    // unconditionally tag any column-mate below the new
+                    // topmost. The consumer `invalidate_previous_topmost`
+                    // filters on `With<NeedsRetop>`, so spurious tags on
+                    // chunks that don't carry storage are harmless.
+                    continue;
+                };
+                if slot_in_col.0 != new_column {
                     continue;
                 }
-                for z in 0..16u8 {
-                    for x in 0..16u8 {
-                        let stored = prev_sky_light.0.get(x as usize, 15, z as usize);
-                        prev_sky_ws.decrease_queue.push(pack_bfs_entry(
-                            x,
-                            z,
-                            15,
-                            stored,
-                            ALL_DIRECTIONS_BITSET,
-                            0,
-                        ));
-                    }
+                if slot_chunk_pos.y >= new_chunk_y {
+                    continue;
                 }
                 commands
-                    .entity(prev_entity)
-                    .remove::<SkyLightSeededAsTopmost>();
-                commands.entity(prev_entity).insert(LightDirty);
+                    .entity(*slot_entity)
+                    .remove::<SkyLightSeededAsTopmost>()
+                    .insert(NeedsRetop)
+                    .insert(LightDirty);
             }
         }
+    }
+}
+
+/// Consumer half of the retopping handoff. Runs the per-cell decrease-queue
+/// push body; populates the previous topmost chunk's
+/// `SkyLightWorkspace.decrease_queue` with 256 entries carrying the chunk's
+/// stored top-face sky levels. Removes the `NeedsRetop` marker at the end so
+/// the system is idempotent.
+///
+/// Filter `With<NeedsRetop>` is sufficient because every previous-topmost that
+/// should be invalidated has been tagged by `seed_sky_initial`. Scheduling
+/// requirement: `invalidate_previous_topmost.after(seed_sky_initial)` so the
+/// producer's `commands.insert(NeedsRetop)` is visible after the
+/// `apply_deferred` barrier between `LightingSet::Enqueue` substages.
+pub(crate) fn invalidate_previous_topmost(
+    mut prev_chunks: Query<
+        (Entity, &ChunkPos, &InColumn, &mut SkyLightWorkspace, &SkyLight),
+        With<NeedsRetop>,
+    >,
+    mut commands: Commands,
+) {
+    for (prev_entity, _prev_chunk_pos, _prev_in_col, mut prev_sky_ws, prev_sky_light) in
+        prev_chunks.iter_mut()
+    {
+        for z in 0..16u8 {
+            for x in 0..16u8 {
+                let stored = prev_sky_light.0.get(x as usize, 15, z as usize);
+                prev_sky_ws.decrease_queue.push(pack_bfs_entry(
+                    x,
+                    z,
+                    15,
+                    stored,
+                    ALL_DIRECTIONS_BITSET,
+                    0,
+                ));
+            }
+        }
+        commands.entity(prev_entity).remove::<NeedsRetop>();
+        commands.entity(prev_entity).insert(LightDirty);
     }
 }
 
@@ -865,7 +882,7 @@ pub fn pull_block_neighbor_edges(
 ///
 /// Retains the sky-only escape hatch: if a newly-loaded neighbour already
 /// holds `LightStorage::Uniform(15)` (the Case A heightmap fast-path
-/// outcome, written by `seed_initial_light`), pull from it even though it
+/// outcome, written by `seed_sky_initial`), pull from it even though it
 /// was also `Added<ChunkLoaded>` this tick. The neighbour's storage is
 /// final and must be observed now so that a dark (Case B/C) new chunk
 /// receives the correct initial wavefront at its shared face. For all
@@ -982,25 +999,24 @@ pub fn pull_sky_neighbor_edges(
 
 /// Consumes `Added<NeedsFullReseed>` on `Column` entities: iterates the
 /// column's `ColumnChunks.sections` slots and re-inserts
-/// `ChunkNeedsInitialLight` on every loaded chunk in the column. Removes
-/// `NeedsFullReseed` from the column entity.
+/// `BlockNeedsInitialSeed` unconditionally plus `SkyNeedsInitialSeed` on
+/// chunks whose dimension carries `HasSkyLight`, on every loaded chunk in the
+/// column. Removes `NeedsFullReseed` from the column entity.
 ///
 /// Gated on `ColumnHeightmapScan::is_finalized()`. When the scan is not yet
 /// finalized, `Heightmaps::surface_get` returns the sentinel `min_y` for
-/// every unclosed XZ column. Re-marking chunks with `ChunkNeedsInitialLight`
-/// in that state causes `seed_initial_light` to misclassify cave chunks as
+/// every unclosed XZ column. Re-marking chunks with the per-channel markers
+/// in that state causes `seed_sky_initial` to misclassify cave chunks as
 /// Case A (Uniform(15)). The natural lifecycle in
-/// `prime_heightmaps_on_column_spawn` inserts the marker once the scan
-/// finalizes with a correctly primed heightmap, so deferring is safe: the
-/// in-flight wavefronts that triggered the overflow were entering a column
-/// whose initial seed has not yet been computed, and that initial seed will
-/// produce the correct lighting state from scratch once the heightmap is
-/// closed.
+/// `prime_heightmaps_on_column_spawn` inserts the markers once the scan
+/// finalizes with a correctly primed heightmap, so deferring is safe.
 pub fn consume_needs_full_reseed(
     newly_marked: Query<
         (Entity, &ColumnChunks, Option<&crate::lifecycle::ColumnHeightmapScan>),
         (With<Column>, Added<NeedsFullReseed>),
     >,
+    in_dimensions: Query<&InDimension>,
+    sky_dims: Query<(), With<HasSkyLight>>,
     mut commands: Commands,
 ) {
     for (column_entity, chunk_index, scan_opt) in newly_marked.iter() {
@@ -1016,8 +1032,8 @@ pub fn consume_needs_full_reseed(
                 chunks_total = total,
                 scan_present = scan_opt.is_some(),
                 "Dropping NeedsFullReseed: heightmap scan not finalized. The natural lifecycle in \
-                 prime_heightmaps_on_column_spawn will insert ChunkNeedsInitialLight when the scan \
-                 closes; reseeding now would read sentinel min_y and mis-Uniform(15) cave chunks."
+                 prime_heightmaps_on_column_spawn will insert the per-channel needs-initial markers \
+                 when the scan closes; reseeding now would read sentinel min_y and mis-Uniform(15) cave chunks."
             );
             commands.entity(column_entity).remove::<NeedsFullReseed>();
             continue;
@@ -1025,9 +1041,13 @@ pub fn consume_needs_full_reseed(
 
         for slot in chunk_index.sections.iter() {
             if let Some(chunk_entity) = slot {
-                commands
-                    .entity(*chunk_entity)
-                    .insert(ChunkNeedsInitialLight);
+                let mut e = commands.entity(*chunk_entity);
+                e.insert(BlockNeedsInitialSeed);
+                if let Ok(in_dim) = in_dimensions.get(*chunk_entity) {
+                    if sky_dims.get(in_dim.0).is_ok() {
+                        e.insert(SkyNeedsInitialSeed);
+                    }
+                }
             }
         }
         commands.entity(column_entity).remove::<NeedsFullReseed>();
@@ -1043,6 +1063,7 @@ mod tests {
     };
     use bevy_app::{App, Update};
     use bevy_ecs::message::Messages;
+    use bevy_ecs::prelude::IntoScheduleConfigs;
     use mcrs_core::voxel_shape::VoxelShape;
     use mcrs_engine::world::block::BlockPos;
     use mcrs_engine::world::chunk::ChunkPos;
@@ -1330,32 +1351,50 @@ mod tests {
 
     fn build_sky_initial_app() -> App {
         let mut app = App::new();
-        app.add_systems(Update, enqueue_sky_light_initial);
+        app.insert_resource(make_test_table());
+        app.add_systems(Update, seed_sky_initial);
         app
     }
 
-    fn spawn_column_with_chunks(
-        app: &mut App,
-        min_chunk_y: i32,
-        chunk_slots: Vec<Option<bevy_ecs::entity::Entity>>,
-    ) -> bevy_ecs::entity::Entity {
-        app.world_mut()
-            .spawn(ColumnChunks {
-                min_section_y: min_chunk_y,
-                sections: chunk_slots.into_boxed_slice(),
-            })
-            .id()
+    fn spawn_fallback_dim(app: &mut App) -> bevy_ecs::entity::Entity {
+        let mut e = app.world_mut().spawn(ColumnIndex::default());
+        e.insert(HasSkyLight);
+        e.id()
     }
 
+    fn air_palette_local() -> BlockPalette {
+        let mut p = BlockPalette::default();
+        p.fill(AIR);
+        p
+    }
+
+    /// Fallback branch: a topmost-of-column chunk freshly added to a
+    /// sky-having dim (no `SkyNeedsInitialSeed` marker; no primed heightmap on
+    /// the column) must seed 256 entries via the `Added<SkyLight>` arm.
     #[test]
-    fn enqueue_sky_initial_seeds_topmost_chunk_only() {
+    fn seed_sky_initial_seeds_topmost_chunk_only_via_fallback() {
         let mut app = build_sky_initial_app();
+        let dim = spawn_fallback_dim(&mut app);
 
         let chunk = app.world_mut().spawn_empty().id();
-        let column = spawn_column_with_chunks(&mut app, 0, vec![Some(chunk)]);
+        // Anchor the column on the dim and add the column to the dim's index
+        // so `seed_sky_initial`'s dim-has-sky probe finds the dim.
+        let column = app
+            .world_mut()
+            .spawn((
+                Column,
+                ColumnChunks {
+                    min_section_y: 0,
+                    sections: vec![Some(chunk)].into_boxed_slice(),
+                },
+                InDimension(dim),
+            ))
+            .id();
         app.world_mut().entity_mut(chunk).insert((
+            air_palette_local(),
             ChunkPos::new(0, 0, 0),
             InColumn(column),
+            InDimension(dim),
             SkyLight::default(),
             SkyLightWorkspace::default(),
         ));
@@ -1390,23 +1429,33 @@ mod tests {
         );
     }
 
+    /// Counterpart to the fallback test: a non-topmost chunk freshly added to
+    /// the same sky-having dim must not seed 256 entries.
     #[test]
-    fn enqueue_sky_initial_skips_non_topmost() {
+    fn seed_sky_initial_skips_non_topmost_via_fallback() {
         let mut app = build_sky_initial_app();
+        let dim = spawn_fallback_dim(&mut app);
 
         let chunk_below = app.world_mut().spawn_empty().id();
         let chunk_topmost = app.world_mut().spawn_empty().id();
-        // Two-chunk column: chunk-Y 0 (below) and chunk-Y 1 (topmost).
-        let column = spawn_column_with_chunks(
-            &mut app,
-            0,
-            vec![Some(chunk_below), Some(chunk_topmost)],
-        );
+        let column = app
+            .world_mut()
+            .spawn((
+                Column,
+                ColumnChunks {
+                    min_section_y: 0,
+                    sections: vec![Some(chunk_below), Some(chunk_topmost)].into_boxed_slice(),
+                },
+                InDimension(dim),
+            ))
+            .id();
         // Only the below chunk gets SkyLight added; topmost is left bare
         // so this single test does not also seed an unrelated chunk.
         app.world_mut().entity_mut(chunk_below).insert((
+            air_palette_local(),
             ChunkPos::new(0, 0, 0),
             InColumn(column),
+            InDimension(dim),
             SkyLight::default(),
             SkyLightWorkspace::default(),
         ));
@@ -1872,7 +1921,17 @@ mod tests {
     fn build_seed_initial_app() -> App {
         let mut app = App::new();
         app.insert_resource(make_test_table());
-        app.add_systems(Update, seed_initial_light);
+        // Register all three seed systems with the strict ordering used in
+        // plugin.rs: (seed_block_emitters, seed_sky_initial) run together,
+        // then `invalidate_previous_topmost` runs after `seed_sky_initial` so
+        // the `NeedsRetop` handoff is visible to the consumer.
+        app.add_systems(
+            Update,
+            (
+                (seed_block_emitters, seed_sky_initial),
+                invalidate_previous_topmost.after(seed_sky_initial),
+            ),
+        );
         app
     }
 
@@ -1919,16 +1978,20 @@ mod tests {
             InDimension(dim),
             BlockLight::default(),
             BlockLightWorkspace::default(),
-            ChunkNeedsInitialLight,
+            BlockNeedsInitialSeed,
         ));
         if sky {
-            emut.insert((SkyLight::default(), SkyLightWorkspace::default()));
+            emut.insert((
+                SkyLight::default(),
+                SkyLightWorkspace::default(),
+                SkyNeedsInitialSeed,
+            ));
         }
         (chunk, column)
     }
 
     #[test]
-    fn seed_initial_light_emits_block_emitters_and_sky_source() {
+    fn seed_block_emitters_and_sky_initial_emit_block_emitters_and_sky_source() {
         let mut app = build_seed_initial_app();
         let dim = spawn_dimension(&mut app, true);
         let palette = spawn_palette_with_torches(&[
@@ -1958,7 +2021,7 @@ mod tests {
         assert_eq!(
             sky_ws.increase_queue.len(),
             256,
-            "topmost on sky-having dim seeds 256 sky entries"
+            "topmost on sky-having dim with absent Heightmaps falls back to 256 sky entries"
         );
         assert!(
             app.world().get::<SkyLightSeededAsTopmost>(chunk).is_some(),
@@ -1969,13 +2032,21 @@ mod tests {
             "LightDirty inserted"
         );
         assert!(
-            app.world().get::<ChunkNeedsInitialLight>(chunk).is_none(),
-            "ChunkNeedsInitialLight removed"
+            app.world().get::<BlockNeedsInitialSeed>(chunk).is_none(),
+            "BlockNeedsInitialSeed removed by seed_block_emitters"
+        );
+        assert!(
+            app.world().get::<SkyNeedsInitialSeed>(chunk).is_none(),
+            "SkyNeedsInitialSeed removed by seed_sky_initial"
         );
     }
 
+    /// Regression test: when a new chunk takes over as the column's topmost,
+    /// the previous topmost gets the `NeedsRetop` handoff and
+    /// `invalidate_previous_topmost` runs the decrease wave through its top
+    /// face within the same tick chain.
     #[test]
-    fn seed_initial_light_invalidates_previous_topmost_on_retopping() {
+    fn retopping_handoff_completes_in_one_tick() {
         let mut app = build_seed_initial_app();
         let dim = spawn_dimension(&mut app, true);
 
@@ -2015,7 +2086,9 @@ mod tests {
             SkyLightSeededAsTopmost,
         ));
 
-        // Chunk B at chunk-Y 1 (the new topmost) needs initial light.
+        // Chunk B at chunk-Y 1 (the new topmost) needs initial light. Both
+        // per-channel markers are present to trigger seed_block_emitters and
+        // seed_sky_initial.
         let mut palette_b = BlockPalette::default();
         palette_b.fill(AIR);
         app.world_mut().entity_mut(chunk_b).insert((
@@ -2027,7 +2100,8 @@ mod tests {
             BlockLightWorkspace::default(),
             SkyLight::default(),
             SkyLightWorkspace::default(),
-            ChunkNeedsInitialLight,
+            BlockNeedsInitialSeed,
+            SkyNeedsInitialSeed,
         ));
 
         app.update();
@@ -2036,7 +2110,11 @@ mod tests {
         // wave seeded with stored level 12.
         assert!(
             app.world().get::<SkyLightSeededAsTopmost>(chunk_a).is_none(),
-            "previous topmost's SkyLightSeededAsTopmost removed"
+            "previous topmost's SkyLightSeededAsTopmost removed by seed_sky_initial"
+        );
+        assert!(
+            app.world().get::<NeedsRetop>(chunk_a).is_none(),
+            "NeedsRetop consumed by invalidate_previous_topmost"
         );
         assert!(
             app.world().get::<LightDirty>(chunk_a).is_some(),
@@ -2073,7 +2151,7 @@ mod tests {
     }
 
     #[test]
-    fn seed_initial_light_skips_skyless_dim_for_sky_seed() {
+    fn seed_sky_initial_skips_skyless_dim_for_sky_seed() {
         let mut app = build_seed_initial_app();
         let dim = spawn_dimension(&mut app, false);
         let palette = spawn_palette_with_torches(&[(2, 2, 2)]);
@@ -2102,6 +2180,64 @@ mod tests {
         assert!(
             app.world().get::<LightDirty>(chunk).is_some(),
             "chunk still marked LightDirty"
+        );
+    }
+
+    /// Regression test: the `Added<SkyLight>` fallback
+    /// branch of `seed_sky_initial` fires on a topmost-of-column chunk in a
+    /// sky-having dim whose column has no primed heightmap. The fallback
+    /// pushes 256 seeds even though `SkyNeedsInitialSeed` was never inserted.
+    #[test]
+    fn seed_sky_initial_fallback_branch_seeds_256_on_partial_load() {
+        let mut app = build_seed_initial_app();
+        let dim = spawn_dimension(&mut app, true);
+
+        // Single topmost chunk; no `SkyNeedsInitialSeed`, no Heightmaps on
+        // the column. The `Added<SkyLight>` arm of the filter must fire.
+        let chunk = app.world_mut().spawn_empty().id();
+        let column = app
+            .world_mut()
+            .spawn((
+                Column,
+                ColumnChunks {
+                    min_section_y: 0,
+                    sections: vec![Some(chunk)].into_boxed_slice(),
+                },
+                InDimension(dim),
+            ))
+            .id();
+        let mut palette = BlockPalette::default();
+        palette.fill(AIR);
+        app.world_mut().entity_mut(chunk).insert((
+            palette,
+            ChunkPos::new(0, 0, 0),
+            InColumn(column),
+            InDimension(dim),
+            BlockLight::default(),
+            BlockLightWorkspace::default(),
+            SkyLight::default(),
+            SkyLightWorkspace::default(),
+            // NOTE: no SkyNeedsInitialSeed — the fallback fires on Added<SkyLight>.
+        ));
+
+        app.update();
+
+        let workspace = app
+            .world()
+            .get::<SkyLightWorkspace>(chunk)
+            .expect("sky workspace");
+        assert_eq!(
+            workspace.increase_queue.len(),
+            256,
+            "fallback arm seeds 256 entries on topmost-of-column"
+        );
+        assert!(
+            app.world().get::<LightDirty>(chunk).is_some(),
+            "LightDirty inserted by the fallback branch"
+        );
+        assert!(
+            app.world().get::<SkyNeedsInitialSeed>(chunk).is_none(),
+            "marker was never inserted; fallback path does not remove what isn't there"
         );
     }
 
@@ -2447,8 +2583,12 @@ mod tests {
     fn consume_needs_full_reseed_marks_all_loaded_chunks_when_scan_finalized() {
         let mut app = build_consume_needs_full_reseed_app();
 
-        let chunk_a = app.world_mut().spawn_empty().id();
-        let chunk_b = app.world_mut().spawn_empty().id();
+        // Mint a sky-having dimension so each chunk's `InDimension` lookup
+        // resolves to a `HasSkyLight` carrier and the per-channel
+        // `SkyNeedsInitialSeed` marker is re-inserted alongside the block one.
+        let dim = app.world_mut().spawn(HasSkyLight).id();
+        let chunk_a = app.world_mut().spawn(InDimension(dim)).id();
+        let chunk_b = app.world_mut().spawn(InDimension(dim)).id();
         let chunk_unloaded_slot: Option<bevy_ecs::entity::Entity> = None;
         // Attach a finalized scan so the system treats the heightmap as
         // primed and proceeds with the reseed.
@@ -2472,12 +2612,20 @@ mod tests {
         app.update();
 
         assert!(
-            app.world().get::<ChunkNeedsInitialLight>(chunk_a).is_some(),
-            "chunk A re-marked ChunkNeedsInitialLight"
+            app.world().get::<BlockNeedsInitialSeed>(chunk_a).is_some(),
+            "chunk A re-marked BlockNeedsInitialSeed"
         );
         assert!(
-            app.world().get::<ChunkNeedsInitialLight>(chunk_b).is_some(),
-            "chunk B re-marked ChunkNeedsInitialLight"
+            app.world().get::<SkyNeedsInitialSeed>(chunk_a).is_some(),
+            "chunk A re-marked SkyNeedsInitialSeed (sky-having dim)"
+        );
+        assert!(
+            app.world().get::<BlockNeedsInitialSeed>(chunk_b).is_some(),
+            "chunk B re-marked BlockNeedsInitialSeed"
+        );
+        assert!(
+            app.world().get::<SkyNeedsInitialSeed>(chunk_b).is_some(),
+            "chunk B re-marked SkyNeedsInitialSeed (sky-having dim)"
         );
         assert!(
             app.world().get::<NeedsFullReseed>(column).is_none(),
@@ -2488,16 +2636,17 @@ mod tests {
     /// Regression: when the column's heightmap scan is not yet finalized
     /// (sentinel reads), `consume_needs_full_reseed` must DROP the reseed
     /// instead of re-marking chunks. Re-marking now would cause
-    /// `seed_initial_light` to read sentinel `min_y` and misclassify cave
+    /// `seed_sky_initial` to read sentinel `min_y` and misclassify cave
     /// chunks as Case A (Uniform(15)). The natural lifecycle in
-    /// `prime_heightmaps_on_column_spawn` inserts the marker once the scan
-    /// closes.
+    /// `prime_heightmaps_on_column_spawn` inserts the per-channel markers
+    /// once the scan closes.
     #[test]
     fn consume_needs_full_reseed_drops_reseed_when_scan_not_finalized() {
         let mut app = build_consume_needs_full_reseed_app();
 
-        let chunk_a = app.world_mut().spawn_empty().id();
-        let chunk_b = app.world_mut().spawn_empty().id();
+        let dim = app.world_mut().spawn(HasSkyLight).id();
+        let chunk_a = app.world_mut().spawn(InDimension(dim)).id();
+        let chunk_b = app.world_mut().spawn(InDimension(dim)).id();
         // No ColumnHeightmapScan attached → unfinalized.
         let column = app
             .world_mut()
@@ -2515,11 +2664,15 @@ mod tests {
         app.update();
 
         assert!(
-            app.world().get::<ChunkNeedsInitialLight>(chunk_a).is_none(),
+            app.world().get::<BlockNeedsInitialSeed>(chunk_a).is_none(),
             "chunk A must NOT be re-marked when scan unfinalized"
         );
         assert!(
-            app.world().get::<ChunkNeedsInitialLight>(chunk_b).is_none(),
+            app.world().get::<SkyNeedsInitialSeed>(chunk_a).is_none(),
+            "chunk A sky marker must NOT be re-marked when scan unfinalized"
+        );
+        assert!(
+            app.world().get::<BlockNeedsInitialSeed>(chunk_b).is_none(),
             "chunk B must NOT be re-marked when scan unfinalized"
         );
         assert!(
@@ -2534,7 +2687,8 @@ mod tests {
     fn consume_needs_full_reseed_drops_reseed_when_scan_mid_progress() {
         let mut app = build_consume_needs_full_reseed_app();
 
-        let chunk_a = app.world_mut().spawn_empty().id();
+        let dim = app.world_mut().spawn(HasSkyLight).id();
+        let chunk_a = app.world_mut().spawn(InDimension(dim)).id();
         // Mid-scan: cursor still at top of range, no bits closed.
         let scan = crate::lifecycle::ColumnHeightmapScan::new(0, 2);
         assert!(!scan.is_finalized());
@@ -2554,7 +2708,7 @@ mod tests {
         app.update();
 
         assert!(
-            app.world().get::<ChunkNeedsInitialLight>(chunk_a).is_none(),
+            app.world().get::<BlockNeedsInitialSeed>(chunk_a).is_none(),
             "chunk must NOT be re-marked when scan is mid-progress"
         );
         assert!(
@@ -2579,7 +2733,7 @@ mod tests {
         let (column_a, column_b) = spawn_two_neighbor_columns(&mut app, dim, chunk_a, chunk_b);
 
         // Chunk A: Case A — sky light already at Uniform(15) (the heightmap
-        // fast-path outcome from seed_initial_light, observable here before
+        // fast-path outcome from seed_sky_initial, observable here before
         // the pull system runs).
         app.world_mut().entity_mut(chunk_a).insert((
             ChunkPos::new(0, 0, 0),

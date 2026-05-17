@@ -488,8 +488,10 @@ fn snapshot_empty_sky_above_heightmap() {
     // Tick 1: column reconciliation populates ColumnChunks, attach_lighting_state
     // inserts SkyLightBundle on the chunk.
     app.world_mut().run_schedule(FixedUpdate);
-    // Tick 2: Added<SkyLight> fires enqueue_sky_light_initial, then the
-    // column-walker fast path collapses the all-air chunk to Uniform(15).
+    // Tick 2: `seed_sky_initial` fires (via the `Added<SkyLight>` fallback
+    // branch of its `Or<(With<SkyNeedsInitialSeed>, Added<SkyLight>)>`
+    // filter), then the column-walker fast path collapses the all-air chunk
+    // to Uniform(15).
     app.world_mut().run_schedule(FixedUpdate);
 
     let actual = read_sky_nibbles(&app, chunk);
@@ -514,8 +516,8 @@ fn snapshot_heightmap_update_on_place() {
     let chunk_upper = spawn_air_chunk(&mut app, dim, chunk_pos_upper);
 
     // Tick 1: column reconciliation populates ColumnChunks, attach_lighting_state
-    // inserts the per-chunk bundles, and seed_initial_light queues initial
-    // light on the next tick.
+    // inserts the per-chunk bundles, and `seed_block_emitters` /
+    // `seed_sky_initial` queue initial light on the next tick.
     app.world_mut().run_schedule(FixedUpdate);
 
     // Place dampening water at world y=18*16+8 inside the lower chunk; this
@@ -529,9 +531,10 @@ fn snapshot_heightmap_update_on_place() {
         golden::light_table::SYNTH_WATER_ID,
     );
 
-    // Tick 2: seed_initial_light + propagate/distribute fill the column, water
-    // damps the cell that contains it. After the convergence loop drains, the
-    // sky-light invariant must hold on both chunks.
+    // Tick 2: `(seed_block_emitters, seed_sky_initial)` + propagate/distribute
+    // fill the column, water damps the cell that contains it. After the
+    // convergence loop drains, the sky-light invariant must hold on both
+    // chunks.
     app.world_mut().run_schedule(FixedUpdate);
 
     // The upper chunk is fully open and on top, so its top face must read 15.
@@ -631,8 +634,9 @@ fn snapshot_sky_attenuation_through_water() {
     // Tick 1: column reconciliation populates ColumnChunks, attach_lighting_state
     // inserts SkyLightBundle on the chunk (no IsAllAir because of the water).
     app.world_mut().run_schedule(FixedUpdate);
-    // Tick 2: Added<SkyLight> fires enqueue_sky_light_initial; the BFS path
-    // (not the column-walker fast path) attenuates light through the water cell.
+    // Tick 2: `seed_sky_initial` fires (via the `Added<SkyLight>` fallback
+    // branch); the BFS path (not the column-walker fast path) attenuates
+    // light through the water cell.
     app.world_mut().run_schedule(FixedUpdate);
 
     let actual = read_sky_nibbles(&app, chunk);
@@ -650,14 +654,15 @@ fn snapshot_light_ticket_clears_when_pending_work_drains() {
     let chunk_pos = ChunkPos::new(0, 0, 0);
     let chunk = spawn_air_chunk(&mut app, dim, chunk_pos);
 
-    // Tick 1: attach_lighting_state inserts BlockLightBundle + SkyLightBundle
-    // on the chunk, marks ChunkNeedsInitialLight.
+    // Tick 1: `attach_lighting_state` inserts `BlockLightBundle` +
+    // `SkyLightBundle` on the chunk; `prime_heightmaps_on_column_spawn`
+    // inserts the per-channel needs-initial markers.
     app.world_mut().run_schedule(FixedUpdate);
 
-    // Tick 2: seed_initial_light fires; for an all-air chunk in a
-    // sky-light dim that chunk also becomes the topmost-of-column and seeds
-    // sky level 15. The convergence loop drains the workspace queues; the
-    // safety-net clears LightDirty.
+    // Tick 2: `(seed_block_emitters, seed_sky_initial)` fires; for an
+    // all-air chunk in a sky-light dim that chunk also becomes the
+    // topmost-of-column and seeds sky level 15. The convergence loop drains
+    // the workspace queues; the safety-net clears LightDirty.
     app.world_mut().run_schedule(FixedUpdate);
 
     // Sanity: by this point the chunk's queues should all be empty and

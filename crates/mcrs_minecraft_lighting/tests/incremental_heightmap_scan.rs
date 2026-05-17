@@ -147,9 +147,10 @@ fn scan_state(app: &App, col: Entity) -> &ColumnHeightmapScan {
 // is spawned, with all-stone terrain. The scan starts at max_chunk_y=2,
 // finds it loaded, scans it — all 256 XZ columns hit STONE at cell_y=15,
 // so both bitsets become full at the first row. Finalization fires.
-// ChunkNeedsInitialLight is inserted on the top chunk (and consumed by
-// seed_initial_light in the same tick's Enqueue stage). Chunks y=0 and
-// y=1 are absent and must NOT receive ChunkNeedsInitialLight.
+// `BlockNeedsInitialSeed` (and `SkyNeedsInitialSeed` in sky-having dims) are
+// inserted on the top chunk and consumed by `seed_block_emitters` /
+// `seed_sky_initial` in the same tick's Enqueue stage. Chunks y=0 and y=1 are
+// absent and must NOT receive the per-channel needs-initial markers.
 #[test]
 fn top_down_scan_finalizes_after_surface_chunk_only() {
     let (mut app, dim) = make_test_app();
@@ -350,9 +351,9 @@ fn chimney_to_bedrock_finalizes_at_floor() {
 // ─────────────────────────────────────────────────────────────────────────
 //
 // Spawn top (y=2, all-stone) → scan finalizes on tick 1. Then in tick 2
-// spawn middle (y=1) — it must receive ChunkNeedsInitialLight immediately
-// (consumed by seed_initial_light in the same tick), so SkyLight ends up
-// populated.
+// spawn middle (y=1) — it must receive the per-channel needs-initial markers
+// immediately (consumed by `seed_block_emitters` / `seed_sky_initial` in the
+// same tick), so SkyLight ends up populated.
 #[test]
 fn late_arriving_chunk_gets_initial_light_immediately() {
     let (mut app, dim) = make_test_app();
@@ -639,7 +640,7 @@ fn re_trigger_changed_without_new_chunks_is_noop() {
 //
 // A one-chunk dimension (min_section_y == max_chunk_y). The single
 // chunk IS the topmost. Spawning it must finalize the scan in this
-// single event and insert ChunkNeedsInitialLight on the chunk.
+// single event and insert the per-channel needs-initial markers on the chunk.
 #[test]
 fn single_chunk_dimension_finalizes_immediately() {
     let (mut app, dim) = make_test_app_with_dim(0, 16);

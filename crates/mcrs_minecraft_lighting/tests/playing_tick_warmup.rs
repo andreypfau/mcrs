@@ -2,10 +2,12 @@
 //
 // Builds the minimum app surface that exercises the full warm-up chain:
 // `attach_lighting_state` (`AttachState` set) inserts the per-chunk storage
-// components and `ChunkNeedsInitialLight`; `seed_initial_light` consumes the
-// marker and seeds emitter / sky sources; the per-channel pair
-// `(pull_block_neighbor_edges, pull_sky_neighbor_edges)` (driven by
-// `Added<ChunkLoaded>`) merges the neighbour edge cells; the bounded
+// components; `prime_heightmaps_on_column_spawn` inserts
+// `BlockNeedsInitialSeed` / `SkyNeedsInitialSeed`; the parallel pair
+// `(seed_block_emitters, seed_sky_initial)` consumes the markers and seeds
+// emitter / sky sources; the per-channel pair `(pull_block_neighbor_edges,
+// pull_sky_neighbor_edges)` (driven by `Added<ChunkLoaded>`) merges the
+// neighbour edge cells; the bounded
 // `light_converge_driver` runs the BFS-style convergence under
 // `LightConvergeSchedule`; the `EmitDirty` stage clears the safety-net
 // `LightDirty` markers once queues drain.
@@ -132,10 +134,11 @@ fn playing_tick_warmup_propagates_initial_light_without_residual_dirty() {
     let chunk = spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), air_palette());
 
     // Three ticks: tick 1 reconciles the column + chunk index and attaches
-    // lighting state; tick 2 runs `seed_initial_light` +
-    // `(pull_block_neighbor_edges, pull_sky_neighbor_edges)` + convergence
-    // + emit-dirty; tick 3 lets the safety-net `clear_light_dirty_safety_net`
-    // drain any residual marker observed after queues are empty.
+    // lighting state; tick 2 runs `(seed_block_emitters, seed_sky_initial)` +
+    // `invalidate_previous_topmost` + `(pull_block_neighbor_edges,
+    // pull_sky_neighbor_edges)` + convergence + emit-dirty; tick 3 lets the
+    // safety-net `clear_light_dirty_safety_net` drain any residual marker
+    // observed after queues are empty.
     for _ in 0..3 {
         app.world_mut().run_schedule(FixedUpdate);
     }

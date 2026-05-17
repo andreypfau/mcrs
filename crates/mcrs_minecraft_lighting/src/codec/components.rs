@@ -84,9 +84,21 @@ pub struct LightDirty;
 #[component(storage = "SparseSet")]
 pub struct IsAllAir;
 
+/// Inserted on a chunk when block-light propagation has not yet been seeded for
+/// the chunk's initial state. Consumed by `seed_block_emitters` per tick under
+/// `LightingSet::Enqueue`. Always inserted regardless of dimension because the
+/// block-light bundle is unconditional in `attach_lighting_state`.
 #[derive(Component)]
 #[component(storage = "SparseSet")]
-pub struct ChunkNeedsInitialLight;
+pub struct BlockNeedsInitialSeed;
+
+/// Inserted on a chunk when sky-light propagation has not yet been seeded for
+/// the chunk's initial state. Consumed by `seed_sky_initial` per tick under
+/// `LightingSet::Enqueue`. Inserted only when the chunk's parent dimension
+/// carries `HasSkyLight`.
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct SkyNeedsInitialSeed;
 
 /// Inserted on a `Column` entity when a pending-egress overflow is
 /// detected; consumed by the full-column reseed system.
@@ -99,6 +111,18 @@ pub struct NeedsFullReseed;
 #[derive(Component)]
 #[component(storage = "SparseSet")]
 pub struct SkyLightSeededAsTopmost;
+
+/// Self-cleaning queue for retopping decrease waves between `seed_sky_initial`
+/// and `invalidate_previous_topmost`. The producer (`seed_sky_initial`) inserts
+/// this on the previous topmost chunk when a new chunk becomes the topmost of
+/// its column. The consumer (`invalidate_previous_topmost`) runs the per-cell
+/// decrease-queue push body and removes the marker. Visibility `pub(crate)`
+/// because no downstream consumer is known; the `apply_deferred` barrier
+/// between `LightingSet::Enqueue` substages makes the marker visible to the
+/// consumer in the same tick.
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub(crate) struct NeedsRetop;
 
 #[cfg(test)]
 mod tests {
@@ -162,7 +186,9 @@ mod tests {
     fn light_dirty_marker_compile_test() {
         let _m = LightDirty;
         let _m2 = IsAllAir;
-        let _m3 = ChunkNeedsInitialLight;
+        let _m4 = BlockNeedsInitialSeed;
+        let _m5 = SkyNeedsInitialSeed;
+        let _m6 = NeedsRetop;
     }
 
     #[test]
