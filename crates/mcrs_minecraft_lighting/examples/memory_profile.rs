@@ -33,6 +33,72 @@ struct CategoryBytes {
     bytes: usize,
 }
 
+#[derive(Serialize, Default, Clone)]
+struct DepthDistribution {
+    samples: usize,
+    min: usize,
+    max: usize,
+    mean: f64,
+    p50: usize,
+    p95: usize,
+    p99: usize,
+}
+
+#[derive(Serialize, Default, Clone)]
+struct SmallVecOccupancy {
+    /// Total per-section samples observed for this component type.
+    samples: usize,
+    /// Sections whose inline buffer overflowed onto the heap (`spilled()` is true).
+    spilled: usize,
+    /// Sections whose `len() > 8` (exceeded the current inline capacity of 8).
+    over_8: usize,
+    /// Sections whose `len() > 16` (would still spill at a hypothetical cap of 16).
+    over_16: usize,
+}
+
+impl SmallVecOccupancy {
+    fn spilled_pct(&self) -> f64 {
+        if self.samples == 0 { 0.0 } else { self.spilled as f64 / self.samples as f64 * 100.0 }
+    }
+    fn over_8_pct(&self) -> f64 {
+        if self.samples == 0 { 0.0 } else { self.over_8 as f64 / self.samples as f64 * 100.0 }
+    }
+    fn over_16_pct(&self) -> f64 {
+        if self.samples == 0 { 0.0 } else { self.over_16 as f64 / self.samples as f64 * 100.0 }
+    }
+}
+
+#[derive(Serialize, Default, Clone)]
+struct AllocationDiscipline {
+    // Snapshot-time `len()` of each queue across all chunks. After convergence
+    // these are expected to be all zero; useful only as a sanity check that
+    // warmup drained the workspaces.
+    block_increase_queue_len: DepthDistribution,
+    block_decrease_queue_len: DepthDistribution,
+    sky_increase_queue_len: DepthDistribution,
+    sky_decrease_queue_len: DepthDistribution,
+    // Snapshot-time `capacity()` of each queue. `Vec` never shrinks unless
+    // explicitly told to, so this is the high-water mark observed during warmup
+    // and is the right signal for the workspace baseline-capacity decision.
+    block_increase_queue_cap: DepthDistribution,
+    block_decrease_queue_cap: DepthDistribution,
+    sky_increase_queue_cap: DepthDistribution,
+    sky_decrease_queue_cap: DepthDistribution,
+    // Same as above but excluding chunks whose queue capacity is zero (never used).
+    // This is the distribution we actually want to size the baseline against: the
+    // chunks that did real BFS work.
+    block_increase_queue_cap_nonzero: DepthDistribution,
+    block_decrease_queue_cap_nonzero: DepthDistribution,
+    sky_increase_queue_cap_nonzero: DepthDistribution,
+    sky_decrease_queue_cap_nonzero: DepthDistribution,
+    block_egress: SmallVecOccupancy,
+    block_incoming: SmallVecOccupancy,
+    block_pending_egress: SmallVecOccupancy,
+    sky_egress: SmallVecOccupancy,
+    sky_incoming: SmallVecOccupancy,
+    sky_pending_egress: SmallVecOccupancy,
+}
+
 #[derive(Serialize)]
 struct MemorySnapshot {
     schema_version: String,
@@ -47,6 +113,7 @@ struct MemorySnapshot {
     dhat_total_bytes: Option<usize>,
     dhat_in_process_delta_pct: Option<f64>,
     telemetry_iterations: u64,
+    allocation_discipline: AllocationDiscipline,
 }
 
 fn main() {
@@ -93,13 +160,53 @@ fn light_storage_bytes(storage: &LightStorage) -> usize {
         }
 }
 
-fn smallvec_bytes<T>(sv: &SmallVec<[T; 8]>) -> usize {
+fn smallvec_bytes<T>(sv: &SmallVec<[T; 16]>) -> usize {
     mem::size_of_val(sv)
         + if sv.spilled() {
             sv.capacity() * mem::size_of::<T>()
         } else {
             0
         }
+}
+
+fn record_smallvec_sample<T>(sv: &SmallVec<[T; 16]>, occ: &mut SmallVecOccupancy) {
+    occ.samples += 1;
+    if sv.spilled() {
+        occ.spilled += 1;
+    }
+    let len = sv.len();
+    if len > 8 {
+        occ.over_8 += 1;
+    }
+    if len > 16 {
+        occ.over_16 += 1;
+    }
+}
+
+fn depth_distribution(mut samples: Vec<usize>) -> DepthDistribution {
+    if samples.is_empty() {
+        return DepthDistribution::default();
+    }
+    samples.sort_unstable();
+    let n = samples.len();
+    let min = samples[0];
+    let max = samples[n - 1];
+    let mean = samples.iter().copied().sum::<usize>() as f64 / n as f64;
+    let pct = |p: f64| -> usize {
+        // Nearest-rank percentile; clamp index to [0, n-1].
+        let idx = ((p / 100.0) * n as f64).ceil() as usize;
+        let idx = idx.saturating_sub(1).min(n - 1);
+        samples[idx]
+    };
+    DepthDistribution {
+        samples: n,
+        min,
+        max,
+        mean,
+        p50: pct(50.0),
+        p95: pct(95.0),
+        p99: pct(99.0),
+    }
 }
 
 fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
@@ -116,37 +223,77 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
 
     // "wavefront_buffers": all six per-chunk egress/incoming SmallVec buffers
     let mut wavefront_buffers: usize = 0;
+    let mut alloc = AllocationDiscipline::default();
     for c in world.query::<&BlockEgress>().iter(world) {
         wavefront_buffers += smallvec_bytes(&c.0);
+        record_smallvec_sample(&c.0, &mut alloc.block_egress);
     }
     for c in world.query::<&SkyEgress>().iter(world) {
         wavefront_buffers += smallvec_bytes(&c.0);
+        record_smallvec_sample(&c.0, &mut alloc.sky_egress);
     }
     for c in world.query::<&BlockIncoming>().iter(world) {
         wavefront_buffers += smallvec_bytes(&c.0);
+        record_smallvec_sample(&c.0, &mut alloc.block_incoming);
     }
     for c in world.query::<&SkyIncoming>().iter(world) {
         wavefront_buffers += smallvec_bytes(&c.0);
+        record_smallvec_sample(&c.0, &mut alloc.sky_incoming);
     }
     for c in world.query::<&BlockPendingEgress>().iter(world) {
         wavefront_buffers += smallvec_bytes(&c.0);
+        record_smallvec_sample(&c.0, &mut alloc.block_pending_egress);
     }
     for c in world.query::<&SkyPendingEgress>().iter(world) {
         wavefront_buffers += smallvec_bytes(&c.0);
+        record_smallvec_sample(&c.0, &mut alloc.sky_pending_egress);
     }
 
     // "workspaces": BlockLightWorkspace and SkyLightWorkspace BFS queues
     let mut workspaces: usize = 0;
+    let mut block_inc_lens: Vec<usize> = Vec::new();
+    let mut block_dec_lens: Vec<usize> = Vec::new();
+    let mut block_inc_caps: Vec<usize> = Vec::new();
+    let mut block_dec_caps: Vec<usize> = Vec::new();
     for ws in world.query::<&BlockLightWorkspace>().iter(world) {
         workspaces += mem::size_of_val(ws)
             + ws.increase_queue.capacity() * 8
             + ws.decrease_queue.capacity() * 8;
+        block_inc_lens.push(ws.increase_queue.len());
+        block_dec_lens.push(ws.decrease_queue.len());
+        block_inc_caps.push(ws.increase_queue.capacity());
+        block_dec_caps.push(ws.decrease_queue.capacity());
     }
+    let mut sky_inc_lens: Vec<usize> = Vec::new();
+    let mut sky_dec_lens: Vec<usize> = Vec::new();
+    let mut sky_inc_caps: Vec<usize> = Vec::new();
+    let mut sky_dec_caps: Vec<usize> = Vec::new();
     for ws in world.query::<&SkyLightWorkspace>().iter(world) {
         workspaces += mem::size_of_val(ws)
             + ws.increase_queue.capacity() * 8
             + ws.decrease_queue.capacity() * 8;
+        sky_inc_lens.push(ws.increase_queue.len());
+        sky_dec_lens.push(ws.decrease_queue.len());
+        sky_inc_caps.push(ws.increase_queue.capacity());
+        sky_dec_caps.push(ws.decrease_queue.capacity());
     }
+    let nonzero = |v: &[usize]| -> Vec<usize> { v.iter().copied().filter(|n| *n > 0).collect() };
+    let block_inc_caps_nz = nonzero(&block_inc_caps);
+    let block_dec_caps_nz = nonzero(&block_dec_caps);
+    let sky_inc_caps_nz = nonzero(&sky_inc_caps);
+    let sky_dec_caps_nz = nonzero(&sky_dec_caps);
+    alloc.block_increase_queue_len = depth_distribution(block_inc_lens);
+    alloc.block_decrease_queue_len = depth_distribution(block_dec_lens);
+    alloc.sky_increase_queue_len = depth_distribution(sky_inc_lens);
+    alloc.sky_decrease_queue_len = depth_distribution(sky_dec_lens);
+    alloc.block_increase_queue_cap = depth_distribution(block_inc_caps);
+    alloc.block_decrease_queue_cap = depth_distribution(block_dec_caps);
+    alloc.sky_increase_queue_cap = depth_distribution(sky_inc_caps);
+    alloc.sky_decrease_queue_cap = depth_distribution(sky_dec_caps);
+    alloc.block_increase_queue_cap_nonzero = depth_distribution(block_inc_caps_nz);
+    alloc.block_decrease_queue_cap_nonzero = depth_distribution(block_dec_caps_nz);
+    alloc.sky_increase_queue_cap_nonzero = depth_distribution(sky_inc_caps_nz);
+    alloc.sky_decrease_queue_cap_nonzero = depth_distribution(sky_dec_caps_nz);
 
     // "heightmaps": per-column Heightmaps (two PackedBitStorage backing Vec<u64>)
     let mut heightmaps: usize = 0;
@@ -260,7 +407,7 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
     let (dhat_total_bytes, dhat_in_process_delta_pct) = (None, None);
 
     MemorySnapshot {
-        schema_version: "1.0".into(),
+        schema_version: "1.1".into(),
         git_commit_sha,
         fixture_seed: FIXTURE_SEED,
         timestamp_iso,
@@ -272,6 +419,7 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
         dhat_total_bytes,
         dhat_in_process_delta_pct,
         telemetry_iterations,
+        allocation_discipline: alloc,
     }
 }
 
@@ -314,6 +462,79 @@ fn write_stdout_markdown(snap: &MemorySnapshot) {
         println!("Status: FAIL — overspend by {:.3} MB", overspend);
     } else {
         println!("Status: PASS");
+    }
+
+    write_allocation_discipline(snap);
+}
+
+fn write_allocation_discipline(snap: &MemorySnapshot) {
+    let alloc = &snap.allocation_discipline;
+    println!();
+    println!("## Queue depth `len()` distribution (per-chunk, post-warmup)");
+    println!("Expected to be ~0 across the board after the workspaces have drained.");
+    println!();
+    println!("| Queue | n | min | p50 | mean | p95 | p99 | max |");
+    println!("|-------|---|-----|-----|------|-----|-----|-----|");
+    let row = |name: &str, d: &DepthDistribution| {
+        println!(
+            "| {} | {} | {} | {} | {:.2} | {} | {} | {} |",
+            name, d.samples, d.min, d.p50, d.mean, d.p95, d.p99, d.max,
+        );
+    };
+    row("BlockLight.increase_queue", &alloc.block_increase_queue_len);
+    row("BlockLight.decrease_queue", &alloc.block_decrease_queue_len);
+    row("SkyLight.increase_queue", &alloc.sky_increase_queue_len);
+    row("SkyLight.decrease_queue", &alloc.sky_decrease_queue_len);
+
+    println!();
+    println!("## Queue `capacity()` distribution (per-chunk, high-water mark)");
+    println!("Vec never shrinks, so capacity reflects peak depth observed during warmup.");
+    println!("This is the signal used to pick the workspace baseline capacity.");
+    println!();
+    println!("| Queue | n | min | p50 | mean | p95 | p99 | max |");
+    println!("|-------|---|-----|-----|------|-----|-----|-----|");
+    row("BlockLight.increase_queue", &alloc.block_increase_queue_cap);
+    row("BlockLight.decrease_queue", &alloc.block_decrease_queue_cap);
+    row("SkyLight.increase_queue", &alloc.sky_increase_queue_cap);
+    row("SkyLight.decrease_queue", &alloc.sky_decrease_queue_cap);
+
+    println!();
+    println!("## Queue `capacity()` distribution, NONZERO subset only");
+    println!("Restricts to chunks that did real BFS work (capacity > 0).");
+    println!("`n` here is the count of chunks that actually used the queue at least once.");
+    println!();
+    println!("| Queue | n | min | p50 | mean | p95 | p99 | max |");
+    println!("|-------|---|-----|-----|------|-----|-----|-----|");
+    row("BlockLight.increase_queue", &alloc.block_increase_queue_cap_nonzero);
+    row("BlockLight.decrease_queue", &alloc.block_decrease_queue_cap_nonzero);
+    row("SkyLight.increase_queue", &alloc.sky_increase_queue_cap_nonzero);
+    row("SkyLight.decrease_queue", &alloc.sky_decrease_queue_cap_nonzero);
+
+    println!();
+    println!("## SmallVec inline occupancy (six per-section wavefront buffers)");
+    println!("| Type | n | spilled % | len>8 % | len>16 % |");
+    println!("|------|---|-----------|---------|----------|");
+    let occ_row = |name: &str, o: &SmallVecOccupancy| {
+        println!(
+            "| {} | {} | {:.2}% | {:.2}% | {:.2}% |",
+            name, o.samples, o.spilled_pct(), o.over_8_pct(), o.over_16_pct(),
+        );
+    };
+    occ_row("BlockEgress", &alloc.block_egress);
+    occ_row("BlockIncoming", &alloc.block_incoming);
+    occ_row("BlockPendingEgress", &alloc.block_pending_egress);
+    occ_row("SkyEgress", &alloc.sky_egress);
+    occ_row("SkyIncoming", &alloc.sky_incoming);
+    occ_row("SkyPendingEgress", &alloc.sky_pending_egress);
+
+    println!();
+    println!("## Steady-state heap");
+    println!("- ECS-walked total: {} bytes ({:.3} MiB)", snap.total_bytes, snap.total_mb);
+    if let Some(dhat) = snap.dhat_total_bytes {
+        let dhat_mib = dhat as f64 / (1024.0 * 1024.0);
+        println!("- dhat curr_bytes: {} bytes ({:.3} MiB)", dhat, dhat_mib);
+    } else {
+        println!("- dhat curr_bytes: n/a (compile with --features profile-memory)");
     }
 }
 

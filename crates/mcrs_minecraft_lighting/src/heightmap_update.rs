@@ -56,12 +56,18 @@ pub fn update_heightmaps_on_block_placed(
     table: Res<BlockLightTable>,
     mut partitions: Local<EntityHashMap<Vec<BlockPlaced>>>,
 ) {
-    // Reuse the EntityHashMap across ticks but clear each bucket so columns
-    // that receive BlockPlaced events tick-after-tick amortise the
-    // hash-insert cost.
-    for bucket in partitions.values_mut() {
-        bucket.clear();
-    }
+    // Drop empty buckets to bound memory under long-running sessions where the
+    // touched-columns set could grow unboundedly; clear non-empty ones in
+    // place to amortise the Vec allocation across consecutive ticks that
+    // touch the same column.
+    partitions.retain(|_, bucket| {
+        if bucket.is_empty() {
+            false
+        } else {
+            bucket.clear();
+            true
+        }
+    });
 
     for placed in reader.read() {
         let Ok(in_column) = chunks.get(placed.chunk) else {

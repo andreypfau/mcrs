@@ -1,8 +1,8 @@
 {
-  "schema_version": "1.0",
-  "git_commit_sha": "06c958873a695cca33e5cd2ae363d7ea837d7019",
+  "schema_version": "1.1",
+  "git_commit_sha": "e80fe9b0277eff84186b9a961fb9052b201c047a",
   "fixture_seed": 30790115674516585,
-  "timestamp_iso": "2026-05-15T05:49:43Z",
+  "timestamp_iso": "2026-05-17T04:58:49Z",
   "categories": [
     {
       "name": "light_nibbles",
@@ -10,11 +10,11 @@
     },
     {
       "name": "wavefront_buffers",
-      "bytes": 157676160
+      "bytes": 58804352
     },
     {
       "name": "workspaces",
-      "bytes": 272756160
+      "bytes": 319271800
     },
     {
       "name": "heightmaps",
@@ -33,11 +33,157 @@
       "bytes": 65016
     }
   ],
-  "total_bytes": 441792400,
-  "total_mb": 421.32606506347656,
+  "total_bytes": 389436232,
+  "total_mb": 371.3953323364258,
   "budget_mb": 40,
   "exceeded_budget": true,
   "dhat_total_bytes": null,
   "dhat_in_process_delta_pct": null,
-  "telemetry_iterations": 21
+  "telemetry_iterations": 20,
+  "allocation_discipline": {
+    "block_increase_queue_len": {
+      "samples": 15000,
+      "min": 0,
+      "max": 0,
+      "mean": 0.0,
+      "p50": 0,
+      "p95": 0,
+      "p99": 0
+    },
+    "block_decrease_queue_len": {
+      "samples": 15000,
+      "min": 0,
+      "max": 0,
+      "mean": 0.0,
+      "p50": 0,
+      "p95": 0,
+      "p99": 0
+    },
+    "sky_increase_queue_len": {
+      "samples": 15000,
+      "min": 0,
+      "max": 0,
+      "mean": 0.0,
+      "p50": 0,
+      "p95": 0,
+      "p99": 0
+    },
+    "sky_decrease_queue_len": {
+      "samples": 15000,
+      "min": 0,
+      "max": 0,
+      "mean": 0.0,
+      "p50": 0,
+      "p95": 0,
+      "p99": 0
+    },
+    "block_increase_queue_cap": {
+      "samples": 15000,
+      "min": 64,
+      "max": 64,
+      "mean": 64.0,
+      "p50": 64,
+      "p95": 64,
+      "p99": 64
+    },
+    "block_decrease_queue_cap": {
+      "samples": 15000,
+      "min": 64,
+      "max": 64,
+      "mean": 64.0,
+      "p50": 64,
+      "p95": 64,
+      "p99": 64
+    },
+    "sky_increase_queue_cap": {
+      "samples": 15000,
+      "min": 64,
+      "max": 8192,
+      "mean": 2456.5983333333334,
+      "p50": 1024,
+      "p95": 4096,
+      "p99": 8192
+    },
+    "sky_decrease_queue_cap": {
+      "samples": 15000,
+      "min": 64,
+      "max": 64,
+      "mean": 64.0,
+      "p50": 64,
+      "p95": 64,
+      "p99": 64
+    },
+    "block_increase_queue_cap_nonzero": {
+      "samples": 15000,
+      "min": 64,
+      "max": 64,
+      "mean": 64.0,
+      "p50": 64,
+      "p95": 64,
+      "p99": 64
+    },
+    "block_decrease_queue_cap_nonzero": {
+      "samples": 15000,
+      "min": 64,
+      "max": 64,
+      "mean": 64.0,
+      "p50": 64,
+      "p95": 64,
+      "p99": 64
+    },
+    "sky_increase_queue_cap_nonzero": {
+      "samples": 15000,
+      "min": 64,
+      "max": 8192,
+      "mean": 2456.5983333333334,
+      "p50": 1024,
+      "p95": 4096,
+      "p99": 8192
+    },
+    "sky_decrease_queue_cap_nonzero": {
+      "samples": 15000,
+      "min": 64,
+      "max": 64,
+      "mean": 64.0,
+      "p50": 64,
+      "p95": 64,
+      "p99": 64
+    },
+    "block_egress": {
+      "samples": 15000,
+      "spilled": 0,
+      "over_8": 0,
+      "over_16": 0
+    },
+    "block_incoming": {
+      "samples": 15000,
+      "spilled": 0,
+      "over_8": 0,
+      "over_16": 0
+    },
+    "block_pending_egress": {
+      "samples": 15000,
+      "spilled": 0,
+      "over_8": 0,
+      "over_16": 0
+    },
+    "sky_egress": {
+      "samples": 15000,
+      "spilled": 0,
+      "over_8": 0,
+      "over_16": 0
+    },
+    "sky_incoming": {
+      "samples": 15000,
+      "spilled": 13125,
+      "over_8": 0,
+      "over_16": 0
+    },
+    "sky_pending_egress": {
+      "samples": 15000,
+      "spilled": 625,
+      "over_8": 625,
+      "over_16": 625
+    }
+  }
 }

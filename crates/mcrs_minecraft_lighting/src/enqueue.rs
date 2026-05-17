@@ -50,11 +50,18 @@ pub fn enqueue_block_light_on_block_placed(
     mut partitions: Local<EntityHashMap<Vec<BlockPlaced>>>,
     par_commands: ParallelCommands,
 ) {
-    // Reuse the EntityHashMap across ticks but clear each bucket so chunks that
-    // receive BlockPlaced events tick-after-tick amortise the hash-insert cost.
-    for bucket in partitions.values_mut() {
-        bucket.clear();
-    }
+    // Drop empty buckets to bound memory under long-running sessions where the
+    // touched-chunks set could grow unboundedly; clear non-empty ones in place
+    // to amortise the Vec allocation across consecutive ticks that touch the
+    // same chunk.
+    partitions.retain(|_, bucket| {
+        if bucket.is_empty() {
+            false
+        } else {
+            bucket.clear();
+            true
+        }
+    });
 
     for placed in reader.read() {
         if placed.old_state == placed.new_state {
@@ -183,9 +190,14 @@ pub fn enqueue_sky_light_on_block_placed(
     mut partitions: Local<EntityHashMap<Vec<BlockPlaced>>>,
     par_commands: ParallelCommands,
 ) {
-    for bucket in partitions.values_mut() {
-        bucket.clear();
-    }
+    partitions.retain(|_, bucket| {
+        if bucket.is_empty() {
+            false
+        } else {
+            bucket.clear();
+            true
+        }
+    });
 
     for placed in reader.read() {
         if placed.old_state == placed.new_state {

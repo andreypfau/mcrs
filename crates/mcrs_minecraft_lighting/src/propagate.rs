@@ -52,7 +52,7 @@ use crate::table::BlockLightTable;
 /// there.
 #[inline]
 fn drain_incoming_into_queue(
-    incoming: &mut smallvec::SmallVec<[Wavefront; 8]>,
+    incoming: &mut smallvec::SmallVec<[Wavefront; 16]>,
     queue: &mut Vec<u64>,
 ) {
     queue.reserve(incoming.len());

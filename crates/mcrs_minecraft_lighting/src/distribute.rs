@@ -191,7 +191,7 @@ fn rate_limited_xdim_log(
 /// `BlockChannel` and `SkyChannel` are uninhabited marker types that select
 /// the per-channel `Egress` / `Pending` newtypes, the Down-face attenuation
 /// skip (sky only), and the overflow-log `kind` / `channel` fields. Trait
-/// methods are pure projections into the inner `SmallVec<[Wavefront; 8]>`;
+/// methods are pure projections into the inner `SmallVec<[Wavefront; 16]>`;
 /// the generic body monomorphises per impl.
 pub(crate) trait DrainChannel {
     type Egress: Component<Mutability = Mutable>;
@@ -199,8 +199,8 @@ pub(crate) trait DrainChannel {
     const DOWN_SKIPS_ATTENUATION: bool;
     const OVERFLOW_KIND: &'static str;
     const OVERFLOW_COUNTER_LABEL: &'static str;
-    fn egress_inner_mut(c: &mut Self::Egress) -> &mut SmallVec<[Wavefront; 8]>;
-    fn pending_inner_mut(c: &mut Self::Pending) -> &mut SmallVec<[Wavefront; 8]>;
+    fn egress_inner_mut(c: &mut Self::Egress) -> &mut SmallVec<[Wavefront; 16]>;
+    fn pending_inner_mut(c: &mut Self::Pending) -> &mut SmallVec<[Wavefront; 16]>;
 }
 
 pub(crate) enum BlockChannel {}
@@ -212,8 +212,8 @@ impl DrainChannel for BlockChannel {
     const DOWN_SKIPS_ATTENUATION: bool = false;
     const OVERFLOW_KIND: &'static str = "block_egress_overflow";
     const OVERFLOW_COUNTER_LABEL: &'static str = "block";
-    fn egress_inner_mut(c: &mut BlockEgress) -> &mut SmallVec<[Wavefront; 8]> { &mut c.0 }
-    fn pending_inner_mut(c: &mut BlockPendingEgress) -> &mut SmallVec<[Wavefront; 8]> { &mut c.0 }
+    fn egress_inner_mut(c: &mut BlockEgress) -> &mut SmallVec<[Wavefront; 16]> { &mut c.0 }
+    fn pending_inner_mut(c: &mut BlockPendingEgress) -> &mut SmallVec<[Wavefront; 16]> { &mut c.0 }
 }
 
 impl DrainChannel for SkyChannel {
@@ -222,8 +222,8 @@ impl DrainChannel for SkyChannel {
     const DOWN_SKIPS_ATTENUATION: bool = true;
     const OVERFLOW_KIND: &'static str = "sky_egress_overflow";
     const OVERFLOW_COUNTER_LABEL: &'static str = "sky";
-    fn egress_inner_mut(c: &mut SkyEgress) -> &mut SmallVec<[Wavefront; 8]> { &mut c.0 }
-    fn pending_inner_mut(c: &mut SkyPendingEgress) -> &mut SmallVec<[Wavefront; 8]> { &mut c.0 }
+    fn egress_inner_mut(c: &mut SkyEgress) -> &mut SmallVec<[Wavefront; 16]> { &mut c.0 }
+    fn pending_inner_mut(c: &mut SkyPendingEgress) -> &mut SmallVec<[Wavefront; 16]> { &mut c.0 }
 }
 
 /// Channel-generic cross-chunk wavefront drain.
@@ -489,7 +489,7 @@ mod tests {
         chunk_pos: ChunkPos,
         column: Entity,
         dim: Entity,
-        egress: SmallVec<[Wavefront; 8]>,
+        egress: SmallVec<[Wavefront; 16]>,
     ) -> Entity {
         let chunk = app
             .world_mut()
@@ -513,7 +513,7 @@ mod tests {
     /// dimension.
     fn make_two_column_world(
         app: &mut App,
-        egress_a: SmallVec<[Wavefront; 8]>,
+        egress_a: SmallVec<[Wavefront; 16]>,
     ) -> (Entity, Entity, Entity, Entity, Entity) {
         let dim = spawn_dimension(app);
         let col_a = spawn_column(app, 0, 1);
@@ -612,7 +612,7 @@ mod tests {
         let east = Direction::East.index() as u8;
 
         let mut app_dec = build_single_stage_app(LightConvergeSet::DistributeDecrease);
-        let mut egress_dec: SmallVec<[Wavefront; 8]> = SmallVec::new();
+        let mut egress_dec: SmallVec<[Wavefront; 16]> = SmallVec::new();
         egress_dec.push(Wavefront::new(east, 4, 7, 8));
         let (_dim, _col_a, _col_b, chunk_a_dec, chunk_b_dec) =
             make_two_column_world(&mut app_dec, SmallVec::new());
@@ -633,7 +633,7 @@ mod tests {
             .to_vec();
 
         let mut app_inc = build_single_stage_app(LightConvergeSet::DistributeIncrease);
-        let mut egress_inc: SmallVec<[Wavefront; 8]> = SmallVec::new();
+        let mut egress_inc: SmallVec<[Wavefront; 16]> = SmallVec::new();
         egress_inc.push(Wavefront::new(east, 4, 7, 8));
         let (_dim, _col_a, _col_b, chunk_a_inc, chunk_b_inc) =
             make_two_column_world(&mut app_inc, SmallVec::new());
@@ -759,8 +759,8 @@ mod tests {
     /// block + sky component set; non-seeded channels receive empty SmallVecs.
     fn make_two_chunk_column(
         app: &mut App,
-        block_egress: SmallVec<[Wavefront; 8]>,
-        sky_egress: SmallVec<[Wavefront; 8]>,
+        block_egress: SmallVec<[Wavefront; 16]>,
+        sky_egress: SmallVec<[Wavefront; 16]>,
     ) -> (Entity, Entity, Entity, Entity) {
         let dim = spawn_dimension(app);
         let col = spawn_column(app, 0, 2);
@@ -808,9 +808,9 @@ mod tests {
     fn block_down_face_egress_attenuates() {
         let mut app = build_app();
         let down = Direction::Down.index() as u8;
-        let mut block_egress: SmallVec<[Wavefront; 8]> = SmallVec::new();
+        let mut block_egress: SmallVec<[Wavefront; 16]> = SmallVec::new();
         block_egress.push(Wavefront::new(down, 0, 0, 15));
-        let sky_egress: SmallVec<[Wavefront; 8]> = SmallVec::new();
+        let sky_egress: SmallVec<[Wavefront; 16]> = SmallVec::new();
         let (_dim, _col, _above, chunk_below) =
             make_two_chunk_column(&mut app, block_egress, sky_egress);
 
@@ -832,8 +832,8 @@ mod tests {
     fn sky_down_face_egress_keeps_full_level() {
         let mut app = build_app();
         let down = Direction::Down.index() as u8;
-        let block_egress: SmallVec<[Wavefront; 8]> = SmallVec::new();
-        let mut sky_egress: SmallVec<[Wavefront; 8]> = SmallVec::new();
+        let block_egress: SmallVec<[Wavefront; 16]> = SmallVec::new();
+        let mut sky_egress: SmallVec<[Wavefront; 16]> = SmallVec::new();
         sky_egress.push(Wavefront::new(down, 0, 0, 15));
         let (_dim, _col, _above, chunk_below) =
             make_two_chunk_column(&mut app, block_egress, sky_egress);
