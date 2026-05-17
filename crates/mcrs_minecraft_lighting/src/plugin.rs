@@ -4,7 +4,7 @@ use crate::sky_light::SkyLightPlugin;
 use crate::converge::{
     light_converge_driver, LightConvergeSchedule, LightConvergeSet,
 };
-use crate::distribute::distribute_cross_chunk_wavefronts;
+use crate::distribute::{distribute_block_wavefronts, distribute_sky_wavefronts};
 use crate::emit_dirty::{
     clear_light_tickets,
     downgrade_light_storage,
@@ -170,7 +170,8 @@ impl Plugin for LightingPlugin {
                 )
                     .in_set(LightConvergeSet::PropagateDecrease),
                 ApplyDeferred,
-                distribute_cross_chunk_wavefronts.in_set(LightConvergeSet::DistributeDecrease),
+                (distribute_block_wavefronts, distribute_sky_wavefronts)
+                    .in_set(LightConvergeSet::DistributeDecrease),
                 ApplyDeferred,
                 (
                     propagate_increase_block_system,
@@ -178,7 +179,8 @@ impl Plugin for LightingPlugin {
                 )
                     .in_set(LightConvergeSet::PropagateIncrease),
                 ApplyDeferred,
-                distribute_cross_chunk_wavefronts.in_set(LightConvergeSet::DistributeIncrease),
+                (distribute_block_wavefronts, distribute_sky_wavefronts)
+                    .in_set(LightConvergeSet::DistributeIncrease),
                 ApplyDeferred,
             )
                 .chain(),

@@ -2015,6 +2015,7 @@ dependencies = [
  "bevy_asset",
  "bevy_ecs",
  "bevy_state",
+ "bevy_utils",
  "criterion",
  "dhat",
  "mcrs_core",

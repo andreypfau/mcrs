@@ -40,6 +40,14 @@ impl Default for SkyBfsQueues {
 #[component(storage = "SparseSet")]
 pub struct SkyBfsPending;
 
+
+/// Sky-light counterpart of `BlockOutboxDirty`. Inserted by sky BFS / column-walker
+/// after pushing cross-chunk wavefronts; consumed (and removed) by
+/// `distribute_sky_wavefronts` when it drains the outbox.
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct SkyOutboxDirty;
+
 /// Inserted on a chunk when sky-light propagation has not yet been seeded for
 /// the chunk's initial state. Consumed by `seed_sky_initial` per tick under
 /// `LightingSet::Enqueue`. Inserted only when the chunk's parent dimension

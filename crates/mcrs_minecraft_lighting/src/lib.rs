@@ -27,13 +27,13 @@ pub use common::invariants;
 // addition to the canonical per-channel module paths.
 pub use block_light::BlockLightPlugin;
 pub use block_light::components::{
-    BlockBfsPending, BlockOutbox, BlockInbox, BlockLight, BlockBfsQueues,
+    BlockBfsPending, BlockOutbox, BlockOutboxDirty, BlockInbox, BlockLight, BlockBfsQueues,
     BlockNeedsInitialSeed, BlockParkedEgress,
 };
 pub use common::components::{IsAllAir, NeedsFullReseed, CrossChunkWavefront};
 pub use sky_light::SkyLightPlugin;
 pub use sky_light::components::{
-    SkyBfsPending, SkyOutbox, SkyInbox, SkyLight, WasTopmostAtSeed, SkyBfsQueues,
+    SkyBfsPending, SkyOutbox, SkyOutboxDirty, SkyInbox, SkyLight, WasTopmostAtSeed, SkyBfsQueues,
     SkyNeedsInitialSeed, SkyParkedEgress,
 };
 

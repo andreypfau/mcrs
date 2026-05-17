@@ -7,7 +7,7 @@ use bevy_ecs::change_detection::Res;
 use bevy_ecs::prelude::{ParallelCommands, Query, With};
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_block::palette::BlockPalette;
-use crate::{propagate, BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockOutbox};
+use crate::{propagate, BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockOutbox, BlockOutboxDirty};
 use crate::bfs::{propagate_decrease, propagate_increase};
 use crate::table::BlockStateLightTable;
 
@@ -24,17 +24,23 @@ pub fn propagate_decrease_block_system(
         ),
         With<BlockBfsPending>,
     >,
+    commands: ParallelCommands,
 ) {
     #[cfg(feature = "lighting-trace")]
     let chunk_count = chunks.iter().count();
     #[cfg(feature = "lighting-trace")]
     let _span = tracing::info_span!("propagate_decrease", chunk_count = chunk_count).entered();
     chunks.par_iter_mut().for_each(
-        |(_entity, palette, mut light, mut queues, mut outbox, mut inbox)| {
+        |(entity, palette, mut light, mut queues, mut outbox, mut inbox)| {
             propagate::drain_incoming_into_queue(&mut inbox.0, &mut queues.increase_queue);
             propagate_decrease(&table, palette, &mut light.0, &mut queues, &mut outbox);
+            if !outbox.0.is_empty() {
+                commands.command_scope(|mut cmd| {
+                    cmd.entity(entity).insert(BlockOutboxDirty);
+                });
+            }
             #[cfg(feature = "lighting-trace")]
-            tracing::debug!(chunk = ?_entity, queue_len = queues.decrease_queue.len(), "chunk bfs decrease block");
+            tracing::debug!(chunk = ?entity, queue_len = queues.decrease_queue.len(), "chunk bfs decrease block");
         },
     );
 }
@@ -62,6 +68,11 @@ pub fn propagate_increase_block_system(
         |(entity, palette, mut light, mut queues, mut outbox, mut inbox)| {
             propagate::drain_incoming_into_queue(&mut inbox.0, &mut queues.increase_queue);
             propagate_increase(&table, palette, &mut light.0, &mut queues, &mut outbox);
+            if !outbox.0.is_empty() {
+                commands.command_scope(|mut cmd| {
+                    cmd.entity(entity).insert(BlockOutboxDirty);
+                });
+            }
             if queues.increase_queue.is_empty() && queues.decrease_queue.is_empty() {
                 commands.command_scope(|mut cmd| {
                     cmd.entity(entity).remove::<BlockBfsPending>();

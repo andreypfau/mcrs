@@ -12,7 +12,7 @@ use crate::bfs::{propagate_decrease_sky, propagate_increase_sky, unpack_bfs_entr
 use crate::codec::LightStorage;
 use crate::propagate::drain_incoming_into_queue;
 use crate::table::BlockStateLightTable;
-use crate::{CrossChunkWavefront, IsAllAir, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyOutbox};
+use crate::{CrossChunkWavefront, IsAllAir, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyOutbox, SkyOutboxDirty};
 
 /// Five non-Up faces used by the column-walker fast path to dump 256
 /// wavefronts per face onto `SkyOutbox` (1280 entries total) when an
@@ -64,17 +64,23 @@ pub fn propagate_decrease_sky_system(
         ),
         With<SkyBfsPending>,
     >,
+    commands: ParallelCommands,
 ) {
     #[cfg(feature = "lighting-trace")]
     let chunk_count = chunks.iter().count();
     #[cfg(feature = "lighting-trace")]
     let _span = tracing::info_span!("propagate_decrease_sky", chunk_count = chunk_count).entered();
     chunks.par_iter_mut().for_each(
-        |(_entity, palette, mut light, mut queues, mut outbox, mut inbox)| {
+        |(entity, palette, mut light, mut queues, mut outbox, mut inbox)| {
             drain_incoming_into_queue(&mut inbox.0, &mut queues.increase_queue);
             propagate_decrease_sky(&table, palette, &mut light.0, &mut queues, &mut outbox);
+            if !outbox.0.is_empty() {
+                commands.command_scope(|mut cmd| {
+                    cmd.entity(entity).insert(SkyOutboxDirty);
+                });
+            }
             #[cfg(feature = "lighting-trace")]
-            tracing::debug!(chunk = ?_entity, queue_len = queues.decrease_queue.len(), "chunk bfs decrease sky");
+            tracing::debug!(chunk = ?entity, queue_len = queues.decrease_queue.len(), "chunk bfs decrease sky");
         },
     );
 }
@@ -126,15 +132,21 @@ pub fn propagate_increase_sky_system(
                     }
                 }
                 queues.increase_queue.clear();
-                if queues.decrease_queue.is_empty() {
-                    commands.command_scope(|mut cmd| {
+                commands.command_scope(|mut cmd| {
+                    cmd.entity(entity).insert(SkyOutboxDirty);
+                    if queues.decrease_queue.is_empty() {
                         cmd.entity(entity).remove::<SkyBfsPending>();
-                    });
-                }
+                    }
+                });
                 return;
             }
 
             propagate_increase_sky(&table, palette, &mut light.0, &mut queues, &mut outbox);
+            if !outbox.0.is_empty() {
+                commands.command_scope(|mut cmd| {
+                    cmd.entity(entity).insert(SkyOutboxDirty);
+                });
+            }
             if queues.increase_queue.is_empty() && queues.decrease_queue.is_empty() {
                 commands.command_scope(|mut cmd| {
                     cmd.entity(entity).remove::<SkyBfsPending>();

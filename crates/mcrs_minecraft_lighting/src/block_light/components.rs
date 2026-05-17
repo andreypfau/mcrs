@@ -82,6 +82,16 @@ impl Default for BlockBfsQueues {
 #[component(storage = "SparseSet")]
 pub struct BlockBfsPending;
 
+
+/// Marks a chunk whose `BlockOutbox` is non-empty. Inserted by BFS systems
+/// after pushing cross-chunk wavefronts; consumed (and removed) by
+/// `distribute_block_wavefronts` when it drains the outbox. The marker
+/// constrains the distribute pass's source-iteration to chunks that actually
+/// have egress, avoiding archetype-wide walks on quiet ticks.
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+pub struct BlockOutboxDirty;
+
 /// Inserted on a chunk when block-light propagation has not yet been seeded for
 /// the chunk's initial state. Consumed by `seed_block_emitters` per tick under
 /// `LightingSet::Enqueue`. Always inserted regardless of dimension because the
