@@ -16,6 +16,9 @@
 #[path = "bfs_property/fixture.rs"]
 mod fixture;
 
+use mcrs_minecraft_lighting::bfs::{
+    pack_bfs_entry, ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL,
+};
 use serde::Deserialize;
 
 const SNAPSHOT_JSON: &str = include_str!("bfs_property/snapshot.json");
@@ -110,4 +113,109 @@ fn first_byte_mismatch(actual: &[u8], expected: &[u8]) -> Mismatch {
         actual: 0,
         expected: 0,
     }
+}
+
+use proptest::prelude::*;
+
+const fn proptest_cases() -> u32 {
+    #[cfg(feature = "long-prop-tests")]
+    {
+        4096
+    }
+    #[cfg(not(feature = "long-prop-tests"))]
+    {
+        256
+    }
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig {
+        cases: proptest_cases(),
+        .. ProptestConfig::default()
+    })]
+
+    #[test]
+    fn bfs_is_deterministic_across_runs(seed in any::<u64>()) {
+        let mut fixture_a = fixture::build_fixture(seed);
+        let mut fixture_b = fixture::build_fixture(seed);
+        let (a_block, a_sky) = fixture::run_propagation_and_serialize(&mut fixture_a);
+        let (b_block, b_sky) = fixture::run_propagation_and_serialize(&mut fixture_b);
+        prop_assert_eq!(a_block, b_block);
+        prop_assert_eq!(a_sky, b_sky);
+    }
+
+    #[test]
+    fn bfs_is_idempotent_at_convergence(seed in any::<u64>()) {
+        let mut fixture = fixture::build_fixture(seed);
+        // Drive to the fixed-point: a single canonical sequence may leave
+        // RECHECK_LEVEL entries on the increase queue (decrease pushes them
+        // for re-propagation). Loop until a pass leaves all queues empty.
+        let (block_converged, sky_converged) =
+            drive_to_fixed_point(&mut fixture).expect("BFS should converge within bound");
+        // Re-seed every lit cell with a WRITE_LEVEL entry at its converged
+        // level. Each entry must hit the propagated_level <= current early
+        // exit in propagate_core, so the second canonical sweep makes no
+        // change to storage. Without re-seeding the test only proves "BFS
+        // on empty queues is a no-op", which is a much weaker claim than
+        // idempotency.
+        reseed_write_level_for_every_lit_cell(&mut fixture);
+        let (block_after, sky_after) = fixture::run_propagation_and_serialize(&mut fixture);
+        prop_assert_eq!(block_converged, block_after);
+        prop_assert_eq!(sky_converged, sky_after);
+    }
+}
+
+/// Walk all 16^3 cells in each light storage and push a `FLAG_WRITE_LEVEL`
+/// entry at the cell's stored level onto the matching increase queue. Cells
+/// with stored level 0 are skipped (a zero-level WRITE_LEVEL entry would
+/// trigger the same early exit but adds queue churn for nothing).
+fn reseed_write_level_for_every_lit_cell(fixture: &mut fixture::Fixture) {
+    for y in 0..16u8 {
+        for z in 0..16u8 {
+            for x in 0..16u8 {
+                let block_level = fixture.block_light.get(x as usize, y as usize, z as usize);
+                if block_level != 0 {
+                    fixture.block_workspace.increase_queue.push(pack_bfs_entry(
+                        x,
+                        z,
+                        y,
+                        block_level,
+                        ALL_DIRECTIONS_BITSET,
+                        FLAG_WRITE_LEVEL,
+                    ));
+                }
+                let sky_level = fixture.sky_light.get(x as usize, y as usize, z as usize);
+                if sky_level != 0 {
+                    fixture.sky_workspace.increase_queue.push(pack_bfs_entry(
+                        x,
+                        z,
+                        y,
+                        sky_level,
+                        ALL_DIRECTIONS_BITSET,
+                        FLAG_WRITE_LEVEL,
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// Run the canonical propagate sequence repeatedly until all four queues
+/// are empty at the end of a sweep. Returns the post-pass byte arrays from
+/// the final sweep, or `None` if the loop exceeds `MAX_SWEEPS` (which
+/// would indicate a divergent or oscillating state — unexpected for a
+/// finite 16^3 grid).
+fn drive_to_fixed_point(fixture: &mut fixture::Fixture) -> Option<([u8; 2048], [u8; 2048])> {
+    const MAX_SWEEPS: usize = 8;
+    for _ in 0..MAX_SWEEPS {
+        let snap = fixture::run_propagation_and_serialize(fixture);
+        if fixture.block_workspace.increase_queue.is_empty()
+            && fixture.block_workspace.decrease_queue.is_empty()
+            && fixture.sky_workspace.increase_queue.is_empty()
+            && fixture.sky_workspace.decrease_queue.is_empty()
+        {
+            return Some(snap);
+        }
+    }
+    None
 }

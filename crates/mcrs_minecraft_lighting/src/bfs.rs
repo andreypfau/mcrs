@@ -474,6 +474,11 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
         let entry_flags = unpack_bfs_entry_flags(entry);
         let y_local = (y_full as usize) & 0xF;
 
+        debug_assert!(
+            !(entry_flags & FLAG_RECHECK_LEVEL != 0 && entry_flags & FLAG_WRITE_LEVEL != 0),
+            "RECHECK_LEVEL and WRITE_LEVEL must not co-occur on a single entry"
+        );
+
         if FLAGS == WAVE_INCREASE {
             if entry_flags & FLAG_RECHECK_LEVEL != 0 {
                 if light.get(x as usize, y_local, z as usize) != propagated_level {

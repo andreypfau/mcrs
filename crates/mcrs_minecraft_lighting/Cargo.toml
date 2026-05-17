@@ -22,6 +22,7 @@ dhat = { version = "0.3", optional = true }
 test-bench = []
 bench-helpers = []
 lighting-trace = []
+long-prop-tests = []
 profile-memory = ["dep:dhat"]
 
 [dev-dependencies]
