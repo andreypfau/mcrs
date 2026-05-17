@@ -106,7 +106,6 @@ impl Plugin for ServerPlugin {
                 .after(freeze_static_tags)
                 .before(transition_to_playing),
         );
-        app.add_plugins(mcrs_minecraft_lighting::LightingPlugin);
         app.add_plugins(ClientInfoPlugin);
     }
 }

@@ -4,14 +4,14 @@ use crate::world::chunk::ChunkPlugin;
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::explosion::ExplosionPlugin;
 use crate::world::loot::LootPlugin;
-use bevy_app::{App, Plugin, Update};
+use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
-use mcrs_engine::world::dimension::{
-    Dimension, DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig, HasSkyLight,
-};
-use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue};
+use bevy_state::prelude::OnEnter;
+use mcrs_core::AppState;
+use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
+use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_block::block_update::BlockUpdatePlugin;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 pub mod block;
 pub mod chunk;
@@ -30,9 +30,10 @@ impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DimSpawnQueue>();
         app.init_resource::<DimDespawnQueue>();
-        app.add_plugins(DimensionPlugin);
-        // Spawn dimensions in Update after world preset is loaded via Bevy assets
-        app.add_systems(Update, spawn_dimensions_from_preset);
+        // Each per-dim sub-app registers `DimensionPlugin` into its own world
+        // via `spawn_dim_subapp`; the host world no longer hosts `Dimension`
+        // entities, so the plugin is not added here.
+        app.add_systems(OnEnter(AppState::Playing), enqueue_dim_spawns_from_preset);
         app.add_plugins(ChunkPlugin);
         app.add_plugins(BlockUpdatePlugin);
         app.add_plugins(MinecraftEntityPlugin);
@@ -42,99 +43,86 @@ impl Plugin for WorldPlugin {
     }
 }
 
-/// Spawns Dimension entities from the LoadedWorldPreset resource.
-/// Each dimension in the preset gets a corresponding ECS entity with DimensionBundle.
+/// Enqueue one `DimSpawnRequest` per dimension in the loaded world preset.
 ///
-/// This system runs in Update and waits for the world preset to be loaded via Bevy assets.
-/// It only spawns dimensions once, checking if any Dimension entities already exist.
-fn spawn_dimensions_from_preset(
-    mut commands: Commands,
+/// Runs at `OnEnter(AppState::Playing)`, after `WorldgenFreeze` has finished
+/// loading registries and the world preset. The outer runner loop drains
+/// `DimSpawnQueue` immediately after `app.update()` returns, materialising one
+/// per-dim sub-app per request.
+pub fn enqueue_dim_spawns_from_preset(
     world_preset: Res<LoadedWorldPreset>,
     dimension_types: Res<LoadedDimensionTypes>,
-    existing_dimensions: Query<Entity, With<Dimension>>,
+    mut spawn_queue: ResMut<DimSpawnQueue>,
 ) {
-    // Only spawn dimensions if:
-    // 1. The world preset is loaded
-    // 2. No dimensions exist yet
     if !world_preset.is_loaded {
-        return;
-    }
-
-    if !existing_dimensions.is_empty() {
-        // Dimensions already spawned
+        // OnEnter(Playing) fires after the WorldgenFreeze → Playing transition;
+        // by then the preset must be loaded. Treat the unloaded case as an
+        // invariant violation and bail without enqueueing — the server will
+        // come up with zero dimensions, which makes the failure mode visible.
+        error!(
+            "LoadedWorldPreset not loaded when OnEnter(AppState::Playing) fired — \
+             expected the WorldgenFreeze chain to ensure preset load completion"
+        );
         return;
     }
 
     if world_preset.dimensions.is_empty() {
-        // Fallback: spawn a default overworld dimension if preset is empty
         warn!(
-            "LoadedWorldPreset has no dimensions, spawning default overworld dimension"
+            "LoadedWorldPreset has no dimensions, enqueueing default overworld spawn request"
         );
-        // HasSkyLight insertion shares a Commands batch with DimensionBundle spawn so the
-        // downstream lighting lifecycle reliably observes the marker when sections start
-        // loading. The default overworld is sky-having.
-        let mut e = commands.spawn(DimensionBundle::default());
-        e.insert(HasSkyLight);
+        spawn_queue.0.push(DimSpawnRequest {
+            dimension_id: DimensionId::new("minecraft:overworld"),
+            type_config: DimensionTypeConfig::default(),
+            has_sky: true,
+        });
         return;
     }
 
     debug!(
         preset = %world_preset.preset_name,
         dimension_count = world_preset.dimensions.len(),
-        "Spawning dimensions from loaded world preset"
+        "Enqueueing dimension spawn requests from loaded world preset"
     );
 
     for (dimension_key, dimension_type_ref) in &world_preset.dimensions {
-        // Find the dimension type configuration by matching the type reference
-        let type_config = dimension_types
+        let resolved = dimension_types
             .0
             .iter()
             .find(|(id, _)| id.as_str() == dimension_type_ref.as_str())
-            .map(|(_, dim_type)| DimensionTypeConfig::new(dim_type.min_y, dim_type.height))
+            .map(|(_, dim_type)| {
+                (
+                    DimensionTypeConfig::new(dim_type.min_y, dim_type.height),
+                    dim_type.has_skylight,
+                )
+            })
             .unwrap_or_else(|| {
                 warn!(
                     dimension_type = %dimension_type_ref,
                     dimension_key = %dimension_key,
-                    "Dimension type not found, using default config"
+                    "Dimension type not found, using default config + has_sky=true"
                 );
-                DimensionTypeConfig::default()
+                (DimensionTypeConfig::default(), true)
             });
-
-        // Pull the dimension's has_skylight flag from the resolved DimensionType; default to
-        // true (overworld semantics) when the type ref does not resolve, matching the
-        // type_config fallback above.
-        let has_sky = dimension_types
-            .0
-            .iter()
-            .find(|(id, _)| id.as_str() == dimension_type_ref.as_str())
-            .map(|(_, dim_type)| dim_type.has_skylight)
-            .unwrap_or(true);
 
         info!(
             dimension_key = %dimension_key,
             dimension_type = %dimension_type_ref,
-            min_y = type_config.min_y,
-            height = type_config.height,
-            sections = type_config.section_count,
-            has_skylight = has_sky,
-            "Spawning dimension"
+            min_y = resolved.0.min_y,
+            height = resolved.0.height,
+            sections = resolved.0.section_count,
+            has_skylight = resolved.1,
+            "Enqueueing dimension spawn request"
         );
 
-        // HasSkyLight insertion shares a Commands batch with the DimensionBundle spawn so the
-        // downstream lighting lifecycle reliably observes the marker when sections start
-        // loading.
-        let mut e = commands.spawn(DimensionBundle {
+        spawn_queue.0.push(DimSpawnRequest {
             dimension_id: DimensionId::new(dimension_key.as_str()),
-            type_config,
-            ..Default::default()
+            type_config: resolved.0,
+            has_sky: resolved.1,
         });
-        if has_sky {
-            e.insert(HasSkyLight);
-        }
     }
 
     info!(
         dimension_count = world_preset.dimensions.len(),
-        "All dimensions spawned from world preset"
+        "All dimensions enqueued from world preset"
     );
 }
