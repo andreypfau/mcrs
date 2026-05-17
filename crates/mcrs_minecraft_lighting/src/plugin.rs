@@ -1,6 +1,6 @@
-use crate::codec::{
-    emit_column_light_updates, BlockLightDirty, ColumnLightUpdate, SkyLightDirty,
-};
+use crate::block_light::BlockLightPlugin;
+use crate::codec::{emit_column_light_updates, ColumnLightUpdate};
+use crate::sky_light::SkyLightPlugin;
 use crate::converge::{
     light_converge_driver, LightConvergeSchedule, LightConvergeSet,
 };
@@ -241,8 +241,7 @@ impl Plugin for LightingPlugin {
                 .in_set(LightingSet::EmitDirty),
         );
 
-        app.add_message::<BlockLightDirty>();
-        app.add_message::<SkyLightDirty>();
+        app.add_plugins((BlockLightPlugin, SkyLightPlugin));
         app.add_message::<ColumnLightUpdate>();
         app.configure_sets(FixedPostUpdate, LightingSet::Codec);
         app.add_systems(
