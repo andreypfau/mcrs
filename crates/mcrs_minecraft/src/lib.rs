@@ -55,9 +55,14 @@ use crate::world::WorldPlugin;
 use bevy_app::prelude::*;
 use bevy_app::{App, Plugin, TaskPoolOptions, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
+use bevy_ecs::prelude::IntoScheduleConfigs;
 use bevy_ecs::schedule::{ExecutorKind, ScheduleLabel};
+use bevy_state::prelude::OnEnter;
 use bevy_time::{Fixed, Time, TimePlugin};
+use mcrs_core::AppState;
+use mcrs_minecraft_lighting::table::{build_block_light_table, BlockStateLightTable};
 use mcrs_network::{EngineConnection, NetworkPlugin};
+use mcrs_vanilla::{freeze_static_tags, transition_to_playing};
 use std::num::NonZeroU32;
 
 pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
@@ -94,6 +99,13 @@ impl Plugin for ServerPlugin {
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);
         app.add_plugins(WorldPlugin);
+        app.init_resource::<BlockStateLightTable>();
+        app.add_systems(
+            OnEnter(AppState::WorldgenFreeze),
+            build_block_light_table
+                .after(freeze_static_tags)
+                .before(transition_to_playing),
+        );
         app.add_plugins(mcrs_minecraft_lighting::LightingPlugin);
         app.add_plugins(ClientInfoPlugin);
     }

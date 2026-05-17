@@ -18,6 +18,7 @@ mcrs_nbt.workspace = true
 bevy_math.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
+bevy_state.workspace = true
 bevy_time.workspace = true
 bevy_tasks.workspace = true
 bevy_utils.workspace = true

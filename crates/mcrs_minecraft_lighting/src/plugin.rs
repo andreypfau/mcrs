@@ -14,15 +14,11 @@ use crate::sky_light::enqueue::invalidate_previous_topmost;
 use crate::heightmap_update::update_heightmaps_on_block_placed;
 use crate::lifecycle::{attach_lighting_state, prime_heightmaps_on_column_spawn};
 use crate::sets::LightingSet;
-use crate::table::build_block_light_table;
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{ApplyDeferred, IntoScheduleConfigs};
 use bevy_ecs::schedule::{ExecutorKind, Schedule};
-use bevy_state::prelude::OnEnter;
-use mcrs_core::AppState;
 use mcrs_engine::world::column::ColumnLifecycleSet;
 use mcrs_minecraft_block::block_update::{apply_set_block_request, BlockPlaced, BlockUpdateSet};
-use mcrs_vanilla::{freeze_static_tags, transition_to_playing};
 use crate::block_light::emit_dirty::{clear_block_bfs_pending_safety_net, emit_block_light_dirty};
 use crate::block_light::enqueue::{enqueue_block_light_on_block_placed, pull_block_neighbor_edges, seed_block_emitters};
 use crate::block_light::propagate::{propagate_decrease_block_system, propagate_increase_block_system};
@@ -67,14 +63,6 @@ impl Plugin for LightingPlugin {
         {
             app.add_message::<BlockPlaced>();
         }
-
-        app.init_resource::<crate::table::BlockStateLightTable>();
-        app.add_systems(
-            OnEnter(AppState::WorldgenFreeze),
-            build_block_light_table
-                .after(freeze_static_tags)
-                .before(transition_to_playing),
-        );
 
         // Cross-plugin barrier: the chain begins with a leading `ApplyDeferred`
         // so the spawn `Commands` queued upstream by `reconcile_column_chunks`
@@ -287,6 +275,7 @@ mod tests {
     use bevy_ecs::prelude::SystemSet;
     use bevy_ecs::schedule::Schedules;
     use bevy_state::app::{AppExtStates, StatesPlugin};
+    use mcrs_core::AppState;
     use mcrs_engine::world::column::ColumnPlugin;
 
     fn build_test_app() -> App {
