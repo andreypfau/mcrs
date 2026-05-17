@@ -15,6 +15,12 @@ indexmap.workspace = true
 tracing = "0.1.43"
 log = "0.4.29"
 
+[dev-dependencies]
+bevy_app.workspace = true
+bevy_state.workspace = true
+bevy_time.workspace = true
+mcrs_core.workspace = true
+
 [features]
 
 [profile.dev.package."bevy"]

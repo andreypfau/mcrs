@@ -1925,8 +1925,11 @@ dependencies = [
  "bevy_ecs",
  "bevy_ecs_macros",
  "bevy_math",
+ "bevy_state",
+ "bevy_time",
  "indexmap",
  "log",
+ "mcrs_core",
  "rustc-hash 2.1.1",
  "tracing",
 ]
