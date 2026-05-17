@@ -28,6 +28,7 @@ profile-memory = ["dep:dhat"]
 
 [dev-dependencies]
 bevy_asset.workspace = true
+bevy_time.workspace = true
 mcrs_minecraft.workspace = true
 mcrs_minecraft_worldgen.workspace = true
 tracing-subscriber = "0.3"

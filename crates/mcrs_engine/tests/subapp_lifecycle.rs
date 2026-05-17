@@ -1,53 +1,304 @@
-// Stub integration tests for the per-dimension SubApp lifecycle. Bodies are
-// intentionally `panic!` so the tests link and run red until the spawn/despawn
-// machinery they exercise lands.
+// Integration tests for the per-dimension sub-app lifecycle. Each test
+// constructs a minimal host `App`, enqueues a synthetic spawn request, drains
+// the queue through the production builder, and inspects the resulting
+// sub-app population.
 
-use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use bevy_app::{App, AppLabel, FixedUpdate};
+use bevy_ecs::prelude::*;
+use bevy_state::app::{AppExtStates, StatesPlugin};
+use bevy_state::prelude::NextState;
+use bevy_time::{Fixed, Time, TimePlugin};
+use mcrs_core::registry::access::RegistryAccess;
+use mcrs_core::registry::static_registry::StaticRegistry;
+use mcrs_core::voxel_shape::VoxelShape;
+use mcrs_core::AppState;
+use mcrs_engine::world::dimension::{Dimension, DimensionId, DimensionTypeConfig};
+use mcrs_engine::world::sub_app::{
+    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+};
+use mcrs_minecraft::world::sub_app_builder::{drain_dim_despawn_queue, drain_dim_spawn_queue};
+use mcrs_minecraft_lighting::table::BlockStateLightTable;
+use mcrs_vanilla::block::Block;
+
+mod harness {
+    #![allow(dead_code)]
+    use super::*;
+
+    pub fn make_stub_block_light_table() -> BlockStateLightTable {
+        let state_count = 2usize;
+        let emission = vec![0u8; state_count].into_boxed_slice();
+        let dampening = vec![0u8; state_count].into_boxed_slice();
+        let occlusion: Box<[&'static VoxelShape]> =
+            vec![VoxelShape::empty(); state_count].into_boxed_slice();
+        let flags = vec![0u8; state_count].into_boxed_slice();
+        BlockStateLightTable {
+            emission,
+            dampening,
+            occlusion,
+            flags,
+        }
+    }
+
+    pub fn make_main_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(TimePlugin);
+        app.insert_resource(Time::<Fixed>::from_hz(20.0));
+        app.add_plugins(StatesPlugin);
+        app.init_state::<AppState>();
+        app.init_resource::<DimSpawnQueue>();
+        app.init_resource::<DimDespawnQueue>();
+        app.insert_resource(RegistryAccess::default());
+        app.insert_resource(make_stub_block_light_table());
+        app.insert_resource(StaticRegistry::<Block>::new());
+        app
+    }
+
+    pub fn drive_to_playing(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<NextState<AppState>>()
+            .set(AppState::Playing);
+        app.update();
+    }
+
+    pub fn enqueue_spawn(app: &mut App, id: &str, sky: bool) {
+        app.world_mut()
+            .resource_mut::<DimSpawnQueue>()
+            .0
+            .push(DimSpawnRequest {
+                dimension_id: DimensionId::new(id),
+                type_config: DimensionTypeConfig::default(),
+                has_sky: sky,
+            });
+    }
+
+}
 
 #[test]
 fn dim_subapp_inserted_on_spawn() {
-    let _ = std::any::type_name::<DimAppLabel>();
-    panic!("pending spawn-pump implementation");
+    let mut app = harness::make_main_app();
+    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    drain_dim_spawn_queue(&mut app);
+    assert_eq!(
+        app.sub_apps().sub_apps.len(),
+        1,
+        "exactly one sub-app should be present after one spawn drain"
+    );
 }
 
 #[test]
 fn dim_subapp_removed_on_despawn() {
-    let _ = std::any::type_name::<DimDespawnQueue>();
-    panic!("pending spawn-pump implementation");
+    use mcrs_minecraft::world::sub_app_builder::DimSubAppHandle;
+
+    let mut app = harness::make_main_app();
+    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    drain_dim_spawn_queue(&mut app);
+    assert_eq!(app.sub_apps().sub_apps.len(), 1);
+
+    // The label-anchor entity in the host world is the same value the
+    // sub-app was interned under.
+    let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
+    let handles: Vec<Entity> = q
+        .iter(app.world())
+        .map(|(e, _)| e)
+        .collect();
+    assert_eq!(handles.len(), 1, "one host-side handle entity per sub-app");
+    let label_entity = handles[0];
+
+    // The sub-app's own `World` carries the `Dimension` entity with the bundle.
+    let sub_app = app
+        .sub_apps_mut()
+        .sub_apps
+        .get_mut(&DimAppLabel(label_entity).intern())
+        .expect("sub-app under DimAppLabel");
+    let mut q = sub_app.world_mut().query::<(Entity, &Dimension)>();
+    let count = q.iter(sub_app.world()).count();
+    assert_eq!(count, 1, "exactly one Dimension entity per sub-app world");
+
+    app.world_mut()
+        .resource_mut::<DimDespawnQueue>()
+        .0
+        .push(label_entity);
+    drain_dim_despawn_queue(&mut app);
+    assert_eq!(
+        app.sub_apps().sub_apps.len(),
+        0,
+        "sub-app should be removed after despawn drain"
+    );
 }
 
 #[test]
 fn dim_worlds_are_isolated() {
-    let _ = std::any::type_name::<DimAppLabel>();
-    panic!("pending spawn-pump implementation");
+    #[derive(Resource)]
+    #[allow(dead_code)]
+    struct SentinelOverworld(u32);
+
+    let mut app = harness::make_main_app();
+    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    harness::enqueue_spawn(&mut app, "test:nether", false);
+    drain_dim_spawn_queue(&mut app);
+    assert_eq!(app.sub_apps().sub_apps.len(), 2);
+
+    let host_world_dim_count = app
+        .world_mut()
+        .query::<&Dimension>()
+        .iter(app.world())
+        .count();
+    assert_eq!(
+        host_world_dim_count, 0,
+        "host world should hold zero Dimension entities"
+    );
+
+    let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
+    let first = labels[0];
+    let second = labels[1];
+
+    app.sub_apps_mut()
+        .sub_apps
+        .get_mut(&first)
+        .expect("first sub-app present")
+        .world_mut()
+        .insert_resource(SentinelOverworld(42));
+
+    let other_sub_app = app
+        .sub_apps()
+        .sub_apps
+        .get(&second)
+        .expect("second sub-app present");
+    assert!(
+        other_sub_app
+            .world()
+            .get_resource::<SentinelOverworld>()
+            .is_none(),
+        "sentinel resource inserted into one sub-app must not appear in the other"
+    );
 }
 
 #[test]
 fn sequential_pump_tick_count() {
-    let _ = std::any::type_name::<DimAppLabel>();
-    panic!("pending spawn-pump implementation");
+    #[derive(Resource, Default)]
+    struct TickCounter(u64);
+
+    fn bump(mut counter: ResMut<TickCounter>) {
+        counter.0 += 1;
+    }
+
+    let mut app = harness::make_main_app();
+    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    harness::enqueue_spawn(&mut app, "test:nether", false);
+    drain_dim_spawn_queue(&mut app);
+
+    let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
+    for label in &labels {
+        let sub_app = app
+            .sub_apps_mut()
+            .sub_apps
+            .get_mut(label)
+            .expect("sub-app present");
+        sub_app.world_mut().insert_resource(TickCounter::default());
+        sub_app.add_systems(FixedUpdate, bump);
+    }
+
+    for _ in 0..3 {
+        app.update();
+    }
+
+    for label in &labels {
+        let sub_app = app
+            .sub_apps()
+            .sub_apps
+            .get(label)
+            .expect("sub-app present");
+        let counter = sub_app.world().resource::<TickCounter>();
+        assert_eq!(
+            counter.0, 3,
+            "each sub-app should have ticked exactly three times"
+        );
+    }
 }
 
 #[test]
 fn no_per_dim_task_pool() {
-    let _ = std::any::type_name::<DimAppLabel>();
-    panic!("pending spawn-pump implementation");
+    let source: &str = include_str!("../../mcrs_minecraft/src/world/sub_app_builder.rs");
+    assert!(
+        !source.contains("TaskPoolBuilder"),
+        "sub_app_builder.rs must not construct its own task pool"
+    );
+    assert!(
+        !source.contains("ComputeTaskPool::init"),
+        "sub_app_builder.rs must rely on the process-global ComputeTaskPool"
+    );
 }
 
 #[test]
 fn registries_present_in_all_subapps() {
-    let _ = std::any::type_name::<DimSpawnRequest>();
-    panic!("pending spawn-pump implementation");
+    let mut app = harness::make_main_app();
+    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    harness::enqueue_spawn(&mut app, "test:nether", false);
+    drain_dim_spawn_queue(&mut app);
+
+    let host_registry: RegistryAccess = app.world().resource::<RegistryAccess>().clone();
+    let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
+    assert_eq!(labels.len(), 2, "two sub-apps after two spawns");
+    for label in &labels {
+        let sub_app = app
+            .sub_apps()
+            .sub_apps
+            .get(label)
+            .expect("sub-app present");
+        let world = sub_app.world();
+        let access = world
+            .get_resource::<RegistryAccess>()
+            .expect("RegistryAccess resource present in sub-app");
+        assert!(
+            host_registry.shares_inner_with(access),
+            "RegistryAccess clone must share the host Arc"
+        );
+        assert!(
+            world.get_resource::<BlockStateLightTable>().is_some(),
+            "BlockStateLightTable resource present in sub-app"
+        );
+        assert!(
+            world.get_resource::<StaticRegistry<Block>>().is_some(),
+            "StaticRegistry<Block> resource present in sub-app"
+        );
+    }
 }
 
 #[test]
 fn time_extracted_into_subapp() {
-    let _ = std::any::type_name::<DimAppLabel>();
-    panic!("pending spawn-pump implementation");
+    let mut app = harness::make_main_app();
+    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    drain_dim_spawn_queue(&mut app);
+
+    app.update();
+
+    let host_fixed = *app.world().resource::<Time<Fixed>>();
+    let label = *app
+        .sub_apps()
+        .sub_apps
+        .keys()
+        .next()
+        .expect("one sub-app present");
+    let sub_app = app
+        .sub_apps()
+        .sub_apps
+        .get(&label)
+        .expect("sub-app present");
+    let sub_fixed = *sub_app.world().resource::<Time<Fixed>>();
+    assert_eq!(
+        host_fixed.elapsed(),
+        sub_fixed.elapsed(),
+        "Time<Fixed>::elapsed should be extracted into the sub-app verbatim"
+    );
+    assert_eq!(
+        host_fixed.delta(),
+        sub_fixed.delta(),
+        "Time<Fixed>::delta should be extracted into the sub-app verbatim"
+    );
 }
 
 #[test]
 fn eager_spawn_count_matches_dims() {
     let _ = std::any::type_name::<DimSpawnQueue>();
-    panic!("pending eager spawn implementation");
+    panic!("pending production spawn-path wiring");
 }

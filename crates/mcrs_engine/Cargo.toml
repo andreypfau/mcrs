@@ -20,6 +20,9 @@ bevy_app.workspace = true
 bevy_state.workspace = true
 bevy_time.workspace = true
 mcrs_core.workspace = true
+mcrs_minecraft.workspace = true
+mcrs_minecraft_lighting.workspace = true
+mcrs_vanilla.workspace = true
 
 [features]
 

@@ -165,6 +165,13 @@ impl RegistryAccess {
     pub fn is_empty(&self) -> bool {
         self.0.registries.is_empty()
     }
+
+    /// True when `self` and `other` share the same backing `Arc`. Exposed so
+    /// callers outside this module can confirm that a clone handed to a
+    /// per-dimension sub-app is a refcount bump rather than a deep copy.
+    pub fn shares_inner_with(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
 }
 
 #[cfg(test)]

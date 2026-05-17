@@ -1930,6 +1930,9 @@ dependencies = [
  "indexmap",
  "log",
  "mcrs_core",
+ "mcrs_minecraft",
+ "mcrs_minecraft_lighting",
+ "mcrs_vanilla",
  "rustc-hash 2.1.1",
  "tracing",
 ]
@@ -2019,6 +2022,7 @@ dependencies = [
  "bevy_asset",
  "bevy_ecs",
  "bevy_state",
+ "bevy_time",
  "bevy_utils",
  "criterion",
  "dhat",

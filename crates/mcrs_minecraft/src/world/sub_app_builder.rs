@@ -40,22 +40,30 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
     }
 }
 
-/// Materialise a per-dimension sub-app. The dim entity is allocated inside
-/// the sub-app's `World`; the returned `Entity` is the label key.
+/// Materialise a per-dimension sub-app and return the `DimAppLabel` key as
+/// an `Entity`.
 ///
 /// Constraints encoded here:
 /// - `update_schedule = Some(FixedUpdate.intern())` so the sub-app runs
 ///   `FixedUpdate` exactly once per host pump (not `FixedMain`, whose
 ///   accumulator would consume host-extracted `Time<Fixed>` into 0 or 2
 ///   ticks).
-/// - The `Dimension` entity lives inside the sub-app's `World`; Entity IDs
-///   are per-`World` and would not survive a cross-`World` lookup if we
-///   spawned them in the host.
+/// - The label `Entity` is allocated from the host world's `Entities`
+///   allocator so labels are globally unique across all sub-apps. Each
+///   sub-app `World` would otherwise allocate the same low-index `Entity`
+///   value, which would collide in the `DimAppLabel(Entity)` interned key.
+///   The host world does not hold a `Dimension`-tagged entity — the label
+///   entity is reserved (no `Dimension` component) and exists only to
+///   anchor the label.
+/// - A separate `Dimension` entity lives inside the sub-app's `World`,
+///   carrying the per-dim components that the simulation queries against.
 pub fn spawn_dim_subapp(
     app: &mut App,
     request: &DimSpawnRequest,
     registries: &DimRegistryBundle,
 ) -> Entity {
+    let label_entity = app.world_mut().spawn(DimSubAppHandle).id();
+
     let mut sub_app = SubApp::new();
 
     sub_app.update_schedule = Some(FixedUpdate.intern());
@@ -101,15 +109,24 @@ pub fn spawn_dim_subapp(
         })
         .id();
     if request.has_sky {
-        sub_app.world_mut().entity_mut(dim_entity).insert(HasSkyLight);
+        sub_app
+            .world_mut()
+            .entity_mut(dim_entity)
+            .insert(HasSkyLight);
     }
 
     sub_app.finish();
     sub_app.cleanup();
 
-    app.insert_sub_app(DimAppLabel(dim_entity), sub_app);
-    dim_entity
+    app.insert_sub_app(DimAppLabel(label_entity), sub_app);
+    label_entity
 }
+
+/// Marker component placed on the host-world entity that anchors a
+/// `DimAppLabel`. The entity carries no other state — it exists purely to
+/// allocate a `World`-unique ID for use as the sub-app label key.
+#[derive(bevy_ecs::component::Component)]
+pub struct DimSubAppHandle;
 
 /// Drain the `DimSpawnQueue` resource on the host world and materialise a
 /// sub-app for each request. Called from outside the ECS run loop because
@@ -136,5 +153,10 @@ pub fn drain_dim_despawn_queue(app: &mut App) {
     );
     for entity in entities {
         app.remove_sub_app(DimAppLabel(entity));
+        // Free the host-side label-anchor entity so the host world's
+        // dimension-handle archetype matches the live sub-app population.
+        if let Ok(mut entity_mut) = app.world_mut().get_entity_mut(entity) {
+            entity_mut.despawn();
+        }
     }
 }
