@@ -48,7 +48,12 @@ pub fn enqueue_dim_spawns_from_preset(
     world_preset: Res<LoadedWorldPreset>,
     dimension_types: Res<LoadedDimensionTypes>,
     mut spawn_queue: ResMut<DimSpawnQueue>,
+    mut already_enqueued: Local<bool>,
 ) {
+    if *already_enqueued {
+        return;
+    }
+
     if !world_preset.is_loaded {
         // OnEnter(Playing) fires after the WorldgenFreeze → Playing transition;
         // by then the preset must be loaded. Treat the unloaded case as an
@@ -99,7 +104,7 @@ pub fn enqueue_dim_spawns_from_preset(
                 (DimensionTypeConfig::default(), true)
             });
 
-        info!(
+        debug!(
             dimension_key = %dimension_key,
             dimension_type = %dimension_type_ref,
             min_y = resolved.0.min_y,
@@ -116,6 +121,7 @@ pub fn enqueue_dim_spawns_from_preset(
         });
     }
 
+    *already_enqueued = true;
     info!(
         dimension_count = world_preset.dimensions.len(),
         "All dimensions enqueued from world preset"

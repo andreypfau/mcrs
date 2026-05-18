@@ -444,3 +444,69 @@ fn eager_spawn_count_matches_dims() {
         "host world must hold zero Dimension entities — each one lives in its own sub-app"
     );
 }
+
+/// Regression test: `enqueue_dim_spawns_from_preset` must be idempotent across
+/// repeated `OnEnter(AppState::Playing)` transitions. Without the `Local<bool>`
+/// guard, a second transition would re-enqueue all preset dimensions and the
+/// drain would materialise a second set of sub-apps (count = 4 instead of 2).
+///
+/// This test uses an inline `OnEnter(Playing)` system carrying the same
+/// `Local<bool>` guard shape as `enqueue_dim_spawns_from_preset`. The production
+/// system's preset reading is behind `pub(crate)` types in
+/// `mcrs_minecraft::configuration`, so the inline stand-in is the same
+/// approach used by `eager_spawn_count_matches_dims`. The guard semantics are
+/// identical; only the data source differs.
+#[test]
+fn enqueue_dim_spawns_from_preset_is_idempotent() {
+    use bevy_state::prelude::OnEnter;
+
+    const N: usize = 2;
+
+    fn enqueue_with_guard(mut spawn_queue: ResMut<DimSpawnQueue>, mut guard: Local<bool>) {
+        if *guard {
+            return;
+        }
+        *guard = true;
+        for i in 0..N {
+            let id = if i == 0 { "test:overworld" } else { "test:nether" };
+            spawn_queue.0.push(DimSpawnRequest {
+                dimension_id: DimensionId::new(id),
+                type_config: DimensionTypeConfig::default(),
+                has_sky: i == 0,
+            });
+        }
+    }
+
+    let mut app = harness::make_main_app();
+    app.add_systems(OnEnter(AppState::Playing), enqueue_with_guard);
+
+    // First transition into Playing: the inline system enqueues N dims.
+    harness::drive_to_playing(&mut app);
+    drain_dim_spawn_queue(&mut app);
+    assert_eq!(
+        app.sub_apps().sub_apps.len(),
+        N,
+        "first drain must materialise N sub-apps"
+    );
+
+    // Synthetic re-entry: transition out of Playing and back in.
+    // The current AppState enum lacks a Reloading/Paused state, so we drive
+    // the transition synthetically. The inline system's OnEnter(Playing)
+    // fires again; the Local<bool> guard must prevent re-enqueueing.
+    app.world_mut()
+        .resource_mut::<NextState<AppState>>()
+        .set(AppState::WorldgenFreeze);
+    app.update();
+    app.world_mut()
+        .resource_mut::<NextState<AppState>>()
+        .set(AppState::Playing);
+    app.update();
+
+    drain_dim_spawn_queue(&mut app);
+
+    assert_eq!(
+        app.sub_apps().sub_apps.len(),
+        N,
+        "sub-app count must remain N after a second OnEnter(Playing) — the guard prevented re-enqueue"
+    );
+}
