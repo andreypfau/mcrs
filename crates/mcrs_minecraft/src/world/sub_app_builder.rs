@@ -36,6 +36,7 @@ use crate::world::explosion::ExplosionPlugin;
 use crate::world::loot::LootPlugin;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::static_registry::StaticRegistry;
+use mcrs_core::tag::TagRegistry;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig, HasSkyLight,
 };
@@ -46,12 +47,15 @@ use mcrs_minecraft_block::block_update::BlockUpdatePlugin;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_vanilla::block::Block;
+use mcrs_vanilla::enchantment::EnchantmentData;
 
 #[derive(Clone)]
 pub struct DimRegistryBundle {
     pub registry_access: RegistryAccess,
     pub block_light_table: BlockStateLightTable,
     pub static_block_registry: StaticRegistry<Block>,
+    pub static_enchantment_registry: StaticRegistry<EnchantmentData>,
+    pub block_tag_registry: TagRegistry<Block>,
 }
 
 pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundle {
@@ -59,6 +63,8 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
         registry_access: world.resource::<RegistryAccess>().clone(),
         block_light_table: world.resource::<BlockStateLightTable>().clone(),
         static_block_registry: world.resource::<StaticRegistry<Block>>().clone(),
+        static_enchantment_registry: world.resource::<StaticRegistry<EnchantmentData>>().clone(),
+        block_tag_registry: world.resource::<TagRegistry<Block>>().clone(),
     }
 }
 
@@ -142,15 +148,18 @@ pub fn spawn_dim_subapp(
     // DimensionPlugin adds (which only contributes TicketPlugin).
     sub_app.add_plugins(crate::world::chunk::ChunkPlugin);
     // BlockUpdatePlugin, MinecraftBlockPlugin, ExplosionPlugin,
-    // MinecraftEntityPlugin, and LootPlugin all carry cross-cutting
-    // dependencies on host-side registries or messages
-    // (`TagRegistry<Block>`, `StaticRegistry<EnchantmentData>`,
-    // `PlayerWillDestroyBlock`, etc.). They run on the host until per-dim
-    // entity hosting is properly designed; see `WorldPlugin::build`.
+    // MinecraftEntityPlugin, and LootPlugin run host-side for now (see
+    // `WorldPlugin::build`). The shared registries they read
+    // (`StaticRegistry<EnchantmentData>`, `TagRegistry<Block>`) are
+    // pre-propagated here so the sub-app side is ready when those
+    // plugins move back as the cross-app message bus and per-dim entity
+    // ownership land.
 
     sub_app.insert_resource(registries.registry_access.clone());
     sub_app.insert_resource(registries.block_light_table.clone());
     sub_app.insert_resource(registries.static_block_registry.clone());
+    sub_app.insert_resource(registries.static_enchantment_registry.clone());
+    sub_app.insert_resource(registries.block_tag_registry.clone());
 
     // Seed the time resources so an inspector that reads `Res<Time<…>>` on a
     // sub-app that has never been pumped gets a valid default. The extract

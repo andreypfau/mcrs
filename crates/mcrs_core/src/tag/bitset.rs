@@ -12,6 +12,17 @@ pub struct IdBitSet<T> {
     _marker: PhantomData<fn() -> T>,
 }
 
+
+impl<T> Clone for IdBitSet<T> {
+    fn clone(&self) -> Self {
+        Self {
+            words: self.words.clone(),
+            len: self.len,
+            _marker: PhantomData,
+        }
+    }
+}
+
 impl<T> IdBitSet<T> {
     /// Create an empty bitset with room for IDs in `0..cap`.
     pub fn with_capacity(cap: u32) -> Self {

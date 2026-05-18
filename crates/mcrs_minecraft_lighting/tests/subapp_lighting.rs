@@ -11,8 +11,10 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::static_registry::StaticRegistry;
+use mcrs_core::tag::TagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
+use mcrs_vanilla::enchantment::EnchantmentData;
 use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_engine::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
@@ -50,6 +52,8 @@ fn make_main_app() -> App {
     app.insert_resource(RegistryAccess::default());
     app.insert_resource(make_stub_block_light_table());
     app.insert_resource(StaticRegistry::<Block>::new());
+    app.insert_resource(StaticRegistry::<EnchantmentData>::default());
+    app.insert_resource(TagRegistry::<Block>::default());
     app
 }
 

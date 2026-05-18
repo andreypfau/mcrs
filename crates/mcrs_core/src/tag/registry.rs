@@ -34,6 +34,26 @@ struct LoadingState<T: TaggedRegistry + 'static> {
     handles: HashMap<ResourceLocation<Arc<str>>, Handle<TagFile>>,
 }
 
+
+impl<T: TaggedRegistry + 'static> Clone for LoadingState<T> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            handles: self.handles.clone(),
+        }
+    }
+}
+
+impl<T: TaggedRegistry + 'static> Clone for TagRegistry<T> {
+    fn clone(&self) -> Self {
+        Self {
+            loading: self.loading.clone(),
+            index: self.index.clone(),
+            bitsets: self.bitsets.clone(),
+        }
+    }
+}
+
 impl<T: TaggedRegistry + 'static> Default for TagRegistry<T> {
     fn default() -> Self {
         TagRegistry {

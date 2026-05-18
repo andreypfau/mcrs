@@ -36,16 +36,17 @@ impl Plugin for WorldPlugin {
         // sub-app receives in `DimRegistryBundle` and works against the sub-app
         // World's `Dimension`/`Chunk`/`Column` entities.
         //
-        // The other six "host-dead" simulation plugins (`BlockUpdatePlugin`,
+        // The other five "host-dead" simulation plugins (`BlockUpdatePlugin`,
         // `MinecraftEntityPlugin`, `MinecraftBlockPlugin`, `ExplosionPlugin`,
-        // `LootPlugin`) stay host-side. Their systems read cross-cutting
-        // registries (`TagRegistry<Block>`, `StaticRegistry<EnchantmentData>`)
-        // or cross-plugin messages (`PlayerWillDestroyBlock`) that currently
-        // live only on the host. Hosting them per-dim requires either
-        // propagating those registries through `DimRegistryBundle` or
-        // splitting the systems across host and sub-app boundaries. That is a
-        // follow-up design task; rehosting them here preserves the
-        // pre-substrate-rewrite behaviour and prevents first-pump panics.
+        // `LootPlugin`) stay host-side. The shared registries they read
+        // (`StaticRegistry<EnchantmentData>`, `TagRegistry<Block>`) are now
+        // propagated through `DimRegistryBundle` so per-dim sub-apps see the
+        // same frozen registry state as the host, ready for the move-back.
+        // Two blockers still keep these plugins on the host: cross-plugin
+        // messages (`PlayerWillDestroyBlock`, etc.) emitted host-side but
+        // expected by sub-app readers (resolved by a cross-app message bus),
+        // and entity ownership for `PlayerPlugin` (resolved by per-dim
+        // entity hosting once it lands).
         app.add_plugins(BlockUpdatePlugin);
         app.add_plugins(MinecraftEntityPlugin);
         app.add_plugins(MinecraftBlockPlugin);
