@@ -33,6 +33,26 @@ impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DimSpawnQueue>();
         app.init_resource::<DimDespawnQueue>();
+
+        // Bus + PlayerIndex substrate. Both resources live in the host world.
+        // `add_message::<T>()` must run BEFORE any sub-app extract reads
+        // `Messages<T>` (the closure panics on `resource_mut` if the
+        // double-buffer was never initialised). Pairing with the per-sub-app
+        // registrations in `spawn_dim_subapp` is what keeps the contract.
+        app.init_resource::<crate::world::player_index::PlayerIndex>();
+        app.init_resource::<crate::world::bus::PendingInboundPartition>();
+        app.add_message::<crate::world::bus::OutboundPlayerPacket>();
+        app.add_message::<crate::world::bus::InboundPlayerPacket>();
+        app.add_message::<crate::world::bus::OutboundPlayerTransfer>();
+        app.add_message::<crate::world::bus::InboundPlayerSpawn>();
+        app.add_message::<crate::world::bus::OutboundPlayerAttached>();
+        app.add_message::<crate::world::bus::OutboundPlayerDisconnect>();
+        app.add_message::<crate::world::bus::InboundPlayerDespawn>();
+        app.add_systems(
+            bevy_app::Update,
+            crate::world::bridge::partition_main_inbound,
+        );
+
         // Per-dim plugins composed inside each sub-app via `spawn_dim_subapp`:
         // `DimensionPlugin`, `LightingPlugin`, and `ChunkPlugin` (worldgen).
         // Each of those is self-contained: it reads only the registries the
