@@ -1933,8 +1933,10 @@ dependencies = [
  "mcrs_core",
  "mcrs_minecraft",
  "mcrs_minecraft_lighting",
+ "mcrs_protocol",
  "mcrs_vanilla",
  "rustc-hash 2.1.1",
+ "smallvec",
  "tracing",
 ]
 
