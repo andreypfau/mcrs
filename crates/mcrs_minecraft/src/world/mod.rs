@@ -1,9 +1,4 @@
 use crate::configuration::{LoadedDimensionTypes, LoadedWorldPreset};
-use crate::world::block::minecraft::MinecraftBlockPlugin;
-use crate::world::chunk::ChunkPlugin;
-use crate::world::entity::MinecraftEntityPlugin;
-use crate::world::explosion::ExplosionPlugin;
-use crate::world::loot::LootPlugin;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::OnEnter;
@@ -11,7 +6,6 @@ use mcrs_core::AppState;
 use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use crate::world::sub_app_builder::DimSubAppHandle;
-use mcrs_minecraft_block::block_update::BlockUpdatePlugin;
 use tracing::{debug, error, info, warn};
 
 pub mod block;
@@ -31,21 +25,16 @@ impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DimSpawnQueue>();
         app.init_resource::<DimDespawnQueue>();
-        // Each per-dim sub-app registers `DimensionPlugin` into its own world
-        // via `spawn_dim_subapp`; the host world no longer hosts `Dimension`
-        // entities, so the plugin is not added here.
+        // Per-dim plugins (DimensionPlugin, LightingPlugin, ChunkPlugin, BlockUpdatePlugin,
+        // MinecraftEntityPlugin, MinecraftBlockPlugin, ExplosionPlugin, LootPlugin) are
+        // registered inside each sub-app via `spawn_dim_subapp`. The host world holds no
+        // Dimension/Chunk/Block entities, so none of those plugins belong here.
         app.add_observer(
             |trigger: On<Remove, DimSubAppHandle>, mut queue: ResMut<DimDespawnQueue>| {
                 queue.0.push(trigger.event().entity);
             },
         );
         app.add_systems(OnEnter(AppState::Playing), enqueue_dim_spawns_from_preset);
-        app.add_plugins(ChunkPlugin);
-        app.add_plugins(BlockUpdatePlugin);
-        app.add_plugins(MinecraftEntityPlugin);
-        app.add_plugins(MinecraftBlockPlugin);
-        app.add_plugins(ExplosionPlugin);
-        app.add_plugins(LootPlugin);
     }
 }
 
