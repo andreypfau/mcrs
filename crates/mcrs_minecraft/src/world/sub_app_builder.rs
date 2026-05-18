@@ -16,6 +16,8 @@ use crate::world::bus::{
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
     PendingInboundLifecycle, PendingInboundPartition,
 };
+use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
+use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 
 /// Private driver schedule: Bevy's `SubApp::run_default_schedule` invokes only
 /// the single schedule pointed at by `update_schedule`. This schedule chains
@@ -114,6 +116,22 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<OutboundPlayerAttached>();
     sub_app.add_message::<OutboundPlayerDisconnect>();
     sub_app.add_message::<InboundPlayerDespawn>();
+    // Sub-side counterpart to the host-side `PlayerActionPlugin`
+    // registration: the extract closure below shuttles
+    // `PlayerWillDestroyBlock` from `PendingInboundLifecycle.block_events`
+    // into the sub-world's buffer, and the per-dim TNT plugin reads it
+    // via `MessageReader<PlayerWillDestroyBlock>`.
+    sub_app.add_message::<PlayerWillDestroyBlock>();
+    // `ExplosionPlugin::tick_explode` (now per-dim) writes
+    // `MessageWriter<BlockSetRequest>` — without registration the sub-world
+    // panics on `resource_mut::<Messages<BlockSetRequest>>()`. The host-side
+    // `BlockUpdatePlugin` still owns the reader (`apply_set_block_request`);
+    // the per-sub-app buffer is a SEPARATE double-buffer, so TNT-triggered
+    // block updates remain non-functional until `BlockUpdatePlugin` moves
+    // per-dim in a later phase. `BlockPlaced` is registered for symmetry so
+    // any future per-dim inspection of the buffer does not panic.
+    sub_app.add_message::<BlockSetRequest>();
+    sub_app.add_message::<BlockPlaced>();
 
     sub_app.update_schedule = Some(DimTick.intern());
     sub_app.add_schedule(Schedule::new(DimTick));
@@ -167,13 +185,24 @@ pub fn spawn_dim_subapp(
     // It is distinct from the engine-level `storage::chunk::ChunkPlugin` that
     // DimensionPlugin adds (which only contributes TicketPlugin).
     sub_app.add_plugins(crate::world::chunk::ChunkPlugin);
-    // BlockUpdatePlugin, MinecraftBlockPlugin, ExplosionPlugin,
-    // MinecraftEntityPlugin, and LootPlugin run host-side for now (see
-    // `WorldPlugin::build`). The shared registries they read
-    // (`StaticRegistry<EnchantmentData>`, `TagRegistry<Block>`) are
-    // pre-propagated here so the sub-app side is ready when those
-    // plugins move back as the cross-app message bus and per-dim entity
-    // ownership land.
+    // Per-dim composition of the two message-only simulation plugins.
+    // `MinecraftBlockPlugin` carries the per-block TNT sub-plugin which
+    // reads `MessageReader<PlayerWillDestroyBlock>` — the host-side
+    // `digging.rs` writers route a clone of each event into
+    // `PendingInboundLifecycle.block_events`, drained per-dim by the
+    // extract closure below. `ExplosionPlugin::tick_explode` writes
+    // `MessageWriter<BlockSetRequest>` per-dim; the host-side
+    // `BlockUpdatePlugin` reader still drains its own host-world buffer,
+    // so TNT-triggered block updates are non-functional until the reader
+    // moves per-dim alongside `MinecraftEntityPlugin`.
+    //
+    // BlockUpdatePlugin, MinecraftEntityPlugin, and LootPlugin remain
+    // host-side (see `WorldPlugin::build`). The shared registries they
+    // read (`StaticRegistry<EnchantmentData>`, `TagRegistry<Block>`) are
+    // pre-propagated here so the sub-app side is ready when those plugins
+    // move back as per-dim entity ownership lands.
+    sub_app.add_plugins(MinecraftBlockPlugin);
+    sub_app.add_plugins(ExplosionPlugin);
 
     sub_app.insert_resource(registries.registry_access.clone());
     sub_app.insert_resource(registries.block_light_table.clone());
@@ -257,12 +286,13 @@ pub fn spawn_dim_subapp(
             }
         }
 
-        let (spawns, despawns) = {
+        let (spawns, despawns, block_events) = {
             let mut bundle = main_world.resource_mut::<PendingInboundLifecycle>();
             let entry = bundle.per_dim.entry(label_entity).or_default();
             (
                 std::mem::take(&mut entry.spawns),
                 std::mem::take(&mut entry.despawns),
+                std::mem::take(&mut entry.block_events),
             )
         };
         if !spawns.is_empty() {
@@ -274,6 +304,12 @@ pub fn spawn_dim_subapp(
         if !despawns.is_empty() {
             let mut sub_msgs = sub_world.resource_mut::<Messages<InboundPlayerDespawn>>();
             for msg in despawns {
+                sub_msgs.write(msg);
+            }
+        }
+        if !block_events.is_empty() {
+            let mut sub_msgs = sub_world.resource_mut::<Messages<PlayerWillDestroyBlock>>();
+            for msg in block_events {
                 sub_msgs.write(msg);
             }
         }

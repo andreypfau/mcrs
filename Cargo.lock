@@ -1932,6 +1932,7 @@ dependencies = [
  "log",
  "mcrs_core",
  "mcrs_minecraft",
+ "mcrs_minecraft_block",
  "mcrs_minecraft_lighting",
  "mcrs_protocol",
  "mcrs_vanilla",

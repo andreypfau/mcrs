@@ -1,7 +1,5 @@
 use crate::configuration::{LoadedDimensionTypes, LoadedWorldPreset};
-use crate::world::block::minecraft::MinecraftBlockPlugin;
 use crate::world::entity::MinecraftEntityPlugin;
-use crate::world::explosion::ExplosionPlugin;
 use crate::world::loot::LootPlugin;
 use mcrs_minecraft_block::block_update::BlockUpdatePlugin;
 use bevy_app::{App, Plugin};
@@ -60,26 +58,31 @@ impl Plugin for WorldPlugin {
         );
 
         // Per-dim plugins composed inside each sub-app via `spawn_dim_subapp`:
-        // `DimensionPlugin`, `LightingPlugin`, and `ChunkPlugin` (worldgen).
-        // Each of those is self-contained: it reads only the registries the
-        // sub-app receives in `DimRegistryBundle` and works against the sub-app
-        // World's `Dimension`/`Chunk`/`Column` entities.
+        // `DimensionPlugin`, `LightingPlugin`, `ChunkPlugin` (worldgen),
+        // `MinecraftBlockPlugin`, and `ExplosionPlugin`. Each of those is
+        // self-contained: it reads only the registries the sub-app receives
+        // in `DimRegistryBundle` and works against the sub-app World's
+        // `Dimension`/`Chunk`/`Column` entities. The per-sub-app
+        // `Messages<PlayerWillDestroyBlock>` buffer is fed by the
+        // host-side `digging.rs` writers via
+        // `PendingInboundLifecycle.block_events`.
         //
-        // The other five "host-dead" simulation plugins (`BlockUpdatePlugin`,
-        // `MinecraftEntityPlugin`, `MinecraftBlockPlugin`, `ExplosionPlugin`,
-        // `LootPlugin`) stay host-side. The shared registries they read
-        // (`StaticRegistry<EnchantmentData>`, `TagRegistry<Block>`) are now
-        // propagated through `DimRegistryBundle` so per-dim sub-apps see the
-        // same frozen registry state as the host, ready for the move-back.
-        // Two blockers still keep these plugins on the host: cross-plugin
-        // messages (`PlayerWillDestroyBlock`, etc.) emitted host-side but
-        // expected by sub-app readers (resolved by a cross-app message bus),
-        // and entity ownership for `PlayerPlugin` (resolved by per-dim
-        // entity hosting once it lands).
+        // Three "host-dead" simulation plugins remain host-side:
+        // - `BlockUpdatePlugin` — its `update_client_blocks` system queries
+        //   `&mut ServerSideConnection`, a host-side component. Moving it
+        //   per-dim waits for either a network-sync split or a bus-routed
+        //   block-update broadcast — both gated on the same future work
+        //   that moves `MinecraftEntityPlugin`. TNT-explosion-triggered
+        //   block updates are non-functional until then: `tick_explode`
+        //   writes `BlockSetRequest` per-dim, but the reader
+        //   (`apply_set_block_request`) lives host-side.
+        // - `MinecraftEntityPlugin` — gated on per-dim entity ownership
+        //   (`PlayerPlugin`'s player-spawn and digging-writer paths still
+        //   reference host-side connection state).
+        // - `LootPlugin` — gated on the same per-dim entity ownership as
+        //   `MinecraftEntityPlugin`.
         app.add_plugins(BlockUpdatePlugin);
         app.add_plugins(MinecraftEntityPlugin);
-        app.add_plugins(MinecraftBlockPlugin);
-        app.add_plugins(ExplosionPlugin);
         app.add_plugins(LootPlugin);
         app.add_observer(
             |trigger: On<Remove, DimSubAppHandle>, mut queue: ResMut<DimDespawnQueue>| {
