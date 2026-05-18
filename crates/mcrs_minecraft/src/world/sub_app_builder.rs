@@ -4,11 +4,18 @@ use bevy_app::{
 };
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::Messages;
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel};
 use bevy_ecs::system::Local;
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
 use tracing::{debug, warn};
+
+use crate::world::bus::{
+    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
+    OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
+    PendingInboundPartition,
+};
 
 /// Private driver schedule: Bevy's `SubApp::run_default_schedule` invokes only
 /// the single schedule pointed at by `update_schedule`. This schedule chains
@@ -95,6 +102,19 @@ pub fn spawn_dim_subapp(
 
     let mut sub_app = SubApp::new();
 
+    // Per-sub-app bus message registration. Mirrors the host-side
+    // `add_message::<T>()` block in `WorldPlugin::build`. The merged
+    // extract closure below calls `resource_mut::<Messages<T>>()` on
+    // BOTH worlds, so both must initialise the double-buffer before the
+    // first pump.
+    sub_app.add_message::<OutboundPlayerPacket>();
+    sub_app.add_message::<InboundPlayerPacket>();
+    sub_app.add_message::<OutboundPlayerTransfer>();
+    sub_app.add_message::<InboundPlayerSpawn>();
+    sub_app.add_message::<OutboundPlayerAttached>();
+    sub_app.add_message::<OutboundPlayerDisconnect>();
+    sub_app.add_message::<InboundPlayerDespawn>();
+
     sub_app.update_schedule = Some(DimTick.intern());
     sub_app.add_schedule(Schedule::new(DimTick));
     sub_app.add_schedule(Schedule::new(First));
@@ -168,7 +188,15 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(Time::<Virtual>::default());
     sub_app.insert_resource(Time::<Real>::default());
 
-    sub_app.set_extract(|main_world, sub_world| {
+    // Merged extract closure: time-resource shuttle (existing) + bus
+    // shuttle (new). `SubApp::set_extract` replaces — does not compose —
+    // so both directions of the bus and the time mirror live in one
+    // closure. `label_entity` is captured by move; it is the host-world
+    // Entity used as the `DimAppLabel` key AND the key in
+    // `PendingInboundPartition.per_dim`. Capturing the in-sub-world
+    // `dim_entity` (allocated further down) would silently break inbound
+    // routing.
+    sub_app.set_extract(move |main_world, sub_world| {
         if let Some(time_fixed) = main_world.get_resource::<Time<Fixed>>() {
             sub_world.insert_resource(*time_fixed);
         }
@@ -180,6 +208,31 @@ pub fn spawn_dim_subapp(
         }
         if let Some(time) = main_world.get_resource::<Time<()>>() {
             sub_world.insert_resource(*time);
+        }
+
+        let drained: Vec<OutboundPlayerPacket> = sub_world
+            .resource_mut::<Messages<OutboundPlayerPacket>>()
+            .drain()
+            .collect();
+        if !drained.is_empty() {
+            let mut main_msgs = main_world.resource_mut::<Messages<OutboundPlayerPacket>>();
+            for msg in drained {
+                main_msgs.write(msg);
+            }
+        }
+
+        let inbound: Vec<InboundPlayerPacket> = main_world
+            .resource_mut::<PendingInboundPartition>()
+            .per_dim
+            .entry(label_entity)
+            .or_default()
+            .drain(..)
+            .collect();
+        if !inbound.is_empty() {
+            let mut sub_msgs = sub_world.resource_mut::<Messages<InboundPlayerPacket>>();
+            for msg in inbound {
+                sub_msgs.write(msg);
+            }
         }
     });
 
