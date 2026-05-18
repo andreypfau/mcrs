@@ -41,6 +41,7 @@ impl Plugin for WorldPlugin {
         // registrations in `spawn_dim_subapp` is what keeps the contract.
         app.init_resource::<crate::world::player_index::PlayerIndex>();
         app.init_resource::<crate::world::bus::PendingInboundPartition>();
+        app.init_resource::<crate::world::bus::PendingInboundLifecycle>();
         app.add_message::<crate::world::bus::OutboundPlayerPacket>();
         app.add_message::<crate::world::bus::InboundPlayerPacket>();
         app.add_message::<crate::world::bus::OutboundPlayerTransfer>();

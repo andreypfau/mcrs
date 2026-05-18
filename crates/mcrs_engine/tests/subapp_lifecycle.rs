@@ -96,8 +96,13 @@ mod harness {
         // closure panics on its first run with "Requested resource ... does
         // not exist".
         app.init_resource::<mcrs_minecraft::world::bus::PendingInboundPartition>();
+        app.init_resource::<mcrs_minecraft::world::bus::PendingInboundLifecycle>();
         app.add_message::<mcrs_minecraft::world::bus::OutboundPlayerPacket>();
         app.add_message::<mcrs_minecraft::world::bus::InboundPlayerPacket>();
+        app.add_message::<mcrs_minecraft::world::bus::OutboundPlayerTransfer>();
+        app.add_message::<mcrs_minecraft::world::bus::OutboundPlayerAttached>();
+        app.add_message::<mcrs_minecraft::world::bus::InboundPlayerSpawn>();
+        app.add_message::<mcrs_minecraft::world::bus::InboundPlayerDespawn>();
 
         app
     }

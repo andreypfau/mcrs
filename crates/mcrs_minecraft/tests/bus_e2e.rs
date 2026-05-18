@@ -21,7 +21,8 @@ use mcrs_minecraft::world::bridge::partition_main_inbound;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer, PacketPayload,
-    PacketPriority, PacketTarget, PendingInboundPartition, TestInboundPayload, TestPayload,
+    PacketPriority, PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
+    TestInboundPayload, TestPayload,
 };
 use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
 use mcrs_minecraft::world::sub_app_builder::{
@@ -85,6 +86,7 @@ fn build_app() -> App {
     // Host-side bus substrate (mirrors what `WorldPlugin::build` installs).
     app.init_resource::<PlayerIndex>();
     app.init_resource::<PendingInboundPartition>();
+    app.init_resource::<PendingInboundLifecycle>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<OutboundPlayerTransfer>();
