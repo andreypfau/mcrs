@@ -3,7 +3,7 @@
 // the queue through the production builder, and inspects the resulting
 // sub-app population.
 
-use bevy_app::{App, AppLabel, FixedUpdate};
+use bevy_app::{App, AppLabel, FixedPostUpdate, FixedPreUpdate, FixedUpdate};
 use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
@@ -214,6 +214,52 @@ fn sequential_pump_tick_count() {
             "each sub-app should have ticked exactly three times"
         );
     }
+}
+
+#[test]
+fn fixed_pre_and_post_update_advance_once_per_pump() {
+    use mcrs_minecraft::world::sub_app_builder::DimSubAppHandle;
+
+    #[derive(Resource, Default)]
+    struct PreCounter(u32);
+
+    #[derive(Resource, Default)]
+    struct PostCounter(u32);
+
+    let mut app = harness::make_main_app();
+    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    drain_dim_spawn_queue(&mut app);
+
+    let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
+    let handles: Vec<Entity> = q.iter(app.world()).map(|(e, _)| e).collect();
+    assert_eq!(handles.len(), 1, "one host-side handle entity");
+    let label_entity = handles[0];
+
+    {
+        let sub_app = app
+            .sub_apps_mut()
+            .sub_apps
+            .get_mut(&DimAppLabel(label_entity).intern())
+            .expect("sub-app under DimAppLabel");
+        sub_app.init_resource::<PreCounter>();
+        sub_app.init_resource::<PostCounter>();
+        sub_app.add_systems(FixedPreUpdate, |mut c: ResMut<PreCounter>| c.0 += 1);
+        sub_app.add_systems(FixedPostUpdate, |mut c: ResMut<PostCounter>| c.0 += 1);
+    }
+
+    for _ in 0..3 {
+        app.update();
+    }
+
+    let sub_app = app
+        .sub_apps()
+        .sub_apps
+        .get(&DimAppLabel(label_entity).intern())
+        .expect("sub-app under DimAppLabel");
+    let pre = sub_app.world().resource::<PreCounter>();
+    let post = sub_app.world().resource::<PostCounter>();
+    assert_eq!(pre.0, 3, "FixedPreUpdate must tick once per host pump");
+    assert_eq!(post.0, 3, "FixedPostUpdate must tick once per host pump");
 }
 
 #[test]
