@@ -138,6 +138,17 @@ impl ErasedRegistrySnapshot for RegistrySnapshotErased {
     }
 }
 
+/// Shared, freeze-before-clone registry of per-world data packets.
+///
+/// **Invariant:** all [`register`][Self::register] calls must complete before
+/// any clone is taken. Cloning bumps the inner `Arc` refcount; `register`
+/// requires exclusive access via `Arc::get_mut`, which fails (panics) once
+/// any other clone exists. The production wiring puts every `register` call
+/// inside `OnEnter(AppState::WorldgenFreeze)` and every clone inside
+/// `OnEnter(AppState::Playing)` or later. Do not clone `RegistryAccess`
+/// before `WorldgenFreeze` completes.
+///
+/// See also the [`register`][Self::register] doc for the panic condition.
 #[derive(Resource, Clone, Default)]
 pub struct RegistryAccess(Arc<RegistryAccessInner>);
 
@@ -147,9 +158,20 @@ pub struct RegistryAccessInner {
 }
 
 impl RegistryAccess {
+    /// Register a registry snapshot.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any clone of this `RegistryAccess` exists at the time of the
+    /// call. The inner `Arc::get_mut` check enforces the freeze-before-clone
+    /// invariant: once any clone has been handed to a per-dim sub-app the
+    /// refcount is > 1 and mutation is forbidden.
     pub fn register(&mut self, snapshot: Box<dyn ErasedRegistrySnapshot>) {
         let inner = Arc::get_mut(&mut self.0).expect(
-            "RegistryAccess: registry mutation attempted after the registry was cloned into a DimSubApp; mutation must complete before WorldgenFreeze",
+            "RegistryAccess: registry mutation attempted after the registry was cloned; \
+             mutation must complete before WorldgenFreeze — \
+             after the registry was cloned all clones share the same Arc and further \
+             mutation would create divergent state",
         );
         inner.registries.push(snapshot);
     }
@@ -312,6 +334,23 @@ mod tests {
         );
         let entries: Vec<_> = erased.iter_entries().collect();
         assert!(entries[0].pack_source.is_none());
+    }
+
+    /// Verify that calling `register` after a clone exists panics with the
+    /// documented message. This exercises the `Arc::get_mut().expect(...)` path
+    /// that enforces the freeze-before-clone invariant.
+    #[test]
+    #[should_panic(expected = "after the registry was cloned")]
+    fn register_after_clone_panics() {
+        let mut original = RegistryAccess::default();
+        let _clone = original.clone();
+        // The clone holds an Arc reference; Arc::get_mut inside register now
+        // returns None and the expect panics with the documented message.
+        original.register(Box::new(RegistrySnapshotErased::from_entries(
+            "minecraft:biome",
+            vec![(make_location("plains"), None)],
+            None,
+        )));
     }
 
     #[test]

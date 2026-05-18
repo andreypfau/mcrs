@@ -17,6 +17,7 @@ log = "0.4.29"
 
 [dev-dependencies]
 bevy_app.workspace = true
+bevy_asset.workspace = true
 bevy_state.workspace = true
 bevy_time.workspace = true
 mcrs_core.workspace = true

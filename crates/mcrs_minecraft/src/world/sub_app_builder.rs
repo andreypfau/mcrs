@@ -1,4 +1,5 @@
-use bevy_app::{App, FixedFirst, FixedLast, FixedPostUpdate, FixedPreUpdate, FixedUpdate, SubApp};
+use bevy_app::{App, FixedFirst, FixedLast, FixedPostUpdate, FixedPreUpdate, FixedUpdate, PluginsState, SubApp};
+use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel};
 use bevy_ecs::world::World;
@@ -12,6 +13,10 @@ use tracing::{debug, warn};
 /// `FixedLast` gets executed exactly once per host pump.
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
+use crate::world::block::minecraft::MinecraftBlockPlugin;
+use crate::world::entity::MinecraftEntityPlugin;
+use crate::world::explosion::ExplosionPlugin;
+use crate::world::loot::LootPlugin;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_engine::world::dimension::{
@@ -20,6 +25,7 @@ use mcrs_engine::world::dimension::{
 use mcrs_engine::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
+use mcrs_minecraft_block::block_update::BlockUpdatePlugin;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_vanilla::block::Block;
@@ -94,6 +100,18 @@ pub fn spawn_dim_subapp(
 
     sub_app.add_plugins(DimensionPlugin);
     sub_app.add_plugins(LightingPlugin);
+    // DimensionPlugin already adds ChunkPlugin transitively, so ChunkPlugin is
+    // intentionally absent here — adding it again would panic on the unique-plugin check.
+    sub_app.add_plugins(BlockUpdatePlugin);
+    sub_app.add_plugins(MinecraftEntityPlugin);
+    sub_app.add_plugins(MinecraftBlockPlugin);
+    sub_app.add_plugins(ExplosionPlugin);
+    // LootPlugin registers asset types and loaders. AssetPlugin requires
+    // AppTypeRegistry (initialised by App::new but not SubApp::new) and must
+    // be added before LootPlugin's `init_asset` call.
+    sub_app.init_resource::<bevy_ecs::reflect::AppTypeRegistry>();
+    sub_app.add_plugins(AssetPlugin::default());
+    sub_app.add_plugins(LootPlugin);
 
     sub_app.insert_resource(registries.registry_access.clone());
     sub_app.insert_resource(registries.block_light_table.clone());
@@ -136,6 +154,15 @@ pub fn spawn_dim_subapp(
             .insert(HasSkyLight);
     }
 
+    // Drain plugins to Ready before finish/cleanup. All plugins currently
+    // composed into a per-dim sub-app reach PluginsState::Ready synchronously
+    // (none override Plugin::ready), so this loop exits immediately. It is
+    // retained to make the contract explicit: any future plugin that introduces
+    // async readiness (e.g., per-dim biome asset loading) will be correctly
+    // waited on here rather than silently breaking sub-app construction.
+    while sub_app.plugins_state() == PluginsState::Adding {
+        bevy_tasks::tick_global_task_pools_on_main_thread();
+    }
     sub_app.finish();
     sub_app.cleanup();
 

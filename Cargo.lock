@@ -1921,6 +1921,7 @@ name = "mcrs_engine"
 version = "0.1.0"
 dependencies = [
  "bevy_app",
+ "bevy_asset",
  "bevy_derive",
  "bevy_ecs",
  "bevy_ecs_macros",

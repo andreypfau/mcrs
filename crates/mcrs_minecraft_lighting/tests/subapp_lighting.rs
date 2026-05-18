@@ -4,6 +4,7 @@
 // resulting sub-app's schedule graph for the lighting infrastructure.
 
 use bevy_app::{App, FixedUpdate};
+use bevy_asset::AssetPlugin;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedules;
 use bevy_state::app::{AppExtStates, StatesPlugin};
@@ -39,6 +40,7 @@ fn make_stub_block_light_table() -> BlockStateLightTable {
 
 fn make_main_app() -> App {
     let mut app = App::new();
+    app.add_plugins(AssetPlugin::default());
     app.add_plugins(TimePlugin);
     app.insert_resource(Time::<Fixed>::from_hz(20.0));
     app.add_plugins(StatesPlugin);
