@@ -16,7 +16,11 @@ pub struct DimSpawnRequest {
 #[derive(Resource, Default)]
 pub struct DimSpawnQueue(pub Vec<DimSpawnRequest>);
 
-// Entries are allocated inside their owning sub-app world; the outer runner loop
-// uses them as the key to `App::remove_sub_app(DimAppLabel(entity))`.
+/// Queue of host-world `DimSubAppHandle` label entities awaiting sub-app teardown.
+/// Entries are the `Entity` values used as `DimAppLabel(Entity)` keys when the
+/// sub-app was inserted — **not** the `Dimension` entity that lives inside the
+/// sub-app's `World`. The outer runner loop drains this queue and calls
+/// `App::remove_sub_app(DimAppLabel(entity))` on each, then despawns the
+/// host-side handle entity.
 #[derive(Resource, Default)]
 pub struct DimDespawnQueue(pub Vec<Entity>);

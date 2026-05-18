@@ -10,6 +10,7 @@ use bevy_state::prelude::OnEnter;
 use mcrs_core::AppState;
 use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use crate::world::sub_app_builder::DimSubAppHandle;
 use mcrs_minecraft_block::block_update::BlockUpdatePlugin;
 use tracing::{debug, error, info, warn};
 
@@ -33,6 +34,11 @@ impl Plugin for WorldPlugin {
         // Each per-dim sub-app registers `DimensionPlugin` into its own world
         // via `spawn_dim_subapp`; the host world no longer hosts `Dimension`
         // entities, so the plugin is not added here.
+        app.add_observer(
+            |trigger: On<Remove, DimSubAppHandle>, mut queue: ResMut<DimDespawnQueue>| {
+                queue.0.push(trigger.event().entity);
+            },
+        );
         app.add_systems(OnEnter(AppState::Playing), enqueue_dim_spawns_from_preset);
         app.add_plugins(ChunkPlugin);
         app.add_plugins(BlockUpdatePlugin);
