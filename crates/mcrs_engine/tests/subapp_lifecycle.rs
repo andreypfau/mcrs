@@ -88,6 +88,17 @@ mod harness {
         app.insert_resource(StaticRegistry::<Block>::new());
         app.insert_resource(StaticRegistry::<EnchantmentData>::default());
         app.insert_resource(TagRegistry::<Block>::default());
+
+        // The production extract closure in `spawn_dim_subapp` shuttles
+        // bus messages and reads `PendingInboundPartition` from the host
+        // world. Tests that drive `app.update()` need the same host-side
+        // registrations that `WorldPlugin::build` installs, otherwise the
+        // closure panics on its first run with "Requested resource ... does
+        // not exist".
+        app.init_resource::<mcrs_minecraft::world::bus::PendingInboundPartition>();
+        app.add_message::<mcrs_minecraft::world::bus::OutboundPlayerPacket>();
+        app.add_message::<mcrs_minecraft::world::bus::InboundPlayerPacket>();
+
         app
     }
 
