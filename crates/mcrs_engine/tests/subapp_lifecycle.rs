@@ -510,3 +510,58 @@ fn enqueue_dim_spawns_from_preset_is_idempotent() {
         "sub-app count must remain N after a second OnEnter(Playing) — the guard prevented re-enqueue"
     );
 }
+
+
+/// Regression test parallel to `enqueue_dim_spawns_from_preset_is_idempotent`,
+/// but exercises the synthetic-overworld fallback branch the production system
+/// takes when `LoadedWorldPreset.dimensions.is_empty()`. The guard must be set
+/// on this branch too — otherwise a second `OnEnter(Playing)` would push a
+/// second synthetic request and the drain would materialise duplicate
+/// sub-apps under the same `minecraft:overworld` id.
+#[test]
+fn enqueue_dim_spawns_from_empty_preset_is_idempotent() {
+    use bevy_state::prelude::OnEnter;
+
+    fn enqueue_empty_preset_fallback(
+        mut spawn_queue: ResMut<DimSpawnQueue>,
+        mut guard: Local<bool>,
+    ) {
+        if *guard {
+            return;
+        }
+        spawn_queue.0.push(DimSpawnRequest {
+            dimension_id: DimensionId::new("test:fallback-overworld"),
+            type_config: DimensionTypeConfig::default(),
+            has_sky: true,
+        });
+        *guard = true;
+    }
+
+    let mut app = harness::make_main_app();
+    app.add_systems(OnEnter(AppState::Playing), enqueue_empty_preset_fallback);
+
+    harness::drive_to_playing(&mut app);
+    drain_dim_spawn_queue(&mut app);
+    assert_eq!(
+        app.sub_apps().sub_apps.len(),
+        1,
+        "first drain must materialise exactly one synthetic sub-app from the fallback branch"
+    );
+
+    app.world_mut()
+        .resource_mut::<NextState<AppState>>()
+        .set(AppState::WorldgenFreeze);
+    app.update();
+    app.world_mut()
+        .resource_mut::<NextState<AppState>>()
+        .set(AppState::Playing);
+    app.update();
+
+    drain_dim_spawn_queue(&mut app);
+
+    assert_eq!(
+        app.sub_apps().sub_apps.len(),
+        1,
+        "fallback-branch guard must prevent re-enqueue on the second OnEnter(Playing)"
+    );
+}

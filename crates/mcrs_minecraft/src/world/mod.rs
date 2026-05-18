@@ -75,6 +75,7 @@ pub fn enqueue_dim_spawns_from_preset(
             type_config: DimensionTypeConfig::default(),
             has_sky: true,
         });
+        *already_enqueued = true;
         return;
     }
 
