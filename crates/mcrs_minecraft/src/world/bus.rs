@@ -7,6 +7,8 @@ use mcrs_protocol::uuid::Uuid;
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
+use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
+
 #[derive(Message, Clone, Debug)]
 pub struct OutboundPlayerPacket {
     pub target: PacketTarget,
@@ -135,6 +137,7 @@ pub struct PendingInboundLifecycle {
 pub struct LifecycleBundle {
     pub spawns: Vec<InboundPlayerSpawn>,
     pub despawns: Vec<InboundPlayerDespawn>,
+    pub block_events: Vec<PlayerWillDestroyBlock>,
 }
 
 #[cfg(test)]
@@ -255,6 +258,13 @@ mod tests {
         let b = LifecycleBundle::default();
         assert!(b.spawns.is_empty());
         assert!(b.despawns.is_empty());
+        assert!(b.block_events.is_empty());
+    }
+
+    #[test]
+    fn lifecycle_bundle_block_events_default_empty() {
+        let b = LifecycleBundle::default();
+        assert!(b.block_events.is_empty());
     }
 
     #[test]
@@ -272,7 +282,14 @@ mod tests {
             snapshot,
         });
         b.despawns.push(InboundPlayerDespawn { host_anchor: e });
+        b.block_events.push(PlayerWillDestroyBlock {
+            player: e,
+            chunk: e,
+            block_pos: mcrs_engine::world::block::BlockPos::new(0, 0, 0),
+            block_state: mcrs_protocol::BlockStateId(0),
+        });
         assert_eq!(b.spawns.len(), 1);
         assert_eq!(b.despawns.len(), 1);
+        assert_eq!(b.block_events.len(), 1);
     }
 }
