@@ -27,6 +27,7 @@ bevy_reflect.workspace = true
 tokio.workspace = true
 rand.workspace = true
 serde_json.workspace = true
+smallvec.workspace = true
 rustc-hash.workspace = true
 arrayvec.workspace = true
 num-integer.workspace = true
