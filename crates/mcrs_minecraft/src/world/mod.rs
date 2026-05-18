@@ -51,7 +51,12 @@ impl Plugin for WorldPlugin {
         app.add_message::<crate::world::bus::InboundPlayerDespawn>();
         app.add_systems(
             bevy_app::Update,
-            crate::world::bridge::partition_main_inbound,
+            (
+                crate::world::bridge::partition_main_inbound,
+                crate::world::bridge::bridge_player_transfer,
+                crate::world::bridge::bridge_player_attach,
+            )
+                .chain(),
         );
 
         // Per-dim plugins composed inside each sub-app via `spawn_dim_subapp`:

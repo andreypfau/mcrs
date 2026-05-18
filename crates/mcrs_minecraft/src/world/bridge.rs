@@ -33,8 +33,23 @@ pub fn bridge_player_transfer(
     mut player_index: ResMut<PlayerIndex>,
     mut lifecycle: ResMut<PendingInboundLifecycle>,
 ) {
-    let _ = (&mut *transfer_msgs, &mut *player_index, &mut *lifecycle);
-    unimplemented!("bridge_player_transfer pending GREEN");
+    for msg in transfer_msgs.drain() {
+        let Some(location) = player_index.get_mut(&msg.host_anchor) else {
+            continue;
+        };
+        location.current_dim = msg.dest_dim;
+        location.in_dim_entity = None;
+        let spawn = InboundPlayerSpawn {
+            host_anchor: msg.host_anchor,
+            snapshot: msg.snapshot.clone(),
+        };
+        lifecycle
+            .per_dim
+            .entry(msg.dest_dim)
+            .or_default()
+            .spawns
+            .push(spawn);
+    }
 }
 
 pub fn bridge_player_attach(
@@ -42,8 +57,24 @@ pub fn bridge_player_attach(
     mut player_index: ResMut<PlayerIndex>,
     mut partition: ResMut<PendingInboundPartition>,
 ) {
-    let _ = (&mut *attach_msgs, &mut *player_index, &mut *partition);
-    unimplemented!("bridge_player_attach pending GREEN");
+    for msg in attach_msgs.drain() {
+        let drained_and_dim = {
+            let Some(location) = player_index.get_mut(&msg.host_anchor) else {
+                continue;
+            };
+            location.in_dim_entity = Some(msg.new_in_dim_entity);
+            let drained = std::mem::take(&mut location.inbound_pending);
+            let current_dim = location.current_dim;
+            (drained, current_dim)
+        };
+        let (drained, current_dim) = drained_and_dim;
+        if !drained.is_empty() {
+            let bucket = partition.per_dim.entry(current_dim).or_default();
+            for packet in drained {
+                bucket.push(packet);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
