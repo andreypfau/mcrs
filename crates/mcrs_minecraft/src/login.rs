@@ -1,14 +1,19 @@
 use bevy_ecs::component::Component;
+use bevy_ecs::entity::Entity;
+use bevy_ecs::lifecycle::Add;
 use bevy_ecs::prelude::{On, Query};
 use bevy_ecs::query::{With, Without};
-use bevy_ecs::system::Commands;
+use bevy_ecs::system::{Commands, ResMut};
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, ServerSideConnection};
 use mcrs_protocol::packets::login::clientbound::ClientboundLoginFinished;
 use mcrs_protocol::packets::login::serverbound::{ServerboundHello, ServerboundLoginAcknowledged};
 use mcrs_protocol::profile::Property;
 use mcrs_protocol::{Bounded, WritePacket, uuid};
+use smallvec::SmallVec;
 use std::borrow::Cow;
+
+use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerLocation};
 
 pub struct LoginPlugin;
 
@@ -16,6 +21,7 @@ impl bevy_app::Plugin for LoginPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.add_observer(handle_hello_packet);
         app.add_observer(handle_login_acknowledged);
+        app.add_observer(on_login_accepted);
     }
 }
 
@@ -108,4 +114,36 @@ pub fn handle_login_acknowledged(
     commands
         .entity(event.entity)
         .insert(ConnectionState::Configuration);
+}
+
+pub fn on_login_accepted(
+    trigger: On<Add, LoginState>,
+    login_state: Query<(&LoginState, &GameProfile)>,
+    mut player_index: ResMut<PlayerIndex>,
+    mut commands: Commands,
+) {
+    let connection_entity = trigger.event().entity;
+    let Ok((state, profile)) = login_state.get(connection_entity) else {
+        return;
+    };
+    if *state != LoginState::Accepted {
+        return;
+    }
+
+    // current_dim = PLACEHOLDER until dim selection from spawn-point logic lands.
+    let host_anchor = commands.spawn(profile.clone()).id();
+
+    commands
+        .entity(connection_entity)
+        .insert(HostAnchorRef(host_anchor));
+
+    player_index.insert(
+        host_anchor,
+        PlayerLocation {
+            socket: connection_entity,
+            current_dim: Entity::PLACEHOLDER,
+            in_dim_entity: None,
+            inbound_pending: SmallVec::new(),
+        },
+    );
 }

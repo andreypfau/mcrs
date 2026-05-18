@@ -10,17 +10,21 @@ use crate::world::entity::player::inventory::PlayerInventoryPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
 use crate::world::entity::{EntityBundle, MinecraftEntityType};
+use crate::world::bus::InboundPlayerDespawn;
 use crate::world::inventory::{ContainerSeqno, PlayerInventoryBundle, PlayerInventoryQuery};
 use crate::world::item::minecraft::DIAMOND_PICKAXE;
 use crate::world::item::{ItemCommands, ItemStack};
+use crate::world::player_index::{HostAnchorRef, PlayerIndex};
 use bevy_app::{FixedUpdate, Plugin, PostUpdate};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
+use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Changed, Commands, Has, Query, RemovedComponents, Res, With};
+use bevy_ecs::prelude::{Changed, Commands, Has, Query, RemovedComponents, Res, ResMut, With};
 use bevy_ecs::query::Added;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::DVec3;
 use derive_more::{Deref, DerefMut};
 use mcrs_engine::entity::physics::Transform;
@@ -65,7 +69,14 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(GameModePlugin);
         app.add_systems(bevy_app::Update, spawn_player);
         app.add_systems(FixedUpdate, (disconnect_player, added_inventory, resync_player));
-        app.add_systems(PostUpdate, despawn_disconnected_clients);
+        app.add_systems(
+            PostUpdate,
+            (
+                despawn_disconnected_clients,
+                on_player_disconnect_cleanup_host_anchor,
+            )
+                .chain(),
+        );
         app.add_observer(network_add);
         app.add_observer(player_joined);
     }
@@ -434,4 +445,48 @@ fn resync_player(
 
         commands.entity(entity).remove::<ResyncPlayer>();
     }
+}
+
+pub fn on_player_disconnect_cleanup_host_anchor(
+    mut commands: Commands,
+    mut disconnected: RemovedComponents<ServerSideConnection>,
+    host_anchors: Query<&HostAnchorRef>,
+    mut player_index: ResMut<PlayerIndex>,
+    mut despawn_writer: MessageWriter<InboundPlayerDespawn>,
+) {
+    for connection_entity in disconnected.read() {
+        let Ok(host_anchor_ref) = host_anchors.get(connection_entity) else {
+            continue;
+        };
+        cleanup_host_anchor(
+            &mut commands,
+            host_anchor_ref.0,
+            &mut player_index,
+            &mut despawn_writer,
+        );
+    }
+}
+
+/// Removes a single host-anchor entry from `PlayerIndex`, emits an
+/// `InboundPlayerDespawn` message, and despawns the host-anchor entity.
+///
+/// Returns `true` if the index entry was present and cleanup ran;
+/// `false` if the entry was already absent (idempotent re-entry).
+pub fn cleanup_host_anchor(
+    commands: &mut Commands,
+    host_anchor: Entity,
+    player_index: &mut PlayerIndex,
+    despawn_writer: &mut MessageWriter<InboundPlayerDespawn>,
+) -> bool {
+    if player_index.remove(&host_anchor).is_none() {
+        return false;
+    }
+
+    despawn_writer.write(InboundPlayerDespawn { host_anchor });
+
+    if let Ok(mut anchor_entity) = commands.get_entity(host_anchor) {
+        anchor_entity.despawn();
+    }
+
+    true
 }
