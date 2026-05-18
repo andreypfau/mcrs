@@ -1,4 +1,4 @@
-use bevy_app::{App, FixedFirst, FixedLast, FixedPostUpdate, FixedPreUpdate, FixedUpdate, SubApp};
+use bevy_app::{App, FixedFirst, FixedLast, FixedPostUpdate, FixedPreUpdate, FixedUpdate, PluginsState, SubApp};
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel};
@@ -154,6 +154,15 @@ pub fn spawn_dim_subapp(
             .insert(HasSkyLight);
     }
 
+    // Drain plugins to Ready before finish/cleanup. All plugins currently
+    // composed into a per-dim sub-app reach PluginsState::Ready synchronously
+    // (none override Plugin::ready), so this loop exits immediately. It is
+    // retained to make the contract explicit: any future plugin that introduces
+    // async readiness (e.g., per-dim biome asset loading) will be correctly
+    // waited on here rather than silently breaking sub-app construction.
+    while sub_app.plugins_state() == PluginsState::Adding {
+        bevy_tasks::tick_global_task_pools_on_main_thread();
+    }
     sub_app.finish();
     sub_app.cleanup();
 

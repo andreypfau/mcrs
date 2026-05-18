@@ -190,6 +190,17 @@ impl Plugin for MinecraftCorePlugin {
                 Update,
                 check_tags_ready.run_if(in_state(AppState::LoadingDataPack)),
             )
+            // Ordering contract: every system in this chain that calls
+            // `RegistryAccess::register` — including systems injected by the
+            // `snapshot_registry!` macro elsewhere in the codebase — must
+            // complete before `transition_to_playing` fires. `transition_to_playing`
+            // triggers the `WorldgenFreeze → Playing` state transition, and
+            // `spawn_dim_subapp` runs at `OnEnter(AppState::Playing)`, where it
+            // takes the first clone of `RegistryAccess`. `RegistryAccess::register`
+            // requires `Arc::get_mut` (refcount == 1); calling it after any clone
+            // exists panics. The `OnEnter` schedule guarantees all systems in this
+            // chain finish before the transition completes, so the ordering holds
+            // as long as no `register` call is added outside `OnEnter(WorldgenFreeze)`.
             .add_systems(
                 OnEnter(AppState::WorldgenFreeze),
                 (
