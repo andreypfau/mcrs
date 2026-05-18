@@ -3,6 +3,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
+use tracing::{debug, warn};
 
 /// Private driver schedule: Bevy's `SubApp::run_default_schedule` invokes only
 /// the single schedule pointed at by `update_schedule`. This schedule chains
@@ -172,11 +173,23 @@ pub fn drain_dim_despawn_queue(app: &mut App) {
         &mut app.world_mut().resource_mut::<DimDespawnQueue>().0,
     );
     for entity in entities {
-        app.remove_sub_app(DimAppLabel(entity));
+        if app.remove_sub_app(DimAppLabel(entity)).is_none() {
+            warn!(
+                ?entity,
+                "DimDespawnQueue entry referenced a sub-app not registered under DimAppLabel"
+            );
+        }
         // Free the host-side label-anchor entity so the host world's
         // dimension-handle archetype matches the live sub-app population.
-        if let Ok(mut entity_mut) = app.world_mut().get_entity_mut(entity) {
-            entity_mut.despawn();
+        // The OnRemove<DimSubAppHandle> observer fires before this drain runs
+        // (it fires at despawn time), so when the observer path is active the
+        // entity is already gone here — Err(_) is expected on that path.
+        match app.world_mut().get_entity_mut(entity) {
+            Ok(mut entity_mut) => entity_mut.despawn(),
+            Err(_) => debug!(
+                ?entity,
+                "DimDespawnQueue entity already absent from host world (expected on the OnRemove observer path)"
+            ),
         }
     }
 }

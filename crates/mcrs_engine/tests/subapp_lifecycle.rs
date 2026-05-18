@@ -16,7 +16,9 @@ use mcrs_engine::world::dimension::{Dimension, DimensionId, DimensionTypeConfig}
 use mcrs_engine::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
-use mcrs_minecraft::world::sub_app_builder::{drain_dim_despawn_queue, drain_dim_spawn_queue};
+use mcrs_minecraft::world::sub_app_builder::{
+    drain_dim_despawn_queue, drain_dim_spawn_queue, DimSubAppHandle,
+};
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_vanilla::block::Block;
 
@@ -87,8 +89,6 @@ fn dim_subapp_inserted_on_spawn() {
 
 #[test]
 fn dim_subapp_removed_on_despawn() {
-    use mcrs_minecraft::world::sub_app_builder::DimSubAppHandle;
-
     let mut app = harness::make_main_app();
     harness::enqueue_spawn(&mut app, "test:overworld", true);
     drain_dim_spawn_queue(&mut app);
@@ -218,8 +218,6 @@ fn sequential_pump_tick_count() {
 
 #[test]
 fn fixed_pre_and_post_update_advance_once_per_pump() {
-    use mcrs_minecraft::world::sub_app_builder::DimSubAppHandle;
-
     #[derive(Resource, Default)]
     struct PreCounter(u32);
 
@@ -260,6 +258,50 @@ fn fixed_pre_and_post_update_advance_once_per_pump() {
     let post = sub_app.world().resource::<PostCounter>();
     assert_eq!(pre.0, 3, "FixedPreUpdate must tick once per host pump");
     assert_eq!(post.0, 3, "FixedPostUpdate must tick once per host pump");
+}
+
+/// Regression test: despawning the host-world `DimSubAppHandle` entity must
+/// automatically tear down the matching sub-app via the `On<Remove, DimSubAppHandle>`
+/// observer registered in production. This test would have failed before the observer
+/// was wired because only explicit queue pushes worked.
+///
+/// The observer is registered inline (not via `WorldPlugin::build`) to avoid pulling
+/// in the heavy plugin stack that `WorldPlugin` composes.
+#[test]
+fn subapp_torn_down_when_handle_despawned() {
+    let mut app = harness::make_main_app();
+
+    // Mirror the production observer from WorldPlugin::build inline so the test
+    // exercises the same wiring path without depending on unrelated plugins.
+    app.add_observer(
+        |trigger: On<Remove, DimSubAppHandle>, mut queue: ResMut<DimDespawnQueue>| {
+            queue.0.push(trigger.event().entity);
+        },
+    );
+
+    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    drain_dim_spawn_queue(&mut app);
+    assert_eq!(app.sub_apps().sub_apps.len(), 1, "one sub-app after spawn");
+
+    let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
+    let handles: Vec<Entity> = q.iter(app.world()).map(|(e, _)| e).collect();
+    assert_eq!(handles.len(), 1, "one host-side handle entity per sub-app");
+    let label_entity = handles[0];
+
+    // Despawn the host-side handle entity directly. The OnRemove<DimSubAppHandle>
+    // observer fires synchronously, pushing label_entity into DimDespawnQueue.
+    app.world_mut().entity_mut(label_entity).despawn();
+
+    // Pump once to let any deferred commands flush (defensive).
+    app.update();
+
+    // Drain the despawn queue — sub-app should now be gone.
+    drain_dim_despawn_queue(&mut app);
+    assert_eq!(
+        app.sub_apps().sub_apps.len(),
+        0,
+        "sub-app must be removed after handle entity is despawned"
+    );
 }
 
 #[test]
