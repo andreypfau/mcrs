@@ -40,7 +40,7 @@ mod dimension_type;
 mod direction;
 pub mod enchantment;
 mod keep_alive;
-mod login;
+pub mod login;
 pub mod sound;
 mod tag;
 mod value;
