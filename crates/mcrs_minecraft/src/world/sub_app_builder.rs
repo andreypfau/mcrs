@@ -1,7 +1,16 @@
-use bevy_app::{App, FixedPostUpdate, FixedUpdate, SubApp};
+use bevy_app::{App, FixedFirst, FixedLast, FixedPostUpdate, FixedPreUpdate, FixedUpdate, SubApp};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel};
+use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
+
+/// Private driver schedule: Bevy's `SubApp::run_default_schedule` invokes only
+/// the single schedule pointed at by `update_schedule`. This schedule chains
+/// the full Fixed* pipeline so every per-dim plugin that registers systems in
+/// `FixedFirst`, `FixedPreUpdate`, `FixedUpdate`, `FixedPostUpdate`, or
+/// `FixedLast` gets executed exactly once per host pump.
+#[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
+struct DimTick;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_engine::world::dimension::{
@@ -44,10 +53,11 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
 /// an `Entity`.
 ///
 /// Constraints encoded here:
-/// - `update_schedule = Some(FixedUpdate.intern())` so the sub-app runs
-///   `FixedUpdate` exactly once per host pump (not `FixedMain`, whose
-///   accumulator would consume host-extracted `Time<Fixed>` into 0 or 2
-///   ticks).
+/// - `update_schedule` is set to `DimTick` so Bevy's
+///   `SubApp::run_default_schedule` invokes `DimTick`, which chains
+///   `FixedFirst → FixedPreUpdate → FixedUpdate → FixedPostUpdate → FixedLast`
+///   exactly once per host pump. This ensures all per-dim plugin systems
+///   execute rather than only `FixedUpdate`.
 /// - The label `Entity` is allocated from the host world's `Entities`
 ///   allocator so labels are globally unique across all sub-apps. Each
 ///   sub-app `World` would otherwise allocate the same low-index `Entity`
@@ -66,9 +76,20 @@ pub fn spawn_dim_subapp(
 
     let mut sub_app = SubApp::new();
 
-    sub_app.update_schedule = Some(FixedUpdate.intern());
+    sub_app.update_schedule = Some(DimTick.intern());
+    sub_app.add_schedule(Schedule::new(DimTick));
+    sub_app.add_schedule(Schedule::new(FixedFirst));
+    sub_app.add_schedule(Schedule::new(FixedPreUpdate));
     sub_app.add_schedule(Schedule::new(FixedUpdate));
     sub_app.add_schedule(Schedule::new(FixedPostUpdate));
+    sub_app.add_schedule(Schedule::new(FixedLast));
+    sub_app.add_systems(DimTick, |world: &mut World| {
+        world.run_schedule(FixedFirst);
+        world.run_schedule(FixedPreUpdate);
+        world.run_schedule(FixedUpdate);
+        world.run_schedule(FixedPostUpdate);
+        world.run_schedule(FixedLast);
+    });
 
     sub_app.add_plugins(DimensionPlugin);
     sub_app.add_plugins(LightingPlugin);
@@ -77,13 +98,12 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(registries.block_light_table.clone());
     sub_app.insert_resource(registries.static_block_registry.clone());
 
-    // Seed the time resources so any `Res<Time<…>>` read during the first
-    // pump (before `set_extract` runs) gets a valid default. The extract
-    // closure below overwrites these every tick.
+    // Seed the time resources so an inspector that reads `Res<Time<…>>` on a
+    // sub-app that has never been pumped gets a valid default. The extract
+    // closure overwrites these every subsequent tick.
     sub_app.insert_resource(Time::<Fixed>::default());
     sub_app.insert_resource(Time::<Virtual>::default());
     sub_app.insert_resource(Time::<Real>::default());
-    sub_app.insert_resource(Time::<()>::default());
 
     sub_app.set_extract(|main_world, sub_world| {
         if let Some(time_fixed) = main_world.get_resource::<Time<Fixed>>() {
