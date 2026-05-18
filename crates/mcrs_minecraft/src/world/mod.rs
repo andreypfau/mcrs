@@ -14,8 +14,10 @@ use crate::world::sub_app_builder::DimSubAppHandle;
 use tracing::{debug, error, info, warn};
 
 pub mod block;
+pub mod bus;
 pub mod chunk;
 pub mod entity;
+pub mod player_index;
 mod explosion;
 mod format;
 mod generate;
