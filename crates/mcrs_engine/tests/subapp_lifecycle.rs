@@ -565,3 +565,29 @@ fn enqueue_dim_spawns_from_empty_preset_is_idempotent() {
         "fallback-branch guard must prevent re-enqueue on the second OnEnter(Playing)"
     );
 }
+
+
+#[test]
+fn worldgen_chunk_plugin_present_in_each_subapp() {
+    use mcrs_minecraft::world::chunk::ColumnScheduler;
+
+    let mut app = harness::make_main_app();
+    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    harness::enqueue_spawn(&mut app, "test:nether", false);
+    drain_dim_spawn_queue(&mut app);
+
+    let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
+    assert_eq!(labels.len(), 2, "two sub-apps after two spawns");
+
+    for label in &labels {
+        let sub_app = app
+            .sub_apps()
+            .sub_apps
+            .get(label)
+            .expect("sub-app present");
+        assert!(
+            sub_app.world().get_resource::<ColumnScheduler>().is_some(),
+            "sub-app {label:?} must have ColumnScheduler — confirms worldgen ChunkPlugin is registered, not just the engine storage stub"
+        );
+    }
+}

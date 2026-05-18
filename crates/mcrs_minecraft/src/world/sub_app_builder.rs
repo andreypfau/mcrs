@@ -100,17 +100,24 @@ pub fn spawn_dim_subapp(
 
     sub_app.add_plugins(DimensionPlugin);
     sub_app.add_plugins(LightingPlugin);
-    // DimensionPlugin already adds ChunkPlugin transitively, so ChunkPlugin is
-    // intentionally absent here — adding it again would panic on the unique-plugin check.
+    // AssetPlugin and AppTypeRegistry must precede any plugin that calls
+    // `init_asset` / `register_asset_loader`. Both `ChunkPlugin` (via its
+    // nested `NoiseGeneratorSettingsPlugin`) and `LootPlugin` register assets,
+    // so they must come after this block. `AppTypeRegistry` is initialised by
+    // `App::new` but not by `SubApp::new`, so the sub-app needs the explicit
+    // `init_resource` call.
+    sub_app.init_resource::<bevy_ecs::reflect::AppTypeRegistry>();
+    sub_app.add_plugins(AssetPlugin::default());
+    // The worldgen `ChunkPlugin` (NoiseGeneratorSettings, ColumnScheduler, the
+    // CHUNK_TASK_POOL, and the five FixedPreUpdate worldgen systems) is the
+    // per-dim entry-point that turns DimSpawnRequest into populated columns.
+    // It is distinct from the engine-level `storage::chunk::ChunkPlugin` that
+    // DimensionPlugin adds (which only contributes TicketPlugin).
+    sub_app.add_plugins(crate::world::chunk::ChunkPlugin);
     sub_app.add_plugins(BlockUpdatePlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);
     sub_app.add_plugins(MinecraftBlockPlugin);
     sub_app.add_plugins(ExplosionPlugin);
-    // LootPlugin registers asset types and loaders. AssetPlugin requires
-    // AppTypeRegistry (initialised by App::new but not SubApp::new) and must
-    // be added before LootPlugin's `init_asset` call.
-    sub_app.init_resource::<bevy_ecs::reflect::AppTypeRegistry>();
-    sub_app.add_plugins(AssetPlugin::default());
     sub_app.add_plugins(LootPlugin);
 
     sub_app.insert_resource(registries.registry_access.clone());
