@@ -14,7 +14,7 @@ use tracing::{debug, warn};
 use crate::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
-    PendingInboundPartition,
+    PendingInboundLifecycle, PendingInboundPartition,
 };
 
 /// Private driver schedule: Bevy's `SubApp::run_default_schedule` invokes only
@@ -231,6 +231,49 @@ pub fn spawn_dim_subapp(
         if !inbound.is_empty() {
             let mut sub_msgs = sub_world.resource_mut::<Messages<InboundPlayerPacket>>();
             for msg in inbound {
+                sub_msgs.write(msg);
+            }
+        }
+
+        let drained_transfers: Vec<OutboundPlayerTransfer> = sub_world
+            .resource_mut::<Messages<OutboundPlayerTransfer>>()
+            .drain()
+            .collect();
+        if !drained_transfers.is_empty() {
+            let mut main_msgs = main_world.resource_mut::<Messages<OutboundPlayerTransfer>>();
+            for msg in drained_transfers {
+                main_msgs.write(msg);
+            }
+        }
+
+        let drained_attached: Vec<OutboundPlayerAttached> = sub_world
+            .resource_mut::<Messages<OutboundPlayerAttached>>()
+            .drain()
+            .collect();
+        if !drained_attached.is_empty() {
+            let mut main_msgs = main_world.resource_mut::<Messages<OutboundPlayerAttached>>();
+            for msg in drained_attached {
+                main_msgs.write(msg);
+            }
+        }
+
+        let (spawns, despawns) = {
+            let mut bundle = main_world.resource_mut::<PendingInboundLifecycle>();
+            let entry = bundle.per_dim.entry(label_entity).or_default();
+            (
+                std::mem::take(&mut entry.spawns),
+                std::mem::take(&mut entry.despawns),
+            )
+        };
+        if !spawns.is_empty() {
+            let mut sub_msgs = sub_world.resource_mut::<Messages<InboundPlayerSpawn>>();
+            for msg in spawns {
+                sub_msgs.write(msg);
+            }
+        }
+        if !despawns.is_empty() {
+            let mut sub_msgs = sub_world.resource_mut::<Messages<InboundPlayerDespawn>>();
+            for msg in despawns {
                 sub_msgs.write(msg);
             }
         }

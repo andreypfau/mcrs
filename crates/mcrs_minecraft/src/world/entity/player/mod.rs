@@ -10,7 +10,7 @@ use crate::world::entity::player::inventory::PlayerInventoryPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
 use crate::world::entity::{EntityBundle, MinecraftEntityType};
-use crate::world::bus::InboundPlayerDespawn;
+use crate::world::bus::{InboundPlayerDespawn, PendingInboundLifecycle};
 use crate::world::inventory::{ContainerSeqno, PlayerInventoryBundle, PlayerInventoryQuery};
 use crate::world::item::minecraft::DIAMOND_PICKAXE;
 use crate::world::item::{ItemCommands, ItemStack};
@@ -20,7 +20,6 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
-use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Changed, Commands, Has, Query, RemovedComponents, Res, ResMut, With};
 use bevy_ecs::query::Added;
@@ -452,7 +451,7 @@ pub fn on_player_disconnect_cleanup_host_anchor(
     mut disconnected: RemovedComponents<ServerSideConnection>,
     host_anchors: Query<&HostAnchorRef>,
     mut player_index: ResMut<PlayerIndex>,
-    mut despawn_writer: MessageWriter<InboundPlayerDespawn>,
+    mut lifecycle: ResMut<PendingInboundLifecycle>,
 ) {
     for connection_entity in disconnected.read() {
         let Ok(host_anchor_ref) = host_anchors.get(connection_entity) else {
@@ -462,13 +461,14 @@ pub fn on_player_disconnect_cleanup_host_anchor(
             &mut commands,
             host_anchor_ref.0,
             &mut player_index,
-            &mut despawn_writer,
+            &mut lifecycle,
         );
     }
 }
 
-/// Removes a single host-anchor entry from `PlayerIndex`, emits an
-/// `InboundPlayerDespawn` message, and despawns the host-anchor entity.
+/// Removes a single host-anchor entry from `PlayerIndex`, routes an
+/// `InboundPlayerDespawn` into `PendingInboundLifecycle` under the
+/// player's current dim, and despawns the host-anchor entity.
 ///
 /// Returns `true` if the index entry was present and cleanup ran;
 /// `false` if the entry was already absent (idempotent re-entry).
@@ -476,13 +476,21 @@ pub fn cleanup_host_anchor(
     commands: &mut Commands,
     host_anchor: Entity,
     player_index: &mut PlayerIndex,
-    despawn_writer: &mut MessageWriter<InboundPlayerDespawn>,
+    lifecycle: &mut PendingInboundLifecycle,
 ) -> bool {
-    if player_index.remove(&host_anchor).is_none() {
-        return false;
-    }
+    let current_dim = match player_index.get(&host_anchor) {
+        Some(loc) => loc.current_dim,
+        None => return false,
+    };
 
-    despawn_writer.write(InboundPlayerDespawn { host_anchor });
+    lifecycle
+        .per_dim
+        .entry(current_dim)
+        .or_default()
+        .despawns
+        .push(InboundPlayerDespawn { host_anchor });
+
+    player_index.remove(&host_anchor);
 
     if let Ok(mut anchor_entity) = commands.get_entity(host_anchor) {
         anchor_entity.despawn();

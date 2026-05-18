@@ -23,7 +23,9 @@ bevy_time.workspace = true
 mcrs_core.workspace = true
 mcrs_minecraft.workspace = true
 mcrs_minecraft_lighting.workspace = true
+mcrs_protocol.workspace = true
 mcrs_vanilla.workspace = true
+smallvec.workspace = true
 
 [features]
 

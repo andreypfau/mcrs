@@ -1,23 +1,23 @@
 use bevy_app::App;
-use bevy_ecs::message::{MessageWriter, Messages};
 use bevy_ecs::prelude::{Commands, Entity, ResMut};
 use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
-use mcrs_minecraft::world::bus::InboundPlayerDespawn;
+use mcrs_minecraft::world::bus::{InboundPlayerDespawn, PendingInboundLifecycle};
 use mcrs_minecraft::world::entity::player::cleanup_host_anchor;
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
 use mcrs_protocol::uuid::Uuid;
 
 /// Construct a minimal `App` that wires `LoginPlugin` plus the
-/// `PlayerIndex` resource and the `InboundPlayerDespawn` message buffer.
-///
-/// The two `init_resource`/`add_message` calls duplicate what
-/// `WorldPlugin` registers in production. They are inlined here so the
-/// test does not need to spin up the entire host plugin stack.
+/// `PlayerIndex` resource and the `PendingInboundLifecycle` bucket the
+/// disconnect cleanup routes despawn messages through. The two
+/// `init_resource` calls duplicate what `WorldPlugin` registers in
+/// production; they are inlined here so the test does not need to
+/// spin up the entire host plugin stack.
 fn make_app() -> App {
     let mut app = App::new();
     app.add_plugins(LoginPlugin);
     app.init_resource::<PlayerIndex>();
+    app.init_resource::<PendingInboundLifecycle>();
     app.add_message::<InboundPlayerDespawn>();
     app
 }
@@ -75,7 +75,7 @@ fn login_accepted_inserts_player_index_entry_and_host_anchor_ref() {
 }
 
 #[test]
-fn connection_removal_removes_player_index_entry_and_emits_despawn_message() {
+fn connection_removal_removes_player_index_entry_and_routes_despawn_via_lifecycle() {
     let mut app = make_app();
     let connection_entity = insert_accepted_login(&mut app, fresh_profile());
 
@@ -89,6 +89,18 @@ fn connection_removal_removes_player_index_entry_and_emits_despawn_message() {
 
     assert_eq!(app.world().resource::<PlayerIndex>().len(), 1);
 
+    // Pin a concrete `current_dim` so the assertion can target a
+    // specific bucket in `PendingInboundLifecycle.per_dim`. The login
+    // observer seeds `current_dim` with `Entity::PLACEHOLDER`; pick a
+    // non-placeholder value so the test fails loudly if the cleanup
+    // ever stops honouring `current_dim`.
+    let current_dim = Entity::from_raw_u32(77).expect("nonzero");
+    app.world_mut()
+        .resource_mut::<PlayerIndex>()
+        .get_mut(&host_anchor)
+        .expect("location present")
+        .current_dim = current_dim;
+
     // Drive the cleanup helper directly because constructing a real
     // `ServerSideConnection` requires a `RawConnection` socket, which
     // is not accessible from an integration test. The full system
@@ -100,12 +112,12 @@ fn connection_removal_removes_player_index_entry_and_emits_despawn_message() {
         .run_system_once(
             move |mut commands: Commands,
                   mut player_index: ResMut<PlayerIndex>,
-                  mut despawn_writer: MessageWriter<InboundPlayerDespawn>| {
+                  mut lifecycle: ResMut<PendingInboundLifecycle>| {
                 let ran = cleanup_host_anchor(
                     &mut commands,
                     host_anchor,
                     &mut player_index,
-                    &mut despawn_writer,
+                    &mut lifecycle,
                 );
                 assert!(ran, "cleanup ran on first call");
 
@@ -113,7 +125,7 @@ fn connection_removal_removes_player_index_entry_and_emits_despawn_message() {
                     &mut commands,
                     host_anchor,
                     &mut player_index,
-                    &mut despawn_writer,
+                    &mut lifecycle,
                 );
                 assert!(!ran_twice, "second call is a no-op (idempotent)");
             },
@@ -134,19 +146,20 @@ fn connection_removal_removes_player_index_entry_and_emits_despawn_message() {
         "host-anchor entity despawned after cleanup",
     );
 
-    let despawn_messages: Vec<Entity> = app
-        .world_mut()
-        .resource_mut::<Messages<InboundPlayerDespawn>>()
-        .drain()
-        .map(|m| m.host_anchor)
-        .collect();
-
+    let lifecycle = app.world().resource::<PendingInboundLifecycle>();
+    let bundle = lifecycle
+        .per_dim
+        .get(&current_dim)
+        .expect("lifecycle bucket for current_dim present");
     assert_eq!(
-        despawn_messages.len(),
+        bundle.despawns.len(),
         1,
-        "exactly one InboundPlayerDespawn emitted (second call short-circuits)",
+        "exactly one despawn routed (second call short-circuits)",
     );
-    assert_eq!(despawn_messages[0], host_anchor);
+    let routed: InboundPlayerDespawn = InboundPlayerDespawn {
+        host_anchor: bundle.despawns[0].host_anchor,
+    };
+    assert_eq!(routed.host_anchor, host_anchor);
 }
 
 #[test]

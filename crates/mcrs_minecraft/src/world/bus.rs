@@ -112,6 +112,31 @@ pub struct PendingInboundPartition {
     pub per_dim: FxHashMap<Entity, Vec<InboundPlayerPacket>>,
 }
 
+/// Per-dim partition of inbound lifecycle messages (spawn + despawn)
+/// awaiting shuttle into a `DimSubApp`. Filled by main-side bridge
+/// systems (and the disconnect cleanup) before extracts run; drained
+/// by each sub-app's extract closure into the sub-world's
+/// `Messages<InboundPlayerSpawn>` and `Messages<InboundPlayerDespawn>`
+/// buffers. Keyed by the same host-anchor `Entity` as
+/// `PendingInboundPartition` so a single `label_entity` lookup serves
+/// both partitions.
+///
+/// Lifecycle messages are routed separately from `InboundPlayerPacket`
+/// to keep the partition's value type a `Vec<T>` rather than forcing
+/// callers to switch on a message-kind enum. Each bundle is small
+/// (one spawn or one despawn per player per transfer), so plain `Vec`
+/// is enough — no `SmallVec` is needed.
+#[derive(Resource, Default)]
+pub struct PendingInboundLifecycle {
+    pub per_dim: FxHashMap<Entity, LifecycleBundle>,
+}
+
+#[derive(Default)]
+pub struct LifecycleBundle {
+    pub spawns: Vec<InboundPlayerSpawn>,
+    pub despawns: Vec<InboundPlayerDespawn>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,5 +242,37 @@ mod tests {
                 packet: TestInboundPayload { seq: 1 },
             });
         assert_eq!(partition.per_dim.get(&dim).map(|v| v.len()), Some(1));
+    }
+
+    #[test]
+    fn pending_inbound_lifecycle_default_is_empty() {
+        let p = PendingInboundLifecycle::default();
+        assert!(p.per_dim.is_empty());
+    }
+
+    #[test]
+    fn lifecycle_bundle_default_has_empty_vecs() {
+        let b = LifecycleBundle::default();
+        assert!(b.spawns.is_empty());
+        assert!(b.despawns.is_empty());
+    }
+
+    #[test]
+    fn lifecycle_bundle_accepts_spawn_and_despawn_pushes() {
+        let e = placeholder_entity();
+        let snapshot = PlayerTransferSnapshot {
+            uuid: Uuid::nil(),
+            username: "x".into(),
+            position: DVec3::ZERO,
+            rotation: Vec2::ZERO,
+        };
+        let mut b = LifecycleBundle::default();
+        b.spawns.push(InboundPlayerSpawn {
+            host_anchor: e,
+            snapshot,
+        });
+        b.despawns.push(InboundPlayerDespawn { host_anchor: e });
+        assert_eq!(b.spawns.len(), 1);
+        assert_eq!(b.despawns.len(), 1);
     }
 }

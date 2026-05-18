@@ -1,7 +1,10 @@
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::ResMut;
 
-use crate::world::bus::{InboundPlayerPacket, PendingInboundPartition};
+use crate::world::bus::{
+    InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerTransfer,
+    PendingInboundLifecycle, PendingInboundPartition,
+};
 use crate::world::player_index::PlayerIndex;
 
 pub fn partition_main_inbound(
@@ -21,6 +24,55 @@ pub fn partition_main_inbound(
                 .push(msg);
         } else {
             location.inbound_pending.push(msg);
+        }
+    }
+}
+
+pub fn bridge_player_transfer(
+    mut transfer_msgs: ResMut<Messages<OutboundPlayerTransfer>>,
+    mut player_index: ResMut<PlayerIndex>,
+    mut lifecycle: ResMut<PendingInboundLifecycle>,
+) {
+    for msg in transfer_msgs.drain() {
+        let Some(location) = player_index.get_mut(&msg.host_anchor) else {
+            continue;
+        };
+        location.current_dim = msg.dest_dim;
+        location.in_dim_entity = None;
+        let spawn = InboundPlayerSpawn {
+            host_anchor: msg.host_anchor,
+            snapshot: msg.snapshot.clone(),
+        };
+        lifecycle
+            .per_dim
+            .entry(msg.dest_dim)
+            .or_default()
+            .spawns
+            .push(spawn);
+    }
+}
+
+pub fn bridge_player_attach(
+    mut attach_msgs: ResMut<Messages<OutboundPlayerAttached>>,
+    mut player_index: ResMut<PlayerIndex>,
+    mut partition: ResMut<PendingInboundPartition>,
+) {
+    for msg in attach_msgs.drain() {
+        let drained_and_dim = {
+            let Some(location) = player_index.get_mut(&msg.host_anchor) else {
+                continue;
+            };
+            location.in_dim_entity = Some(msg.new_in_dim_entity);
+            let drained = std::mem::take(&mut location.inbound_pending);
+            let current_dim = location.current_dim;
+            (drained, current_dim)
+        };
+        let (drained, current_dim) = drained_and_dim;
+        if !drained.is_empty() {
+            let bucket = partition.per_dim.entry(current_dim).or_default();
+            for packet in drained {
+                bucket.push(packet);
+            }
         }
     }
 }
@@ -148,5 +200,153 @@ mod tests {
         let msgs = world.resource::<Messages<InboundPlayerPacket>>();
         let mut reader = msgs.get_cursor();
         assert_eq!(reader.read(msgs).count(), 0);
+    }
+
+    use crate::world::bus::PlayerTransferSnapshot;
+    use bevy_math::{DVec3, Vec2};
+    use mcrs_protocol::uuid::Uuid;
+
+    fn synthetic_snapshot() -> PlayerTransferSnapshot {
+        PlayerTransferSnapshot {
+            uuid: Uuid::nil(),
+            username: "test".into(),
+            position: DVec3::ZERO,
+            rotation: Vec2::ZERO,
+        }
+    }
+
+    fn run_transfer(world: &mut World) {
+        let mut sys = IntoSystem::into_system(bridge_player_transfer);
+        sys.initialize(world);
+        let _ = sys.run((), world);
+        sys.apply_deferred(world);
+    }
+
+    fn run_attach(world: &mut World) {
+        let mut sys = IntoSystem::into_system(bridge_player_attach);
+        sys.initialize(world);
+        let _ = sys.run((), world);
+        sys.apply_deferred(world);
+    }
+
+    #[test]
+    fn bridge_player_transfer_updates_player_index_and_writes_spawn() {
+        let mut world = World::new();
+        world.init_resource::<Messages<OutboundPlayerTransfer>>();
+        world.init_resource::<Messages<InboundPlayerSpawn>>();
+        world.init_resource::<PlayerIndex>();
+        world.init_resource::<PendingInboundLifecycle>();
+
+        let host_anchor = Entity::from_raw_u32(42).expect("nonzero");
+        let src_dim = Entity::from_raw_u32(1).expect("nonzero");
+        let dest_dim = Entity::from_raw_u32(2).expect("nonzero");
+        let src_in_dim = Entity::from_raw_u32(99).expect("nonzero");
+
+        world.resource_mut::<PlayerIndex>().insert(
+            host_anchor,
+            PlayerLocation {
+                socket: Entity::PLACEHOLDER,
+                current_dim: src_dim,
+                in_dim_entity: Some(src_in_dim),
+                inbound_pending: SmallVec::new(),
+            },
+        );
+
+        world
+            .resource_mut::<Messages<OutboundPlayerTransfer>>()
+            .write(OutboundPlayerTransfer {
+                host_anchor,
+                dest_dim,
+                snapshot: synthetic_snapshot(),
+            });
+
+        run_transfer(&mut world);
+
+        let index = world.resource::<PlayerIndex>();
+        let loc = index.get(&host_anchor).expect("present");
+        assert_eq!(loc.current_dim, dest_dim);
+        assert!(loc.in_dim_entity.is_none());
+
+        let lifecycle = world.resource::<PendingInboundLifecycle>();
+        let bundle = lifecycle
+            .per_dim
+            .get(&dest_dim)
+            .expect("dest dim bundle present");
+        assert_eq!(bundle.spawns.len(), 1);
+        assert_eq!(bundle.spawns[0].host_anchor, host_anchor);
+    }
+
+    #[test]
+    fn bridge_player_attach_sets_in_dim_entity_and_drains_inbound_pending() {
+        let mut world = World::new();
+        world.init_resource::<Messages<OutboundPlayerAttached>>();
+        world.init_resource::<PlayerIndex>();
+        world.init_resource::<PendingInboundPartition>();
+
+        let host_anchor = Entity::from_raw_u32(42).expect("nonzero");
+        let dest_dim = Entity::from_raw_u32(2).expect("nonzero");
+        let new_in_dim = Entity::from_raw_u32(200).expect("nonzero");
+
+        let mut buffered: SmallVec<[InboundPlayerPacket; 4]> = SmallVec::new();
+        for seq in 0..3u32 {
+            buffered.push(InboundPlayerPacket {
+                player: host_anchor,
+                packet: TestInboundPayload { seq },
+            });
+        }
+
+        world.resource_mut::<PlayerIndex>().insert(
+            host_anchor,
+            PlayerLocation {
+                socket: Entity::PLACEHOLDER,
+                current_dim: dest_dim,
+                in_dim_entity: None,
+                inbound_pending: buffered,
+            },
+        );
+
+        world
+            .resource_mut::<Messages<OutboundPlayerAttached>>()
+            .write(OutboundPlayerAttached {
+                host_anchor,
+                new_in_dim_entity: new_in_dim,
+            });
+
+        run_attach(&mut world);
+
+        let index = world.resource::<PlayerIndex>();
+        let loc = index.get(&host_anchor).expect("present");
+        assert_eq!(loc.in_dim_entity, Some(new_in_dim));
+        assert!(loc.inbound_pending.is_empty());
+
+        let partition = world.resource::<PendingInboundPartition>();
+        let dest_bucket = partition
+            .per_dim
+            .get(&dest_dim)
+            .expect("dest dim bucket present");
+        assert_eq!(dest_bucket.len(), 3);
+    }
+
+    #[test]
+    fn bridge_player_attach_idempotent_on_unknown_host_anchor() {
+        let mut world = World::new();
+        world.init_resource::<Messages<OutboundPlayerAttached>>();
+        world.init_resource::<PlayerIndex>();
+        world.init_resource::<PendingInboundPartition>();
+
+        let unknown = Entity::from_raw_u32(999).expect("nonzero");
+        let new_in_dim = Entity::from_raw_u32(1).expect("nonzero");
+
+        world
+            .resource_mut::<Messages<OutboundPlayerAttached>>()
+            .write(OutboundPlayerAttached {
+                host_anchor: unknown,
+                new_in_dim_entity: new_in_dim,
+            });
+
+        run_attach(&mut world);
+
+        let partition = world.resource::<PendingInboundPartition>();
+        assert!(partition.per_dim.is_empty());
     }
 }

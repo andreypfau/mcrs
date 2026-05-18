@@ -41,6 +41,7 @@ impl Plugin for WorldPlugin {
         // registrations in `spawn_dim_subapp` is what keeps the contract.
         app.init_resource::<crate::world::player_index::PlayerIndex>();
         app.init_resource::<crate::world::bus::PendingInboundPartition>();
+        app.init_resource::<crate::world::bus::PendingInboundLifecycle>();
         app.add_message::<crate::world::bus::OutboundPlayerPacket>();
         app.add_message::<crate::world::bus::InboundPlayerPacket>();
         app.add_message::<crate::world::bus::OutboundPlayerTransfer>();
@@ -50,7 +51,12 @@ impl Plugin for WorldPlugin {
         app.add_message::<crate::world::bus::InboundPlayerDespawn>();
         app.add_systems(
             bevy_app::Update,
-            crate::world::bridge::partition_main_inbound,
+            (
+                crate::world::bridge::partition_main_inbound,
+                crate::world::bridge::bridge_player_transfer,
+                crate::world::bridge::bridge_player_attach,
+            )
+                .chain(),
         );
 
         // Per-dim plugins composed inside each sub-app via `spawn_dim_subapp`:
