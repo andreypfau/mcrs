@@ -18,7 +18,8 @@ use mcrs_engine::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
 use mcrs_minecraft::world::sub_app_builder::{
-    drain_dim_despawn_queue, drain_dim_spawn_queue, DimSubAppHandle,
+    drain_dim_despawn_queue, drain_dim_spawn_queue, gather_dim_registries, spawn_dim_subapp,
+    DimSubAppHandle,
 };
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_vanilla::block::Block;
@@ -43,7 +44,36 @@ mod harness {
     }
 
     pub fn make_main_app() -> App {
+        // The per-dim sub-app composition pulls in `NoiseGeneratorSettingsPlugin`
+        // (via `ChunkPlugin`), whose `AssetServer::load` requires the noise
+        // settings JSON under `assets/minecraft/worldgen/noise_settings/`. Bevy
+        // 0.18's `AssetPlugin::default()` derives its file-source root from
+        // `CARGO_MANIFEST_DIR` when present (which `cargo test` always sets to
+        // the crate directory, not the workspace root). `BEVY_ASSET_ROOT`
+        // overrides that, so pointing it at the workspace root makes the
+        // assets reachable from every per-dim sub-app's `AssetServer`. Done
+        // once per test process via `OnceLock`.
+        static SET_ASSET_ROOT: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+        SET_ASSET_ROOT.get_or_init(|| {
+            let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .and_then(|p| p.parent())
+                .expect("CARGO_MANIFEST_DIR must have two ancestors (workspace root)");
+            // SAFETY: set_var is safe to call when no other thread is reading
+            // the same env var. This OnceLock runs before any test body uses
+            // the value (via AssetPlugin construction inside spawn_dim_subapp).
+            unsafe {
+                std::env::set_var("BEVY_ASSET_ROOT", workspace_root);
+            }
+        });
+
         let mut app = App::new();
+        // The per-dim sub-app composition pulls in `NoiseGeneratorSettingsPlugin`
+        // (via `ChunkPlugin`) whose `Startup` system uses `AssetServer::load`,
+        // which spawns work on `IoTaskPool`. Production sets the pools up via
+        // `ServerPlugin → TaskPoolPlugin`; tests need the same initialisation so
+        // sub-app `Startup` does not panic on an uninitialised pool.
+        app.add_plugins(bevy_app::TaskPoolPlugin::default());
         app.add_plugins(AssetPlugin::default());
         app.add_plugins(TimePlugin);
         app.insert_resource(Time::<Fixed>::from_hz(20.0));
@@ -590,4 +620,91 @@ fn worldgen_chunk_plugin_present_in_each_subapp() {
             "sub-app {label:?} must have ColumnScheduler — confirms worldgen ChunkPlugin is registered, not just the engine storage stub"
         );
     }
+}
+
+
+/// Regression test: the `DimTick` driver must run more than just `Fixed*`.
+/// The first iteration of the 01-08 plugin migration chained only Fixed*
+/// schedules in `DimTick`, so systems registered on `Update`, `PreUpdate`,
+/// `PostUpdate`, `Startup`, or `PostStartup` (`spawn_player`, loot table
+/// loading, column-view attachment, etc.) were silently inert. This test
+/// installs counter systems on each non-Fixed schedule and asserts they
+/// actually execute on each sub-app pump, with `Startup`-family schedules
+/// running exactly once across multiple pumps.
+#[test]
+fn dim_tick_runs_full_main_pipeline() {
+    use bevy_app::{First, Last, PostStartup, PostUpdate, PreStartup, PreUpdate, Startup, Update};
+
+    #[derive(Resource, Default, Debug, PartialEq, Eq)]
+    struct ScheduleHits {
+        pre_startup: u32,
+        startup: u32,
+        post_startup: u32,
+        first: u32,
+        pre_update: u32,
+        update: u32,
+        post_update: u32,
+        last: u32,
+    }
+
+    fn install_counters(sub_app: &mut bevy_app::SubApp) {
+        sub_app.init_resource::<ScheduleHits>();
+        sub_app.add_systems(PreStartup, |mut h: ResMut<ScheduleHits>| h.pre_startup += 1);
+        sub_app.add_systems(Startup, |mut h: ResMut<ScheduleHits>| h.startup += 1);
+        sub_app.add_systems(PostStartup, |mut h: ResMut<ScheduleHits>| h.post_startup += 1);
+        sub_app.add_systems(First, |mut h: ResMut<ScheduleHits>| h.first += 1);
+        sub_app.add_systems(PreUpdate, |mut h: ResMut<ScheduleHits>| h.pre_update += 1);
+        sub_app.add_systems(Update, |mut h: ResMut<ScheduleHits>| h.update += 1);
+        sub_app.add_systems(PostUpdate, |mut h: ResMut<ScheduleHits>| h.post_update += 1);
+        sub_app.add_systems(Last, |mut h: ResMut<ScheduleHits>| h.last += 1);
+    }
+
+    let mut app = harness::make_main_app();
+    let registries = gather_dim_registries(app.world());
+    let request = DimSpawnRequest {
+        dimension_id: DimensionId::new("test:overworld"),
+        type_config: DimensionTypeConfig::default(),
+        has_sky: true,
+    };
+    let label_entity = spawn_dim_subapp(&mut app, &request, &registries);
+
+    {
+        let sub_app = app
+            .sub_apps_mut()
+            .sub_apps
+            .iter_mut()
+            .find(|(label, _)| format!("{label:?}").contains(&format!("{label_entity:?}")))
+            .map(|(_, s)| s)
+            .expect("sub-app must exist for the spawned label");
+        install_counters(sub_app);
+    }
+
+    const PUMPS: u32 = 3;
+    for _ in 0..PUMPS {
+        app.update();
+    }
+
+    let sub_app = app
+        .sub_apps()
+        .sub_apps
+        .iter()
+        .find(|(label, _)| format!("{label:?}").contains(&format!("{label_entity:?}")))
+        .map(|(_, s)| s)
+        .expect("sub-app must exist");
+    let hits = sub_app
+        .world()
+        .get_resource::<ScheduleHits>()
+        .expect("counter resource must be present");
+
+    assert_eq!(hits.pre_startup, 1, "PreStartup must run exactly once");
+    assert_eq!(hits.startup, 1, "Startup must run exactly once");
+    assert_eq!(hits.post_startup, 1, "PostStartup must run exactly once");
+    assert_eq!(hits.first, PUMPS, "First must run on every pump");
+    assert_eq!(hits.pre_update, PUMPS, "PreUpdate must run on every pump");
+    assert_eq!(hits.update, PUMPS, "Update must run on every pump (covers spawn_player)");
+    assert_eq!(
+        hits.post_update, PUMPS,
+        "PostUpdate must run on every pump (covers despawn_disconnected_clients)"
+    );
+    assert_eq!(hits.last, PUMPS, "Last must run on every pump");
 }

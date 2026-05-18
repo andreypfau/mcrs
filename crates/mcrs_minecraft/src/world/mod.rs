@@ -1,4 +1,9 @@
 use crate::configuration::{LoadedDimensionTypes, LoadedWorldPreset};
+use crate::world::block::minecraft::MinecraftBlockPlugin;
+use crate::world::entity::MinecraftEntityPlugin;
+use crate::world::explosion::ExplosionPlugin;
+use crate::world::loot::LootPlugin;
+use mcrs_minecraft_block::block_update::BlockUpdatePlugin;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::OnEnter;
@@ -25,10 +30,27 @@ impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DimSpawnQueue>();
         app.init_resource::<DimDespawnQueue>();
-        // Per-dim plugins (DimensionPlugin, LightingPlugin, ChunkPlugin, BlockUpdatePlugin,
-        // MinecraftEntityPlugin, MinecraftBlockPlugin, ExplosionPlugin, LootPlugin) are
-        // registered inside each sub-app via `spawn_dim_subapp`. The host world holds no
-        // Dimension/Chunk/Block entities, so none of those plugins belong here.
+        // Per-dim plugins composed inside each sub-app via `spawn_dim_subapp`:
+        // `DimensionPlugin`, `LightingPlugin`, and `ChunkPlugin` (worldgen).
+        // Each of those is self-contained: it reads only the registries the
+        // sub-app receives in `DimRegistryBundle` and works against the sub-app
+        // World's `Dimension`/`Chunk`/`Column` entities.
+        //
+        // The other six "host-dead" simulation plugins (`BlockUpdatePlugin`,
+        // `MinecraftEntityPlugin`, `MinecraftBlockPlugin`, `ExplosionPlugin`,
+        // `LootPlugin`) stay host-side. Their systems read cross-cutting
+        // registries (`TagRegistry<Block>`, `StaticRegistry<EnchantmentData>`)
+        // or cross-plugin messages (`PlayerWillDestroyBlock`) that currently
+        // live only on the host. Hosting them per-dim requires either
+        // propagating those registries through `DimRegistryBundle` or
+        // splitting the systems across host and sub-app boundaries. That is a
+        // follow-up design task; rehosting them here preserves the
+        // pre-substrate-rewrite behaviour and prevents first-pump panics.
+        app.add_plugins(BlockUpdatePlugin);
+        app.add_plugins(MinecraftEntityPlugin);
+        app.add_plugins(MinecraftBlockPlugin);
+        app.add_plugins(ExplosionPlugin);
+        app.add_plugins(LootPlugin);
         app.add_observer(
             |trigger: On<Remove, DimSubAppHandle>, mut queue: ResMut<DimDespawnQueue>| {
                 queue.0.push(trigger.event().entity);

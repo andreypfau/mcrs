@@ -1,16 +1,33 @@
-use bevy_app::{App, FixedFirst, FixedLast, FixedPostUpdate, FixedPreUpdate, FixedUpdate, PluginsState, SubApp};
+use bevy_app::{
+    App, First, FixedFirst, FixedLast, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Last,
+    PluginsState, PostStartup, PostUpdate, PreStartup, PreUpdate, Startup, SubApp, Update,
+};
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel};
+use bevy_ecs::system::Local;
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
 use tracing::{debug, warn};
 
 /// Private driver schedule: Bevy's `SubApp::run_default_schedule` invokes only
 /// the single schedule pointed at by `update_schedule`. This schedule chains
-/// the full Fixed* pipeline so every per-dim plugin that registers systems in
-/// `FixedFirst`, `FixedPreUpdate`, `FixedUpdate`, `FixedPostUpdate`, or
-/// `FixedLast` gets executed exactly once per host pump.
+/// the same Bevy stock schedules that `Main` chains in a regular `App`, so
+/// every per-dim plugin runs the same systems it would in a single-app
+/// composition:
+///
+/// - Startup family (`PreStartup`, `Startup`, `PostStartup`) runs once on the
+///   first pump, guarded by an internal `Local<bool>`.
+/// - Each subsequent pump runs `First → PreUpdate → FixedFirst → FixedPreUpdate
+///   → FixedUpdate → FixedPostUpdate → FixedLast → Update → PostUpdate → Last`
+///   exactly once.
+///
+/// Two intentional differences from Bevy's stock `Main`:
+/// - No `RunFixedMainLoop` indirection. The host runner pumps each sub-app
+///   exactly once per host tick, so the Fixed* schedules run unconditionally
+///   each pump rather than being driven by accumulated `Time<Fixed>`. The host
+///   itself owns the fixed-timestep cadence; the sub-app mirrors it 1:1.
+/// - No `SpawnScene` (we do not depend on `bevy_scene`).
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
 use crate::world::block::minecraft::MinecraftBlockPlugin;
@@ -30,14 +47,6 @@ use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_vanilla::block::Block;
 
-/// Read-only data handed to each per-dimension sub-app at construction.
-///
-/// `registry_access` is an `Arc<Inner>` newtype, so the clone here is an
-/// atomic refcount bump. `block_light_table` is a `Box<[…]>`-backed slab that
-/// is computed once at world-freeze and copied per dim; the payload is bounded
-/// by `total_block_state_count`, which is in the low thousands. The static
-/// block registry stores `&'static Block` values; cloning it duplicates the
-/// `Vec`/`HashMap` spines but no block data.
 #[derive(Clone)]
 pub struct DimRegistryBundle {
     pub registry_access: RegistryAccess,
@@ -45,9 +54,6 @@ pub struct DimRegistryBundle {
     pub static_block_registry: StaticRegistry<Block>,
 }
 
-/// Collect the registry resources that every dim sub-app needs from the host
-/// world. Called once per drain cycle so a fresh snapshot of the host-side
-/// resources is available to every spawn request in that cycle.
 pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundle {
     DimRegistryBundle {
         registry_access: world.resource::<RegistryAccess>().clone(),
@@ -85,27 +91,48 @@ pub fn spawn_dim_subapp(
 
     sub_app.update_schedule = Some(DimTick.intern());
     sub_app.add_schedule(Schedule::new(DimTick));
+    sub_app.add_schedule(Schedule::new(First));
+    sub_app.add_schedule(Schedule::new(PreStartup));
+    sub_app.add_schedule(Schedule::new(Startup));
+    sub_app.add_schedule(Schedule::new(PostStartup));
+    sub_app.add_schedule(Schedule::new(PreUpdate));
     sub_app.add_schedule(Schedule::new(FixedFirst));
     sub_app.add_schedule(Schedule::new(FixedPreUpdate));
     sub_app.add_schedule(Schedule::new(FixedUpdate));
     sub_app.add_schedule(Schedule::new(FixedPostUpdate));
     sub_app.add_schedule(Schedule::new(FixedLast));
-    sub_app.add_systems(DimTick, |world: &mut World| {
-        world.run_schedule(FixedFirst);
-        world.run_schedule(FixedPreUpdate);
-        world.run_schedule(FixedUpdate);
-        world.run_schedule(FixedPostUpdate);
-        world.run_schedule(FixedLast);
-    });
+    sub_app.add_schedule(Schedule::new(Update));
+    sub_app.add_schedule(Schedule::new(PostUpdate));
+    sub_app.add_schedule(Schedule::new(Last));
+    sub_app.add_systems(
+        DimTick,
+        |world: &mut World, mut startup_done: Local<bool>| {
+            if !*startup_done {
+                world.run_schedule(PreStartup);
+                world.run_schedule(Startup);
+                world.run_schedule(PostStartup);
+                *startup_done = true;
+            }
+            world.run_schedule(First);
+            world.run_schedule(PreUpdate);
+            world.run_schedule(FixedFirst);
+            world.run_schedule(FixedPreUpdate);
+            world.run_schedule(FixedUpdate);
+            world.run_schedule(FixedPostUpdate);
+            world.run_schedule(FixedLast);
+            world.run_schedule(Update);
+            world.run_schedule(PostUpdate);
+            world.run_schedule(Last);
+        },
+    );
 
     sub_app.add_plugins(DimensionPlugin);
     sub_app.add_plugins(LightingPlugin);
     // AssetPlugin and AppTypeRegistry must precede any plugin that calls
-    // `init_asset` / `register_asset_loader`. Both `ChunkPlugin` (via its
-    // nested `NoiseGeneratorSettingsPlugin`) and `LootPlugin` register assets,
-    // so they must come after this block. `AppTypeRegistry` is initialised by
-    // `App::new` but not by `SubApp::new`, so the sub-app needs the explicit
-    // `init_resource` call.
+    // `init_asset` / `register_asset_loader`. `ChunkPlugin` (via its nested
+    // `NoiseGeneratorSettingsPlugin`) registers assets, so it must come after
+    // this block. `AppTypeRegistry` is initialised by `App::new` but not by
+    // `SubApp::new`, so the sub-app needs the explicit `init_resource` call.
     sub_app.init_resource::<bevy_ecs::reflect::AppTypeRegistry>();
     sub_app.add_plugins(AssetPlugin::default());
     // The worldgen `ChunkPlugin` (NoiseGeneratorSettings, ColumnScheduler, the
@@ -114,11 +141,12 @@ pub fn spawn_dim_subapp(
     // It is distinct from the engine-level `storage::chunk::ChunkPlugin` that
     // DimensionPlugin adds (which only contributes TicketPlugin).
     sub_app.add_plugins(crate::world::chunk::ChunkPlugin);
-    sub_app.add_plugins(BlockUpdatePlugin);
-    sub_app.add_plugins(MinecraftEntityPlugin);
-    sub_app.add_plugins(MinecraftBlockPlugin);
-    sub_app.add_plugins(ExplosionPlugin);
-    sub_app.add_plugins(LootPlugin);
+    // BlockUpdatePlugin, MinecraftBlockPlugin, ExplosionPlugin,
+    // MinecraftEntityPlugin, and LootPlugin all carry cross-cutting
+    // dependencies on host-side registries or messages
+    // (`TagRegistry<Block>`, `StaticRegistry<EnchantmentData>`,
+    // `PlayerWillDestroyBlock`, etc.). They run on the host until per-dim
+    // entity hosting is properly designed; see `WorldPlugin::build`.
 
     sub_app.insert_resource(registries.registry_access.clone());
     sub_app.insert_resource(registries.block_light_table.clone());
