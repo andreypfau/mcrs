@@ -57,12 +57,15 @@ impl Plugin for EventLoopPlugin {
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RunEventLoop;
 
+#[cfg_attr(
+    feature = "telemetry-tracy",
+    tracing::instrument(name = "network::process_received_packet", skip_all)
+)]
 fn run_event_loop(mut query: Query<(Entity, &mut ServerSideConnection)>, mut commands: Commands) {
     query.iter_mut().for_each(|(entity, mut conn)| {
         loop {
             match conn.try_recv() {
                 Ok(Some(pkt)) => {
-                    let _span = tracing::info_span!("process_received_packet").entered();
                     commands.trigger(ReceivedPacketEvent {
                         entity,
                         id: pkt.id,
