@@ -393,6 +393,10 @@ fn drain_channel_outbox<C: DrainChannel>(
 /// `Mutex`). Stage entries group by destination — column-walker (256
 /// wavefronts onto one neighbour) collapses to one `inbox.extend(..)` in
 /// the apply phase.
+#[cfg_attr(
+    feature = "telemetry-tracy",
+    tracing::instrument(name = "lighting::distribute_block", skip_all, fields(block_egress_count = tracing::field::Empty))
+)]
 pub fn distribute_block_wavefronts(
     mut block_sources: Query<
         (
@@ -418,9 +422,7 @@ pub fn distribute_block_wavefronts(
     }
 
     #[cfg(feature = "telemetry-tracy")]
-    let block_egress_count = block_sources.iter().count();
-    #[cfg(feature = "telemetry-tracy")]
-    let _span = tracing::info_span!("distribute_block", block_egress_count).entered();
+    tracing::Span::current().record("block_egress_count", block_sources.iter().count());
 
     drain_channel_outbox::<BlockChannel>(
         &mut block_sources,
@@ -454,6 +456,10 @@ pub fn distribute_block_wavefronts(
 
 /// Cross-chunk routing for the sky-light channel. See `distribute_block_wavefronts`
 /// for the parallelism + stage-grouping contract.
+#[cfg_attr(
+    feature = "telemetry-tracy",
+    tracing::instrument(name = "lighting::distribute_sky", skip_all, fields(sky_egress_count = tracing::field::Empty))
+)]
 pub fn distribute_sky_wavefronts(
     mut sky_sources: Query<
         (
@@ -479,9 +485,7 @@ pub fn distribute_sky_wavefronts(
     }
 
     #[cfg(feature = "telemetry-tracy")]
-    let sky_egress_count = sky_sources.iter().count();
-    #[cfg(feature = "telemetry-tracy")]
-    let _span = tracing::info_span!("distribute_sky", sky_egress_count).entered();
+    tracing::Span::current().record("sky_egress_count", sky_sources.iter().count());
 
     drain_channel_outbox::<SkyChannel>(
         &mut sky_sources,
