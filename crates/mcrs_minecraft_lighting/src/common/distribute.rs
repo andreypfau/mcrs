@@ -28,7 +28,7 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use crate::converge::PENDING_EGRESS_CAP;
-use crate::telemetry::{LIGHT_CROSS_DIM_VIOLATIONS_TOTAL, LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL};
+use crate::metrics::{LIGHT_CROSS_DIM_VIOLATIONS_TOTAL, LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL};
 use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::world::chunk::ChunkPos;
 use mcrs_engine::world::column::{
@@ -523,7 +523,7 @@ mod tests {
     use smallvec::SmallVec;
 
     use crate::converge::{LightConvergeSchedule, LightConvergeSet};
-    use crate::telemetry::TELEMETRY_TEST_LOCK;
+    use crate::metrics::TELEMETRY_TEST_LOCK;
 
     fn build_app() -> App {
         let mut app = App::new();
@@ -795,9 +795,9 @@ mod tests {
             si.set_loaded(0, chunk_a);
         }
 
-        let snap_before = crate::telemetry::snapshot();
+        let snap_before = crate::metrics::snapshot();
         app.update();
-        let snap_after = crate::telemetry::snapshot();
+        let snap_after = crate::metrics::snapshot();
 
         assert_eq!(
             snap_after.overflow - snap_before.overflow,
@@ -1001,9 +1001,9 @@ mod tests {
             outbox,
         );
 
-        let before = crate::telemetry::snapshot();
+        let before = crate::metrics::snapshot();
         app.update();
-        let after = crate::telemetry::snapshot();
+        let after = crate::metrics::snapshot();
 
         assert_eq!(after.cross_dim - before.cross_dim, 1);
         let inbox = app
