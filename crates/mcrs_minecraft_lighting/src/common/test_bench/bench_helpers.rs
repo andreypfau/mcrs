@@ -167,6 +167,36 @@ pub fn build_single_torch_app() -> App {
     app
 }
 
+/// Like `build_single_torch_app` but uses a single-section dimension
+/// (`min_y=0, height=16`) so the heightmap scan can finalize in the first
+/// tick. `build_single_torch_app` uses the full overworld height (24
+/// sections); with only one chunk loaded the scan hits an absent top section
+/// and returns `AbsentSection` every tick, preventing `BlockBfsPending` from
+/// ever being inserted and leaving `run_until_converged` with nothing to
+/// converge. This variant sizes the dimension to exactly one section so the
+/// single loaded chunk is both the top and bottom of the column.
+pub fn build_single_torch_app_single_section() -> App {
+    use mcrs_engine::world::dimension::{DimensionBundle, DimensionTypeConfig, DimensionId, HasSkyLight};
+
+    let mut app = App::new();
+    app.add_plugins(StatesPlugin);
+    app.init_state::<AppState>();
+    app.add_plugins(ColumnPlugin);
+    app.add_plugins(LightingPlugin);
+    app.insert_resource(make_stub_block_light_table_with_torch());
+    let dim = app
+        .world_mut()
+        .spawn(DimensionBundle {
+            type_config: DimensionTypeConfig::new(0, 16),
+            dimension_id: DimensionId::new("test:sky_single"),
+            ..Default::default()
+        })
+        .id();
+    app.world_mut().entity_mut(dim).insert(HasSkyLight);
+    spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), torch_palette_with_one_emitter());
+    app
+}
+
 pub fn build_tnt_chain_app() -> App {
     let mut app = App::new();
     app.add_plugins(StatesPlugin);
