@@ -17,7 +17,7 @@ pub mod plugin;
 // The canonical path going forward is `crate::common::*`.
 pub use common::{
     bfs, bitset, converge, distribute, emit_dirty, enqueue, geom, heightmap, heightmap_update,
-    lifecycle, propagate, table, telemetry,
+    lifecycle, propagate, table, metrics,
 };
 #[cfg(any(test, debug_assertions))]
 pub use common::invariants;
