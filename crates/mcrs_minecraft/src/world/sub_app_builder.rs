@@ -148,6 +148,10 @@ pub fn spawn_dim_subapp(
     sub_app.add_schedule(Schedule::new(Update));
     sub_app.add_schedule(Schedule::new(PostUpdate));
     sub_app.add_schedule(Schedule::new(Last));
+    #[cfg(feature = "telemetry-tracy")]
+    let dim_for_tick = request.dimension_id.0.clone();
+    #[cfg(feature = "telemetry-tracy")]
+    let dim_for_extract = request.dimension_id.0.clone();
     sub_app.add_systems(
         DimTick,
         |world: &mut World, mut startup_done: Local<bool>| {
