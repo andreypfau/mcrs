@@ -1,6 +1,6 @@
 //! Asserts each of the 11 span names from the telemetry migration appear when
 //! the relevant systems run for one tick, and that each captured span carries
-//! the expected per-site field set (TELEMETRY-04).
+//! the expected per-site field set.
 //!
 //! Tests in this file compile immediately but FAIL until the #[instrument]
 //! migrations land: until then the assertions report
@@ -121,9 +121,9 @@ fn assert_span_has_field(
 /// be loaded inside mcrs_telemetry's own integration tests. The assertions here
 /// serve as the compile-time contract. They will produce
 /// "expected span '<name>' but found 0 emissions" failures until the
-/// #[instrument] migrations land in the implementations (TELEMETRY-04).
+/// #[instrument] migrations land in the implementations.
 #[test]
-#[ignore = "requires TELEMETRY-04 instrument migrations to pass; \
+#[ignore = "requires the per-site #[instrument] migrations to land; \
             run with: cargo test -p mcrs_telemetry --features=telemetry-tracy \
             --test instrument_naming_convention -- --ignored"]
 fn instrument_naming_convention_lighting_and_world() {
