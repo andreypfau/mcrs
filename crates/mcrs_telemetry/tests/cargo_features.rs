@@ -3,7 +3,7 @@
 //! Asserts that the workspace root `Cargo.toml` does NOT enable
 //! `bevy_log/tracing-tracy` unconditionally. The check is intentionally
 //! skipped when `--features=telemetry-tracy` is active because under that
-//! flag the unconditional dependency pull is the expected path (TELEMETRY-01).
+//! flag the unconditional dependency pull is the expected path.
 
 #![cfg(not(feature = "telemetry-tracy"))]
 
@@ -23,8 +23,8 @@ fn workspace_manifest_does_not_unconditionally_enable_bevy_log_tracing_tracy() {
     for line in manifest.lines() {
         if line.contains("bevy_log") && line.contains("tracing-tracy") {
             panic!(
-                "workspace Cargo.toml MUST NOT enable bevy_log/tracing-tracy unconditionally \
-                 (TELEMETRY-01); offending line: {line}"
+                "workspace Cargo.toml must not enable bevy_log/tracing-tracy \
+                 unconditionally; offending line: {line}"
             );
         }
     }
