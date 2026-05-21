@@ -148,9 +148,15 @@ pub fn spawn_dim_subapp(
     sub_app.add_schedule(Schedule::new(Update));
     sub_app.add_schedule(Schedule::new(PostUpdate));
     sub_app.add_schedule(Schedule::new(Last));
+    #[cfg(feature = "telemetry-tracy")]
+    let dim_for_tick = request.dimension_id.0.clone();
+    #[cfg(feature = "telemetry-tracy")]
+    let dim_for_extract = request.dimension_id.0.clone();
     sub_app.add_systems(
         DimTick,
-        |world: &mut World, mut startup_done: Local<bool>| {
+        move |world: &mut World, mut startup_done: Local<bool>| {
+            #[cfg(feature = "telemetry-tracy")]
+            let _dim_span = tracing::info_span!("dim_tick", dim = %dim_for_tick).entered();
             if !*startup_done {
                 world.run_schedule(PreStartup);
                 world.run_schedule(Startup);
@@ -226,6 +232,8 @@ pub fn spawn_dim_subapp(
     // `dim_entity` (allocated further down) would silently break inbound
     // routing.
     sub_app.set_extract(move |main_world, sub_world| {
+        #[cfg(feature = "telemetry-tracy")]
+        let _dim_span = tracing::info_span!("dim_extract", dim = %dim_for_extract).entered();
         if let Some(time_fixed) = main_world.get_resource::<Time<Fixed>>() {
             sub_world.insert_resource(*time_fixed);
         }
