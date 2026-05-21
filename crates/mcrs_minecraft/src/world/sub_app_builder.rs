@@ -154,7 +154,9 @@ pub fn spawn_dim_subapp(
     let dim_for_extract = request.dimension_id.0.clone();
     sub_app.add_systems(
         DimTick,
-        |world: &mut World, mut startup_done: Local<bool>| {
+        move |world: &mut World, mut startup_done: Local<bool>| {
+            #[cfg(feature = "telemetry-tracy")]
+            let _dim_span = tracing::info_span!("dim_tick", dim = %dim_for_tick).entered();
             if !*startup_done {
                 world.run_schedule(PreStartup);
                 world.run_schedule(Startup);
