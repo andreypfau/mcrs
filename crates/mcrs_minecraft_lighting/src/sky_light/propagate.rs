@@ -66,9 +66,9 @@ pub fn propagate_decrease_sky_system(
     >,
     commands: ParallelCommands,
 ) {
-    #[cfg(feature = "lighting-trace")]
+    #[cfg(feature = "telemetry-tracy")]
     let chunk_count = chunks.iter().count();
-    #[cfg(feature = "lighting-trace")]
+    #[cfg(feature = "telemetry-tracy")]
     let _span = tracing::info_span!("propagate_decrease_sky", chunk_count = chunk_count).entered();
     chunks.par_iter_mut().for_each(
         |(entity, palette, mut light, mut queues, mut outbox, mut inbox)| {
@@ -79,7 +79,7 @@ pub fn propagate_decrease_sky_system(
                     cmd.entity(entity).insert(SkyOutboxDirty);
                 });
             }
-            #[cfg(feature = "lighting-trace")]
+            #[cfg(feature = "telemetry-tracy")]
             tracing::debug!(chunk = ?entity, queue_len = queues.decrease_queue.len(), "chunk bfs decrease sky");
         },
     );
@@ -101,9 +101,9 @@ pub fn propagate_increase_sky_system(
     >,
     commands: ParallelCommands,
 ) {
-    #[cfg(feature = "lighting-trace")]
+    #[cfg(feature = "telemetry-tracy")]
     let chunk_count = chunks.iter().count();
-    #[cfg(feature = "lighting-trace")]
+    #[cfg(feature = "telemetry-tracy")]
     let _span = tracing::info_span!("propagate_increase_sky", chunk_count = chunk_count).entered();
     chunks.par_iter_mut().for_each(
         |(entity, palette, mut light, mut queues, mut outbox, mut inbox, is_all_air)| {
@@ -152,7 +152,7 @@ pub fn propagate_increase_sky_system(
                     cmd.entity(entity).remove::<SkyBfsPending>();
                 });
             }
-            #[cfg(feature = "lighting-trace")]
+            #[cfg(feature = "telemetry-tracy")]
             tracing::debug!(chunk = ?entity, queue_len = queues.increase_queue.len(), "chunk bfs increase sky");
         },
     );

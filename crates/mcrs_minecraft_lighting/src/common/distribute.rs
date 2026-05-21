@@ -417,9 +417,9 @@ pub fn distribute_block_wavefronts(
         return;
     }
 
-    #[cfg(feature = "lighting-trace")]
+    #[cfg(feature = "telemetry-tracy")]
     let block_egress_count = block_sources.iter().count();
-    #[cfg(feature = "lighting-trace")]
+    #[cfg(feature = "telemetry-tracy")]
     let _span = tracing::info_span!("distribute_block", block_egress_count).entered();
 
     drain_channel_outbox::<BlockChannel>(
@@ -478,9 +478,9 @@ pub fn distribute_sky_wavefronts(
         return;
     }
 
-    #[cfg(feature = "lighting-trace")]
+    #[cfg(feature = "telemetry-tracy")]
     let sky_egress_count = sky_sources.iter().count();
-    #[cfg(feature = "lighting-trace")]
+    #[cfg(feature = "telemetry-tracy")]
     let _span = tracing::info_span!("distribute_sky", sky_egress_count).entered();
 
     drain_channel_outbox::<SkyChannel>(

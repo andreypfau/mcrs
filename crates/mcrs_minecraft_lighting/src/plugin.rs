@@ -26,22 +26,22 @@ use crate::sky_light::emit_dirty::{clear_sky_bfs_pending_safety_net, emit_sky_li
 use crate::sky_light::enqueue::{enqueue_sky_light_on_block_placed, pull_sky_neighbor_edges, seed_sky_initial};
 use crate::sky_light::propagate::{propagate_decrease_sky_system, propagate_increase_sky_system};
 
-#[cfg(feature = "lighting-trace")]
+#[cfg(feature = "telemetry-tracy")]
 fn span_lighting_enqueue() {
     let _span = tracing::info_span!("lighting::enqueue").entered();
 }
 
-#[cfg(feature = "lighting-trace")]
+#[cfg(feature = "telemetry-tracy")]
 fn span_lighting_converge() {
     let _span = tracing::info_span!("lighting::converge").entered();
 }
 
-#[cfg(feature = "lighting-trace")]
+#[cfg(feature = "telemetry-tracy")]
 fn span_lighting_emit_dirty() {
     let _span = tracing::info_span!("lighting::emit_dirty").entered();
 }
 
-#[cfg(feature = "lighting-trace")]
+#[cfg(feature = "telemetry-tracy")]
 fn span_lighting_codec() {
     let _span = tracing::info_span!("lighting::codec").entered();
 }
@@ -238,28 +238,28 @@ impl Plugin for LightingPlugin {
             emit_column_light_updates.in_set(LightingSet::Codec),
         );
 
-        #[cfg(feature = "lighting-trace")]
+        #[cfg(feature = "telemetry-tracy")]
         app.add_systems(
             FixedUpdate,
             span_lighting_enqueue
                 .in_set(LightingSet::Enqueue)
                 .before(seed_block_emitters),
         );
-        #[cfg(feature = "lighting-trace")]
+        #[cfg(feature = "telemetry-tracy")]
         app.add_systems(
             FixedUpdate,
             span_lighting_converge
                 .in_set(LightingSet::Converge)
                 .before(light_converge_driver),
         );
-        #[cfg(feature = "lighting-trace")]
+        #[cfg(feature = "telemetry-tracy")]
         app.add_systems(
             FixedUpdate,
             span_lighting_emit_dirty
                 .in_set(LightingSet::EmitDirty)
                 .before(downgrade_light_storage),
         );
-        #[cfg(feature = "lighting-trace")]
+        #[cfg(feature = "telemetry-tracy")]
         app.add_systems(
             FixedPostUpdate,
             span_lighting_codec

@@ -26,9 +26,9 @@ pub fn propagate_decrease_block_system(
     >,
     commands: ParallelCommands,
 ) {
-    #[cfg(feature = "lighting-trace")]
+    #[cfg(feature = "telemetry-tracy")]
     let chunk_count = chunks.iter().count();
-    #[cfg(feature = "lighting-trace")]
+    #[cfg(feature = "telemetry-tracy")]
     let _span = tracing::info_span!("propagate_decrease", chunk_count = chunk_count).entered();
     chunks.par_iter_mut().for_each(
         |(entity, palette, mut light, mut queues, mut outbox, mut inbox)| {
@@ -39,7 +39,7 @@ pub fn propagate_decrease_block_system(
                     cmd.entity(entity).insert(BlockOutboxDirty);
                 });
             }
-            #[cfg(feature = "lighting-trace")]
+            #[cfg(feature = "telemetry-tracy")]
             tracing::debug!(chunk = ?entity, queue_len = queues.decrease_queue.len(), "chunk bfs decrease block");
         },
     );
@@ -60,9 +60,9 @@ pub fn propagate_increase_block_system(
     >,
     commands: ParallelCommands,
 ) {
-    #[cfg(feature = "lighting-trace")]
+    #[cfg(feature = "telemetry-tracy")]
     let chunk_count = chunks.iter().count();
-    #[cfg(feature = "lighting-trace")]
+    #[cfg(feature = "telemetry-tracy")]
     let _span = tracing::info_span!("propagate_increase", chunk_count = chunk_count).entered();
     chunks.par_iter_mut().for_each(
         |(entity, palette, mut light, mut queues, mut outbox, mut inbox)| {
@@ -78,7 +78,7 @@ pub fn propagate_increase_block_system(
                     cmd.entity(entity).remove::<BlockBfsPending>();
                 });
             }
-            #[cfg(feature = "lighting-trace")]
+            #[cfg(feature = "telemetry-tracy")]
             tracing::debug!(chunk = ?entity, queue_len = queues.increase_queue.len(), "chunk bfs increase block");
         },
     );
