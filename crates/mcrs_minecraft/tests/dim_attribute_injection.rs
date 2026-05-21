@@ -18,8 +18,7 @@
 
 #![cfg(feature = "telemetry-tracy")]
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+mod common;
 
 use bevy_app::{App, TaskPoolPlugin, Update};
 use bevy_asset::AssetPlugin;
@@ -29,10 +28,11 @@ use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
-use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
-use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
-use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_engine::entity::ChunkEntities;
+use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
+use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig, InDimension};
+use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::bridge::partition_main_inbound;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
@@ -40,119 +40,16 @@ use mcrs_minecraft::world::bus::{
     PendingInboundLifecycle, PendingInboundPartition,
 };
 use mcrs_minecraft::world::player_index::PlayerIndex;
-use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_lighting::table::BlockStateLightTable;
-use tracing::subscriber::with_default;
-use tracing_subscriber::{layer::SubscriberExt, registry::LookupSpan, Registry};
+use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
+use mcrs_minecraft_lighting::test_bench::bench_helpers;
 use vanilla::block::Block;
 use vanilla::enchantment::EnchantmentData;
 
 #[allow(unused_imports)]
 use mcrs_vanilla as vanilla;
 
-#[derive(Default)]
-struct CapturedSpan {
-    name: String,
-    fields: HashMap<String, String>,
-    parent_dim: Option<String>,
-}
-
-struct FieldVisitor<'a>(&'a mut HashMap<String, String>);
-
-impl tracing::field::Visit for FieldVisitor<'_> {
-    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
-        self.0.insert(field.name().to_string(), value.to_string());
-    }
-
-    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
-        self.0.insert(field.name().to_string(), format!("{value:?}"));
-    }
-
-    fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
-        self.0.insert(field.name().to_string(), value.to_string());
-    }
-
-    fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
-        self.0.insert(field.name().to_string(), value.to_string());
-    }
-}
-
-struct RecordedFields {
-    fields: HashMap<String, String>,
-}
-
-struct DimCaptureLayer {
-    captures: Arc<Mutex<Vec<CapturedSpan>>>,
-}
-
-impl<S> tracing_subscriber::Layer<S> for DimCaptureLayer
-where
-    S: tracing::Subscriber + for<'a> LookupSpan<'a>,
-{
-    fn on_new_span(
-        &self,
-        attrs: &tracing::span::Attributes<'_>,
-        id: &tracing::span::Id,
-        ctx: tracing_subscriber::layer::Context<'_, S>,
-    ) {
-        let mut fields = HashMap::new();
-        attrs.record(&mut FieldVisitor(&mut fields));
-
-        // Store fields in extensions so descendant spans can read them.
-        if let Some(span_ref) = ctx.span(id) {
-            span_ref
-                .extensions_mut()
-                .insert(RecordedFields { fields: fields.clone() });
-        }
-
-        // Walk parent chain to find the nearest `dim` field.
-        let mut parent_dim: Option<String> = None;
-        if let Some(span_ref) = ctx.span(id) {
-            for parent in span_ref.scope().skip(1) {
-                if let Some(recorded) = parent.extensions().get::<RecordedFields>() {
-                    if let Some(dim_val) = recorded.fields.get("dim") {
-                        parent_dim = Some(dim_val.clone());
-                        break;
-                    }
-                }
-            }
-        }
-
-        self.captures.lock().unwrap().push(CapturedSpan {
-            name: attrs.metadata().name().to_string(),
-            fields,
-            parent_dim,
-        });
-    }
-
-    fn on_record(
-        &self,
-        id: &tracing::span::Id,
-        values: &tracing::span::Record<'_>,
-        ctx: tracing_subscriber::layer::Context<'_, S>,
-    ) {
-        if let Some(span_ref) = ctx.span(id) {
-            let mut ext = span_ref.extensions_mut();
-            if let Some(recorded) = ext.get_mut::<RecordedFields>() {
-                values.record(&mut FieldVisitor(&mut recorded.fields));
-            }
-        }
-    }
-}
-
-fn make_stub_block_light_table() -> BlockStateLightTable {
-    let state_count = 2usize;
-    let emission = vec![0u8; state_count].into_boxed_slice();
-    let dampening = vec![0u8; state_count].into_boxed_slice();
-    let occlusion: Box<[&'static VoxelShape]> =
-        vec![VoxelShape::empty(); state_count].into_boxed_slice();
-    let flags = vec![0u8; state_count].into_boxed_slice();
-    BlockStateLightTable {
-        emission,
-        dampening,
-        occlusion,
-        flags,
-    }
+fn make_stub_block_light_table() -> mcrs_minecraft_lighting::table::BlockStateLightTable {
+    bench_helpers::make_stub_block_light_table_with_torch()
 }
 
 fn build_app() -> App {
@@ -197,13 +94,20 @@ fn build_app() -> App {
     app
 }
 
+/// Use a single-section dimension so the heightmap scan finalises in tick 1.
+/// A multi-section dimension with only one chunk loaded leaves the top section
+/// absent, the scan returns early every tick, and lighting BFS work never starts.
+fn single_section_type_config() -> DimensionTypeConfig {
+    DimensionTypeConfig::new(0, 16)
+}
+
 fn enqueue_overworld(app: &mut App) {
     app.world_mut()
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
             dimension_id: DimensionId::new("test:overworld"),
-            type_config: DimensionTypeConfig::default(),
+            type_config: single_section_type_config(),
             has_sky: true,
         });
 }
@@ -214,7 +118,7 @@ fn enqueue_the_nether(app: &mut App) {
         .0
         .push(DimSpawnRequest {
             dimension_id: DimensionId::new("test:the_nether"),
-            type_config: DimensionTypeConfig::default(),
+            type_config: single_section_type_config(),
             has_sky: false,
         });
 }
@@ -225,6 +129,38 @@ fn drive_to_playing_and_spawn_subapps(app: &mut App) {
         .set(AppState::Playing);
     app.update();
     drain_dim_spawn_queue(app);
+}
+
+/// Collect all DimSubAppHandle label entities from the main world.
+fn label_entities(app: &mut App) -> Vec<bevy_ecs::entity::Entity> {
+    let mut q = app.world_mut().query::<(bevy_ecs::entity::Entity, &DimSubAppHandle)>();
+    q.iter(app.world()).map(|(e, _)| e).collect()
+}
+
+/// Seed a torch chunk in a SubApp world so the lighting lifecycle runs on the
+/// next tick under the dim_tick span. The SubApp world has its own isolated
+/// entity allocator; chunk entities created here are not visible in the main
+/// world and vice-versa.
+fn seed_chunk_in_subapp(app: &mut App, label: bevy_ecs::entity::Entity) {
+    let sub = app.sub_app_mut(DimAppLabel(label));
+    let sub_world = sub.world_mut();
+
+    // Find the dimension entity in the SubApp world.
+    let dim_entity = sub_world
+        .query_filtered::<bevy_ecs::entity::Entity, bevy_ecs::prelude::With<mcrs_engine::world::dimension::DimensionTypeConfig>>()
+        .iter(sub_world)
+        .next()
+        .expect("SubApp world must have a Dimension entity with DimensionTypeConfig");
+
+    let palette = bench_helpers::torch_palette_with_one_emitter();
+    sub_world.spawn((
+        InDimension(dim_entity),
+        ChunkPos::new(0, 0, 0),
+        ChunkEntities::default(),
+        Chunk,
+        ChunkLoaded,
+        palette,
+    ));
 }
 
 /// Asserts that dim-span pairs (`dim_extract` / `dim_tick`) fire for each
@@ -241,21 +177,29 @@ fn drive_to_playing_and_spawn_subapps(app: &mut App) {
 /// `#[instrument]` spans (like `lighting::*`) inherit `dim` normally.
 #[test]
 fn dim_span_pair_fires_and_lighting_inherits_dim_field() {
-    let captures: Arc<Mutex<Vec<CapturedSpan>>> = Arc::new(Mutex::new(Vec::new()));
-    let layer = DimCaptureLayer {
-        captures: captures.clone(),
-    };
-    let subscriber = Registry::default().with(layer);
+    common::install_global_capture();
+    let (_guard, buffer) = common::lock_and_clear();
 
-    with_default(subscriber, || {
-        let mut app = build_app();
-        enqueue_overworld(&mut app);
-        enqueue_the_nether(&mut app);
-        drive_to_playing_and_spawn_subapps(&mut app);
+    let mut app = build_app();
+    enqueue_overworld(&mut app);
+    enqueue_the_nether(&mut app);
+    drive_to_playing_and_spawn_subapps(&mut app);
+
+    // Seed a torch chunk into each SubApp world so lighting BFS work is
+    // queued on tick 1. With no loaded chunks the BFS never starts and
+    // no lighting::* spans are produced.
+    let labels = label_entities(&mut app);
+    for label in &labels {
+        seed_chunk_in_subapp(&mut app, *label);
+    }
+
+    // Pump enough ticks for: tick 1 — column lifecycle (reconcile → heightmap
+    // scan → seed → BFS pending), ticks 2-3 — BFS propagate + distribute.
+    for _ in 0..4 {
         app.update();
-    });
+    }
 
-    let captured = captures.lock().unwrap();
+    let captured = buffer.lock().unwrap();
 
     // (a) dim_extract fires for test:overworld
     assert!(

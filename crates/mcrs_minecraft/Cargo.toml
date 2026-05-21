@@ -48,6 +48,11 @@ aes = { version = "0.9.0-rc.2", optional = true }
 
 [dev-dependencies]
 tracing-subscriber = "0.3"
+tracing = { workspace = true }
+bevy_app = { workspace = true }
+bevy_ecs = { workspace = true }
+mcrs_minecraft_lighting = { workspace = true, features = ["bench-helpers"] }
+mcrs_engine = { workspace = true }
 
 [features]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]
