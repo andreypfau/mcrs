@@ -2,7 +2,7 @@ use bevy_ecs::prelude::*;
 use criterion::{criterion_group, criterion_main, Criterion};
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::components::SkyBfsPending;
-use mcrs_minecraft_lighting::telemetry::{snapshot, TELEMETRY_TEST_LOCK};
+use mcrs_minecraft_lighting::metrics::{snapshot, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
 use mcrs_protocol::BlockStateId;
 use std::time::{Duration, Instant};

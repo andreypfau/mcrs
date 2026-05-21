@@ -389,7 +389,7 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
         format!("{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{s:02}Z")
     };
 
-    let telemetry_iterations = mcrs_minecraft_lighting::telemetry::snapshot().iterations;
+    let telemetry_iterations = mcrs_minecraft_lighting::metrics::snapshot().iterations;
 
     #[cfg(feature = "profile-memory")]
     let (dhat_total_bytes, dhat_in_process_delta_pct) = {
