@@ -124,6 +124,7 @@ fn generate_section(
 /// Accepts a `CancellationToken` for cooperative cancellation. The token is checked
 /// between section generations; if cancelled, remaining sections return `None` while
 /// already-completed sections return `Some((blocks, biomes))`.
+#[cfg_attr(feature = "telemetry-tracy", tracing::instrument(name = "world::column_gen", skip_all))]
 pub fn generate_column(
     section_x: i32,
     section_z: i32,

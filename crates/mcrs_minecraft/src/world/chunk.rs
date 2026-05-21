@@ -668,7 +668,6 @@ fn dispatch_column_generation(
         // Spawn the generation task
         let task = task_pool.spawn(async move {
             let router = router.as_ref();
-            let _span = tracing::info_span!("ColumnGen").entered();
 
             let results = generate_column(col.x, col.z, &y_sections, router, &cancel_clone);
 
