@@ -14,6 +14,7 @@ mcrs_protocol.workspace = true
 mcrs_engine.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_vanilla.workspace = true
+mcrs_telemetry.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
@@ -22,7 +23,7 @@ dhat = { version = "0.3", optional = true }
 [features]
 test-bench = []
 bench-helpers = []
-lighting-trace = []
+telemetry-tracy = ["mcrs_telemetry/telemetry-tracy"]
 long-prop-tests = []
 profile-memory = ["dep:dhat"]
 

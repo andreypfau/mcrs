@@ -26,7 +26,7 @@ bevy_tasks = "0.18.0"
 bevy_utils = { version = "0.18.0", features = ["debug"] }
 bevy_asset = { version = "0.18.0", features = ["file_watcher"] }
 bevy_derive = "0.18.0"
-bevy_log = { version = "0.18.0", features = ["tracing-tracy"] }
+bevy_log = { version = "0.18.0" }
 bevy_reflect = "0.18.0"
 bevy_state = "0.18.0"
 
@@ -80,6 +80,7 @@ mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
 mcrs_random = { path = "crates/mcrs_random" }
 mcrs_minecraft_lighting = { path = "crates/mcrs_minecraft_lighting" }
+mcrs_telemetry = { path = "crates/mcrs_telemetry" }
 
 [dependencies]
 bevy_app.workspace = true
@@ -87,6 +88,12 @@ bevy_ecs.workspace = true
 bevy_log.workspace = true
 tokio = { version = "1", features = ["full"] }
 mcrs_minecraft.workspace = true
+mcrs_telemetry.workspace = true
+
+[features]
+telemetry = ["mcrs_minecraft/telemetry"]
+telemetry-tracy = ["mcrs_minecraft/telemetry-tracy"]
+telemetry-diagnostics = ["mcrs_minecraft/telemetry-diagnostics"]
 
 [profile.dev]
 opt-level = 0
