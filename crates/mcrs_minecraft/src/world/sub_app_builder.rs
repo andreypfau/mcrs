@@ -232,6 +232,8 @@ pub fn spawn_dim_subapp(
     // `dim_entity` (allocated further down) would silently break inbound
     // routing.
     sub_app.set_extract(move |main_world, sub_world| {
+        #[cfg(feature = "telemetry-tracy")]
+        let _dim_span = tracing::info_span!("dim_extract", dim = %dim_for_extract).entered();
         if let Some(time_fixed) = main_world.get_resource::<Time<Fixed>>() {
             sub_world.insert_resource(*time_fixed);
         }
