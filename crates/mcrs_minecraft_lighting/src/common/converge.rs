@@ -37,6 +37,10 @@ pub const HARD_BUDGET: Duration = Duration::from_millis(25);
 pub const SOFT_BUDGET: Duration = Duration::from_millis(10);
 pub const PENDING_EGRESS_CAP: usize = 256;
 
+#[cfg_attr(
+    feature = "telemetry-tracy",
+    tracing::instrument(name = "lighting::light_converge_driver", skip_all, fields(iter = tracing::field::Empty))
+)]
 pub fn light_converge_driver(world: &mut World) {
     // Budget the cascade against the driver's own start, not against the
     // global tick start. Upstream systems (worldgen, chunk reconcile,
@@ -48,8 +52,6 @@ pub fn light_converge_driver(world: &mut World) {
     // (`HARD_BUDGET`) and keeps the cap signal meaningful — it fires only
     // when the cascade itself is starved, not because the tick was busy.
     let driver_start = Instant::now();
-    #[cfg(feature = "telemetry-tracy")]
-    let _span = tracing::info_span!("light_converge_driver", iter = tracing::field::Empty).entered();
 
     // Pre-check: skip the entire `LightConvergeSchedule` when no chunk
     // is currently parked on either channel. The schedule's four stages
@@ -82,7 +84,7 @@ pub fn light_converge_driver(world: &mut World) {
 
         if !any_dirty {
             #[cfg(feature = "telemetry-tracy")]
-            _span.record("iter", iteration + 1);
+            tracing::Span::current().record("iter", iteration + 1);
             LIGHT_CONVERGE_ITERATIONS_TOTAL
                 .fetch_add(iteration as u64 + 1, Ordering::Relaxed);
             return;
@@ -91,7 +93,7 @@ pub fn light_converge_driver(world: &mut World) {
         let elapsed = Instant::now().duration_since(driver_start);
         if elapsed >= HARD_BUDGET {
             #[cfg(feature = "telemetry-tracy")]
-            _span.record("iter", iteration + 1);
+            tracing::Span::current().record("iter", iteration + 1);
             LIGHT_CONVERGE_ITERATIONS_TOTAL
                 .fetch_add(iteration as u64 + 1, Ordering::Relaxed);
             LIGHT_CONVERGE_CAPPED_TOTAL.fetch_add(1, Ordering::Relaxed);
@@ -112,7 +114,7 @@ pub fn light_converge_driver(world: &mut World) {
     }
 
     #[cfg(feature = "telemetry-tracy")]
-    _span.record("iter", MAX_ITERATIONS);
+    tracing::Span::current().record("iter", MAX_ITERATIONS);
     LIGHT_CONVERGE_ITERATIONS_TOTAL.fetch_add(MAX_ITERATIONS as u64, Ordering::Relaxed);
     LIGHT_CONVERGE_CAPPED_TOTAL.fetch_add(1, Ordering::Relaxed);
     tracing::warn!(iteration = MAX_ITERATIONS, "light converge hit MAX_ITERATIONS cap");
