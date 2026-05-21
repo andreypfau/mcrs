@@ -51,6 +51,10 @@ pub(crate) fn try_column_walker_fast_path(is_all_air: bool, queues: &SkyBfsQueue
     })
 }
 
+#[cfg_attr(
+    feature = "telemetry-tracy",
+    tracing::instrument(name = "lighting::propagate_decrease_sky", skip_all, fields(chunk_count = tracing::field::Empty))
+)]
 pub fn propagate_decrease_sky_system(
     table: Res<BlockStateLightTable>,
     mut chunks: Query<
@@ -67,9 +71,7 @@ pub fn propagate_decrease_sky_system(
     commands: ParallelCommands,
 ) {
     #[cfg(feature = "telemetry-tracy")]
-    let chunk_count = chunks.iter().count();
-    #[cfg(feature = "telemetry-tracy")]
-    let _span = tracing::info_span!("propagate_decrease_sky", chunk_count = chunk_count).entered();
+    tracing::Span::current().record("chunk_count", chunks.iter().count());
     chunks.par_iter_mut().for_each(
         |(entity, palette, mut light, mut queues, mut outbox, mut inbox)| {
             drain_incoming_into_queue(&mut inbox.0, &mut queues.increase_queue);
@@ -85,6 +87,10 @@ pub fn propagate_decrease_sky_system(
     );
 }
 
+#[cfg_attr(
+    feature = "telemetry-tracy",
+    tracing::instrument(name = "lighting::propagate_increase_sky", skip_all, fields(chunk_count = tracing::field::Empty))
+)]
 pub fn propagate_increase_sky_system(
     table: Res<BlockStateLightTable>,
     mut chunks: Query<
@@ -102,9 +108,7 @@ pub fn propagate_increase_sky_system(
     commands: ParallelCommands,
 ) {
     #[cfg(feature = "telemetry-tracy")]
-    let chunk_count = chunks.iter().count();
-    #[cfg(feature = "telemetry-tracy")]
-    let _span = tracing::info_span!("propagate_increase_sky", chunk_count = chunk_count).entered();
+    tracing::Span::current().record("chunk_count", chunks.iter().count());
     chunks.par_iter_mut().for_each(
         |(entity, palette, mut light, mut queues, mut outbox, mut inbox, is_all_air)| {
             drain_incoming_into_queue(&mut inbox.0, &mut queues.increase_queue);
