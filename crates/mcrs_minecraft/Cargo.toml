@@ -56,6 +56,9 @@ telemetry-tracy = [
   "mcrs_minecraft_lighting/telemetry-tracy",
   "mcrs_network/telemetry-tracy",
 ]
+# Diagnostics features stay confined to mcrs_telemetry because no other
+# crate currently registers diagnostic plugins. Add propagation lines
+# here when individual crates start exposing their own histograms.
 telemetry-diagnostics = ["mcrs_telemetry/telemetry-diagnostics"]
 
 
