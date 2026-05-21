@@ -9,6 +9,10 @@ bevy_app.workspace = true
 bevy_log.workspace = true
 bevy_diagnostic = { version = "0.18.0", optional = true }
 
+[dev-dependencies]
+tracing-test = "0.2"
+tracing-subscriber = "0.3"
+
 [features]
 default = []
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]
