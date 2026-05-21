@@ -2005,6 +2005,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -2154,6 +2155,8 @@ dependencies = [
  "bevy_app",
  "bevy_diagnostic",
  "bevy_log",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
