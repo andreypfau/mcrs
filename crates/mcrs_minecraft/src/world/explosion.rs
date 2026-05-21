@@ -5,7 +5,7 @@ use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::{ContainsEntity, Entity};
 use bevy_ecs::query::With;
-use bevy_ecs::system::{Local, Query};
+use bevy_ecs::system::{Local, Query, Res};
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos};
@@ -21,7 +21,45 @@ pub struct ExplosionPlugin;
 
 impl Plugin for ExplosionPlugin {
     fn build(&self, app: &mut App) {
+        app.init_resource::<ExplosionConfig>();
         app.add_systems(FixedUpdate, tick_explode);
+    }
+}
+
+/// Runtime configuration for `ExplosionPlugin`.
+///
+/// `cascading_enabled` gates whether `tick_explode` emits `BlockSetRequest`
+/// messages that drive the cascading-TNT mechanic (a primary detonation
+/// removing adjacent TNT blocks, triggering them in turn).
+///
+/// Default: `false`. `ExplosionPlugin` runs in each `DimSubApp`, so
+/// `MessageWriter<BlockSetRequest>` writes land in the **sub-app's**
+/// `Messages<BlockSetRequest>` buffer. The reader that applies set-block
+/// requests (`apply_set_block_request` in `BlockUpdatePlugin`) currently lives
+/// on the host main-world, so those writes never reach a reader — they rotate
+/// out of the double-buffer after two frames. Leaving cascading enabled in
+/// this state would mean «primary TNT detonates, secondary TNT silently does
+/// not» — an exploitable PvP regression masquerading as working mechanics.
+///
+/// With this flag off, `tick_explode` still triggers `BlockExplodedEvent`
+/// observers (so the entity-level explosion completes), but it does not write
+/// `BlockSetRequest` — the cascade is explicitly disabled rather than silently
+/// dropped. Once `BlockUpdatePlugin` migrates per-dim, the reader lives in
+/// the same world as the writer and this flag flips to `true` (either by
+/// changing the default or by inserting the resource at server start with
+/// `cascading_enabled: true`).
+///
+/// Status: temporary mitigation pending per-dim `BlockUpdatePlugin` migration.
+#[derive(bevy_ecs::resource::Resource, Debug, Clone, Copy)]
+pub struct ExplosionConfig {
+    pub cascading_enabled: bool,
+}
+
+impl Default for ExplosionConfig {
+    fn default() -> Self {
+        Self {
+            cascading_enabled: false,
+        }
     }
 }
 
@@ -114,6 +152,7 @@ type ChunkEntity = Entity;
 type DimEntity = Entity;
 
 fn tick_explode(
+    config: Res<ExplosionConfig>,
     mut explosions: Query<
         (
             ExplosionEntity,
@@ -146,7 +185,6 @@ fn tick_explode(
                 chunks: &chunks,
             };
 
-            let _span = tracing::info_span!("tick_explode::calc_blocks").entered();
             let blocks = calc_blocks(
                 dim,
                 center,
@@ -156,29 +194,29 @@ fn tick_explode(
                 detonator.map(|d| d.entity()),
                 &mut cache,
             );
-            drop(_span);
             q.push((e, blocks));
         },
     );
 
-    let _span = tracing::info_span!("tick_explode::deduplicate blocks").entered();
-    let mut event_set = FxHashSet::<BlockExplodedEvent>::default();
-    for (explosion, events) in queue.drain() {
-        commands.entity(explosion).despawn();
-        for event in events {
-            event_set.insert(event);
-        }
-    }
-    drop(_span);
+    let mut event_set = deduplicate_blocks(&mut *queue, &mut commands);
 
-    writer.write_batch(event_set.drain().map(|event| {
+    let cascading_enabled = config.cascading_enabled;
+    writer.write_batch(event_set.drain().filter_map(|event| {
         let dim = event.dimension;
         let block_pos = event.block_pos;
         commands.trigger(event);
-        BlockSetRequest::remove_block(dim, block_pos)
+        if cascading_enabled {
+            Some(BlockSetRequest::remove_block(dim, block_pos))
+        } else {
+            None
+        }
     }));
 }
 
+#[cfg_attr(
+    feature = "telemetry-tracy",
+    tracing::instrument(name = "world::tick_explode::calc_blocks", skip_all)
+)]
 fn calc_blocks<R>(
     dimension: DimEntity,
     center: DVec3,
@@ -236,6 +274,24 @@ where
     ret
 }
 
+#[cfg_attr(
+    feature = "telemetry-tracy",
+    tracing::instrument(name = "world::tick_explode::deduplicate_blocks", skip_all)
+)]
+fn deduplicate_blocks(
+    queue: &mut Parallel<Vec<(ExplosionEntity, Vec<BlockExplodedEvent>)>>,
+    commands: &mut Commands,
+) -> FxHashSet<BlockExplodedEvent> {
+    let mut event_set = FxHashSet::<BlockExplodedEvent>::default();
+    for (explosion, events) in queue.drain() {
+        commands.entity(explosion).despawn();
+        for event in events {
+            event_set.insert(event);
+        }
+    }
+    event_set
+}
+
 use crate::world::block::minecraft::AIR;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
 use crate::world::entity::explosive::primed_tnt::Detonator;
@@ -286,4 +342,89 @@ pub fn cached_rays() -> &'static [DVec3; LEN] {
         // SAFETY: все элементы [0..LEN) записаны ровно один раз.
         unsafe { std::mem::transmute::<[MaybeUninit<DVec3>; LEN], [DVec3; LEN]>(out) }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_app::App;
+    use bevy_ecs::message::Messages;
+    use bevy_ecs::system::System;
+    use mcrs_minecraft_block::block_update::BlockSetRequest;
+
+    /// `ExplosionConfig::default()` must keep cascading OFF so trunk reflects the
+    /// honest «mechanic disabled» state until `BlockUpdatePlugin` migrates
+    /// per-dim and restores the cross-boundary read path.
+    #[test]
+    fn explosion_config_defaults_to_cascading_disabled() {
+        let cfg = ExplosionConfig::default();
+        assert!(
+            !cfg.cascading_enabled,
+            "ExplosionConfig must default to cascading disabled"
+        );
+    }
+
+    /// Wiring smoke test: building an app with `ExplosionPlugin` registers
+    /// both the config and the `BlockSetRequest` message buffer (the latter is
+    /// added by the plugin's reliance on `MessageWriter<BlockSetRequest>`).
+    #[test]
+    fn explosion_plugin_registers_config_with_cascading_disabled() {
+        let mut app = App::new();
+        app.add_message::<BlockSetRequest>();
+        app.add_plugins(ExplosionPlugin);
+
+        let cfg = app
+            .world()
+            .get_resource::<ExplosionConfig>()
+            .expect("ExplosionPlugin must register ExplosionConfig");
+        assert!(
+            !cfg.cascading_enabled,
+            "ExplosionPlugin must register ExplosionConfig with cascading disabled"
+        );
+    }
+
+    /// With cascading disabled, running `tick_explode` against an empty world
+    /// (no `Explosion` entities) drains nothing into `Messages<BlockSetRequest>`.
+    /// Negative-path smoke test that the system does not panic on an empty
+    /// world and the buffer stays clean.
+    #[test]
+    fn tick_explode_with_empty_world_writes_no_block_set_requests() {
+        let mut app = App::new();
+        app.add_message::<BlockSetRequest>();
+        app.add_plugins(ExplosionPlugin);
+
+        // Drive the FixedUpdate schedule once via the manual-system pattern
+        // used in `bridge.rs` tests — avoids the FixedMain time-accumulator
+        // dance and keeps the test focused on what `tick_explode` does with
+        // an empty event set under `cascading_enabled = false`.
+        let world = app.world_mut();
+        let mut sys = bevy_ecs::system::IntoSystem::into_system(tick_explode);
+        sys.initialize(world);
+        let _ = sys.run((), world);
+        sys.apply_deferred(world);
+
+        let msgs = app.world().resource::<Messages<BlockSetRequest>>();
+        assert!(
+            msgs.is_empty(),
+            "with no explosions in the world, tick_explode must not write any BlockSetRequest \
+             (cascading is off by default, and an empty event set should produce zero writes)"
+        );
+    }
+
+    /// Flipping `cascading_enabled` to `true` is the path to restore cascading
+    /// once `BlockUpdatePlugin` migrates per-dim. The resource is `Clone + Copy`,
+    /// so a single `world.insert_resource` swap is the entire operator-side surface.
+    #[test]
+    fn explosion_config_can_be_flipped_at_runtime() {
+        let mut app = App::new();
+        app.add_message::<BlockSetRequest>();
+        app.add_plugins(ExplosionPlugin);
+
+        app.world_mut().insert_resource(ExplosionConfig {
+            cascading_enabled: true,
+        });
+
+        let cfg = app.world().resource::<ExplosionConfig>();
+        assert!(cfg.cascading_enabled, "runtime flip to enabled must stick");
+    }
 }
