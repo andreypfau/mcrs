@@ -1,6 +1,6 @@
 //! Asserts that dim-span pairs fire for each spawned dimension and that
 //! descendant `lighting::*` spans inherit the `dim` field through the
-//! tracing parent chain (TELEMETRY-05).
+//! tracing parent chain.
 //!
 //! Tests in this file compile immediately but FAIL until the dim-span
 //! injection is wired in the production SubApp builder — assertions will
@@ -229,7 +229,7 @@ fn drive_to_playing_and_spawn_subapps(app: &mut App) {
 
 /// Asserts that dim-span pairs (`dim_extract` / `dim_tick`) fire for each
 /// spawned dimension, and that descendant `lighting::*` spans carry the
-/// `dim` field through the tracing parent chain (TELEMETRY-05).
+/// `dim` field through the tracing parent chain.
 ///
 /// Uses the production `drain_dim_spawn_queue` entry-point — NOT a custom
 /// `set_extract` call — to ensure the bus shuttle closure is preserved
