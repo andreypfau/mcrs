@@ -8,13 +8,42 @@
 //! fixture, and asserts against the drained buffer. The lock is held across
 //! the entire observation window to prevent interleaved captures from
 //! concurrent test runs.
+//!
+//! `parent_dim` detection uses a thread-local stack rather than the registry
+//! parent chain. Bevy system spans are created with `parent: None`, which
+//! severs the registry ancestry from outer dim spans. The thread-local stack
+//! tracks the active `dim` value across the call stack independently of how
+//! the registry wires span parents.
 
 #![cfg(feature = "telemetry-tracy")]
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use tracing_subscriber::{layer::SubscriberExt, registry::LookupSpan};
+
+// ── thread-local dim context stack ──────────────────────────────────────────
+
+thread_local! {
+    /// Stack of `dim` field values from spans currently entered on this thread.
+    /// Spans with `parent: None` (e.g. Bevy system spans) sever the registry
+    /// parent chain, so we maintain a separate stack to track the active dim
+    /// across the full call depth.
+    static ACTIVE_DIM_STACK: RefCell<Vec<String>> = RefCell::new(Vec::new());
+}
+
+fn push_active_dim(dim: String) {
+    ACTIVE_DIM_STACK.with(|s| s.borrow_mut().push(dim));
+}
+
+fn pop_active_dim() {
+    ACTIVE_DIM_STACK.with(|s| { s.borrow_mut().pop(); });
+}
+
+fn current_dim() -> Option<String> {
+    ACTIVE_DIM_STACK.with(|s| s.borrow().last().cloned())
+}
 
 // ── captured-span type ───────────────────────────────────────────────────────
 
@@ -24,7 +53,8 @@ pub struct CapturedSpan {
     pub fields: HashMap<String, String>,
     /// Field names declared in the span's metadata (includes `Empty` fields).
     pub declared_fields: Vec<String>,
-    /// Nearest ancestor span that carried a `dim` field, if any.
+    /// The `dim` field value from the nearest active dim-span on the thread
+    /// at the time this span was created, if any.
     pub parent_dim: Option<String>,
 }
 
@@ -88,17 +118,11 @@ where
                 .insert(RecordedFields { fields: fields.clone() });
         }
 
-        let mut parent_dim: Option<String> = None;
-        if let Some(span_ref) = ctx.span(id) {
-            for parent in span_ref.scope().skip(1) {
-                if let Some(recorded) = parent.extensions().get::<RecordedFields>() {
-                    if let Some(dim_val) = recorded.fields.get("dim") {
-                        parent_dim = Some(dim_val.clone());
-                        break;
-                    }
-                }
-            }
-        }
+        // Use the thread-local dim stack rather than the registry parent chain.
+        // Bevy system spans use `parent: None`, severing the registry ancestry
+        // from outer dim-tick/dim-extract spans. The thread-local stack tracks
+        // the active dim value across the full call depth regardless.
+        let parent_dim = fields.get("dim").cloned().or_else(current_dim);
 
         self.buffer
             .lock()
@@ -112,6 +136,21 @@ where
     }
 
     fn on_enter(&self, id: &tracing::span::Id, ctx: tracing_subscriber::layer::Context<'_, S>) {
+        // If this span carries a `dim` field, push it onto the thread-local
+        // stack so descendant spans can inherit it even across `parent: None`
+        // boundaries (e.g. Bevy system spans).
+        if let Some(span_ref) = ctx.span(id) {
+            let ext = span_ref.extensions();
+            if let Some(recorded) = ext.get::<RecordedFields>() {
+                if let Some(dim_val) = recorded.fields.get("dim").cloned() {
+                    push_active_dim(dim_val);
+                    return;
+                }
+            }
+        }
+
+        // Span has no `dim` field — capture it in the buffer for completeness
+        // (mimics the previous on_enter behavior for non-dim spans).
         if let Some(span_ref) = ctx.span(id) {
             let name = span_ref.name().to_string();
             let declared_fields = span_ref
@@ -126,12 +165,7 @@ where
                     .get::<RecordedFields>()
                     .map(|r| r.fields.clone())
                     .unwrap_or_default();
-                let parent_dim = span_ref.scope().skip(1).find_map(|parent| {
-                    parent
-                        .extensions()
-                        .get::<RecordedFields>()
-                        .and_then(|r| r.fields.get("dim").cloned())
-                });
+                let parent_dim = current_dim();
                 (fields, parent_dim)
             };
             self.buffer
@@ -143,6 +177,18 @@ where
                     declared_fields,
                     parent_dim,
                 });
+        }
+    }
+
+    fn on_exit(&self, id: &tracing::span::Id, ctx: tracing_subscriber::layer::Context<'_, S>) {
+        // If this span pushed a `dim` onto the stack, pop it on exit.
+        if let Some(span_ref) = ctx.span(id) {
+            let ext = span_ref.extensions();
+            if let Some(recorded) = ext.get::<RecordedFields>() {
+                if recorded.fields.contains_key("dim") {
+                    pop_active_dim();
+                }
+            }
         }
     }
 
@@ -175,12 +221,7 @@ where
                 .get::<RecordedFields>()
                 .map(|r| r.fields.clone())
                 .unwrap_or_default();
-            let parent_dim = span_ref.scope().skip(1).find_map(|parent| {
-                parent
-                    .extensions()
-                    .get::<RecordedFields>()
-                    .and_then(|r| r.fields.get("dim").cloned())
-            });
+            let parent_dim = current_dim();
             self.buffer
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
