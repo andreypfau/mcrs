@@ -1,6 +1,6 @@
 use bevy_app::{App, TaskPoolOptions, TaskPoolPlugin};
 use criterion::{criterion_group, criterion_main, Criterion};
-use mcrs_minecraft_lighting::telemetry::{snapshot, TELEMETRY_TEST_LOCK};
+use mcrs_minecraft_lighting::metrics::{snapshot, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
 use std::time::{Duration, Instant};
 

@@ -16,7 +16,7 @@ use mcrs_engine::world::column::ColumnLifecycleSet;
 use mcrs_minecraft_lighting::components::{BlockBfsPending, SkyBfsPending};
 use mcrs_minecraft_block::block_update::BlockUpdateSet;
 use mcrs_minecraft_lighting::sets::LightingSet;
-use mcrs_minecraft_lighting::telemetry::snapshot as lighting_snapshot;
+use mcrs_minecraft_lighting::metrics::snapshot as lighting_snapshot;
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};

@@ -32,7 +32,7 @@ use mcrs_engine::world::dimension::{
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyBfsPending, SkyLight};
 use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
-use mcrs_minecraft_lighting::telemetry::{snapshot, TELEMETRY_TEST_LOCK};
+use mcrs_minecraft_lighting::metrics::{snapshot, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_protocol::BlockStateId;
 

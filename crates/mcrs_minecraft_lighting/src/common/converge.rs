@@ -19,7 +19,7 @@ use bevy_ecs::schedule::ScheduleLabel;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use crate::{BlockBfsPending, SkyBfsPending};
-use crate::telemetry::{LIGHT_CONVERGE_CAPPED_TOTAL, LIGHT_CONVERGE_ITERATIONS_TOTAL};
+use crate::metrics::{LIGHT_CONVERGE_CAPPED_TOTAL, LIGHT_CONVERGE_ITERATIONS_TOTAL};
 
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LightConvergeSchedule;
@@ -121,7 +121,7 @@ pub fn light_converge_driver(world: &mut World) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::telemetry::TELEMETRY_TEST_LOCK;
+    use crate::metrics::TELEMETRY_TEST_LOCK;
     use bevy_app::App;
     use bevy_ecs::schedule::Schedule;
 
@@ -183,9 +183,9 @@ mod tests {
 
         let _chunk = app.world_mut().spawn(BlockBfsPending).id();
 
-        let before = crate::telemetry::snapshot();
+        let before = crate::metrics::snapshot();
         light_converge_driver(app.world_mut());
-        let after = crate::telemetry::snapshot();
+        let after = crate::metrics::snapshot();
 
         assert_eq!(
             after.iterations - before.iterations,
@@ -216,9 +216,9 @@ mod tests {
 
         let _chunk = app.world_mut().spawn(BlockBfsPending).id();
 
-        let before = crate::telemetry::snapshot();
+        let before = crate::metrics::snapshot();
         light_converge_driver(app.world_mut());
-        let after = crate::telemetry::snapshot();
+        let after = crate::metrics::snapshot();
 
         assert_eq!(
             after.iterations - before.iterations,
@@ -258,9 +258,9 @@ mod tests {
 
         let _chunk = app.world_mut().spawn(BlockBfsPending).id();
 
-        let before = crate::telemetry::snapshot();
+        let before = crate::metrics::snapshot();
         light_converge_driver(app.world_mut());
-        let after = crate::telemetry::snapshot();
+        let after = crate::metrics::snapshot();
 
         // The schedule body sleeps 30 ms before re-inserting BlockBfsPending.
         // After the first run_schedule the driver observes elapsed >=
@@ -292,9 +292,9 @@ mod tests {
             s
         });
         let _ = app1.world_mut().spawn(BlockBfsPending).id();
-        let b1 = crate::telemetry::snapshot();
+        let b1 = crate::metrics::snapshot();
         light_converge_driver(app1.world_mut());
-        let a1 = crate::telemetry::snapshot();
+        let a1 = crate::metrics::snapshot();
         assert_eq!(a1.iterations - b1.iterations, 1);
         assert_eq!(a1.capped - b1.capped, 0);
 
@@ -305,9 +305,9 @@ mod tests {
             s
         });
         let _ = app2.world_mut().spawn(BlockBfsPending).id();
-        let b2 = crate::telemetry::snapshot();
+        let b2 = crate::metrics::snapshot();
         light_converge_driver(app2.world_mut());
-        let a2 = crate::telemetry::snapshot();
+        let a2 = crate::metrics::snapshot();
         assert_eq!(a2.iterations - b2.iterations, MAX_ITERATIONS as u64);
         assert_eq!(a2.capped - b2.capped, 1);
     }
@@ -344,9 +344,9 @@ mod tests {
             schedule
         });
         let _ = app_block.world_mut().spawn(BlockBfsPending).id();
-        let b_before = crate::telemetry::snapshot();
+        let b_before = crate::metrics::snapshot();
         light_converge_driver(app_block.world_mut());
-        let b_after = crate::telemetry::snapshot();
+        let b_after = crate::metrics::snapshot();
         assert_eq!(
             b_after.iterations - b_before.iterations,
             1,
@@ -367,9 +367,9 @@ mod tests {
             schedule
         });
         let _ = app_sky.world_mut().spawn(SkyBfsPending).id();
-        let s_before = crate::telemetry::snapshot();
+        let s_before = crate::metrics::snapshot();
         light_converge_driver(app_sky.world_mut());
-        let s_after = crate::telemetry::snapshot();
+        let s_after = crate::metrics::snapshot();
         assert_eq!(
             s_after.iterations - s_before.iterations,
             1,

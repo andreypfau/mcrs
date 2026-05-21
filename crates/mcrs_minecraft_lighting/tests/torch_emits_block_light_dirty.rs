@@ -33,7 +33,7 @@ use mcrs_minecraft_block::block_update::{BlockSetRequest, BlockUpdatePlugin};
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::codec::BlockLightDirty;
 use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
-use mcrs_minecraft_lighting::telemetry::TELEMETRY_TEST_LOCK;
+use mcrs_minecraft_lighting::metrics::TELEMETRY_TEST_LOCK;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_protocol::BlockStateId;
 

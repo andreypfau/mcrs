@@ -12,7 +12,7 @@ pub mod invariants;
 pub mod lifecycle;
 pub mod propagate;
 pub mod table;
-pub mod telemetry;
+pub mod metrics;
 
 #[cfg(any(feature = "test-bench", feature = "bench-helpers"))]
 pub mod test_bench;
