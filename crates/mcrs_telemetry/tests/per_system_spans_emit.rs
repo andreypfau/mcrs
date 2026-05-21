@@ -2,7 +2,7 @@
 //!
 //! `bevy_ecs/trace` is enabled workspace-wide, so Bevy emits a `"system"` span
 //! for every system invocation. This test verifies that span actually reaches a
-//! per-test subscriber — covering TELEMETRY-03.
+//! per-test subscriber.
 
 #![cfg(feature = "telemetry-tracy")]
 
