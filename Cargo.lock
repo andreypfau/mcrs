@@ -362,6 +362,7 @@ dependencies = [
  "bevy_time",
  "const-fnv1a-hash",
  "log",
+ "serde",
 ]
 
 [[package]]
@@ -1886,6 +1887,7 @@ dependencies = [
  "bevy_ecs",
  "bevy_log",
  "mcrs_minecraft",
+ "mcrs_telemetry",
  "tokio",
 ]
 
@@ -1990,6 +1992,7 @@ dependencies = [
  "mcrs_nbt",
  "mcrs_network",
  "mcrs_protocol",
+ "mcrs_telemetry",
  "mcrs_vanilla",
  "num-integer",
  "paste",
@@ -2037,6 +2040,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_worldgen",
  "mcrs_protocol",
+ "mcrs_telemetry",
  "mcrs_vanilla",
  "proptest",
  "rand 0.9.2",
@@ -2087,6 +2091,7 @@ dependencies = [
  "bytes",
  "log",
  "mcrs_protocol",
+ "mcrs_telemetry",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
@@ -2140,6 +2145,15 @@ dependencies = [
  "bevy_math",
  "md-5",
  "rand_xoshiro",
+]
+
+[[package]]
+name = "mcrs_telemetry"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_diagnostic",
+ "bevy_log",
 ]
 
 [[package]]
