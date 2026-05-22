@@ -7,6 +7,7 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{ContainsEntity, On};
+use bevy_ecs::query::With;
 use bevy_ecs::system::Query;
 use derive_more::{Deref, DerefMut};
 use mcrs_engine::entity::physics::{OldTransform, Transform};
@@ -118,15 +119,16 @@ impl Into<i32> for NetworkEntityId {
 /// in `entity/player/movement.rs` and `entity/player/player_action.rs`.
 pub fn entity_pos_sync(
     event: On<EntityNetworkSyncEvent>,
-    entity_data: Query<(&Transform, &OldTransform)>,
+    // The `With<OldTransform>` filter encodes the gating invariant in
+    // the type system: this observer must only fire on entities that
+    // carry both transform components. The actual delta computation
+    // moves to the bridge tier where per-player wire state lives.
+    entity_data: Query<&Transform, With<OldTransform>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let Ok((&transform, _old_transform)) = entity_data.get(event.entity) else {
+    let Ok(transform) = entity_data.get(event.entity) else {
         return;
     };
-    // `OldTransform` is still queried so this observer remains gated on
-    // the same component shape as before; the actual delta computation
-    // moves to the bridge tier where per-player wire state lives.
     let on_ground = true;
     packet_writer.write(OutboundPlayerPacket {
         target: PacketTarget::SinglePlayer(event.player),
