@@ -92,6 +92,8 @@ pub struct PlayerBundle {
     pub container_seqno: ContainerSeqno,
     pub game_mode: PlayerGameMode,
     pub op_level: PlayerOpLevel,
+    pub chunk_subscription_set: crate::world::aoi::ChunkSubscriptionSet,
+    pub tracked_by: crate::world::aoi::TrackedBy,
     pub marker: Player,
 }
 
