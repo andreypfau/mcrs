@@ -204,6 +204,16 @@ const MAX_COL_SENDS_PER_TICK: usize = 10;
 /// more chunks this tick and let the writer task drain first.
 const CHUNK_BACKPRESSURE_BYTES: usize = 2 * 1024 * 1024;
 
+/// Chunk-load wire emit (direct-write path). The AoI substrate at
+/// `aoi::update_own_pov` emits a sibling `PacketPayload::ChunkLoad { column }`
+/// with `PacketPriority::Critical` as the metadata-marker carrying the
+/// boundary-crossing signal through the cross-`World` bus; this function
+/// writes the actual `ClientboundLevelChunkWithLight` wire payload directly
+/// to the per-player `ServerSideConnection`. The two are intentionally
+/// independent: the AoI marker proves the boundary crossing happened, the
+/// direct-write path delivers the rich payload. A later layer rebinds the
+/// wire payload through the bus when the codec stack migrates into the
+/// bridge tier.
 fn send_column_queue(
     mut players: Query<(
         &mut ServerSideConnection,
@@ -320,6 +330,12 @@ fn send_column_queue(
 /// dispatch. The `ColumnView::sent_columns` set gates the ordering: a light
 /// update is only forwarded to a player after that player has already
 /// received the corresponding `ClientboundLevelChunkWithLight`.
+///
+/// Same direct-write shape as `send_column_queue` — the bridge-tier
+/// migration will route this through the cross-`World` bus when the
+/// wire-payload codec lives in the bridge tier and per-player wire state
+/// can resolve recipients there. Until then, this system continues to
+/// query `&mut ServerSideConnection` and write packets directly.
 pub(crate) fn send_light_updates(
     mut reader: MessageReader<ColumnLightUpdate>,
     mut players: Query<(&ColumnView, &mut ServerSideConnection)>,

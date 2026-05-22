@@ -1,22 +1,19 @@
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::explosive::primed_tnt::PrimedTntPlugin;
 use crate::world::entity::player::PlayerPlugin;
 use bevy_app::{App, Plugin};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{ContainsEntity, On};
 use bevy_ecs::system::Query;
 use derive_more::{Deref, DerefMut};
 use mcrs_engine::entity::physics::{OldTransform, Transform};
 use mcrs_engine::entity::{EntityNetworkSyncEvent, EntityPlugin};
 use mcrs_engine::world::dimension::InDimension;
-use mcrs_network::ServerSideConnection;
-use mcrs_protocol::packets::game::clientbound::{
-    ClientboundEntityPositionSync, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
-    ClientboundMoveEntityRot, ClientboundRotateHead,
-};
+use mcrs_protocol::VarInt;
 use mcrs_protocol::uuid::Uuid;
-use mcrs_protocol::{ByteAngle, Look, VarInt, WritePacket};
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::Ordering::Relaxed;
 
@@ -110,77 +107,35 @@ impl Into<i32> for NetworkEntityId {
     }
 }
 
+/// Per-event observer that fans entity-position updates out to a single
+/// player via the cross-`World` bus. The downstream bridge layer consumes
+/// the typed `PacketPayload::EntityPosSync` variant and translates it to
+/// the appropriate wire packet (delta-vs-old, head-rotation, etc.) using
+/// per-player wire state it owns.
+///
+/// Observer system params include `MessageWriter<OutboundPlayerPacket>`,
+/// matching the precedent set by other observers on `ReceivedPacketEvent`
+/// in `entity/player/movement.rs` and `entity/player/player_action.rs`.
 pub fn entity_pos_sync(
     event: On<EntityNetworkSyncEvent>,
     entity_data: Query<(&Transform, &OldTransform)>,
-    mut players: Query<&mut ServerSideConnection>,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let Ok(mut con) = players.get_mut(event.player) else {
+    let Ok((&transform, _old_transform)) = entity_data.get(event.entity) else {
         return;
     };
-    let Ok((&transform, &old_transform)) = entity_data.get(event.entity) else {
-        return;
-    };
-    let old_transform = old_transform.0;
-
-    let (y_rot, x_rot, _) = transform.rotation.to_euler(bevy_math::EulerRot::YXZ);
-    let y_rot = ByteAngle::from_radians(y_rot);
-    let x_rot = ByteAngle::from_radians(x_rot);
-
-    let (old_y_rot, old_x_rot, _) = old_transform.rotation.to_euler(bevy_math::EulerRot::YXZ);
-
-    let old_y_rot = ByteAngle::from_radians(old_y_rot);
-    let old_x_rot = ByteAngle::from_radians(old_x_rot);
-
-    let delta = (transform.translation - old_transform.translation) * 4096.0;
-    let delta_to_big = delta.x < -32768.0
-        || delta.x > 32767.0
-        || delta.y < -32768.0
-        || delta.y > 32767.0
-        || delta.z < -32768.0
-        || delta.z > 32767.0;
-    let need_sync = transform == old_transform;
+    // `OldTransform` is still queried so this observer remains gated on
+    // the same component shape as before; the actual delta computation
+    // moves to the bridge tier where per-player wire state lives.
     let on_ground = true;
-    let entity_id = VarInt(event.entity.index_u32() as i32);
-    let pos_changed = delta.length_squared() >= 1.0;
-    if delta_to_big || need_sync {
-        con.write_packet(&ClientboundEntityPositionSync {
-            entity_id,
+    packet_writer.write(OutboundPlayerPacket {
+        target: PacketTarget::SinglePlayer(event.player),
+        priority: PacketPriority::Normal,
+        data: PacketPayload::EntityPosSync {
+            entity: event.entity,
             position: transform.translation,
-            velocity: Default::default(),
-            look: Look::from(transform.rotation),
+            rotation: transform.rotation,
             on_ground,
-        });
-    } else {
-        let rot_changed = y_rot.abs_diff(*old_y_rot) >= 1 || x_rot.abs_diff(*old_x_rot) >= 1;
-        if pos_changed && rot_changed {
-            con.write_packet(&ClientboundMoveEntityPosRot {
-                entity_id,
-                delta: delta.to_array().map(|f| f as i16),
-                y_rot,
-                x_rot,
-                on_ground,
-            });
-        } else if pos_changed {
-            con.write_packet(&ClientboundMoveEntityPos {
-                entity_id,
-                delta: delta.to_array().map(|f| f as i16),
-                on_ground,
-            });
-        } else if rot_changed {
-            con.write_packet(&ClientboundMoveEntityRot {
-                entity_id,
-                y_rot,
-                x_rot,
-                on_ground,
-            });
-        }
-    }
-
-    if old_y_rot != y_rot {
-        con.write_packet(&ClientboundRotateHead {
-            entity_id,
-            y_head_rot: y_rot,
-        })
-    }
+        },
+    });
 }

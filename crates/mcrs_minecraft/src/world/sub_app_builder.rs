@@ -41,6 +41,7 @@ use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 struct DimTick;
 use crate::world::aoi::PlayerTrackerPlugin;
 use crate::world::block::minecraft::MinecraftBlockPlugin;
+use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::explosion::ExplosionPlugin;
 use crate::world::loot::LootPlugin;
@@ -53,7 +54,6 @@ use mcrs_engine::world::dimension::{
 use mcrs_engine::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
-use mcrs_minecraft_block::block_update::BlockUpdatePlugin;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_vanilla::block::Block;
@@ -123,16 +123,35 @@ pub fn spawn_dim_subapp(
     // into the sub-world's buffer, and the per-dim TNT plugin reads it
     // via `MessageReader<PlayerWillDestroyBlock>`.
     sub_app.add_message::<PlayerWillDestroyBlock>();
-    // `ExplosionPlugin::tick_explode` (now per-dim) writes
-    // `MessageWriter<BlockSetRequest>` — without registration the sub-world
-    // panics on `resource_mut::<Messages<BlockSetRequest>>()`. The host-side
-    // `BlockUpdatePlugin` still owns the reader (`apply_set_block_request`);
-    // the per-sub-app buffer is a SEPARATE double-buffer, so TNT-triggered
-    // block updates remain non-functional until `BlockUpdatePlugin` moves
-    // per-dim in a later phase. `BlockPlaced` is registered for symmetry so
-    // any future per-dim inspection of the buffer does not panic.
+    // `ExplosionPlugin::tick_explode` writes `MessageWriter<BlockSetRequest>`
+    // and `BlockUpdatePlugin::apply_set_block_request` reads the same buffer;
+    // both plugins now live in this per-dim sub-app so the explosion ->
+    // block-set chain runs as a single message hop. `BlockUpdatePlugin::build`
+    // itself registers both messages; the duplicate registrations here are
+    // idempotent (Bevy's `add_message` no-ops on a second call) and serve as a
+    // load-bearing safety net should the plugin add order change during sub-app
+    // construction — a sub-world's `resource_mut::<Messages<T>>` panics if the
+    // buffer was not initialised before the first writer fires.
     sub_app.add_message::<BlockSetRequest>();
     sub_app.add_message::<BlockPlaced>();
+
+    // `MinecraftEntityPlugin`'s nested `DiggingPlugin` and `PlayerPlugin`
+    // carry systems that read host-side `PendingInboundLifecycle`,
+    // `PlayerIndex`, and `LoadedWorldPreset` resources (the digging chain
+    // routes per-player block events through the cross-`World` bridge;
+    // `spawn_player` reads the loaded preset to fill in dimension state).
+    // Now that the plugin runs per-dim, those systems live in this
+    // sub-app's `World`, but their resource reads must not panic —
+    // initialise empty per-dim copies so the systems no-op naturally
+    // (the per-dim `PlayerIndex` will never contain entries because the
+    // host owns the canonical index; the per-dim `PendingInboundLifecycle`
+    // is never drained by an extract closure; `LoadedWorldPreset::is_loaded`
+    // defaults to `false`, so `spawn_player` early-returns). The actual
+    // cross-`World` event routing continues to flow through the host-side
+    // copies of these resources.
+    sub_app.init_resource::<crate::world::bus::PendingInboundLifecycle>();
+    sub_app.init_resource::<crate::world::player_index::PlayerIndex>();
+    sub_app.init_resource::<crate::configuration::LoadedWorldPreset>();
 
     sub_app.update_schedule = Some(DimTick.intern());
     sub_app.add_schedule(Schedule::new(DimTick));
@@ -192,25 +211,30 @@ pub fn spawn_dim_subapp(
     // It is distinct from the engine-level `storage::chunk::ChunkPlugin` that
     // DimensionPlugin adds (which only contributes TicketPlugin).
     sub_app.add_plugins(crate::world::chunk::ChunkPlugin);
-    // Per-dim composition of the two message-only simulation plugins.
-    // `MinecraftBlockPlugin` carries the per-block TNT sub-plugin which
-    // reads `MessageReader<PlayerWillDestroyBlock>` — the host-side
+    // Per-dim composition of the simulation plugins. Each plugin's
+    // schedule placements (`MinecraftBlockPlugin`, `ExplosionPlugin`,
+    // `PlayerTrackerPlugin`, `BlockUpdatePlugin`, `BlockUpdateWirePlugin`,
+    // `MinecraftEntityPlugin`, `LootPlugin`) run inside the per-dim
+    // sub-app's `World`. `ExplosionPlugin::tick_explode` writes
+    // `MessageWriter<BlockSetRequest>`; `BlockUpdatePlugin`'s
+    // `apply_set_block_request` reads the same per-dim buffer in the
+    // same world, restoring the single-hop block-update path. The
+    // additional `BlockUpdateWirePlugin` (defined in
+    // `crate::world::block_update`) registers the per-dim wire-emit
+    // system that fans block updates out via `OutboundPlayerPacket`
+    // through `Column.PlayerObservers`. `MinecraftBlockPlugin` carries
+    // the per-block TNT sub-plugin which reads
+    // `MessageReader<PlayerWillDestroyBlock>` — the host-side
     // `digging.rs` writers route a clone of each event into
     // `PendingInboundLifecycle.block_events`, drained per-dim by the
-    // extract closure below. `ExplosionPlugin::tick_explode` writes
-    // `MessageWriter<BlockSetRequest>` per-dim; the host-side
-    // `BlockUpdatePlugin` reader still drains its own host-world buffer,
-    // so TNT-triggered block updates are non-functional until the reader
-    // moves per-dim alongside `MinecraftEntityPlugin`.
-    //
-    // BlockUpdatePlugin, MinecraftEntityPlugin, and LootPlugin remain
-    // host-side (see `WorldPlugin::build`). The shared registries they
-    // read (`StaticRegistry<EnchantmentData>`, `TagRegistry<Block>`) are
-    // pre-propagated here so the sub-app side is ready when those plugins
-    // move back as per-dim entity ownership lands.
+    // extract closure below.
     sub_app.add_plugins(MinecraftBlockPlugin);
     sub_app.add_plugins(ExplosionPlugin);
     sub_app.add_plugins(PlayerTrackerPlugin);
+    sub_app.add_plugins(BlockUpdatePlugin);
+    sub_app.add_plugins(BlockUpdateWirePlugin);
+    sub_app.add_plugins(MinecraftEntityPlugin);
+    sub_app.add_plugins(LootPlugin);
 
     sub_app.insert_resource(registries.registry_access.clone());
     sub_app.insert_resource(registries.block_light_table.clone());

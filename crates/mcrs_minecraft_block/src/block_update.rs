@@ -4,17 +4,12 @@ use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, Component, Query};
-use bevy_ecs::query::{Changed, With, Without};
+use bevy_ecs::query::{With, Without};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos};
-use mcrs_network::ServerSideConnection;
-use mcrs_protocol::chunk::ChunkBlockUpdateEntry;
-use mcrs_protocol::packets::game::clientbound::ClientboundBlockUpdate;
-use mcrs_protocol::{BlockStateId, ColumnPos, Encode, Packet, WritePacket};
+use mcrs_protocol::BlockStateId;
 use rustc_hash::FxHashSet;
-use std::borrow::Cow::Owned;
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BlockUpdateSet {
@@ -34,10 +29,6 @@ impl Plugin for BlockUpdatePlugin {
         app.add_systems(
             FixedUpdate,
             apply_set_block_request.in_set(BlockUpdateSet::ApplyChanges),
-        );
-        app.add_systems(
-            FixedPostUpdate,
-            update_client_blocks.in_set(BlockUpdateSet::NetworkSync),
         );
     }
 }
@@ -159,69 +150,6 @@ pub struct BlockPlaced {
     pub flags: BlockUpdateFlags,
 }
 
-fn update_client_blocks(
-    mut chunks: Query<
-        (
-            &ChunkPos,
-            &mut BlockPalette,
-            &mut ChunkNetworkSyncBlockChangesSet,
-        ),
-        Changed<ChunkNetworkSyncBlockChangesSet>,
-    >,
-    mut players: Query<(&PlayerChunkObserver, &mut ServerSideConnection)>,
-) {
-    fn flush_packet<P>(
-        players: &mut Query<(&PlayerChunkObserver, &mut ServerSideConnection)>,
-        packet: &P,
-        column: &ColumnPos,
-    ) where
-        P: Packet + Encode + Sync,
-    {
-        players.par_iter_mut().for_each(|(observer, mut con)| {
-            if observer
-                .last_last_chunk_tracking_view
-                .map(|v| v.contains(&ChunkPos::new(column.x, v.center.y, column.z)))
-                .unwrap_or(false)
-            {
-                con.write_packet(packet);
-            }
-        });
-    }
-
-    chunks
-        .iter_mut()
-        .for_each(|(chunk_pos, storage, mut changes)| {
-            let column_pos = ColumnPos::from(*chunk_pos);
-            if changes.changes.len() <= 1 {
-                changes.changes.retain(|pos| {
-                    let pkt = ClientboundBlockUpdate {
-                        block_pos: *pos,
-                        block_state_id: storage.get(*pos),
-                    };
-                    flush_packet(&mut players, &pkt, &column_pos);
-                    false
-                });
-            } else {
-                let mut updates = Vec::with_capacity(changes.changes.len());
-                changes.changes.retain(|pos| {
-                    let entry = ChunkBlockUpdateEntry::new()
-                        .with_off_x((pos.x & 0x0F) as u8)
-                        .with_off_y((pos.y & 0x0F) as u8)
-                        .with_off_z((pos.z & 0x0F) as u8)
-                        .with_block_state(storage.get(*pos).0);
-                    updates.push(entry);
-                    false
-                });
-                let pkt =
-                    mcrs_protocol::packets::game::clientbound::ClientboundSectionBlocksUpdate {
-                        chunk_pos: *chunk_pos,
-                        blocks: Owned(updates),
-                    };
-                flush_packet(&mut players, &pkt, &column_pos);
-            }
-        });
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -229,7 +157,6 @@ mod tests {
     #[test]
     fn set_configured_compile_test() {
         let _ = apply_set_block_request.in_set(BlockUpdateSet::ApplyChanges);
-        let _ = update_client_blocks.in_set(BlockUpdateSet::NetworkSync);
     }
 
     #[test]
