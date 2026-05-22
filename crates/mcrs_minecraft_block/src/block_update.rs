@@ -112,12 +112,31 @@ pub fn apply_set_block_request(
         let chunk_pos = ChunkPos::from(request.pos);
 
         let Ok(chunk_index) = dimensions.get(request.dimension) else {
+            // Stale dimension Entity. Treated as suspicious because the
+            // dimension typically outlives a single FixedUpdate; the
+            // most common cause is a bus race between dim despawn and
+            // BlockSetRequest delivery.
+            tracing::warn!(
+                target: "block_update",
+                dimension = ?request.dimension,
+                pos = ?request.pos,
+                "apply_set_block_request: dimension lookup failed; dropping",
+            );
             return;
         };
         let Some((chunk, mut storage, mut changes)) = chunk_index
             .get(chunk_pos)
             .and_then(|e| chunks.get_mut(e).ok())
         else {
+            // Chunk unloaded or its palette query missed. This is
+            // expected (a block update can arrive for a chunk that just
+            // unloaded) and not an error.
+            tracing::trace!(
+                target: "block_update",
+                ?chunk_pos,
+                pos = ?request.pos,
+                "apply_set_block_request: chunk not present in ChunkIndex; dropping",
+            );
             return;
         };
 
