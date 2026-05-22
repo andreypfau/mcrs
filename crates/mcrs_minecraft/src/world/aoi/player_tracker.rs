@@ -75,9 +75,12 @@ impl Plugin for PlayerTrackerPlugin {
         app.init_resource::<AoiTickProbe>();
         app.add_systems(FixedPreUpdate, insert_player_observers_on_new_columns);
         app.add_systems(
+            FixedPreUpdate,
+            crate::world::aoi::drain_player_despawn::drain_inbound_player_despawn,
+        );
+        app.add_systems(
             FixedPostUpdate,
             PlayerTracker::systems().run_if(on_changed_transform),
         );
-        app.add_observer(crate::world::aoi::on_player_remove::on_player_remove);
     }
 }

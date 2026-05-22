@@ -144,3 +144,48 @@ fn assert_mirror_invariant(
         }
     }
 }
+
+#[test]
+fn mirror_invariant_holds_with_two_players_same_tick_bare_column() {
+    let mut app = make_aoi_app();
+    let dim = app.world_mut().spawn(DimensionBundle::default()).id();
+
+    // Both players at the same position — every column within view-distance-12
+    // lands in both desired sets, exercising the multi-insert path on every
+    // bare column.
+    let player1 = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
+    let player2 = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
+
+    // Spawn bare columns mid-tick (after FixedPreUpdate seeder, before
+    // FixedPostUpdate AoI systems) so both players hit the Err arm for the
+    // same column entity in the same system run.
+    let columns = drive_aoi_tick_with_mid_tick_column_spawn(
+        &mut app,
+        dim,
+        ColumnPos::new(0, 0),
+        20,
+    );
+
+    // Both players must appear in every shared column's PlayerObservers.
+    // If Commands::insert were still used, the second insert at flush time
+    // would overwrite the first, causing this assertion to fail for player1.
+    assert_mirror_invariant(&app, player1, &columns);
+    assert_mirror_invariant(&app, player2, &columns);
+
+    // Explicit per-column check for both players on columns that both
+    // subscribed to (i.e., within view distance of both players). Columns
+    // outside any player's view-distance circle have no PlayerObservers —
+    // the AoI system only touches columns in the desired set.
+    let world = app.world();
+    let sub1 = world.get::<ChunkSubscriptionSet>(player1).unwrap();
+    let sub2 = world.get::<ChunkSubscriptionSet>(player2).unwrap();
+    for (pos, column) in columns.iter() {
+        if sub1.0.contains(pos) && sub2.0.contains(pos) {
+            let obs = world
+                .get::<PlayerObservers>(*column)
+                .expect("column in both subscription sets missing PlayerObservers");
+            assert!(obs.0.contains(&player1), "column {:?} missing player1", pos);
+            assert!(obs.0.contains(&player2), "column {:?} missing player2", pos);
+        }
+    }
+}

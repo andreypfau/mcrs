@@ -18,15 +18,20 @@ use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, PlayerTrackerPlugin, TrackedBy};
-use mcrs_minecraft::world::bus::OutboundPlayerPacket;
+use mcrs_minecraft::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
+use mcrs_minecraft::world::player_index::HostAnchorRef;
 
 /// Build a host App with the AoI plugin, the outbound bus, and the
 /// `FixedPreUpdate` / `FixedPostUpdate` schedules registered.
+///
+/// `InboundPlayerDespawn` is registered because `PlayerTrackerPlugin` now
+/// installs `drain_inbound_player_despawn` which reads `MessageReader<InboundPlayerDespawn>`.
 pub fn make_aoi_app() -> App {
     let mut app = App::new();
     app.add_schedule(Schedule::new(FixedPreUpdate));
     app.add_schedule(Schedule::new(FixedPostUpdate));
     app.add_message::<OutboundPlayerPacket>();
+    app.add_message::<InboundPlayerDespawn>();
     app.add_plugins(PlayerTrackerPlugin);
     app
 }
@@ -53,6 +58,38 @@ pub fn spawn_player_in_dim(app: &mut App, dim: Entity, pos: DVec3) -> Entity {
             InDimension(dim),
         ))
         .id()
+}
+
+/// Spawn a player entity that also carries `HostAnchorRef(host_anchor)`.
+/// Used for tests that exercise the cross-world drain path, where the
+/// drain system resolves host_anchor → in-dim Player via HostAnchorRef.
+pub fn spawn_player_in_dim_with_host_anchor(
+    app: &mut App,
+    dim: Entity,
+    pos: DVec3,
+    host_anchor: Entity,
+) -> Entity {
+    app.world_mut()
+        .spawn((
+            Player,
+            Transform::from_translation(pos),
+            PlayerViewDistance::default(),
+            ChunkSubscriptionSet::default(),
+            TrackedBy::default(),
+            InDimension(dim),
+            HostAnchorRef(host_anchor),
+        ))
+        .id()
+}
+
+/// Run a single FixedPreUpdate schedule pass.
+pub fn run_fixed_pre_update(app: &mut App) {
+    app.world_mut().run_schedule(FixedPreUpdate);
+}
+
+/// Run a single FixedPostUpdate schedule pass.
+pub fn run_fixed_post_update(app: &mut App) {
+    app.world_mut().run_schedule(FixedPostUpdate);
 }
 
 /// Drain the host's outbound bus, returning every packet emitted since
