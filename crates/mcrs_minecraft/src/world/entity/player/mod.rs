@@ -68,14 +68,7 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(GameModePlugin);
         app.add_systems(bevy_app::Update, spawn_player);
         app.add_systems(FixedUpdate, (disconnect_player, added_inventory, resync_player));
-        app.add_systems(
-            PostUpdate,
-            (
-                despawn_disconnected_clients,
-                on_player_disconnect_cleanup_host_anchor,
-            )
-                .chain(),
-        );
+        app.add_systems(PostUpdate, despawn_disconnected_clients);
         app.add_observer(network_add);
         app.add_observer(player_joined);
     }
