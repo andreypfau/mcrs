@@ -1,9 +1,9 @@
 use bevy_app::App;
 use bevy_ecs::prelude::{Commands, Entity, ResMut};
 use bevy_ecs::system::RunSystemOnce;
+use mcrs_minecraft::disconnect::process_disconnect;
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::world::bus::{InboundPlayerDespawn, PendingInboundLifecycle};
-use mcrs_minecraft::world::entity::player::cleanup_host_anchor;
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
 use mcrs_protocol::uuid::Uuid;
 
@@ -103,31 +103,35 @@ fn connection_removal_removes_player_index_entry_and_routes_despawn_via_lifecycl
 
     // Drive the cleanup helper directly because constructing a real
     // `ServerSideConnection` requires a `RawConnection` socket, which
-    // is not accessible from an integration test. The full system
-    // (`on_player_disconnect_cleanup_host_anchor`) only adds the
-    // `RemovedComponents` loop on top of this helper; that loop has no
-    // behavior beyond resolving each connection entity's
-    // `HostAnchorRef`, which we already exercise via the login test.
+    // is not accessible from an integration test. `process_disconnect`
+    // is the canonical entry point used by `on_player_disconnect` (the
+    // observer over `Remove, ServerSideConnection`) and by
+    // `drain_pending_disconnects` (the deferred drain path); both
+    // resolve `host_anchor` from a `HostAnchorRef` lookup before
+    // delegating here. The observer-side resolution is exercised by the
+    // login test above.
     app.world_mut()
         .run_system_once(
             move |mut commands: Commands,
                   mut player_index: ResMut<PlayerIndex>,
                   mut lifecycle: ResMut<PendingInboundLifecycle>| {
-                let ran = cleanup_host_anchor(
-                    &mut commands,
+                process_disconnect(
                     host_anchor,
                     &mut player_index,
                     &mut lifecycle,
+                    &mut commands,
                 );
-                assert!(ran, "cleanup ran on first call");
 
-                let ran_twice = cleanup_host_anchor(
-                    &mut commands,
+                // process_disconnect short-circuits on a missing index
+                // entry (the `None` arm in its location lookup), so a
+                // second call after the first removed the entry is a
+                // no-op rather than a panic. Exercise that path too.
+                process_disconnect(
                     host_anchor,
                     &mut player_index,
                     &mut lifecycle,
+                    &mut commands,
                 );
-                assert!(!ran_twice, "second call is a no-op (idempotent)");
             },
         )
         .expect("system runs without panicking");
