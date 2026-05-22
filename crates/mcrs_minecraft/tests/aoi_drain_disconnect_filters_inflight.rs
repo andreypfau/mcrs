@@ -22,8 +22,9 @@ use mcrs_minecraft::disconnect::{
     drain_pending_disconnects, filter_inflight_for_disconnect,
 };
 use mcrs_minecraft::world::bus::{
-    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerTransfer,
-    PendingInboundLifecycle, PendingInboundPartition, PlayerTransferSnapshot,
+    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
+    OutboundPlayerTransfer, PendingInboundLifecycle, PendingInboundPartition,
+    PlayerTransferSnapshot, TestInboundPayload,
 };
 use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
 use mcrs_protocol::uuid::Uuid;
@@ -158,6 +159,87 @@ fn drain_tick_filters_inflight_transfer_for_queued_anchor() {
             .is_none(),
         "PlayerIndex entry for drained anchor must be removed by process_disconnect"
     );
+}
+
+#[test]
+fn filter_inflight_purges_pending_inbound_partition_for_disconnected_anchor() {
+    // PendingInboundPartition.per_dim is filled each tick by
+    // partition_main_inbound (Update). When a disconnect lands in the
+    // same tick, filter_inflight_for_disconnect must purge any partition
+    // bucket entries whose `player` matches a just-disconnected anchor.
+    // Without the purge, the next-tick extract closure shuttles a packet
+    // for a host-anchor whose PlayerIndex entry has been removed, and
+    // any consumer that does world.get(packet.player) gets None.
+    let mut app = build_app();
+    let app_dim = Entity::from_raw_u32(7).unwrap();
+    let host_anchor = app.world_mut().spawn_empty().id();
+    let other_anchor = app.world_mut().spawn_empty().id();
+    app.world_mut()
+        .resource_mut::<PlayerIndex>()
+        .insert(host_anchor, make_location(app_dim));
+    app.world_mut()
+        .resource_mut::<PlayerIndex>()
+        .insert(other_anchor, make_location(app_dim));
+
+    // Stage the partition bucket as if partition_main_inbound had just
+    // routed packets for both anchors into the dest sub-app's bucket.
+    {
+        let mut partition = app
+            .world_mut()
+            .resource_mut::<PendingInboundPartition>();
+        let bucket = partition.per_dim.entry(app_dim).or_default();
+        bucket.push(InboundPlayerPacket {
+            player: host_anchor,
+            packet: TestInboundPayload { seq: 1 },
+        });
+        bucket.push(InboundPlayerPacket {
+            player: other_anchor,
+            packet: TestInboundPayload { seq: 2 },
+        });
+        bucket.push(InboundPlayerPacket {
+            player: host_anchor,
+            packet: TestInboundPayload { seq: 3 },
+        });
+    }
+
+    // Force the disconnect through the deferred-drain path so the same
+    // DisconnectedThisTick population that the synchronous observer
+    // would produce is exercised here.
+    {
+        let mut budget = app.world_mut().resource_mut::<DisconnectBudget>();
+        budget.remaining = 0;
+    }
+    {
+        let mut q = app.world_mut().resource_mut::<PendingDisconnectQueue>();
+        assert!(q.push_back(host_anchor));
+    }
+
+    app.world_mut()
+        .run_system_once(drain_pending_disconnects)
+        .expect("drain runs");
+    app.world_mut()
+        .run_system_once(filter_inflight_for_disconnect)
+        .expect("filter runs");
+
+    let bucket = app
+        .world()
+        .resource::<PendingInboundPartition>()
+        .per_dim
+        .get(&app_dim)
+        .cloned()
+        .unwrap_or_default();
+    assert_eq!(
+        bucket.len(),
+        1,
+        "exactly one packet (the other_anchor entry) must survive; \
+         got {} entries after purge",
+        bucket.len(),
+    );
+    assert_eq!(
+        bucket[0].player, other_anchor,
+        "surviving packet must be for the still-connected anchor"
+    );
+    assert_eq!(bucket[0].packet.seq, 2);
 }
 
 #[test]

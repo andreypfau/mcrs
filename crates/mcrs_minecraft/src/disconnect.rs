@@ -23,6 +23,7 @@ use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::message::Messages;
 use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Query, ResMut};
 use mcrs_network::ServerSideConnection;
 use smallvec::SmallVec;
@@ -30,7 +31,8 @@ use std::collections::VecDeque;
 use tracing::warn;
 
 use crate::world::bus::{
-    InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerTransfer, PendingInboundLifecycle,
+    InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerTransfer,
+    PendingInboundLifecycle, PendingInboundPartition,
 };
 use crate::world::player_index::{HostAnchorRef, PlayerIndex};
 
@@ -234,6 +236,7 @@ pub fn filter_inflight_for_disconnect(
     mut transfer_msgs: ResMut<Messages<OutboundPlayerTransfer>>,
     mut attached_msgs: ResMut<Messages<OutboundPlayerAttached>>,
     mut lifecycle: ResMut<PendingInboundLifecycle>,
+    mut partition: ResMut<PendingInboundPartition>,
 ) {
     if disconnected_this_tick.host_anchors.is_empty() {
         return;
@@ -265,6 +268,16 @@ pub fn filter_inflight_for_disconnect(
             .retain(|b| !disconnected.contains(&b.player));
     }
 
+    // PendingInboundPartition.per_dim is filled by partition_main_inbound
+    // earlier in Update; drop any InboundPlayerPacket whose `player`
+    // (host-anchor) was just disconnected. Without this, the sub-app's
+    // extract closure would shuttle a packet for a host-anchor whose
+    // PlayerIndex entry is gone, and the consumer's world.get(player)
+    // would return None.
+    for bucket in partition.per_dim.values_mut() {
+        bucket.retain(|pkt| !disconnected.contains(&pkt.player));
+    }
+
     disconnected_this_tick.host_anchors.clear();
 }
 
@@ -280,7 +293,14 @@ impl Plugin for DisconnectProtocolPlugin {
         app.init_resource::<OverflowCounter>();
         app.add_observer(on_player_disconnect);
         app.add_systems(First, drain_pending_disconnects);
-        app.add_systems(Update, filter_inflight_for_disconnect);
+        // Order after partition_main_inbound so the PendingInboundPartition
+        // buckets that the partition system just filled are visible to the
+        // partition-purge branch in filter_inflight_for_disconnect.
+        app.add_systems(
+            Update,
+            filter_inflight_for_disconnect
+                .after(crate::world::bridge::partition_main_inbound),
+        );
     }
 }
 
