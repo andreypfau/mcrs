@@ -18,6 +18,7 @@ use bevy_app::{App, FixedPostUpdate, FixedUpdate};
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use mcrs_engine::aoi::PlayerObservers;
+use mcrs_engine::entity::player::Player;
 use mcrs_engine::geometry::ColumnPos;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos};
@@ -30,9 +31,6 @@ use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
-
-#[derive(Component)]
-struct PlayerMarker;
 
 #[test]
 fn tnt_cascade_propagates_through_block_update_per_dim() {
@@ -55,7 +53,9 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     app.add_plugins(BlockUpdatePlugin);
     app.add_plugins(BlockUpdateWirePlugin);
 
-    let player = app.world_mut().spawn(PlayerMarker).id();
+    // The player must carry the Player Component so the liveness filter in
+    // update_client_blocks_per_dim passes it through.
+    let player = app.world_mut().spawn(Player).id();
     let mut observers = PlayerObservers::default();
     observers.0.push(player);
     let column_entity = app.world_mut().spawn(observers).id();
