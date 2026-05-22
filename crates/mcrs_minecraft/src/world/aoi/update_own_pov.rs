@@ -64,8 +64,8 @@ pub fn update_own_pov(
         let radius = view_distance.distance as i32;
         // Chebyshev (square) ball `max(|dx|, |dz|) <= radius` matches
         // `ChunkTrackingView::contains` and vanilla view-distance semantics.
-        // A Manhattan (diamond) iterator like OutwardIterator2D would
-        // under-cover the corner columns of the visible square.
+        // A Manhattan (diamond) iterator would under-cover the corner
+        // columns of the visible square.
         //
         // Only positions backed by a live ColumnIndex entry enter the
         // desired set: ChunkSubscriptionSet mirrors PlayerObservers
