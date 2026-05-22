@@ -39,6 +39,7 @@ use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 /// - No `SpawnScene` (we do not depend on `bevy_scene`).
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
+use crate::world::aoi::PlayerTrackerPlugin;
 use crate::world::block::minecraft::MinecraftBlockPlugin;
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::explosion::ExplosionPlugin;
@@ -209,6 +210,7 @@ pub fn spawn_dim_subapp(
     // move back as per-dim entity ownership lands.
     sub_app.add_plugins(MinecraftBlockPlugin);
     sub_app.add_plugins(ExplosionPlugin);
+    sub_app.add_plugins(PlayerTrackerPlugin);
 
     sub_app.insert_resource(registries.registry_access.clone());
     sub_app.insert_resource(registries.block_light_table.clone());
