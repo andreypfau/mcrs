@@ -386,11 +386,18 @@ impl ChunkTrackingView {
     }
 
     pub fn contains(&self, pos: &ChunkPos) -> bool {
+        // Saturating ops keep the helper consistent with min_y / max_y,
+        // which already use saturating arithmetic. Without this, an
+        // extreme self.center.y would panic in debug builds here while
+        // min_y / max_y silently clamp.
+        let dy = pos.y.saturating_sub(self.center.y).unsigned_abs();
+        let dx = pos.x.saturating_sub(self.center.x).unsigned_abs();
+        let dz = pos.z.saturating_sub(self.center.z).unsigned_abs();
         pos.y >= self.min_section_y
             && pos.y <= self.max_section_y
-            && (pos.y - self.center.y).abs() <= self.vert_distance as i32
-            && (pos.x - self.center.x).abs() <= self.distance as i32
-            && (pos.z - self.center.z).abs() <= self.distance as i32
+            && dy <= self.vert_distance as u32
+            && dx <= self.distance as u32
+            && dz <= self.distance as u32
     }
 
     fn for_each<F>(&self, mut f: F)
@@ -402,11 +409,17 @@ impl ChunkTrackingView {
         let cx = self.center.x;
         let cy = self.center.y;
         let cz = self.center.z;
-        let y_lo = (cy - vd).max(self.min_section_y);
-        let y_hi = (cy + vd).min(self.max_section_y);
+        // Saturating ops mirror min_y / max_y so an extreme center.y or
+        // an out-of-band distance cannot overflow the loop bounds.
+        let y_lo = cy.saturating_sub(vd).max(self.min_section_y);
+        let y_hi = cy.saturating_add(vd).min(self.max_section_y);
+        let x_lo = cx.saturating_sub(d);
+        let x_hi = cx.saturating_add(d);
+        let z_lo = cz.saturating_sub(d);
+        let z_hi = cz.saturating_add(d);
         for y in y_lo..=y_hi {
-            for x in (cx - d)..=(cx + d) {
-                for z in (cz - d)..=(cz + d) {
+            for x in x_lo..=x_hi {
+                for z in z_lo..=z_hi {
                     f(ChunkPos::new(x, y, z));
                 }
             }
