@@ -66,10 +66,20 @@ pub fn update_own_pov(
         // `ChunkTrackingView::contains` and vanilla view-distance semantics.
         // A Manhattan (diamond) iterator like OutwardIterator2D would
         // under-cover the corner columns of the visible square.
+        //
+        // Only positions backed by a live ColumnIndex entry enter the
+        // desired set: ChunkSubscriptionSet mirrors PlayerObservers
+        // (asserted by aoi_mirror_invariant.rs), and recording a
+        // subscription on a column that has no entity would silently
+        // violate that invariant. Worldgen-edge positions re-enter the
+        // set on a later tick once their column has been generated.
         let mut desired: FxHashSet<ColumnPos> = FxHashSet::default();
         for dx in -radius..=radius {
             for dz in -radius..=radius {
-                desired.insert(ColumnPos::new(centre.x + dx, centre.z + dz));
+                let pos = ColumnPos::new(centre.x + dx, centre.z + dz);
+                if column_index.0.contains_key(&pos) {
+                    desired.insert(pos);
+                }
             }
         }
 
@@ -86,49 +96,50 @@ pub fn update_own_pov(
             .collect();
 
         for pos in &added {
-            if let Some(slot) = column_index.0.get(pos) {
-                match observers.get_mut(slot.entity) {
-                    Ok(mut obs) => {
-                        if !obs.0.contains(&player) {
-                            obs.0.push(player);
-                        }
+            let Some(slot) = column_index.0.get(pos) else {
+                continue;
+            };
+            match observers.get_mut(slot.entity) {
+                Ok(mut obs) => {
+                    if !obs.0.contains(&player) {
+                        obs.0.push(player);
                     }
-                    Err(_) => {
-                        // Column entity exists in ColumnIndex but PlayerObservers
-                        // has not been seeded yet (the seeder runs in
-                        // FixedPreUpdate; a column spawned in FixedUpdate first
-                        // reaches us here in FixedPostUpdate without it).
-                        // Commands::insert would overwrite the whole Component at
-                        // flush time — if two players both hit this arm for the
-                        // same column in the same tick, the second insert silently
-                        // discards the first player. commands.queue runs a closure
-                        // with &mut World at flush time; sequential closures for the
-                        // same column each observe the world state left by the
-                        // previous one, so push operations compose rather than
-                        // clobber.
-                        let player_id = player;
-                        let column_entity = slot.entity;
-                        commands.queue(move |world: &mut bevy_ecs::world::World| {
-                            if let Some(mut obs) =
-                                world.get_mut::<PlayerObservers>(column_entity)
-                            {
-                                if !obs.0.contains(&player_id) {
-                                    obs.0.push(player_id);
-                                }
-                            } else if let Ok(mut entity_mut) =
-                                world.get_entity_mut(column_entity)
-                            {
-                                // get_entity_mut no-ops if the column was
-                                // despawned between this system body and
-                                // command flush (e.g., a ticket release
-                                // raced ahead of FixedPostUpdate).
-                                // entity_mut would panic in that case.
-                                entity_mut.insert(PlayerObservers(SmallVec::from_slice(
-                                    &[player_id],
-                                )));
+                }
+                Err(_) => {
+                    // Column entity exists in ColumnIndex but PlayerObservers
+                    // has not been seeded yet (the seeder runs in
+                    // FixedPreUpdate; a column spawned in FixedUpdate first
+                    // reaches us here in FixedPostUpdate without it).
+                    // Commands::insert would overwrite the whole Component at
+                    // flush time — if two players both hit this arm for the
+                    // same column in the same tick, the second insert silently
+                    // discards the first player. commands.queue runs a closure
+                    // with &mut World at flush time; sequential closures for the
+                    // same column each observe the world state left by the
+                    // previous one, so push operations compose rather than
+                    // clobber.
+                    let player_id = player;
+                    let column_entity = slot.entity;
+                    commands.queue(move |world: &mut bevy_ecs::world::World| {
+                        if let Some(mut obs) =
+                            world.get_mut::<PlayerObservers>(column_entity)
+                        {
+                            if !obs.0.contains(&player_id) {
+                                obs.0.push(player_id);
                             }
-                        });
-                    }
+                        } else if let Ok(mut entity_mut) =
+                            world.get_entity_mut(column_entity)
+                        {
+                            // get_entity_mut no-ops if the column was
+                            // despawned between this system body and
+                            // command flush (e.g., a ticket release
+                            // raced ahead of FixedPostUpdate).
+                            // entity_mut would panic in that case.
+                            entity_mut.insert(PlayerObservers(SmallVec::from_slice(
+                                &[player_id],
+                            )));
+                        }
+                    });
                 }
             }
             packet_writer.write(OutboundPlayerPacket {
@@ -139,10 +150,20 @@ pub fn update_own_pov(
         }
 
         for pos in &removed {
-            if let Some(slot) = column_index.0.get(pos) {
-                if let Ok(mut obs) = observers.get_mut(slot.entity) {
-                    obs.0.retain(|e| *e != player);
-                }
+            // A position appears in `removed` only if it was previously
+            // recorded in `subscriptions` and is no longer in `desired`.
+            // The added-loop above only inserts subscriptions for
+            // positions backed by ColumnIndex, so a removal arm reaching
+            // here without a slot means the column was despawned out
+            // from under the subscription — the despawn already cleared
+            // PlayerObservers via Component drop. Skip the wire-emit so
+            // the client does not receive an unload for a chunk it never
+            // saw a load for.
+            let Some(slot) = column_index.0.get(pos) else {
+                continue;
+            };
+            if let Ok(mut obs) = observers.get_mut(slot.entity) {
+                obs.0.retain(|e| *e != player);
             }
             packet_writer.write(OutboundPlayerPacket {
                 target: PacketTarget::SinglePlayer(player),
