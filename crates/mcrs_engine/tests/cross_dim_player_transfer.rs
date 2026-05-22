@@ -150,6 +150,7 @@ fn build_test_app() -> App {
             PlayerLocation {
                 socket: Entity::PLACEHOLDER,
                 current_dim: source_label_entity,
+                previous_dim: None,
                 in_dim_entity: Some(src_in_dim),
                 inbound_pending: SmallVec::new(),
             },

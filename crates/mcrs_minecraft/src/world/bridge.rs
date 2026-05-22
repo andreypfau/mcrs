@@ -95,6 +95,7 @@ mod tests {
         PlayerLocation {
             socket: Entity::PLACEHOLDER,
             current_dim,
+            previous_dim: None,
             in_dim_entity,
             inbound_pending: SmallVec::new(),
         }
@@ -247,6 +248,7 @@ mod tests {
             PlayerLocation {
                 socket: Entity::PLACEHOLDER,
                 current_dim: src_dim,
+                previous_dim: None,
                 in_dim_entity: Some(src_in_dim),
                 inbound_pending: SmallVec::new(),
             },
@@ -300,6 +302,7 @@ mod tests {
             PlayerLocation {
                 socket: Entity::PLACEHOLDER,
                 current_dim: dest_dim,
+                previous_dim: None,
                 in_dim_entity: None,
                 inbound_pending: buffered,
             },

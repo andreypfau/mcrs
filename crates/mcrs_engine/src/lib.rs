@@ -1,3 +1,4 @@
+pub mod aoi;
 pub mod entity;
 pub mod geometry;
 pub mod math;

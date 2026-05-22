@@ -237,6 +237,7 @@ fn player_will_destroy_block_reaches_per_dim_consumer_via_lifecycle_partition() 
         PlayerLocation {
             socket: Entity::PLACEHOLDER,
             current_dim: src_label_entity,
+            previous_dim: None,
             in_dim_entity: Some(Entity::PLACEHOLDER),
             inbound_pending: SmallVec::new(),
         },

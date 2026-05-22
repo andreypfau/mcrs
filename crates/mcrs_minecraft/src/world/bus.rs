@@ -1,7 +1,9 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_ecs::resource::Resource;
-use bevy_math::{DVec3, Vec2};
+use bevy_math::{DVec3, Quat, Vec2};
+use mcrs_engine::geometry::{BlockPos, ColumnPos};
+use mcrs_protocol::BlockStateId;
 use mcrs_protocol::chunk::LightData;
 use mcrs_protocol::uuid::Uuid;
 use rustc_hash::FxHashMap;
@@ -71,6 +73,28 @@ pub enum PacketPriority {
 pub enum PacketPayload {
     LightUpdate(LightData<'static>),
     Test(TestPayload),
+    BlockUpdate {
+        position: BlockPos,
+        new_state: BlockStateId,
+    },
+    ChunkLoad {
+        column: ColumnPos,
+    },
+    ChunkUnload {
+        column: ColumnPos,
+    },
+    PlayerEnteredView {
+        player: Entity,
+    },
+    PlayerLeftView {
+        player: Entity,
+    },
+    EntityPosSync {
+        entity: Entity,
+        position: DVec3,
+        rotation: Quat,
+        on_ground: bool,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
