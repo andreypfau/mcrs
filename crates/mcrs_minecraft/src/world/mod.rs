@@ -72,6 +72,7 @@ impl Plugin for WorldPlugin {
                 queue.0.push(trigger.event().entity);
             },
         );
+        app.add_plugins(crate::disconnect::DisconnectProtocolPlugin);
         app.add_systems(OnEnter(AppState::Playing), enqueue_dim_spawns_from_preset);
     }
 }

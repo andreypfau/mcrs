@@ -37,7 +37,9 @@ pub fn bridge_player_transfer(
         let Some(location) = player_index.get_mut(&msg.host_anchor) else {
             continue;
         };
+        let old_current_dim = location.current_dim;
         location.current_dim = msg.dest_dim;
+        location.previous_dim = Some(old_current_dim);
         location.in_dim_entity = None;
         let spawn = InboundPlayerSpawn {
             host_anchor: msg.host_anchor,
@@ -63,6 +65,7 @@ pub fn bridge_player_attach(
                 continue;
             };
             location.in_dim_entity = Some(msg.new_in_dim_entity);
+            location.previous_dim = None;
             let drained = std::mem::take(&mut location.inbound_pending);
             let current_dim = location.current_dim;
             (drained, current_dim)

@@ -38,6 +38,7 @@ mod configuration;
 pub mod dialog;
 mod dimension_type;
 mod direction;
+pub mod disconnect;
 pub mod enchantment;
 mod keep_alive;
 pub mod login;
