@@ -14,8 +14,9 @@
 
 use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_ecs::message::MessageWriter;
-use bevy_ecs::prelude::{Changed, Entity, IntoScheduleConfigs, Query};
+use bevy_ecs::prelude::{Changed, Entity, IntoScheduleConfigs, Query, With};
 use mcrs_engine::aoi::PlayerObservers;
+use mcrs_engine::entity::player::Player;
 use mcrs_engine::geometry::ColumnPos;
 use mcrs_engine::world::chunk::ChunkPos;
 use mcrs_engine::world::dimension::InDimension;
@@ -57,6 +58,7 @@ pub fn update_client_blocks_per_dim(
     >,
     column_indices: Query<&ColumnIndex>,
     observers: Query<&PlayerObservers>,
+    live_players: Query<Entity, With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (chunk_pos, in_dim, palette, mut changes) in chunks.iter_mut() {
@@ -65,13 +67,15 @@ pub fn update_client_blocks_per_dim(
         }
 
         let column_pos = ColumnPos::from(*chunk_pos);
-        let observer_entities: SmallVec<[Entity; 8]> = column_indices
+        let mut observer_entities: SmallVec<[Entity; 8]> = column_indices
             .get(in_dim.0)
             .ok()
             .and_then(|idx| idx.0.get(&column_pos).map(|slot| slot.entity))
             .and_then(|column_entity| observers.get(column_entity).ok())
             .map(|obs| obs.0.iter().copied().collect())
             .unwrap_or_default();
+
+        crate::world::aoi::retain_live_observers(&mut observer_entities, &live_players);
 
         // Drain regardless of whether there are recipients — leaving stale
         // entries in the change set would re-fire `Changed<...>` next tick
