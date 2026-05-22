@@ -31,6 +31,7 @@ use mcrs_minecraft::world::bus::{
     PendingInboundLifecycle, PendingInboundPartition, PlayerTransferSnapshot, TestInboundPayload,
 };
 use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
+use mcrs_minecraft::world::sub_app_builder::DimSubAppHandle;
 use mcrs_protocol::uuid::Uuid;
 use smallvec::SmallVec;
 
@@ -134,9 +135,12 @@ fn build_test_app() -> App {
     app.init_resource::<HostTickCount>();
 
     // Allocate label entities first so they can be referenced by extract
-    // closures captured by `move`.
-    let source_label_entity = app.world_mut().spawn_empty().id();
-    let dest_label_entity = app.world_mut().spawn_empty().id();
+    // closures captured by `move`. The DimSubAppHandle marker is what
+    // bridge_player_transfer's live-sub-app validation looks for —
+    // without it the transfer is dropped before it can mutate
+    // PlayerIndex.
+    let source_label_entity = app.world_mut().spawn(DimSubAppHandle).id();
+    let dest_label_entity = app.world_mut().spawn(DimSubAppHandle).id();
     app.insert_resource(TestDestLabel(dest_label_entity));
 
     // Allocate a host-anchor entity in the main world and seed PlayerIndex

@@ -1,12 +1,16 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::system::ResMut;
+use bevy_ecs::query::With;
+use bevy_ecs::system::{Query, ResMut};
+use rustc_hash::FxHashSet;
+use tracing::warn;
 
 use crate::world::bus::{
     InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerTransfer,
     PendingInboundLifecycle, PendingInboundPartition,
 };
 use crate::world::player_index::PlayerIndex;
+use crate::world::sub_app_builder::DimSubAppHandle;
 
 pub fn partition_main_inbound(
     mut msgs: ResMut<Messages<InboundPlayerPacket>>,
@@ -38,8 +42,23 @@ pub fn bridge_player_transfer(
     mut transfer_msgs: ResMut<Messages<OutboundPlayerTransfer>>,
     mut player_index: ResMut<PlayerIndex>,
     mut lifecycle: ResMut<PendingInboundLifecycle>,
+    live_dims: Query<Entity, With<DimSubAppHandle>>,
 ) {
+    // Snapshot the set of live sub-app label entities once per system
+    // run; an OutboundPlayerTransfer carrying a dest_dim that does not
+    // match a live handle would leave the player's current_dim pointing
+    // at a sub-app that no extract closure drains, and the spawn would
+    // accumulate in lifecycle.per_dim[dest_dim] indefinitely.
+    let valid_dims: FxHashSet<Entity> = live_dims.iter().collect();
     for msg in transfer_msgs.drain() {
+        if !valid_dims.contains(&msg.dest_dim) {
+            warn!(
+                host_anchor = ?msg.host_anchor,
+                dest_dim = ?msg.dest_dim,
+                "OutboundPlayerTransfer targets a dim entity not registered as a live sub-app; dropping"
+            );
+            continue;
+        }
         let Some(location) = player_index.get_mut(&msg.host_anchor) else {
             continue;
         };
@@ -247,10 +266,10 @@ mod tests {
         world.init_resource::<PlayerIndex>();
         world.init_resource::<PendingInboundLifecycle>();
 
-        let host_anchor = Entity::from_raw_u32(42).expect("nonzero");
-        let src_dim = Entity::from_raw_u32(1).expect("nonzero");
-        let dest_dim = Entity::from_raw_u32(2).expect("nonzero");
-        let src_in_dim = Entity::from_raw_u32(99).expect("nonzero");
+        let host_anchor = world.spawn_empty().id();
+        let src_dim = world.spawn(DimSubAppHandle).id();
+        let dest_dim = world.spawn(DimSubAppHandle).id();
+        let src_in_dim = world.spawn_empty().id();
 
         world.resource_mut::<PlayerIndex>().insert(
             host_anchor,
@@ -285,6 +304,53 @@ mod tests {
             .expect("dest dim bundle present");
         assert_eq!(bundle.spawns.len(), 1);
         assert_eq!(bundle.spawns[0].host_anchor, host_anchor);
+    }
+
+    #[test]
+    fn bridge_player_transfer_drops_transfer_to_unregistered_dim() {
+        let mut world = World::new();
+        world.init_resource::<Messages<OutboundPlayerTransfer>>();
+        world.init_resource::<Messages<InboundPlayerSpawn>>();
+        world.init_resource::<PlayerIndex>();
+        world.init_resource::<PendingInboundLifecycle>();
+
+        let host_anchor = world.spawn_empty().id();
+        let src_dim = world.spawn(DimSubAppHandle).id();
+        let src_in_dim = world.spawn_empty().id();
+        // dest_dim is allocated but NOT carrying DimSubAppHandle, so it
+        // does not represent a live sub-app.
+        let bogus_dim = world.spawn_empty().id();
+
+        world.resource_mut::<PlayerIndex>().insert(
+            host_anchor,
+            PlayerLocation {
+                socket: Entity::PLACEHOLDER,
+                current_dim: src_dim,
+                previous_dim: None,
+                in_dim_entity: Some(src_in_dim),
+                inbound_pending: SmallVec::new(),
+            },
+        );
+
+        world
+            .resource_mut::<Messages<OutboundPlayerTransfer>>()
+            .write(OutboundPlayerTransfer {
+                host_anchor,
+                dest_dim: bogus_dim,
+                snapshot: synthetic_snapshot(),
+            });
+
+        run_transfer(&mut world);
+
+        // PlayerIndex remains at src_dim — the transfer was dropped.
+        let index = world.resource::<PlayerIndex>();
+        let loc = index.get(&host_anchor).expect("present");
+        assert_eq!(loc.current_dim, src_dim);
+        assert_eq!(loc.in_dim_entity, Some(src_in_dim));
+
+        // Lifecycle bucket for the bogus dim must not have been created.
+        let lifecycle = world.resource::<PendingInboundLifecycle>();
+        assert!(lifecycle.per_dim.get(&bogus_dim).is_none());
     }
 
     #[test]

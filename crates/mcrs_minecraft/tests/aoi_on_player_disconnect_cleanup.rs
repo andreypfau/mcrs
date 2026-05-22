@@ -159,14 +159,22 @@ fn disconnect_at_tick_n_e1_2_after_bridge_transfer() {
     let mut app = build_disconnect_app();
 
     let host_anchor = app.world_mut().spawn_empty().id();
-    let source_dim = Entity::from_raw_u32(201).unwrap();
-    let dest_dim = Entity::from_raw_u32(202).unwrap();
+    // dest_dim must carry DimSubAppHandle so bridge_player_transfer's
+    // live-sub-app validation accepts the transfer; source_dim is only
+    // ever referenced from PlayerIndex / PendingInboundLifecycle and
+    // does not need the marker.
+    let source_dim = app.world_mut().spawn_empty().id();
+    let dest_dim = app
+        .world_mut()
+        .spawn(mcrs_minecraft::world::sub_app_builder::DimSubAppHandle)
+        .id();
+    let in_dim_entity = app.world_mut().spawn_empty().id();
     insert_location(
         &mut app,
         host_anchor,
         source_dim,
         None,
-        Some(Entity::from_raw_u32(8).unwrap()),
+        Some(in_dim_entity),
     );
 
     app.world_mut()
