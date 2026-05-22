@@ -88,16 +88,33 @@ pub fn update_own_pov(
                         }
                     }
                     Err(_) => {
-                        // Column entity exists in ColumnIndex but the
-                        // PlayerObservers Component has not been seeded yet
-                        // (the seeder runs in FixedPreUpdate; a column spawned
-                        // in FixedUpdate first reaches us here in FixedPostUpdate
-                        // without it). Establish the mirror in this tick so the
-                        // invariant holds before the unconditional
-                        // subscriptions.0 = desired below.
-                        commands.entity(slot.entity).insert(PlayerObservers(
-                            SmallVec::from_slice(&[player]),
-                        ));
+                        // Column entity exists in ColumnIndex but PlayerObservers
+                        // has not been seeded yet (the seeder runs in
+                        // FixedPreUpdate; a column spawned in FixedUpdate first
+                        // reaches us here in FixedPostUpdate without it).
+                        // Commands::insert would overwrite the whole Component at
+                        // flush time — if two players both hit this arm for the
+                        // same column in the same tick, the second insert silently
+                        // discards the first player. commands.queue runs a closure
+                        // with &mut World at flush time; sequential closures for the
+                        // same column each observe the world state left by the
+                        // previous one, so push operations compose rather than
+                        // clobber.
+                        let player_id = player;
+                        let column_entity = slot.entity;
+                        commands.queue(move |world: &mut bevy_ecs::world::World| {
+                            if let Some(mut obs) =
+                                world.get_mut::<PlayerObservers>(column_entity)
+                            {
+                                if !obs.0.contains(&player_id) {
+                                    obs.0.push(player_id);
+                                }
+                            } else {
+                                world.entity_mut(column_entity).insert(PlayerObservers(
+                                    SmallVec::from_slice(&[player_id]),
+                                ));
+                            }
+                        });
                     }
                 }
             }
