@@ -64,18 +64,9 @@ mod harness {
     }
 
     pub fn make_main_app_with_minimal_plugins() -> App {
-        static SET_ASSET_ROOT: std::sync::OnceLock<()> = std::sync::OnceLock::new();
-        SET_ASSET_ROOT.get_or_init(|| {
-            let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .and_then(|p| p.parent())
-                .expect("CARGO_MANIFEST_DIR must have two ancestors (workspace root)");
-            // SAFETY: set_var is safe before any thread reads the value;
-            // the OnceLock guard guarantees a single mutation.
-            unsafe {
-                std::env::set_var("BEVY_ASSET_ROOT", workspace_root);
-            }
-        });
+        // BEVY_ASSET_ROOT is set in .cargo/config.toml's [env] table so
+        // it is in the process environment before any thread starts.
+        // No per-test unsafe set_var is needed.
 
         let mut app = App::new();
         app.add_plugins(bevy_app::TaskPoolPlugin::default());

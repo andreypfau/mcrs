@@ -1,0 +1,13 @@
+[env]
+# bevy_asset::get_base_path consults BEVY_ASSET_ROOT lazily inside any
+# thread that touches an AssetPlugin worker. Test binaries that need the
+# workspace assets directory used to set this via unsafe std::env::set_var
+# guarded by OnceLock, which races other threads in 2024-edition because
+# parallel tests in the same binary can read the variable concurrently.
+# Setting it here puts the value in the process environment before any
+# thread starts, which is the safe alternative.
+#
+# `relative = true` resolves the value against the directory holding this
+# config file (the workspace root), so the path stays portable across
+# clones.
+BEVY_ASSET_ROOT = { value = ".", relative = true }
