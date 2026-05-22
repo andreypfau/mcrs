@@ -153,7 +153,6 @@ fn load_column_queue(
                 chunk_view.loading_queue.push_back(col);
             }
         }
-        true;
     })
 }
 
