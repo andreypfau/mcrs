@@ -1,3 +1,4 @@
+use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::ResMut;
 
@@ -16,7 +17,12 @@ pub fn partition_main_inbound(
         let Some(location) = player_index.get_mut(&msg.player) else {
             continue;
         };
-        if location.in_dim_entity.is_some() {
+        // current_dim == PLACEHOLDER means the login path inserted the
+        // PlayerIndex entry before spawn-point selection assigned a real
+        // dim. Routing into partition.per_dim[PLACEHOLDER] would land in a
+        // bucket that no sub-app extract drains, leaking the packet. Hold
+        // it in inbound_pending until bridge_player_attach fires.
+        if location.in_dim_entity.is_some() && location.current_dim != Entity::PLACEHOLDER {
             partition
                 .per_dim
                 .entry(location.current_dim)
