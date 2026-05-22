@@ -44,9 +44,15 @@ pub trait EntityTracker: 'static + Send + Sync {
 /// (on the `n`-th call, then again on the `2n`-th, etc.). The first
 /// call returns `false` unless `n == 1`.
 ///
+/// `n == 0` is clamped to `1` ("every call") because the semantics of
+/// "every zero calls" are undefined and naive `>= 0` arithmetic would
+/// fire on every call without resetting the counter, defeating the
+/// cost-amortising knob the cadence enum exists for.
+///
 /// Pattern source: `crates/mcrs_minecraft/src/world/sub_app_builder.rs:183`
 /// uses `Local<bool>` for closure state. Same shape with `Local<u32>`.
 pub fn every_n_ticks(n: u32) -> impl FnMut(Local<u32>) -> bool {
+    let n = n.max(1);
     move |mut counter: Local<u32>| {
         *counter = counter.saturating_add(1);
         if *counter >= n {
@@ -102,6 +108,38 @@ mod tests {
     #[test]
     fn tick_interval_every_to_n_is_one() {
         assert_eq!(TickInterval::Every.to_n(), 1);
+    }
+
+    #[test]
+    fn every_n_ticks_zero_clamps_to_every_call() {
+        // Drive the helper through Bevy's schedule so the Local<u32>
+        // counter persists across calls. With n clamped to 1, every
+        // invocation should fire.
+        use bevy_ecs::prelude::*;
+
+        #[derive(Resource, Default)]
+        struct FireLog(Vec<bool>);
+
+        let mut helper = every_n_ticks(0);
+        let mut app = App::new();
+        app.init_resource::<FireLog>();
+        app.add_schedule(Schedule::new(DummySchedule));
+        app.add_systems(
+            DummySchedule,
+            (move |local: Local<u32>, mut log: ResMut<FireLog>| {
+                let fired = helper(local);
+                log.0.push(fired);
+            },)
+                .into_configs(),
+        );
+        for _ in 0..5 {
+            app.world_mut().run_schedule(DummySchedule);
+        }
+        let log = &app.world().resource::<FireLog>().0;
+        assert_eq!(log.len(), 5);
+        for (i, fired) in log.iter().enumerate() {
+            assert!(*fired, "tick {} should fire when n clamps to 1", i + 1);
+        }
     }
 
     #[test]
