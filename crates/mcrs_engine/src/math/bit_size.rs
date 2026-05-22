@@ -16,3 +16,24 @@ impl<const BITS: usize> BitSize<BITS> {
     pub const DOUBLE_BITS: usize = BITS << 1;
     pub const MASK: usize = Self::SIZE - 1;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bit_size_4_constants() {
+        assert_eq!(BitSize::<4>::BITS, 4);
+        assert_eq!(BitSize::<4>::SIZE, 16);
+        assert_eq!(BitSize::<4>::AREA, 256);
+        assert_eq!(BitSize::<4>::VOLUME, 4096);
+        assert_eq!(BitSize::<4>::MASK, 15);
+    }
+
+    #[test]
+    fn bit_size_5_constants() {
+        assert_eq!(BitSize::<5>::SIZE, 32);
+        assert_eq!(BitSize::<5>::AREA, 1024);
+        assert_eq!(BitSize::<5>::VOLUME, 32768);
+    }
+}
