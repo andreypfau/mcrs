@@ -248,6 +248,11 @@ fn update_load_queue(
     });
 }
 
+#[deprecated(
+    note = "Replaced by ChunkSubscriptionSet on the per-player AoI substrate. \
+            Remaining consumers (worldgen tickets, column-view bookkeeping, \
+            TNT view checks) are scheduled for migration in a follow-on cleanup."
+)]
 #[derive(Component, Debug, Default)]
 pub struct PlayerChunkObserver {
     pub last_last_chunk_tracking_view: Option<ChunkTrackingView>,
