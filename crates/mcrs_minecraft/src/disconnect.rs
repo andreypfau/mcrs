@@ -331,6 +331,21 @@ impl Plugin for DisconnectProtocolPlugin {
         // Order after partition_main_inbound so the PendingInboundPartition
         // buckets that the partition system just filled are visible to the
         // partition-purge branch in filter_inflight_for_disconnect.
+        //
+        // ORDERING CONSTRAINT: filter_inflight_for_disconnect calls
+        // Messages::drain() on OutboundPlayerTransfer, OutboundPlayerAttached,
+        // and OutboundPlayerDisconnect, then re-writes the survivors. The
+        // drain resets start_message_count, so any system that reads any of
+        // these three buffers via MessageReader in the same tick MUST run
+        // AFTER this filter — otherwise the rewritten survivors will be
+        // observed twice (once against the pre-reset IDs, once after the
+        // cursor invalidation from reset_start_message_count treats the
+        // rewrites as fresh). Today the only consumers are sub-app extract
+        // closures that use drain() rather than MessageReader, so the
+        // invariant is implicit; the constraint is not enforced by the type
+        // system. If a future system reads any of these messages via
+        // MessageReader, add an explicit .after(filter_inflight_for_disconnect)
+        // edge.
         app.add_systems(
             Update,
             filter_inflight_for_disconnect
