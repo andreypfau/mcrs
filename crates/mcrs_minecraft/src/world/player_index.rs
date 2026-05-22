@@ -48,6 +48,7 @@ impl PlayerIndex {
 pub struct PlayerLocation {
     pub socket: Entity,
     pub current_dim: Entity,
+    pub previous_dim: Option<Entity>,
     pub in_dim_entity: Option<Entity>,
     pub inbound_pending: SmallVec<[InboundPlayerPacket; 4]>,
 }
@@ -68,6 +69,7 @@ mod tests {
         PlayerLocation {
             socket: placeholder_entity(),
             current_dim: placeholder_entity(),
+            previous_dim: None,
             in_dim_entity: None,
             inbound_pending: SmallVec::new(),
         }

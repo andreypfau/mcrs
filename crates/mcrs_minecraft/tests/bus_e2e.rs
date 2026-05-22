@@ -227,6 +227,7 @@ fn inbound_latency_is_zero_host_ticks_via_player_index() {
         PlayerLocation {
             socket: Entity::PLACEHOLDER,
             current_dim: label_entity,
+            previous_dim: None,
             in_dim_entity: Some(in_dim),
             inbound_pending: SmallVec::new(),
         },

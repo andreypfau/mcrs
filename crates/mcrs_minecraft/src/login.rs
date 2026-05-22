@@ -142,6 +142,7 @@ pub fn on_login_accepted(
         PlayerLocation {
             socket: connection_entity,
             current_dim: Entity::PLACEHOLDER,
+            previous_dim: None,
             in_dim_entity: None,
             inbound_pending: SmallVec::new(),
         },
