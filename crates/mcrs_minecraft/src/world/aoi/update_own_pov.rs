@@ -6,7 +6,7 @@
 
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{
-    Added, Changed, Entity, Or, Query, Res, ResMut, With, Without,
+    Added, Changed, Commands, Entity, Or, Query, Res, ResMut, With, Without,
 };
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::physics::Transform;
@@ -17,6 +17,7 @@ use mcrs_engine::math::outward::OutwardIterator2D;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::storage::column::{Column, ColumnIndex};
 use rustc_hash::FxHashSet;
+use smallvec::SmallVec;
 
 use crate::world::aoi::components::ChunkSubscriptionSet;
 use crate::world::aoi::probe::AoiTickProbe;
@@ -51,6 +52,7 @@ pub fn update_own_pov(
     mut observers: Query<&mut PlayerObservers, (With<Column>, Without<Player>)>,
     column_indices: Query<&ColumnIndex>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+    mut commands: Commands,
 ) {
     probe.own_pov_ran = probe.own_pov_ran.saturating_add(1);
 
@@ -79,9 +81,23 @@ pub fn update_own_pov(
 
         for pos in &added {
             if let Some(slot) = column_index.0.get(pos) {
-                if let Ok(mut obs) = observers.get_mut(slot.entity) {
-                    if !obs.0.contains(&player) {
-                        obs.0.push(player);
+                match observers.get_mut(slot.entity) {
+                    Ok(mut obs) => {
+                        if !obs.0.contains(&player) {
+                            obs.0.push(player);
+                        }
+                    }
+                    Err(_) => {
+                        // Column entity exists in ColumnIndex but the
+                        // PlayerObservers Component has not been seeded yet
+                        // (the seeder runs in FixedPreUpdate; a column spawned
+                        // in FixedUpdate first reaches us here in FixedPostUpdate
+                        // without it). Establish the mirror in this tick so the
+                        // invariant holds before the unconditional
+                        // subscriptions.0 = desired below.
+                        commands.entity(slot.entity).insert(PlayerObservers(
+                            SmallVec::from_slice(&[player]),
+                        ));
                     }
                 }
             }
