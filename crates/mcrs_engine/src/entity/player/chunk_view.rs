@@ -64,6 +64,20 @@ fn update_view(
         .par_iter_mut()
         .for_each(|(player, mut observer, transform, client_view_distance, in_dim)| {
             let observer = &mut *observer;
+            // A dimension transition leaves last_last_chunk_tracking_view
+            // referencing the previous dim's coordinate frame; diffing
+            // against it would emit load/unload tickets for the new dim
+            // using stale centre coordinates. Reset cached view state when
+            // the player's InDimension changes so the next pass treats this
+            // dim's first tick like a fresh spawn.
+            let current_in_dim = in_dim.entity();
+            if observer.last_in_dim != Some(current_in_dim) {
+                observer.last_last_chunk_tracking_view = None;
+                observer.unload_queue.clear();
+                observer.load_queue.clear();
+                observer.loading_queue.clear();
+                observer.last_in_dim = Some(current_in_dim);
+            }
             let chunk_pos = ChunkPos::from(transform.translation);
             let distance = client_view_distance.distance;
             let vert_distance = client_view_distance.vert_distance;
@@ -260,6 +274,13 @@ pub struct PlayerChunkObserver {
     pub load_queue: VecDeque<ChunkPos>,
     pub loading_queue: VecDeque<ChunkPos>,
     pub delayed_ticket_ops: VecDeque<TicketCommand>,
+    /// Last `InDimension` entity observed when `update_view` ran. A
+    /// dimension transition leaves the cached `last_last_chunk_tracking_view`
+    /// referencing the previous dim's coordinate frame, and the next diff
+    /// would compute load/unload events against that stale centre. When
+    /// this field disagrees with the current `InDimension`, the cached
+    /// view and all in-flight queues reset.
+    pub last_in_dim: Option<Entity>,
 }
 
 impl PlayerChunkObserver {
