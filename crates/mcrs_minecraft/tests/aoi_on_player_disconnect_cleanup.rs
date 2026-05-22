@@ -21,8 +21,9 @@ use mcrs_minecraft::disconnect::{
 };
 use mcrs_minecraft::world::bridge::bridge_player_transfer;
 use mcrs_minecraft::world::bus::{
-    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerTransfer,
-    PendingInboundLifecycle, PendingInboundPartition, PlayerTransferSnapshot,
+    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
+    OutboundPlayerTransfer, PendingInboundLifecycle, PendingInboundPartition,
+    PlayerTransferSnapshot,
 };
 use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
 use mcrs_protocol::uuid::Uuid;
@@ -33,6 +34,7 @@ fn build_disconnect_app() -> App {
     app.add_message::<OutboundPlayerTransfer>();
     app.add_message::<InboundPlayerSpawn>();
     app.add_message::<OutboundPlayerAttached>();
+    app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
     app.init_resource::<PlayerIndex>();
     app.init_resource::<PendingInboundPartition>();

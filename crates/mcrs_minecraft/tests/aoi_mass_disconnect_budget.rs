@@ -11,8 +11,8 @@ use mcrs_minecraft::disconnect::{
     filter_inflight_for_disconnect, process_disconnect,
 };
 use mcrs_minecraft::world::bus::{
-    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerTransfer,
-    PendingInboundLifecycle, PendingInboundPartition,
+    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
+    OutboundPlayerTransfer, PendingInboundLifecycle, PendingInboundPartition,
 };
 use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
 use smallvec::SmallVec;
@@ -22,6 +22,7 @@ fn build_app() -> App {
     app.add_message::<OutboundPlayerTransfer>();
     app.add_message::<InboundPlayerSpawn>();
     app.add_message::<OutboundPlayerAttached>();
+    app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
     app.init_resource::<PlayerIndex>();
     app.init_resource::<PendingInboundPartition>();

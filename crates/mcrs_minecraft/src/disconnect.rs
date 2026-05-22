@@ -31,8 +31,8 @@ use std::collections::VecDeque;
 use tracing::warn;
 
 use crate::world::bus::{
-    InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerTransfer,
-    PendingInboundLifecycle, PendingInboundPartition,
+    InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
+    OutboundPlayerTransfer, PendingInboundLifecycle, PendingInboundPartition,
 };
 use crate::world::player_index::{HostAnchorRef, PlayerIndex};
 
@@ -256,6 +256,7 @@ pub fn filter_inflight_for_disconnect(
     mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
     mut transfer_msgs: ResMut<Messages<OutboundPlayerTransfer>>,
     mut attached_msgs: ResMut<Messages<OutboundPlayerAttached>>,
+    mut disconnect_msgs: ResMut<Messages<OutboundPlayerDisconnect>>,
     mut lifecycle: ResMut<PendingInboundLifecycle>,
     mut partition: ResMut<PendingInboundPartition>,
 ) {
@@ -278,6 +279,19 @@ pub fn filter_inflight_for_disconnect(
         .collect();
     for msg in kept_attached {
         attached_msgs.write(msg);
+    }
+
+    // OutboundPlayerDisconnect mirrors OutboundPlayerTransfer/Attached on
+    // the public bus surface; an in-flight disconnect message for a
+    // host-anchor whose PlayerIndex entry was just removed this tick
+    // would reach the consumer with a stale anchor reference. Filter
+    // it on the same key.
+    let kept_disconnects: Vec<OutboundPlayerDisconnect> = disconnect_msgs
+        .drain()
+        .filter(|msg| !disconnected.contains(&msg.host_anchor))
+        .collect();
+    for msg in kept_disconnects {
+        disconnect_msgs.write(msg);
     }
 
     for bundle in lifecycle.per_dim.values_mut() {
