@@ -15,8 +15,6 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::hash::Hash;
-use std::mem::MaybeUninit;
-
 pub struct ExplosionPlugin;
 
 impl Plugin for ExplosionPlugin {
@@ -302,7 +300,7 @@ pub static CACHED_RAYS: OnceLock<[DVec3; LEN]> = OnceLock::new();
 
 pub fn cached_rays() -> &'static [DVec3; LEN] {
     CACHED_RAYS.get_or_init(|| {
-        let mut out: [MaybeUninit<DVec3>; LEN] = [MaybeUninit::uninit(); LEN];
+        let mut out: [DVec3; LEN] = [DVec3::ZERO; LEN];
         let mut i = 0usize;
 
         for x in 0..=N {
@@ -315,21 +313,23 @@ pub fn cached_rays() -> &'static [DVec3; LEN] {
 
                         let mag = (xd * xd + yd * yd + zd * zd).sqrt();
 
-                        out[i].write(DVec3::new(
+                        out[i] = DVec3::new(
                             (xd / mag) * SCALE,
                             (yd / mag) * SCALE,
                             (zd / mag) * SCALE,
-                        ));
+                        );
                         i += 1;
                     }
                 }
             }
         }
 
-        debug_assert_eq!(i, LEN);
+        assert_eq!(
+            i, LEN,
+            "cached_rays: surface-cell count diverged from LEN; bump LEN or fix the loop",
+        );
 
-        // SAFETY: все элементы [0..LEN) записаны ровно один раз.
-        unsafe { std::mem::transmute::<[MaybeUninit<DVec3>; LEN], [DVec3; LEN]>(out) }
+        out
     })
 }
 
