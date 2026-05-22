@@ -22,7 +22,6 @@
     clippy::empty_line_after_doc_comments,
     clippy::derivable_impls,
     clippy::useless_conversion,
-    clippy::no_effect,
     clippy::from_over_into,
     clippy::needless_update,
     clippy::unnecessary_fallible_conversions
