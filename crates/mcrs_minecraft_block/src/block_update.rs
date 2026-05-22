@@ -2,7 +2,7 @@ use crate::block::BlockUpdateFlags;
 use crate::palette::BlockPalette;
 use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::{Message, MessageReader, MessageWriter};
+use bevy_ecs::message::{Message, MessageReader, MessageWriter, Messages};
 use bevy_ecs::prelude::{Commands, Component, Query};
 use bevy_ecs::query::{With, Without};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
@@ -21,8 +21,19 @@ pub struct BlockUpdatePlugin;
 
 impl Plugin for BlockUpdatePlugin {
     fn build(&self, app: &mut bevy_app::App) {
-        app.add_message::<BlockSetRequest>();
-        app.add_message::<BlockPlaced>();
+        // Messages<BlockSetRequest> and Messages<BlockPlaced> are
+        // registered by the caller (the per-dim sub-app builder) before
+        // this plugin runs. Registering them here would re-export the
+        // buffers if the plugin were ever added host-side by mistake,
+        // hiding the per-dim invariant.
+        debug_assert!(
+            app.world().contains_resource::<Messages<BlockSetRequest>>(),
+            "BlockUpdatePlugin requires Messages<BlockSetRequest> registered by the per-dim sub-app builder before add_plugins",
+        );
+        debug_assert!(
+            app.world().contains_resource::<Messages<BlockPlaced>>(),
+            "BlockUpdatePlugin requires Messages<BlockPlaced> registered by the per-dim sub-app builder before add_plugins",
+        );
         app.configure_sets(FixedUpdate, BlockUpdateSet::ApplyChanges);
         app.configure_sets(FixedPostUpdate, BlockUpdateSet::NetworkSync);
         app.add_systems(FixedUpdate, add_changes_set);

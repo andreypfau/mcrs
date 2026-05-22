@@ -45,6 +45,12 @@ fn make_test_app_with_block_update(sky: bool) -> (App, Entity) {
     app.add_plugins(StatesPlugin);
     app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
+    // BlockUpdatePlugin requires Messages<BlockSetRequest> /
+    // Messages<BlockPlaced> already registered by the caller (the per-dim
+    // sub-app builder in production). Register them here so the test wires
+    // the same shape.
+    app.add_message::<BlockSetRequest>();
+    app.add_message::<mcrs_minecraft_block::block_update::BlockPlaced>();
     app.add_plugins(BlockUpdatePlugin);
     app.add_plugins(LightingPlugin);
     app.insert_resource(make_stub_block_light_table_with_torch());

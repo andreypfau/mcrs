@@ -126,12 +126,12 @@ pub fn spawn_dim_subapp(
     // `ExplosionPlugin::tick_explode` writes `MessageWriter<BlockSetRequest>`
     // and `BlockUpdatePlugin::apply_set_block_request` reads the same buffer;
     // both plugins now live in this per-dim sub-app so the explosion ->
-    // block-set chain runs as a single message hop. `BlockUpdatePlugin::build`
-    // itself registers both messages; the duplicate registrations here are
-    // idempotent (Bevy's `add_message` no-ops on a second call) and serve as a
-    // load-bearing safety net should the plugin add order change during sub-app
-    // construction — a sub-world's `resource_mut::<Messages<T>>` panics if the
-    // buffer was not initialised before the first writer fires.
+    // block-set chain runs as a single message hop. The sub-app builder is
+    // the single source of truth for these registrations — `BlockUpdatePlugin`
+    // no longer registers them and instead debug-asserts they are already in
+    // place, so a mistaken host-side `add_plugins(BlockUpdatePlugin)` fails
+    // loud at plugin load rather than silently exporting the buffers to the
+    // host world.
     sub_app.add_message::<BlockSetRequest>();
     sub_app.add_message::<BlockPlaced>();
 

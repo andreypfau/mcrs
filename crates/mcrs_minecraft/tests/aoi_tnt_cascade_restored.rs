@@ -28,7 +28,7 @@ use mcrs_minecraft::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlug
 use mcrs_minecraft::world::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft::world::explosion::ExplosionConfig;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_minecraft_block::block_update::BlockSetRequest;
+use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 
@@ -50,6 +50,12 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     // ChunkNetworkSyncBlockChangesSet sees the change.
     let mut app = App::new();
     app.add_message::<OutboundPlayerPacket>();
+    // BlockUpdatePlugin no longer registers BlockSetRequest / BlockPlaced
+    // itself — that responsibility belongs to the per-dim sub-app builder.
+    // The test reproduces the per-dim shape by registering the same buffers
+    // here before add_plugins.
+    app.add_message::<BlockSetRequest>();
+    app.add_message::<BlockPlaced>();
     app.add_plugins(BlockUpdatePlugin);
     app.add_plugins(BlockUpdateWirePlugin);
 
