@@ -78,5 +78,6 @@ impl Plugin for PlayerTrackerPlugin {
             FixedPostUpdate,
             PlayerTracker::systems().run_if(on_changed_transform),
         );
+        app.add_observer(crate::world::aoi::on_player_remove::on_player_remove);
     }
 }

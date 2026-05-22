@@ -9,6 +9,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::IntoSystem;
 use mcrs_engine::aoi::PlayerObservers;
+use mcrs_engine::entity::player::Player;
 use mcrs_engine::geometry::ColumnPos;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::ChunkPos;
@@ -19,9 +20,6 @@ use mcrs_minecraft::world::bus::{OutboundPlayerPacket, PacketPayload, PacketTarg
 use mcrs_minecraft_block::block_update::ChunkNetworkSyncBlockChangesSet;
 use mcrs_minecraft_block::palette::BlockPalette;
 
-#[derive(Component)]
-struct PlayerMarker;
-
 #[test]
 fn block_update_resolves_observers_per_dim_emit_site() {
     let mut app = App::new();
@@ -30,7 +28,10 @@ fn block_update_resolves_observers_per_dim_emit_site() {
     // Allocate a synthetic dimension entity, a column entity (carrying
     // PlayerObservers + acting as the lookup target via ColumnIndex), and a
     // chunk entity (the source of block-change events).
-    let player = app.world_mut().spawn(PlayerMarker).id();
+    // The player must carry the Player Component so the liveness filter in
+    // update_client_blocks_per_dim passes it through (the filter uses
+    // Query<Entity, With<Player>>).
+    let player = app.world_mut().spawn(Player).id();
 
     let mut observers = PlayerObservers::default();
     observers.0.push(player);
