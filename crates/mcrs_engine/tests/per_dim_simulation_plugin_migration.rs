@@ -318,9 +318,10 @@ fn insert_test_sub_app(app: &mut App, label: TestDimLabel, label_entity: Entity)
 }
 
 #[test]
-fn host_side_plugin_registrations_unchanged_for_remaining_three() {
+fn host_side_no_longer_registers_per_dim_simulation_plugins() {
     // Build a host App with WorldPlugin so we can observe the host-side
-    // registrations after this plan's migration. We do not transition to
+    // registrations after the per-dim migration of BlockUpdatePlugin,
+    // MinecraftEntityPlugin, and LootPlugin. We do not transition to
     // AppState::Playing; the assertions only inspect resources installed
     // during plugin build().
     let mut app = App::new();
@@ -334,39 +335,80 @@ fn host_side_plugin_registrations_unchanged_for_remaining_three() {
 
     let world = app.world();
 
-    // BlockUpdatePlugin still host-side: its registrations of
-    // Messages<BlockSetRequest> and Messages<BlockPlaced> must be
+    // BlockUpdatePlugin is no longer host-side: its registrations of
+    // Messages<BlockSetRequest> and Messages<BlockPlaced> must NOT be
+    // present in the host world. They live in each per-dim sub-app
+    // World instead.
+    assert!(
+        !world.contains_resource::<Messages<BlockSetRequest>>(),
+        "BlockUpdatePlugin must no longer register Messages<BlockSetRequest> host-side"
+    );
+    assert!(
+        !world.contains_resource::<Messages<BlockPlaced>>(),
+        "BlockUpdatePlugin must no longer register Messages<BlockPlaced> host-side"
+    );
+
+    // MinecraftEntityPlugin is no longer host-side: its nested
+    // PlayerPlugin -> PlayerActionPlugin chain must NOT have registered
+    // Messages<PlayerAction> on the host. The chain runs per-dim.
+    use mcrs_minecraft::world::entity::player::player_action::PlayerAction;
+    assert!(
+        !world.contains_resource::<Messages<PlayerAction>>(),
+        "MinecraftEntityPlugin chain (PlayerActionPlugin) must no longer register \
+         Messages<PlayerAction> host-side"
+    );
+
+    // LootPlugin is no longer host-side: BlockLootTables must NOT be
     // present in the host world.
+    use mcrs_minecraft::world::loot::BlockLootTables;
+    assert!(
+        !world.contains_resource::<BlockLootTables>(),
+        "LootPlugin must no longer install BlockLootTables host-side"
+    );
+}
+
+#[test]
+fn per_dim_simulation_plugins_now_in_sub_app() {
+    let mut app = harness::make_main_app_with_minimal_plugins();
+    harness::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
+
+    let label = *app
+        .sub_apps()
+        .sub_apps
+        .keys()
+        .next()
+        .expect("one sub-app expected");
+    let sub_app = app
+        .sub_apps()
+        .sub_apps
+        .get(&label)
+        .expect("sub-app present");
+    let world = sub_app.world();
+
+    // BlockUpdatePlugin now per-dim: Messages<BlockSetRequest> and
+    // Messages<BlockPlaced> live in the sub-app World.
     assert!(
         world.contains_resource::<Messages<BlockSetRequest>>(),
-        "BlockUpdatePlugin must still register Messages<BlockSetRequest> host-side"
+        "BlockUpdatePlugin must register Messages<BlockSetRequest> in the per-dim sub-app"
     );
     assert!(
         world.contains_resource::<Messages<BlockPlaced>>(),
-        "BlockUpdatePlugin must still register Messages<BlockPlaced> host-side"
+        "BlockUpdatePlugin must register Messages<BlockPlaced> in the per-dim sub-app"
     );
 
-    // MinecraftEntityPlugin host-registration marker: the nested
-    // PlayerPlugin pulls in PlayerActionPlugin which registers
-    // Messages<PlayerAction> and Messages<PlayerWillDestroyBlock> on the
-    // host. Either presence is enough to confirm the plugin chain ran.
+    // MinecraftEntityPlugin now per-dim: Messages<PlayerAction> lives in
+    // the sub-app World (via PlayerActionPlugin in the PlayerPlugin chain).
     use mcrs_minecraft::world::entity::player::player_action::PlayerAction;
     assert!(
         world.contains_resource::<Messages<PlayerAction>>(),
-        "MinecraftEntityPlugin chain (PlayerActionPlugin) must still register Messages<PlayerAction> host-side"
-    );
-    assert!(
-        world.contains_resource::<Messages<PlayerWillDestroyBlock>>(),
-        "PlayerActionPlugin must still register Messages<PlayerWillDestroyBlock> host-side \
-         alongside the per-sub-app registration this plan added"
+        "MinecraftEntityPlugin chain must register Messages<PlayerAction> in the per-dim sub-app"
     );
 
-    // LootPlugin host-registration marker: BlockLootTables is installed
-    // host-side by LootPlugin::build.
+    // LootPlugin now per-dim: BlockLootTables lives in the sub-app World.
     use mcrs_minecraft::world::loot::BlockLootTables;
     assert!(
         world.contains_resource::<BlockLootTables>(),
-        "LootPlugin must still install BlockLootTables host-side"
+        "LootPlugin must install BlockLootTables in the per-dim sub-app"
     );
 }
 

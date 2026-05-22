@@ -42,7 +42,9 @@ struct DimTick;
 use crate::world::aoi::PlayerTrackerPlugin;
 use crate::world::block::minecraft::MinecraftBlockPlugin;
 use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
+use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::explosion::ExplosionPlugin;
+use crate::world::loot::LootPlugin;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
@@ -133,6 +135,24 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<BlockSetRequest>();
     sub_app.add_message::<BlockPlaced>();
 
+    // `MinecraftEntityPlugin`'s nested `DiggingPlugin` and `PlayerPlugin`
+    // carry systems that read host-side `PendingInboundLifecycle`,
+    // `PlayerIndex`, and `LoadedWorldPreset` resources (the digging chain
+    // routes per-player block events through the cross-`World` bridge;
+    // `spawn_player` reads the loaded preset to fill in dimension state).
+    // Now that the plugin runs per-dim, those systems live in this
+    // sub-app's `World`, but their resource reads must not panic —
+    // initialise empty per-dim copies so the systems no-op naturally
+    // (the per-dim `PlayerIndex` will never contain entries because the
+    // host owns the canonical index; the per-dim `PendingInboundLifecycle`
+    // is never drained by an extract closure; `LoadedWorldPreset::is_loaded`
+    // defaults to `false`, so `spawn_player` early-returns). The actual
+    // cross-`World` event routing continues to flow through the host-side
+    // copies of these resources.
+    sub_app.init_resource::<crate::world::bus::PendingInboundLifecycle>();
+    sub_app.init_resource::<crate::world::player_index::PlayerIndex>();
+    sub_app.init_resource::<crate::configuration::LoadedWorldPreset>();
+
     sub_app.update_schedule = Some(DimTick.intern());
     sub_app.add_schedule(Schedule::new(DimTick));
     sub_app.add_schedule(Schedule::new(First));
@@ -213,6 +233,8 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(PlayerTrackerPlugin);
     sub_app.add_plugins(BlockUpdatePlugin);
     sub_app.add_plugins(BlockUpdateWirePlugin);
+    sub_app.add_plugins(MinecraftEntityPlugin);
+    sub_app.add_plugins(LootPlugin);
 
     sub_app.insert_resource(registries.registry_access.clone());
     sub_app.insert_resource(registries.block_light_table.clone());
