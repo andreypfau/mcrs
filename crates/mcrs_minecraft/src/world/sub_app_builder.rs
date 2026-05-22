@@ -416,6 +416,24 @@ pub fn drain_dim_despawn_queue(app: &mut App) {
                 "DimDespawnQueue entry referenced a sub-app not registered under DimAppLabel"
             );
         }
+
+        // Purge host-side buckets keyed off this label_entity. Once the
+        // sub-app is gone, no extract closure will ever drain
+        // PendingInboundPartition.per_dim[entity] or
+        // PendingInboundLifecycle.per_dim[entity], so any entries left
+        // behind leak indefinitely. Removing the keys here keeps the
+        // host maps consistent with the live sub-app population.
+        if let Some(mut partition) =
+            app.world_mut().get_resource_mut::<PendingInboundPartition>()
+        {
+            partition.per_dim.remove(&entity);
+        }
+        if let Some(mut lifecycle) =
+            app.world_mut().get_resource_mut::<PendingInboundLifecycle>()
+        {
+            lifecycle.per_dim.remove(&entity);
+        }
+
         // Free the host-side label-anchor entity so the host world's
         // dimension-handle archetype matches the live sub-app population.
         // The OnRemove<DimSubAppHandle> observer fires before this drain runs
