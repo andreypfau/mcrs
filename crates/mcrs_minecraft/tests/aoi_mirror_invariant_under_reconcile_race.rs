@@ -146,6 +146,42 @@ fn assert_mirror_invariant(
 }
 
 #[test]
+fn update_own_pov_does_not_panic_when_column_despawns_before_flush() {
+    // Replicates a ticket-release race: a bare column lands in the
+    // player's desired set during FixedPostUpdate, update_own_pov queues
+    // a Commands closure to insert PlayerObservers, and another
+    // command-queue entry despawns the column before the closure runs.
+    // The fix guards the closure with get_entity_mut so this no-ops
+    // instead of panicking.
+    let mut app = make_aoi_app();
+    let dim = app.world_mut().spawn(DimensionBundle::default()).id();
+    let player = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
+
+    app.world_mut().run_schedule(FixedPreUpdate);
+    let columns = seed_bare_column_grid(&mut app, dim, ColumnPos::new(0, 0), 20);
+
+    // Despawn every bare column directly before FixedPostUpdate runs.
+    // The closure that update_own_pov queues for any column on the Err
+    // arm must observe the despawn (via get_entity_mut) and no-op rather
+    // than panic.
+    let column_entities: Vec<Entity> = columns.values().copied().collect();
+    for column_entity in column_entities {
+        app.world_mut().entity_mut(column_entity).despawn();
+    }
+
+    app.world_mut().run_schedule(FixedPostUpdate);
+
+    // Smoke: the system completed without panicking and the player's
+    // subscription set still converged (the columns are gone from
+    // ColumnIndex too but ChunkSubscriptionSet only tracks ColumnPos
+    // entries, not their entities).
+    let _ = app
+        .world()
+        .get::<ChunkSubscriptionSet>(player)
+        .expect("player still has ChunkSubscriptionSet");
+}
+
+#[test]
 fn mirror_invariant_holds_with_two_players_same_tick_bare_column() {
     let mut app = make_aoi_app();
     let dim = app.world_mut().spawn(DimensionBundle::default()).id();

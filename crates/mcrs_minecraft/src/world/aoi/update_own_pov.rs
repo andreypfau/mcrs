@@ -109,10 +109,17 @@ pub fn update_own_pov(
                                 if !obs.0.contains(&player_id) {
                                     obs.0.push(player_id);
                                 }
-                            } else {
-                                world.entity_mut(column_entity).insert(PlayerObservers(
-                                    SmallVec::from_slice(&[player_id]),
-                                ));
+                            } else if let Ok(mut entity_mut) =
+                                world.get_entity_mut(column_entity)
+                            {
+                                // get_entity_mut no-ops if the column was
+                                // despawned between this system body and
+                                // command flush (e.g., a ticket release
+                                // raced ahead of FixedPostUpdate).
+                                // entity_mut would panic in that case.
+                                entity_mut.insert(PlayerObservers(SmallVec::from_slice(
+                                    &[player_id],
+                                )));
                             }
                         });
                     }
