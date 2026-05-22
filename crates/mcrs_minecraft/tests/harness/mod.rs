@@ -18,15 +18,19 @@ use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, PlayerTrackerPlugin, TrackedBy};
-use mcrs_minecraft::world::bus::OutboundPlayerPacket;
+use mcrs_minecraft::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
 
 /// Build a host App with the AoI plugin, the outbound bus, and the
 /// `FixedPreUpdate` / `FixedPostUpdate` schedules registered.
+///
+/// `InboundPlayerDespawn` is registered because `PlayerTrackerPlugin` now
+/// installs `drain_inbound_player_despawn` which reads `MessageReader<InboundPlayerDespawn>`.
 pub fn make_aoi_app() -> App {
     let mut app = App::new();
     app.add_schedule(Schedule::new(FixedPreUpdate));
     app.add_schedule(Schedule::new(FixedPostUpdate));
     app.add_message::<OutboundPlayerPacket>();
+    app.add_message::<InboundPlayerDespawn>();
     app.add_plugins(PlayerTrackerPlugin);
     app
 }
