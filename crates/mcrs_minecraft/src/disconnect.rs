@@ -199,6 +199,7 @@ pub fn process_disconnect(
 pub fn drain_pending_disconnects(
     mut disconnect_budget: ResMut<DisconnectBudget>,
     mut pending_queue: ResMut<PendingDisconnectQueue>,
+    mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
     mut player_index: ResMut<PlayerIndex>,
     mut lifecycle: ResMut<PendingInboundLifecycle>,
     mut commands: Commands,
@@ -209,6 +210,14 @@ pub fn drain_pending_disconnects(
             break;
         };
         disconnect_budget.remaining -= 1;
+        // Mirror the synchronous-path invariant: every host_anchor processed
+        // this tick goes into DisconnectedThisTick so the
+        // filter_inflight_for_disconnect pass (Update schedule, same tick)
+        // drops in-flight bus messages addressed to it. Without this, a
+        // deferred-drain anchor whose OutboundPlayerTransfer or
+        // OutboundPlayerAttached arrives on the drain tick leaks past the
+        // filter and reaches the dest sub-app after PlayerIndex is gone.
+        disconnected_this_tick.host_anchors.push(host_anchor);
         process_disconnect(host_anchor, &mut player_index, &mut lifecycle, &mut commands);
     }
 }
