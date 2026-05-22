@@ -105,10 +105,22 @@ pub struct DisconnectedThisTick {
 }
 
 /// Increment-only counter for queue-hard-cap drop events. Read by tests
-/// (the only deterministic way to assert the drop happened without taking
-/// on a `tracing_test`-style log-capture dependency).
+/// (the only deterministic way to assert the drop happened without
+/// taking on a `tracing_test`-style log-capture dependency) and also
+/// exposed as a steady-state telemetry surface so an operator can scrape
+/// the value alongside `AoiTickProbe`.
+///
+/// The observer emits a `warn!` log on the first drop of a fresh
+/// `OverflowCounter` and then every `OVERFLOW_HEARTBEAT_INTERVAL` drops
+/// thereafter so a sustained drop storm does not flood the log surface.
 #[derive(Resource, Default)]
 pub struct OverflowCounter(pub u32);
+
+/// Heartbeat cadence for the overflow-drop warning. Tunable here so a
+/// sustained storm produces at most one warning per `INTERVAL` drops
+/// (plus the always-on first-drop signal). Picked to give roughly one
+/// log line per few seconds at the per-tick budget ceiling.
+pub const OVERFLOW_HEARTBEAT_INTERVAL: u32 = 256;
 
 /// Observer over `On<Remove, ServerSideConnection>`. Fires synchronously
 /// in the command-flush boundary, so `DisconnectedThisTick` is populated
@@ -138,12 +150,21 @@ pub fn on_player_disconnect(
     if disconnect_budget.consume() {
         process_disconnect(host_anchor, &mut player_index, &mut lifecycle, &mut commands);
     } else if !pending_queue.push_back(host_anchor) {
-        overflow_counter.0 = overflow_counter.0.saturating_add(1);
-        warn!(
-            target: "disconnect",
-            ?host_anchor,
-            "PendingDisconnectQueue hard-cap exceeded; dropping disconnect"
-        );
+        let before = overflow_counter.0;
+        overflow_counter.0 = before.saturating_add(1);
+        let after = overflow_counter.0;
+        // Emit on the first drop (counter transitioned from 0 -> 1) and
+        // then every OVERFLOW_HEARTBEAT_INTERVAL drops thereafter. The
+        // intermediate drops bump the resource counter (visible via the
+        // telemetry surface) but stay out of the log to avoid flooding.
+        if before == 0 || after % OVERFLOW_HEARTBEAT_INTERVAL == 0 {
+            warn!(
+                target: "disconnect",
+                ?host_anchor,
+                overflow_total = after,
+                "PendingDisconnectQueue hard-cap exceeded; dropping disconnect"
+            );
+        }
     }
 }
 
