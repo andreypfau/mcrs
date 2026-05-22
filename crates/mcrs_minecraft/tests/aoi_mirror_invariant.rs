@@ -59,6 +59,54 @@ fn chunk_subscription_set_mirrors_chunk_player_observers() {
     assert_mirror_invariant(&app, player, &columns);
 }
 
+#[test]
+fn chunk_subscription_set_covers_chebyshev_corner_at_max_view_distance() {
+    // Vanilla view-distance / ChunkTrackingView::contains define visibility
+    // as a Chebyshev square `max(|dx|, |dz|) <= radius`. The AoI
+    // subscription set must agree with that contract; otherwise corner
+    // columns of the visible square would emit no ChunkLoad packets and
+    // would not list the player in PlayerObservers.
+    let mut app = make_aoi_app();
+    let dim = app.world_mut().spawn(DimensionBundle::default()).id();
+    let player = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
+
+    // Default PlayerViewDistance::distance is 12. Seed enough columns to
+    // cover the full 25x25 Chebyshev square (radius 12 -> diameter 25).
+    let columns = seed_column_grid(&mut app, dim, ColumnPos::new(0, 0), 14);
+
+    drive_aoi_tick(&mut app);
+
+    let world = app.world();
+    let sub = world
+        .get::<ChunkSubscriptionSet>(player)
+        .expect("player has ChunkSubscriptionSet");
+
+    // The corner of the visible square: max(|12|, |12|) == 12 (in range)
+    // but |12| + |12| == 24 > 12 (outside the diamond). A Manhattan
+    // iterator would have left this column out of the subscription set.
+    let corner = ColumnPos::new(12, 12);
+    assert!(
+        sub.0.contains(&corner),
+        "ChunkSubscriptionSet missing Chebyshev-corner column at {:?}; \
+         len={}, vd=12 expects 25x25=625 columns",
+        corner,
+        sub.0.len(),
+    );
+
+    let corner_entity = columns
+        .get(&corner)
+        .copied()
+        .expect("corner column was seeded");
+    let obs = world
+        .get::<PlayerObservers>(corner_entity)
+        .expect("corner column has PlayerObservers");
+    assert!(
+        obs.0.contains(&player),
+        "PlayerObservers at {:?} missing player; mirror invariant broken at corner",
+        corner,
+    );
+}
+
 fn seed_column_grid(
     app: &mut App,
     dim: Entity,

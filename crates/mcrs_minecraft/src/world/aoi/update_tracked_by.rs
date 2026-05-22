@@ -10,7 +10,6 @@ use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::geometry::ColumnPos;
-use mcrs_engine::math::outward::OutwardIterator2D;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::storage::column::{Column, ColumnIndex};
 use smallvec::SmallVec;
@@ -59,32 +58,37 @@ pub fn update_tracked_by(
         let centre_chunk = ColumnPos::from(transform.translation);
 
         let mut new_observers: SmallVec<[Entity; 32]> = SmallVec::new();
-        for (x, z) in OutwardIterator2D::new(centre_chunk.x, centre_chunk.z, TRACKING_RADIUS_CHUNKS)
-        {
-            let Some(slot) = column_index.0.get(&ColumnPos::new(x, z)) else {
-                continue;
-            };
-            let Ok(observers) = chunk_observers.get(slot.entity) else {
-                continue;
-            };
-            for &other_entity in observers.0.iter() {
-                if other_entity == player {
-                    continue;
-                }
-                if new_observers.contains(&other_entity) {
-                    continue;
-                }
-                let Ok((_, other_xf)) = all_players.get(other_entity) else {
+        // Chebyshev (square) sweep to match the player view-distance
+        // shape; a Manhattan diamond would leave corner columns invisible
+        // and a player standing in a corner column would not be tracked.
+        for dx in -TRACKING_RADIUS_CHUNKS..=TRACKING_RADIUS_CHUNKS {
+            for dz in -TRACKING_RADIUS_CHUNKS..=TRACKING_RADIUS_CHUNKS {
+                let pos = ColumnPos::new(centre_chunk.x + dx, centre_chunk.z + dz);
+                let Some(slot) = column_index.0.get(&pos) else {
                     continue;
                 };
-                if transform
-                    .translation
-                    .distance_squared(other_xf.translation)
-                    > TRACKING_RADIUS_BLOCKS_SQ
-                {
+                let Ok(observers) = chunk_observers.get(slot.entity) else {
                     continue;
+                };
+                for &other_entity in observers.0.iter() {
+                    if other_entity == player {
+                        continue;
+                    }
+                    if new_observers.contains(&other_entity) {
+                        continue;
+                    }
+                    let Ok((_, other_xf)) = all_players.get(other_entity) else {
+                        continue;
+                    };
+                    if transform
+                        .translation
+                        .distance_squared(other_xf.translation)
+                        > TRACKING_RADIUS_BLOCKS_SQ
+                    {
+                        continue;
+                    }
+                    new_observers.push(other_entity);
                 }
-                new_observers.push(other_entity);
             }
         }
 

@@ -13,7 +13,6 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_engine::geometry::ColumnPos;
-use mcrs_engine::math::outward::OutwardIterator2D;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::storage::column::{Column, ColumnIndex};
 use rustc_hash::FxHashSet;
@@ -63,9 +62,16 @@ pub fn update_own_pov(
 
         let centre = ColumnPos::from(transform.translation);
         let radius = view_distance.distance as i32;
-        let desired: FxHashSet<ColumnPos> = OutwardIterator2D::new(centre.x, centre.z, radius)
-            .map(|(x, z)| ColumnPos::new(x, z))
-            .collect();
+        // Chebyshev (square) ball `max(|dx|, |dz|) <= radius` matches
+        // `ChunkTrackingView::contains` and vanilla view-distance semantics.
+        // A Manhattan (diamond) iterator like OutwardIterator2D would
+        // under-cover the corner columns of the visible square.
+        let mut desired: FxHashSet<ColumnPos> = FxHashSet::default();
+        for dx in -radius..=radius {
+            for dz in -radius..=radius {
+                desired.insert(ColumnPos::new(centre.x + dx, centre.z + dz));
+            }
+        }
 
         let added: Vec<ColumnPos> = desired
             .iter()
