@@ -268,7 +268,12 @@ pub fn filter_inflight_for_disconnect(
     if disconnected_this_tick.host_anchors.is_empty() {
         return;
     }
-    let disconnected = &disconnected_this_tick.host_anchors;
+    // SmallVec::contains is linear; rebuild a transient hash set once
+    // so the per-message filter probes are O(1) instead of O(n) in the
+    // disconnect-set length. The set lives for the duration of this
+    // system run.
+    let disconnected: rustc_hash::FxHashSet<Entity> =
+        disconnected_this_tick.host_anchors.iter().copied().collect();
 
     let kept_transfers: Vec<OutboundPlayerTransfer> = transfer_msgs
         .drain()
