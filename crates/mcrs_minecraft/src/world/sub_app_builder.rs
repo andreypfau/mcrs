@@ -440,7 +440,7 @@ pub fn drain_dim_despawn_queue(app: &mut App) {
         // (it fires at despawn time), so when the observer path is active the
         // entity is already gone here — Err(_) is expected on that path.
         match app.world_mut().get_entity_mut(entity) {
-            Ok(mut entity_mut) => entity_mut.despawn(),
+            Ok(entity_mut) => entity_mut.despawn(),
             Err(_) => debug!(
                 ?entity,
                 "DimDespawnQueue entity already absent from host world (expected on the OnRemove observer path)"

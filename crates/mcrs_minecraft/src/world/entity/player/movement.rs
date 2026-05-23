@@ -115,7 +115,7 @@ fn process_movement(
         let Ok((mut state, mut transform)) = query.get_mut(m.entity) else {
             return;
         };
-        m.position.map(|mut p| {
+        m.position.map(|p| {
             transform.set_if_neq(transform.with_translation(p.clamp(MIN_POS, MAX_POS)));
         });
         m.look.map(|l| {

@@ -120,7 +120,7 @@ impl Properties {
         self
     }
 
-    pub const fn with_no_loot_table(mut self) -> Self {
+    pub const fn with_no_loot_table(self) -> Self {
         //todo: loot table
         self
     }
