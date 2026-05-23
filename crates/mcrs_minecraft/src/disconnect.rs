@@ -157,7 +157,7 @@ pub fn on_player_disconnect(
         // then every OVERFLOW_HEARTBEAT_INTERVAL drops thereafter. The
         // intermediate drops bump the resource counter (visible via the
         // telemetry surface) but stay out of the log to avoid flooding.
-        if before == 0 || after % OVERFLOW_HEARTBEAT_INTERVAL == 0 {
+        if before == 0 || after.is_multiple_of(OVERFLOW_HEARTBEAT_INTERVAL) {
             warn!(
                 target: "disconnect",
                 ?host_anchor,
@@ -194,8 +194,8 @@ pub fn process_disconnect(
         .despawns
         .push(InboundPlayerDespawn { host_anchor });
 
-    if let Some(prev) = previous_dim {
-        if prev != current_dim {
+    if let Some(prev) = previous_dim
+        && prev != current_dim {
             lifecycle
                 .per_dim
                 .entry(prev)
@@ -203,7 +203,6 @@ pub fn process_disconnect(
                 .despawns
                 .push(InboundPlayerDespawn { host_anchor });
         }
-    }
 
     // player_index.remove drops PlayerLocation including its inbound_pending
     // SmallVec; any inbound packets buffered there are discarded with the

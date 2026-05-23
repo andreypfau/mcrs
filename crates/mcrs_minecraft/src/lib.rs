@@ -8,17 +8,7 @@
     clippy::uninlined_format_args,
     clippy::type_complexity,
     clippy::expect_fun_call,
-    clippy::useless_vec,
-    clippy::assign_op_pattern,
-    clippy::collapsible_if,
-    clippy::option_map_unit_fn,
-    clippy::map_flatten,
     clippy::too_many_arguments,
-    clippy::empty_line_after_doc_comments,
-    clippy::derivable_impls,
-    clippy::useless_conversion,
-    clippy::from_over_into,
-    clippy::needless_update,
     clippy::unnecessary_fallible_conversions
 )]
 

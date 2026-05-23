@@ -126,11 +126,10 @@ fn unload_chunk_request(
         let column_pos = ColumnPos::from(req.chunk_pos);
         chunk_view.desired_columns.remove(&column_pos);
         chunk_view.sent_columns.remove(&column_pos);
-        if chunk_view.loaded_columns.remove(&column_pos) {
-            if let Ok((mut cmds, type_config)) = dims.get_mut(in_dim.entity()) {
+        if chunk_view.loaded_columns.remove(&column_pos)
+            && let Ok((mut cmds, type_config)) = dims.get_mut(in_dim.entity()) {
                 apply_forced_tickets(&mut cmds, column_pos, offset_sections(rep, type_config.min_y), type_config.section_count, false);
             }
-        }
     });
 }
 

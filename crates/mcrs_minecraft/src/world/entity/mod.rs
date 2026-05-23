@@ -102,9 +102,9 @@ impl Default for NetworkEntityId {
     }
 }
 
-impl Into<i32> for NetworkEntityId {
-    fn into(self) -> i32 {
-        self.0.0
+impl From<NetworkEntityId> for i32 {
+    fn from(val: NetworkEntityId) -> Self {
+        val.0.0
     }
 }
 

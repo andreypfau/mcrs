@@ -163,9 +163,9 @@ fn resolve_condition(
 ) -> LootCondition {
     match condition {
         LootConditionProto::MatchTool { predicate } => {
-            if let Some(predicates) = &predicate.predicates {
-                if let Some(enchantments) = &predicates.enchantments {
-                    if let Some(first) = enchantments.first() {
+            if let Some(predicates) = &predicate.predicates
+                && let Some(enchantments) = &predicates.enchantments
+                    && let Some(first) = enchantments.first() {
                         let enchantment_id = &first.enchantments;
                         if let Some(static_id) = enchantment_registry.id_of(enchantment_id.as_str()) {
                             let min_level = first
@@ -183,8 +183,6 @@ fn resolve_condition(
                             "Enchantment not found in registry, condition will always be false"
                         );
                     }
-                }
-            }
             LootCondition::AlwaysTrue
         }
         LootConditionProto::SurvivesExplosion {} => LootCondition::SurvivesExplosion,
@@ -402,22 +400,19 @@ fn process_loaded_loot_tables(
     mut block_loot_tables: ResMut<BlockLootTables>,
 ) {
     for event in events.read() {
-        match event {
-            AssetEvent::LoadedWithDependencies { id } => {
-                if let Some(asset) = assets.get(*id) {
-                    let resolved = asset.proto.resolve(&enchantment_registry);
-                    info!(
-                        block = %asset.block_id,
-                        pools = resolved.pools.len(),
-                        "Resolved loot table"
-                    );
-                    block_loot_tables.pending.remove(&asset.block_id);
-                    block_loot_tables
-                        .tables
-                        .insert(asset.block_id.clone(), resolved);
-                }
+        if let AssetEvent::LoadedWithDependencies { id } = event {
+            if let Some(asset) = assets.get(*id) {
+                let resolved = asset.proto.resolve(&enchantment_registry);
+                info!(
+                    block = %asset.block_id,
+                    pools = resolved.pools.len(),
+                    "Resolved loot table"
+                );
+                block_loot_tables.pending.remove(&asset.block_id);
+                block_loot_tables
+                    .tables
+                    .insert(asset.block_id.clone(), resolved);
             }
-            _ => {}
         }
     }
 }

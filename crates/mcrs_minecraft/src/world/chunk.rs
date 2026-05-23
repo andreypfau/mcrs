@@ -384,8 +384,8 @@ fn enqueue_pending_columns(
         if scheduler.is_pending(col) {
             // Merge new sections into the existing pending column so the
             // column is dispatched with ALL its sections in a single batch.
-            if let Some(&key) = scheduler.priority_index.get(&col) {
-                if let Some(pending) = scheduler.pending.get_mut(&key) {
+            if let Some(&key) = scheduler.priority_index.get(&col)
+                && let Some(pending) = scheduler.pending.get_mut(&key) {
                     for &(entity, _) in &sections {
                         commands
                             .entity(entity)
@@ -395,7 +395,6 @@ fn enqueue_pending_columns(
                     trace!("Merged {} sections into pending column {:?}", sections.len(), col);
                     pending.sections.extend(sections);
                 }
-            }
             continue;
         }
 

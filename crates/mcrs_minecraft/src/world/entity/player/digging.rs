@@ -398,7 +398,7 @@ pub fn extract_tool_data(
     };
     let item_id = stack.item_id();
     let item: &Item = item_id.as_ref();
-    let Some(tool) = tool.or_else(|| item.components.tool.as_ref()) else {
+    let Some(tool) = tool.or(item.components.tool.as_ref()) else {
         debug!(block = %block.identifier, item = %item.identifier, "no tool component");
         return (!requires_correct_tool, 1.0);
     };
@@ -509,8 +509,8 @@ fn handle_player_will_destroy_block(
                     .unwrap_or(false)
             });
 
-            if !has_silk_touch {
-                if let Some((min, max)) = block.xp_range() {
+            if !has_silk_touch
+                && let Some((min, max)) = block.xp_range() {
                     let xp = if min == max {
                         min
                     } else {
@@ -518,7 +518,6 @@ fn handle_player_will_destroy_block(
                     };
                     debug!(block = %block_id, xp = xp, "XP drop");
                 }
-            }
         }
 
         writer.write(BlockSetRequest::remove_block(**dim, event.block_pos));

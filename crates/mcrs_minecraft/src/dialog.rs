@@ -71,20 +71,13 @@ impl Default for CommonDialogData {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct ActionButton {
     #[serde(flatten)]
     pub button: CommonButtonData,
     pub action: Option<Action>,
 }
 
-impl Default for ActionButton {
-    fn default() -> Self {
-        Self {
-            button: Default::default(),
-            action: None,
-        }
-    }
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CommonButtonData {

@@ -183,7 +183,7 @@ fn tick_explode(
         },
     );
 
-    let mut event_set = deduplicate_blocks(&mut *queue, &mut commands);
+    let mut event_set = deduplicate_blocks(&mut queue, &mut commands);
 
     let cascading_enabled = config.cascading_enabled;
     writer.write_batch(event_set.drain().filter_map(|event| {
@@ -249,7 +249,7 @@ where
             }
 
             power -= 0.225;
-            curr = curr + inc;
+            curr += inc;
             if power <= 0.0 {
                 break;
             }

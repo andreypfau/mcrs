@@ -269,66 +269,63 @@ fn process_loaded_world_preset(
     };
 
     for event in preset_events.read() {
-        match event {
-            AssetEvent::LoadedWithDependencies { id } => {
-                if *id != handle.id() {
-                    continue;
-                }
+        if let AssetEvent::LoadedWithDependencies { id } = event {
+            if *id != handle.id() {
+                continue;
+            }
 
-                let Some(preset_asset) = preset_assets.get(handle) else {
-                    warn!("World preset asset not found after LoadedWithDependencies event");
-                    continue;
-                };
+            let Some(preset_asset) = preset_assets.get(handle) else {
+                warn!("World preset asset not found after LoadedWithDependencies event");
+                continue;
+            };
 
-                debug!(
-                    preset = %preset_asset.preset_name,
-                    dimension_count = preset_asset.dimensions.len(),
-                    "World preset loaded with all dimension type dependencies"
-                );
+            debug!(
+                preset = %preset_asset.preset_name,
+                dimension_count = preset_asset.dimensions.len(),
+                "World preset loaded with all dimension type dependencies"
+            );
 
-                loaded_preset.preset_name = preset_asset.preset_name.clone();
-                loaded_preset.dimensions = preset_asset.ordered_dimensions();
-                loaded_preset.is_loaded = true;
+            loaded_preset.preset_name = preset_asset.preset_name.clone();
+            loaded_preset.dimensions = preset_asset.ordered_dimensions();
+            loaded_preset.is_loaded = true;
 
-                let mut dim_types = Vec::new();
-                for (type_ref, type_handle) in &preset_asset.dimension_type_handles {
-                    if let Some(dim_type_asset) = dim_type_assets.get(type_handle) {
-                        info!(
-                            dimension_type = %dim_type_asset.id,
-                            min_y = dim_type_asset.dimension_type.min_y,
-                            height = dim_type_asset.dimension_type.height,
-                            "  Loaded dimension type"
-                        );
-                        dim_types.push((
-                            dim_type_asset.id.clone(),
-                            dim_type_asset.dimension_type.clone(),
-                        ));
-                    } else {
-                        warn!(
-                            dimension_type = %type_ref,
-                            "Dimension type asset not available"
-                        );
-                    }
-                }
-
-                loaded_dim_types.0 = dim_types;
-
-                debug!(
-                    preset = %preset_asset.preset_name,
-                    dimensions = loaded_preset.dimensions.len(),
-                    dimension_types = loaded_dim_types.0.len(),
-                    "World preset configuration complete"
-                );
-
-                for (dim_key, dim_type) in &loaded_preset.dimensions {
-                    debug!(
-                        dimension_key = %dim_key,
-                        dimension_type = %dim_type,
-                        "  Ready to spawn dimension"
+            let mut dim_types = Vec::new();
+            for (type_ref, type_handle) in &preset_asset.dimension_type_handles {
+                if let Some(dim_type_asset) = dim_type_assets.get(type_handle) {
+                    info!(
+                        dimension_type = %dim_type_asset.id,
+                        min_y = dim_type_asset.dimension_type.min_y,
+                        height = dim_type_asset.dimension_type.height,
+                        "  Loaded dimension type"
+                    );
+                    dim_types.push((
+                        dim_type_asset.id.clone(),
+                        dim_type_asset.dimension_type.clone(),
+                    ));
+                } else {
+                    warn!(
+                        dimension_type = %type_ref,
+                        "Dimension type asset not available"
                     );
                 }
             }
-            _ => {}
+
+            loaded_dim_types.0 = dim_types;
+
+            debug!(
+                preset = %preset_asset.preset_name,
+                dimensions = loaded_preset.dimensions.len(),
+                dimension_types = loaded_dim_types.0.len(),
+                "World preset configuration complete"
+            );
+
+            for (dim_key, dim_type) in &loaded_preset.dimensions {
+                debug!(
+                    dimension_key = %dim_key,
+                    dimension_type = %dim_type,
+                    "  Ready to spawn dimension"
+                );
+            }
         }
     }
 }
@@ -726,7 +723,7 @@ pub fn get_world_preset_name() -> String {
             }
 
             let _path_name = if preset_name.contains(':') {
-                preset_name.split(':').last().unwrap_or(&preset_name)
+                preset_name.split(':').next_back().unwrap_or(&preset_name)
             } else {
                 &preset_name
             };
