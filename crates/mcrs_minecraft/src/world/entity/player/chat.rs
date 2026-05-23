@@ -44,7 +44,7 @@ impl<T: WritePacket> SendMessage for T {
 fn handle_chat(
     event: On<ReceivedPacketEvent>,
     chat_mode_query: Query<(&GameProfile, &ChatMode)>,
-    mut con_query: Query<(&mut ServerSideConnection), With<InGameConnectionState>>,
+    mut con_query: Query<&mut ServerSideConnection , With<InGameConnectionState>>,
     mut commands: Commands,
 ) {
     let Some(pkt) = event.decode::<ServerboundChat>() else {

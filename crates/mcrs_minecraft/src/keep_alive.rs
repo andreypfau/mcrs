@@ -104,18 +104,18 @@ pub fn handle_keepalive_response(
     mut query: Query<(&ServerSideConnection, &ConnectionState, &mut KeepaliveState)>,
     mut commands: Commands,
 ) {
-    let Ok(((con, conn_state, mut state))) = query.get_mut(event.entity) else {
+    let Ok((con, conn_state, mut state) ) = query.get_mut(event.entity) else {
         return;
     };
     let keep_alive = match conn_state {
         ConnectionState::Configuration => {
-            let (Some(pkt)) = event.decode::<ConfigurationResponse>() else {
+            let Some(pkt)  = event.decode::<ConfigurationResponse>() else {
                 return;
             };
             pkt.0
         }
         ConnectionState::Game => {
-            let (Some(pkt)) = event.decode::<GameResponse>() else {
+            let Some(pkt)  = event.decode::<GameResponse>() else {
                 return;
             };
             pkt.0

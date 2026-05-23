@@ -281,7 +281,7 @@ fn network_add(
 fn player_joined(
     event: On<PlayerJoinEvent>,
     mut players: Query<(&mut ServerSideConnection, &GameProfile, &PlayerGameMode)>,
-    positions: Query<(&Transform), With<Player>>,
+    positions: Query<&Transform , With<Player>>,
 ) {
     let Ok((con, joined_player, _)) = players.get(event.player) else {
         return;
@@ -357,7 +357,7 @@ fn added_inventory(
         ),
         (With<Player>, Added<ContainerSeqno>),
     >,
-    items: Query<(&ItemStack)>,
+    items: Query<&ItemStack >,
 ) {
     for (mut con, inventory, seqno) in players.iter_mut() {
         let slots = inventory

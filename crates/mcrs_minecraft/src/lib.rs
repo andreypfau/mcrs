@@ -2,7 +2,6 @@
 #![allow(
     dead_code,
     unused_variables,
-    unused_parens,
     unreachable_pub,
     unexpected_cfgs,
     non_camel_case_types,

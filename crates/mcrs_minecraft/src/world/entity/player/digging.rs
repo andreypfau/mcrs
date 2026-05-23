@@ -112,7 +112,7 @@ impl Digging {
 fn tick_digging(
     time: Res<Time<Fixed>>,
     mut players: Query<(Entity, &InDimension, &mut Digging, &Transform)>,
-    chunks: Query<(&BlockPalette)>,
+    chunks: Query<&BlockPalette >,
     mut packet_queue: Local<Vec<(Entity, Entity, BlockPos, i8)>>,
     mut send: SendDestroyBlockProgress,
     mut commands: Commands,
@@ -157,7 +157,7 @@ fn tick_digging(
 fn player_start_destroy_block(
     mut reader: MessageReader<PlayerAction>,
     dimensions: Query<&ChunkIndex>,
-    chunks: Query<(&BlockPalette)>,
+    chunks: Query<&BlockPalette >,
     mut players: Query<(
         &InDimension,
         &Transform,
@@ -199,7 +199,7 @@ fn player_start_destroy_block(
         let Some(chunk) = chunk_index.get(block_pos) else {
             return;
         };
-        let Ok((block_states)) = chunks.get(chunk) else {
+        let Ok(block_states ) = chunks.get(chunk) else {
             return;
         };
 

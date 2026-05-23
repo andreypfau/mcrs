@@ -156,7 +156,7 @@ fn tick_explode(
 ) {
     explosions.par_iter_mut().for_each_init(
         || queue.borrow_local_mut(),
-        |(q), (e, transform, dim, radius, detonator)| {
+        |q , (e, transform, dim, radius, detonator)| {
             let center = transform.translation;
             let dim = dim.entity();
             let Some(dim_chunks) = dim_chunks.get(dim).ok() else {

@@ -99,10 +99,10 @@ pub fn handle_hello_packet(
 
 pub fn handle_login_acknowledged(
     event: On<ReceivedPacketEvent>,
-    mut query: Query<(&ConnectionState), With<LoginState>>,
+    mut query: Query<&ConnectionState , With<LoginState>>,
     mut commands: Commands,
 ) {
-    let Ok((state)) = query.get_mut(event.entity) else {
+    let Ok(state ) = query.get_mut(event.entity) else {
         return;
     };
     if ConnectionState::Login != *state {
