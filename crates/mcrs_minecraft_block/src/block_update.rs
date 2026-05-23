@@ -65,34 +65,6 @@ impl BlockSetRequest {
     }
 }
 
-trait SetBlock {
-    fn set_block<P: Into<BlockPos>, S: Into<BlockStateId>>(
-        &mut self,
-        dimension: Entity,
-        pos: P,
-        new_state: S,
-        flags: BlockUpdateFlags,
-    );
-}
-
-impl<'s> SetBlock for MessageWriter<'s, BlockSetRequest> {
-    fn set_block<P: Into<BlockPos>, S: Into<BlockStateId>>(
-        &mut self,
-        dimension: Entity,
-        pos: P,
-        new_state: S,
-        flags: BlockUpdateFlags,
-    ) {
-        self.write(BlockSetRequest {
-            dimension,
-            pos: pos.into(),
-            new_state: new_state.into(),
-            flags,
-            recursion_left: 10,
-        });
-    }
-}
-
 #[derive(Default, Component)]
 pub struct ChunkNetworkSyncBlockChangesSet {
     pub changes: FxHashSet<BlockPos>,
