@@ -205,6 +205,11 @@ pub fn process_disconnect(
         }
     }
 
+    // player_index.remove drops PlayerLocation including its inbound_pending
+    // SmallVec; any inbound packets buffered there are discarded with the
+    // location. The partition bucket is purged separately in
+    // filter_inflight_for_disconnect because it is keyed off current_dim,
+    // not the location.
     player_index.remove(&host_anchor);
 
     if let Ok(mut anchor_entity) = commands.get_entity(host_anchor) {
