@@ -2,7 +2,6 @@
 #![allow(
     dead_code,
     unexpected_cfgs,
-    non_camel_case_types,
     private_interfaces,
     clippy::type_complexity,
     clippy::expect_fun_call,
