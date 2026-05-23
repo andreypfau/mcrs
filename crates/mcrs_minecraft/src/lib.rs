@@ -2,7 +2,6 @@
 #![allow(
     dead_code,
     unexpected_cfgs,
-    private_interfaces,
     clippy::type_complexity,
     clippy::expect_fun_call,
     clippy::too_many_arguments,
