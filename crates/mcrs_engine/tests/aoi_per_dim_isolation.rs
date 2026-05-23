@@ -8,7 +8,6 @@
 
 use bevy_app::App;
 use bevy_asset::AssetPlugin;
-use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use bevy_state::app::{AppExtStates, StatesPlugin};
@@ -248,15 +247,3 @@ fn make_stub_block_light_table() -> BlockStateLightTable {
     }
 }
 
-// Keep the message-import surface available even if unused in this
-// file; the host registrations above keep them in scope.
-fn _force_imports() {
-    let _ = std::any::TypeId::of::<OutboundPlayerPacket>();
-    let _ = std::any::TypeId::of::<InboundPlayerPacket>();
-    let _ = std::any::TypeId::of::<OutboundPlayerTransfer>();
-    let _ = std::any::TypeId::of::<InboundPlayerSpawn>();
-    let _ = std::any::TypeId::of::<OutboundPlayerAttached>();
-    let _ = std::any::TypeId::of::<OutboundPlayerDisconnect>();
-    let _ = std::any::TypeId::of::<InboundPlayerDespawn>();
-    let _ = std::any::TypeId::of::<Messages<InboundPlayerPacket>>();
-}
