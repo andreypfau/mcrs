@@ -247,7 +247,7 @@ fn send_column_queue(
                 let Some((column_pos, chunks_e)) = chunk_view.send_queue.front() else {
                     break;
                 };
-                if !chunk_view.desired_columns.contains(&column_pos) {
+                if !chunk_view.desired_columns.contains(column_pos) {
                     chunk_view.send_queue.pop_front();
                     continue;
                 }

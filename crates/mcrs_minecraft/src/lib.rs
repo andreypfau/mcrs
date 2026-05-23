@@ -7,7 +7,6 @@
     private_interfaces,
     clippy::uninlined_format_args,
     clippy::type_complexity,
-    clippy::needless_borrow,
     clippy::expect_fun_call,
     clippy::useless_vec,
     clippy::assign_op_pattern,

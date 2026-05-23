@@ -146,7 +146,7 @@ impl Tool {
 
     #[inline]
     pub fn rules(&self) -> &[ToolRule] {
-        &self.rules
+        self.rules
     }
 
     #[inline]
