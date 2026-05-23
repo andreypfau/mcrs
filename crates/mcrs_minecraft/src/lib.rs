@@ -5,7 +5,6 @@
     unexpected_cfgs,
     non_camel_case_types,
     private_interfaces,
-    clippy::uninlined_format_args,
     clippy::type_complexity,
     clippy::expect_fun_call,
     clippy::too_many_arguments,

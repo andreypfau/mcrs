@@ -117,7 +117,7 @@ impl Debug for DirectionSet {
                 if !first {
                     write!(f, ", ")?;
                 }
-                write!(f, "{:?}", direction)?;
+                write!(f, "{direction:?}")?;
                 first = false;
             }
         }

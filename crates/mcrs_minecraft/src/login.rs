@@ -87,7 +87,7 @@ pub fn handle_hello_packet(
         username: pkt.username.to_string(),
         properties: Vec::new(),
     };
-    println!("new profile: {:?}", profile);
+    println!("new profile: {profile:?}");
     let response = ClientboundLoginFinished {
         profile: (&profile).into(),
     };

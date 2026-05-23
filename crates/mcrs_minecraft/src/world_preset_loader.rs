@@ -75,7 +75,7 @@ impl WorldPresetAsset {
             .dimensions
             .iter()
             .map(|(key, entry)| {
-                let dim_key = Ident::from_str(key).expect(&format!("Invalid dimension key: {}", key));
+                let dim_key = Ident::from_str(key).expect(&format!("Invalid dimension key: {key}"));
                 let dim_type = Ident::from_str(&entry.dimension_type)
                     .expect(&format!("Invalid dimension type: {}", entry.dimension_type));
                 (dim_key, dim_type)
@@ -268,7 +268,7 @@ fn extract_dimension_type_id(path: &std::path::Path) -> Ident<String> {
             .and_then(|s| s.to_str())
             .unwrap_or("overworld");
 
-        let id_str = format!("{}:{}", namespace, name);
+        let id_str = format!("{namespace}:{name}");
         return Ident::from_str(&id_str).unwrap_or_else(|_| {
             Ident::from_str("minecraft:overworld").unwrap()
         });
@@ -280,7 +280,7 @@ fn extract_dimension_type_id(path: &std::path::Path) -> Ident<String> {
         .and_then(|s| s.to_str())
         .unwrap_or("overworld");
 
-    Ident::from_str(&format!("minecraft:{}", name)).unwrap_or_else(|_| {
+    Ident::from_str(&format!("minecraft:{name}")).unwrap_or_else(|_| {
         Ident::from_str("minecraft:overworld").unwrap()
     })
 }
@@ -301,5 +301,5 @@ pub fn resolve_preset_asset_path(preset_name: &str) -> String {
     }
 
     // Default to minecraft namespace
-    format!("minecraft/worldgen/world_preset/{}.json", preset_name)
+    format!("minecraft/worldgen/world_preset/{preset_name}.json")
 }

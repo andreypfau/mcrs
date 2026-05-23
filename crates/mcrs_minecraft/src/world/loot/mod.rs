@@ -400,8 +400,8 @@ fn process_loaded_loot_tables(
     mut block_loot_tables: ResMut<BlockLootTables>,
 ) {
     for event in events.read() {
-        if let AssetEvent::LoadedWithDependencies { id } = event {
-            if let Some(asset) = assets.get(*id) {
+        if let AssetEvent::LoadedWithDependencies { id } = event
+            && let Some(asset) = assets.get(*id) {
                 let resolved = asset.proto.resolve(&enchantment_registry);
                 info!(
                     block = %asset.block_id,
@@ -413,7 +413,6 @@ fn process_loaded_loot_tables(
                     .tables
                     .insert(asset.block_id.clone(), resolved);
             }
-        }
     }
 }
 
