@@ -140,7 +140,7 @@ impl Default for Properties {
 pub trait BlockBehaviour: Sync + Send {
     fn properties(&self) -> &Properties;
 
-    fn get_destroy_speed(&self, pos: BlockPos) -> f32 {
+    fn get_destroy_speed(&self, _pos: BlockPos) -> f32 {
         self.properties().hardness
     }
 }

@@ -308,9 +308,9 @@ impl ToolMaterial {
     pub const fn apply_tool_properties(
         &self,
         components: ItemComponents,
-        attack_damage: f32,
-        attack_speed: f32,
-        disable_blocking_for_seconds: f32,
+        _attack_damage: f32,
+        _attack_speed: f32,
+        _disable_blocking_for_seconds: f32,
         rules: &'static [ToolRule],
     ) -> ItemComponents {
         self.apply_common_properties(components).with_tool(Tool {

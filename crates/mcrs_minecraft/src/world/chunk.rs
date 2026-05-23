@@ -306,7 +306,7 @@ fn process_completed_columns(mut scheduler: ResMut<ColumnScheduler>, mut command
         let res = block_on(future::poll_once(&mut in_flight.task));
         if let Some(column_result) = res {
             // Column generation task completed, process all sections
-            for (entity, pos, result) in column_result.sections {
+            for (entity, _pos, result) in column_result.sections {
                 match result {
                     Some((blocks, biomes)) => {
                         // Section completed successfully - mark as loaded with data

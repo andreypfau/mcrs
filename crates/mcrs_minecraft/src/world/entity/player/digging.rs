@@ -119,7 +119,7 @@ fn tick_digging(
 ) {
     players
         .iter_mut()
-        .for_each(|(player, dim, mut digging, pos)| {
+        .for_each(|(player, dim, mut digging, _pos)| {
             let Some(chunk) = chunks.get(digging.chunk).ok() else {
                 return;
             };
@@ -179,14 +179,14 @@ fn player_start_destroy_block(
 ) {
     reader.read().for_each(|event| {
         let player = event.player;
-        let (dim, pos, rep, instant_build, mining_efficiency, block_break_speed, hotbar) =
+        let (dim, _pos, rep, _instant_build, mining_efficiency, block_break_speed, hotbar) =
             match players.get_mut(player) {
                 Ok(value) => value,
                 Err(_) => return,
             };
         let PlayerActionKind::StartDestroyBlock {
             block_pos,
-            direction,
+            direction: _,
         } = event.kind
         else {
             return;

@@ -1,7 +1,6 @@
 #![recursion_limit = "2048"]
 #![allow(
     dead_code,
-    unused_variables,
     unreachable_pub,
     unexpected_cfgs,
     non_camel_case_types,
