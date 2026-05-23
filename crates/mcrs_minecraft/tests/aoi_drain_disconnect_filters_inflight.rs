@@ -120,9 +120,7 @@ fn drain_tick_filters_inflight_transfer_for_queued_anchor() {
     let recorded = app
         .world()
         .resource::<DisconnectedThisTick>()
-        .host_anchors
-        .iter()
-        .any(|&e| e == host_anchor);
+        .host_anchors.contains(&host_anchor);
     assert!(
         recorded,
         "drain_pending_disconnects must push the dequeued host_anchor \

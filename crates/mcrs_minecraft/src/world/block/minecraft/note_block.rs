@@ -29,6 +29,7 @@ generate_block_states! {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
+#[allow(non_camel_case_types)]
 pub enum NoteBlockInstrument {
     HARP,
     BASEDRUM,

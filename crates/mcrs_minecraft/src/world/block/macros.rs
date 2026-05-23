@@ -41,7 +41,6 @@
 /// }
 /// // Generates: STATE, DEFAULT_STATE, BLOCK, ALL_BLOCK_STATES, PROPERTIES
 /// ```
-
 #[macro_export]
 macro_rules! generate_block_states {
     // Single state version (no properties)

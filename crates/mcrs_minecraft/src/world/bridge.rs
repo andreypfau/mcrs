@@ -350,7 +350,7 @@ mod tests {
 
         // Lifecycle bucket for the bogus dim must not have been created.
         let lifecycle = world.resource::<PendingInboundLifecycle>();
-        assert!(lifecycle.per_dim.get(&bogus_dim).is_none());
+        assert!(!lifecycle.per_dim.contains_key(&bogus_dim));
     }
 
     #[test]

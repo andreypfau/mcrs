@@ -133,14 +133,14 @@ fn assert_mirror_invariant(
         );
     }
     for (pos, column) in columns.iter() {
-        if let Some(obs) = world.get::<PlayerObservers>(*column) {
-            if obs.0.contains(&player) {
-                assert!(
-                    sub.0.contains(pos),
-                    "PlayerObservers at {:?} contains player but ChunkSubscriptionSet does not",
-                    pos
-                );
-            }
+        if let Some(obs) = world.get::<PlayerObservers>(*column)
+            && obs.0.contains(&player)
+        {
+            assert!(
+                sub.0.contains(pos),
+                "PlayerObservers at {:?} contains player but ChunkSubscriptionSet does not",
+                pos
+            );
         }
     }
 }

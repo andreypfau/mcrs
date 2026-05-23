@@ -3,9 +3,7 @@
     dead_code,
     unexpected_cfgs,
     clippy::type_complexity,
-    clippy::expect_fun_call,
-    clippy::too_many_arguments,
-    clippy::unnecessary_fallible_conversions
+    clippy::too_many_arguments
 )]
 
 extern crate core;

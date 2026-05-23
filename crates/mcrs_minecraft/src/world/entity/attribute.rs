@@ -1,7 +1,17 @@
 use bevy_ecs::bundle::Bundle;
 
-#[derive(Bundle, Default)]
-pub struct LivingAttributesBundle {}
+// The Bundle derive expands to a struct-update expression which clippy
+// flags as needless on an empty bundle. Wrap in a module so the allow
+// reaches the macro expansion site.
+#[allow(clippy::needless_update)]
+mod living_attributes_bundle {
+    use super::Bundle;
+
+    #[derive(Bundle, Default)]
+    pub struct LivingAttributesBundle {}
+}
+
+pub use living_attributes_bundle::LivingAttributesBundle;
 
 pub trait Attribute: Default {
     fn base_value(&self) -> f32;

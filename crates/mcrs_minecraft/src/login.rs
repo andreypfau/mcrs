@@ -60,8 +60,9 @@ impl<'a> From<&'a GameProfile> for mcrs_protocol::profile::GameProfile<'a> {
 
         Self {
             id: profile.id,
-            username: Bounded::try_from(profile.username.as_str())
-                .expect("username longer than 16 chars"),
+            // Bounded's From<T> is infallible; the length check happens
+            // at Encode time. Constructing the wrapper here cannot fail.
+            username: Bounded::from(profile.username.as_str()),
             properties: Cow::Owned(props),
         }
     }

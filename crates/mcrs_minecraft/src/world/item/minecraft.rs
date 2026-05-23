@@ -94,6 +94,7 @@ impl TryFrom<ItemId> for &'static Item {
 impl AsRef<Item> for ItemId {
     #[inline]
     fn as_ref(&self) -> &Item {
-        ID_TO_ITEM[self.0 as usize].expect(&format!("Invalid item id: {}", self.0))
+        ID_TO_ITEM[self.0 as usize]
+            .unwrap_or_else(|| panic!("Invalid item id: {}", self.0))
     }
 }

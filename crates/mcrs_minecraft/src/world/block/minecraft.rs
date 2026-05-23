@@ -123,6 +123,7 @@ impl TryFrom<Ident<String>> for &'static Block {
 impl AsRef<Block> for BlockStateId {
     #[inline]
     fn as_ref(&self) -> &Block {
-        STATE_TO_BLOCK[self.0 as usize].expect(&format!("Invalid block state id: {}", self.0))
+        STATE_TO_BLOCK[self.0 as usize]
+            .unwrap_or_else(|| panic!("Invalid block state id: {}", self.0))
     }
 }

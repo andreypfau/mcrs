@@ -181,10 +181,10 @@ fn count_columns_observing_in_sub(app: &App, columns: &[Entity], target: Entity)
     let world = sub.world();
     let mut count = 0usize;
     for &column in columns {
-        if let Some(obs) = world.get::<PlayerObservers>(column) {
-            if obs.0.contains(&target) {
-                count += 1;
-            }
+        if let Some(obs) = world.get::<PlayerObservers>(column)
+            && obs.0.contains(&target)
+        {
+            count += 1;
         }
     }
     count

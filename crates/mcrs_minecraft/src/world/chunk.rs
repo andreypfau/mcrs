@@ -260,9 +260,9 @@ impl ColumnScheduler {
 /// Contains the list of generated sections for a column. Each section includes
 /// the entity, position, and optionally the generated block/biome data.
 /// `None` indicates the section was cancelled before generation could complete.
-struct ColumnResult {
+pub struct ColumnResult {
     /// Generated sections. `None` for cancelled sections, `Some((blocks, biomes))` for completed.
-    sections: Vec<(Entity, ChunkPos, Option<(BlockPalette, BiomePalette)>)>,
+    pub sections: Vec<(Entity, ChunkPos, Option<(BlockPalette, BiomePalette)>)>,
 }
 
 /// Squared XZ (column) distance from a chunk to the nearest player.
@@ -714,14 +714,16 @@ mod tests {
         center: ChunkPos,
         distance: u8,
     ) -> Entity {
-        let mut observer = PlayerChunkObserver::default();
-        observer.last_last_chunk_tracking_view = Some(ChunkTrackingView {
-            center,
-            distance,
-            vert_distance: 8,
-            min_section_y: i32::MIN,
-            max_section_y: i32::MAX,
-        });
+        let observer = PlayerChunkObserver {
+            last_last_chunk_tracking_view: Some(ChunkTrackingView {
+                center,
+                distance,
+                vert_distance: 8,
+                min_section_y: i32::MIN,
+                max_section_y: i32::MAX,
+            }),
+            ..PlayerChunkObserver::default()
+        };
         app.world_mut().spawn(observer).id()
     }
 

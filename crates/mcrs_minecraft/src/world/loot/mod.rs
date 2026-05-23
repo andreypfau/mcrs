@@ -254,12 +254,9 @@ fn evaluate_entry(entry: &LootEntry, ctx: &BlockBreakContext) -> Option<LootDrop
             }
             None
         }
-        LootEntry::Empty { conditions } => {
-            if conditions.iter().all(|c| c.check(ctx)) {
-                None // Empty entry drops nothing
-            } else {
-                None
-            }
+        LootEntry::Empty { conditions: _ } => {
+            // Empty entry never produces a drop regardless of condition outcome.
+            None
         }
     }
 }

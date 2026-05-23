@@ -75,9 +75,10 @@ impl WorldPresetAsset {
             .dimensions
             .iter()
             .map(|(key, entry)| {
-                let dim_key = Ident::from_str(key).expect(&format!("Invalid dimension key: {key}"));
+                let dim_key = Ident::from_str(key)
+                    .unwrap_or_else(|_| panic!("Invalid dimension key: {key}"));
                 let dim_type = Ident::from_str(&entry.dimension_type)
-                    .expect(&format!("Invalid dimension type: {}", entry.dimension_type));
+                    .unwrap_or_else(|_| panic!("Invalid dimension type: {}", entry.dimension_type));
                 (dim_key, dim_type)
             })
             .collect();

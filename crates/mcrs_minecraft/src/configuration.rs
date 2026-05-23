@@ -865,7 +865,7 @@ mod tests {
 
     #[test]
     fn filtering_excludes_non_synced_static_registries() {
-        let candidates = vec![
+        let candidates = [
             "minecraft:block",
             "minecraft:item",
             "minecraft:sound_event",

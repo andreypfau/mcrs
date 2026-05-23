@@ -83,7 +83,7 @@ impl Plugin for WorldPlugin {
 /// loading registries and the world preset. The outer runner loop drains
 /// `DimSpawnQueue` immediately after `app.update()` returns, materialising one
 /// per-dim sub-app per request.
-pub fn enqueue_dim_spawns_from_preset(
+pub(crate) fn enqueue_dim_spawns_from_preset(
     world_preset: Res<LoadedWorldPreset>,
     dimension_types: Res<LoadedDimensionTypes>,
     mut spawn_queue: ResMut<DimSpawnQueue>,
