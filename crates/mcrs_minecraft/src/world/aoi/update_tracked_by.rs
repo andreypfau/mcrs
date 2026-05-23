@@ -5,7 +5,7 @@
 //! outbound bus.
 
 use bevy_ecs::message::MessageWriter;
-use bevy_ecs::prelude::{Changed, Entity, Query, Res, ResMut, With, Without};
+use bevy_ecs::prelude::{Changed, Entity, Query, ResMut, With, Without};
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;

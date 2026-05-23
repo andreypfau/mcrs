@@ -6,7 +6,7 @@
 
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{
-    Added, Changed, Commands, Entity, Or, Query, Res, ResMut, With, Without,
+    Added, Changed, Commands, Entity, Or, Query, ResMut, With, Without,
 };
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::physics::Transform;

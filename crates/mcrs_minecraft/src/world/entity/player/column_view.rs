@@ -4,16 +4,15 @@ use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{
-    Added, Changed, Component, ContainsEntity, Message, MessageReader, On, Or, Query, With,
+    Added, Component, ContainsEntity, Message, MessageReader, On, Or, Query, With,
 };
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::{Commands, Res};
-use mcrs_engine::entity::physics::Transform;
+use bevy_ecs::system::Commands;
 use mcrs_engine::entity::player::chunk_view::{
-    ChunkTrackingView, ChunkTrackingViewUpdateEvent, ChunkViewPlugin, PlayerChunkLoadRequest,
+    ChunkTrackingViewUpdateEvent, ChunkViewPlugin, PlayerChunkLoadRequest,
     PlayerChunkObserver, PlayerChunkUnloadRequest,
 };
-use mcrs_engine::entity::player::reposition::{Reposition, RepositionConfig};
+use mcrs_engine::entity::player::reposition::Reposition;
 use mcrs_engine::world::chunk::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{
@@ -27,9 +26,9 @@ use mcrs_protocol::packets::game::clientbound::{
     ClientboundChunkCacheRadius, ClientboundLevelChunkWithLight, ClientboundLightUpdate,
     ClientboundSetChunkCacheCenter,
 };
-use mcrs_protocol::{ColumnPos, ChunkData, Encode, LightData, VarInt, WritePacket};
+use mcrs_protocol::{ColumnPos, ChunkData, Encode, VarInt, WritePacket};
 use rustc_hash::FxHashSet;
-use tracing::{debug, info, trace};
+use tracing::trace;
 use mcrs_minecraft_lighting::{BlockBfsPending, SkyBfsPending};
 
 pub struct ColumnViewPlugin;

@@ -1,10 +1,9 @@
 use bevy_asset::io::Reader;
 use bevy_asset::{
-    Asset, AssetLoader, AssetPath, Handle, LoadContext, LoadDirectError, UntypedAssetId,
+    Asset, AssetLoader, Handle, LoadContext, LoadDirectError, UntypedAssetId,
     VisitAssetDependencies,
 };
 use bevy_reflect::TypePath;
-use bevy_tasks::ConditionalSendFuture;
 use mcrs_protocol::Ident;
 use mcrs_protocol::ident::IdentError;
 use serde::ser::SerializeStruct;

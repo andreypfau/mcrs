@@ -2,7 +2,6 @@
 #![allow(
     dead_code,
     unused_variables,
-    unused_imports,
     unused_mut,
     unused_parens,
     unreachable_pub,
@@ -63,7 +62,7 @@ use bevy_state::prelude::OnEnter;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_core::AppState;
 use mcrs_minecraft_lighting::table::{build_block_light_table, BlockStateLightTable};
-use mcrs_network::{EngineConnection, NetworkPlugin};
+use mcrs_network::NetworkPlugin;
 use mcrs_vanilla::{freeze_static_tags, transition_to_playing};
 use std::num::NonZeroU32;
 

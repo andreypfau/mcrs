@@ -12,7 +12,7 @@ use mcrs_protocol::packets::configuration::serverbound::ServerboundKeepAlive as 
 use mcrs_protocol::packets::game::clientbound::ClientboundKeepAlive as GameRequest;
 use mcrs_protocol::packets::game::serverbound::ServerboundKeepAlive as GameResponse;
 use std::time::Instant;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, warn};
 
 pub struct KeepAlivePlugin;
 

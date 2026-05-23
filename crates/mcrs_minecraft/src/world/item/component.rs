@@ -11,7 +11,6 @@ use crate::world::item::component::rarity::Rarity;
 use crate::world::item::component::swing::SwingAnimation;
 pub use crate::world::item::component::tool::Tool;
 use crate::world::item::component::tool::{ToolMaterial, ToolRule};
-use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use mcrs_protocol::item::{CustomData, ItemComponentKind, Lore, MaxStackSize};
 use std::borrow::Cow;

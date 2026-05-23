@@ -5,7 +5,7 @@ use bevy_app::{
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel};
+use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_ecs::system::Local;
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
@@ -49,7 +49,7 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
 use mcrs_engine::world::dimension::{
-    DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig, HasSkyLight,
+    DimensionBundle, DimensionPlugin, HasSkyLight,
 };
 use mcrs_engine::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,

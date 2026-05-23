@@ -28,12 +28,11 @@ use mcrs_engine::world::chunk::ChunkIndex;
 use mcrs_engine::world::dimension::{DimensionPlayers, InDimension};
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::packets::game::clientbound::ClientboundBlockDestruction;
-use mcrs_protocol::{BlockStateId, Ident, VarInt, WritePacket};
+use mcrs_protocol::{BlockStateId, VarInt, WritePacket};
 use mcrs_core::StaticRegistry;
 use mcrs_core::tag::registry::TagRegistry;
 use mcrs_vanilla::block::Block as VanillaBlock;
 use rand::RngExt;
-use std::str::FromStr;
 use std::time::Duration;
 use tracing::{debug, trace};
 

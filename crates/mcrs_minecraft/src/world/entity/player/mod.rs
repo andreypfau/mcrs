@@ -19,9 +19,8 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Changed, Commands, Has, Query, RemovedComponents, Res, ResMut, With};
+use bevy_ecs::prelude::{Changed, Commands, Has, Query, RemovedComponents, Res, With};
 use bevy_ecs::query::Added;
-use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::DVec3;
 use derive_more::{Deref, DerefMut};
 use mcrs_engine::entity::physics::Transform;
@@ -39,7 +38,7 @@ use mcrs_protocol::packets::game::clientbound::{
     ClientboundPlayerPosition,
 };
 use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
-use mcrs_protocol::{ByteAngle, GameEventKind, GameMode, Look, Slot, Text, VarInt, WritePacket, ident};
+use mcrs_protocol::{ByteAngle, GameEventKind, GameMode, Look, Slot, Text, VarInt, WritePacket};
 use movement::TeleportState;
 use tracing::info;
 

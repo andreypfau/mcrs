@@ -20,7 +20,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
-use tracing::{info, trace};
+use tracing::trace;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 
 /// Ordering anchor for the worldgen ingest path. The lighting plugin chains

@@ -1,7 +1,7 @@
 use crate::world::block::Block;
 use mcrs_core::tag::key::TagKey;
 use mcrs_core::tag::registry::TagRegistry;
-use mcrs_core::{ResourceLocation, StaticId, StaticRegistry};
+use mcrs_core::{ResourceLocation, StaticId};
 use mcrs_vanilla::block::Block as VanillaBlock;
 use std::sync::Arc;
 

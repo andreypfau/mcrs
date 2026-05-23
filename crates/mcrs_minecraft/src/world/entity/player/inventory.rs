@@ -1,5 +1,5 @@
 use crate::world::inventory::PlayerHotbarSlots;
-use bevy_app::{App, FixedUpdate, Plugin};
+use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::On;
 use bevy_ecs::system::Query;
 use mcrs_network::event::ReceivedPacketEvent;

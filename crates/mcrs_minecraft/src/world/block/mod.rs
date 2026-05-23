@@ -1,5 +1,4 @@
-use crate::world::block::behaviour::{BlockBehaviour, Properties};
-use bevy_ecs::prelude::Resource;
+use crate::world::block::behaviour::Properties;
 use mcrs_protocol::{BlockStateId, Ident};
 use std::hash::{Hash, Hasher};
 
