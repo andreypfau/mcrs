@@ -33,10 +33,3 @@ smallvec.workspace = true
 
 [profile.dev.package."bevy"]
 opt-level = 3
-
-
-
-
-
-
-
