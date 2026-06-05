@@ -1,16 +1,44 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::query::With;
+use bevy_ecs::prelude::Commands;
+use bevy_ecs::query::{With, Without};
 use bevy_ecs::system::{Query, ResMut};
+use mcrs_network::ServerSideConnection;
 use rustc_hash::FxHashSet;
 use tracing::warn;
 
+use crate::world::bridge_queue::{InboundRateBucket, OutboundQueue};
 use crate::world::bus::{
     InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerTransfer,
     PendingInboundLifecycle, PendingInboundPartition,
 };
 use crate::world::player_index::PlayerIndex;
 use crate::world::sub_app_builder::DimSubAppHandle;
+
+/// Attach `OutboundQueue` and `InboundRateBucket` to any connection entity that
+/// carries `ServerSideConnection` but not yet an `OutboundQueue`.
+///
+/// Runs in `FixedPreUpdate`, ordered after `spawn_new_raw_connections`, so by
+/// the time any `FixedPostUpdate` bridge system runs every connection entity
+/// carries both components. The network crate's spawn system cannot insert
+/// these components because they are defined in this crate; this system closes
+/// that cross-crate ownership gap.
+///
+/// Even with this ordering, `bridge_outbound` still treats a resolved target
+/// that lacks `OutboundQueue` as a counted event
+/// (`mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL`) rather than a
+/// silent miss. The counter makes any residual race observable so no join
+/// packet is dropped silently.
+pub fn attach_outbound_queue(
+    mut commands: Commands,
+    new_connections: Query<Entity, (With<ServerSideConnection>, Without<OutboundQueue>)>,
+) {
+    for entity in &new_connections {
+        commands
+            .entity(entity)
+            .insert((OutboundQueue::default(), InboundRateBucket::new()));
+    }
+}
 
 pub fn partition_main_inbound(
     mut msgs: ResMut<Messages<InboundPlayerPacket>>,

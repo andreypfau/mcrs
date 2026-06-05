@@ -1,5 +1,5 @@
 use crate::configuration::{LoadedDimensionTypes, LoadedWorldPreset};
-use bevy_app::{App, Plugin};
+use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::OnEnter;
 use mcrs_core::AppState;
@@ -12,6 +12,7 @@ pub mod aoi;
 pub mod block;
 pub mod block_update;
 pub mod bridge;
+pub mod bridge_queue;
 pub mod bus;
 pub mod chunk;
 pub mod entity;
@@ -46,6 +47,18 @@ impl Plugin for WorldPlugin {
         app.add_message::<crate::world::bus::OutboundPlayerAttached>();
         app.add_message::<crate::world::bus::OutboundPlayerDisconnect>();
         app.add_message::<crate::world::bus::InboundPlayerDespawn>();
+        // `attach_outbound_queue` runs in FixedPreUpdate after the network
+        // crate's `spawn_new_raw_connections` system has populated the world
+        // with new `ServerSideConnection` entities. Because
+        // `spawn_new_raw_connections` mutates the world directly (not via
+        // Commands), the new entities are immediately queryable. The Commands
+        // from `attach_outbound_queue` are flushed at the FixedPreUpdate
+        // command-application point, guaranteeing that by FixedPostUpdate
+        // every connection entity carries `OutboundQueue` + `InboundRateBucket`.
+        app.add_systems(
+            FixedPreUpdate,
+            crate::world::bridge::attach_outbound_queue,
+        );
         app.add_systems(
             bevy_app::Update,
             (
