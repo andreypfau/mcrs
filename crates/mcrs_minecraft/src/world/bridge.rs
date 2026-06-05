@@ -4,8 +4,22 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, Messages};
 use bevy_ecs::prelude::Commands;
 use bevy_ecs::query::{With, Without};
+use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::system::{Query, Res, ResMut};
-use mcrs_network::ServerSideConnection;
+
+/// FixedPostUpdate ordering for the three bridge stages.
+///
+/// `Outbound` fills per-connection `OutboundQueue` from the message bus.
+/// `Dispatch` encodes + coalesces + sends each queue to the socket.
+/// `Inbound` reads serverbound packets from sockets and routes them to
+/// `PendingInboundPartition` or `inbound_pending`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, SystemSet)]
+pub enum BridgeSet {
+    Outbound,
+    Dispatch,
+    Inbound,
+}
+use mcrs_network::{EngineConnection, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::packets::game::clientbound::{
     ClientboundBlockUpdate, ClientboundDisconnect, ClientboundForgetLevelChunk,
 };
@@ -409,6 +423,93 @@ pub fn bridge_player_attach(
             let bucket = partition.per_dim.entry(current_dim).or_default();
             for packet in drained {
                 bucket.push(packet);
+            }
+        }
+    }
+}
+
+/// Read serverbound packets from every in-game connection, enforce per-
+/// connection rate limiting, and route each packet to the appropriate
+/// `PendingInboundPartition` bucket (or `inbound_pending` for mid-transit
+/// players).
+///
+/// The `With<InGameConnectionState>` filter ensures Login/Configuration
+/// connections continue to use the `EventLoopPlugin::run_event_loop` path;
+/// only post-login connections enter this system.
+///
+/// NEVER drops a serverbound packet below the kick threshold. Dropping a
+/// movement packet desyncs the client. The only exit without routing is a
+/// flood-kick, which also removes the `ServerSideConnection`.
+#[cfg_attr(
+    feature = "telemetry-tracy",
+    tracing::instrument(name = "network::bridge_inbound", skip_all)
+)]
+pub fn bridge_inbound(
+    mut conns: Query<
+        (Entity, &mut ServerSideConnection, &mut InboundRateBucket, &HostAnchorRef),
+        With<InGameConnectionState>,
+    >,
+    mut player_index: ResMut<PlayerIndex>,
+    mut partition: ResMut<PendingInboundPartition>,
+    mut commands: Commands,
+) {
+    use mcrs_network::metrics::BRIDGE_KICK_FLOOD_TOTAL;
+    use mcrs_protocol::packets::game::clientbound::ClientboundDisconnect;
+
+    for (entity, mut conn, mut bucket, anchor) in conns.iter_mut() {
+        let player = anchor.0;
+        bucket.refill();
+
+        loop {
+            match conn.raw.try_recv() {
+                Ok(Some(pkt)) => {
+                    if !bucket.consume_or_flag() {
+                        // Flood threshold exceeded — kick with reason.
+                        conn.raw
+                            .append(&ClientboundDisconnect {
+                                reason: mcrs_protocol::Text::from("Connection flood detected"),
+                            })
+                            .ok();
+                        let blob = conn.raw.take_encoded();
+                        conn.raw.try_send_blob(blob);
+                        commands.entity(entity).remove::<ServerSideConnection>();
+                        BRIDGE_KICK_FLOOD_TOTAL.fetch_add(1, Ordering::Relaxed);
+                        break;
+                    }
+
+                    let inbound = InboundPlayerPacket {
+                        player,
+                        packet: crate::world::bus::TestInboundPayload {
+                            seq: pkt.id as u32,
+                        },
+                    };
+
+                    let Some(location) = player_index.get_mut(&player) else {
+                        // Player index entry missing — connection is orphaned; drop
+                        // this packet (the anchor is stale).
+                        continue;
+                    };
+
+                    if location.in_dim_entity.is_some()
+                        && location.current_dim != Entity::PLACEHOLDER
+                    {
+                        partition
+                            .per_dim
+                            .entry(location.current_dim)
+                            .or_default()
+                            .push(inbound);
+                    } else {
+                        // Player is mid-transit; buffer until bridge_player_attach fires.
+                        location.inbound_pending.push(inbound);
+                    }
+                }
+                Ok(None) => break,
+                Err(_) => {
+                    // Channel disconnected — writer died; remove the connection.
+                    warn!(entity = ?entity, "bridge_inbound: connection channel disconnected");
+                    commands.entity(entity).remove::<ServerSideConnection>();
+                    break;
+                }
             }
         }
     }

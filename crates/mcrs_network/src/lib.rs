@@ -9,8 +9,18 @@ pub use crate::packet_io::{MAX_QUEUED_BYTES_PER_SOCKET, RawConnection};
 use bevy_app::{App, FixedPreUpdate, Plugin, PostStartup};
 use bevy_ecs::prelude::Component;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Res};
 use bevy_ecs::world::World;
+
+/// System sets for the network layer, usable for ordering constraints in
+/// downstream crates. `SpawnConnections` contains `spawn_new_raw_connections`.
+/// Other crates should schedule their connection-setup systems
+/// `.after(NetworkSet::SpawnConnections)` in `FixedPreUpdate`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, SystemSet)]
+pub enum NetworkSet {
+    SpawnConnections,
+}
 use bytes::Bytes;
 use mcrs_protocol::{Encode, Packet, WritePacket};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
@@ -61,7 +71,11 @@ fn build_plugin(app: &mut App) -> anyhow::Result<()> {
     };
 
     app.add_systems(PostStartup, start_accept_loop);
-    app.add_systems(FixedPreUpdate, spawn_new_raw_connections);
+    app.configure_sets(FixedPreUpdate, NetworkSet::SpawnConnections);
+    app.add_systems(
+        FixedPreUpdate,
+        spawn_new_raw_connections.in_set(NetworkSet::SpawnConnections),
+    );
     // flush_packets and check_congestion removed; the FixedPostUpdate bridge chain
     // is registered by BridgePlugin in mcrs_minecraft.
     app.add_plugins(event::EventLoopPlugin);

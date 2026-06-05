@@ -1,6 +1,7 @@
 use crate::configuration::{LoadedDimensionTypes, LoadedWorldPreset};
-use bevy_app::{App, FixedPreUpdate, Plugin};
+use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
 use bevy_ecs::prelude::*;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::OnEnter;
 use mcrs_core::AppState;
 use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
@@ -48,17 +49,41 @@ impl Plugin for WorldPlugin {
         app.add_message::<crate::world::bus::OutboundPlayerDisconnect>();
         app.add_message::<crate::world::bus::InboundPlayerDespawn>();
         // `attach_outbound_queue` runs in FixedPreUpdate after the network
-        // crate's `spawn_new_raw_connections` system has populated the world
-        // with new `ServerSideConnection` entities. Because
-        // `spawn_new_raw_connections` mutates the world directly (not via
-        // Commands), the new entities are immediately queryable. The Commands
-        // from `attach_outbound_queue` are flushed at the FixedPreUpdate
+        // crate's `spawn_new_raw_connections` system (in NetworkSet::SpawnConnections)
+        // has populated the world with new `ServerSideConnection` entities.
+        // Commands from `attach_outbound_queue` are flushed at the FixedPreUpdate
         // command-application point, guaranteeing that by FixedPostUpdate
         // every connection entity carries `OutboundQueue` + `InboundRateBucket`.
         app.add_systems(
             FixedPreUpdate,
-            crate::world::bridge::attach_outbound_queue,
+            crate::world::bridge::attach_outbound_queue
+                .after(mcrs_network::NetworkSet::SpawnConnections),
         );
+
+        // BridgeSet ordering: Outbound fills queues from the bus, Dispatch
+        // encodes + sends, Inbound reads sockets and routes to partitions.
+        // All three run in FixedPostUpdate (after DimSubApp extracts).
+        app.configure_sets(
+            FixedPostUpdate,
+            (
+                crate::world::bridge::BridgeSet::Outbound,
+                crate::world::bridge::BridgeSet::Dispatch,
+                crate::world::bridge::BridgeSet::Inbound,
+            )
+                .chain(),
+        );
+        app.add_systems(
+            FixedPostUpdate,
+            (
+                crate::world::bridge::bridge_outbound
+                    .in_set(crate::world::bridge::BridgeSet::Outbound),
+                crate::world::bridge::dispatch_encode
+                    .in_set(crate::world::bridge::BridgeSet::Dispatch),
+                crate::world::bridge::bridge_inbound
+                    .in_set(crate::world::bridge::BridgeSet::Inbound),
+            ),
+        );
+
         app.add_systems(
             bevy_app::Update,
             (
