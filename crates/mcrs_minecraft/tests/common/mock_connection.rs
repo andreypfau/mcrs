@@ -8,10 +8,13 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
+use bytes::Bytes;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload};
 use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
+use mcrs_network::RawConnection;
 use smallvec::SmallVec;
+use tokio::sync::mpsc;
 
 /// Build a bare world with the resources needed for `bridge_outbound` tests.
 pub fn build_bridge_world() -> World {
@@ -78,4 +81,55 @@ pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<OutboundPlayerPacke
     out.extend(q.normal.drain(..));
     out.extend(q.low.drain(..));
     out
+}
+
+/// Create a mock `RawConnection` backed by an in-memory mpsc channel.
+///
+/// Returns the `(RawConnection, Receiver<Bytes>)` pair so tests can observe
+/// every blob that would be sent to a real socket.
+///
+/// The dummy JoinHandle tasks are spawned onto a process-global single-thread
+/// runtime that lives for the entire test binary lifetime. Abort on
+/// `RawConnection` drop cleans up the handle slots; the runtime itself never
+/// shuts down.
+pub fn make_mock_raw_connection() -> (RawConnection, mpsc::Receiver<Bytes>) {
+    use std::sync::OnceLock;
+    use tokio::runtime::Runtime;
+
+    static TEST_RT: OnceLock<Runtime> = OnceLock::new();
+    let rt = TEST_RT.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .expect("test tokio runtime")
+    });
+
+    let (outgoing_tx, outgoing_rx) = mpsc::channel::<Bytes>(16);
+    let raw = rt.block_on(async { RawConnection::new_for_test(outgoing_tx) });
+    (raw, outgoing_rx)
+}
+
+/// Create a full mock `RawConnection` with controllable inbound packets.
+///
+/// Returns `(RawConnection, outgoing_rx, inbound_tx)` so the test can both
+/// observe outgoing blobs and inject incoming `ReceivedPacket` values.
+pub fn make_mock_raw_connection_full() -> (
+    RawConnection,
+    mpsc::Receiver<Bytes>,
+    mpsc::Sender<mcrs_network::ReceivedPacket>,
+) {
+    use std::sync::OnceLock;
+    use tokio::runtime::Runtime;
+
+    static TEST_RT: OnceLock<Runtime> = OnceLock::new();
+    let rt = TEST_RT.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .expect("test tokio runtime")
+    });
+
+    rt.block_on(async { RawConnection::new_for_test_full(16) })
 }

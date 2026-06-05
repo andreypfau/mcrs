@@ -6,13 +6,20 @@ use bevy_ecs::prelude::Commands;
 use bevy_ecs::query::{With, Without};
 use bevy_ecs::system::{Query, Res, ResMut};
 use mcrs_network::ServerSideConnection;
+use mcrs_protocol::packets::game::clientbound::{
+    ClientboundBlockUpdate, ClientboundDisconnect, ClientboundForgetLevelChunk,
+};
+use mcrs_protocol::Text;
 use rustc_hash::FxHashSet;
 use tracing::warn;
 
-use crate::world::bridge_queue::{InboundRateBucket, OutboundQueue};
+use crate::world::bridge_queue::{
+    InboundRateBucket, OutboundQueue, DEPTH_DRAIN_TARGET, DEPTH_LIMIT, HIGH_OVERFLOW_LIMIT,
+    KICK_AFTER_OVERFLOW_TICKS,
+};
 use crate::world::bus::{
     InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerTransfer,
-    PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
+    PacketPayload, PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
 };
 use crate::world::player_index::{HostAnchorRef, PlayerIndex};
 use crate::world::sub_app_builder::DimSubAppHandle;
@@ -130,6 +137,187 @@ pub fn bridge_outbound(
                 }
             }
         }
+    }
+}
+
+/// Encode queued outbound packets for every active connection, enforce the
+/// drop-oldest policy, kick connections that overflow Critical/High backlogs,
+/// and coalesce all encoded bytes into a single `try_send_blob` per socket per
+/// tick.
+///
+/// Execution order: runs in `BridgeSet::Dispatch` (FixedPostUpdate), after
+/// `bridge_outbound` filled queues and before `bridge_inbound` reads.
+///
+/// SEQUENTIAL `iter_mut()` — do NOT use `par_iter_mut`. Kicking a connection
+/// issues `commands.entity(e).remove::<ServerSideConnection>()`, which
+/// requires exclusive Commands access not safe across parallel workers.
+#[cfg_attr(
+    feature = "telemetry-tracy",
+    tracing::instrument(name = "network::dispatch_encode", skip_all)
+)]
+pub fn dispatch_encode(
+    mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
+    mut commands: Commands,
+) {
+    use mcrs_network::metrics::{
+        BRIDGE_DROP_LOW_TOTAL, BRIDGE_DROP_NORMAL_TOTAL, BRIDGE_ENCODE_UNHANDLED_TOTAL,
+        BRIDGE_KICK_OVERFLOW_TOTAL, BRIDGE_QUEUE_DEPTH_CRITICAL, BRIDGE_QUEUE_DEPTH_HIGH,
+        BRIDGE_QUEUE_DEPTH_LOW, BRIDGE_QUEUE_DEPTH_NORMAL,
+    };
+    use mcrs_network::MAX_QUEUED_BYTES_PER_SOCKET;
+
+    for (entity, mut queue, mut conn) in players.iter_mut() {
+        // --- (1) Disconnected writer check (AP-06 path) ---
+        if conn.raw.disconnected() {
+            conn.raw
+                .append(&ClientboundDisconnect {
+                    reason: Text::from("Connection lost"),
+                })
+                .ok();
+            let blob = conn.raw.take_encoded();
+            conn.raw.try_send_blob(blob);
+            commands.entity(entity).remove::<ServerSideConnection>();
+            BRIDGE_KICK_OVERFLOW_TOTAL.fetch_add(1, Ordering::Relaxed);
+            continue;
+        }
+
+        // --- (1b) Critical/High overflow kick check ---
+        if queue.critical_high_len() > HIGH_OVERFLOW_LIMIT {
+            queue.overflow_ticks = queue.overflow_ticks.saturating_add(1);
+        } else {
+            queue.overflow_ticks = 0;
+        }
+
+        if queue.overflow_ticks >= KICK_AFTER_OVERFLOW_TICKS {
+            conn.raw
+                .append(&ClientboundDisconnect {
+                    reason: Text::from("Server queue overflow"),
+                })
+                .ok();
+            let blob = conn.raw.take_encoded();
+            conn.raw.try_send_blob(blob);
+            commands.entity(entity).remove::<ServerSideConnection>();
+            BRIDGE_KICK_OVERFLOW_TOTAL.fetch_add(1, Ordering::Relaxed);
+            continue;
+        }
+
+        // --- (2) Drop policy: shed Normal first, then Low ---
+        // Only activate if total exceeds DEPTH_LIMIT; then drain down to
+        // DEPTH_DRAIN_TARGET so the queue stays below threshold for a few
+        // ticks before refilling.
+        if queue.total_len() > DEPTH_LIMIT {
+            while queue.total_len() > DEPTH_DRAIN_TARGET {
+                if queue.normal.pop_front().is_some() {
+                    BRIDGE_DROP_NORMAL_TOTAL.fetch_add(1, Ordering::Relaxed);
+                } else if queue.low.pop_front().is_some() {
+                    BRIDGE_DROP_LOW_TOTAL.fetch_add(1, Ordering::Relaxed);
+                } else {
+                    // Only Critical/High remain; never drop them.
+                    break;
+                }
+            }
+        }
+
+        // --- (3) Encode survivors in priority order ---
+        let encode_queues = [
+            std::mem::take(&mut queue.critical),
+            std::mem::take(&mut queue.high),
+            std::mem::take(&mut queue.normal),
+            std::mem::take(&mut queue.low),
+        ];
+
+        for sub_queue in encode_queues {
+            for pkt in sub_queue {
+                match pkt.data {
+                    PacketPayload::LightUpdate(light_data) => {
+                        // ClientboundLightUpdate requires x/z column coordinates
+                        // separately from the LightData blob. The variant does not
+                        // carry column_pos, so encoding would require guessing the
+                        // position — counted-drop until the variant is extended.
+                        let _ = light_data;
+                        BRIDGE_ENCODE_UNHANDLED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    }
+                    PacketPayload::BlockUpdate {
+                        position,
+                        new_state,
+                    } => {
+                        conn.raw
+                            .append(&ClientboundBlockUpdate {
+                                block_pos: position,
+                                block_state_id: new_state,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::ChunkUnload { column } => {
+                        conn.raw
+                            .append(&ClientboundForgetLevelChunk {
+                                x: column.x,
+                                z: column.z,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::EntityPosSync {
+                        entity: _entity_id,
+                        position,
+                        rotation,
+                        on_ground,
+                    } => {
+                        // entity_id is an ECS Entity; the wire id would be a
+                        // numeric VarInt mapped through an entity-id registry.
+                        // Without a registry lookup here, we use PLACEHOLDER (0)
+                        // and record as counted-drop until the registry is wired.
+                        // For now, fall through to counted-drop.
+                        let _ = (position, rotation, on_ground);
+                        BRIDGE_ENCODE_UNHANDLED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    }
+                    PacketPayload::PlayerEnteredView { player: _ } => {
+                        // Requires UUID, spawn position, entity kind, velocity —
+                        // none of which are in the variant. Counted-drop until
+                        // the encode path has world access to resolve these.
+                        BRIDGE_ENCODE_UNHANDLED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    }
+                    PacketPayload::ChunkLoad { column: _ } => {
+                        // Column payload must be fetched from world storage;
+                        // dispatch_encode does not have that access. Counted-drop.
+                        BRIDGE_ENCODE_UNHANDLED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    }
+                    PacketPayload::PlayerLeftView { player: _ } => {
+                        // ClientboundRemoveEntities not yet present in game.rs;
+                        // counted-drop until the packet type is available.
+                        BRIDGE_ENCODE_UNHANDLED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    }
+                    PacketPayload::Test(_) => {
+                        // Test-only payload; no wire packet. Counted-drop so
+                        // test assertions on BRIDGE_ENCODE_UNHANDLED_TOTAL work.
+                        BRIDGE_ENCODE_UNHANDLED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    }
+                }
+            }
+        }
+
+        // --- (4) Coalesce + send ---
+        let blob = conn.raw.take_encoded();
+        if blob.len() > MAX_QUEUED_BYTES_PER_SOCKET {
+            // Byte-cap backstop: oversized blob is never sent; kick the connection.
+            warn!(
+                entity = ?entity,
+                blob_len = blob.len(),
+                max = MAX_QUEUED_BYTES_PER_SOCKET,
+                "dispatch_encode: blob exceeds MAX_QUEUED_BYTES_PER_SOCKET; closing connection"
+            );
+            commands.entity(entity).remove::<ServerSideConnection>();
+            continue;
+        }
+        if !blob.is_empty() && !conn.raw.try_send_blob(blob) {
+            // Channel full = backpressure; feeds kick path next tick.
+            queue.overflow_ticks = queue.overflow_ticks.saturating_add(1);
+        }
+
+        // --- (5) Update depth gauges (monotone totals, consistent with metrics.rs) ---
+        BRIDGE_QUEUE_DEPTH_CRITICAL.fetch_add(queue.critical.len() as u64, Ordering::Relaxed);
+        BRIDGE_QUEUE_DEPTH_HIGH.fetch_add(queue.high.len() as u64, Ordering::Relaxed);
+        BRIDGE_QUEUE_DEPTH_NORMAL.fetch_add(queue.normal.len() as u64, Ordering::Relaxed);
+        BRIDGE_QUEUE_DEPTH_LOW.fetch_add(queue.low.len() as u64, Ordering::Relaxed);
     }
 }
 

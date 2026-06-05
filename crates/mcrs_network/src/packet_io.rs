@@ -178,6 +178,69 @@ impl Drop for RawConnection {
 }
 
 impl RawConnection {
+    /// Construct a mock `RawConnection` for tests that do not need real sockets.
+    ///
+    /// `outgoing` is the send half of a channel the test holds the receiver
+    /// for; every blob passed to `try_send_blob` lands there. The dummy
+    /// reader/writer tasks park immediately and are never scheduled. No TCP
+    /// socket is created.
+    pub fn new_for_test(outgoing: mpsc::Sender<Bytes>) -> Self {
+        let (inbound_tx, inbound_rx) = mpsc::channel::<ReceivedPacket>(32);
+        let reader_task = tokio::spawn(async move {
+            // Keep inbound_tx alive so the recv end never disconnects while
+            // the RawConnection exists; the future parks indefinitely.
+            let _keep = inbound_tx;
+            std::future::pending::<()>().await;
+        });
+        let writer_task = tokio::spawn(async {
+            std::future::pending::<()>().await;
+        });
+        let disconnect_flag = Arc::new(AtomicBool::new(false));
+        let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
+        RawConnection {
+            outgoing,
+            recv: inbound_rx,
+            reader_task,
+            writer_task,
+            enc: PacketEncoder::new(),
+            remote_addr: addr,
+            disconnect_flag,
+        }
+    }
+
+    /// Construct a mock with separate inbound control: the caller drives
+    /// the inbound channel (for bridge_inbound tests).
+    ///
+    /// Returns `(RawConnection, outgoing_rx, inbound_tx)`.
+    pub fn new_for_test_full(
+        outgoing_capacity: usize,
+    ) -> (
+        Self,
+        mpsc::Receiver<Bytes>,
+        mpsc::Sender<ReceivedPacket>,
+    ) {
+        let (outgoing_tx, outgoing_rx) = mpsc::channel::<Bytes>(outgoing_capacity);
+        let (inbound_tx, inbound_rx) = mpsc::channel::<ReceivedPacket>(128);
+        let reader_task = tokio::spawn(async {
+            std::future::pending::<()>().await;
+        });
+        let writer_task = tokio::spawn(async {
+            std::future::pending::<()>().await;
+        });
+        let disconnect_flag = Arc::new(AtomicBool::new(false));
+        let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
+        let raw = RawConnection {
+            outgoing: outgoing_tx,
+            recv: inbound_rx,
+            reader_task,
+            writer_task,
+            enc: PacketEncoder::new(),
+            remote_addr: addr,
+            disconnect_flag,
+        };
+        (raw, outgoing_rx, inbound_tx)
+    }
+
     /// Returns `true` if the blob was accepted, `false` if the channel is full or closed.
     /// The `false` case is the backpressure signal consumed by the bridge dispatch system.
     pub fn try_send_blob(&self, blob: Bytes) -> bool {
