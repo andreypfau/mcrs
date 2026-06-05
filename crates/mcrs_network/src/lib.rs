@@ -10,6 +10,7 @@
 
 pub mod connect;
 pub mod event;
+pub mod metrics;
 mod intent;
 mod packet_io;
 mod status;

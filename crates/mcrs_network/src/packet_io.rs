@@ -24,6 +24,9 @@ pub(crate) struct PacketIo {
 
 const READ_BUF_SIZE: usize = 4096;
 
+pub(crate) const OUTBOUND_CHANNEL_CAPACITY: usize = 4;
+pub const MAX_QUEUED_BYTES_PER_SOCKET: usize = 4 * 1024 * 1024;
+
 impl PacketIo {
     pub(crate) fn new(stream: tokio::net::TcpStream) -> Self {
         Self {
