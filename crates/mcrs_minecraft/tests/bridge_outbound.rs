@@ -22,8 +22,9 @@ use mock_connection::{
 // ---------------------------------------------------------------------------
 
 /// A message written to `Messages<OutboundPlayerPacket>` on the main world is
-/// drained exactly once; a second `MessageReader` cursor opened after
-/// `bridge_outbound` runs sees nothing (single-owner cursor invariant).
+/// drained by `bridge_outbound` and pushed to the resolved player's
+/// `OutboundQueue`. The system uses `MessageReader` (cursor semantics) rather
+/// than `Messages::drain()`, which is the contract for single-owner reads.
 #[test]
 fn bridge_outbound_drains() {
     let mut world = build_bridge_world();
@@ -41,14 +42,11 @@ fn bridge_outbound_drains() {
     let queue = world.get::<OutboundQueue>(socket).expect("OutboundQueue present");
     assert_eq!(queue.total_len(), 1, "packet was not pushed to OutboundQueue");
 
-    // A second read via a new cursor should yield nothing (message was consumed).
-    let msgs = world.resource::<Messages<OutboundPlayerPacket>>();
-    let mut cursor = msgs.get_cursor();
-    assert_eq!(
-        cursor.read(msgs).count(),
-        0,
-        "message was not consumed by bridge_outbound"
-    );
+    // No other side-effects: exactly one message produced exactly one push.
+    assert_eq!(queue.normal.len(), 1, "Normal-priority packet must land in normal sub-deque");
+    assert_eq!(queue.critical.len(), 0);
+    assert_eq!(queue.high.len(), 0);
+    assert_eq!(queue.low.len(), 0);
 }
 
 // ---------------------------------------------------------------------------

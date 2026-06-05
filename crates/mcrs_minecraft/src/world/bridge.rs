@@ -1,8 +1,10 @@
+use std::sync::atomic::Ordering;
+
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
+use bevy_ecs::message::{MessageReader, Messages};
 use bevy_ecs::prelude::Commands;
 use bevy_ecs::query::{With, Without};
-use bevy_ecs::system::{Query, ResMut};
+use bevy_ecs::system::{Query, Res, ResMut};
 use mcrs_network::ServerSideConnection;
 use rustc_hash::FxHashSet;
 use tracing::warn;
@@ -10,9 +12,9 @@ use tracing::warn;
 use crate::world::bridge_queue::{InboundRateBucket, OutboundQueue};
 use crate::world::bus::{
     InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerTransfer,
-    PendingInboundLifecycle, PendingInboundPartition,
+    PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
 };
-use crate::world::player_index::PlayerIndex;
+use crate::world::player_index::{HostAnchorRef, PlayerIndex};
 use crate::world::sub_app_builder::DimSubAppHandle;
 
 /// Attach `OutboundQueue` and `InboundRateBucket` to any connection entity that
@@ -37,6 +39,97 @@ pub fn attach_outbound_queue(
         commands
             .entity(entity)
             .insert((OutboundQueue::default(), InboundRateBucket::new()));
+    }
+}
+
+/// Drain `Messages<OutboundPlayerPacket>` once per tick, resolve each
+/// `PacketTarget` against `PlayerIndex`, and push packets onto the addressed
+/// per-connection `OutboundQueue`.
+///
+/// Uses `reader.read()` (cursor semantics) so this is the single owning reader
+/// of `OutboundPlayerPacket`. A second reader on the same type would produce an
+/// independent cursor that re-reads from tick start — only one system may own
+/// the reader.
+///
+/// A target that resolves to an entity with no `OutboundQueue` increments
+/// `BRIDGE_OUTBOUND_NO_QUEUE_TOTAL` and is never silently dropped. This counter
+/// makes any residual spawn→attach race observable without adding per-queue
+/// atomics (no atomics for queue depth per CONVENTIONS §Concurrency).
+pub fn bridge_outbound(
+    mut reader: MessageReader<crate::world::bus::OutboundPlayerPacket>,
+    player_index: Res<PlayerIndex>,
+    mut queues: Query<&mut OutboundQueue>,
+    _anchors: Query<&HostAnchorRef>,
+) {
+    for msg in reader.read() {
+        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_CONSUMED_TOTAL
+            .fetch_add(1, Ordering::Relaxed);
+
+        match &msg.target {
+            PacketTarget::SinglePlayer(player_entity) => {
+                let Some(loc) = player_index.get(player_entity) else {
+                    continue;
+                };
+                let target_socket = loc.socket;
+                match queues.get_mut(target_socket) {
+                    Ok(mut q) => q.push(msg.clone()),
+                    Err(_) => {
+                        mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
+                            .fetch_add(1, Ordering::Relaxed);
+                    }
+                }
+            }
+            PacketTarget::AllInDim(dim_entity) => {
+                let dim = *dim_entity;
+                let sockets: Vec<Entity> = player_index
+                    .iter()
+                    .filter_map(|(_, loc)| {
+                        if loc.current_dim == dim {
+                            Some(loc.socket)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                for socket in sockets {
+                    match queues.get_mut(socket) {
+                        Ok(mut q) => q.push(msg.clone()),
+                        Err(_) => {
+                            mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
+                                .fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                }
+            }
+            PacketTarget::AllPlayers => {
+                let sockets: Vec<Entity> =
+                    player_index.iter().map(|(_, loc)| loc.socket).collect();
+                for socket in sockets {
+                    match queues.get_mut(socket) {
+                        Ok(mut q) => q.push(msg.clone()),
+                        Err(_) => {
+                            mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
+                                .fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                }
+            }
+            PacketTarget::PlayerSet(set) => {
+                let sockets: Vec<Entity> = set
+                    .iter()
+                    .filter_map(|e| player_index.get(e).map(|loc| loc.socket))
+                    .collect();
+                for socket in sockets {
+                    match queues.get_mut(socket) {
+                        Ok(mut q) => q.push(msg.clone()),
+                        Err(_) => {
+                            mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
+                                .fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
