@@ -4,9 +4,9 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::prelude::Commands;
 use bevy_ecs::schedule::ScheduleLabel;
-use bevy_ecs::system::{ParallelCommands, Query};
+use bevy_ecs::system::Query;
 use bytes::Bytes;
-use log::{debug, info, warn};
+use log::warn;
 use mcrs_protocol::{Decode, Packet};
 use std::time::Instant;
 

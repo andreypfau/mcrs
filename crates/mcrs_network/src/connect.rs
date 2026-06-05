@@ -1,17 +1,9 @@
 use crate::SharedNetworkState;
-use crate::packet_io::PacketIo;
-
 use crate::intent::handle_intent;
-use anyhow::bail;
-use bevy_ecs::component::Component;
-use bytes::{Bytes, BytesMut};
+use crate::packet_io::PacketIo;
 use log::{error, info, warn};
-use mcrs_protocol::{Decode, Encode, Text};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::net::TcpListener;
-use tokio::sync::mpsc::Receiver;
-use tokio::sync::mpsc::error::TryRecvError;
-use tokio::task::JoinHandle;
 use tokio::time::timeout;
 
 const HANDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
@@ -63,43 +55,3 @@ async fn handle_connection(
     }
 }
 
-// #[derive(Component)]
-// pub struct Connection {
-//     remote_addr: std::net::SocketAddr,
-//     state: mcrs_protocol::PacketState,
-//     recv: Receiver<ReceivedPacket>,
-//     reader_task: JoinHandle<()>,
-//     pub disconnect_reason: Option<Text>,
-// }
-//
-// impl Connection {
-//     pub fn remote_addr(&self) -> std::net::SocketAddr {
-//         self.remote_addr
-//     }
-//
-//     pub fn state(&self) -> mcrs_protocol::PacketState {
-//         self.state
-//     }
-//
-//     // pub async fn send_packet<P>(&mut self, pkt: &P) -> anyhow::Result<()>
-//     // where
-//     //     P: Encode,
-//     // {
-//     //     self.io.send_packet(pkt).await
-//     // }
-//     //
-//     // pub async fn recv_packet<'a, P>(&'a mut self) -> anyhow::Result<P>
-//     // where
-//     //     P: Decode<'a>,
-//     // {
-//     //     self.io.recv_packet().await
-//     // }
-//
-//     pub fn try_recv(&mut self) -> anyhow::Result<Option<ReceivedPacket>> {
-//         match self.recv.try_recv() {
-//             Ok(p) => Ok(Some(p)),
-//             Err(TryRecvError::Empty) => Ok(None),
-//             Err(TryRecvError::Disconnected) => bail!("client disconnected"),
-//         }
-//     }
-// }

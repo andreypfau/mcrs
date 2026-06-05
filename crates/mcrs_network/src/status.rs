@@ -1,9 +1,10 @@
+#[allow(dead_code)]
 pub struct ServerStatusPacketListener<'a> {
     has_requested_status: bool,
-    // connection: crate::connect::Connection,
     status: &'a str,
 }
 
+#[allow(dead_code)]
 const REQUEST_HANDLED_KEY: &str = "multiplayer.status.request_handled";
 
 // impl<'a> ServerStatusPacketListener<'a> {

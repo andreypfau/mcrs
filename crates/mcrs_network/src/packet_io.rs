@@ -1,14 +1,12 @@
 use crate::{EngineConnection, ReceivedPacket};
 use bytes::{Bytes, BytesMut};
 use log::{error, warn};
-use mcrs_protocol::{
-    ConnectionState, Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket,
-};
+use mcrs_protocol::{Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket};
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc;
@@ -72,16 +70,16 @@ impl PacketIo {
         }
     }
 
-    pub(crate) fn into_raw_connection(mut self, remote_addr: SocketAddr) -> RawConnection {
+    pub(crate) fn into_raw_connection(self, remote_addr: SocketAddr) -> RawConnection {
         let (incoming_sender, incoming_receiver) = mpsc::channel(256);
-        let (outgoing_sender, outgoing_receiver) = mpsc::unbounded_channel::<Bytes>();
-        let queued_bytes = Arc::new(AtomicUsize::new(0));
+        let (outgoing_sender, outgoing_receiver) = mpsc::channel::<Bytes>(OUTBOUND_CHANNEL_CAPACITY);
+        let disconnect_flag = Arc::new(AtomicBool::new(false));
 
         let (reader, writer) = self.stream.into_split();
 
         let reader_task = tokio::spawn(reader_loop(reader, self.dec, incoming_sender));
         let writer_task =
-            tokio::spawn(writer_loop(outgoing_receiver, writer, queued_bytes.clone()));
+            tokio::spawn(writer_loop(outgoing_receiver, writer, disconnect_flag.clone()));
 
         RawConnection {
             outgoing: outgoing_sender,
@@ -90,7 +88,7 @@ impl PacketIo {
             writer_task,
             enc: self.enc,
             remote_addr,
-            queued_bytes,
+            disconnect_flag,
         }
     }
 }
@@ -142,51 +140,60 @@ async fn reader_loop(
 }
 
 async fn writer_loop(
-    mut rx: mpsc::UnboundedReceiver<Bytes>,
+    mut rx: mpsc::Receiver<Bytes>,
     tcp: tokio::net::tcp::OwnedWriteHalf,
-    queued_bytes: Arc<AtomicUsize>,
+    disconnect_flag: Arc<AtomicBool>,
 ) {
     let mut writer = BufWriter::with_capacity(64 * 1024, tcp);
     while let Some(bytes) = rx.recv().await {
-        let len = bytes.len();
         if writer.write_all(&bytes).await.is_err() {
+            disconnect_flag.store(true, Ordering::Relaxed);
             return;
         }
-        // Decrement AFTER successful write so the counter accurately
-        // reflects bytes not yet written to TCP.
-        queued_bytes.fetch_sub(len, Ordering::Relaxed);
-
-        // Drain all pending messages without awaiting the channel
-        while let Ok(bytes) = rx.try_recv() {
-            let len = bytes.len();
-            if writer.write_all(&bytes).await.is_err() {
-                return;
-            }
-            queued_bytes.fetch_sub(len, Ordering::Relaxed);
-        }
         if writer.flush().await.is_err() {
+            disconnect_flag.store(true, Ordering::Relaxed);
             return;
         }
     }
-    // Channel closed — drain any remaining buffered data for graceful shutdown.
     let _ = writer.flush().await;
 }
 
-pub(crate) struct RawConnection {
-    outgoing: mpsc::UnboundedSender<Bytes>,
+pub struct RawConnection {
+    outgoing: mpsc::Sender<Bytes>,
     recv: mpsc::Receiver<ReceivedPacket>,
     reader_task: JoinHandle<()>,
+    // Held to keep the writer task alive; dropped implicitly when RawConnection is dropped.
+    #[allow(dead_code)]
     writer_task: JoinHandle<()>,
-    enc: PacketEncoder,
+    pub enc: PacketEncoder,
     pub remote_addr: SocketAddr,
-    queued_bytes: Arc<AtomicUsize>,
+    disconnect_flag: Arc<AtomicBool>,
 }
 
 impl Drop for RawConnection {
     fn drop(&mut self) {
-        // Only abort the reader. The writer will drain remaining messages
-        // and shut down naturally when the outgoing sender is dropped.
         self.reader_task.abort();
+        // writer shuts down naturally when outgoing sender is dropped
+    }
+}
+
+impl RawConnection {
+    /// Returns `true` if the blob was accepted, `false` if the channel is full or closed.
+    /// The `false` case is the backpressure signal consumed by the bridge dispatch system.
+    pub fn try_send_blob(&self, blob: Bytes) -> bool {
+        self.outgoing.try_send(blob).is_ok()
+    }
+
+    pub fn take_encoded(&mut self) -> Bytes {
+        self.enc.take().freeze()
+    }
+
+    pub fn disconnected(&self) -> bool {
+        self.disconnect_flag.load(Ordering::Relaxed)
+    }
+
+    pub fn append<P: Encode + Packet>(&mut self, pkt: &P) -> anyhow::Result<()> {
+        self.enc.append_packet(pkt)
     }
 }
 
@@ -204,21 +211,17 @@ impl EngineConnection for RawConnection {
         if bytes.is_empty() {
             return Ok(());
         }
-        let len = bytes.len();
-        let bytes = bytes.freeze();
-        // Increment BEFORE send so the writer task's fetch_sub never
-        // underflows the counter (it can only subtract after receiving).
-        self.queued_bytes.fetch_add(len, Ordering::Relaxed);
-        self.outgoing.send(bytes).map_err(|_| {
-            // Undo the increment since the bytes were not actually sent.
-            self.queued_bytes.fetch_sub(len, Ordering::Relaxed);
-            anyhow::anyhow!("connection closed")
-        })?;
-        Ok(())
+        let blob = bytes.freeze();
+        self.outgoing
+            .try_send(blob)
+            .map_err(|_| anyhow::anyhow!("connection closed"))
     }
 
     fn queued_bytes(&self) -> usize {
-        self.queued_bytes.load(Ordering::Relaxed)
+        // Depth is tracked in ECS via OutboundQueue; the cross-thread atomic
+        // was removed (AP-03). Return 0 so the handshake/login flush path
+        // still compiles without breaking the EngineConnection contract.
+        0
     }
 }
 
