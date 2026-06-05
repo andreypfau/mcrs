@@ -7,7 +7,7 @@ mod mock_connection;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::system::{IntoSystem, System};
+use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
 use mcrs_minecraft::world::bridge::bridge_inbound;
 use mcrs_minecraft::world::bridge_queue::{
@@ -277,4 +277,83 @@ fn no_unattached_outbound_queue_after_fixed_preupdate() {
         "no ServerSideConnection should lack OutboundQueue after attach_outbound_queue"
     );
     let _ = socket;
+}
+
+// ---------------------------------------------------------------------------
+// disconnect_clears_pending
+// ---------------------------------------------------------------------------
+
+/// After `process_disconnect` runs, the player's `PlayerIndex` entry is
+/// removed (which clears `inbound_pending`) and `OutboundQueue` is removed
+/// from the socket entity. Neither leaks past the disconnect tick.
+#[test]
+fn disconnect_clears_pending() {
+    use mcrs_minecraft::disconnect::process_disconnect;
+    use mcrs_minecraft::world::bus::PendingInboundLifecycle;
+
+    let mut world = World::new();
+    world.init_resource::<PlayerIndex>();
+    world.init_resource::<PendingInboundLifecycle>();
+
+    let dim = Entity::from_raw_u32(10).expect("nonzero");
+    let player = Entity::from_raw_u32(20).expect("nonzero");
+    let in_dim = Entity::from_raw_u32(30).expect("nonzero");
+
+    let (socket, _tx) = spawn_ingame_connection(&mut world);
+    // Populate inbound_pending with a few packets.
+    {
+        let mut index = world.resource_mut::<PlayerIndex>();
+        index.insert(
+            player,
+            PlayerLocation {
+                socket,
+                current_dim: dim,
+                previous_dim: None,
+                in_dim_entity: Some(in_dim),
+                inbound_pending: {
+                    let mut v = smallvec::SmallVec::new();
+                    for seq in 0..3u32 {
+                        v.push(InboundPlayerPacket {
+                            player,
+                            packet: TestInboundPayload { seq },
+                        });
+                    }
+                    v
+                },
+            },
+        );
+    }
+
+    // Verify inbound_pending was populated.
+    {
+        let index = world.resource::<PlayerIndex>();
+        let loc = index.get(&player).expect("player present before disconnect");
+        assert_eq!(loc.inbound_pending.len(), 3, "inbound_pending should have 3 packets before disconnect");
+    }
+
+    // Verify OutboundQueue exists on socket.
+    assert!(
+        world.get::<OutboundQueue>(socket).is_some(),
+        "OutboundQueue should exist before disconnect"
+    );
+
+    // Run process_disconnect (simulating the observer path).
+    world.run_system_once(move |mut commands: bevy_ecs::prelude::Commands,
+                                mut player_index: bevy_ecs::system::ResMut<PlayerIndex>,
+                                mut lifecycle: bevy_ecs::system::ResMut<PendingInboundLifecycle>| {
+        process_disconnect(player, &mut player_index, &mut lifecycle, &mut commands);
+    }).expect("process_disconnect system ran");
+
+    // inbound_pending: PlayerIndex entry is gone → effectively cleared.
+    let index = world.resource::<PlayerIndex>();
+    assert!(
+        index.get(&player).is_none(),
+        "PlayerIndex entry must be removed after disconnect (inbound_pending cleared with it)"
+    );
+
+    // OutboundQueue must be removed from the socket entity.
+    assert!(
+        world.get::<OutboundQueue>(socket).is_none(),
+        "OutboundQueue must be removed from socket entity after disconnect"
+    );
 }

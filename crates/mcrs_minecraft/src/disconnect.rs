@@ -182,8 +182,8 @@ pub fn process_disconnect(
     lifecycle: &mut PendingInboundLifecycle,
     commands: &mut Commands,
 ) {
-    let (current_dim, previous_dim) = match player_index.get(&host_anchor) {
-        Some(loc) => (loc.current_dim, loc.previous_dim),
+    let (current_dim, previous_dim, socket) = match player_index.get(&host_anchor) {
+        Some(loc) => (loc.current_dim, loc.previous_dim, loc.socket),
         None => return,
     };
 
@@ -204,12 +204,30 @@ pub fn process_disconnect(
                 .push(InboundPlayerDespawn { host_anchor });
         }
 
+    // Explicitly clear mid-transit inbound_pending before remove() drops the
+    // PlayerLocation. The remove() call already discards the SmallVec, but
+    // explicit clear prevents mid-transit packets from being processed by any
+    // concurrent system observing the location before removal completes.
+    // Also remove OutboundQueue from the socket entity to prevent a resource
+    // leak when the socket entity survives the disconnect (e.g. graceful FIN
+    // where the ECS entity is not despawned in the same tick).
+    if let Some(loc) = player_index.get_mut(&host_anchor) {
+        loc.inbound_pending.clear();
+    }
+
     // player_index.remove drops PlayerLocation including its inbound_pending
-    // SmallVec; any inbound packets buffered there are discarded with the
-    // location. The partition bucket is purged separately in
+    // SmallVec. The partition bucket is purged separately in
     // filter_inflight_for_disconnect because it is keyed off current_dim,
     // not the location.
     player_index.remove(&host_anchor);
+
+    // Remove OutboundQueue from the socket entity. The entity may be despawned
+    // separately (e.g. when ServerSideConnection is removed by dispatch_encode
+    // or bridge_inbound), but the queue component must not linger if the entity
+    // survives that tick.
+    if let Ok(mut socket_entity) = commands.get_entity(socket) {
+        socket_entity.remove::<crate::world::bridge_queue::OutboundQueue>();
+    }
 
     if let Ok(mut anchor_entity) = commands.get_entity(host_anchor) {
         anchor_entity.despawn();
