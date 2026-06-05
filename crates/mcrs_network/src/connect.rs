@@ -13,25 +13,25 @@ use tokio::time::timeout;
 
 const HANDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
 
-const ACCEPT_BUCKET_CAP: u32 = 5;
+pub const ACCEPT_BUCKET_CAP: u32 = 5;
 // 5 tokens over a 10 s window → 0.5 tokens/s
-const ACCEPT_REFILL_PER_SEC: f32 = 0.5;
-const GLOBAL_HANDSHAKE_CAP: usize = 64;
+pub const ACCEPT_REFILL_PER_SEC: f32 = 0.5;
+pub const GLOBAL_HANDSHAKE_CAP: usize = 64;
 
-pub(crate) struct TokenBucket {
-    pub(crate) tokens: u32,
+pub struct TokenBucket {
+    pub tokens: u32,
     last_refill: Instant,
 }
 
 impl TokenBucket {
-    pub(crate) fn new(initial_tokens: u32) -> Self {
+    pub fn new(initial_tokens: u32) -> Self {
         Self {
             tokens: initial_tokens,
             last_refill: Instant::now(),
         }
     }
 
-    pub(crate) fn consume(&mut self, cap: u32, refill_per_sec: f32) -> bool {
+    pub fn consume(&mut self, cap: u32, refill_per_sec: f32) -> bool {
         let elapsed = self.last_refill.elapsed().as_secs_f32();
         self.tokens = (self.tokens as f32 + elapsed * refill_per_sec).min(cap as f32) as u32;
         self.last_refill = Instant::now();
@@ -45,7 +45,7 @@ impl TokenBucket {
 }
 
 /// Decision function separated from the async loop so it is testable without a real socket.
-pub(crate) fn accept_decision(bucket: &mut TokenBucket, inflight: usize) -> AcceptOutcome {
+pub fn accept_decision(bucket: &mut TokenBucket, inflight: usize) -> AcceptOutcome {
     if !bucket.consume(ACCEPT_BUCKET_CAP, ACCEPT_REFILL_PER_SEC) {
         return AcceptOutcome::RateLimited;
     }
@@ -56,7 +56,7 @@ pub(crate) fn accept_decision(bucket: &mut TokenBucket, inflight: usize) -> Acce
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum AcceptOutcome {
+pub enum AcceptOutcome {
     Accept,
     RateLimited,
     CapExceeded,
