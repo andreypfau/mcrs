@@ -1,4 +1,4 @@
-//! Minimal AoI test harness.
+//! Minimal AoI test harness and scale-bot harness.
 //!
 //! Each test builds a single-`App` host wired with `PlayerTrackerPlugin`
 //! and explicitly runs `FixedPreUpdate` -> `FixedPostUpdate` per tick.
@@ -7,6 +7,8 @@
 //! tests deterministic.
 
 #![allow(dead_code)]
+
+pub mod scale_bots;
 
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate};
 use bevy_ecs::message::Messages;

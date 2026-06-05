@@ -4,6 +4,8 @@
 //! as the subscription mutation — the AOI mirror invariant
 //! (`aoi_mirror_invariant.rs`) hinges on that atomicity.
 
+use std::sync::atomic::Ordering;
+
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{
     Added, Changed, Commands, Entity, Or, Query, ResMut, With, Without,
@@ -147,6 +149,8 @@ pub fn update_own_pov(
                 priority: PacketPriority::Critical,
                 data: PacketPayload::ChunkLoad { column: *pos },
             });
+            mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+                .fetch_add(1, Ordering::Relaxed);
         }
 
         for pos in &removed {
@@ -170,6 +174,8 @@ pub fn update_own_pov(
                 priority: PacketPriority::Normal,
                 data: PacketPayload::ChunkUnload { column: *pos },
             });
+            mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+                .fetch_add(1, Ordering::Relaxed);
         }
 
         subscriptions.0 = desired;

@@ -27,6 +27,8 @@ use smallvec::SmallVec;
 
 pub use mcrs_minecraft_block::block_update::BlockUpdatePlugin;
 
+use std::sync::atomic::Ordering;
+
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 
 /// Per-dim wire emitter. Iterates chunks whose
@@ -96,6 +98,8 @@ pub fn update_client_blocks_per_dim(
                     new_state,
                 },
             });
+            mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+                .fetch_add(1, Ordering::Relaxed);
         }
     }
 }

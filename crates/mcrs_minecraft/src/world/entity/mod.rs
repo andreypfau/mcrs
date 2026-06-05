@@ -140,4 +140,5 @@ pub fn entity_pos_sync(
             on_ground,
         },
     });
+    mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.fetch_add(1, Relaxed);
 }
