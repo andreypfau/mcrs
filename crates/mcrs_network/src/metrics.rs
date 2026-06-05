@@ -59,3 +59,18 @@ pub fn snapshot() -> BridgeTelemetrySnapshot {
 /// snapshot global atomics must hold this lock across the observation window
 /// to avoid cross-test counter races in the same process.
 pub static TELEMETRY_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapshot_reads_counters() {
+        let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let before = snapshot();
+        BRIDGE_DROP_NORMAL_TOTAL.fetch_add(3, Ordering::Relaxed);
+        let after = snapshot();
+        assert_eq!(after.drop_normal_total - before.drop_normal_total, 3);
+        BRIDGE_DROP_NORMAL_TOTAL.fetch_sub(3, Ordering::Relaxed);
+    }
+}
