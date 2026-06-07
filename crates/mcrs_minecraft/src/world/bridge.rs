@@ -20,12 +20,15 @@ pub enum BridgeSet {
     Inbound,
 }
 use mcrs_network::{EngineConnection, InGameConnectionState, ServerSideConnection};
+use mcrs_protocol::chunk::ChunkData;
 use mcrs_protocol::packets::game::clientbound::{
-    ClientboundBlockUpdate, ClientboundDisconnect, ClientboundForgetLevelChunk,
+    ClientboundAddEntity, ClientboundBlockUpdate, ClientboundDisconnect,
+    ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundLevelChunkWithLight,
+    ClientboundLightUpdate, ClientboundRemoveEntities,
 };
-use mcrs_protocol::Text;
+use mcrs_protocol::{ByteAngle, Text, VarInt};
 use rustc_hash::FxHashSet;
-use tracing::warn;
+use tracing::{debug, trace, warn};
 
 use crate::world::bridge_queue::{
     InboundRateBucket, OutboundQueue, DEPTH_DRAIN_TARGET, DEPTH_LIMIT, HIGH_OVERFLOW_LIMIT,
@@ -243,13 +246,21 @@ pub fn dispatch_encode(
         for sub_queue in encode_queues {
             for pkt in sub_queue {
                 match pkt.data {
-                    PacketPayload::LightUpdate(light_data) => {
-                        // ClientboundLightUpdate requires x/z column coordinates
-                        // separately from the LightData blob. The variant does not
-                        // carry column_pos, so encoding would require guessing the
-                        // position — counted-drop until the variant is extended.
-                        let _ = light_data;
-                        BRIDGE_ENCODE_UNHANDLED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    PacketPayload::LightUpdate { column, light_data } => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            col_x = column.x,
+                            col_z = column.z,
+                            "dispatch_encode: LightUpdate"
+                        );
+                        conn.raw
+                            .append(&ClientboundLightUpdate {
+                                x: VarInt(column.x),
+                                z: VarInt(column.z),
+                                light_data,
+                            })
+                            .ok();
                     }
                     PacketPayload::BlockUpdate {
                         position,
@@ -271,34 +282,93 @@ pub fn dispatch_encode(
                             .ok();
                     }
                     PacketPayload::EntityPosSync {
-                        entity: _entity_id,
+                        entity_id,
                         position,
-                        rotation,
+                        velocity,
+                        look,
                         on_ground,
                     } => {
-                        // entity_id is an ECS Entity; the wire id would be a
-                        // numeric VarInt mapped through an entity-id registry.
-                        // Without a registry lookup here, we use PLACEHOLDER (0)
-                        // and record as counted-drop until the registry is wired.
-                        // For now, fall through to counted-drop.
-                        let _ = (position, rotation, on_ground);
-                        BRIDGE_ENCODE_UNHANDLED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                        trace!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            entity_id,
+                            "dispatch_encode: EntityPosSync"
+                        );
+                        conn.raw
+                            .append(&ClientboundEntityPositionSync {
+                                entity_id: VarInt(entity_id),
+                                position,
+                                velocity,
+                                look,
+                                on_ground,
+                            })
+                            .ok();
                     }
-                    PacketPayload::PlayerEnteredView { player: _ } => {
-                        // Requires UUID, spawn position, entity kind, velocity —
-                        // none of which are in the variant. Counted-drop until
-                        // the encode path has world access to resolve these.
-                        BRIDGE_ENCODE_UNHANDLED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    PacketPayload::PlayerEnteredView {
+                        entity_id,
+                        uuid,
+                        kind,
+                        position,
+                        yaw,
+                        pitch,
+                    } => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            entity_id,
+                            "dispatch_encode: PlayerEnteredView"
+                        );
+                        conn.raw
+                            .append(&ClientboundAddEntity {
+                                id: VarInt(entity_id),
+                                uuid,
+                                kind: VarInt(kind),
+                                pos: position,
+                                velocity: VarInt(0),
+                                yaw: ByteAngle::from_degrees(yaw),
+                                pitch: ByteAngle::from_degrees(pitch),
+                                head_yaw: ByteAngle::from_degrees(yaw),
+                                data: VarInt(0),
+                            })
+                            .ok();
                     }
-                    PacketPayload::ChunkLoad { column: _ } => {
-                        // Column payload must be fetched from world storage;
-                        // dispatch_encode does not have that access. Counted-drop.
-                        BRIDGE_ENCODE_UNHANDLED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    PacketPayload::ChunkLoad {
+                        column,
+                        chunk_bytes,
+                        light_data,
+                    } => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            col_x = column.x,
+                            col_z = column.z,
+                            bytes = chunk_bytes.len(),
+                            "dispatch_encode: ChunkLoad"
+                        );
+                        let chunk_data = ChunkData {
+                            data: chunk_bytes.as_slice(),
+                            ..Default::default()
+                        };
+                        conn.raw
+                            .append(&ClientboundLevelChunkWithLight {
+                                pos: column,
+                                chunk_data,
+                                light_data,
+                            })
+                            .ok();
                     }
-                    PacketPayload::PlayerLeftView { player: _ } => {
-                        // ClientboundRemoveEntities not yet present in game.rs;
-                        // counted-drop until the packet type is available.
-                        BRIDGE_ENCODE_UNHANDLED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                    PacketPayload::PlayerLeftView { entity_ids } => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            count = entity_ids.len(),
+                            "dispatch_encode: PlayerLeftView"
+                        );
+                        conn.raw
+                            .append(&ClientboundRemoveEntities {
+                                entity_ids: entity_ids.iter().map(|id| VarInt(*id)).collect(),
+                            })
+                            .ok();
                     }
                     PacketPayload::Test(_) => {
                         // Test-only payload; no wire packet. Counted-drop so
