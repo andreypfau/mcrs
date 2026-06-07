@@ -178,6 +178,16 @@ pub mod clientbound {
         pub flags: Vec<PositionFlag>,
     }
 
+    /// Removes a list of entities from the client world.
+    ///
+    /// Wire id 0x4D in play/clientbound for Minecraft 26.1.2 / protocol 775,
+    /// sourced from `crates/mcrs_protocol/packets.json` (`protocol_id: 77`).
+    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[packet(id=0x4D, state=Game)]
+    pub struct ClientboundRemoveEntities {
+        pub entity_ids: Vec<VarInt>,
+    }
+
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x52, state=Game)]
     pub struct ClientboundRespawn<'a> {

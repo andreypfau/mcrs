@@ -12,10 +12,11 @@ use std::sync::atomic::Ordering;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::prelude::Commands;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
+use bevy_math::DVec3;
 use bytes::Bytes;
+use mcrs_engine::geometry::ColumnPos;
 use mcrs_minecraft::world::bridge::dispatch_encode;
 use mcrs_minecraft::world::bridge_queue::{
     OutboundQueue, DEPTH_DRAIN_TARGET, DEPTH_LIMIT, HIGH_OVERFLOW_LIMIT, KICK_AFTER_OVERFLOW_TICKS,
@@ -23,12 +24,15 @@ use mcrs_minecraft::world::bridge_queue::{
 use mcrs_minecraft::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
-use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
+use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_network::metrics::{
     BRIDGE_DROP_LOW_TOTAL, BRIDGE_DROP_NORMAL_TOTAL, BRIDGE_ENCODE_UNHANDLED_TOTAL,
     BRIDGE_KICK_OVERFLOW_TOTAL, TELEMETRY_TEST_LOCK,
 };
-use mcrs_network::{ServerSideConnection, MAX_QUEUED_BYTES_PER_SOCKET};
+use mcrs_network::ServerSideConnection;
+use mcrs_protocol::chunk::LightData;
+use mcrs_protocol::uuid::Uuid;
+use mcrs_protocol::Look;
 use smallvec::SmallVec;
 use tokio::sync::mpsc;
 
@@ -249,7 +253,7 @@ fn kick_on_critical_high_overflow() {
 /// socket per tick. The receiver side sees exactly one blob arrive.
 #[test]
 fn coalesce_single_write_per_tick() {
-    use mcrs_engine::geometry::{BlockPos, ColumnPos};
+    use mcrs_engine::geometry::BlockPos;
     use mcrs_protocol::BlockStateId;
 
     let mut world = build_dispatch_world();
@@ -340,4 +344,244 @@ fn unhandled_variant_counted() {
     let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
 
     assert_eq!(after - before, 3, "3 Test packets must increment BRIDGE_ENCODE_UNHANDLED_TOTAL by 3");
+}
+
+// ---------------------------------------------------------------------------
+// per-variant encode tests (Task 2 GREEN targets; RED written here in Task 1)
+// ---------------------------------------------------------------------------
+
+/// LightUpdate encodes to a real ClientboundLightUpdate (non-empty blob) and does
+/// not increment BRIDGE_ENCODE_UNHANDLED_TOTAL.
+#[test]
+fn light_update_encodes() {
+    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+    let mut world = build_dispatch_world();
+    let (socket, mut rx) = spawn_mock_connection(&mut world);
+
+    {
+        let mut q = world.get_mut::<OutboundQueue>(socket).expect("OutboundQueue");
+        q.push(OutboundPlayerPacket {
+            target: PacketTarget::AllPlayers,
+            priority: PacketPriority::Normal,
+            data: PacketPayload::LightUpdate {
+                column: ColumnPos::new(3, -5),
+                light_data: LightData::default(),
+            },
+        });
+    }
+
+    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    run_dispatch(&mut world);
+    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+
+    assert_eq!(after - before, 0, "LightUpdate must not increment BRIDGE_ENCODE_UNHANDLED_TOTAL");
+    let blob = rx.try_recv().expect("dispatch must produce a blob for LightUpdate");
+    assert!(!blob.is_empty(), "blob must be non-empty");
+}
+
+/// ChunkLoad encodes to a real ClientboundLevelChunkWithLight (non-empty blob) and
+/// does not increment BRIDGE_ENCODE_UNHANDLED_TOTAL.
+#[test]
+fn chunk_load_encodes() {
+    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+    let mut world = build_dispatch_world();
+    let (socket, mut rx) = spawn_mock_connection(&mut world);
+
+    {
+        let mut q = world.get_mut::<OutboundQueue>(socket).expect("OutboundQueue");
+        q.push(OutboundPlayerPacket {
+            target: PacketTarget::AllPlayers,
+            priority: PacketPriority::Critical,
+            data: PacketPayload::ChunkLoad {
+                column: ColumnPos::new(0, 0),
+                chunk_bytes: vec![0x80u8; 2000],
+                light_data: LightData::default(),
+            },
+        });
+    }
+
+    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    run_dispatch(&mut world);
+    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+
+    assert_eq!(after - before, 0, "ChunkLoad must not increment BRIDGE_ENCODE_UNHANDLED_TOTAL");
+    let blob = rx.try_recv().expect("dispatch must produce a blob for ChunkLoad");
+    assert!(!blob.is_empty(), "blob must be non-empty");
+}
+
+/// EntityPosSync encodes to a real ClientboundEntityPositionSync (non-empty blob)
+/// and does not increment BRIDGE_ENCODE_UNHANDLED_TOTAL.
+#[test]
+fn entity_pos_sync_encodes() {
+    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+    let mut world = build_dispatch_world();
+    let (socket, mut rx) = spawn_mock_connection(&mut world);
+
+    {
+        let mut q = world.get_mut::<OutboundQueue>(socket).expect("OutboundQueue");
+        q.push(OutboundPlayerPacket {
+            target: PacketTarget::AllPlayers,
+            priority: PacketPriority::Normal,
+            data: PacketPayload::EntityPosSync {
+                entity_id: 42,
+                position: DVec3::new(1.0, 64.0, -3.0),
+                velocity: DVec3::ZERO,
+                look: Look { yaw: 0.0, pitch: 0.0 },
+                on_ground: true,
+            },
+        });
+    }
+
+    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    run_dispatch(&mut world);
+    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+
+    assert_eq!(after - before, 0, "EntityPosSync must not increment BRIDGE_ENCODE_UNHANDLED_TOTAL");
+    let blob = rx.try_recv().expect("dispatch must produce a blob for EntityPosSync");
+    assert!(!blob.is_empty(), "blob must be non-empty");
+}
+
+/// PlayerEnteredView encodes to a real ClientboundAddEntity (non-empty blob) and
+/// does not increment BRIDGE_ENCODE_UNHANDLED_TOTAL.
+#[test]
+fn player_entered_view_encodes() {
+    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+    let mut world = build_dispatch_world();
+    let (socket, mut rx) = spawn_mock_connection(&mut world);
+
+    {
+        let mut q = world.get_mut::<OutboundQueue>(socket).expect("OutboundQueue");
+        q.push(OutboundPlayerPacket {
+            target: PacketTarget::AllPlayers,
+            priority: PacketPriority::Normal,
+            data: PacketPayload::PlayerEnteredView {
+                entity_id: 7,
+                uuid: Uuid::nil(),
+                kind: 128,
+                position: DVec3::new(0.0, 64.0, 0.0),
+                yaw: 90.0,
+                pitch: 0.0,
+            },
+        });
+    }
+
+    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    run_dispatch(&mut world);
+    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+
+    assert_eq!(after - before, 0, "PlayerEnteredView must not increment BRIDGE_ENCODE_UNHANDLED_TOTAL");
+    let blob = rx.try_recv().expect("dispatch must produce a blob for PlayerEnteredView");
+    assert!(!blob.is_empty(), "blob must be non-empty");
+}
+
+/// PlayerLeftView encodes to a real ClientboundRemoveEntities (non-empty blob) and
+/// does not increment BRIDGE_ENCODE_UNHANDLED_TOTAL.
+#[test]
+fn player_left_view_encodes() {
+    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+    let mut world = build_dispatch_world();
+    let (socket, mut rx) = spawn_mock_connection(&mut world);
+
+    {
+        let mut q = world.get_mut::<OutboundQueue>(socket).expect("OutboundQueue");
+        let mut ids: SmallVec<[i32; 4]> = SmallVec::new();
+        ids.push(99);
+        q.push(OutboundPlayerPacket {
+            target: PacketTarget::AllPlayers,
+            priority: PacketPriority::Normal,
+            data: PacketPayload::PlayerLeftView { entity_ids: ids },
+        });
+    }
+
+    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    run_dispatch(&mut world);
+    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+
+    assert_eq!(after - before, 0, "PlayerLeftView must not increment BRIDGE_ENCODE_UNHANDLED_TOTAL");
+    let blob = rx.try_recv().expect("dispatch must produce a blob for PlayerLeftView");
+    assert!(!blob.is_empty(), "blob must be non-empty");
+}
+
+/// Only `PacketPayload::Test` remains a counted-drop; the five real variants
+/// contribute zero to `BRIDGE_ENCODE_UNHANDLED_TOTAL`.
+#[test]
+fn only_test_remains_counted_drop() {
+    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+    let mut world = build_dispatch_world();
+    let (socket, _rx) = spawn_mock_connection(&mut world);
+
+    {
+        let mut q = world.get_mut::<OutboundQueue>(socket).expect("OutboundQueue");
+        // One of each real variant — none should increment the unhandled counter.
+        q.push(OutboundPlayerPacket {
+            target: PacketTarget::AllPlayers,
+            priority: PacketPriority::Normal,
+            data: PacketPayload::LightUpdate {
+                column: ColumnPos::new(0, 0),
+                light_data: LightData::default(),
+            },
+        });
+        q.push(OutboundPlayerPacket {
+            target: PacketTarget::AllPlayers,
+            priority: PacketPriority::Critical,
+            data: PacketPayload::ChunkLoad {
+                column: ColumnPos::new(0, 0),
+                chunk_bytes: vec![],
+                light_data: LightData::default(),
+            },
+        });
+        q.push(OutboundPlayerPacket {
+            target: PacketTarget::AllPlayers,
+            priority: PacketPriority::Normal,
+            data: PacketPayload::EntityPosSync {
+                entity_id: 1,
+                position: DVec3::ZERO,
+                velocity: DVec3::ZERO,
+                look: Look { yaw: 0.0, pitch: 0.0 },
+                on_ground: false,
+            },
+        });
+        q.push(OutboundPlayerPacket {
+            target: PacketTarget::AllPlayers,
+            priority: PacketPriority::Normal,
+            data: PacketPayload::PlayerEnteredView {
+                entity_id: 2,
+                uuid: Uuid::nil(),
+                kind: 128,
+                position: DVec3::ZERO,
+                yaw: 0.0,
+                pitch: 0.0,
+            },
+        });
+        let mut ids: SmallVec<[i32; 4]> = SmallVec::new();
+        ids.push(3);
+        q.push(OutboundPlayerPacket {
+            target: PacketTarget::AllPlayers,
+            priority: PacketPriority::Normal,
+            data: PacketPayload::PlayerLeftView { entity_ids: ids },
+        });
+        // One Test packet: must increment by exactly 1.
+        q.push(OutboundPlayerPacket {
+            target: PacketTarget::AllPlayers,
+            priority: PacketPriority::Normal,
+            data: PacketPayload::Test(TestPayload { seq: 0 }),
+        });
+    }
+
+    let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+    run_dispatch(&mut world);
+    let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
+
+    assert_eq!(
+        after - before,
+        1,
+        "only the Test variant must increment BRIDGE_ENCODE_UNHANDLED_TOTAL (by 1); got {}",
+        after - before
+    );
 }

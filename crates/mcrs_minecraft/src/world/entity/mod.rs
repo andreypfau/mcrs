@@ -9,12 +9,13 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{ContainsEntity, On};
 use bevy_ecs::query::With;
 use bevy_ecs::system::Query;
+use bevy_math::DVec3;
 use derive_more::{Deref, DerefMut};
 use mcrs_engine::entity::physics::{OldTransform, Transform};
 use mcrs_engine::entity::{EntityNetworkSyncEvent, EntityPlugin};
 use mcrs_engine::world::dimension::InDimension;
-use mcrs_protocol::VarInt;
 use mcrs_protocol::uuid::Uuid;
+use mcrs_protocol::{Look, VarInt};
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::Ordering::Relaxed;
 
@@ -129,15 +130,18 @@ pub fn entity_pos_sync(
     let Ok(transform) = entity_data.get(event.entity) else {
         return;
     };
-    let on_ground = true;
     packet_writer.write(OutboundPlayerPacket {
         target: PacketTarget::SinglePlayer(event.player),
         priority: PacketPriority::Normal,
         data: PacketPayload::EntityPosSync {
-            entity: event.entity,
+            entity_id: event.entity.index_u32() as i32,
             position: transform.translation,
-            rotation: transform.rotation,
-            on_ground,
+            velocity: DVec3::ZERO,
+            look: Look {
+                yaw: transform.rotation.y,
+                pitch: transform.rotation.x,
+            },
+            on_ground: true,
         },
     });
     mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.fetch_add(1, Relaxed);

@@ -1,11 +1,12 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_ecs::resource::Resource;
-use bevy_math::{DVec3, Quat, Vec2};
+use bevy_math::{DVec3, Vec2};
 use mcrs_engine::geometry::{BlockPos, ColumnPos};
 use mcrs_protocol::BlockStateId;
 use mcrs_protocol::chunk::LightData;
 use mcrs_protocol::uuid::Uuid;
+use mcrs_protocol::Look;
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
@@ -71,28 +72,53 @@ pub enum PacketPriority {
 
 #[derive(Clone, Debug)]
 pub enum PacketPayload {
-    LightUpdate(LightData<'static>),
+    /// Carries all fields ClientboundLightUpdate requires so dispatch_encode
+    /// needs no World access: column coordinates plus the owned light payload.
+    LightUpdate {
+        column: ColumnPos,
+        light_data: LightData<'static>,
+    },
     Test(TestPayload),
     BlockUpdate {
         position: BlockPos,
         new_state: BlockStateId,
     },
+    /// Carries owned chunk bytes and light data so dispatch_encode can build
+    /// ClientboundLevelChunkWithLight without World access. The per-dim chunk
+    /// producer encodes sections into `chunk_bytes`; dispatch constructs the
+    /// borrowing ChunkData at encode time.
     ChunkLoad {
         column: ColumnPos,
+        chunk_bytes: Vec<u8>,
+        light_data: LightData<'static>,
     },
     ChunkUnload {
         column: ColumnPos,
     },
+    /// Carries the wire numeric entity id and all fields ClientboundAddEntity
+    /// needs so dispatch_encode needs no World access. The producer resolves
+    /// `entity.index_u32() as i32` before emitting this variant.
     PlayerEnteredView {
-        player: Entity,
-    },
-    PlayerLeftView {
-        player: Entity,
-    },
-    EntityPosSync {
-        entity: Entity,
+        entity_id: i32,
+        uuid: Uuid,
+        kind: i32,
         position: DVec3,
-        rotation: Quat,
+        yaw: f32,
+        pitch: f32,
+    },
+    /// Carries the wire numeric entity id list so dispatch_encode can build
+    /// ClientboundRemoveEntities without World access.
+    PlayerLeftView {
+        entity_ids: SmallVec<[i32; 4]>,
+    },
+    /// Carries the wire numeric entity id and all fields
+    /// ClientboundEntityPositionSync needs so dispatch_encode needs no World
+    /// access. The producer resolves `entity.index_u32() as i32`.
+    EntityPosSync {
+        entity_id: i32,
+        position: DVec3,
+        velocity: DVec3,
+        look: Look,
         on_ground: bool,
     },
 }
