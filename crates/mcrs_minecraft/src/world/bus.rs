@@ -6,7 +6,7 @@ use mcrs_engine::geometry::{BlockPos, ColumnPos};
 use mcrs_protocol::BlockStateId;
 use mcrs_protocol::chunk::LightData;
 use mcrs_protocol::uuid::Uuid;
-use mcrs_protocol::Look;
+use mcrs_protocol::{GameMode, Look};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
@@ -121,6 +121,59 @@ pub enum PacketPayload {
         look: Look,
         on_ground: bool,
     },
+    /// Carries all fields ClientboundLogin requires as self-contained owned
+    /// wire data so dispatch_encode needs no World access. The per-dim play-
+    /// login emitter fills these from the InboundPlayerSpawn snapshot and the
+    /// world preset dimensions list.
+    PlayerLogin {
+        player_id: i32,
+        hardcore: bool,
+        game_mode: GameMode,
+        /// Dimension resource-location strings (e.g. "minecraft:overworld").
+        dimensions: Vec<String>,
+        max_players: i32,
+        chunk_radius: i32,
+        simulation_distance: i32,
+        reduced_debug_info: bool,
+        show_death_screen: bool,
+        do_limited_crafting: bool,
+        enforces_secure_chat: bool,
+    },
+    /// Carries the `ClientboundGameEvent { LevelChunksLoadStart }` wire data.
+    /// Emitted immediately after `PlayerLogin` during the join sequence.
+    LevelChunksLoadStart,
+    /// Carries the entity-event data for the op-level status effect sent
+    /// during the join sequence (ClientboundEntityEvent).
+    PlayerLoginEntityEvent {
+        entity_id: i32,
+        entity_status: i8,
+    },
+    /// Sets the client's chunk-load origin. A vanilla 26.1.2 client will not
+    /// render any chunks until this packet is received.
+    SetChunkCacheCenter {
+        x: i32,
+        z: i32,
+    },
+    /// Sets the client's view distance radius.
+    SetChunkCacheRadius {
+        radius: i32,
+    },
+    /// Carries owned per-entry data for ClientboundPlayerInfoUpdate so
+    /// dispatch_encode needs no World access.
+    PlayerInfoUpdate {
+        entries: Vec<PlayerInfoEntry>,
+    },
+}
+
+/// Owned player-list entry for use inside `PacketPayload::PlayerInfoUpdate`.
+/// Carries the fields needed for the AddPlayer + UpdateGameMode + UpdateListed
+/// action combination used during join.
+#[derive(Clone, Debug)]
+pub struct PlayerInfoEntry {
+    pub player_uuid: Uuid,
+    pub username: String,
+    pub game_mode: GameMode,
+    pub listed: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

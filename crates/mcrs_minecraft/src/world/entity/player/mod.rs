@@ -1,7 +1,10 @@
 use crate::client_info::ClientViewDistance;
 use crate::configuration::LoadedWorldPreset;
 use crate::login::GameProfile;
-use crate::world::bus::{InboundPlayerSpawn, OutboundPlayerAttached};
+use crate::world::bus::{
+    InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload,
+    PacketPriority, PacketTarget, PlayerInfoEntry,
+};
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
 use crate::world::entity::player::column_view::ColumnViewPlugin;
@@ -35,14 +38,12 @@ use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection}
 use mcrs_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_protocol::item::ComponentPatch;
 use mcrs_protocol::packets::game::clientbound::{
-    ClientboundAddEntity, ClientboundContainerSetContent, ClientboundDisconnect,
-    ClientboundEntityEvent, ClientboundGameEvent, ClientboundLogin, ClientboundPlayerInfoUpdate,
-    ClientboundPlayerPosition,
+    ClientboundContainerSetContent, ClientboundDisconnect, ClientboundEntityEvent,
+    ClientboundGameEvent, ClientboundLogin, ClientboundPlayerPosition,
 };
-use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
-use mcrs_protocol::{ByteAngle, GameEventKind, GameMode, Look, Slot, Text, VarInt, WritePacket};
+use mcrs_protocol::{GameEventKind, GameMode, Look, Slot, Text, VarInt, WritePacket};
 use movement::TeleportState;
-use tracing::info;
+use tracing::{debug, info};
 
 pub mod ability;
 pub mod attribute;
@@ -53,6 +54,13 @@ mod game_mode;
 mod inventory;
 pub mod movement;
 pub mod player_action;
+
+/// Carries the host-anchor entity on the in-dim player entity. Inserted by
+/// the per-dim spawn consumer so that subsequent per-dim systems can build
+/// `PacketTarget::SinglePlayer(host_anchor)` without querying the host's
+/// `PlayerIndex` or `ServerSideConnection`.
+#[derive(bevy_ecs::component::Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HostAnchor(pub Entity);
 
 pub struct PlayerPlugin;
 
@@ -253,11 +261,14 @@ fn spawn_player(
 /// via `OutboundPlayerAttached`. `PlayerIndex` and `ServerSideConnection`
 /// are host-resident and must NOT be accessed here.
 fn consume_inbound_player_spawn(
+    world_preset: Res<crate::configuration::LoadedWorldPreset>,
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     dims: Query<Entity, With<Dimension>>,
     mut commands: Commands,
 ) {
+    use std::sync::atomic::Ordering;
     for spawn in reader.read() {
         let Some(dim) = dims.iter().next() else {
             continue;
@@ -272,8 +283,87 @@ fn consume_inbound_player_spawn(
                     ),
                 PlayerBundle::default(),
                 PlayerChunkObserver::default(),
+                HostAnchor(spawn.host_anchor),
             ))
             .id();
+
+        let host = spawn.host_anchor;
+        let wire_id = new_entity.index_u32() as i32;
+        let spawn_pos = spawn.snapshot.position;
+        let center_x = (spawn_pos.x / 16.0).floor() as i32;
+        let center_z = (spawn_pos.z / 16.0).floor() as i32;
+
+        let dimensions: Vec<String> = if world_preset.dimensions.is_empty() {
+            vec!["minecraft:overworld".to_string()]
+        } else {
+            world_preset.dimensions
+                .iter()
+                .map(|(dim_key, _)| dim_key.as_str().to_owned())
+                .collect()
+        };
+
+        debug!(
+            target: "mcrs_minecraft::player",
+            player = wire_id,
+            host_anchor = ?host,
+            "emit_play_login: emitting play ClientboundLogin for newly-materialized in-dim entity"
+        );
+
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(host),
+            priority: PacketPriority::Critical,
+            data: PacketPayload::PlayerLogin {
+                player_id: wire_id,
+                hardcore: false,
+                game_mode: GameMode::Creative,
+                dimensions,
+                max_players: 100,
+                chunk_radius: 12,
+                simulation_distance: 12,
+                reduced_debug_info: false,
+                show_death_screen: false,
+                do_limited_crafting: false,
+                enforces_secure_chat: false,
+            },
+        });
+        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+            .fetch_add(1, Ordering::Relaxed);
+
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(host),
+            priority: PacketPriority::Critical,
+            data: PacketPayload::SetChunkCacheCenter { x: center_x, z: center_z },
+        });
+        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+            .fetch_add(1, Ordering::Relaxed);
+
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(host),
+            priority: PacketPriority::Critical,
+            data: PacketPayload::SetChunkCacheRadius { radius: 12 },
+        });
+        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+            .fetch_add(1, Ordering::Relaxed);
+
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(host),
+            priority: PacketPriority::Critical,
+            data: PacketPayload::LevelChunksLoadStart,
+        });
+        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+            .fetch_add(1, Ordering::Relaxed);
+
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(host),
+            priority: PacketPriority::Critical,
+            data: PacketPayload::PlayerLoginEntityEvent {
+                entity_id: wire_id,
+                entity_status: 24,
+            },
+        });
+        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+            .fetch_add(1, Ordering::Relaxed);
+
         attached.write(OutboundPlayerAttached {
             host_anchor: spawn.host_anchor,
             new_in_dim_entity: new_entity,
@@ -290,46 +380,48 @@ pub struct PlayerJoinEvent {
 fn network_add(
     event: On<EntityNetworkAddEvent>,
     added_player: Query<(Entity, &GameProfile, &Transform), With<Player>>,
-    mut player: Query<(&mut ServerSideConnection, &Reposition, &GameProfile), With<Player>>,
+    viewer: Query<(&Reposition, &crate::world::player_index::HostAnchorRef), With<Player>>,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
+    use std::sync::atomic::Ordering;
     let Ok((entity, profile, transform)) = added_player.get(event.entity) else {
         return;
     };
-    let Ok((mut connection, reposition, viewer_profile)) = player.get_mut(event.player) else {
+    let Ok((reposition, host_anchor_ref)) = viewer.get(event.player) else {
         return;
     };
 
-    let pkt = ClientboundAddEntity {
-        id: VarInt(entity.index_u32() as i32),
-        uuid: profile.id,
-        kind: VarInt(MinecraftEntityType::Player as i32),
-        pos: reposition.convert_dvec3(transform.translation),
-        velocity: VarInt(0),
-        yaw: ByteAngle::from_degrees(transform.rotation.y),
-        pitch: ByteAngle::from_degrees(transform.rotation.x),
-        head_yaw: ByteAngle::from_degrees(transform.rotation.y),
-        data: VarInt(0),
-    };
-    connection.write_packet(&pkt);
-    println!(
-        "send player {:?} add entity for player viewer: {:?}",
-        profile.username, viewer_profile.username
-    );
+    let host_anchor = host_anchor_ref.0;
+    packet_writer.write(OutboundPlayerPacket {
+        target: PacketTarget::SinglePlayer(host_anchor),
+        priority: PacketPriority::Normal,
+        data: PacketPayload::PlayerEnteredView {
+            entity_id: entity.index_u32() as i32,
+            uuid: profile.id,
+            kind: MinecraftEntityType::Player as i32,
+            position: reposition.convert_dvec3(transform.translation),
+            yaw: transform.rotation.y,
+            pitch: transform.rotation.x,
+        },
+    });
+    mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+        .fetch_add(1, Ordering::Relaxed);
 }
 
 fn player_joined(
     event: On<PlayerJoinEvent>,
-    mut players: Query<(&mut ServerSideConnection, &GameProfile, &PlayerGameMode)>,
-    positions: Query<&Transform , With<Player>>,
+    players: Query<(&GameProfile, &PlayerGameMode, &crate::world::player_index::HostAnchorRef), With<Player>>,
+    positions: Query<&Transform, With<Player>>,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let Ok((con, joined_player, _)) = players.get(event.player) else {
+    use std::sync::atomic::Ordering;
+    let Ok((joined_player, _, _)) = players.get(event.player) else {
         return;
     };
 
     info!(
-        "{}[{}] logged in with entity id {} at {}",
+        "{} logged in with entity id {} at {}",
         joined_player.username,
-        con.remote_addr(),
         event.player,
         positions
             .get(event.player)
@@ -337,34 +429,28 @@ fn player_joined(
             .unwrap_or_default()
     );
 
-    let names = players
+    let entries: Vec<PlayerInfoEntry> = players
         .iter()
-        .map(|(_, profile, _)| profile.username.clone())
-        .collect::<Vec<_>>();
-    let entries: Vec<PlayerListEntry> = players
-        .iter()
-        .zip(names.iter())
-        .map(|((_, profile, game_mode), name)| PlayerListEntry {
-            username: name.as_str(),
+        .map(|(profile, game_mode, _)| PlayerInfoEntry {
             player_uuid: profile.id,
-            properties: profile.properties.iter().cloned().collect(),
-            listed: true,
+            username: profile.username.clone(),
             game_mode: game_mode.0,
-            ..Default::default()
+            listed: true,
         })
         .collect();
 
-    let pkt = ClientboundPlayerInfoUpdate {
-        actions: PlayerListActions::new()
-            .with_add_player(true)
-            .with_update_game_mode(true)
-            .with_update_listed(true),
-        entries: entries.into(),
-    };
-
-    players
-        .iter_mut()
-        .for_each(|(mut connection, _, _)| connection.write_packet(&pkt));
+    // Broadcast player info to every connected player (including the joining player).
+    for (_, _, host_anchor_ref) in players.iter() {
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(host_anchor_ref.0),
+            priority: PacketPriority::Normal,
+            data: PacketPayload::PlayerInfoUpdate {
+                entries: entries.clone(),
+            },
+        });
+        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+            .fetch_add(1, Ordering::Relaxed);
+    }
 }
 
 fn disconnect_player(

@@ -22,11 +22,15 @@ pub enum BridgeSet {
 use mcrs_network::{EngineConnection, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::chunk::ChunkData;
 use mcrs_protocol::packets::game::clientbound::{
-    ClientboundAddEntity, ClientboundBlockUpdate, ClientboundDisconnect,
-    ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundLevelChunkWithLight,
-    ClientboundLightUpdate, ClientboundRemoveEntities,
+    ClientboundAddEntity, ClientboundBlockUpdate, ClientboundChunkCacheRadius,
+    ClientboundDisconnect, ClientboundEntityEvent, ClientboundEntityPositionSync,
+    ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLevelChunkWithLight,
+    ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerInfoUpdate,
+    ClientboundRemoveEntities, ClientboundSetChunkCacheCenter,
 };
-use mcrs_protocol::{ByteAngle, Text, VarInt};
+use mcrs_protocol::entity::player::PlayerSpawnInfo;
+use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
+use mcrs_protocol::{ByteAngle, GameEventKind, Ident, Text, VarInt};
 use rustc_hash::FxHashSet;
 use tracing::{debug, trace, warn};
 
@@ -367,6 +371,135 @@ pub fn dispatch_encode(
                         conn.raw
                             .append(&ClientboundRemoveEntities {
                                 entity_ids: entity_ids.iter().map(|id| VarInt(*id)).collect(),
+                            })
+                            .ok();
+                    }
+                    PacketPayload::PlayerLogin {
+                        player_id,
+                        hardcore,
+                        game_mode,
+                        dimensions,
+                        max_players,
+                        chunk_radius,
+                        simulation_distance,
+                        reduced_debug_info,
+                        show_death_screen,
+                        do_limited_crafting,
+                        enforces_secure_chat,
+                    } => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            player_id,
+                            "dispatch_encode: PlayerLogin (releases client from Joining world)"
+                        );
+                        let dim_idents: Vec<Ident<std::borrow::Cow<str>>> = dimensions
+                            .iter()
+                            .filter_map(|s| {
+                                Ident::<std::borrow::Cow<str>>::new(s.as_str()).ok()
+                            })
+                            .collect();
+                        conn.raw
+                            .append(&ClientboundLogin {
+                                player_id,
+                                hardcore,
+                                dimensions: dim_idents,
+                                max_players: VarInt(max_players),
+                                chunk_radius: VarInt(chunk_radius),
+                                simulation_distance: VarInt(simulation_distance),
+                                reduced_debug_info,
+                                show_death_screen,
+                                do_limited_crafting,
+                                player_spawn_info: PlayerSpawnInfo {
+                                    game_mode,
+                                    ..Default::default()
+                                },
+                                enforces_secure_chat,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::LevelChunksLoadStart => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            "dispatch_encode: LevelChunksLoadStart"
+                        );
+                        conn.raw
+                            .append(&ClientboundGameEvent {
+                                game_event: GameEventKind::LevelChunksLoadStart,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::PlayerLoginEntityEvent {
+                        entity_id,
+                        entity_status,
+                    } => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            entity_id,
+                            entity_status,
+                            "dispatch_encode: PlayerLoginEntityEvent"
+                        );
+                        conn.raw
+                            .append(&ClientboundEntityEvent {
+                                entity_id,
+                                entity_status,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::SetChunkCacheCenter { x, z } => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            x,
+                            z,
+                            "dispatch_encode: SetChunkCacheCenter"
+                        );
+                        conn.raw
+                            .append(&ClientboundSetChunkCacheCenter {
+                                x: VarInt(x),
+                                z: VarInt(z),
+                            })
+                            .ok();
+                    }
+                    PacketPayload::SetChunkCacheRadius { radius } => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            radius,
+                            "dispatch_encode: SetChunkCacheRadius"
+                        );
+                        conn.raw
+                            .append(&ClientboundChunkCacheRadius {
+                                radius: VarInt(radius),
+                            })
+                            .ok();
+                    }
+                    PacketPayload::PlayerInfoUpdate { entries } => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            count = entries.len(),
+                            "dispatch_encode: PlayerInfoUpdate"
+                        );
+                        let wire_entries: Vec<PlayerListEntry<'_>> = entries
+                            .iter()
+                            .map(|e| PlayerListEntry {
+                                player_uuid: e.player_uuid,
+                                username: e.username.as_str(),
+                                game_mode: e.game_mode,
+                                listed: e.listed,
+                                ..Default::default()
+                            })
+                            .collect();
+                        conn.raw
+                            .append(&ClientboundPlayerInfoUpdate {
+                                actions: PlayerListActions::new()
+                                    .with_add_player(true)
+                                    .with_update_game_mode(true)
+                                    .with_update_listed(true),
+                                entries: std::borrow::Cow::Borrowed(&wire_entries),
                             })
                             .ok();
                     }
