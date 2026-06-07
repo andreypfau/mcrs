@@ -12,7 +12,7 @@ mod biome;
 mod client_info;
 pub mod runner;
 pub use runner::run_server_loop;
-mod configuration;
+pub mod configuration;
 pub mod dialog;
 mod dimension_type;
 mod direction;
