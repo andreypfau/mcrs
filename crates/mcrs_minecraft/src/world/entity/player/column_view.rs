@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{
     Added, Component, ContainsEntity, Message, MessageReader, On, Or, Query, With,
 };
@@ -21,12 +22,10 @@ use mcrs_engine::world::column::{
 use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_lighting::codec::{build_full_light_data, ColumnLightUpdate, LightCodecParams};
 use mcrs_minecraft_lighting::sets::LightingSet;
-use mcrs_network::ServerSideConnection;
-use mcrs_protocol::packets::game::clientbound::{
-    ClientboundChunkCacheRadius, ClientboundLevelChunkWithLight, ClientboundLightUpdate,
-    ClientboundSetChunkCacheCenter,
-};
-use mcrs_protocol::{ColumnPos, ChunkData, Encode, VarInt, WritePacket};
+use mcrs_protocol::{ColumnPos, Encode};
+
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::entity::player::HostAnchor;
 use rustc_hash::FxHashSet;
 use tracing::trace;
 use mcrs_minecraft_lighting::{BlockBfsPending, SkyBfsPending};
@@ -197,26 +196,18 @@ fn loading_column_queue(
 /// Maximum chunk columns to send per player per tick.
 const MAX_COL_SENDS_PER_TICK: usize = 10;
 
-/// If more than this many bytes are queued for a connection, skip sending
-/// more chunks this tick and let the writer task drain first.
-const CHUNK_BACKPRESSURE_BYTES: usize = 2 * 1024 * 1024;
-
-/// Chunk-load wire emit (direct-write path). The AoI substrate at
-/// `aoi::update_own_pov` emits a sibling `PacketPayload::ChunkLoad { column }`
-/// with `PacketPriority::Critical` as the metadata-marker carrying the
-/// boundary-crossing signal through the cross-`World` bus; this function
-/// writes the actual `ClientboundLevelChunkWithLight` wire payload directly
-/// to the per-player `ServerSideConnection`. The two are intentionally
-/// independent: the AoI marker proves the boundary crossing happened, the
-/// direct-write path delivers the rich payload. A later layer rebinds the
-/// wire payload through the bus when the codec stack migrates into the
-/// bridge tier.
+/// Chunk-load wire emit routed through the `OutboundPlayerPacket` bus.
+///
+/// Per-column byte-backpressure is removed: the bridge tier's `OutboundQueue`
+/// byte-cap and drop-oldest policy own backpressure now. Only the count gate
+/// (`MAX_COL_SENDS_PER_TICK`) remains to throttle per-tick burst.
+/// Chunks are sent at Critical priority so they are never dropped by the bridge.
 fn send_column_queue(
     mut players: Query<(
-        &mut ServerSideConnection,
         &mut ColumnView,
         &Reposition,
         &InDimension,
+        &HostAnchor,
     )>,
     chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
     dim_column_indexes: Query<&ColumnIndex>,
@@ -228,18 +219,18 @@ fn send_column_queue(
     // propagation drains.
     light_dirty: Query<(), Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>,
     codec_params: LightCodecParams,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
+    use std::sync::atomic::Ordering;
     players
         .iter_mut()
-        .for_each(|(mut con, mut chunk_view, rep, in_dim)| {
+        .for_each(|(mut chunk_view, rep, in_dim, host_anchor)| {
+            let host = host_anchor.0;
             let column_index = dim_column_indexes.get(in_dim.entity()).ok();
             let mut sends = 0usize;
 
             loop {
                 if sends >= MAX_COL_SENDS_PER_TICK {
-                    break;
-                }
-                if con.queued_bytes() > CHUNK_BACKPRESSURE_BYTES {
                     break;
                 }
 
@@ -304,51 +295,70 @@ fn send_column_queue(
                     .map(|column_entity| build_full_light_data(column_entity, &codec_params))
                     .unwrap_or_default();
 
+                let wire_pos = ColumnPos::new(
+                    rep.convert_chunk_x(column_pos.x),
+                    rep.convert_chunk_z(column_pos.z),
+                );
+
                 chunk_view.send_queue.pop_front();
                 chunk_view.sent_columns.insert(column_pos);
-                let pkt = ClientboundLevelChunkWithLight {
-                    pos: ColumnPos::new(
-                        rep.convert_chunk_x(column_pos.x),
-                        rep.convert_chunk_z(column_pos.z),
-                    ),
-                    chunk_data: ChunkData {
-                        data: data.as_slice(),
-                        ..Default::default()
+
+                trace!(
+                    target: "mcrs_minecraft::player",
+                    host_anchor = ?host,
+                    col_x = wire_pos.x,
+                    col_z = wire_pos.z,
+                    bytes = data.len(),
+                    "send_column_queue: emitting ChunkLoad via bus"
+                );
+
+                packet_writer.write(OutboundPlayerPacket {
+                    target: PacketTarget::SinglePlayer(host),
+                    priority: PacketPriority::Critical,
+                    data: PacketPayload::ChunkLoad {
+                        column: wire_pos,
+                        chunk_bytes: data,
+                        light_data,
                     },
-                    light_data,
-                };
-                con.write_packet(&pkt);
+                });
+                mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+                    .fetch_add(1, Ordering::Relaxed);
+
                 sends += 1;
             }
         })
 }
 
 /// Bridges codec-emitted `ColumnLightUpdate` messages to per-player wire
-/// dispatch. The `ColumnView::sent_columns` set gates the ordering: a light
-/// update is only forwarded to a player after that player has already
-/// received the corresponding `ClientboundLevelChunkWithLight`.
+/// dispatch through the `OutboundPlayerPacket` bus.
 ///
-/// Same direct-write shape as `send_column_queue` — the bridge-tier
-/// migration will route this through the cross-`World` bus when the
-/// wire-payload codec lives in the bridge tier and per-player wire state
-/// can resolve recipients there. Until then, this system continues to
-/// query `&mut ServerSideConnection` and write packets directly.
+/// The `ColumnView::sent_columns` set gates the ordering: a light update is
+/// only forwarded to a player after that player has already received the
+/// corresponding `ChunkLoad` packet. Emitted at Normal priority (light
+/// updates after first send can be dropped on congestion without client
+/// visible loss — only the initial chunk light is Critical).
 pub(crate) fn send_light_updates(
     mut reader: MessageReader<ColumnLightUpdate>,
-    mut players: Query<(&ColumnView, &mut ServerSideConnection)>,
+    players: Query<(&ColumnView, &HostAnchor)>,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
+    use std::sync::atomic::Ordering;
     for msg in reader.read() {
         let col_pos = ColumnPos::new(msg.column_pos.x, msg.column_pos.z);
-        for (view, mut con) in players.iter_mut() {
+        for (view, host_anchor) in players.iter() {
             if !view.sent_columns.contains(&col_pos) {
                 continue;
             }
-            let pkt = ClientboundLightUpdate {
-                x: VarInt(col_pos.x),
-                z: VarInt(col_pos.z),
-                light_data: msg.light_data.clone(),
-            };
-            con.write_packet(&pkt);
+            packet_writer.write(OutboundPlayerPacket {
+                target: PacketTarget::SinglePlayer(host_anchor.0),
+                priority: PacketPriority::Normal,
+                data: PacketPayload::LightUpdate {
+                    column: col_pos,
+                    light_data: msg.light_data.clone(),
+                },
+            });
+            mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+                .fetch_add(1, Ordering::Relaxed);
         }
     }
 }
@@ -425,39 +435,54 @@ fn apply_forced_tickets(
 }
 
 /// Handles view updates:
-/// - sends cache center / radius
+/// - sends cache center / radius via the `OutboundPlayerPacket` bus
 /// - diffs column set (xz only)
 /// - adds/removes Forced tickets for the whole client column window (16 sections, mapped by Reposition)
 /// - enqueues load/unload
 fn on_view_update(
     event: On<ChunkTrackingViewUpdateEvent>,
-    mut q: Query<(&mut ServerSideConnection, &Reposition)>,
+    q: Query<(&Reposition, &HostAnchor)>,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    let Ok((mut con, rep)) = q.get_mut(event.player) else {
+    use std::sync::atomic::Ordering;
+    let Ok((rep, host_anchor)) = q.get(event.player) else {
         return;
     };
+    let host = host_anchor.0;
     trace!(
         "Player {:?} chunk view updated: old={:?} new={:?}",
         event.player, event.old_view, event.new_view
     );
 
-    // Cache center / radius (vanilla packets).
+    // Cache center / radius routed through the bus (Critical: required for chunk rendering).
     if match event.old_view {
         Some(a) => a.center != event.new_view.center,
         None => true,
     } {
-        con.write_packet(&ClientboundSetChunkCacheCenter {
-            x: VarInt(rep.convert_chunk_x(event.new_view.center.x)),
-            z: VarInt(rep.convert_chunk_z(event.new_view.center.z)),
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(host),
+            priority: PacketPriority::Critical,
+            data: PacketPayload::SetChunkCacheCenter {
+                x: rep.convert_chunk_x(event.new_view.center.x),
+                z: rep.convert_chunk_z(event.new_view.center.z),
+            },
         });
+        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+            .fetch_add(1, Ordering::Relaxed);
     }
     if match event.old_view {
         Some(v) => v.distance != event.new_view.distance,
         None => true,
     } {
-        con.write_packet(&ClientboundChunkCacheRadius {
-            radius: VarInt(event.new_view.distance as i32),
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(host),
+            priority: PacketPriority::Critical,
+            data: PacketPayload::SetChunkCacheRadius {
+                radius: event.new_view.distance as i32,
+            },
         });
+        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     // // Compute new desired columns set.
@@ -535,148 +560,4 @@ fn on_view_update(
 //     }
 // }
 
-// /// Progressively add forced tickets for columns at the front of the load queue.
-// /// Only a bounded number of columns are ticketed ahead, so the generation pool
-// /// focuses on the closest chunks first instead of spawning everything at once.
-// fn ticket_pending_columns(
-//     mut players: Query<(&mut PlayerColumnView, &InDimension, &Reposition)>,
-//     mut dimensions: Query<&mut ChunkTicketsCommands>,
-// ) {
-//     /// How many un-sent columns may have outstanding tickets at a time.
-//     const TICKET_AHEAD: usize = usize::MAX;
-//
-//     for (mut view, dim, rep) in &mut players {
-//         let Ok(mut tickets) = dimensions.get_mut(dim.entity()) else {
-//             continue;
-//         };
-//         let off = offset_sections(rep);
-//         let view = &mut *view;
-//
-//         // Collect columns that need ticketing from the front of the queue.
-//         let to_ticket: Vec<_> = view
-//             .load_queue
-//             .iter()
-//             .filter(|col| view.desired_columns.contains(col))
-//             .take(TICKET_AHEAD)
-//             .filter(|col| !view.ticketed_columns.contains(col))
-//             .copied()
-//             .collect();
-//
-//         for col in to_ticket {
-//             view.ticketed_columns.insert(col);
-//             apply_forced_tickets(&mut tickets, col, off, true);
-//         }
-//     }
-// }
-//
-// fn process_column_queues(
-//     mut players: Query<(
-//         Entity,
-//         &mut PlayerColumnView,
-//         &InDimension,
-//         &Reposition,
-//         &mut ServerSideConnection,
-//     )>,
-//     dims: Query<&ChunkIndex>,
-//     chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
-// ) {
-//     const MAX_COL_SENDS: usize = 64;
-//
-//     for (player, mut view, dim, rep, mut con) in &mut players {
-//         let Ok(chunk_index) = dims.get(**dim) else {
-//             continue;
-//         };
-//
-//         let off = offset_sections(rep);
-//
-//         // Unloads first.
-//         let mut sends = 0usize;
-//         while sends < MAX_COL_SENDS {
-//             let Some(col) = view.unload_queue.pop_front() else {
-//                 break;
-//             };
-//             if view.sent_columns.remove(&col) {
-//                 // unload_out.write(PlayerColumnUnloadRequest { player, column_pos: col });
-//                 sends += 1;
-//             }
-//         }
-//
-//         // Loads / resends.
-//         // Reuse a single buffer across all columns to avoid per-chunk allocation.
-//         let mut data = Vec::with_capacity(8 * 1024);
-//         sends = 0usize;
-//         while sends < MAX_COL_SENDS {
-//             let Some(column_pos) = view.load_queue.front().copied() else {
-//                 break;
-//             };
-//
-//             // Column may have left desired set while waiting in queue.
-//             if !view.desired_columns.contains(&column_pos) {
-//                 view.load_queue.pop_front();
-//                 view.queued_columns.remove(&column_pos);
-//                 continue;
-//             }
-//
-//             // Gather 16 server chunk entities in client section order.
-//             let mut ready = true;
-//             data.clear();
-//
-//             for client_y in 0..CLIENT_COLUMN_SECTIONS {
-//                 let server_y = client_y - off;
-//                 let pos = ChunkPos::new(column_pos.x, server_y, column_pos.z);
-//
-//                 let Some(chunk_e) = chunk_index.get(pos) else {
-//                     ready = false;
-//                     break;
-//                 };
-//                 let Ok((blocks, biomes)) = chunks.get(chunk_e) else {
-//                     ready = false;
-//                     break;
-//                 };
-//                 blocks
-//                     .non_air_block_count()
-//                     .encode(&mut data)
-//                     .expect("Failed to encode chunk block count");
-//                 blocks
-//                     .convert_network()
-//                     .encode(&mut data)
-//                     .expect("Failed to encode chunk block data");
-//                 biomes
-//                     .convert_network()
-//                     .encode(&mut data)
-//                     .expect("Failed to encode chunk biome data");
-//             }
-//
-//             if !ready {
-//                 break;
-//             }
-//
-//             view.load_queue.pop_front();
-//             view.queued_columns.remove(&column_pos);
-//             view.sent_columns.insert(column_pos);
-//             let pkt = ClientboundLevelChunkWithLight {
-//                 pos: ColumnPos::new(
-//                     rep.convert_chunk_x(column_pos.x),
-//                     rep.convert_chunk_z(column_pos.z),
-//                 ),
-//                 chunk_data: ChunkData {
-//                     data: data.as_slice(),
-//                     ..Default::default()
-//                 },
-//                 light_data: LightData::default(),
-//             };
-//             con.write_packet(&pkt);
-//             sends += 1;
-//         }
-//     }
-// }
-//
-// pub fn update_reposition_from_transform(
-//     cfg: Res<RepositionConfig>,
-//     mut q: Query<(&Transform, &mut Reposition), Changed<Transform>>,
-// ) {
-//     for (tf, mut rep) in &mut q {
-//         let y_blocks = tf.translation.y.floor() as i32;
-//         rep.ensure_visible_y_window(y_blocks, cfg.min_y, cfg.max_y, cfg.step_y);
-//     }
-// }
+
