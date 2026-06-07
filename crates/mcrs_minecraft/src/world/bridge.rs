@@ -654,23 +654,6 @@ pub fn bridge_player_attach(
     }
 }
 
-/// Read serverbound packets from every in-game connection, enforce per-
-/// connection rate limiting, and re-emit each packet as a `ReceivedPacketEvent`
-/// so host-side observers (keepalive, movement ack, chat, etc.) fire normally.
-///
-/// The `With<InGameConnectionState>` filter ensures Login/Configuration
-/// connections continue to use the `EventLoopPlugin::run_event_loop` path
-/// (which is gated `Without<InGameConnectionState>`); only post-login
-/// connections enter this system. The two systems are therefore mutually
-/// exclusive and cannot race on the same socket.
-///
-/// NEVER drops a serverbound packet below the kick threshold. Dropping a
-/// movement packet desyncs the client. The only exit without routing is a
-/// flood-kick, which also removes the `ServerSideConnection`.
-#[cfg_attr(
-    feature = "telemetry-tracy",
-    tracing::instrument(name = "network::bridge_inbound", skip_all)
-)]
 pub fn bridge_inbound(
     mut conns: Query<
         (
@@ -682,7 +665,8 @@ pub fn bridge_inbound(
         With<InGameConnectionState>,
     >,
     mut commands: Commands,
-    mut inbound_msgs: ResMut<Messages<InboundPlayerPacket>>,
+    player_index: Res<PlayerIndex>,
+    mut partition: ResMut<PendingInboundPartition>,
 ) {
     use mcrs_network::metrics::BRIDGE_KICK_FLOOD_TOTAL;
     use mcrs_protocol::packets::game::clientbound::ClientboundDisconnect;
@@ -707,6 +691,8 @@ pub fn bridge_inbound(
                         break;
                     }
 
+                    // Host-world re-emit: drives host-registered observers
+                    // (keepalive, accept-teleportation, login/config).
                     commands.trigger(ReceivedPacketEvent {
                         entity,
                         id: pkt.id,
@@ -714,13 +700,27 @@ pub fn bridge_inbound(
                         timestamp: pkt.timestamp,
                     });
 
+                    // Dim-world route: push the real packet into the player's
+                    // current-dimension partition. The per-dim extract closure
+                    // shuttles it into the sub-world's Messages<InboundPlayerPacket>,
+                    // where dispatch_inbound_to_dim re-emits it as a
+                    // ReceivedPacketEvent on the in-dim player entity so dim
+                    // observers (movement, chat, digging) fire.
                     if let Some(anchor) = anchor_ref {
-                        inbound_msgs.write(InboundPlayerPacket {
-                            player: anchor.0,
-                            id: pkt.id,
-                            data: pkt.payload,
-                            timestamp: pkt.timestamp,
-                        });
+                        if let Some(location) = player_index.get(&anchor.0) {
+                            if location.current_dim != Entity::PLACEHOLDER {
+                                partition
+                                    .per_dim
+                                    .entry(location.current_dim)
+                                    .or_default()
+                                    .push(InboundPlayerPacket {
+                                        player: anchor.0,
+                                        id: pkt.id,
+                                        data: pkt.payload,
+                                        timestamp: pkt.timestamp,
+                                    });
+                            }
+                        }
                     }
                 }
                 Ok(None) => break,
