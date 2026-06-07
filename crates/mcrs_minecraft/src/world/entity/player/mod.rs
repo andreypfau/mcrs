@@ -1,6 +1,7 @@
 use crate::client_info::ClientViewDistance;
 use crate::configuration::LoadedWorldPreset;
 use crate::login::GameProfile;
+use crate::world::bus::{InboundPlayerSpawn, OutboundPlayerAttached};
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
 use crate::world::entity::player::column_view::ColumnViewPlugin;
@@ -18,6 +19,7 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
+use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Changed, Commands, Has, Query, RemovedComponents, Res, With};
 use bevy_ecs::query::Added;
@@ -64,6 +66,7 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(ChatPlugin);
         app.add_plugins(GameModePlugin);
         app.add_systems(bevy_app::Update, spawn_player);
+        app.add_systems(bevy_app::Update, consume_inbound_player_spawn);
         app.add_systems(FixedUpdate, (disconnect_player, added_inventory, resync_player));
         app.add_systems(PostUpdate, despawn_disconnected_clients);
         app.add_observer(network_add);
@@ -240,6 +243,42 @@ fn spawn_player(
                 commands.trigger(PlayerJoinEvent { player: entity });
             }
         });
+}
+
+/// Per-dim system that materialises an in-dim player entity from an
+/// `InboundPlayerSpawn` shuttled across the host→SubApp bus.
+///
+/// The connection stays host-resident. This system only creates the
+/// simulation-side entity and signals the host to bind `in_dim_entity`
+/// via `OutboundPlayerAttached`. `PlayerIndex` and `ServerSideConnection`
+/// are host-resident and must NOT be accessed here.
+fn consume_inbound_player_spawn(
+    mut reader: MessageReader<InboundPlayerSpawn>,
+    mut attached: MessageWriter<OutboundPlayerAttached>,
+    dims: Query<Entity, With<Dimension>>,
+    mut commands: Commands,
+) {
+    for spawn in reader.read() {
+        let Some(dim) = dims.iter().next() else {
+            continue;
+        };
+        let new_entity = commands
+            .spawn((
+                EntityBundle::new(InDimension(dim))
+                    .with_uuid(spawn.snapshot.uuid)
+                    .with_transform(
+                        Transform::default()
+                            .with_translation(spawn.snapshot.position),
+                    ),
+                PlayerBundle::default(),
+                PlayerChunkObserver::default(),
+            ))
+            .id();
+        attached.write(OutboundPlayerAttached {
+            host_anchor: spawn.host_anchor,
+            new_in_dim_entity: new_entity,
+        });
+    }
 }
 
 #[derive(EntityEvent)]

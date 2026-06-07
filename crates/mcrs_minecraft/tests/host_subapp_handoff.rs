@@ -337,12 +337,19 @@ fn attach_roundtrip_sets_in_dim_entity() {
     // Transition to Game — emit_initial_player_spawn fires
     transition_to_game(&mut app, connection_entity);
 
-    // Tick 1: emit runs, lifecycle filled, extract shuttles spawn in,
-    //         sub-app consumer spawns entity + writes OutboundPlayerAttached,
-    //         extract drains OutboundPlayerAttached to host Messages buffer.
+    // Tick 1: emit_initial_player_spawn fills PendingInboundLifecycle →
+    //         extract shuttles spawn into sub-app Messages<InboundPlayerSpawn> →
+    //         sub-app consume_inbound_player_spawn runs, spawns entity, writes
+    //         OutboundPlayerAttached to sub-world buffer.
     app.update();
 
-    // Tick 2: host bridge_player_attach reads OutboundPlayerAttached → sets in_dim_entity.
+    // Tick 2: main bridge_player_attach runs (host buffer still empty) →
+    //         extract drains sub-world OutboundPlayerAttached into host
+    //         Messages<OutboundPlayerAttached>.
+    app.update();
+
+    // Tick 3: bridge_player_attach reads host Messages<OutboundPlayerAttached>
+    //         → sets in_dim_entity.
     app.update();
 
     let location = app
