@@ -163,6 +163,13 @@ pub enum PacketPayload {
     PlayerInfoUpdate {
         entries: Vec<PlayerInfoEntry>,
     },
+    /// Carries the fields ClientboundPlayerPosition (teleport-sync) requires.
+    /// Emitted once per join immediately after `PlayerLogin` so the client
+    /// renders at the correct spawn position rather than (0,0,0).
+    PlayerPosition {
+        teleport_id: i32,
+        position: DVec3,
+    },
 }
 
 /// Owned player-list entry for use inside `PacketPayload::PlayerInfoUpdate`.

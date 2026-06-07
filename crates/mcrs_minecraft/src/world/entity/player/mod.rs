@@ -364,6 +364,17 @@ fn consume_inbound_player_spawn(
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
 
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(host),
+            priority: PacketPriority::Critical,
+            data: PacketPayload::PlayerPosition {
+                teleport_id: 1,
+                position: spawn_pos,
+            },
+        });
+        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+            .fetch_add(1, Ordering::Relaxed);
+
         attached.write(OutboundPlayerAttached {
             host_anchor: spawn.host_anchor,
             new_in_dim_entity: new_entity,

@@ -732,7 +732,7 @@ pub fn emit_initial_player_spawn(
         let snapshot = PlayerTransferSnapshot {
             uuid: profile.id,
             username: profile.username.clone(),
-            position: DVec3::new(0.0, 64.0, 0.0),
+            position: DVec3::new(0.0, 100.0, 0.0),
             rotation: Vec2::ZERO,
         };
         location.current_dim = dim_label;
