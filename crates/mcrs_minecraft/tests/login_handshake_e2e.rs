@@ -1,6 +1,6 @@
 //! CI-testable subset of the BRIDGE-09 E2E gate.
 //!
-//! Three in-process integration tests exercise the steady-state path without a
+//! Four in-process integration tests exercise the steady-state path without a
 //! real TCP socket:
 //!
 //! - `e2e_login_handshake_completes`: synthetic login → `PlayerIndex` entry + `HostAnchorRef`.
@@ -9,29 +9,54 @@
 //!   blob on the mock socket channel within 2 ticks.
 //! - `e2e_aoi_surrounding_update`: two players in the same dim; one enters the other's
 //!   view range; asserts `TrackedBy` update (AOI-02).
+//! - `e2e_join_releases_joining_world`: full production-topology join — host emits
+//!   `InboundPlayerSpawn` on Game transition → sub-app materializes the in-dim entity →
+//!   `emit_play_login` writes `PacketPayload::PlayerLogin` → `bridge_outbound` +
+//!   `dispatch_encode` coalesce a non-empty blob to the mock socket. This is the regression
+//!   test that would have caught the original "Joining world" hang: it exercises a real
+//!   connection crossing into a sub-app and verifies the play-login blob reaches the
+//!   host-resident connection, not just the in-process bus.
 
 #[path = "common/mock_connection.rs"]
 mod mock_connection;
 
 mod harness;
 
-use bevy_app::App;
+use bevy_app::{App, TaskPoolPlugin, Update};
+use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
+use bevy_state::app::{AppExtStates, StatesPlugin};
+use bevy_state::prelude::NextState;
+use bevy_time::{Fixed, Time, TimePlugin};
+use mcrs_core::registry::access::RegistryAccess;
+use mcrs_core::registry::static_registry::StaticRegistry;
+use mcrs_core::tag::TagRegistry;
+use mcrs_core::voxel_shape::VoxelShape;
+use mcrs_core::AppState;
+use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft::configuration::emit_initial_player_spawn;
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::world::aoi::TrackedBy;
-use mcrs_minecraft::world::bridge::{bridge_outbound, dispatch_encode};
+use mcrs_minecraft::world::bridge::{
+    bridge_outbound, bridge_player_attach, dispatch_encode, partition_main_inbound,
+};
 use mcrs_minecraft::world::bridge_queue::{InboundRateBucket, OutboundQueue};
 use mcrs_minecraft::world::bus::{
-    InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-    PendingInboundLifecycle, PendingInboundPartition,
+    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
+    OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer, PacketPayload,
+    PacketPriority, PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
 };
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex, PlayerLocation};
+use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
+use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::uuid::Uuid;
+use mcrs_vanilla::block::Block;
+use mcrs_vanilla::enchantment::EnchantmentData;
 use smallvec::SmallVec;
 
 // ---------------------------------------------------------------------------
@@ -233,6 +258,181 @@ fn e2e_aoi_surrounding_update() {
         tracked_b.0.contains(&player_a),
         "player_b's TrackedBy must include player_a after both are in view range; got {:?}",
         tracked_b.0.as_slice(),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// e2e_join_releases_joining_world
+// ---------------------------------------------------------------------------
+
+/// Build a host `App` with the full join + delivery stack wired as systems
+/// so a real `app.update()` pump exercises the entire production path.
+///
+/// Compared with `build_host_app` in `host_subapp_handoff.rs`, this variant
+/// additionally registers `bridge_outbound` and `dispatch_encode` so that
+/// outbound packets flow all the way to the mock socket.
+fn build_join_host_app() -> App {
+    let mut app = App::new();
+    app.add_plugins(TaskPoolPlugin::default());
+    app.add_plugins(AssetPlugin::default());
+    app.add_plugins(TimePlugin);
+    app.insert_resource(Time::<Fixed>::from_hz(20.0));
+    app.add_plugins(StatesPlugin);
+    app.init_state::<AppState>();
+    app.init_resource::<DimSpawnQueue>();
+    app.init_resource::<DimDespawnQueue>();
+    app.insert_resource(RegistryAccess::default());
+    {
+        let state_count = 2usize;
+        let emission = vec![0u8; state_count].into_boxed_slice();
+        let dampening = vec![0u8; state_count].into_boxed_slice();
+        let occlusion: Box<[&'static VoxelShape]> =
+            vec![VoxelShape::empty(); state_count].into_boxed_slice();
+        let flags = vec![0u8; state_count].into_boxed_slice();
+        app.insert_resource(BlockStateLightTable { emission, dampening, occlusion, flags });
+    }
+    app.insert_resource(StaticRegistry::<Block>::new());
+    app.insert_resource(StaticRegistry::<EnchantmentData>::default());
+    app.insert_resource(TagRegistry::<Block>::default());
+
+    app.init_resource::<PlayerIndex>();
+    app.init_resource::<PendingInboundPartition>();
+    app.init_resource::<PendingInboundLifecycle>();
+    app.add_message::<OutboundPlayerPacket>();
+    app.add_message::<InboundPlayerPacket>();
+    app.add_message::<OutboundPlayerTransfer>();
+    app.add_message::<InboundPlayerSpawn>();
+    app.add_message::<OutboundPlayerAttached>();
+    app.add_message::<OutboundPlayerDisconnect>();
+    app.add_message::<InboundPlayerDespawn>();
+
+    app.add_systems(
+        Update,
+        (partition_main_inbound, bridge_player_attach, bridge_outbound, dispatch_encode),
+    );
+    app.add_plugins(LoginPlugin);
+    app.add_systems(Update, emit_initial_player_spawn);
+
+    app
+}
+
+/// Full production-topology regression for the "Joining world" release.
+///
+/// This is the test that would have caught the original failure: it exercises
+/// a real connection crossing into a sub-app (`InboundPlayerSpawn` → in-dim
+/// entity via `consume_inbound_player_spawn`) and verifies that the play-login
+/// packet (`PacketPayload::PlayerLogin`) is encoded and delivered as a non-empty
+/// blob to the joining player's host-resident mock socket connection, which is
+/// what releases the client from the "Joining world" screen.
+///
+/// Asserts:
+/// 1. `PlayerIndex.in_dim_entity` becomes `Some` (handoff bound).
+/// 2. A non-empty blob reaches the mock socket channel (play-login delivered).
+#[test]
+fn e2e_join_releases_joining_world() {
+    use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
+    use mcrs_network::ConnectionState;
+    use mcrs_network::InGameConnectionState;
+
+    let mut app = build_join_host_app();
+
+    // Spawn a connection entity with a mock socket so dispatch_encode can
+    // coalesce and deliver blobs to it.
+    let (raw, mut rx) = mock_connection::make_mock_raw_connection();
+    let connection_entity = app
+        .world_mut()
+        .spawn((
+            ServerSideConnection { raw: Box::new(raw) },
+            OutboundQueue::default(),
+            InboundRateBucket::new(),
+        ))
+        .id();
+
+    // Drive login: insert GameProfile + LoginState::Accepted so the
+    // on_login_accepted observer creates the host-anchor + PlayerIndex entry.
+    app.world_mut().entity_mut(connection_entity).insert((
+        GameProfile {
+            id: Uuid::new_v4(),
+            username: "e2e_join_test".into(),
+            properties: Vec::new(),
+        },
+        LoginState::Accepted,
+    ));
+    // Flush the on_login_accepted observer.
+    app.update();
+
+    let host_anchor = app
+        .world()
+        .entity(connection_entity)
+        .get::<HostAnchorRef>()
+        .copied()
+        .expect("HostAnchorRef present after login")
+        .0;
+
+    // Make PlayerIndex.socket point at the mock connection entity so
+    // bridge_outbound and dispatch_encode route blobs to it.
+    {
+        let mut index = app.world_mut().resource_mut::<PlayerIndex>();
+        if let Some(loc) = index.get_mut(&host_anchor) {
+            loc.socket = connection_entity;
+        }
+    }
+
+    // Bring up the server and spawn a real sub-app.
+    app.world_mut()
+        .resource_mut::<NextState<AppState>>()
+        .set(AppState::Playing);
+    app.update();
+    app.world_mut()
+        .resource_mut::<DimSpawnQueue>()
+        .0
+        .push(DimSpawnRequest {
+            dimension_id: DimensionId::new("test:overworld"),
+            type_config: DimensionTypeConfig::default(),
+            has_sky: true,
+        });
+    drain_dim_spawn_queue(&mut app);
+
+    // Transition to Game — mirrors what on_configuration_ack does in production.
+    app.world_mut()
+        .entity_mut(connection_entity)
+        .insert((ConnectionState::Game, InGameConnectionState));
+
+    // Tick 1: emit_initial_player_spawn fills PendingInboundLifecycle →
+    //         extract shuttles spawn into sub-app Messages<InboundPlayerSpawn> →
+    //         sub-app consume_inbound_player_spawn spawns the in-dim entity,
+    //         writes OutboundPlayerAttached + emit_play_login OutboundPlayerPacket(s).
+    app.update();
+
+    // Tick 2: extract drains sub-app OutboundPlayerAttached → host
+    //         Messages<OutboundPlayerAttached>; bridge_player_attach sets
+    //         in_dim_entity; extract drains OutboundPlayerPacket(s) to host bus;
+    //         bridge_outbound routes them to OutboundQueue on the mock connection;
+    //         dispatch_encode encodes and sends the blob.
+    app.update();
+
+    // Tick 3: second dispatch window — catches any packets queued on tick 2.
+    app.update();
+
+    // Assertion 1: handoff completed — in_dim_entity bound.
+    let location = app
+        .world()
+        .resource::<PlayerIndex>()
+        .get(&host_anchor)
+        .expect("PlayerLocation present");
+    assert!(
+        location.in_dim_entity.is_some(),
+        "PlayerIndex.in_dim_entity must be Some after the full handoff round-trip",
+    );
+
+    // Assertion 2: play-login delivered — at least one non-empty blob on the socket.
+    let blob = rx
+        .try_recv()
+        .expect("dispatch_encode must have sent at least one blob to the mock socket; \
+                 play-login not delivered — 'Joining world' would hang");
+    assert!(
+        !blob.is_empty(),
+        "the blob reaching the mock socket must be non-empty (play-login bytes)",
     );
 }
 
