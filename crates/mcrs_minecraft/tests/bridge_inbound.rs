@@ -17,8 +17,9 @@ use mcrs_minecraft::world::bridge::bridge_inbound;
 use mcrs_minecraft::world::bridge_queue::{
     InboundRateBucket, OutboundQueue, INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_TICKS,
 };
+use bytes::Bytes;
 use mcrs_minecraft::world::bus::{
-    InboundPlayerPacket, OutboundPlayerPacket, PendingInboundPartition, TestInboundPayload,
+    InboundPlayerPacket, OutboundPlayerPacket, PendingInboundPartition,
 };
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex, PlayerLocation};
 use mcrs_network::event::ReceivedPacketEvent;
@@ -341,10 +342,12 @@ fn disconnect_clears_pending() {
                 in_dim_entity: Some(in_dim),
                 inbound_pending: {
                     let mut v = smallvec::SmallVec::new();
-                    for seq in 0..3u32 {
+                    for seq in 0..3i32 {
                         v.push(InboundPlayerPacket {
                             player,
-                            packet: TestInboundPayload { seq },
+                            id: seq,
+                            data: Bytes::new(),
+                            timestamp: std::time::Instant::now(),
                         });
                     }
                     v

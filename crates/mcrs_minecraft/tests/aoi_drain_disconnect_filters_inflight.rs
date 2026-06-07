@@ -21,10 +21,11 @@ use mcrs_minecraft::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, PendingDisconnectQueue,
     drain_pending_disconnects, filter_inflight_for_disconnect,
 };
+use bytes::Bytes;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerTransfer, PendingInboundLifecycle,
-    PendingInboundPartition, PlayerTransferSnapshot, TestInboundPayload,
+    PendingInboundPartition, PlayerTransferSnapshot,
 };
 use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
 use mcrs_protocol::uuid::Uuid;
@@ -189,15 +190,21 @@ fn filter_inflight_purges_pending_inbound_partition_for_disconnected_anchor() {
         let bucket = partition.per_dim.entry(app_dim).or_default();
         bucket.push(InboundPlayerPacket {
             player: host_anchor,
-            packet: TestInboundPayload { seq: 1 },
+            id: 1,
+            data: Bytes::new(),
+            timestamp: std::time::Instant::now(),
         });
         bucket.push(InboundPlayerPacket {
             player: other_anchor,
-            packet: TestInboundPayload { seq: 2 },
+            id: 2,
+            data: Bytes::new(),
+            timestamp: std::time::Instant::now(),
         });
         bucket.push(InboundPlayerPacket {
             player: host_anchor,
-            packet: TestInboundPayload { seq: 3 },
+            id: 3,
+            data: Bytes::new(),
+            timestamp: std::time::Instant::now(),
         });
     }
 
@@ -238,7 +245,7 @@ fn filter_inflight_purges_pending_inbound_partition_for_disconnected_anchor() {
         bucket[0].player, other_anchor,
         "surviving packet must be for the still-connected anchor"
     );
-    assert_eq!(bucket[0].packet.seq, 2);
+    assert_eq!(bucket[0].id, 2);
 }
 
 #[test]

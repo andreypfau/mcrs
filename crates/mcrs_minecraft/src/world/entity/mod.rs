@@ -1,12 +1,12 @@
-use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::bus::{InboundPlayerPacket, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::explosive::primed_tnt::PrimedTntPlugin;
-use crate::world::entity::player::PlayerPlugin;
-use bevy_app::{App, Plugin};
+use crate::world::entity::player::{HostAnchor, PlayerPlugin};
+use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::MessageWriter;
-use bevy_ecs::prelude::{ContainsEntity, On};
+use bevy_ecs::message::{MessageReader, MessageWriter};
+use bevy_ecs::prelude::{Commands, ContainsEntity, On};
 use bevy_ecs::query::With;
 use bevy_ecs::system::Query;
 use bevy_math::DVec3;
@@ -14,6 +14,7 @@ use derive_more::{Deref, DerefMut};
 use mcrs_engine::entity::physics::{OldTransform, Transform};
 use mcrs_engine::entity::{EntityNetworkSyncEvent, EntityPlugin};
 use mcrs_engine::world::dimension::InDimension;
+use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_protocol::uuid::Uuid;
 use mcrs_protocol::{Look, VarInt};
 use std::sync::atomic::AtomicI32;
@@ -37,6 +38,7 @@ impl Plugin for MinecraftEntityPlugin {
         app.add_plugins(PlayerPlugin);
         app.add_plugins(PrimedTntPlugin);
         app.add_observer(entity_pos_sync);
+        app.add_systems(FixedPreUpdate, dispatch_inbound_to_dim);
     }
 }
 
@@ -106,6 +108,39 @@ impl Default for NetworkEntityId {
 impl From<NetworkEntityId> for i32 {
     fn from(val: NetworkEntityId) -> Self {
         val.0.0
+    }
+}
+
+/// Per-dim system that re-emits `ReceivedPacketEvent` for every
+/// `InboundPlayerPacket` drained from the host→sub-app shuttle.
+///
+/// The extract closure in `sub_app_builder` drains
+/// `PendingInboundPartition.per_dim[label_entity]` into the sub-world's
+/// `Messages<InboundPlayerPacket>` buffer each tick. This system consumes
+/// that buffer, resolves the in-dim entity via the `HostAnchor` component,
+/// and triggers `ReceivedPacketEvent` so all per-dim observers
+/// (movement, chat, digging) fire on the correct in-dim entity.
+fn dispatch_inbound_to_dim(
+    mut reader: MessageReader<InboundPlayerPacket>,
+    players: Query<(Entity, &HostAnchor)>,
+    mut commands: Commands,
+) {
+    for msg in reader.read() {
+        let Some((in_dim_entity, _)) = players.iter().find(|(_, ha)| ha.0 == msg.player) else {
+            continue;
+        };
+        tracing::debug!(
+            target: "mcrs_minecraft::bridge",
+            packet_id = msg.id,
+            in_dim_entity = ?in_dim_entity,
+            "dispatch_inbound_to_dim: routing packet to dim entity"
+        );
+        commands.trigger(ReceivedPacketEvent {
+            entity: in_dim_entity,
+            id: msg.id,
+            data: msg.data.clone(),
+            timestamp: msg.timestamp,
+        });
     }
 }
 

@@ -2,6 +2,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_ecs::resource::Resource;
 use bevy_math::{DVec3, Vec2};
+use bytes::Bytes;
 use mcrs_engine::geometry::{BlockPos, ColumnPos};
 use mcrs_protocol::BlockStateId;
 use mcrs_protocol::chunk::LightData;
@@ -9,6 +10,7 @@ use mcrs_protocol::uuid::Uuid;
 use mcrs_protocol::{GameMode, Look};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
+use std::time::Instant;
 
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
 
@@ -22,7 +24,9 @@ pub struct OutboundPlayerPacket {
 #[derive(Message, Clone, Debug)]
 pub struct InboundPlayerPacket {
     pub player: Entity,
-    pub packet: TestInboundPayload,
+    pub id: i32,
+    pub data: Bytes,
+    pub timestamp: Instant,
 }
 
 #[derive(Message, Clone, Debug)]
@@ -277,7 +281,9 @@ mod tests {
 
         let inbound = InboundPlayerPacket {
             player: e,
-            packet: TestInboundPayload::default(),
+            id: 0,
+            data: Bytes::new(),
+            timestamp: std::time::Instant::now(),
         };
         assert_eq!(format!("{:?}", inbound.clone()), format!("{:?}", inbound));
 
@@ -352,7 +358,9 @@ mod tests {
             .or_default()
             .push(InboundPlayerPacket {
                 player: placeholder_entity(),
-                packet: TestInboundPayload { seq: 1 },
+                id: 1,
+                data: Bytes::new(),
+                timestamp: std::time::Instant::now(),
             });
         assert_eq!(partition.per_dim.get(&dim).map(|v| v.len()), Some(1));
     }

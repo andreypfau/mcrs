@@ -21,6 +21,7 @@ bevy_app.workspace = true
 bevy_asset.workspace = true
 bevy_state.workspace = true
 bevy_time.workspace = true
+bytes.workspace = true
 mcrs_core.workspace = true
 mcrs_minecraft.workspace = true
 mcrs_minecraft_block.workspace = true

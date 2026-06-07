@@ -1930,6 +1930,7 @@ dependencies = [
  "bevy_math",
  "bevy_state",
  "bevy_time",
+ "bytes",
  "indexmap",
  "log",
  "mcrs_core",

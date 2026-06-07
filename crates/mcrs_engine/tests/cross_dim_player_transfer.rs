@@ -25,10 +25,11 @@ use bevy_math::{DVec3, Vec2};
 use mcrs_minecraft::world::bridge::{
     bridge_player_attach, bridge_player_transfer, partition_main_inbound,
 };
+use bytes::Bytes;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
-    PendingInboundLifecycle, PendingInboundPartition, PlayerTransferSnapshot, TestInboundPayload,
+    PendingInboundLifecycle, PendingInboundPartition, PlayerTransferSnapshot,
 };
 use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
 use mcrs_minecraft::world::sub_app_builder::DimSubAppHandle;
@@ -59,7 +60,7 @@ struct SourceLog {
 struct DestLog {
     has_marker_per_tick: Vec<bool>,
     new_in_dim_entity: Option<Entity>,
-    received_packets: Vec<u32>,
+    received_packets: Vec<i32>,
 }
 
 #[derive(Resource, Default)]
@@ -348,7 +349,7 @@ fn dest_consume_packets(
     mut log: ResMut<DestLog>,
 ) {
     for packet in reader.read() {
-        log.received_packets.push(packet.packet.seq);
+        log.received_packets.push(packet.id);
     }
 }
 
@@ -368,7 +369,7 @@ fn dest_log(app: &App) -> Vec<bool> {
         .clone()
 }
 
-fn dest_received_packets(app: &App) -> Vec<u32> {
+fn dest_received_packets(app: &App) -> Vec<i32> {
     app.sub_app(TestDimLabel(1))
         .world()
         .resource::<DestLog>()
@@ -522,12 +523,14 @@ fn inbound_packets_buffered_during_transit_drain_on_attach() {
     // while the player is in the gap. partition_main_inbound on the next
     // ticks will see in_dim_entity == None and append to
     // inbound_pending.
-    for seq in 0..2u32 {
+    for seq in 0..2i32 {
         app.world_mut()
             .resource_mut::<Messages<InboundPlayerPacket>>()
             .write(InboundPlayerPacket {
                 player: host_anchor,
-                packet: TestInboundPayload { seq: seq + 100 },
+                id: seq + 100,
+                data: Bytes::new(),
+                timestamp: std::time::Instant::now(),
             });
     }
 

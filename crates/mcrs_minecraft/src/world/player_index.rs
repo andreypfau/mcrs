@@ -59,7 +59,7 @@ pub struct HostAnchorRef(pub Entity);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::world::bus::TestInboundPayload;
+    use bytes::Bytes;
 
     fn placeholder_entity() -> Entity {
         Entity::PLACEHOLDER
@@ -151,7 +151,9 @@ mod tests {
             for seq in 0..3 {
                 loc.inbound_pending.push(InboundPlayerPacket {
                     player: host_anchor,
-                    packet: TestInboundPayload { seq },
+                    id: seq,
+                    data: Bytes::new(),
+                    timestamp: std::time::Instant::now(),
                 });
             }
         }

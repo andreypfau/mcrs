@@ -673,15 +673,21 @@ pub fn bridge_player_attach(
 )]
 pub fn bridge_inbound(
     mut conns: Query<
-        (Entity, &mut ServerSideConnection, &mut InboundRateBucket),
+        (
+            Entity,
+            &mut ServerSideConnection,
+            &mut InboundRateBucket,
+            Option<&HostAnchorRef>,
+        ),
         With<InGameConnectionState>,
     >,
     mut commands: Commands,
+    mut inbound_msgs: ResMut<Messages<InboundPlayerPacket>>,
 ) {
     use mcrs_network::metrics::BRIDGE_KICK_FLOOD_TOTAL;
     use mcrs_protocol::packets::game::clientbound::ClientboundDisconnect;
 
-    for (entity, mut conn, mut bucket) in conns.iter_mut() {
+    for (entity, mut conn, mut bucket, anchor_ref) in conns.iter_mut() {
         bucket.refill();
 
         loop {
@@ -704,9 +710,18 @@ pub fn bridge_inbound(
                     commands.trigger(ReceivedPacketEvent {
                         entity,
                         id: pkt.id,
-                        data: pkt.payload,
+                        data: pkt.payload.clone(),
                         timestamp: pkt.timestamp,
                     });
+
+                    if let Some(anchor) = anchor_ref {
+                        inbound_msgs.write(InboundPlayerPacket {
+                            player: anchor.0,
+                            id: pkt.id,
+                            data: pkt.payload,
+                            timestamp: pkt.timestamp,
+                        });
+                    }
                 }
                 Ok(None) => break,
                 Err(_) => {
@@ -728,7 +743,7 @@ mod tests {
     use bevy_ecs::world::World;
     use smallvec::SmallVec;
 
-    use crate::world::bus::TestInboundPayload;
+    use bytes::Bytes;
     use crate::world::player_index::PlayerLocation;
 
     fn make_location(
@@ -775,7 +790,9 @@ mod tests {
             &mut world,
             InboundPlayerPacket {
                 player,
-                packet: TestInboundPayload { seq: 1 },
+                id: 1,
+                data: Bytes::new(),
+                timestamp: std::time::Instant::now(),
             },
         );
 
@@ -806,7 +823,9 @@ mod tests {
             &mut world,
             InboundPlayerPacket {
                 player,
-                packet: TestInboundPayload { seq: 2 },
+                id: 2,
+                data: Bytes::new(),
+                timestamp: std::time::Instant::now(),
             },
         );
 
@@ -832,7 +851,9 @@ mod tests {
             &mut world,
             InboundPlayerPacket {
                 player: unknown,
-                packet: TestInboundPayload { seq: 3 },
+                id: 3,
+                data: Bytes::new(),
+                timestamp: std::time::Instant::now(),
             },
         );
 
@@ -983,7 +1004,9 @@ mod tests {
         for seq in 0..3u32 {
             buffered.push(InboundPlayerPacket {
                 player: host_anchor,
-                packet: TestInboundPayload { seq },
+                id: seq as i32,
+                data: Bytes::new(),
+                timestamp: std::time::Instant::now(),
             });
         }
 

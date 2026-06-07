@@ -18,11 +18,12 @@ use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
 use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::bridge::partition_main_inbound;
+use bytes::Bytes;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer, PacketPayload,
     PacketPriority, PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
-    TestInboundPayload, TestPayload,
+    TestPayload,
 };
 use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
 use mcrs_minecraft::world::sub_app_builder::{
@@ -37,7 +38,7 @@ use smallvec::SmallVec;
 struct OutboundLog(Vec<u32>);
 
 #[derive(Resource, Default)]
-struct InboundLog(Vec<u32>);
+struct InboundLog(Vec<i32>);
 
 fn make_stub_block_light_table() -> BlockStateLightTable {
     let state_count = 2usize;
@@ -144,7 +145,7 @@ fn record_sub_inbound(
     mut log: ResMut<InboundLog>,
 ) {
     for msg in msgs.drain() {
-        log.0.push(msg.packet.seq);
+        log.0.push(msg.id);
     }
 }
 
@@ -229,7 +230,9 @@ fn inbound_latency_is_zero_host_ticks_via_player_index() {
         .resource_mut::<Messages<InboundPlayerPacket>>()
         .write(InboundPlayerPacket {
             player,
-            packet: TestInboundPayload { seq: 0xCAFE },
+            id: 0xCAFE,
+            data: Bytes::new(),
+            timestamp: std::time::Instant::now(),
         });
 
     // Tick 1: main partition_main_inbound routes to the per_dim bucket,
