@@ -226,7 +226,7 @@ pub fn process_disconnect(
     // or bridge_inbound), but the queue component must not linger if the entity
     // survives that tick.
     if let Ok(mut socket_entity) = commands.get_entity(socket) {
-        socket_entity.remove::<crate::world::bridge_queue::OutboundQueue>();
+        socket_entity.try_remove::<crate::world::bridge_queue::OutboundQueue>();
     }
 
     if let Ok(mut anchor_entity) = commands.get_entity(host_anchor) {
