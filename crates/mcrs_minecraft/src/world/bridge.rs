@@ -1,6 +1,7 @@
 use std::sync::atomic::Ordering;
 
 use bevy_ecs::entity::Entity;
+use bevy_math::DVec3;
 use bevy_ecs::message::{MessageReader, Messages};
 use bevy_ecs::prelude::Commands;
 use bevy_ecs::query::{With, Without};
@@ -19,6 +20,7 @@ pub enum BridgeSet {
     Dispatch,
     Inbound,
 }
+use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{EngineConnection, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::chunk::ChunkData;
 use mcrs_protocol::packets::game::clientbound::{
@@ -26,11 +28,11 @@ use mcrs_protocol::packets::game::clientbound::{
     ClientboundDisconnect, ClientboundEntityEvent, ClientboundEntityPositionSync,
     ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLevelChunkWithLight,
     ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerInfoUpdate,
-    ClientboundRemoveEntities, ClientboundSetChunkCacheCenter,
+    ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundSetChunkCacheCenter,
 };
 use mcrs_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
-use mcrs_protocol::{ByteAngle, GameEventKind, Ident, Text, VarInt};
+use mcrs_protocol::{ByteAngle, GameEventKind, Ident, Look, PositionFlag, Text, VarInt};
 use rustc_hash::FxHashSet;
 use tracing::{debug, trace, warn};
 
@@ -503,6 +505,27 @@ pub fn dispatch_encode(
                             })
                             .ok();
                     }
+                    PacketPayload::PlayerPosition {
+                        teleport_id,
+                        position,
+                    } => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            ?position,
+                            teleport_id,
+                            "dispatch_encode: PlayerPosition (teleport-sync)"
+                        );
+                        conn.raw
+                            .append(&ClientboundPlayerPosition {
+                                teleport_id: VarInt(teleport_id),
+                                position,
+                                velocity: DVec3::ZERO,
+                                look: Look::default(),
+                                flags: Vec::<PositionFlag>::new(),
+                            })
+                            .ok();
+                    }
                     PacketPayload::Test(_) => {
                         // Test-only payload; no wire packet. Counted-drop so
                         // test assertions on BRIDGE_ENCODE_UNHANDLED_TOTAL work.
@@ -632,13 +655,14 @@ pub fn bridge_player_attach(
 }
 
 /// Read serverbound packets from every in-game connection, enforce per-
-/// connection rate limiting, and route each packet to the appropriate
-/// `PendingInboundPartition` bucket (or `inbound_pending` for mid-transit
-/// players).
+/// connection rate limiting, and re-emit each packet as a `ReceivedPacketEvent`
+/// so host-side observers (keepalive, movement ack, chat, etc.) fire normally.
 ///
 /// The `With<InGameConnectionState>` filter ensures Login/Configuration
-/// connections continue to use the `EventLoopPlugin::run_event_loop` path;
-/// only post-login connections enter this system.
+/// connections continue to use the `EventLoopPlugin::run_event_loop` path
+/// (which is gated `Without<InGameConnectionState>`); only post-login
+/// connections enter this system. The two systems are therefore mutually
+/// exclusive and cannot race on the same socket.
 ///
 /// NEVER drops a serverbound packet below the kick threshold. Dropping a
 /// movement packet desyncs the client. The only exit without routing is a
@@ -649,18 +673,15 @@ pub fn bridge_player_attach(
 )]
 pub fn bridge_inbound(
     mut conns: Query<
-        (Entity, &mut ServerSideConnection, &mut InboundRateBucket, &HostAnchorRef),
+        (Entity, &mut ServerSideConnection, &mut InboundRateBucket),
         With<InGameConnectionState>,
     >,
-    mut player_index: ResMut<PlayerIndex>,
-    mut partition: ResMut<PendingInboundPartition>,
     mut commands: Commands,
 ) {
     use mcrs_network::metrics::BRIDGE_KICK_FLOOD_TOTAL;
     use mcrs_protocol::packets::game::clientbound::ClientboundDisconnect;
 
-    for (entity, mut conn, mut bucket, anchor) in conns.iter_mut() {
-        let player = anchor.0;
+    for (entity, mut conn, mut bucket) in conns.iter_mut() {
         bucket.refill();
 
         loop {
@@ -680,31 +701,12 @@ pub fn bridge_inbound(
                         break;
                     }
 
-                    let inbound = InboundPlayerPacket {
-                        player,
-                        packet: crate::world::bus::TestInboundPayload {
-                            seq: pkt.id as u32,
-                        },
-                    };
-
-                    let Some(location) = player_index.get_mut(&player) else {
-                        // Player index entry missing — connection is orphaned; drop
-                        // this packet (the anchor is stale).
-                        continue;
-                    };
-
-                    if location.in_dim_entity.is_some()
-                        && location.current_dim != Entity::PLACEHOLDER
-                    {
-                        partition
-                            .per_dim
-                            .entry(location.current_dim)
-                            .or_default()
-                            .push(inbound);
-                    } else {
-                        // Player is mid-transit; buffer until bridge_player_attach fires.
-                        location.inbound_pending.push(inbound);
-                    }
+                    commands.trigger(ReceivedPacketEvent {
+                        entity,
+                        id: pkt.id,
+                        data: pkt.payload,
+                        timestamp: pkt.timestamp,
+                    });
                 }
                 Ok(None) => break,
                 Err(_) => {

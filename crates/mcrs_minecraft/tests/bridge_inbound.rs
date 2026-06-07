@@ -1,12 +1,16 @@
 //! Integration tests for `bridge_inbound` (per-connection rate limiting,
-//! routing into PendingInboundPartition / inbound_pending) and
-//! `disconnect_clears_pending` (teardown leak check).
+//! ReceivedPacketEvent emission) and `disconnect_clears_pending` (teardown
+//! leak check).
 
 #[path = "common/mock_connection.rs"]
 mod mock_connection;
 
+use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
+use bevy_ecs::observer::On;
+use bevy_ecs::prelude::Commands;
+use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
 use mcrs_minecraft::world::bridge::bridge_inbound;
@@ -17,6 +21,7 @@ use mcrs_minecraft::world::bus::{
     InboundPlayerPacket, OutboundPlayerPacket, PendingInboundPartition, TestInboundPayload,
 };
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex, PlayerLocation};
+use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::metrics::{BRIDGE_KICK_FLOOD_TOTAL, TELEMETRY_TEST_LOCK};
 use mcrs_network::{InGameConnectionState, ReceivedPacket, ServerSideConnection};
 use smallvec::SmallVec;
@@ -99,15 +104,36 @@ fn run_inbound(world: &mut World) {
 }
 
 // ---------------------------------------------------------------------------
-// bridge_inbound_routes_to_dim
+// Counter resource used to verify ReceivedPacketEvent triggers
 // ---------------------------------------------------------------------------
 
-/// A packet received on an in-game connection whose player is assigned to
-/// dim D is written into PendingInboundPartition.per_dim[D] and into no other
-/// dim's bucket.
+#[derive(Resource, Default)]
+struct EventCounter {
+    count: usize,
+}
+
+#[derive(Component, Default)]
+struct EntityEventCount(usize);
+
+// ---------------------------------------------------------------------------
+// bridge_inbound_emits_received_packet_event
+//
+// Replaces the old routing test: bridge_inbound no longer routes into
+// PendingInboundPartition directly. Instead it re-emits ReceivedPacketEvent
+// for each drained in-game packet so host-side observers (keepalive, movement,
+// chat) fire. This test verifies that exactly one event fires per drained
+// packet across two independent connections.
+// ---------------------------------------------------------------------------
+
 #[test]
-fn bridge_inbound_routes_to_dim() {
+fn bridge_inbound_emits_received_packet_event() {
     let mut world = build_inbound_world();
+    world.init_resource::<EventCounter>();
+
+    // Register an observer that counts ReceivedPacketEvent triggers.
+    world.add_observer(|_ev: On<ReceivedPacketEvent>, mut counter: bevy_ecs::system::ResMut<EventCounter>| {
+        counter.count += 1;
+    });
 
     let dim_a = Entity::from_raw_u32(10).expect("nonzero");
     let dim_b = Entity::from_raw_u32(11).expect("nonzero");
@@ -121,29 +147,69 @@ fn bridge_inbound_routes_to_dim() {
 
     register_player(&mut world, player_a, socket_a, dim_a, Some(in_dim_a));
     register_player(&mut world, player_b, socket_b, dim_b, Some(in_dim_b));
-    attach_anchor(&mut world, socket_a, player_a);
-    attach_anchor(&mut world, socket_b, player_b);
 
     // Inject one packet into each connection.
     tx_a.try_send(make_received_packet(1)).unwrap();
     tx_b.try_send(make_received_packet(2)).unwrap();
 
-    // Give the mpsc a moment to be readable (same-thread runtime, no delay needed).
     run_inbound(&mut world);
 
+    let counter = world.resource::<EventCounter>();
+    assert_eq!(
+        counter.count, 2,
+        "bridge_inbound must emit one ReceivedPacketEvent per drained packet"
+    );
+
+    // PendingInboundPartition must remain empty — bridge_inbound no longer
+    // routes there directly.
     let partition = world.resource::<PendingInboundPartition>();
-    let bucket_a = partition.per_dim.get(&dim_a).map(|v| v.len()).unwrap_or(0);
-    let bucket_b = partition.per_dim.get(&dim_b).map(|v| v.len()).unwrap_or(0);
-
-    assert_eq!(bucket_a, 1, "packet for player_a must land in dim_a bucket only");
-    assert_eq!(bucket_b, 1, "packet for player_b must land in dim_b bucket only");
-
-    // Ensure dim_a packet is not in dim_b's bucket and vice-versa.
     assert!(
-        partition.per_dim.get(&dim_b).map_or(true, |v| {
-            v.iter().all(|p| p.player != player_a)
-        }),
-        "player_a packet must not appear in dim_b bucket"
+        partition.per_dim.is_empty(),
+        "bridge_inbound must not write into PendingInboundPartition directly"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// bridge_inbound_emits_event_regardless_of_transit_state
+//
+// Replaces in_transit_buffering: bridge_inbound no longer buffers in
+// inbound_pending. It emits ReceivedPacketEvent unconditionally (rate-
+// permitting). Buffering for mid-transit players is handled by the consumer
+// observer (e.g. keepalive / movement). This test verifies the event fires
+// even when in_dim_entity is None.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn bridge_inbound_emits_event_regardless_of_transit_state() {
+    let mut world = build_inbound_world();
+    world.init_resource::<EventCounter>();
+
+    world.add_observer(|_ev: On<ReceivedPacketEvent>, mut counter: bevy_ecs::system::ResMut<EventCounter>| {
+        counter.count += 1;
+    });
+
+    let dim = Entity::from_raw_u32(10).expect("nonzero");
+    let player = Entity::from_raw_u32(20).expect("nonzero");
+
+    let (socket, tx) = spawn_ingame_connection(&mut world);
+    // in_dim_entity = None → player is mid-transit
+    register_player(&mut world, player, socket, dim, None);
+
+    tx.try_send(make_received_packet(42)).unwrap();
+
+    run_inbound(&mut world);
+
+    let counter = world.resource::<EventCounter>();
+    assert_eq!(
+        counter.count, 1,
+        "bridge_inbound must emit ReceivedPacketEvent even when player is mid-transit"
+    );
+
+    // PendingInboundPartition must remain empty.
+    let partition = world.resource::<PendingInboundPartition>();
+    assert!(
+        partition.per_dim.is_empty(),
+        "bridge_inbound must not write into PendingInboundPartition"
     );
 }
 
@@ -191,43 +257,6 @@ fn inbound_rate_kick() {
     assert!(
         world.get::<ServerSideConnection>(socket).is_none(),
         "ServerSideConnection must be removed after flood kick"
-    );
-}
-
-// ---------------------------------------------------------------------------
-// in_transit_buffering
-// ---------------------------------------------------------------------------
-
-/// A packet received for a player whose in_dim_entity is None (mid-transfer)
-/// must be appended to PlayerLocation.inbound_pending, not a partition bucket.
-#[test]
-fn in_transit_buffering() {
-    let mut world = build_inbound_world();
-
-    let dim = Entity::from_raw_u32(10).expect("nonzero");
-    let player = Entity::from_raw_u32(20).expect("nonzero");
-
-    let (socket, tx) = spawn_ingame_connection(&mut world);
-    // in_dim_entity = None → player is mid-transit
-    register_player(&mut world, player, socket, dim, None);
-    attach_anchor(&mut world, socket, player);
-
-    tx.try_send(make_received_packet(42)).unwrap();
-
-    run_inbound(&mut world);
-
-    let partition = world.resource::<PendingInboundPartition>();
-    assert!(
-        partition.per_dim.is_empty(),
-        "in-transit packet must not land in a partition bucket"
-    );
-
-    let index = world.resource::<PlayerIndex>();
-    let loc = index.get(&player).expect("player still present");
-    assert_eq!(
-        loc.inbound_pending.len(),
-        1,
-        "in-transit packet must be buffered in inbound_pending"
     );
 }
 

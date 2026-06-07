@@ -1,8 +1,9 @@
-use crate::{EngineConnection, ServerSideConnection};
+use crate::{EngineConnection, InGameConnectionState, ServerSideConnection};
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::prelude::Commands;
+use bevy_ecs::query::Without;
 use bevy_ecs::schedule::ScheduleLabel;
 use bevy_ecs::system::Query;
 use bytes::Bytes;
@@ -61,7 +62,10 @@ pub struct RunEventLoop;
     feature = "telemetry-tracy",
     tracing::instrument(name = "network::process_received_packet", skip_all)
 )]
-fn run_event_loop(mut query: Query<(Entity, &mut ServerSideConnection)>, mut commands: Commands) {
+fn run_event_loop(
+    mut query: Query<(Entity, &mut ServerSideConnection), Without<InGameConnectionState>>,
+    mut commands: Commands,
+) {
     query.iter_mut().for_each(|(entity, mut conn)| {
         loop {
             match conn.try_recv() {
