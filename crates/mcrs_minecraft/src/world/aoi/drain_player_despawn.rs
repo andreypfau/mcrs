@@ -24,7 +24,7 @@ use crate::world::aoi::components::{ChunkSubscriptionSet, TrackedBy};
 use crate::world::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
-use crate::world::player_index::HostAnchorRef;
+use crate::world::entity::player::HostAnchor;
 
 /// Per-dim drain: reads `InboundPlayerDespawn` messages and runs the full
 /// eviction sequence for the resolved in-dim `Player`:
@@ -48,7 +48,7 @@ use crate::world::player_index::HostAnchorRef;
 )]
 pub fn drain_inbound_player_despawn(
     mut despawn_msgs: MessageReader<InboundPlayerDespawn>,
-    player_lookup: Query<(Entity, &HostAnchorRef), With<Player>>,
+    player_lookup: Query<(Entity, &HostAnchor), With<Player>>,
     mut columns: Query<&mut PlayerObservers, (With<Column>, Without<Player>)>,
     mut player_caches: Query<(&mut TrackedBy, &mut ChunkSubscriptionSet), With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
@@ -57,12 +57,12 @@ pub fn drain_inbound_player_despawn(
         let host_anchor = msg.host_anchor;
         let in_dim_entity = player_lookup
             .iter()
-            .find_map(|(e, anchor_ref)| (anchor_ref.0 == host_anchor).then_some(e));
+            .find_map(|(e, anchor)| (anchor.0 == host_anchor).then_some(e));
         let Some(target) = in_dim_entity else {
             // No per-dim Player carries this host_anchor — happens when the
             // disconnect message arrives for a dim the player never reached
             // (mid-transit disconnect into the previous_dim bundle), or
-            // before the per-dim spawn consumer has wired HostAnchorRef onto
+            // before the per-dim spawn consumer has wired HostAnchor onto
             // the in-dim Player. Harmless: there is nothing to evict here.
             continue;
         };

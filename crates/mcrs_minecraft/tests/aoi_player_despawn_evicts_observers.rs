@@ -2,7 +2,7 @@
 //! the production two-world topology: the main App emits an
 //! InboundPlayerDespawn via PendingInboundLifecycle; the extract closure
 //! shuttles it into the per-dim sub-app's Messages buffer; the per-dim
-//! drain system resolves the in-dim Player via HostAnchorRef and retains
+//! drain system resolves the in-dim Player via HostAnchor and retains
 //! it out of every column's PlayerObservers.
 
 use bevy_app::{App, AppLabel, FixedPostUpdate, FixedPreUpdate, SubApp};
@@ -22,7 +22,7 @@ use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketTarget,
     PendingInboundLifecycle,
 };
-use mcrs_minecraft::world::player_index::HostAnchorRef;
+use mcrs_minecraft::world::entity::player::HostAnchor;
 
 /// Ad-hoc sub-app label for this test.
 #[derive(AppLabel, Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -82,7 +82,7 @@ fn production_topology_main_world_despawn_evicts_in_dim_observers() {
             ChunkSubscriptionSet::default(),
             TrackedBy::default(),
             InDimension(dim),
-            HostAnchorRef(host_anchor),
+            HostAnchor(host_anchor),
         ))
         .id();
 
@@ -165,7 +165,7 @@ fn production_topology_main_world_despawn_evicts_in_dim_observers() {
     // --- Tick 2: drain and evict ---
     // Extract shuttles the despawn into sub Messages<InboundPlayerDespawn>.
     // FixedPreUpdate: drain_inbound_player_despawn resolves in_dim_player via
-    // HostAnchorRef and retains it out of every column's PlayerObservers.
+    // HostAnchor and retains it out of every column's PlayerObservers.
     main_app.update();
 
     let count_after = count_columns_observing_in_sub(&main_app, &columns, in_dim_player);
@@ -232,7 +232,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
             ChunkSubscriptionSet::default(),
             TrackedBy::default(),
             InDimension(dim),
-            HostAnchorRef(host_anchor_o),
+            HostAnchor(host_anchor_o),
         ))
         .id();
 
@@ -246,7 +246,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
             ChunkSubscriptionSet::default(),
             TrackedBy::default(),
             InDimension(dim),
-            HostAnchorRef(host_anchor_t),
+            HostAnchor(host_anchor_t),
         ))
         .id();
 

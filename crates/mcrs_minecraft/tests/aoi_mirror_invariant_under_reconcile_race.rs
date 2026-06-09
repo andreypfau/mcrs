@@ -245,7 +245,7 @@ fn two_player_same_tick_bare_column_removal_evicts_correctly() {
     let mut app = make_aoi_app();
     let dim = app.world_mut().spawn(DimensionBundle::default()).id();
 
-    // Host anchors live inside this app so the drain's HostAnchorRef lookup
+    // Host anchors live inside this app so the drain's HostAnchor lookup
     // resolves unambiguously.
     let ha1 = app.world_mut().spawn_empty().id();
     let ha2 = app.world_mut().spawn_empty().id();

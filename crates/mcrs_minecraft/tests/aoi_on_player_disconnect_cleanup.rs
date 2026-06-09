@@ -414,7 +414,7 @@ fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
     let player_o =
         spawn_player_in_dim_with_host_anchor(&mut aoi_app, dim, DVec3::new(0.0, 64.0, 0.0), ha_o);
 
-    // Target T: the player that has transferred out; HostAnchorRef(ha_t) is used
+    // Target T: the player that has transferred out; HostAnchor(ha_t) is used
     // by the drain to resolve the in-dim entity from the InboundPlayerDespawn.
     let player_t = spawn_player_in_dim_with_host_anchor(
         &mut aoi_app,
@@ -478,7 +478,7 @@ fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
     // Inject InboundPlayerDespawn for player_t — mirroring what the extract
     // closure would do after bridge_player_transfer emits it for the source dim.
     // The despawn_msg.host_anchor from Step 1 confirms the message shape; here
-    // we use ha_t (the aoi_app-local anchor) so the drain's HostAnchorRef lookup
+    // we use ha_t (the aoi_app-local anchor) so the drain's HostAnchor lookup
     // resolves to the correct in-dim entity without cross-app entity id aliasing.
     aoi_app
         .world_mut()

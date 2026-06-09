@@ -21,7 +21,7 @@ use mcrs_engine::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, PlayerTrackerPlugin, TrackedBy};
 use mcrs_minecraft::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
-use mcrs_minecraft::world::player_index::HostAnchorRef;
+use mcrs_minecraft::world::entity::player::HostAnchor;
 
 /// Build a host App with the AoI plugin, the outbound bus, and the
 /// `FixedPreUpdate` / `FixedPostUpdate` schedules registered.
@@ -62,9 +62,10 @@ pub fn spawn_player_in_dim(app: &mut App, dim: Entity, pos: DVec3) -> Entity {
         .id()
 }
 
-/// Spawn a player entity that also carries `HostAnchorRef(host_anchor)`.
+/// Spawn a player entity that also carries `HostAnchor(host_anchor)`.
 /// Used for tests that exercise the cross-world drain path, where the
-/// drain system resolves host_anchor → in-dim Player via HostAnchorRef.
+/// drain system resolves host_anchor → in-dim Player via HostAnchor —
+/// the same component production attaches in `consume_inbound_player_spawn`.
 pub fn spawn_player_in_dim_with_host_anchor(
     app: &mut App,
     dim: Entity,
@@ -79,7 +80,7 @@ pub fn spawn_player_in_dim_with_host_anchor(
             ChunkSubscriptionSet::default(),
             TrackedBy::default(),
             InDimension(dim),
-            HostAnchorRef(host_anchor),
+            HostAnchor(host_anchor),
         ))
         .id()
 }
