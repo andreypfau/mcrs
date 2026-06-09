@@ -1,10 +1,13 @@
 use crate::login::GameProfile;
-use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::bus::{
+    OutboundPlayerPacket, OutboundPlayerTransferRequest, PacketPayload, PacketPriority,
+    PacketTarget, PlayerTransferSnapshot,
+};
 use crate::world::entity::player::{DisconnectReason, HostAnchor};
 use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
-use bevy_math::DVec3;
+use bevy_math::{DVec3, Vec2};
 use mcrs_engine::entity::physics::Transform;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_protocol::packets::game::serverbound::{ServerboundChat, ServerboundChatCommand};
@@ -30,8 +33,9 @@ impl Plugin for ChatPlugin {
 /// directly, which is host-resident.
 fn handle_command(
     event: On<ReceivedPacketEvent>,
-    mut sender_query: Query<(&HostAnchor, &mut Transform)>,
+    mut sender_query: Query<(&HostAnchor, &mut Transform, &GameProfile)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+    mut transfer_writer: MessageWriter<OutboundPlayerTransferRequest>,
 ) {
     let Some(pkt) = event.decode::<ServerboundChatCommand>() else {
         return;
@@ -46,7 +50,7 @@ fn handle_command(
                 return;
             }
             let pos = DVec3::new(coords[0], coords[1], coords[2]);
-            let Ok((host_anchor, mut transform)) = sender_query.get_mut(event.entity) else {
+            let Ok((host_anchor, mut transform, _)) = sender_query.get_mut(event.entity) else {
                 return;
             };
             let host = host_anchor.0;
@@ -72,6 +76,33 @@ fn handle_command(
                 },
             });
             info!("teleported {:?} to {:?}", event.entity, pos);
+        }
+        Some("dim") => {
+            let Some(raw) = parts.next() else {
+                return;
+            };
+            let dim_name = match raw {
+                "nether" | "the_nether" => "minecraft:the_nether".to_string(),
+                "overworld" | "over" => "minecraft:overworld".to_string(),
+                "end" | "the_end" => "minecraft:the_end".to_string(),
+                other if other.contains(':') => other.to_string(),
+                other => format!("minecraft:{other}"),
+            };
+            let Ok((host_anchor, _transform, profile)) = sender_query.get(event.entity) else {
+                return;
+            };
+            let snapshot = PlayerTransferSnapshot {
+                uuid: profile.id,
+                username: profile.username.clone(),
+                position: DVec3::new(0.0, 100.0, 0.0),
+                rotation: Vec2::ZERO,
+            };
+            info!("dim transfer {:?} -> {}", event.entity, dim_name);
+            transfer_writer.write(OutboundPlayerTransferRequest {
+                host_anchor: host_anchor.0,
+                dim_name,
+                snapshot,
+            });
         }
         _ => {}
     }

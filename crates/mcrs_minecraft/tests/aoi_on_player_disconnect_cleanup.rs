@@ -226,10 +226,15 @@ fn disconnect_at_tick_n_e1_2_after_bridge_transfer() {
         1,
         "dest dim gets a despawn (current_dim emit)"
     );
+    // Two despawns reach the source dim: one emitted by bridge_player_transfer
+    // itself (it now despawns the entity in the dimension being left so that
+    // dimension stops streaming its chunks to the relocated client), and one
+    // from the disconnect cleanup's previous_dim emit. The second is a harmless
+    // no-op once the per-dim consumer has despawned the entity.
     assert_eq!(
         drain_lifecycle_despawns(&app, source_dim),
-        1,
-        "source dim also gets a despawn (previous_dim emit)"
+        2,
+        "source dim gets a despawn from the transfer and from the disconnect previous_dim emit"
     );
 
     assert!(

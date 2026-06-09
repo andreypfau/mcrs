@@ -44,6 +44,7 @@ impl Plugin for WorldPlugin {
         app.add_message::<crate::world::bus::OutboundPlayerPacket>();
         app.add_message::<crate::world::bus::InboundPlayerPacket>();
         app.add_message::<crate::world::bus::OutboundPlayerTransfer>();
+        app.add_message::<crate::world::bus::OutboundPlayerTransferRequest>();
         app.add_message::<crate::world::bus::InboundPlayerSpawn>();
         app.add_message::<crate::world::bus::OutboundPlayerAttached>();
         app.add_message::<crate::world::bus::OutboundPlayerDisconnect>();
@@ -88,6 +89,7 @@ impl Plugin for WorldPlugin {
             bevy_app::Update,
             (
                 crate::world::bridge::partition_main_inbound,
+                crate::world::bridge::resolve_transfer_requests,
                 crate::world::bridge::bridge_player_transfer,
                 crate::world::bridge::bridge_player_attach,
             )

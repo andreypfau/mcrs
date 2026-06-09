@@ -14,7 +14,7 @@ use tracing::{debug, warn};
 use crate::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
-    PendingInboundLifecycle, PendingInboundPartition,
+    OutboundPlayerTransferRequest, PendingInboundLifecycle, PendingInboundPartition,
 };
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
@@ -101,7 +101,13 @@ pub fn spawn_dim_subapp(
     request: &DimSpawnRequest,
     registries: &DimRegistryBundle,
 ) -> Entity {
-    let label_entity = app.world_mut().spawn(DimSubAppHandle).id();
+    let label_entity = app
+        .world_mut()
+        .spawn((
+            DimSubAppHandle,
+            DimLabel(request.dimension_id.as_str().to_string()),
+        ))
+        .id();
 
     let mut sub_app = SubApp::new();
 
@@ -113,6 +119,7 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<OutboundPlayerPacket>();
     sub_app.add_message::<InboundPlayerPacket>();
     sub_app.add_message::<OutboundPlayerTransfer>();
+    sub_app.add_message::<OutboundPlayerTransferRequest>();
     sub_app.add_message::<InboundPlayerSpawn>();
     sub_app.add_message::<OutboundPlayerAttached>();
     sub_app.add_message::<OutboundPlayerDisconnect>();
@@ -309,6 +316,18 @@ pub fn spawn_dim_subapp(
             }
         }
 
+        let drained_transfer_reqs: Vec<OutboundPlayerTransferRequest> = sub_world
+            .resource_mut::<Messages<OutboundPlayerTransferRequest>>()
+            .drain()
+            .collect();
+        if !drained_transfer_reqs.is_empty() {
+            let mut main_msgs =
+                main_world.resource_mut::<Messages<OutboundPlayerTransferRequest>>();
+            for msg in drained_transfer_reqs {
+                main_msgs.write(msg);
+            }
+        }
+
         let drained_attached: Vec<OutboundPlayerAttached> = sub_world
             .resource_mut::<Messages<OutboundPlayerAttached>>()
             .drain()
@@ -413,6 +432,12 @@ pub struct DimSubAppHandle;
 /// `ClientLevel` with the correct height (section count).
 #[derive(bevy_ecs::component::Component, Clone, Copy)]
 pub struct DimTypeIndex(pub i32);
+
+/// The dimension resource location (e.g. "minecraft:the_nether") of the
+/// sub-app anchored by this host-world label entity. Lets a name-based
+/// transfer request resolve to the destination sub-app's label entity.
+#[derive(bevy_ecs::component::Component, Clone)]
+pub struct DimLabel(pub String);
 
 /// Drain the `DimSpawnQueue` resource on the host world and materialise a
 /// sub-app for each request. Called from outside the ECS run loop because

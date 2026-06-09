@@ -2,7 +2,7 @@ use std::sync::atomic::Ordering;
 
 use bevy_ecs::entity::Entity;
 use bevy_math::DVec3;
-use bevy_ecs::message::{MessageReader, Messages};
+use bevy_ecs::message::{MessageReader, MessageWriter, Messages};
 use bevy_ecs::prelude::Commands;
 use bevy_ecs::query::{With, Without};
 use bevy_ecs::schedule::SystemSet;
@@ -42,11 +42,12 @@ use crate::world::bridge_queue::{
     KICK_AFTER_OVERFLOW_TICKS,
 };
 use crate::world::bus::{
-    InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerTransfer,
-    PacketPayload, PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
+    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
+    OutboundPlayerTransfer, OutboundPlayerTransferRequest, PacketPayload, PacketTarget,
+    PendingInboundLifecycle, PendingInboundPartition,
 };
 use crate::world::player_index::{HostAnchorRef, PlayerIndex};
-use crate::world::sub_app_builder::DimSubAppHandle;
+use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
 
 /// Attach `OutboundQueue` and `InboundRateBucket` to any connection entity that
 /// carries `ServerSideConnection` but not yet an `OutboundQueue`.
@@ -605,6 +606,31 @@ pub fn partition_main_inbound(
     }
 }
 
+/// Resolve name-based transfer requests (from the per-dim `/dim` command) into
+/// concrete `OutboundPlayerTransfer` messages by matching the requested
+/// dimension name against the live sub-app label entities. Runs before
+/// `bridge_player_transfer` so the resolved transfer is processed the same tick.
+pub fn resolve_transfer_requests(
+    mut requests: ResMut<Messages<OutboundPlayerTransferRequest>>,
+    mut transfers: MessageWriter<OutboundPlayerTransfer>,
+    dims: Query<(Entity, &DimLabel), With<DimSubAppHandle>>,
+) {
+    for req in requests.drain() {
+        let Some((dest_dim, _)) = dims.iter().find(|(_, label)| label.0 == req.dim_name) else {
+            warn!(
+                dim = %req.dim_name,
+                "transfer request names a dimension with no live sub-app; ignoring"
+            );
+            continue;
+        };
+        transfers.write(OutboundPlayerTransfer {
+            host_anchor: req.host_anchor,
+            dest_dim,
+            snapshot: req.snapshot,
+        });
+    }
+}
+
 pub fn bridge_player_transfer(
     mut transfer_msgs: ResMut<Messages<OutboundPlayerTransfer>>,
     mut player_index: ResMut<PlayerIndex>,
@@ -633,6 +659,20 @@ pub fn bridge_player_transfer(
         location.current_dim = msg.dest_dim;
         location.previous_dim = Some(old_current_dim);
         location.in_dim_entity = None;
+        // Despawn the player's entity in the dimension it is leaving, otherwise
+        // that entity keeps its AoI subscription and streams the old
+        // dimension's chunks (wrong section count for the new dimension) to the
+        // now-relocated connection, crashing the client.
+        if old_current_dim != Entity::PLACEHOLDER && old_current_dim != msg.dest_dim {
+            lifecycle
+                .per_dim
+                .entry(old_current_dim)
+                .or_default()
+                .despawns
+                .push(InboundPlayerDespawn {
+                    host_anchor: msg.host_anchor,
+                });
+        }
         let spawn = InboundPlayerSpawn {
             host_anchor: msg.host_anchor,
             snapshot: msg.snapshot.clone(),

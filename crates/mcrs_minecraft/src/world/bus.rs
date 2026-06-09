@@ -36,6 +36,17 @@ pub struct OutboundPlayerTransfer {
     pub snapshot: PlayerTransferSnapshot,
 }
 
+/// A request to transfer a player to a dimension identified by name. Emitted
+/// by the per-dim command handler (which knows the player and the destination
+/// dimension name but not the host-side sub-app label entity) and resolved
+/// host-side by `resolve_transfer_requests` into an `OutboundPlayerTransfer`.
+#[derive(Message, Clone, Debug)]
+pub struct OutboundPlayerTransferRequest {
+    pub host_anchor: Entity,
+    pub dim_name: String,
+    pub snapshot: PlayerTransferSnapshot,
+}
+
 #[derive(Message, Clone, Debug)]
 pub struct InboundPlayerSpawn {
     pub host_anchor: Entity,

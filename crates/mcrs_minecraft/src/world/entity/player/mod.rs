@@ -2,8 +2,8 @@ use crate::client_info::ClientViewDistance;
 use crate::configuration::LoadedWorldPreset;
 use crate::login::GameProfile;
 use crate::world::bus::{
-    InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload,
-    PacketPriority, PacketTarget, PlayerInfoEntry,
+    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket,
+    PacketPayload, PacketPriority, PacketTarget, PlayerInfoEntry,
 };
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
@@ -76,6 +76,7 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(GameModePlugin);
         app.add_systems(bevy_app::Update, spawn_player);
         app.add_systems(bevy_app::Update, consume_inbound_player_spawn);
+        app.add_systems(bevy_app::Update, despawn_inbound_player);
         app.add_systems(FixedUpdate, (disconnect_player, added_inventory, resync_player));
         app.add_systems(PostUpdate, despawn_disconnected_clients);
         app.add_observer(network_add);
@@ -389,6 +390,26 @@ fn consume_inbound_player_spawn(
             host_anchor: spawn.host_anchor,
             new_in_dim_entity: new_entity,
         });
+    }
+}
+
+
+/// Per-dim consumer that despawns the in-dim player entity when an
+/// `InboundPlayerDespawn` arrives for its host anchor. Fires on both
+/// disconnect and dimension transfer (the transfer pushes a despawn into the
+/// dimension the player is leaving), so the departed dimension stops streaming
+/// chunks toward that connection.
+fn despawn_inbound_player(
+    mut reader: MessageReader<InboundPlayerDespawn>,
+    players: Query<(Entity, &HostAnchor), With<Player>>,
+    mut commands: Commands,
+) {
+    for msg in reader.read() {
+        for (entity, anchor) in players.iter() {
+            if anchor.0 == msg.host_anchor {
+                commands.entity(entity).despawn();
+            }
+        }
     }
 }
 
