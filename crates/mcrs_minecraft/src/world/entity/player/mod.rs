@@ -34,6 +34,7 @@ use mcrs_engine::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDis
 use mcrs_engine::entity::player::reposition::Reposition;
 use mcrs_engine::entity::{Despawned, EntityNetworkAddEvent};
 use mcrs_engine::world::dimension::{Dimension, DimensionId, InDimension};
+use crate::world::sub_app_builder::DimTypeIndex;
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_protocol::item::ComponentPatch;
@@ -265,14 +266,16 @@ fn consume_inbound_player_spawn(
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-    dims: Query<Entity, With<Dimension>>,
+    dims: Query<(Entity, &DimensionId, &DimTypeIndex), With<Dimension>>,
     mut commands: Commands,
 ) {
     use std::sync::atomic::Ordering;
     for spawn in reader.read() {
-        let Some(dim) = dims.iter().next() else {
+        let Some((dim, dim_id, dim_type_index)) = dims.iter().next() else {
             continue;
         };
+        let dim_name = dim_id.as_str().to_string();
+        let dim_type_id = dim_type_index.0;
         let new_entity = commands
             .spawn((
                 EntityBundle::new(InDimension(dim))
@@ -321,6 +324,8 @@ fn consume_inbound_player_spawn(
                 player_id: wire_id,
                 hardcore: false,
                 game_mode: GameMode::Creative,
+                dimension: dim_name,
+                dimension_type_id: dim_type_id,
                 dimensions,
                 max_players: 100,
                 chunk_radius: 12,

@@ -133,6 +133,14 @@ pub enum PacketPayload {
         player_id: i32,
         hardcore: bool,
         game_mode: GameMode,
+        /// The dimension the player is spawning into (resource location, e.g.
+        /// "minecraft:the_nether"). Goes into PlayerSpawnInfo.dimension.
+        dimension: String,
+        /// Index of this dimension's type in the dimension_type registry sent
+        /// during configuration. The client uses it to resolve the dimension
+        /// height (section count) when building its ClientLevel; a wrong value
+        /// desyncs chunk-section decoding and crashes the client.
+        dimension_type_id: i32,
         /// Dimension resource-location strings (e.g. "minecraft:overworld").
         dimensions: Vec<String>,
         max_players: i32,

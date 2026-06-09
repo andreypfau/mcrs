@@ -349,13 +349,33 @@ pub fn spawn_dim_subapp(
         }
     });
 
+    // Resolve this dimension's index in the dimension_type registry that is
+    // sent to the client during configuration. The client uses this index to
+    // pick the DimensionType (and thus the chunk-section count) for its
+    // ClientLevel, so the play-login emitter must send the matching value.
+    // Vanilla dimensions use a dimension key equal to their type ident.
+    let type_ident = request.dimension_id.as_str();
+    let dim_type_index = registries
+        .registry_access
+        .iter()
+        .find(|r| r.registry_key() == "minecraft:dimension_type")
+        .and_then(|reg| {
+            reg.iter_entries()
+                .position(|e| e.location.as_str() == type_ident)
+        })
+        .map(|i| i as i32)
+        .unwrap_or(0);
+
     let dim_entity = sub_app
         .world_mut()
-        .spawn(DimensionBundle {
-            dimension_id: request.dimension_id.clone(),
-            type_config: request.type_config,
-            ..Default::default()
-        })
+        .spawn((
+            DimensionBundle {
+                dimension_id: request.dimension_id.clone(),
+                type_config: request.type_config,
+                ..Default::default()
+            },
+            DimTypeIndex(dim_type_index),
+        ))
         .id();
     if request.has_sky {
         sub_app
@@ -385,6 +405,14 @@ pub fn spawn_dim_subapp(
 /// allocate a `World`-unique ID for use as the sub-app label key.
 #[derive(bevy_ecs::component::Component)]
 pub struct DimSubAppHandle;
+
+/// The dimension-type registry index for a dimension's type, resolved
+/// host-side from `RegistryAccess` when the sub-app is spawned and stored on
+/// the sub-world's `Dimension` entity. The play-login emitter copies it into
+/// `PlayerSpawnInfo.dimension_type_id` so a real client builds its
+/// `ClientLevel` with the correct height (section count).
+#[derive(bevy_ecs::component::Component, Clone, Copy)]
+pub struct DimTypeIndex(pub i32);
 
 /// Drain the `DimSpawnQueue` resource on the host world and materialise a
 /// sub-app for each request. Called from outside the ECS run loop because

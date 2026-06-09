@@ -381,6 +381,8 @@ pub fn dispatch_encode(
                         player_id,
                         hardcore,
                         game_mode,
+                        dimension,
+                        dimension_type_id,
                         dimensions,
                         max_players,
                         chunk_radius,
@@ -414,6 +416,11 @@ pub fn dispatch_encode(
                                 show_death_screen,
                                 do_limited_crafting,
                                 player_spawn_info: PlayerSpawnInfo {
+                                    dimension_type_id: VarInt(dimension_type_id),
+                                    dimension: Ident::<std::borrow::Cow<str>>::new(
+                                        dimension.as_str(),
+                                    )
+                                    .expect("dimension id is a valid resource location"),
                                     game_mode,
                                     ..Default::default()
                                 },
