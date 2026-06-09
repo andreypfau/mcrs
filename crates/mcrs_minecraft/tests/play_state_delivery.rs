@@ -169,6 +169,8 @@ fn player_login_encodes() {
             player_id: 42,
             hardcore: false,
             game_mode: GameMode::Creative,
+            dimension: "minecraft:overworld".to_string(),
+            dimension_type_id: 0,
             dimensions: vec!["minecraft:overworld".to_string()],
             max_players: 100,
             chunk_radius: 12,
