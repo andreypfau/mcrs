@@ -4,27 +4,39 @@
 //! into `PendingInboundLifecycle`; the extract closure shuttles it into
 //! the per-dim sub-app's `Messages<InboundPlayerDespawn>` buffer; and
 //! this system, running in `FixedPreUpdate`, consumes those messages and
-//! evicts the corresponding in-dim `Player` entity from every column's
-//! `PlayerObservers` set.
+//! runs the full eviction sequence for the corresponding in-dim `Player`
+//! entity.
 //!
 //! A defensive helper `retain_live_observers` is exposed for use by
 //! per-dim wire emitters that want a belt-and-braces liveness filter
 //! before fan-out.
 
-use bevy_ecs::message::MessageReader;
+use std::sync::atomic::Ordering;
+
+use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Entity, Query, With, Without};
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::world::storage::column::Column;
 use smallvec::SmallVec;
 
-use crate::world::bus::InboundPlayerDespawn;
+use crate::world::aoi::components::{ChunkSubscriptionSet, TrackedBy};
+use crate::world::bus::{
+    InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
+};
 use crate::world::player_index::HostAnchorRef;
 
-/// Per-dim drain: reads `InboundPlayerDespawn` messages, resolves each
-/// `host_anchor` to the corresponding in-dim `Player` entity via
-/// `HostAnchorRef`, and retains that entity out of every column's
-/// `PlayerObservers`.
+/// Per-dim drain: reads `InboundPlayerDespawn` messages and runs the full
+/// eviction sequence for the resolved in-dim `Player`:
+///
+/// 1. Emit `PlayerLeftView` to every in-dim player whose `TrackedBy`
+///    currently contains the removed entity (former observers). Captured
+///    before any cache is wiped so the recipient list is complete.
+/// 2. Single pass over every in-dim player's `TrackedBy`: non-target rows
+///    get `retain(|e| *e != target)` (proactive cache eviction); the target
+///    row gets both caches cleared (self-teardown).
+/// 3. Retain the removed entity out of every column's `PlayerObservers`
+///    (existing behaviour, preserved).
 ///
 /// The query filter `(With<Column>, Without<Player>)` mirrors
 /// `update_own_pov` and `update_tracked_by` — it makes the disjoint-borrow
@@ -38,6 +50,8 @@ pub fn drain_inbound_player_despawn(
     mut despawn_msgs: MessageReader<InboundPlayerDespawn>,
     player_lookup: Query<(Entity, &HostAnchorRef), With<Player>>,
     mut columns: Query<&mut PlayerObservers, (With<Column>, Without<Player>)>,
+    mut player_caches: Query<(&mut TrackedBy, &mut ChunkSubscriptionSet), With<Player>>,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for msg in despawn_msgs.read() {
         let host_anchor = msg.host_anchor;
@@ -52,6 +66,52 @@ pub fn drain_inbound_player_despawn(
             // the in-dim Player. Harmless: there is nothing to evict here.
             continue;
         };
+
+        let entity_ids: SmallVec<[i32; 4]> = SmallVec::from_slice(&[target.index_u32() as i32]);
+
+        // Emit PlayerLeftView to former observers before any cache is mutated.
+        // Former observers are all in-dim players whose TrackedBy currently
+        // contains `target`. Shared borrow of player_caches here; the loop
+        // completes before the mutable pass below.
+        //
+        // This must run inside the drain rather than update_tracked_by because
+        // the drain wipes PlayerObservers and TrackedBy before update_tracked_by
+        // ever runs (FixedPreUpdate vs FixedPostUpdate), so update_tracked_by
+        // will never see the left-view transition for a removed player.
+        for (observer_entity, _) in player_lookup.iter() {
+            if observer_entity == target {
+                continue;
+            }
+            if let Ok((tracked_by, _)) = player_caches.get(observer_entity) {
+                if tracked_by.0.contains(&target) {
+                    packet_writer.write(OutboundPlayerPacket {
+                        target: PacketTarget::SinglePlayer(observer_entity),
+                        priority: PacketPriority::Normal,
+                        data: PacketPayload::PlayerLeftView {
+                            entity_ids: entity_ids.clone(),
+                        },
+                    });
+                    mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+                        .fetch_add(1, Ordering::Relaxed);
+                }
+            }
+        }
+
+        // Single mutable pass over all in-dim player caches.
+        // Target's own row: clear both caches (self-teardown).
+        // Every other row: retain-remove target from TrackedBy (proactive eviction).
+        for (entity, _) in player_lookup.iter() {
+            if let Ok((mut tracked_by, mut subs)) = player_caches.get_mut(entity) {
+                if entity == target {
+                    tracked_by.0.clear();
+                    subs.0.clear();
+                } else {
+                    tracked_by.0.retain(|e| *e != target);
+                }
+            }
+        }
+
+        // Retain target out of every column's PlayerObservers.
         for mut obs in columns.iter_mut() {
             obs.0.retain(|e| *e != target);
         }
