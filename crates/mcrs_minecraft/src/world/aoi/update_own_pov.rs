@@ -20,8 +20,6 @@ use mcrs_engine::world::storage::column::{Column, ColumnIndex};
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 
-use mcrs_protocol::chunk::LightData;
-
 use crate::world::aoi::components::ChunkSubscriptionSet;
 use crate::world::aoi::probe::AoiTickProbe;
 use crate::world::bus::{
@@ -146,19 +144,13 @@ pub fn update_own_pov(
                     });
                 }
             }
-            packet_writer.write(OutboundPlayerPacket {
-                target: PacketTarget::SinglePlayer(player),
-                priority: PacketPriority::Critical,
-                // chunk_bytes and light_data will be populated by the per-dim chunk
-                // producer; placeholder empty bytes until that system is wired.
-                data: PacketPayload::ChunkLoad {
-                    column: *pos,
-                    chunk_bytes: Vec::new(),
-                    light_data: LightData::default(),
-                },
-            });
-            mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-                .fetch_add(1, Ordering::Relaxed);
+            // Wire delivery of the real chunk bytes is owned by
+            // `send_column_queue` (the per-dim chunk producer). This system
+            // only maintains the subscription + PlayerObservers mirror; it must
+            // NOT emit a chunk packet itself. The previous placeholder emitted a
+            // ChunkLoad with empty `chunk_bytes`, which a real client decodes as
+            // a level-chunk with zero sections and crashes on
+            // (EmptyByteBuf.readShort in LevelChunkSection.read).
         }
 
         for pos in &removed {
