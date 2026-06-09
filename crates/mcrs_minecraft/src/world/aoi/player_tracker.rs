@@ -74,6 +74,10 @@ impl Plugin for PlayerTrackerPlugin {
         app.init_resource::<PlayerTrackerCache>();
         app.init_resource::<AoiTickProbe>();
         app.add_systems(FixedPreUpdate, insert_player_observers_on_new_columns);
+        // Must stay in FixedPreUpdate: the drain owns PlayerLeftView emission
+        // for removed players. update_tracked_by (FixedPostUpdate) never sees
+        // the left-view transition because the drain clears PlayerObservers and
+        // TrackedBy before update_tracked_by runs.
         app.add_systems(
             FixedPreUpdate,
             crate::world::aoi::drain_player_despawn::drain_inbound_player_despawn,
