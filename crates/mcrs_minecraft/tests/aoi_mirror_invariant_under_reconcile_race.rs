@@ -9,17 +9,22 @@
 //! pre-seeded one.
 
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate};
+use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::geometry::ColumnPos;
 use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
-use mcrs_minecraft::world::aoi::ChunkSubscriptionSet;
+use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, TrackedBy};
+use mcrs_minecraft::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
 use rustc_hash::FxHashMap;
 
 mod harness;
-use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
+use harness::{
+    drive_aoi_tick, make_aoi_app, run_fixed_pre_update, spawn_player_in_dim,
+    spawn_player_in_dim_with_host_anchor,
+};
 
 #[test]
 fn mirror_invariant_holds_when_column_lacks_player_observers_at_first_pass() {
@@ -224,4 +229,141 @@ fn mirror_invariant_holds_with_two_players_same_tick_bare_column() {
             assert!(obs.0.contains(&player2), "column {:?} missing player2", pos);
         }
     }
+}
+
+/// Extends the two-player same-tick bare-column scenario to also drive a player
+/// removal and assert eviction composes correctly when both players subscribed to
+/// the same bare columns on the same tick (the multi-player same-tick path that
+/// produces the Err-arm `commands.queue` composition in update_own_pov).
+///
+/// After the mirror invariant is established, removes P1 and asserts:
+///   1. P2's `TrackedBy` no longer contains P1 (proactive eviction).
+///   2. P1's `ChunkSubscriptionSet` and `TrackedBy` are cleared (self-teardown).
+///   3. P1 is removed from the shared column's `PlayerObservers`.
+#[test]
+fn two_player_same_tick_bare_column_removal_evicts_correctly() {
+    let mut app = make_aoi_app();
+    let dim = app.world_mut().spawn(DimensionBundle::default()).id();
+
+    // Host anchors live inside this app so the drain's HostAnchorRef lookup
+    // resolves unambiguously.
+    let ha1 = app.world_mut().spawn_empty().id();
+    let ha2 = app.world_mut().spawn_empty().id();
+
+    // Both players at the same position — every bare column within view-distance-12
+    // is in both desired sets, exercising the multi-insert Err-arm path.
+    let player1 =
+        spawn_player_in_dim_with_host_anchor(&mut app, dim, DVec3::new(0.0, 64.0, 0.0), ha1);
+    let player2 =
+        spawn_player_in_dim_with_host_anchor(&mut app, dim, DVec3::new(0.0, 64.0, 0.0), ha2);
+
+    // Spawn bare columns mid-tick (after FixedPreUpdate seeder, before FixedPostUpdate
+    // AoI systems) — this is the same-tick race that exercises the Err-arm path in
+    // update_own_pov for both players on each bare column entity.
+    let columns = drive_aoi_tick_with_mid_tick_column_spawn(
+        &mut app,
+        dim,
+        ColumnPos::new(0, 0),
+        20,
+    );
+
+    // Verify the mirror invariant holds after the same-tick bare-column subscription.
+    assert_mirror_invariant(&app, player1, &columns);
+    assert_mirror_invariant(&app, player2, &columns);
+
+    // Drive a second tick so update_tracked_by can build TrackedBy caches.
+    // (Tick 1 ran FixedPostUpdate once; tick 2 runs both schedules again; players
+    // haven't moved, so Changed<Transform> may not fire — but they have Added<...>
+    // on the first tick from spawn, so tick 1's FixedPostUpdate already ran
+    // update_tracked_by. Check precondition.)
+    //
+    // Non-vacuous precondition: P2.TrackedBy must contain P1 before removal.
+    // If this fails, increase ticks or inspect tracking radius.
+    let p2_tracked_p1_before = app
+        .world()
+        .get::<TrackedBy>(player2)
+        .map(|tb| tb.0.contains(&player1))
+        .unwrap_or(false);
+    assert!(
+        p2_tracked_p1_before,
+        "precondition: P2.TrackedBy must contain P1 after warm-up; \
+         check that update_tracked_by ran on the first tick (Changed<Transform> from spawn)"
+    );
+
+    // Non-vacuous precondition: P1's ChunkSubscriptionSet must be non-empty.
+    let p1_sub_before = app
+        .world()
+        .get::<ChunkSubscriptionSet>(player1)
+        .map(|css| !css.0.is_empty())
+        .unwrap_or(false);
+    assert!(
+        p1_sub_before,
+        "precondition: P1's ChunkSubscriptionSet must be non-empty before removal"
+    );
+
+    // Clear any warm-up outbound packets (PlayerEnteredView etc.) so assertions
+    // below see only eviction-related emits.
+    app.world_mut()
+        .resource_mut::<Messages<OutboundPlayerPacket>>()
+        .drain()
+        .for_each(drop);
+
+    // Remove P1 via InboundPlayerDespawn — the same message both the disconnect
+    // and transfer-out paths push for the source dim.
+    app.world_mut()
+        .resource_mut::<Messages<InboundPlayerDespawn>>()
+        .write(InboundPlayerDespawn { host_anchor: ha1 });
+
+    // Drive only FixedPreUpdate: the drain runs and applies the eviction.
+    // FixedPostUpdate (update_own_pov, update_tracked_by) is NOT driven here
+    // because neither player moved; the gate would skip them anyway, but
+    // isolating to FixedPreUpdate keeps the assertion focused on the drain.
+    run_fixed_pre_update(&mut app);
+
+    let world = app.world();
+
+    // Assertion 1: P2's TrackedBy no longer contains P1.
+    let p2_tracked_p1_after = world
+        .get::<TrackedBy>(player2)
+        .map(|tb| tb.0.contains(&player1))
+        .unwrap_or(true);
+    assert!(
+        !p2_tracked_p1_after,
+        "P2.TrackedBy still contains P1 after removal via shared drain"
+    );
+
+    // Assertion 2a: P1's ChunkSubscriptionSet is cleared.
+    let p1_css_empty = world
+        .get::<ChunkSubscriptionSet>(player1)
+        .map(|css| css.0.is_empty())
+        .unwrap_or(true);
+    assert!(
+        p1_css_empty,
+        "P1's ChunkSubscriptionSet is non-empty after removal"
+    );
+
+    // Assertion 2b: P1's TrackedBy is cleared.
+    let p1_tb_empty = world
+        .get::<TrackedBy>(player1)
+        .map(|tb| tb.0.is_empty())
+        .unwrap_or(true);
+    assert!(
+        p1_tb_empty,
+        "P1's TrackedBy is non-empty after removal"
+    );
+
+    // Assertion 3: P1 is removed from every shared column's PlayerObservers.
+    let p1_still_observing = columns.values().any(|&column_entity| {
+        world
+            .get::<PlayerObservers>(column_entity)
+            .map(|obs| obs.0.contains(&player1))
+            .unwrap_or(false)
+    });
+    assert!(
+        !p1_still_observing,
+        "P1 is still present in at least one column's PlayerObservers after removal"
+    );
+
+    // Sanity: P2 is still correctly observing its columns (eviction is targeted).
+    assert_mirror_invariant(&app, player2, &columns);
 }

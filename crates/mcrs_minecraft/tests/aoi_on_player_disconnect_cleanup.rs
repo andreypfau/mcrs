@@ -15,19 +15,30 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
 use bevy_math::{DVec3, Vec2};
+use mcrs_engine::aoi::PlayerObservers;
+use mcrs_engine::geometry::ColumnPos;
+use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
+use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick,
     filter_inflight_for_disconnect, process_disconnect,
 };
+use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, TrackedBy};
 use mcrs_minecraft::world::bridge::bridge_player_transfer;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
-    OutboundPlayerTransfer, PendingInboundLifecycle, PendingInboundPartition,
-    PlayerTransferSnapshot,
+    OutboundPlayerPacket, OutboundPlayerTransfer, PacketPayload, PacketTarget,
+    PendingInboundLifecycle, PendingInboundPartition, PlayerTransferSnapshot,
 };
 use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
 use mcrs_protocol::uuid::Uuid;
 use smallvec::SmallVec;
+
+mod harness;
+use harness::{
+    drain_outbound, drive_aoi_tick, make_aoi_app, run_fixed_pre_update,
+    spawn_player_in_dim_with_host_anchor,
+};
 
 fn build_disconnect_app() -> App {
     let mut app = App::new();
@@ -327,3 +338,202 @@ fn disconnect_at_tick_n_e1_5_steady_in_dim() {
     assert!(!app.world().resource::<PlayerIndex>().contains(&host_anchor));
 }
 
+/// Regression for the transfer-out removal path proving that the downstream
+/// eviction effects are identical to the disconnect path because both flow
+/// through the same shared drain consumer.
+///
+/// Step 1: use `bridge_player_transfer` (the real transfer system) to generate
+/// the `InboundPlayerDespawn` for the source dimension — proving the transfer
+/// path actually emits one.
+///
+/// Step 2: inject that despawn message directly into a single-App AoI harness
+/// with two players (observer O and transferring player T) and drive the drain.
+/// Assert the same three eviction truths observed for disconnect in the
+/// production-topology test above:
+///   1. O's `TrackedBy` no longer contains T.
+///   2. A `PlayerLeftView` packet targeting O carrying T's wire id was emitted.
+///   3. T's `ChunkSubscriptionSet` and `TrackedBy` are cleared.
+///
+/// No transfer-specific eviction code is involved — the test passes using
+/// only the shared drain consumer, demonstrating parity.
+#[test]
+fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
+    // --- Step 1: run bridge_player_transfer to get an InboundPlayerDespawn ---
+    let mut bridge_app = build_disconnect_app();
+
+    let host_anchor = bridge_app.world_mut().spawn_empty().id();
+    let source_dim = bridge_app.world_mut().spawn_empty().id();
+    let dest_dim = bridge_app
+        .world_mut()
+        .spawn(mcrs_minecraft::world::sub_app_builder::DimSubAppHandle)
+        .id();
+    let in_dim_entity = bridge_app.world_mut().spawn_empty().id();
+    insert_location(
+        &mut bridge_app,
+        host_anchor,
+        source_dim,
+        None,
+        Some(in_dim_entity),
+    );
+    bridge_app
+        .world_mut()
+        .resource_mut::<Messages<OutboundPlayerTransfer>>()
+        .write(OutboundPlayerTransfer {
+            host_anchor,
+            dest_dim,
+            snapshot: snapshot(),
+        });
+    run_bridge_transfer(&mut bridge_app);
+
+    // Verify: bridge emitted a despawn for the source dim.
+    let despawn_msg = bridge_app
+        .world()
+        .resource::<PendingInboundLifecycle>()
+        .per_dim
+        .get(&source_dim)
+        .and_then(|b| b.despawns.first().cloned());
+    let despawn_msg =
+        despawn_msg.expect("bridge_player_transfer must push InboundPlayerDespawn for source dim");
+    assert_eq!(despawn_msg.host_anchor, host_anchor);
+
+    // --- Step 2: run the drain on a transfer-generated despawn in a single-App AoI harness ---
+    //
+    // Use a fresh AoI app with its own host_anchor entities. The bridge step above proves
+    // that bridge_player_transfer emits InboundPlayerDespawn { host_anchor } for the source
+    // dim. This step proves that the drain handles that message identically to disconnect —
+    // the two halves together cover the full transfer-out eviction chain.
+
+    let mut aoi_app = make_aoi_app();
+    let dim = aoi_app.world_mut().spawn(DimensionBundle::default()).id();
+
+    // Both host anchors are entities inside aoi_app — no cross-app entity id confusion.
+    let ha_o = aoi_app.world_mut().spawn_empty().id();
+    let ha_t = aoi_app.world_mut().spawn_empty().id();
+
+    // Observer O at position (0, 64, 0).
+    let player_o =
+        spawn_player_in_dim_with_host_anchor(&mut aoi_app, dim, DVec3::new(0.0, 64.0, 0.0), ha_o);
+
+    // Target T: the player that has transferred out; HostAnchorRef(ha_t) is used
+    // by the drain to resolve the in-dim entity from the InboundPlayerDespawn.
+    let player_t = spawn_player_in_dim_with_host_anchor(
+        &mut aoi_app,
+        dim,
+        DVec3::new(0.0, 64.0, 0.0),
+        ha_t,
+    );
+
+    // Seed a column grid with PlayerObservers so update_own_pov can subscribe
+    // both players, and update_tracked_by can build TrackedBy caches.
+    let radius: i32 = 20;
+    {
+        let mut col_map: rustc_hash::FxHashMap<ColumnPos, ColumnSlot> =
+            rustc_hash::FxHashMap::default();
+        for dx in -radius..=radius {
+            for dz in -radius..=radius {
+                let col_pos = ColumnPos::new(dx, dz);
+                let column = aoi_app
+                    .world_mut()
+                    .spawn((Column, PlayerObservers::default(), InDimension(dim)))
+                    .id();
+                col_map.insert(col_pos, ColumnSlot { entity: column, section_count: 1 });
+            }
+        }
+        aoi_app
+            .world_mut()
+            .get_mut::<ColumnIndex>(dim)
+            .expect("DimensionBundle provides ColumnIndex")
+            .0
+            .extend(col_map);
+    }
+
+    // Warm-up tick: populate ChunkSubscriptionSet, PlayerObservers, TrackedBy.
+    drive_aoi_tick(&mut aoi_app);
+
+    // Non-vacuous precondition: O.TrackedBy must contain T before eviction.
+    let o_tracked_t_before = aoi_app
+        .world()
+        .get::<TrackedBy>(player_o)
+        .map(|tb| tb.0.contains(&player_t))
+        .unwrap_or(false);
+    assert!(
+        o_tracked_t_before,
+        "precondition: O.TrackedBy must contain T before transfer-out eviction"
+    );
+
+    // Non-vacuous precondition: T's ChunkSubscriptionSet must be non-empty.
+    let t_sub_before = aoi_app
+        .world()
+        .get::<ChunkSubscriptionSet>(player_t)
+        .map(|css| !css.0.is_empty())
+        .unwrap_or(false);
+    assert!(
+        t_sub_before,
+        "precondition: T's ChunkSubscriptionSet must be non-empty before transfer-out eviction"
+    );
+
+    // Clear warm-up packets.
+    let _ = drain_outbound(&mut aoi_app);
+
+    // Inject InboundPlayerDespawn for player_t — mirroring what the extract
+    // closure would do after bridge_player_transfer emits it for the source dim.
+    // The despawn_msg.host_anchor from Step 1 confirms the message shape; here
+    // we use ha_t (the aoi_app-local anchor) so the drain's HostAnchorRef lookup
+    // resolves to the correct in-dim entity without cross-app entity id aliasing.
+    aoi_app
+        .world_mut()
+        .resource_mut::<Messages<InboundPlayerDespawn>>()
+        .write(InboundPlayerDespawn { host_anchor: ha_t });
+
+    // Drive only FixedPreUpdate: this runs drain_inbound_player_despawn without
+    // also running update_own_pov/update_tracked_by (FixedPostUpdate) which
+    // might reset TrackedBy from a Changed<Transform> perspective. The drain
+    // is all we're testing here.
+    run_fixed_pre_update(&mut aoi_app);
+
+    // Assertion 1: O.TrackedBy no longer contains T.
+    let o_tracked_t_after = aoi_app
+        .world()
+        .get::<TrackedBy>(player_o)
+        .map(|tb| tb.0.contains(&player_t))
+        .unwrap_or(true);
+    assert!(
+        !o_tracked_t_after,
+        "O.TrackedBy still contains T after transfer-out eviction via shared drain"
+    );
+
+    // Assertion 2: a PlayerLeftView targeting O carrying T's wire id was emitted.
+    let expected_wire_id = player_t.index_u32() as i32;
+    let pkts: Vec<OutboundPlayerPacket> = drain_outbound(&mut aoi_app);
+    let left_view_for_o = pkts.iter().any(|pkt| {
+        matches!(&pkt.target, PacketTarget::SinglePlayer(e) if *e == player_o)
+            && matches!(&pkt.data, PacketPayload::PlayerLeftView { entity_ids }
+                if entity_ids.contains(&expected_wire_id))
+    });
+    assert!(
+        left_view_for_o,
+        "expected PlayerLeftView targeting O with T's wire id after transfer-out; \
+         found {} emitted packets (none matched)",
+        pkts.len()
+    );
+
+    // Assertion 3: T's ChunkSubscriptionSet and TrackedBy are empty.
+    let t_css_empty = aoi_app
+        .world()
+        .get::<ChunkSubscriptionSet>(player_t)
+        .map(|css| css.0.is_empty())
+        .unwrap_or(true);
+    assert!(
+        t_css_empty,
+        "T's ChunkSubscriptionSet is non-empty after transfer-out eviction"
+    );
+    let t_tracked_by_empty = aoi_app
+        .world()
+        .get::<TrackedBy>(player_t)
+        .map(|tb| tb.0.is_empty())
+        .unwrap_or(true);
+    assert!(
+        t_tracked_by_empty,
+        "T's TrackedBy is non-empty after transfer-out eviction"
+    );
+}
