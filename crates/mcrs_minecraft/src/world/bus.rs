@@ -7,7 +7,7 @@ use mcrs_engine::geometry::{BlockPos, ColumnPos};
 use mcrs_protocol::BlockStateId;
 use mcrs_protocol::chunk::LightData;
 use mcrs_protocol::uuid::Uuid;
-use mcrs_protocol::{GameMode, Look};
+use mcrs_protocol::{GameMode, Look, Text};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use std::time::Instant;
@@ -173,6 +173,14 @@ pub enum PacketPayload {
     PlayerPosition {
         teleport_id: i32,
         position: DVec3,
+    },
+    /// Carries an owned system-chat message so dispatch_encode builds
+    /// ClientboundSystemChatPacket without World access. The per-dim chat
+    /// broadcaster emits this through the bridge instead of writing
+    /// `ServerSideConnection` directly (host-resident, never in a sub-app).
+    SystemChat {
+        content: Text,
+        overlay: bool,
     },
 }
 

@@ -29,6 +29,7 @@ use mcrs_protocol::packets::game::clientbound::{
     ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLevelChunkWithLight,
     ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerInfoUpdate,
     ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundSetChunkCacheCenter,
+    ClientboundSystemChatPacket,
 };
 use mcrs_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
@@ -524,6 +525,16 @@ pub fn dispatch_encode(
                                 look: Look::default(),
                                 flags: Vec::<PositionFlag>::new(),
                             })
+                            .ok();
+                    }
+                    PacketPayload::SystemChat { content, overlay } => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            "dispatch_encode: SystemChat"
+                        );
+                        conn.raw
+                            .append(&ClientboundSystemChatPacket { content, overlay })
                             .ok();
                     }
                     PacketPayload::Test(_) => {

@@ -1,14 +1,16 @@
 use crate::login::GameProfile;
-use crate::world::entity::player::DisconnectReason;
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::entity::player::{DisconnectReason, HostAnchor};
 use bevy_app::{App, Plugin};
+use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
+use bevy_math::DVec3;
+use mcrs_engine::entity::physics::Transform;
 use mcrs_network::event::ReceivedPacketEvent;
-use mcrs_network::{InGameConnectionState, ServerSideConnection};
-use mcrs_protocol::packets::game::clientbound::ClientboundSystemChatPacket;
-use mcrs_protocol::packets::game::serverbound::ServerboundChat;
+use mcrs_protocol::packets::game::serverbound::{ServerboundChat, ServerboundChatCommand};
 use mcrs_protocol::setting::ChatMode;
 use mcrs_protocol::text::{Color, IntoText};
-use mcrs_protocol::{Text, WritePacket};
+use mcrs_protocol::Text;
 use tracing::info;
 
 pub struct ChatPlugin;
@@ -16,41 +18,75 @@ pub struct ChatPlugin;
 impl Plugin for ChatPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(handle_chat);
+        app.add_observer(handle_command);
     }
 }
 
-pub trait SendMessage {
-    fn send_system_message<'a>(&mut self, msg: impl IntoText<'a>);
-
-    fn send_action_message<'a>(&mut self, msg: impl IntoText<'a>);
-}
-
-impl<T: WritePacket> SendMessage for T {
-    fn send_system_message<'a>(&mut self, msg: impl IntoText<'a>) {
-        self.write_packet(&ClientboundSystemChatPacket {
-            content: msg.into_text(),
-            overlay: false,
-        })
-    }
-
-    fn send_action_message<'a>(&mut self, msg: impl IntoText<'a>) {
-        self.write_packet(&ClientboundSystemChatPacket {
-            content: msg.into_text(),
-            overlay: true,
-        })
+/// Primitive debug slash-command handler. The vanilla client sends
+/// `ServerboundChatCommand` for any `/...` input (no command graph is
+/// required for the client to transmit it). Commands run inside the
+/// dimension sub-app, so any client-facing effect must route through the
+/// bridge (`OutboundPlayerPacket`) rather than touching `ServerSideConnection`
+/// directly, which is host-resident.
+fn handle_command(
+    event: On<ReceivedPacketEvent>,
+    mut sender_query: Query<(&HostAnchor, &mut Transform)>,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+) {
+    let Some(pkt) = event.decode::<ServerboundChatCommand>() else {
+        return;
+    };
+    let command: &str = pkt.command.0;
+    info!("command from {:?}: /{}", event.entity, command);
+    let mut parts = command.split_whitespace();
+    match parts.next() {
+        Some("tp") => {
+            let coords: Vec<f64> = parts.filter_map(|s| s.parse::<f64>().ok()).collect();
+            if coords.len() != 3 {
+                return;
+            }
+            let pos = DVec3::new(coords[0], coords[1], coords[2]);
+            let Ok((host_anchor, mut transform)) = sender_query.get_mut(event.entity) else {
+                return;
+            };
+            let host = host_anchor.0;
+            transform.translation = pos;
+            packet_writer.write(OutboundPlayerPacket {
+                target: PacketTarget::SinglePlayer(host),
+                priority: PacketPriority::Critical,
+                data: PacketPayload::PlayerPosition {
+                    teleport_id: 1,
+                    position: pos,
+                },
+            });
+            packet_writer.write(OutboundPlayerPacket {
+                target: PacketTarget::SinglePlayer(host),
+                priority: PacketPriority::Normal,
+                data: PacketPayload::SystemChat {
+                    content: format!(
+                        "Teleported to {:.1}, {:.1}, {:.1}",
+                        pos.x, pos.y, pos.z
+                    )
+                    .into_text(),
+                    overlay: false,
+                },
+            });
+            info!("teleported {:?} to {:?}", event.entity, pos);
+        }
+        _ => {}
     }
 }
 
 fn handle_chat(
     event: On<ReceivedPacketEvent>,
-    chat_mode_query: Query<(&GameProfile, &ChatMode)>,
-    mut con_query: Query<&mut ServerSideConnection , With<InGameConnectionState>>,
+    sender_query: Query<(&GameProfile, Option<&ChatMode>, &HostAnchor)>,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     mut commands: Commands,
 ) {
     let Some(pkt) = event.decode::<ServerboundChat>() else {
         return;
     };
-    let Ok((profile, &chat_mode)) = chat_mode_query.get(event.entity) else {
+    let Ok((profile, chat_mode, host_anchor)) = sender_query.get(event.entity) else {
         return;
     };
     let msg = pkt.message;
@@ -64,25 +100,38 @@ fn handle_chat(
         return;
     }
 
-    if chat_mode == ChatMode::Hidden {
-        let Ok(mut con) = con_query.get_mut(event.entity) else {
-            return;
-        };
-        con.send_system_message(Text::translate("chat.disabled.options", vec![]).color(Color::RED));
-    } else {
-        let text = Text::translate(
-            "chat.type.text",
-            vec![
-                profile.username.clone().into_text(),
-                msg.to_string().into_text(),
-            ],
-        );
-        info!("<{}> {}", profile.username, msg);
-
-        con_query.iter_mut().for_each(|mut con| {
-            con.send_system_message(&text);
+    // ChatMode is never inserted today, so absence means "shown". Only an
+    // explicit Hidden suppresses broadcast and echoes the disabled notice
+    // back to the sender's own host connection.
+    if chat_mode.copied() == Some(ChatMode::Hidden) {
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(host_anchor.0),
+            priority: PacketPriority::Normal,
+            data: PacketPayload::SystemChat {
+                content: Text::translate("chat.disabled.options", vec![]).color(Color::RED),
+                overlay: false,
+            },
         });
+        return;
     }
+
+    let text = Text::translate(
+        "chat.type.text",
+        vec![
+            profile.username.clone().into_text(),
+            msg.to_string().into_text(),
+        ],
+    );
+    info!("<{}> {}", profile.username, msg);
+
+    packet_writer.write(OutboundPlayerPacket {
+        target: PacketTarget::AllPlayers,
+        priority: PacketPriority::Normal,
+        data: PacketPayload::SystemChat {
+            content: text,
+            overlay: false,
+        },
+    });
 }
 
 #[inline]

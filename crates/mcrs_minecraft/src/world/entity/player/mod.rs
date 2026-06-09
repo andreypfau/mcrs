@@ -284,6 +284,11 @@ fn consume_inbound_player_spawn(
                 PlayerBundle::default(),
                 PlayerChunkObserver::default(),
                 HostAnchor(spawn.host_anchor),
+                GameProfile {
+                    id: spawn.snapshot.uuid,
+                    username: spawn.snapshot.username.clone(),
+                    properties: Vec::new(),
+                },
             ))
             .id();
 
