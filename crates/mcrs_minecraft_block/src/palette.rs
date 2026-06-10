@@ -6,6 +6,13 @@ use mcrs_engine::world::chunk::palette::{PalettedContainer, encompassing_bits};
 use mcrs_protocol::BlockStateId;
 
 impl BiomePalette {
+    /// Set the biome id for a 4x4x4 biome cell within this section.
+    /// `cell_x`, `cell_y`, `cell_z` are biome-cell indices (0..4).
+    /// `id` is the u8 network registry id for the biome.
+    pub fn set_cell(&mut self, cell_x: usize, cell_y: usize, cell_z: usize, id: u8) {
+        self.0.set(cell_x, cell_y, cell_z, id);
+    }
+
     pub fn convert_network(&self) -> mcrs_protocol::chunk::PalettedContainer<u8> {
         match &self.0 {
             Homogeneous(registry_id) => mcrs_protocol::chunk::PalettedContainer {

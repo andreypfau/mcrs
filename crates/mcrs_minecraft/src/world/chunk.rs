@@ -7,6 +7,7 @@ use bevy_ecs::system::{Commands, Res, ResMut};
 use bevy_math::IVec3;
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
+use mcrs_core::RegistrySnapshot;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
@@ -16,6 +17,9 @@ use mcrs_engine::world::chunk::{
 use mcrs_engine::world::lighting::LightTicket;
 use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsPlugin, OverworldNoiseRouter, WorldGenConfig};
 use mcrs_protocol::ColumnPos;
+use mcrs_vanilla::biome::Biome;
+use mcrs_vanilla::biome::source::BiomeSource;
+use mcrs_vanilla::worldgen::beta_biome::{ActiveBiomeSource, BetaBiomeSourcePlugin};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -37,6 +41,7 @@ pub struct ChunkPlugin;
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(NoiseGeneratorSettingsPlugin);
+        app.add_plugins(BetaBiomeSourcePlugin);
         if !app.world().contains_resource::<WorldGenConfig>() {
             app.insert_resource(WorldGenConfig::from_env());
         }
@@ -612,6 +617,8 @@ fn reprioritize_columns(
 fn dispatch_column_generation(
     mut scheduler: ResMut<ColumnScheduler>,
     overworld_noise_router: Res<OverworldNoiseRouter>,
+    active_biome_source: Option<Res<ActiveBiomeSource>>,
+    biome_registry: Option<Res<RegistrySnapshot<Biome>>>,
 ) {
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
 
@@ -635,6 +642,14 @@ fn dispatch_column_generation(
         return;
     }
 
+    // Snapshot the biome context once per dispatch batch to avoid repeated deref.
+    // Both resources must be present for Beta biome fill to activate.
+    let biome_context: Option<(Arc<BiomeSource>, Arc<RegistrySnapshot<Biome>>)> =
+        match (active_biome_source.as_deref(), biome_registry.as_deref()) {
+            (Some(src), Some(reg)) => Some((src.0.clone(), Arc::new(reg.clone()))),
+            _ => None,
+        };
+
     let mut dispatched = 0usize;
 
     // Pop columns from priority queue in order (lowest distance first)
@@ -657,6 +672,7 @@ fn dispatch_column_generation(
         let router = overworld_noise_router.0.clone();
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
+        let biome_ctx = biome_context.clone();
 
         // Extract section data for the task
         let sections_data: Vec<(Entity, ChunkPos)> = pending_column
@@ -670,8 +686,11 @@ fn dispatch_column_generation(
         // Spawn the generation task
         let task = task_pool.spawn(async move {
             let router = router.as_ref();
+            let biome_context = biome_ctx.as_ref().map(|(src, reg)| {
+                (src.as_ref() as &BiomeSource, reg.as_ref() as &RegistrySnapshot<Biome>)
+            });
 
-            let results = generate_column(col.x, col.z, &y_sections, router, &cancel_clone);
+            let results = generate_column(col.x, col.z, &y_sections, router, biome_context, &cancel_clone);
 
             let column_sections = sections_data
                 .into_iter()

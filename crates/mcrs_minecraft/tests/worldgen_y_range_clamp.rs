@@ -38,7 +38,7 @@ fn beta_sections_outside_noise_range_are_air() {
     let y_sections: Vec<i32> = (-4..=19).collect();
     let cancel = CancellationToken::new();
 
-    let results = generate_column(0, 0, &y_sections, &router, &cancel);
+    let results = generate_column(0, 0, &y_sections, &router, None, &cancel);
     assert_eq!(results.len(), y_sections.len());
 
     for (&sy, result) in y_sections.iter().zip(results.iter()) {

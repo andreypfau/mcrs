@@ -1,9 +1,12 @@
 use crate::world::chunk::CancellationToken;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
+use mcrs_core::RegistrySnapshot;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_worldgen::density_function::{
     ColumnCache, NoiseRouter, NoiseCellInterpolator,
 };
+use mcrs_vanilla::biome::Biome;
+use mcrs_vanilla::biome::source::BiomeSource;
 
 /// Generate a single section using a pre-populated column cache and interpolator.
 /// The column cache and interpolator are passed in so they can be reused across
@@ -145,6 +148,44 @@ fn generate_section(
     interp.end_section();
 }
 
+/// Fill a `BiomePalette` for a single 16x16x16 section from Beta climate data.
+///
+/// Each of the 4x4x4 biome cells is sampled once from the pre-populated
+/// `column_cache`. The ocean/land split is per cell-row Y: a cell whose
+/// center world Y falls below `sea_level` receives the ocean biome for
+/// the land bucket at that XZ position; cells at or above sea level receive
+/// the land biome directly.
+///
+/// T-08-05: `by_asset_id` returns `unwrap_or(0)`, clamping unknown handles
+/// to a valid registry index so no out-of-range id reaches the client.
+fn fill_biome_palette_beta(
+    biomes: &mut BiomePalette,
+    section_y: i32,
+    block_x: i32,
+    block_z: i32,
+    noise_router: &NoiseRouter,
+    column_cache: &ColumnCache,
+    biome_source: &BiomeSource,
+    biome_registry: &RegistrySnapshot<Biome>,
+) {
+    let sea_level = noise_router.sea_level();
+    for cy in 0..4usize {
+        // Center world Y of this biome cell row.
+        let cell_center_world_y = section_y * 16 + cy as i32 * 4 + 2;
+        let is_ocean = cell_center_world_y < sea_level;
+        for cx in 0..4usize {
+            let sample_x = block_x + cx as i32 * 4;
+            for cz in 0..4usize {
+                let sample_z = block_z + cz as i32 * 4;
+                let (temp, humidity) = noise_router.sample_climate_at(column_cache, sample_x, sample_z);
+                let asset_id = biome_source.beta_biome_id(temp, humidity, is_ocean);
+                let network_id = biome_registry.by_asset_id(asset_id).unwrap_or(0) as u8;
+                biomes.set_cell(cx, cy, cz, network_id);
+            }
+        }
+    }
+}
+
 /// Generate all sections in a column using a pre-populated ColumnCache.
 /// Zone A (column-only density functions) is computed once for all 17x17 XZ positions
 /// and reused across all Y sections, eliminating per-block column-change branches.
@@ -155,12 +196,18 @@ fn generate_section(
 /// Accepts a `CancellationToken` for cooperative cancellation. The token is checked
 /// between section generations; if cancelled, remaining sections return `None` while
 /// already-completed sections return `Some((blocks, biomes))`.
+///
+/// When `biome_context` is `Some((source, registry))` and `source` is a Beta biome
+/// source, every section's `BiomePalette` is filled from climate data.  Non-Beta
+/// sources leave the palette as the default (id 0) — modern biome assignment is
+/// unchanged.
 #[cfg_attr(feature = "telemetry-tracy", tracing::instrument(name = "world::column_gen", skip_all))]
 pub fn generate_column(
     section_x: i32,
     section_z: i32,
     y_sections: &[i32],
     noise_router: &NoiseRouter,
+    biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
     let mut interp = noise_router.new_noise_cell_interpolator();
@@ -177,6 +224,15 @@ pub fn generate_column(
     let noise_min_y = noise_router.noise_min_y();
     let noise_max_y = noise_min_y + noise_router.noise_height() as i32;
 
+    // Only fill biome palettes when the source is Beta; modern paths keep default().
+    let beta_biome = biome_context.and_then(|(src, reg)| {
+        if matches!(src, BiomeSource::Beta { .. }) {
+            Some((src, reg))
+        } else {
+            None
+        }
+    });
+
     let mut prev_sy: Option<i32> = None;
     y_sections
         .iter()
@@ -189,12 +245,18 @@ pub fn generate_column(
             // Sections outside [noise_min_y, noise_min_y + noise_height) are always air.
             // This matches vanilla: only cells within the noise settings vertical range are
             // filled by the density function; everything else is the default block (air).
+            // Clients still need biome data for these sections, so the palette is always filled
+            // when a Beta biome source is active.
             let section_min_y = sy * 16;
             let section_max_y = section_min_y + 16;
             if section_min_y >= noise_max_y || section_max_y <= noise_min_y {
                 interp.reset_section_boundary();
                 prev_sy = Some(sy);
-                return Some((BlockPalette::default(), BiomePalette::default()));
+                let mut biomes = BiomePalette::default();
+                if let Some((src, reg)) = beta_biome {
+                    fill_biome_palette_beta(&mut biomes, sy, block_x, block_z, noise_router, &column_cache, src, reg);
+                }
+                return Some((BlockPalette::default(), biomes));
             }
 
             // Surface skip: sections above estimated max surface are guaranteed all-air
@@ -204,7 +266,11 @@ pub fn generate_column(
                     // Skipped section breaks Y-adjacency, treated as a gap
                     interp.reset_section_boundary();
                     prev_sy = Some(sy);
-                    return Some((BlockPalette::default(), BiomePalette::default()));
+                    let mut biomes = BiomePalette::default();
+                    if let Some((src, reg)) = beta_biome {
+                        fill_biome_palette_beta(&mut biomes, sy, block_x, block_z, noise_router, &column_cache, src, reg);
+                    }
+                    return Some((BlockPalette::default(), biomes));
                 }
             }
 
@@ -215,7 +281,7 @@ pub fn generate_column(
             prev_sy = Some(sy);
 
             let mut blocks = BlockPalette::default();
-            let biomes = BiomePalette::default();
+            let mut biomes = BiomePalette::default();
             generate_section(
                 block_x,
                 sy * 16,
@@ -225,7 +291,13 @@ pub fn generate_column(
                 &mut column_cache,
                 &mut interp,
             );
+            if let Some((src, reg)) = beta_biome {
+                fill_biome_palette_beta(&mut biomes, sy, block_x, block_z, noise_router, &column_cache, src, reg);
+            }
             Some((blocks, biomes))
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests;

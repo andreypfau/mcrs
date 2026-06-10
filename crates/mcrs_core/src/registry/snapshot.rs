@@ -22,7 +22,7 @@ pub struct SnapshotEntry<T: Asset> {
 /// Entries are sorted alphabetically by [`ResourceLocation`] and assigned
 /// dense IDs `0..N`. The expensive NBT serialization runs once at build time;
 /// per-client cost is a cheap borrow.
-#[derive(Resource, Debug)]
+#[derive(Resource, Debug, Clone)]
 pub struct RegistrySnapshot<T: Asset> {
     entries: Vec<SnapshotEntry<T>>,
     by_asset: HashMap<AssetId<T>, u32>,
