@@ -1,4 +1,4 @@
-use crate::noise::beta::simplex::SimplexNoise;
+use crate::noise::simplex::SimplexNoise;
 use mcrs_random::Random;
 
 pub struct SimplexOctaveNoise {

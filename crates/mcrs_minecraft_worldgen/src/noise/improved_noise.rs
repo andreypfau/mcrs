@@ -1,6 +1,10 @@
+use crate::noise::gradient::GRADIENTS;
 use mcrs_random::{Random, RandomSource};
 use num_traits::{Float, NumCast, ToPrimitive};
 
+// SIMD-packed f32 mirror of `GRADIENTS` for the hot f32 path (`sample_and_lerp`):
+// 16 gradients × {x, y, z, pad} so each lookup is a contiguous slice. Kept in sync with
+// `GRADIENTS` by the `flat_grad_matches_gradients` test.
 const FLAT_SIMPLEX_GRAD: [f32; 64] = [
     1.0, 1.0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 1.0, 0.0,
     1.0, 0.0, -1.0, 0.0, 1.0, 0.0, 1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, 0.0, 1.0, 1.0, 0.0,
@@ -138,31 +142,10 @@ impl ImprovedNoise<f64, true> {
     }
 }
 
-/// Gradient dot-product for the 16-entry Ken Perlin gradient table (same layout as FLAT_SIMPLEX_GRAD).
+/// Gradient dot-product for the 16-entry Ken Perlin gradient table, shared with the simplex path.
 #[inline(always)]
 fn grad3(hash: usize, x: f64, y: f64, z: f64) -> f64 {
-    // The gradient table used in `sample_and_lerp` stores 16 3-component gradients packed as
-    // 4 f32s (with a zero pad): index = (hash & 15) << 2.
-    // Reproduced here as a scalar f64 lookup matching the same 16 gradient vectors.
-    match hash {
-        0  =>  x + y,
-        1  => -x + y,
-        2  =>  x - y,
-        3  => -x - y,
-        4  =>  x + z,
-        5  => -x + z,
-        6  =>  x - z,
-        7  => -x - z,
-        8  =>  y + z,
-        9  => -y + z,
-        10 =>  y - z,
-        11 => -y - z,
-        12 =>  x + y,
-        13 => -y + z,
-        14 => -x + y,
-        15 => -y - z,
-        _  => unreachable!(),
-    }
+    GRADIENTS[hash & 15].dot(x, y, z)
 }
 
 #[inline(always)]
@@ -415,5 +398,17 @@ mod test {
             format!("{:.4}", noise.sample(-204.0, 28.0, 12.0, 0.0, 0.0)),
             format!("{:.4}", 0.150881990790367)
         );
+    }
+
+    #[test]
+    fn flat_grad_matches_gradients() {
+        use crate::noise::gradient::GRADIENTS;
+        use crate::noise::improved_noise::FLAT_SIMPLEX_GRAD;
+        for (i, grad) in GRADIENTS.iter().enumerate() {
+            assert_eq!(FLAT_SIMPLEX_GRAD[i * 4] as f64, grad.x, "x mismatch at {i}");
+            assert_eq!(FLAT_SIMPLEX_GRAD[i * 4 + 1] as f64, grad.y, "y mismatch at {i}");
+            assert_eq!(FLAT_SIMPLEX_GRAD[i * 4 + 2] as f64, grad.z, "z mismatch at {i}");
+            assert_eq!(FLAT_SIMPLEX_GRAD[i * 4 + 3], 0.0, "pad nonzero at {i}");
+        }
     }
 }

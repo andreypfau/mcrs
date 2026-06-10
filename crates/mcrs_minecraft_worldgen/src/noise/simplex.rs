@@ -1,5 +1,9 @@
+use crate::noise::gradient::GRADIENTS;
 use mcrs_random::Random;
 
+/// 2D simplex noise shared by Beta worldgen (`NoiseGenerator2`) and modern vanilla
+/// (`SimplexNoise`). The generator is parameterized over the RNG, so the same struct
+/// serves the legacy (`LegacyRandom`) and modern (`Xoroshiro`) initialization paths.
 pub struct SimplexNoise {
     permutation: [u8; 256],
     pub origin_x: f64,
@@ -8,6 +12,9 @@ pub struct SimplexNoise {
 }
 
 impl SimplexNoise {
+    const SKEW_2D: f64 = 0.3660254037844386;
+    const UNSKEW_2D: f64 = 0.2113248654051871;
+
     pub fn from_random<T: Random>(random: &mut T) -> Self {
         let origin_x = random.next_f64() * 256.0;
         let origin_y = random.next_f64() * 256.0;
@@ -24,32 +31,23 @@ impl SimplexNoise {
     }
 
     pub fn sample(&self, x: f64, z: f64, scale_x: f64, scale_z: f64) -> f64 {
-        const SKEW_2D: f64 = 0.3660254037844386;
-        const UNSKEW_2D: f64 = 0.2113248654051871;
-
-        const GRADIENTS: [[i32; 2]; 12] = [
-            [ 1,  1], [-1,  1], [ 1, -1], [-1, -1],
-            [ 1,  0], [-1,  0], [ 1,  0], [-1,  0],
-            [ 0,  1], [ 0, -1], [ 0,  1], [ 0, -1],
-        ];
-
         let px = x * scale_x + self.origin_x;
         let py = z * scale_z + self.origin_y;
 
-        let skew = (px + py) * SKEW_2D;
+        let skew = (px + py) * Self::SKEW_2D;
         let i = (px + skew).floor() as i32;
         let j = (py + skew).floor() as i32;
 
-        let unskew = (i + j) as f64 * UNSKEW_2D;
+        let unskew = (i + j) as f64 * Self::UNSKEW_2D;
         let x0 = px - (i as f64 - unskew);
         let y0 = py - (j as f64 - unskew);
 
         let (i1, j1) = if x0 > y0 { (1, 0) } else { (0, 1) };
 
-        let x1 = x0 - i1 as f64 + UNSKEW_2D;
-        let y1 = y0 - j1 as f64 + UNSKEW_2D;
-        let x2 = x0 - 1.0 + 2.0 * UNSKEW_2D;
-        let y2 = y0 - 1.0 + 2.0 * UNSKEW_2D;
+        let x1 = x0 - i1 as f64 + Self::UNSKEW_2D;
+        let y1 = y0 - j1 as f64 + Self::UNSKEW_2D;
+        let x2 = x0 - 1.0 + 2.0 * Self::UNSKEW_2D;
+        let y2 = y0 - 1.0 + 2.0 * Self::UNSKEW_2D;
 
         let gi0 = self.permutation[((i & 0xFF) as u8).wrapping_add(self.permutation[(j & 0xFF) as usize]) as usize] % 12;
         let gi1 = self.permutation[((i.wrapping_add(i1) & 0xFF) as u8).wrapping_add(self.permutation[(j.wrapping_add(j1) & 0xFF) as usize]) as usize] % 12;
@@ -61,8 +59,7 @@ impl SimplexNoise {
                 0.0
             } else {
                 let t2 = t * t;
-                let g = GRADIENTS[gi as usize];
-                t2 * t2 * (g[0] as f64 * tx + g[1] as f64 * ty)
+                t2 * t2 * GRADIENTS[gi as usize].dot(tx, ty, 0.0)
             }
         };
 

@@ -1,7 +1,9 @@
 pub mod beta;
+pub mod gradient;
 pub mod improved_noise;
 pub mod normal_noise;
 pub mod octave_perlin_noise;
+pub mod simplex;
 
 use serde::{Deserialize, Serialize};
 
