@@ -6920,4 +6920,116 @@ mod tests {
         assert_eq!(settings.noise.size_vertical, 2);
         assert!(settings.legacy_random_source);
     }
+
+    fn recurse_density_functions(
+        dir: &std::path::Path,
+        prefix: &str,
+        map: &mut std::collections::BTreeMap<mcrs_protocol::Ident<String>, crate::density_function::ProtoDensityFunction>,
+    ) {
+        use crate::density_function::proto::DensityFunctionHolder;
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let subdir = entry.file_name().to_string_lossy().to_string();
+                let new_prefix = if prefix.is_empty() {
+                    subdir
+                } else {
+                    format!("{}/{}", prefix, subdir)
+                };
+                recurse_density_functions(&path, &new_prefix, map);
+            } else if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                if let Ok(json) = std::fs::read_to_string(&path) {
+                    if let Ok(holder) = serde_json::from_str::<DensityFunctionHolder>(&json) {
+                        if let DensityFunctionHolder::Owned(pdf) = holder {
+                            let stem = path.file_stem().unwrap().to_string_lossy();
+                            let key = if prefix.is_empty() {
+                                format!("minecraft:{}", stem)
+                            } else {
+                                format!("minecraft:{}/{}", prefix, stem)
+                            };
+                            if let Ok(ident) = key.parse::<mcrs_protocol::Ident<String>>() {
+                                map.insert(ident, *pdf);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Load all density_function JSON assets recursively into a `ProtoDensityFunction` map.
+    fn load_density_functions_from_disk() -> std::collections::BTreeMap<mcrs_protocol::Ident<String>, crate::density_function::ProtoDensityFunction> {
+        let base = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/minecraft/worldgen/density_function");
+        let mut map = std::collections::BTreeMap::new();
+        recurse_density_functions(&base, "", &mut map);
+        map
+    }
+
+    /// Load all noise JSON assets into a `NoiseParam` map.
+    fn load_noises_from_disk() -> std::collections::BTreeMap<mcrs_protocol::Ident<String>, crate::density_function::proto::NoiseParam> {
+        let base = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/minecraft/worldgen/noise");
+        let mut map = std::collections::BTreeMap::new();
+        if let Ok(entries) = std::fs::read_dir(&base) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|s| s.to_str()) != Some("json") {
+                    continue;
+                }
+                if let Ok(json) = std::fs::read_to_string(&path) {
+                    if let Ok(noise) = serde_json::from_str::<crate::density_function::proto::NoiseParam>(&json) {
+                        let stem = path.file_stem().unwrap().to_string_lossy();
+                        if let Ok(ident) = format!("minecraft:{}", stem).parse::<mcrs_protocol::Ident<String>>() {
+                            map.insert(ident, noise);
+                        }
+                    }
+                }
+            }
+        }
+        map
+    }
+
+    /// Regression gate: the modern NoiseRouter built from overworld.json via
+    /// build_functions must remain structurally and numerically unchanged after
+    /// the data-driven preset refactor.  Any perturbation to the modern path
+    /// (wrong seed forwarding, different build_functions code path, changed
+    /// stack ordering) will cause this test to fail.
+    #[test]
+    fn overworld_router_unchanged() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/minecraft/worldgen/noise_settings/overworld.json"
+        );
+        let json = std::fs::read_to_string(path).expect("overworld.json must exist");
+        let settings: NoiseGeneratorSettings =
+            serde_json::from_str(&json).expect("overworld.json must deserialize");
+
+        let functions: std::collections::BTreeMap<mcrs_protocol::Ident<String>, crate::density_function::ProtoDensityFunction> = load_density_functions_from_disk();
+        let noises: std::collections::BTreeMap<mcrs_protocol::Ident<String>, crate::density_function::proto::NoiseParam> = load_noises_from_disk();
+
+        let router = super::build_functions(&functions, &noises, &settings, 2);
+
+        assert!(
+            router.final_density_idx() > 0,
+            "modern router final_density_index must be non-zero (wired)"
+        );
+        assert!(
+            router.column_boundary() > 0,
+            "modern router must have Zone A column-only entries"
+        );
+
+        let sample = router.final_density_uncached(bevy_math::IVec3::new(0, 64, 0));
+        assert!(sample.is_finite(), "modern router sample at (0,64,0) must be finite");
+
+        // Pin the exact f32 bits to detect any unintended numeric drift in the
+        // modern path.  Captured with seed=2 to match the pre-refactor hardcoded
+        // seed so the old and new codepaths produce identical output for the same seed.
+        assert_eq!(
+            sample.to_bits(),
+            3168572737u32,
+            "modern router sample must match baseline (seed=2, pos=(0,64,0))"
+        );
+    }
 }
