@@ -14,8 +14,6 @@ use crate::dimension::level_stem::{DimensionDefinition, ProtoDimensionEntry};
 // Runtime type
 // ===========================================================================
 
-pub const DEFAULT_WORLD_PRESET: &str = "minecraft/worldgen/world_preset/normal.json";
-
 /// Holds the handle to the currently loading world preset.
 #[derive(Resource)]
 pub struct ActiveWorldPreset {

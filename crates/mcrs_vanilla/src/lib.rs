@@ -315,7 +315,9 @@ fn request_world_preset(
     let path = config
         .as_ref()
         .map(|c| c.preset_asset_path())
-        .unwrap_or_else(|| worldgen::world_preset::DEFAULT_WORLD_PRESET.to_owned());
+        .unwrap_or_else(|| {
+            mcrs_minecraft_worldgen::bevy::WorldGenConfig::default().preset_asset_path()
+        });
     tracing::info!("requested world preset: {}", path);
     let handle = asset_server.load::<worldgen::world_preset::WorldPreset>(path);
     commands.insert_resource(ActiveWorldPreset { handle });
