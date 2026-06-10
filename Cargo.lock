@@ -2066,6 +2066,7 @@ dependencies = [
  "mcrs_engine",
  "mcrs_protocol",
  "mcrs_random",
+ "num-traits",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
