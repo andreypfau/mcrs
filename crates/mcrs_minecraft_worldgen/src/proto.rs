@@ -1,6 +1,6 @@
 use crate::climate::ParamPoint;
 use crate::density_function::proto::{DensityFunctionHolder, ProtoDensityFunction};
-use mcrs_protocol::Ident;
+use mcrs_protocol::{BlockStateId, Ident};
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -140,6 +140,31 @@ pub struct BlockState {
     #[cfg(feature = "serde")]
     #[serde(rename = "Properties")]
     pub properties: Option<std::collections::BTreeMap<String, String>>,
+}
+
+#[cfg(feature = "serde")]
+impl BlockState {
+    /// Resolve this proto block state to a vanilla protocol block state ID.
+    ///
+    /// Returns None if the block name is not recognized.  The mapping covers
+    /// only the blocks that appear as default_block / default_fluid in vanilla
+    /// noise_settings JSON; extend when new entries are needed.
+    pub fn to_block_state_id(&self) -> Option<BlockStateId> {
+        let level = self
+            .properties
+            .as_ref()
+            .and_then(|p| p.get("level"))
+            .and_then(|v| v.parse::<u16>().ok())
+            .unwrap_or(0);
+        match self.name.as_str() {
+            "minecraft:stone" => Some(BlockStateId(1)),
+            // water: base_state_id 86 (protocol_id 35, follows bedrock at 85), level 0..=15
+            "minecraft:water" => Some(BlockStateId(86 + level)),
+            // lava: base_state_id 102 (16 water states + 86), level 0..=15
+            "minecraft:lava" => Some(BlockStateId(102 + level)),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]

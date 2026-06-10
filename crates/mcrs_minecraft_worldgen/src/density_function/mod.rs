@@ -7,7 +7,7 @@ use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::proto::NoiseGeneratorSettings;
 use crate::spline::{RangeFunction, SplineFunction};
 use bevy_math::{Curve, FloatExt, IVec3};
-use mcrs_protocol::Ident;
+use mcrs_protocol::{BlockStateId, Ident};
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_random::{Random, RandomSource};
 use std::collections::{BTreeMap, HashMap};
@@ -1567,6 +1567,15 @@ pub fn build_functions(
         vein_gap_index: roots[14],
         noise_min_y: noise_settings.noise.min_y,
         noise_height: noise_settings.noise.height,
+        sea_level: noise_settings.sea_level,
+        default_block_state: noise_settings
+            .default_block
+            .to_block_state_id()
+            .expect("default_block must be a known block state"),
+        default_fluid_state: noise_settings
+            .default_fluid
+            .to_block_state_id()
+            .expect("default_fluid must be a known block state"),
         per_block: per_block.into_boxed_slice(),
         column_boundary,
         fd_boundary,
@@ -1643,6 +1652,9 @@ pub struct NoiseRouter {
     vein_gap_index: usize,
     noise_min_y: i32,
     noise_height: u32,
+    sea_level: i32,
+    default_block_state: BlockStateId,
+    default_fluid_state: BlockStateId,
     /// per_block[i] == true means entry i depends on Y and must be recomputed per block.
     /// per_block[i] == false means entry i is column-only (cached across Y changes).
     per_block: Box<[bool]>,
@@ -1971,6 +1983,18 @@ impl NoiseRouter {
 
     pub fn noise_height(&self) -> u32 {
         self.noise_height
+    }
+
+    pub fn sea_level(&self) -> i32 {
+        self.sea_level
+    }
+
+    pub fn default_block_state(&self) -> BlockStateId {
+        self.default_block_state
+    }
+
+    pub fn default_fluid_state(&self) -> BlockStateId {
+        self.default_fluid_state
     }
 
     pub fn final_density(&self, pos: IVec3, cache: &mut DensityCache) -> f32 {

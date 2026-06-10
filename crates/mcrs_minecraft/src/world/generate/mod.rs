@@ -4,7 +4,6 @@ use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_worldgen::density_function::{
     ColumnCache, NoiseRouter, NoiseCellInterpolator,
 };
-use mcrs_vanilla::block::minecraft::STONE;
 
 /// Generate a single section using a pre-populated column cache and interpolator.
 /// The column cache and interpolator are passed in so they can be reused across
@@ -26,6 +25,10 @@ fn generate_section(
     let v_cell_blocks = interp.v_cell_blocks();
     let h_cells = interp.h_cells();
     let v_cells = interp.v_cells();
+
+    let sea_level = noise_router.sea_level();
+    let default_block = noise_router.default_block_state();
+    let default_fluid = noise_router.default_fluid_state();
 
     // Fill the initial X start plane using column cache (with Y-boundary reuse)
     interp.fill_plane_cached_reuse(
@@ -55,14 +58,38 @@ fn generate_section(
             for cell_y in (0..v_cells).rev() {
                 interp.on_sampled_cell_corners(cell_y, cell_z);
 
+                // World Y range for this cell: [cell_min_y, cell_max_y)
+                let cell_min_world_y = block_y + (cell_y * v_cell_blocks) as i32;
+                let cell_max_world_y = cell_min_world_y + v_cell_blocks as i32;
+
                 // Fast path: if all 8 corners agree on sign, skip interpolation
                 match interp.corners_uniform_sign() {
                     Some(false) => {
-                        // All air — BlockPalette defaults to air, nothing to do
-                        continue;
+                        // All non-solid — fill with fluid where world Y < sea_level.
+                        if cell_max_world_y <= sea_level {
+                            // Entire cell is below sea level: fill all with fluid.
+                            let bx_base = (cell_x * h_cell_blocks) as i32;
+                            let by_base = (cell_y * v_cell_blocks) as i32;
+                            let bz_base = (cell_z * h_cell_blocks) as i32;
+                            for ly in 0..v_cell_blocks as i32 {
+                                for lx in 0..h_cell_blocks as i32 {
+                                    for lz in 0..h_cell_blocks as i32 {
+                                        block_states.set(
+                                            BlockPos::new(bx_base + lx, by_base + ly, bz_base + lz),
+                                            default_fluid,
+                                        );
+                                    }
+                                }
+                            }
+                        } else if cell_min_world_y >= sea_level {
+                            // Entire cell is at or above sea level: all air.
+                            continue;
+                        } else {
+                            // Cell straddles sea level: fall through to per-block loop.
+                        }
                     }
                     Some(true) => {
-                        // All solid — fill the entire cell with stone
+                        // All solid — fill the entire cell with default block.
                         let bx_base = (cell_x * h_cell_blocks) as i32;
                         let by_base = (cell_y * v_cell_blocks) as i32;
                         let bz_base = (cell_z * h_cell_blocks) as i32;
@@ -71,7 +98,7 @@ fn generate_section(
                                 for lz in 0..h_cell_blocks as i32 {
                                     block_states.set(
                                         BlockPos::new(bx_base + lx, by_base + ly, bz_base + lz),
-                                        &STONE,
+                                        default_block,
                                     );
                                 }
                             }
@@ -85,6 +112,8 @@ fn generate_section(
                     let delta_y = local_y as f32 / v_cell_blocks as f32;
                     interp.interpolate_y(delta_y);
 
+                    let world_y = block_y + (cell_y * v_cell_blocks + local_y) as i32;
+
                     for local_x in 0..h_cell_blocks {
                         let delta_x = local_x as f32 / h_cell_blocks as f32;
                         interp.interpolate_x(delta_x);
@@ -94,12 +123,14 @@ fn generate_section(
                             interp.interpolate_z(delta_z);
 
                             let density = interp.result();
+                            let bx = (cell_x * h_cell_blocks + local_x) as i32;
+                            let by = (cell_y * v_cell_blocks + local_y) as i32;
+                            let bz = (cell_z * h_cell_blocks + local_z) as i32;
 
                             if density > 0.0 {
-                                let bx = (cell_x * h_cell_blocks + local_x) as i32;
-                                let by = (cell_y * v_cell_blocks + local_y) as i32;
-                                let bz = (cell_z * h_cell_blocks + local_z) as i32;
-                                block_states.set(BlockPos::new(bx, by, bz), &STONE);
+                                block_states.set(BlockPos::new(bx, by, bz), default_block);
+                            } else if world_y < sea_level {
+                                block_states.set(BlockPos::new(bx, by, bz), default_fluid);
                             }
                         }
                     }
