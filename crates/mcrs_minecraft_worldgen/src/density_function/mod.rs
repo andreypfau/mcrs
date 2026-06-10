@@ -6563,3 +6563,25 @@ impl<'a> FunctionStackBuilder<'a> {
 pub fn lerp(delta: f32, start: f32, end: f32) -> f32 {
     start + delta * (end - start)
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::proto::NoiseGeneratorSettings;
+
+    #[test]
+    fn beta_json_deserializes() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/minecraft/worldgen/noise_settings/beta.json"
+        );
+        let json =
+            std::fs::read_to_string(path).expect("beta.json should exist at assets path");
+        let settings: NoiseGeneratorSettings =
+            serde_json::from_str(&json).expect("beta.json should deserialize without error");
+        assert_eq!(settings.sea_level, 64);
+        assert_eq!(settings.noise.height, 128);
+        assert_eq!(settings.noise.size_horizontal, 1);
+        assert_eq!(settings.noise.size_vertical, 2);
+        assert!(settings.legacy_random_source);
+    }
+}
