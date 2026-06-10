@@ -7,7 +7,7 @@ pub struct OctavePerlinNoise {
     persistence: f32,
     max_value: f32,
     amplitudes: Vec<f32>,
-    octave_samplers: Vec<Option<ImprovedNoise>>,
+    octave_samplers: Vec<Option<ImprovedNoise<f32, false>>>,
 }
 
 impl OctavePerlinNoise {
@@ -24,7 +24,7 @@ impl OctavePerlinNoise {
                     let mut octave_random = random
                         .clone()
                         .fork_hash(format!("octave_{}", octave).as_bytes());
-                    octave_samplers.push(Some(ImprovedNoise::from_random(&mut octave_random)));
+                    octave_samplers.push(Some(ImprovedNoise::<f32, false>::from_random(&mut octave_random)));
                 } else {
                     octave_samplers.push(None);
                 }
@@ -33,7 +33,7 @@ impl OctavePerlinNoise {
         } else {
             for i in (0..=-first_octave as usize).rev() {
                 if i < amplitudes.len() && amplitudes[i] != 0.0 {
-                    octave_samplers.push(Some(ImprovedNoise::from_random(random)));
+                    octave_samplers.push(Some(ImprovedNoise::<f32, false>::from_random(random)));
                 } else {
                     octave_samplers.push(None);
                     for _ in 0..262 {
@@ -61,7 +61,7 @@ impl OctavePerlinNoise {
         noise
     }
 
-    pub fn get_octave(&self, octave: usize) -> Option<&ImprovedNoise> {
+    pub fn get_octave(&self, octave: usize) -> Option<&ImprovedNoise<f32, false>> {
         self.octave_samplers
             .get(self.octave_samplers.len() - 1 - octave)
             .and_then(|sampler| sampler.as_ref())

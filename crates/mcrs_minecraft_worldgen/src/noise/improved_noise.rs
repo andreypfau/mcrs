@@ -1,4 +1,5 @@
 use mcrs_random::{Random, RandomSource};
+use num_traits::{Float, NumCast};
 
 const FLAT_SIMPLEX_GRAD: [f32; 64] = [
     1.0, 1.0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 1.0, 0.0,
@@ -8,27 +9,38 @@ const FLAT_SIMPLEX_GRAD: [f32; 64] = [
 ];
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ImprovedNoise {
+pub struct ImprovedNoise<F: Float, const BETA: bool> {
     permutation: [u8; 256],
-    pub origin_x: f32,
-    pub origin_y: f32,
-    pub origin_z: f32,
+    pub origin_x: F,
+    pub origin_y: F,
+    pub origin_z: F,
 }
 
-impl Default for ImprovedNoise {
+impl Default for ImprovedNoise<f32, false> {
     fn default() -> Self {
         Self::from_random(&mut RandomSource::new(0, true))
     }
 }
 
-impl ImprovedNoise {
+impl<F: Float, const BETA: bool> ImprovedNoise<F, BETA> {
     pub fn from_random<T>(random: &mut T) -> Self
     where
         T: Random,
     {
-        let origin_x = random.next_f32() * 256.0;
-        let origin_y = random.next_f32() * 256.0;
-        let origin_z = random.next_f32() * 256.0;
+        let scale: F = F::from(256.0_f64).unwrap();
+        let (origin_x, origin_y, origin_z) = if BETA {
+            (
+                F::from(random.next_f64()).unwrap() * scale,
+                F::from(random.next_f64()).unwrap() * scale,
+                F::from(random.next_f64()).unwrap() * scale,
+            )
+        } else {
+            (
+                F::from(random.next_f32()).unwrap() * scale,
+                F::from(random.next_f32()).unwrap() * scale,
+                F::from(random.next_f32()).unwrap() * scale,
+            )
+        };
         let mut permutation = [0u8; 256];
         for i in 0..256 {
             permutation[i] = i as u8;
@@ -44,7 +56,9 @@ impl ImprovedNoise {
             origin_z,
         }
     }
+}
 
+impl ImprovedNoise<f32, false> {
     #[inline(always)]
     pub fn sample(&self, x: f32, y: f32, z: f32, y_scale: f32, y_max: f32) -> f32 {
         let shifted_x = x + self.origin_x;
@@ -154,46 +168,43 @@ impl ImprovedNoise {
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use crate::noise::improved_noise::ImprovedNoise;
-//     use mcrs_random::legacy::LegacyRandom;
-// 
-//     #[test]
-//     fn create() {
-//         let noise = ImprovedNoise::from_random(&mut LegacyRandom::new(845));
-//         assert_eq!(
-//             format!("{:.4}", noise.origin_x),
-//             format!("{:.4}", 179.49112098377014)
-//         );
-//         assert_eq!(
-//             format!("{:.4}", noise.origin_y),
-//             format!("{:.4}", 178.89801548324886)
-//         );
-//         assert_eq!(
-//             format!("{:.4}", noise.origin_z),
-//             format!("{:.4}", 139.89344963681773)
-//         );
-//         assert_eq!(
-//             noise.permutation[0..10],
-//             [12, 160, 244, 220, 152, 102, 106, 117, 151, 137]
-//         );
-//     }
-// 
-//     #[test]
-//     fn sample() {
-//         let noise = ImprovedNoise::from_random(&mut LegacyRandom::new(845));
-//         assert_eq!(
-//             format!("{:.4}", noise.sample(0.0, 0.0, 0.0, 0.0, 0.0)),
-//             format!("{:.4}", 0.009862268437005883)
-//         );
-//         assert_eq!(
-//             format!("{:.4}", noise.sample(0.5, 4.0, -2.0, 0.0, 0.0)),
-//             format!("{:.4}", -0.11885865493740287)
-//         );
-//         assert_eq!(
-//             format!("{:.4}", noise.sample(-204.0, 28.0, 12.0, 0.0, 0.0)),
-//             format!("{:.4}", -0.589681280485348)
-//         );
-//     }
-// }
+#[cfg(test)]
+mod test {
+    use crate::noise::improved_noise::ImprovedNoise;
+    use mcrs_random::legacy::LegacyRandom;
+
+    #[test]
+    fn modern_parity() {
+        let noise = ImprovedNoise::<f32, false>::from_random(&mut LegacyRandom::new(845));
+        assert_eq!(
+            format!("{:.4}", noise.origin_x),
+            format!("{:.4}", 179.49111938476562)
+        );
+        assert_eq!(
+            format!("{:.4}", noise.origin_y),
+            format!("{:.4}", 107.30737304687500)
+        );
+        assert_eq!(
+            format!("{:.4}", noise.origin_z),
+            format!("{:.4}", 178.89801025390625)
+        );
+        assert_eq!(
+            noise.permutation[0..10],
+            [94, 33, 237, 68, 205, 82, 207, 125, 202, 111]
+        );
+
+        let noise = ImprovedNoise::<f32, false>::from_random(&mut LegacyRandom::new(845));
+        assert_eq!(
+            format!("{:.4}", noise.sample(0.0, 0.0, 0.0, 0.0, 0.0)),
+            format!("{:.4}", 0.107102148234844)
+        );
+        assert_eq!(
+            format!("{:.4}", noise.sample(0.5, 4.0, -2.0, 0.0, 0.0)),
+            format!("{:.4}", -0.055061601102352)
+        );
+        assert_eq!(
+            format!("{:.4}", noise.sample(-204.0, 28.0, 12.0, 0.0, 0.0)),
+            format!("{:.4}", 0.150881990790367)
+        );
+    }
+}
