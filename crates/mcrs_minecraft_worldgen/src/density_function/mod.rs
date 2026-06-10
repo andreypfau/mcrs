@@ -7032,4 +7032,46 @@ mod tests {
             "modern router sample must match baseline (seed=2, pos=(0,64,0))"
         );
     }
+
+    /// Regression gate: the Beta router must produce a numerically distinct
+    /// final_density sample from the modern overworld router, confirming the
+    /// two `build_functions` codepaths diverge as expected.
+    #[test]
+    fn beta_router_differs_from_modern() {
+        let beta_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/minecraft/worldgen/noise_settings/beta.json"
+        );
+        let beta_json = std::fs::read_to_string(beta_path).expect("beta.json must exist");
+        let beta_settings: NoiseGeneratorSettings =
+            serde_json::from_str(&beta_json).expect("beta.json must deserialize");
+
+        let overworld_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/minecraft/worldgen/noise_settings/overworld.json"
+        );
+        let overworld_json =
+            std::fs::read_to_string(overworld_path).expect("overworld.json must exist");
+        let overworld_settings: NoiseGeneratorSettings =
+            serde_json::from_str(&overworld_json).expect("overworld.json must deserialize");
+
+        let functions = load_density_functions_from_disk();
+        let noises = load_noises_from_disk();
+
+        let modern_router = super::build_functions(&functions, &noises, &overworld_settings, 2);
+        let beta_router = super::build_functions(&functions, &noises, &beta_settings, 2);
+
+        let pos = bevy_math::IVec3::new(0, 64, 0);
+        let modern_sample = modern_router.final_density_uncached(pos);
+        let beta_sample = beta_router.final_density_uncached(pos);
+
+        assert!(modern_sample.is_finite(), "modern sample must be finite");
+        assert!(beta_sample.is_finite(), "beta sample must be finite");
+        assert_ne!(
+            modern_sample.to_bits(),
+            beta_sample.to_bits(),
+            "beta router must produce a different final_density than the modern router at (0,64,0)"
+        );
+    }
+
 }
