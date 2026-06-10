@@ -40,12 +40,16 @@ fn build_beta_biome_source_on_start(mut commands: Commands, asset_server: Res<As
 
     let data = match std::fs::read_to_string(&json_path) {
         Ok(d) => d,
+        // A missing preset file is expected when no Beta preset is selected.
         Err(_) => return,
     };
 
     let json: serde_json::Value = match serde_json::from_str(&data) {
         Ok(v) => v,
-        Err(_) => return,
+        Err(e) => {
+            tracing::warn!(path = %json_path, error = %e, "world preset is not valid JSON");
+            return;
+        }
     };
 
     let biome_source_val = match json
@@ -55,14 +59,20 @@ fn build_beta_biome_source_on_start(mut commands: Commands, asset_server: Res<As
         .and_then(|g| g.get("biome_source"))
     {
         Some(v) => v.clone(),
+        // No biome_source: not a Beta preset, expected.
         None => return,
     };
 
     let proto: ProtoBiomeSource = match serde_json::from_value(biome_source_val) {
         Ok(p) => p,
-        Err(_) => return,
+        Err(e) => {
+            tracing::warn!(path = %json_path, error = %e, "world preset biome_source failed to deserialize");
+            return;
+        }
     };
 
+    // Only a `mcrs:beta` source activates the Beta biome fill path; any other
+    // source type is handled elsewhere and is silently skipped here.
     let ProtoBiomeSource::Beta { biomes, ocean_biomes } = proto else {
         return;
     };
@@ -85,11 +95,27 @@ fn build_beta_biome_source_on_start(mut commands: Commands, asset_server: Res<As
 
     let land_biomes: [_; 11] = match land_handles.try_into() {
         Ok(arr) => arr,
-        Err(_) => return,
+        Err(handles) => {
+            tracing::error!(
+                path = %json_path,
+                got = handles.len(),
+                expected = 11,
+                "mcrs:beta world preset lists the wrong number of land biomes"
+            );
+            return;
+        }
     };
     let ocean_biomes: [_; 5] = match ocean_handles.try_into() {
         Ok(arr) => arr,
-        Err(_) => return,
+        Err(handles) => {
+            tracing::error!(
+                path = %json_path,
+                got = handles.len(),
+                expected = 5,
+                "mcrs:beta world preset lists the wrong number of ocean biomes"
+            );
+            return;
+        }
     };
 
     let source = BiomeSource::Beta {
