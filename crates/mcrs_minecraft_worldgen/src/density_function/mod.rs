@@ -3280,7 +3280,7 @@ impl NoiseCellInterpolator {
 }
 
 #[derive(Clone, PartialEq)]
-struct OldBlendedNoise {
+struct BlendedNoise {
     xz_scale: f32,
     y_scale: f32,
     xz_factor: f32,
@@ -3291,14 +3291,20 @@ struct OldBlendedNoise {
     max_value: f32,
     limit_smear: f32,
     main_smear: f32,
+    /// Trailing divisor applied after the combine. Modern path passes 128.0; Beta path
+    /// passes 1.0 (no division) — verified against ChunkProviderGenerate.java:280-297
+    /// which has NO /128 vs BlendedNoise.java:159 which does.
+    final_divisor: f32,
     lower_interpolated_noise: OctavePerlinNoise<f32>,
     upper_interpolated_noise: OctavePerlinNoise<f32>,
     interpolated_noise: OctavePerlinNoise<f32>,
 }
 
-impl Debug for OldBlendedNoise {
+type OldBlendedNoise = BlendedNoise;
+
+impl Debug for BlendedNoise {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("OldBlendedNoise")
+        f.debug_struct("BlendedNoise")
             .field("xz_scale", &self.xz_scale)
             .field("y_scale", &self.y_scale)
             .field("xz_factor", &self.xz_scale)
@@ -3307,11 +3313,12 @@ impl Debug for OldBlendedNoise {
             .field("xz_multiplier", &self.xz_multiplier)
             .field("y_multiplier", &self.y_multiplier)
             .field("max_value", &self.max_value)
+            .field("final_divisor", &self.final_divisor)
             .finish()
     }
 }
 
-impl OldBlendedNoise {
+impl BlendedNoise {
     pub fn new(
         random: &mut RandomSource,
         xz_scale: f32,
@@ -3319,6 +3326,7 @@ impl OldBlendedNoise {
         xz_factor: f32,
         y_factor: f32,
         smear_scale_multiplier: f32,
+        final_divisor: f32,
     ) -> Self {
         let xz_multiplier = 684.412 * xz_scale;
         let y_multiplier = 684.412 * y_scale;
@@ -3326,7 +3334,7 @@ impl OldBlendedNoise {
         let main_smear = limit_smear / y_factor;
         let lower_interpolated_noise = OctavePerlinNoise::<f32>::new(random, -15, vec![1.0; 16], true);
         let max_value = lower_interpolated_noise.edge_value(y_multiplier + 2.0);
-        OldBlendedNoise {
+        BlendedNoise {
             xz_scale,
             y_scale,
             xz_factor,
@@ -3337,6 +3345,7 @@ impl OldBlendedNoise {
             max_value,
             limit_smear,
             main_smear,
+            final_divisor,
             lower_interpolated_noise,
             upper_interpolated_noise: OctavePerlinNoise::<f32>::new(random, -15, vec![1.0; 16], true),
             interpolated_noise: OctavePerlinNoise::<f32>::new(random, -7, vec![1.0; 8], true),
@@ -3500,12 +3509,12 @@ impl OldBlendedNoise {
                 end
             } else {
                 value.mul_add(end - start, start)
-            } / 128.0;
+            } / self.final_divisor;
         }
     }
 }
 
-impl RangeFunction for OldBlendedNoise {
+impl RangeFunction for BlendedNoise {
     #[inline]
     fn min_value(&self) -> f32 {
         -self.max_value()
@@ -3517,7 +3526,7 @@ impl RangeFunction for OldBlendedNoise {
     }
 }
 
-impl DensityFunction for OldBlendedNoise {
+impl DensityFunction for BlendedNoise {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         let scaled_x = pos.x as f32 * self.xz_multiplier;
         let scaled_y = pos.y as f32 * self.y_multiplier;
@@ -3614,7 +3623,7 @@ impl DensityFunction for OldBlendedNoise {
         } else {
             value.mul_add(end - start, start)
         };
-        value / 128.0
+        value / self.final_divisor
     }
 }
 
@@ -6054,6 +6063,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             xz_factor as f32,
             y_factor as f32,
             smear_scale_multiplier as f32,
+            128.0,
         );
         self.register_component(
             ProtoDensityFunction::OldBlendedNoise {
@@ -6566,7 +6576,48 @@ pub fn lerp(delta: f32, start: f32, end: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
+    use crate::density_function::beta_seed::seed_beta_terrain;
+    use crate::density_function::DensityFunction;
     use crate::proto::NoiseGeneratorSettings;
+    use mcrs_random::RandomSource;
+    use super::{BlendedNoise, OldBlendedNoise};
+
+    /// REGRESSION: modern BlendedNoise (formerly OldBlendedNoise) must sample
+    /// to the same values as the post-07-01a baseline after the generalization.
+    /// Golden values are captured after 07-01a's origin re-baseline.
+    #[test]
+    fn modern_blended_noise_unchanged() {
+        let mut random = RandomSource::new(0, true);
+        let noise = OldBlendedNoise::new(&mut random, 1.0, 1.0, 80.0, 160.0, 8.0, 128.0);
+        // These goldens must be captured by running with dbg! first (bootstrap test below).
+        // Placeholder: actual values will be filled after bootstrap run.
+        let v0 = noise.sample(&[], bevy_math::IVec3::new(0, 0, 0));
+        let v1 = noise.sample(&[], bevy_math::IVec3::new(4, 8, 4));
+        let v2 = noise.sample(&[], bevy_math::IVec3::new(8, 16, 8));
+        // Post-07-01a golden values (captured after origin re-baseline; exact f32 bit equality).
+        assert_eq!(v0.to_bits(), 1050715755u32, "v0 must match post-07-01a golden");
+        assert_eq!(v1.to_bits(), 1044906136u32, "v1 must match post-07-01a golden");
+        assert_eq!(v2.to_bits(), 1054301856u32, "v2 must match post-07-01a golden");
+    }
+
+    /// Verify that disabling the /128 divisor yields exactly 128x the enabled-divisor output.
+    #[test]
+    fn blended_noise_no_128_divisor() {
+        let mut r1 = RandomSource::new(12345, true);
+        let noise_with_div = BlendedNoise::new(&mut r1, 1.0, 1.0, 80.0, 160.0, 8.0, 128.0);
+        let mut r2 = RandomSource::new(12345, true);
+        let noise_no_div = BlendedNoise::new(&mut r2, 1.0, 1.0, 80.0, 160.0, 8.0, 1.0);
+
+        let pos = bevy_math::IVec3::new(4, 8, 4);
+        let v_div = noise_with_div.sample(&[], pos);
+        let v_nodiv = noise_no_div.sample(&[], pos);
+        let ratio = v_nodiv / v_div;
+        assert!(
+            (ratio - 128.0).abs() < 1e-3,
+            "disabling divisor should yield 128x output, got ratio {}",
+            ratio
+        );
+    }
 
     #[test]
     fn beta_json_deserializes() {
