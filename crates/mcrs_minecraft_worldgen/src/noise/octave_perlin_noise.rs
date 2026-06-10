@@ -231,6 +231,29 @@ impl OctavePerlinNoise<f32> {
     }
 }
 
+impl OctavePerlinNoise<f32> {
+    /// 2D XZ-plane sample for Beta scale/depth nodes, mirroring `NoiseGeneratorOctaves.a(d0,d1)`.
+    ///
+    /// Walks stored indices `len-1` down to `0` (reverse, first-constructed octave first).
+    /// Frequency starts at 1.0 and halves each step; contribution is
+    /// `sample_2d(x * scale_x * freq, z * scale_z * freq) / freq` with no normalization.
+    /// Uses `ImprovedNoise::sample_2d` (NOT the 3D sampler at y=0) to implement the
+    /// `ySize==1` branch semantics: y origin NOT added, y lattice pinned to 0, y fraction 0.
+    pub fn sample_xz(&self, x: f32, z: f32, scale_x: f32, scale_z: f32) -> f32 {
+        let len = self.octave_samplers.len();
+        let mut freq = 1.0_f32;
+        let mut acc = 0.0_f32;
+        for k in 0..len {
+            let idx = len - 1 - k;
+            if let Some(sampler) = &self.octave_samplers[idx] {
+                acc += sampler.sample_2d(x * scale_x * freq, z * scale_z * freq) / freq;
+            }
+            freq /= 2.0;
+        }
+        acc
+    }
+}
+
 impl OctavePerlinNoise<f64> {
     /// 2D XY-plane sample transcribed from Java NoiseGeneratorOctaves.a(d0,d1) (lines 18-28).
     ///

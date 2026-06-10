@@ -149,6 +149,23 @@ fn lerp(t: f64, a: f64, b: f64) -> f64 {
 }
 
 impl ImprovedNoise<f32> {
+    /// 2D sample per the Beta `ySize == 1` array-sampler branch of `NoiseGeneratorPerlin.java:105-147`.
+    ///
+    /// Only xo/zo are added; the y origin is NOT added and the y lattice is pinned to index 0
+    /// with y fraction 0. Calling the regular `sample(x, 0.0, z, ..)` would add the per-octave
+    /// y origin and land in a different lattice cell — wrong for Beta scale/depth 2D nodes.
+    #[inline(always)]
+    pub fn sample_2d(&self, x: f32, z: f32) -> f32 {
+        let shifted_x = x + self.origin_x;
+        let shifted_z = z + self.origin_z;
+        let section_x = shifted_x.floor() as i32;
+        let section_z = shifted_z.floor() as i32;
+        let local_x = shifted_x - section_x as f32;
+        let local_z = shifted_z - section_z as f32;
+        // y lattice pinned to 0, y fraction = 0 (no fade on y axis)
+        self.sample_and_lerp(section_x, 0, section_z, local_x, 0.0, local_z, 0.0)
+    }
+
     #[inline(always)]
     pub fn sample(&self, x: f32, y: f32, z: f32, y_scale: f32, y_max: f32) -> f32 {
         let shifted_x = x + self.origin_x;

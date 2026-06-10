@@ -1045,6 +1045,7 @@ fn compute_per_block(stack: &[DensityFunctionComponent], _roots: &[usize]) -> Ve
                     | DependentDensityFunction::ShiftedNoise(_)
                     | DependentDensityFunction::WeirdScaled(_)
                     | DependentDensityFunction::FindTopSurface(_)
+                    | DependentDensityFunction::BetaTerrain(_)
             ),
             DensityFunctionComponent::Wrapper(_) => false,
         };
@@ -1765,6 +1766,7 @@ impl NoiseRouter {
                     | IndependentDensityFunction::Shift(_) => shift += 1,
                     IndependentDensityFunction::ClampedYGradient(_) => clamped_y += 1,
                     IndependentDensityFunction::EndIslands => {}
+                    IndependentDensityFunction::BetaScale2d(_) | IndependentDensityFunction::BetaDepth2d(_) => {}
                 },
                 DensityFunctionComponent::Wrapper(_) => {}
                 DensityFunctionComponent::Dependent(f) => match f {
@@ -1781,6 +1783,7 @@ impl NoiseRouter {
                     DependentDensityFunction::Spline(_) => spline += 1,
                     DependentDensityFunction::FlattenedSpline(_) => flat_spline += 1,
                     DependentDensityFunction::FindTopSurface(_) => find_top += 1,
+                    DependentDensityFunction::BetaTerrain(_) => {}
                 },
             }
         }
@@ -3627,6 +3630,106 @@ impl DensityFunction for BlendedNoise {
     }
 }
 
+#[derive(Clone, PartialEq, Debug)]
+struct BetaScale2d {
+    scale_noise: OctavePerlinNoise<f32>,
+}
+
+impl RangeFunction for BetaScale2d {
+    fn min_value(&self) -> f32 { 0.0 }
+    fn max_value(&self) -> f32 { 1.5 }
+}
+
+impl DensityFunction for BetaScale2d {
+    fn sample(&self, _stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        let noise_x = (pos.x >> 2) as f32;
+        let noise_z = (pos.z >> 2) as f32;
+        let raw = self.scale_noise.sample_xz(noise_x, noise_z, 1.121, 1.121);
+        let scale = (raw + 256.0) / 512.0;
+        scale.clamp(0.0, 1.0).max(0.0) + 0.5
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+struct BetaDepth2d {
+    depth_noise: OctavePerlinNoise<f32>,
+}
+
+impl RangeFunction for BetaDepth2d {
+    fn min_value(&self) -> f32 { 0.5 }
+    fn max_value(&self) -> f32 { 13.0 }
+}
+
+impl DensityFunction for BetaDepth2d {
+    fn sample(&self, _stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        let noise_x = (pos.x >> 2) as f32;
+        let noise_z = (pos.z >> 2) as f32;
+        let raw = self.depth_noise.sample_xz(noise_x, noise_z, 200.0, 200.0);
+        let mut depth = raw / 8000.0;
+        if depth < 0.0 {
+            depth = -depth * 0.3;
+        }
+        depth = depth * 3.0 - 2.0;
+        if depth < 0.0 {
+            depth = (depth / 2.0).clamp(-1.0, 0.0) / 1.4 / 2.0;
+        } else {
+            depth = depth.clamp(0.0, 1.0) / 8.0;
+        }
+        // depth_val = 8.5 + depth * 4.25 (half of 8.5)
+        8.5 + depth * 8.5 / 2.0
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+struct BetaTerrainDensity {
+    blend: BlendedNoise,
+    scale_index: usize,
+    depth_index: usize,
+    height: i32,
+}
+
+impl RangeFunction for BetaTerrainDensity {
+    fn min_value(&self) -> f32 { -self.blend.max_value * 4.0 }
+    fn max_value(&self) -> f32 { self.blend.max_value }
+}
+
+impl DensityFunction for BetaTerrainDensity {
+    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        let scale_val = stack[self.scale_index].sample(stack, pos);
+        let depth_val = stack[self.depth_index].sample(stack, pos);
+        self.apply_curve(self.blend.sample(stack, pos), pos.y, scale_val, depth_val)
+    }
+}
+
+impl BetaTerrainDensity {
+    /// Apply the Beta vertical curve (ChunkProviderGenerate.java:235-295).
+    ///
+    /// depth_val is the cell-unit terrain center (from BetaDepth2d, ~8.5 ± 1 for standard terrain).
+    /// scale_val is the scale factor (from BetaScale2d, >= 0.5 from the clamp).
+    fn apply_curve(&self, blend_val: f32, block_y: i32, scale_val: f32, depth_val: f32) -> f32 {
+        // noise_y = cell-grid Y index
+        let noise_y = block_y >> 3;
+        let height_cells = self.height / 8;  // 128/8 = 16
+
+        // Vertical stretch: density -= (noiseY - depthVal) * stretchY / scaleVal
+        let term = (noise_y as f32 - depth_val) * 12.0 / scale_val;
+        let mut density = blend_val - term;
+
+        // If density is negative (air-like), amplify the air signal
+        if density < 0.0 {
+            density *= 4.0;
+        }
+
+        // Top-4-cell taper: interpolate density toward -10 approaching the sky ceiling
+        if noise_y >= height_cells - 4 {
+            let d = (noise_y - (height_cells - 4)) as f32 / 4.0; // 0..1
+            density = density * (1.0 - d) + (-10.0) * d;
+        }
+
+        density
+    }
+}
+
 #[derive(Clone, PartialEq)]
 struct Noise {
     noise_name: String,
@@ -4064,6 +4167,8 @@ enum IndependentDensityFunction {
     Shift(Shift),
     ClampedYGradient(ClampedYGradient),
     EndIslands,
+    BetaScale2d(BetaScale2d),
+    BetaDepth2d(BetaDepth2d),
 }
 
 impl RangeFunction for IndependentDensityFunction {
@@ -4077,6 +4182,8 @@ impl RangeFunction for IndependentDensityFunction {
             IndependentDensityFunction::Shift(x) => x.min_value(),
             IndependentDensityFunction::ClampedYGradient(x) => x.min_value(),
             IndependentDensityFunction::EndIslands => -0.84375,
+            IndependentDensityFunction::BetaScale2d(x) => x.min_value(),
+            IndependentDensityFunction::BetaDepth2d(x) => x.min_value(),
         }
     }
 
@@ -4090,6 +4197,8 @@ impl RangeFunction for IndependentDensityFunction {
             IndependentDensityFunction::Shift(x) => x.max_value(),
             IndependentDensityFunction::ClampedYGradient(x) => x.max_value(),
             IndependentDensityFunction::EndIslands => 0.5625,
+            IndependentDensityFunction::BetaScale2d(x) => x.max_value(),
+            IndependentDensityFunction::BetaDepth2d(x) => x.max_value(),
         }
     }
 }
@@ -4108,6 +4217,8 @@ impl DensityFunction for IndependentDensityFunction {
                 // TODO: implement proper end islands noise sampling
                 0.0
             }
+            IndependentDensityFunction::BetaScale2d(x) => x.sample(stack, pos),
+            IndependentDensityFunction::BetaDepth2d(x) => x.sample(stack, pos),
         }
     }
 }
@@ -4127,6 +4238,7 @@ enum DependentDensityFunction {
     Spline(Spline),
     FlattenedSpline(FlattenedSpline),
     FindTopSurface(FindTopSurface),
+    BetaTerrain(BetaTerrainDensity),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -4194,6 +4306,7 @@ impl DensityFunction for DependentDensityFunction {
             DependentDensityFunction::Spline(x) => x.sample(stack, pos),
             DependentDensityFunction::FlattenedSpline(x) => x.sample(stack, pos),
             DependentDensityFunction::FindTopSurface(x) => x.sample(stack, pos),
+            DependentDensityFunction::BetaTerrain(x) => x.sample(stack, pos),
         }
     }
 }
@@ -4214,6 +4327,7 @@ impl RangeFunction for DependentDensityFunction {
             DependentDensityFunction::Spline(x) => x.min_value(),
             DependentDensityFunction::FlattenedSpline(x) => x.min_value(),
             DependentDensityFunction::FindTopSurface(x) => x.min_value(),
+            DependentDensityFunction::BetaTerrain(x) => x.min_value(),
         }
     }
 
@@ -4232,6 +4346,7 @@ impl RangeFunction for DependentDensityFunction {
             DependentDensityFunction::Spline(x) => x.max_value(),
             DependentDensityFunction::FlattenedSpline(x) => x.max_value(),
             DependentDensityFunction::FindTopSurface(x) => x.max_value(),
+            DependentDensityFunction::BetaTerrain(x) => x.max_value(),
         }
     }
 }
@@ -5379,6 +5494,8 @@ impl DensityFunctionComponent {
                     )
                 }
                 IndependentDensityFunction::EndIslands => "end_islands".into(),
+                IndependentDensityFunction::BetaScale2d(_) => "beta_scale_2d".into(),
+                IndependentDensityFunction::BetaDepth2d(_) => "beta_depth_2d".into(),
             },
             DensityFunctionComponent::Dependent(f) => match f {
                 DependentDensityFunction::Linear(l) => match l.operation {
@@ -5433,6 +5550,7 @@ impl DensityFunctionComponent {
                     )
                 }
                 DependentDensityFunction::FindTopSurface(_) => "find_top_surface".into(),
+                DependentDensityFunction::BetaTerrain(_) => "beta_terrain".into(),
             },
             DensityFunctionComponent::Wrapper(f) => match f {
                 WrapperDensityFunction::BlendDensity(_) => "blend_density".into(),
@@ -5546,6 +5664,10 @@ impl DensityFunctionComponent {
                     x.density_index = redirect[x.density_index];
                     x.upper_bound_index = redirect[x.upper_bound_index];
                 }
+                DependentDensityFunction::BetaTerrain(x) => {
+                    x.scale_index = redirect[x.scale_index];
+                    x.depth_index = redirect[x.depth_index];
+                }
             },
             DensityFunctionComponent::Wrapper(wrapper) => match wrapper {
                 WrapperDensityFunction::BlendDensity(x) => {
@@ -5605,6 +5727,10 @@ impl DensityFunctionComponent {
                     f(x.density_index);
                     f(x.upper_bound_index);
                 }
+                DependentDensityFunction::BetaTerrain(x) => {
+                    f(x.scale_index);
+                    f(x.depth_index);
+                }
             },
             DensityFunctionComponent::Wrapper(wrapper) => match wrapper {
                 WrapperDensityFunction::BlendDensity(x) => f(x.input_index),
@@ -5651,6 +5777,8 @@ impl DensityFunctionComponent {
                 IndependentDensityFunction::Shift(x) => x.sample(&[], pos),
                 IndependentDensityFunction::ClampedYGradient(x) => x.sample(&[], pos),
                 IndependentDensityFunction::EndIslands => 0.0,
+                IndependentDensityFunction::BetaScale2d(x) => x.sample(&[], pos),
+                IndependentDensityFunction::BetaDepth2d(x) => x.sample(&[], pos),
             },
             DensityFunctionComponent::Dependent(f) => match f {
                 DependentDensityFunction::Linear(x) => {
@@ -5763,6 +5891,12 @@ impl DensityFunctionComponent {
                             current_y -= x.cell_height;
                         }
                     }
+                }
+                DependentDensityFunction::BetaTerrain(x) => {
+                    let scale_val = cache[x.scale_index];
+                    let depth_val = cache[x.depth_index];
+                    let blend_val = x.blend.sample(&[], pos);
+                    x.apply_curve(blend_val, pos.y, scale_val, depth_val)
                 }
             },
             DensityFunctionComponent::Wrapper(f) => match f {
@@ -6355,6 +6489,75 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             )),
         );
     }
+
+    fn visit_beta_scale_2d(&mut self) {
+        let seed = if let RandomSource::Legacy(r) = &self.random { r.seed } else { 0 };
+        let (_, _, _, scale_noise, _) = beta_seed::seed_beta_terrain(seed);
+        self.register_component(
+            ProtoDensityFunction::BetaScale2d,
+            DensityFunctionComponent::Independent(IndependentDensityFunction::BetaScale2d(
+                BetaScale2d { scale_noise },
+            )),
+        );
+    }
+
+    fn visit_beta_depth_2d(&mut self) {
+        let seed = if let RandomSource::Legacy(r) = &self.random { r.seed } else { 0 };
+        let (_, _, _, _, depth_noise) = beta_seed::seed_beta_terrain(seed);
+        self.register_component(
+            ProtoDensityFunction::BetaDepth2d,
+            DensityFunctionComponent::Independent(IndependentDensityFunction::BetaDepth2d(
+                BetaDepth2d { depth_noise },
+            )),
+        );
+    }
+
+    fn visit_beta_terrain_noise(
+        &mut self,
+        scale: &DensityFunctionHolder,
+        depth: &DensityFunctionHolder,
+    ) {
+        let scale_index = self.component(scale);
+        let depth_index = self.component(depth);
+        let seed = if let RandomSource::Legacy(r) = &self.random { r.seed } else { 0 };
+        let (low, high, selector, _, _) = beta_seed::seed_beta_terrain(seed);
+        // Construct the Beta blend with /128 disabled (Beta omits the trailing divisor)
+        // and Beta smear params: xz_scale=1, y_scale=1, xz_factor=80, y_factor=160, smear=8
+        let mut seed_random = RandomSource::new(seed, true);
+        // Build blend from the seeded low/high/selector directly via BlendedNoise::from_noises
+        let blend = BlendedNoise {
+            xz_scale: 1.0,
+            y_scale: 1.0,
+            xz_factor: 80.0,
+            y_factor: 160.0,
+            smear_scale_multiplier: 8.0,
+            xz_multiplier: 684.412,
+            y_multiplier: 684.412,
+            max_value: low.edge_value(684.412 + 2.0),
+            limit_smear: 684.412 * 8.0,
+            main_smear: 684.412 * 8.0 / 160.0,
+            final_divisor: 1.0,
+            lower_interpolated_noise: low,
+            upper_interpolated_noise: high,
+            interpolated_noise: selector,
+        };
+        let height = self.builder_options.vertical_cell_count as i32
+            * self.builder_options.vertical_cell_block_count as i32;
+        self.register_component(
+            ProtoDensityFunction::BetaTerrainNoise {
+                scale: scale.clone(),
+                depth: depth.clone(),
+            },
+            DensityFunctionComponent::Dependent(DependentDensityFunction::BetaTerrain(
+                BetaTerrainDensity {
+                    blend,
+                    scale_index,
+                    depth_index,
+                    height,
+                },
+            )),
+        );
+    }
 }
 
 impl<'a> FunctionStackBuilder<'a> {
@@ -6617,6 +6820,88 @@ mod tests {
             "disabling divisor should yield 128x output, got ratio {}",
             ratio
         );
+    }
+
+    #[test]
+    fn beta_scale_depth_2d_finite() {
+        use super::{BetaDepth2d, BetaScale2d, DensityFunctionComponent, IndependentDensityFunction};
+        let (_, _, _, scale_noise, depth_noise) = seed_beta_terrain(12345);
+        let scale_node = BetaScale2d { scale_noise };
+        let depth_node = BetaDepth2d { depth_noise };
+
+        let pos_a = bevy_math::IVec3::new(0, 0, 0);
+        let pos_y_ignored = bevy_math::IVec3::new(0, 100, 0);
+        let pos_b = bevy_math::IVec3::new(64, 0, 64);
+
+        let sv_a = scale_node.sample(&[], pos_a);
+        let sv_y = scale_node.sample(&[], pos_y_ignored);
+        let dv_a = depth_node.sample(&[], pos_a);
+        let dv_y = depth_node.sample(&[], pos_y_ignored);
+
+        assert!(sv_a.is_finite(), "scale at origin must be finite");
+        assert!(dv_a.is_finite(), "depth at origin must be finite");
+        assert!(scale_node.sample(&[], pos_b).is_finite(), "scale at (64,0,64) must be finite");
+        assert!(depth_node.sample(&[], pos_b).is_finite(), "depth at (64,0,64) must be finite");
+        assert_eq!(sv_a, sv_y, "BetaScale2d must ignore pos.y");
+        assert_eq!(dv_a, dv_y, "BetaDepth2d must ignore pos.y");
+    }
+
+    #[test]
+    fn beta_blended_noise_samples_finite() {
+        use super::{BetaDepth2d, BetaScale2d, BetaTerrainDensity, DensityFunctionComponent};
+        let (low, high, selector, scale_noise, depth_noise) = seed_beta_terrain(12345);
+        let scale_node = BetaScale2d { scale_noise };
+        let depth_node = BetaDepth2d { depth_noise };
+        let blend = BlendedNoise::new(
+            &mut mcrs_random::RandomSource::new(12345, true),
+            1.0, 1.0, 80.0, 160.0, 8.0, 1.0,
+        );
+        let beta_terrain = BetaTerrainDensity {
+            blend,
+            scale_index: 0,
+            depth_index: 1,
+            height: 128,
+        };
+
+        let stack: Vec<DensityFunctionComponent> = vec![
+            DensityFunctionComponent::Independent(super::IndependentDensityFunction::BetaScale2d(scale_node)),
+            DensityFunctionComponent::Independent(super::IndependentDensityFunction::BetaDepth2d(depth_node)),
+            DensityFunctionComponent::Dependent(super::DependentDensityFunction::BetaTerrain(beta_terrain)),
+        ];
+        // Sample from the top (BetaTerrain) component
+        let comp = stack.last().unwrap();
+
+        // Sample a column at multiple Y values to find a sign flip
+        let mut all_densities = vec![];
+        for y in (0..128).step_by(8) {
+            let v = comp.sample(&stack[..stack.len()-1], bevy_math::IVec3::new(0, y, 0));
+            assert!(v.is_finite(), "density at y={y} must be finite");
+            all_densities.push(v);
+        }
+
+        // Must have a sign flip somewhere in 0..128 (real terrain surface)
+        let has_positive = all_densities.iter().any(|&v| v > 0.0);
+        let has_negative = all_densities.iter().any(|&v| v < 0.0);
+        assert!(has_positive && has_negative, "beta terrain must have both positive and negative densities across 0..128 (surface exists), got: {:?}", all_densities);
+    }
+
+    #[test]
+    fn beta_build_functions_wires_final_density() {
+        use std::collections::BTreeMap;
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/minecraft/worldgen/noise_settings/beta.json"
+        );
+        let json = std::fs::read_to_string(path).expect("beta.json should exist");
+        let settings: NoiseGeneratorSettings =
+            serde_json::from_str(&json).expect("beta.json should deserialize");
+        let functions = BTreeMap::new();
+        let noises = BTreeMap::new();
+        let router = super::build_functions(&functions, &noises, &settings, 12345);
+        // Zone A must contain the two FlatCache'd 2D nodes (scale/depth).
+        assert!(router.column_boundary() > 0, "Zone A must be non-empty (FlatCache 2D scale/depth nodes)");
+        // final_density must be wired into Zone B.
+        assert!(router.final_density_idx() >= router.column_boundary(), "final_density must be in Zone B");
     }
 
     #[test]
