@@ -45,7 +45,6 @@ use mcrs_core::tag::file::TagFile;
 use mcrs_core::tag::key::TaggedRegistry;
 use mcrs_core::{AppState, ResourceLocation, StaticRegistry, TagRegistry};
 use crate::dimension::dimension_type::DimensionType;
-use crate::worldgen::world_preset::ActiveWorldPreset;
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -76,9 +75,6 @@ impl Plugin for MinecraftCorePlugin {
         app.init_asset::<biome::Biome>();
         app.register_asset_loader(biome::BiomeLoader);
         app.init_asset::<worldgen::structure_set::StructureSet>();
-        app.init_asset::<dimension::level_stem::DimensionDefinition>();
-        app.init_asset::<worldgen::world_preset::WorldPreset>();
-        app.register_asset_loader(worldgen::world_preset::WorldPresetLoader);
         app.init_asset::<variant::WolfVariant>();
         app.register_asset_loader(variant::WolfVariantLoader);
         app.init_asset::<variant::WolfSoundVariant>();
@@ -180,7 +176,6 @@ impl Plugin for MinecraftCorePlugin {
                     request_item_tags,
                     request_enchantment_tags,
                     request_entity_type_tags,
-                    request_world_preset,
                     request_data_pack_assets,
                 ),
             )
@@ -307,22 +302,6 @@ fn request_enchantment_tags(
     tracing::info!(count = enchantment_tags::ALL_ENCHANTMENT_TAGS.len(), "requested enchantment tag files");
 }
 
-fn request_world_preset(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    config: Option<Res<mcrs_minecraft_worldgen::bevy::WorldGenConfig>>,
-) {
-    let path = config
-        .as_ref()
-        .map(|c| c.preset_asset_path())
-        .unwrap_or_else(|| {
-            mcrs_minecraft_worldgen::bevy::WorldGenConfig::default().preset_asset_path()
-        });
-    tracing::info!("requested world preset: {}", path);
-    let handle = asset_server.load::<worldgen::world_preset::WorldPreset>(path);
-    commands.insert_resource(ActiveWorldPreset { handle });
-}
-
 // File listings baked from `assets/` at build time. Used as the fallback
 // manifest when the active `AssetSource` cannot enumerate directories
 // (HTTP/WASM, embedded packs without an index, etc.).
@@ -433,32 +412,17 @@ fn check_tags_ready(
     item_tags: Res<TagRegistry<item::Item>>,
     enchantment_tags: Res<TagRegistry<EnchantmentData>>,
     entity_type_tags: Res<TagRegistry<entity::EntityType>>,
-    world_preset: Res<ActiveWorldPreset>,
     registry_assets: Res<LoadedRegistryAssets>,
     asset_server: Res<AssetServer>,
     mut next: ResMut<NextState<AppState>>,
 ) {
-    let preset_state = asset_server.load_state(world_preset.handle.id());
-    let preset_dep_state =
-        asset_server.recursive_dependency_load_state(world_preset.handle.id());
-    let preset_settled = matches!(
-        preset_state,
-        bevy_asset::LoadState::Loaded | bevy_asset::LoadState::Failed(_)
-    ) && matches!(
-        preset_dep_state,
-        bevy_asset::RecursiveDependencyLoadState::Loaded
-            | bevy_asset::RecursiveDependencyLoadState::Failed(_)
-    );
     if block_tags.all_handles_settled(&asset_server)
         && item_tags.all_handles_settled(&asset_server)
         && enchantment_tags.all_handles_settled(&asset_server)
         && entity_type_tags.all_handles_settled(&asset_server)
-        && preset_settled
         && registry_assets.all_handles_settled(&asset_server)
     {
-        tracing::info!(
-            "all tag files, world preset, and registry assets settled — entering WorldgenFreeze"
-        );
+        tracing::info!("all tag files and registry assets settled — entering WorldgenFreeze");
         next.set(AppState::WorldgenFreeze);
     }
 }
