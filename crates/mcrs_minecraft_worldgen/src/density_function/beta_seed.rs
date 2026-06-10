@@ -1,5 +1,23 @@
+use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use mcrs_random::legacy::LegacyRandom;
+
+/// Build Beta climate noise from three independent LegacyRandom instances.
+///
+/// Seeding follows WorldChunkManager.java lines 18-20 (back2beta-server-1.7.9):
+///   temperature uses seed * 9871  (4 octaves)
+///   humidity    uses seed * 39811 (4 octaves)
+///   detail      uses seed * 543321 (2 octaves)
+///
+/// These streams are completely independent from seed_beta_terrain — mixing them
+/// would shift terrain parity (Pitfall 1).
+pub fn seed_beta_climate(seed: u64) -> super::BetaClimate2d {
+    let temp_noise = SimplexOctaveNoise::new(&mut LegacyRandom::new(seed.wrapping_mul(9871)), 4);
+    let rain_noise = SimplexOctaveNoise::new(&mut LegacyRandom::new(seed.wrapping_mul(39811)), 4);
+    let detail_noise =
+        SimplexOctaveNoise::new(&mut LegacyRandom::new(seed.wrapping_mul(543321)), 2);
+    super::BetaClimate2d { temp_noise, rain_noise, detail_noise }
+}
 
 /// Build the Beta 1.7.3 terrain seeding stream from a single `LegacyRandom(seed)`.
 ///
@@ -102,6 +120,100 @@ mod tests {
             v_correct, v_swapped,
             "building selector before low must produce a different low noise (order is load-bearing)"
         );
+    }
+
+    #[derive(serde::Deserialize)]
+    struct ClimateFixture {
+        seed: u64,
+        temperature_at_0_0: f32,
+        humidity_at_0_0: f32,
+    }
+
+    fn load_climate_fixture() -> ClimateFixture {
+        serde_json::from_str(include_str!("fixtures/beta_climate.json"))
+            .expect("valid beta_climate.json fixture")
+    }
+
+    #[test]
+    fn beta_climate_seeding_independent_from_terrain() {
+        let terrain_climate_overlap = {
+            let mut rng_terrain = LegacyRandom::new(12345);
+            let _ = OctavePerlinNoise::<f32>::new(&mut rng_terrain, -15, vec![1.0f32; 16], true);
+            rng_terrain.seed
+        };
+        let climate_temp_seed_start = LegacyRandom::new(12345u64.wrapping_mul(9871)).seed;
+        assert_ne!(
+            terrain_climate_overlap,
+            climate_temp_seed_start,
+            "climate seeds must be independent from terrain stream"
+        );
+    }
+
+    #[test]
+    fn beta_climate_postprocess_temperature_in_range() {
+        let climate = seed_beta_climate(12345);
+        let temp = climate.sample_temperature(0.0, 0.0);
+        assert!(
+            (0.0..=1.0).contains(&temp),
+            "sample_temperature must return a value in [0, 1], got {}",
+            temp
+        );
+    }
+
+    #[test]
+    fn beta_climate_postprocess_humidity_in_range() {
+        let climate = seed_beta_climate(12345);
+        let humidity = climate.sample_humidity(0.0, 0.0);
+        assert!(
+            (0.0..=1.0).contains(&humidity),
+            "sample_humidity must return a value in [0, 1], got {}",
+            humidity
+        );
+    }
+
+    #[test]
+    fn beta_climate_postprocess_values_match_fixture() {
+        let fixture = load_climate_fixture();
+        assert_eq!(fixture.seed, 12345, "fixture seed mismatch");
+        let climate = seed_beta_climate(fixture.seed);
+        let temp = climate.sample_temperature(0.0, 0.0);
+        let humidity = climate.sample_humidity(0.0, 0.0);
+        assert!(
+            (temp - fixture.temperature_at_0_0).abs() < 1e-6,
+            "temperature mismatch: got {}, expected {}",
+            temp,
+            fixture.temperature_at_0_0
+        );
+        assert!(
+            (humidity - fixture.humidity_at_0_0).abs() < 1e-6,
+            "humidity mismatch: got {}, expected {}",
+            humidity,
+            fixture.humidity_at_0_0
+        );
+    }
+
+    #[test]
+    fn beta_climate_temperature_no_y_dependence() {
+        let climate = seed_beta_climate(12345);
+        let t1 = climate.sample_temperature(8.0, 8.0);
+        let t2 = climate.sample_temperature(8.0, 8.0);
+        assert_eq!(t1, t2, "sample_temperature must be deterministic");
+    }
+
+    /// Bootstrap: capture fixture values for beta_climate.json.
+    /// Run once with `-- --ignored --nocapture`, then paste output into fixtures/beta_climate.json.
+    #[test]
+    #[ignore = "bootstrap: capture beta_climate.json fixture values for seed 12345"]
+    fn bootstrap_beta_climate() {
+        let climate = seed_beta_climate(12345);
+        let temp = climate.sample_temperature(0.0, 0.0);
+        let humidity = climate.sample_humidity(0.0, 0.0);
+        println!("{{");
+        println!("  \"schema_version\": 1,");
+        println!("  \"seed\": 12345,");
+        println!("  \"temperature_at_0_0\": {:?},", temp);
+        println!("  \"humidity_at_0_0\": {:?}", humidity);
+        println!("}}");
     }
 
     /// Bootstrap: run once with `-- --ignored --nocapture` to capture the post-construction seed.

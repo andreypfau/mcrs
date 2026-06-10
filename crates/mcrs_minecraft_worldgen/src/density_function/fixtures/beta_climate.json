@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "seed": 12345,
+  "description": "Post-processing formula output for BetaClimate2d at position (0,0) with seed 12345. Captured via bootstrap_beta_climate test.",
+  "temperature_at_0_0": 0.9717574,
+  "humidity_at_0_0": 0.0
+}

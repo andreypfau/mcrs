@@ -42,11 +42,17 @@
     "lava": 0.0,
     "preliminary_surface_level": 0.0,
     "ridges": 0.0,
-    "temperature": 0.0,
+    "temperature": {
+      "type": "minecraft:flat_cache",
+      "argument": { "type": "mcrs:beta_temperature_2d" }
+    },
     "vein_gap": 0.0,
     "vein_ridged": 0.0,
     "vein_toggle": 0.0,
-    "vegetation": 0.0
+    "vegetation": {
+      "type": "minecraft:flat_cache",
+      "argument": { "type": "mcrs:beta_humidity_2d" }
+    }
   },
   "ore_veins_enabled": false,
   "sea_level": 64,

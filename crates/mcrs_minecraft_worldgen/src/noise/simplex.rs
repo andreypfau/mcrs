@@ -4,6 +4,7 @@ use mcrs_random::Random;
 /// Simplex noise shared by Beta worldgen (`NoiseGenerator2`) and modern vanilla
 /// (`SimplexNoise`). The generator is parameterized over the RNG, so the same struct
 /// serves the legacy (`LegacyRandom`) and modern (`Xoroshiro`) initialization paths.
+#[derive(Clone, PartialEq, Debug)]
 pub struct SimplexNoise {
     permutation: [u8; 256],
     pub origin_x: f64,

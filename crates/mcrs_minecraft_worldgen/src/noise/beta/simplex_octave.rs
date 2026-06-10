@@ -1,6 +1,7 @@
 use crate::noise::simplex::SimplexNoise;
 use mcrs_random::Random;
 
+#[derive(Clone, PartialEq, Debug)]
 pub struct SimplexOctaveNoise {
     noises: Vec<SimplexNoise>,
     noise_scale: f64,

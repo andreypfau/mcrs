@@ -2,6 +2,7 @@ use crate::density_function::proto::{
     DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction, RarityValueMapper,
     SingleArgumentFunction, SplineHolder, TwoArgumentFunction, Visitor,
 };
+use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
 use crate::noise::normal_noise::NoiseSampler;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::proto::NoiseGeneratorSettings;
@@ -1493,6 +1494,18 @@ pub fn build_functions(
 
     optimize_stack(&mut builder.stack, &mut roots);
 
+    // Wire climate indices into BetaScale2d nodes now that all roots are resolved.
+    let temp_idx = roots[4]; // temperature_index
+    let veg_idx = roots[5];  // vegetation_index
+    for entry in builder.stack.iter_mut() {
+        if let DensityFunctionComponent::Independent(IndependentDensityFunction::BetaScale2d(s)) =
+            entry
+        {
+            s.temperature_index = temp_idx;
+            s.vegetation_index = veg_idx;
+        }
+    }
+
     let mut per_block = compute_per_block(&builder.stack, &roots);
 
     // Build node labels: start with type labels, then overlay reference names
@@ -1782,7 +1795,11 @@ impl NoiseRouter {
                     | IndependentDensityFunction::Shift(_) => shift += 1,
                     IndependentDensityFunction::ClampedYGradient(_) => clamped_y += 1,
                     IndependentDensityFunction::EndIslands => {}
-                    IndependentDensityFunction::BetaScale2d(_) | IndependentDensityFunction::BetaDepth2d(_) => {}
+                    IndependentDensityFunction::BetaScale2d(_)
+                    | IndependentDensityFunction::BetaDepth2d(_)
+                    | IndependentDensityFunction::BetaClimate2d(_)
+                    | IndependentDensityFunction::BetaTemperature2d(_)
+                    | IndependentDensityFunction::BetaHumidity2d(_) => {}
                 },
                 DensityFunctionComponent::Wrapper(_) => {}
                 DensityFunctionComponent::Dependent(f) => match f {
@@ -2105,6 +2122,25 @@ impl NoiseRouter {
                     .copy_from_slice(&cache.scratch[..zone_a_count]);
             }
         }
+    }
+
+    /// Read post-processed (temperature, humidity) for a column position from Zone A cache.
+    ///
+    /// Returns (0.0, 0.0) when climate nodes are not wired into the router (e.g., modern path).
+    pub fn sample_climate_at(&self, cache: &ColumnCache, block_x: i32, block_z: i32) -> (f32, f32) {
+        let base_x = cache.base_block_x;
+        let base_z = cache.base_block_z;
+        let local_x = block_x - base_x;
+        let local_z = block_z - base_z;
+        if local_x < 0 || local_z < 0
+            || local_x >= ColumnCache::GRID_SIDE
+            || local_z >= ColumnCache::GRID_SIDE
+        {
+            return (0.0, 0.0);
+        }
+        let temperature = cache.read_za_value(local_x, local_z, self.temperature_index);
+        let humidity = cache.read_za_value(local_x, local_z, self.vegetation_index);
+        (temperature, humidity)
     }
 
     /// Evaluate final_density using a pre-populated column cache.
@@ -3669,6 +3705,10 @@ impl DensityFunction for BlendedNoise {
 #[derive(Clone, PartialEq, Debug)]
 struct BetaScale2d {
     scale_noise: OctavePerlinNoise<f32>,
+    /// Stack index of the BetaTemperature2d (or flat_cache wrapper) for d4 factor.
+    temperature_index: usize,
+    /// Stack index of the BetaHumidity2d (or flat_cache wrapper) for d4 factor.
+    vegetation_index: usize,
 }
 
 impl RangeFunction for BetaScale2d {
@@ -3677,12 +3717,25 @@ impl RangeFunction for BetaScale2d {
 }
 
 impl DensityFunction for BetaScale2d {
-    fn sample(&self, _stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         let noise_x = (pos.x >> 2) as f32;
         let noise_z = (pos.z >> 2) as f32;
         let raw = self.scale_noise.sample_xz(noise_x, noise_z, 1.121, 1.121);
-        let scale = (raw + 256.0) / 512.0;
-        scale.clamp(0.0, 1.0).max(0.0) + 0.5
+
+        let temp = stack[self.temperature_index].sample(stack, pos);
+        let rain = stack[self.vegetation_index].sample(stack, pos);
+
+        // d4 = 1 - (1 - rain*temp)^4  (ChunkProviderGenerate.java:229-234)
+        let d3 = rain * temp;
+        let mut d4 = 1.0 - d3;
+        d4 *= d4;
+        d4 *= d4;
+        d4 = 1.0 - d4;
+
+        let mut d5 = (raw + 256.0) / 512.0;
+        d5 *= d4;
+        d5 = d5.clamp(0.0, 1.0);
+        d5 + 0.5
     }
 }
 
@@ -3713,6 +3766,97 @@ impl DensityFunction for BetaDepth2d {
         }
         // depth_val = 8.5 + depth * 4.25 (half of 8.5)
         8.5 + depth * 8.5 / 2.0
+    }
+}
+
+/// Shared Beta climate noise state: three independent SimplexOctaveNoise samplers.
+///
+/// Seeded from three independent LegacyRandom streams (seed * 9871, 39811, 543321),
+/// NOT from the sequential seed_beta_terrain stream (WorldChunkManager.java pattern).
+#[derive(Clone, PartialEq, Debug)]
+pub struct BetaClimate2d {
+    pub(crate) temp_noise: SimplexOctaveNoise,
+    pub(crate) rain_noise: SimplexOctaveNoise,
+    pub(crate) detail_noise: SimplexOctaveNoise,
+}
+
+impl BetaClimate2d {
+    pub fn sample_temperature(&self, x: f64, z: f64) -> f32 {
+        let detail_raw = self.detail_noise.sample(x, z, 0.25, 0.25, 2.0, 0.5);
+        let detail = detail_raw * 1.1 + 0.5;
+        let temp_raw = self.temp_noise.sample(x, z, 0.025, 0.025, 2.0, 0.5);
+        let mut t = (temp_raw as f32 * 0.15 + 0.7) * 0.99 + detail as f32 * 0.01;
+        t = 1.0 - (1.0 - t) * (1.0 - t);
+        t.clamp(0.0, 1.0)
+    }
+
+    pub fn sample_humidity(&self, x: f64, z: f64) -> f32 {
+        let detail_raw = self.detail_noise.sample(x, z, 0.25, 0.25, 2.0, 0.5);
+        let detail = detail_raw * 1.1 + 0.5;
+        let rain_raw = self.rain_noise.sample(x, z, 0.05, 0.05, 2.0, 0.5);
+        let h = (rain_raw as f32 * 0.15 + 0.5) * 0.998 + detail as f32 * 0.002;
+        h.clamp(0.0, 1.0)
+    }
+}
+
+impl RangeFunction for BetaClimate2d {
+    fn min_value(&self) -> f32 { 0.0 }
+    fn max_value(&self) -> f32 { 1.0 }
+}
+
+impl DensityFunction for BetaClimate2d {
+    fn sample(&self, _stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        let x = (pos.x >> 2) as f64;
+        let z = (pos.z >> 2) as f64;
+        self.sample_temperature(x, z)
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+struct BetaTemperature2d {
+    climate_index: usize,
+}
+
+impl RangeFunction for BetaTemperature2d {
+    fn min_value(&self) -> f32 { 0.0 }
+    fn max_value(&self) -> f32 { 1.0 }
+}
+
+impl DensityFunction for BetaTemperature2d {
+    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        let x = (pos.x >> 2) as f64;
+        let z = (pos.z >> 2) as f64;
+        if let DensityFunctionComponent::Independent(IndependentDensityFunction::BetaClimate2d(c)) =
+            &stack[self.climate_index]
+        {
+            c.sample_temperature(x, z)
+        } else {
+            0.0
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+struct BetaHumidity2d {
+    climate_index: usize,
+}
+
+impl RangeFunction for BetaHumidity2d {
+    fn min_value(&self) -> f32 { 0.0 }
+    fn max_value(&self) -> f32 { 1.0 }
+}
+
+impl DensityFunction for BetaHumidity2d {
+    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        let x = (pos.x >> 2) as f64;
+        let z = (pos.z >> 2) as f64;
+        if let DensityFunctionComponent::Independent(IndependentDensityFunction::BetaClimate2d(c)) =
+            &stack[self.climate_index]
+        {
+            c.sample_humidity(x, z)
+        } else {
+            0.0
+        }
     }
 }
 
@@ -4205,6 +4349,9 @@ enum IndependentDensityFunction {
     EndIslands,
     BetaScale2d(BetaScale2d),
     BetaDepth2d(BetaDepth2d),
+    BetaClimate2d(BetaClimate2d),
+    BetaTemperature2d(BetaTemperature2d),
+    BetaHumidity2d(BetaHumidity2d),
 }
 
 impl RangeFunction for IndependentDensityFunction {
@@ -4220,6 +4367,9 @@ impl RangeFunction for IndependentDensityFunction {
             IndependentDensityFunction::EndIslands => -0.84375,
             IndependentDensityFunction::BetaScale2d(x) => x.min_value(),
             IndependentDensityFunction::BetaDepth2d(x) => x.min_value(),
+            IndependentDensityFunction::BetaClimate2d(x) => x.min_value(),
+            IndependentDensityFunction::BetaTemperature2d(x) => x.min_value(),
+            IndependentDensityFunction::BetaHumidity2d(x) => x.min_value(),
         }
     }
 
@@ -4235,6 +4385,9 @@ impl RangeFunction for IndependentDensityFunction {
             IndependentDensityFunction::EndIslands => 0.5625,
             IndependentDensityFunction::BetaScale2d(x) => x.max_value(),
             IndependentDensityFunction::BetaDepth2d(x) => x.max_value(),
+            IndependentDensityFunction::BetaClimate2d(x) => x.max_value(),
+            IndependentDensityFunction::BetaTemperature2d(x) => x.max_value(),
+            IndependentDensityFunction::BetaHumidity2d(x) => x.max_value(),
         }
     }
 }
@@ -4255,6 +4408,9 @@ impl DensityFunction for IndependentDensityFunction {
             }
             IndependentDensityFunction::BetaScale2d(x) => x.sample(stack, pos),
             IndependentDensityFunction::BetaDepth2d(x) => x.sample(stack, pos),
+            IndependentDensityFunction::BetaClimate2d(x) => x.sample(stack, pos),
+            IndependentDensityFunction::BetaTemperature2d(x) => x.sample(stack, pos),
+            IndependentDensityFunction::BetaHumidity2d(x) => x.sample(stack, pos),
         }
     }
 }
@@ -5532,6 +5688,9 @@ impl DensityFunctionComponent {
                 IndependentDensityFunction::EndIslands => "end_islands".into(),
                 IndependentDensityFunction::BetaScale2d(_) => "beta_scale_2d".into(),
                 IndependentDensityFunction::BetaDepth2d(_) => "beta_depth_2d".into(),
+                IndependentDensityFunction::BetaClimate2d(_) => "beta_climate_2d".into(),
+                IndependentDensityFunction::BetaTemperature2d(_) => "beta_temperature_2d".into(),
+                IndependentDensityFunction::BetaHumidity2d(_) => "beta_humidity_2d".into(),
             },
             DensityFunctionComponent::Dependent(f) => match f {
                 DependentDensityFunction::Linear(l) => match l.operation {
@@ -5651,7 +5810,19 @@ impl Spline {
 impl DensityFunctionComponent {
     fn rewrite_indices(&mut self, redirect: &[usize]) {
         match self {
-            DensityFunctionComponent::Independent(_) => {}
+            DensityFunctionComponent::Independent(ind) => match ind {
+                IndependentDensityFunction::BetaScale2d(x) => {
+                    x.temperature_index = redirect[x.temperature_index];
+                    x.vegetation_index = redirect[x.vegetation_index];
+                }
+                IndependentDensityFunction::BetaTemperature2d(x) => {
+                    x.climate_index = redirect[x.climate_index];
+                }
+                IndependentDensityFunction::BetaHumidity2d(x) => {
+                    x.climate_index = redirect[x.climate_index];
+                }
+                _ => {}
+            },
             DensityFunctionComponent::Dependent(dep) => match dep {
                 DependentDensityFunction::Linear(x) => {
                     x.input_index = redirect[x.input_index];
@@ -5730,7 +5901,15 @@ impl DensityFunctionComponent {
 
     fn visit_input_indices(&self, f: &mut impl FnMut(usize)) {
         match self {
-            DensityFunctionComponent::Independent(_) => {}
+            DensityFunctionComponent::Independent(ind) => match ind {
+                IndependentDensityFunction::BetaScale2d(x) => {
+                    f(x.temperature_index);
+                    f(x.vegetation_index);
+                }
+                IndependentDensityFunction::BetaTemperature2d(x) => f(x.climate_index),
+                IndependentDensityFunction::BetaHumidity2d(x) => f(x.climate_index),
+                _ => {}
+            },
             DensityFunctionComponent::Dependent(dep) => match dep {
                 DependentDensityFunction::Linear(x) => f(x.input_index),
                 DependentDensityFunction::Affine(x) => f(x.input_index),
@@ -5813,8 +5992,26 @@ impl DensityFunctionComponent {
                 IndependentDensityFunction::Shift(x) => x.sample(&[], pos),
                 IndependentDensityFunction::ClampedYGradient(x) => x.sample(&[], pos),
                 IndependentDensityFunction::EndIslands => 0.0,
-                IndependentDensityFunction::BetaScale2d(x) => x.sample(&[], pos),
+                IndependentDensityFunction::BetaScale2d(x) => {
+                    let noise_x = (pos.x >> 2) as f32;
+                    let noise_z = (pos.z >> 2) as f32;
+                    let raw = x.scale_noise.sample_xz(noise_x, noise_z, 1.121, 1.121);
+                    let temp = cache[x.temperature_index];
+                    let rain = cache[x.vegetation_index];
+                    let d3 = rain * temp;
+                    let mut d4 = 1.0 - d3;
+                    d4 *= d4;
+                    d4 *= d4;
+                    d4 = 1.0 - d4;
+                    let mut d5 = (raw + 256.0) / 512.0;
+                    d5 *= d4;
+                    d5 = d5.clamp(0.0, 1.0);
+                    d5 + 0.5
+                }
                 IndependentDensityFunction::BetaDepth2d(x) => x.sample(&[], pos),
+                IndependentDensityFunction::BetaClimate2d(x) => x.sample(&[], pos),
+                IndependentDensityFunction::BetaTemperature2d(x) => x.sample(stack, pos),
+                IndependentDensityFunction::BetaHumidity2d(x) => x.sample(stack, pos),
             },
             DensityFunctionComponent::Dependent(f) => match f {
                 DependentDensityFunction::Linear(x) => {
@@ -6529,10 +6726,12 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     fn visit_beta_scale_2d(&mut self) {
         let seed = if let RandomSource::Legacy(r) = &self.random { r.seed } else { 0 };
         let (_, _, _, scale_noise, _) = beta_seed::seed_beta_terrain(seed);
+        // temperature_index and vegetation_index are wired in a post-processing pass
+        // inside build_functions after all roots are resolved (indices not yet known here).
         self.register_component(
             ProtoDensityFunction::BetaScale2d,
             DensityFunctionComponent::Independent(IndependentDensityFunction::BetaScale2d(
-                BetaScale2d { scale_noise },
+                BetaScale2d { scale_noise, temperature_index: 0, vegetation_index: 0 },
             )),
         );
     }
@@ -6544,6 +6743,40 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             ProtoDensityFunction::BetaDepth2d,
             DensityFunctionComponent::Independent(IndependentDensityFunction::BetaDepth2d(
                 BetaDepth2d { depth_noise },
+            )),
+        );
+    }
+
+    fn visit_beta_temperature_2d(&mut self) {
+        let seed = if let RandomSource::Legacy(r) = &self.random { r.seed } else { 0 };
+        let climate = beta_seed::seed_beta_climate(seed);
+        let climate_index = self.register_component(
+            ProtoDensityFunction::BetaClimate2d,
+            DensityFunctionComponent::Independent(IndependentDensityFunction::BetaClimate2d(
+                climate,
+            )),
+        );
+        self.register_component(
+            ProtoDensityFunction::BetaTemperature2d,
+            DensityFunctionComponent::Independent(IndependentDensityFunction::BetaTemperature2d(
+                BetaTemperature2d { climate_index },
+            )),
+        );
+    }
+
+    fn visit_beta_humidity_2d(&mut self) {
+        let seed = if let RandomSource::Legacy(r) = &self.random { r.seed } else { 0 };
+        let climate = beta_seed::seed_beta_climate(seed);
+        let climate_index = self.register_component(
+            ProtoDensityFunction::BetaClimate2d,
+            DensityFunctionComponent::Independent(IndependentDensityFunction::BetaClimate2d(
+                climate,
+            )),
+        );
+        self.register_component(
+            ProtoDensityFunction::BetaHumidity2d,
+            DensityFunctionComponent::Independent(IndependentDensityFunction::BetaHumidity2d(
+                BetaHumidity2d { climate_index },
             )),
         );
     }
@@ -6862,31 +7095,64 @@ mod tests {
     fn beta_scale_depth_2d_finite() {
         use super::{BetaDepth2d, BetaScale2d, DensityFunctionComponent, IndependentDensityFunction};
         let (_, _, _, scale_noise, depth_noise) = seed_beta_terrain(12345);
-        let scale_node = BetaScale2d { scale_noise };
+        // Constant(1.0) placeholders at indices 0/1 so climate reads are valid.
+        let climate_stack: Vec<DensityFunctionComponent> = vec![
+            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(1.0)),
+            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(1.0)),
+        ];
+        let scale_node = BetaScale2d { scale_noise, temperature_index: 0, vegetation_index: 1 };
         let depth_node = BetaDepth2d { depth_noise };
 
         let pos_a = bevy_math::IVec3::new(0, 0, 0);
         let pos_y_ignored = bevy_math::IVec3::new(0, 100, 0);
         let pos_b = bevy_math::IVec3::new(64, 0, 64);
 
-        let sv_a = scale_node.sample(&[], pos_a);
-        let sv_y = scale_node.sample(&[], pos_y_ignored);
+        let sv_a = scale_node.sample(&climate_stack, pos_a);
+        let sv_y = scale_node.sample(&climate_stack, pos_y_ignored);
         let dv_a = depth_node.sample(&[], pos_a);
         let dv_y = depth_node.sample(&[], pos_y_ignored);
 
         assert!(sv_a.is_finite(), "scale at origin must be finite");
         assert!(dv_a.is_finite(), "depth at origin must be finite");
-        assert!(scale_node.sample(&[], pos_b).is_finite(), "scale at (64,0,64) must be finite");
+        assert!(scale_node.sample(&climate_stack, pos_b).is_finite(), "scale at (64,0,64) must be finite");
         assert!(depth_node.sample(&[], pos_b).is_finite(), "depth at (64,0,64) must be finite");
         assert_eq!(sv_a, sv_y, "BetaScale2d must ignore pos.y");
         assert_eq!(dv_a, dv_y, "BetaDepth2d must ignore pos.y");
     }
 
     #[test]
+    fn beta_scale_2d_climate_factor() {
+        use super::{BetaScale2d, DensityFunctionComponent, IndependentDensityFunction};
+        let (_, _, _, scale_noise_a, _) = seed_beta_terrain(12345);
+        let (_, _, _, scale_noise_b, _) = seed_beta_terrain(12345);
+
+        // cold+dry (temp=0, rain=0): d3=0, d4=1, d4^4=1, d4=1-1=0 → d5=0+0.5=0.5 always
+        let climate_cold = vec![
+            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(0.0)),
+            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(0.0)),
+        ];
+        let node_cold = BetaScale2d { scale_noise: scale_noise_a, temperature_index: 0, vegetation_index: 1 };
+        let v_cold = node_cold.sample(&climate_cold, bevy_math::IVec3::new(0, 64, 0));
+        assert!((v_cold - 0.5).abs() < 1e-4, "cold+dry gives d4=0 → scale is always 0.5, got {v_cold}");
+
+        // hot+wet (temp=1, rain=1): d3=1, d4=0, d4^4=0, d4=1 → noise passes through fully
+        let climate_hot = vec![
+            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(1.0)),
+            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(1.0)),
+        ];
+        let node_hot = BetaScale2d { scale_noise: scale_noise_b, temperature_index: 0, vegetation_index: 1 };
+        let v_hot = node_hot.sample(&climate_hot, bevy_math::IVec3::new(0, 64, 0));
+        assert!(v_hot.is_finite(), "hot+wet scale output must be finite, got {v_hot}");
+        // d4=1 so d5=(raw+256)/512 clamped; result is in [0.5, 1.5] (min=0+0.5, max=1+0.5)
+        assert!(v_hot >= 0.5 && v_hot <= 1.5, "hot+wet output must be in [0.5, 1.5], got {v_hot}");
+    }
+
+    #[test]
     fn beta_blended_noise_samples_finite() {
-        use super::{BetaDepth2d, BetaScale2d, BetaTerrainDensity, DensityFunctionComponent};
+        use super::{BetaDepth2d, BetaScale2d, BetaTerrainDensity, DensityFunctionComponent, IndependentDensityFunction};
         let (low, high, selector, scale_noise, depth_noise) = seed_beta_terrain(12345);
-        let scale_node = BetaScale2d { scale_noise };
+        // Climate placeholders at indices 0/1; scale at 2, depth at 3, terrain at 4.
+        let scale_node = BetaScale2d { scale_noise, temperature_index: 0, vegetation_index: 1 };
         let depth_node = BetaDepth2d { depth_noise };
         let blend = BlendedNoise::new(
             &mut mcrs_random::RandomSource::new(12345, true),
@@ -6894,12 +7160,14 @@ mod tests {
         );
         let beta_terrain = BetaTerrainDensity {
             blend,
-            scale_index: 0,
-            depth_index: 1,
+            scale_index: 2,
+            depth_index: 3,
             height: 128,
         };
 
         let stack: Vec<DensityFunctionComponent> = vec![
+            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(1.0)),
+            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(1.0)),
             DensityFunctionComponent::Independent(super::IndependentDensityFunction::BetaScale2d(scale_node)),
             DensityFunctionComponent::Independent(super::IndependentDensityFunction::BetaDepth2d(depth_node)),
             DensityFunctionComponent::Dependent(super::DependentDensityFunction::BetaTerrain(beta_terrain)),
