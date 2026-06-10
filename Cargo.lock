@@ -2191,6 +2191,7 @@ dependencies = [
  "futures-lite",
  "mcrs_core",
  "mcrs_engine",
+ "mcrs_minecraft_worldgen",
  "mcrs_nbt",
  "mcrs_protocol",
  "paste",

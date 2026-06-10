@@ -79,9 +79,14 @@ impl ProtoChunkGenerator {
 
 impl ProtoNoiseChunkGenerator {
     fn resolve(self, ctx: &mut LoadContext) -> NoiseChunkGenerator {
+        let settings_path = format!(
+            "{}/worldgen/noise_settings/{}.json",
+            self.settings.namespace(),
+            self.settings.path()
+        );
         NoiseChunkGenerator {
             biome_source: self.biome_source.resolve(ctx),
-            settings: NoiseGeneratorSettings::load(ctx, &self.settings),
+            settings: ctx.load(settings_path),
         }
     }
 }

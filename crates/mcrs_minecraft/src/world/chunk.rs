@@ -14,7 +14,7 @@ use mcrs_engine::world::chunk::{
     ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos, ChunkUnloading,
 };
 use mcrs_engine::world::lighting::LightTicket;
-use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsPlugin, OverworldNoiseRouter};
+use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsPlugin, OverworldNoiseRouter, WorldGenConfig};
 use mcrs_protocol::ColumnPos;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, HashMap};
@@ -37,6 +37,9 @@ pub struct ChunkPlugin;
 impl Plugin for ChunkPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(NoiseGeneratorSettingsPlugin);
+        if !app.world().contains_resource::<WorldGenConfig>() {
+            app.insert_resource(WorldGenConfig::from_env());
+        }
         CHUNK_TASK_POOL.get_or_init(|| {
             TaskPoolBuilder::new()
                 .thread_name("ChunkGen".to_string())

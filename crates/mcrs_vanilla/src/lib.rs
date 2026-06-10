@@ -75,8 +75,6 @@ impl Plugin for MinecraftCorePlugin {
         app.register_asset_loader(dimension::dimension_type::DimensionTypeLoader);
         app.init_asset::<biome::Biome>();
         app.register_asset_loader(biome::BiomeLoader);
-        app.init_asset::<worldgen::noise_settings::NoiseGeneratorSettings>();
-        app.register_asset_loader(worldgen::noise_settings::NoiseGeneratorSettingsLoader);
         app.init_asset::<worldgen::structure_set::StructureSet>();
         app.init_asset::<dimension::level_stem::DimensionDefinition>();
         app.init_asset::<worldgen::world_preset::WorldPreset>();
@@ -309,11 +307,17 @@ fn request_enchantment_tags(
     tracing::info!(count = enchantment_tags::ALL_ENCHANTMENT_TAGS.len(), "requested enchantment tag files");
 }
 
-fn request_world_preset(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let handle = asset_server.load::<worldgen::world_preset::WorldPreset>(
-        worldgen::world_preset::DEFAULT_WORLD_PRESET,
-    );
-    tracing::info!("requested world preset: {}", worldgen::world_preset::DEFAULT_WORLD_PRESET);
+fn request_world_preset(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    config: Option<Res<mcrs_minecraft_worldgen::bevy::WorldGenConfig>>,
+) {
+    let path = config
+        .as_ref()
+        .map(|c| c.preset_asset_path())
+        .unwrap_or_else(|| worldgen::world_preset::DEFAULT_WORLD_PRESET.to_owned());
+    tracing::info!("requested world preset: {}", path);
+    let handle = asset_server.load::<worldgen::world_preset::WorldPreset>(path);
     commands.insert_resource(ActiveWorldPreset { handle });
 }
 
