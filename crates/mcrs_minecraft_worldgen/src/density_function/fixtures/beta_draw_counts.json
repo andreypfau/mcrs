@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "seed": 845,
+  "description": "Post-construction LegacyRandom seed after the full 82-octave Beta terrain stream (16/16/8/4/4/10/16/8, no discards). Captured by stepping LegacyRandom(845) through seed_beta_terrain once.",
+  "post_construction_rng_seed": 110405857257932
+}

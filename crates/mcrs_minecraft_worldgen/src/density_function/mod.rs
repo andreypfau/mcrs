@@ -16,6 +16,7 @@ use std::mem::swap;
 use std::ops::Index;
 use tracing::info;
 
+pub mod beta_seed;
 pub mod proto;
 
 /// Maximum number of positions that can be batched in a single fill_plane call.
