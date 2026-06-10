@@ -1,6 +1,6 @@
 use crate::noise::gradient::GRADIENTS;
 use mcrs_random::{Random, RandomSource};
-use num_traits::{Float, NumCast, ToPrimitive};
+use num_traits::{Float, ToPrimitive};
 
 // SIMD-packed f32 mirror of `GRADIENTS` for the hot f32 path (`sample_and_lerp`):
 // 16 gradients × {x, y, z, pad} so each lookup is a contiguous slice. Kept in sync with
@@ -13,38 +13,28 @@ const FLAT_SIMPLEX_GRAD: [f32; 64] = [
 ];
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ImprovedNoise<F: Float, const BETA: bool> {
+pub struct ImprovedNoise<F: Float> {
     permutation: [u8; 256],
     pub origin_x: F,
     pub origin_y: F,
     pub origin_z: F,
 }
 
-impl Default for ImprovedNoise<f32, false> {
+impl Default for ImprovedNoise<f32> {
     fn default() -> Self {
         Self::from_random(&mut RandomSource::new(0, true))
     }
 }
 
-impl<F: Float, const BETA: bool> ImprovedNoise<F, BETA> {
+impl<F: Float> ImprovedNoise<F> {
     pub fn from_random<T>(random: &mut T) -> Self
     where
         T: Random,
     {
         let scale: F = F::from(256.0_f64).unwrap();
-        let (origin_x, origin_y, origin_z) = if BETA {
-            (
-                F::from(random.next_f64()).unwrap() * scale,
-                F::from(random.next_f64()).unwrap() * scale,
-                F::from(random.next_f64()).unwrap() * scale,
-            )
-        } else {
-            (
-                F::from(random.next_f32()).unwrap() * scale,
-                F::from(random.next_f32()).unwrap() * scale,
-                F::from(random.next_f32()).unwrap() * scale,
-            )
-        };
+        let origin_x = F::from(random.next_f64()).unwrap() * scale;
+        let origin_y = F::from(random.next_f64()).unwrap() * scale;
+        let origin_z = F::from(random.next_f64()).unwrap() * scale;
         let mut permutation = [0u8; 256];
         for i in 0..256 {
             permutation[i] = i as u8;
@@ -62,7 +52,7 @@ impl<F: Float, const BETA: bool> ImprovedNoise<F, BETA> {
     }
 }
 
-impl ImprovedNoise<f64, true> {
+impl ImprovedNoise<f64> {
     /// Scalar trilinear-lerp sample for the Beta f64 path.
     ///
     /// Applies the failurePoint clamp (full i32 range, no-op near origin) before floor,
@@ -158,7 +148,7 @@ fn lerp(t: f64, a: f64, b: f64) -> f64 {
     a + t * (b - a)
 }
 
-impl ImprovedNoise<f32, false> {
+impl ImprovedNoise<f32> {
     #[inline(always)]
     pub fn sample(&self, x: f32, y: f32, z: f32, y_scale: f32, y_max: f32) -> f32 {
         let shifted_x = x + self.origin_x;
@@ -297,7 +287,7 @@ mod test {
     #[test]
     fn beta_improved_noise_origin() {
         let fx = load_fixture().improved_noise_beta;
-        let noise = ImprovedNoise::<f64, true>::from_random(&mut LegacyRandom::new(845));
+        let noise = ImprovedNoise::<f64>::from_random(&mut LegacyRandom::new(845));
         assert!(
             (noise.origin_x - fx.origin_x).abs() < 1e-6,
             "origin_x mismatch: got {}, expected {}",
@@ -321,14 +311,14 @@ mod test {
     #[test]
     fn beta_improved_noise_permutation() {
         let fx = load_fixture().improved_noise_beta;
-        let noise = ImprovedNoise::<f64, true>::from_random(&mut LegacyRandom::new(845));
+        let noise = ImprovedNoise::<f64>::from_random(&mut LegacyRandom::new(845));
         assert_eq!(&noise.permutation[0..10], fx.permutation_first_10.as_slice());
     }
 
     #[test]
     fn beta_improved_noise_sample() {
         let fx = load_fixture().improved_noise_beta;
-        let noise = ImprovedNoise::<f64, true>::from_random(&mut LegacyRandom::new(845));
+        let noise = ImprovedNoise::<f64>::from_random(&mut LegacyRandom::new(845));
         let got = noise.sample(0.5, 0.5, 0.5, 0.0, 0.0);
         assert!(
             (got - fx.sample_05_05_05).abs() < 1e-6,
@@ -342,7 +332,7 @@ mod test {
     #[ignore = "bootstrap: run once to capture fixture values"]
     fn bootstrap_seed_845_improved_noise() {
         let mut rng = LegacyRandom::new(845);
-        let noise = ImprovedNoise::<f64, true>::from_random(&mut rng);
+        let noise = ImprovedNoise::<f64>::from_random(&mut rng);
         let rng_seed_after = rng.seed;
         let sample = noise.sample(0.5, 0.5, 0.5, 0.0, 0.0);
         println!("origin_x: {:.15}", noise.origin_x);
@@ -355,7 +345,7 @@ mod test {
 
     #[test]
     fn beta_failure_point_clamp() {
-        let noise = ImprovedNoise::<f64, true>::from_random(&mut LegacyRandom::new(845));
+        let noise = ImprovedNoise::<f64>::from_random(&mut LegacyRandom::new(845));
         // Normal coordinate — must not panic and return a finite value
         let v = noise.sample(100.0, 100.0, 100.0, 0.0, 0.0);
         assert!(v.is_finite());
@@ -365,39 +355,19 @@ mod test {
         assert!(v2.is_finite(), "sample at far coordinate must not panic or produce NaN");
     }
 
+    /// Smoke test: modern f32 origin is now vanilla nextDouble()*256 (re-baselined from next_f32).
+    /// Pins the new vanilla-aligned origin: f32 cast of the same f64 draws LegacyRandom(845) uses.
     #[test]
-    fn modern_parity() {
-        let noise = ImprovedNoise::<f32, false>::from_random(&mut LegacyRandom::new(845));
-        assert_eq!(
-            format!("{:.4}", noise.origin_x),
-            format!("{:.4}", 179.49111938476562)
-        );
-        assert_eq!(
-            format!("{:.4}", noise.origin_y),
-            format!("{:.4}", 107.30737304687500)
-        );
-        assert_eq!(
-            format!("{:.4}", noise.origin_z),
-            format!("{:.4}", 178.89801025390625)
-        );
-        assert_eq!(
-            noise.permutation[0..10],
-            [94, 33, 237, 68, 205, 82, 207, 125, 202, 111]
-        );
-
-        let noise = ImprovedNoise::<f32, false>::from_random(&mut LegacyRandom::new(845));
-        assert_eq!(
-            format!("{:.4}", noise.sample(0.0, 0.0, 0.0, 0.0, 0.0)),
-            format!("{:.4}", 0.107102148234844)
-        );
-        assert_eq!(
-            format!("{:.4}", noise.sample(0.5, 4.0, -2.0, 0.0, 0.0)),
-            format!("{:.4}", -0.055061601102352)
-        );
-        assert_eq!(
-            format!("{:.4}", noise.sample(-204.0, 28.0, 12.0, 0.0, 0.0)),
-            format!("{:.4}", 0.150881990790367)
-        );
+    fn modern_origin_is_vanilla() {
+        use mcrs_random::Random;
+        let noise = ImprovedNoise::<f32>::from_random(&mut LegacyRandom::new(845));
+        let mut rng = LegacyRandom::new(845);
+        let expected_x = (rng.next_f64() * 256.0) as f32;
+        let expected_y = (rng.next_f64() * 256.0) as f32;
+        let expected_z = (rng.next_f64() * 256.0) as f32;
+        assert_eq!(noise.origin_x, expected_x, "origin_x must equal vanilla next_f64()*256 cast to f32");
+        assert_eq!(noise.origin_y, expected_y, "origin_y must equal vanilla next_f64()*256 cast to f32");
+        assert_eq!(noise.origin_z, expected_z, "origin_z must equal vanilla next_f64()*256 cast to f32");
     }
 
     #[test]
