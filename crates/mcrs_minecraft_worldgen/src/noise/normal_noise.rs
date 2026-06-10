@@ -5,8 +5,8 @@ const INPUT_FACTOR: f32 = 1.0181268882175227;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct NoiseSampler {
-    first: OctavePerlinNoise<f32, false>,
-    second: OctavePerlinNoise<f32, false>,
+    first: OctavePerlinNoise<f32>,
+    second: OctavePerlinNoise<f32>,
     value_factor: f32,
     max_value: f32,
 }
@@ -17,9 +17,9 @@ impl NoiseSampler {
         R: Random,
     {
         let first =
-            OctavePerlinNoise::<f32, false>::new(random, first_octave, amplitudes.clone(), random.is_legacy());
+            OctavePerlinNoise::<f32>::new(random, first_octave, amplitudes.clone(), random.is_legacy());
         let second =
-            OctavePerlinNoise::<f32, false>::new(random, first_octave, amplitudes.clone(), random.is_legacy());
+            OctavePerlinNoise::<f32>::new(random, first_octave, amplitudes.clone(), random.is_legacy());
         let mut min = f32::INFINITY;
         let mut max = f32::NEG_INFINITY;
         for (i, value) in amplitudes.iter().enumerate() {
