@@ -380,6 +380,7 @@ fn request_data_pack_assets(
 ) {
     use registry_files::*;
     request_registry::<biome::Biome>(&asset_server, &mut loaded, FOLDER_BIOME, FILES_BIOME);
+    request_registry::<dimension::dimension_type::DimensionType>(&asset_server, &mut loaded, FOLDER_DIMENSION_TYPE, FILES_DIMENSION_TYPE);
     request_registry::<chat_type::ChatType>(&asset_server, &mut loaded, FOLDER_CHAT_TYPE, FILES_CHAT_TYPE);
     request_registry::<trim::TrimPattern>(&asset_server, &mut loaded, FOLDER_TRIM_PATTERN, FILES_TRIM_PATTERN);
     request_registry::<trim::TrimMaterial>(&asset_server, &mut loaded, FOLDER_TRIM_MATERIAL, FILES_TRIM_MATERIAL);
