@@ -24,8 +24,8 @@ mod test {
     #[test]
     fn combined_reachable() {
         let mut rng = LegacyRandom::new(845);
-        let first = OctavePerlinNoise::<f64, true>::new(&mut rng, -4, vec![1.0, 1.0, 1.0, 1.0], false);
-        let second = OctavePerlinNoise::<f64, true>::new(&mut rng, -4, vec![1.0, 1.0, 1.0, 1.0], false);
+        let first = OctavePerlinNoise::<f64>::new(&mut rng, -3, vec![1.0, 1.0, 1.0, 1.0], true);
+        let second = OctavePerlinNoise::<f64>::new(&mut rng, -3, vec![1.0, 1.0, 1.0, 1.0], true);
         let combined = PerlinOctaveNoiseCombined::new(first, second);
         let v = combined.sample(0.5, 0.5);
         assert!(v.is_finite(), "sample must return a finite f64");

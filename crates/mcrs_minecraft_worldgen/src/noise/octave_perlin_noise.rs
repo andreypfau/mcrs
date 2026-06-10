@@ -3,22 +3,22 @@ use mcrs_random::Random;
 use num_traits::Float;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct OctavePerlinNoise<F: Float, const BETA: bool> {
+pub struct OctavePerlinNoise<F: Float> {
     lacunarity: F,
     persistence: F,
     max_value: F,
     amplitudes: Vec<F>,
-    octave_samplers: Vec<Option<ImprovedNoise<F, BETA>>>,
+    octave_samplers: Vec<Option<ImprovedNoise<F>>>,
 }
 
-impl Default for OctavePerlinNoise<f32, false> {
+impl Default for OctavePerlinNoise<f32> {
     fn default() -> Self {
         use mcrs_random::RandomSource;
         Self::new(&mut RandomSource::new(0, true), -1, vec![1.0], false)
     }
 }
 
-impl<F: Float + Clone, const BETA: bool> OctavePerlinNoise<F, BETA> {
+impl<F: Float + Clone> OctavePerlinNoise<F> {
     pub fn new<T>(random: &mut T, first_octave: i32, amplitudes: Vec<F>, legacy: bool) -> Self
     where
         T: Random + Clone,
@@ -26,23 +26,14 @@ impl<F: Float + Clone, const BETA: bool> OctavePerlinNoise<F, BETA> {
         let mut octave_samplers = Vec::with_capacity(amplitudes.len());
         let zero = F::zero();
 
-        if BETA {
-            // Plain forward loop matching Java PerlinOctaveNoise: no skip, no fork, no reverse.
-            for amp in &amplitudes {
-                if *amp != zero {
-                    octave_samplers.push(Some(ImprovedNoise::<F, BETA>::from_random(random)));
-                } else {
-                    octave_samplers.push(None);
-                }
-            }
-        } else if !legacy {
+        if !legacy {
             for (i, value) in amplitudes.iter().enumerate() {
                 if *value != zero {
                     let octave = (i as i32) + first_octave;
                     let mut octave_random = random
                         .clone()
                         .fork_hash(format!("octave_{}", octave).as_bytes());
-                    octave_samplers.push(Some(ImprovedNoise::<F, BETA>::from_random(&mut octave_random)));
+                    octave_samplers.push(Some(ImprovedNoise::<F>::from_random(&mut octave_random)));
                 } else {
                     octave_samplers.push(None);
                 }
@@ -51,7 +42,7 @@ impl<F: Float + Clone, const BETA: bool> OctavePerlinNoise<F, BETA> {
         } else {
             for i in (0..=-first_octave as usize).rev() {
                 if i < amplitudes.len() && amplitudes[i] != zero {
-                    octave_samplers.push(Some(ImprovedNoise::<F, BETA>::from_random(random)));
+                    octave_samplers.push(Some(ImprovedNoise::<F>::from_random(random)));
                 } else {
                     octave_samplers.push(None);
                     for _ in 0..262 {
@@ -97,8 +88,8 @@ impl<F: Float + Clone, const BETA: bool> OctavePerlinNoise<F, BETA> {
     }
 }
 
-impl OctavePerlinNoise<f32, false> {
-    pub fn get_octave(&self, octave: usize) -> Option<&ImprovedNoise<f32, false>> {
+impl OctavePerlinNoise<f32> {
+    pub fn get_octave(&self, octave: usize) -> Option<&ImprovedNoise<f32>> {
         self.octave_samplers
             .get(self.octave_samplers.len() - 1 - octave)
             .and_then(|sampler| sampler.as_ref())
@@ -240,25 +231,22 @@ impl OctavePerlinNoise<f32, false> {
     }
 }
 
-impl OctavePerlinNoise<f64, true> {
-    /// 2D XY-plane sample mirroring Java PerlinOctaveNoise.sampleXY.
+impl OctavePerlinNoise<f64> {
+    /// 2D XY-plane sample transcribed from Java NoiseGeneratorOctaves.a(d0,d1) (lines 18-28).
     ///
-    /// Frequency doubles each octave (higher-frequency octaves contribute finer detail).
-    /// Used by PerlinOctaveNoiseCombined for domain-warp sampling.
+    /// Walks stored indices len-1 down to 0 (first-created octave first, matching vanilla
+    /// BlendedNoise's getOctaveNoise(i) reverse indexing). Frequency starts at 1.0 and halves
+    /// each step; contribution is sample(x*freq, y*freq, 0)/freq with no normalization.
     pub fn sample_xy(&self, x: f64, y: f64) -> f64 {
-        let mut lx = x * self.lacunarity;
-        let mut ly = y * self.lacunarity;
-        let mut persistence = self.persistence;
-        let mut acc = 0.0_f64;
         let len = self.octave_samplers.len();
-        for i in 0..len {
-            if let Some(sampler) = &self.octave_samplers[i] {
-                let amp = self.amplitudes[i];
-                acc += sampler.sample(lx, ly, 0.0, 0.0, 0.0) * persistence * amp;
+        let mut freq = 1.0_f64;
+        let mut acc = 0.0_f64;
+        for k in 0..len {
+            let idx = len - 1 - k;
+            if let Some(sampler) = &self.octave_samplers[idx] {
+                acc += sampler.sample(x * freq, y * freq, 0.0, 0.0, 0.0) / freq;
             }
-            lx *= 2.0;
-            ly *= 2.0;
-            persistence *= 0.5;
+            freq /= 2.0;
         }
         acc
     }
@@ -273,6 +261,8 @@ mod test {
     #[derive(Deserialize)]
     struct OctaveFixture {
         rng_seed_after_construction: u64,
+        #[serde(default)]
+        sample_xy_100_200: Option<f64>,
     }
 
     #[derive(Deserialize)]
@@ -288,28 +278,31 @@ mod test {
     #[test]
     fn legacy_arm_sample() {
         let mut random = LegacyRandom::new(381);
-        let noise = OctavePerlinNoise::<f32, false>::new(&mut random, -6, vec![1.0, 1.0], true);
+        let noise = OctavePerlinNoise::<f32>::new(&mut random, -6, vec![1.0, 1.0], true);
 
         assert_eq!(
             format!("{:.4}", noise.get(0.0, 0.0, 0.0)),
-            format!("{:.4}", -0.44062224030494690)
+            format!("{:.4}", 0.0290500056)
         );
         assert_eq!(
             format!("{:.4}", noise.get(0.5, 4.0, -2.0)),
-            format!("{:.4}", -0.37391784787178040)
+            format!("{:.4}", -0.0034976059)
         );
         assert_eq!(
             format!("{:.4}", noise.get(-204.0, 28.0, 12.0)),
-            format!("{:.4}", 0.02771721035242081)
+            format!("{:.4}", 0.1940782815)
         );
     }
 
+    /// Proves the legacy arm is stream-identical to the deleted Forward arm for Beta parameter
+    /// shapes (first_octave = -(n-1), all-ones amplitudes). The post-construction RNG seed must
+    /// equal the fixture value previously produced by the Forward arm.
     #[test]
     fn beta_octave_draw_count() {
         let fx = load_fixture().beta_octave_perlin_noise_4_octave;
         let mut rng = LegacyRandom::new(845);
         let amplitudes = vec![1.0_f64, 1.0, 1.0, 1.0];
-        let _noise = OctavePerlinNoise::<f64, true>::new(&mut rng, -4, amplitudes, false);
+        let _noise = OctavePerlinNoise::<f64>::new(&mut rng, -3, amplitudes, true);
         assert_eq!(
             rng.seed, fx.rng_seed_after_construction,
             "RNG seed mismatch after 4-octave Beta construction: got {}, expected {}",
@@ -317,19 +310,48 @@ mod test {
         );
     }
 
+    /// Verifies sample_xy matches the hand-rolled Java NoiseGeneratorOctaves.a loop exactly,
+    /// and pins the value in seed_845.json.
     #[test]
-    fn beta_octave_sample_xy_finite() {
+    fn sample_xy_matches_beta_loop() {
+        let fx = load_fixture().beta_octave_perlin_noise_4_octave;
         let mut rng = LegacyRandom::new(845);
-        let noise = OctavePerlinNoise::<f64, true>::new(&mut rng, -4, vec![1.0, 1.0, 1.0, 1.0], false);
-        let v = noise.sample_xy(100.0, 200.0);
-        assert!(v.is_finite(), "sample_xy must return a finite value");
+        let noise = OctavePerlinNoise::<f64>::new(&mut rng, -3, vec![1.0, 1.0, 1.0, 1.0], true);
+        let x = 100.0_f64;
+        let y = 200.0_f64;
+
+        // Hand-roll the Java NoiseGeneratorOctaves.a loop directly over stored samplers.
+        // Legacy storage reverses insertion order, so index len-1-k is the k-th created octave.
+        let samplers = &noise.octave_samplers;
+        let len = samplers.len();
+        let mut expected = 0.0_f64;
+        let mut freq = 1.0_f64;
+        for k in 0..len {
+            let idx = len - 1 - k;
+            if let Some(sampler) = &samplers[idx] {
+                expected += sampler.sample(x * freq, y * freq, 0.0, 0.0, 0.0) / freq;
+            }
+            freq /= 2.0;
+        }
+
+        let got = noise.sample_xy(x, y);
+        assert_eq!(got, expected, "sample_xy must equal the hand-rolled Java loop exactly");
+        assert!(got.is_finite(), "sample_xy must return a finite value");
+
+        if let Some(pinned) = fx.sample_xy_100_200 {
+            assert_eq!(
+                got, pinned,
+                "sample_xy(100, 200) fixture mismatch: got {:.15}, expected {:.15}",
+                got, pinned
+            );
+        }
     }
 
     #[test]
     #[ignore = "bootstrap: print actual values for seed 381 legacy arm"]
     fn bootstrap_seed_381_legacy() {
         let mut random = LegacyRandom::new(381);
-        let noise = OctavePerlinNoise::<f32, false>::new(&mut random, -6, vec![1.0, 1.0], true);
+        let noise = OctavePerlinNoise::<f32>::new(&mut random, -6, vec![1.0, 1.0], true);
         println!("get(0,0,0) = {:.10}", noise.get(0.0, 0.0, 0.0));
         println!("get(0.5,4.0,-2.0) = {:.10}", noise.get(0.5, 4.0, -2.0));
         println!("get(-204,28,12) = {:.10}", noise.get(-204.0, 28.0, 12.0));
@@ -340,15 +362,16 @@ mod test {
     fn bootstrap_seed_845_octave() {
         let mut rng = LegacyRandom::new(845);
         let amplitudes = vec![1.0_f64, 1.0, 1.0, 1.0];
-        let _noise = OctavePerlinNoise::<f64, true>::new(&mut rng, -4, amplitudes, false);
+        let noise = OctavePerlinNoise::<f64>::new(&mut rng, -3, amplitudes, true);
         println!("beta_octave_perlin_noise_4_octave.rng_seed_after_construction: {}", rng.seed);
+        println!("beta_octave_perlin_noise_4_octave.sample_xy_100_200: {:.15}", noise.sample_xy(100.0, 200.0));
     }
 
     #[cfg(feature = "batch-noise")]
     #[test]
     fn get_batch_matches_scalar() {
         let mut random = LegacyRandom::new(381);
-        let noise = OctavePerlinNoise::<f32, false>::new(&mut random, -6, vec![1.0, 1.0], true);
+        let noise = OctavePerlinNoise::<f32>::new(&mut random, -6, vec![1.0, 1.0], true);
 
         let positions = [
             (0.0, 0.0, 0.0),

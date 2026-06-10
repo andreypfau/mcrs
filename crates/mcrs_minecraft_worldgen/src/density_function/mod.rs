@@ -3290,9 +3290,9 @@ struct OldBlendedNoise {
     max_value: f32,
     limit_smear: f32,
     main_smear: f32,
-    lower_interpolated_noise: OctavePerlinNoise<f32, false>,
-    upper_interpolated_noise: OctavePerlinNoise<f32, false>,
-    interpolated_noise: OctavePerlinNoise<f32, false>,
+    lower_interpolated_noise: OctavePerlinNoise<f32>,
+    upper_interpolated_noise: OctavePerlinNoise<f32>,
+    interpolated_noise: OctavePerlinNoise<f32>,
 }
 
 impl Debug for OldBlendedNoise {
@@ -3323,7 +3323,7 @@ impl OldBlendedNoise {
         let y_multiplier = 684.412 * y_scale;
         let limit_smear = y_multiplier * smear_scale_multiplier;
         let main_smear = limit_smear / y_factor;
-        let lower_interpolated_noise = OctavePerlinNoise::<f32, false>::new(random, -15, vec![1.0; 16], true);
+        let lower_interpolated_noise = OctavePerlinNoise::<f32>::new(random, -15, vec![1.0; 16], true);
         let max_value = lower_interpolated_noise.edge_value(y_multiplier + 2.0);
         OldBlendedNoise {
             xz_scale,
@@ -3337,8 +3337,8 @@ impl OldBlendedNoise {
             limit_smear,
             main_smear,
             lower_interpolated_noise,
-            upper_interpolated_noise: OctavePerlinNoise::<f32, false>::new(random, -15, vec![1.0; 16], true),
-            interpolated_noise: OctavePerlinNoise::<f32, false>::new(random, -7, vec![1.0; 8], true),
+            upper_interpolated_noise: OctavePerlinNoise::<f32>::new(random, -15, vec![1.0; 16], true),
+            interpolated_noise: OctavePerlinNoise::<f32>::new(random, -7, vec![1.0; 8], true),
         }
     }
 
