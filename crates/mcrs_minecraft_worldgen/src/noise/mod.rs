@@ -1,3 +1,4 @@
+pub mod beta;
 pub mod improved_noise;
 pub mod normal_noise;
 pub mod octave_perlin_noise;

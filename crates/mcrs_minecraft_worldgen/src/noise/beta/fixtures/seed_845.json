@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "seed": 845,
+  "description": "Reference values for Beta ImprovedNoise and OctavePerlinNoise constructed from LegacyRandom(845). Self-bootstrapped from Rust LegacyRandom — see capture_procedure.md.",
+  "capture_procedure": "See capture_procedure.md in this directory",
+  "improved_noise_beta": {
+    "origin_x": 179.491122722625732,
+    "origin_y": 178.898017406463623,
+    "origin_z": 139.893449068069458,
+    "permutation_first_10": [12, 160, 244, 220, 152, 102, 106, 117, 151, 137],
+    "sample_05_05_05": 0.245334722341022,
+    "rng_seed_after_construction": 62761991426686
+  },
+  "beta_octave_perlin_noise_4_octave": {
+    "rng_seed_after_construction": 0
+  }
+}
