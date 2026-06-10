@@ -1565,6 +1565,8 @@ pub fn build_functions(
         vein_toggle_index: roots[12],
         vein_ridged_index: roots[13],
         vein_gap_index: roots[14],
+        noise_min_y: noise_settings.noise.min_y,
+        noise_height: noise_settings.noise.height,
         per_block: per_block.into_boxed_slice(),
         column_boundary,
         fd_boundary,
@@ -1639,6 +1641,8 @@ pub struct NoiseRouter {
     vein_toggle_index: usize,
     vein_ridged_index: usize,
     vein_gap_index: usize,
+    noise_min_y: i32,
+    noise_height: u32,
     /// per_block[i] == true means entry i depends on Y and must be recomputed per block.
     /// per_block[i] == false means entry i is column-only (cached across Y changes).
     per_block: Box<[bool]>,
@@ -1959,6 +1963,14 @@ impl NoiseRouter {
 
     pub fn vein_gap_index(&self) -> usize {
         self.vein_gap_index
+    }
+
+    pub fn noise_min_y(&self) -> i32 {
+        self.noise_min_y
+    }
+
+    pub fn noise_height(&self) -> u32 {
+        self.noise_height
     }
 
     pub fn final_density(&self, pos: IVec3, cache: &mut DensityCache) -> f32 {

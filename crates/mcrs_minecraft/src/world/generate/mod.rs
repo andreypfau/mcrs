@@ -143,6 +143,9 @@ pub fn generate_column(
     #[cfg(feature = "surface-skip")]
     let skip_above_y = noise_router.estimate_max_surface_y(&column_cache);
 
+    let noise_min_y = noise_router.noise_min_y();
+    let noise_max_y = noise_min_y + noise_router.noise_height() as i32;
+
     let mut prev_sy: Option<i32> = None;
     y_sections
         .iter()
@@ -150,6 +153,17 @@ pub fn generate_column(
             // Check cancellation between sections (cooperative cancellation)
             if cancel.is_cancelled() {
                 return None;
+            }
+
+            // Sections outside [noise_min_y, noise_min_y + noise_height) are always air.
+            // This matches vanilla: only cells within the noise settings vertical range are
+            // filled by the density function; everything else is the default block (air).
+            let section_min_y = sy * 16;
+            let section_max_y = section_min_y + 16;
+            if section_min_y >= noise_max_y || section_max_y <= noise_min_y {
+                interp.reset_section_boundary();
+                prev_sy = Some(sy);
+                return Some((BlockPalette::default(), BiomePalette::default()));
             }
 
             // Surface skip: sections above estimated max surface are guaranteed all-air

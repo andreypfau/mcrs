@@ -20,7 +20,7 @@ pub mod entity;
 pub mod explosion;
 pub mod player_index;
 mod format;
-mod generate;
+pub mod generate;
 mod inventory;
 pub mod item;
 pub mod loot;
