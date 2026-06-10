@@ -156,12 +156,18 @@ impl BlockState {
             .and_then(|p| p.get("level"))
             .and_then(|v| v.parse::<u16>().ok())
             .unwrap_or(0);
+        // These base state ids are anchored to the vanilla static block-state
+        // table (stone=1, bedrock=85). Water immediately follows bedrock; lava
+        // follows water's 16 level states. They are the source of truth for all
+        // Beta fluid fill and MUST stay in sync with the block registry — see
+        // `mcrs_vanilla::block::minecraft` (`stone`/`bedrock` define_block ids).
+        const STONE_STATE_ID: u16 = 1;
+        const WATER_BASE_STATE_ID: u16 = 86;
+        const LAVA_BASE_STATE_ID: u16 = 102;
         match self.name.as_str() {
-            "minecraft:stone" => Some(BlockStateId(1)),
-            // water: base_state_id 86 (protocol_id 35, follows bedrock at 85), level 0..=15
-            "minecraft:water" => Some(BlockStateId(86 + level)),
-            // lava: base_state_id 102 (16 water states + 86), level 0..=15
-            "minecraft:lava" => Some(BlockStateId(102 + level)),
+            "minecraft:stone" => Some(BlockStateId(STONE_STATE_ID)),
+            "minecraft:water" => Some(BlockStateId(WATER_BASE_STATE_ID + level)),
+            "minecraft:lava" => Some(BlockStateId(LAVA_BASE_STATE_ID + level)),
             _ => None,
         }
     }
