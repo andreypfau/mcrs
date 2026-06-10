@@ -5,8 +5,27 @@
       "generator": {
         "type": "minecraft:noise",
         "biome_source": {
-          "type": "minecraft:fixed",
-          "biome": "minecraft:plains"
+          "type": "mcrs:beta",
+          "biomes": [
+            "minecraft:beta_ice_desert",
+            "minecraft:beta_tundra",
+            "minecraft:beta_savanna",
+            "minecraft:beta_desert",
+            "minecraft:beta_swampland",
+            "minecraft:beta_taiga",
+            "minecraft:beta_shrubland",
+            "minecraft:beta_forest",
+            "minecraft:beta_plains",
+            "minecraft:beta_seasonal_forest",
+            "minecraft:beta_rainforest"
+          ],
+          "ocean_biomes": [
+            "minecraft:beta_frozen_ocean",
+            "minecraft:beta_ocean",
+            "minecraft:beta_warm_ocean",
+            "minecraft:beta_lukewarm_ocean",
+            "minecraft:beta_cold_ocean"
+          ]
         },
         "settings": "minecraft:beta"
       }
