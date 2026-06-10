@@ -156,8 +156,10 @@ fn generate_section(
 /// the land bucket at that XZ position; cells at or above sea level receive
 /// the land biome directly.
 ///
-/// T-08-05: `by_asset_id` returns `unwrap_or(0)`, clamping unknown handles
-/// to a valid registry index so no out-of-range id reaches the client.
+/// A biome handle that is absent from the frozen registry snapshot signals a
+/// misconfiguration (unregistered biome, asset load failure, or registry/preset
+/// ordering bug). Such a miss is logged and asserted in debug builds rather than
+/// silently substituting id 0, which would render a plausible-but-wrong biome.
 fn fill_biome_palette_beta(
     biomes: &mut BiomePalette,
     section_y: i32,
@@ -179,7 +181,14 @@ fn fill_biome_palette_beta(
                 let sample_z = block_z + cz as i32 * 4;
                 let (temp, humidity) = noise_router.sample_climate_at(column_cache, sample_x, sample_z);
                 let asset_id = biome_source.beta_biome_id(temp, humidity, is_ocean);
-                let network_id = biome_registry.by_asset_id(asset_id).unwrap_or(0) as u8;
+                let network_id = match biome_registry.by_asset_id(asset_id) {
+                    Some(id) => id as u8,
+                    None => {
+                        tracing::error!(?asset_id, "beta biome handle not present in registry snapshot");
+                        debug_assert!(false, "unresolved beta biome handle");
+                        0
+                    }
+                };
                 biomes.set_cell(cx, cy, cz, network_id);
             }
         }
