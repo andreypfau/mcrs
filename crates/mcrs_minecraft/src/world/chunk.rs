@@ -3,7 +3,8 @@ use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Query, Resource, With, resource_exists};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy_ecs::system::{Commands, Res, ResMut};
+use bevy_ecs::change_detection::DetectChanges;
+use bevy_ecs::system::{Commands, Local, Res, ResMut};
 use bevy_math::IVec3;
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
@@ -619,6 +620,7 @@ fn dispatch_column_generation(
     overworld_noise_router: Res<OverworldNoiseRouter>,
     active_biome_source: Option<Res<ActiveBiomeSource>>,
     biome_registry: Option<Res<RegistrySnapshot<Biome>>>,
+    mut cached_biome_registry: Local<Option<Arc<RegistrySnapshot<Biome>>>>,
 ) {
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
 
@@ -644,9 +646,19 @@ fn dispatch_column_generation(
 
     // Snapshot the biome context once per dispatch batch to avoid repeated deref.
     // Both resources must be present for Beta biome fill to activate.
+    //
+    // The registry snapshot is expensive to clone (it carries pre-serialized NBT
+    // for every entry), so the deep clone happens only when the underlying
+    // resource changes; subsequent ticks reuse the cached `Arc` handle.
+    let biome_registry_arc = biome_registry.as_ref().map(|reg| {
+        if reg.is_changed() || cached_biome_registry.is_none() {
+            *cached_biome_registry = Some(Arc::new(RegistrySnapshot::clone(reg)));
+        }
+        cached_biome_registry.as_ref().unwrap().clone()
+    });
     let biome_context: Option<(Arc<BiomeSource>, Arc<RegistrySnapshot<Biome>>)> =
-        match (active_biome_source.as_deref(), biome_registry.as_deref()) {
-            (Some(src), Some(reg)) => Some((src.0.clone(), Arc::new(reg.clone()))),
+        match (active_biome_source.as_deref(), biome_registry_arc) {
+            (Some(src), Some(reg)) => Some((src.0.clone(), reg)),
             _ => None,
         };
 
