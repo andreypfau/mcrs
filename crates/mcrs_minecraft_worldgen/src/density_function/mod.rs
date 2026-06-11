@@ -1456,7 +1456,7 @@ pub fn build_functions(
         start_biome_z: 0,
         horizontal_biome_end: 4,
     };
-    let mut builder = FunctionStackBuilder::new(random, functions, noises, &builder_options);
+    let mut builder = FunctionStackBuilder::new(random, seed, functions, noises, &builder_options);
     let nr = &noise_settings.noise_router;
     let barrier_index = builder.component(&nr.barrier);
     let fluid_level_floodedness_index = builder.component(&nr.fluid_level_floodedness);
@@ -3782,18 +3782,18 @@ pub struct BetaClimate2d {
 
 impl BetaClimate2d {
     pub fn sample_temperature(&self, x: f64, z: f64) -> f32 {
-        let detail_raw = self.detail_noise.sample(x, z, 0.25, 0.25, 2.0, 0.5);
+        let detail_raw = self.detail_noise.sample(x, z, 0.25, 0.25, 1.0 / 1.7, 0.5);
         let detail = detail_raw * 1.1 + 0.5;
-        let temp_raw = self.temp_noise.sample(x, z, 0.025, 0.025, 2.0, 0.5);
+        let temp_raw = self.temp_noise.sample(x, z, 0.025, 0.025, 0.25, 0.5);
         let mut t = (temp_raw as f32 * 0.15 + 0.7) * 0.99 + detail as f32 * 0.01;
         t = 1.0 - (1.0 - t) * (1.0 - t);
         t.clamp(0.0, 1.0)
     }
 
     pub fn sample_humidity(&self, x: f64, z: f64) -> f32 {
-        let detail_raw = self.detail_noise.sample(x, z, 0.25, 0.25, 2.0, 0.5);
+        let detail_raw = self.detail_noise.sample(x, z, 0.25, 0.25, 1.0 / 1.7, 0.5);
         let detail = detail_raw * 1.1 + 0.5;
-        let rain_raw = self.rain_noise.sample(x, z, 0.05, 0.05, 2.0, 0.5);
+        let rain_raw = self.rain_noise.sample(x, z, 0.05, 0.05, 1.0 / 3.0, 0.5);
         let h = (rain_raw as f32 * 0.15 + 0.5) * 0.998 + detail as f32 * 0.002;
         h.clamp(0.0, 1.0)
     }
@@ -3806,8 +3806,8 @@ impl RangeFunction for BetaClimate2d {
 
 impl DensityFunction for BetaClimate2d {
     fn sample(&self, _stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let x = (pos.x >> 2) as f64;
-        let z = (pos.z >> 2) as f64;
+        let x = pos.x as f64;
+        let z = pos.z as f64;
         self.sample_temperature(x, z)
     }
 }
@@ -3824,8 +3824,8 @@ impl RangeFunction for BetaTemperature2d {
 
 impl DensityFunction for BetaTemperature2d {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let x = (pos.x >> 2) as f64;
-        let z = (pos.z >> 2) as f64;
+        let x = pos.x as f64;
+        let z = pos.z as f64;
         if let DensityFunctionComponent::Independent(IndependentDensityFunction::BetaClimate2d(c)) =
             &stack[self.climate_index]
         {
@@ -3848,8 +3848,8 @@ impl RangeFunction for BetaHumidity2d {
 
 impl DensityFunction for BetaHumidity2d {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let x = (pos.x >> 2) as f64;
-        let z = (pos.z >> 2) as f64;
+        let x = pos.x as f64;
+        let z = pos.z as f64;
         if let DensityFunctionComponent::Independent(IndependentDensityFunction::BetaClimate2d(c)) =
             &stack[self.climate_index]
         {
@@ -3887,22 +3887,24 @@ impl BetaTerrainDensity {
     /// depth_val is the cell-unit terrain center (from BetaDepth2d, ~8.5 ± 1 for standard terrain).
     /// scale_val is the scale factor (from BetaScale2d, >= 0.5 from the clamp).
     fn apply_curve(&self, blend_val: f32, block_y: i32, scale_val: f32, depth_val: f32) -> f32 {
-        // noise_y = cell-grid Y index
         let noise_y = block_y >> 3;
-        let height_cells = self.height / 8;  // 128/8 = 16
+        // Java i1: number of cell corner rows (17 for height 128)
+        let cell_rows = self.height / 8 + 1;
 
-        // Vertical stretch: density -= (noiseY - depthVal) * stretchY / scaleVal
-        let term = (noise_y as f32 - depth_val) * 12.0 / scale_val;
+        // Java zeroes d5 (the pre-+0.5 scale) whenever the depth-noise branch goes
+        // negative; that state is recoverable here as depth_val < i1/2 (= 8.5).
+        let scale_val = if depth_val < cell_rows as f32 / 2.0 { 0.5 } else { scale_val };
+
+        // d9 = (j3 - d7) * 12 / d5, quadrupled when negative (below terrain center)
+        let mut term = (noise_y as f32 - depth_val) * 12.0 / scale_val;
+        if term < 0.0 {
+            term *= 4.0;
+        }
         let mut density = blend_val - term;
 
-        // If density is negative (air-like), amplify the air signal
-        if density < 0.0 {
-            density *= 4.0;
-        }
-
-        // Top-4-cell taper: interpolate density toward -10 approaching the sky ceiling
-        if noise_y >= height_cells - 4 {
-            let d = (noise_y - (height_cells - 4)) as f32 / 4.0; // 0..1
+        // Top taper toward -10 over the last 3 cell rows (Java: j3 > i1 - 4, step /3)
+        if noise_y > cell_rows - 4 {
+            let d = (noise_y - (cell_rows - 4)) as f32 / 3.0;
             density = density * (1.0 - d) + (-10.0) * d;
         }
 
@@ -6164,6 +6166,7 @@ impl RangeFunction for DensityFunctionComponent {
 
 struct FunctionStackBuilder<'a> {
     random: RandomSource,
+    world_seed: u64,
     functions: &'a BTreeMap<Ident<String>, ProtoDensityFunction>,
     noises: &'a BTreeMap<Ident<String>, NoiseParam>,
     stack: Vec<DensityFunctionComponent>,
@@ -6174,12 +6177,14 @@ struct FunctionStackBuilder<'a> {
 impl<'a> FunctionStackBuilder<'a> {
     fn new(
         random: RandomSource,
+        world_seed: u64,
         functions: &'a BTreeMap<Ident<String>, ProtoDensityFunction>,
         noises: &'a BTreeMap<Ident<String>, NoiseParam>,
         builder_options: &'a ChunkNoiseFunctionBuilderOptions,
     ) -> Self {
         Self {
             random,
+            world_seed,
             functions,
             noises,
             stack: Vec::new(),
@@ -6724,7 +6729,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     }
 
     fn visit_beta_scale_2d(&mut self) {
-        let seed = if let RandomSource::Legacy(r) = &self.random { r.seed } else { 0 };
+        let seed = self.world_seed;
         let (_, _, _, scale_noise, _) = beta_seed::seed_beta_terrain(seed);
         // temperature_index and vegetation_index are wired in a post-processing pass
         // inside build_functions after all roots are resolved (indices not yet known here).
@@ -6737,7 +6742,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     }
 
     fn visit_beta_depth_2d(&mut self) {
-        let seed = if let RandomSource::Legacy(r) = &self.random { r.seed } else { 0 };
+        let seed = self.world_seed;
         let (_, _, _, _, depth_noise) = beta_seed::seed_beta_terrain(seed);
         self.register_component(
             ProtoDensityFunction::BetaDepth2d,
@@ -6748,7 +6753,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     }
 
     fn visit_beta_temperature_2d(&mut self) {
-        let seed = if let RandomSource::Legacy(r) = &self.random { r.seed } else { 0 };
+        let seed = self.world_seed;
         let climate = beta_seed::seed_beta_climate(seed);
         let climate_index = self.register_component(
             ProtoDensityFunction::BetaClimate2d,
@@ -6765,7 +6770,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     }
 
     fn visit_beta_humidity_2d(&mut self) {
-        let seed = if let RandomSource::Legacy(r) = &self.random { r.seed } else { 0 };
+        let seed = self.world_seed;
         let climate = beta_seed::seed_beta_climate(seed);
         let climate_index = self.register_component(
             ProtoDensityFunction::BetaClimate2d,
@@ -6788,23 +6793,30 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     ) {
         let scale_index = self.component(scale);
         let depth_index = self.component(depth);
-        let seed = if let RandomSource::Legacy(r) = &self.random { r.seed } else { 0 };
+        let seed = self.world_seed;
         let (low, high, selector, _, _) = beta_seed::seed_beta_terrain(seed);
-        // Construct the Beta blend with /128 disabled (Beta omits the trailing divisor)
-        // and Beta smear params: xz_scale=1, y_scale=1, xz_factor=80, y_factor=160, smear=8
-        let mut seed_random = RandomSource::new(seed, true);
-        // Build blend from the seeded low/high/selector directly via BlendedNoise::from_noises
+        // Construct the Beta blend with /128 disabled (Beta omits the trailing divisor).
+        // Java samples low/high/selector at noise-cell coordinates (block/4 horizontally,
+        // block/8 vertically) with scale 684.412 (ChunkProviderGenerate.a: startX = chunkX*4,
+        // 17 Y rows over world height 128). Per-block multipliers are therefore
+        // 684.412/4 (xz_scale = 0.25) and 684.412/8 (y_scale = 0.125).
+        let xz_scale = 0.25_f32;
+        let y_scale = 0.125_f32;
+        let xz_multiplier = 684.412 * xz_scale;
+        let y_multiplier = 684.412 * y_scale;
+        let limit_smear = y_multiplier * 8.0;
+        let main_smear = limit_smear / 160.0;
         let blend = BlendedNoise {
-            xz_scale: 1.0,
-            y_scale: 1.0,
+            xz_scale,
+            y_scale,
             xz_factor: 80.0,
             y_factor: 160.0,
             smear_scale_multiplier: 8.0,
-            xz_multiplier: 684.412,
-            y_multiplier: 684.412,
-            max_value: low.edge_value(684.412 + 2.0),
-            limit_smear: 684.412 * 8.0,
-            main_smear: 684.412 * 8.0 / 160.0,
+            xz_multiplier,
+            y_multiplier,
+            max_value: low.edge_value(y_multiplier + 2.0),
+            limit_smear,
+            main_smear,
             final_divisor: 1.0,
             lower_interpolated_noise: low,
             upper_interpolated_noise: high,
@@ -7206,6 +7218,169 @@ mod tests {
         assert!(router.column_boundary() > 0, "Zone A must be non-empty (FlatCache 2D scale/depth nodes)");
         // final_density must be wired into Zone B.
         assert!(router.final_density_idx() >= router.column_boundary(), "final_density must be in Zone B");
+    }
+
+
+    /// Java ground truth: full 5x17x5 noise field q for chunk (0,0), seed 845,
+    /// computed by replicating ChunkProviderGenerate.a / NoiseGeneratorOctaves /
+    /// NoiseGeneratorPerlin / WorldChunkManager from Beta 1.7.3 (f64) byte-exactly.
+    /// Order matches Java iteration: x outer, z mid, y inner (17 rows per column).
+    #[test]
+    fn beta_density_matches_java_ground_truth_seed845() {
+        use std::collections::BTreeMap;
+        const JAVA_Q: [f32; 425] = [
+            666.401823, 574.970280, 478.681110, 380.819986, 284.135296,
+            185.571644, 89.311232, -6.778209, -55.011039, -76.112579,
+            -99.501081, -121.413514, -146.573790, -171.385002, -132.712962,
+            -77.591012, -10.000000, 669.342833, 574.713830, 478.024659,
+            383.470108, 290.005486, 188.965738, 90.407789, -5.468320,
+            -52.866059, -47.876501, -92.087417, -120.040676, -144.508432,
+            -166.961468, -132.321389, -77.502219, -10.000000, 672.734144,
+            575.044405, 480.980701, 386.531316, 289.862162, 191.067845,
+            92.867618, -6.419450, -51.188966, -76.268906, -102.445166,
+            -118.400780, -140.788081, -161.827064, -131.322503, -77.179950,
+            -10.000000, 674.904594, 576.065926, 483.954049, 392.399859,
+            297.335288, 196.118769, 97.615984, 0.451100, -49.337367,
+            -75.968985, -102.672964, -115.084212, -137.307103, -158.665919,
+            -127.474046, -75.037052, -10.000000, 674.059567, 576.376996,
+            482.646532, 390.885434, 296.215616, 198.251638, 101.281242,
+            6.233780, -47.346325, -76.445555, -103.679837, -113.507576,
+            -134.853416, -157.808348, -124.986103, -73.264414, -10.000000,
+            666.321338, 573.754282, 475.123270, 377.912645, 282.822846,
+            184.034556, 88.036727, -7.113503, -56.272692, -74.245514,
+            -99.871382, -119.567582, -147.106212, -174.233256, -135.453875,
+            -77.604082, -10.000000, 667.064067, 571.139682, 476.550205,
+            381.060976, 286.908059, 186.484358, 89.676142, -4.531380,
+            -54.241825, -74.624135, -100.887252, -118.632211, -146.377092,
+            -169.212050, -134.893946, -77.778141, -10.000000, 668.267770,
+            571.907047, 476.760097, 382.324817, 287.710318, 187.011360,
+            89.151144, -10.808942, -53.341635, -75.849727, -103.924576,
+            -116.553822, -141.364431, -164.141531, -132.996807, -76.958444,
+            -10.000000, 669.074471, 572.633310, 478.862617, 387.063419,
+            292.075235, 189.687961, 92.529843, -8.852508, -53.687553,
+            -74.794100, -101.081951, -114.399523, -137.428277, -159.724123,
+            -128.698493, -75.314063, -10.000000, 668.468517, 570.640666,
+            477.322101, 385.537356, 290.977160, 190.682416, 94.084826,
+            -4.863159, -52.207734, -75.857369, -100.683690, -113.618091,
+            -135.918690, -158.129795, -126.738469, -74.330833, -10.000000,
+            660.251630, 568.153617, 470.324742, 371.830594, 277.114690,
+            181.309854, 84.001524, -13.314334, -59.489066, -73.863309,
+            -99.237947, -118.479167, -148.881309, -175.314348, -137.261292,
+            -78.901549, -10.000000, 663.346902, 565.708005, 471.639085,
+            374.919340, 280.333148, 183.333784, 84.682601, -10.590852,
+            -57.967263, -74.414654, -101.757907, -117.033592, -145.698244,
+            -170.846144, -135.201435, -78.212604, -10.000000, 664.982287,
+            567.420291, 473.498656, 379.476121, 285.950015, 185.920028,
+            87.153552, -10.297192, -56.471469, -75.109933, -102.838374,
+            -115.232962, -141.504711, -165.216749, -132.713858, -77.356849,
+            -10.000000, 665.661169, 568.743053, 473.145448, 382.455458,
+            287.768767, 186.227355, 87.063511, -12.634489, -55.150207,
+            -74.916734, -100.325923, -112.962969, -138.951443, -162.951349,
+            -130.388150, -75.838621, -10.000000, 663.752590, 566.332611,
+            470.935959, 381.429498, 286.673279, 186.621242, 89.461488,
+            -11.957783, -55.266499, -75.807301, -102.301229, -113.103323,
+            -138.112630, -162.233767, -128.716157, -74.759912, -10.000000,
+            660.902565, 569.469006, 471.478709, 371.553758, 274.323295,
+            181.006891, 81.752000, -17.011096, -58.514686, -73.142533,
+            -97.777174, -118.769499, -146.873997, -171.634882, -135.824081,
+            -78.765859, -10.000000, 662.076495, 566.027445, 471.393663,
+            374.700455, 278.211565, 183.551246, 83.185912, -14.907925,
+            -58.845890, -73.436010, -98.670127, -115.418750, -143.681340,
+            -168.945794, -134.432819, -78.418499, -10.000000, 664.217491,
+            567.223105, 473.289568, 379.379958, 284.119886, 185.970268,
+            87.016266, -12.227263, -57.498530, -75.121935, -102.664991,
+            -113.955838, -139.988759, -166.138875, -132.869586, -77.181576,
+            -10.000000, 664.704731, 568.040216, 473.040241, 380.722090,
+            287.176577, 184.422623, 87.538162, -9.589195, -54.660401,
+            -74.029853, -100.387492, -113.290830, -139.539897, -164.076101,
+            -130.401158, -76.018545, -10.000000, 662.375413, 565.716182,
+            470.751240, 380.620118, 284.853525, 185.194922, 88.335615,
+            -8.028071, -54.532626, -76.207332, -101.731390, -114.635772,
+            -139.706055, -163.914887, -129.332874, -75.098150, -10.000000,
+            664.370917, 571.604140, 472.797294, 373.908726, 276.933247,
+            182.794375, 84.345789, -14.746582, -58.100517, -73.880614,
+            -95.543194, -117.777348, -143.937817, -166.800452, -131.611208,
+            -77.183241, -10.000000, 663.679301, 570.768397, 472.329104,
+            376.523007, 282.759980, 185.809434, 86.750410, -13.329684,
+            -57.060859, -74.584002, -96.202405, -114.786064, -141.694237,
+            -167.277362, -131.808050, -77.443974, -10.000000, 664.869151,
+            570.160451, 475.823317, 381.108105, 288.270719, 187.560799,
+            89.310895, -10.293879, -55.514385, -74.190969, -101.284476,
+            -115.137061, -140.664055, -166.131633, -132.072757, -76.846243,
+            -10.000000, 665.854372, 569.408691, 477.073104, 384.448890,
+            291.124860, 188.113546, 90.342023, -4.526532, -52.118861,
+            -74.466064, -103.903487, -114.401566, -137.642271, -162.648556,
+            -129.420618, -76.169560, -10.000000, 663.084255, 564.940685,
+            474.790421, 381.058727, 286.722097, 187.061383, 89.863657,
+            7.550697, -23.185904, -60.880314, -86.694535, -113.897573,
+            -139.597863, -163.739809, -129.224495, -76.082980, -10.000000,
+        ];
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/minecraft/worldgen/noise_settings/beta.json"
+        );
+        let json = std::fs::read_to_string(path).expect("beta.json should exist");
+        let settings: NoiseGeneratorSettings =
+            serde_json::from_str(&json).expect("beta.json should deserialize");
+        let functions = BTreeMap::new();
+        let noises = BTreeMap::new();
+        let router = super::build_functions(&functions, &noises, &settings, 845);
+        let mut i = 0;
+        let mut max_diff = 0.0_f32;
+        for cx in 0..5i32 {
+            for cz in 0..5i32 {
+                for cy in 0..17i32 {
+                    let pos = bevy_math::IVec3::new(cx * 4, cy * 8, cz * 4);
+                    let rust_v = router.final_density_uncached(pos);
+                    let java_v = JAVA_Q[i];
+                    let diff = (rust_v - java_v).abs();
+                    max_diff = max_diff.max(diff);
+                    // Residual tolerance covers f32 noise accumulation and the
+                    // climate sample-point offset (quart origins vs Java's
+                    // per-chunk cell*3+1 stride, which is seam-inconsistent in
+                    // Java itself). All structural divergence is far above this.
+                    assert!(
+                        diff < 8.0,
+                        "q({},{},{}): java={} rust={} diff={}",
+                        cx, cz, cy, java_v, rust_v, diff
+                    );
+                    if java_v.abs() > 20.0 {
+                        assert_eq!(
+                            java_v > 0.0,
+                            rust_v > 0.0,
+                            "sign mismatch at q({},{},{}): java={} rust={}",
+                            cx, cz, cy, java_v, rust_v
+                        );
+                    }
+                    i += 1;
+                }
+            }
+        }
+        assert!(max_diff < 8.0, "max diff {}", max_diff);
+    }
+    #[test]
+    #[ignore]
+    fn beta_dump_density_chunk00_seed845() {
+        use std::collections::BTreeMap;
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/minecraft/worldgen/noise_settings/beta.json"
+        );
+        let json = std::fs::read_to_string(path).expect("beta.json should exist");
+        let settings: NoiseGeneratorSettings =
+            serde_json::from_str(&json).expect("beta.json should deserialize");
+        let functions = BTreeMap::new();
+        let noises = BTreeMap::new();
+        let router = super::build_functions(&functions, &noises, &settings, 845);
+        for cx in 0..5i32 {
+            for cz in 0..5i32 {
+                for cy in 0..17i32 {
+                    let pos = bevy_math::IVec3::new(cx * 4, cy * 8, cz * 4);
+                    let d = router.final_density_uncached(pos);
+                    println!("q {} {} {} {:.6}", cx, cz, cy, d);
+                }
+            }
+        }
     }
 
     #[test]
