@@ -104,6 +104,25 @@ debug-assertions = true
 [profile.dev.package."*"]
 opt-level = 3
 
+# `package."*"` only covers external dependencies; workspace members inherit
+# [profile.dev] opt-level 0. Chunk generation (density-function evaluation,
+# octave Perlin noise, palette writes) is far too hot for opt-level 0, so the
+# worldgen-critical member crates are optimized even in dev builds.
+[profile.dev.package."mcrs_minecraft_worldgen"]
+opt-level = 3
+
+[profile.dev.package."mcrs_random"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_block"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft"]
+opt-level = 2
+
+[profile.dev.package."mcrs_engine"]
+opt-level = 1
+
 [profile.dev.package."bevy_ecs"]
 opt-level = 3
 
