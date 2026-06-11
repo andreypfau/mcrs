@@ -1,7 +1,11 @@
 use mcrs_minecraft::world::chunk::CancellationToken;
 use mcrs_minecraft::world::generate::generate_column;
 use mcrs_minecraft_worldgen::density_function::build_functions;
+use mcrs_minecraft_worldgen::density_function::proto::{
+    DensityFunctionHolder, ProtoDensityFunction,
+};
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
+use mcrs_protocol::Ident;
 use std::collections::BTreeMap;
 
 fn load_noise_settings(name: &str) -> NoiseGeneratorSettings {
@@ -16,18 +20,46 @@ fn load_noise_settings(name: &str) -> NoiseGeneratorSettings {
         .unwrap_or_else(|e| panic!("noise_settings/{}.json must deserialize: {}", name, e))
 }
 
+fn load_beta_density_functions() -> BTreeMap<Ident<String>, ProtoDensityFunction> {
+    let dir = format!(
+        "{}/../../assets/minecraft/worldgen/density_function/beta",
+        env!("CARGO_MANIFEST_DIR"),
+    );
+    let mut map = BTreeMap::new();
+    for entry in std::fs::read_dir(&dir).expect("density_function/beta must exist") {
+        let path = entry.expect("readable dir entry").path();
+        if path.extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+        let json = std::fs::read_to_string(&path).expect("density function must be readable");
+        let DensityFunctionHolder::Owned(pdf) = serde_json::from_str::<DensityFunctionHolder>(
+            &json,
+        )
+        .unwrap_or_else(|e| panic!("{} must deserialize: {}", path.display(), e)) else {
+            panic!("{} must be an owned density function", path.display());
+        };
+        let stem = path.file_stem().unwrap().to_string_lossy();
+        let ident = format!("minecraft:beta/{}", stem)
+            .parse::<Ident<String>>()
+            .expect("valid ident");
+        map.insert(ident, *pdf);
+    }
+    map
+}
+
 /// Under the beta noise settings (min_y=0, height=128), `generate_column` must
 /// return all-air for every section that falls entirely outside [0, 128).
-/// The beta noise_router entries are all constants so no disk noise assets are
-/// needed.  Sections 0-7 cover Y 0..128; section 8+ (Y>=128) and any negative
-/// sections must be all air — no stone above Y 128.
+/// The beta noise_router references the `minecraft:beta/*` density functions;
+/// their `mcrs:beta/*` legacy noises are id-keyed and built internally, so no
+/// noise assets are needed.  Sections 0-7 cover Y 0..128; section 8+ (Y>=128)
+/// and any negative sections must be all air — no stone above Y 128.
 #[test]
 fn beta_sections_outside_noise_range_are_air() {
     let settings = load_noise_settings("beta");
     assert_eq!(settings.noise.min_y, 0, "beta min_y must be 0");
     assert_eq!(settings.noise.height, 128, "beta height must be 128");
 
-    let functions = BTreeMap::new();
+    let functions = load_beta_density_functions();
     let noises = BTreeMap::new();
     let router = build_functions(&functions, &noises, &settings, 42);
 
