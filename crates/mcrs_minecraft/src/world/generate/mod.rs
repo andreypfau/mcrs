@@ -5,6 +5,7 @@ use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_worldgen::density_function::{
     ColumnCache, NoiseRouter, NoiseCellInterpolator,
 };
+use mcrs_random::legacy::LegacyRandom;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::BiomeSource;
 
@@ -315,6 +316,21 @@ pub fn generate_column(
             Some((blocks, biomes))
         })
         .collect()
+}
+
+/// Apply the Beta surface pass to a generated chunk column.
+///
+/// This is a stub — full implementation is in the implementation phase.
+pub fn apply_beta_surface(
+    _sections: &mut Vec<Option<(BlockPalette, BiomePalette)>>,
+    _y_sections: &[i32],
+    _block_x: i32,
+    _block_z: i32,
+    _noise_router: &NoiseRouter,
+    _biome_source: &BiomeSource,
+    _rng: &mut LegacyRandom,
+) {
+    unimplemented!("apply_beta_surface not yet implemented")
 }
 
 #[cfg(test)]

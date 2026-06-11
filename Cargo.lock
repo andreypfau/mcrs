@@ -1993,6 +1993,7 @@ dependencies = [
  "mcrs_nbt",
  "mcrs_network",
  "mcrs_protocol",
+ "mcrs_random",
  "mcrs_telemetry",
  "mcrs_vanilla",
  "num-integer",
