@@ -115,6 +115,28 @@ pub static NOTE: PropertyDef = PropertyDef {
     ],
 };
 
+pub static LEVEL: PropertyDef = PropertyDef {
+    name: PropertyStr::new("level"),
+    values: &[
+        PropertyStr::new("0"),
+        PropertyStr::new("1"),
+        PropertyStr::new("2"),
+        PropertyStr::new("3"),
+        PropertyStr::new("4"),
+        PropertyStr::new("5"),
+        PropertyStr::new("6"),
+        PropertyStr::new("7"),
+        PropertyStr::new("8"),
+        PropertyStr::new("9"),
+        PropertyStr::new("10"),
+        PropertyStr::new("11"),
+        PropertyStr::new("12"),
+        PropertyStr::new("13"),
+        PropertyStr::new("14"),
+        PropertyStr::new("15"),
+    ],
+};
+
 pub static FACING_HORIZONTAL: PropertyDef = PropertyDef {
     name: PropertyStr::new("facing"),
     values: &[
@@ -135,6 +157,7 @@ pub static UNSTABLE_PROP: Property<bool> = Property::new(&UNSTABLE);
 pub static STAGE_PROP: Property<u8> = Property::new(&STAGE);
 pub static AGE_4_PROP: Property<u8> = Property::new(&AGE_4);
 pub static NOTE_PROP: Property<u8> = Property::new(&NOTE);
+pub static LEVEL_PROP: Property<u8> = Property::new(&LEVEL);
 pub static AXIS_PROP: Property<Axis> = Property::new(&AXIS);
 pub static FACING_HORIZONTAL_PROP: Property<HorizontalFacing> = Property::new(&FACING_HORIZONTAL);
 
