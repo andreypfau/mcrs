@@ -166,6 +166,22 @@ impl BlockPalette {
         )
     }
 
+    /// Fill the box `[x0, x1) x [y0, y1) x [z0, z1)` (section-local coords)
+    /// with `block`. Produces output identical to per-block `set` calls over
+    /// the same box, with bulk-optimized palette bookkeeping.
+    pub fn fill_box<B: Into<BlockStateId>>(
+        &mut self,
+        x0: usize,
+        x1: usize,
+        y0: usize,
+        y1: usize,
+        z0: usize,
+        z1: usize,
+        block: B,
+    ) {
+        self.0.fill_box(x0, x1, y0, y1, z0, z1, block.into());
+    }
+
     /// Invoke `f` once for each distinct `BlockStateId` present in the
     /// container. A homogeneous container yields exactly one state.
     /// A heterogeneous container yields every entry in its palette without

@@ -164,7 +164,7 @@ impl OctavePerlinNoise<f32> {
     /// table L1-hot across all positions.
     #[cfg(feature = "batch-noise")]
     pub fn get_batch(&self, positions: &[(f32, f32, f32)], results: &mut [f32]) {
-        const MAX_BATCH: usize = 16;
+        use crate::density_function::MAX_BATCH;
         let n = positions.len();
         debug_assert_eq!(n, results.len());
         debug_assert!(n <= MAX_BATCH);

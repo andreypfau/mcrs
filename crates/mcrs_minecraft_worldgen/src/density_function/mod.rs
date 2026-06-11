@@ -22,7 +22,7 @@ pub mod proto;
 /// Maximum number of positions that can be batched in a single fill_plane call.
 /// 5 Z-columns * 3 Y-positions = 15, rounded up to 16 for alignment.
 #[cfg(feature = "batch-noise")]
-const MAX_BATCH: usize = 16;
+pub(crate) const MAX_BATCH: usize = 128;
 
 struct ChunkNoiseFunctionBuilderOptions {
     // Number of blocks per cell per axis
@@ -3008,6 +3008,19 @@ pub struct NoiseCellInterpolator {
     /// True after the first section has been fully processed, meaning
     /// `saved_top_y` contains valid data for the next section.
     section_boundary_valid: bool,
+
+    /// Precomputed corner densities for the whole column:
+    /// `grid[(plane_x * (h_cells + 1) + z_corner) * grid_rows + y_row]`.
+    /// Filled by `precompute_column_grid`; plane fills copy from it instead
+    /// of evaluating the density stack per section.
+    #[cfg(feature = "batch-noise")]
+    grid: Vec<f32>,
+    #[cfg(feature = "batch-noise")]
+    grid_base_y: i32,
+    #[cfg(feature = "batch-noise")]
+    grid_rows: usize,
+    #[cfg(feature = "batch-noise")]
+    grid_valid: bool,
 }
 
 impl NoiseCellInterpolator {
@@ -3030,7 +3043,96 @@ impl NoiseCellInterpolator {
             val: 0.0f32,
             saved_top_y: vec![0.0f32; num_planes * z_count],
             section_boundary_valid: false,
+            #[cfg(feature = "batch-noise")]
+            grid: Vec::new(),
+            #[cfg(feature = "batch-noise")]
+            grid_base_y: 0,
+            #[cfg(feature = "batch-noise")]
+            grid_rows: 0,
+            #[cfg(feature = "batch-noise")]
+            grid_valid: false,
         }
+    }
+
+    /// Evaluate `final_density` for every cell corner in the column in large
+    /// multi-column batches and store the results in the interpolator grid.
+    ///
+    /// Corner rows span `grid_base_y + r * v_cell_blocks` for `r in 0..rows`.
+    /// Subsequent `fill_plane_cached_reuse` calls whose corners fall inside the
+    /// grid copy values instead of evaluating the density stack, amortizing the
+    /// per-batch octave-loop overhead over up to `MAX_BATCH` positions.
+    #[cfg(feature = "batch-noise")]
+    pub fn precompute_column_grid(
+        &mut self,
+        router: &NoiseRouter,
+        cache: &mut ColumnCache,
+        grid_base_y: i32,
+        rows: usize,
+    ) {
+        let side = self.h_cells + 1;
+        if rows == 0 || rows > MAX_BATCH {
+            self.grid_valid = false;
+            return;
+        }
+        self.grid.resize(side * side * rows, 0.0);
+        self.grid_base_y = grid_base_y;
+        self.grid_rows = rows;
+
+        let cols_per_batch = MAX_BATCH / rows;
+        let mut positions = [IVec3::ZERO; MAX_BATCH];
+        let mut results = [0.0f32; MAX_BATCH];
+        let mut col_xz = [(0i32, 0i32); MAX_BATCH];
+        let mut col_grid_idx = [0usize; MAX_BATCH];
+        let mut batch_cols = 0usize;
+        let mut idx = 0usize;
+
+        for px in 0..side {
+            let local_x = (px * self.h_cell_blocks) as i32;
+            let x = cache.base_block_x + local_x;
+            for cz in 0..side {
+                let local_z = (cz * self.h_cell_blocks) as i32;
+                let z = cache.base_block_z + local_z;
+                col_xz[batch_cols] = (local_x, local_z);
+                col_grid_idx[batch_cols] = px * side + cz;
+                for r in 0..rows {
+                    positions[idx] =
+                        IVec3::new(x, grid_base_y + (r * self.v_cell_blocks) as i32, z);
+                    idx += 1;
+                }
+                batch_cols += 1;
+
+                if batch_cols == cols_per_batch {
+                    router.evaluate_plane_batch(
+                        &positions[..idx],
+                        &col_xz[..batch_cols],
+                        rows,
+                        cache,
+                        &mut results[..idx],
+                    );
+                    for c in 0..batch_cols {
+                        let g0 = col_grid_idx[c] * rows;
+                        self.grid[g0..g0 + rows]
+                            .copy_from_slice(&results[c * rows..(c + 1) * rows]);
+                    }
+                    batch_cols = 0;
+                    idx = 0;
+                }
+            }
+        }
+        if batch_cols > 0 {
+            router.evaluate_plane_batch(
+                &positions[..idx],
+                &col_xz[..batch_cols],
+                rows,
+                cache,
+                &mut results[..idx],
+            );
+            for c in 0..batch_cols {
+                let g0 = col_grid_idx[c] * rows;
+                self.grid[g0..g0 + rows].copy_from_slice(&results[c * rows..(c + 1) * rows]);
+            }
+        }
+        self.grid_valid = true;
     }
 
     #[inline]
@@ -3051,6 +3153,17 @@ impl NoiseCellInterpolator {
     #[inline]
     pub fn v_cell_blocks(&self) -> usize {
         self.v_cell_blocks
+    }
+
+    /// No-op without the `batch-noise` feature; plane fills evaluate lazily.
+    #[cfg(not(feature = "batch-noise"))]
+    pub fn precompute_column_grid(
+        &mut self,
+        _router: &NoiseRouter,
+        _cache: &mut ColumnCache,
+        _grid_base_y: i32,
+        _rows: usize,
+    ) {
     }
 
     /// Evaluate `final_density` at all corner positions on a Y-Z plane for a given X,
@@ -3146,6 +3259,33 @@ impl NoiseCellInterpolator {
         let local_x = x - column_cache.base_block_x;
         let z_count = self.h_cells + 1;
         let reuse = self.section_boundary_valid;
+
+        // Fast path: copy the plane from the precomputed column grid.
+        #[cfg(feature = "batch-noise")]
+        if self.grid_valid {
+            let dy = base_y - self.grid_base_y;
+            let v_step = self.v_cell_blocks as i32;
+            let row0 = dy / v_step;
+            if dy >= 0
+                && dy % v_step == 0
+                && (row0 as usize) + self.v_cells < self.grid_rows
+                && local_x >= 0
+                && local_x % self.h_cell_blocks as i32 == 0
+            {
+                let px = (local_x as usize) / self.h_cell_blocks;
+                if px < z_count {
+                    let row0 = row0 as usize;
+                    for cz in 0..z_count {
+                        let g0 = (px * z_count + cz) * self.grid_rows + row0;
+                        buf[cz * v_stride..cz * v_stride + v_stride]
+                            .copy_from_slice(&self.grid[g0..g0 + v_stride]);
+                        self.saved_top_y[plane_seq * z_count + cz] =
+                            buf[cz * v_stride + self.v_cells];
+                    }
+                    return;
+                }
+            }
+        }
 
         #[cfg(feature = "batch-noise")]
         {
@@ -3473,97 +3613,126 @@ impl BlendedNoise {
             amplitude *= 2.0;
         }
 
-        // ---- Lower noise: 16 octaves ----
+        // Mirror the scalar path's laziness: only evaluate the lower (resp. upper)
+        // 16-octave noise for positions whose main-noise value actually selects it.
+        // Each position's math is unchanged, so results stay bit-identical.
+        let mut blend_values = [0.0f32; MAX_BATCH];
+        let mut lower_idx = [0usize; MAX_BATCH];
+        let mut upper_idx = [0usize; MAX_BATCH];
+        let mut n_lower = 0;
+        let mut n_upper = 0;
+        for j in 0..n {
+            let value = (interp_values[j] / 10.0 + 1.0) / 2.0;
+            blend_values[j] = value;
+            if value < 1.0 {
+                lower_idx[n_lower] = j;
+                n_lower += 1;
+            }
+            if value > 0.0 {
+                upper_idx[n_upper] = j;
+                n_upper += 1;
+            }
+        }
+
         let mut sxs = [0.0f32; MAX_BATCH];
         let mut sys = [0.0f32; MAX_BATCH];
         let mut szs = [0.0f32; MAX_BATCH];
-        for j in 0..n {
-            sxs[j] = scaled[j].0;
-            sys[j] = scaled[j].1;
-            szs[j] = scaled[j].2;
+
+        // ---- Lower noise: 16 octaves (only positions with value < 1.0) ----
+        for (k, &j) in lower_idx[..n_lower].iter().enumerate() {
+            sxs[k] = scaled[j].0;
+            sys[k] = scaled[j].1;
+            szs[k] = scaled[j].2;
         }
         let mut lower_values = [0.0f32; MAX_BATCH];
         let mut sm = self.limit_smear;
         amplitude = 1.0;
 
         for i in 0..16 {
-            for j in 0..n {
-                positions_buf[j] = (
-                    OctavePerlinNoise::maintain_precission(sxs[j]),
-                    OctavePerlinNoise::maintain_precission(sys[j]),
-                    OctavePerlinNoise::maintain_precission(szs[j]),
+            for k in 0..n_lower {
+                positions_buf[k] = (
+                    OctavePerlinNoise::maintain_precission(sxs[k]),
+                    OctavePerlinNoise::maintain_precission(sys[k]),
+                    OctavePerlinNoise::maintain_precission(szs[k]),
                 );
-                y_maxes[j] = sys[j];
+                y_maxes[k] = sys[k];
             }
 
             self.lower_interpolated_noise.sample_octave_batch(
                 i,
-                &positions_buf[..n],
+                &positions_buf[..n_lower],
                 sm,
-                &y_maxes[..n],
-                &mut octave_results[..n],
+                &y_maxes[..n_lower],
+                &mut octave_results[..n_lower],
             );
 
-            for j in 0..n {
-                lower_values[j] = octave_results[j].mul_add(amplitude, lower_values[j]);
-                sxs[j] *= 0.5;
-                sys[j] *= 0.5;
-                szs[j] *= 0.5;
+            for k in 0..n_lower {
+                lower_values[k] = octave_results[k].mul_add(amplitude, lower_values[k]);
+                sxs[k] *= 0.5;
+                sys[k] *= 0.5;
+                szs[k] *= 0.5;
             }
             sm *= 0.5;
             amplitude *= 2.0;
         }
 
-        // ---- Upper noise: 16 octaves ----
-        // Reuse sxs/sys/szs buffers (reset from scaled)
-        for j in 0..n {
-            sxs[j] = scaled[j].0;
-            sys[j] = scaled[j].1;
-            szs[j] = scaled[j].2;
+        // ---- Upper noise: 16 octaves (only positions with value > 0.0) ----
+        for (k, &j) in upper_idx[..n_upper].iter().enumerate() {
+            sxs[k] = scaled[j].0;
+            sys[k] = scaled[j].1;
+            szs[k] = scaled[j].2;
         }
         let mut upper_values = [0.0f32; MAX_BATCH];
         sm = self.limit_smear;
         amplitude = 1.0;
 
         for i in 0..16 {
-            for j in 0..n {
-                positions_buf[j] = (
-                    OctavePerlinNoise::maintain_precission(sxs[j]),
-                    OctavePerlinNoise::maintain_precission(sys[j]),
-                    OctavePerlinNoise::maintain_precission(szs[j]),
+            for k in 0..n_upper {
+                positions_buf[k] = (
+                    OctavePerlinNoise::maintain_precission(sxs[k]),
+                    OctavePerlinNoise::maintain_precission(sys[k]),
+                    OctavePerlinNoise::maintain_precission(szs[k]),
                 );
-                y_maxes[j] = sys[j];
+                y_maxes[k] = sys[k];
             }
 
             self.upper_interpolated_noise.sample_octave_batch(
                 i,
-                &positions_buf[..n],
+                &positions_buf[..n_upper],
                 sm,
-                &y_maxes[..n],
-                &mut octave_results[..n],
+                &y_maxes[..n_upper],
+                &mut octave_results[..n_upper],
             );
 
-            for j in 0..n {
-                upper_values[j] = octave_results[j].mul_add(amplitude, upper_values[j]);
-                sxs[j] *= 0.5;
-                sys[j] *= 0.5;
-                szs[j] *= 0.5;
+            for k in 0..n_upper {
+                upper_values[k] = octave_results[k].mul_add(amplitude, upper_values[k]);
+                sxs[k] *= 0.5;
+                sys[k] *= 0.5;
+                szs[k] *= 0.5;
             }
             sm *= 0.5;
             amplitude *= 2.0;
         }
 
+        // ---- Scatter lower/upper back to per-position slots ----
+        let mut starts = [0.0f32; MAX_BATCH];
+        let mut ends = [0.0f32; MAX_BATCH];
+        for (k, &j) in lower_idx[..n_lower].iter().enumerate() {
+            starts[j] = lower_values[k] / 512.0;
+        }
+        for (k, &j) in upper_idx[..n_upper].iter().enumerate() {
+            ends[j] = upper_values[k] / 512.0;
+        }
+
         // ---- Combine results ----
         for j in 0..n {
-            let value = (interp_values[j] / 10.0 + 1.0) / 2.0;
-            let start = lower_values[j] / 512.0;
-            let end = upper_values[j] / 512.0;
+            let value = blend_values[j];
             results[j] = if value < 0.0 {
-                start
+                starts[j]
             } else if value > 1.0 {
-                end
+                ends[j]
             } else {
-                value.mul_add(end - start, start)
+                value.mul_add(ends[j] - starts[j], starts[j])
             } / self.final_divisor;
         }
     }

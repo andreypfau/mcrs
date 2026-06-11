@@ -197,6 +197,25 @@ impl ImprovedNoise<f32> {
         )
     }
 
+    /// Batch sample: identical per-position math to `sample`, looped so the
+    /// permutation table stays L1-hot across all positions of one octave.
+    /// An empty `y_maxes` means y_max = 0.0 for every position.
+    #[cfg(feature = "batch-noise")]
+    pub fn sample_batch(
+        &self,
+        positions: &[(f32, f32, f32)],
+        y_scale: f32,
+        y_maxes: &[f32],
+        results: &mut [f32],
+    ) {
+        debug_assert_eq!(positions.len(), results.len());
+        debug_assert!(y_maxes.is_empty() || y_maxes.len() == positions.len());
+        for (j, &(x, y, z)) in positions.iter().enumerate() {
+            let y_max = if y_maxes.is_empty() { 0.0 } else { y_maxes[j] };
+            results[j] = self.sample(x, y, z, y_scale, y_max);
+        }
+    }
+
     #[inline(always)]
     pub fn sample_and_lerp(
         &self,

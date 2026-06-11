@@ -255,6 +255,106 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
         }
     }
 
+    /// Fill the axis-aligned box `[x0, x1) x [y0, y1) x [z0, z1)` with `value`.
+    ///
+    /// Equivalent to calling `set` for every position in the box, including the
+    /// exact palette-entry ordering produced by that sequence (appends on first
+    /// occurrence, swap_remove when a count reaches zero), so serialized output
+    /// is bit-identical. Palette index lookups are memoized across the box,
+    /// avoiding the per-block reverse-index hashing of repeated `set` calls.
+    pub fn fill_box(
+        &mut self,
+        x0: usize,
+        x1: usize,
+        y0: usize,
+        y1: usize,
+        z0: usize,
+        z1: usize,
+        value: V,
+    ) {
+        debug_assert!(x1 <= DIM && y1 <= DIM && z1 <= DIM);
+        if x0 >= x1 || y0 >= y1 || z0 >= z1 {
+            return;
+        }
+        match self {
+            Self::Homogeneous(original) => {
+                let original = *original;
+                if value == original {
+                    return;
+                }
+                let mut cube = Box::new([[[original; DIM]; DIM]; DIM]);
+                for y in y0..y1 {
+                    for z in z0..z1 {
+                        cube[y][z][x0..x1].fill(value);
+                    }
+                }
+                *self = Self::from_cube(cube);
+            }
+            Self::Heterogeneous(data) => {
+                // Memoized palette indices; invalidated whenever palette
+                // membership changes (swap_remove shifts indices).
+                let mut orig_memo: Option<(V, usize)> = None;
+                let mut value_idx: Option<usize> = None;
+                for y in y0..y1 {
+                    for z in z0..z1 {
+                        for x in x0..x1 {
+                            let original = data.cube[y][z][x];
+                            if original == value {
+                                // Re-setting the same value can reorder the palette
+                                // (remove + re-append when count is 1); delegate to
+                                // `set` for exact semantics and drop memos.
+                                data.set(x, y, z, value);
+                                orig_memo = None;
+                                value_idx = None;
+                                continue;
+                            }
+                            let original_index = match orig_memo {
+                                Some((o, idx)) if o == original => idx,
+                                _ => {
+                                    let idx = data.palette_index(&original);
+                                    orig_memo = Some((original, idx));
+                                    idx
+                                }
+                            };
+                            data.counts[original_index] -= 1;
+                            if data.counts[original_index] == 0 {
+                                data.index.remove(&original);
+                                let last = data.palette.len() - 1;
+                                if original_index != last {
+                                    let moved_value = data.palette[last];
+                                    data.index.insert(moved_value, original_index);
+                                }
+                                data.palette.swap_remove(original_index);
+                                data.counts.swap_remove(original_index);
+                                orig_memo = None;
+                                value_idx = None;
+                            }
+                            data.cube[y][z][x] = value;
+                            match value_idx {
+                                Some(vi) => data.counts[vi] += 1,
+                                None => {
+                                    if let Some(&existing) = data.index.get(&value) {
+                                        data.counts[existing] += 1;
+                                        value_idx = Some(existing);
+                                    } else {
+                                        let new_index = data.palette.len();
+                                        data.palette.push(value);
+                                        data.counts.push(1);
+                                        data.index.insert(value, new_index);
+                                        value_idx = Some(new_index);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if data.counts.len() == 1 {
+                    *self = Self::Homogeneous(data.palette[0]);
+                }
+            }
+        }
+    }
+
     pub fn for_each<F>(&self, mut f: F)
     where
         F: FnMut(V),

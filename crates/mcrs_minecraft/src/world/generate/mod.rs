@@ -71,19 +71,22 @@ fn generate_section(
                         // All non-solid — fill with fluid where world Y < sea_level.
                         if cell_max_world_y <= sea_level {
                             // Entire cell is below sea level: fill all with fluid.
-                            let bx_base = (cell_x * h_cell_blocks) as i32;
-                            let by_base = (cell_y * v_cell_blocks) as i32;
-                            let bz_base = (cell_z * h_cell_blocks) as i32;
-                            for ly in 0..v_cell_blocks as i32 {
-                                for lx in 0..h_cell_blocks as i32 {
-                                    for lz in 0..h_cell_blocks as i32 {
-                                        block_states.set(
-                                            BlockPos::new(bx_base + lx, by_base + ly, bz_base + lz),
-                                            default_fluid,
-                                        );
-                                    }
-                                }
-                            }
+                            let bx_base = cell_x * h_cell_blocks;
+                            let by_base = cell_y * v_cell_blocks;
+                            let bz_base = cell_z * h_cell_blocks;
+                            block_states.fill_box(
+                                bx_base,
+                                bx_base + h_cell_blocks,
+                                by_base,
+                                by_base + v_cell_blocks,
+                                bz_base,
+                                bz_base + h_cell_blocks,
+                                default_fluid,
+                            );
+                            // Per-block interpolation would only re-set the same
+                            // fluid (all corners non-solid, every Y below sea level),
+                            // so the cell is complete.
+                            continue;
                         } else if cell_min_world_y >= sea_level {
                             // Entire cell is at or above sea level: all air.
                             continue;
@@ -93,19 +96,18 @@ fn generate_section(
                     }
                     Some(true) => {
                         // All solid — fill the entire cell with default block.
-                        let bx_base = (cell_x * h_cell_blocks) as i32;
-                        let by_base = (cell_y * v_cell_blocks) as i32;
-                        let bz_base = (cell_z * h_cell_blocks) as i32;
-                        for ly in 0..v_cell_blocks as i32 {
-                            for lx in 0..h_cell_blocks as i32 {
-                                for lz in 0..h_cell_blocks as i32 {
-                                    block_states.set(
-                                        BlockPos::new(bx_base + lx, by_base + ly, bz_base + lz),
-                                        default_block,
-                                    );
-                                }
-                            }
-                        }
+                        let bx_base = cell_x * h_cell_blocks;
+                        let by_base = cell_y * v_cell_blocks;
+                        let bz_base = cell_z * h_cell_blocks;
+                        block_states.fill_box(
+                            bx_base,
+                            bx_base + h_cell_blocks,
+                            by_base,
+                            by_base + v_cell_blocks,
+                            bz_base,
+                            bz_base + h_cell_blocks,
+                            default_block,
+                        );
                         continue;
                     }
                     None => {}
@@ -232,6 +234,13 @@ pub fn generate_column(
 
     let noise_min_y = noise_router.noise_min_y();
     let noise_max_y = noise_min_y + noise_router.noise_height() as i32;
+
+    // Precompute all corner densities for the column in large batches; the
+    // per-section plane fills then copy from this grid.
+    {
+        let rows = noise_router.noise_height() as usize / interp.v_cell_blocks() + 1;
+        interp.precompute_column_grid(noise_router, &mut column_cache, noise_min_y, rows);
+    }
 
     // Only fill biome palettes when the source is Beta; modern paths keep default().
     let beta_biome = biome_context.and_then(|(src, reg)| {

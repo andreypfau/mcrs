@@ -132,7 +132,7 @@ impl NoiseSampler {
                 return;
             }
         };
-        const MAX_BATCH: usize = 16;
+        use crate::density_function::MAX_BATCH;
         let len = positions.len();
         debug_assert_eq!(len, results.len());
         debug_assert!(len <= MAX_BATCH);

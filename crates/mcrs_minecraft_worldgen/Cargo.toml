@@ -20,8 +20,9 @@ num-traits = { workspace = true }
 tracing = { workspace = true }
 
 [features]
-default = ["serde", "bevy", "lazy-range-choice"]
+default = ["serde", "bevy", "lazy-range-choice", "batch-noise"]
 serde = ["dep:serde", "dep:serde_json"]
 bevy = ["dep:bevy_app", "dep:bevy_ecs", "dep:bevy_asset", "dep:bevy_reflect", "dep:thiserror"]
 lazy-range-choice = []
+batch-noise = []
 surface-skip = []
