@@ -342,4 +342,14 @@ mod tests {
         let typed = block_state!(NOTE_BLOCK, NOTE_PROP => 7u8, POWERED_PROP => true);
         assert_eq!(decl, typed);
     }
+
+    #[test]
+    fn water_default_state_id_is_86() {
+        assert_eq!(WATER.default_state_id, BlockStateId(86));
+    }
+
+    #[test]
+    fn lava_default_state_id_is_102() {
+        assert_eq!(LAVA.default_state_id, BlockStateId(102));
+    }
 }
