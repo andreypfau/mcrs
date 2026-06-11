@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:add",
+  "argument1": 1.0,
+  "argument2": {
+    "type": "minecraft:mul",
+    "argument1": -1.0,
+    "argument2": {
+      "type": "minecraft:square",
+      "argument": {
+        "type": "minecraft:square",
+        "argument": {
+          "type": "minecraft:add",
+          "argument1": 1.0,
+          "argument2": {
+            "type": "minecraft:mul",
+            "argument1": -1.0,
+            "argument2": {
+              "type": "minecraft:mul",
+              "argument1": {
+                "type": "minecraft:flat_cache",
+                "argument": { "type": "mcrs:beta_temperature_2d" }
+              },
+              "argument2": {
+                "type": "minecraft:flat_cache",
+                "argument": { "type": "mcrs:beta_humidity_2d" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

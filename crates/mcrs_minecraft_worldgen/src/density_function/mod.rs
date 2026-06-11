@@ -1046,7 +1046,6 @@ fn compute_per_block(stack: &[DensityFunctionComponent], _roots: &[usize]) -> Ve
                     | DependentDensityFunction::ShiftedNoise(_)
                     | DependentDensityFunction::WeirdScaled(_)
                     | DependentDensityFunction::FindTopSurface(_)
-                    | DependentDensityFunction::BetaTerrain(_)
             ),
             DensityFunctionComponent::Wrapper(_) => false,
         };
@@ -1494,18 +1493,6 @@ pub fn build_functions(
 
     optimize_stack(&mut builder.stack, &mut roots);
 
-    // Wire climate indices into BetaScale2d nodes now that all roots are resolved.
-    let temp_idx = roots[4]; // temperature_index
-    let veg_idx = roots[5];  // vegetation_index
-    for entry in builder.stack.iter_mut() {
-        if let DensityFunctionComponent::Independent(IndependentDensityFunction::BetaScale2d(s)) =
-            entry
-        {
-            s.temperature_index = temp_idx;
-            s.vegetation_index = veg_idx;
-        }
-    }
-
     let mut per_block = compute_per_block(&builder.stack, &roots);
 
     // Build node labels: start with type labels, then overlay reference names
@@ -1816,7 +1803,6 @@ impl NoiseRouter {
                     DependentDensityFunction::Spline(_) => spline += 1,
                     DependentDensityFunction::FlattenedSpline(_) => flat_spline += 1,
                     DependentDensityFunction::FindTopSurface(_) => find_top += 1,
-                    DependentDensityFunction::BetaTerrain(_) => {}
                 },
             }
         }
@@ -3702,70 +3688,45 @@ impl DensityFunction for BlendedNoise {
     }
 }
 
+/// Raw 10-octave Beta scale noise (Java: a.a(g, x, z, ..., 1.121, 1.121, 0.5)).
+/// Post-processing (climate factor, /512, clamp, +0.5) lives in beta.json.
 #[derive(Clone, PartialEq, Debug)]
 struct BetaScale2d {
     scale_noise: OctavePerlinNoise<f32>,
-    /// Stack index of the BetaTemperature2d (or flat_cache wrapper) for d4 factor.
-    temperature_index: usize,
-    /// Stack index of the BetaHumidity2d (or flat_cache wrapper) for d4 factor.
-    vegetation_index: usize,
 }
 
 impl RangeFunction for BetaScale2d {
-    fn min_value(&self) -> f32 { 0.0 }
-    fn max_value(&self) -> f32 { 1.5 }
+    // sample_xz sums octave contributions divided by halving frequencies:
+    // |acc| <= A * (2^10 - 1) with per-octave |sample_2d| <= A ~ 2.
+    fn min_value(&self) -> f32 { -2048.0 }
+    fn max_value(&self) -> f32 { 2048.0 }
 }
 
 impl DensityFunction for BetaScale2d {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, _stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         let noise_x = (pos.x >> 2) as f32;
         let noise_z = (pos.z >> 2) as f32;
-        let raw = self.scale_noise.sample_xz(noise_x, noise_z, 1.121, 1.121);
-
-        let temp = stack[self.temperature_index].sample(stack, pos);
-        let rain = stack[self.vegetation_index].sample(stack, pos);
-
-        // d4 = 1 - (1 - rain*temp)^4  (ChunkProviderGenerate.java:229-234)
-        let d3 = rain * temp;
-        let mut d4 = 1.0 - d3;
-        d4 *= d4;
-        d4 *= d4;
-        d4 = 1.0 - d4;
-
-        let mut d5 = (raw + 256.0) / 512.0;
-        d5 *= d4;
-        d5 = d5.clamp(0.0, 1.0);
-        d5 + 0.5
+        self.scale_noise.sample_xz(noise_x, noise_z, 1.121, 1.121)
     }
 }
 
+/// Raw 16-octave Beta depth noise (Java: b.a(h, x, z, ..., 200.0, 200.0, 0.5)).
+/// Post-processing (/8000, folding, branches, 8.5 + d*4.25) lives in beta.json.
 #[derive(Clone, PartialEq, Debug)]
 struct BetaDepth2d {
     depth_noise: OctavePerlinNoise<f32>,
 }
 
 impl RangeFunction for BetaDepth2d {
-    fn min_value(&self) -> f32 { 0.5 }
-    fn max_value(&self) -> f32 { 13.0 }
+    fn min_value(&self) -> f32 { -131072.0 }
+    fn max_value(&self) -> f32 { 131072.0 }
 }
 
 impl DensityFunction for BetaDepth2d {
     fn sample(&self, _stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         let noise_x = (pos.x >> 2) as f32;
         let noise_z = (pos.z >> 2) as f32;
-        let raw = self.depth_noise.sample_xz(noise_x, noise_z, 200.0, 200.0);
-        let mut depth = raw / 8000.0;
-        if depth < 0.0 {
-            depth = -depth * 0.3;
-        }
-        depth = depth * 3.0 - 2.0;
-        if depth < 0.0 {
-            depth = (depth / 2.0).clamp(-1.0, 0.0) / 1.4 / 2.0;
-        } else {
-            depth = depth.clamp(0.0, 1.0) / 8.0;
-        }
-        // depth_val = 8.5 + depth * 4.25 (half of 8.5)
-        8.5 + depth * 8.5 / 2.0
+        self.depth_noise.sample_xz(noise_x, noise_z, 200.0, 200.0)
     }
 }
 
@@ -3857,58 +3818,6 @@ impl DensityFunction for BetaHumidity2d {
         } else {
             0.0
         }
-    }
-}
-
-#[derive(Clone, PartialEq, Debug)]
-struct BetaTerrainDensity {
-    blend: BlendedNoise,
-    scale_index: usize,
-    depth_index: usize,
-    height: i32,
-}
-
-impl RangeFunction for BetaTerrainDensity {
-    fn min_value(&self) -> f32 { -self.blend.max_value * 4.0 }
-    fn max_value(&self) -> f32 { self.blend.max_value }
-}
-
-impl DensityFunction for BetaTerrainDensity {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let scale_val = stack[self.scale_index].sample(stack, pos);
-        let depth_val = stack[self.depth_index].sample(stack, pos);
-        self.apply_curve(self.blend.sample(stack, pos), pos.y, scale_val, depth_val)
-    }
-}
-
-impl BetaTerrainDensity {
-    /// Apply the Beta vertical curve (ChunkProviderGenerate.java:235-295).
-    ///
-    /// depth_val is the cell-unit terrain center (from BetaDepth2d, ~8.5 ± 1 for standard terrain).
-    /// scale_val is the scale factor (from BetaScale2d, >= 0.5 from the clamp).
-    fn apply_curve(&self, blend_val: f32, block_y: i32, scale_val: f32, depth_val: f32) -> f32 {
-        let noise_y = block_y >> 3;
-        // Java i1: number of cell corner rows (17 for height 128)
-        let cell_rows = self.height / 8 + 1;
-
-        // Java zeroes d5 (the pre-+0.5 scale) whenever the depth-noise branch goes
-        // negative; that state is recoverable here as depth_val < i1/2 (= 8.5).
-        let scale_val = if depth_val < cell_rows as f32 / 2.0 { 0.5 } else { scale_val };
-
-        // d9 = (j3 - d7) * 12 / d5, quadrupled when negative (below terrain center)
-        let mut term = (noise_y as f32 - depth_val) * 12.0 / scale_val;
-        if term < 0.0 {
-            term *= 4.0;
-        }
-        let mut density = blend_val - term;
-
-        // Top taper toward -10 over the last 3 cell rows (Java: j3 > i1 - 4, step /3)
-        if noise_y > cell_rows - 4 {
-            let d = (noise_y - (cell_rows - 4)) as f32 / 3.0;
-            density = density * (1.0 - d) + (-10.0) * d;
-        }
-
-        density
     }
 }
 
@@ -4432,7 +4341,6 @@ enum DependentDensityFunction {
     Spline(Spline),
     FlattenedSpline(FlattenedSpline),
     FindTopSurface(FindTopSurface),
-    BetaTerrain(BetaTerrainDensity),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -4500,7 +4408,6 @@ impl DensityFunction for DependentDensityFunction {
             DependentDensityFunction::Spline(x) => x.sample(stack, pos),
             DependentDensityFunction::FlattenedSpline(x) => x.sample(stack, pos),
             DependentDensityFunction::FindTopSurface(x) => x.sample(stack, pos),
-            DependentDensityFunction::BetaTerrain(x) => x.sample(stack, pos),
         }
     }
 }
@@ -4521,7 +4428,6 @@ impl RangeFunction for DependentDensityFunction {
             DependentDensityFunction::Spline(x) => x.min_value(),
             DependentDensityFunction::FlattenedSpline(x) => x.min_value(),
             DependentDensityFunction::FindTopSurface(x) => x.min_value(),
-            DependentDensityFunction::BetaTerrain(x) => x.min_value(),
         }
     }
 
@@ -4540,7 +4446,6 @@ impl RangeFunction for DependentDensityFunction {
             DependentDensityFunction::Spline(x) => x.max_value(),
             DependentDensityFunction::FlattenedSpline(x) => x.max_value(),
             DependentDensityFunction::FindTopSurface(x) => x.max_value(),
-            DependentDensityFunction::BetaTerrain(x) => x.max_value(),
         }
     }
 }
@@ -5747,7 +5652,6 @@ impl DensityFunctionComponent {
                     )
                 }
                 DependentDensityFunction::FindTopSurface(_) => "find_top_surface".into(),
-                DependentDensityFunction::BetaTerrain(_) => "beta_terrain".into(),
             },
             DensityFunctionComponent::Wrapper(f) => match f {
                 WrapperDensityFunction::BlendDensity(_) => "blend_density".into(),
@@ -5813,10 +5717,6 @@ impl DensityFunctionComponent {
     fn rewrite_indices(&mut self, redirect: &[usize]) {
         match self {
             DensityFunctionComponent::Independent(ind) => match ind {
-                IndependentDensityFunction::BetaScale2d(x) => {
-                    x.temperature_index = redirect[x.temperature_index];
-                    x.vegetation_index = redirect[x.vegetation_index];
-                }
                 IndependentDensityFunction::BetaTemperature2d(x) => {
                     x.climate_index = redirect[x.climate_index];
                 }
@@ -5873,10 +5773,6 @@ impl DensityFunctionComponent {
                     x.density_index = redirect[x.density_index];
                     x.upper_bound_index = redirect[x.upper_bound_index];
                 }
-                DependentDensityFunction::BetaTerrain(x) => {
-                    x.scale_index = redirect[x.scale_index];
-                    x.depth_index = redirect[x.depth_index];
-                }
             },
             DensityFunctionComponent::Wrapper(wrapper) => match wrapper {
                 WrapperDensityFunction::BlendDensity(x) => {
@@ -5904,10 +5800,6 @@ impl DensityFunctionComponent {
     fn visit_input_indices(&self, f: &mut impl FnMut(usize)) {
         match self {
             DensityFunctionComponent::Independent(ind) => match ind {
-                IndependentDensityFunction::BetaScale2d(x) => {
-                    f(x.temperature_index);
-                    f(x.vegetation_index);
-                }
                 IndependentDensityFunction::BetaTemperature2d(x) => f(x.climate_index),
                 IndependentDensityFunction::BetaHumidity2d(x) => f(x.climate_index),
                 _ => {}
@@ -5943,10 +5835,6 @@ impl DensityFunctionComponent {
                 DependentDensityFunction::FindTopSurface(x) => {
                     f(x.density_index);
                     f(x.upper_bound_index);
-                }
-                DependentDensityFunction::BetaTerrain(x) => {
-                    f(x.scale_index);
-                    f(x.depth_index);
                 }
             },
             DensityFunctionComponent::Wrapper(wrapper) => match wrapper {
@@ -5994,22 +5882,7 @@ impl DensityFunctionComponent {
                 IndependentDensityFunction::Shift(x) => x.sample(&[], pos),
                 IndependentDensityFunction::ClampedYGradient(x) => x.sample(&[], pos),
                 IndependentDensityFunction::EndIslands => 0.0,
-                IndependentDensityFunction::BetaScale2d(x) => {
-                    let noise_x = (pos.x >> 2) as f32;
-                    let noise_z = (pos.z >> 2) as f32;
-                    let raw = x.scale_noise.sample_xz(noise_x, noise_z, 1.121, 1.121);
-                    let temp = cache[x.temperature_index];
-                    let rain = cache[x.vegetation_index];
-                    let d3 = rain * temp;
-                    let mut d4 = 1.0 - d3;
-                    d4 *= d4;
-                    d4 *= d4;
-                    d4 = 1.0 - d4;
-                    let mut d5 = (raw + 256.0) / 512.0;
-                    d5 *= d4;
-                    d5 = d5.clamp(0.0, 1.0);
-                    d5 + 0.5
-                }
+                IndependentDensityFunction::BetaScale2d(x) => x.sample(&[], pos),
                 IndependentDensityFunction::BetaDepth2d(x) => x.sample(&[], pos),
                 IndependentDensityFunction::BetaClimate2d(x) => x.sample(&[], pos),
                 IndependentDensityFunction::BetaTemperature2d(x) => x.sample(stack, pos),
@@ -6126,12 +5999,6 @@ impl DensityFunctionComponent {
                             current_y -= x.cell_height;
                         }
                     }
-                }
-                DependentDensityFunction::BetaTerrain(x) => {
-                    let scale_val = cache[x.scale_index];
-                    let depth_val = cache[x.depth_index];
-                    let blend_val = x.blend.sample(&[], pos);
-                    x.apply_curve(blend_val, pos.y, scale_val, depth_val)
                 }
             },
             DensityFunctionComponent::Wrapper(f) => match f {
@@ -6731,12 +6598,10 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     fn visit_beta_scale_2d(&mut self) {
         let seed = self.world_seed;
         let (_, _, _, scale_noise, _) = beta_seed::seed_beta_terrain(seed);
-        // temperature_index and vegetation_index are wired in a post-processing pass
-        // inside build_functions after all roots are resolved (indices not yet known here).
         self.register_component(
             ProtoDensityFunction::BetaScale2d,
             DensityFunctionComponent::Independent(IndependentDensityFunction::BetaScale2d(
-                BetaScale2d { scale_noise, temperature_index: 0, vegetation_index: 0 },
+                BetaScale2d { scale_noise },
             )),
         );
     }
@@ -6786,13 +6651,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         );
     }
 
-    fn visit_beta_terrain_noise(
-        &mut self,
-        scale: &DensityFunctionHolder,
-        depth: &DensityFunctionHolder,
-    ) {
-        let scale_index = self.component(scale);
-        let depth_index = self.component(depth);
+    fn visit_beta_blended_noise(&mut self) {
         let seed = self.world_seed;
         let (low, high, selector, _, _) = beta_seed::seed_beta_terrain(seed);
         // Construct the Beta blend with /128 disabled (Beta omits the trailing divisor).
@@ -6822,20 +6681,10 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             upper_interpolated_noise: high,
             interpolated_noise: selector,
         };
-        let height = self.builder_options.vertical_cell_count as i32
-            * self.builder_options.vertical_cell_block_count as i32;
         self.register_component(
-            ProtoDensityFunction::BetaTerrainNoise {
-                scale: scale.clone(),
-                depth: depth.clone(),
-            },
-            DensityFunctionComponent::Dependent(DependentDensityFunction::BetaTerrain(
-                BetaTerrainDensity {
-                    blend,
-                    scale_index,
-                    depth_index,
-                    height,
-                },
+            ProtoDensityFunction::BetaBlendedNoise,
+            DensityFunctionComponent::Independent(IndependentDensityFunction::OldBlendedNoise(
+                blend,
             )),
         );
     }
@@ -7105,92 +6954,46 @@ mod tests {
 
     #[test]
     fn beta_scale_depth_2d_finite() {
-        use super::{BetaDepth2d, BetaScale2d, DensityFunctionComponent, IndependentDensityFunction};
+        use super::{BetaDepth2d, BetaScale2d};
         let (_, _, _, scale_noise, depth_noise) = seed_beta_terrain(12345);
-        // Constant(1.0) placeholders at indices 0/1 so climate reads are valid.
-        let climate_stack: Vec<DensityFunctionComponent> = vec![
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(1.0)),
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(1.0)),
-        ];
-        let scale_node = BetaScale2d { scale_noise, temperature_index: 0, vegetation_index: 1 };
+        let scale_node = BetaScale2d { scale_noise };
         let depth_node = BetaDepth2d { depth_noise };
 
         let pos_a = bevy_math::IVec3::new(0, 0, 0);
         let pos_y_ignored = bevy_math::IVec3::new(0, 100, 0);
         let pos_b = bevy_math::IVec3::new(64, 0, 64);
 
-        let sv_a = scale_node.sample(&climate_stack, pos_a);
-        let sv_y = scale_node.sample(&climate_stack, pos_y_ignored);
+        let sv_a = scale_node.sample(&[], pos_a);
+        let sv_y = scale_node.sample(&[], pos_y_ignored);
         let dv_a = depth_node.sample(&[], pos_a);
         let dv_y = depth_node.sample(&[], pos_y_ignored);
 
         assert!(sv_a.is_finite(), "scale at origin must be finite");
         assert!(dv_a.is_finite(), "depth at origin must be finite");
-        assert!(scale_node.sample(&climate_stack, pos_b).is_finite(), "scale at (64,0,64) must be finite");
+        assert!(scale_node.sample(&[], pos_b).is_finite(), "scale at (64,0,64) must be finite");
         assert!(depth_node.sample(&[], pos_b).is_finite(), "depth at (64,0,64) must be finite");
         assert_eq!(sv_a, sv_y, "BetaScale2d must ignore pos.y");
         assert_eq!(dv_a, dv_y, "BetaDepth2d must ignore pos.y");
     }
 
     #[test]
-    fn beta_scale_2d_climate_factor() {
-        use super::{BetaScale2d, DensityFunctionComponent, IndependentDensityFunction};
-        let (_, _, _, scale_noise_a, _) = seed_beta_terrain(12345);
-        let (_, _, _, scale_noise_b, _) = seed_beta_terrain(12345);
-
-        // cold+dry (temp=0, rain=0): d3=0, d4=1, d4^4=1, d4=1-1=0 → d5=0+0.5=0.5 always
-        let climate_cold = vec![
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(0.0)),
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(0.0)),
-        ];
-        let node_cold = BetaScale2d { scale_noise: scale_noise_a, temperature_index: 0, vegetation_index: 1 };
-        let v_cold = node_cold.sample(&climate_cold, bevy_math::IVec3::new(0, 64, 0));
-        assert!((v_cold - 0.5).abs() < 1e-4, "cold+dry gives d4=0 → scale is always 0.5, got {v_cold}");
-
-        // hot+wet (temp=1, rain=1): d3=1, d4=0, d4^4=0, d4=1 → noise passes through fully
-        let climate_hot = vec![
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(1.0)),
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(1.0)),
-        ];
-        let node_hot = BetaScale2d { scale_noise: scale_noise_b, temperature_index: 0, vegetation_index: 1 };
-        let v_hot = node_hot.sample(&climate_hot, bevy_math::IVec3::new(0, 64, 0));
-        assert!(v_hot.is_finite(), "hot+wet scale output must be finite, got {v_hot}");
-        // d4=1 so d5=(raw+256)/512 clamped; result is in [0.5, 1.5] (min=0+0.5, max=1+0.5)
-        assert!(v_hot >= 0.5 && v_hot <= 1.5, "hot+wet output must be in [0.5, 1.5], got {v_hot}");
-    }
-
-    #[test]
     fn beta_blended_noise_samples_finite() {
-        use super::{BetaDepth2d, BetaScale2d, BetaTerrainDensity, DensityFunctionComponent, IndependentDensityFunction};
-        let (low, high, selector, scale_noise, depth_noise) = seed_beta_terrain(12345);
-        // Climate placeholders at indices 0/1; scale at 2, depth at 3, terrain at 4.
-        let scale_node = BetaScale2d { scale_noise, temperature_index: 0, vegetation_index: 1 };
-        let depth_node = BetaDepth2d { depth_noise };
-        let blend = BlendedNoise::new(
-            &mut mcrs_random::RandomSource::new(12345, true),
-            1.0, 1.0, 80.0, 160.0, 8.0, 1.0,
+        use std::collections::BTreeMap;
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/minecraft/worldgen/noise_settings/beta.json"
         );
-        let beta_terrain = BetaTerrainDensity {
-            blend,
-            scale_index: 2,
-            depth_index: 3,
-            height: 128,
-        };
-
-        let stack: Vec<DensityFunctionComponent> = vec![
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(1.0)),
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(1.0)),
-            DensityFunctionComponent::Independent(super::IndependentDensityFunction::BetaScale2d(scale_node)),
-            DensityFunctionComponent::Independent(super::IndependentDensityFunction::BetaDepth2d(depth_node)),
-            DensityFunctionComponent::Dependent(super::DependentDensityFunction::BetaTerrain(beta_terrain)),
-        ];
-        // Sample from the top (BetaTerrain) component
-        let comp = stack.last().unwrap();
+        let json = std::fs::read_to_string(path).expect("beta.json should exist");
+        let settings: NoiseGeneratorSettings =
+            serde_json::from_str(&json).expect("beta.json should deserialize");
+        let functions = load_density_functions_from_disk();
+        let noises = BTreeMap::new();
+        let router = super::build_functions(&functions, &noises, &settings, 12345);
 
         // Sample a column at multiple Y values to find a sign flip
         let mut all_densities = vec![];
         for y in (0..128).step_by(8) {
-            let v = comp.sample(&stack[..stack.len()-1], bevy_math::IVec3::new(0, y, 0));
+            let v = router.final_density_uncached(bevy_math::IVec3::new(0, y, 0));
             assert!(v.is_finite(), "density at y={y} must be finite");
             all_densities.push(v);
         }
@@ -7211,7 +7014,7 @@ mod tests {
         let json = std::fs::read_to_string(path).expect("beta.json should exist");
         let settings: NoiseGeneratorSettings =
             serde_json::from_str(&json).expect("beta.json should deserialize");
-        let functions = BTreeMap::new();
+        let functions = load_density_functions_from_disk();
         let noises = BTreeMap::new();
         let router = super::build_functions(&functions, &noises, &settings, 12345);
         // Zone A must contain the two FlatCache'd 2D nodes (scale/depth).
@@ -7322,7 +7125,7 @@ mod tests {
         let json = std::fs::read_to_string(path).expect("beta.json should exist");
         let settings: NoiseGeneratorSettings =
             serde_json::from_str(&json).expect("beta.json should deserialize");
-        let functions = BTreeMap::new();
+        let functions = load_density_functions_from_disk();
         let noises = BTreeMap::new();
         let router = super::build_functions(&functions, &noises, &settings, 845);
         let mut i = 0;
@@ -7369,7 +7172,7 @@ mod tests {
         let json = std::fs::read_to_string(path).expect("beta.json should exist");
         let settings: NoiseGeneratorSettings =
             serde_json::from_str(&json).expect("beta.json should deserialize");
-        let functions = BTreeMap::new();
+        let functions = load_density_functions_from_disk();
         let noises = BTreeMap::new();
         let router = super::build_functions(&functions, &noises, &settings, 845);
         for cx in 0..5i32 {

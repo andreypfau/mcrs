@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:range_choice",
+  "input": "minecraft:beta/depth",
+  "min_inclusive": -1000000.0,
+  "max_exclusive": 8.5,
+  "when_in_range": 0.5,
+  "when_out_of_range": "minecraft:beta/scale"
+}

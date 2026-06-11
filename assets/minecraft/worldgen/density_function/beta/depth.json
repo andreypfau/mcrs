@@ -1,0 +1,41 @@
+{
+  "type": "minecraft:flat_cache",
+  "argument": {
+    "type": "minecraft:add",
+    "argument1": 8.5,
+    "argument2": {
+      "type": "minecraft:mul",
+      "argument1": {
+        "type": "minecraft:range_choice",
+        "input": "minecraft:beta/depth_curve",
+        "min_inclusive": -1000000.0,
+        "max_exclusive": 0.0,
+        "when_in_range": {
+          "type": "minecraft:mul",
+          "argument1": {
+            "type": "minecraft:clamp",
+            "input": {
+              "type": "minecraft:mul",
+              "argument1": "minecraft:beta/depth_curve",
+              "argument2": 0.5
+            },
+            "min": -1.0,
+            "max": 0.0
+          },
+          "argument2": 0.35714285714285715
+        },
+        "when_out_of_range": {
+          "type": "minecraft:mul",
+          "argument1": {
+            "type": "minecraft:clamp",
+            "input": "minecraft:beta/depth_curve",
+            "min": 0.0,
+            "max": 1.0
+          },
+          "argument2": 0.125
+        }
+      },
+      "argument2": 4.25
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:flat_cache",
+  "argument": {
+    "type": "minecraft:add",
+    "argument1": 0.5,
+    "argument2": {
+      "type": "minecraft:clamp",
+      "input": {
+        "type": "minecraft:mul",
+        "argument1": {
+          "type": "minecraft:mul",
+          "argument1": {
+            "type": "minecraft:add",
+            "argument1": {
+              "type": "mcrs:beta_scale_2d"
+            },
+            "argument2": 256.0
+          },
+          "argument2": 0.001953125
+        },
+        "argument2": "minecraft:beta/climate_factor"
+      },
+      "min": 0.0,
+      "max": 1.0
+    }
+  }
+}

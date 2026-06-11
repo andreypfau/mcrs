@@ -1,0 +1,38 @@
+{
+  "type": "minecraft:add",
+  "argument1": {
+    "type": "minecraft:mul",
+    "argument1": {
+      "type": "minecraft:range_choice",
+      "input": {
+        "type": "minecraft:mul",
+        "argument1": {
+          "type": "mcrs:beta_depth_2d"
+        },
+        "argument2": 0.000125
+      },
+      "min_inclusive": -1000000.0,
+      "max_exclusive": 0.0,
+      "when_in_range": {
+        "type": "minecraft:mul",
+        "argument1": {
+          "type": "minecraft:mul",
+          "argument1": {
+            "type": "mcrs:beta_depth_2d"
+          },
+          "argument2": 0.000125
+        },
+        "argument2": -0.3
+      },
+      "when_out_of_range": {
+        "type": "minecraft:mul",
+        "argument1": {
+          "type": "mcrs:beta_depth_2d"
+        },
+        "argument2": 0.000125
+      }
+    },
+    "argument2": 3.0
+  },
+  "argument2": -2.0
+}
