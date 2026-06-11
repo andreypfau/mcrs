@@ -6,8 +6,11 @@ use mcrs_minecraft_worldgen::density_function::{
     ColumnCache, NoiseRouter, NoiseCellInterpolator,
 };
 use mcrs_random::legacy::LegacyRandom;
+use mcrs_random::Random;
 use mcrs_vanilla::biome::Biome;
-use mcrs_vanilla::biome::source::BiomeSource;
+use mcrs_vanilla::biome::beta_surface::beta_surface_blocks;
+use mcrs_vanilla::biome::source::{BiomeSource, beta_get_biome};
+use mcrs_vanilla::block::minecraft;
 
 /// Generate a single section using a pre-populated column cache and interpolator.
 /// The column cache and interpolator are passed in so they can be reused across
@@ -320,17 +323,166 @@ pub fn generate_column(
 
 /// Apply the Beta surface pass to a generated chunk column.
 ///
-/// This is a stub — full implementation is in the implementation phase.
+/// Ports replaceBlocksForBiome from back2beta with a single per-chunk LegacyRandom
+/// that drives both the surface depth, beach conditions, and the bedrock Y 0-4
+/// probabilistic check — all interleaved in back2beta's exact column iteration order.
+///
+/// The caller seeds `rng` once per chunk with seed = chunkX*341873128712 + chunkZ*132897987541.
+/// `rng` must be threaded across section calls so the stream is continuous.
 pub fn apply_beta_surface(
-    _sections: &mut Vec<Option<(BlockPalette, BiomePalette)>>,
-    _y_sections: &[i32],
-    _block_x: i32,
-    _block_z: i32,
-    _noise_router: &NoiseRouter,
-    _biome_source: &BiomeSource,
-    _rng: &mut LegacyRandom,
+    sections: &mut Vec<Option<(BlockPalette, BiomePalette)>>,
+    y_sections: &[i32],
+    block_x: i32,
+    block_z: i32,
+    noise_router: &NoiseRouter,
+    biome_source: &BiomeSource,
+    rng: &mut LegacyRandom,
 ) {
-    unimplemented!("apply_beta_surface not yet implemented")
+    let Some(beach_noise) = noise_router.beta_beach_noise() else { return };
+    let Some(surf_noise) = noise_router.beta_surface_noise() else { return };
+
+    let sea_level = noise_router.sea_level();
+    let default_fluid = noise_router.default_fluid_state();
+    let stone = noise_router.default_block_state();
+    let bedrock = minecraft::BEDROCK.default_state_id;
+    let sandstone = minecraft::SANDSTONE.default_state_id;
+    let gravel = minecraft::GRAVEL.default_state_id;
+
+    const D0: f32 = 0.03125;
+
+    // Pre-sample noise arrays for the 16x16 chunk footprint.
+    // r[x*16+z]: beach XZ noise (gravel/sand condition).
+    // s[x*16+z]: beach noise at Y=109 (gravel override condition).
+    // t[x*16+z]: surface depth noise.
+    let mut r = [0.0f32; 256];
+    let mut s = [0.0f32; 256];
+    let mut t = [0.0f32; 256];
+    for x in 0..16usize {
+        for z in 0..16usize {
+            r[x * 16 + z] = beach_noise.sample_xyz_beta(
+                (block_x + x as i32) as f32,
+                (block_z + z as i32) as f32,
+                0.0,
+                D0, D0, 1.0,
+            );
+            s[x * 16 + z] = beach_noise.sample_xyz_beta(
+                (block_x + x as i32) as f32,
+                109.0134,
+                (block_z + z as i32) as f32,
+                D0, 1.0, D0,
+            );
+            t[x * 16 + z] = surf_noise.sample_xyz_beta(
+                (block_x + x as i32) as f32,
+                (block_z + z as i32) as f32,
+                0.0,
+                D0 * 2.0, D0 * 2.0, D0 * 2.0,
+            );
+        }
+    }
+
+    // back2beta column loop: outer = x (k=0..16), inner = z (l=0..16).
+    // Biome is indexed as abiomebase[k + l*16] where k=z_local, l=x_local,
+    // matching the Java convention. Our noise arrays are indexed x*16+z.
+    for x_local in 0..16i32 {
+        for z_local in 0..16i32 {
+            let idx = (x_local * 16 + z_local) as usize;
+
+            // Three RNG draws per column, in back2beta's exact order.
+            let flag = r[idx] + rng.next_f64() as f32 * 0.2 > 0.0;
+            let flag1 = s[idx] + rng.next_f64() as f32 * 0.2 > 3.0;
+            let i1 = (t[idx] / 3.0 + 3.0 + rng.next_f64() as f32 * 0.25) as i32;
+
+            let world_x = block_x + x_local;
+            let world_z = block_z + z_local;
+
+            // Get climate for this column and resolve biome top/filler.
+            let (temp, humidity) = noise_router.sample_beta_climate(world_x, world_z);
+            let biome_land = beta_get_biome(temp, humidity);
+            let (mut top_block, mut filler_block) = beta_surface_blocks(biome_land);
+
+            // j1 in back2beta: depth counter, -1 means "not yet in surface layer".
+            let mut j1: i32 = -1;
+            // Mutable top/filler for current Y zone (back2beta: b1, b2).
+            let mut b1 = top_block;
+            let mut b2 = filler_block;
+            let air = mcrs_protocol::BlockStateId(0);
+
+            // Sweep from world Y=127 down to 0 (back2beta: k1 = 127..=0).
+            // Bedrock check is interleaved inside this loop.
+            for k1 in (0i32..=127).rev() {
+                let section_y = k1 >> 4;
+                let local_y = k1 & 0xF;
+                let si = y_sections.iter().position(|&sy| sy == section_y);
+
+                // Bedrock check (back2beta: k1 <= 0 + this.j.nextInt(5)).
+                if k1 <= rng.next_i32_bound(5) {
+                    if let Some(si) = si {
+                        if let Some((blocks, _)) = sections[si].as_mut() {
+                            blocks.set(BlockPos::new(x_local, local_y, z_local), bedrock);
+                        }
+                    }
+                } else {
+                    let current_id = si
+                        .and_then(|si| sections[si].as_ref())
+                        .map(|(blocks, _)| blocks.get(BlockPos::new(x_local, local_y, z_local)));
+
+                    let current_id = match current_id {
+                        Some(id) => id,
+                        None => continue, // section not present — skip
+                    };
+
+                    if current_id == air {
+                        j1 = -1;
+                    } else if current_id == stone {
+                        if j1 == -1 {
+                            if i1 <= 0 {
+                                b1 = air;
+                                b2 = stone;
+                            } else if k1 >= sea_level - 4 && k1 <= sea_level + 1 {
+                                b1 = top_block;
+                                b2 = filler_block;
+                                if flag1 {
+                                    b1 = air;
+                                }
+                                if flag1 {
+                                    b2 = gravel;
+                                }
+                                if flag {
+                                    b1 = minecraft::SAND.default_state_id;
+                                }
+                                if flag {
+                                    b2 = minecraft::SAND.default_state_id;
+                                }
+                            }
+
+                            if k1 < sea_level && b1 == air {
+                                b1 = default_fluid;
+                            }
+
+                            j1 = i1;
+                            if let Some(si) = si {
+                                if let Some((blocks, _)) = sections[si].as_mut() {
+                                    let place = if k1 >= sea_level - 1 { b1 } else { b2 };
+                                    blocks.set(BlockPos::new(x_local, local_y, z_local), place);
+                                }
+                            }
+                        } else if j1 > 0 {
+                            j1 -= 1;
+                            if let Some(si) = si {
+                                if let Some((blocks, _)) = sections[si].as_mut() {
+                                    blocks.set(BlockPos::new(x_local, local_y, z_local), b2);
+                                }
+                            }
+                            if j1 == 0 && b2 == minecraft::SAND.default_state_id {
+                                j1 = rng.next_i32_bound(4);
+                                b2 = sandstone;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]

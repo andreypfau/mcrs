@@ -2151,6 +2151,22 @@ impl NoiseRouter {
         (temperature, humidity)
     }
 
+    /// Evaluate temperature and vegetation at `(block_x, block_z)` without a
+    /// pre-populated column cache. Used by apply_beta_surface which runs after
+    /// generate_column has already discarded the cache.
+    pub fn sample_beta_climate(&self, block_x: i32, block_z: i32) -> (f32, f32) {
+        let pos = IVec3::new(block_x, 0, block_z);
+        let temperature = DensityFunctionComponent::sample_from_stack(
+            &self.stack[..=self.temperature_index],
+            pos,
+        );
+        let humidity = DensityFunctionComponent::sample_from_stack(
+            &self.stack[..=self.vegetation_index],
+            pos,
+        );
+        (temperature, humidity)
+    }
+
     /// Evaluate final_density using a pre-populated column cache.
     /// Zone A values must already be loaded into `cache.scratch` via `load_column`.
     /// Only evaluates Zone B entries (branchless, no column_changed check).
