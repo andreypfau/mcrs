@@ -1,4 +1,5 @@
-use crate::world::generate::generate_column;
+use crate::world::generate::{apply_beta_surface, generate_column};
+use mcrs_random::legacy::LegacyRandom;
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Query, Resource, With, resource_exists};
@@ -44,7 +45,10 @@ impl Plugin for ChunkPlugin {
         app.add_plugins(NoiseGeneratorSettingsPlugin);
         app.add_plugins(BetaBiomeSourcePlugin);
         if !app.world().contains_resource::<WorldGenConfig>() {
-            app.insert_resource(WorldGenConfig::from_env());
+            let mut cfg = WorldGenConfig::from_env();
+            cfg.default_block_state_id = mcrs_vanilla::block::minecraft::STONE.default_state_id;
+            cfg.default_fluid_state_id = mcrs_vanilla::block::minecraft::WATER.default_state_id;
+            app.insert_resource(cfg);
         }
         CHUNK_TASK_POOL.get_or_init(|| {
             TaskPoolBuilder::new()
@@ -702,7 +706,27 @@ fn dispatch_column_generation(
                 (src.as_ref() as &BiomeSource, reg.as_ref() as &RegistrySnapshot<Biome>)
             });
 
-            let results = generate_column(col.x, col.z, &y_sections, router, biome_context, &cancel_clone);
+            let mut results = generate_column(col.x, col.z, &y_sections, router, biome_context, &cancel_clone);
+
+            // Beta surface pass: place surface/filler/bedrock blocks with a
+            // single per-chunk RNG seeded from the chunk coords.
+            if let Some((src, _)) = &biome_context {
+                if matches!(src, BiomeSource::Beta { .. }) {
+                    let seed = (col.x as i64)
+                        .wrapping_mul(341873128712)
+                        .wrapping_add((col.z as i64).wrapping_mul(132897987541));
+                    let mut rng = LegacyRandom::new(seed as u64);
+                    apply_beta_surface(
+                        &mut results,
+                        &y_sections,
+                        col.x * 16,
+                        col.z * 16,
+                        router,
+                        src,
+                        &mut rng,
+                    );
+                }
+            }
 
             let column_sections = sections_data
                 .into_iter()
