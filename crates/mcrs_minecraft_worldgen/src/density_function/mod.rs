@@ -1443,6 +1443,8 @@ pub fn build_functions(
     noises: &BTreeMap<Ident<String>, NoiseParam>,
     noise_settings: &NoiseGeneratorSettings,
     seed: u64,
+    default_block_state: BlockStateId,
+    default_fluid_state: BlockStateId,
 ) -> NoiseRouter {
     let random = RandomSource::new(seed, noise_settings.legacy_random_source);
     let builder_options = ChunkNoiseFunctionBuilderOptions {
@@ -1548,6 +1550,18 @@ pub fn build_functions(
         0.0f32
     };
 
+    // Expose beach and surface octave noises for the Beta surface pass.
+    // Only populated when using the Beta (legacy) random source; modern router gets None.
+    let (beta_beach_noise, beta_surface_noise) = if noise_settings.legacy_random_source {
+        let (_, _, _, beach, surface, _, _) = beta_seed::seed_beta_terrain(seed);
+        (
+            Some(Box::new(beach)),
+            Some(Box::new(surface)),
+        )
+    } else {
+        (None, None)
+    };
+
     let router = NoiseRouter {
         barrier_index: roots[0],
         fluid_level_floodedness_index: roots[1],
@@ -1567,14 +1581,10 @@ pub fn build_functions(
         noise_min_y: noise_settings.noise.min_y,
         noise_height: noise_settings.noise.height,
         sea_level: noise_settings.sea_level,
-        default_block_state: noise_settings
-            .default_block
-            .to_block_state_id()
-            .expect("default_block must be a known block state"),
-        default_fluid_state: noise_settings
-            .default_fluid
-            .to_block_state_id()
-            .expect("default_fluid must be a known block state"),
+        default_block_state,
+        default_fluid_state,
+        beta_beach_noise,
+        beta_surface_noise,
         per_block: per_block.into_boxed_slice(),
         column_boundary,
         fd_boundary,
@@ -1654,6 +1664,12 @@ pub struct NoiseRouter {
     sea_level: i32,
     default_block_state: BlockStateId,
     default_fluid_state: BlockStateId,
+    /// Beta beach octave noise (4 octaves, stream position 4 in seed_beta_terrain).
+    /// None for the modern router. Used by apply_beta_surface to determine beach columns.
+    beta_beach_noise: Option<Box<OctavePerlinNoise<f32>>>,
+    /// Beta surface octave noise (4 octaves, stream position 5 in seed_beta_terrain).
+    /// None for the modern router. Used by apply_beta_surface to determine surface depth.
+    beta_surface_noise: Option<Box<OctavePerlinNoise<f32>>>,
     /// per_block[i] == true means entry i depends on Y and must be recomputed per block.
     /// per_block[i] == false means entry i is column-only (cached across Y changes).
     per_block: Box<[bool]>,
@@ -1992,6 +2008,18 @@ impl NoiseRouter {
 
     pub fn default_fluid_state(&self) -> BlockStateId {
         self.default_fluid_state
+    }
+
+    /// Return the Beta beach octave noise sampler (4 octaves, stream position 4).
+    /// None for the modern router. Used by apply_beta_surface for beach/sand conditions.
+    pub fn beta_beach_noise(&self) -> Option<&OctavePerlinNoise<f32>> {
+        self.beta_beach_noise.as_deref()
+    }
+
+    /// Return the Beta surface octave noise sampler (4 octaves, stream position 5).
+    /// None for the modern router. Used by apply_beta_surface for surface depth calculation.
+    pub fn beta_surface_noise(&self) -> Option<&OctavePerlinNoise<f32>> {
+        self.beta_surface_noise.as_deref()
     }
 
     pub fn final_density(&self, pos: IVec3, cache: &mut DensityCache) -> f32 {
@@ -6787,11 +6815,11 @@ impl<'a> FunctionStackBuilder<'a> {
                 // Java frequency constants (1.121 scale, 200.0 depth). Bounds match
                 // sample_xz: |acc| <= A * (2^octaves - 1) with per-octave |s| ~ 2.
                 "mcrs:beta/scale" => {
-                    let (_, _, _, scale_noise, _) = beta_seed::seed_beta_terrain(self.world_seed);
+                    let (_, _, _, _, _, scale_noise, _) = beta_seed::seed_beta_terrain(self.world_seed);
                     return NoiseSampler::beta_octave_2d(scale_noise, 1.121, 2048.0);
                 }
                 "mcrs:beta/depth" => {
-                    let (_, _, _, _, depth_noise) = beta_seed::seed_beta_terrain(self.world_seed);
+                    let (_, _, _, _, _, _, depth_noise) = beta_seed::seed_beta_terrain(self.world_seed);
                     return NoiseSampler::beta_octave_2d(depth_noise, 200.0, 131072.0);
                 }
                 // Beta climate simplex noises: three independent LegacyRandom streams
@@ -6881,7 +6909,7 @@ mod tests {
     #[test]
     fn beta_scale_depth_2d_finite() {
         use crate::noise::normal_noise::NoiseSampler;
-        let (_, _, _, scale_noise, depth_noise) = seed_beta_terrain(12345);
+        let (_, _, _, _, _, scale_noise, depth_noise) = seed_beta_terrain(12345);
         let scale_node = NoiseSampler::beta_octave_2d(scale_noise.clone(), 1.121, 2048.0);
         let depth_node = NoiseSampler::beta_octave_2d(depth_noise.clone(), 200.0, 131072.0);
 
@@ -6934,7 +6962,7 @@ mod tests {
             serde_json::from_str(&json).expect("beta.json should deserialize");
         let functions = load_density_functions_from_disk();
         let noises = BTreeMap::new();
-        let router = super::build_functions(&functions, &noises, &settings, 12345);
+        let router = super::build_functions(&functions, &noises, &settings, 12345, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86));
 
         // Sample a column at multiple Y values to find a sign flip
         let mut all_densities = vec![];
@@ -6962,7 +6990,7 @@ mod tests {
             serde_json::from_str(&json).expect("beta.json should deserialize");
         let functions = load_density_functions_from_disk();
         let noises = BTreeMap::new();
-        let router = super::build_functions(&functions, &noises, &settings, 12345);
+        let router = super::build_functions(&functions, &noises, &settings, 12345, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86));
         // Zone A must contain the two FlatCache'd 2D nodes (scale/depth).
         assert!(router.column_boundary() > 0, "Zone A must be non-empty (FlatCache 2D scale/depth nodes)");
         // final_density must be wired into Zone B.
@@ -7073,7 +7101,7 @@ mod tests {
             serde_json::from_str(&json).expect("beta.json should deserialize");
         let functions = load_density_functions_from_disk();
         let noises = BTreeMap::new();
-        let router = super::build_functions(&functions, &noises, &settings, 845);
+        let router = super::build_functions(&functions, &noises, &settings, 845, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86));
         let mut i = 0;
         let mut max_diff = 0.0_f32;
         for cx in 0..5i32 {
@@ -7120,7 +7148,7 @@ mod tests {
             serde_json::from_str(&json).expect("beta.json should deserialize");
         let functions = load_density_functions_from_disk();
         let noises = BTreeMap::new();
-        let router = super::build_functions(&functions, &noises, &settings, 845);
+        let router = super::build_functions(&functions, &noises, &settings, 845, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86));
         for cx in 0..5i32 {
             for cz in 0..5i32 {
                 for cy in 0..17i32 {
@@ -7237,7 +7265,7 @@ mod tests {
         let functions: std::collections::BTreeMap<mcrs_protocol::Ident<String>, crate::density_function::ProtoDensityFunction> = load_density_functions_from_disk();
         let noises: std::collections::BTreeMap<mcrs_protocol::Ident<String>, crate::density_function::proto::NoiseParam> = load_noises_from_disk();
 
-        let router = super::build_functions(&functions, &noises, &settings, 2);
+        let router = super::build_functions(&functions, &noises, &settings, 2, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86));
 
         assert!(
             router.final_density_idx() > 0,
@@ -7286,8 +7314,8 @@ mod tests {
         let functions = load_density_functions_from_disk();
         let noises = load_noises_from_disk();
 
-        let modern_router = super::build_functions(&functions, &noises, &overworld_settings, 2);
-        let beta_router = super::build_functions(&functions, &noises, &beta_settings, 2);
+        let modern_router = super::build_functions(&functions, &noises, &overworld_settings, 2, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86));
+        let beta_router = super::build_functions(&functions, &noises, &beta_settings, 2, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86));
 
         let pos = bevy_math::IVec3::new(0, 64, 0);
         let modern_sample = modern_router.final_density_uncached(pos);

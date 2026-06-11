@@ -167,7 +167,7 @@ fn generate_graph(
     output_path: Option<&Path>,
 ) {
     let (functions, noises, settings) = load_all(assets_path, settings_name);
-    let router = build_functions(&functions, &noises, &settings, seed);
+    let router = build_functions(&functions, &noises, &settings, seed, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86));
 
     // Cross-validate column cache against reference forward sweep
     let y_values: Vec<i32> = (-64..=320).step_by(16).collect();

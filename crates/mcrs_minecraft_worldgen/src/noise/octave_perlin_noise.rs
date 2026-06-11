@@ -252,6 +252,30 @@ impl OctavePerlinNoise<f32> {
         }
         acc
     }
+
+    /// 3D sample matching back2beta NoiseGeneratorOctaves.a() with separate per-axis scales.
+    ///
+    /// Matches ChunkProviderGenerate.java's n.a(arr, x, y, z, ..., xScale, yScale, zScale)
+    /// per-position: sample at (x * xScale * freq, y * yScale * freq, z * zScale * freq).
+    pub fn sample_xyz_beta(&self, x: f32, y: f32, z: f32, scale_x: f32, scale_y: f32, scale_z: f32) -> f32 {
+        let len = self.octave_samplers.len();
+        let mut freq = 1.0_f32;
+        let mut acc = 0.0_f32;
+        for k in 0..len {
+            let idx = len - 1 - k;
+            if let Some(sampler) = &self.octave_samplers[idx] {
+                acc += sampler.sample(
+                    x * scale_x * freq,
+                    y * scale_y * freq,
+                    z * scale_z * freq,
+                    0.0,
+                    0.0,
+                ) / freq;
+            }
+            freq /= 2.0;
+        }
+        acc
+    }
 }
 
 impl OctavePerlinNoise<f64> {

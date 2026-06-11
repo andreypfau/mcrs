@@ -61,7 +61,7 @@ fn beta_sections_outside_noise_range_are_air() {
 
     let functions = load_beta_density_functions();
     let noises = BTreeMap::new();
-    let router = build_functions(&functions, &noises, &settings, 42);
+    let router = build_functions(&functions, &noises, &settings, 42, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86));
 
     assert_eq!(router.noise_min_y(), 0);
     assert_eq!(router.noise_height(), 128);

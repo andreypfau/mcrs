@@ -94,7 +94,7 @@ fn build_router(settings_name: &str, seed: u64) -> NoiseRouter {
         serde_json::from_str(&json).expect("noise settings must deserialize");
     let functions = load_density_functions();
     let noises = load_noises();
-    build_functions(&functions, &noises, &settings, seed)
+    build_functions(&functions, &noises, &settings, seed, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86))
 }
 
 fn bench_columns(label: &str, router: &NoiseRouter, columns: i32) {

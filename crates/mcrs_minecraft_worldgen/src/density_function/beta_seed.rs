@@ -29,12 +29,17 @@ pub fn seed_beta_climate(seed: u64) -> (SimplexOctaveNoise, SimplexOctaveNoise, 
 ///   low(16), high(16), selector(8), beach(4), surface(4), scale(10), depth(16), forest(8)
 /// = 82 octaves total, sequential, NO discards.
 ///
-/// Beach, surface, and forest are constructed as real `OctavePerlinNoise<f32>` and dropped
-/// to consume the exact variable-length stream each generator produces. A fixed-count drain
-/// would diverge because `next_u32_bound` can loop for non-power-of-2 bounds.
+/// Forest is constructed as a real `OctavePerlinNoise<f32>` and dropped to consume the
+/// exact variable-length stream it produces. A fixed-count drain would diverge because
+/// `next_u32_bound` can loop for non-power-of-2 bounds.
+///
+/// Returns (low, high, selector, beach, surface, scale, depth). Beach and surface are
+/// exposed so callers can use them as named surface-pass samplers.
 pub fn seed_beta_terrain(
     seed: u64,
 ) -> (
+    OctavePerlinNoise<f32>,
+    OctavePerlinNoise<f32>,
     OctavePerlinNoise<f32>,
     OctavePerlinNoise<f32>,
     OctavePerlinNoise<f32>,
@@ -46,13 +51,13 @@ pub fn seed_beta_terrain(
     let low = OctavePerlinNoise::<f32>::new(&mut rng, -15, vec![1.0f32; 16], true);
     let high = OctavePerlinNoise::<f32>::new(&mut rng, -15, vec![1.0f32; 16], true);
     let selector = OctavePerlinNoise::<f32>::new(&mut rng, -7, vec![1.0f32; 8], true);
-    let _beach = OctavePerlinNoise::<f32>::new(&mut rng, -3, vec![1.0f32; 4], true);
-    let _surface = OctavePerlinNoise::<f32>::new(&mut rng, -3, vec![1.0f32; 4], true);
+    let beach = OctavePerlinNoise::<f32>::new(&mut rng, -3, vec![1.0f32; 4], true);
+    let surface = OctavePerlinNoise::<f32>::new(&mut rng, -3, vec![1.0f32; 4], true);
     let scale = OctavePerlinNoise::<f32>::new(&mut rng, -9, vec![1.0f32; 10], true);
     let depth = OctavePerlinNoise::<f32>::new(&mut rng, -15, vec![1.0f32; 16], true);
     let _forest = OctavePerlinNoise::<f32>::new(&mut rng, -7, vec![1.0f32; 8], true);
 
-    (low, high, selector, scale, depth)
+    (low, high, selector, beach, surface, scale, depth)
 }
 
 #[cfg(test)]
@@ -94,12 +99,14 @@ mod tests {
     }
 
     #[test]
-    fn beta_seeding_returns_five_noises() {
-        let (low, high, selector, scale, depth) = seed_beta_terrain(845);
+    fn beta_seeding_returns_seven_noises() {
+        let (low, high, selector, beach, surface, scale, depth) = seed_beta_terrain(845);
         // Verify each octave count via the public max_value (non-zero confirms construction)
         assert!(low.max_value() > 0.0, "low noise not constructed");
         assert!(high.max_value() > 0.0, "high noise not constructed");
         assert!(selector.max_value() > 0.0, "selector noise not constructed");
+        assert!(beach.max_value() > 0.0, "beach noise not constructed");
+        assert!(surface.max_value() > 0.0, "surface noise not constructed");
         assert!(scale.max_value() > 0.0, "scale noise not constructed");
         assert!(depth.max_value() > 0.0, "depth noise not constructed");
     }
@@ -110,7 +117,7 @@ mod tests {
         // against the `low` noise from a stream where selector(8) is built first.
         // Because they read from different positions in the LegacyRandom stream,
         // they produce different permutation tables and therefore different sample values.
-        let (low_correct, _, _, _, _) = seed_beta_terrain(845);
+        let (low_correct, _, _, _, _, _, _) = seed_beta_terrain(845);
 
         // Swapped: build selector(8) first, then low(16) — low now reads stream position 2+
         let mut rng_swapped = LegacyRandom::new(845);

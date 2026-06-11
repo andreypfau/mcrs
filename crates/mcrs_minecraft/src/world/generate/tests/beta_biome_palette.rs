@@ -103,7 +103,7 @@ fn build_beta_router() -> mcrs_minecraft_worldgen::density_function::NoiseRouter
         serde_json::from_str(&json).expect("beta.json must deserialize");
     let functions = load_density_functions_from_disk();
     let noises = BTreeMap::new();
-    build_functions(&functions, &noises, &settings, 12345)
+    build_functions(&functions, &noises, &settings, 12345, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86))
 }
 
 /// Verify that a Beta-router column produces non-default BiomePalette cells.

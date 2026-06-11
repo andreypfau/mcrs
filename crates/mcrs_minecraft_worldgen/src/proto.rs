@@ -142,36 +142,6 @@ pub struct BlockState {
     pub properties: Option<std::collections::BTreeMap<String, String>>,
 }
 
-#[cfg(feature = "serde")]
-impl BlockState {
-    /// Resolve this proto block state to a vanilla protocol block state ID.
-    ///
-    /// Returns None if the block name is not recognized.  The mapping covers
-    /// only the blocks that appear as default_block / default_fluid in vanilla
-    /// noise_settings JSON; extend when new entries are needed.
-    pub fn to_block_state_id(&self) -> Option<BlockStateId> {
-        let level = self
-            .properties
-            .as_ref()
-            .and_then(|p| p.get("level"))
-            .and_then(|v| v.parse::<u16>().ok())
-            .unwrap_or(0);
-        // These base state ids are anchored to the vanilla static block-state
-        // table (stone=1, bedrock=85). Water immediately follows bedrock; lava
-        // follows water's 16 level states. They are the source of truth for all
-        // Beta fluid fill and MUST stay in sync with the block registry — see
-        // `mcrs_vanilla::block::minecraft` (`stone`/`bedrock` define_block ids).
-        const STONE_STATE_ID: u16 = 1;
-        const WATER_BASE_STATE_ID: u16 = 86;
-        const LAVA_BASE_STATE_ID: u16 = 102;
-        match self.name.as_str() {
-            "minecraft:stone" => Some(BlockStateId(STONE_STATE_ID)),
-            "minecraft:water" => Some(BlockStateId(WATER_BASE_STATE_ID + level)),
-            "minecraft:lava" => Some(BlockStateId(LAVA_BASE_STATE_ID + level)),
-            _ => None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(from = "Either<I, Either<[I; 2], InternalInterval<I>>>")]

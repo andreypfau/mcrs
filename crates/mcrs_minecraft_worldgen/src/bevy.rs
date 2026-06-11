@@ -38,6 +38,12 @@ pub struct WorldGenConfig {
     pub noise_settings_path: Arc<str>,
     /// World seed forwarded to `build_functions`.
     pub seed: u64,
+    /// Registry-resolved default block state ID (stone) for `build_functions`.
+    /// Populated by the mcrs_minecraft layer using minecraft::STONE.default_state_id.
+    pub default_block_state_id: mcrs_protocol::BlockStateId,
+    /// Registry-resolved default fluid state ID (water level 0) for `build_functions`.
+    /// Populated by the mcrs_minecraft layer using minecraft::WATER.default_state_id.
+    pub default_fluid_state_id: mcrs_protocol::BlockStateId,
 }
 
 impl Default for WorldGenConfig {
@@ -48,6 +54,8 @@ impl Default for WorldGenConfig {
             noise_settings_namespace: Arc::from("minecraft"),
             noise_settings_path: Arc::from("overworld"),
             seed: 0,
+            default_block_state_id: mcrs_protocol::BlockStateId(1),
+            default_fluid_state_id: mcrs_protocol::BlockStateId(86),
         }
     }
 }
@@ -88,6 +96,8 @@ impl WorldGenConfig {
             noise_settings_namespace,
             noise_settings_path,
             seed,
+            default_block_state_id: mcrs_protocol::BlockStateId(1),
+            default_fluid_state_id: mcrs_protocol::BlockStateId(86),
         }
     }
 
@@ -324,11 +334,20 @@ fn build_noise_router_on_load(
                     seed = seed,
                     "Building OverworldNoiseRouter"
                 );
+                let (default_block, default_fluid) = world_gen_config
+                    .as_ref()
+                    .map(|c| (c.default_block_state_id, c.default_fluid_state_id))
+                    .unwrap_or((
+                        mcrs_protocol::BlockStateId(1),
+                        mcrs_protocol::BlockStateId(86),
+                    ));
                 let overworld = OverworldNoiseRouter(Arc::new(build_functions(
                     &functions_proto,
                     &noises_proto,
                     &settings.settings,
                     seed,
+                    default_block,
+                    default_fluid,
                 )));
                 commands.insert_resource(overworld);
             }

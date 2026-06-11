@@ -320,7 +320,7 @@ fn main() {
     );
 
     let t_build = Instant::now();
-    let router = build_functions(&functions, &noises, &settings, seed);
+    let router = build_functions(&functions, &noises, &settings, seed, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86));
     let build_elapsed = t_build.elapsed();
     eprintln!("Built NoiseRouter in {}", fmt_duration(build_elapsed));
     router.print_zone_stats();
