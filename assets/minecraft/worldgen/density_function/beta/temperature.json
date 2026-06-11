@@ -1,0 +1,53 @@
+{
+  "type": "minecraft:flat_cache",
+  "argument": {
+    "type": "minecraft:clamp",
+    "input": {
+      "type": "minecraft:add",
+      "argument1": 1.0,
+      "argument2": {
+        "type": "minecraft:mul",
+        "argument1": -1.0,
+        "argument2": {
+          "type": "minecraft:square",
+          "argument": {
+            "type": "minecraft:add",
+            "argument1": 1.0,
+            "argument2": {
+              "type": "minecraft:mul",
+              "argument1": -1.0,
+              "argument2": {
+                "type": "minecraft:add",
+                "argument1": {
+                  "type": "minecraft:mul",
+                  "argument1": {
+                    "type": "minecraft:add",
+                    "argument1": {
+                      "type": "minecraft:mul",
+                      "argument1": {
+                        "type": "minecraft:noise",
+                        "noise": "mcrs:beta/temperature",
+                        "xz_scale": 1.0,
+                        "y_scale": 0.0
+                      },
+                      "argument2": 0.15
+                    },
+                    "argument2": 0.7
+                  },
+                  "argument2": 0.99
+                },
+                "argument2": {
+                  "type": "minecraft:mul",
+                  "argument1": "minecraft:beta/climate_detail",
+                  "argument2": 0.01
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "min": 0.0,
+    "max": 1.0
+  }
+}

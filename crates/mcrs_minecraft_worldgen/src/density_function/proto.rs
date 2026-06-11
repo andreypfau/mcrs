@@ -148,17 +148,6 @@ pub enum ProtoDensityFunction {
         lower_bound: i32,
         cell_height: u32,
     },
-    #[serde(rename = "mcrs:beta_blended_noise")]
-    BetaBlendedNoise,
-    #[serde(rename = "mcrs:beta_scale_2d")]
-    BetaScale2d,
-    #[serde(rename = "mcrs:beta_depth_2d")]
-    BetaDepth2d,
-    #[serde(rename = "mcrs:beta_temperature_2d")]
-    BetaTemperature2d,
-    #[serde(rename = "mcrs:beta_humidity_2d")]
-    BetaHumidity2d,
-    BetaClimate2d,
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
@@ -325,12 +314,6 @@ pub trait Visitor {
                 lower_bound,
                 cell_height,
             } => self.visit_find_top_surface(density, upper_bound, *lower_bound, *cell_height),
-            ProtoDensityFunction::BetaBlendedNoise => self.visit_beta_blended_noise(),
-            ProtoDensityFunction::BetaScale2d => self.visit_beta_scale_2d(),
-            ProtoDensityFunction::BetaDepth2d => self.visit_beta_depth_2d(),
-            ProtoDensityFunction::BetaTemperature2d => self.visit_beta_temperature_2d(),
-            ProtoDensityFunction::BetaHumidity2d => self.visit_beta_humidity_2d(),
-            ProtoDensityFunction::BetaClimate2d => {}
         }
     }
 
@@ -495,9 +478,4 @@ pub trait Visitor {
         self.visit_density_function_holder(density);
         self.visit_density_function_holder(upper_bound);
     }
-    fn visit_beta_blended_noise(&mut self) {}
-    fn visit_beta_scale_2d(&mut self) {}
-    fn visit_beta_depth_2d(&mut self) {}
-    fn visit_beta_temperature_2d(&mut self) {}
-    fn visit_beta_humidity_2d(&mut self) {}
 }

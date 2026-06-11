@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "seed": 12345,
-  "description": "Post-processing formula output for BetaClimate2d at position (0,0) with seed 12345. Captured via bootstrap_beta_climate test.",
+  "description": "Beta climate post-processing output at position (0,0) with seed 12345 (raw generators from seed_beta_climate, formula now in minecraft:beta/temperature and beta/vegetation JSON). Captured via bootstrap_beta_climate test.",
   "temperature_at_0_0": 0.9717574,
   "humidity_at_0_0": 0.0
 }

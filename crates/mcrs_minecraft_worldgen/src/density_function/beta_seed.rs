@@ -11,12 +11,16 @@ use mcrs_random::legacy::LegacyRandom;
 ///
 /// These streams are completely independent from seed_beta_terrain — mixing them
 /// would shift terrain parity (Pitfall 1).
-pub fn seed_beta_climate(seed: u64) -> super::BetaClimate2d {
+///
+/// Returns (temperature, humidity, detail) raw simplex generators; post-processing
+/// (0.15/0.7 scaling, detail blend, folding, clamp) lives in the
+/// minecraft:beta/{temperature,vegetation,climate_detail} density function JSON.
+pub fn seed_beta_climate(seed: u64) -> (SimplexOctaveNoise, SimplexOctaveNoise, SimplexOctaveNoise) {
     let temp_noise = SimplexOctaveNoise::new(&mut LegacyRandom::new(seed.wrapping_mul(9871)), 4);
     let rain_noise = SimplexOctaveNoise::new(&mut LegacyRandom::new(seed.wrapping_mul(39811)), 4);
     let detail_noise =
         SimplexOctaveNoise::new(&mut LegacyRandom::new(seed.wrapping_mul(543321)), 2);
-    super::BetaClimate2d { temp_noise, rain_noise, detail_noise }
+    (temp_noise, rain_noise, detail_noise)
 }
 
 /// Build the Beta 1.7.3 terrain seeding stream from a single `LegacyRandom(seed)`.
@@ -149,10 +153,42 @@ mod tests {
         );
     }
 
+    /// Reference Beta temperature post-processing (WorldChunkManager.java), now
+    /// expressed in minecraft:beta/temperature JSON. Kept here so the climate
+    /// fixture continues to pin the raw generators + formula end to end.
+    fn sample_temperature(
+        temp_noise: &SimplexOctaveNoise,
+        detail_noise: &SimplexOctaveNoise,
+        x: f64,
+        z: f64,
+    ) -> f32 {
+        let detail_raw = detail_noise.sample(x, z, 0.25, 0.25, 1.0 / 1.7, 0.5);
+        let detail = detail_raw * 1.1 + 0.5;
+        let temp_raw = temp_noise.sample(x, z, 0.025, 0.025, 0.25, 0.5);
+        let mut t = (temp_raw as f32 * 0.15 + 0.7) * 0.99 + detail as f32 * 0.01;
+        t = 1.0 - (1.0 - t) * (1.0 - t);
+        t.clamp(0.0, 1.0)
+    }
+
+    /// Reference Beta humidity post-processing, now expressed in
+    /// minecraft:beta/vegetation JSON.
+    fn sample_humidity(
+        rain_noise: &SimplexOctaveNoise,
+        detail_noise: &SimplexOctaveNoise,
+        x: f64,
+        z: f64,
+    ) -> f32 {
+        let detail_raw = detail_noise.sample(x, z, 0.25, 0.25, 1.0 / 1.7, 0.5);
+        let detail = detail_raw * 1.1 + 0.5;
+        let rain_raw = rain_noise.sample(x, z, 0.05, 0.05, 1.0 / 3.0, 0.5);
+        let h = (rain_raw as f32 * 0.15 + 0.5) * 0.998 + detail as f32 * 0.002;
+        h.clamp(0.0, 1.0)
+    }
+
     #[test]
     fn beta_climate_postprocess_temperature_in_range() {
-        let climate = seed_beta_climate(12345);
-        let temp = climate.sample_temperature(0.0, 0.0);
+        let (temp_noise, _, detail_noise) = seed_beta_climate(12345);
+        let temp = sample_temperature(&temp_noise, &detail_noise, 0.0, 0.0);
         assert!(
             (0.0..=1.0).contains(&temp),
             "sample_temperature must return a value in [0, 1], got {}",
@@ -162,8 +198,8 @@ mod tests {
 
     #[test]
     fn beta_climate_postprocess_humidity_in_range() {
-        let climate = seed_beta_climate(12345);
-        let humidity = climate.sample_humidity(0.0, 0.0);
+        let (_, rain_noise, detail_noise) = seed_beta_climate(12345);
+        let humidity = sample_humidity(&rain_noise, &detail_noise, 0.0, 0.0);
         assert!(
             (0.0..=1.0).contains(&humidity),
             "sample_humidity must return a value in [0, 1], got {}",
@@ -175,9 +211,9 @@ mod tests {
     fn beta_climate_postprocess_values_match_fixture() {
         let fixture = load_climate_fixture();
         assert_eq!(fixture.seed, 12345, "fixture seed mismatch");
-        let climate = seed_beta_climate(fixture.seed);
-        let temp = climate.sample_temperature(0.0, 0.0);
-        let humidity = climate.sample_humidity(0.0, 0.0);
+        let (temp_noise, rain_noise, detail_noise) = seed_beta_climate(fixture.seed);
+        let temp = sample_temperature(&temp_noise, &detail_noise, 0.0, 0.0);
+        let humidity = sample_humidity(&rain_noise, &detail_noise, 0.0, 0.0);
         assert!(
             (temp - fixture.temperature_at_0_0).abs() < 1e-6,
             "temperature mismatch: got {}, expected {}",
@@ -194,9 +230,9 @@ mod tests {
 
     #[test]
     fn beta_climate_temperature_no_y_dependence() {
-        let climate = seed_beta_climate(12345);
-        let t1 = climate.sample_temperature(8.0, 8.0);
-        let t2 = climate.sample_temperature(8.0, 8.0);
+        let (temp_noise, _, detail_noise) = seed_beta_climate(12345);
+        let t1 = sample_temperature(&temp_noise, &detail_noise, 8.0, 8.0);
+        let t2 = sample_temperature(&temp_noise, &detail_noise, 8.0, 8.0);
         assert_eq!(t1, t2, "sample_temperature must be deterministic");
     }
 
@@ -205,9 +241,9 @@ mod tests {
     #[test]
     #[ignore = "bootstrap: capture beta_climate.json fixture values for seed 12345"]
     fn bootstrap_beta_climate() {
-        let climate = seed_beta_climate(12345);
-        let temp = climate.sample_temperature(0.0, 0.0);
-        let humidity = climate.sample_humidity(0.0, 0.0);
+        let (temp_noise, rain_noise, detail_noise) = seed_beta_climate(12345);
+        let temp = sample_temperature(&temp_noise, &detail_noise, 0.0, 0.0);
+        let humidity = sample_humidity(&rain_noise, &detail_noise, 0.0, 0.0);
         println!("{{");
         println!("  \"schema_version\": 1,");
         println!("  \"seed\": 12345,");
