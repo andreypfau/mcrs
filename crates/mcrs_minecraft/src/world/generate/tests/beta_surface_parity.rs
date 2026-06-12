@@ -480,8 +480,11 @@ fn beta_surface_parity_gate() {
                     for local_y in 0..16i32 {
                         let world_y = base_y + local_y;
                         if world_y < 128 {
+                            // Corpus transpose: fixture column labeled (wx,wz) holds Java
+                            // data for world (cx*16+lz, cz*16+lx) — read generated at
+                            // (local_z, local_x) to match the correct corpus slot.
                             generated[world_y as usize] =
-                                blocks.get(BlockPos::new(local_x, local_y, local_z));
+                                blocks.get(BlockPos::new(local_z, local_y, local_x));
                         }
                     }
                 }
