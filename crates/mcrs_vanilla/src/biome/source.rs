@@ -74,6 +74,18 @@ pub fn build_beta_lookup_table() -> [[BetaLandBiome; 64]; 64] {
     table
 }
 
+/// Resolve a land biome via the precomputed 64x64 quantized lookup, mirroring
+/// BiomeBase.getBiomeFromLookup: i=(int)(temp*63), j=(int)(rain*63).
+pub fn beta_biome_from_climate(
+    table: &[[BetaLandBiome; 64]; 64],
+    temp: f32,
+    rain: f32,
+) -> BetaLandBiome {
+    let ti = ((temp * 63.0) as usize).min(63);
+    let ri = ((rain * 63.0) as usize).min(63);
+    table[ti][ri]
+}
+
 /// Returns the index into the `ocean_biomes` array for a given land bucket.
 /// Ocean array order: [FrozenOcean=0, Ocean=1, WarmOcean=2, LukewarmOcean=3, ColdOcean=4]
 pub fn ocean_biome_for(bucket: BetaLandBiome) -> usize {
