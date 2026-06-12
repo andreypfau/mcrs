@@ -60,6 +60,69 @@ pub fn seed_beta_terrain(
     (low, high, selector, beach, surface, scale, depth)
 }
 
+/// Probe the scale/depth noise samplers at a given world block position under three
+/// sampling modes, returning the implied d7 base height (= i1/2 + d6*4 per back2beta)
+/// for each mode.
+///
+/// Modes (matching the two prime suspects from the plan):
+///   0 = cell-origin (current Rust: noise_x = block >> 2)
+///   1 = cell-center (back2beta: noise_x = (block >> 4)*16 + ((block & 15) >> 2))
+///   2 = XZ-swapped cell-center (swap x and z after cell-center quantization)
+///
+/// Returns (d5, d6, d7, noise_x, noise_z) for each mode.
+pub fn probe_scale_depth_d7(
+    seed: u64,
+    wx: i32,
+    wz: i32,
+) -> [(f32, f32, f32, f32, f32); 3] {
+    let (_, _, _, _, _, scale_noise, depth_noise) = seed_beta_terrain(seed);
+
+    let compute = |nx: f32, nz: f32| -> (f32, f32, f32) {
+        let g = scale_noise.sample_xz(nx, nz, 1.121, 1.121);
+        let h = depth_noise.sample_xz(nx, nz, 200.0, 200.0);
+
+        let mut d5 = (g + 256.0) / 512.0;
+        if d5 > 1.0 { d5 = 1.0; }
+        if d5 < 0.0 { d5 = 0.0; }
+        d5 += 0.5;
+
+        let mut d6 = h / 8000.0;
+        if d6 < 0.0 {
+            d6 = -d6 * 0.3;
+            d6 = d6 * 3.0 - 2.0;
+            if d6 < -1.0 { d6 = -1.0; }
+            d6 /= 1.4;
+            d6 /= 2.0;
+        } else {
+            d6 = d6 * 3.0 - 2.0;
+            if d6 > 1.0 { d6 = 1.0; }
+            d6 /= 8.0;
+        }
+
+        let d7 = 8.5 + d6 * 4.0;
+        (d5, d6, d7)
+    };
+
+    // Mode 0: cell-origin (current Rust: block >> 2)
+    let nx0 = (wx >> 2) as f32;
+    let nz0 = (wz >> 2) as f32;
+    let (d5_0, d6_0, d7_0) = compute(nx0, nz0);
+
+    // Mode 1: cell-center (back2beta: chunkBase + cell_within_chunk)
+    let nx1 = ((wx & !15) + ((wx & 15) >> 2)) as f32;
+    let nz1 = ((wz & !15) + ((wz & 15) >> 2)) as f32;
+    let (d5_1, d6_1, d7_1) = compute(nx1, nz1);
+
+    // Mode 2: XZ-swapped cell-center
+    let (d5_2, d6_2, d7_2) = compute(nz1, nx1);
+
+    [
+        (d5_0, d6_0, d7_0, nx0, nz0),
+        (d5_1, d6_1, d7_1, nx1, nz1),
+        (d5_2, d6_2, d7_2, nz1, nx1),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

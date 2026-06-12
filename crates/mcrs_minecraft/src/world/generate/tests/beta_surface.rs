@@ -328,6 +328,148 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
     );
 }
 
+/// Oracle test: stone-top Y for the six worst-offender columns at seed 12345 must
+/// match the corpus (pre_cave bytes from beta_surface_corpus.json).
+///
+/// Root-cause probe: The test also evaluates the scale/depth noise samplers at three
+/// sampling modes for column (24,-16) and prints d5/d6/d7 for each, making clear which
+/// correction reproduces the corpus stone-top Y 83.
+///
+/// This test FAILS (RED) until the beta_octave_2d sampler uses the cell-center
+/// world coordinate (chunkBase + cell_within_chunk) instead of the raw (block >> 2)
+/// cell-index, which incorrectly discards the chunk base offset.
+#[test]
+fn beta_terrain_height_matches_back2beta_oracle() {
+    use base64::Engine as _;
+
+    #[derive(serde::Deserialize)]
+    struct CorpusRoot { columns: Vec<CorpusCol> }
+    #[derive(serde::Deserialize)]
+    struct CorpusCol {
+        wx: i32, wz: i32,
+        #[serde(with = "serde_b64")] pre_cave: Vec<u8>,
+    }
+    mod serde_b64 {
+        use base64::Engine as _;
+        use serde::{Deserialize, Deserializer};
+        pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Vec<u8>, D::Error> {
+            let s = String::deserialize(de)?;
+            base64::engine::general_purpose::STANDARD.decode(s).map_err(serde::de::Error::custom)
+        }
+    }
+
+    let corpus: CorpusRoot = serde_json::from_str(
+        include_str!("fixtures/beta_surface_corpus.json")
+    ).expect("valid corpus");
+
+    // Corpus stone top: scan pre_cave bytes top-down for the highest Y with Beta stone id (1).
+    let corpus_stone_top_y = |pre_cave: &[u8]| -> Option<i32> {
+        (0..128i32).rev().find(|&y| pre_cave[y as usize] == 1)
+    };
+
+    let stone_id = minecraft::STONE.default_state_id;
+
+    // Rust stone top: scan generate_column sections top-down for highest Y with stone.
+    let rust_stone_top_y = |sections: &Vec<Option<(mcrs_minecraft_block::palette::BlockPalette, mcrs_minecraft_block::palette::BiomePalette)>>, lx: i32, lz: i32| -> Option<i32> {
+        let y_sections: Vec<i32> = (0..8).collect();
+        for sy in (0..8i32).rev() {
+            let si = sy as usize;
+            if let Some(Some((blocks, _))) = sections.get(si) {
+                let base_y = sy * 16;
+                for local_y in (0..16i32).rev() {
+                    if blocks.get(BlockPos::new(lx, local_y, lz)) == stone_id {
+                        return Some(base_y + local_y);
+                    }
+                }
+            }
+        }
+        let _ = y_sections;
+        None
+    };
+
+    // Worst-offender columns from the verification report (seed 12345).
+    let worst_offenders: &[(i32, i32)] = &[
+        (24, -16), (15, -16), (22, -16), (23, -16), (23, -15), (24, -13),
+    ];
+
+    let router = build_beta_router();
+    let (biome_source, snapshot) = build_beta_biome_source();
+    let cancel = CancellationToken::new();
+    let y_sections: Vec<i32> = (0..8).collect();
+
+    // Build a lookup: (wx, wz) → pre_cave bytes.
+    let corpus_map: std::collections::HashMap<(i32, i32), &[u8]> = corpus.columns.iter()
+        .map(|c| ((c.wx, c.wz), c.pre_cave.as_slice()))
+        .collect();
+
+    // Cache generated sections by chunk to avoid re-generating.
+    let mut chunk_cache: std::collections::HashMap<(i32, i32), Vec<Option<(mcrs_minecraft_block::palette::BlockPalette, mcrs_minecraft_block::palette::BiomePalette)>>> = std::collections::HashMap::new();
+
+    let mut failures: Vec<String> = Vec::new();
+    let mut table_rows: Vec<String> = Vec::new();
+
+    for &(wx, wz) in worst_offenders {
+        let cx = wx >> 4;
+        let cz = wz >> 4;
+        let lx = wx - cx * 16;
+        let lz = wz - cz * 16;
+
+        let sections = chunk_cache.entry((cx, cz)).or_insert_with(|| {
+            generate_column(cx, cz, &y_sections, &router, Some((&biome_source, &snapshot)), &cancel)
+        });
+
+        let rust_top = rust_stone_top_y(sections, lx, lz);
+        let corpus_top = corpus_map.get(&(wx, wz)).and_then(|pc| corpus_stone_top_y(pc));
+
+        let rust_y = rust_top.unwrap_or(-1);
+        let corpus_y = corpus_top.unwrap_or(-1);
+        let delta = rust_y - corpus_y;
+
+        table_rows.push(format!(
+            "  ({:+5},{:+5})  corpus_top={:3}  rust_top={:3}  delta={:+4}",
+            wx, wz, corpus_y, rust_y, delta
+        ));
+
+        if rust_top != corpus_top {
+            failures.push(format!(
+                "column ({},{}) rust_stone_top={:?} != corpus_stone_top={:?}",
+                wx, wz, rust_top, corpus_top
+            ));
+        }
+    }
+
+    println!("\n=== Stone-top Y diagnostic (seed 12345) ===");
+    println!("  {:^11}   corpus_top   rust_top   delta", "(wx,wz)");
+    for row in &table_rows {
+        println!("{}", row);
+    }
+
+    // Suspect-discrimination probe for column (24,-16).
+    println!("\n=== Scale/depth sampler probe for column (24,-16) seed=12345 ===");
+    println!("  Mode 0 = cell-origin (current Rust: block >> 2)");
+    println!("  Mode 1 = cell-center (back2beta: chunkBase + cell_within_chunk)");
+    println!("  Mode 2 = XZ-swapped cell-center");
+    let probes = mcrs_minecraft_worldgen::density_function::beta_seed::probe_scale_depth_d7(12345, 24, -16);
+    let corpus_top_ref = corpus_map.get(&(24i32, -16i32)).and_then(|pc| corpus_stone_top_y(pc));
+    println!("  corpus stone-top Y = {:?}", corpus_top_ref);
+    println!("  {:6}  {:8}  {:8}  {:8}  {:8}  {:8}", "mode", "d5", "d6", "d7(base)", "noise_x", "noise_z");
+    for (i, (d5, d6, d7, nx, nz)) in probes.iter().enumerate() {
+        println!("  {:6}  {:8.5}  {:8.5}  {:8.4}  {:8.2}  {:8.2}", i, d5, d6, d7, nx, nz);
+    }
+    println!();
+
+    assert!(
+        failures.is_empty(),
+        "\nbeta_terrain_height_matches_back2beta_oracle FAILED:\n\
+         The worst-offender stone-top Ys do not match the corpus.\n\
+         Per-column results:\n{}\n\
+         Suspect probe for (24,-16): see --nocapture output.\n\
+         Fix: update BetaOctave2d::get in normal_noise.rs to use \
+         noise_x = (wx & !15) + ((wx & 15) >> 2) instead of wx >> 2.",
+        failures.join("\n")
+    );
+}
+
 /// Verify the bedrock probability distribution matches back2beta:
 /// Y=0: always bedrock (0 <= 0 + nextInt(5), always true)
 /// Y=5: never bedrock (5 <= 0 + nextInt(5) requires nextInt(5) >= 5, impossible since range is 0..4)
