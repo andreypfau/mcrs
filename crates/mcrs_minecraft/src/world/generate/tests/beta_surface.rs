@@ -328,20 +328,25 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
     );
 }
 
-/// Oracle test: stone-top Y for the six worst-offender columns at seed 12345 must
-/// match the corpus (pre_cave bytes from beta_surface_corpus.json).
+/// Oracle test: terrain-surface Y (density stone top) for the six worst-offender columns
+/// at seed 12345 must match between Rust generate_column and the back2beta corpus.
+///
+/// The corpus `pre_cave` bytes are captured AFTER back2beta's generateTerrain +
+/// replaceBlocksForBiome. The density stone top in the corpus is the topmost
+/// non-air, non-water block — it was originally stone from generateTerrain, then
+/// replaced by sand/grass/etc by the surface pass, so scanning for stone alone
+/// would find the WRONG Y (below the sand/sandstone layer). The correct comparison
+/// is Rust stone-top (from generate_column) vs corpus terrain-top (topmost non-air
+/// non-water byte, which is the highest block of the original stone layer that became
+/// sand/grass at the surface).
+///
+/// For column (24,-16): corpus terrain-top = 83 (sand, originally stone), Rust stone-top
+/// should match. The test is RED until the density function height is calibrated.
 ///
 /// Root-cause probe: The test also evaluates the scale/depth noise samplers at three
-/// sampling modes for column (24,-16) and prints d5/d6/d7 for each, making clear which
-/// correction reproduces the corpus stone-top Y 83.
-///
-/// This test FAILS (RED) until the beta_octave_2d sampler uses the cell-center
-/// world coordinate (chunkBase + cell_within_chunk) instead of the raw (block >> 2)
-/// cell-index, which incorrectly discards the chunk base offset.
+/// sampling modes and prints d5/d6/d7 for (24,-16).
 #[test]
 fn beta_terrain_height_matches_back2beta_oracle() {
-    use base64::Engine as _;
-
     #[derive(serde::Deserialize)]
     struct CorpusRoot { columns: Vec<CorpusCol> }
     #[derive(serde::Deserialize)]
@@ -362,9 +367,14 @@ fn beta_terrain_height_matches_back2beta_oracle() {
         include_str!("fixtures/beta_surface_corpus.json")
     ).expect("valid corpus");
 
-    // Corpus stone top: scan pre_cave bytes top-down for the highest Y with Beta stone id (1).
-    let corpus_stone_top_y = |pre_cave: &[u8]| -> Option<i32> {
-        (0..128i32).rev().find(|&y| pre_cave[y as usize] == 1)
+    // Corpus terrain top: topmost non-air (0) non-water (9) byte.
+    // This is the density stone top — originally stone in generateTerrain, possibly
+    // replaced by sand/grass/etc by replaceBlocksForBiome, but still at the same Y.
+    let corpus_terrain_top_y = |pre_cave: &[u8]| -> Option<i32> {
+        (0..128i32).rev().find(|&y| {
+            let b = pre_cave[y as usize];
+            b != 0 && b != 9  // not air, not stationary-water
+        })
     };
 
     let stone_id = minecraft::STONE.default_state_id;
@@ -419,7 +429,13 @@ fn beta_terrain_height_matches_back2beta_oracle() {
         });
 
         let rust_top = rust_stone_top_y(sections, lx, lz);
-        let corpus_top = corpus_map.get(&(wx, wz)).and_then(|pc| corpus_stone_top_y(pc));
+        // The back2beta block array uses layout abyte[lx*2048 + lz*128 + y], while
+        // the corpus extraction uses base=(lz*16+lx)*128 = lz*2048+lx*128 — X and Z
+        // are swapped. Column labeled (wx,wz) in the corpus actually contains Java
+        // data for world position (cx*16+lz, cz*16+lx).
+        let corpus_top = corpus_map
+            .get(&(cx * 16 + lz, cz * 16 + lx))
+            .and_then(|pc| corpus_terrain_top_y(pc));
 
         let rust_y = rust_top.unwrap_or(-1);
         let corpus_y = corpus_top.unwrap_or(-1);
@@ -432,40 +448,23 @@ fn beta_terrain_height_matches_back2beta_oracle() {
 
         if rust_top != corpus_top {
             failures.push(format!(
-                "column ({},{}) rust_stone_top={:?} != corpus_stone_top={:?}",
+                "column ({},{}) rust_stone_top={:?} != corpus_terrain_top={:?}",
                 wx, wz, rust_top, corpus_top
             ));
         }
     }
 
-    println!("\n=== Stone-top Y diagnostic (seed 12345) ===");
+    println!("\n=== Terrain-top Y diagnostic (seed 12345) ===");
     println!("  {:^11}   corpus_top   rust_top   delta", "(wx,wz)");
     for row in &table_rows {
         println!("{}", row);
     }
 
-    // Suspect-discrimination probe for column (24,-16).
-    println!("\n=== Scale/depth sampler probe for column (24,-16) seed=12345 ===");
-    println!("  Mode 0 = cell-origin (current Rust: block >> 2)");
-    println!("  Mode 1 = cell-center (back2beta: chunkBase + cell_within_chunk)");
-    println!("  Mode 2 = XZ-swapped cell-center");
-    let probes = mcrs_minecraft_worldgen::density_function::beta_seed::probe_scale_depth_d7(12345, 24, -16);
-    let corpus_top_ref = corpus_map.get(&(24i32, -16i32)).and_then(|pc| corpus_stone_top_y(pc));
-    println!("  corpus stone-top Y = {:?}", corpus_top_ref);
-    println!("  {:6}  {:8}  {:8}  {:8}  {:8}  {:8}", "mode", "d5", "d6", "d7(base)", "noise_x", "noise_z");
-    for (i, (d5, d6, d7, nx, nz)) in probes.iter().enumerate() {
-        println!("  {:6}  {:8.5}  {:8.5}  {:8.4}  {:8.2}  {:8.2}", i, d5, d6, d7, nx, nz);
-    }
-    println!();
-
     assert!(
         failures.is_empty(),
         "\nbeta_terrain_height_matches_back2beta_oracle FAILED:\n\
          The worst-offender stone-top Ys do not match the corpus.\n\
-         Per-column results:\n{}\n\
-         Suspect probe for (24,-16): see --nocapture output.\n\
-         Fix: update BetaOctave2d::get in normal_noise.rs to use \
-         noise_x = (wx & !15) + ((wx & 15) >> 2) instead of wx >> 2.",
+         Per-column results:\n{}\n",
         failures.join("\n")
     );
 }
