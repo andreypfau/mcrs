@@ -388,11 +388,14 @@ pub fn apply_beta_surface(
     }
 
     // back2beta column loop: outer = x (k=0..16), inner = z (l=0..16).
-    // Biome is indexed as abiomebase[k + l*16] where k=z_local, l=x_local,
-    // matching the Java convention. Our noise arrays are indexed x*16+z.
+    // Noise arrays r/s/t are filled at index x*16+z but read by back2beta at
+    // r[kk + ll*16] = r[x + z*16]. Reading x+z*16 from an x*16+z fill picks the
+    // value stored at fill position (x_fill=z, z_fill=x), i.e., the noise sampled
+    // at the transposed world position (block_x+z, block_z+x). Use z*16+x here to
+    // replicate back2beta's r[kk+ll*16] read exactly.
     for x_local in 0..16i32 {
         for z_local in 0..16i32 {
-            let idx = (x_local * 16 + z_local) as usize;
+            let idx = (z_local * 16 + x_local) as usize;
 
             // Three RNG draws per column, in back2beta's exact order.
             let flag = r[idx] + rng.next_f64() as f32 * 0.2 > 0.0;
