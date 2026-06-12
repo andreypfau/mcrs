@@ -9,7 +9,7 @@ use mcrs_random::legacy::LegacyRandom;
 use mcrs_random::Random;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::beta_surface::beta_surface_blocks;
-use mcrs_vanilla::biome::source::{BiomeSource, beta_get_biome};
+use mcrs_vanilla::biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome};
 use mcrs_vanilla::block::minecraft;
 
 /// Generate a single section using a pre-populated column cache and interpolator.
@@ -341,6 +341,13 @@ pub fn apply_beta_surface(
     let Some(beach_noise) = noise_router.beta_beach_noise() else { return };
     let Some(surf_noise) = noise_router.beta_surface_noise() else { return };
 
+    // Extract the quantized biome lookup from the biome source.
+    // back2beta's replaceBlocksForBiome reads biomes via getBiomeFromLookup (quantized).
+    let beta_lookup = match biome_source {
+        BiomeSource::Beta { lookup, .. } => Some(lookup.as_ref()),
+        _ => None,
+    };
+
     let sea_level = noise_router.sea_level();
     let default_fluid = noise_router.default_fluid_state();
     let stone = noise_router.default_block_state();
@@ -392,12 +399,18 @@ pub fn apply_beta_surface(
             let flag1 = s[idx] + rng.next_f64() as f32 * 0.2 > 3.0;
             let i1 = (t[idx] / 3.0 + 3.0 + rng.next_f64() as f32 * 0.25) as i32;
 
-            let world_x = block_x + x_local;
-            let world_z = block_z + z_local;
-
-            // Get climate for this column and resolve biome top/filler.
-            let (temp, humidity) = noise_router.sample_beta_climate(world_x, world_z);
-            let biome_land = beta_get_biome(temp, humidity);
+            // back2beta's replaceBlocksForBiome reads biome at index (kk + ll*16)
+            // where kk=x_local, ll=z_local, but getBiomeArray fills at (x*16 + z).
+            // The resulting coordinate transpose means the biome applied to (lx, lz)
+            // is sampled at the transposed world position (block_x+lz, block_z+lx).
+            let climate_x = block_x + z_local;
+            let climate_z = block_z + x_local;
+            let (temp, humidity) = noise_router.sample_beta_climate(climate_x, climate_z);
+            let biome_land: BetaLandBiome = if let Some(table) = beta_lookup {
+                beta_biome_from_climate(table, temp, humidity)
+            } else {
+                beta_get_biome(temp, humidity)
+            };
             let (mut top_block, mut filler_block) = beta_surface_blocks(biome_land);
 
             // j1 in back2beta: depth counter, -1 means "not yet in surface layer".

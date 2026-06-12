@@ -10,7 +10,7 @@ use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_protocol::BlockStateId;
 use mcrs_vanilla::biome::Biome;
-use mcrs_vanilla::biome::source::{BetaLandBiome, BiomeSource, beta_get_biome, build_beta_lookup_table};
+use mcrs_vanilla::biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome, build_beta_lookup_table};
 use mcrs_vanilla::block::minecraft;
 
 use crate::world::chunk::CancellationToken;
@@ -186,6 +186,7 @@ fn column_matches(
     generated_col: &[BlockStateId; 128],
     fixture: &ColumnFixture,
     router: &mcrs_minecraft_worldgen::density_function::NoiseRouter,
+    table: &[[BetaLandBiome; 64]; 64],
 ) -> ColumnMatchResult {
     let pre_cave = &fixture.pre_cave;
 
@@ -238,9 +239,17 @@ fn column_matches(
         }
     }
 
-    // Biome check: sample climate at this column and compare Beta biome.
-    let (temp, humidity) = router.sample_beta_climate(fixture.wx, fixture.wz);
-    let gen_biome = beta_get_biome(temp, humidity);
+    // Biome check: back2beta applies the biome of the transposed position
+    // (block_x + lz, block_z + lx) to column (lx, lz), due to the XZ-transpose
+    // in getBiomeArray/replaceBlocksForBiome.  Quantized via getBiomeFromLookup.
+    let cx = fixture.wx.div_euclid(16);
+    let cz = fixture.wz.div_euclid(16);
+    let lx = fixture.wx - cx * 16;
+    let lz = fixture.wz - cz * 16;
+    let climate_x = cx * 16 + lz;
+    let climate_z = cz * 16 + lx;
+    let (temp, humidity) = router.sample_beta_climate(climate_x, climate_z);
+    let gen_biome = beta_biome_from_climate(table, temp, humidity);
     let gen_back2beta_id = beta_land_biome_to_back2beta_id(gen_biome);
     let biome_mismatch = if gen_back2beta_id != fixture.biome_id {
         Some((gen_back2beta_id, fixture.biome_id))
@@ -415,6 +424,7 @@ fn beta_surface_parity_gate() {
     let router = build_beta_router();
     let (biome_source, snapshot) = build_beta_biome_source();
     let cancel = CancellationToken::new();
+    let biome_table = build_beta_lookup_table();
 
     let y_sections: Vec<i32> = (0..8).collect(); // Y 0-127 (sections 0-7)
 
@@ -477,7 +487,7 @@ fn beta_surface_parity_gate() {
                 }
             }
 
-            match column_matches(&generated, fix_col, &router) {
+            match column_matches(&generated, fix_col, &router, &biome_table) {
                 ColumnMatchResult::Match => {}
                 ColumnMatchResult::Mismatch(m) => all_mismatches.push(m),
             }
@@ -649,31 +659,30 @@ fn beta_climate_matches_back2beta_oracle() {
     let mut failures: Vec<String> = Vec::new();
 
     for &(wx, wz, expected_biome_id) in oracle_cols {
-        // Current code path: geographic sampling + continuous beta_get_biome.
-        // This is the path that generate/mod.rs and the gate currently use.
-        let (temp, rain) = router.sample_beta_climate(wx, wz);
+        // Use the transposed position (block_x + lz, block_z + lx) — the position
+        // back2beta's replaceBlocksForBiome actually samples due to the XZ-transpose
+        // in getBiomeArray.  This is what apply_beta_surface must use post-fix.
+        let cx = wx.div_euclid(16);
+        let cz = wz.div_euclid(16);
+        let lx = wx - cx * 16;
+        let lz = wz - cz * 16;
+        let climate_x = cx * 16 + lz;
+        let climate_z = cz * 16 + lx;
+        let (temp, rain) = router.sample_beta_climate(climate_x, climate_z);
 
-        // Quantized lookup — the path back2beta uses (getBiomeFromLookup).
-        let ti = (temp * 63.0) as usize;
-        let ri = (rain * 63.0) as usize;
-        let ti = ti.min(63);
-        let ri = ri.min(63);
-        let biome_quantized = table[ti][ri];
-        let gen_id = beta_land_biome_to_back2beta_id(biome_quantized);
+        let gen_id = beta_land_biome_to_back2beta_id(beta_biome_from_climate(&table, temp, rain));
 
         if gen_id != expected_biome_id {
             failures.push(format!(
-                "  ({:+4},{:+4}): expected biome_id={} got {} (temp={:.6} rain={:.6} ti={} ri={})",
-                wx, wz, expected_biome_id, gen_id, temp, rain, ti, ri
+                "  ({:+4},{:+4}) transposed→({:+4},{:+4}): expected biome_id={} got {} (temp={:.6} rain={:.6})",
+                wx, wz, climate_x, climate_z, expected_biome_id, gen_id, temp, rain
             ));
         }
     }
 
     assert!(
         failures.is_empty(),
-        "\nbeta_climate_matches_back2beta_oracle FAILED — \
-         root cause: geographic (wx,wz) sampling instead of transposed (block_x+lz, block_z+lx);\
-         \nfailing columns:\n{}",
+        "\nbeta_climate_matches_back2beta_oracle FAILED;\nfailing columns:\n{}",
         failures.join("\n")
     );
 }
