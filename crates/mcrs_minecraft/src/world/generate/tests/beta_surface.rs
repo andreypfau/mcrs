@@ -379,3 +379,4 @@ fn apply_beta_surface_bedrock_probability_matches_back2beta() {
     });
     assert!(y5_no_bedrock, "world Y=5 must never be bedrock");
 }
+
