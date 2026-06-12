@@ -596,3 +596,84 @@ fn beta_surface_parity_gate() {
         mismatched, total_columns
     );
 }
+
+// ── Per-column climate oracle test ───────────────────────────────────────────
+
+/// Per-column climate oracle test: pins the divergence between Rust and back2beta
+/// for a small set of worst-offender columns extracted from the back2beta verbatim
+/// harness (seed 12345, run against the committed corpus).
+///
+/// Root-cause analysis (verbatim harness + corpus):
+///   back2beta's replaceBlocksForBiome reads the biome array at index
+///   `kk + ll * 16` where kk=x_local, ll=z_local — but getBiomeArray fills the
+///   same array with biome(x, z) at index `j1 * 16 + k1 = x * 16 + z`.
+///   These two indexing conventions are TRANSPOSED (lx*16+lz vs lx+lz*16), so
+///   the biome applied to column (lx, lz) is the geographic biome of position
+///   (block_x + lz, block_z + lx) — not (world_x, world_z).
+///   This is a verbatim back2beta quirk that the corpus faithfully records.
+///
+/// The temperature threshold for Desert/Savanna in getBiome() is 0.95.
+///   At geographic (wx=31, wz=-9):  d3 ≈ 0.9640 (≥ 0.95) → Desert(7)
+///   At transposed  (wx=23, wz=-1): d3 ≈ 0.9484 (< 0.95) → Savanna(4) [corpus]
+///
+/// The current code samples at (wx, wz) — geographic, not transposed — and uses
+/// continuous beta_get_biome rather than the quantized 64x64 table.
+/// This test asserts the correct biome (corpus value) and FAILS (RED) until
+/// both fixes land in Task 2.
+///
+/// Oracle columns captured from the verbatim harness (seed 12345):
+///   Column (wx, wz) | chunk (cx, cz) | local (lx, lz)
+///                   | transposed world (block_x+lz, block_z+lx)
+///                   | back2beta d3       | corpus biome_id
+///   (+31, -9)       | (+1, -1)          | (15, 7) → (23, -1)  | 0.9484 | 4 (Savanna)
+///   (+30, -11)      | (+1, -1)          | (14, 5) → (21, -2)  | 0.9455 | 4 (Savanna)
+///   (  0,  0)       | ( 0,  0)          | ( 0, 0) → ( 0,  0)  | 0.9718 | 7 (Desert)
+///   (+16,+16)       | (+1, +1)          | ( 0, 0) → (16, 16)  | 0.9436 | 4 (Savanna)
+#[test]
+fn beta_climate_matches_back2beta_oracle() {
+    let router = build_beta_router();
+
+    // Oracle columns: (wx, wz, corpus_biome_id, oracle_d3_approx)
+    // corpus_biome_id is the biome recorded in beta_surface_corpus.json.
+    // oracle_d3_approx is back2beta's processed temperature for the transposed position,
+    // included for diagnostic clarity only (not asserted as f32 equality).
+    let oracle_cols: &[(i32, i32, u8)] = &[
+        (31, -9, 4),   // Savanna — geographic yields Desert (d3≈0.964 ≥ 0.95)
+        (30, -11, 4),  // Savanna — geographic yields Desert (d3≈0.967 ≥ 0.95)
+        (0, 0, 7),     // Desert  — geographic and transposed agree (lx=lz=0)
+        (16, 16, 4),   // Savanna — geographic and transposed agree (lx=lz=0)
+    ];
+
+    let table = build_beta_lookup_table();
+
+    let mut failures: Vec<String> = Vec::new();
+
+    for &(wx, wz, expected_biome_id) in oracle_cols {
+        // Current code path: geographic sampling + continuous beta_get_biome.
+        // This is the path that generate/mod.rs and the gate currently use.
+        let (temp, rain) = router.sample_beta_climate(wx, wz);
+
+        // Quantized lookup — the path back2beta uses (getBiomeFromLookup).
+        let ti = (temp * 63.0) as usize;
+        let ri = (rain * 63.0) as usize;
+        let ti = ti.min(63);
+        let ri = ri.min(63);
+        let biome_quantized = table[ti][ri];
+        let gen_id = beta_land_biome_to_back2beta_id(biome_quantized);
+
+        if gen_id != expected_biome_id {
+            failures.push(format!(
+                "  ({:+4},{:+4}): expected biome_id={} got {} (temp={:.6} rain={:.6} ti={} ri={})",
+                wx, wz, expected_biome_id, gen_id, temp, rain, ti, ri
+            ));
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "\nbeta_climate_matches_back2beta_oracle FAILED — \
+         root cause: geographic (wx,wz) sampling instead of transposed (block_x+lz, block_z+lx);\
+         \nfailing columns:\n{}",
+        failures.join("\n")
+    );
+}
