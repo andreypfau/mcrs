@@ -224,6 +224,110 @@ fn apply_beta_surface_places_surface_and_bedrock() {
     );
 }
 
+/// Oracle test: bedrock band (Y 0-4) for chunk (37,-42) at seed 12345 must match the
+/// verbatim back2beta corpus (beta_surface_corpus.json).
+///
+/// Root-cause context: back2beta's replaceBlocksForBiome reads noise arrays r/s/t at
+/// index `r[kk + ll*16]` where kk=x_local (outer loop), ll=z_local (inner loop).
+/// The arrays are filled in X-major order (fill index x*16+z), so reading at
+/// kk+ll*16 = x+z*16 picks the value stored at fill position (z_local, x_local) —
+/// i.e., the noise sampled at the TRANSPOSED world position (block_x+z, block_z+x).
+/// The current Rust uses idx = x_local*16 + z_local (geographic, non-transposed),
+/// which reads the noise sampled at (block_x+x, block_z+z) — the wrong column.
+///
+/// This divergence in flag/flag1/i1 cascades through sandstone nextInt(4) draws,
+/// shifting the shared per-chunk RNG stream and corrupting the bedrock pattern for
+/// columns that come later in the sweep. In chunk (37,-42), the stream diverges at
+/// x=0, z=13 where corpus says [7,1,7,7,1] but Rust produces [7,7,1,1,1].
+///
+/// Expected values captured verbatim from the back2beta corpus (chunk x=37, z=-42).
+/// 7 = bedrock, 1 = stone.
+///
+/// This test FAILS (RED) until idx is corrected to z_local*16 + x_local.
+#[test]
+fn beta_surface_bedrock_matches_back2beta_oracle() {
+    let router = build_beta_router();
+    let (biome_source, snapshot) = build_beta_biome_source();
+
+    let chunk_x = 37i32;
+    let chunk_z = -42i32;
+    let block_x = chunk_x * 16;
+    let block_z = chunk_z * 16;
+
+    let y_sections: Vec<i32> = (0..8).collect();
+    let cancel = CancellationToken::new();
+    let mut sections = generate_column(
+        chunk_x,
+        chunk_z,
+        &y_sections,
+        &router,
+        Some((&biome_source, &snapshot)),
+        &cancel,
+    );
+
+    let mut rng = make_chunk_rng(chunk_x, chunk_z);
+    apply_beta_surface(
+        &mut sections,
+        &y_sections,
+        block_x,
+        block_z,
+        &router,
+        &biome_source,
+        &mut rng,
+    );
+
+    let bedrock_id = minecraft::BEDROCK.default_state_id;
+    let section0 = sections[0].as_ref().expect("section 0 must be present");
+    let blocks = &section0.0;
+
+    // Oracle: expected [Y0,Y1,Y2,Y3,Y4] (7=bedrock, 1=stone) for x_local=0, z_local=0..15.
+    // Captured verbatim from beta_surface_corpus.json at chunk (37,-42), seed 12345.
+    // The divergence is visible starting at z=13: corpus [7,1,7,7,1], Rust [7,7,1,1,1].
+    let oracle: &[(i32, [u8; 5])] = &[
+        ( 0, [7, 1, 7, 1, 1]),
+        ( 1, [7, 7, 1, 7, 7]),
+        ( 2, [7, 7, 1, 1, 1]),
+        ( 3, [7, 7, 7, 1, 7]),
+        ( 4, [7, 7, 1, 7, 1]),
+        ( 5, [7, 7, 7, 7, 1]),
+        ( 6, [7, 7, 7, 7, 1]),
+        ( 7, [7, 7, 7, 7, 1]),
+        ( 8, [7, 7, 1, 7, 1]),
+        ( 9, [7, 7, 7, 1, 7]),
+        (10, [7, 7, 1, 1, 7]),
+        (11, [7, 1, 7, 1, 1]),
+        (12, [7, 7, 7, 7, 1]),
+        (13, [7, 1, 7, 7, 1]),  // ← diverges here without the fix
+        (14, [7, 7, 7, 7, 1]),
+        (15, [7, 7, 7, 1, 1]),
+    ];
+
+    let x_local = 0i32;
+    let mut failures: Vec<String> = Vec::new();
+    for &(z_local, expected) in oracle {
+        for y in 0i32..5 {
+            let got_bedrock = blocks.get(BlockPos::new(x_local, y, z_local)) == bedrock_id;
+            let expect_bedrock = expected[y as usize] == 7;
+            if got_bedrock != expect_bedrock {
+                failures.push(format!(
+                    "  x={} z={} Y={}: expected {} got {}",
+                    x_local, z_local, y,
+                    if expect_bedrock { "bedrock(7)" } else { "stone(1)" },
+                    if got_bedrock { "bedrock(7)" } else { "stone(1)" },
+                ));
+            }
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "\nbeta_surface_bedrock_matches_back2beta_oracle FAILED (chunk 37,-42, x_local=0):\n{}\n\
+         Root cause: idx = x_local*16 + z_local reads geographic noise; \
+         fix: use idx = z_local*16 + x_local (transposed, matching back2beta r[kk+ll*16]).",
+        failures.join("\n"),
+    );
+}
+
 /// Verify the bedrock probability distribution matches back2beta:
 /// Y=0: always bedrock (0 <= 0 + nextInt(5), always true)
 /// Y=5: never bedrock (5 <= 0 + nextInt(5) requires nextInt(5) >= 5, impossible since range is 0..4)
