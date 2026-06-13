@@ -297,6 +297,81 @@ impl OctavePerlinNoise<f64> {
         }
         acc
     }
+
+    /// 2D XZ-plane sample matching Java `NoiseGeneratorOctaves.a(arr, x, z, xSize, zSize, xScale, zScale, period)`
+    /// when called through the `a(arr, i, j, k, l, d0, d1, d2)` wrapper (ySize=1).
+    ///
+    /// Uses the Java-exact 2D gradient (`sample_beta_2d`) — y origin is not added, y lattice pinned to 0.
+    pub fn sample_xz_beta(&self, x: f64, z: f64, scale_x: f64, scale_z: f64) -> f64 {
+        let len = self.octave_samplers.len();
+        let mut freq = 1.0_f64;
+        let mut acc = 0.0_f64;
+        for k in 0..len {
+            let idx = len - 1 - k;
+            if let Some(sampler) = &self.octave_samplers[idx] {
+                acc += sampler.sample_beta_2d(x * scale_x * freq, z * scale_z * freq) / freq;
+            }
+            freq /= 2.0;
+        }
+        acc
+    }
+
+    /// 3D sample matching Java `NoiseGeneratorOctaves.a(arr, x, y, z, xSize, ySize, zSize, xScale, yScale, zScale)`
+    /// for the Beta terrain path. Uses the Java-exact 3D gradient (`sample_beta_3d`).
+    ///
+    /// Note: this single-point method does NOT replicate the y-lattice cache that persists
+    /// across (x,z) columns in Java's bulk fill. Use `fill_3d_bulk` for terrain density grids.
+    pub fn sample_xyz_beta(&self, x: f64, y: f64, z: f64, scale_x: f64, scale_y: f64, scale_z: f64) -> f64 {
+        let len = self.octave_samplers.len();
+        let mut freq = 1.0_f64;
+        let mut acc = 0.0_f64;
+        for k in 0..len {
+            let idx = len - 1 - k;
+            if let Some(sampler) = &self.octave_samplers[idx] {
+                acc += sampler.sample_beta_3d(
+                    x * scale_x * freq,
+                    y * scale_y * freq,
+                    z * scale_z * freq,
+                    0.0, 0.0,
+                ) / freq;
+            }
+            freq /= 2.0;
+        }
+        acc
+    }
+
+    /// Bulk fill matching Java's `NoiseGeneratorOctaves.a(arr, d0, d1, d2, xSize, ySize, zSize, xScale, yScale, zScale)`
+    /// 3D branch.
+    ///
+    /// Replicates Java's per-octave accumulation with the y-lattice cache persisting across
+    /// all (x,z) columns within each octave call. This produces results identical to Java's
+    /// bulk terrain density generation (not equivalent to summing single-point evaluations).
+    ///
+    /// `out` must be zeroed by the caller and have length `x_size * y_size * z_size`.
+    /// Fill order: outer=x, middle=z, inner=y (matches Java's loop and index layout).
+    pub fn fill_3d_bulk(
+        &self,
+        out: &mut [f64],
+        x_start: f64, y_start: f64, z_start: f64,
+        x_size: usize, y_size: usize, z_size: usize,
+        scale_x: f64, scale_y: f64, scale_z: f64,
+    ) {
+        let len = self.octave_samplers.len();
+        let mut freq = 1.0_f64;
+        for k in 0..len {
+            let idx = len - 1 - k;
+            if let Some(sampler) = &self.octave_samplers[idx] {
+                sampler.fill_3d_bulk(
+                    out,
+                    x_start, y_start, z_start,
+                    x_size, y_size, z_size,
+                    scale_x * freq, scale_y * freq, scale_z * freq,
+                    1.0 / freq,
+                );
+            }
+            freq /= 2.0;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -438,5 +513,12 @@ mod test {
                 i, batch_results[i], scalar
             );
         }
+    }
+}
+
+impl OctavePerlinNoise<f64> {
+    pub fn get_octave_f64(&self, k: usize) -> Option<&ImprovedNoise<f64>> {
+        let len = self.octave_samplers.len();
+        self.octave_samplers.get(len - 1 - k).and_then(|s| s.as_ref())
     }
 }

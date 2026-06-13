@@ -1,6 +1,7 @@
 use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use mcrs_random::legacy::LegacyRandom;
+use mcrs_random::Random;
 
 /// Build Beta climate noise from three independent LegacyRandom instances.
 ///
@@ -60,6 +61,40 @@ pub fn seed_beta_terrain(
     (low, high, selector, beach, surface, scale, depth)
 }
 
+
+/// Build the Beta 1.7.3 terrain noises as f64 for the exact-precision density path.
+///
+/// Seeding order and octave counts are identical to `seed_beta_terrain` — both consume
+/// the same LegacyRandom draws from `LegacyRandom::new(seed)`. The returned noises are
+/// the five used in `computeDensity`: low (k), high (l), selector (m), scale (a), depth (b).
+/// Beach, surface and forest are consumed but not returned (same as seed_beta_terrain).
+///
+/// Returns (low, high, selector, scale, depth) as `OctavePerlinNoise<f64>`.
+pub fn seed_beta_terrain_f64(
+    seed: u64,
+) -> (
+    OctavePerlinNoise<f64>,
+    OctavePerlinNoise<f64>,
+    OctavePerlinNoise<f64>,
+    OctavePerlinNoise<f64>,
+    OctavePerlinNoise<f64>,
+    OctavePerlinNoise<f64>,
+    OctavePerlinNoise<f64>,
+) {
+    let mut rng = LegacyRandom::new(seed);
+
+    let low    = OctavePerlinNoise::<f64>::new(&mut rng, -15, vec![1.0f64; 16], true);
+    let high   = OctavePerlinNoise::<f64>::new(&mut rng, -15, vec![1.0f64; 16], true);
+    let selector = OctavePerlinNoise::<f64>::new(&mut rng, -7,  vec![1.0f64; 8],  true);
+    let beach  = OctavePerlinNoise::<f64>::new(&mut rng, -3,  vec![1.0f64; 4],  true);
+    let surface = OctavePerlinNoise::<f64>::new(&mut rng, -3,  vec![1.0f64; 4],  true);
+    let scale  = OctavePerlinNoise::<f64>::new(&mut rng, -9,  vec![1.0f64; 10], true);
+    let depth  = OctavePerlinNoise::<f64>::new(&mut rng, -15, vec![1.0f64; 16], true);
+    // forest (c): consume 8 octaves but not returned
+    let _forest  = OctavePerlinNoise::<f64>::new(&mut rng, -7,  vec![1.0f64; 8],  true);
+
+    (low, high, selector, beach, surface, scale, depth)
+}
 
 #[cfg(test)]
 mod tests {

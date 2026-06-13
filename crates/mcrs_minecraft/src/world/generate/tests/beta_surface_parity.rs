@@ -538,6 +538,29 @@ fn beta_surface_parity_gate() {
                 m.wx, m.wz, m.block_mismatches.len(), first_block, biome_s)
         }).collect();
 
+        // Print bedrock-mismatch column coordinates for debugging.
+        {
+            let bedrock_cols: Vec<(i32, i32)> = all_mismatches.iter()
+                .filter(|m| m.block_mismatches.iter().any(|b| b.3 == MismatchBand::Bedrock))
+                .map(|m| (m.wx, m.wz))
+                .collect();
+            // Group by chunk
+            let mut chunk_counts: std::collections::BTreeMap<(i32, i32), usize> = std::collections::BTreeMap::new();
+            for (wx, wz) in &bedrock_cols {
+                *chunk_counts.entry((wx >> 4, wz >> 4)).or_default() += 1;
+            }
+            eprintln!("Bedrock-mismatch columns per chunk:");
+            for ((cx, cz), cnt) in chunk_counts.iter() {
+                eprintln!("  chunk ({:+4},{:+4}): {} columns", cx, cz, cnt);
+            }
+            // Print first 20 bedrock-mismatch column coordinates
+            eprintln!("First 20 bedrock-mismatch columns:");
+            for (wx, wz) in bedrock_cols.iter().take(20) {
+                eprintln!("  ({:+5},{:+5}) chunk ({:+4},{:+4}) local ({:2},{:2})",
+                    wx, wz, wx >> 4, wz >> 4, wx & 15, wz & 15);
+            }
+        }
+
         let cause_note = if bedrock_count > 0 {
             format!(
                 "LIKELY CAUSE: RNG-order or surface-pass bug ({} bedrock-band mismatches — \

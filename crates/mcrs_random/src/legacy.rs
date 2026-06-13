@@ -32,6 +32,18 @@ impl LegacyRandom {
         self.advance();
         self.seed >> (MODULUS_BITS - bits)
     }
+
+    /// Java-exact `nextDouble()`: ((next(26) << 27) | next(27)) / 2^53.
+    ///
+    /// Unlike `next_f64()` (which uses 30 bits), this matches Java's `java.util.Random.nextDouble`
+    /// — two LCG advances, 53-bit combined mantissa. Required for surface-pass parity where
+    /// the exact double value (not just the stream position) must agree with Java.
+    #[inline]
+    pub fn next_java_double(&mut self) -> f64 {
+        let hi = self.next_bits(26);
+        let lo = self.next_bits(27);
+        ((hi << 27) | lo) as f64 * (1.0 / (1u64 << 53) as f64)
+    }
 }
 
 impl TryRng for LegacyRandom {

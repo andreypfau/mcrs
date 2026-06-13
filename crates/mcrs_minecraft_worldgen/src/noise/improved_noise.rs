@@ -52,7 +52,256 @@ impl<F: Float> ImprovedNoise<F> {
     }
 }
 
+/// Java-exact 3D gradient dot-product, matching `NoiseGeneratorPerlin.a(int,double,double,double)`.
+/// Indices 4-7 differ from the standard Ken Perlin table stored in GRADIENTS; using the standard
+/// table produces correct signs statistically but diverges by up to ~1.4 per sample at those indices.
+#[inline(always)]
+fn grad3_java(hash: usize, x: f64, y: f64, z: f64) -> f64 {
+    let j = hash & 15;
+    let d3 = if j < 8 { x } else { y };
+    let d4 = if j < 4 {
+        y
+    } else if j == 12 || j == 14 {
+        x
+    } else {
+        z
+    };
+    let r = if (j & 1) == 0 { d3 } else { -d3 };
+    let s = if (j & 2) == 0 { d4 } else { -d4 };
+    r + s
+}
+
+/// Java-exact 2D gradient (ySize==1 branch), matching `NoiseGeneratorPerlin.a(int,double,double)`.
+/// x_frac=d0, z_frac=d1 per Java's array-fill variable names.
+#[inline(always)]
+fn grad2_java(hash: usize, x_frac: f64, z_frac: f64) -> f64 {
+    let j = hash & 15;
+    let d2 = (1 - ((j & 8) >> 3)) as f64 * x_frac;
+    let d3 = if j < 4 {
+        0.0
+    } else if j == 12 || j == 14 {
+        x_frac
+    } else {
+        z_frac
+    };
+    let r = if (j & 1) == 0 { d2 } else { -d2 };
+    let s = if (j & 2) == 0 { d3 } else { -d3 };
+    r + s
+}
+
 impl ImprovedNoise<f64> {
+    /// 3D sample matching Java's `NoiseGeneratorPerlin.a(double[],x,y,z,xSize,ySize,zSize,...)`
+    /// 3D branch (ySize > 1). Uses the Java-exact gradient function — gradients for j=4..7
+    /// differ from the standard Ken Perlin table.
+    ///
+    /// y_scale/y_max mirror the smear-scale parameters; pass (0.0, 0.0) when not needed.
+    #[inline(always)]
+    pub fn sample_beta_3d(&self, x: f64, y: f64, z: f64, y_scale: f64, y_max: f64) -> f64 {
+        let shifted_x = x + self.origin_x;
+        let shifted_y = y + self.origin_y;
+        let shifted_z = z + self.origin_z;
+
+        let sx = shifted_x.floor() as i32;
+        let sy = shifted_y.floor() as i32;
+        let sz = shifted_z.floor() as i32;
+
+        let lx = shifted_x - sx as f64;
+        let ly = shifted_y - sy as f64;
+        let lz = shifted_z - sz as f64;
+
+        let mut fade = 0.0_f64;
+        if y_scale != 0.0 {
+            let t = if y_max >= 0.0 && y_max < ly { y_max } else { ly };
+            fade = (t / y_scale + 1.0e-7).floor() * y_scale;
+        }
+        let fade_y = ly - fade;
+
+        let perm = &self.permutation;
+        let p = |i: usize| perm[i & 0xFF] as usize;
+
+        let x0 = (sx & 0xFF) as usize;
+        let x1 = (sx.wrapping_add(1) & 0xFF) as usize;
+        let p0 = p(x0);
+        let p1 = p(x1);
+
+        let iy = sy as usize;
+        let p00 = p(p0.wrapping_add(iy));
+        let p10 = p(p1.wrapping_add(iy));
+        let p01 = p(p0.wrapping_add(iy).wrapping_add(1));
+        let p11 = p(p1.wrapping_add(iy).wrapping_add(1));
+
+        let iz = sz as usize;
+        let h000 = p(p00.wrapping_add(iz));
+        let h100 = p(p10.wrapping_add(iz));
+        let h010 = p(p01.wrapping_add(iz));
+        let h110 = p(p11.wrapping_add(iz));
+        let h001 = p(p00.wrapping_add(iz).wrapping_add(1));
+        let h101 = p(p10.wrapping_add(iz).wrapping_add(1));
+        let h011 = p(p01.wrapping_add(iz).wrapping_add(1));
+        let h111 = p(p11.wrapping_add(iz).wrapping_add(1));
+
+        let lx1 = lx - 1.0;
+        let ly1 = fade_y - 1.0;
+        let lz1 = lz - 1.0;
+
+        let d000 = grad3_java(h000, lx,  fade_y, lz);
+        let d100 = grad3_java(h100, lx1, fade_y, lz);
+        let d010 = grad3_java(h010, lx,  ly1,    lz);
+        let d110 = grad3_java(h110, lx1, ly1,    lz);
+        let d001 = grad3_java(h001, lx,  fade_y, lz1);
+        let d101 = grad3_java(h101, lx1, fade_y, lz1);
+        let d011 = grad3_java(h011, lx,  ly1,    lz1);
+        let d111 = grad3_java(h111, lx1, ly1,    lz1);
+
+        let fx = fade_curve(lx);
+        let fy = fade_curve(ly);
+        let fz = fade_curve(lz);
+
+        let l00 = lerp(fx, d000, d100);
+        let l10 = lerp(fx, d010, d110);
+        let l01 = lerp(fx, d001, d101);
+        let l11 = lerp(fx, d011, d111);
+        let ll0 = lerp(fy, l00, l10);
+        let ll1 = lerp(fy, l01, l11);
+        lerp(fz, ll0, ll1)
+    }
+
+    /// Bulk fill matching Java's `NoiseGeneratorPerlin.a(double[], d0, d1, d2, i, j, k, d3, d4, d5, d6)`
+    /// 3D branch (ySize > 1).
+    ///
+    /// Replicates the Java optimization where the y-lattice cache (`i1`) persists across all
+    /// (x, z) column iterations. This differs from per-point evaluation: when consecutive (x,z)
+    /// columns have overlapping y-lattice indices, the x-z gradient planes are reused from the
+    /// previous column. This matches Java Beta terrain generation exactly.
+    ///
+    /// `out` is accumulated (+=), caller must zero it first.
+    /// `x_start, y_start, z_start`: grid origin (d0, d1, d2)
+    /// `x_size, y_size, z_size`: grid dimensions (i, j, k)
+    /// `x_scale, y_scale, z_scale`: pre-multiplied scales (d3, d4, d5 = scale * d6)
+    /// `inv_freq`: 1.0 / d6
+    pub fn fill_3d_bulk(
+        &self,
+        out: &mut [f64],
+        x_start: f64, y_start: f64, z_start: f64,
+        x_size: usize, y_size: usize, z_size: usize,
+        x_scale: f64, y_scale: f64, z_scale: f64,
+        inv_freq: f64,
+    ) {
+        let perm = &self.permutation;
+        let p = |i: usize| perm[i & 0xFF] as usize;
+
+        let mut idx = 0usize;
+        let mut y_lattice_cache: i32 = -1;
+        let mut d16 = 0.0f64;
+        let mut d7c = 0.0f64;
+        let mut d17 = 0.0f64;
+        let mut d8c = 0.0f64;
+
+        for j1 in 0..x_size {
+            let x_coord = (x_start + j1 as f64) * x_scale + self.origin_x;
+            let xi = x_coord.floor() as i32;
+            let l1 = (xi & 0xFF) as usize;
+            let lx = x_coord - xi as f64;
+            let fade_x = fade_curve(lx);
+
+            for l3 in 0..z_size {
+                let z_coord = (z_start + l3 as f64) * z_scale + self.origin_z;
+                let zi = z_coord.floor() as i32;
+                let j4 = (zi & 0xFF) as usize;
+                let lz = z_coord - zi as f64;
+                let fade_z = fade_curve(lz);
+
+                for k4 in 0..y_size {
+                    let y_coord = (y_start + k4 as f64) * y_scale + self.origin_y;
+                    let yi = y_coord.floor() as i32;
+                    let i5 = yi & 0xFF;
+                    let ly = y_coord - yi as f64;
+                    let fade_y = fade_curve(ly);
+
+                    if k4 == 0 || i5 != y_lattice_cache {
+                        y_lattice_cache = i5;
+                        let i5u = i5 as usize;
+                        // Java: j5 = d[l1] + i5  (add outside permutation lookup)
+                        let j5 = p(l1).wrapping_add(i5u);
+                        let k5 = p(j5).wrapping_add(j4);
+                        let l5 = p(j5.wrapping_add(1)).wrapping_add(j4);
+                        let i6 = p(l1.wrapping_add(1)).wrapping_add(i5u);
+                        let j2 = p(i6).wrapping_add(j4);
+                        let j6 = p(i6.wrapping_add(1)).wrapping_add(j4);
+
+                        d16 = lerp(fade_x,
+                            grad3_java(p(k5),   lx,       ly,       lz),
+                            grad3_java(p(j2),   lx - 1.0, ly,       lz));
+                        d7c = lerp(fade_x,
+                            grad3_java(p(l5),   lx,       ly - 1.0, lz),
+                            grad3_java(p(j6),   lx - 1.0, ly - 1.0, lz));
+                        d17 = lerp(fade_x,
+                            grad3_java(p(k5.wrapping_add(1)), lx,       ly,       lz - 1.0),
+                            grad3_java(p(j2.wrapping_add(1)), lx - 1.0, ly,       lz - 1.0));
+                        d8c = lerp(fade_x,
+                            grad3_java(p(l5.wrapping_add(1)), lx,       ly - 1.0, lz - 1.0),
+                            grad3_java(p(j6.wrapping_add(1)), lx - 1.0, ly - 1.0, lz - 1.0));
+                    }
+
+                    let d22 = lerp(fade_y, d16, d7c);
+                    let d23 = lerp(fade_y, d17, d8c);
+                    let d24 = lerp(fade_z, d22, d23);
+                    out[idx] += d24 * inv_freq;
+                    idx += 1;
+                }
+            }
+        }
+    }
+
+    /// 2D sample matching Java's `NoiseGeneratorPerlin.a(double[],...)` ySize==1 branch.
+    ///
+    /// y origin is NOT added; y lattice is pinned to index 0; y fraction is 0.
+    /// Uses Java's 2D gradient function which differs from the 3D one.
+    #[inline(always)]
+    pub fn sample_beta_2d(&self, x: f64, z: f64) -> f64 {
+        let shifted_x = x + self.origin_x;
+        let shifted_z = z + self.origin_z;
+
+        let sx = shifted_x.floor() as i32;
+        let sz = shifted_z.floor() as i32;
+
+        let lx = shifted_x - sx as f64;
+        let lz = shifted_z - sz as f64;
+
+        let perm = &self.permutation;
+        let p = |i: usize| perm[i & 0xFF] as usize;
+
+        let x0 = (sx & 0xFF) as usize;
+        let x1 = (sx.wrapping_add(1) & 0xFF) as usize;
+        let p0 = p(x0);
+        let p1 = p(x1);
+
+        // y lattice index is 0 (Java: `int l = this.d[i3] + 0`)
+        let p00 = p(p0);
+        let p10 = p(p1);
+
+        let iz = sz as usize;
+        let h00 = p(p00.wrapping_add(iz));
+        let h10 = p(p10.wrapping_add(iz));
+        let h01 = p(p00.wrapping_add(iz).wrapping_add(1));
+        let h11 = p(p10.wrapping_add(iz).wrapping_add(1));
+
+        // Java ySize==1 branch uses a mixed gradient strategy:
+        // corner (x0,z0) calls the 2D gradient a(hash, x_frac, z_frac);
+        // the other three corners call the 3D gradient a(hash, x_frac, 0.0, z_frac).
+        let d00 = grad2_java(h00, lx,        lz);
+        let d10 = grad3_java(h10, lx - 1.0,  0.0, lz);
+        let d01 = grad3_java(h01, lx,         0.0, lz - 1.0);
+        let d11 = grad3_java(h11, lx - 1.0,  0.0, lz - 1.0);
+
+        let fx = fade_curve(lx);
+        let fz = fade_curve(lz);
+
+        let l0 = lerp(fx, d00, d10);
+        let l1 = lerp(fx, d01, d11);
+        lerp(fz, l0, l1)
+    }
+
     /// Scalar trilinear-lerp sample for the Beta f64 path.
     ///
     /// Applies the failurePoint clamp (full i32 range, no-op near origin) before floor,

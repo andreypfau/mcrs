@@ -17,6 +17,7 @@ use std::ops::Index;
 use tracing::info;
 
 pub mod beta_seed;
+pub mod beta_terrain_f64;
 pub mod proto;
 
 /// Maximum number of positions that can be batched in a single fill_plane call.
@@ -1552,14 +1553,16 @@ pub fn build_functions(
 
     // Expose beach and surface octave noises for the Beta surface pass.
     // Only populated when using the Beta (legacy) random source; modern router gets None.
-    let (beta_beach_noise, beta_surface_noise) = if noise_settings.legacy_random_source {
-        let (_, _, _, beach, surface, _, _) = beta_seed::seed_beta_terrain(seed);
+    let (beta_beach_noise, beta_surface_noise, beta_terrain_f64_opt) = if noise_settings.legacy_random_source {
+        let (_, _, _, beach, surface, _, _) = beta_seed::seed_beta_terrain_f64(seed);
+        let f64_noises = beta_terrain_f64::BetaTerrainF64::new(seed);
         (
             Some(Box::new(beach)),
             Some(Box::new(surface)),
+            Some(Box::new(f64_noises)),
         )
     } else {
-        (None, None)
+        (None, None, None)
     };
 
     let router = NoiseRouter {
@@ -1585,6 +1588,7 @@ pub fn build_functions(
         default_fluid_state,
         beta_beach_noise,
         beta_surface_noise,
+        beta_terrain_f64: beta_terrain_f64_opt,
         per_block: per_block.into_boxed_slice(),
         column_boundary,
         fd_boundary,
@@ -1666,10 +1670,13 @@ pub struct NoiseRouter {
     default_fluid_state: BlockStateId,
     /// Beta beach octave noise (4 octaves, stream position 4 in seed_beta_terrain).
     /// None for the modern router. Used by apply_beta_surface to determine beach columns.
-    beta_beach_noise: Option<Box<OctavePerlinNoise<f32>>>,
+    beta_beach_noise: Option<Box<OctavePerlinNoise<f64>>>,
     /// Beta surface octave noise (4 octaves, stream position 5 in seed_beta_terrain).
     /// None for the modern router. Used by apply_beta_surface to determine surface depth.
-    beta_surface_noise: Option<Box<OctavePerlinNoise<f32>>>,
+    beta_surface_noise: Option<Box<OctavePerlinNoise<f64>>>,
+    /// f64-precision Beta terrain density noises for exact Java parity.
+    /// None for the modern router. Replaces the f32 density-function tree for the Beta path.
+    beta_terrain_f64: Option<Box<beta_terrain_f64::BetaTerrainF64>>,
     /// per_block[i] == true means entry i depends on Y and must be recomputed per block.
     /// per_block[i] == false means entry i is column-only (cached across Y changes).
     per_block: Box<[bool]>,
@@ -2012,13 +2019,13 @@ impl NoiseRouter {
 
     /// Return the Beta beach octave noise sampler (4 octaves, stream position 4).
     /// None for the modern router. Used by apply_beta_surface for beach/sand conditions.
-    pub fn beta_beach_noise(&self) -> Option<&OctavePerlinNoise<f32>> {
+    pub fn beta_beach_noise(&self) -> Option<&OctavePerlinNoise<f64>> {
         self.beta_beach_noise.as_deref()
     }
 
     /// Return the Beta surface octave noise sampler (4 octaves, stream position 5).
     /// None for the modern router. Used by apply_beta_surface for surface depth calculation.
-    pub fn beta_surface_noise(&self) -> Option<&OctavePerlinNoise<f32>> {
+    pub fn beta_surface_noise(&self) -> Option<&OctavePerlinNoise<f64>> {
         self.beta_surface_noise.as_deref()
     }
 
@@ -2149,6 +2156,40 @@ impl NoiseRouter {
         let temperature = cache.read_za_value(local_x, local_z, self.temperature_index);
         let humidity = cache.read_za_value(local_x, local_z, self.vegetation_index);
         (temperature, humidity)
+    }
+
+    /// Return the f64 Beta terrain noises, if this is a Beta router.
+    /// None for the modern overworld router.
+    pub fn beta_terrain_f64(&self) -> Option<&beta_terrain_f64::BetaTerrainF64> {
+        self.beta_terrain_f64.as_deref()
+    }
+
+    /// Sample a 16×16 temperature grid (index = x*16+z) and a 16×16 rain/vegetation grid
+    /// for the Beta `computeDensity` call. Both grids are in block coordinates starting at
+    /// `(block_x, block_z)`.
+    pub fn sample_beta_climate_grids(
+        &self,
+        block_x: i32,
+        block_z: i32,
+    ) -> ([f32; 256], [f32; 256]) {
+        let mut temp_grid = [0.0f32; 256];
+        let mut rain_grid = [0.0f32; 256];
+        for x in 0..16i32 {
+            for z in 0..16i32 {
+                let pos = IVec3::new(block_x + x, 0, block_z + z);
+                let temp = DensityFunctionComponent::sample_from_stack(
+                    &self.stack[..=self.temperature_index],
+                    pos,
+                );
+                let rain = DensityFunctionComponent::sample_from_stack(
+                    &self.stack[..=self.vegetation_index],
+                    pos,
+                );
+                temp_grid[(x * 16 + z) as usize] = temp;
+                rain_grid[(x * 16 + z) as usize] = rain;
+            }
+        }
+        (temp_grid, rain_grid)
     }
 
     /// Evaluate temperature and vegetation at `(block_x, block_z)` without a

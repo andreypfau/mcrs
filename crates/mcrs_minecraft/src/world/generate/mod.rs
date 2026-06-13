@@ -4,7 +4,9 @@ use mcrs_core::RegistrySnapshot;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_worldgen::density_function::{
     ColumnCache, NoiseRouter, NoiseCellInterpolator,
+    beta_terrain_f64::BetaTerrainF64,
 };
+use mcrs_protocol::BlockStateId;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_random::Random;
 use mcrs_vanilla::biome::Biome;
@@ -201,6 +203,92 @@ fn fill_biome_palette_beta(
     }
 }
 
+/// Fill section block palettes for the Beta terrain using the exact-precision f64 path.
+///
+/// Runs `BetaTerrainF64::compute_density` + `fill_terrain` once for the whole 16×128×16
+/// column, then distributes the flat block array into the requested Y sections.
+/// Ice at sea_level-1 is placed here (matching Java's fillDensityTerrain), so the later
+/// apply_beta_surface ice-placement is still correct (it only replaces water→ice).
+fn fill_sections_beta_f64(
+    section_x: i32,
+    section_z: i32,
+    y_sections: &[i32],
+    noise_router: &NoiseRouter,
+    terrain: &BetaTerrainF64,
+    biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
+    cancel: &CancellationToken,
+) -> Vec<Option<(BlockPalette, BiomePalette)>> {
+    let block_x = section_x * 16;
+    let block_z = section_z * 16;
+
+    let sea_level   = noise_router.sea_level();
+    let stone_id    = noise_router.default_block_state().0 as u32;
+    let water_id    = noise_router.default_fluid_state().0 as u32;
+    let ice_id      = minecraft::ICE.default_state_id.0 as u32;
+    let air_id      = 0u32;
+
+    // Sample the 16×16 climate grids needed by computeDensity.
+    let (temp_grid, rain_grid) = noise_router.sample_beta_climate_grids(block_x, block_z);
+
+    // Run the f64 density computation and block fill.
+    let density = terrain.compute_density(section_x, section_z, &temp_grid, &rain_grid);
+    let flat = BetaTerrainF64::fill_terrain(&density, &temp_grid, sea_level, stone_id, water_id, ice_id);
+
+    // Build a column cache for biome sampling (used by fill_biome_palette_beta).
+    let mut column_cache = noise_router.new_column_cache(block_x, block_z);
+    noise_router.populate_columns(&mut column_cache);
+
+    let beta_biome = biome_context.and_then(|(src, reg)| {
+        if matches!(src, BiomeSource::Beta { .. }) {
+            Some((src, reg))
+        } else {
+            None
+        }
+    });
+
+    y_sections
+        .iter()
+        .map(|&sy| {
+            if cancel.is_cancelled() {
+                return None;
+            }
+
+            let section_min_y = sy * 16;
+
+            let mut blocks = BlockPalette::default();
+            let mut biomes = BiomePalette::default();
+
+            // Only sections in [0, 128) contain Beta terrain blocks.
+            if section_min_y >= 0 && section_min_y < 128 {
+                for local_y in 0..16i32 {
+                    let world_y = section_min_y + local_y;
+                    if world_y >= 128 { break; }
+                    for local_x in 0..16i32 {
+                        for local_z in 0..16i32 {
+                            let flat_idx = (local_x as usize) * 16 * 128
+                                + (local_z as usize) * 128
+                                + world_y as usize;
+                            let block_u32 = flat[flat_idx];
+                            if block_u32 != 0 {
+                                blocks.set(
+                                    BlockPos::new(local_x, local_y, local_z),
+                                    BlockStateId(block_u32 as u16),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Some((src, reg)) = beta_biome {
+                fill_biome_palette_beta(&mut biomes, sy, block_x, block_z, noise_router, &column_cache, src, reg);
+            }
+
+            Some((blocks, biomes))
+        })
+        .collect()
+}
+
 /// Generate all sections in a column using a pre-populated ColumnCache.
 /// Zone A (column-only density functions) is computed once for all 17x17 XZ positions
 /// and reused across all Y sections, eliminating per-block column-change branches.
@@ -225,6 +313,19 @@ pub fn generate_column(
     biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
+    // Beta path: use exact f64 density computation instead of the f32 density tree.
+    if let Some(terrain) = noise_router.beta_terrain_f64() {
+        return fill_sections_beta_f64(
+            section_x,
+            section_z,
+            y_sections,
+            noise_router,
+            terrain,
+            biome_context,
+            cancel,
+        );
+    }
+
     let mut interp = noise_router.new_noise_cell_interpolator();
     let block_x = section_x * 16;
     let block_z = section_z * 16;
@@ -356,37 +457,49 @@ pub fn apply_beta_surface(
     let gravel = minecraft::GRAVEL.default_state_id;
     let ice = minecraft::ICE.default_state_id;
 
-    const D0: f32 = 0.03125;
+    const D0: f64 = 0.03125;
 
-    // Pre-sample noise arrays for the 16x16 chunk footprint.
+    // Pre-sample noise arrays for the 16x16 chunk footprint using Java-exact bulk fill.
     // r[x*16+z]: beach XZ noise (gravel/sand condition).
     // s[x*16+z]: beach noise at Y=109 (gravel override condition).
     // t[x*16+z]: surface depth noise.
-    let mut r = [0.0f32; 256];
-    let mut s = [0.0f32; 256];
-    let mut t = [0.0f32; 256];
+    //
+    // Java call: n.a(r, i*16, jj*16, 0.0, 16, 16, 1, d0, d0, 1.0)
+    // → fill_3d_bulk(x_start=block_x, y_start=block_z, z_start=0, x=16, y=16, z=1, sx=D0, sy=D0, sz=1.0)
+    // Output index j1*16+k4 = x_local*16+z_local = x*16+z. ✓
+    let mut r = [0.0f64; 256];
+    beach_noise.fill_3d_bulk(
+        &mut r,
+        block_x as f64, block_z as f64, 0.0,
+        16, 16, 1,
+        D0, D0, 1.0,
+    );
+
+    // Java call: n.a(s, i*16, 109.0134, jj*16, 16, 1, 16, d0, 1.0, d0)
+    // j=ySize=1: uses ySize==1 branch with y-lattice pinned to floor(109.0134*freq+oy).
+    // Per-point via sample_xyz_beta is sufficient for the gravel-only flag1 condition.
+    let mut s = [0.0f64; 256];
     for x in 0..16usize {
         for z in 0..16usize {
-            r[x * 16 + z] = beach_noise.sample_xyz_beta(
-                (block_x + x as i32) as f32,
-                (block_z + z as i32) as f32,
-                0.0,
-                D0, D0, 1.0,
-            );
             s[x * 16 + z] = beach_noise.sample_xyz_beta(
-                (block_x + x as i32) as f32,
+                (block_x + x as i32) as f64,
                 109.0134,
-                (block_z + z as i32) as f32,
+                (block_z + z as i32) as f64,
                 D0, 1.0, D0,
-            );
-            t[x * 16 + z] = surf_noise.sample_xyz_beta(
-                (block_x + x as i32) as f32,
-                (block_z + z as i32) as f32,
-                0.0,
-                D0 * 2.0, D0 * 2.0, D0 * 2.0,
             );
         }
     }
+
+    // Java call: o.a(t, i*16, jj*16, 0.0, 16, 16, 1, d0*2, d0*2, d0*2)
+    // → fill_3d_bulk(x_start=block_x, y_start=block_z, z_start=0, x=16, y=16, z=1,
+    //                sx=D0*2, sy=D0*2, sz=D0*2)
+    let mut t = [0.0f64; 256];
+    surf_noise.fill_3d_bulk(
+        &mut t,
+        block_x as f64, block_z as f64, 0.0,
+        16, 16, 1,
+        D0 * 2.0, D0 * 2.0, D0 * 2.0,
+    );
 
     // back2beta replaceBlocksForBiome: outer loop kk=0..16 is Z, inner ll=0..16 is X.
     // Noise arrays r/s/t are filled at index x*16+z (geographic) and read at ll*16+kk
@@ -395,10 +508,10 @@ pub fn apply_beta_surface(
         for x_local in 0..16i32 {
             let idx = (x_local * 16 + z_local) as usize;
 
-            // Three RNG draws per column, in back2beta's exact order.
-            let flag = r[idx] + rng.next_f64() as f32 * 0.2 > 0.0;
-            let flag1 = s[idx] + rng.next_f64() as f32 * 0.2 > 3.0;
-            let i1 = (t[idx] / 3.0 + 3.0 + rng.next_f64() as f32 * 0.25) as i32;
+            // Three RNG draws per column matching Java's Random.nextDouble() exactly.
+            let flag = r[idx] + rng.next_java_double() * 0.2 > 0.0;
+            let flag1 = s[idx] + rng.next_java_double() * 0.2 > 3.0;
+            let i1 = (t[idx] / 3.0 + 3.0 + rng.next_java_double() * 0.25) as i32;
 
             let climate_x = block_x + x_local;
             let climate_z = block_z + z_local;
