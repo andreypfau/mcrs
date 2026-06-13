@@ -354,6 +354,7 @@ pub fn apply_beta_surface(
     let bedrock = minecraft::BEDROCK.default_state_id;
     let sandstone = minecraft::SANDSTONE.default_state_id;
     let gravel = minecraft::GRAVEL.default_state_id;
+    let ice = minecraft::ICE.default_state_id;
 
     const D0: f32 = 0.03125;
 
@@ -486,6 +487,22 @@ pub fn apply_beta_surface(
                                 j1 = rng.next_i32_bound(4);
                                 b2 = sandstone;
                             }
+                        }
+                    }
+                }
+            }
+
+            // back2beta fillDensityTerrain: if d17 < 0.5 && Y == sea_level-1, replace
+            // water with ice. No RNG consumed — must stay after all bedrock draws.
+            if temp < 0.5 {
+                let ice_y = sea_level - 1;
+                let ice_section_y = ice_y >> 4;
+                let ice_local_y = ice_y & 0xF;
+                if let Some(si) = y_sections.iter().position(|&sy| sy == ice_section_y) {
+                    if let Some((blocks, _)) = sections[si].as_mut() {
+                        let current = blocks.get(BlockPos::new(x_local, ice_local_y, z_local));
+                        if current == default_fluid {
+                            blocks.set(BlockPos::new(x_local, ice_local_y, z_local), ice);
                         }
                     }
                 }

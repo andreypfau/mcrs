@@ -95,6 +95,8 @@ fn beta_id_for(modern: BlockStateId) -> u8 {
     if modern == sand      { return 12; }
     if modern == gravel    { return 13; }
     if modern == sandstone { return 24; }
+    let ice = minecraft::ICE.default_state_id;
+    if modern == ice       { return 79; }
 
     // Unknown state: treat as air for comparison purposes.
     0
