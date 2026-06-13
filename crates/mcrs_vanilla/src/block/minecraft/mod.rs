@@ -88,6 +88,7 @@ declare_blocks! {
     sand => SAND,
     gravel => GRAVEL,
     sandstone => SANDSTONE,
+    ice => ICE,
     note_block => NOTE_BLOCK,
     tnt => TNT,
     torch => TORCH,
