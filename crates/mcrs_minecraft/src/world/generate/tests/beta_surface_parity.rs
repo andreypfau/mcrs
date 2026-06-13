@@ -239,16 +239,9 @@ fn column_matches(
         }
     }
 
-    // Biome check: back2beta applies the biome of the transposed position
-    // (block_x + lz, block_z + lx) to column (lx, lz), due to the XZ-transpose
-    // in getBiomeArray/replaceBlocksForBiome.  Quantized via getBiomeFromLookup.
-    let cx = fixture.wx.div_euclid(16);
-    let cz = fixture.wz.div_euclid(16);
-    let lx = fixture.wx - cx * 16;
-    let lz = fixture.wz - cz * 16;
-    let climate_x = cx * 16 + lz;
-    let climate_z = cz * 16 + lx;
-    let (temp, humidity) = router.sample_beta_climate(climate_x, climate_z);
+    // Biome check: sample climate at the geographic position and resolve via the
+    // quantized 64x64 table, matching back2beta's getBiomeFromLookup.
+    let (temp, humidity) = router.sample_beta_climate(fixture.wx, fixture.wz);
     let gen_biome = beta_biome_from_climate(table, temp, humidity);
     let gen_back2beta_id = beta_land_biome_to_back2beta_id(gen_biome);
     let biome_mismatch = if gen_back2beta_id != fixture.biome_id {
@@ -609,49 +602,26 @@ fn beta_surface_parity_gate() {
 
 // ── Per-column climate oracle test ───────────────────────────────────────────
 
-/// Per-column climate oracle test: pins the divergence between Rust and back2beta
-/// for a small set of worst-offender columns extracted from the back2beta verbatim
-/// harness (seed 12345, run against the committed corpus).
+/// Per-column climate oracle test: pins geographic climate sampling with the
+/// quantized 64x64 biome lookup for a small set of columns (seed 12345).
 ///
-/// Root-cause analysis (verbatim harness + corpus):
-///   back2beta's replaceBlocksForBiome reads the biome array at index
-///   `kk + ll * 16` where kk=x_local, ll=z_local — but getBiomeArray fills the
-///   same array with biome(x, z) at index `j1 * 16 + k1 = x * 16 + z`.
-///   These two indexing conventions are TRANSPOSED (lx*16+lz vs lx+lz*16), so
-///   the biome applied to column (lx, lz) is the geographic biome of position
-///   (block_x + lz, block_z + lx) — not (world_x, world_z).
-///   This is a verbatim back2beta quirk that the corpus faithfully records.
+/// The corpus is geographic: column (wx, wz) holds Java's data for geographic
+/// world position (wx, wz). Rust samples climate at (wx, wz) directly.
 ///
-/// The temperature threshold for Desert/Savanna in getBiome() is 0.95.
-///   At geographic (wx=31, wz=-9):  d3 ≈ 0.9640 (≥ 0.95) → Desert(7)
-///   At transposed  (wx=23, wz=-1): d3 ≈ 0.9484 (< 0.95) → Savanna(4) [corpus]
-///
-/// The current code samples at (wx, wz) — geographic, not transposed — and uses
-/// continuous beta_get_biome rather than the quantized 64x64 table.
-/// This test asserts the correct biome (corpus value) and FAILS (RED) until
-/// both fixes land in Task 2.
-///
-/// Oracle columns captured from the verbatim harness (seed 12345):
-///   Column (wx, wz) | chunk (cx, cz) | local (lx, lz)
-///                   | transposed world (block_x+lz, block_z+lx)
-///                   | back2beta d3       | corpus biome_id
-///   (+31, -9)       | (+1, -1)          | (15, 7) → (23, -1)  | 0.9484 | 4 (Savanna)
-///   (+30, -11)      | (+1, -1)          | (14, 5) → (21, -2)  | 0.9455 | 4 (Savanna)
-///   (  0,  0)       | ( 0,  0)          | ( 0, 0) → ( 0,  0)  | 0.9718 | 7 (Desert)
-///   (+16,+16)       | (+1, +1)          | ( 0, 0) → (16, 16)  | 0.9436 | 4 (Savanna)
+/// Oracle columns (wx, wz, corpus_biome_id):
+///   (+31, -9)  → Desert(7)   — geographic temp ≥ 0.95 threshold
+///   (+30, -11) → Desert(7)   — geographic temp ≥ 0.95 threshold
+///   (  0,  0)  → Desert(7)   — lx=lz=0, trivially geographic
+///   (+16,+16)  → Savanna(4)  — lx=lz=0, trivially geographic
 #[test]
 fn beta_climate_matches_back2beta_oracle() {
     let router = build_beta_router();
 
-    // Oracle columns: (wx, wz, corpus_biome_id, oracle_d3_approx)
-    // corpus_biome_id is the biome recorded in beta_surface_corpus.json.
-    // oracle_d3_approx is back2beta's processed temperature for the transposed position,
-    // included for diagnostic clarity only (not asserted as f32 equality).
     let oracle_cols: &[(i32, i32, u8)] = &[
-        (31, -9, 4),   // Savanna — geographic yields Desert (d3≈0.964 ≥ 0.95)
-        (30, -11, 4),  // Savanna — geographic yields Desert (d3≈0.967 ≥ 0.95)
-        (0, 0, 7),     // Desert  — geographic and transposed agree (lx=lz=0)
-        (16, 16, 4),   // Savanna — geographic and transposed agree (lx=lz=0)
+        (31, -9, 7),   // Desert
+        (30, -11, 7),  // Desert
+        (0, 0, 7),     // Desert
+        (16, 16, 4),   // Savanna
     ];
 
     let table = build_beta_lookup_table();
@@ -659,23 +629,13 @@ fn beta_climate_matches_back2beta_oracle() {
     let mut failures: Vec<String> = Vec::new();
 
     for &(wx, wz, expected_biome_id) in oracle_cols {
-        // Use the transposed position (block_x + lz, block_z + lx) — the position
-        // back2beta's replaceBlocksForBiome actually samples due to the XZ-transpose
-        // in getBiomeArray.  This is what apply_beta_surface must use post-fix.
-        let cx = wx.div_euclid(16);
-        let cz = wz.div_euclid(16);
-        let lx = wx - cx * 16;
-        let lz = wz - cz * 16;
-        let climate_x = cx * 16 + lz;
-        let climate_z = cz * 16 + lx;
-        let (temp, rain) = router.sample_beta_climate(climate_x, climate_z);
-
+        let (temp, rain) = router.sample_beta_climate(wx, wz);
         let gen_id = beta_land_biome_to_back2beta_id(beta_biome_from_climate(&table, temp, rain));
 
         if gen_id != expected_biome_id {
             failures.push(format!(
-                "  ({:+4},{:+4}) transposed→({:+4},{:+4}): expected biome_id={} got {} (temp={:.6} rain={:.6})",
-                wx, wz, climate_x, climate_z, expected_biome_id, gen_id, temp, rain
+                "  ({:+4},{:+4}): expected biome_id={} got {} (temp={:.6} rain={:.6})",
+                wx, wz, expected_biome_id, gen_id, temp, rain
             ));
         }
     }

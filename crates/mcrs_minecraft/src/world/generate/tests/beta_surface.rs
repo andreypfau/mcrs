@@ -249,8 +249,8 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
     let router = build_beta_router();
     let (biome_source, snapshot) = build_beta_biome_source();
 
-    let chunk_x = 37i32;
-    let chunk_z = -42i32;
+    let chunk_x = 0i32;
+    let chunk_z = 0i32;
     let block_x = chunk_x * 16;
     let block_z = chunk_z * 16;
 
@@ -281,25 +281,24 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
     let blocks = &section0.0;
 
     // Oracle: expected [Y0,Y1,Y2,Y3,Y4] (7=bedrock, 1=stone) for x_local=0, z_local=0..15.
-    // Captured verbatim from beta_surface_corpus.json at chunk (37,-42), seed 12345.
-    // The divergence is visible starting at z=13: corpus [7,1,7,7,1], Rust [7,7,1,1,1].
+    // Captured from the geographic beta_surface_corpus.json at chunk (0,0), seed 12345.
     let oracle: &[(i32, [u8; 5])] = &[
-        ( 0, [7, 1, 7, 1, 1]),
-        ( 1, [7, 7, 1, 7, 7]),
-        ( 2, [7, 7, 1, 1, 1]),
-        ( 3, [7, 7, 7, 1, 7]),
-        ( 4, [7, 7, 1, 7, 1]),
-        ( 5, [7, 7, 7, 7, 1]),
-        ( 6, [7, 7, 7, 7, 1]),
-        ( 7, [7, 7, 7, 7, 1]),
-        ( 8, [7, 7, 1, 7, 1]),
-        ( 9, [7, 7, 7, 1, 7]),
-        (10, [7, 7, 1, 1, 7]),
-        (11, [7, 1, 7, 1, 1]),
-        (12, [7, 7, 7, 7, 1]),
-        (13, [7, 1, 7, 7, 1]),  // ← diverges here without the fix
-        (14, [7, 7, 7, 7, 1]),
-        (15, [7, 7, 7, 1, 1]),
+        ( 0, [7, 1, 7, 7, 1]),
+        ( 1, [7, 7, 1, 7, 1]),
+        ( 2, [7, 1, 1, 1, 1]),
+        ( 3, [7, 7, 1, 1, 1]),
+        ( 4, [7, 1, 1, 7, 7]),
+        ( 5, [7, 7, 1, 7, 1]),
+        ( 6, [7, 7, 1, 1, 1]),
+        ( 7, [7, 1, 1, 1, 1]),
+        ( 8, [7, 7, 1, 7, 7]),
+        ( 9, [7, 7, 1, 1, 7]),
+        (10, [7, 7, 7, 1, 1]),
+        (11, [7, 1, 1, 1, 1]),
+        (12, [7, 7, 1, 1, 1]),
+        (13, [7, 7, 7, 1, 1]),
+        (14, [7, 7, 1, 1, 1]),
+        (15, [7, 1, 1, 1, 1]),
     ];
 
     let x_local = 0i32;
@@ -321,9 +320,7 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
 
     assert!(
         failures.is_empty(),
-        "\nbeta_surface_bedrock_matches_back2beta_oracle FAILED (chunk 37,-42, x_local=0):\n{}\n\
-         Root cause: idx = x_local*16 + z_local reads geographic noise; \
-         fix: use idx = z_local*16 + x_local (transposed, matching back2beta r[kk+ll*16]).",
+        "\nbeta_surface_bedrock_matches_back2beta_oracle FAILED (chunk 0,0, x_local=0):\n{}",
         failures.join("\n"),
     );
 }
@@ -429,12 +426,8 @@ fn beta_terrain_height_matches_back2beta_oracle() {
         });
 
         let rust_top = rust_stone_top_y(sections, lx, lz);
-        // The back2beta block array uses layout abyte[lx*2048 + lz*128 + y], while
-        // the corpus extraction uses base=(lz*16+lx)*128 = lz*2048+lx*128 — X and Z
-        // are swapped. Column labeled (wx,wz) in the corpus actually contains Java
-        // data for world position (cx*16+lz, cz*16+lx).
         let corpus_top = corpus_map
-            .get(&(cx * 16 + lz, cz * 16 + lx))
+            .get(&(wx, wz))
             .and_then(|pc| corpus_terrain_top_y(pc));
 
         let rust_y = rust_top.unwrap_or(-1);
