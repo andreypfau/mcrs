@@ -387,27 +387,20 @@ pub fn apply_beta_surface(
         }
     }
 
-    // back2beta column loop: outer = x (k=0..16), inner = z (l=0..16).
-    // Noise arrays r/s/t are filled at index x*16+z but read by back2beta at
-    // r[kk + ll*16] = r[x + z*16]. Reading x+z*16 from an x*16+z fill picks the
-    // value stored at fill position (x_fill=z, z_fill=x), i.e., the noise sampled
-    // at the transposed world position (block_x+z, block_z+x). Use z*16+x here to
-    // replicate back2beta's r[kk+ll*16] read exactly.
-    for x_local in 0..16i32 {
-        for z_local in 0..16i32 {
-            let idx = (z_local * 16 + x_local) as usize;
+    // back2beta replaceBlocksForBiome: outer loop kk=0..16 is Z, inner ll=0..16 is X.
+    // Noise arrays r/s/t are filled at index x*16+z (geographic) and read at ll*16+kk
+    // = x*16+z — the same geographic index. Climate is sampled at geographic (wx, wz).
+    for z_local in 0..16i32 {
+        for x_local in 0..16i32 {
+            let idx = (x_local * 16 + z_local) as usize;
 
             // Three RNG draws per column, in back2beta's exact order.
             let flag = r[idx] + rng.next_f64() as f32 * 0.2 > 0.0;
             let flag1 = s[idx] + rng.next_f64() as f32 * 0.2 > 3.0;
             let i1 = (t[idx] / 3.0 + 3.0 + rng.next_f64() as f32 * 0.25) as i32;
 
-            // back2beta's replaceBlocksForBiome reads biome at index (kk + ll*16)
-            // where kk=x_local, ll=z_local, but getBiomeArray fills at (x*16 + z).
-            // The resulting coordinate transpose means the biome applied to (lx, lz)
-            // is sampled at the transposed world position (block_x+lz, block_z+lx).
-            let climate_x = block_x + z_local;
-            let climate_z = block_z + x_local;
+            let climate_x = block_x + x_local;
+            let climate_z = block_z + z_local;
             let (temp, humidity) = noise_router.sample_beta_climate(climate_x, climate_z);
             let biome_land: BetaLandBiome = if let Some(table) = beta_lookup {
                 beta_biome_from_climate(table, temp, humidity)
