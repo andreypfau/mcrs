@@ -88,12 +88,12 @@ declare_blocks! {
     sand => SAND,
     gravel => GRAVEL,
     sandstone => SANDSTONE,
-    ice => ICE,
     note_block => NOTE_BLOCK,
     tnt => TNT,
     torch => TORCH,
     wall_torch => WALL_TORCH,
     diamond_ore => DIAMOND_ORE,
+    ice => ICE,
 }
 
 impl TryFrom<BlockStateId> for &'static Block {
