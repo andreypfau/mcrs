@@ -1586,6 +1586,7 @@ pub fn build_functions(
         sea_level: noise_settings.sea_level,
         default_block_state,
         default_fluid_state,
+        world_seed: seed,
         beta_beach_noise,
         beta_surface_noise,
         beta_terrain_f64: beta_terrain_f64_opt,
@@ -1668,6 +1669,7 @@ pub struct NoiseRouter {
     sea_level: i32,
     default_block_state: BlockStateId,
     default_fluid_state: BlockStateId,
+    world_seed: u64,
     /// Beta beach octave noise (4 octaves, stream position 4 in seed_beta_terrain).
     /// None for the modern router. Used by apply_beta_surface to determine beach columns.
     beta_beach_noise: Option<Box<OctavePerlinNoise<f64>>>,
@@ -1741,6 +1743,10 @@ impl NoiseRouter {
 
     pub fn column_boundary(&self) -> usize {
         self.column_boundary
+    }
+
+    pub fn world_seed(&self) -> u64 {
+        self.world_seed
     }
 
     pub fn final_density_idx(&self) -> usize {

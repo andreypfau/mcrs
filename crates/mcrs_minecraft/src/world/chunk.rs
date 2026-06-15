@@ -1,4 +1,4 @@
-use crate::world::generate::{apply_beta_surface, generate_column};
+use crate::world::generate::{apply_beta_caves, apply_beta_surface, generate_column, BetaCaveBlockIds};
 use mcrs_random::legacy::LegacyRandom;
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::entity::Entity;
@@ -724,6 +724,29 @@ fn dispatch_column_generation(
                         router,
                         src,
                         &mut rng,
+                    );
+
+                    let world_seed = router.world_seed() as i64;
+                    let cave_ids = BetaCaveBlockIds::resolve();
+                    let cave_config = mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig {
+                        air_state: cave_ids.air,
+                        lava_state: cave_ids.lava,
+                        stone_state: cave_ids.stone,
+                        dirt_state: cave_ids.dirt,
+                        grass_state: cave_ids.grass,
+                        lava_level: 10,
+                        range: 8,
+                        horizontal_radius_multiplier: 1.0,
+                        vertical_radius_multiplier: 1.0,
+                    };
+                    apply_beta_caves(
+                        &mut results,
+                        &y_sections,
+                        col.x,
+                        col.z,
+                        world_seed,
+                        &cave_config,
+                        &cave_ids,
                     );
                 }
             }

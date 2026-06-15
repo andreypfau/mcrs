@@ -624,5 +624,8 @@ pub fn apply_beta_surface(
     }
 }
 
+pub mod beta_caves;
+pub use beta_caves::{apply_beta_caves, BetaCaveBlockIds};
+
 #[cfg(test)]
 mod tests;
