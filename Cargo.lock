@@ -2000,6 +2000,7 @@ dependencies = [
  "num-integer",
  "paste",
  "rand 0.10.0",
+ "rand_xoshiro",
  "rocksdb",
  "rustc-hash 2.1.1",
  "serde",

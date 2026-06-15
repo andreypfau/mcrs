@@ -4,7 +4,6 @@ use mcrs_minecraft_worldgen::carver::cave::CaveWorldCarver;
 use mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig;
 use mcrs_minecraft_worldgen::carver::WorldCarver;
 use mcrs_protocol::BlockStateId;
-use mcrs_random::Random;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_vanilla::block::minecraft;
 
@@ -26,6 +25,9 @@ impl BetaCaveBlockIds {
             stone: minecraft::STONE.default_state_id,
             dirt: minecraft::DIRT.default_state_id,
             grass: minecraft::GRASS_BLOCK.default_state_id,
+            // Both water and stationary_water map to the same modern water source state.
+            // back2beta captures stationary water (ID 9) at sea-level fill positions;
+            // the surface pass places water source state there, so we check the same ID.
             water: minecraft::WATER.default_state_id,
             stationary_water: minecraft::WATER.default_state_id,
         }
@@ -79,8 +81,8 @@ pub fn apply_beta_caves(
     let carver = CaveWorldCarver;
 
     let mut seed_rng = LegacyRandom::new(world_seed as u64);
-    let l: i64 = seed_rng.next_i64() / 2 * 2 + 1;
-    let i1: i64 = seed_rng.next_i64() / 2 * 2 + 1;
+    let l: i64 = seed_rng.next_java_long() / 2 * 2 + 1;
+    let i1: i64 = seed_rng.next_java_long() / 2 * 2 + 1;
 
     // SAFETY: get_block reads from sections while set_block writes to sections.
     // The CaveWorldCarver::carve implementation never calls both closures

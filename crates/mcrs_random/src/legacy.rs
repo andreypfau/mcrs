@@ -44,6 +44,17 @@ impl LegacyRandom {
         let lo = self.next_bits(27);
         ((hi << 27) | lo) as f64 * (1.0 / (1u64 << 53) as f64)
     }
+
+    /// Java-accurate `nextLong()`: both 32-bit halves are sign-extended before combining.
+    /// Java's `nextLong` computes `((long)(int)upper << 32) + (long)(int)lower`, so when
+    /// the lower half has its high bit set the result is reduced by 2^32 relative to the
+    /// unsigned interpretation used by `try_next_u64`.
+    #[inline]
+    pub fn next_java_long(&mut self) -> i64 {
+        let hi = self.next_bits(32) as i32 as i64;
+        let lo = self.next_bits(32) as i32 as i64;
+        (hi << 32).wrapping_add(lo)
+    }
 }
 
 impl TryRng for LegacyRandom {
@@ -78,6 +89,10 @@ impl TryRng for LegacyRandom {
 impl Random for LegacyRandom {
     fn is_legacy(&self) -> bool {
         true
+    }
+
+    fn next_java_long(&mut self) -> i64 {
+        LegacyRandom::next_java_long(self)
     }
 
     fn next_bool(&mut self) -> bool {

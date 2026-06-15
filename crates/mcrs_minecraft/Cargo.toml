@@ -55,6 +55,7 @@ bevy_ecs = { workspace = true }
 mcrs_minecraft_lighting = { workspace = true, features = ["bench-helpers"] }
 mcrs_engine = { workspace = true }
 mcrs_random = { workspace = true }
+rand_xoshiro = { workspace = true }
 base64 = { workspace = true }
 
 [features]

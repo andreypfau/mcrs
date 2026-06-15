@@ -734,6 +734,8 @@ fn dispatch_column_generation(
                         stone_state: cave_ids.stone,
                         dirt_state: cave_ids.dirt,
                         grass_state: cave_ids.grass,
+                        water_state: cave_ids.water,
+                        stationary_water_state: cave_ids.stationary_water,
                         lava_level: 10,
                         range: 8,
                         horizontal_radius_multiplier: 1.0,

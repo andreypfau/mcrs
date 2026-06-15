@@ -26,6 +26,16 @@ pub trait Random: Rng + Clone {
         self.next_u64() as i64
     }
 
+    /// Java-accurate `nextLong()`: sign-extends both 32-bit halves before combining.
+    ///
+    /// Java's `java.util.Random.nextLong` computes `((long)(int)upper << 32) + (long)(int)lower`,
+    /// so when the lower half has its high bit set the result is less than the unsigned
+    /// interpretation. The default delegates to `next_i64()` (correct for Xoroshiro);
+    /// LegacyRandom overrides with the sign-extended form.
+    fn next_java_long(&mut self) -> i64 {
+        self.next_i64()
+    }
+
     fn next_f32(&mut self) -> f32;
 
     fn next_f64(&mut self) -> f64;
@@ -116,6 +126,13 @@ impl Random for RandomSource {
         match self {
             RandomSource::Legacy(random) => random.next_u32_bound(bound),
             RandomSource::Xoroshiro(random) => random.next_u32_bound(bound),
+        }
+    }
+
+    fn next_java_long(&mut self) -> i64 {
+        match self {
+            RandomSource::Legacy(random) => random.next_java_long(),
+            RandomSource::Xoroshiro(random) => random.next_java_long(),
         }
     }
 

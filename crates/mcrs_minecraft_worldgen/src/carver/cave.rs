@@ -4,6 +4,24 @@ use mcrs_protocol::BlockStateId;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_random::Random;
 
+/// Java beta `MathHelper.sin(x)`: lookup-table approximation matching the 65536-entry table
+/// built at class-load time via `(float)Math.sin(i * PI * 2.0 / 65536.0)`.
+///
+/// Using accurate `f32::sin` instead shifts ellipsoid radii at boundary cases,
+/// causing single-block carve/no-carve divergence from the Java reference.
+fn math_helper_sin(x: f32) -> f32 {
+    let idx = ((x * 10430.378_f32) as i32 as u32) & 0xFFFF;
+    f64::sin(idx as f64 * (std::f64::consts::TAU / 65536.0)) as f32
+}
+
+/// Java beta `MathHelper.cos(x)`: same table as `math_helper_sin`, offset by π/2.
+///
+/// Java: `SIN_TABLE[(int)(x * 10430.378F + 16384.0F) & 65535]`
+fn math_helper_cos(x: f32) -> f32 {
+    let idx = ((x * 10430.378_f32 + 16384.0_f32) as i32 as u32) & 0xFFFF;
+    f64::sin(idx as f64 * (std::f64::consts::TAU / 65536.0)) as f32
+}
+
 pub struct CaveWorldCarver;
 
 impl WorldCarver for CaveWorldCarver {
@@ -42,7 +60,7 @@ impl WorldCarver for CaveWorldCarver {
             let mut tunnel_count = 1;
             if rng.next_i32_bound(4) == 0 {
                 let room_thickness = 1.0 + rng.next_f32() * 6.0;
-                let tunnel_seed = rng.next_u64();
+                let tunnel_seed = rng.next_java_long() as u64;
                 let mut tunnel_rng = LegacyRandom::new(tunnel_seed);
                 create_tunnel(
                     config,
@@ -70,7 +88,7 @@ impl WorldCarver for CaveWorldCarver {
                 let pitch = (rng.next_f32() - 0.5) * 2.0 / 8.0;
                 let thickness = rng.next_f32() * 2.0 + rng.next_f32();
 
-                let tunnel_seed = rng.next_u64();
+                let tunnel_seed = rng.next_java_long() as u64;
                 let mut tunnel_rng = LegacyRandom::new(tunnel_seed);
                 create_tunnel(
                     config,
@@ -144,15 +162,15 @@ fn create_tunnel<R: Random, G, S>(
 
     while step < total_steps {
         let d6 = 1.5_f64
-            + (f32::sin(step as f32 * std::f32::consts::PI / total_steps as f32) * f * 1.0)
+            + (math_helper_sin(step as f32 * std::f32::consts::PI / total_steps as f32) * f * 1.0)
                 as f64;
         let d7 = d6 * d3;
 
-        let f5 = f32::cos(f2);
-        let f6 = f32::sin(f2);
-        d0 += (f32::cos(f1) * f5) as f64;
+        let f5 = math_helper_cos(f2);
+        let f6 = math_helper_sin(f2);
+        d0 += (math_helper_cos(f1) * f5) as f64;
         d1 += f6 as f64;
-        d2 += (f32::sin(f1) * f5) as f64;
+        d2 += (math_helper_sin(f1) * f5) as f64;
 
         if squiggly {
             f2 *= 0.92;
@@ -168,7 +186,7 @@ fn create_tunnel<R: Random, G, S>(
 
         if !is_room && step == branch_at && f > 1.0 {
             let f_a = rng.next_f32() * 0.5 + 0.5;
-            let seed_a = parent_rng.next_u64();
+            let seed_a = parent_rng.next_java_long() as u64;
             let mut rng_a = LegacyRandom::new(seed_a);
             create_tunnel(
                 config,
@@ -189,7 +207,7 @@ fn create_tunnel<R: Random, G, S>(
                 parent_rng,
             );
             let f_b = rng.next_f32() * 0.5 + 0.5;
-            let seed_b = parent_rng.next_u64();
+            let seed_b = parent_rng.next_java_long() as u64;
             let mut rng_b = LegacyRandom::new(seed_b);
             create_tunnel(
                 config,
@@ -228,7 +246,7 @@ fn create_tunnel<R: Random, G, S>(
                 && d0 <= d4 + 16.0 + d6 * 2.0
                 && d2 <= d5 + 16.0 + d6 * 2.0
             {
-                carve_ellipsoid(
+                let carved = carve_ellipsoid(
                     config,
                     chunk_x,
                     chunk_z,
@@ -237,11 +255,16 @@ fn create_tunnel<R: Random, G, S>(
                     d2,
                     d6,
                     d7,
-                    BlockStateId(0),
-                    BlockStateId(0),
+                    config.water_state,
+                    config.stationary_water_state,
                     get_block,
                     set_block,
                 );
+                // A room (single-step carve) stops after carving one ellipsoid,
+                // unless water-abort skipped the carve. Mirrors Beta's `if(flag) break`.
+                if is_room && carved {
+                    break;
+                }
             }
         }
 
@@ -265,6 +288,8 @@ mod tests {
             stone_state: BlockStateId(1),
             dirt_state: BlockStateId(2),
             grass_state: BlockStateId(3),
+            water_state: BlockStateId(0),
+            stationary_water_state: BlockStateId(0),
             lava_level: 10,
             range: 8,
             horizontal_radius_multiplier: 1.0,
