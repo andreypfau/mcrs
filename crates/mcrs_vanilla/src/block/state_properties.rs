@@ -30,6 +30,11 @@ pub static UNSTABLE: PropertyDef = PropertyDef {
     values: &[TRUE, FALSE],
 };
 
+pub static LIT: PropertyDef = PropertyDef {
+    name: PropertyStr::new("lit"),
+    values: &[TRUE, FALSE],
+};
+
 pub static STAGE: PropertyDef = PropertyDef {
     name: PropertyStr::new("stage"),
     values: &[PropertyStr::new("0"), PropertyStr::new("1")],
@@ -154,6 +159,7 @@ pub static WATERLOGGED_PROP: Property<bool> = Property::new(&WATERLOGGED);
 pub static POWERED_PROP: Property<bool> = Property::new(&POWERED);
 pub static HANGING_PROP: Property<bool> = Property::new(&HANGING);
 pub static UNSTABLE_PROP: Property<bool> = Property::new(&UNSTABLE);
+pub static LIT_PROP: Property<bool> = Property::new(&LIT);
 pub static STAGE_PROP: Property<u8> = Property::new(&STAGE);
 pub static AGE_4_PROP: Property<u8> = Property::new(&AGE_4);
 pub static NOTE_PROP: Property<u8> = Property::new(&NOTE);
