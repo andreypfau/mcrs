@@ -352,4 +352,52 @@ mod tests {
     fn lava_default_state_id_is_102() {
         assert_eq!(LAVA.default_state_id, BlockStateId(102));
     }
+
+    #[test]
+    fn ore_blocks_registered() {
+        let ore_blocks = [
+            ("coal_ore", &COAL_ORE, COAL_ORE.protocol_id),
+            ("iron_ore", &IRON_ORE, IRON_ORE.protocol_id),
+            ("gold_ore", &GOLD_ORE, GOLD_ORE.protocol_id),
+            ("lapis_ore", &LAPIS_ORE, LAPIS_ORE.protocol_id),
+            ("redstone_ore", &REDSTONE_ORE, REDSTONE_ORE.protocol_id),
+            ("clay", &CLAY, CLAY.protocol_id),
+        ];
+
+        // All six blocks have non-zero default state IDs
+        for (name, block, _) in &ore_blocks {
+            assert!(
+                block.default_state_id.0 > 0,
+                "{name} default_state_id must be non-zero"
+            );
+        }
+
+        // All six blocks have distinct protocol IDs
+        let protocol_ids: Vec<u16> = ore_blocks.iter().map(|(_, _, pid)| *pid).collect();
+        for i in 0..protocol_ids.len() {
+            for j in (i + 1)..protocol_ids.len() {
+                assert_ne!(
+                    protocol_ids[i], protocol_ids[j],
+                    "{} and {} share protocol_id {}",
+                    ore_blocks[i].0, ore_blocks[j].0, protocol_ids[i]
+                );
+            }
+        }
+
+        // Redstone ore default state has lit == false
+        assert_eq!(
+            REDSTONE_ORE.get(REDSTONE_ORE.default_state_id, &LIT_PROP),
+            Some(false),
+            "redstone_ore default state must have lit=false"
+        );
+
+        // Verify exact state IDs from 26.1.2 block report
+        assert_eq!(GOLD_ORE.default_state_id, BlockStateId(129));
+        assert_eq!(IRON_ORE.default_state_id, BlockStateId(131));
+        assert_eq!(COAL_ORE.default_state_id, BlockStateId(133));
+        assert_eq!(LAPIS_ORE.default_state_id, BlockStateId(563));
+        assert_eq!(CLAY.default_state_id, BlockStateId(6946));
+        // redstone_ore default (lit=false) is at base+1
+        assert_eq!(REDSTONE_ORE.default_state_id, BlockStateId(6882));
+    }
 }
