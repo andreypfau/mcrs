@@ -31,6 +31,7 @@
 )]
 
 pub mod carver;
+pub mod feature;
 mod climate;
 pub mod density_function;
 mod noise;
