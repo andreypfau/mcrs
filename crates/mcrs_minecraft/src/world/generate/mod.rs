@@ -626,6 +626,8 @@ pub fn apply_beta_surface(
 
 pub mod beta_caves;
 pub use beta_caves::{apply_beta_caves, BetaCaveBlockIds};
+pub mod beta_ores;
+pub use beta_ores::{apply_beta_ores, BetaOreBlockIds};
 
 #[cfg(test)]
 mod tests;

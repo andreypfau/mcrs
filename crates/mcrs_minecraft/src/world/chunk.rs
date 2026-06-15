@@ -1,4 +1,4 @@
-use crate::world::generate::{apply_beta_caves, apply_beta_surface, generate_column, BetaCaveBlockIds};
+use crate::world::generate::{apply_beta_caves, apply_beta_ores, apply_beta_surface, generate_column, BetaCaveBlockIds, BetaOreBlockIds};
 use mcrs_random::legacy::LegacyRandom;
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::entity::Entity;
@@ -749,6 +749,16 @@ fn dispatch_column_generation(
                         world_seed,
                         &cave_config,
                         &cave_ids,
+                    );
+
+                    let ore_ids = BetaOreBlockIds::resolve();
+                    apply_beta_ores(
+                        &mut results,
+                        &y_sections,
+                        col.x,
+                        col.z,
+                        world_seed,
+                        &ore_ids,
                     );
                 }
             }
