@@ -87,13 +87,19 @@ declare_blocks! {
     lava => LAVA,
     sand => SAND,
     gravel => GRAVEL,
+    gold_ore => GOLD_ORE,
+    iron_ore => IRON_ORE,
+    coal_ore => COAL_ORE,
     sandstone => SANDSTONE,
+    lapis_ore => LAPIS_ORE,
     note_block => NOTE_BLOCK,
     tnt => TNT,
     torch => TORCH,
     wall_torch => WALL_TORCH,
     diamond_ore => DIAMOND_ORE,
+    redstone_ore => REDSTONE_ORE,
     ice => ICE,
+    clay => CLAY,
 }
 
 impl TryFrom<BlockStateId> for &'static Block {
