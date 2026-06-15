@@ -30,6 +30,7 @@
     unexpected_cfgs
 )]
 
+pub mod carver;
 mod climate;
 pub mod density_function;
 mod noise;
