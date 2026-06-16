@@ -3,9 +3,7 @@
   "downfall": 0.4,
   "has_precipitation": true,
   "effects": {
-    "water_color": "#3f76e4",
-    "grass_color": "#91bd59",
-    "foliage_color": "#77ab2f"
+    "water_color": "#3f76e4"
   },
   "carvers": [],
   "features": [],
