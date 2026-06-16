@@ -57,7 +57,9 @@ use mcrs_engine::world::sub_app::{
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_vanilla::block::Block;
+use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::enchantment::EnchantmentData;
+use mcrs_core::RegistrySnapshot;
 
 #[derive(Clone)]
 pub struct DimRegistryBundle {
@@ -66,6 +68,7 @@ pub struct DimRegistryBundle {
     pub static_block_registry: StaticRegistry<Block>,
     pub static_enchantment_registry: StaticRegistry<EnchantmentData>,
     pub block_tag_registry: TagRegistry<Block>,
+    pub biome_registry: RegistrySnapshot<Biome>,
 }
 
 pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundle {
@@ -75,6 +78,7 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
         static_block_registry: world.resource::<StaticRegistry<Block>>().clone(),
         static_enchantment_registry: world.resource::<StaticRegistry<EnchantmentData>>().clone(),
         block_tag_registry: world.resource::<TagRegistry<Block>>().clone(),
+        biome_registry: world.resource::<RegistrySnapshot<Biome>>().clone(),
     }
 }
 
@@ -248,6 +252,7 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(registries.static_block_registry.clone());
     sub_app.insert_resource(registries.static_enchantment_registry.clone());
     sub_app.insert_resource(registries.block_tag_registry.clone());
+    sub_app.insert_resource(registries.biome_registry.clone());
 
     // Seed the time resources so an inspector that reads `Res<Time<…>>` on a
     // sub-app that has never been pumped gets a valid default. The extract
