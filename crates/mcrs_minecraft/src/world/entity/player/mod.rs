@@ -56,6 +56,28 @@ mod inventory;
 pub mod movement;
 pub mod player_action;
 
+/// Default game mode applied to joining players, read from `MCRS_DEFAULT_GAMEMODE`
+/// (`survival`, `creative`, `adventure`, or `spectator`). Falls back to creative
+/// when unset or unrecognized.
+fn default_game_mode() -> GameMode {
+    match std::env::var("MCRS_DEFAULT_GAMEMODE") {
+        Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
+            "survival" => GameMode::Survival,
+            "creative" => GameMode::Creative,
+            "adventure" => GameMode::Adventure,
+            "spectator" => GameMode::Spectator,
+            other => {
+                tracing::warn!(
+                    value = other,
+                    "MCRS_DEFAULT_GAMEMODE unrecognized, defaulting to creative"
+                );
+                GameMode::Creative
+            }
+        },
+        Err(_) => GameMode::Creative,
+    }
+}
+
 /// Carries the host-anchor entity on the in-dim player entity. Inserted by
 /// the per-dim spawn consumer so that subsequent per-dim systems can build
 /// `PacketTarget::SinglePlayer(host_anchor)` without querying the host's
@@ -140,7 +162,7 @@ fn spawn_player(
             }
             let game_mode = existing_game_mode
                 .map(|gm| gm.0)
-                .unwrap_or(GameMode::Creative);
+                .unwrap_or_else(default_game_mode);
             let op_level = existing_op_level
                 .copied()
                 .unwrap_or(PlayerOpLevel(PlayerOpLevel::MAX));
@@ -285,7 +307,10 @@ fn consume_inbound_player_spawn(
                         Transform::default()
                             .with_translation(spawn.snapshot.position),
                     ),
-                PlayerBundle::default(),
+                PlayerBundle {
+                    game_mode: PlayerGameMode(default_game_mode()),
+                    ..Default::default()
+                },
                 PlayerChunkObserver::default(),
                 HostAnchor(spawn.host_anchor),
                 GameProfile {
@@ -324,7 +349,7 @@ fn consume_inbound_player_spawn(
             data: PacketPayload::PlayerLogin {
                 player_id: wire_id,
                 hardcore: false,
-                game_mode: GameMode::Creative,
+                game_mode: default_game_mode(),
                 dimension: dim_name,
                 dimension_type_id: dim_type_id,
                 dimensions,
@@ -335,6 +360,25 @@ fn consume_inbound_player_spawn(
                 show_death_screen: false,
                 do_limited_crafting: false,
                 enforces_secure_chat: false,
+            },
+        });
+        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+            .fetch_add(1, Ordering::Relaxed);
+
+        // The client derives the local player's game mode (and therefore
+        // spectator noclip) from its own player-list entry, not the login
+        // packet. Without this the client treats itself as non-spectator and
+        // keeps block collisions even though login set the spectator mode.
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(host),
+            priority: PacketPriority::Critical,
+            data: PacketPayload::PlayerInfoUpdate {
+                entries: vec![PlayerInfoEntry {
+                    player_uuid: spawn.snapshot.uuid,
+                    username: spawn.snapshot.username.clone(),
+                    game_mode: default_game_mode(),
+                    listed: true,
+                }],
             },
         });
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
