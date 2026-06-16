@@ -82,6 +82,31 @@ fn build_beta_biome_source_on_start(mut commands: Commands, asset_server: Res<As
         return;
     };
 
+    let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = match biomes.clone().try_into() {
+        Ok(arr) => arr,
+        Err(handles) => {
+            tracing::error!(
+                path = %json_path,
+                got = handles.len(),
+                expected = 11,
+                "mcrs:beta world preset lists the wrong number of land biomes"
+            );
+            return;
+        }
+    };
+    let ocean_biome_ids: [ResourceLocation<Arc<str>>; 5] = match ocean_biomes.clone().try_into() {
+        Ok(arr) => arr,
+        Err(handles) => {
+            tracing::error!(
+                path = %json_path,
+                got = handles.len(),
+                expected = 5,
+                "mcrs:beta world preset lists the wrong number of ocean biomes"
+            );
+            return;
+        }
+    };
+
     let land_handles: Vec<_> = biomes
         .into_iter()
         .map(|loc| {
@@ -126,6 +151,8 @@ fn build_beta_biome_source_on_start(mut commands: Commands, asset_server: Res<As
     let source = BiomeSource::Beta {
         land_biomes,
         ocean_biomes,
+        land_biome_ids,
+        ocean_biome_ids,
         lookup: Box::new(build_beta_lookup_table()),
     };
     commands.insert_resource(ActiveBiomeSource(Arc::new(source)));

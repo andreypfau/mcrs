@@ -105,6 +105,17 @@ impl<T: Asset> RegistrySnapshot<T> {
         self.entries.get(network_id as usize)
     }
 
+    /// Resolve a network ID by resource location. Unlike [`by_asset_id`], this is
+    /// stable across `AssetServer` instances (e.g. the host world vs. a per-dim
+    /// sub-app), where the same biome carries different `AssetId`s. Entries are
+    /// sorted by location at build time, so this binary-searches.
+    pub fn by_location(&self, location: &str) -> Option<u32> {
+        self.entries
+            .binary_search_by(|e| e.location.as_str().cmp(location))
+            .ok()
+            .map(|i| i as u32)
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (u32, &SnapshotEntry<T>)> {
         self.entries
             .iter()

@@ -148,9 +148,17 @@ fn generate_column_beta_biome_not_default() {
     );
     assert_eq!(snapshot.len(), 16, "RegistrySnapshot must contain all 16 biomes");
 
+    let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = std::array::from_fn(|i| {
+        ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap()
+    });
+    let ocean_biome_ids: [ResourceLocation<Arc<str>>; 5] = std::array::from_fn(|i| {
+        ResourceLocation::parse(&format!("minecraft:ocean_biome_{i}")).unwrap()
+    });
     let biome_source = BiomeSource::Beta {
         land_biomes: land_handles.try_into().expect("11 land handles"),
         ocean_biomes: ocean_handles.try_into().expect("5 ocean handles"),
+        land_biome_ids,
+        ocean_biome_ids,
         lookup: Box::new(build_beta_lookup_table()),
     };
 
@@ -173,6 +181,13 @@ fn generate_column_beta_biome_not_default() {
     let land_net_id = snapshot.by_asset_id(land_asset_id).unwrap() as u8;
     assert!(land_net_id <= 10,
         "land biome network id {} must be ≤ 10 (land names sort before ocean names)", land_net_id);
+
+    // Production path resolves by resource location (stable across AssetServers).
+    // It must agree with the asset-id lookup in this single-AssetServer test.
+    let land_loc = biome_source.beta_biome_location(temp_0, hum_0, false);
+    let land_net_id_by_loc = snapshot.by_location(land_loc.as_str()).unwrap() as u8;
+    assert_eq!(land_net_id_by_loc, land_net_id,
+        "location-based biome resolution must match asset-based resolution");
 
     // Ocean and land must be different ids for the same XZ position.
     assert_ne!(ocean_net_id, land_net_id,

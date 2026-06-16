@@ -418,9 +418,17 @@ fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
         &assets,
         |_| Ok(mcrs_nbt::compound::NbtCompound::new()),
     );
+    let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = std::array::from_fn(|i| {
+        ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap()
+    });
+    let ocean_biome_ids: [ResourceLocation<Arc<str>>; 5] = std::array::from_fn(|i| {
+        ResourceLocation::parse(&format!("minecraft:ocean_biome_{i}")).unwrap()
+    });
     let biome_source = BiomeSource::Beta {
         land_biomes: land_handles.try_into().expect("11 land handles"),
         ocean_biomes: ocean_handles.try_into().expect("5 ocean handles"),
+        land_biome_ids,
+        ocean_biome_ids,
         lookup: Box::new(build_beta_lookup_table()),
     };
     (biome_source, snapshot)
@@ -659,6 +667,86 @@ fn generate_column_beta_has_caves() {
     assert!(
         found_lava_below_10,
         "chunk (0,0) at seed 12345 must contain lava at/below Y 10 from cave carving"
+    );
+}
+
+/// Real-pipeline proof: run generate_column + apply_beta_surface + apply_beta_caves
+/// (exactly as `chunk.rs` does) across an 8x8 chunk grid at seed 12345 and count
+/// air voxels strictly below Y 32. Beta produces no noise caverns, so any air that
+/// deep can only come from the carver. Prints per-chunk counts and requires at
+/// least one chunk to contain deep cave air.
+#[test]
+fn beta_real_pipeline_has_cave_air_below_y32() {
+    let router = build_beta_router();
+    let (biome_source, snapshot) = build_beta_biome_source();
+    let cancel = CancellationToken::new();
+    let (config, ids) = make_cave_config();
+    let world_seed = router.world_seed() as i64;
+    let y_sections: Vec<i32> = (0..8).collect();
+    let air = ids.air;
+
+    let mut chunks_with_air = 0usize;
+    let mut total_air = 0usize;
+
+    for chunk_x in 0..8i32 {
+        for chunk_z in 0..8i32 {
+            let mut sections = generate_column(
+                chunk_x,
+                chunk_z,
+                &y_sections,
+                &router,
+                Some((&biome_source, &snapshot)),
+                &cancel,
+            );
+            let mut rng = make_chunk_rng(chunk_x, chunk_z);
+            apply_beta_surface(
+                &mut sections,
+                &y_sections,
+                chunk_x * 16,
+                chunk_z * 16,
+                &router,
+                &biome_source,
+                &mut rng,
+            );
+            apply_beta_caves(&mut sections, &y_sections, chunk_x, chunk_z, world_seed, &config, &ids);
+
+            let mut air_below_32 = 0usize;
+            for (si, &sy) in y_sections.iter().enumerate() {
+                let base_y = sy * 16;
+                if base_y >= 32 {
+                    continue;
+                }
+                if let Some(Some((blocks, _))) = sections.get(si) {
+                    for local_x in 0..16i32 {
+                        for local_z in 0..16i32 {
+                            for local_y in 0..16i32 {
+                                if base_y + local_y >= 32 {
+                                    continue;
+                                }
+                                if blocks.get(BlockPos::new(local_x, local_y, local_z)) == air {
+                                    air_below_32 += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if air_below_32 > 0 {
+                chunks_with_air += 1;
+                total_air += air_below_32;
+                eprintln!("chunk ({chunk_x},{chunk_z}): {air_below_32} air voxels below Y 32");
+            }
+        }
+    }
+
+    eprintln!(
+        "REAL PIPELINE seed 12345: {chunks_with_air}/64 chunks have cave air below Y 32; {total_air} air voxels total"
+    );
+
+    assert!(
+        chunks_with_air >= 1,
+        "real Beta generation pipeline must produce at least 1 chunk with air below Y 32"
     );
 }
 

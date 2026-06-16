@@ -170,7 +170,7 @@ fn generate_section(
 /// silently substituting id 0, which would render a plausible-but-wrong biome.
 fn fill_biome_palette_beta(
     biomes: &mut BiomePalette,
-    section_y: i32,
+    _section_y: i32,
     block_x: i32,
     block_z: i32,
     noise_router: &NoiseRouter,
@@ -178,25 +178,24 @@ fn fill_biome_palette_beta(
     biome_source: &BiomeSource,
     biome_registry: &RegistrySnapshot<Biome>,
 ) {
-    let sea_level = noise_router.sea_level();
-    for cy in 0..4usize {
-        // Center world Y of this biome cell row.
-        let cell_center_world_y = section_y * 16 + cy as i32 * 4 + 2;
-        let is_ocean = cell_center_world_y < sea_level;
-        for cx in 0..4usize {
-            let sample_x = block_x + cx as i32 * 4;
-            for cz in 0..4usize {
-                let sample_z = block_z + cz as i32 * 4;
-                let (temp, humidity) = noise_router.sample_climate_at(column_cache, sample_x, sample_z);
-                let asset_id = biome_source.beta_biome_id(temp, humidity, is_ocean);
-                let network_id = match biome_registry.by_asset_id(asset_id) {
-                    Some(id) => id as u8,
-                    None => {
-                        tracing::error!(?asset_id, "beta biome handle not present in registry snapshot");
-                        debug_assert!(false, "unresolved beta biome handle");
-                        0
-                    }
-                };
+    // Beta biomes are 2D: WorldChunkManager derives the biome purely from
+    // temperature/humidity at (x,z) via getBiomeFromLookup, with no Y or
+    // sea-level dependence, so every cell in a column shares one biome.
+    for cx in 0..4usize {
+        let sample_x = block_x + cx as i32 * 4;
+        for cz in 0..4usize {
+            let sample_z = block_z + cz as i32 * 4;
+            let (temp, humidity) = noise_router.sample_climate_at(column_cache, sample_x, sample_z);
+            let location = biome_source.beta_biome_location(temp, humidity, false);
+            let network_id = match biome_registry.by_location(location.as_str()) {
+                Some(id) => id as u8,
+                None => {
+                    tracing::error!(biome = %location.as_str(), "beta biome not present in registry snapshot");
+                    debug_assert!(false, "unresolved beta biome location");
+                    0
+                }
+            };
+            for cy in 0..4usize {
                 biomes.set_cell(cx, cy, cz, network_id);
             }
         }

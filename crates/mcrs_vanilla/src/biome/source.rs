@@ -120,6 +120,12 @@ pub enum BiomeSource {
         // JSON biomes list order must match BetaLandBiome discriminant values.
         land_biomes: [Handle<Biome>; 11],
         ocean_biomes: [Handle<Biome>; 5],
+        // Resource locations parallel to the handle arrays. Biome palette fill
+        // resolves network IDs by location, not AssetId: chunk generation runs in
+        // a per-dim sub-app whose AssetServer assigns different AssetIds than the
+        // host that built the biome RegistrySnapshot, so AssetId lookups collide.
+        land_biome_ids: [ResourceLocation<Arc<str>>; 11],
+        ocean_biome_ids: [ResourceLocation<Arc<str>>; 5],
         lookup: Box<[[BetaLandBiome; 64]; 64]>,
     },
 }
@@ -162,6 +168,7 @@ impl BiomeSource {
                 land_biomes,
                 ocean_biomes,
                 lookup,
+                ..
             } => {
                 let ti = (temp * 63.0).clamp(0.0, 63.0) as usize;
                 let ri = (rain * 63.0).clamp(0.0, 63.0) as usize;
@@ -173,6 +180,29 @@ impl BiomeSource {
                 }
             }
             _ => panic!("beta_biome_id called on non-Beta BiomeSource"),
+        }
+    }
+
+    /// Resolve the biome's resource location from Beta climate. Stable across
+    /// AssetServers; use with [`RegistrySnapshot::by_location`] to get a network ID.
+    pub fn beta_biome_location(&self, temp: f32, rain: f32, is_ocean: bool) -> &ResourceLocation<Arc<str>> {
+        match self {
+            BiomeSource::Beta {
+                land_biome_ids,
+                ocean_biome_ids,
+                lookup,
+                ..
+            } => {
+                let ti = (temp * 63.0).clamp(0.0, 63.0) as usize;
+                let ri = (rain * 63.0).clamp(0.0, 63.0) as usize;
+                let bucket = lookup[ti][ri];
+                if is_ocean {
+                    &ocean_biome_ids[ocean_biome_for(bucket)]
+                } else {
+                    &land_biome_ids[bucket as usize]
+                }
+            }
+            _ => panic!("beta_biome_location called on non-Beta BiomeSource"),
         }
     }
 }
@@ -254,6 +284,14 @@ impl ProtoBiomeSource {
                 biomes,
                 ocean_biomes,
             } => {
+                let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = biomes
+                    .clone()
+                    .try_into()
+                    .expect("mcrs:beta biome_source requires exactly 11 land biomes");
+                let ocean_biome_ids: [ResourceLocation<Arc<str>>; 5] = ocean_biomes
+                    .clone()
+                    .try_into()
+                    .expect("mcrs:beta biome_source requires exactly 5 ocean biomes");
                 let land_handles: Vec<Handle<Biome>> =
                     biomes.into_iter().map(|l| Biome::load(ctx, &l)).collect();
                 let ocean_handles: Vec<Handle<Biome>> = ocean_biomes
@@ -267,6 +305,8 @@ impl ProtoBiomeSource {
                     ocean_biomes: ocean_handles
                         .try_into()
                         .expect("mcrs:beta biome_source requires exactly 5 ocean biomes"),
+                    land_biome_ids,
+                    ocean_biome_ids,
                     lookup: Box::new(build_beta_lookup_table()),
                 }
             }
