@@ -6,6 +6,7 @@ use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::world::bus::{InboundPlayerDespawn, PendingInboundLifecycle};
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
 use mcrs_protocol::uuid::Uuid;
+use mcrs_engine::session::PlayerSession;
 
 /// Construct a minimal `App` that wires `LoginPlugin` plus the
 /// `PlayerIndex` resource and the `PendingInboundLifecycle` bucket the
@@ -162,6 +163,7 @@ fn connection_removal_removes_player_index_entry_and_routes_despawn_via_lifecycl
     );
     let routed: InboundPlayerDespawn = InboundPlayerDespawn {
         host_anchor: bundle.despawns[0].host_anchor,
+    session: PlayerSession(0),
     };
     assert_eq!(routed.host_anchor, host_anchor);
 }

@@ -26,6 +26,7 @@ use mcrs_core::tag::TagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
 use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::world::bridge::dispatch_encode;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{
@@ -98,6 +99,8 @@ fn push_critical(world: &mut World, entity: Entity, payload: PacketPayload) {
             target: PacketTarget::SinglePlayer(entity),
             priority: PacketPriority::Critical,
             data: payload,
+        session: PlayerSession(0),
+        epoch: 0,
         });
 }
 
@@ -353,6 +356,7 @@ fn play_login_emitted_on_spawn() {
                 position: DVec3::new(0.0, 64.0, 0.0),
                 rotation: bevy_math::Vec2::ZERO,
             },
+        session: PlayerSession(0),
         });
 
     // Tick 1: extract shuttles spawn into sub-app; sub-app consumer spawns
@@ -426,6 +430,7 @@ fn play_login_targets_host_anchor() {
                 position: DVec3::new(0.0, 64.0, 0.0),
                 rotation: bevy_math::Vec2::ZERO,
             },
+        session: PlayerSession(0),
         });
 
     // Tick 1: spawn consumed; emit_play_login fires; extract drains to host.
@@ -493,6 +498,7 @@ fn in_dim_entity_carries_host_anchor() {
                 position: DVec3::new(0.0, 64.0, 0.0),
                 rotation: bevy_math::Vec2::ZERO,
             },
+        session: PlayerSession(0),
         });
 
     // One tick: extract shuttles spawn; consumer spawns entity with HostAnchor.

@@ -17,6 +17,7 @@ use mcrs_core::tag::TagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
 use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::world::bridge::{bridge_player_attach, partition_main_inbound};
 use mcrs_minecraft::world::bus::{
@@ -294,7 +295,7 @@ fn spawn_consumer_materializes_in_dim_entity() {
             .entry(dim_label)
             .or_default()
             .spawns
-            .push(InboundPlayerSpawn { host_anchor, snapshot });
+            .push(InboundPlayerSpawn { host_anchor, snapshot, session: PlayerSession(0) });
     }
 
     // Tick 1: extract shuttles the spawn into the sub-app; sub-app consumer
@@ -409,7 +410,7 @@ fn no_duplicate_spawn_on_reread() {
             .entry(dim_label)
             .or_default()
             .spawns
-            .push(InboundPlayerSpawn { host_anchor, snapshot });
+            .push(InboundPlayerSpawn { host_anchor, snapshot, session: PlayerSession(0) });
     }
 
     // Tick 1: consumer reads the spawn and materializes one entity

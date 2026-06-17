@@ -14,6 +14,7 @@ use derive_more::{Deref, DerefMut};
 use mcrs_engine::entity::physics::{OldTransform, Transform};
 use mcrs_engine::entity::{EntityNetworkSyncEvent, EntityPlugin};
 use mcrs_engine::world::dimension::InDimension;
+use mcrs_engine::session::PlayerSession;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_protocol::uuid::Uuid;
 use mcrs_protocol::{Look, VarInt};
@@ -178,6 +179,8 @@ pub fn entity_pos_sync(
             },
             on_ground: true,
         },
+    session: PlayerSession(0),
+    epoch: 0,
     });
     mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.fetch_add(1, Relaxed);
 }

@@ -9,6 +9,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bytes::Bytes;
+use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload};
 use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
@@ -57,6 +58,8 @@ pub fn write_packet(world: &mut World, target: PacketTarget, priority: PacketPri
             target,
             priority,
             data: PacketPayload::Test(TestPayload { seq }),
+            session: PlayerSession(0),
+            epoch: 0,
         });
 }
 

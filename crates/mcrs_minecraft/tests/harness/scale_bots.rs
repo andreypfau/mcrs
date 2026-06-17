@@ -24,6 +24,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::World;
 use bevy_ecs::system::{IntoSystem, System};
+use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::world::bridge::bridge_outbound;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{
@@ -185,6 +186,8 @@ pub fn run_profile(
                             position: mcrs_engine::geometry::BlockPos::new(0, 64, 0),
                             new_state: BlockStateId(1),
                         },
+                        session: PlayerSession(0),
+                        epoch: 0,
                     });
                 BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.fetch_add(1, Ordering::Relaxed);
             }

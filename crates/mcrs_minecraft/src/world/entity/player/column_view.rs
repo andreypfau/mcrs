@@ -20,6 +20,7 @@ use mcrs_engine::world::column::{
     ColumnPos as EngineColumnPos, ColumnIndex,
 };
 use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
+use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft_lighting::codec::{build_full_light_data, ColumnLightUpdate, LightCodecParams};
 use mcrs_minecraft_lighting::sets::LightingSet;
 use mcrs_protocol::{ColumnPos, Encode};
@@ -320,6 +321,8 @@ fn send_column_queue(
                         chunk_bytes: data,
                         light_data,
                     },
+                session: PlayerSession(0),
+                epoch: 0,
                 });
                 mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                     .fetch_add(1, Ordering::Relaxed);
@@ -356,6 +359,8 @@ pub(crate) fn send_light_updates(
                     column: col_pos,
                     light_data: msg.light_data.clone(),
                 },
+            session: PlayerSession(0),
+            epoch: 0,
             });
             mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                 .fetch_add(1, Ordering::Relaxed);
@@ -466,6 +471,8 @@ fn on_view_update(
                 x: rep.convert_chunk_x(event.new_view.center.x),
                 z: rep.convert_chunk_z(event.new_view.center.z),
             },
+        session: PlayerSession(0),
+        epoch: 0,
         });
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
@@ -480,6 +487,8 @@ fn on_view_update(
             data: PacketPayload::SetChunkCacheRadius {
                 radius: event.new_view.distance as i32,
             },
+        session: PlayerSession(0),
+        epoch: 0,
         });
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);

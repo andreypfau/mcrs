@@ -18,6 +18,7 @@ use mcrs_core::tag::TagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
 use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::world::bridge::partition_main_inbound;
 use bytes::Bytes;
 use mcrs_minecraft::world::bus::{
@@ -174,6 +175,8 @@ fn outbound_latency_is_one_host_tick_in_production_app() {
             target: PacketTarget::SinglePlayer(Entity::PLACEHOLDER),
             priority: PacketPriority::Normal,
             data: PacketPayload::Test(TestPayload { seq: 0xDEAD }),
+        session: PlayerSession(0),
+        epoch: 0,
         });
 
     // Tick 1: main runs first (host log still empty), then sub extract

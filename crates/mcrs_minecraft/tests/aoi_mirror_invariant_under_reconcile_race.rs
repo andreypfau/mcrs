@@ -16,6 +16,7 @@ use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::geometry::ColumnPos;
 use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, TrackedBy};
 use mcrs_minecraft::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
 use rustc_hash::FxHashMap;
@@ -312,7 +313,7 @@ fn two_player_same_tick_bare_column_removal_evicts_correctly() {
     // and transfer-out paths push for the source dim.
     app.world_mut()
         .resource_mut::<Messages<InboundPlayerDespawn>>()
-        .write(InboundPlayerDespawn { host_anchor: ha1 });
+        .write(InboundPlayerDespawn { host_anchor: ha1, session: PlayerSession(0) });
 
     // Drive only FixedPreUpdate: the drain runs and applies the eviction.
     // FixedPostUpdate (update_own_pov, update_tracked_by) is NOT driven here

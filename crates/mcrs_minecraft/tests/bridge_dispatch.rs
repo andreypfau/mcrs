@@ -17,6 +17,7 @@ use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
 use mcrs_engine::geometry::ColumnPos;
+use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::world::bridge::dispatch_encode;
 use mcrs_minecraft::world::bridge_queue::{
     OutboundQueue, DEPTH_DRAIN_TARGET, DEPTH_LIMIT, HIGH_OVERFLOW_LIMIT, KICK_AFTER_OVERFLOW_TICKS,
@@ -74,6 +75,8 @@ fn enqueue_normal(world: &mut World, entity: Entity, count: usize) {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
             data: PacketPayload::Test(TestPayload { seq: i as u32 }),
+        session: PlayerSession(0),
+        epoch: 0,
         });
     }
 }
@@ -89,6 +92,8 @@ fn enqueue_low(world: &mut World, entity: Entity, count: usize) {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Low,
             data: PacketPayload::Test(TestPayload { seq: i as u32 }),
+        session: PlayerSession(0),
+        epoch: 0,
         });
     }
 }
@@ -104,6 +109,8 @@ fn enqueue_critical(world: &mut World, entity: Entity, count: usize) {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Critical,
             data: PacketPayload::Test(TestPayload { seq: i as u32 }),
+        session: PlayerSession(0),
+        epoch: 0,
         });
     }
 }
@@ -119,6 +126,8 @@ fn enqueue_high(world: &mut World, entity: Entity, count: usize) {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::High,
             data: PacketPayload::Test(TestPayload { seq: i as u32 }),
+        session: PlayerSession(0),
+        epoch: 0,
         });
     }
 }
@@ -273,6 +282,8 @@ fn coalesce_single_write_per_tick() {
                     position: BlockPos::new(i as i32, 64, 0),
                     new_state: BlockStateId(i as u16),
                 },
+            session: PlayerSession(0),
+            epoch: 0,
             });
         }
     }
@@ -335,6 +346,8 @@ fn unhandled_variant_counted() {
                 target: PacketTarget::AllPlayers,
                 priority: PacketPriority::Normal,
                 data: PacketPayload::Test(TestPayload { seq: i }),
+            session: PlayerSession(0),
+            epoch: 0,
             });
         }
     }
@@ -368,6 +381,8 @@ fn light_update_encodes() {
                 column: ColumnPos::new(3, -5),
                 light_data: LightData::default(),
             },
+        session: PlayerSession(0),
+        epoch: 0,
         });
     }
 
@@ -399,6 +414,8 @@ fn chunk_load_encodes() {
                 chunk_bytes: vec![0x80u8; 2000],
                 light_data: LightData::default(),
             },
+        session: PlayerSession(0),
+        epoch: 0,
         });
     }
 
@@ -432,6 +449,8 @@ fn entity_pos_sync_encodes() {
                 look: Look { yaw: 0.0, pitch: 0.0 },
                 on_ground: true,
             },
+        session: PlayerSession(0),
+        epoch: 0,
         });
     }
 
@@ -466,6 +485,8 @@ fn player_entered_view_encodes() {
                 yaw: 90.0,
                 pitch: 0.0,
             },
+        session: PlayerSession(0),
+        epoch: 0,
         });
     }
 
@@ -495,6 +516,8 @@ fn player_left_view_encodes() {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
             data: PacketPayload::PlayerLeftView { entity_ids: ids },
+        session: PlayerSession(0),
+        epoch: 0,
         });
     }
 
@@ -526,6 +549,8 @@ fn only_test_remains_counted_drop() {
                 column: ColumnPos::new(0, 0),
                 light_data: LightData::default(),
             },
+        session: PlayerSession(0),
+        epoch: 0,
         });
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
@@ -535,6 +560,8 @@ fn only_test_remains_counted_drop() {
                 chunk_bytes: vec![],
                 light_data: LightData::default(),
             },
+        session: PlayerSession(0),
+        epoch: 0,
         });
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
@@ -546,6 +573,8 @@ fn only_test_remains_counted_drop() {
                 look: Look { yaw: 0.0, pitch: 0.0 },
                 on_ground: false,
             },
+        session: PlayerSession(0),
+        epoch: 0,
         });
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
@@ -558,6 +587,8 @@ fn only_test_remains_counted_drop() {
                 yaw: 0.0,
                 pitch: 0.0,
             },
+        session: PlayerSession(0),
+        epoch: 0,
         });
         let mut ids: SmallVec<[i32; 4]> = SmallVec::new();
         ids.push(3);
@@ -565,12 +596,16 @@ fn only_test_remains_counted_drop() {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
             data: PacketPayload::PlayerLeftView { entity_ids: ids },
+        session: PlayerSession(0),
+        epoch: 0,
         });
         // One Test packet: must increment by exactly 1.
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
             priority: PacketPriority::Normal,
             data: PacketPayload::Test(TestPayload { seq: 0 }),
+        session: PlayerSession(0),
+        epoch: 0,
         });
     }
 
