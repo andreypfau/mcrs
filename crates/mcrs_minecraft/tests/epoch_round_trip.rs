@@ -2,10 +2,13 @@
 //!
 //! Simulates the hazard where a clientbound packet from a player's first visit
 //! to dimension A is still in transit when the player returns to A after
-//! visiting B (i.e., the A→B→A round trip). The session epoch is bumped to 1
-//! to represent the Nether (B) entry; the real dim-transfer path will perform
-//! this bump — here we mutate `SessionRegistry` directly since the
-//! move infrastructure does not exist yet.
+//! visiting B (i.e., the A→B→A round trip).
+//!
+//! This is the FILTER half of ROUT-05 in isolation: it bumps the session epoch
+//! by mutating `SessionRegistry` directly so the test depends only on
+//! `bridge_outbound`. The WIRING half — that `bridge_player_transfer` actually
+//! performs the bump on each real dim change — is covered by
+//! `bridge_player_transfer_bumps_epoch_on_each_dim_change` in `world::bridge`.
 //!
 //! Assertions:
 //!   - epoch-0 packet (from the first A visit) is dropped after bump to epoch 1
@@ -41,9 +44,10 @@ fn epoch_round_trip() {
 
     // --- Bump the session epoch to 1 (simulating Nether entry / dim B transition).
     //
-    // The real dim-transfer path will perform this bump when the player's
-    // dimension transfer completes. We mutate SessionRegistry directly here
-    // because the move infrastructure does not exist yet. ---
+    // bridge_player_transfer performs this bump in production on each real dim
+    // change (covered by bridge_player_transfer_bumps_epoch_on_each_dim_change).
+    // Here we mutate SessionRegistry directly to keep this test scoped to the
+    // bridge_outbound filter alone. ---
     world
         .resource_mut::<SessionRegistry>()
         .get_mut(&session)

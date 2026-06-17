@@ -90,7 +90,10 @@ pub struct PlayerSessionCounter(u64);
 
 impl PlayerSessionCounter {
     pub fn next(&mut self) -> PlayerSession {
-        self.0 += 1;
+        self.0 = self
+            .0
+            .checked_add(1)
+            .expect("PlayerSession counter exhausted");
         PlayerSession(self.0)
     }
 }

@@ -672,6 +672,13 @@ pub fn bridge_player_transfer(
         };
         let session = session;
         let old_dim = entry.dim;
+        // A new occupancy of the destination dim invalidates any clientbound
+        // packet still in flight from a prior occupancy. Bumping the epoch on
+        // every real dim change makes bridge_outbound's strict-equality filter
+        // drop those stale packets (the A→B→A round trip, ROUT-05).
+        if old_dim != msg.dest_dim {
+            entry.epoch = entry.epoch.wrapping_add(1);
+        }
         entry.dim = msg.dest_dim;
         entry.previous_dim = Some(old_dim);
         entry.in_dim_entity = None;
@@ -1044,6 +1051,95 @@ mod tests {
         assert_eq!(bundle.spawns[0].host_anchor, host_anchor);
         // Session field must be populated with the real session, not the zero sentinel.
         assert_eq!(bundle.spawns[0].session, session);
+    }
+
+    #[test]
+    fn bridge_player_transfer_bumps_epoch_on_each_dim_change() {
+        let mut world = World::new();
+        world.init_resource::<Messages<OutboundPlayerTransfer>>();
+        world.init_resource::<Messages<InboundPlayerSpawn>>();
+        world.init_resource::<SessionRegistry>();
+        world.init_resource::<PendingInboundLifecycle>();
+
+        let host_anchor = world.spawn_empty().id();
+        let connection_entity = world.spawn_empty().id();
+        let dim_a = world.spawn(DimSubAppHandle).id();
+        let dim_b = world.spawn(DimSubAppHandle).id();
+
+        let session = PlayerSession(1);
+        world.resource_mut::<SessionRegistry>().insert(
+            session,
+            SessionEntry {
+                connection_entity,
+                host_anchor,
+                dim: dim_a,
+                previous_dim: None,
+                in_dim_entity: None,
+                epoch: 0,
+            },
+        );
+
+        // A→B is a real dim change: the epoch bumps 0 → 1.
+        world
+            .resource_mut::<Messages<OutboundPlayerTransfer>>()
+            .write(OutboundPlayerTransfer {
+                host_anchor,
+                dest_dim: dim_b,
+                snapshot: synthetic_snapshot(),
+            });
+        run_transfer(&mut world);
+        assert_eq!(
+            world
+                .resource::<SessionRegistry>()
+                .get_by_anchor(&host_anchor)
+                .expect("entry present")
+                .1
+                .epoch,
+            1,
+            "A→B transfer must bump the session epoch"
+        );
+
+        // A transfer whose destination equals the current dim must NOT bump.
+        world
+            .resource_mut::<Messages<OutboundPlayerTransfer>>()
+            .write(OutboundPlayerTransfer {
+                host_anchor,
+                dest_dim: dim_b,
+                snapshot: synthetic_snapshot(),
+            });
+        run_transfer(&mut world);
+        assert_eq!(
+            world
+                .resource::<SessionRegistry>()
+                .get_by_anchor(&host_anchor)
+                .expect("entry present")
+                .1
+                .epoch,
+            1,
+            "same-dim transfer must not bump the epoch"
+        );
+
+        // B→A return leg bumps 1 → 2, so any clientbound packet still in flight
+        // from the first A occupancy (stamped epoch 0) is now stale and will be
+        // dropped by bridge_outbound's strict-equality filter (ROUT-05).
+        world
+            .resource_mut::<Messages<OutboundPlayerTransfer>>()
+            .write(OutboundPlayerTransfer {
+                host_anchor,
+                dest_dim: dim_a,
+                snapshot: synthetic_snapshot(),
+            });
+        run_transfer(&mut world);
+        assert_eq!(
+            world
+                .resource::<SessionRegistry>()
+                .get_by_anchor(&host_anchor)
+                .expect("entry present")
+                .1
+                .epoch,
+            2,
+            "B→A return leg must bump the epoch again (A→B→A round trip)"
+        );
     }
 
     #[test]
