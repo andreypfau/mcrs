@@ -4,6 +4,7 @@ use bevy_ecs::resource::Resource;
 use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
 use mcrs_engine::geometry::{BlockPos, ColumnPos};
+use mcrs_engine::session::PlayerSession;
 use mcrs_protocol::BlockStateId;
 use mcrs_protocol::chunk::LightData;
 use mcrs_protocol::uuid::Uuid;
@@ -19,6 +20,12 @@ pub struct OutboundPlayerPacket {
     pub target: PacketTarget,
     pub priority: PacketPriority,
     pub data: PacketPayload,
+    // Stamped by the bridge extract closure, not by dim systems.
+    // Default PlayerSession(0) / epoch 0 is safe: PlayerSession(0) never
+    // exists in SessionRegistry (counter starts at 1), so unstamped
+    // packets are always dropped by bridge_outbound.
+    pub session: PlayerSession,
+    pub epoch: u32,
 }
 
 #[derive(Message, Clone, Debug)]
@@ -50,6 +57,7 @@ pub struct OutboundPlayerTransferRequest {
 #[derive(Message, Clone, Debug)]
 pub struct InboundPlayerSpawn {
     pub host_anchor: Entity,
+    pub session: PlayerSession,
     pub snapshot: PlayerTransferSnapshot,
 }
 
@@ -67,6 +75,7 @@ pub struct OutboundPlayerDisconnect {
 #[derive(Message, Clone, Debug)]
 pub struct InboundPlayerDespawn {
     pub host_anchor: Entity,
+    pub session: PlayerSession,
 }
 
 #[derive(Clone, Debug)]
@@ -303,6 +312,8 @@ mod tests {
             target: PacketTarget::SinglePlayer(e),
             priority: PacketPriority::Normal,
             data: PacketPayload::Test(TestPayload::default()),
+            session: PlayerSession(0),
+            epoch: 0,
         };
         assert_eq!(format!("{:?}", outbound.clone()), format!("{:?}", outbound));
 
@@ -326,6 +337,7 @@ mod tests {
 
         let spawn = InboundPlayerSpawn {
             host_anchor: e,
+            session: PlayerSession(0),
             snapshot: snapshot.clone(),
         };
         assert_eq!(format!("{:?}", spawn.clone()), format!("{:?}", spawn));
@@ -345,7 +357,7 @@ mod tests {
             format!("{:?}", disconnect)
         );
 
-        let despawn = InboundPlayerDespawn { host_anchor: e };
+        let despawn = InboundPlayerDespawn { host_anchor: e, session: PlayerSession(0) };
         assert_eq!(
             format!("{:?}", despawn.clone()),
             format!("{:?}", despawn)
@@ -424,9 +436,10 @@ mod tests {
         let mut b = LifecycleBundle::default();
         b.spawns.push(InboundPlayerSpawn {
             host_anchor: e,
+            session: PlayerSession(0),
             snapshot,
         });
-        b.despawns.push(InboundPlayerDespawn { host_anchor: e });
+        b.despawns.push(InboundPlayerDespawn { host_anchor: e, session: PlayerSession(0) });
         b.block_events.push(PlayerWillDestroyBlock {
             player: e,
             chunk: e,

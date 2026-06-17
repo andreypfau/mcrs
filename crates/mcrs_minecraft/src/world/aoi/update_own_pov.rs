@@ -17,6 +17,7 @@ use mcrs_engine::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_engine::geometry::ColumnPos;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::storage::column::{Column, ColumnIndex};
+use mcrs_engine::session::PlayerSession;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 
@@ -173,6 +174,8 @@ pub fn update_own_pov(
                 target: PacketTarget::SinglePlayer(player),
                 priority: PacketPriority::Normal,
                 data: PacketPayload::ChunkUnload { column: *pos },
+            session: PlayerSession(0),
+            epoch: 0,
             });
             mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                 .fetch_add(1, Ordering::Relaxed);

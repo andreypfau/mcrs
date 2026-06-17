@@ -21,6 +21,7 @@ use mcrs_core::RegistryAccess;
 use mcrs_core::registry::access::ErasedRegistrySnapshot;
 use mcrs_core::tag::registry::TagRegistry;
 use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
+use mcrs_engine::session::PlayerSession;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::packets::configuration::clientbound::{
@@ -741,7 +742,7 @@ pub fn emit_initial_player_spawn(
             .entry(dim_label)
             .or_default()
             .spawns
-            .push(InboundPlayerSpawn { host_anchor, snapshot });
+            .push(InboundPlayerSpawn { host_anchor, session: PlayerSession(0), snapshot });
     }
 }
 

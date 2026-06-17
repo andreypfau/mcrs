@@ -9,6 +9,7 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
 use bevy_math::{DVec3, Vec2};
 use mcrs_engine::entity::physics::Transform;
+use mcrs_engine::session::PlayerSession;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_protocol::packets::game::serverbound::{ServerboundChat, ServerboundChatCommand};
 use mcrs_protocol::setting::ChatMode;
@@ -62,6 +63,8 @@ fn handle_command(
                     teleport_id: 1,
                     position: pos,
                 },
+            session: PlayerSession(0),
+            epoch: 0,
             });
             packet_writer.write(OutboundPlayerPacket {
                 target: PacketTarget::SinglePlayer(host),
@@ -74,6 +77,8 @@ fn handle_command(
                     .into_text(),
                     overlay: false,
                 },
+            session: PlayerSession(0),
+            epoch: 0,
             });
             info!("teleported {:?} to {:?}", event.entity, pos);
         }
@@ -142,6 +147,8 @@ fn handle_chat(
                 content: Text::translate("chat.disabled.options", vec![]).color(Color::RED),
                 overlay: false,
             },
+        session: PlayerSession(0),
+        epoch: 0,
         });
         return;
     }
@@ -162,6 +169,8 @@ fn handle_chat(
             content: text,
             overlay: false,
         },
+    session: PlayerSession(0),
+    epoch: 0,
     });
 }
 

@@ -41,6 +41,7 @@ use crate::world::bridge_queue::{
     InboundRateBucket, OutboundQueue, DEPTH_DRAIN_TARGET, DEPTH_LIMIT, HIGH_OVERFLOW_LIMIT,
     KICK_AFTER_OVERFLOW_TICKS,
 };
+use mcrs_engine::session::PlayerSession;
 use crate::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerTransfer, OutboundPlayerTransferRequest, PacketPayload, PacketTarget,
@@ -671,10 +672,12 @@ pub fn bridge_player_transfer(
                 .despawns
                 .push(InboundPlayerDespawn {
                     host_anchor: msg.host_anchor,
+                    session: PlayerSession(0),
                 });
         }
         let spawn = InboundPlayerSpawn {
             host_anchor: msg.host_anchor,
+            session: PlayerSession(0),
             snapshot: msg.snapshot.clone(),
         };
         lifecycle

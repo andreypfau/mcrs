@@ -30,6 +30,7 @@ use smallvec::SmallVec;
 use std::collections::VecDeque;
 use tracing::warn;
 
+use mcrs_engine::session::PlayerSession;
 use crate::world::bus::{
     InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
     OutboundPlayerTransfer, PendingInboundLifecycle, PendingInboundPartition,
@@ -192,7 +193,7 @@ pub fn process_disconnect(
         .entry(current_dim)
         .or_default()
         .despawns
-        .push(InboundPlayerDespawn { host_anchor });
+        .push(InboundPlayerDespawn { host_anchor, session: PlayerSession(0) });
 
     if let Some(prev) = previous_dim
         && prev != current_dim {
@@ -201,7 +202,7 @@ pub fn process_disconnect(
                 .entry(prev)
                 .or_default()
                 .despawns
-                .push(InboundPlayerDespawn { host_anchor });
+                .push(InboundPlayerDespawn { host_anchor, session: PlayerSession(0) });
         }
 
     // Explicitly clear mid-transit inbound_pending before remove() drops the
