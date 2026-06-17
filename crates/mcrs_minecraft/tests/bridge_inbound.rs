@@ -21,11 +21,12 @@ use bytes::Bytes;
 use mcrs_minecraft::world::bus::{
     InboundPlayerPacket, OutboundPlayerPacket, PendingInboundPartition,
 };
-use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex, PlayerLocation};
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft::world::player_index::{HostAnchorRef, PendingInboundBuffer, PlayerIndex};
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::metrics::{BRIDGE_KICK_FLOOD_TOTAL, TELEMETRY_TEST_LOCK};
 use mcrs_network::{InGameConnectionState, ReceivedPacket, ServerSideConnection};
-use smallvec::SmallVec;
+
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 use tokio::sync::mpsc;
@@ -39,6 +40,9 @@ fn build_inbound_world() -> World {
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<Messages<InboundPlayerPacket>>();
     world.init_resource::<PlayerIndex>();
+    world.init_resource::<SessionRegistry>();
+    world.init_resource::<PlayerSessionCounter>();
+    world.init_resource::<PendingInboundBuffer>();
     world.init_resource::<PendingInboundPartition>();
     world
 }
@@ -63,8 +67,8 @@ fn spawn_ingame_connection(
     (entity, inbound_tx)
 }
 
-/// Register a player in PlayerIndex pointing at `socket` with the given dim
-/// and `in_dim_entity`.
+/// Register a player in SessionRegistry with the given socket, dim, and
+/// in_dim_entity.
 fn register_player(
     world: &mut World,
     player: Entity,
@@ -72,14 +76,19 @@ fn register_player(
     dim: Entity,
     in_dim_entity: Option<Entity>,
 ) {
-    world.resource_mut::<PlayerIndex>().insert(
-        player,
-        PlayerLocation {
-            socket,
-            current_dim: dim,
+    if !world.contains_resource::<PlayerSessionCounter>() {
+        world.init_resource::<PlayerSessionCounter>();
+    }
+    let session = world.resource_mut::<PlayerSessionCounter>().next();
+    world.resource_mut::<SessionRegistry>().insert(
+        session,
+        SessionEntry {
+            connection_entity: socket,
+            host_anchor: player,
+            dim,
             previous_dim: None,
             in_dim_entity,
-            inbound_pending: SmallVec::new(),
+            epoch: 0,
         },
     );
 }
@@ -313,9 +322,9 @@ fn no_unattached_outbound_queue_after_fixed_preupdate() {
 // disconnect_clears_pending
 // ---------------------------------------------------------------------------
 
-/// After `process_disconnect` runs, the player's `PlayerIndex` entry is
-/// removed (which clears `inbound_pending`) and `OutboundQueue` is removed
-/// from the socket entity. Neither leaks past the disconnect tick.
+/// After `process_disconnect` runs, the `SessionRegistry` entry is removed
+/// and `OutboundQueue` is removed from the socket entity. Neither leaks past
+/// the disconnect tick.
 #[test]
 fn disconnect_clears_pending() {
     use mcrs_minecraft::disconnect::process_disconnect;
@@ -323,6 +332,8 @@ fn disconnect_clears_pending() {
 
     let mut world = World::new();
     world.init_resource::<PlayerIndex>();
+    world.init_resource::<SessionRegistry>();
+    world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<PendingInboundLifecycle>();
 
     let dim = Entity::from_raw_u32(10).expect("nonzero");
@@ -330,38 +341,28 @@ fn disconnect_clears_pending() {
     let in_dim = Entity::from_raw_u32(30).expect("nonzero");
 
     let (socket, _tx) = spawn_ingame_connection(&mut world);
-    // Populate inbound_pending with a few packets.
+
+    // Register the player in SessionRegistry.
     {
-        let mut index = world.resource_mut::<PlayerIndex>();
-        index.insert(
-            player,
-            PlayerLocation {
-                socket,
-                current_dim: dim,
+        let session = world.resource_mut::<PlayerSessionCounter>().next();
+        world.resource_mut::<SessionRegistry>().insert(
+            session,
+            SessionEntry {
+                connection_entity: socket,
+                host_anchor: player,
+                dim,
                 previous_dim: None,
                 in_dim_entity: Some(in_dim),
-                inbound_pending: {
-                    let mut v = smallvec::SmallVec::new();
-                    for seq in 0..3i32 {
-                        v.push(InboundPlayerPacket {
-                            player,
-                            id: seq,
-                            data: Bytes::new(),
-                            timestamp: std::time::Instant::now(),
-                        });
-                    }
-                    v
-                },
+                epoch: 0,
             },
         );
     }
 
-    // Verify inbound_pending was populated.
-    {
-        let index = world.resource::<PlayerIndex>();
-        let loc = index.get(&player).expect("player present before disconnect");
-        assert_eq!(loc.inbound_pending.len(), 3, "inbound_pending should have 3 packets before disconnect");
-    }
+    // Verify SessionRegistry entry exists before disconnect.
+    assert!(
+        world.resource::<SessionRegistry>().get_by_anchor(&player).is_some(),
+        "SessionRegistry entry should exist before disconnect"
+    );
 
     // Verify OutboundQueue exists on socket.
     assert!(
@@ -372,15 +373,15 @@ fn disconnect_clears_pending() {
     // Run process_disconnect (simulating the observer path).
     world.run_system_once(move |mut commands: bevy_ecs::prelude::Commands,
                                 mut player_index: bevy_ecs::system::ResMut<PlayerIndex>,
+                                mut session_registry: bevy_ecs::system::ResMut<SessionRegistry>,
                                 mut lifecycle: bevy_ecs::system::ResMut<PendingInboundLifecycle>| {
-        process_disconnect(player, &mut player_index, &mut lifecycle, &mut commands);
+        process_disconnect(player, &mut player_index, &mut session_registry, &mut lifecycle, &mut commands);
     }).expect("process_disconnect system ran");
 
-    // inbound_pending: PlayerIndex entry is gone → effectively cleared.
-    let index = world.resource::<PlayerIndex>();
+    // SessionRegistry entry is gone.
     assert!(
-        index.get(&player).is_none(),
-        "PlayerIndex entry must be removed after disconnect (inbound_pending cleared with it)"
+        world.resource::<SessionRegistry>().get_by_anchor(&player).is_none(),
+        "SessionRegistry entry must be removed after disconnect"
     );
 
     // OutboundQueue must be removed from the socket entity.

@@ -1,7 +1,7 @@
 //! Minimal ECS world helpers for bridge routing tests.
 //!
 //! These tests exercise `bridge_outbound` (packet routing only, no sockets).
-//! The world carries `OutboundQueue` + `PlayerIndex` but no real network
+//! The world carries `OutboundQueue` + `SessionRegistry` but no real network
 //! transport — socket I/O belongs to separate dispatch tests.
 
 use bevy_ecs::entity::Entity;
@@ -9,18 +9,18 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bytes::Bytes;
-use mcrs_engine::session::PlayerSession;
+use mcrs_engine::session::{PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload};
-use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
+use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_network::RawConnection;
-use smallvec::SmallVec;
 use tokio::sync::mpsc;
 
 /// Build a bare world with the resources needed for `bridge_outbound` tests.
 pub fn build_bridge_world() -> World {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
+    world.init_resource::<SessionRegistry>();
     world.init_resource::<PlayerIndex>();
     world
 }
@@ -30,23 +30,31 @@ pub fn spawn_connection(world: &mut World) -> Entity {
     world.spawn(OutboundQueue::default()).id()
 }
 
-/// Register a player in `PlayerIndex` pointing at `socket_entity`.
+/// Register a player in `SessionRegistry`. `player` is treated as the
+/// host_anchor; `socket` is the connection entity that packets route to.
+/// Returns the allocated `PlayerSession`.
 pub fn register_player(
     world: &mut World,
     player: Entity,
     socket: Entity,
     dim: Entity,
-) {
-    world.resource_mut::<PlayerIndex>().insert(
-        player,
-        PlayerLocation {
-            socket,
-            current_dim: dim,
+) -> PlayerSession {
+    if !world.contains_resource::<PlayerSessionCounter>() {
+        world.init_resource::<PlayerSessionCounter>();
+    }
+    let session = world.resource_mut::<PlayerSessionCounter>().next();
+    world.resource_mut::<SessionRegistry>().insert(
+        session,
+        SessionEntry {
+            connection_entity: socket,
+            host_anchor: player,
+            dim,
             previous_dim: None,
             in_dim_entity: Some(socket),
-            inbound_pending: SmallVec::new(),
+            epoch: 0,
         },
     );
+    session
 }
 
 /// Write a test packet addressed to `target` into the world's

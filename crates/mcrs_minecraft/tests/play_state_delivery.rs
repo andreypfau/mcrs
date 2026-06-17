@@ -36,7 +36,8 @@ use mcrs_minecraft::world::bus::{
     PlayerTransferSnapshot,
 };
 use mcrs_minecraft::world::entity::player::HostAnchor;
-use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_network::metrics::{BRIDGE_ENCODE_UNHANDLED_TOTAL, TELEMETRY_TEST_LOCK};
@@ -47,7 +48,6 @@ use mcrs_protocol::GameMode;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
-use smallvec::SmallVec;
 use tokio::sync::mpsc;
 
 // ---------------------------------------------------------------------------
@@ -122,6 +122,9 @@ fn build_host_app() -> App {
     app.insert_resource(RegistrySnapshot::<Biome>::default());
 
     app.init_resource::<PlayerIndex>();
+    app.init_resource::<SessionRegistry>();
+    app.init_resource::<PlayerSessionCounter>();
+    app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<PendingInboundPartition>();
     app.init_resource::<PendingInboundLifecycle>();
     app.add_message::<OutboundPlayerPacket>();
@@ -329,16 +332,20 @@ fn play_login_emitted_on_spawn() {
     let dim_label = spawn_subapp(&mut app);
 
     let host_anchor = app.world_mut().spawn_empty().id();
-    app.world_mut().resource_mut::<PlayerIndex>().insert(
-        host_anchor,
-        PlayerLocation {
-            socket: Entity::PLACEHOLDER,
-            current_dim: dim_label,
-            previous_dim: None,
-            in_dim_entity: None,
-            inbound_pending: SmallVec::new(),
-        },
-    );
+    {
+        let session = app.world_mut().resource_mut::<PlayerSessionCounter>().next();
+        app.world_mut().resource_mut::<SessionRegistry>().insert(
+            session,
+            SessionEntry {
+                connection_entity: Entity::PLACEHOLDER,
+                host_anchor,
+                dim: dim_label,
+                previous_dim: None,
+                in_dim_entity: None,
+                epoch: 0,
+            },
+        );
+    }
 
     // Push InboundPlayerSpawn into the lifecycle buffer so the sub-app consumer
     // materializes an in-dim entity this tick.
@@ -405,16 +412,20 @@ fn play_login_targets_host_anchor() {
     let dim_label = spawn_subapp(&mut app);
 
     let host_anchor = app.world_mut().spawn_empty().id();
-    app.world_mut().resource_mut::<PlayerIndex>().insert(
-        host_anchor,
-        PlayerLocation {
-            socket: Entity::PLACEHOLDER,
-            current_dim: dim_label,
-            previous_dim: None,
-            in_dim_entity: None,
-            inbound_pending: SmallVec::new(),
-        },
-    );
+    {
+        let session = app.world_mut().resource_mut::<PlayerSessionCounter>().next();
+        app.world_mut().resource_mut::<SessionRegistry>().insert(
+            session,
+            SessionEntry {
+                connection_entity: Entity::PLACEHOLDER,
+                host_anchor,
+                dim: dim_label,
+                previous_dim: None,
+                in_dim_entity: None,
+                epoch: 0,
+            },
+        );
+    }
 
     app.world_mut()
         .resource_mut::<PendingInboundLifecycle>()

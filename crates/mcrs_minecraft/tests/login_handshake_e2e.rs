@@ -52,7 +52,8 @@ use mcrs_minecraft::world::bus::{
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer, PacketPayload,
     PacketPriority, PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
 };
-use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex, PlayerLocation};
+use mcrs_engine::session::SessionRegistry;
+use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_network::ServerSideConnection;
@@ -60,7 +61,6 @@ use mcrs_protocol::uuid::Uuid;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
-use smallvec::SmallVec;
 
 // ---------------------------------------------------------------------------
 // e2e_login_handshake_completes
@@ -77,6 +77,8 @@ fn e2e_login_handshake_completes() {
     let mut app = App::new();
     app.add_plugins(LoginPlugin);
     app.init_resource::<PlayerIndex>();
+    app.init_resource::<SessionRegistry>();
+    app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
     app.init_resource::<PendingInboundLifecycle>();
     app.add_message::<InboundPlayerDespawn>();
 
@@ -94,9 +96,9 @@ fn e2e_login_handshake_completes() {
     let world = app.world();
 
     assert_eq!(
-        world.resource::<PlayerIndex>().len(),
+        world.resource::<SessionRegistry>().iter().count(),
         1,
-        "PlayerIndex must have one entry after accepted login",
+        "SessionRegistry must have one entry after accepted login",
     );
 
     let host_anchor_ref = world
@@ -110,17 +112,17 @@ fn e2e_login_handshake_completes() {
         "host-anchor entity must exist in the world",
     );
 
-    let location = world
-        .resource::<PlayerIndex>()
-        .get(&host_anchor_ref.0)
-        .expect("PlayerLocation must be present for host-anchor");
+    let (_, entry) = world
+        .resource::<SessionRegistry>()
+        .get_by_anchor(&host_anchor_ref.0)
+        .expect("SessionEntry must be present for host-anchor");
 
     assert_eq!(
-        location.socket, connection_entity,
-        "PlayerLocation.socket must point back at the connection entity",
+        entry.connection_entity, connection_entity,
+        "SessionEntry.connection_entity must point at the connection entity",
     );
     assert!(
-        location.in_dim_entity.is_none(),
+        entry.in_dim_entity.is_none(),
         "newly logged-in player must not yet be placed in a dim",
     );
 }
@@ -141,14 +143,14 @@ fn e2e_login_handshake_completes() {
 #[test]
 fn e2e_packet_round_trip() {
     use mcrs_engine::geometry::BlockPos;
+    use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
     use mcrs_protocol::BlockStateId;
 
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
-    world.init_resource::<PlayerIndex>();
+    world.init_resource::<SessionRegistry>();
     world.init_resource::<PendingInboundPartition>();
 
-    let player = Entity::from_raw_u32(1).expect("nonzero");
     let dim = Entity::from_raw_u32(2).expect("nonzero");
 
     let (raw, mut rx) = mock_connection::make_mock_raw_connection();
@@ -160,28 +162,31 @@ fn e2e_packet_round_trip() {
         ))
         .id();
 
-    world.resource_mut::<PlayerIndex>().insert(
-        player,
-        PlayerLocation {
-            socket,
-            current_dim: dim,
+    let host_anchor = world.spawn_empty().id();
+    let session = PlayerSession(1);
+    world.resource_mut::<SessionRegistry>().insert(
+        session,
+        SessionEntry {
+            connection_entity: socket,
+            host_anchor,
+            dim,
             previous_dim: None,
             in_dim_entity: Some(socket),
-            inbound_pending: SmallVec::new(),
+            epoch: 0,
         },
     );
 
     world
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .write(OutboundPlayerPacket {
-            target: PacketTarget::SinglePlayer(player),
+            target: PacketTarget::SinglePlayer(host_anchor),
             priority: PacketPriority::Normal,
             data: PacketPayload::BlockUpdate {
                 position: BlockPos::new(0, 64, 0),
                 new_state: BlockStateId(1),
             },
-        session: PlayerSession(0),
-        epoch: 0,
+            session,
+            epoch: 0,
         });
 
     run_system(&mut world, bridge_outbound);
@@ -302,6 +307,9 @@ fn build_join_host_app() -> App {
     app.insert_resource(RegistrySnapshot::<Biome>::default());
 
     app.init_resource::<PlayerIndex>();
+    app.init_resource::<SessionRegistry>();
+    app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
+    app.init_resource::<mcrs_minecraft::world::player_index::PendingInboundBuffer>();
     app.init_resource::<PendingInboundPartition>();
     app.init_resource::<PendingInboundLifecycle>();
     app.add_message::<OutboundPlayerPacket>();
@@ -375,12 +383,12 @@ fn e2e_join_releases_joining_world() {
         .expect("HostAnchorRef present after login")
         .0;
 
-    // Make PlayerIndex.socket point at the mock connection entity so
-    // bridge_outbound and dispatch_encode route blobs to it.
+    // Make SessionEntry.connection_entity point at the mock connection entity
+    // so bridge_outbound routes blobs to the correct OutboundQueue.
     {
-        let mut index = app.world_mut().resource_mut::<PlayerIndex>();
-        if let Some(loc) = index.get_mut(&host_anchor) {
-            loc.socket = connection_entity;
+        let mut registry = app.world_mut().resource_mut::<SessionRegistry>();
+        if let Some((_, entry)) = registry.get_by_anchor_mut(&host_anchor) {
+            entry.connection_entity = connection_entity;
         }
     }
 
@@ -421,14 +429,14 @@ fn e2e_join_releases_joining_world() {
     app.update();
 
     // Assertion 1: handoff completed — in_dim_entity bound.
-    let location = app
+    let (_, entry) = app
         .world()
-        .resource::<PlayerIndex>()
-        .get(&host_anchor)
-        .expect("PlayerLocation present");
+        .resource::<SessionRegistry>()
+        .get_by_anchor(&host_anchor)
+        .expect("SessionEntry present");
     assert!(
-        location.in_dim_entity.is_some(),
-        "PlayerIndex.in_dim_entity must be Some after the full handoff round-trip",
+        entry.in_dim_entity.is_some(),
+        "SessionEntry.in_dim_entity must be Some after the full handoff round-trip",
     );
 
     // Assertion 2: play-login delivered — at least one non-empty blob on the socket.

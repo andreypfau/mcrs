@@ -27,9 +27,9 @@ use mcrs_minecraft::world::bus::{
     OutboundPlayerDisconnect, OutboundPlayerTransfer, PendingInboundLifecycle,
     PendingInboundPartition, PlayerTransferSnapshot,
 };
-use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_protocol::uuid::Uuid;
-use smallvec::SmallVec;
 
 fn build_app() -> App {
     let mut app = App::new();
@@ -39,20 +39,30 @@ fn build_app() -> App {
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
     app.init_resource::<PlayerIndex>();
+    app.init_resource::<SessionRegistry>();
+    app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<PendingInboundPartition>();
     app.init_resource::<PendingInboundLifecycle>();
     app.add_plugins(DisconnectProtocolPlugin);
     app
 }
 
-fn make_location(dim: Entity) -> PlayerLocation {
-    PlayerLocation {
-        socket: Entity::PLACEHOLDER,
-        current_dim: dim,
-        previous_dim: None,
-        in_dim_entity: Some(Entity::PLACEHOLDER),
-        inbound_pending: SmallVec::new(),
-    }
+fn insert_player(app: &mut App, host_anchor: Entity, dim: Entity) {
+    let session = app
+        .world_mut()
+        .resource_mut::<PlayerSessionCounter>()
+        .next();
+    app.world_mut().resource_mut::<SessionRegistry>().insert(
+        session,
+        SessionEntry {
+            connection_entity: Entity::PLACEHOLDER,
+            host_anchor,
+            dim,
+            previous_dim: None,
+            in_dim_entity: Some(Entity::PLACEHOLDER),
+            epoch: 0,
+        },
+    );
 }
 
 fn snapshot() -> PlayerTransferSnapshot {
@@ -72,9 +82,7 @@ fn drain_tick_filters_inflight_transfer_for_queued_anchor() {
 
     // Allocate a host-anchor and record its location.
     let host_anchor = app.world_mut().spawn_empty().id();
-    app.world_mut()
-        .resource_mut::<PlayerIndex>()
-        .insert(host_anchor, make_location(source_dim));
+    insert_player(&mut app, host_anchor, source_dim);
 
     // Stage: saturate the budget so the upcoming disconnect MUST go
     // through the queue (this is the same path E4.1 exercises).
@@ -151,13 +159,13 @@ fn drain_tick_filters_inflight_transfer_for_queued_anchor() {
         surviving.len()
     );
 
-    // PlayerIndex entry is gone (process_disconnect removed it).
+    // SessionRegistry entry is gone (process_disconnect removed it).
     assert!(
         app.world()
-            .resource::<PlayerIndex>()
-            .get(&host_anchor)
+            .resource::<SessionRegistry>()
+            .get_by_anchor(&host_anchor)
             .is_none(),
-        "PlayerIndex entry for drained anchor must be removed by process_disconnect"
+        "SessionRegistry entry for drained anchor must be removed by process_disconnect"
     );
 }
 
@@ -174,12 +182,8 @@ fn filter_inflight_purges_pending_inbound_partition_for_disconnected_anchor() {
     let app_dim = Entity::from_raw_u32(7).unwrap();
     let host_anchor = app.world_mut().spawn_empty().id();
     let other_anchor = app.world_mut().spawn_empty().id();
-    app.world_mut()
-        .resource_mut::<PlayerIndex>()
-        .insert(host_anchor, make_location(app_dim));
-    app.world_mut()
-        .resource_mut::<PlayerIndex>()
-        .insert(other_anchor, make_location(app_dim));
+    insert_player(&mut app, host_anchor, app_dim);
+    insert_player(&mut app, other_anchor, app_dim);
 
     // Stage the partition bucket as if partition_main_inbound had just
     // routed packets for both anchors into the dest sub-app's bucket.
@@ -256,9 +260,7 @@ fn drain_clears_disconnected_this_tick_via_filter_at_end_of_update() {
     let mut app = build_app();
     let dim = Entity::from_raw_u32(3).unwrap();
     let host_anchor = app.world_mut().spawn_empty().id();
-    app.world_mut()
-        .resource_mut::<PlayerIndex>()
-        .insert(host_anchor, make_location(dim));
+    insert_player(&mut app, host_anchor, dim);
     {
         let mut budget = app.world_mut().resource_mut::<DisconnectBudget>();
         budget.remaining = 0;

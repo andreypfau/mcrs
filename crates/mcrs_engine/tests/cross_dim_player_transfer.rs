@@ -31,10 +31,10 @@ use mcrs_minecraft::world::bus::{
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
     PendingInboundLifecycle, PendingInboundPartition, PlayerTransferSnapshot,
 };
-use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::DimSubAppHandle;
 use mcrs_protocol::uuid::Uuid;
-use smallvec::SmallVec;
 
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
@@ -80,14 +80,14 @@ struct HostTickCount(u32);
 fn record_transfer_event(
     mut log: ResMut<TransferLog>,
     mut tick: ResMut<HostTickCount>,
-    player_index: Res<PlayerIndex>,
+    session_registry: Res<SessionRegistry>,
     host_anchor: Res<TestHostAnchor>,
 ) {
-    let event = if let Some(loc) = player_index.get(&host_anchor.0) {
+    let event = if let Some((_, entry)) = session_registry.get_by_anchor(&host_anchor.0) {
         TransferEvent {
             tick: tick.0,
-            current_dim: loc.current_dim,
-            in_dim_entity: loc.in_dim_entity,
+            current_dim: entry.dim,
+            in_dim_entity: entry.in_dim_entity,
         }
     } else {
         TransferEvent {
@@ -130,6 +130,9 @@ fn build_test_app() -> App {
     app.add_message::<InboundPlayerDespawn>();
 
     app.init_resource::<PlayerIndex>();
+    app.init_resource::<SessionRegistry>();
+    app.init_resource::<PlayerSessionCounter>();
+    app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<PendingInboundPartition>();
     app.init_resource::<PendingInboundLifecycle>();
     app.init_resource::<TransferLog>();
@@ -139,27 +142,29 @@ fn build_test_app() -> App {
     // closures captured by `move`. The DimSubAppHandle marker is what
     // bridge_player_transfer's live-sub-app validation looks for —
     // without it the transfer is dropped before it can mutate
-    // PlayerIndex.
+    // SessionRegistry.
     let source_label_entity = app.world_mut().spawn(DimSubAppHandle).id();
     let dest_label_entity = app.world_mut().spawn(DimSubAppHandle).id();
     app.insert_resource(TestDestLabel(dest_label_entity));
 
-    // Allocate a host-anchor entity in the main world and seed PlayerIndex
+    // Allocate a host-anchor entity in the main world and seed SessionRegistry
     // with the player living in the source dim.
     let host_anchor = app.world_mut().spawn_empty().id();
     let src_in_dim = Entity::from_raw_u32(10).expect("nonzero");
-    app.world_mut()
-        .resource_mut::<PlayerIndex>()
-        .insert(
-            host_anchor,
-            PlayerLocation {
-                socket: Entity::PLACEHOLDER,
-                current_dim: source_label_entity,
+    {
+        let session = app.world_mut().resource_mut::<PlayerSessionCounter>().next();
+        app.world_mut().resource_mut::<SessionRegistry>().insert(
+            session,
+            SessionEntry {
+                connection_entity: Entity::PLACEHOLDER,
+                host_anchor,
+                dim: source_label_entity,
                 previous_dim: None,
                 in_dim_entity: Some(src_in_dim),
-                inbound_pending: SmallVec::new(),
+                epoch: 0,
             },
         );
+    }
     app.insert_resource(TestHostAnchor(host_anchor));
 
     // Chain the three production bridge systems in Update so they run in

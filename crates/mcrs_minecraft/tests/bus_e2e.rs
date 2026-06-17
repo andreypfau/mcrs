@@ -27,7 +27,8 @@ use mcrs_minecraft::world::bus::{
     PacketPriority, PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
     TestPayload,
 };
-use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{
     drain_dim_spawn_queue, DimSubAppHandle,
 };
@@ -35,7 +36,6 @@ use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
-use smallvec::SmallVec;
 
 #[derive(Resource, Default)]
 struct OutboundLog(Vec<u32>);
@@ -81,6 +81,9 @@ fn build_app() -> App {
 
     // Host-side bus substrate (mirrors what `WorldPlugin::build` installs).
     app.init_resource::<PlayerIndex>();
+    app.init_resource::<SessionRegistry>();
+    app.init_resource::<PlayerSessionCounter>();
+    app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<PendingInboundPartition>();
     app.init_resource::<PendingInboundLifecycle>();
     app.add_message::<OutboundPlayerPacket>();
@@ -215,19 +218,22 @@ fn inbound_latency_is_zero_host_ticks_via_player_index() {
         sub.add_systems(Update, record_sub_inbound);
     }
 
-    // Place the player in PlayerIndex with the sub-app's label_entity as
-    // its current_dim and a non-None in_dim_entity so partition_main_inbound
-    // routes to PendingInboundPartition.per_dim (not inbound_pending).
-    let player = Entity::from_raw_u32(42).expect("nonzero");
+    // Place the player in SessionRegistry with the sub-app's label_entity as
+    // its dim and a non-None in_dim_entity so partition_main_inbound
+    // routes to PendingInboundPartition.per_dim (not the inbound buffer).
+    let host_anchor = Entity::from_raw_u32(42).expect("nonzero");
+    let player = host_anchor;
     let in_dim = Entity::from_raw_u32(99).expect("nonzero");
-    app.world_mut().resource_mut::<PlayerIndex>().insert(
-        player,
-        PlayerLocation {
-            socket: Entity::PLACEHOLDER,
-            current_dim: label_entity,
+    let session = app.world_mut().resource_mut::<PlayerSessionCounter>().next();
+    app.world_mut().resource_mut::<SessionRegistry>().insert(
+        session,
+        SessionEntry {
+            connection_entity: Entity::PLACEHOLDER,
+            host_anchor,
+            dim: label_entity,
             previous_dim: None,
             in_dim_entity: Some(in_dim),
-            inbound_pending: SmallVec::new(),
+            epoch: 0,
         },
     );
 

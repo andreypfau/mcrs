@@ -31,9 +31,9 @@ use mcrs_minecraft::world::bus::{
     OutboundPlayerPacket, OutboundPlayerTransfer, PacketPayload, PacketTarget,
     PendingInboundLifecycle, PendingInboundPartition, PlayerTransferSnapshot,
 };
-use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_protocol::uuid::Uuid;
-use smallvec::SmallVec;
 
 mod harness;
 use harness::{
@@ -49,6 +49,8 @@ fn build_disconnect_app() -> App {
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
     app.init_resource::<PlayerIndex>();
+    app.init_resource::<SessionRegistry>();
+    app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<PendingInboundPartition>();
     app.init_resource::<PendingInboundLifecycle>();
     app.add_plugins(DisconnectProtocolPlugin);
@@ -71,14 +73,19 @@ fn insert_location(
     previous_dim: Option<Entity>,
     in_dim_entity: Option<Entity>,
 ) {
-    app.world_mut().resource_mut::<PlayerIndex>().insert(
-        host_anchor,
-        PlayerLocation {
-            socket: Entity::PLACEHOLDER,
-            current_dim,
+    let session = app
+        .world_mut()
+        .resource_mut::<PlayerSessionCounter>()
+        .next();
+    app.world_mut().resource_mut::<SessionRegistry>().insert(
+        session,
+        SessionEntry {
+            connection_entity: Entity::PLACEHOLDER,
+            host_anchor,
+            dim: current_dim,
             previous_dim,
             in_dim_entity,
-            inbound_pending: SmallVec::new(),
+            epoch: 0,
         },
     );
 }
@@ -88,12 +95,19 @@ fn synthetic_disconnect(app: &mut App, host_anchor: Entity) {
         .run_system_once(
             move |mut commands: Commands,
                   mut player_index: ResMut<PlayerIndex>,
+                  mut session_registry: ResMut<SessionRegistry>,
                   mut lifecycle: ResMut<PendingInboundLifecycle>,
                   mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
                   mut budget: ResMut<DisconnectBudget>| {
                 disconnected_this_tick.host_anchors.push(host_anchor);
                 let _ = budget.consume();
-                process_disconnect(host_anchor, &mut player_index, &mut lifecycle, &mut commands);
+                process_disconnect(
+                    host_anchor,
+                    &mut player_index,
+                    &mut session_registry,
+                    &mut lifecycle,
+                    &mut commands,
+                );
             },
         )
         .expect("disconnect helper runs");
@@ -162,8 +176,10 @@ fn disconnect_at_tick_n_e1_1_source_emit_pre_extract() {
         "source dim sees one InboundPlayerDespawn"
     );
 
-    let index = app.world().resource::<PlayerIndex>();
-    assert!(!index.contains(&host_anchor), "PlayerIndex entry removed");
+    assert!(
+        app.world().resource::<SessionRegistry>().get_by_anchor(&host_anchor).is_none(),
+        "SessionRegistry entry removed"
+    );
 }
 
 #[test]
@@ -199,14 +215,14 @@ fn disconnect_at_tick_n_e1_2_after_bridge_transfer() {
 
     run_bridge_transfer(&mut app);
 
-    let loc = app
+    let (_, entry) = app
         .world()
-        .resource::<PlayerIndex>()
-        .get(&host_anchor)
-        .expect("location after transfer");
-    assert_eq!(loc.current_dim, dest_dim);
-    assert_eq!(loc.previous_dim, Some(source_dim));
-    assert!(loc.in_dim_entity.is_none());
+        .resource::<SessionRegistry>()
+        .get_by_anchor(&host_anchor)
+        .expect("session entry after transfer");
+    assert_eq!(entry.dim, dest_dim);
+    assert_eq!(entry.previous_dim, Some(source_dim));
+    assert!(entry.in_dim_entity.is_none());
     assert_eq!(
         app.world()
             .resource::<PendingInboundLifecycle>()
@@ -250,8 +266,8 @@ fn disconnect_at_tick_n_e1_2_after_bridge_transfer() {
     );
 
     assert!(
-        !app.world().resource::<PlayerIndex>().contains(&host_anchor),
-        "PlayerIndex entry removed"
+        app.world().resource::<SessionRegistry>().get_by_anchor(&host_anchor).is_none(),
+        "SessionRegistry entry removed"
     );
 }
 
@@ -279,8 +295,8 @@ fn disconnect_at_tick_n_e1_3_after_dest_spawn_pre_attach_emit() {
     );
 
     assert!(
-        !app.world().resource::<PlayerIndex>().contains(&host_anchor),
-        "PlayerIndex entry removed"
+        app.world().resource::<SessionRegistry>().get_by_anchor(&host_anchor).is_none(),
+        "SessionRegistry entry removed"
     );
 }
 
@@ -336,7 +352,7 @@ fn disconnect_at_tick_n_e1_5_steady_in_dim() {
         "single despawn (current_dim only) since previous_dim is None"
     );
 
-    assert!(!app.world().resource::<PlayerIndex>().contains(&host_anchor));
+    assert!(app.world().resource::<SessionRegistry>().get_by_anchor(&host_anchor).is_none());
 }
 
 /// Regression for the transfer-out removal path proving that the downstream

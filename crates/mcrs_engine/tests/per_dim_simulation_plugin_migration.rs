@@ -24,11 +24,11 @@ use mcrs_minecraft::world::bus::{
     PendingInboundLifecycle, PendingInboundPartition,
 };
 use mcrs_minecraft::world::entity::player::player_action::PlayerWillDestroyBlock;
-use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_protocol::BlockStateId;
 use mcrs_protocol::uuid::Uuid;
-use smallvec::SmallVec;
 
 mod harness {
     use bevy_app::App;
@@ -216,6 +216,9 @@ fn player_will_destroy_block_reaches_per_dim_consumer_via_lifecycle_partition() 
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
     app.init_resource::<PlayerIndex>();
+    app.init_resource::<SessionRegistry>();
+    app.init_resource::<PlayerSessionCounter>();
+    app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<PendingInboundPartition>();
     app.init_resource::<PendingInboundLifecycle>();
 
@@ -224,18 +227,22 @@ fn player_will_destroy_block_reaches_per_dim_consumer_via_lifecycle_partition() 
     let src_label_entity = app.world_mut().spawn_empty().id();
     let dest_label_entity = app.world_mut().spawn_empty().id();
 
-    // Seed PlayerIndex so a synthetic host_anchor lives in the source dim.
+    // Seed SessionRegistry so a synthetic host_anchor lives in the source dim.
     let host_anchor = app.world_mut().spawn_empty().id();
-    app.world_mut().resource_mut::<PlayerIndex>().insert(
-        host_anchor,
-        PlayerLocation {
-            socket: Entity::PLACEHOLDER,
-            current_dim: src_label_entity,
-            previous_dim: None,
-            in_dim_entity: Some(Entity::PLACEHOLDER),
-            inbound_pending: SmallVec::new(),
-        },
-    );
+    {
+        let session = app.world_mut().resource_mut::<PlayerSessionCounter>().next();
+        app.world_mut().resource_mut::<SessionRegistry>().insert(
+            session,
+            SessionEntry {
+                connection_entity: Entity::PLACEHOLDER,
+                host_anchor,
+                dim: src_label_entity,
+                previous_dim: None,
+                in_dim_entity: Some(Entity::PLACEHOLDER),
+                epoch: 0,
+            },
+        );
+    }
 
     // Push directly into the source dim's block_events bucket. This
     // simulates the digging.rs writer's routing call — the test focuses

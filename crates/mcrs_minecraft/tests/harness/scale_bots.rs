@@ -30,12 +30,12 @@ use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
-use mcrs_minecraft::world::player_index::{PlayerIndex, PlayerLocation};
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_network::metrics::{
     snapshot, BridgeTelemetrySnapshot, BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL,
 };
 use mcrs_protocol::BlockStateId;
-use smallvec::SmallVec;
 
 /// Per-run observational report. Contains T=0 and T=end telemetry snapshots,
 /// entity-count delta, per-tick timing statistics, and emitted/consumed totals.
@@ -112,10 +112,12 @@ pub fn run_profile(
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<PlayerIndex>();
+    world.init_resource::<SessionRegistry>();
+    world.init_resource::<PlayerSessionCounter>();
 
     // Synthetic dimension entities — plain entity handles used as dim keys
-    // in PlayerIndex. No dim sub-app is spawned; the harness exercises the
-    // bridge_outbound queue-routing path only (no sub-app extract closure).
+    // in SessionRegistry. No dim sub-app is spawned; the harness exercises
+    // the bridge_outbound queue-routing path only (no sub-app extract closure).
     let dim_entities: Vec<Entity> = (0..dims.max(1))
         .map(|_| world.spawn_empty().id())
         .collect();
@@ -123,23 +125,25 @@ pub fn run_profile(
     // One OutboundQueue entity per bot (no real socket or ServerSideConnection;
     // dispatch_encode requires ServerSideConnection to send bytes, so the
     // harness targets bridge_outbound queue-fill under bot load). Entity-count
-    // delta across the run asserts the PlayerIndex teardown is clean.
-    let bot_entities: Vec<(Entity, Entity)> = (0..bots_total)
+    // delta across the run asserts the SessionRegistry teardown is clean.
+    let bot_entities: Vec<(Entity, Entity, mcrs_engine::session::PlayerSession)> = (0..bots_total)
         .map(|i| {
             let dim = dim_entities[i % dim_entities.len()];
             let socket = world.spawn(OutboundQueue::default()).id();
             let player = world.spawn_empty().id();
-            world.resource_mut::<PlayerIndex>().insert(
-                player,
-                PlayerLocation {
-                    socket,
-                    current_dim: dim,
+            let session = world.resource_mut::<PlayerSessionCounter>().next();
+            world.resource_mut::<SessionRegistry>().insert(
+                session,
+                SessionEntry {
+                    connection_entity: socket,
+                    host_anchor: player,
+                    dim,
                     previous_dim: None,
                     in_dim_entity: Some(socket),
-                    inbound_pending: SmallVec::new(),
+                    epoch: 0,
                 },
             );
-            (player, socket)
+            (player, socket, session)
         })
         .collect();
 
@@ -176,7 +180,7 @@ pub fn run_profile(
         // production sub-app system — so the harness-generated load is
         // visible in the emitted-vs-consumed saturation measurement.
         if tick_count % 2 == 0 {
-            for (player, _socket) in &bot_entities {
+            for (player, _socket, _session) in &bot_entities {
                 world
                     .resource_mut::<Messages<OutboundPlayerPacket>>()
                     .write(OutboundPlayerPacket {
@@ -194,24 +198,24 @@ pub fn run_profile(
         }
 
         // Halfway through: reassign a fraction of bots to a different dim to
-        // exercise the PlayerIndex cross-dim path. In_dim_entity is set to
+        // exercise the SessionRegistry cross-dim path. in_dim_entity is set to
         // None so bridge_outbound will drop these bots until they are re-attached.
         let elapsed_frac =
             now.duration_since(run_start).as_secs_f32() / duration_secs as f32;
         if elapsed_frac >= 0.5 && !cross_dim_triggered && dim_entities.len() > 1 {
             cross_dim_triggered = true;
             let transfer_count = (bots_total as f32 * cross_dim_rate.clamp(0.0, 1.0)) as usize;
-            for (player, _socket) in bot_entities.iter().take(transfer_count) {
-                if let Some(loc) = world.resource_mut::<PlayerIndex>().get_mut(player) {
-                    let old_dim = loc.current_dim;
+            for (_player, _socket, session) in bot_entities.iter().take(transfer_count) {
+                if let Some(entry) = world.resource_mut::<SessionRegistry>().get_mut(session) {
+                    let old_dim = entry.dim;
                     let idx = dim_entities
                         .iter()
                         .position(|&d| d == old_dim)
                         .unwrap_or(0);
                     let new_dim = dim_entities[(idx + 1) % dim_entities.len()];
-                    loc.current_dim = new_dim;
-                    loc.previous_dim = Some(old_dim);
-                    loc.in_dim_entity = None;
+                    entry.dim = new_dim;
+                    entry.previous_dim = Some(old_dim);
+                    entry.in_dim_entity = None;
                 }
             }
         }
@@ -236,9 +240,9 @@ pub fn run_profile(
         tick_min_us = 0;
     }
 
-    // Tear down all bot player_index entries to validate the cleanup path.
-    for (player, _socket) in &bot_entities {
-        world.resource_mut::<PlayerIndex>().remove(player);
+    // Tear down all bot session registry entries to validate the cleanup path.
+    for (_player, _socket, session) in &bot_entities {
+        world.resource_mut::<SessionRegistry>().remove(session);
     }
 
     // T=end snapshot.

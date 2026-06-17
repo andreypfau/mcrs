@@ -25,7 +25,8 @@ use mcrs_minecraft::world::bus::{
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
     PendingInboundLifecycle, PendingInboundPartition, PlayerTransferSnapshot,
 };
-use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
+use mcrs_engine::session::{PlayerSessionCounter, SessionRegistry};
+use mcrs_minecraft::world::player_index::{HostAnchorRef, PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_protocol::uuid::Uuid;
@@ -71,6 +72,9 @@ fn build_host_app() -> App {
     app.insert_resource(RegistrySnapshot::<Biome>::default());
 
     app.init_resource::<PlayerIndex>();
+    app.init_resource::<SessionRegistry>();
+    app.init_resource::<PlayerSessionCounter>();
+    app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<PendingInboundPartition>();
     app.init_resource::<PendingInboundLifecycle>();
     app.add_message::<OutboundPlayerPacket>();
@@ -166,13 +170,13 @@ fn game_transition_emits_initial_spawn() {
         "the spawn's host_anchor should match the host-anchor entity"
     );
 
-    let location = world
-        .resource::<PlayerIndex>()
-        .get(&host_anchor)
-        .expect("PlayerLocation present");
+    let (_, entry) = world
+        .resource::<SessionRegistry>()
+        .get_by_anchor(&host_anchor)
+        .expect("SessionEntry present");
     assert_eq!(
-        location.current_dim, dim_label,
-        "PlayerLocation.current_dim must be set to the selected dim label (not PLACEHOLDER)"
+        entry.dim, dim_label,
+        "SessionEntry.dim must be set to the selected dim label (not PLACEHOLDER)"
     );
 }
 
@@ -195,14 +199,14 @@ fn no_live_dim_no_spawn() {
         "no spawn should be pushed when no DimSubAppHandle is live"
     );
 
-    let location = world
-        .resource::<PlayerIndex>()
-        .get(&host_anchor)
-        .expect("PlayerLocation present");
+    let (_, entry) = world
+        .resource::<SessionRegistry>()
+        .get_by_anchor(&host_anchor)
+        .expect("SessionEntry present");
     assert_eq!(
-        location.current_dim,
+        entry.dim,
         Entity::PLACEHOLDER,
-        "current_dim must remain PLACEHOLDER when no dim is live"
+        "dim must remain PLACEHOLDER when no dim is live"
     );
 }
 
@@ -356,14 +360,14 @@ fn attach_roundtrip_sets_in_dim_entity() {
     //         → sets in_dim_entity.
     app.update();
 
-    let location = app
+    let (_, entry) = app
         .world()
-        .resource::<PlayerIndex>()
-        .get(&host_anchor)
-        .expect("PlayerLocation present");
+        .resource::<SessionRegistry>()
+        .get_by_anchor(&host_anchor)
+        .expect("SessionEntry present");
     assert!(
-        location.in_dim_entity.is_some(),
-        "PlayerIndex.in_dim_entity must be Some after the full handoff round-trip"
+        entry.in_dim_entity.is_some(),
+        "SessionEntry.in_dim_entity must be Some after the full handoff round-trip"
     );
 }
 
