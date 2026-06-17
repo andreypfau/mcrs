@@ -92,17 +92,22 @@ pub fn bridge_outbound(
     mut reader: MessageReader<crate::world::bus::OutboundPlayerPacket>,
     session_registry: Res<SessionRegistry>,
     mut queues: Query<&mut OutboundQueue>,
-    _anchors: Query<&HostAnchorRef>,
 ) {
     for msg in reader.read() {
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_CONSUMED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
 
         match &msg.target {
-            PacketTarget::SinglePlayer(host_anchor) => {
-                let Some((_, entry)) = session_registry.get_by_anchor(host_anchor) else {
+            PacketTarget::SinglePlayer(_) => {
+                // Session + epoch stamped by the extract closure at the dim boundary.
+                // PlayerSession(0) is never in the registry, so unstamped
+                // packets are dropped here without an explicit check.
+                let Some(entry) = session_registry.get(&msg.session) else {
                     continue;
                 };
+                if msg.epoch != entry.epoch {
+                    continue;
+                }
                 let target_socket = entry.connection_entity;
                 match queues.get_mut(target_socket) {
                     Ok(mut q) => q.push(msg.clone()),
@@ -114,17 +119,14 @@ pub fn bridge_outbound(
             }
             PacketTarget::AllInDim(dim_entity) => {
                 let dim = *dim_entity;
-                let sockets: Vec<Entity> = session_registry
-                    .iter()
-                    .filter_map(|(_, entry)| {
-                        if entry.dim == dim {
-                            Some(entry.connection_entity)
-                        } else {
-                            None
-                        }
-                    })
+                let recipients: Vec<(u32, Entity)> = session_registry
+                    .iter_in_dim(dim)
+                    .map(|(_, entry)| (entry.epoch, entry.connection_entity))
                     .collect();
-                for socket in sockets {
+                for (entry_epoch, socket) in recipients {
+                    if msg.epoch != entry_epoch {
+                        continue;
+                    }
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {
@@ -135,9 +137,14 @@ pub fn bridge_outbound(
                 }
             }
             PacketTarget::AllPlayers => {
-                let sockets: Vec<Entity> =
-                    session_registry.iter().map(|(_, entry)| entry.connection_entity).collect();
-                for socket in sockets {
+                let recipients: Vec<(u32, Entity)> = session_registry
+                    .iter()
+                    .map(|(_, entry)| (entry.epoch, entry.connection_entity))
+                    .collect();
+                for (entry_epoch, socket) in recipients {
+                    if msg.epoch != entry_epoch {
+                        continue;
+                    }
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {
@@ -148,15 +155,18 @@ pub fn bridge_outbound(
                 }
             }
             PacketTarget::PlayerSet(set) => {
-                let sockets: Vec<Entity> = set
+                let recipients: Vec<(u32, Entity)> = set
                     .iter()
                     .filter_map(|e| {
                         session_registry
                             .get_by_anchor(e)
-                            .map(|(_, entry)| entry.connection_entity)
+                            .map(|(_, entry)| (entry.epoch, entry.connection_entity))
                     })
                     .collect();
-                for socket in sockets {
+                for (entry_epoch, socket) in recipients {
+                    if msg.epoch != entry_epoch {
+                        continue;
+                    }
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {

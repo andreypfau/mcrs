@@ -58,17 +58,81 @@ pub fn register_player(
 }
 
 /// Write a test packet addressed to `target` into the world's
-/// `Messages<OutboundPlayerPacket>`.
-pub fn write_packet(world: &mut World, target: PacketTarget, priority: PacketPriority, seq: u32) {
+/// `Messages<OutboundPlayerPacket>`. Pass `session` + `epoch` to simulate
+/// the stamp the extract closure applies; use `PlayerSession(0)` / `0` for
+/// fan-out targets that are epoch-checked per-recipient in bridge_outbound.
+pub fn write_packet(
+    world: &mut World,
+    target: PacketTarget,
+    session: PlayerSession,
+    epoch: u32,
+    priority: PacketPriority,
+    seq: u32,
+) {
     world
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .write(OutboundPlayerPacket {
             target,
             priority,
             data: PacketPayload::Test(TestPayload { seq }),
-            session: PlayerSession(0),
-            epoch: 0,
+            session,
+            epoch,
         });
+}
+
+/// Convenience wrapper: write a packet with `PlayerSession(0)` / epoch 0,
+/// suitable for fan-out targets (`AllInDim`, `AllPlayers`, `PlayerSet`) when
+/// all sessions in the registry are also at epoch 0.
+pub fn write_packet_broadcast(
+    world: &mut World,
+    target: PacketTarget,
+    priority: PacketPriority,
+    seq: u32,
+) {
+    write_packet(world, target, PlayerSession(0), 0, priority, seq);
+}
+
+/// Write a stamped test packet for the epoch-filter tests.
+pub fn write_packet_stamped(
+    world: &mut World,
+    session: PlayerSession,
+    epoch: u32,
+    priority: PacketPriority,
+    seq: u32,
+) {
+    // Construct a dummy dim entity for the target (irrelevant — bridge_outbound
+    // uses msg.session for SinglePlayer, not the entity inside PacketTarget).
+    let dummy = Entity::from_raw_u32(9999).expect("nonzero");
+    write_packet(world, PacketTarget::SinglePlayer(dummy), session, epoch, priority, seq);
+}
+
+/// Register a session directly (bypassing the PlayerSessionCounter).
+/// Used by epoch-filter tests that need precise control over session ids.
+pub fn register_session(
+    world: &mut World,
+    session: PlayerSession,
+    socket: Entity,
+    epoch: u32,
+) {
+    let anchor = Entity::from_raw_u32(9997).expect("nonzero");
+    let dim = Entity::from_raw_u32(9998).expect("nonzero");
+    world.resource_mut::<SessionRegistry>().insert(
+        session,
+        SessionEntry {
+            connection_entity: socket,
+            host_anchor: anchor,
+            dim,
+            previous_dim: None,
+            in_dim_entity: None,
+            epoch,
+        },
+    );
+}
+
+/// Build a world identical to `build_bridge_world` but with no `PlayerIndex`
+/// dependency — suitable for epoch-filter tests that only need `SessionRegistry`.
+pub fn build_bridge_world_with_sessions() -> World {
+    build_bridge_world()
 }
 
 /// Run a single system on `world` (handles initialization and deferred commands).

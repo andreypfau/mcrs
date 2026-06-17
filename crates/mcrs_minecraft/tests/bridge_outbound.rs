@@ -14,8 +14,11 @@ use mcrs_minecraft::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPrio
 use smallvec::SmallVec;
 
 use mock_connection::{
-    build_bridge_world, drain_queue, register_player, run_system, spawn_connection, write_packet,
+    build_bridge_world, build_bridge_world_with_sessions, drain_queue, register_player,
+    register_session, run_system, spawn_connection, write_packet, write_packet_broadcast,
+    write_packet_stamped,
 };
+use mcrs_engine::session::PlayerSession;
 
 // ---------------------------------------------------------------------------
 // bridge_outbound_drains
@@ -32,9 +35,9 @@ fn bridge_outbound_drains() {
     let player = Entity::from_raw_u32(1).expect("nonzero");
     let dim = Entity::from_raw_u32(2).expect("nonzero");
     let socket = spawn_connection(&mut world);
-    register_player(&mut world, player, socket, dim);
+    let session = register_player(&mut world, player, socket, dim);
 
-    write_packet(&mut world, PacketTarget::SinglePlayer(player), PacketPriority::Normal, 42);
+    write_packet(&mut world, PacketTarget::SinglePlayer(player), session, 0, PacketPriority::Normal, 42);
 
     run_system(&mut world, bridge_outbound);
 
@@ -64,12 +67,14 @@ fn packet_target_single_player() {
     let dim = Entity::from_raw_u32(2).expect("nonzero");
     let socket_a = spawn_connection(&mut world);
     let socket_b = spawn_connection(&mut world);
-    register_player(&mut world, player_a, socket_a, dim);
+    let session_a = register_player(&mut world, player_a, socket_a, dim);
     register_player(&mut world, player_b, socket_b, dim);
 
     write_packet(
         &mut world,
         PacketTarget::SinglePlayer(player_a),
+        session_a,
+        0,
         PacketPriority::Normal,
         1,
     );
@@ -107,7 +112,7 @@ fn packet_target_all_in_dim() {
     register_player(&mut world, player_a2, socket_a2, dim_a);
     register_player(&mut world, player_b, socket_b, dim_b);
 
-    write_packet(&mut world, PacketTarget::AllInDim(dim_a), PacketPriority::Normal, 5);
+    write_packet_broadcast(&mut world, PacketTarget::AllInDim(dim_a), PacketPriority::Normal, 5);
 
     run_system(&mut world, bridge_outbound);
 
@@ -139,7 +144,7 @@ fn packet_target_all_players() {
     register_player(&mut world, player_y, socket_y, dim);
     register_player(&mut world, player_z, socket_z, dim);
 
-    write_packet(&mut world, PacketTarget::AllPlayers, PacketPriority::High, 7);
+    write_packet_broadcast(&mut world, PacketTarget::AllPlayers, PacketPriority::High, 7);
 
     run_system(&mut world, bridge_outbound);
 
@@ -176,7 +181,7 @@ fn packet_target_player_set() {
     set.push(player_q);
     set.push(absent);
 
-    write_packet(&mut world, PacketTarget::PlayerSet(set), PacketPriority::Normal, 9);
+    write_packet_broadcast(&mut world, PacketTarget::PlayerSet(set), PacketPriority::Normal, 9);
 
     // Must not panic even though `absent` is not in PlayerIndex.
     run_system(&mut world, bridge_outbound);
@@ -204,7 +209,7 @@ fn packet_target_missing_queue_counted() {
 
     // Spawn a socket entity WITHOUT an OutboundQueue.
     let socket_no_queue = world.spawn_empty().id();
-    register_player(&mut world, player, socket_no_queue, dim);
+    let session = register_player(&mut world, player, socket_no_queue, dim);
 
     let before = mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
         .load(std::sync::atomic::Ordering::Relaxed);
@@ -212,6 +217,8 @@ fn packet_target_missing_queue_counted() {
     write_packet(
         &mut world,
         PacketTarget::SinglePlayer(player),
+        session,
+        0,
         PacketPriority::Normal,
         0,
     );
@@ -241,13 +248,13 @@ fn priority_drain_order() {
     let dim = Entity::from_raw_u32(500).expect("nonzero");
     let player = Entity::from_raw_u32(60).expect("nonzero");
     let socket = spawn_connection(&mut world);
-    register_player(&mut world, player, socket, dim);
+    let session = register_player(&mut world, player, socket, dim);
 
     // Write in reverse-priority order.
-    write_packet(&mut world, PacketTarget::SinglePlayer(player), PacketPriority::Low, 4);
-    write_packet(&mut world, PacketTarget::SinglePlayer(player), PacketPriority::Normal, 3);
-    write_packet(&mut world, PacketTarget::SinglePlayer(player), PacketPriority::High, 2);
-    write_packet(&mut world, PacketTarget::SinglePlayer(player), PacketPriority::Critical, 1);
+    write_packet(&mut world, PacketTarget::SinglePlayer(player), session, 0, PacketPriority::Low, 4);
+    write_packet(&mut world, PacketTarget::SinglePlayer(player), session, 0, PacketPriority::Normal, 3);
+    write_packet(&mut world, PacketTarget::SinglePlayer(player), session, 0, PacketPriority::High, 2);
+    write_packet(&mut world, PacketTarget::SinglePlayer(player), session, 0, PacketPriority::Critical, 1);
 
     run_system(&mut world, bridge_outbound);
 
@@ -263,4 +270,68 @@ fn priority_drain_order() {
         .collect();
 
     assert_eq!(seqs, vec![1, 2, 3, 4], "drain order must be Critical(1) → High(2) → Normal(3) → Low(4)");
+}
+
+// ---------------------------------------------------------------------------
+// epoch_filter_drops_stale_packet
+// ---------------------------------------------------------------------------
+
+/// A packet stamped with a stale epoch (0) is dropped when the session's
+/// current epoch is 1. Covers ROUT-03 (strict-equality drop).
+#[test]
+fn epoch_filter_drops_stale_packet() {
+    let mut world = build_bridge_world_with_sessions();
+
+    let session = PlayerSession(1);
+    let socket = spawn_connection(&mut world);
+    register_session(&mut world, session, socket, 1);
+
+    // Packet stamped with epoch 0 — stale relative to the session's epoch 1.
+    write_packet_stamped(&mut world, session, 0, PacketPriority::Normal, 42);
+    run_system(&mut world, bridge_outbound);
+
+    let queue = world.get::<OutboundQueue>(socket).expect("OutboundQueue present");
+    assert_eq!(queue.total_len(), 0, "stale-epoch packet must be dropped");
+}
+
+// ---------------------------------------------------------------------------
+// epoch_filter_delivers_matching_epoch
+// ---------------------------------------------------------------------------
+
+/// A packet stamped with the current epoch is delivered.
+#[test]
+fn epoch_filter_delivers_matching_epoch() {
+    let mut world = build_bridge_world_with_sessions();
+
+    let session = PlayerSession(2);
+    let socket = spawn_connection(&mut world);
+    register_session(&mut world, session, socket, 1);
+
+    write_packet_stamped(&mut world, session, 1, PacketPriority::Normal, 7);
+    run_system(&mut world, bridge_outbound);
+
+    let queue = world.get::<OutboundQueue>(socket).expect("OutboundQueue present");
+    assert_eq!(queue.total_len(), 1, "matching-epoch packet must be delivered");
+}
+
+// ---------------------------------------------------------------------------
+// unstamped_packet_dropped
+// ---------------------------------------------------------------------------
+
+/// A packet with the default PlayerSession(0) is always dropped because
+/// PlayerSession(0) never exists in SessionRegistry (counter starts at 1).
+/// This ensures no dim-system packet that slips through without stamping
+/// reaches a connection.
+#[test]
+fn unstamped_packet_dropped() {
+    let mut world = build_bridge_world_with_sessions();
+
+    let socket = spawn_connection(&mut world);
+
+    // Do NOT register any session — PlayerSession(0) is never in the registry.
+    write_packet_stamped(&mut world, PlayerSession(0), 0, PacketPriority::Normal, 99);
+    run_system(&mut world, bridge_outbound);
+
+    let queue = world.get::<OutboundQueue>(socket).expect("OutboundQueue present");
+    assert_eq!(queue.total_len(), 0, "PlayerSession(0) must always be dropped");
 }

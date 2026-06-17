@@ -297,9 +297,19 @@ pub fn spawn_dim_subapp(
             {
                 let session_registry = main_world.resource::<SessionRegistry>();
                 for msg in &mut drained {
-                    if let PacketTarget::SinglePlayer(dim_entity) = msg.target {
-                        if let Some(owner) = sub_world.get::<Owner>(dim_entity) {
-                            let session = owner.0;
+                    if let PacketTarget::SinglePlayer(entity) = msg.target {
+                        // First, try the entity as a dim-world entity (has Owner component).
+                        let session_opt = sub_world
+                            .get::<Owner>(entity)
+                            .map(|owner| owner.0)
+                            .or_else(|| {
+                                // Fallback: entity is a host_anchor (MainWorld entity).
+                                // Resolve via SessionRegistry's reverse anchor index.
+                                session_registry
+                                    .get_by_anchor(&entity)
+                                    .map(|(s, _)| *s)
+                            });
+                        if let Some(session) = session_opt {
                             msg.session = session;
                             msg.epoch = session_registry
                                 .get(&session)
