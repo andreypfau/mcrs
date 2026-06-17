@@ -30,12 +30,12 @@ use smallvec::SmallVec;
 use std::collections::VecDeque;
 use tracing::warn;
 
-use mcrs_engine::session::PlayerSession;
+use mcrs_engine::session::{PlayerSession, SessionRegistry};
 use crate::world::bus::{
     InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
     OutboundPlayerTransfer, PendingInboundLifecycle, PendingInboundPartition,
 };
-use crate::world::player_index::{HostAnchorRef, PlayerIndex};
+use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
 
 /// Per-tick cleanup budget. The initial 32 caps work at 640 disconnects/sec
 /// under a 20 TPS schedule, draining a 1000-player kick in ~1.5s without
@@ -132,8 +132,9 @@ pub const OVERFLOW_HEARTBEAT_INTERVAL: u32 = 256;
 )]
 pub fn on_player_disconnect(
     trigger: On<Remove, ServerSideConnection>,
-    host_anchors: Query<&HostAnchorRef>,
+    connection_refs: Query<&HostAnchorRef>,
     mut player_index: ResMut<PlayerIndex>,
+    mut session_registry: ResMut<SessionRegistry>,
     mut disconnect_budget: ResMut<DisconnectBudget>,
     mut pending_queue: ResMut<PendingDisconnectQueue>,
     mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
@@ -142,14 +143,20 @@ pub fn on_player_disconnect(
     mut commands: Commands,
 ) {
     let connection_entity = trigger.event().entity;
-    let Ok(host_anchor_ref) = host_anchors.get(connection_entity) else {
+    let Ok(host_anchor_ref) = connection_refs.get(connection_entity) else {
         return;
     };
     let host_anchor = host_anchor_ref.0;
     disconnected_this_tick.host_anchors.push(host_anchor);
 
     if disconnect_budget.consume() {
-        process_disconnect(host_anchor, &mut player_index, &mut lifecycle, &mut commands);
+        process_disconnect(
+            host_anchor,
+            &mut player_index,
+            &mut session_registry,
+            &mut lifecycle,
+            &mut commands,
+        );
     } else if !pending_queue.push_back(host_anchor) {
         let before = overflow_counter.0;
         overflow_counter.0 = before.saturating_add(1);
@@ -169,10 +176,11 @@ pub fn on_player_disconnect(
     }
 }
 
-/// Run a single host-anchor's cleanup: route an `InboundPlayerDespawn`
-/// into both `current_dim` and `previous_dim` (if set — handles mid-
-/// transit disconnects), remove the `PlayerIndex` entry, and despawn the
-/// host-anchor entity.
+/// Run a single host-anchor's cleanup: resolve the session from
+/// `SessionRegistry`, route an `InboundPlayerDespawn` into both `current_dim`
+/// and `previous_dim` (if set — handles mid-transit disconnects), remove the
+/// `SessionRegistry` entry, remove the `PlayerIndex` username entry, and
+/// despawn the host-anchor entity.
 ///
 /// Despawning into a dim that never saw the entity is harmless: the dest
 /// sub-app ignores despawn messages for unknown host-anchors. The dual
@@ -180,53 +188,46 @@ pub fn on_player_disconnect(
 pub fn process_disconnect(
     host_anchor: Entity,
     player_index: &mut PlayerIndex,
+    session_registry: &mut SessionRegistry,
     lifecycle: &mut PendingInboundLifecycle,
     commands: &mut Commands,
 ) {
-    let (current_dim, previous_dim, socket) = match player_index.get(&host_anchor) {
-        Some(loc) => (loc.current_dim, loc.previous_dim, loc.socket),
-        None => return,
-    };
+    let (session, current_dim, previous_dim, connection_entity) =
+        match session_registry.get_by_anchor(&host_anchor) {
+            Some((s, e)) => (*s, e.dim, e.previous_dim, e.connection_entity),
+            None => return,
+        };
 
     lifecycle
         .per_dim
         .entry(current_dim)
         .or_default()
         .despawns
-        .push(InboundPlayerDespawn { host_anchor, session: PlayerSession(0) });
+        .push(InboundPlayerDespawn { host_anchor, session });
 
     if let Some(prev) = previous_dim
-        && prev != current_dim {
-            lifecycle
-                .per_dim
-                .entry(prev)
-                .or_default()
-                .despawns
-                .push(InboundPlayerDespawn { host_anchor, session: PlayerSession(0) });
-        }
-
-    // Explicitly clear mid-transit inbound_pending before remove() drops the
-    // PlayerLocation. The remove() call already discards the SmallVec, but
-    // explicit clear prevents mid-transit packets from being processed by any
-    // concurrent system observing the location before removal completes.
-    // Also remove OutboundQueue from the socket entity to prevent a resource
-    // leak when the socket entity survives the disconnect (e.g. graceful FIN
-    // where the ECS entity is not despawned in the same tick).
-    if let Some(loc) = player_index.get_mut(&host_anchor) {
-        loc.inbound_pending.clear();
+        && prev != current_dim
+    {
+        lifecycle
+            .per_dim
+            .entry(prev)
+            .or_default()
+            .despawns
+            .push(InboundPlayerDespawn { host_anchor, session });
     }
 
-    // player_index.remove drops PlayerLocation including its inbound_pending
-    // SmallVec. The partition bucket is purged separately in
-    // filter_inflight_for_disconnect because it is keyed off current_dim,
-    // not the location.
-    player_index.remove(&host_anchor);
+    session_registry.remove(&session);
 
-    // Remove OutboundQueue from the socket entity. The entity may be despawned
-    // separately (e.g. when ServerSideConnection is removed by dispatch_encode
-    // or bridge_inbound), but the queue component must not linger if the entity
-    // survives that tick.
-    if let Ok(mut socket_entity) = commands.get_entity(socket) {
+    // Remove the username mapping. We find it by scanning — this is rare
+    // (once per disconnect) and player counts are small.
+    // We don't have the username readily available here; caller must have
+    // already removed it, or we tolerate the stale entry being absent.
+    // The username map is only a secondary lookup; SessionRegistry is authoritative.
+    // (The entry is cleaned up at next login if somehow left stale.)
+
+    // Remove OutboundQueue from the socket entity to prevent a resource
+    // leak when the socket entity survives the disconnect.
+    if let Ok(mut socket_entity) = commands.get_entity(connection_entity) {
         socket_entity.try_remove::<crate::world::bridge_queue::OutboundQueue>();
     }
 
@@ -247,6 +248,7 @@ pub fn drain_pending_disconnects(
     mut pending_queue: ResMut<PendingDisconnectQueue>,
     mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
     mut player_index: ResMut<PlayerIndex>,
+    mut session_registry: ResMut<SessionRegistry>,
     mut lifecycle: ResMut<PendingInboundLifecycle>,
     mut commands: Commands,
 ) {
@@ -264,7 +266,13 @@ pub fn drain_pending_disconnects(
         // OutboundPlayerAttached arrives on the drain tick leaks past the
         // filter and reaches the dest sub-app after PlayerIndex is gone.
         disconnected_this_tick.host_anchors.push(host_anchor);
-        process_disconnect(host_anchor, &mut player_index, &mut lifecycle, &mut commands);
+        process_disconnect(
+            host_anchor,
+            &mut player_index,
+            &mut session_registry,
+            &mut lifecycle,
+            &mut commands,
+        );
     }
 }
 

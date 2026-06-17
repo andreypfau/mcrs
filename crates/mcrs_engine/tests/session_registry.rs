@@ -31,11 +31,15 @@ fn registry_insert_get_roundtrip() {
     let session = PlayerSession(1);
     let conn = Entity::from_raw_u32(10).unwrap();
     let dim = Entity::from_raw_u32(20).unwrap();
+    let anchor = Entity::from_raw_u32(30).unwrap();
     registry.insert(
         session,
         SessionEntry {
             connection_entity: conn,
+            host_anchor: anchor,
             dim,
+            previous_dim: None,
+            in_dim_entity: None,
             epoch: 3,
         },
     );
@@ -51,11 +55,15 @@ fn registry_get_mut_mutates_epoch() {
     let session = PlayerSession(2);
     let conn = Entity::from_raw_u32(1).unwrap();
     let dim = Entity::from_raw_u32(2).unwrap();
+    let anchor = Entity::from_raw_u32(3).unwrap();
     registry.insert(
         session,
         SessionEntry {
             connection_entity: conn,
+            host_anchor: anchor,
             dim,
+            previous_dim: None,
+            in_dim_entity: None,
             epoch: 0,
         },
     );
@@ -69,11 +77,15 @@ fn registry_remove_returns_then_none() {
     let session = PlayerSession(3);
     let conn = Entity::from_raw_u32(5).unwrap();
     let dim = Entity::from_raw_u32(6).unwrap();
+    let anchor = Entity::from_raw_u32(7).unwrap();
     registry.insert(
         session,
         SessionEntry {
             connection_entity: conn,
+            host_anchor: anchor,
             dim,
+            previous_dim: None,
+            in_dim_entity: None,
             epoch: 0,
         },
     );
@@ -92,9 +104,12 @@ fn registry_iter_in_dim_filters_by_dim() {
     let s2 = PlayerSession(2);
     let s3 = PlayerSession(3);
 
-    registry.insert(s1, SessionEntry { connection_entity: conn, dim: dim_a, epoch: 0 });
-    registry.insert(s2, SessionEntry { connection_entity: conn, dim: dim_a, epoch: 0 });
-    registry.insert(s3, SessionEntry { connection_entity: conn, dim: dim_b, epoch: 0 });
+    let a1 = Entity::from_raw_u32(11).unwrap();
+    let a2 = Entity::from_raw_u32(12).unwrap();
+    let a3 = Entity::from_raw_u32(13).unwrap();
+    registry.insert(s1, SessionEntry { connection_entity: conn, host_anchor: a1, dim: dim_a, previous_dim: None, in_dim_entity: None, epoch: 0 });
+    registry.insert(s2, SessionEntry { connection_entity: conn, host_anchor: a2, dim: dim_a, previous_dim: None, in_dim_entity: None, epoch: 0 });
+    registry.insert(s3, SessionEntry { connection_entity: conn, host_anchor: a3, dim: dim_b, previous_dim: None, in_dim_entity: None, epoch: 0 });
 
     let in_a: Vec<PlayerSession> = registry.iter_in_dim(dim_a).map(|(s, _)| *s).collect();
     assert_eq!(in_a.len(), 2, "dim_a should have exactly 2 sessions");

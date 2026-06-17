@@ -2,7 +2,7 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Add;
 use bevy_ecs::prelude::{On, Query};
-use bevy_ecs::query::{With, Without};
+use bevy_ecs::query::Without;
 use bevy_ecs::system::{Commands, ResMut};
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, ServerSideConnection};
@@ -10,10 +10,10 @@ use mcrs_protocol::packets::login::clientbound::ClientboundLoginFinished;
 use mcrs_protocol::packets::login::serverbound::{ServerboundHello, ServerboundLoginAcknowledged};
 use mcrs_protocol::profile::Property;
 use mcrs_protocol::{Bounded, WritePacket, uuid};
-use smallvec::SmallVec;
 use std::borrow::Cow;
 
-use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerLocation};
+use mcrs_engine::session::{PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry};
+use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
 
 pub struct LoginPlugin;
 
@@ -47,7 +47,6 @@ pub struct GameProfile {
 
 impl<'a> From<&'a GameProfile> for mcrs_protocol::profile::GameProfile<'a> {
     fn from(profile: &'a GameProfile) -> Self {
-        // сконвертировать вектор свойств в Property<&str>
         let props: Vec<Property<&'a str>> = profile
             .properties
             .iter()
@@ -60,8 +59,6 @@ impl<'a> From<&'a GameProfile> for mcrs_protocol::profile::GameProfile<'a> {
 
         Self {
             id: profile.id,
-            // Bounded's From<T> is infallible; the length check happens
-            // at Encode time. Constructing the wrapper here cannot fail.
             username: Bounded::from(profile.username.as_str()),
             properties: Cow::Owned(props),
         }
@@ -100,10 +97,10 @@ pub fn handle_hello_packet(
 
 pub fn handle_login_acknowledged(
     event: On<ReceivedPacketEvent>,
-    mut query: Query<&ConnectionState , With<LoginState>>,
+    mut query: Query<&ConnectionState, With<LoginState>>,
     mut commands: Commands,
 ) {
-    let Ok(state ) = query.get_mut(event.entity) else {
+    let Ok(state) = query.get_mut(event.entity) else {
         return;
     };
     if ConnectionState::Login != *state {
@@ -121,6 +118,8 @@ pub fn on_login_accepted(
     trigger: On<Add, LoginState>,
     login_state: Query<(&LoginState, &GameProfile)>,
     mut player_index: ResMut<PlayerIndex>,
+    mut session_registry: ResMut<SessionRegistry>,
+    mut session_counter: ResMut<PlayerSessionCounter>,
     mut commands: Commands,
 ) {
     let connection_entity = trigger.event().entity;
@@ -131,21 +130,28 @@ pub fn on_login_accepted(
         return;
     }
 
+    let session = session_counter.next();
+
     // current_dim = PLACEHOLDER until dim selection from spawn-point logic lands.
     let host_anchor = commands.spawn(profile.clone()).id();
 
     commands
         .entity(connection_entity)
-        .insert(HostAnchorRef(host_anchor));
+        .insert((HostAnchorRef(host_anchor), PlayerSessionRef(session)));
 
-    player_index.insert(
-        host_anchor,
-        PlayerLocation {
-            socket: connection_entity,
-            current_dim: Entity::PLACEHOLDER,
+    session_registry.insert(
+        session,
+        SessionEntry {
+            connection_entity,
+            host_anchor,
+            dim: Entity::PLACEHOLDER,
             previous_dim: None,
             in_dim_entity: None,
-            inbound_pending: SmallVec::new(),
+            epoch: 0,
         },
     );
+
+    player_index.insert_username(profile.username.clone(), session);
 }
+
+use bevy_ecs::query::With;

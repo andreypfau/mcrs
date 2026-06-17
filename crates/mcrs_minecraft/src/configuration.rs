@@ -3,7 +3,8 @@ use crate::login::GameProfile;
 use crate::version::VERSION_ID;
 use crate::world::bus::{InboundPlayerSpawn, PendingInboundLifecycle, PlayerTransferSnapshot};
 use crate::world::entity::player::column_view::ColumnView;
-use crate::world::player_index::{HostAnchorRef, PlayerIndex};
+use crate::world::player_index::HostAnchorRef;
+use mcrs_engine::session::SessionRegistry;
 use crate::world::sub_app_builder::DimSubAppHandle;
 use crate::world_preset_loader::{
     DimensionTypeAsset, DimensionTypeLoader, WorldPresetAsset, WorldPresetLoader,
@@ -709,7 +710,7 @@ fn on_game_configuration_ack(
 /// (`current_dim != PLACEHOLDER`) ensures at most one initial-join spawn per player.
 pub fn emit_initial_player_spawn(
     connections: Query<&HostAnchorRef, With<InGameConnectionState>>,
-    mut player_index: ResMut<PlayerIndex>,
+    mut session_registry: ResMut<SessionRegistry>,
     live_dims: Query<Entity, With<DimSubAppHandle>>,
     profiles: Query<&GameProfile>,
     mut lifecycle: ResMut<PendingInboundLifecycle>,
@@ -719,12 +720,14 @@ pub fn emit_initial_player_spawn(
         None => return,
     };
 
-    for anchor_ref in connections.iter() {
-        let host_anchor = anchor_ref.0;
-        let Some(location) = player_index.get_mut(&host_anchor) else {
+    // Collect anchors first so we can mutably borrow session_registry below.
+    let anchors: Vec<Entity> = connections.iter().map(|r| r.0).collect();
+
+    for host_anchor in anchors {
+        let Some((session, entry)) = session_registry.get_by_anchor_mut(&host_anchor) else {
             continue;
         };
-        if location.current_dim != Entity::PLACEHOLDER {
+        if entry.dim != Entity::PLACEHOLDER {
             continue;
         }
         let Ok(profile) = profiles.get(host_anchor) else {
@@ -736,13 +739,13 @@ pub fn emit_initial_player_spawn(
             position: DVec3::new(0.0, 100.0, 0.0),
             rotation: Vec2::ZERO,
         };
-        location.current_dim = dim_label;
+        entry.dim = dim_label;
         lifecycle
             .per_dim
             .entry(dim_label)
             .or_default()
             .spawns
-            .push(InboundPlayerSpawn { host_anchor, session: PlayerSession(0), snapshot });
+            .push(InboundPlayerSpawn { host_anchor, session, snapshot });
     }
 }
 

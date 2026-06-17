@@ -11,7 +11,8 @@ use crate::world::inventory::PlayerHotbarSlots;
 use crate::world::item::{Item, ItemStack};
 use crate::world::item::component::Tool;
 use crate::world::item::component::Enchantments;
-use crate::world::player_index::{HostAnchorRef, PlayerIndex};
+use crate::world::player_index::HostAnchorRef;
+use mcrs_engine::session::SessionRegistry;
 use crate::enchantment::EnchantmentData;
 use crate::world::loot::BlockLootTables;
 use crate::world::loot::context::BlockBreakContext;
@@ -37,27 +38,24 @@ use std::time::Duration;
 use tracing::{debug, trace};
 
 /// Route a clone of `event` into `PendingInboundLifecycle.block_events`
-/// under the destination per-dim bucket. The destination is the
-/// `current_dim` of the player's `PlayerLocation`, reverse-looked up via
-/// `HostAnchorRef` on the connection entity. Bails (no-op) if the player
-/// has no `HostAnchorRef` (not yet logged in), no `PlayerIndex` entry, or
-/// a `current_dim == Entity::PLACEHOLDER` value (login-time placeholder
-/// that a later dim-selection step will fill — pushing into the placeholder
-/// bucket would leak because no sub-app extracts under that label).
+/// under the destination per-dim bucket. The destination is the session's
+/// `dim`, reverse-looked up via `HostAnchorRef` on the connection entity.
+/// Bails (no-op) if the player has no `HostAnchorRef` (not yet logged in),
+/// no `SessionRegistry` entry, or a `dim == Entity::PLACEHOLDER` value.
 fn route_block_event_via_lifecycle(
     event: &PlayerWillDestroyBlock,
     host_anchor_refs: &Query<&HostAnchorRef>,
-    player_index: &PlayerIndex,
+    session_registry: &SessionRegistry,
     lifecycle: &mut PendingInboundLifecycle,
 ) {
     let Ok(host_anchor_ref) = host_anchor_refs.get(event.player) else {
         return;
     };
     let host_anchor = host_anchor_ref.0;
-    let Some(location) = player_index.get(&host_anchor) else {
+    let Some((_, entry)) = session_registry.get_by_anchor(&host_anchor) else {
         return;
     };
-    let current_dim = location.current_dim;
+    let current_dim = entry.dim;
     if current_dim == Entity::PLACEHOLDER {
         trace!(
             ?host_anchor,
@@ -173,7 +171,7 @@ fn player_start_destroy_block(
     time: Res<Time<Fixed>>,
     mut player_will_destroy_block: MessageWriter<PlayerWillDestroyBlock>,
     mut lifecycle: ResMut<PendingInboundLifecycle>,
-    player_index: Res<PlayerIndex>,
+    session_registry: Res<SessionRegistry>,
     host_anchor_refs: Query<&HostAnchorRef>,
     mut commands: Commands,
 ) {
@@ -232,7 +230,7 @@ fn player_start_destroy_block(
             route_block_event_via_lifecycle(
                 &event,
                 &host_anchor_refs,
-                &player_index,
+                &session_registry,
                 &mut lifecycle,
             );
         } else {
@@ -282,7 +280,7 @@ fn player_stop_destroy_block(
     digging_players: Query<(&InDimension, &Digging)>,
     mut player_will_destroy_block: MessageWriter<PlayerWillDestroyBlock>,
     mut lifecycle: ResMut<PendingInboundLifecycle>,
-    player_index: Res<PlayerIndex>,
+    session_registry: Res<SessionRegistry>,
     host_anchor_refs: Query<&HostAnchorRef>,
     mut destroy_block_progress: SendDestroyBlockProgress,
     mut commands: Commands,
@@ -312,7 +310,7 @@ fn player_stop_destroy_block(
             route_block_event_via_lifecycle(
                 &event,
                 &host_anchor_refs,
-                &player_index,
+                &session_registry,
                 &mut lifecycle,
             );
         }

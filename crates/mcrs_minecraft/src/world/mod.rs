@@ -39,6 +39,9 @@ impl Plugin for WorldPlugin {
         // double-buffer was never initialised). Pairing with the per-sub-app
         // registrations in `spawn_dim_subapp` is what keeps the contract.
         app.init_resource::<crate::world::player_index::PlayerIndex>();
+        app.init_resource::<crate::world::player_index::PendingInboundBuffer>();
+        app.init_resource::<mcrs_engine::session::SessionRegistry>();
+        app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
         app.init_resource::<crate::world::bus::PendingInboundPartition>();
         app.init_resource::<crate::world::bus::PendingInboundLifecycle>();
         app.add_message::<crate::world::bus::OutboundPlayerPacket>();

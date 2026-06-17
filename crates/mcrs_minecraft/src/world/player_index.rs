@@ -4,36 +4,34 @@ use bevy_ecs::resource::Resource;
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
+use mcrs_engine::session::PlayerSession;
 use crate::world::bus::InboundPlayerPacket;
+
+/// Host-side pending inbound buffer, keyed by host_anchor entity.
+/// Holds packets received while the player's in-dim spawn is in flight
+/// (in_dim_entity is None or dim is PLACEHOLDER). Drained by
+/// `bridge_player_attach` once the sub-app signals the attach is complete.
+#[derive(Resource, Default)]
+pub struct PendingInboundBuffer {
+    pub buffers: FxHashMap<Entity, SmallVec<[InboundPlayerPacket; 4]>>,
+}
 
 #[derive(Resource, Default)]
 pub struct PlayerIndex {
-    players: FxHashMap<Entity, PlayerLocation>,
+    players: FxHashMap<String, PlayerSession>,
 }
 
 impl PlayerIndex {
-    pub fn get(&self, entity: &Entity) -> Option<&PlayerLocation> {
-        self.players.get(entity)
+    pub fn insert_username(&mut self, username: String, session: PlayerSession) {
+        self.players.insert(username, session);
     }
 
-    pub fn get_mut(&mut self, entity: &Entity) -> Option<&mut PlayerLocation> {
-        self.players.get_mut(entity)
+    pub fn get_by_username(&self, username: &str) -> Option<PlayerSession> {
+        self.players.get(username).copied()
     }
 
-    pub fn insert(&mut self, entity: Entity, location: PlayerLocation) {
-        self.players.insert(entity, location);
-    }
-
-    pub fn remove(&mut self, entity: &Entity) -> Option<PlayerLocation> {
-        self.players.remove(entity)
-    }
-
-    pub fn contains(&self, entity: &Entity) -> bool {
-        self.players.contains_key(entity)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (&Entity, &PlayerLocation)> {
-        self.players.iter()
+    pub fn remove_username(&mut self, username: &str) -> Option<PlayerSession> {
+        self.players.remove(username)
     }
 
     pub fn len(&self) -> usize {
@@ -45,13 +43,8 @@ impl PlayerIndex {
     }
 }
 
-pub struct PlayerLocation {
-    pub socket: Entity,
-    pub current_dim: Entity,
-    pub previous_dim: Option<Entity>,
-    pub in_dim_entity: Option<Entity>,
-    pub inbound_pending: SmallVec<[InboundPlayerPacket; 4]>,
-}
+#[derive(Component, Clone, Copy, Debug)]
+pub struct PlayerSessionRef(pub PlayerSession);
 
 #[derive(Component, Clone, Copy, Debug)]
 pub struct HostAnchorRef(pub Entity);
@@ -59,21 +52,6 @@ pub struct HostAnchorRef(pub Entity);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bytes::Bytes;
-
-    fn placeholder_entity() -> Entity {
-        Entity::PLACEHOLDER
-    }
-
-    fn make_location() -> PlayerLocation {
-        PlayerLocation {
-            socket: placeholder_entity(),
-            current_dim: placeholder_entity(),
-            previous_dim: None,
-            in_dim_entity: None,
-            inbound_pending: SmallVec::new(),
-        }
-    }
 
     #[test]
     fn player_index_default_is_empty() {
@@ -83,96 +61,33 @@ mod tests {
     }
 
     #[test]
-    fn insert_then_get() {
+    fn insert_username_then_get_by_username() {
         let mut index = PlayerIndex::default();
-        let e = placeholder_entity();
-        index.insert(e, make_location());
-        let got = index.get(&e).expect("just inserted");
-        assert_eq!(got.socket, placeholder_entity());
-        assert_eq!(got.current_dim, placeholder_entity());
-        assert!(got.in_dim_entity.is_none());
+        let session = PlayerSession(1);
+        index.insert_username("alice".into(), session);
+        assert_eq!(index.get_by_username("alice"), Some(session));
+        assert_eq!(index.get_by_username("bob"), None);
     }
 
     #[test]
-    fn insert_then_get_mut_mutates() {
+    fn remove_username_returns_session_then_none() {
         let mut index = PlayerIndex::default();
-        let e = placeholder_entity();
-        index.insert(e, make_location());
-        {
-            let loc = index.get_mut(&e).expect("just inserted");
-            loc.in_dim_entity = Some(placeholder_entity());
-        }
-        let got = index.get(&e).expect("still inserted");
-        assert_eq!(got.in_dim_entity, Some(placeholder_entity()));
+        let session = PlayerSession(2);
+        index.insert_username("bob".into(), session);
+        assert_eq!(index.remove_username("bob"), Some(session));
+        assert_eq!(index.remove_username("bob"), None);
     }
 
     #[test]
-    fn remove_returns_value_then_none() {
+    fn len_and_is_empty_reflect_insertions() {
         let mut index = PlayerIndex::default();
-        let e = placeholder_entity();
-        index.insert(e, make_location());
-        assert!(index.remove(&e).is_some());
-        assert!(index.remove(&e).is_none());
-    }
-
-    #[test]
-    fn contains_after_insert_true_after_remove_false() {
-        let mut index = PlayerIndex::default();
-        let e = placeholder_entity();
-        assert!(!index.contains(&e));
-        index.insert(e, make_location());
-        assert!(index.contains(&e));
-        index.remove(&e);
-        assert!(!index.contains(&e));
-    }
-
-    #[test]
-    fn iter_yields_all_entries() {
-        let mut index = PlayerIndex::default();
-        let entity_a = Entity::from_raw_u32(1).expect("nonzero");
-        let entity_b = Entity::from_raw_u32(2).expect("nonzero");
-        index.insert(entity_a, make_location());
-        index.insert(entity_b, make_location());
-
-        let keys: Vec<Entity> = index.iter().map(|(e, _)| *e).collect();
-        assert_eq!(keys.len(), 2);
-        assert!(keys.contains(&entity_a));
-        assert!(keys.contains(&entity_b));
-    }
-
-    #[test]
-    fn state_machine_transit_then_attach() {
-        let mut index = PlayerIndex::default();
-        let host_anchor = placeholder_entity();
-        index.insert(host_anchor, make_location());
-
-        {
-            let loc = index.get_mut(&host_anchor).expect("inserted");
-            for seq in 0..3 {
-                loc.inbound_pending.push(InboundPlayerPacket {
-                    player: host_anchor,
-                    id: seq,
-                    data: Bytes::new(),
-                    timestamp: std::time::Instant::now(),
-                });
-            }
-        }
-
-        {
-            let loc = index.get(&host_anchor).expect("inserted");
-            assert_eq!(loc.inbound_pending.len(), 3);
-            assert!(loc.in_dim_entity.is_none());
-        }
-
-        let drained: Vec<InboundPlayerPacket> = {
-            let loc = index.get_mut(&host_anchor).expect("inserted");
-            loc.in_dim_entity = Some(host_anchor);
-            loc.inbound_pending.drain(..).collect()
-        };
-
-        assert_eq!(drained.len(), 3);
-        let loc = index.get(&host_anchor).expect("inserted");
-        assert!(loc.inbound_pending.is_empty());
-        assert_eq!(loc.in_dim_entity, Some(host_anchor));
+        assert!(index.is_empty());
+        index.insert_username("a".into(), PlayerSession(1));
+        assert_eq!(index.len(), 1);
+        assert!(!index.is_empty());
+        index.insert_username("b".into(), PlayerSession(2));
+        assert_eq!(index.len(), 2);
+        index.remove_username("a");
+        assert_eq!(index.len(), 1);
     }
 }

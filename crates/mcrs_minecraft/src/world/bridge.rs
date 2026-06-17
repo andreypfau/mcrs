@@ -41,13 +41,13 @@ use crate::world::bridge_queue::{
     InboundRateBucket, OutboundQueue, DEPTH_DRAIN_TARGET, DEPTH_LIMIT, HIGH_OVERFLOW_LIMIT,
     KICK_AFTER_OVERFLOW_TICKS,
 };
-use mcrs_engine::session::PlayerSession;
+use mcrs_engine::session::{PlayerSession, SessionRegistry};
 use crate::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerTransfer, OutboundPlayerTransferRequest, PacketPayload, PacketTarget,
     PendingInboundLifecycle, PendingInboundPartition,
 };
-use crate::world::player_index::{HostAnchorRef, PlayerIndex};
+use crate::world::player_index::{HostAnchorRef, PendingInboundBuffer};
 use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
 
 /// Attach `OutboundQueue` and `InboundRateBucket` to any connection entity that
@@ -90,7 +90,7 @@ pub fn attach_outbound_queue(
 /// atomics (no atomics for queue depth per CONVENTIONS §Concurrency).
 pub fn bridge_outbound(
     mut reader: MessageReader<crate::world::bus::OutboundPlayerPacket>,
-    player_index: Res<PlayerIndex>,
+    session_registry: Res<SessionRegistry>,
     mut queues: Query<&mut OutboundQueue>,
     _anchors: Query<&HostAnchorRef>,
 ) {
@@ -99,11 +99,11 @@ pub fn bridge_outbound(
             .fetch_add(1, Ordering::Relaxed);
 
         match &msg.target {
-            PacketTarget::SinglePlayer(player_entity) => {
-                let Some(loc) = player_index.get(player_entity) else {
+            PacketTarget::SinglePlayer(host_anchor) => {
+                let Some((_, entry)) = session_registry.get_by_anchor(host_anchor) else {
                     continue;
                 };
-                let target_socket = loc.socket;
+                let target_socket = entry.connection_entity;
                 match queues.get_mut(target_socket) {
                     Ok(mut q) => q.push(msg.clone()),
                     Err(_) => {
@@ -114,11 +114,11 @@ pub fn bridge_outbound(
             }
             PacketTarget::AllInDim(dim_entity) => {
                 let dim = *dim_entity;
-                let sockets: Vec<Entity> = player_index
+                let sockets: Vec<Entity> = session_registry
                     .iter()
-                    .filter_map(|(_, loc)| {
-                        if loc.current_dim == dim {
-                            Some(loc.socket)
+                    .filter_map(|(_, entry)| {
+                        if entry.dim == dim {
+                            Some(entry.connection_entity)
                         } else {
                             None
                         }
@@ -136,7 +136,7 @@ pub fn bridge_outbound(
             }
             PacketTarget::AllPlayers => {
                 let sockets: Vec<Entity> =
-                    player_index.iter().map(|(_, loc)| loc.socket).collect();
+                    session_registry.iter().map(|(_, entry)| entry.connection_entity).collect();
                 for socket in sockets {
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
@@ -150,7 +150,11 @@ pub fn bridge_outbound(
             PacketTarget::PlayerSet(set) => {
                 let sockets: Vec<Entity> = set
                     .iter()
-                    .filter_map(|e| player_index.get(e).map(|loc| loc.socket))
+                    .filter_map(|e| {
+                        session_registry
+                            .get_by_anchor(e)
+                            .map(|(_, entry)| entry.connection_entity)
+                    })
                     .collect();
                 for socket in sockets {
                     match queues.get_mut(socket) {
@@ -584,25 +588,25 @@ pub fn dispatch_encode(
 pub fn partition_main_inbound(
     mut msgs: ResMut<Messages<InboundPlayerPacket>>,
     mut partition: ResMut<PendingInboundPartition>,
-    mut player_index: ResMut<PlayerIndex>,
+    session_registry: Res<SessionRegistry>,
+    mut inbound_buffer: ResMut<PendingInboundBuffer>,
 ) {
     for msg in msgs.drain() {
-        let Some(location) = player_index.get_mut(&msg.player) else {
+        // msg.player is the host_anchor entity
+        let Some((_, entry)) = session_registry.get_by_anchor(&msg.player) else {
             continue;
         };
-        // current_dim == PLACEHOLDER means the login path inserted the
-        // PlayerIndex entry before spawn-point selection assigned a real
-        // dim. Routing into partition.per_dim[PLACEHOLDER] would land in a
-        // bucket that no sub-app extract drains, leaking the packet. Hold
-        // it in inbound_pending until bridge_player_attach fires.
-        if location.in_dim_entity.is_some() && location.current_dim != Entity::PLACEHOLDER {
-            partition
-                .per_dim
-                .entry(location.current_dim)
+        // dim == PLACEHOLDER means login inserted the entry before spawn-point
+        // selection assigned a real dim. Hold in the per-anchor buffer until
+        // bridge_player_attach fires.
+        if entry.in_dim_entity.is_some() && entry.dim != Entity::PLACEHOLDER {
+            partition.per_dim.entry(entry.dim).or_default().push(msg);
+        } else {
+            inbound_buffer
+                .buffers
+                .entry(msg.player)
                 .or_default()
                 .push(msg);
-        } else {
-            location.inbound_pending.push(msg);
         }
     }
 }
@@ -634,14 +638,14 @@ pub fn resolve_transfer_requests(
 
 pub fn bridge_player_transfer(
     mut transfer_msgs: ResMut<Messages<OutboundPlayerTransfer>>,
-    mut player_index: ResMut<PlayerIndex>,
+    mut session_registry: ResMut<SessionRegistry>,
     mut lifecycle: ResMut<PendingInboundLifecycle>,
     live_dims: Query<Entity, With<DimSubAppHandle>>,
 ) {
     // Snapshot the set of live sub-app label entities once per system
     // run; an OutboundPlayerTransfer carrying a dest_dim that does not
-    // match a live handle would leave the player's current_dim pointing
-    // at a sub-app that no extract closure drains, and the spawn would
+    // match a live handle would leave the player's dim pointing at a
+    // sub-app that no extract closure drains, and the spawn would
     // accumulate in lifecycle.per_dim[dest_dim] indefinitely.
     let valid_dims: FxHashSet<Entity> = live_dims.iter().collect();
     for msg in transfer_msgs.drain() {
@@ -653,31 +657,32 @@ pub fn bridge_player_transfer(
             );
             continue;
         }
-        let Some(location) = player_index.get_mut(&msg.host_anchor) else {
+        let Some((session, entry)) = session_registry.get_by_anchor_mut(&msg.host_anchor) else {
             continue;
         };
-        let old_current_dim = location.current_dim;
-        location.current_dim = msg.dest_dim;
-        location.previous_dim = Some(old_current_dim);
-        location.in_dim_entity = None;
+        let session = session;
+        let old_dim = entry.dim;
+        entry.dim = msg.dest_dim;
+        entry.previous_dim = Some(old_dim);
+        entry.in_dim_entity = None;
         // Despawn the player's entity in the dimension it is leaving, otherwise
         // that entity keeps its AoI subscription and streams the old
         // dimension's chunks (wrong section count for the new dimension) to the
         // now-relocated connection, crashing the client.
-        if old_current_dim != Entity::PLACEHOLDER && old_current_dim != msg.dest_dim {
+        if old_dim != Entity::PLACEHOLDER && old_dim != msg.dest_dim {
             lifecycle
                 .per_dim
-                .entry(old_current_dim)
+                .entry(old_dim)
                 .or_default()
                 .despawns
                 .push(InboundPlayerDespawn {
                     host_anchor: msg.host_anchor,
-                    session: PlayerSession(0),
+                    session,
                 });
         }
         let spawn = InboundPlayerSpawn {
             host_anchor: msg.host_anchor,
-            session: PlayerSession(0),
+            session,
             snapshot: msg.snapshot.clone(),
         };
         lifecycle
@@ -691,25 +696,24 @@ pub fn bridge_player_transfer(
 
 pub fn bridge_player_attach(
     mut attach_msgs: ResMut<Messages<OutboundPlayerAttached>>,
-    mut player_index: ResMut<PlayerIndex>,
+    mut session_registry: ResMut<SessionRegistry>,
+    mut inbound_buffer: ResMut<PendingInboundBuffer>,
     mut partition: ResMut<PendingInboundPartition>,
 ) {
     for msg in attach_msgs.drain() {
-        let drained_and_dim = {
-            let Some(location) = player_index.get_mut(&msg.host_anchor) else {
-                continue;
-            };
-            location.in_dim_entity = Some(msg.new_in_dim_entity);
-            location.previous_dim = None;
-            let drained = std::mem::take(&mut location.inbound_pending);
-            let current_dim = location.current_dim;
-            (drained, current_dim)
+        let Some((_, entry)) = session_registry.get_by_anchor_mut(&msg.host_anchor) else {
+            continue;
         };
-        let (drained, current_dim) = drained_and_dim;
-        if !drained.is_empty() {
-            let bucket = partition.per_dim.entry(current_dim).or_default();
-            for packet in drained {
-                bucket.push(packet);
+        entry.in_dim_entity = Some(msg.new_in_dim_entity);
+        entry.previous_dim = None;
+        let current_dim = entry.dim;
+
+        if let Some(buffered) = inbound_buffer.buffers.remove(&msg.host_anchor) {
+            if !buffered.is_empty() {
+                let bucket = partition.per_dim.entry(current_dim).or_default();
+                for packet in buffered {
+                    bucket.push(packet);
+                }
             }
         }
     }
@@ -726,8 +730,9 @@ pub fn bridge_inbound(
         With<InGameConnectionState>,
     >,
     mut commands: Commands,
-    player_index: Res<PlayerIndex>,
+    session_registry: Res<SessionRegistry>,
     mut partition: ResMut<PendingInboundPartition>,
+    mut inbound_buffer: ResMut<PendingInboundBuffer>,
 ) {
     use mcrs_network::metrics::BRIDGE_KICK_FLOOD_TOTAL;
     use mcrs_protocol::packets::game::clientbound::ClientboundDisconnect;
@@ -768,18 +773,31 @@ pub fn bridge_inbound(
                     // ReceivedPacketEvent on the in-dim player entity so dim
                     // observers (movement, chat, digging) fire.
                     if let Some(anchor) = anchor_ref {
-                        if let Some(location) = player_index.get(&anchor.0) {
-                            if location.current_dim != Entity::PLACEHOLDER {
-                                partition
-                                    .per_dim
-                                    .entry(location.current_dim)
-                                    .or_default()
-                                    .push(InboundPlayerPacket {
-                                        player: anchor.0,
-                                        id: pkt.id,
-                                        data: pkt.payload,
-                                        timestamp: pkt.timestamp,
-                                    });
+                        if let Some((_, entry)) = session_registry.get_by_anchor(&anchor.0) {
+                            if entry.dim != Entity::PLACEHOLDER {
+                                if entry.in_dim_entity.is_some() {
+                                    partition
+                                        .per_dim
+                                        .entry(entry.dim)
+                                        .or_default()
+                                        .push(InboundPlayerPacket {
+                                            player: anchor.0,
+                                            id: pkt.id,
+                                            data: pkt.payload,
+                                            timestamp: pkt.timestamp,
+                                        });
+                                } else {
+                                    inbound_buffer
+                                        .buffers
+                                        .entry(anchor.0)
+                                        .or_default()
+                                        .push(InboundPlayerPacket {
+                                            player: anchor.0,
+                                            id: pkt.id,
+                                            data: pkt.payload,
+                                            timestamp: pkt.timestamp,
+                                        });
+                                }
                             }
                         }
                     }
