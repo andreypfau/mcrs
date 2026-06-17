@@ -37,7 +37,7 @@ use bevy_app::prelude::*;
 use bevy_app::{App, Plugin, TaskPoolOptions, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
 use bevy_ecs::prelude::IntoScheduleConfigs;
-use bevy_ecs::schedule::{ExecutorKind, ScheduleLabel};
+use bevy_ecs::schedule::{ScheduleLabel, SingleThreadedExecutor};
 use bevy_state::prelude::OnEnter;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_core::AppState;
@@ -63,7 +63,7 @@ impl Plugin for ServerPlugin {
         app.add_plugins(TaskPoolPlugin::default());
 
         app.edit_schedule(Update, |schedule| {
-            schedule.set_executor_kind(ExecutorKind::SingleThreaded);
+            schedule.set_executor(SingleThreadedExecutor::new());
         });
         #[cfg(debug_assertions)]
         force_singlethread_schedules(app);
@@ -110,7 +110,7 @@ fn force_singlethread_schedules(app: &mut App) {
         FixedLast.intern(),
     ] {
         app.edit_schedule(label, |s| {
-            s.set_executor_kind(ExecutorKind::SingleThreaded);
+            s.set_executor(SingleThreadedExecutor::new());
         });
     }
 }

@@ -10,6 +10,7 @@ use bevy_ecs::schedule::Schedules;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_core::registry::access::RegistryAccess;
+use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
@@ -23,6 +24,7 @@ use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_lighting::converge::LightConvergeSchedule;
 use mcrs_minecraft_lighting::sets::LightingSet;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
+use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 
 fn make_stub_block_light_table() -> BlockStateLightTable {
@@ -54,6 +56,7 @@ fn make_main_app() -> App {
     app.insert_resource(StaticRegistry::<Block>::new());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(TagRegistry::<Block>::default());
+    app.insert_resource(RegistrySnapshot::<Biome>::default());
     app
 }
 

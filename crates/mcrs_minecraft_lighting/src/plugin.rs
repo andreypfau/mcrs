@@ -16,7 +16,7 @@ use crate::lifecycle::{attach_lighting_state, prime_heightmaps_on_column_spawn};
 use crate::sets::LightingSet;
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{ApplyDeferred, IntoScheduleConfigs};
-use bevy_ecs::schedule::{ExecutorKind, Schedule};
+use bevy_ecs::schedule::{Schedule, SingleThreadedExecutor};
 use mcrs_engine::world::column::ColumnLifecycleSet;
 use mcrs_minecraft_block::block_update::{apply_set_block_request, BlockPlaced, BlockUpdateSet};
 use crate::block_light::emit_dirty::{clear_block_bfs_pending_safety_net, emit_block_light_dirty};
@@ -76,7 +76,7 @@ impl Plugin for LightingPlugin {
         app.add_schedule(Schedule::new(LightConvergeSchedule));
         #[cfg(debug_assertions)]
         app.edit_schedule(LightConvergeSchedule, |schedule| {
-            schedule.set_executor_kind(ExecutorKind::SingleThreaded);
+            schedule.set_executor(SingleThreadedExecutor::new());
         });
 
         // WorldgenIngestSet::ProcessCompletedColumns runs in FixedPreUpdate per

@@ -26,6 +26,7 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_core::registry::access::RegistryAccess;
+use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
 use mcrs_core::AppState;
@@ -42,6 +43,7 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
+use vanilla::biome::Biome;
 use vanilla::block::Block;
 use vanilla::enchantment::EnchantmentData;
 
@@ -78,6 +80,7 @@ fn build_app() -> App {
     app.insert_resource(StaticRegistry::<Block>::new());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(TagRegistry::<Block>::default());
+    app.insert_resource(RegistrySnapshot::<Biome>::default());
 
     app.init_resource::<PlayerIndex>();
     app.init_resource::<PendingInboundPartition>();
