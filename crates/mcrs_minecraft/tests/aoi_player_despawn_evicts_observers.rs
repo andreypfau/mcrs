@@ -17,6 +17,7 @@ use mcrs_engine::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_engine::geometry::ColumnPos;
 use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, PlayerTrackerPlugin, TrackedBy};
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketTarget,
@@ -160,7 +161,7 @@ fn production_topology_main_world_despawn_evicts_in_dim_observers() {
         .entry(label_entity)
         .or_default()
         .despawns
-        .push(InboundPlayerDespawn { host_anchor });
+        .push(InboundPlayerDespawn { host_anchor, session: PlayerSession(0) });
 
     // --- Tick 2: drain and evict ---
     // Extract shuttles the despawn into sub Messages<InboundPlayerDespawn>.
@@ -349,7 +350,7 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
         .entry(label_entity)
         .or_default()
         .despawns
-        .push(InboundPlayerDespawn { host_anchor: host_anchor_t });
+        .push(InboundPlayerDespawn { host_anchor: host_anchor_t, session: PlayerSession(0) });
 
     // --- Tick 2: drain and evict (O does NOT move) ---
     // FixedPreUpdate: drain_inbound_player_despawn fires:

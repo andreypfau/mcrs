@@ -39,6 +39,7 @@ use mcrs_core::tag::TagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
 use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::configuration::emit_initial_player_spawn;
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::world::aoi::TrackedBy;
@@ -179,6 +180,8 @@ fn e2e_packet_round_trip() {
                 position: BlockPos::new(0, 64, 0),
                 new_state: BlockStateId(1),
             },
+        session: PlayerSession(0),
+        epoch: 0,
         });
 
     run_system(&mut world, bridge_outbound);

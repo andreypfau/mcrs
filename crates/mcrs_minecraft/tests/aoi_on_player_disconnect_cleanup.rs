@@ -19,6 +19,7 @@ use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::geometry::ColumnPos;
 use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick,
     filter_inflight_for_disconnect, process_disconnect,
@@ -483,7 +484,7 @@ fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
     aoi_app
         .world_mut()
         .resource_mut::<Messages<InboundPlayerDespawn>>()
-        .write(InboundPlayerDespawn { host_anchor: ha_t });
+        .write(InboundPlayerDespawn { host_anchor: ha_t, session: PlayerSession(0) });
 
     // Drive only FixedPreUpdate: this runs drain_inbound_player_despawn without
     // also running update_own_pov/update_tracked_by (FixedPostUpdate) which
