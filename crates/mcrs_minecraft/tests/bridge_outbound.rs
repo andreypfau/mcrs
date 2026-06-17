@@ -335,3 +335,36 @@ fn unstamped_packet_dropped() {
     let queue = world.get::<OutboundQueue>(socket).expect("OutboundQueue present");
     assert_eq!(queue.total_len(), 0, "PlayerSession(0) must always be dropped");
 }
+
+// ---------------------------------------------------------------------------
+// broadcast_delivered_to_post_transfer_session
+// ---------------------------------------------------------------------------
+
+/// Regression: broadcasts carry the default epoch 0 and are never re-stamped,
+/// so they must NOT be epoch-filtered. A recipient whose session epoch has
+/// advanced past 0 (after one or more dim transfers) must still receive
+/// AllInDim and AllPlayers broadcasts. The epoch stale-drop applies only to
+/// SinglePlayer packets that may be in flight across a transfer.
+#[test]
+fn broadcast_delivered_to_post_transfer_session() {
+    let mut world = build_bridge_world_with_sessions();
+
+    // register_session places the session in dim Entity::from_raw_u32(9998).
+    let dim = Entity::from_raw_u32(9998).expect("nonzero");
+    let session = PlayerSession(1);
+    let socket = spawn_connection(&mut world);
+    register_session(&mut world, session, socket, 2); // epoch 2 = two dim transfers
+
+    // Both broadcasts carry the default epoch 0. Write both, then run
+    // bridge_outbound once (a single MessageReader pass) so each message is
+    // read exactly once. Under the old per-recipient epoch filter both would be
+    // dropped (0 != 2); both must now be delivered.
+    write_packet_broadcast(&mut world, PacketTarget::AllInDim(dim), PacketPriority::Normal, 1);
+    write_packet_broadcast(&mut world, PacketTarget::AllPlayers, PacketPriority::High, 2);
+    run_system(&mut world, bridge_outbound);
+    assert_eq!(
+        world.get::<OutboundQueue>(socket).unwrap().total_len(),
+        2,
+        "AllInDim + AllPlayers broadcasts must both reach a session at epoch 2 (broadcasts are not epoch-filtered)"
+    );
+}

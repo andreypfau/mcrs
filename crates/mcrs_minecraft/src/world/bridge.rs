@@ -118,15 +118,19 @@ pub fn bridge_outbound(
                 }
             }
             PacketTarget::AllInDim(dim_entity) => {
+                // Broadcasts are generated for whoever is in the dim *now*, so
+                // they are never stale: the per-session epoch stale-drop applies
+                // only to SinglePlayer packets that may be in flight across a
+                // transfer. Dimension isolation is already provided by
+                // iter_in_dim. Epoch-filtering here would wrongly drop every
+                // recipient whose epoch has advanced past a broadcast's
+                // unstamped epoch.
                 let dim = *dim_entity;
-                let recipients: Vec<(u32, Entity)> = session_registry
+                let recipients: Vec<Entity> = session_registry
                     .iter_in_dim(dim)
-                    .map(|(_, entry)| (entry.epoch, entry.connection_entity))
+                    .map(|(_, entry)| entry.connection_entity)
                     .collect();
-                for (entry_epoch, socket) in recipients {
-                    if msg.epoch != entry_epoch {
-                        continue;
-                    }
+                for socket in recipients {
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {
@@ -137,14 +141,14 @@ pub fn bridge_outbound(
                 }
             }
             PacketTarget::AllPlayers => {
-                let recipients: Vec<(u32, Entity)> = session_registry
+                // Not epoch-filtered — see AllInDim above. A fresh global
+                // broadcast must reach every current session regardless of how
+                // many dim transfers each has made.
+                let recipients: Vec<Entity> = session_registry
                     .iter()
-                    .map(|(_, entry)| (entry.epoch, entry.connection_entity))
+                    .map(|(_, entry)| entry.connection_entity)
                     .collect();
-                for (entry_epoch, socket) in recipients {
-                    if msg.epoch != entry_epoch {
-                        continue;
-                    }
+                for socket in recipients {
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {
@@ -155,18 +159,18 @@ pub fn bridge_outbound(
                 }
             }
             PacketTarget::PlayerSet(set) => {
-                let recipients: Vec<(u32, Entity)> = set
+                // Not epoch-filtered — see AllInDim above. The recipient set is
+                // the current observer set computed this tick; each member must
+                // receive it at whatever epoch they currently hold.
+                let recipients: Vec<Entity> = set
                     .iter()
                     .filter_map(|e| {
                         session_registry
                             .get_by_anchor(e)
-                            .map(|(_, entry)| (entry.epoch, entry.connection_entity))
+                            .map(|(_, entry)| entry.connection_entity)
                     })
                     .collect();
-                for (entry_epoch, socket) in recipients {
-                    if msg.epoch != entry_epoch {
-                        continue;
-                    }
+                for socket in recipients {
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {
