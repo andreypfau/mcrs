@@ -461,7 +461,7 @@ fn consume_inbound_player_spawn(
 /// disconnect and dimension transfer (the transfer pushes a despawn into the
 /// dimension the player is leaving), so the departed dimension stops streaming
 /// chunks toward that connection.
-fn despawn_inbound_player(
+pub fn despawn_inbound_player(
     mut reader: MessageReader<InboundPlayerDespawn>,
     players: Query<(Entity, &HostAnchor), With<Player>>,
     mut commands: Commands,
