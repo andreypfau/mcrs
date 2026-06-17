@@ -61,7 +61,7 @@ impl<T: TaggedRegistry> TagRef<T> {
         let rl: ResourceLocation<Arc<str>> = ResourceLocation::parse(rl_str)?;
         let key = TagKey::from_location(rl);
         let handle = load_context
-            .loader()
+            .load_builder()
             .with_settings(move |s: &mut TagFileSettings| {
                 s.registry_segment = T::REGISTRY_PATH.to_string();
             })

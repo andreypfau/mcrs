@@ -94,7 +94,7 @@ impl AssetLoader for ResourcePackTagsLoader {
                     let settings = _settings.clone();
 
                     let dependency = load_context
-                        .loader()
+                        .load_builder()
                         .with_settings::<TagFileLoaderSettings>(move |s| {
                             *s = settings.clone();
                         })

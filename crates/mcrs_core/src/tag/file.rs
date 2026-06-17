@@ -176,7 +176,7 @@ impl AssetLoader for TagFileLoader {
                     );
                     let s = settings.clone();
                     let handle = load_context
-                        .loader()
+                        .load_builder()
                         .with_settings::<TagFileSettings>(move |out| *out = s.clone())
                         .load::<TagFile>(path);
                     if entry.required {

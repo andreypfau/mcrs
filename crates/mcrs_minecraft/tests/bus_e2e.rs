@@ -12,6 +12,7 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_core::registry::access::RegistryAccess;
+use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
@@ -30,6 +31,7 @@ use mcrs_minecraft::world::sub_app_builder::{
     drain_dim_spawn_queue, DimSubAppHandle,
 };
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
+use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
 use smallvec::SmallVec;
@@ -74,6 +76,7 @@ fn build_app() -> App {
     app.insert_resource(StaticRegistry::<Block>::new());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(TagRegistry::<Block>::default());
+    app.insert_resource(RegistrySnapshot::<Biome>::default());
 
     // Host-side bus substrate (mirrors what `WorldPlugin::build` installs).
     app.init_resource::<PlayerIndex>();
