@@ -24,7 +24,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Changed, Commands, Has, Query, RemovedComponents, Res, With};
+use bevy_ecs::prelude::{Changed, Commands, Has, Query, RemovedComponents, Res, ResMut, With};
 use bevy_ecs::query::Added;
 use bevy_math::DVec3;
 use derive_more::{Deref, DerefMut};
@@ -34,7 +34,7 @@ use mcrs_engine::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDis
 use mcrs_engine::entity::player::reposition::Reposition;
 use mcrs_engine::entity::{Despawned, EntityNetworkAddEvent};
 use mcrs_engine::world::dimension::{Dimension, DimensionId, InDimension};
-use mcrs_engine::session::PlayerSession;
+use mcrs_engine::session::{DimPlayerIndex, Owner, PlayerSession};
 use crate::world::sub_app_builder::DimTypeIndex;
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::entity::player::PlayerSpawnInfo;
@@ -292,6 +292,7 @@ fn consume_inbound_player_spawn(
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     dims: Query<(Entity, &DimensionId, &DimTypeIndex), With<Dimension>>,
     mut commands: Commands,
+    mut dim_index: ResMut<DimPlayerIndex>,
 ) {
     use std::sync::atomic::Ordering;
     for spawn in reader.read() {
@@ -314,6 +315,7 @@ fn consume_inbound_player_spawn(
                 },
                 PlayerChunkObserver::default(),
                 HostAnchor(spawn.host_anchor),
+                Owner(spawn.session),
                 GameProfile {
                     id: spawn.snapshot.uuid,
                     username: spawn.snapshot.username.clone(),
@@ -321,6 +323,7 @@ fn consume_inbound_player_spawn(
                 },
             ))
             .id();
+        dim_index.0.insert(spawn.session, new_entity);
 
         let host = spawn.host_anchor;
         let wire_id = new_entity.index_u32() as i32;
@@ -462,8 +465,10 @@ fn despawn_inbound_player(
     mut reader: MessageReader<InboundPlayerDespawn>,
     players: Query<(Entity, &HostAnchor), With<Player>>,
     mut commands: Commands,
+    mut dim_index: ResMut<DimPlayerIndex>,
 ) {
     for msg in reader.read() {
+        dim_index.0.remove(&msg.session);
         for (entity, anchor) in players.iter() {
             if anchor.0 == msg.host_anchor {
                 commands.entity(entity).despawn();

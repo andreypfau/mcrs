@@ -164,6 +164,7 @@ pub fn spawn_dim_subapp(
     sub_app.init_resource::<crate::world::player_index::PlayerIndex>();
     sub_app.init_resource::<mcrs_engine::session::SessionRegistry>();
     sub_app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
+    sub_app.init_resource::<mcrs_engine::session::DimPlayerIndex>();
     sub_app.init_resource::<crate::configuration::LoadedWorldPreset>();
 
     sub_app.update_schedule = Some(DimTick.intern());
