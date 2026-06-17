@@ -14,8 +14,9 @@ use tracing::{debug, warn};
 use crate::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
-    OutboundPlayerTransferRequest, PendingInboundLifecycle, PendingInboundPartition,
+    OutboundPlayerTransferRequest, PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
 };
+use mcrs_engine::session::{Owner, SessionRegistry};
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 
@@ -288,11 +289,26 @@ pub fn spawn_dim_subapp(
             sub_world.insert_resource(*time);
         }
 
-        let drained: Vec<OutboundPlayerPacket> = sub_world
+        let mut drained: Vec<OutboundPlayerPacket> = sub_world
             .resource_mut::<Messages<OutboundPlayerPacket>>()
             .drain()
             .collect();
         if !drained.is_empty() {
+            {
+                let session_registry = main_world.resource::<SessionRegistry>();
+                for msg in &mut drained {
+                    if let PacketTarget::SinglePlayer(dim_entity) = msg.target {
+                        if let Some(owner) = sub_world.get::<Owner>(dim_entity) {
+                            let session = owner.0;
+                            msg.session = session;
+                            msg.epoch = session_registry
+                                .get(&session)
+                                .map(|e| e.epoch)
+                                .unwrap_or(0);
+                        }
+                    }
+                }
+            }
             let mut main_msgs = main_world.resource_mut::<Messages<OutboundPlayerPacket>>();
             for msg in drained {
                 main_msgs.write(msg);
