@@ -44,6 +44,7 @@ impl Plugin for WorldPlugin {
         app.init_resource::<mcrs_engine::session::SessionRegistry>();
         app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
         app.init_resource::<crate::world::channel_types::DimChannelsResource>();
+        app.init_resource::<mcrs_engine::world::in_flight::InFlightMoves>();
         app.add_message::<crate::world::bus::OutboundPlayerPacket>();
         app.add_message::<crate::world::bus::InboundPlayerPacket>();
         app.add_message::<crate::world::bus::OutboundPlayerTransfer>();
