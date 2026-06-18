@@ -26,7 +26,7 @@ use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
-    OutboundPlayerPacket, OutboundPlayerTransfer,
+    OutboundPlayerPacket,
 };
 use mcrs_minecraft::world::channel_types::DimChannelsResource;
 use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
@@ -73,7 +73,6 @@ pub fn make_host_app() -> App {
 
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
-    app.add_message::<OutboundPlayerTransfer>();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();

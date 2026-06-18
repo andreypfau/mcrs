@@ -29,7 +29,6 @@ use mcrs_engine::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft::world::bus::{
     ArrivalCause, InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn,
     MovePayload, OutboundPlayerAttached, OutboundPlayerDisconnect, OutboundPlayerPacket,
-    OutboundPlayerTransfer,
 };
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft::world::sub_app_builder::DimSubAppHandle;
@@ -49,7 +48,6 @@ struct SourceMarker;
 fn register_sub_messages(sub_app: &mut SubApp) {
     sub_app.add_message::<OutboundPlayerPacket>();
     sub_app.add_message::<InboundPlayerPacket>();
-    sub_app.add_message::<OutboundPlayerTransfer>();
     sub_app.add_message::<InboundPlayerSpawn>();
     sub_app.add_message::<OutboundPlayerAttached>();
     sub_app.add_message::<OutboundPlayerDisconnect>();
@@ -83,7 +81,6 @@ fn build_source_app() -> (
 
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
-    app.add_message::<OutboundPlayerTransfer>();
     app.add_message::<InboundPlayerSpawn>();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();
