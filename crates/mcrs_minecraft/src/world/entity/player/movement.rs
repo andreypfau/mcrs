@@ -1,18 +1,20 @@
 use bevy_app::{FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::component::Component;
 use bevy_ecs::prelude::{
-    Changed, DetectChangesMut, Entity, Message, MessageReader, MessageWriter, Mut, On, Query,
+    Changed, DetectChangesMut, Entity, Message, MessageReader, MessageWriter, Mut, On, Query, With,
 };
 use bevy_math::{DVec3, Quat};
 use mcrs_engine::entity::physics::Transform;
-use mcrs_network::ServerSideConnection;
+use mcrs_engine::session::PlayerSession;
 use mcrs_network::event::ReceivedPacketEvent;
-use mcrs_protocol::packets::game::clientbound::ClientboundPlayerPosition;
 use mcrs_protocol::packets::game::serverbound::{
     ServerboundMovePlayerPos, ServerboundMovePlayerPosRot, ServerboundMovePlayerRot,
     ServerboundMovePlayerStatusOnly,
 };
-use mcrs_protocol::{Look, MoveFlags, PositionFlag, WritePacket};
+use mcrs_protocol::MoveFlags;
+
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::entity::player::HostAnchor;
 
 pub struct MovementPlugin;
 
@@ -114,11 +116,12 @@ fn process_movement(
 #[allow(clippy::type_complexity)]
 fn teleport(
     mut clients: Query<
-        (&mut ServerSideConnection, &mut TeleportState, &Transform),
-        Changed<Transform>,
+        (&HostAnchor, &mut TeleportState, &Transform),
+        (Changed<Transform>, With<HostAnchor>),
     >,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
-    for (mut client, mut state, transform) in &mut clients {
+    for (anchor, mut state, transform) in &mut clients {
         let changed_pos = transform.translation != state.synced_transform.translation;
         let changed_y_rot = transform.rotation.y != state.synced_transform.rotation.y;
         let changed_x_rot = transform.rotation.x != state.synced_transform.rotation.x;
@@ -126,43 +129,15 @@ fn teleport(
         if changed_pos || changed_y_rot || changed_x_rot {
             state.synced_transform = *transform;
 
-            let flags = {
-                let mut f = Vec::new();
-                if !changed_pos {
-                    f.push(PositionFlag::X);
-                    f.push(PositionFlag::Y);
-                    f.push(PositionFlag::Z);
-                }
-                if !changed_y_rot {
-                    f.push(PositionFlag::YRot);
-                }
-                if !changed_x_rot {
-                    f.push(PositionFlag::XRot);
-                }
-                f
-            };
-
-            client.write_packet(&ClientboundPlayerPosition {
-                teleport_id: (state.teleport_id_counter as i32).into(),
-                position: if changed_pos {
-                    transform.translation
-                } else {
-                    DVec3::ZERO
+            packet_writer.write(OutboundPlayerPacket {
+                target: PacketTarget::SinglePlayer(anchor.0),
+                priority: PacketPriority::Critical,
+                data: PacketPayload::PlayerPosition {
+                    teleport_id: state.teleport_id_counter as i32,
+                    position: transform.translation,
                 },
-                velocity: Default::default(),
-                look: Look {
-                    yaw: if changed_y_rot {
-                        transform.rotation.y
-                    } else {
-                        0.0
-                    },
-                    pitch: if changed_x_rot {
-                        transform.rotation.x
-                    } else {
-                        0.0
-                    },
-                },
-                flags,
+                session: PlayerSession(0),
+                epoch: 0,
             });
 
             state.pending_teleports = state.pending_teleports.wrapping_add(1);
