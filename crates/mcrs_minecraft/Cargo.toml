@@ -37,6 +37,7 @@ derive_more.workspace = true
 rocksdb.workspace = true
 indexmap.workspace = true
 bytes.workspace = true
+flume.workspace = true
 cipher.workspace = true
 async-compression.workspace = true
 thiserror.workspace = true

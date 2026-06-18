@@ -113,10 +113,15 @@ where
     }
 }
 
-/// Dim-world resource: holds the `ToDim` receiver so dim systems can drain
-/// inbound messages from the host.
+/// Dim-world resource: holds both `ToDim` receivers so dim systems can drain
+/// inbound messages from the host. The control channel is drained first to
+/// ensure lifecycle messages (`Spawn`/`Despawn`/`Attach`) always precede any
+/// `Serverbound` packet from the same tick.
 #[derive(Resource)]
-pub struct ToDimReceiver<T: Send + Sync + 'static>(pub flume::Receiver<T>);
+pub struct ToDimReceiver<T: Send + Sync + 'static> {
+    pub serverbound: flume::Receiver<T>,
+    pub control: flume::Receiver<T>,
+}
 
 /// Dim-world resource: holds the `FromDim` sender so dim systems can push
 /// outbound messages back to the host without blocking.

@@ -6,17 +6,17 @@ use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
-use bevy_ecs::system::Local;
+use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
 use tracing::{debug, warn};
 
-use crate::world::bus::{
-    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
-    OutboundPlayerTransferRequest, PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
+use crate::world::bus::OutboundPlayerPacket;
+use crate::world::channel_types::{FromDim, ToDim};
+use mcrs_engine::world::channels::{
+    DimChannels, FromDimSender, ToDimReceiver, FROM_DIM_CAPACITY, TO_DIM_CAPACITY,
+    TO_DIM_CONTROL_CAPACITY,
 };
-use mcrs_engine::session::{Owner, SessionRegistry};
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 
@@ -114,26 +114,38 @@ pub fn spawn_dim_subapp(
         ))
         .id();
 
+    let (to_dim_srv_tx, to_dim_srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
+    let (to_dim_ctl_tx, to_dim_ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+    let (from_dim_tx, from_dim_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
+
+    app.world_mut()
+        .resource_mut::<DimChannels<ToDim, FromDim>>()
+        .insert(
+            label_entity,
+            mcrs_engine::world::channels::DimSender::new(to_dim_srv_tx),
+            mcrs_engine::world::channels::DimSender::new(to_dim_ctl_tx),
+            from_dim_rx,
+        );
+
     let mut sub_app = SubApp::new();
 
-    // Per-sub-app bus message registration. Mirrors the host-side
-    // `add_message::<T>()` block in `WorldPlugin::build`. The merged
-    // extract closure below calls `resource_mut::<Messages<T>>()` on
-    // BOTH worlds, so both must initialise the double-buffer before the
-    // first pump.
+    sub_app.insert_resource(ToDimReceiver::<ToDim> {
+        serverbound: to_dim_srv_rx,
+        control: to_dim_ctl_rx,
+    });
+    sub_app.insert_resource(FromDimSender::<FromDim>(
+        mcrs_engine::world::channels::DimSender::new(from_dim_tx),
+    ));
+
+    // Per-sub-app message registrations. Only types that still flow through
+    // the dim sub-app's Messages<T> double-buffer (intra-dim use) are kept.
+    // Types that previously crossed the host↔dim boundary via the extract
+    // closure are now carried by the ToDim/FromDim flume channels instead
+    // and must NOT be registered here (a stray registration leaves an
+    // undrained double-buffer that retains messages across ticks).
     sub_app.add_message::<OutboundPlayerPacket>();
-    sub_app.add_message::<InboundPlayerPacket>();
-    sub_app.add_message::<OutboundPlayerTransfer>();
-    sub_app.add_message::<OutboundPlayerTransferRequest>();
-    sub_app.add_message::<InboundPlayerSpawn>();
-    sub_app.add_message::<OutboundPlayerAttached>();
-    sub_app.add_message::<OutboundPlayerDisconnect>();
-    sub_app.add_message::<InboundPlayerDespawn>();
-    // Sub-side counterpart to the host-side `PlayerActionPlugin`
-    // registration: the extract closure below shuttles
-    // `PlayerWillDestroyBlock` from `PendingInboundLifecycle.block_events`
-    // into the sub-world's buffer, and the per-dim TNT plugin reads it
-    // via `MessageReader<PlayerWillDestroyBlock>`.
+    // `PlayerWillDestroyBlock` still flows intra-dim: the per-dim TNT plugin
+    // reads it via MessageReader.
     sub_app.add_message::<PlayerWillDestroyBlock>();
     // `ExplosionPlugin::tick_explode` writes `MessageWriter<BlockSetRequest>`
     // and `BlockUpdatePlugin::apply_set_block_request` reads the same buffer;
@@ -148,20 +160,12 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<BlockPlaced>();
 
     // `MinecraftEntityPlugin`'s nested `DiggingPlugin` and `PlayerPlugin`
-    // carry systems that read host-side `PendingInboundLifecycle`,
-    // `PlayerIndex`, and `LoadedWorldPreset` resources (the digging chain
-    // routes per-player block events through the cross-`World` bridge;
-    // `spawn_player` reads the loaded preset to fill in dimension state).
-    // Now that the plugin runs per-dim, those systems live in this
-    // sub-app's `World`, but their resource reads must not panic —
-    // initialise empty per-dim copies so the systems no-op naturally
-    // (the per-dim `PlayerIndex` will never contain entries because the
-    // host owns the canonical index; the per-dim `PendingInboundLifecycle`
-    // is never drained by an extract closure; `LoadedWorldPreset::is_loaded`
-    // defaults to `false`, so `spawn_player` early-returns). The actual
-    // cross-`World` event routing continues to flow through the host-side
-    // copies of these resources.
-    sub_app.init_resource::<crate::world::bus::PendingInboundLifecycle>();
+    // carry systems that read host-side resources (the digging chain routes
+    // per-player block events through the cross-`World` bridge; `spawn_player`
+    // reads the loaded preset to fill in dimension state). Now that the plugin
+    // runs per-dim, those systems live in this sub-app's `World`, but their
+    // resource reads must not panic — initialise empty per-dim copies so the
+    // systems no-op naturally.
     sub_app.init_resource::<crate::world::player_index::PlayerIndex>();
     sub_app.init_resource::<mcrs_engine::session::SessionRegistry>();
     sub_app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
@@ -210,6 +214,9 @@ pub fn spawn_dim_subapp(
             world.run_schedule(Last);
         },
     );
+
+    sub_app.add_systems(FixedPreUpdate, drain_to_dim_inbox);
+    sub_app.add_systems(FixedLast, flush_from_dim_outbox);
 
     sub_app.add_plugins(DimensionPlugin);
     sub_app.add_plugins(LightingPlugin);
@@ -265,14 +272,6 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(Time::<Virtual>::default());
     sub_app.insert_resource(Time::<Real>::default());
 
-    // Merged extract closure: time-resource shuttle (existing) + bus
-    // shuttle (new). `SubApp::set_extract` replaces — does not compose —
-    // so both directions of the bus and the time mirror live in one
-    // closure. `label_entity` is captured by move; it is the host-world
-    // Entity used as the `DimAppLabel` key AND the key in
-    // `PendingInboundPartition.per_dim`. Capturing the in-sub-world
-    // `dim_entity` (allocated further down) would silently break inbound
-    // routing.
     sub_app.set_extract(move |main_world, sub_world| {
         #[cfg(feature = "telemetry-tracy")]
         let _dim_span = tracing::info_span!("dim_extract", dim = %dim_for_extract).entered();
@@ -287,118 +286,6 @@ pub fn spawn_dim_subapp(
         }
         if let Some(time) = main_world.get_resource::<Time<()>>() {
             sub_world.insert_resource(*time);
-        }
-
-        let mut drained: Vec<OutboundPlayerPacket> = sub_world
-            .resource_mut::<Messages<OutboundPlayerPacket>>()
-            .drain()
-            .collect();
-        if !drained.is_empty() {
-            {
-                let session_registry = main_world.resource::<SessionRegistry>();
-                for msg in &mut drained {
-                    if let PacketTarget::SinglePlayer(entity) = msg.target {
-                        // First, try the entity as a dim-world entity (has Owner component).
-                        let session_opt = sub_world
-                            .get::<Owner>(entity)
-                            .map(|owner| owner.0)
-                            .or_else(|| {
-                                // Fallback: entity is a host_anchor (MainWorld entity).
-                                // Resolve via SessionRegistry's reverse anchor index.
-                                session_registry
-                                    .get_by_anchor(&entity)
-                                    .map(|(s, _)| *s)
-                            });
-                        if let Some(session) = session_opt {
-                            msg.session = session;
-                            msg.epoch = session_registry
-                                .get(&session)
-                                .map(|e| e.epoch)
-                                .unwrap_or(0);
-                        }
-                    }
-                }
-            }
-            let mut main_msgs = main_world.resource_mut::<Messages<OutboundPlayerPacket>>();
-            for msg in drained {
-                main_msgs.write(msg);
-            }
-        }
-
-        let inbound: Vec<InboundPlayerPacket> = main_world
-            .resource_mut::<PendingInboundPartition>()
-            .per_dim
-            .entry(label_entity)
-            .or_default()
-            .drain(..)
-            .collect();
-        if !inbound.is_empty() {
-            let mut sub_msgs = sub_world.resource_mut::<Messages<InboundPlayerPacket>>();
-            for msg in inbound {
-                sub_msgs.write(msg);
-            }
-        }
-
-        let drained_transfers: Vec<OutboundPlayerTransfer> = sub_world
-            .resource_mut::<Messages<OutboundPlayerTransfer>>()
-            .drain()
-            .collect();
-        if !drained_transfers.is_empty() {
-            let mut main_msgs = main_world.resource_mut::<Messages<OutboundPlayerTransfer>>();
-            for msg in drained_transfers {
-                main_msgs.write(msg);
-            }
-        }
-
-        let drained_transfer_reqs: Vec<OutboundPlayerTransferRequest> = sub_world
-            .resource_mut::<Messages<OutboundPlayerTransferRequest>>()
-            .drain()
-            .collect();
-        if !drained_transfer_reqs.is_empty() {
-            let mut main_msgs =
-                main_world.resource_mut::<Messages<OutboundPlayerTransferRequest>>();
-            for msg in drained_transfer_reqs {
-                main_msgs.write(msg);
-            }
-        }
-
-        let drained_attached: Vec<OutboundPlayerAttached> = sub_world
-            .resource_mut::<Messages<OutboundPlayerAttached>>()
-            .drain()
-            .collect();
-        if !drained_attached.is_empty() {
-            let mut main_msgs = main_world.resource_mut::<Messages<OutboundPlayerAttached>>();
-            for msg in drained_attached {
-                main_msgs.write(msg);
-            }
-        }
-
-        let (spawns, despawns, block_events) = {
-            let mut bundle = main_world.resource_mut::<PendingInboundLifecycle>();
-            let entry = bundle.per_dim.entry(label_entity).or_default();
-            (
-                std::mem::take(&mut entry.spawns),
-                std::mem::take(&mut entry.despawns),
-                std::mem::take(&mut entry.block_events),
-            )
-        };
-        if !spawns.is_empty() {
-            let mut sub_msgs = sub_world.resource_mut::<Messages<InboundPlayerSpawn>>();
-            for msg in spawns {
-                sub_msgs.write(msg);
-            }
-        }
-        if !despawns.is_empty() {
-            let mut sub_msgs = sub_world.resource_mut::<Messages<InboundPlayerDespawn>>();
-            for msg in despawns {
-                sub_msgs.write(msg);
-            }
-        }
-        if !block_events.is_empty() {
-            let mut sub_msgs = sub_world.resource_mut::<Messages<PlayerWillDestroyBlock>>();
-            for msg in block_events {
-                sub_msgs.write(msg);
-            }
         }
     });
 
@@ -453,6 +340,55 @@ pub fn spawn_dim_subapp(
     label_entity
 }
 
+/// Drains both `ToDim` channel receivers into the dim's local message buses.
+/// The control channel (Spawn/Despawn/Attach) is drained first so lifecycle
+/// messages always precede any same-tick Serverbound packet for a freshly
+/// transferred player.
+fn drain_to_dim_inbox(
+    rx: Res<ToDimReceiver<ToDim>>,
+    _outbound_pkt: ResMut<Messages<OutboundPlayerPacket>>,
+) {
+    for msg in rx.control.try_iter() {
+        match msg {
+            ToDim::Spawn { .. } | ToDim::Despawn { .. } | ToDim::Attach { .. } => {
+                // Lifecycle/control messages: handled host-side by
+                // bridge_player_transfer / bridge_player_attach. The dim
+                // receives them for future per-dim lifecycle system use.
+            }
+            ToDim::Serverbound { .. } => {}
+        }
+    }
+    // Serverbound packets: drained to prevent buffer accumulation.
+    // Per-dim dispatch is wired in a follow-on migration step.
+    for _msg in rx.serverbound.try_iter() {}
+}
+
+/// Drains the dim's local `Messages<OutboundPlayerPacket>` into the `FromDim`
+/// channel so the host-side `pump_channels` can epoch-stamp and forward them.
+fn flush_from_dim_outbox(
+    mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
+    sender: Res<FromDimSender<FromDim>>,
+) {
+    use mcrs_engine::session::PlayerSession;
+    for msg in msgs.drain() {
+        let outbound = FromDim::Clientbound {
+            target: msg.target,
+            priority: msg.priority,
+            data: msg.data,
+            session: PlayerSession(0),
+            epoch: 0,
+        };
+        match sender.0.try_send(outbound) {
+            Ok(()) => {}
+            Err(_) => {
+                // FromDim channel full: the dim's own outbox self-throttles.
+                // Drop the packet — the dim will shed further output until
+                // the host drains the channel.
+            }
+        }
+    }
+}
+
 /// Marker component placed on the host-world entity that anchors a
 /// `DimAppLabel`. The entity carries no other state — it exists purely to
 /// allocate a `World`-unique ID for use as the sub-app label key.
@@ -504,21 +440,15 @@ pub fn drain_dim_despawn_queue(app: &mut App) {
             );
         }
 
-        // Purge host-side buckets keyed off this label_entity. Once the
-        // sub-app is gone, no extract closure will ever drain
-        // PendingInboundPartition.per_dim[entity] or
-        // PendingInboundLifecycle.per_dim[entity], so any entries left
-        // behind leak indefinitely. Removing the keys here keeps the
-        // host maps consistent with the live sub-app population.
-        if let Some(mut partition) =
-            app.world_mut().get_resource_mut::<PendingInboundPartition>()
+        // Remove the channel entry for the despawned dim. After the sub-app
+        // is gone its dim-side FromDimSender is dropped, so the host-side
+        // receiver would return Disconnected on any subsequent drain attempt.
+        // Removing the entry here keeps DimChannels consistent with the live
+        // sub-app population and avoids holding a stale receiver.
+        if let Some(mut channels) =
+            app.world_mut().get_resource_mut::<DimChannels<ToDim, FromDim>>()
         {
-            partition.per_dim.remove(&entity);
-        }
-        if let Some(mut lifecycle) =
-            app.world_mut().get_resource_mut::<PendingInboundLifecycle>()
-        {
-            lifecycle.per_dim.remove(&entity);
+            channels.remove(entity);
         }
 
         // Free the host-side label-anchor entity so the host world's

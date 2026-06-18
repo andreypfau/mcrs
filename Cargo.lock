@@ -2036,6 +2036,7 @@ dependencies = [
  "cfb8",
  "cipher",
  "derive_more",
+ "flume",
  "indexmap",
  "mcrs_core",
  "mcrs_engine",
