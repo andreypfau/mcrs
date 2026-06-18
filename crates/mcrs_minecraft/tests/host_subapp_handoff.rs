@@ -22,7 +22,7 @@ use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::world::bridge::{bridge_inbound_to_channel, bridge_player_attach};
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer, PlayerTransferSnapshot,
+    OutboundPlayerDisconnect, OutboundPlayerPacket, PlayerTransferSnapshot,
 };
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_engine::session::{PlayerSessionCounter, SessionRegistry};
@@ -78,7 +78,6 @@ fn build_host_app() -> App {
     app.init_resource::<DimChannelsResource>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
-    app.add_message::<OutboundPlayerTransfer>();
     app.add_message::<InboundPlayerSpawn>();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();

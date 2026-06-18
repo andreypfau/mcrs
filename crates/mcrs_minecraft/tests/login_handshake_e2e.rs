@@ -49,7 +49,7 @@ use mcrs_minecraft::world::bridge::{
 use mcrs_minecraft::world::bridge_queue::{InboundRateBucket, OutboundQueue};
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer, PacketPayload,
+    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload,
     PacketPriority, PacketTarget,
 };
 use mcrs_engine::session::SessionRegistry;
@@ -310,9 +310,9 @@ fn build_join_host_app() -> App {
     app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
     app.init_resource::<mcrs_minecraft::world::player_index::PendingInboundBuffer>();
     app.init_resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>();
+    app.init_resource::<mcrs_engine::world::in_flight::InFlightMoves>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
-    app.add_message::<OutboundPlayerTransfer>();
     app.add_message::<InboundPlayerSpawn>();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();

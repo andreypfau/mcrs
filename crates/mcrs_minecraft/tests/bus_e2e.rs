@@ -17,7 +17,7 @@ use mcrs_minecraft::world::bridge::bridge_inbound_to_channel;
 use bytes::Bytes;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer, PacketPayload,
+    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload,
     PacketPriority, PacketTarget, TestPayload,
 };
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
@@ -75,9 +75,9 @@ fn build_app() -> App {
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<DimChannelsResource>();
+    app.init_resource::<mcrs_engine::world::in_flight::InFlightMoves>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
-    app.add_message::<OutboundPlayerTransfer>();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();

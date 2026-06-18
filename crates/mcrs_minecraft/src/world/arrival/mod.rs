@@ -5,10 +5,11 @@ use crate::world::arrival::end_platform::place_end_platform;
 use crate::world::arrival::nether::find_or_create_nether_landing;
 use crate::world::bus::{ArrivalCause, InboundEntitySpawn, MovePayload};
 use crate::world::channel_types::FromDim;
+use crate::world::sub_app_builder::DimInboxDrain;
 use bevy_app::{FixedPreUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Commands, Query, Res, ResMut, With};
+use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Query, Res, ResMut, With};
 use bevy_math::DVec3;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::session::{DimPlayerIndex, Owner, PlayerSession};
@@ -18,13 +19,15 @@ use mcrs_engine::world::channels::FromDimSender;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
 use mcrs_minecraft_block::palette::BlockPalette;
 
-const END_ARRIVAL_DEFAULT: DVec3 = DVec3::new(0.0, 64.0, 0.0);
+// Platform at x=8, z=8 ensures the 5×5 floor (6..=10 in each axis) stays
+// within a single 16-block chunk section at these default coordinates.
+const END_ARRIVAL_DEFAULT: DVec3 = DVec3::new(8.0, 64.0, 8.0);
 
 pub struct ArrivalPlugin;
 
 impl Plugin for ArrivalPlugin {
     fn build(&self, app: &mut bevy_app::App) {
-        app.add_systems(FixedPreUpdate, resolve_arrivals);
+        app.add_systems(FixedPreUpdate, resolve_arrivals.after(DimInboxDrain));
     }
 }
 

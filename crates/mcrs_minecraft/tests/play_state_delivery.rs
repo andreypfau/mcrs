@@ -31,7 +31,7 @@ use mcrs_minecraft::world::bridge::dispatch_encode;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer, PacketPayload,
+    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload,
     PacketPriority, PacketTarget, PlayerTransferSnapshot,
 };
 use mcrs_minecraft::world::entity::player::HostAnchor;
@@ -126,9 +126,9 @@ fn build_host_app() -> App {
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>();
+    app.init_resource::<mcrs_engine::world::in_flight::InFlightMoves>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
-    app.add_message::<OutboundPlayerTransfer>();
     app.add_message::<InboundPlayerSpawn>();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();

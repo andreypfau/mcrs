@@ -5,7 +5,7 @@ use bevy_app::{
 use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::schedule::{Schedule, ScheduleLabel};
+use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel, SystemSet};
 use bevy_ecs::system::{Local, Res, ResMut};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
@@ -22,6 +22,11 @@ use mcrs_engine::world::channels::{
 };
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
+
+/// System set for inbox drain systems, run early in `FixedPreUpdate`.
+/// Arrival and other systems that consume inbound messages run after this set.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DimInboxDrain;
 
 /// Private driver schedule: Bevy's `SubApp::run_default_schedule` invokes only
 /// the single schedule pointed at by `update_schedule`. This schedule chains
@@ -236,7 +241,7 @@ pub fn spawn_dim_subapp(
         },
     );
 
-    sub_app.add_systems(FixedPreUpdate, drain_to_dim_inbox);
+    sub_app.add_systems(FixedPreUpdate, drain_to_dim_inbox.in_set(DimInboxDrain));
     sub_app.add_systems(FixedLast, flush_from_dim_outbox);
 
     sub_app.add_plugins(DimensionPlugin);

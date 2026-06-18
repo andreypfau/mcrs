@@ -16,7 +16,7 @@ use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
-    OutboundPlayerPacket, OutboundPlayerTransfer,
+    OutboundPlayerPacket,
 };
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
@@ -63,7 +63,6 @@ fn build_app() -> App {
     app.init_resource::<DimChannelsResource>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
-    app.add_message::<OutboundPlayerTransfer>();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();

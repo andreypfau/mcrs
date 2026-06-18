@@ -14,7 +14,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
-use bevy_math::{DVec3, Vec2};
+use bevy_math::DVec3;
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::geometry::ColumnPos;
 use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
@@ -25,18 +25,15 @@ use mcrs_minecraft::disconnect::{
     filter_inflight_for_disconnect, process_disconnect,
 };
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, TrackedBy};
-use mcrs_minecraft::world::bridge::bridge_player_transfer;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
-    OutboundPlayerPacket, OutboundPlayerTransfer, PacketPayload, PacketTarget,
-    PlayerTransferSnapshot,
+    OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_engine::world::channels::{DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY};
 use mcrs_minecraft::world::channel_types::FromDim;
 use mcrs_minecraft::world::player_index::PlayerIndex;
-use mcrs_protocol::uuid::Uuid;
 
 mod harness;
 use harness::{
@@ -46,7 +43,6 @@ use harness::{
 
 fn build_disconnect_app() -> App {
     let mut app = App::new();
-    app.add_message::<OutboundPlayerTransfer>();
     app.add_message::<InboundPlayerSpawn>();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();
@@ -59,14 +55,6 @@ fn build_disconnect_app() -> App {
     app
 }
 
-fn snapshot() -> PlayerTransferSnapshot {
-    PlayerTransferSnapshot {
-        uuid: Uuid::nil(),
-        username: "disco".into(),
-        position: DVec3::new(1.0, 64.0, 2.0),
-        rotation: Vec2::ZERO,
-    }
-}
 
 /// Register a dim channel in the app's `DimChannelsResource` and return the
 /// control receiver so tests can assert on `ToDim::Despawn` messages.
@@ -138,143 +126,6 @@ fn run_filter(app: &mut App) {
     app.world_mut()
         .run_system_once(filter_inflight_for_disconnect)
         .expect("filter runs");
-}
-
-fn run_bridge_transfer(app: &mut App) {
-    app.world_mut()
-        .run_system_once(bridge_player_transfer)
-        .expect("transfer runs");
-}
-
-#[test]
-fn disconnect_at_tick_n_e1_1_source_emit_pre_extract() {
-    let mut app = build_disconnect_app();
-
-    let host_anchor = app.world_mut().spawn_empty().id();
-    let source_dim = Entity::from_raw_u32(101).unwrap();
-    let dest_dim = Entity::from_raw_u32(102).unwrap();
-    let src_ctl_rx = register_dim_channel(&mut app, source_dim);
-    let _dst_ctl_rx = register_dim_channel(&mut app, dest_dim);
-    insert_location(
-        &mut app,
-        host_anchor,
-        source_dim,
-        None,
-        Some(Entity::from_raw_u32(7).unwrap()),
-    );
-
-    app.world_mut()
-        .resource_mut::<Messages<OutboundPlayerTransfer>>()
-        .write(OutboundPlayerTransfer {
-            host_anchor,
-            dest_dim,
-            snapshot: snapshot(),
-        });
-
-    synthetic_disconnect(&mut app, host_anchor);
-    run_filter(&mut app);
-
-    let mut transfers = app
-        .world_mut()
-        .resource_mut::<Messages<OutboundPlayerTransfer>>();
-    let remaining: Vec<_> = transfers.drain().collect();
-    assert!(
-        remaining.is_empty(),
-        "transfer for disconnected anchor must be filtered, got {}",
-        remaining.len()
-    );
-
-    assert_eq!(
-        count_despawns(&src_ctl_rx),
-        1,
-        "source dim sees one ToDim::Despawn"
-    );
-
-    assert!(
-        app.world().resource::<SessionRegistry>().get_by_anchor(&host_anchor).is_none(),
-        "SessionRegistry entry removed"
-    );
-}
-
-#[test]
-fn disconnect_at_tick_n_e1_2_after_bridge_transfer() {
-    let mut app = build_disconnect_app();
-
-    let host_anchor = app.world_mut().spawn_empty().id();
-    let source_dim = app.world_mut().spawn_empty().id();
-    let dest_dim = app
-        .world_mut()
-        .spawn(mcrs_minecraft::world::sub_app_builder::DimSubAppHandle)
-        .id();
-    let in_dim_entity = app.world_mut().spawn_empty().id();
-    let src_ctl_rx = register_dim_channel(&mut app, source_dim);
-    let dst_ctl_rx = register_dim_channel(&mut app, dest_dim);
-    insert_location(
-        &mut app,
-        host_anchor,
-        source_dim,
-        None,
-        Some(in_dim_entity),
-    );
-
-    app.world_mut()
-        .resource_mut::<Messages<OutboundPlayerTransfer>>()
-        .write(OutboundPlayerTransfer {
-            host_anchor,
-            dest_dim,
-            snapshot: snapshot(),
-        });
-
-    run_bridge_transfer(&mut app);
-
-    let (_, entry) = app
-        .world()
-        .resource::<SessionRegistry>()
-        .get_by_anchor(&host_anchor)
-        .expect("session entry after transfer");
-    assert_eq!(entry.dim, dest_dim);
-    assert_eq!(entry.previous_dim, Some(source_dim));
-    assert!(entry.in_dim_entity.is_none());
-
-    // bridge_player_transfer sends ToDim::Spawn to dest and ToDim::Despawn to source.
-    assert_eq!(
-        dst_ctl_rx
-            .try_iter()
-            .filter(|m| matches!(m, ToDim::Spawn { .. }))
-            .count(),
-        1,
-        "dest has the pending spawn before disconnect"
-    );
-    // bridge also sends a despawn to source
-    let src_despawns_after_transfer = count_despawns(&src_ctl_rx);
-
-    synthetic_disconnect(&mut app, host_anchor);
-    run_filter(&mut app);
-
-    // After disconnect: dest gets a despawn (current_dim emit), source gets
-    // another despawn (previous_dim emit). Total src despawns = transfer + disconnect.
-    let dst_despawns = count_despawns(&dst_ctl_rx);
-    assert_eq!(
-        dst_despawns,
-        1,
-        "dest dim gets a despawn (current_dim emit)"
-    );
-
-    // Two despawns reach the source dim in total: one from bridge_player_transfer
-    // itself and one from the disconnect previous_dim emit. The second is a
-    // harmless no-op once the per-dim consumer has despawned the entity.
-    let src_despawns_after_disconnect = count_despawns(&src_ctl_rx);
-    assert_eq!(
-        src_despawns_after_transfer + src_despawns_after_disconnect,
-        2,
-        "source dim gets a despawn from the transfer and from the disconnect previous_dim emit; \
-         before_disconnect={src_despawns_after_transfer}, after={src_despawns_after_disconnect}"
-    );
-
-    assert!(
-        app.world().resource::<SessionRegistry>().get_by_anchor(&host_anchor).is_none(),
-        "SessionRegistry entry removed"
-    );
 }
 
 #[test]
@@ -366,60 +217,16 @@ fn disconnect_at_tick_n_e1_5_steady_in_dim() {
     assert!(app.world().resource::<SessionRegistry>().get_by_anchor(&host_anchor).is_none());
 }
 
-/// Regression for the transfer-out removal path proving that the downstream
-/// eviction effects are identical to the disconnect path because both flow
-/// through the same shared drain consumer.
+/// Regression: a transfer-out eviction (via `InboundPlayerDespawn`) has the
+/// same AoI cleanup effects as a direct disconnect. Both flow through the
+/// shared drain consumer in the per-dim sub-app.
 ///
-/// Step 1: use `bridge_player_transfer` (the real transfer system) to generate
-/// the `ToDim::Despawn` for the source dimension — proving the transfer
-/// path actually emits one.
-///
-/// Step 2: inject an `InboundPlayerDespawn` directly into a single-App AoI
-/// harness and drive the drain. Assert the same three eviction truths:
+/// Asserts:
 ///   1. O's `TrackedBy` no longer contains T.
 ///   2. A `PlayerLeftView` packet targeting O carrying T's wire id was emitted.
 ///   3. T's `ChunkSubscriptionSet` and `TrackedBy` are cleared.
 #[test]
 fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
-    // --- Step 1: run bridge_player_transfer to get a ToDim::Despawn ---
-    let mut bridge_app = build_disconnect_app();
-
-    let host_anchor = bridge_app.world_mut().spawn_empty().id();
-    let source_dim = bridge_app.world_mut().spawn_empty().id();
-    let dest_dim = bridge_app
-        .world_mut()
-        .spawn(mcrs_minecraft::world::sub_app_builder::DimSubAppHandle)
-        .id();
-    let in_dim_entity = bridge_app.world_mut().spawn_empty().id();
-    let src_ctl_rx = register_dim_channel(&mut bridge_app, source_dim);
-    let _dst_ctl_rx = register_dim_channel(&mut bridge_app, dest_dim);
-    insert_location(
-        &mut bridge_app,
-        host_anchor,
-        source_dim,
-        None,
-        Some(in_dim_entity),
-    );
-    bridge_app
-        .world_mut()
-        .resource_mut::<Messages<OutboundPlayerTransfer>>()
-        .write(OutboundPlayerTransfer {
-            host_anchor,
-            dest_dim,
-            snapshot: snapshot(),
-        });
-    run_bridge_transfer(&mut bridge_app);
-
-    // Verify: bridge sent a despawn to source dim's control channel.
-    let despawn_found = src_ctl_rx
-        .try_iter()
-        .any(|m| matches!(m, ToDim::Despawn { host_anchor: ha } if ha == host_anchor));
-    assert!(
-        despawn_found,
-        "bridge_player_transfer must send ToDim::Despawn for source dim"
-    );
-
-    // --- Step 2: run the drain on a transfer-generated despawn in a single-App AoI harness ---
     let mut aoi_app = make_aoi_app();
     let dim = aoi_app.world_mut().spawn(DimensionBundle::default()).id();
 

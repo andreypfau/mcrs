@@ -37,7 +37,7 @@ use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, D
 use mcrs_minecraft::world::bridge::partition_main_inbound;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
+    OutboundPlayerDisconnect, OutboundPlayerPacket,
     PendingInboundLifecycle, PendingInboundPartition,
 };
 use mcrs_minecraft::world::player_index::PlayerIndex;
@@ -87,7 +87,6 @@ fn build_app() -> App {
     app.init_resource::<PendingInboundLifecycle>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
-    app.add_message::<OutboundPlayerTransfer>();
     app.add_message::<InboundPlayerSpawn>();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();

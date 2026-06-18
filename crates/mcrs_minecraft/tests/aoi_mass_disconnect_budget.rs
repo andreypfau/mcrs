@@ -11,7 +11,7 @@ use mcrs_minecraft::disconnect::{
     filter_inflight_for_disconnect, process_disconnect,
 };
 use mcrs_minecraft::world::bus::{
-    InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect, OutboundPlayerTransfer,
+    InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
 };
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
@@ -21,7 +21,6 @@ use mcrs_minecraft::world::player_index::PlayerIndex;
 
 fn build_app() -> App {
     let mut app = App::new();
-    app.add_message::<OutboundPlayerTransfer>();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
