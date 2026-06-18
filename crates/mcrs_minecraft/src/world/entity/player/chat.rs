@@ -1,15 +1,14 @@
 use crate::login::GameProfile;
 use crate::world::bus::{
-    OutboundPlayerPacket, OutboundPlayerTransferRequest, PacketPayload, PacketPriority,
-    PacketTarget, PlayerTransferSnapshot,
+    ArrivalCause, MovePayload, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
 use crate::world::entity::player::{DisconnectReason, HostAnchor};
 use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
-use bevy_math::{DVec3, Vec2};
+use bevy_math::DVec3;
 use mcrs_engine::entity::physics::Transform;
-use mcrs_engine::session::PlayerSession;
+use mcrs_engine::session::{MoveId, PlayerSession};
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_protocol::packets::game::serverbound::{ServerboundChat, ServerboundChatCommand};
 use mcrs_protocol::setting::ChatMode;
@@ -36,7 +35,7 @@ fn handle_command(
     event: On<ReceivedPacketEvent>,
     mut sender_query: Query<(&HostAnchor, &mut Transform, &GameProfile)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-    mut transfer_writer: MessageWriter<OutboundPlayerTransferRequest>,
+    mut move_sender: Res<mcrs_engine::world::channels::FromDimSender<crate::world::channel_types::FromDim>>,
 ) {
     let Some(pkt) = event.decode::<ServerboundChatCommand>() else {
         return;
@@ -93,20 +92,21 @@ fn handle_command(
                 other if other.contains(':') => other.to_string(),
                 other => format!("minecraft:{other}"),
             };
-            let Ok((host_anchor, _transform, profile)) = sender_query.get(event.entity) else {
+            let Ok((_host_anchor, _transform, profile)) = sender_query.get(event.entity) else {
                 return;
             };
-            let snapshot = PlayerTransferSnapshot {
-                uuid: profile.id,
-                username: profile.username.clone(),
-                position: DVec3::new(0.0, 100.0, 0.0),
-                rotation: Vec2::ZERO,
-            };
-            info!("dim transfer {:?} -> {}", event.entity, dim_name);
-            transfer_writer.write(OutboundPlayerTransferRequest {
-                host_anchor: host_anchor.0,
-                dim_name,
-                snapshot,
+            info!("dim move {:?} -> {}", event.entity, dim_name);
+            let _ = move_sender.0.try_send(crate::world::channel_types::FromDim::MoveEntity {
+                move_id: MoveId(0),
+                target: dim_name,
+                cause: ArrivalCause::CommandTeleport {
+                    pos: DVec3::new(0.0, 100.0, 0.0),
+                },
+                payload: MovePayload::Player {
+                    uuid: profile.id,
+                    username: profile.username.clone(),
+                },
+                player: None,
             });
         }
         _ => {}

@@ -38,11 +38,6 @@ pub enum ToDim {
     Despawn {
         host_anchor: Entity,
     },
-    /// Attach/ready signal sent after the player entity is prepared host-side.
-    Attach {
-        host_anchor: Entity,
-        session: PlayerSession,
-    },
     /// Confirmed-move spawn command to the target dim.  Non-sheddable.
     SpawnEntity {
         move_id: MoveId,
@@ -81,23 +76,6 @@ pub enum FromDim {
         data: PacketPayload,
         session: PlayerSession,
         epoch: u32,
-    },
-    /// The dim requests a (current, unconfirmed) player transfer to another dim.
-    Transfer {
-        host_anchor: Entity,
-        dest_dim: Entity,
-        snapshot: PlayerTransferSnapshot,
-    },
-    /// The dim requests a transfer by dimension name (host resolves the name).
-    TransferRequest {
-        host_anchor: Entity,
-        dim_name: String,
-        snapshot: PlayerTransferSnapshot,
-    },
-    /// The dim has spawned the player entity and reports back the in-dim entity.
-    Attached {
-        host_anchor: Entity,
-        new_in_dim_entity: Entity,
     },
     /// Confirmed-move initiation: source dim requests transfer to another dim by name.
     /// The host resolves the name, inserts into InFlightMoves, and sends SpawnEntity.

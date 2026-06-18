@@ -405,7 +405,6 @@ fn drain_to_dim_inbox(
                     session: mcrs_engine::session::PlayerSession(0),
                 });
             }
-            ToDim::Attach { .. } => {}
             ToDim::Serverbound { .. } => {}
             ToDim::SpawnEntity { move_id, epoch, cause, payload, player } => {
                 entity_spawn_msgs.write(InboundEntitySpawn {

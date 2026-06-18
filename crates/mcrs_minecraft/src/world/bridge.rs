@@ -34,7 +34,6 @@ use mcrs_protocol::packets::game::clientbound::{
 use mcrs_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
 use mcrs_protocol::{ByteAngle, GameEventKind, Ident, Look, PositionFlag, Text, VarInt};
-use rustc_hash::FxHashSet;
 use tracing::{debug, trace, warn};
 
 use crate::world::bridge_queue::{
@@ -42,9 +41,7 @@ use crate::world::bridge_queue::{
     KICK_AFTER_OVERFLOW_TICKS,
 };
 use mcrs_engine::session::{PlayerSession, SessionRegistry};
-use crate::world::bus::{
-    OutboundPlayerTransfer, OutboundPlayerTransferRequest, PacketPayload, PacketTarget,
-};
+use crate::world::bus::{PacketPayload, PacketTarget};
 use crate::world::channel_types::{
     send_control_or_teardown, DimChannelsResource, FromDim, ToDim,
 };
@@ -648,87 +645,6 @@ pub fn bridge_inbound_to_channel(
     }
 }
 
-/// Resolve name-based transfer requests (from the per-dim `/dim` command) into
-/// concrete `OutboundPlayerTransfer` messages by matching the requested
-/// dimension name against the live sub-app label entities. Runs before
-/// `bridge_player_transfer` so the resolved transfer is processed the same tick.
-pub fn resolve_transfer_requests(
-    mut requests: ResMut<Messages<OutboundPlayerTransferRequest>>,
-    mut transfers: MessageWriter<OutboundPlayerTransfer>,
-    dims: Query<(Entity, &DimLabel), With<DimSubAppHandle>>,
-) {
-    for req in requests.drain() {
-        let Some((dest_dim, _)) = dims.iter().find(|(_, label)| label.0 == req.dim_name) else {
-            warn!(
-                dim = %req.dim_name,
-                "transfer request names a dimension with no live sub-app; ignoring"
-            );
-            continue;
-        };
-        transfers.write(OutboundPlayerTransfer {
-            host_anchor: req.host_anchor,
-            dest_dim,
-            snapshot: req.snapshot,
-        });
-    }
-}
-
-pub fn bridge_player_transfer(
-    mut transfer_msgs: ResMut<Messages<OutboundPlayerTransfer>>,
-    mut session_registry: ResMut<SessionRegistry>,
-    dim_channels: Res<DimChannelsResource>,
-    mut despawn_queue: ResMut<DimDespawnQueue>,
-    live_dims: Query<Entity, With<DimSubAppHandle>>,
-) {
-    let valid_dims: FxHashSet<Entity> = live_dims.iter().collect();
-    for msg in transfer_msgs.drain() {
-        if !valid_dims.contains(&msg.dest_dim) {
-            warn!(
-                host_anchor = ?msg.host_anchor,
-                dest_dim = ?msg.dest_dim,
-                "OutboundPlayerTransfer targets a dim entity not registered as a live sub-app; dropping"
-            );
-            continue;
-        }
-        let Some((session, entry)) = session_registry.get_by_anchor_mut(&msg.host_anchor) else {
-            continue;
-        };
-        let session = session;
-        let old_dim = entry.dim;
-        if old_dim != msg.dest_dim {
-            entry.epoch = entry.epoch.wrapping_add(1);
-        }
-        entry.dim = msg.dest_dim;
-        entry.previous_dim = Some(old_dim);
-        entry.in_dim_entity = None;
-
-        if old_dim != Entity::PLACEHOLDER && old_dim != msg.dest_dim {
-            if let Some(chan) = dim_channels.get(old_dim) {
-                send_control_or_teardown(
-                    &chan.control_sender,
-                    old_dim,
-                    ToDim::Despawn {
-                        host_anchor: msg.host_anchor,
-                    },
-                    &mut despawn_queue,
-                );
-            }
-        }
-        if let Some(chan) = dim_channels.get(msg.dest_dim) {
-            send_control_or_teardown(
-                &chan.control_sender,
-                msg.dest_dim,
-                ToDim::Spawn {
-                    host_anchor: msg.host_anchor,
-                    session,
-                    snapshot: msg.snapshot.clone(),
-                },
-                &mut despawn_queue,
-            );
-        }
-    }
-}
-
 pub fn bridge_player_attach(
     mut attach_msgs: ResMut<Messages<crate::world::bus::OutboundPlayerAttached>>,
     mut session_registry: ResMut<SessionRegistry>,
@@ -893,214 +809,11 @@ mod tests {
         (srv_rx, ctl_rx, from_tx)
     }
 
-    fn synthetic_snapshot() -> PlayerTransferSnapshot {
-        PlayerTransferSnapshot {
-            uuid: Uuid::nil(),
-            username: "test".into(),
-            position: DVec3::ZERO,
-            rotation: Vec2::ZERO,
-        }
-    }
-
-    fn run_transfer(world: &mut World) {
-        let mut sys = IntoSystem::into_system(bridge_player_transfer);
-        sys.initialize(world);
-        let _ = sys.run((), world);
-        sys.apply_deferred(world);
-    }
-
     fn run_attach(world: &mut World) {
         let mut sys = IntoSystem::into_system(bridge_player_attach);
         sys.initialize(world);
         let _ = sys.run((), world);
         sys.apply_deferred(world);
-    }
-
-    #[test]
-    fn bridge_player_transfer_updates_session_entry_and_sends_spawn() {
-        let mut world = World::new();
-        world.init_resource::<Messages<OutboundPlayerTransfer>>();
-        world.init_resource::<SessionRegistry>();
-        world.init_resource::<DimChannelsResource>();
-        world.init_resource::<mcrs_engine::world::sub_app::DimDespawnQueue>();
-
-        let host_anchor = world.spawn_empty().id();
-        let connection_entity = world.spawn_empty().id();
-        let src_dim = world.spawn(DimSubAppHandle).id();
-        let dest_dim = world.spawn(DimSubAppHandle).id();
-        let src_in_dim = world.spawn_empty().id();
-
-        let (_src_srv_rx, _src_ctl_rx, _src_from_tx) = make_dim_channels(&mut world, src_dim);
-        let (_dest_srv_rx, dest_ctl_rx, _dest_from_tx) = make_dim_channels(&mut world, dest_dim);
-
-        let session = PlayerSession(1);
-        world.resource_mut::<SessionRegistry>().insert(
-            session,
-            SessionEntry {
-                connection_entity,
-                host_anchor,
-                dim: src_dim,
-                previous_dim: None,
-                in_dim_entity: Some(src_in_dim),
-                epoch: 0,
-            },
-        );
-
-        world
-            .resource_mut::<Messages<OutboundPlayerTransfer>>()
-            .write(OutboundPlayerTransfer {
-                host_anchor,
-                dest_dim,
-                snapshot: synthetic_snapshot(),
-            });
-
-        run_transfer(&mut world);
-
-        let registry = world.resource::<SessionRegistry>();
-        let (_, entry) = registry.get_by_anchor(&host_anchor).expect("entry present");
-        assert_eq!(entry.dim, dest_dim);
-        assert!(entry.in_dim_entity.is_none());
-
-        let spawn_msg = dest_ctl_rx.try_recv().expect("spawn sent to dest control channel");
-        match spawn_msg {
-            ToDim::Spawn { host_anchor: ha, session: s, .. } => {
-                assert_eq!(ha, host_anchor);
-                assert_eq!(s, session);
-            }
-            other => panic!("expected ToDim::Spawn, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn bridge_player_transfer_bumps_epoch_on_each_dim_change() {
-        let mut world = World::new();
-        world.init_resource::<Messages<OutboundPlayerTransfer>>();
-        world.init_resource::<SessionRegistry>();
-        world.init_resource::<DimChannelsResource>();
-        world.init_resource::<mcrs_engine::world::sub_app::DimDespawnQueue>();
-
-        let host_anchor = world.spawn_empty().id();
-        let connection_entity = world.spawn_empty().id();
-        let dim_a = world.spawn(DimSubAppHandle).id();
-        let dim_b = world.spawn(DimSubAppHandle).id();
-
-        let (_a_srv, _a_ctl, _a_from) = make_dim_channels(&mut world, dim_a);
-        let (_b_srv, _b_ctl, _b_from) = make_dim_channels(&mut world, dim_b);
-
-        let session = PlayerSession(1);
-        world.resource_mut::<SessionRegistry>().insert(
-            session,
-            SessionEntry {
-                connection_entity,
-                host_anchor,
-                dim: dim_a,
-                previous_dim: None,
-                in_dim_entity: None,
-                epoch: 0,
-            },
-        );
-
-        world
-            .resource_mut::<Messages<OutboundPlayerTransfer>>()
-            .write(OutboundPlayerTransfer {
-                host_anchor,
-                dest_dim: dim_b,
-                snapshot: synthetic_snapshot(),
-            });
-        run_transfer(&mut world);
-        assert_eq!(
-            world
-                .resource::<SessionRegistry>()
-                .get_by_anchor(&host_anchor)
-                .expect("entry present")
-                .1
-                .epoch,
-            1,
-            "A→B transfer must bump the session epoch"
-        );
-
-        world
-            .resource_mut::<Messages<OutboundPlayerTransfer>>()
-            .write(OutboundPlayerTransfer {
-                host_anchor,
-                dest_dim: dim_b,
-                snapshot: synthetic_snapshot(),
-            });
-        run_transfer(&mut world);
-        assert_eq!(
-            world
-                .resource::<SessionRegistry>()
-                .get_by_anchor(&host_anchor)
-                .expect("entry present")
-                .1
-                .epoch,
-            1,
-            "same-dim transfer must not bump the epoch"
-        );
-
-        world
-            .resource_mut::<Messages<OutboundPlayerTransfer>>()
-            .write(OutboundPlayerTransfer {
-                host_anchor,
-                dest_dim: dim_a,
-                snapshot: synthetic_snapshot(),
-            });
-        run_transfer(&mut world);
-        assert_eq!(
-            world
-                .resource::<SessionRegistry>()
-                .get_by_anchor(&host_anchor)
-                .expect("entry present")
-                .1
-                .epoch,
-            2,
-            "B→A return leg must bump the epoch again (A→B→A round trip)"
-        );
-    }
-
-    #[test]
-    fn bridge_player_transfer_drops_transfer_to_unregistered_dim() {
-        let mut world = World::new();
-        world.init_resource::<Messages<OutboundPlayerTransfer>>();
-        world.init_resource::<SessionRegistry>();
-        world.init_resource::<DimChannelsResource>();
-        world.init_resource::<mcrs_engine::world::sub_app::DimDespawnQueue>();
-
-        let host_anchor = world.spawn_empty().id();
-        let connection_entity = world.spawn_empty().id();
-        let src_dim = world.spawn(DimSubAppHandle).id();
-        let src_in_dim = world.spawn_empty().id();
-        let bogus_dim = world.spawn_empty().id();
-
-        let (_src_srv, _src_ctl, _src_from) = make_dim_channels(&mut world, src_dim);
-
-        let session = PlayerSession(2);
-        world.resource_mut::<SessionRegistry>().insert(
-            session,
-            SessionEntry {
-                connection_entity,
-                host_anchor,
-                dim: src_dim,
-                previous_dim: None,
-                in_dim_entity: Some(src_in_dim),
-                epoch: 0,
-            },
-        );
-
-        world
-            .resource_mut::<Messages<OutboundPlayerTransfer>>()
-            .write(OutboundPlayerTransfer {
-                host_anchor,
-                dest_dim: bogus_dim,
-                snapshot: synthetic_snapshot(),
-            });
-
-        run_transfer(&mut world);
-
-        let registry = world.resource::<SessionRegistry>();
-        let (_, entry) = registry.get_by_anchor(&host_anchor).expect("entry present");
-        assert_eq!(entry.dim, src_dim);
-        assert_eq!(entry.in_dim_entity, Some(src_in_dim));
     }
 
     #[test]

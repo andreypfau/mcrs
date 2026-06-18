@@ -34,24 +34,6 @@ pub struct InboundPlayerPacket {
 }
 
 #[derive(Message, Clone, Debug)]
-pub struct OutboundPlayerTransfer {
-    pub host_anchor: Entity,
-    pub dest_dim: Entity,
-    pub snapshot: PlayerTransferSnapshot,
-}
-
-/// A request to transfer a player to a dimension identified by name. Emitted
-/// by the per-dim command handler (which knows the player and the destination
-/// dimension name but not the host-side sub-app label entity) and resolved
-/// host-side by `resolve_transfer_requests` into an `OutboundPlayerTransfer`.
-#[derive(Message, Clone, Debug)]
-pub struct OutboundPlayerTransferRequest {
-    pub host_anchor: Entity,
-    pub dim_name: String,
-    pub snapshot: PlayerTransferSnapshot,
-}
-
-#[derive(Message, Clone, Debug)]
 pub struct InboundPlayerSpawn {
     pub host_anchor: Entity,
     pub session: PlayerSession,
@@ -341,16 +323,6 @@ mod tests {
             timestamp: std::time::Instant::now(),
         };
         assert_eq!(format!("{:?}", inbound.clone()), format!("{:?}", inbound));
-
-        let transfer = OutboundPlayerTransfer {
-            host_anchor: e,
-            dest_dim: e,
-            snapshot: snapshot.clone(),
-        };
-        assert_eq!(
-            format!("{:?}", transfer.clone()),
-            format!("{:?}", transfer)
-        );
 
         let spawn = InboundPlayerSpawn {
             host_anchor: e,

@@ -11,8 +11,8 @@
 //!
 //! The `filter_inflight_for_disconnect` system runs in `Update` after the
 //! observer flush and drops in-flight bus messages addressed to a just-
-//! disconnected host-anchor — both `OutboundPlayerTransfer` /
-//! `OutboundPlayerAttached` and any pending lifecycle spawns/block events.
+//! disconnected host-anchor — `OutboundPlayerAttached` and any pending
+//! lifecycle spawns/block events.
 //!
 //! `drain_pending_disconnects` runs in `First` to refill the budget and
 //! process whatever was queued in earlier ticks.
@@ -31,9 +31,7 @@ use std::collections::VecDeque;
 use tracing::warn;
 
 use mcrs_engine::session::{PlayerSession, SessionRegistry};
-use crate::world::bus::{
-    OutboundPlayerAttached, OutboundPlayerDisconnect, OutboundPlayerTransfer,
-};
+use crate::world::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
 use crate::world::channel_types::{send_control_or_teardown, DimChannelsResource, ToDim};
 use mcrs_engine::world::sub_app::DimDespawnQueue;
 use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
@@ -276,7 +274,6 @@ pub fn drain_pending_disconnects(
 )]
 pub fn filter_inflight_for_disconnect(
     mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
-    mut transfer_msgs: ResMut<Messages<OutboundPlayerTransfer>>,
     mut attached_msgs: ResMut<Messages<OutboundPlayerAttached>>,
     mut disconnect_msgs: ResMut<Messages<OutboundPlayerDisconnect>>,
 ) {
@@ -285,14 +282,6 @@ pub fn filter_inflight_for_disconnect(
     }
     let disconnected: rustc_hash::FxHashSet<Entity> =
         disconnected_this_tick.host_anchors.iter().copied().collect();
-
-    let kept_transfers: Vec<OutboundPlayerTransfer> = transfer_msgs
-        .drain()
-        .filter(|msg| !disconnected.contains(&msg.host_anchor))
-        .collect();
-    for msg in kept_transfers {
-        transfer_msgs.write(msg);
-    }
 
     let kept_attached: Vec<OutboundPlayerAttached> = attached_msgs
         .drain()

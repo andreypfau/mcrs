@@ -25,10 +25,7 @@ pub fn run_server_loop(mut app: App) {
 }
 
 pub fn pump_channels(app: &mut App) {
-    use crate::world::bus::{
-        OutboundPlayerAttached, OutboundPlayerPacket, OutboundPlayerTransfer,
-        OutboundPlayerTransferRequest, PacketTarget,
-    };
+    use crate::world::bus::{OutboundPlayerPacket, PacketTarget};
     use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim};
     use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
     use mcrs_engine::session::SessionRegistry;
@@ -114,43 +111,6 @@ pub fn pump_channels(app: &mut App) {
                     world
                         .resource_mut::<Messages<OutboundPlayerPacket>>()
                         .write(pkt);
-                }
-                FromDim::Transfer {
-                    host_anchor,
-                    dest_dim,
-                    snapshot,
-                } => {
-                    world
-                        .resource_mut::<Messages<OutboundPlayerTransfer>>()
-                        .write(OutboundPlayerTransfer {
-                            host_anchor,
-                            dest_dim,
-                            snapshot,
-                        });
-                }
-                FromDim::TransferRequest {
-                    host_anchor,
-                    dim_name,
-                    snapshot,
-                } => {
-                    world
-                        .resource_mut::<Messages<OutboundPlayerTransferRequest>>()
-                        .write(OutboundPlayerTransferRequest {
-                            host_anchor,
-                            dim_name,
-                            snapshot,
-                        });
-                }
-                FromDim::Attached {
-                    host_anchor,
-                    new_in_dim_entity,
-                } => {
-                    world
-                        .resource_mut::<Messages<OutboundPlayerAttached>>()
-                        .write(OutboundPlayerAttached {
-                            host_anchor,
-                            new_in_dim_entity,
-                        });
                 }
                 FromDim::MoveEntity {
                     move_id: _,

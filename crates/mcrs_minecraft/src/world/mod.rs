@@ -47,8 +47,6 @@ impl Plugin for WorldPlugin {
         app.init_resource::<mcrs_engine::world::in_flight::InFlightMoves>();
         app.add_message::<crate::world::bus::OutboundPlayerPacket>();
         app.add_message::<crate::world::bus::InboundPlayerPacket>();
-        app.add_message::<crate::world::bus::OutboundPlayerTransfer>();
-        app.add_message::<crate::world::bus::OutboundPlayerTransferRequest>();
         app.add_message::<crate::world::bus::OutboundPlayerAttached>();
         app.add_message::<crate::world::bus::OutboundPlayerDisconnect>();
         // `attach_outbound_queue` runs in FixedPreUpdate after the network
@@ -91,8 +89,6 @@ impl Plugin for WorldPlugin {
             bevy_app::Update,
             (
                 crate::world::bridge::bridge_inbound_to_channel,
-                crate::world::bridge::resolve_transfer_requests,
-                crate::world::bridge::bridge_player_transfer,
                 crate::world::bridge::bridge_player_attach,
             )
                 .chain(),
