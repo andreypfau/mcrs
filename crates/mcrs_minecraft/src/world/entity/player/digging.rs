@@ -23,10 +23,12 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::reposition::Reposition;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::ChunkIndex;
+use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::dimension::{DimensionPlayers, InDimension};
-use mcrs_network::ServerSideConnection;
-use mcrs_protocol::packets::game::clientbound::ClientboundBlockDestruction;
-use mcrs_protocol::{BlockStateId, VarInt, WritePacket};
+use mcrs_protocol::BlockStateId;
+
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use crate::world::entity::player::HostAnchor;
 use mcrs_core::StaticRegistry;
 use mcrs_core::tag::registry::TagRegistry;
 use mcrs_vanilla::block::Block as VanillaBlock;
@@ -272,10 +274,11 @@ struct SendDestroyBlockProgress<'w, 's> {
         's,
         (
             Entity,
-            &'static mut ServerSideConnection,
+            &'static HostAnchor,
             &'static Reposition,
         ),
     >,
+    packet_writer: MessageWriter<'w, OutboundPlayerPacket>,
 }
 
 impl SendDestroyBlockProgress<'_, '_> {
@@ -283,17 +286,22 @@ impl SendDestroyBlockProgress<'_, '_> {
         let Some(dim_players) = self.dim_players.get(dim.entity()).ok() else {
             return;
         };
-        let mut iter = self.all_players.iter_many_mut(dim_players.iter());
-        while let Some((player, mut conn, rep)) = iter.fetch_next() {
+        let mut iter = self.all_players.iter_many(dim_players.iter());
+        while let Some((player, anchor, rep)) = iter.fetch_next() {
             if player == id {
                 continue;
             }
-            let packet = ClientboundBlockDestruction {
-                id: VarInt(id.index_u32() as i32),
-                pos: rep.convert_block_pos(block_pos),
-                progress,
-            };
-            conn.write_packet(&packet);
+            self.packet_writer.write(OutboundPlayerPacket {
+                target: PacketTarget::SinglePlayer(anchor.0),
+                priority: PacketPriority::Normal,
+                data: PacketPayload::BlockDestruction {
+                    entity_id: id.index_u32() as i32,
+                    pos: rep.convert_block_pos(block_pos),
+                    progress,
+                },
+                session: PlayerSession(0),
+                epoch: 0,
+            });
         }
     }
 }
