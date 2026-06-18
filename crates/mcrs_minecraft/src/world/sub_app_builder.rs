@@ -185,18 +185,7 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<BlockSetRequest>();
     sub_app.add_message::<BlockPlaced>();
 
-    // `MinecraftEntityPlugin`'s nested `DiggingPlugin` and `PlayerPlugin`
-    // carry systems that read host-side resources (the digging chain routes
-    // per-player block events through the cross-`World` bridge; `spawn_player`
-    // reads the loaded preset to fill in dimension state). Now that the plugin
-    // runs per-dim, those systems live in this sub-app's `World`, but their
-    // resource reads must not panic — initialise empty per-dim copies so the
-    // systems no-op naturally.
-    sub_app.init_resource::<crate::world::player_index::PlayerIndex>();
-    sub_app.init_resource::<mcrs_engine::session::SessionRegistry>();
-    sub_app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
     sub_app.init_resource::<mcrs_engine::session::DimPlayerIndex>();
-    sub_app.init_resource::<crate::configuration::LoadedWorldPreset>();
 
     sub_app.update_schedule = Some(DimTick.intern());
     sub_app.add_schedule(Schedule::new(DimTick));
