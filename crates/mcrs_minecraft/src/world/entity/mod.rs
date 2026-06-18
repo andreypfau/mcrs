@@ -28,6 +28,7 @@ pub mod player;
 
 pub struct MinecraftEntityPlugin;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MinecraftEntityType {
     PrimedTnt = 132,
     Player = 155,

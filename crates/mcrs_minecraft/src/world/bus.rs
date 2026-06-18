@@ -245,6 +245,41 @@ pub struct PlayerTransferSnapshot {
     pub rotation: Vec2,
 }
 
+/// Generic move payload.  The `Player` variant carries only the minimal
+/// identity the target dim needs to spawn a fresh default entity and relink
+/// the connection.  `NonPlayer` carries a kind tag; both slots are shaped so
+/// a future faithful-snapshot field is an obvious addition rather than a
+/// structural rewrite.
+///
+/// `PlayerTransferSnapshot` is NOT reused here — it carries position/rotation
+/// which arrival resolution overrides, so it is the wrong shape for this role.
+#[derive(Clone, Debug)]
+pub enum MovePayload {
+    Player {
+        uuid: Uuid,
+        username: String,
+    },
+    NonPlayer {
+        kind: crate::world::entity::MinecraftEntityType,
+    },
+}
+
+/// Positional and contextual input the target dim needs to resolve the arrival
+/// landing point.  The MainWorld forwards this opaquely — only the target
+/// DimWorld pattern-matches on it.  The carried position is an input to
+/// resolution, not the authoritative spawn position.
+#[derive(Clone, Debug)]
+pub enum ArrivalCause {
+    /// Player crossed a nether portal; target resolves a /8-scaled landing.
+    NetherPortal { source_pos: BlockPos },
+    /// Player arrived at the End; target creates a 5×5 obsidian platform.
+    EndPlatform,
+    /// Exact-position respawn (e.g. /tp or death respawn at a fixed point).
+    ExactRespawn { pos: DVec3 },
+    /// Command teleport (/tp player dim x y z).
+    CommandTeleport { pos: DVec3 },
+}
+
 
 #[cfg(test)]
 mod tests {

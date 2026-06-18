@@ -124,6 +124,12 @@ pub fn pump_channels(app: &mut App) {
                             new_in_dim_entity,
                         });
                 }
+                FromDim::MoveEntity { .. } => {
+                    // Confirmed-move initiation; brokering wired in a later plan.
+                }
+                FromDim::Spawned { .. } => {
+                    // Confirmed-move ack; relay to source wired in a later plan.
+                }
             }
         }
     }

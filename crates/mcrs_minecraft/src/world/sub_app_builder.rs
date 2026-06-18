@@ -395,6 +395,10 @@ fn drain_to_dim_inbox(
             }
             ToDim::Attach { .. } => {}
             ToDim::Serverbound { .. } => {}
+            // Confirmed-move control variants; consumed by arrival systems in a later plan.
+            ToDim::SpawnEntity { .. } => {}
+            ToDim::ConfirmMove { .. } => {}
+            ToDim::RollbackMove { .. } => {}
         }
     }
     for msg in rx.serverbound.try_iter() {

@@ -1,12 +1,15 @@
 use bevy_ecs::prelude::Entity;
 use bytes::Bytes;
-use mcrs_engine::session::PlayerSession;
+use mcrs_engine::session::{MoveId, PlayerSession};
 use mcrs_engine::world::channels::{DimChannels, DimSender};
 use mcrs_engine::world::sub_app::DimDespawnQueue;
 use std::time::Instant;
 use tracing::warn;
 
-use crate::world::bus::{PacketPayload, PacketPriority, PacketTarget, PlayerTransferSnapshot};
+use crate::world::bus::{
+    ArrivalCause, MovePayload, PacketPayload, PacketPriority, PacketTarget,
+    PlayerTransferSnapshot,
+};
 
 /// Host→dim message channel type.
 ///
@@ -40,6 +43,19 @@ pub enum ToDim {
         host_anchor: Entity,
         session: PlayerSession,
     },
+    /// Confirmed-move spawn command to the target dim.  Non-sheddable.
+    SpawnEntity {
+        move_id: MoveId,
+        /// The player's newly bumped epoch; ignored for non-player moves.
+        epoch: u32,
+        cause: ArrivalCause,
+        payload: MovePayload,
+        player: Option<PlayerSession>,
+    },
+    /// Confirm that the move completed; source dim may despawn the hidden entity.
+    ConfirmMove { move_id: MoveId },
+    /// Immediate rollback signal to the source dim (Disconnected or tick-timeout).
+    RollbackMove { move_id: MoveId },
 }
 
 impl ToDim {
@@ -83,6 +99,18 @@ pub enum FromDim {
         host_anchor: Entity,
         new_in_dim_entity: Entity,
     },
+    /// Confirmed-move initiation: source dim requests transfer to another dim by name.
+    /// The host resolves the name, inserts into InFlightMoves, and sends SpawnEntity.
+    MoveEntity {
+        move_id: MoveId,
+        /// Destination dimension by name (resolved host-side).
+        target: String,
+        cause: ArrivalCause,
+        payload: MovePayload,
+        player: Option<PlayerSession>,
+    },
+    /// Ack from target dim: the entity has been spawned and arrival resolved.
+    Spawned { move_id: MoveId },
 }
 
 /// Convenience alias for the concrete channel registry parameterized by this
