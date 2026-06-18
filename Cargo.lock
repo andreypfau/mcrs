@@ -1988,6 +1988,7 @@ dependencies = [
  "mcrs_minecraft",
  "mcrs_minecraft_block",
  "mcrs_minecraft_lighting",
+ "mcrs_network",
  "mcrs_protocol",
  "mcrs_vanilla",
  "rustc-hash 2.1.1",
