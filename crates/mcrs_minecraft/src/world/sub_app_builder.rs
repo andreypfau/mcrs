@@ -285,8 +285,7 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(Time::<Real>::default());
 
     sub_app.set_extract(move |main_world, sub_world| {
-        use crate::world::bus::{OutboundPlayerAttached, OutboundPlayerPacket};
-        use crate::world::channel_types::{DimChannelsResource, FromDim};
+        use crate::world::bus::OutboundPlayerAttached;
 
         #[cfg(feature = "telemetry-tracy")]
         let _dim_span = tracing::info_span!("dim_extract", dim = %dim_for_extract).entered();
@@ -301,81 +300,6 @@ pub fn spawn_dim_subapp(
         }
         if let Some(time) = main_world.get_resource::<Time<()>>() {
             sub_world.insert_resource(*time);
-        }
-
-        // Drain the FromDim channel for this dim into the host-world message buses.
-        // This runs after flush_from_dim_outbox (FixedLast) has sent all outbound
-        // messages to the channel, so the extract closure picks them up synchronously
-        // within the same host tick that produced them.
-        let from_dim_msgs: Vec<FromDim> = main_world
-            .get_resource::<DimChannelsResource>()
-            .and_then(|r| r.get(label_entity))
-            .map(|entry| entry.from_dim_receiver.try_iter().collect())
-            .unwrap_or_default();
-
-        if !from_dim_msgs.is_empty() {
-            use mcrs_engine::session::SessionRegistry;
-            for msg in from_dim_msgs {
-                match msg {
-                    FromDim::Clientbound { target, priority, data, session: _, epoch: _ } => {
-                        use crate::world::bus::PacketTarget;
-                        let (stamped_session, stamped_epoch) =
-                            if let PacketTarget::SinglePlayer(entity) = &target {
-                                let session_registry = main_world.resource::<SessionRegistry>();
-                                if let Some((s, e)) = session_registry.get_by_anchor(entity) {
-                                    (*s, e.epoch)
-                                } else {
-                                    (mcrs_engine::session::PlayerSession(0), 0)
-                                }
-                            } else {
-                                (mcrs_engine::session::PlayerSession(0), 0)
-                            };
-                        if let Some(mut host_pkts) =
-                            main_world.get_resource_mut::<Messages<OutboundPlayerPacket>>()
-                        {
-                            host_pkts.write(OutboundPlayerPacket {
-                                target,
-                                priority,
-                                data,
-                                session: stamped_session,
-                                epoch: stamped_epoch,
-                            });
-                        }
-                    }
-                    FromDim::Attached { host_anchor, new_in_dim_entity } => {
-                        if let Some(mut host_msgs) =
-                            main_world.get_resource_mut::<Messages<OutboundPlayerAttached>>()
-                        {
-                            host_msgs.write(OutboundPlayerAttached {
-                                host_anchor,
-                                new_in_dim_entity,
-                            });
-                        }
-                    }
-                    FromDim::Transfer { host_anchor, dest_dim, snapshot } => {
-                        if let Some(mut host_msgs) =
-                            main_world.get_resource_mut::<Messages<crate::world::bus::OutboundPlayerTransfer>>()
-                        {
-                            host_msgs.write(crate::world::bus::OutboundPlayerTransfer {
-                                host_anchor,
-                                dest_dim,
-                                snapshot,
-                            });
-                        }
-                    }
-                    FromDim::TransferRequest { host_anchor, dim_name, snapshot } => {
-                        if let Some(mut host_msgs) =
-                            main_world.get_resource_mut::<Messages<crate::world::bus::OutboundPlayerTransferRequest>>()
-                        {
-                            host_msgs.write(crate::world::bus::OutboundPlayerTransferRequest {
-                                host_anchor,
-                                dim_name,
-                                snapshot,
-                            });
-                        }
-                    }
-                }
-            }
         }
 
         // Also extract OutboundPlayerAttached written directly to the sub-app Messages
