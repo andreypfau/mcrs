@@ -1,6 +1,6 @@
 use crate::world::bus::{InboundPlayerPacket, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::explosive::primed_tnt::PrimedTntPlugin;
-use crate::world::entity::player::{HostAnchor, PlayerPlugin};
+use crate::world::entity::player::{DimPlayerPlugin, HostAnchor};
 use bevy_app::{App, FixedPreUpdate, Plugin};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
@@ -37,7 +37,7 @@ pub enum MinecraftEntityType {
 impl Plugin for MinecraftEntityPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(EntityPlugin);
-        app.add_plugins(PlayerPlugin);
+        app.add_plugins(DimPlayerPlugin);
         app.add_plugins(PrimedTntPlugin);
         app.add_observer(entity_pos_sync);
         app.add_systems(FixedPreUpdate, dispatch_inbound_to_dim);

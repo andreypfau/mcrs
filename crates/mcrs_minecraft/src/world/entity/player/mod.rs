@@ -18,7 +18,7 @@ use crate::world::entity::{EntityBundle, MinecraftEntityType};
 use crate::world::inventory::{ContainerSeqno, PlayerInventoryBundle, PlayerInventoryQuery};
 use crate::world::item::minecraft::DIAMOND_PICKAXE;
 use crate::world::item::{ItemCommands, ItemStack};
-use bevy_app::{FixedUpdate, Plugin, PostUpdate};
+use bevy_app::{FixedUpdate, Plugin, PostUpdate, Update};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
@@ -87,9 +87,12 @@ fn default_game_mode() -> GameMode {
 #[derive(bevy_ecs::component::Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HostAnchor(pub Entity);
 
-pub struct PlayerPlugin;
+/// Plugin for per-dimension worlds. Registers only the bus-driven and
+/// simulation systems that are safe to run inside a DimWorld — no
+/// `ServerSideConnection` or other host-only resource is accessed.
+pub struct DimPlayerPlugin;
 
-impl Plugin for PlayerPlugin {
+impl Plugin for DimPlayerPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.add_plugins(DiggingPlugin);
         app.add_plugins(PlayerActionPlugin);
@@ -98,14 +101,26 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(PlayerInventoryPlugin);
         app.add_plugins(ChatPlugin);
         app.add_plugins(GameModePlugin);
-        app.add_systems(bevy_app::Update, spawn_player);
-        app.add_systems(bevy_app::Update, consume_inbound_player_spawn);
-        app.add_systems(bevy_app::Update, despawn_inbound_player);
-        app.add_systems(FixedUpdate, (disconnect_player, added_inventory, resync_player));
-        app.add_systems(PostUpdate, despawn_disconnected_clients);
+        app.add_systems(Update, consume_inbound_player_spawn);
+        app.add_systems(Update, despawn_inbound_player);
         app.add_systems(FixedUpdate, (despawn_on_confirm, unhide_on_rollback));
         app.add_observer(network_add);
         app.add_observer(player_joined);
+    }
+}
+
+/// Plugin for the host (MainWorld) only. Registers the connection-lifecycle
+/// systems that query `ServerSideConnection` / `InGameConnectionState`.
+/// Not wired onto the host app until the host plugin set is refactored in
+/// a future phase; currently the host registers these systems directly in
+/// its own plugin composition.
+pub struct HostPlayerPlugin;
+
+impl Plugin for HostPlayerPlugin {
+    fn build(&self, app: &mut bevy_app::App) {
+        app.add_systems(Update, spawn_player);
+        app.add_systems(FixedUpdate, (disconnect_player, added_inventory, resync_player));
+        app.add_systems(PostUpdate, despawn_disconnected_clients);
     }
 }
 
@@ -288,7 +303,6 @@ fn spawn_player(
 /// via `OutboundPlayerAttached`. `PlayerIndex` and `ServerSideConnection`
 /// are host-resident and must NOT be accessed here.
 fn consume_inbound_player_spawn(
-    world_preset: Res<crate::configuration::LoadedWorldPreset>,
     mut reader: MessageReader<InboundPlayerSpawn>,
     mut attached: MessageWriter<OutboundPlayerAttached>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
@@ -333,14 +347,7 @@ fn consume_inbound_player_spawn(
         let center_x = (spawn_pos.x / 16.0).floor() as i32;
         let center_z = (spawn_pos.z / 16.0).floor() as i32;
 
-        let dimensions: Vec<String> = if world_preset.dimensions.is_empty() {
-            vec!["minecraft:overworld".to_string()]
-        } else {
-            world_preset.dimensions
-                .iter()
-                .map(|(dim_key, _)| dim_key.as_str().to_owned())
-                .collect()
-        };
+        let dimensions = spawn.dimensions.clone();
 
         debug!(
             target: "mcrs_minecraft::player",
