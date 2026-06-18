@@ -43,10 +43,9 @@ use crate::world::bridge_queue::{
 };
 use mcrs_engine::session::{PlayerSession, SessionRegistry};
 use crate::world::bus::{
-    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerTransfer, OutboundPlayerTransferRequest, PacketPayload, PacketTarget,
-    PendingInboundLifecycle, PendingInboundPartition,
 };
+use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use crate::world::player_index::{HostAnchorRef, PendingInboundBuffer};
 use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
 
@@ -599,28 +598,49 @@ pub fn dispatch_encode(
     }
 }
 
-pub fn partition_main_inbound(
-    mut msgs: ResMut<Messages<InboundPlayerPacket>>,
-    mut partition: ResMut<PendingInboundPartition>,
+/// Routes serverbound packets from the network into the dim channel seam.
+///
+/// Drains `Messages<OutboundPlayerPacket>` is the outbound side; this system
+/// handles the inbound side: for each `InboundPlayerPacket` written by upstream
+/// callers, resolve the player's dim and `try_send` it as `ToDim::Serverbound`
+/// into the dim's bounded serverbound channel. On `TrySendError::Full`,
+/// disconnect the offending session (D-08b). Pre-attach players whose dim is
+/// still `PLACEHOLDER` are held in `PendingInboundBuffer` until
+/// `bridge_player_attach` drains them.
+pub fn bridge_inbound_to_channel(
+    mut msgs: ResMut<Messages<crate::world::bus::InboundPlayerPacket>>,
     session_registry: Res<SessionRegistry>,
+    dim_channels: Res<DimChannelsResource>,
     mut inbound_buffer: ResMut<PendingInboundBuffer>,
+    mut commands: Commands,
 ) {
+    use flume::TrySendError;
     for msg in msgs.drain() {
-        // msg.player is the host_anchor entity
         let Some((_, entry)) = session_registry.get_by_anchor(&msg.player) else {
             continue;
         };
-        // dim == PLACEHOLDER means login inserted the entry before spawn-point
-        // selection assigned a real dim. Hold in the per-anchor buffer until
-        // bridge_player_attach fires.
         if entry.in_dim_entity.is_some() && entry.dim != Entity::PLACEHOLDER {
-            partition.per_dim.entry(entry.dim).or_default().push(msg);
+            let Some(chan) = dim_channels.get(entry.dim) else {
+                continue;
+            };
+            match chan.serverbound_sender.try_send(ToDim::Serverbound {
+                player: msg.player,
+                id: msg.id,
+                data: msg.data,
+                timestamp: msg.timestamp,
+            }) {
+                Ok(()) => {}
+                Err(TrySendError::Full(_)) => {
+                    if let Some((_, sess_entry)) = session_registry.get_by_anchor(&msg.player) {
+                        commands
+                            .entity(sess_entry.connection_entity)
+                            .remove::<mcrs_network::ServerSideConnection>();
+                    }
+                }
+                Err(TrySendError::Disconnected(_)) => {}
+            }
         } else {
-            inbound_buffer
-                .buffers
-                .entry(msg.player)
-                .or_default()
-                .push(msg);
+            inbound_buffer.buffers.entry(msg.player).or_default().push(msg);
         }
     }
 }
@@ -653,14 +673,9 @@ pub fn resolve_transfer_requests(
 pub fn bridge_player_transfer(
     mut transfer_msgs: ResMut<Messages<OutboundPlayerTransfer>>,
     mut session_registry: ResMut<SessionRegistry>,
-    mut lifecycle: ResMut<PendingInboundLifecycle>,
+    dim_channels: Res<DimChannelsResource>,
     live_dims: Query<Entity, With<DimSubAppHandle>>,
 ) {
-    // Snapshot the set of live sub-app label entities once per system
-    // run; an OutboundPlayerTransfer carrying a dest_dim that does not
-    // match a live handle would leave the player's dim pointing at a
-    // sub-app that no extract closure drains, and the spawn would
-    // accumulate in lifecycle.per_dim[dest_dim] indefinitely.
     let valid_dims: FxHashSet<Entity> = live_dims.iter().collect();
     for msg in transfer_msgs.drain() {
         if !valid_dims.contains(&msg.dest_dim) {
@@ -676,50 +691,35 @@ pub fn bridge_player_transfer(
         };
         let session = session;
         let old_dim = entry.dim;
-        // A new occupancy of the destination dim invalidates any clientbound
-        // packet still in flight from a prior occupancy. Bumping the epoch on
-        // every real dim change makes bridge_outbound's strict-equality filter
-        // drop those stale packets (the A→B→A round trip, ROUT-05).
         if old_dim != msg.dest_dim {
             entry.epoch = entry.epoch.wrapping_add(1);
         }
         entry.dim = msg.dest_dim;
         entry.previous_dim = Some(old_dim);
         entry.in_dim_entity = None;
-        // Despawn the player's entity in the dimension it is leaving, otherwise
-        // that entity keeps its AoI subscription and streams the old
-        // dimension's chunks (wrong section count for the new dimension) to the
-        // now-relocated connection, crashing the client.
+
         if old_dim != Entity::PLACEHOLDER && old_dim != msg.dest_dim {
-            lifecycle
-                .per_dim
-                .entry(old_dim)
-                .or_default()
-                .despawns
-                .push(InboundPlayerDespawn {
+            if let Some(chan) = dim_channels.get(old_dim) {
+                let _ = chan.control_sender.try_send(ToDim::Despawn {
                     host_anchor: msg.host_anchor,
-                    session,
                 });
+            }
         }
-        let spawn = InboundPlayerSpawn {
-            host_anchor: msg.host_anchor,
-            session,
-            snapshot: msg.snapshot.clone(),
-        };
-        lifecycle
-            .per_dim
-            .entry(msg.dest_dim)
-            .or_default()
-            .spawns
-            .push(spawn);
+        if let Some(chan) = dim_channels.get(msg.dest_dim) {
+            let _ = chan.control_sender.try_send(ToDim::Spawn {
+                host_anchor: msg.host_anchor,
+                session,
+                snapshot: msg.snapshot.clone(),
+            });
+        }
     }
 }
 
 pub fn bridge_player_attach(
-    mut attach_msgs: ResMut<Messages<OutboundPlayerAttached>>,
+    mut attach_msgs: ResMut<Messages<crate::world::bus::OutboundPlayerAttached>>,
     mut session_registry: ResMut<SessionRegistry>,
     mut inbound_buffer: ResMut<PendingInboundBuffer>,
-    mut partition: ResMut<PendingInboundPartition>,
+    dim_channels: Res<DimChannelsResource>,
 ) {
     for msg in attach_msgs.drain() {
         let Some((_, entry)) = session_registry.get_by_anchor_mut(&msg.host_anchor) else {
@@ -730,10 +730,14 @@ pub fn bridge_player_attach(
         let current_dim = entry.dim;
 
         if let Some(buffered) = inbound_buffer.buffers.remove(&msg.host_anchor) {
-            if !buffered.is_empty() {
-                let bucket = partition.per_dim.entry(current_dim).or_default();
+            if let Some(chan) = dim_channels.get(current_dim) {
                 for packet in buffered {
-                    bucket.push(packet);
+                    let _ = chan.serverbound_sender.try_send(ToDim::Serverbound {
+                        player: packet.player,
+                        id: packet.id,
+                        data: packet.data,
+                        timestamp: packet.timestamp,
+                    });
                 }
             }
         }
@@ -752,9 +756,10 @@ pub fn bridge_inbound(
     >,
     mut commands: Commands,
     session_registry: Res<SessionRegistry>,
-    mut partition: ResMut<PendingInboundPartition>,
+    dim_channels: Res<DimChannelsResource>,
     mut inbound_buffer: ResMut<PendingInboundBuffer>,
 ) {
+    use flume::TrySendError;
     use mcrs_network::metrics::BRIDGE_KICK_FLOOD_TOTAL;
     use mcrs_protocol::packets::game::clientbound::ClientboundDisconnect;
 
@@ -765,7 +770,6 @@ pub fn bridge_inbound(
             match conn.raw.try_recv() {
                 Ok(Some(pkt)) => {
                     if !bucket.consume_or_flag() {
-                        // Flood threshold exceeded — kick with reason.
                         conn.raw
                             .append(&ClientboundDisconnect {
                                 reason: mcrs_protocol::Text::from("Connection flood detected"),
@@ -778,8 +782,6 @@ pub fn bridge_inbound(
                         break;
                     }
 
-                    // Host-world re-emit: drives host-registered observers
-                    // (keepalive, accept-teleportation, login/config).
                     commands.trigger(ReceivedPacketEvent {
                         entity,
                         id: pkt.id,
@@ -787,32 +789,32 @@ pub fn bridge_inbound(
                         timestamp: pkt.timestamp,
                     });
 
-                    // Dim-world route: push the real packet into the player's
-                    // current-dimension partition. The per-dim extract closure
-                    // shuttles it into the sub-world's Messages<InboundPlayerPacket>,
-                    // where dispatch_inbound_to_dim re-emits it as a
-                    // ReceivedPacketEvent on the in-dim player entity so dim
-                    // observers (movement, chat, digging) fire.
                     if let Some(anchor) = anchor_ref {
                         if let Some((_, entry)) = session_registry.get_by_anchor(&anchor.0) {
                             if entry.dim != Entity::PLACEHOLDER {
                                 if entry.in_dim_entity.is_some() {
-                                    partition
-                                        .per_dim
-                                        .entry(entry.dim)
-                                        .or_default()
-                                        .push(InboundPlayerPacket {
+                                    if let Some(chan) = dim_channels.get(entry.dim) {
+                                        match chan.serverbound_sender.try_send(ToDim::Serverbound {
                                             player: anchor.0,
                                             id: pkt.id,
                                             data: pkt.payload,
                                             timestamp: pkt.timestamp,
-                                        });
+                                        }) {
+                                            Ok(()) => {}
+                                            Err(TrySendError::Full(_)) => {
+                                                commands
+                                                    .entity(entity)
+                                                    .remove::<ServerSideConnection>();
+                                            }
+                                            Err(TrySendError::Disconnected(_)) => {}
+                                        }
+                                    }
                                 } else {
                                     inbound_buffer
                                         .buffers
                                         .entry(anchor.0)
                                         .or_default()
-                                        .push(InboundPlayerPacket {
+                                        .push(crate::world::bus::InboundPlayerPacket {
                                             player: anchor.0,
                                             id: pkt.id,
                                             data: pkt.payload,
@@ -825,7 +827,6 @@ pub fn bridge_inbound(
                 }
                 Ok(None) => break,
                 Err(_) => {
-                    // Channel disconnected — writer died; remove the connection.
                     warn!(entity = ?entity, "bridge_inbound: connection channel disconnected");
                     commands.entity(entity).remove::<ServerSideConnection>();
                     break;

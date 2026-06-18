@@ -32,9 +32,9 @@ use tracing::warn;
 
 use mcrs_engine::session::{PlayerSession, SessionRegistry};
 use crate::world::bus::{
-    InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
-    OutboundPlayerTransfer, PendingInboundLifecycle, PendingInboundPartition,
+    OutboundPlayerAttached, OutboundPlayerDisconnect, OutboundPlayerTransfer,
 };
+use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
 
 /// Per-tick cleanup budget. The initial 32 caps work at 640 disconnects/sec
@@ -139,7 +139,7 @@ pub fn on_player_disconnect(
     mut pending_queue: ResMut<PendingDisconnectQueue>,
     mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
     mut overflow_counter: ResMut<OverflowCounter>,
-    mut lifecycle: ResMut<PendingInboundLifecycle>,
+    dim_channels: ResMut<DimChannelsResource>,
     mut commands: Commands,
 ) {
     let connection_entity = trigger.event().entity;
@@ -154,17 +154,13 @@ pub fn on_player_disconnect(
             host_anchor,
             &mut player_index,
             &mut session_registry,
-            &mut lifecycle,
+            &dim_channels,
             &mut commands,
         );
     } else if !pending_queue.push_back(host_anchor) {
         let before = overflow_counter.0;
         overflow_counter.0 = before.saturating_add(1);
         let after = overflow_counter.0;
-        // Emit on the first drop (counter transitioned from 0 -> 1) and
-        // then every OVERFLOW_HEARTBEAT_INTERVAL drops thereafter. The
-        // intermediate drops bump the resource counter (visible via the
-        // telemetry surface) but stay out of the log to avoid flooding.
         if before == 0 || after.is_multiple_of(OVERFLOW_HEARTBEAT_INTERVAL) {
             warn!(
                 target: "disconnect",
@@ -189,7 +185,7 @@ pub fn process_disconnect(
     host_anchor: Entity,
     player_index: &mut PlayerIndex,
     session_registry: &mut SessionRegistry,
-    lifecycle: &mut PendingInboundLifecycle,
+    dim_channels: &DimChannelsResource,
     commands: &mut Commands,
 ) {
     let (session, current_dim, previous_dim, connection_entity) =
@@ -198,35 +194,21 @@ pub fn process_disconnect(
             None => return,
         };
 
-    lifecycle
-        .per_dim
-        .entry(current_dim)
-        .or_default()
-        .despawns
-        .push(InboundPlayerDespawn { host_anchor, session });
+    let _ = session;
+    if let Some(chan) = dim_channels.get(current_dim) {
+        let _ = chan.control_sender.try_send(ToDim::Despawn { host_anchor });
+    }
 
     if let Some(prev) = previous_dim
         && prev != current_dim
     {
-        lifecycle
-            .per_dim
-            .entry(prev)
-            .or_default()
-            .despawns
-            .push(InboundPlayerDespawn { host_anchor, session });
+        if let Some(chan) = dim_channels.get(prev) {
+            let _ = chan.control_sender.try_send(ToDim::Despawn { host_anchor });
+        }
     }
 
     session_registry.remove(&session);
 
-    // Remove the username mapping. We find it by scanning — this is rare
-    // (once per disconnect) and player counts are small.
-    // We don't have the username readily available here; caller must have
-    // already removed it, or we tolerate the stale entry being absent.
-    // The username map is only a secondary lookup; SessionRegistry is authoritative.
-    // (The entry is cleaned up at next login if somehow left stale.)
-
-    // Remove OutboundQueue from the socket entity to prevent a resource
-    // leak when the socket entity survives the disconnect.
     if let Ok(mut socket_entity) = commands.get_entity(connection_entity) {
         socket_entity.try_remove::<crate::world::bridge_queue::OutboundQueue>();
     }
@@ -249,7 +231,7 @@ pub fn drain_pending_disconnects(
     mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
     mut player_index: ResMut<PlayerIndex>,
     mut session_registry: ResMut<SessionRegistry>,
-    mut lifecycle: ResMut<PendingInboundLifecycle>,
+    dim_channels: ResMut<DimChannelsResource>,
     mut commands: Commands,
 ) {
     disconnect_budget.refill();
@@ -258,19 +240,12 @@ pub fn drain_pending_disconnects(
             break;
         };
         disconnect_budget.remaining -= 1;
-        // Mirror the synchronous-path invariant: every host_anchor processed
-        // this tick goes into DisconnectedThisTick so the
-        // filter_inflight_for_disconnect pass (Update schedule, same tick)
-        // drops in-flight bus messages addressed to it. Without this, a
-        // deferred-drain anchor whose OutboundPlayerTransfer or
-        // OutboundPlayerAttached arrives on the drain tick leaks past the
-        // filter and reaches the dest sub-app after PlayerIndex is gone.
         disconnected_this_tick.host_anchors.push(host_anchor);
         process_disconnect(
             host_anchor,
             &mut player_index,
             &mut session_registry,
-            &mut lifecycle,
+            &dim_channels,
             &mut commands,
         );
     }
@@ -288,16 +263,10 @@ pub fn filter_inflight_for_disconnect(
     mut transfer_msgs: ResMut<Messages<OutboundPlayerTransfer>>,
     mut attached_msgs: ResMut<Messages<OutboundPlayerAttached>>,
     mut disconnect_msgs: ResMut<Messages<OutboundPlayerDisconnect>>,
-    mut lifecycle: ResMut<PendingInboundLifecycle>,
-    mut partition: ResMut<PendingInboundPartition>,
 ) {
     if disconnected_this_tick.host_anchors.is_empty() {
         return;
     }
-    // SmallVec::contains is linear; rebuild a transient hash set once
-    // so the per-message filter probes are O(1) instead of O(n) in the
-    // disconnect-set length. The set lives for the duration of this
-    // system run.
     let disconnected: rustc_hash::FxHashSet<Entity> =
         disconnected_this_tick.host_anchors.iter().copied().collect();
 
@@ -317,36 +286,12 @@ pub fn filter_inflight_for_disconnect(
         attached_msgs.write(msg);
     }
 
-    // OutboundPlayerDisconnect mirrors OutboundPlayerTransfer/Attached on
-    // the public bus surface; an in-flight disconnect message for a
-    // host-anchor whose PlayerIndex entry was just removed this tick
-    // would reach the consumer with a stale anchor reference. Filter
-    // it on the same key.
     let kept_disconnects: Vec<OutboundPlayerDisconnect> = disconnect_msgs
         .drain()
         .filter(|msg| !disconnected.contains(&msg.host_anchor))
         .collect();
     for msg in kept_disconnects {
         disconnect_msgs.write(msg);
-    }
-
-    for bundle in lifecycle.per_dim.values_mut() {
-        bundle
-            .spawns
-            .retain(|s| !disconnected.contains(&s.host_anchor));
-        bundle
-            .block_events
-            .retain(|b| !disconnected.contains(&b.player));
-    }
-
-    // PendingInboundPartition.per_dim is filled by partition_main_inbound
-    // earlier in Update; drop any InboundPlayerPacket whose `player`
-    // (host-anchor) was just disconnected. Without this, the sub-app's
-    // extract closure would shuttle a packet for a host-anchor whose
-    // PlayerIndex entry is gone, and the consumer's world.get(player)
-    // would return None.
-    for bucket in partition.per_dim.values_mut() {
-        bucket.retain(|pkt| !disconnected.contains(&pkt.player));
     }
 
     disconnected_this_tick.host_anchors.clear();
@@ -364,28 +309,10 @@ impl Plugin for DisconnectProtocolPlugin {
         app.init_resource::<OverflowCounter>();
         app.add_observer(on_player_disconnect);
         app.add_systems(First, drain_pending_disconnects);
-        // Order after partition_main_inbound so the PendingInboundPartition
-        // buckets that the partition system just filled are visible to the
-        // partition-purge branch in filter_inflight_for_disconnect.
-        //
-        // ORDERING CONSTRAINT: filter_inflight_for_disconnect calls
-        // Messages::drain() on OutboundPlayerTransfer, OutboundPlayerAttached,
-        // and OutboundPlayerDisconnect, then re-writes the survivors. The
-        // drain resets start_message_count, so any system that reads any of
-        // these three buffers via MessageReader in the same tick MUST run
-        // AFTER this filter — otherwise the rewritten survivors will be
-        // observed twice (once against the pre-reset IDs, once after the
-        // cursor invalidation from reset_start_message_count treats the
-        // rewrites as fresh). Today the only consumers are sub-app extract
-        // closures that use drain() rather than MessageReader, so the
-        // invariant is implicit; the constraint is not enforced by the type
-        // system. If a future system reads any of these messages via
-        // MessageReader, add an explicit .after(filter_inflight_for_disconnect)
-        // edge.
         app.add_systems(
             Update,
             filter_inflight_for_disconnect
-                .after(crate::world::bridge::partition_main_inbound),
+                .after(crate::world::bridge::bridge_inbound_to_channel),
         );
     }
 }

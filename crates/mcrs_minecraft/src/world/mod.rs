@@ -43,16 +43,13 @@ impl Plugin for WorldPlugin {
         app.init_resource::<crate::world::player_index::PendingInboundBuffer>();
         app.init_resource::<mcrs_engine::session::SessionRegistry>();
         app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
-        app.init_resource::<crate::world::bus::PendingInboundPartition>();
-        app.init_resource::<crate::world::bus::PendingInboundLifecycle>();
+        app.init_resource::<crate::world::channel_types::DimChannelsResource>();
         app.add_message::<crate::world::bus::OutboundPlayerPacket>();
         app.add_message::<crate::world::bus::InboundPlayerPacket>();
         app.add_message::<crate::world::bus::OutboundPlayerTransfer>();
         app.add_message::<crate::world::bus::OutboundPlayerTransferRequest>();
-        app.add_message::<crate::world::bus::InboundPlayerSpawn>();
         app.add_message::<crate::world::bus::OutboundPlayerAttached>();
         app.add_message::<crate::world::bus::OutboundPlayerDisconnect>();
-        app.add_message::<crate::world::bus::InboundPlayerDespawn>();
         // `attach_outbound_queue` runs in FixedPreUpdate after the network
         // crate's `spawn_new_raw_connections` system (in NetworkSet::SpawnConnections)
         // has populated the world with new `ServerSideConnection` entities.
@@ -92,7 +89,7 @@ impl Plugin for WorldPlugin {
         app.add_systems(
             bevy_app::Update,
             (
-                crate::world::bridge::partition_main_inbound,
+                crate::world::bridge::bridge_inbound_to_channel,
                 crate::world::bridge::resolve_transfer_requests,
                 crate::world::bridge::bridge_player_transfer,
                 crate::world::bridge::bridge_player_attach,
