@@ -8,7 +8,7 @@ use mcrs_engine::session::PlayerSession;
 use mcrs_protocol::BlockStateId;
 use mcrs_protocol::chunk::LightData;
 use mcrs_protocol::uuid::Uuid;
-use mcrs_protocol::{GameMode, Look, Text};
+use mcrs_protocol::{GameEventKind, GameMode, Look, Text};
 use smallvec::SmallVec;
 use std::time::Instant;
 
@@ -188,6 +188,21 @@ pub enum PacketPayload {
     SystemChat {
         content: Text,
         overlay: bool,
+    },
+    /// Carries the wire numeric entity id, block position, and progress stage
+    /// so dispatch_encode builds ClientboundBlockDestruction without World
+    /// access. The producer resolves `entity.index_u32() as i32` and the
+    /// 0-9/-1 progress value before emitting this variant.
+    BlockDestruction {
+        entity_id: i32,
+        pos: BlockPos,
+        progress: i8,
+    },
+    /// Carries a single game-event kind so dispatch_encode builds
+    /// ClientboundGameEvent without World access. Used for game-mode changes
+    /// (GameEventKind::ChangeGameMode) in single-player responses.
+    GameEvent {
+        game_event: GameEventKind,
     },
 }
 
