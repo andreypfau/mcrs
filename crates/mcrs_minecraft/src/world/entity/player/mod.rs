@@ -625,7 +625,7 @@ fn added_inventory(
 /// Source-dim system: when `ConfirmMove` arrives, find the in-transit entity
 /// and despawn it — the entity has safely arrived at the target and is no longer
 /// needed in the source dim.
-fn despawn_on_confirm(
+pub fn despawn_on_confirm(
     mut reader: MessageReader<InboundConfirmMove>,
     in_transit: Query<(Entity, &InTransit)>,
     mut commands: Commands,
@@ -642,7 +642,7 @@ fn despawn_on_confirm(
 
 /// Source-dim system: when `RollbackMove` arrives, remove `InTransit` from the
 /// in-transit entity so it reappears at its original position — no despawn.
-fn unhide_on_rollback(
+pub fn unhide_on_rollback(
     mut reader: MessageReader<InboundRollbackMove>,
     in_transit: Query<(Entity, &InTransit)>,
     mut commands: Commands,
