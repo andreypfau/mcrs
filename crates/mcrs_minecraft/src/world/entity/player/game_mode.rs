@@ -1,18 +1,16 @@
 use crate::login::GameProfile;
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, PlayerInfoEntry};
 use crate::world::entity::player::ability::{
     Flying, Invulnerable, MayBuild, MayFly, PlayerGameMode, PlayerOpLevel,
     update_abilities_for_game_mode,
 };
+use crate::world::entity::player::HostAnchor;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
+use mcrs_engine::session::PlayerSession;
 use mcrs_network::event::ReceivedPacketEvent;
-use mcrs_network::{InGameConnectionState, ServerSideConnection};
-use mcrs_protocol::packets::game::clientbound::{
-    ClientboundGameEvent, ClientboundPlayerInfoUpdate,
-};
 use mcrs_protocol::packets::game::serverbound::ServerboundChangeGameMode;
-use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
-use mcrs_protocol::{GameEventKind, WritePacket};
+use mcrs_protocol::GameEventKind;
 
 const REQUIRED_OP_LEVEL: u8 = 2;
 
@@ -35,10 +33,11 @@ fn handle_change_game_mode(
             &mut Flying,
             &mut MayFly,
             &mut MayBuild,
-            &mut ServerSideConnection,
+            &HostAnchor,
         ),
-        With<InGameConnectionState>,
+        With<HostAnchor>,
     >,
+    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     let Some(pkt) = event.decode::<ServerboundChangeGameMode>() else {
         return;
@@ -53,7 +52,7 @@ fn handle_change_game_mode(
             mut flying,
             mut may_fly,
             mut may_build,
-            mut con,
+            anchor,
         )) = players.get_mut(event.entity)
         else {
             return;
@@ -80,34 +79,36 @@ fn handle_change_game_mode(
             &mut may_fly,
             &mut may_build,
         );
-        con.write_packet(&ClientboundGameEvent {
-            game_event: GameEventKind::ChangeGameMode(pkt.mode),
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(anchor.0),
+            priority: PacketPriority::Normal,
+            data: PacketPayload::GameEvent {
+                game_event: GameEventKind::ChangeGameMode(pkt.mode),
+            },
+            session: PlayerSession(0),
+            epoch: 0,
         });
     }
 
-    let names = players
+    let entries: Vec<PlayerInfoEntry> = players
         .iter()
-        .map(|(_, profile, _, _, _, _, _, _)| profile.username.clone())
-        .collect::<Vec<_>>();
-    let entries: Vec<PlayerListEntry> = players
-        .iter()
-        .zip(names.iter())
-        .map(|((_, profile, mode, _, _, _, _, _), name)| PlayerListEntry {
-            username: name.as_str(),
+        .map(|(_, profile, mode, _, _, _, _, _)| PlayerInfoEntry {
             player_uuid: profile.id,
-            properties: profile.properties.iter().cloned().collect(),
-            listed: true,
+            username: profile.username.clone(),
             game_mode: mode.0,
-            ..Default::default()
+            listed: true,
         })
         .collect();
 
-    let info_pkt = ClientboundPlayerInfoUpdate {
-        actions: PlayerListActions::new().with_update_game_mode(true),
-        entries: entries.into(),
-    };
-
-    players
-        .iter_mut()
-        .for_each(|(_, _, _, _, _, _, _, mut con)| con.write_packet(&info_pkt));
+    for (_, _, _, _, _, _, _, anchor) in players.iter() {
+        packet_writer.write(OutboundPlayerPacket {
+            target: PacketTarget::SinglePlayer(anchor.0),
+            priority: PacketPriority::Normal,
+            data: PacketPayload::PlayerInfoUpdate {
+                entries: entries.clone(),
+            },
+            session: PlayerSession(0),
+            epoch: 0,
+        });
+    }
 }
