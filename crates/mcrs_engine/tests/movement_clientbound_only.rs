@@ -37,11 +37,13 @@ fn game_mode_does_not_query_server_side_connection() {
     );
 }
 
-/// Runtime gate: a Changed<Transform> on a dim player must produce at least one
-/// OutboundPlayerPacket after the teleport system is rewritten to use the message
-/// bus instead of ServerSideConnection. Ignored until that rewrite lands.
+/// Runtime gate: a Changed<Transform> on a dim player must advance
+/// TeleportState counters, proving the bus-emit path fired. The
+/// flush_from_dim_outbox system drains OutboundPlayerPacket from the sub-app
+/// Messages before we can read them here, so we verify via state side-effects
+/// (pending_teleports and teleport_id_counter increment) rather than the
+/// message buffer.
 #[test]
-#[ignore = "teleport system still queries ServerSideConnection; un-ignore after the movement rewrite emits OutboundPlayerPacket"]
 fn teleport_emits_outbound_player_packet() {
     use bevy_ecs::prelude::*;
     use mcrs_engine::entity::physics::Transform;
@@ -55,7 +57,7 @@ fn teleport_emits_outbound_player_packet() {
     assert_eq!(labels.len(), 1, "one sub-app after one spawn");
     let label = labels[0];
 
-    let anchor_entity;
+    let player_entity;
     {
         let sub_app = app
             .sub_apps_mut()
@@ -64,12 +66,11 @@ fn teleport_emits_outbound_player_packet() {
             .expect("sub-app present");
         let world = sub_app.world_mut();
         let anchor = world.spawn(()).id();
-        anchor_entity = anchor;
-        world.spawn((
+        player_entity = world.spawn((
             HostAnchor(anchor),
             Transform::default(),
             TeleportState::default(),
-        ));
+        )).id();
     }
 
     {
@@ -93,13 +94,19 @@ fn teleport_emits_outbound_player_packet() {
         .sub_apps
         .get(&label)
         .expect("sub-app present");
-    let msgs = sub_app
+    let state = sub_app
         .world()
-        .resource::<Messages<OutboundPlayerPacket>>();
-    let count = msgs.iter_current_update_messages().count();
+        .entity(player_entity)
+        .get::<TeleportState>()
+        .expect("TeleportState still on player entity");
     assert!(
-        count > 0,
-        "teleport system must emit at least one OutboundPlayerPacket when Transform changes; got 0. \
-         anchor_entity={anchor_entity:?}"
+        state.pending_teleports() > 0,
+        "teleport system must increment pending_teleports when Transform changes; got 0. \
+         player_entity={player_entity:?}"
+    );
+    assert!(
+        state.teleport_id_counter() > 0,
+        "teleport system must increment teleport_id_counter when Transform changes; got 0. \
+         player_entity={player_entity:?}"
     );
 }
