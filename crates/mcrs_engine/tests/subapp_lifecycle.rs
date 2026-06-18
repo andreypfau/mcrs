@@ -266,6 +266,34 @@ fn no_per_dim_task_pool() {
 }
 
 #[test]
+fn no_nonsend_resource() {
+    let source: &str = include_str!("../../mcrs_minecraft/src/world/sub_app_builder.rs");
+    assert!(
+        !source.contains("insert_non_send_resource"),
+        "sub_app_builder.rs must not insert NonSend resources into DimWorld; \
+         DimWorld resources must be inserted via init_resource/insert_resource only, \
+         both of which require Resource: Send + Sync"
+    );
+}
+
+#[test]
+fn no_shared_lock_to_dim() {
+    let builder_source: &str =
+        include_str!("../../mcrs_minecraft/src/world/sub_app_builder.rs");
+    let world_source: &str = include_str!("../../mcrs_minecraft/src/world/mod.rs");
+    assert!(
+        !builder_source.contains("Arc<Mutex"),
+        "sub_app_builder.rs must not use Arc<Mutex to share state with DimWorld; \
+         DimWorld ownership goes through App::sub_apps / App::sub_apps_mut"
+    );
+    assert!(
+        !world_source.contains("Arc<Mutex"),
+        "world/mod.rs must not use Arc<Mutex to share state with DimWorld; \
+         DimWorld ownership goes through App::sub_apps / App::sub_apps_mut"
+    );
+}
+
+#[test]
 fn registries_present_in_all_subapps() {
     let mut app = common::make_host_app();
     common::enqueue_spawn(&mut app, "test:overworld", true);
