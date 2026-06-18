@@ -14,6 +14,7 @@ pub mod block;
 pub mod block_update;
 pub mod bridge;
 pub mod bridge_queue;
+pub mod channel_types;
 pub mod bus;
 pub mod chunk;
 pub mod entity;
