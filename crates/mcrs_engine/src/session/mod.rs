@@ -1,5 +1,6 @@
 pub mod registry;
 
 pub use registry::{
-    DimPlayerIndex, Owner, PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry,
+    DimPlayerIndex, MoveId, Owner, PlayerSession, PlayerSessionCounter, SessionEntry,
+    SessionRegistry,
 };

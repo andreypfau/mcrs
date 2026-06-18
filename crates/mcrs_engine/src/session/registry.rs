@@ -8,6 +8,11 @@ use rustc_hash::FxHashMap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlayerSession(pub u64);
 
+/// Never-reused process-global move identifier. Copy + Hash + Eq.
+/// Allocated by `InFlightMoves::alloc`; id 0 is never emitted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MoveId(pub u64);
+
 /// Marks a DimWorld player entity as owned by a session.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Owner(pub PlayerSession);
