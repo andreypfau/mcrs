@@ -8,6 +8,14 @@ use mcrs_protocol::BlockStateId;
 
 const AIR: BlockStateId = BlockStateId(0);
 
+/// Scale a horizontal overworld coordinate into the nether by the vanilla
+/// divisor of 8. Uses floor division so negative coordinates round toward
+/// negative infinity — a truncating `/` rounds toward zero and lands portals
+/// one column off on the negative side of each axis.
+fn nether_scale(coord: i32) -> i32 {
+    coord.div_euclid(8)
+}
+
 /// Scale the source position by the nether coordinate divisor (8) and scan the
 /// target's live blocks upward to find a safe landing position.
 ///
@@ -20,8 +28,8 @@ pub fn find_or_create_nether_landing(
     chunk_index_query: &Query<&ChunkIndex>,
     palette_query: &Query<&BlockPalette>,
 ) -> DVec3 {
-    let scaled_x = source_pos.x / 8;
-    let scaled_z = source_pos.z / 8;
+    let scaled_x = nether_scale(source_pos.x);
+    let scaled_z = nether_scale(source_pos.z);
     let base_y = 64i32;
 
     let chunk_index = match chunk_index_query.get(dim_entity) {
@@ -62,4 +70,18 @@ fn read_block(
     let chunk_entity = chunk_index.get(ChunkPos::from(pos))?;
     let palette = palette_query.get(chunk_entity).ok()?;
     Some(palette.get(pos))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::nether_scale;
+
+    #[test]
+    fn scales_negative_coords_toward_negative_infinity() {
+        assert_eq!(nether_scale(16), 2);
+        assert_eq!(nether_scale(7), 0);
+        // A truncating `/ 8` would give 0 and -1 here — the bug this guards.
+        assert_eq!(nether_scale(-1), -1);
+        assert_eq!(nether_scale(-9), -2);
+    }
 }
