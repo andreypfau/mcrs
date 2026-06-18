@@ -24,12 +24,12 @@ use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{EngineConnection, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::chunk::ChunkData;
 use mcrs_protocol::packets::game::clientbound::{
-    ClientboundAddEntity, ClientboundBlockUpdate, ClientboundChunkCacheRadius,
-    ClientboundDisconnect, ClientboundEntityEvent, ClientboundEntityPositionSync,
-    ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLevelChunkWithLight,
-    ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerInfoUpdate,
-    ClientboundPlayerPosition, ClientboundRemoveEntities, ClientboundSetChunkCacheCenter,
-    ClientboundSystemChatPacket,
+    ClientboundAddEntity, ClientboundBlockDestruction, ClientboundBlockUpdate,
+    ClientboundChunkCacheRadius, ClientboundDisconnect, ClientboundEntityEvent,
+    ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
+    ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundLogin,
+    ClientboundPlayerInfoUpdate, ClientboundPlayerPosition, ClientboundRemoveEntities,
+    ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket,
 };
 use mcrs_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
@@ -328,6 +328,37 @@ pub fn dispatch_encode(
                                 look,
                                 on_ground,
                             })
+                            .ok();
+                    }
+                    PacketPayload::BlockDestruction {
+                        entity_id,
+                        pos,
+                        progress,
+                    } => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            entity_id,
+                            ?pos,
+                            progress,
+                            "dispatch_encode: BlockDestruction"
+                        );
+                        conn.raw
+                            .append(&ClientboundBlockDestruction {
+                                id: VarInt(entity_id),
+                                pos,
+                                progress,
+                            })
+                            .ok();
+                    }
+                    PacketPayload::GameEvent { game_event } => {
+                        debug!(
+                            target: "mcrs_minecraft::bridge",
+                            conn = ?entity,
+                            "dispatch_encode: GameEvent"
+                        );
+                        conn.raw
+                            .append(&ClientboundGameEvent { game_event })
                             .ok();
                     }
                     PacketPayload::PlayerEnteredView {
