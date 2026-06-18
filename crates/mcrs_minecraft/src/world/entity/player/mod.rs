@@ -2,8 +2,9 @@ use crate::client_info::ClientViewDistance;
 use crate::configuration::LoadedWorldPreset;
 use crate::login::GameProfile;
 use crate::world::bus::{
-    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket,
-    PacketPayload, PacketPriority, PacketTarget, PlayerInfoEntry,
+    InboundConfirmMove, InboundPlayerDespawn, InboundPlayerSpawn, InboundRollbackMove,
+    OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
+    PlayerInfoEntry,
 };
 use crate::world::entity::player::ability::{PlayerGameMode, PlayerOpLevel};
 use crate::world::entity::player::chat::ChatPlugin;
@@ -32,7 +33,7 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDistance};
 use mcrs_engine::entity::player::reposition::Reposition;
-use mcrs_engine::entity::{Despawned, EntityNetworkAddEvent};
+use mcrs_engine::entity::{Despawned, EntityNetworkAddEvent, InTransit};
 use mcrs_engine::world::dimension::{Dimension, DimensionId, InDimension};
 use mcrs_engine::session::{DimPlayerIndex, Owner, PlayerSession};
 use crate::world::sub_app_builder::DimTypeIndex;
@@ -102,6 +103,7 @@ impl Plugin for PlayerPlugin {
         app.add_systems(bevy_app::Update, despawn_inbound_player);
         app.add_systems(FixedUpdate, (disconnect_player, added_inventory, resync_player));
         app.add_systems(PostUpdate, despawn_disconnected_clients);
+        app.add_systems(FixedUpdate, (despawn_on_confirm, unhide_on_rollback));
         app.add_observer(network_add);
         app.add_observer(player_joined);
     }
@@ -617,6 +619,41 @@ fn added_inventory(
             carried_item,
         };
         con.write_packet(&pkt);
+    }
+}
+
+/// Source-dim system: when `ConfirmMove` arrives, find the in-transit entity
+/// and despawn it — the entity has safely arrived at the target and is no longer
+/// needed in the source dim.
+fn despawn_on_confirm(
+    mut reader: MessageReader<InboundConfirmMove>,
+    in_transit: Query<(Entity, &InTransit)>,
+    mut commands: Commands,
+) {
+    for msg in reader.read() {
+        for (entity, transit) in in_transit.iter() {
+            if transit.move_id == msg.move_id {
+                commands.entity(entity).remove::<InTransit>().insert(Despawned);
+                break;
+            }
+        }
+    }
+}
+
+/// Source-dim system: when `RollbackMove` arrives, remove `InTransit` from the
+/// in-transit entity so it reappears at its original position — no despawn.
+fn unhide_on_rollback(
+    mut reader: MessageReader<InboundRollbackMove>,
+    in_transit: Query<(Entity, &InTransit)>,
+    mut commands: Commands,
+) {
+    for msg in reader.read() {
+        for (entity, transit) in in_transit.iter() {
+            if transit.move_id == msg.move_id {
+                commands.entity(entity).remove::<InTransit>();
+                break;
+            }
+        }
     }
 }
 

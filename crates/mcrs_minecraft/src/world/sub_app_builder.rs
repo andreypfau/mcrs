@@ -11,7 +11,10 @@ use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
 use tracing::{debug, warn};
 
-use crate::world::bus::{InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerPacket};
+use crate::world::bus::{
+    InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn, InboundPlayerSpawn,
+    InboundRollbackMove, OutboundPlayerPacket,
+};
 use crate::world::channel_types::{FromDim, ToDim};
 use mcrs_engine::world::channels::{
     DimChannels, FromDimSender, ToDimReceiver, FROM_DIM_CAPACITY, TO_DIM_CAPACITY,
@@ -156,6 +159,12 @@ pub fn spawn_dim_subapp(
     // `OutboundPlayerAttached` is written by `consume_inbound_player_spawn` and
     // extracted by the host to set `in_dim_entity` on the session entry.
     sub_app.add_message::<crate::world::bus::OutboundPlayerAttached>();
+    // Confirmed-move inbound messages drained from the control channel and read
+    // by the arrival systems (SpawnEntity) and source-dim systems (ConfirmMove,
+    // RollbackMove).
+    sub_app.add_message::<InboundEntitySpawn>();
+    sub_app.add_message::<InboundConfirmMove>();
+    sub_app.add_message::<InboundRollbackMove>();
     // `PlayerWillDestroyBlock` still flows intra-dim: the per-dim TNT plugin
     // reads it via MessageReader.
     sub_app.add_message::<PlayerWillDestroyBlock>();
@@ -373,14 +382,17 @@ pub fn spawn_dim_subapp(
 }
 
 /// Drains both `ToDim` channel receivers into the dim's local message buses.
-/// The control channel (Spawn/Despawn/Attach) is drained first so lifecycle
-/// messages always precede any same-tick Serverbound packet for a freshly
-/// transferred player.
+/// The control channel (Spawn/Despawn/Attach/SpawnEntity/ConfirmMove/RollbackMove)
+/// is drained first so lifecycle messages always precede any same-tick Serverbound
+/// packet for a freshly transferred player.
 fn drain_to_dim_inbox(
     rx: Res<ToDimReceiver<ToDim>>,
     mut spawn_msgs: ResMut<Messages<InboundPlayerSpawn>>,
     mut despawn_msgs: ResMut<Messages<InboundPlayerDespawn>>,
     mut serverbound_msgs: ResMut<Messages<crate::world::bus::InboundPlayerPacket>>,
+    mut entity_spawn_msgs: ResMut<Messages<InboundEntitySpawn>>,
+    mut confirm_msgs: ResMut<Messages<InboundConfirmMove>>,
+    mut rollback_msgs: ResMut<Messages<InboundRollbackMove>>,
 ) {
     for msg in rx.control.try_iter() {
         match msg {
@@ -395,10 +407,21 @@ fn drain_to_dim_inbox(
             }
             ToDim::Attach { .. } => {}
             ToDim::Serverbound { .. } => {}
-            // Confirmed-move control variants; consumed by arrival systems in a later plan.
-            ToDim::SpawnEntity { .. } => {}
-            ToDim::ConfirmMove { .. } => {}
-            ToDim::RollbackMove { .. } => {}
+            ToDim::SpawnEntity { move_id, epoch, cause, payload, player } => {
+                entity_spawn_msgs.write(InboundEntitySpawn {
+                    move_id,
+                    epoch,
+                    cause,
+                    payload,
+                    player,
+                });
+            }
+            ToDim::ConfirmMove { move_id } => {
+                confirm_msgs.write(InboundConfirmMove { move_id });
+            }
+            ToDim::RollbackMove { move_id } => {
+                rollback_msgs.write(InboundRollbackMove { move_id });
+            }
         }
     }
     for msg in rx.serverbound.try_iter() {

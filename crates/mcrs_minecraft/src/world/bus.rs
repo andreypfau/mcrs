@@ -280,6 +280,32 @@ pub enum ArrivalCause {
     CommandTeleport { pos: DVec3 },
 }
 
+/// Forwarded from `ToDim::SpawnEntity` into the target sub-app message bus.
+/// The arrival systems read this to spawn the incoming entity and resolve its
+/// landing position.
+#[derive(Message, Clone, Debug)]
+pub struct InboundEntitySpawn {
+    pub move_id: mcrs_engine::session::MoveId,
+    pub epoch: u32,
+    pub cause: ArrivalCause,
+    pub payload: MovePayload,
+    pub player: Option<mcrs_engine::session::PlayerSession>,
+}
+
+/// Forwarded from `ToDim::ConfirmMove` into the source sub-app message bus.
+/// The source-dim confirm system despawns the hidden in-transit entity.
+#[derive(Message, Clone, Debug)]
+pub struct InboundConfirmMove {
+    pub move_id: mcrs_engine::session::MoveId,
+}
+
+/// Forwarded from `ToDim::RollbackMove` into the source sub-app message bus.
+/// The source-dim rollback system removes `InTransit` so the entity reappears.
+#[derive(Message, Clone, Debug)]
+pub struct InboundRollbackMove {
+    pub move_id: mcrs_engine::session::MoveId,
+}
+
 
 #[cfg(test)]
 mod tests {
