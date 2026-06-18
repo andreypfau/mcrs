@@ -1,5 +1,3 @@
-use bevy_ecs::message::Messages;
-use mcrs_minecraft::world::bus::OutboundPlayerPacket;
 use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
 
 mod common;
@@ -45,7 +43,6 @@ fn game_mode_does_not_query_server_side_connection() {
 /// message buffer.
 #[test]
 fn teleport_emits_outbound_player_packet() {
-    use bevy_ecs::prelude::*;
     use mcrs_engine::entity::physics::Transform;
     use mcrs_minecraft::world::entity::player::{HostAnchor, movement::TeleportState};
 
