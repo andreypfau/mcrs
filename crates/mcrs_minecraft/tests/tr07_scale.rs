@@ -1,82 +1,94 @@
-//! TR-07 scale scenario: two observational profiles that measure bridge
-//! throughput, bus saturation (emitted vs consumed), and orphan-entity
-//! accumulation under synthetic bot load.
+//! TR-07 scale scenario.
+//!
+//! Two synthetic-bot-load profiles drive the `bridge_outbound` routing path
+//! and the `SessionRegistry` cross-dim + teardown path. They exist in two
+//! shapes:
+//!
+//! - Smoke variants (always run): tick-bounded and deterministic. They finish
+//!   in milliseconds and assert hard functional invariants — every injected
+//!   packet is routed to its bot's queue, the cross-dim reassignment path runs
+//!   the expected number of times, no orphan entities leak, and teardown
+//!   empties the registry.
+//! - Long variants (`#[ignore]`, opt-in): wall-clock-bounded observational
+//!   baselines that emit a JSON snapshot of per-tick timing and bus
+//!   saturation. No perf thresholds are enforced; they are run manually:
+//!
+//!     TR07_DURATION_SECS=300 cargo test -p mcrs_minecraft tr07 -- --ignored
 //!
 //! Ship-gate decision (LOCKED): the hard gate for shipping is the functional
 //! end-to-end test (vanilla 26.1.2 client portal walk + AoI update). These
-//! TR-07 two-profile baselines are SOFT observational data only — no perf
-//! thresholds are enforced here.
-//!
-//! Hardware target (LOCKED): primary is the vanilla-shape profile on an
-//! 8-core / 16 GiB host; the mini-game-shape profile (320 bots × 20 dims)
-//! targets a 16+ core / 32 GiB host as a secondary observational profile.
-//!
-//! Smoke variants run for `TR07_DURATION_SECS` seconds (default 10) and are
-//! always included in `cargo test`. The full 5-minute variants are marked
-//! `#[ignore]` and invoked manually:
-//!
-//!   TR07_DURATION_SECS=300 cargo test -p mcrs_minecraft tr07 -- --ignored
+//! TR-07 baselines are SOFT observational data only — no perf thresholds are
+//! enforced here.
 
 #[path = "harness/mod.rs"]
 mod harness;
 
-use harness::scale_bots::{profile_duration_secs, run_profile, write_baseline_json};
+use harness::scale_bots::{profile_duration_secs, run_profile, run_profile_ticks, write_baseline_json};
+
+/// Deterministic tick budget for the smoke variants. Even, so exactly
+/// `SMOKE_TICKS / 2` injection ticks occur (one BlockUpdate per bot on every
+/// even tick), and well past the halfway mark where the cross-dim transfer
+/// fires.
+const SMOKE_TICKS: u64 = 24;
+
+/// Packets injected per bot over a `SMOKE_TICKS` run (one per even tick).
+const INJECTIONS_PER_BOT: u64 = SMOKE_TICKS / 2;
 
 // ---------------------------------------------------------------------------
 // Profile A: vanilla shape (~100 bots × 2 dims)
 // ---------------------------------------------------------------------------
 
-/// Smoke run of the vanilla-shape profile (100 bots, 2 dims).
-///
-/// Functional invariants asserted (no perf thresholds):
-/// - entity_delta <= 0: PlayerIndex teardown leaves no orphan entities.
-/// - saturation_gap is recorded but NOT gated.
 #[test]
 fn tr07_profile_a_vanilla() {
-    let duration = profile_duration_secs();
-    let report = run_profile(
-        "tr07-vanilla",
-        2,   // dims
-        100, // bots_total
-        0.1, // 10 % of bots do a cross-dim transfer halfway through
-        duration,
+    let dims = 2;
+    let bots = 100;
+    let cross_dim_rate = 0.1;
+    let report = run_profile_ticks("tr07-vanilla", dims, bots, cross_dim_rate, SMOKE_TICKS);
+
+    assert_eq!(
+        report.tick_count, SMOKE_TICKS,
+        "smoke run should execute exactly the tick budget"
     );
 
-    // Functional assertion: no orphan-entity leak.
+    // Load actually ran: one packet per bot per injection tick.
+    let expected_injected = bots as u64 * INJECTIONS_PER_BOT;
+    assert_eq!(
+        report.packets_injected, expected_injected,
+        "expected {expected_injected} injected packets",
+    );
+
+    // Routing invariant: bridge_outbound resolved every packet's session and
+    // pushed it onto the addressed bot's OutboundQueue — nothing dropped.
+    assert_eq!(
+        report.total_queued, report.packets_injected,
+        "every injected packet should route to a bot queue (queued={}, injected={})",
+        report.total_queued, report.packets_injected,
+    );
+
+    // Cross-dim reassignment path ran for exactly 10 % of bots.
+    let expected_transfers = (bots as f32 * cross_dim_rate) as u64;
+    assert_eq!(
+        report.cross_dim_transfers, expected_transfers,
+        "expected {expected_transfers} cross-dim transfers",
+    );
+
+    // No orphan-entity leak across the run.
     assert!(
         report.entity_delta() <= 0,
-        "tr07_profile_a_vanilla: entity_delta should be non-positive (no orphan leak), \
-         got {} (start={}, end={})",
+        "entity_delta should be non-positive (no orphan leak), got {} (start={}, end={})",
         report.entity_delta(),
         report.entity_count_start,
         report.entity_count_end,
     );
 
-    // Record emitted/consumed gap without gating on it.
-    let gap = report.saturation_gap();
-    println!(
-        "tr07_profile_a_vanilla: ticks={} mean_tick={}µs emitted_delta={} consumed_delta={} \
-         saturation_gap={} entity_delta={}",
-        report.tick_count,
-        report.tick_mean_us,
-        report.emitted_end - report.emitted_start,
-        report.consumed_end - report.consumed_start,
-        gap,
-        report.entity_delta(),
+    // Teardown removed every session from the registry.
+    assert_eq!(
+        report.sessions_remaining_after_teardown, 0,
+        "teardown should leave no sessions in the registry",
     );
-
-    // Write local baseline JSON to target/ (local, not committed).
-    let date = chrono_date_string();
-    let filename = format!("tr07-vanilla-{date}.json");
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/tr07-baselines")
-        .join(&filename);
-    if let Err(e) = write_baseline_json(&report, &path) {
-        println!("tr07_profile_a_vanilla: baseline write skipped ({e})");
-    }
 }
 
-/// Full 5-minute run of the vanilla-shape profile. Marked `#[ignore]` so it
+/// Full wall-clock run of the vanilla-shape profile. Marked `#[ignore]` so it
 /// is opt-in. Run with:
 ///   TR07_DURATION_SECS=300 cargo test -p mcrs_minecraft tr07_profile_a_vanilla_long -- --ignored
 #[test]
@@ -105,53 +117,48 @@ fn tr07_profile_a_vanilla_long() {
 // Profile B: mini-game shape (~320 bots × 20 dims)
 // ---------------------------------------------------------------------------
 
-/// Smoke run of the mini-game-shape profile (320 bots, 20 dims).
-///
-/// Targets a 16+ core / 32 GiB host as a secondary observational profile.
-/// Same functional invariants as Profile A; no perf thresholds.
 #[test]
 fn tr07_profile_b_minigame() {
-    let duration = profile_duration_secs();
-    let report = run_profile(
-        "tr07-minigame",
-        20,  // dims
-        320, // bots_total
-        0.1, // 10 % cross-dim transfers
-        duration,
+    let dims = 20;
+    let bots = 320;
+    let cross_dim_rate = 0.1;
+    let report = run_profile_ticks("tr07-minigame", dims, bots, cross_dim_rate, SMOKE_TICKS);
+
+    assert_eq!(report.tick_count, SMOKE_TICKS);
+
+    let expected_injected = bots as u64 * INJECTIONS_PER_BOT;
+    assert_eq!(
+        report.packets_injected, expected_injected,
+        "expected {expected_injected} injected packets",
+    );
+
+    assert_eq!(
+        report.total_queued, report.packets_injected,
+        "every injected packet should route to a bot queue (queued={}, injected={})",
+        report.total_queued, report.packets_injected,
+    );
+
+    let expected_transfers = (bots as f32 * cross_dim_rate) as u64;
+    assert_eq!(
+        report.cross_dim_transfers, expected_transfers,
+        "expected {expected_transfers} cross-dim transfers",
     );
 
     assert!(
         report.entity_delta() <= 0,
-        "tr07_profile_b_minigame: entity_delta should be non-positive (no orphan leak), \
-         got {} (start={}, end={})",
+        "entity_delta should be non-positive (no orphan leak), got {} (start={}, end={})",
         report.entity_delta(),
         report.entity_count_start,
         report.entity_count_end,
     );
 
-    let gap = report.saturation_gap();
-    println!(
-        "tr07_profile_b_minigame: ticks={} mean_tick={}µs emitted_delta={} consumed_delta={} \
-         saturation_gap={} entity_delta={}",
-        report.tick_count,
-        report.tick_mean_us,
-        report.emitted_end - report.emitted_start,
-        report.consumed_end - report.consumed_start,
-        gap,
-        report.entity_delta(),
+    assert_eq!(
+        report.sessions_remaining_after_teardown, 0,
+        "teardown should leave no sessions in the registry",
     );
-
-    let date = chrono_date_string();
-    let filename = format!("tr07-minigame-{date}.json");
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/tr07-baselines")
-        .join(&filename);
-    if let Err(e) = write_baseline_json(&report, &path) {
-        println!("tr07_profile_b_minigame: baseline write skipped ({e})");
-    }
 }
 
-/// Full 5-minute run of the mini-game-shape profile. Marked `#[ignore]`.
+/// Full wall-clock run of the mini-game-shape profile. Marked `#[ignore]`.
 #[test]
 #[ignore]
 fn tr07_profile_b_minigame_long() {

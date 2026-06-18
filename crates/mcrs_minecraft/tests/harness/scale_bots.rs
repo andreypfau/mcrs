@@ -2,18 +2,23 @@
 //!
 //! Boots a minimal ECS world that exercises the bridge_outbound pipeline
 //! with N synthetic "bot" entities instead of real TCP connections. Bots
-//! inject outbound activity at a configurable rate so the outbound queue
-//! and drop policy run under producer load. A configurable fraction of bots
-//! perform cross-dim transfers (reassign current_dim) halfway through the
-//! run to exercise the PlayerIndex cleanup path.
+//! inject outbound activity so the per-connection outbound queues run under
+//! producer load. A configurable fraction of bots perform cross-dim
+//! transfers (reassign their `SessionRegistry` entry) halfway through the
+//! run to exercise the registry mutation + teardown path.
 //!
-//! Duration is driven by the `TR07_DURATION_SECS` env var (default 10 s)
-//! so the smoke variant fits within the CI feedback budget. The full
-//! 5-minute baseline run is invoked manually with `TR07_DURATION_SECS=300`.
+//! The smoke runner is tick-bounded (`run_profile_ticks`) so it is
+//! deterministic and finishes in milliseconds: a fixed number of ticks
+//! covers every code path (injection, cross-dim reassignment, queue routing,
+//! teardown) without spinning on the wall clock. The opt-in long baseline
+//! runner (`run_profile`) is wall-clock-bounded and used only by the
+//! `#[ignore]` observational variants invoked manually.
 //!
-//! The emitted counter (`BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL`) is
-//! incremented at every harness write so the emitted-vs-consumed gap is
-//! observable as a bus-saturation dimension distinct from drop/kick counters.
+//! Every injected packet carries the originating bot's real `PlayerSession`,
+//! so `bridge_outbound` resolves it against the registry and routes it to
+//! that bot's `OutboundQueue`. The harness can then assert, with no
+//! dependency on process-global metric atomics, that routing landed every
+//! packet and that teardown leaves the registry empty.
 
 #![allow(dead_code)]
 
@@ -37,8 +42,10 @@ use mcrs_network::metrics::{
 };
 use mcrs_protocol::BlockStateId;
 
-/// Per-run observational report. Contains T=0 and T=end telemetry snapshots,
-/// entity-count delta, per-tick timing statistics, and emitted/consumed totals.
+/// Per-run report. Carries the functional invariants the smoke tests assert
+/// on (all local to this run's `World`, race-free under parallel test
+/// execution) alongside the soft observational telemetry consumed by the
+/// long-baseline JSON writer.
 #[derive(Debug)]
 pub struct ScaleReport {
     pub profile_name: String,
@@ -67,6 +74,15 @@ pub struct ScaleReport {
     pub tick_mean_us: u64,
     /// total ticks executed
     pub tick_count: u64,
+    /// number of packets the harness wrote into the bus over the run
+    pub packets_injected: u64,
+    /// total packets resident across all per-bot `OutboundQueue`s at T=end,
+    /// i.e. how many injected packets `bridge_outbound` actually routed
+    pub total_queued: u64,
+    /// number of `SessionRegistry` cross-dim reassignments performed
+    pub cross_dim_transfers: u64,
+    /// bot sessions still present in the registry after teardown (expect 0)
+    pub sessions_remaining_after_teardown: u64,
 }
 
 impl ScaleReport {
@@ -75,9 +91,10 @@ impl ScaleReport {
         self.entity_count_end as i64 - self.entity_count_start as i64
     }
 
-    /// Bus-saturation gap: emitted minus consumed over the run. A positive
-    /// gap means the consumer could not drain as fast as the producer wrote;
-    /// it is a soft observational dimension, NOT a pass/fail gate.
+    /// Bus-saturation gap: emitted minus consumed over the run. Derived from
+    /// process-global metric atomics, so it is contaminated by any other test
+    /// running concurrently — a SOFT observational dimension only, never a
+    /// pass/fail gate. Use `total_queued` for race-free routing assertions.
     pub fn saturation_gap(&self) -> i64 {
         let emitted_delta = (self.emitted_end - self.emitted_start) as i64;
         let consumed_delta = (self.consumed_end - self.consumed_start) as i64;
@@ -85,7 +102,16 @@ impl ScaleReport {
     }
 }
 
-/// Duration to run profiles — reads `TR07_DURATION_SECS` env var (default 10).
+/// How long a profile runs.
+enum RunLength {
+    /// Deterministic: execute exactly this many ticks.
+    Ticks(u64),
+    /// Wall-clock: run until this much time elapses (opt-in baselines only).
+    Duration(Duration),
+}
+
+/// Duration to run the long baseline profiles — reads `TR07_DURATION_SECS`
+/// env var (default 10).
 pub fn profile_duration_secs() -> u64 {
     std::env::var("TR07_DURATION_SECS")
         .ok()
@@ -93,21 +119,42 @@ pub fn profile_duration_secs() -> u64 {
         .unwrap_or(10)
 }
 
-/// Run a scale profile for `duration_secs` of wall clock.
-///
-/// `name` – profile label for the baseline JSON filename.
-/// `dims` – number of synthetic dimension entities.
-/// `bots_total` – total number of synthetic bot connection entities.
-/// `cross_dim_rate` – fraction of bots (0.0–1.0) reassigned to a different
-///   dim entity halfway through the run to exercise the PlayerIndex cleanup
-///   invariant.
-/// `duration_secs` – wall-clock run length in seconds.
+/// Run a scale profile for a fixed number of ticks. Deterministic and fast —
+/// this is the smoke runner used by the always-on tests.
+pub fn run_profile_ticks(
+    name: &str,
+    dims: usize,
+    bots_total: usize,
+    cross_dim_rate: f32,
+    ticks: u64,
+) -> ScaleReport {
+    run_profile_bounded(name, dims, bots_total, cross_dim_rate, RunLength::Ticks(ticks))
+}
+
+/// Run a scale profile for `duration_secs` of wall clock. Used only by the
+/// opt-in `#[ignore]` baseline variants; not deterministic.
 pub fn run_profile(
     name: &str,
     dims: usize,
     bots_total: usize,
     cross_dim_rate: f32,
     duration_secs: u64,
+) -> ScaleReport {
+    run_profile_bounded(
+        name,
+        dims,
+        bots_total,
+        cross_dim_rate,
+        RunLength::Duration(Duration::from_secs(duration_secs)),
+    )
+}
+
+fn run_profile_bounded(
+    name: &str,
+    dims: usize,
+    bots_total: usize,
+    cross_dim_rate: f32,
+    length: RunLength,
 ) -> ScaleReport {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
@@ -126,7 +173,7 @@ pub fn run_profile(
     // dispatch_encode requires ServerSideConnection to send bytes, so the
     // harness targets bridge_outbound queue-fill under bot load). Entity-count
     // delta across the run asserts the SessionRegistry teardown is clean.
-    let bot_entities: Vec<(Entity, Entity, mcrs_engine::session::PlayerSession)> = (0..bots_total)
+    let bot_entities: Vec<(Entity, Entity, PlayerSession)> = (0..bots_total)
         .map(|i| {
             let dim = dim_entities[i % dim_entities.len()];
             let socket = world.spawn(OutboundQueue::default()).id();
@@ -158,29 +205,47 @@ pub fn run_profile(
     let entity_count_start = world.entities().len() as u64;
 
     let run_start = Instant::now();
-    let deadline = run_start + Duration::from_secs(duration_secs);
+    let deadline = match &length {
+        RunLength::Ticks(_) => run_start,
+        RunLength::Duration(d) => run_start + *d,
+    };
 
     let mut tick_count: u64 = 0;
     let mut tick_min_us = u64::MAX;
     let mut tick_max_us = 0u64;
+    let mut packets_injected: u64 = 0;
+    let mut cross_dim_transfers: u64 = 0;
     let mut cross_dim_triggered = false;
 
     loop {
-        let now = Instant::now();
-        if now >= deadline {
-            break;
-        }
+        // Fraction of the run completed, in [0, 1). Drives the one-shot
+        // cross-dim transfer at the halfway mark for both bound kinds.
+        let elapsed_frac = match &length {
+            RunLength::Ticks(n) => {
+                if tick_count >= *n {
+                    break;
+                }
+                tick_count as f32 / *n as f32
+            }
+            RunLength::Duration(_) => {
+                if Instant::now() >= deadline {
+                    break;
+                }
+                run_start.elapsed().as_secs_f32()
+                    / deadline.duration_since(run_start).as_secs_f32()
+            }
+        };
 
         let tick_start = Instant::now();
 
-        // Every 2 ticks, inject one BlockUpdate outbound packet per bot.
-        // BlockUpdate is a MAPPED variant (fully encoded by dispatch_encode)
-        // so it exercises the real outbound queue fill path even without a
-        // socket. The emitted counter is incremented here — not inside a
-        // production sub-app system — so the harness-generated load is
-        // visible in the emitted-vs-consumed saturation measurement.
+        // Every 2 ticks, inject one BlockUpdate outbound packet per bot,
+        // stamped with that bot's real session so bridge_outbound resolves it
+        // and routes it to the bot's OutboundQueue. BlockUpdate is a MAPPED
+        // variant so it exercises the real fill path. The emitted counter is
+        // bumped here so harness-generated load shows up in the soft
+        // saturation telemetry.
         if tick_count % 2 == 0 {
-            for (player, _socket, _session) in &bot_entities {
+            for (player, _socket, session) in &bot_entities {
                 world
                     .resource_mut::<Messages<OutboundPlayerPacket>>()
                     .write(OutboundPlayerPacket {
@@ -190,18 +255,16 @@ pub fn run_profile(
                             position: mcrs_engine::geometry::BlockPos::new(0, 64, 0),
                             new_state: BlockStateId(1),
                         },
-                        session: PlayerSession(0),
+                        session: *session,
                         epoch: 0,
                     });
                 BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                packets_injected += 1;
             }
         }
 
         // Halfway through: reassign a fraction of bots to a different dim to
-        // exercise the SessionRegistry cross-dim path. in_dim_entity is set to
-        // None so bridge_outbound will drop these bots until they are re-attached.
-        let elapsed_frac =
-            now.duration_since(run_start).as_secs_f32() / duration_secs as f32;
+        // exercise the SessionRegistry cross-dim mutation path.
         if elapsed_frac >= 0.5 && !cross_dim_triggered && dim_entities.len() > 1 {
             cross_dim_triggered = true;
             let transfer_count = (bots_total as f32 * cross_dim_rate.clamp(0.0, 1.0)) as usize;
@@ -215,7 +278,7 @@ pub fn run_profile(
                     let new_dim = dim_entities[(idx + 1) % dim_entities.len()];
                     entry.dim = new_dim;
                     entry.previous_dim = Some(old_dim);
-                    entry.in_dim_entity = None;
+                    cross_dim_transfers += 1;
                 }
             }
         }
@@ -240,10 +303,28 @@ pub fn run_profile(
         tick_min_us = 0;
     }
 
+    // Count packets that bridge_outbound actually routed into per-bot queues.
+    let total_queued: u64 = bot_entities
+        .iter()
+        .map(|(_player, socket, _session)| {
+            world
+                .get::<OutboundQueue>(*socket)
+                .map(|q| q.total_len() as u64)
+                .unwrap_or(0)
+        })
+        .sum();
+
     // Tear down all bot session registry entries to validate the cleanup path.
     for (_player, _socket, session) in &bot_entities {
         world.resource_mut::<SessionRegistry>().remove(session);
     }
+    let sessions_remaining_after_teardown: u64 = {
+        let registry = world.resource::<SessionRegistry>();
+        bot_entities
+            .iter()
+            .filter(|(_p, _s, session)| registry.contains(session))
+            .count() as u64
+    };
 
     // T=end snapshot.
     let snapshot_end = snapshot();
@@ -255,7 +336,10 @@ pub fn run_profile(
         profile_name: name.to_string(),
         dims,
         bots_total,
-        duration_secs,
+        duration_secs: match &length {
+            RunLength::Ticks(_) => 0,
+            RunLength::Duration(d) => d.as_secs(),
+        },
         snapshot_start,
         snapshot_end,
         entity_count_start,
@@ -268,6 +352,10 @@ pub fn run_profile(
         tick_max_us,
         tick_mean_us,
         tick_count,
+        packets_injected,
+        total_queued,
+        cross_dim_transfers,
+        sessions_remaining_after_teardown,
     }
 }
 
@@ -287,6 +375,9 @@ pub fn write_baseline_json(report: &ScaleReport, path: &std::path::Path) -> std:
         "entity_count_start": report.entity_count_start,
         "entity_count_end": report.entity_count_end,
         "entity_delta": report.entity_delta(),
+        "packets_injected": report.packets_injected,
+        "total_queued": report.total_queued,
+        "cross_dim_transfers": report.cross_dim_transfers,
         "emitted_start": report.emitted_start,
         "emitted_end": report.emitted_end,
         "consumed_start": report.consumed_start,
