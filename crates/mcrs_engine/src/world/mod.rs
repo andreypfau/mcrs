@@ -6,4 +6,5 @@ pub mod lifecycle;
 pub mod lighting;
 pub mod region;
 pub mod storage;
+pub mod channels;
 pub mod sub_app;
