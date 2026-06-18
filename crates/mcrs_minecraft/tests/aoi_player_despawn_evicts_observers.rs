@@ -21,7 +21,6 @@ use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, PlayerTrackerPlugin, TrackedBy};
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketTarget,
-    PendingInboundLifecycle,
 };
 use mcrs_minecraft::world::entity::player::HostAnchor;
 
@@ -40,12 +39,9 @@ fn production_topology_main_world_despawn_evicts_in_dim_observers() {
     let mut main_app = App::new();
     main_app.add_message::<InboundPlayerDespawn>();
     main_app.add_message::<OutboundPlayerPacket>();
-    main_app.init_resource::<PendingInboundLifecycle>();
 
     // Spawn a host_anchor entity in the main world.
     let host_anchor = main_app.world_mut().spawn_empty().id();
-    // label_entity == host_anchor for simplicity.
-    let label_entity = host_anchor;
 
     // --- Per-dim SubApp setup ---
     let mut sub_app = SubApp::new();
@@ -121,14 +117,13 @@ fn production_topology_main_world_despawn_evicts_in_dim_observers() {
         entities
     };
 
-    // Wire the extract closure: mirrors sub_app_builder.rs lines 323-343 for
-    // InboundPlayerDespawn only. label_entity captured by move.
-    sub_app.set_extract(move |main_world, sub_world| {
-        let despawns: Vec<InboundPlayerDespawn> = {
-            let mut lifecycle = main_world.resource_mut::<PendingInboundLifecycle>();
-            let entry = lifecycle.per_dim.entry(label_entity).or_default();
-            std::mem::take(&mut entry.despawns)
-        };
+    // Wire the extract closure: drains InboundPlayerDespawn from the main world
+    // Messages buffer and shuttles them into the sub-app's Messages buffer.
+    sub_app.set_extract(|main_world, sub_world| {
+        let despawns: Vec<InboundPlayerDespawn> = main_world
+            .resource_mut::<Messages<InboundPlayerDespawn>>()
+            .drain()
+            .collect();
         if !despawns.is_empty() {
             let mut sub_msgs = sub_world.resource_mut::<Messages<InboundPlayerDespawn>>();
             for msg in despawns {
@@ -153,15 +148,12 @@ fn production_topology_main_world_despawn_evicts_in_dim_observers() {
     );
 
     // --- Simulate main-world disconnect ---
-    // Push InboundPlayerDespawn — mirrors process_disconnect in production.
+    // Push InboundPlayerDespawn into the main world Messages buffer so the
+    // extract closure shuttles it to the sub-app on tick 2.
     main_app
         .world_mut()
-        .resource_mut::<PendingInboundLifecycle>()
-        .per_dim
-        .entry(label_entity)
-        .or_default()
-        .despawns
-        .push(InboundPlayerDespawn { host_anchor, session: PlayerSession(0) });
+        .resource_mut::<Messages<InboundPlayerDespawn>>()
+        .write(InboundPlayerDespawn { host_anchor, session: PlayerSession(0) });
 
     // --- Tick 2: drain and evict ---
     // Extract shuttles the despawn into sub Messages<InboundPlayerDespawn>.
@@ -192,14 +184,9 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     let mut main_app = App::new();
     main_app.add_message::<InboundPlayerDespawn>();
     main_app.add_message::<OutboundPlayerPacket>();
-    main_app.init_resource::<PendingInboundLifecycle>();
 
     let host_anchor_o = main_app.world_mut().spawn_empty().id();
     let host_anchor_t = main_app.world_mut().spawn_empty().id();
-    // The extract closure keys on label_entity (= the dim label in production).
-    // Using host_anchor_o as the label entity is arbitrary; what matters is
-    // that both InboundPlayerDespawn pushes use the same key.
-    let label_entity = host_anchor_o;
 
     // --- Per-dim SubApp setup (mirrors the existing test above exactly) ---
     let mut sub_app = SubApp::new();
@@ -277,14 +264,13 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
         entities
     };
 
-    // Extract closure: shuttles InboundPlayerDespawn from PendingInboundLifecycle
-    // into the sub-world Messages buffer (identical to the existing test).
-    sub_app.set_extract(move |main_world, sub_world| {
-        let despawns: Vec<InboundPlayerDespawn> = {
-            let mut lifecycle = main_world.resource_mut::<PendingInboundLifecycle>();
-            let entry = lifecycle.per_dim.entry(label_entity).or_default();
-            std::mem::take(&mut entry.despawns)
-        };
+    // Extract closure: drains InboundPlayerDespawn from the main world Messages
+    // buffer and shuttles them into the sub-app's Messages buffer.
+    sub_app.set_extract(|main_world, sub_world| {
+        let despawns: Vec<InboundPlayerDespawn> = main_world
+            .resource_mut::<Messages<InboundPlayerDespawn>>()
+            .drain()
+            .collect();
         if !despawns.is_empty() {
             let mut sub_msgs = sub_world.resource_mut::<Messages<InboundPlayerDespawn>>();
             for msg in despawns {
@@ -345,12 +331,8 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     // --- Simulate disconnect: push InboundPlayerDespawn for T ---
     main_app
         .world_mut()
-        .resource_mut::<PendingInboundLifecycle>()
-        .per_dim
-        .entry(label_entity)
-        .or_default()
-        .despawns
-        .push(InboundPlayerDespawn { host_anchor: host_anchor_t, session: PlayerSession(0) });
+        .resource_mut::<Messages<InboundPlayerDespawn>>()
+        .write(InboundPlayerDespawn { host_anchor: host_anchor_t, session: PlayerSession(0) });
 
     // --- Tick 2: drain and evict (O does NOT move) ---
     // FixedPreUpdate: drain_inbound_player_despawn fires:

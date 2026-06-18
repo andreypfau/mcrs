@@ -28,10 +28,10 @@ use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, TrackedBy};
 use mcrs_minecraft::world::bus::{
-    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
+    InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
-    PendingInboundLifecycle, PendingInboundPartition,
 };
+use mcrs_minecraft::world::channel_types::DimChannelsResource;
 use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_vanilla::biome::Biome;
@@ -200,19 +200,15 @@ fn build_host_app() -> App {
     app.insert_resource(Time::<Fixed>::from_hz(20.0));
     app.add_plugins(StatesPlugin);
     app.init_state::<AppState>();
-    // The host needs the bus message registrations + lifecycle
-    // resources so the per-dim extract closures (which call
-    // resource_mut on main_world.Messages<…> + PendingInbound*) do not
-    // panic during sub-app extraction.
+    // Host-side bus and channel registrations required by the production
+    // sub-app builder and extract closure path.
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<OutboundPlayerTransfer>();
-    app.add_message::<InboundPlayerSpawn>();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
-    app.init_resource::<PendingInboundPartition>();
-    app.init_resource::<PendingInboundLifecycle>();
+    app.init_resource::<DimChannelsResource>();
     app.init_resource::<DimSpawnQueue>();
     app.init_resource::<DimDespawnQueue>();
     app.insert_resource(RegistryAccess::default());

@@ -9,11 +9,8 @@ use mcrs_protocol::BlockStateId;
 use mcrs_protocol::chunk::LightData;
 use mcrs_protocol::uuid::Uuid;
 use mcrs_protocol::{GameMode, Look, Text};
-use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use std::time::Instant;
-
-use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
 
 #[derive(Message, Clone, Debug)]
 pub struct OutboundPlayerPacket {
@@ -248,47 +245,6 @@ pub struct PlayerTransferSnapshot {
     pub rotation: Vec2,
 }
 
-/// Per-dim partition of inbound player packets awaiting shuttle into a
-/// `DimSubApp`. The map is filled by a main-side partition system before
-/// extracts run and drained by each sub-app's extract closure into the
-/// sub-world's `Messages<InboundPlayerPacket>`. Keyed by the
-/// host-anchor `Entity` (the `label_entity` of the destination
-/// `DimSubApp`).
-///
-/// `per_dim` is `pub` because the extract closure receives `&mut World`
-/// (not typed system params) and reaches into the resource directly:
-/// `main_world.resource_mut::<PendingInboundPartition>().per_dim
-/// .entry(label_entity).or_default()`.
-#[derive(Resource, Default)]
-pub struct PendingInboundPartition {
-    pub per_dim: FxHashMap<Entity, Vec<InboundPlayerPacket>>,
-}
-
-/// Per-dim partition of inbound lifecycle messages (spawn + despawn)
-/// awaiting shuttle into a `DimSubApp`. Filled by main-side bridge
-/// systems (and the disconnect cleanup) before extracts run; drained
-/// by each sub-app's extract closure into the sub-world's
-/// `Messages<InboundPlayerSpawn>` and `Messages<InboundPlayerDespawn>`
-/// buffers. Keyed by the same host-anchor `Entity` as
-/// `PendingInboundPartition` so a single `label_entity` lookup serves
-/// both partitions.
-///
-/// Lifecycle messages are routed separately from `InboundPlayerPacket`
-/// to keep the partition's value type a `Vec<T>` rather than forcing
-/// callers to switch on a message-kind enum. Each bundle is small
-/// (one spawn or one despawn per player per transfer), so plain `Vec`
-/// is enough — no `SmallVec` is needed.
-#[derive(Resource, Default)]
-pub struct PendingInboundLifecycle {
-    pub per_dim: FxHashMap<Entity, LifecycleBundle>,
-}
-
-#[derive(Default)]
-pub struct LifecycleBundle {
-    pub spawns: Vec<InboundPlayerSpawn>,
-    pub despawns: Vec<InboundPlayerDespawn>,
-    pub block_events: Vec<PlayerWillDestroyBlock>,
-}
 
 #[cfg(test)]
 mod tests {
@@ -381,73 +337,4 @@ mod tests {
         }
     }
 
-    #[test]
-    fn pending_inbound_partition_default_is_empty() {
-        let p = PendingInboundPartition::default();
-        assert!(p.per_dim.is_empty());
-    }
-
-    #[test]
-    fn pending_inbound_partition_entry_creates_default_vec() {
-        let mut partition = PendingInboundPartition::default();
-        let dim = placeholder_entity();
-        partition
-            .per_dim
-            .entry(dim)
-            .or_default()
-            .push(InboundPlayerPacket {
-                player: placeholder_entity(),
-                id: 1,
-                data: Bytes::new(),
-                timestamp: std::time::Instant::now(),
-            });
-        assert_eq!(partition.per_dim.get(&dim).map(|v| v.len()), Some(1));
-    }
-
-    #[test]
-    fn pending_inbound_lifecycle_default_is_empty() {
-        let p = PendingInboundLifecycle::default();
-        assert!(p.per_dim.is_empty());
-    }
-
-    #[test]
-    fn lifecycle_bundle_default_has_empty_vecs() {
-        let b = LifecycleBundle::default();
-        assert!(b.spawns.is_empty());
-        assert!(b.despawns.is_empty());
-        assert!(b.block_events.is_empty());
-    }
-
-    #[test]
-    fn lifecycle_bundle_block_events_default_empty() {
-        let b = LifecycleBundle::default();
-        assert!(b.block_events.is_empty());
-    }
-
-    #[test]
-    fn lifecycle_bundle_accepts_spawn_and_despawn_pushes() {
-        let e = placeholder_entity();
-        let snapshot = PlayerTransferSnapshot {
-            uuid: Uuid::nil(),
-            username: "x".into(),
-            position: DVec3::ZERO,
-            rotation: Vec2::ZERO,
-        };
-        let mut b = LifecycleBundle::default();
-        b.spawns.push(InboundPlayerSpawn {
-            host_anchor: e,
-            session: PlayerSession(0),
-            snapshot,
-        });
-        b.despawns.push(InboundPlayerDespawn { host_anchor: e, session: PlayerSession(0) });
-        b.block_events.push(PlayerWillDestroyBlock {
-            player: e,
-            chunk: e,
-            block_pos: mcrs_engine::world::block::BlockPos::new(0, 0, 0),
-            block_state: mcrs_protocol::BlockStateId(0),
-        });
-        assert_eq!(b.spawns.len(), 1);
-        assert_eq!(b.despawns.len(), 1);
-        assert_eq!(b.block_events.len(), 1);
-    }
 }

@@ -18,9 +18,8 @@ use mcrs_minecraft::world::bridge_queue::{
     InboundRateBucket, OutboundQueue, INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_TICKS,
 };
 use bytes::Bytes;
-use mcrs_minecraft::world::bus::{
-    InboundPlayerPacket, OutboundPlayerPacket, PendingInboundPartition,
-};
+use mcrs_minecraft::world::bus::{InboundPlayerPacket, OutboundPlayerPacket};
+use mcrs_minecraft::world::channel_types::DimChannelsResource;
 use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PendingInboundBuffer, PlayerIndex};
 use mcrs_network::event::ReceivedPacketEvent;
@@ -43,7 +42,7 @@ fn build_inbound_world() -> World {
     world.init_resource::<SessionRegistry>();
     world.init_resource::<PlayerSessionCounter>();
     world.init_resource::<PendingInboundBuffer>();
-    world.init_resource::<PendingInboundPartition>();
+    world.init_resource::<DimChannelsResource>();
     world
 }
 
@@ -170,13 +169,9 @@ fn bridge_inbound_emits_received_packet_event() {
         "bridge_inbound must emit one ReceivedPacketEvent per drained packet"
     );
 
-    // PendingInboundPartition must remain empty — bridge_inbound no longer
-    // routes there directly.
-    let partition = world.resource::<PendingInboundPartition>();
-    assert!(
-        partition.per_dim.is_empty(),
-        "bridge_inbound must not write into PendingInboundPartition directly"
-    );
+    // bridge_inbound no longer routes to PendingInboundPartition;
+    // it only emits ReceivedPacketEvent. The count above is the full
+    // verification needed.
 }
 
 // ---------------------------------------------------------------------------
@@ -215,12 +210,7 @@ fn bridge_inbound_emits_event_regardless_of_transit_state() {
         "bridge_inbound must emit ReceivedPacketEvent even when player is mid-transit"
     );
 
-    // PendingInboundPartition must remain empty.
-    let partition = world.resource::<PendingInboundPartition>();
-    assert!(
-        partition.per_dim.is_empty(),
-        "bridge_inbound must not write into PendingInboundPartition"
-    );
+    // bridge_inbound does not route to any partition resource.
 }
 
 // ---------------------------------------------------------------------------
@@ -328,13 +318,12 @@ fn no_unattached_outbound_queue_after_fixed_preupdate() {
 #[test]
 fn disconnect_clears_pending() {
     use mcrs_minecraft::disconnect::process_disconnect;
-    use mcrs_minecraft::world::bus::PendingInboundLifecycle;
 
     let mut world = World::new();
     world.init_resource::<PlayerIndex>();
     world.init_resource::<SessionRegistry>();
     world.init_resource::<PlayerSessionCounter>();
-    world.init_resource::<PendingInboundLifecycle>();
+    world.init_resource::<DimChannelsResource>();
 
     let dim = Entity::from_raw_u32(10).expect("nonzero");
     let player = Entity::from_raw_u32(20).expect("nonzero");
@@ -374,8 +363,8 @@ fn disconnect_clears_pending() {
     world.run_system_once(move |mut commands: bevy_ecs::prelude::Commands,
                                 mut player_index: bevy_ecs::system::ResMut<PlayerIndex>,
                                 mut session_registry: bevy_ecs::system::ResMut<SessionRegistry>,
-                                mut lifecycle: bevy_ecs::system::ResMut<PendingInboundLifecycle>| {
-        process_disconnect(player, &mut player_index, &mut session_registry, &mut lifecycle, &mut commands);
+                                dim_channels: bevy_ecs::system::ResMut<DimChannelsResource>| {
+        process_disconnect(player, &mut player_index, &mut session_registry, &dim_channels, &mut commands);
     }).expect("process_disconnect system ran");
 
     // SessionRegistry entry is gone.

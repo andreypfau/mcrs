@@ -1,6 +1,5 @@
 use crate::world::block::Block;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
-use crate::world::bus::PendingInboundLifecycle;
 use crate::world::entity::attribute::Attribute;
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::attribute::{BlockBreakSpeed, MiningEfficiency};
@@ -11,8 +10,6 @@ use crate::world::inventory::PlayerHotbarSlots;
 use crate::world::item::{Item, ItemStack};
 use crate::world::item::component::Tool;
 use crate::world::item::component::Enchantments;
-use crate::world::player_index::HostAnchorRef;
-use mcrs_engine::session::SessionRegistry;
 use crate::enchantment::EnchantmentData;
 use crate::world::loot::BlockLootTables;
 use crate::world::loot::context::BlockBreakContext;
@@ -37,39 +34,6 @@ use rand::RngExt;
 use std::time::Duration;
 use tracing::{debug, trace};
 
-/// Route a clone of `event` into `PendingInboundLifecycle.block_events`
-/// under the destination per-dim bucket. The destination is the session's
-/// `dim`, reverse-looked up via `HostAnchorRef` on the connection entity.
-/// Bails (no-op) if the player has no `HostAnchorRef` (not yet logged in),
-/// no `SessionRegistry` entry, or a `dim == Entity::PLACEHOLDER` value.
-fn route_block_event_via_lifecycle(
-    event: &PlayerWillDestroyBlock,
-    host_anchor_refs: &Query<&HostAnchorRef>,
-    session_registry: &SessionRegistry,
-    lifecycle: &mut PendingInboundLifecycle,
-) {
-    let Ok(host_anchor_ref) = host_anchor_refs.get(event.player) else {
-        return;
-    };
-    let host_anchor = host_anchor_ref.0;
-    let Some((_, entry)) = session_registry.get_by_anchor(&host_anchor) else {
-        return;
-    };
-    let current_dim = entry.dim;
-    if current_dim == Entity::PLACEHOLDER {
-        trace!(
-            ?host_anchor,
-            "block-event route skipped: current_dim is PLACEHOLDER"
-        );
-        return;
-    }
-    lifecycle
-        .per_dim
-        .entry(current_dim)
-        .or_default()
-        .block_events
-        .push(*event);
-}
 
 pub struct DiggingPlugin;
 
@@ -170,9 +134,6 @@ fn player_start_destroy_block(
     block_registry: Res<StaticRegistry<VanillaBlock>>,
     time: Res<Time<Fixed>>,
     mut player_will_destroy_block: MessageWriter<PlayerWillDestroyBlock>,
-    mut lifecycle: ResMut<PendingInboundLifecycle>,
-    session_registry: Res<SessionRegistry>,
-    host_anchor_refs: Query<&HostAnchorRef>,
     mut commands: Commands,
 ) {
     reader.read().for_each(|event| {
@@ -227,12 +188,6 @@ fn player_start_destroy_block(
                 block_state,
             };
             player_will_destroy_block.write(event);
-            route_block_event_via_lifecycle(
-                &event,
-                &host_anchor_refs,
-                &session_registry,
-                &mut lifecycle,
-            );
         } else {
             let damage_ticks = (1.0 / damage).ceil() as u32;
             let damage_duration = time.timestep() * damage_ticks;
@@ -279,9 +234,6 @@ fn player_stop_destroy_block(
     mut reader: MessageReader<PlayerAction>,
     digging_players: Query<(&InDimension, &Digging)>,
     mut player_will_destroy_block: MessageWriter<PlayerWillDestroyBlock>,
-    mut lifecycle: ResMut<PendingInboundLifecycle>,
-    session_registry: Res<SessionRegistry>,
-    host_anchor_refs: Query<&HostAnchorRef>,
     mut destroy_block_progress: SendDestroyBlockProgress,
     mut commands: Commands,
 ) {
@@ -307,12 +259,6 @@ fn player_stop_destroy_block(
                 block_state: digging.block_state,
             };
             player_will_destroy_block.write(event);
-            route_block_event_via_lifecycle(
-                &event,
-                &host_anchor_refs,
-                &session_registry,
-                &mut lifecycle,
-            );
         }
         commands.entity(player).remove::<Digging>();
     });

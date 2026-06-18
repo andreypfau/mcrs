@@ -44,17 +44,18 @@ use mcrs_minecraft::configuration::emit_initial_player_spawn;
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::world::aoi::TrackedBy;
 use mcrs_minecraft::world::bridge::{
-    bridge_outbound, bridge_player_attach, dispatch_encode, partition_main_inbound,
+    bridge_inbound_to_channel, bridge_outbound, bridge_player_attach, dispatch_encode,
 };
 use mcrs_minecraft::world::bridge_queue::{InboundRateBucket, OutboundQueue};
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer, PacketPayload,
-    PacketPriority, PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
+    PacketPriority, PacketTarget,
 };
 use mcrs_engine::session::SessionRegistry;
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
+use mcrs_minecraft::runner::pump_channels;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::uuid::Uuid;
@@ -79,7 +80,6 @@ fn e2e_login_handshake_completes() {
     app.init_resource::<PlayerIndex>();
     app.init_resource::<SessionRegistry>();
     app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
-    app.init_resource::<PendingInboundLifecycle>();
     app.add_message::<InboundPlayerDespawn>();
 
     let connection_entity = app.world_mut().spawn_empty().id();
@@ -149,7 +149,6 @@ fn e2e_packet_round_trip() {
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
     world.init_resource::<SessionRegistry>();
-    world.init_resource::<PendingInboundPartition>();
 
     let dim = Entity::from_raw_u32(2).expect("nonzero");
 
@@ -310,8 +309,7 @@ fn build_join_host_app() -> App {
     app.init_resource::<SessionRegistry>();
     app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
     app.init_resource::<mcrs_minecraft::world::player_index::PendingInboundBuffer>();
-    app.init_resource::<PendingInboundPartition>();
-    app.init_resource::<PendingInboundLifecycle>();
+    app.init_resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<OutboundPlayerTransfer>();
@@ -322,7 +320,7 @@ fn build_join_host_app() -> App {
 
     app.add_systems(
         Update,
-        (partition_main_inbound, bridge_player_attach, bridge_outbound, dispatch_encode),
+        (bridge_inbound_to_channel, bridge_player_attach, bridge_outbound, dispatch_encode),
     );
     app.add_plugins(LoginPlugin);
     app.add_systems(Update, emit_initial_player_spawn);
@@ -412,21 +410,30 @@ fn e2e_join_releases_joining_world() {
         .entity_mut(connection_entity)
         .insert((ConnectionState::Game, InGameConnectionState));
 
-    // Tick 1: emit_initial_player_spawn fills PendingInboundLifecycle →
-    //         extract shuttles spawn into sub-app Messages<InboundPlayerSpawn> →
-    //         sub-app consume_inbound_player_spawn spawns the in-dim entity,
-    //         writes OutboundPlayerAttached + emit_play_login OutboundPlayerPacket(s).
+    // Tick 1: emit_initial_player_spawn sends ToDim::Spawn on the control channel.
+    //         Sub-app extract runs (no output yet), then sub-app FixedPreUpdate
+    //         drain_to_dim_inbox routes Spawn → Messages<InboundPlayerSpawn>.
+    //         FixedLast flush_from_dim_outbox runs before Update (empty outbox).
+    //         Update consume_inbound_player_spawn spawns the in-dim entity,
+    //         writes OutboundPlayerAttached + play-login OutboundPlayerPacket(s).
+    //         pump_channels: from_dim channel empty (flush ran before spawn wrote).
     app.update();
+    pump_channels(&mut app);
 
-    // Tick 2: extract drains sub-app OutboundPlayerAttached → host
-    //         Messages<OutboundPlayerAttached>; bridge_player_attach sets
-    //         in_dim_entity; extract drains OutboundPlayerPacket(s) to host bus;
-    //         bridge_outbound routes them to OutboundQueue on the mock connection;
-    //         dispatch_encode encodes and sends the blob.
+    // Tick 2: extract drains sub-app Messages<OutboundPlayerAttached> (written tick 1)
+    //         → host Messages<OutboundPlayerAttached>. Sub-app FixedLast
+    //         flush_from_dim_outbox now drains the play-login packet(s) into the
+    //         FromDim channel. pump_channels drains the channel into host
+    //         Messages<OutboundPlayerPacket> with correct session stamp.
     app.update();
+    pump_channels(&mut app);
 
-    // Tick 3: second dispatch window — catches any packets queued on tick 2.
+    // Tick 3: main First swaps host Messages; bridge_player_attach sees
+    //         OutboundPlayerAttached → sets in_dim_entity; bridge_outbound sees
+    //         play-login packets → routes to OutboundQueue; dispatch_encode encodes
+    //         and sends the blob.
     app.update();
+    pump_channels(&mut app);
 
     // Assertion 1: handoff completed — in_dim_entity bound.
     let (_, entry) = app

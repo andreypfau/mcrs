@@ -19,12 +19,12 @@ use mcrs_core::AppState;
 use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
-use mcrs_minecraft::world::bridge::{bridge_player_attach, partition_main_inbound};
+use mcrs_minecraft::world::bridge::{bridge_inbound_to_channel, bridge_player_attach};
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
-    PendingInboundLifecycle, PendingInboundPartition, PlayerTransferSnapshot,
+    OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer, PlayerTransferSnapshot,
 };
+use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_engine::session::{PlayerSessionCounter, SessionRegistry};
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
@@ -75,8 +75,7 @@ fn build_host_app() -> App {
     app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<PendingInboundBuffer>();
-    app.init_resource::<PendingInboundPartition>();
-    app.init_resource::<PendingInboundLifecycle>();
+    app.init_resource::<DimChannelsResource>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<OutboundPlayerTransfer>();
@@ -86,7 +85,7 @@ fn build_host_app() -> App {
     app.add_message::<InboundPlayerDespawn>();
     app.add_systems(
         Update,
-        (partition_main_inbound, bridge_player_attach),
+        (bridge_inbound_to_channel, bridge_player_attach),
     );
 
     app.add_plugins(LoginPlugin);
@@ -136,40 +135,52 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
 // ---------------------------------------------------------------------------
 
 /// When a connection transitions to Game AND a live DimSubAppHandle label
-/// entity exists, the host must push exactly one InboundPlayerSpawn into
-/// PendingInboundLifecycle.per_dim[dim_label].spawns and set
-/// PlayerLocation.current_dim to that label (no longer Entity::PLACEHOLDER).
+/// entity exists (with a registered channel), the host must send exactly one
+/// `ToDim::Spawn` into the dim's control channel and set
+/// `SessionEntry.dim` to that label (no longer Entity::PLACEHOLDER).
 #[test]
 fn game_transition_emits_initial_spawn() {
+    use mcrs_engine::world::channels::{DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY};
+    use mcrs_minecraft::world::channel_types::FromDim;
+
     let mut app = build_host_app();
 
     let (connection_entity, host_anchor) = spawn_accepted_connection(&mut app);
 
-    // Spawn a fake live DimSubAppHandle label entity on the host
+    // Spawn a fake live DimSubAppHandle label entity on the host and register
+    // its channel so emit_initial_player_spawn can look it up.
     let dim_label = app.world_mut().spawn(DimSubAppHandle).id();
+    let ctl_rx = {
+        let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
+        let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+        let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
+        app.world_mut()
+            .resource_mut::<DimChannelsResource>()
+            .insert(dim_label, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
+        ctl_rx
+    };
 
     // Transition to Game — the emit system should pick this up
     transition_to_game(&mut app, connection_entity);
     app.update();
 
-    let world = app.world();
-    let lifecycle = world.resource::<PendingInboundLifecycle>();
-    let bundle = lifecycle
-        .per_dim
-        .get(&dim_label)
-        .expect("PendingInboundLifecycle should have a bucket for dim_label");
-
+    let spawns: Vec<ToDim> = ctl_rx
+        .try_iter()
+        .filter(|m| matches!(m, ToDim::Spawn { .. }))
+        .collect();
     assert_eq!(
-        bundle.spawns.len(),
+        spawns.len(),
         1,
-        "exactly one InboundPlayerSpawn should be pushed into the lifecycle bucket"
+        "exactly one ToDim::Spawn should be sent to the dim's control channel"
     );
-    assert_eq!(
-        bundle.spawns[0].host_anchor,
-        host_anchor,
-        "the spawn's host_anchor should match the host-anchor entity"
-    );
+    match &spawns[0] {
+        ToDim::Spawn { host_anchor: ha, .. } => {
+            assert_eq!(*ha, host_anchor, "spawn's host_anchor must match");
+        }
+        _ => unreachable!(),
+    }
 
+    let world = app.world();
     let (_, entry) = world
         .resource::<SessionRegistry>()
         .get_by_anchor(&host_anchor)
@@ -193,10 +204,11 @@ fn no_live_dim_no_spawn() {
     app.update();
 
     let world = app.world();
-    let lifecycle = world.resource::<PendingInboundLifecycle>();
+    // No live dim → no channel found → emit_initial_player_spawn returned early.
+    // The session dim should still be PLACEHOLDER.
     assert!(
-        lifecycle.per_dim.is_empty(),
-        "no spawn should be pushed when no DimSubAppHandle is live"
+        world.resource::<DimChannelsResource>().iter().count() == 0,
+        "no channel should be registered when no DimSubAppHandle is live"
     );
 
     let (_, entry) = world
@@ -211,42 +223,51 @@ fn no_live_dim_no_spawn() {
 }
 
 /// A host-anchor that already has current_dim != PLACEHOLDER (initial join
-/// already emitted) must not emit a second InboundPlayerSpawn.
+/// already emitted) must not send a second ToDim::Spawn.
 #[test]
 fn idempotent_single_emit() {
+    use mcrs_engine::world::channels::{DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY};
+    use mcrs_minecraft::world::channel_types::FromDim;
+
     let mut app = build_host_app();
 
-    let (connection_entity, host_anchor) = spawn_accepted_connection(&mut app);
+    let (connection_entity, _host_anchor) = spawn_accepted_connection(&mut app);
 
     let dim_label = app.world_mut().spawn(DimSubAppHandle).id();
 
-    // First Game transition — emits the spawn
+    // Register a channel so emit_initial_player_spawn can find it.
+    let ctl_rx = {
+        let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
+        let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+        let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
+        app.world_mut()
+            .resource_mut::<DimChannelsResource>()
+            .insert(dim_label, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
+        ctl_rx
+    };
+
+    // First Game transition — emits the spawn on the control channel
     transition_to_game(&mut app, connection_entity);
     app.update();
 
-    // Drain the spawns so the bucket is empty again
-    app.world_mut()
-        .resource_mut::<PendingInboundLifecycle>()
-        .per_dim
-        .entry(dim_label)
-        .or_default()
-        .spawns
-        .clear();
+    // Drain the first spawn so the channel is empty again
+    let first_spawns: Vec<_> = ctl_rx
+        .try_iter()
+        .filter(|m| matches!(m, ToDim::Spawn { .. }))
+        .collect();
+    assert_eq!(first_spawns.len(), 1, "exactly one spawn on first tick");
 
-    // Tick again — should NOT emit a second spawn
+    // Tick again — should NOT emit a second spawn (current_dim is already set)
     app.update();
 
-    let world = app.world();
-    let lifecycle = world.resource::<PendingInboundLifecycle>();
-    let count = lifecycle
-        .per_dim
-        .get(&dim_label)
-        .map(|b| b.spawns.len())
-        .unwrap_or(0);
+    let second_spawns = ctl_rx
+        .try_iter()
+        .filter(|m| matches!(m, ToDim::Spawn { .. }))
+        .count();
     assert_eq!(
-        count,
+        second_spawns,
         0,
-        "no second InboundPlayerSpawn after current_dim is already set"
+        "no second ToDim::Spawn after current_dim is already set"
     );
 }
 
@@ -284,26 +305,30 @@ fn spawn_consumer_materializes_in_dim_entity() {
         q.iter(app.world()).map(|(e, _)| e).next().expect("one DimSubAppHandle")
     };
 
-    // Push an InboundPlayerSpawn directly into the lifecycle buffer.
+    // Send a ToDim::Spawn on the dim's control channel so drain_to_dim_inbox
+    // routes it to Messages<InboundPlayerSpawn> inside the sub-app.
     let host_anchor = app.world_mut().spawn_empty().id();
     {
-        let snapshot = PlayerTransferSnapshot {
-            uuid: Uuid::new_v4(),
-            username: "consumer_test".into(),
-            position: DVec3::new(0.0, 64.0, 0.0),
-            rotation: Vec2::ZERO,
-        };
-        app.world_mut()
-            .resource_mut::<PendingInboundLifecycle>()
-            .per_dim
-            .entry(dim_label)
-            .or_default()
-            .spawns
-            .push(InboundPlayerSpawn { host_anchor, snapshot, session: PlayerSession(0) });
+        app
+            .world()
+            .resource::<DimChannelsResource>()
+            .get(dim_label)
+            .expect("channel registered by spawn_dim_subapp")
+            .control_sender
+            .try_send(ToDim::Spawn {
+                host_anchor,
+                session: PlayerSession(0),
+                snapshot: PlayerTransferSnapshot {
+                    uuid: Uuid::new_v4(),
+                    username: "consumer_test".into(),
+                    position: DVec3::new(0.0, 64.0, 0.0),
+                    rotation: Vec2::ZERO,
+                },
+            }).expect("control channel not full");
     }
 
-    // Tick 1: extract shuttles the spawn into the sub-app; sub-app consumer
-    // runs and spawns the entity + writes OutboundPlayerAttached.
+    // Tick 1: drain_to_dim_inbox routes spawn to sub-app Messages<InboundPlayerSpawn>;
+    // sub-app consumer spawns the entity + writes OutboundPlayerAttached.
     app.update();
     // Tick 2: extract drains OutboundPlayerAttached to host.
     app.update();
@@ -345,9 +370,9 @@ fn attach_roundtrip_sets_in_dim_entity() {
     // Transition to Game — emit_initial_player_spawn fires
     transition_to_game(&mut app, connection_entity);
 
-    // Tick 1: emit_initial_player_spawn fills PendingInboundLifecycle →
-    //         extract shuttles spawn into sub-app Messages<InboundPlayerSpawn> →
-    //         sub-app consume_inbound_player_spawn runs, spawns entity, writes
+    // Tick 1: emit_initial_player_spawn sends ToDim::Spawn on control channel →
+    //         drain_to_dim_inbox routes it to sub-app Messages<InboundPlayerSpawn> →
+    //         consume_inbound_player_spawn runs, spawns entity, writes
     //         OutboundPlayerAttached to sub-world buffer.
     app.update();
 
@@ -402,19 +427,22 @@ fn no_duplicate_spawn_on_reread() {
 
     let host_anchor = app.world_mut().spawn_empty().id();
     {
-        let snapshot = PlayerTransferSnapshot {
-            uuid: Uuid::new_v4(),
-            username: "cursor_test".into(),
-            position: DVec3::new(0.0, 64.0, 0.0),
-            rotation: Vec2::ZERO,
-        };
-        app.world_mut()
-            .resource_mut::<PendingInboundLifecycle>()
-            .per_dim
-            .entry(dim_label)
-            .or_default()
-            .spawns
-            .push(InboundPlayerSpawn { host_anchor, snapshot, session: PlayerSession(0) });
+        app
+            .world()
+            .resource::<DimChannelsResource>()
+            .get(dim_label)
+            .expect("channel registered by spawn_dim_subapp")
+            .control_sender
+            .try_send(ToDim::Spawn {
+                host_anchor,
+                session: PlayerSession(0),
+                snapshot: PlayerTransferSnapshot {
+                    uuid: Uuid::new_v4(),
+                    username: "cursor_test".into(),
+                    position: DVec3::new(0.0, 64.0, 0.0),
+                    rotation: Vec2::ZERO,
+                },
+            }).expect("control channel not full");
     }
 
     // Tick 1: consumer reads the spawn and materializes one entity

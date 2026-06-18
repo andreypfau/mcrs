@@ -11,26 +11,36 @@ use mcrs_minecraft::disconnect::{
     filter_inflight_for_disconnect, process_disconnect,
 };
 use mcrs_minecraft::world::bus::{
-    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
-    OutboundPlayerTransfer, PendingInboundLifecycle, PendingInboundPartition,
+    InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect, OutboundPlayerTransfer,
 };
+use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_engine::world::channels::{DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY};
+use mcrs_minecraft::world::channel_types::FromDim;
 use mcrs_minecraft::world::player_index::PlayerIndex;
 
 fn build_app() -> App {
     let mut app = App::new();
     app.add_message::<OutboundPlayerTransfer>();
-    app.add_message::<InboundPlayerSpawn>();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
     app.init_resource::<PlayerIndex>();
     app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<PendingInboundPartition>();
-    app.init_resource::<PendingInboundLifecycle>();
+    app.init_resource::<DimChannelsResource>();
     app.add_plugins(DisconnectProtocolPlugin);
     app
+}
+
+fn register_dim_channel(app: &mut App, dim: Entity) -> flume::Receiver<ToDim> {
+    let (srv_tx, _srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
+    let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+    let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
+    app.world_mut()
+        .resource_mut::<DimChannelsResource>()
+        .insert(dim, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
+    ctl_rx
 }
 
 fn insert_player(app: &mut App, host_anchor: Entity, dim: Entity) {
@@ -95,7 +105,7 @@ fn fire_disconnect(app: &mut App, anchors: &[Entity]) {
             move |mut commands: Commands,
                   mut player_index: ResMut<PlayerIndex>,
                   mut session_registry: ResMut<SessionRegistry>,
-                  mut lifecycle: ResMut<PendingInboundLifecycle>,
+                  dim_channels: ResMut<DimChannelsResource>,
                   mut budget: ResMut<DisconnectBudget>,
                   mut pending_queue: ResMut<PendingDisconnectQueue>,
                   mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
@@ -107,7 +117,7 @@ fn fire_disconnect(app: &mut App, anchors: &[Entity]) {
                             host_anchor,
                             &mut player_index,
                             &mut session_registry,
-                            &mut lifecycle,
+                            &dim_channels,
                             &mut commands,
                         );
                     } else if !pending_queue.push_back(host_anchor) {
@@ -131,26 +141,26 @@ fn tick_update_schedule(app: &mut App) {
         .expect("Update-schedule filter");
 }
 
-fn dim_despawn_count(app: &App, dim: Entity) -> usize {
-    app.world()
-        .resource::<PendingInboundLifecycle>()
-        .per_dim
-        .get(&dim)
-        .map(|b| b.despawns.len())
-        .unwrap_or(0)
+fn dim_despawn_count(ctl_rx: &flume::Receiver<ToDim>) -> usize {
+    ctl_rx
+        .try_iter()
+        .filter(|msg| matches!(msg, ToDim::Despawn { .. }))
+        .count()
 }
 
 #[test]
 fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     let mut app = build_app();
     let dim = Entity::from_raw_u32(900).unwrap();
+    let ctl_rx = register_dim_channel(&mut app, dim);
     let anchors = spawn_anchors(&mut app, 100, dim);
 
     fire_disconnect(&mut app, &anchors);
     tick_update_schedule(&mut app);
 
+    let processed = dim_despawn_count(&ctl_rx);
     assert_eq!(
-        dim_despawn_count(&app, dim),
+        processed,
         32,
         "exactly budget-count (32) processed in the first tick",
     );
@@ -163,7 +173,8 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     // Tick 2: drain refills budget and processes 32 more.
     tick_first_schedule(&mut app);
     tick_update_schedule(&mut app);
-    assert_eq!(dim_despawn_count(&app, dim), 64, "32 + 32 processed");
+    let processed_2 = processed + dim_despawn_count(&ctl_rx);
+    assert_eq!(processed_2, 64, "32 + 32 processed");
     assert_eq!(
         app.world().resource::<PendingDisconnectQueue>().entries.len(),
         36,
@@ -172,7 +183,8 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     // Tick 3: another 32.
     tick_first_schedule(&mut app);
     tick_update_schedule(&mut app);
-    assert_eq!(dim_despawn_count(&app, dim), 96);
+    let processed_3 = processed_2 + dim_despawn_count(&ctl_rx);
+    assert_eq!(processed_3, 96);
     assert_eq!(
         app.world().resource::<PendingDisconnectQueue>().entries.len(),
         4,
@@ -181,7 +193,8 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     // Tick 4: remaining 4 drained; queue empty.
     tick_first_schedule(&mut app);
     tick_update_schedule(&mut app);
-    assert_eq!(dim_despawn_count(&app, dim), 100);
+    let processed_4 = processed_3 + dim_despawn_count(&ctl_rx);
+    assert_eq!(processed_4, 100);
     assert!(
         app.world()
             .resource::<PendingDisconnectQueue>()
@@ -200,6 +213,7 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
 fn e4_2_queue_hard_cap_drops_overflow_with_warn() {
     let mut app = build_app();
     let dim = Entity::from_raw_u32(910).unwrap();
+    let _ctl_rx = register_dim_channel(&mut app, dim);
 
     // Saturate the budget so every push from now on goes through the queue.
     {
@@ -241,6 +255,7 @@ fn e4_2_queue_hard_cap_drops_overflow_with_warn() {
 fn e4_3_reconnect_after_disconnect_no_state_overlap() {
     let mut app = build_app();
     let dim = Entity::from_raw_u32(920).unwrap();
+    let _ctl_rx = register_dim_channel(&mut app, dim);
 
     let host_anchor_1 = app.world_mut().spawn_empty().id();
     insert_player(&mut app, host_anchor_1, dim);
@@ -271,6 +286,8 @@ fn e4_4_mass_disconnect_interleaved_with_mid_transit_player() {
     let mut app = build_app();
     let source_dim = Entity::from_raw_u32(930).unwrap();
     let dest_dim = Entity::from_raw_u32(931).unwrap();
+    let src_ctl_rx = register_dim_channel(&mut app, source_dim);
+    let dest_ctl_rx = register_dim_channel(&mut app, dest_dim);
 
     // Player A — mid-transit. Insert with previous_dim already set so
     // process_disconnect routes to BOTH dims when A is disconnected.
@@ -286,24 +303,28 @@ fn e4_4_mass_disconnect_interleaved_with_mid_transit_player() {
     fire_disconnect(&mut app, &all_disconnected);
     tick_update_schedule(&mut app);
 
-    // Budget is 32 per tick. 32 of the 51 (50 bystanders + A) are
-    // processed; the rest queue.
-    let processed_dest = dim_despawn_count(&app, dest_dim);
+    // Count despawns sent so far via channels.
+    let processed_src_1 = dim_despawn_count(&src_ctl_rx);
+    let processed_dest_1 = dim_despawn_count(&dest_ctl_rx);
     let queued = app
         .world()
         .resource::<PendingDisconnectQueue>()
         .entries
         .len();
     assert_eq!(
-        processed_dest + queued,
+        processed_dest_1 + queued,
         51,
         "every disconnect either processed or queued (no drops)",
     );
 
     // Drain across more ticks until everything is processed.
+    let mut total_src = processed_src_1;
+    let mut total_dest = processed_dest_1;
     for _ in 0..4 {
         tick_first_schedule(&mut app);
         tick_update_schedule(&mut app);
+        total_src += dim_despawn_count(&src_ctl_rx);
+        total_dest += dim_despawn_count(&dest_ctl_rx);
     }
 
     assert!(
@@ -315,12 +336,12 @@ fn e4_4_mass_disconnect_interleaved_with_mid_transit_player() {
     // (the dual-dim sub-case-1 path); this is the invariant the mass
     // disconnect must not corrupt.
     assert_eq!(
-        dim_despawn_count(&app, source_dim),
+        total_src,
         1,
         "player A's previous_dim despawn routed regardless of budget contention",
     );
     assert_eq!(
-        dim_despawn_count(&app, dest_dim),
+        total_dest,
         51,
         "all 51 disconnects emit a despawn in dest dim (50 bystanders + A current_dim)",
     );

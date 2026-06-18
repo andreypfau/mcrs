@@ -111,6 +111,10 @@ where
             .map(|entry| entry.from_dim_receiver.try_iter().collect())
             .unwrap_or_default()
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&Entity, &DimChannelEntry<In, Out>)> {
+        self.map.iter()
+    }
 }
 
 /// Dim-world resource: holds both `ToDim` receivers so dim systems can drain

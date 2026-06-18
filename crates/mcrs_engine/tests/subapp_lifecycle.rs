@@ -92,20 +92,14 @@ mod harness {
         app.insert_resource(TagRegistry::<Block>::default());
         app.insert_resource(RegistrySnapshot::<Biome>::default());
 
-        // The production extract closure in `spawn_dim_subapp` shuttles
-        // bus messages and reads `PendingInboundPartition` from the host
-        // world. Tests that drive `app.update()` need the same host-side
-        // registrations that `WorldPlugin::build` installs, otherwise the
-        // closure panics on its first run with "Requested resource ... does
-        // not exist".
-        app.init_resource::<mcrs_minecraft::world::bus::PendingInboundPartition>();
-        app.init_resource::<mcrs_minecraft::world::bus::PendingInboundLifecycle>();
+        // Host-side registrations required by the production `spawn_dim_subapp`
+        // path: each sub-app's extract closure and pump_channels use these
+        // resources. Without them the first `app.update()` panics.
+        app.init_resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>();
         app.add_message::<mcrs_minecraft::world::bus::OutboundPlayerPacket>();
         app.add_message::<mcrs_minecraft::world::bus::InboundPlayerPacket>();
         app.add_message::<mcrs_minecraft::world::bus::OutboundPlayerTransfer>();
         app.add_message::<mcrs_minecraft::world::bus::OutboundPlayerAttached>();
-        app.add_message::<mcrs_minecraft::world::bus::InboundPlayerSpawn>();
-        app.add_message::<mcrs_minecraft::world::bus::InboundPlayerDespawn>();
 
         app
     }

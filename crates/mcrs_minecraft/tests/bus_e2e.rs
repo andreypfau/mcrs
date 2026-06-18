@@ -19,19 +19,20 @@ use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
 use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_engine::session::PlayerSession;
-use mcrs_minecraft::world::bridge::partition_main_inbound;
+use mcrs_minecraft::world::bridge::bridge_inbound_to_channel;
 use bytes::Bytes;
 use mcrs_minecraft::world::bus::{
-    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
+    InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer, PacketPayload,
-    PacketPriority, PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
-    TestPayload,
+    PacketPriority, PacketTarget, TestPayload,
 };
+use mcrs_minecraft::world::channel_types::DimChannelsResource;
 use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{
     drain_dim_spawn_queue, DimSubAppHandle,
 };
+use mcrs_minecraft::runner::pump_channels;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
@@ -84,16 +85,14 @@ fn build_app() -> App {
     app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<PendingInboundBuffer>();
-    app.init_resource::<PendingInboundPartition>();
-    app.init_resource::<PendingInboundLifecycle>();
+    app.init_resource::<DimChannelsResource>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<OutboundPlayerTransfer>();
-    app.add_message::<InboundPlayerSpawn>();
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
-    app.add_systems(Update, partition_main_inbound);
+    app.add_systems(Update, bridge_inbound_to_channel);
 
     app
 }
@@ -182,18 +181,22 @@ fn outbound_latency_is_one_host_tick_in_production_app() {
         epoch: 0,
         });
 
-    // Tick 1: main runs first (host log still empty), then sub extract
-    // drains the sub-app's Messages<Outbound> into main.Messages<Outbound>.
+    // Tick 1: main Update runs first (host log empty), then sub-app
+    // FixedLast (flush_from_dim_outbox) sends the packet to the FromDim
+    // channel.  pump_channels drains the channel into host Messages.
     app.update();
+    pump_channels(&mut app);
     let log = app.world().resource::<OutboundLog>().0.clone();
     assert!(
         log.is_empty(),
         "outbound should NOT yet be visible to host after tick 1; log = {log:?}"
     );
 
-    // Tick 2: main runs again; record_host_outbound now drains the
-    // message that was extracted at the end of tick 1.
+    // Tick 2: main First swaps the host Messages buffers, then Update
+    // runs record_host_outbound which drains the packet that pump_channels
+    // wrote during tick 1.
     app.update();
+    pump_channels(&mut app);
     let log = app.world().resource::<OutboundLog>().0.clone();
     assert_eq!(
         log,
@@ -219,8 +222,8 @@ fn inbound_latency_is_zero_host_ticks_via_player_index() {
     }
 
     // Place the player in SessionRegistry with the sub-app's label_entity as
-    // its dim and a non-None in_dim_entity so partition_main_inbound
-    // routes to PendingInboundPartition.per_dim (not the inbound buffer).
+    // its dim and a non-None in_dim_entity so bridge_inbound_to_channel
+    // routes to the dim's serverbound channel (not the inbound buffer).
     let host_anchor = Entity::from_raw_u32(42).expect("nonzero");
     let player = host_anchor;
     let in_dim = Entity::from_raw_u32(99).expect("nonzero");
@@ -247,9 +250,9 @@ fn inbound_latency_is_zero_host_ticks_via_player_index() {
             timestamp: std::time::Instant::now(),
         });
 
-    // Tick 1: main partition_main_inbound routes to the per_dim bucket,
-    // sub extract drains the bucket into sub.Messages<Inbound>, sub.update
-    // runs record_sub_inbound which logs the packet.
+    // Tick 1: main bridge_inbound_to_channel routes to the dim's serverbound
+    // channel; sub drain_to_dim_inbox reads the channel into sub.Messages<Inbound>;
+    // sub.update runs record_sub_inbound which logs the packet.
     app.update();
 
     let log = app

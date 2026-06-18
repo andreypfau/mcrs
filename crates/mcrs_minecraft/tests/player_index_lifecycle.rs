@@ -5,7 +5,8 @@ use bevy_ecs::system::RunSystemOnce;
 use mcrs_engine::session::{PlayerSession, SessionRegistry};
 use mcrs_minecraft::disconnect::process_disconnect;
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
-use mcrs_minecraft::world::bus::{InboundPlayerDespawn, PendingInboundLifecycle};
+use mcrs_minecraft::world::bus::InboundPlayerDespawn;
+use mcrs_minecraft::world::channel_types::DimChannelsResource;
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
 use mcrs_protocol::uuid::Uuid;
 
@@ -15,7 +16,7 @@ fn make_app() -> App {
     app.init_resource::<PlayerIndex>();
     app.init_resource::<SessionRegistry>();
     app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
-    app.init_resource::<PendingInboundLifecycle>();
+    app.init_resource::<DimChannelsResource>();
     app.add_message::<InboundPlayerDespawn>();
     app
 }
@@ -96,8 +97,19 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
 
     assert_eq!(app.world().resource::<SessionRegistry>().iter().count(), 1);
 
-    // Pin a concrete dim so the assertion can target a specific bucket.
+    // Pin a concrete dim so the assertion can target a specific channel.
     let current_dim = Entity::from_raw_u32(77).expect("nonzero");
+    let ctl_rx = {
+        use mcrs_engine::world::channels::{DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY};
+        use mcrs_minecraft::world::channel_types::FromDim;
+        let (srv_tx, _srv_rx) = flume::bounded::<mcrs_minecraft::world::channel_types::ToDim>(TO_DIM_CAPACITY);
+        let (ctl_tx, ctl_rx) = flume::bounded::<mcrs_minecraft::world::channel_types::ToDim>(TO_DIM_CONTROL_CAPACITY);
+        let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
+        app.world_mut()
+            .resource_mut::<DimChannelsResource>()
+            .insert(current_dim, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
+        ctl_rx
+    };
     {
         let session = app
             .world()
@@ -117,12 +129,12 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
             move |mut commands: Commands,
                   mut player_index: ResMut<PlayerIndex>,
                   mut session_registry: ResMut<SessionRegistry>,
-                  mut lifecycle: ResMut<PendingInboundLifecycle>| {
+                  dim_channels: ResMut<DimChannelsResource>| {
                 process_disconnect(
                     host_anchor,
                     &mut player_index,
                     &mut session_registry,
-                    &mut lifecycle,
+                    &dim_channels,
                     &mut commands,
                 );
 
@@ -131,7 +143,7 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
                     host_anchor,
                     &mut player_index,
                     &mut session_registry,
-                    &mut lifecycle,
+                    &dim_channels,
                     &mut commands,
                 );
             },
@@ -150,22 +162,18 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
         "host-anchor entity despawned after cleanup",
     );
 
-    let lifecycle = app.world().resource::<PendingInboundLifecycle>();
-    let bundle = lifecycle
-        .per_dim
-        .get(&current_dim)
-        .expect("lifecycle bucket for current_dim present");
+    let despawn_msgs: Vec<_> = ctl_rx.try_iter().collect();
     assert_eq!(
-        bundle.despawns.len(),
+        despawn_msgs.len(),
         1,
-        "exactly one despawn routed (second call short-circuits)",
+        "exactly one despawn routed to control channel (second call short-circuits)",
     );
-    assert_eq!(bundle.despawns[0].host_anchor, host_anchor);
-    assert_ne!(
-        bundle.despawns[0].session,
-        PlayerSession(0),
-        "despawn carries the real session, not the zero sentinel",
-    );
+    match &despawn_msgs[0] {
+        mcrs_minecraft::world::channel_types::ToDim::Despawn { host_anchor: ha } => {
+            assert_eq!(*ha, host_anchor);
+        }
+        other => panic!("expected ToDim::Despawn, got {other:?}"),
+    }
 }
 
 #[test]

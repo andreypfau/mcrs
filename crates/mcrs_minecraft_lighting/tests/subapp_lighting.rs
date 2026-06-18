@@ -20,6 +20,7 @@ use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_engine::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
 };
+use mcrs_minecraft::world::channel_types::DimChannelsResource;
 use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_lighting::converge::LightConvergeSchedule;
 use mcrs_minecraft_lighting::sets::LightingSet;
@@ -57,6 +58,7 @@ fn make_main_app() -> App {
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(TagRegistry::<Block>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
+    app.init_resource::<DimChannelsResource>();
     app
 }
 

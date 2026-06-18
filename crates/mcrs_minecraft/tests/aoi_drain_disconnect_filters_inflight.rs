@@ -21,12 +21,11 @@ use mcrs_minecraft::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, PendingDisconnectQueue,
     drain_pending_disconnects, filter_inflight_for_disconnect,
 };
-use bytes::Bytes;
 use mcrs_minecraft::world::bus::{
-    InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerTransfer, PendingInboundLifecycle,
-    PendingInboundPartition, PlayerTransferSnapshot,
+    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached,
+    OutboundPlayerDisconnect, OutboundPlayerTransfer, PlayerTransferSnapshot,
 };
+use mcrs_minecraft::world::channel_types::DimChannelsResource;
 use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_protocol::uuid::Uuid;
@@ -41,8 +40,7 @@ fn build_app() -> App {
     app.init_resource::<PlayerIndex>();
     app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
-    app.init_resource::<PendingInboundPartition>();
-    app.init_resource::<PendingInboundLifecycle>();
+    app.init_resource::<DimChannelsResource>();
     app.add_plugins(DisconnectProtocolPlugin);
     app
 }
@@ -169,88 +167,6 @@ fn drain_tick_filters_inflight_transfer_for_queued_anchor() {
     );
 }
 
-#[test]
-fn filter_inflight_purges_pending_inbound_partition_for_disconnected_anchor() {
-    // PendingInboundPartition.per_dim is filled each tick by
-    // partition_main_inbound (Update). When a disconnect lands in the
-    // same tick, filter_inflight_for_disconnect must purge any partition
-    // bucket entries whose `player` matches a just-disconnected anchor.
-    // Without the purge, the next-tick extract closure shuttles a packet
-    // for a host-anchor whose PlayerIndex entry has been removed, and
-    // any consumer that does world.get(packet.player) gets None.
-    let mut app = build_app();
-    let app_dim = Entity::from_raw_u32(7).unwrap();
-    let host_anchor = app.world_mut().spawn_empty().id();
-    let other_anchor = app.world_mut().spawn_empty().id();
-    insert_player(&mut app, host_anchor, app_dim);
-    insert_player(&mut app, other_anchor, app_dim);
-
-    // Stage the partition bucket as if partition_main_inbound had just
-    // routed packets for both anchors into the dest sub-app's bucket.
-    {
-        let mut partition = app
-            .world_mut()
-            .resource_mut::<PendingInboundPartition>();
-        let bucket = partition.per_dim.entry(app_dim).or_default();
-        bucket.push(InboundPlayerPacket {
-            player: host_anchor,
-            id: 1,
-            data: Bytes::new(),
-            timestamp: std::time::Instant::now(),
-        });
-        bucket.push(InboundPlayerPacket {
-            player: other_anchor,
-            id: 2,
-            data: Bytes::new(),
-            timestamp: std::time::Instant::now(),
-        });
-        bucket.push(InboundPlayerPacket {
-            player: host_anchor,
-            id: 3,
-            data: Bytes::new(),
-            timestamp: std::time::Instant::now(),
-        });
-    }
-
-    // Force the disconnect through the deferred-drain path so the same
-    // DisconnectedThisTick population that the synchronous observer
-    // would produce is exercised here.
-    {
-        let mut budget = app.world_mut().resource_mut::<DisconnectBudget>();
-        budget.remaining = 0;
-    }
-    {
-        let mut q = app.world_mut().resource_mut::<PendingDisconnectQueue>();
-        assert!(q.push_back(host_anchor));
-    }
-
-    app.world_mut()
-        .run_system_once(drain_pending_disconnects)
-        .expect("drain runs");
-    app.world_mut()
-        .run_system_once(filter_inflight_for_disconnect)
-        .expect("filter runs");
-
-    let bucket = app
-        .world()
-        .resource::<PendingInboundPartition>()
-        .per_dim
-        .get(&app_dim)
-        .cloned()
-        .unwrap_or_default();
-    assert_eq!(
-        bucket.len(),
-        1,
-        "exactly one packet (the other_anchor entry) must survive; \
-         got {} entries after purge",
-        bucket.len(),
-    );
-    assert_eq!(
-        bucket[0].player, other_anchor,
-        "surviving packet must be for the still-connected anchor"
-    );
-    assert_eq!(bucket[0].id, 2);
-}
 
 #[test]
 fn drain_clears_disconnected_this_tick_via_filter_at_end_of_update() {

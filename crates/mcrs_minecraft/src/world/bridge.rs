@@ -846,7 +846,12 @@ mod tests {
 
     use bytes::Bytes;
     use mcrs_engine::session::{PlayerSession, SessionEntry, SessionRegistry};
+    use mcrs_engine::world::channels::{DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY};
+    use crate::world::bus::{InboundPlayerPacket, PlayerTransferSnapshot};
+    use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim};
     use crate::world::player_index::PendingInboundBuffer;
+    use bevy_math::{DVec3, Vec2};
+    use mcrs_protocol::uuid::Uuid;
 
     fn make_session_entry(
         connection_entity: Entity,
@@ -864,123 +869,15 @@ mod tests {
         }
     }
 
-    fn run_partition(world: &mut World) {
-        let mut sys = IntoSystem::into_system(partition_main_inbound);
-        sys.initialize(world);
-        let _ = sys.run((), world);
-        sys.apply_deferred(world);
-    }
-
-    fn write_inbound(world: &mut World, msg: InboundPlayerPacket) {
+    fn make_dim_channels(world: &mut World, dim: Entity) -> (flume::Receiver<ToDim>, flume::Receiver<ToDim>, flume::Sender<FromDim>) {
+        let (srv_tx, srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
+        let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+        let (from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         world
-            .resource_mut::<Messages<InboundPlayerPacket>>()
-            .write(msg);
+            .resource_mut::<DimChannelsResource>()
+            .insert(dim, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
+        (srv_rx, ctl_rx, from_tx)
     }
-
-    #[test]
-    fn partition_routes_to_partition_when_in_dim_entity_is_some() {
-        let mut world = World::new();
-        world.init_resource::<Messages<InboundPlayerPacket>>();
-        world.init_resource::<PendingInboundPartition>();
-        world.init_resource::<SessionRegistry>();
-        world.init_resource::<PendingInboundBuffer>();
-
-        let host_anchor = Entity::from_raw_u32(100).expect("nonzero");
-        let dim = Entity::from_raw_u32(7).expect("nonzero");
-        let in_dim = Entity::from_raw_u32(42).expect("nonzero");
-        let session = PlayerSession(1);
-
-        world.resource_mut::<SessionRegistry>().insert(
-            session,
-            make_session_entry(Entity::PLACEHOLDER, host_anchor, dim, Some(in_dim)),
-        );
-        write_inbound(
-            &mut world,
-            InboundPlayerPacket {
-                player: host_anchor,
-                id: 1,
-                data: Bytes::new(),
-                timestamp: std::time::Instant::now(),
-            },
-        );
-
-        run_partition(&mut world);
-
-        let partition = world.resource::<PendingInboundPartition>();
-        assert_eq!(partition.per_dim.get(&dim).map(|v| v.len()), Some(1));
-
-        let buffer = world.resource::<PendingInboundBuffer>();
-        assert!(buffer.buffers.get(&host_anchor).map_or(true, |v| v.is_empty()));
-    }
-
-    #[test]
-    fn partition_routes_to_inbound_buffer_when_in_dim_entity_is_none() {
-        let mut world = World::new();
-        world.init_resource::<Messages<InboundPlayerPacket>>();
-        world.init_resource::<PendingInboundPartition>();
-        world.init_resource::<SessionRegistry>();
-        world.init_resource::<PendingInboundBuffer>();
-
-        let host_anchor = Entity::from_raw_u32(100).expect("nonzero");
-        let dim = Entity::from_raw_u32(7).expect("nonzero");
-        let session = PlayerSession(2);
-
-        world.resource_mut::<SessionRegistry>().insert(
-            session,
-            make_session_entry(Entity::PLACEHOLDER, host_anchor, dim, None),
-        );
-        write_inbound(
-            &mut world,
-            InboundPlayerPacket {
-                player: host_anchor,
-                id: 2,
-                data: Bytes::new(),
-                timestamp: std::time::Instant::now(),
-            },
-        );
-
-        run_partition(&mut world);
-
-        let partition = world.resource::<PendingInboundPartition>();
-        assert!(partition.per_dim.is_empty());
-
-        let buffer = world.resource::<PendingInboundBuffer>();
-        let pending = buffer.buffers.get(&host_anchor).expect("buffer entry present");
-        assert_eq!(pending.len(), 1);
-    }
-
-    #[test]
-    fn partition_drops_unknown_player_silently() {
-        let mut world = World::new();
-        world.init_resource::<Messages<InboundPlayerPacket>>();
-        world.init_resource::<PendingInboundPartition>();
-        world.init_resource::<SessionRegistry>();
-        world.init_resource::<PendingInboundBuffer>();
-
-        let unknown = Entity::from_raw_u32(999).expect("nonzero");
-        write_inbound(
-            &mut world,
-            InboundPlayerPacket {
-                player: unknown,
-                id: 3,
-                data: Bytes::new(),
-                timestamp: std::time::Instant::now(),
-            },
-        );
-
-        run_partition(&mut world);
-
-        let partition = world.resource::<PendingInboundPartition>();
-        assert!(partition.per_dim.is_empty());
-
-        let msgs = world.resource::<Messages<InboundPlayerPacket>>();
-        let mut reader = msgs.get_cursor();
-        assert_eq!(reader.read(msgs).count(), 0);
-    }
-
-    use crate::world::bus::PlayerTransferSnapshot;
-    use bevy_math::{DVec3, Vec2};
-    use mcrs_protocol::uuid::Uuid;
 
     fn synthetic_snapshot() -> PlayerTransferSnapshot {
         PlayerTransferSnapshot {
@@ -1006,18 +903,20 @@ mod tests {
     }
 
     #[test]
-    fn bridge_player_transfer_updates_session_entry_and_writes_spawn() {
+    fn bridge_player_transfer_updates_session_entry_and_sends_spawn() {
         let mut world = World::new();
         world.init_resource::<Messages<OutboundPlayerTransfer>>();
-        world.init_resource::<Messages<InboundPlayerSpawn>>();
         world.init_resource::<SessionRegistry>();
-        world.init_resource::<PendingInboundLifecycle>();
+        world.init_resource::<DimChannelsResource>();
 
         let host_anchor = world.spawn_empty().id();
         let connection_entity = world.spawn_empty().id();
         let src_dim = world.spawn(DimSubAppHandle).id();
         let dest_dim = world.spawn(DimSubAppHandle).id();
         let src_in_dim = world.spawn_empty().id();
+
+        let (_src_srv_rx, _src_ctl_rx, _src_from_tx) = make_dim_channels(&mut world, src_dim);
+        let (_dest_srv_rx, dest_ctl_rx, _dest_from_tx) = make_dim_channels(&mut world, dest_dim);
 
         let session = PlayerSession(1);
         world.resource_mut::<SessionRegistry>().insert(
@@ -1047,29 +946,30 @@ mod tests {
         assert_eq!(entry.dim, dest_dim);
         assert!(entry.in_dim_entity.is_none());
 
-        let lifecycle = world.resource::<PendingInboundLifecycle>();
-        let bundle = lifecycle
-            .per_dim
-            .get(&dest_dim)
-            .expect("dest dim bundle present");
-        assert_eq!(bundle.spawns.len(), 1);
-        assert_eq!(bundle.spawns[0].host_anchor, host_anchor);
-        // Session field must be populated with the real session, not the zero sentinel.
-        assert_eq!(bundle.spawns[0].session, session);
+        let spawn_msg = dest_ctl_rx.try_recv().expect("spawn sent to dest control channel");
+        match spawn_msg {
+            ToDim::Spawn { host_anchor: ha, session: s, .. } => {
+                assert_eq!(ha, host_anchor);
+                assert_eq!(s, session);
+            }
+            other => panic!("expected ToDim::Spawn, got {other:?}"),
+        }
     }
 
     #[test]
     fn bridge_player_transfer_bumps_epoch_on_each_dim_change() {
         let mut world = World::new();
         world.init_resource::<Messages<OutboundPlayerTransfer>>();
-        world.init_resource::<Messages<InboundPlayerSpawn>>();
         world.init_resource::<SessionRegistry>();
-        world.init_resource::<PendingInboundLifecycle>();
+        world.init_resource::<DimChannelsResource>();
 
         let host_anchor = world.spawn_empty().id();
         let connection_entity = world.spawn_empty().id();
         let dim_a = world.spawn(DimSubAppHandle).id();
         let dim_b = world.spawn(DimSubAppHandle).id();
+
+        let (_a_srv, _a_ctl, _a_from) = make_dim_channels(&mut world, dim_a);
+        let (_b_srv, _b_ctl, _b_from) = make_dim_channels(&mut world, dim_b);
 
         let session = PlayerSession(1);
         world.resource_mut::<SessionRegistry>().insert(
@@ -1084,7 +984,6 @@ mod tests {
             },
         );
 
-        // A→B is a real dim change: the epoch bumps 0 → 1.
         world
             .resource_mut::<Messages<OutboundPlayerTransfer>>()
             .write(OutboundPlayerTransfer {
@@ -1104,7 +1003,6 @@ mod tests {
             "A→B transfer must bump the session epoch"
         );
 
-        // A transfer whose destination equals the current dim must NOT bump.
         world
             .resource_mut::<Messages<OutboundPlayerTransfer>>()
             .write(OutboundPlayerTransfer {
@@ -1124,9 +1022,6 @@ mod tests {
             "same-dim transfer must not bump the epoch"
         );
 
-        // B→A return leg bumps 1 → 2, so any clientbound packet still in flight
-        // from the first A occupancy (stamped epoch 0) is now stale and will be
-        // dropped by bridge_outbound's strict-equality filter (ROUT-05).
         world
             .resource_mut::<Messages<OutboundPlayerTransfer>>()
             .write(OutboundPlayerTransfer {
@@ -1151,16 +1046,16 @@ mod tests {
     fn bridge_player_transfer_drops_transfer_to_unregistered_dim() {
         let mut world = World::new();
         world.init_resource::<Messages<OutboundPlayerTransfer>>();
-        world.init_resource::<Messages<InboundPlayerSpawn>>();
         world.init_resource::<SessionRegistry>();
-        world.init_resource::<PendingInboundLifecycle>();
+        world.init_resource::<DimChannelsResource>();
 
         let host_anchor = world.spawn_empty().id();
         let connection_entity = world.spawn_empty().id();
         let src_dim = world.spawn(DimSubAppHandle).id();
         let src_in_dim = world.spawn_empty().id();
-        // bogus_dim is allocated but NOT carrying DimSubAppHandle.
         let bogus_dim = world.spawn_empty().id();
+
+        let (_src_srv, _src_ctl, _src_from) = make_dim_channels(&mut world, src_dim);
 
         let session = PlayerSession(2);
         world.resource_mut::<SessionRegistry>().insert(
@@ -1185,30 +1080,27 @@ mod tests {
 
         run_transfer(&mut world);
 
-        // SessionEntry remains at src_dim — the transfer was dropped.
         let registry = world.resource::<SessionRegistry>();
         let (_, entry) = registry.get_by_anchor(&host_anchor).expect("entry present");
         assert_eq!(entry.dim, src_dim);
         assert_eq!(entry.in_dim_entity, Some(src_in_dim));
-
-        // Lifecycle bucket for the bogus dim must not have been created.
-        let lifecycle = world.resource::<PendingInboundLifecycle>();
-        assert!(!lifecycle.per_dim.contains_key(&bogus_dim));
     }
 
     #[test]
-    fn bridge_player_attach_sets_in_dim_entity_and_drains_inbound_buffer() {
+    fn bridge_player_attach_sets_in_dim_entity_and_sends_buffered_packets() {
         let mut world = World::new();
-        world.init_resource::<Messages<OutboundPlayerAttached>>();
+        world.init_resource::<Messages<crate::world::bus::OutboundPlayerAttached>>();
         world.init_resource::<SessionRegistry>();
         world.init_resource::<PendingInboundBuffer>();
-        world.init_resource::<PendingInboundPartition>();
+        world.init_resource::<DimChannelsResource>();
 
         let host_anchor = Entity::from_raw_u32(42).expect("nonzero");
         let connection_entity = Entity::from_raw_u32(1).expect("nonzero");
         let dest_dim = Entity::from_raw_u32(2).expect("nonzero");
         let new_in_dim = Entity::from_raw_u32(200).expect("nonzero");
         let session = PlayerSession(3);
+
+        let (dest_srv_rx, _dest_ctl_rx, _dest_from_tx) = make_dim_channels(&mut world, dest_dim);
 
         world.resource_mut::<SessionRegistry>().insert(
             session,
@@ -1234,8 +1126,8 @@ mod tests {
         world.resource_mut::<PendingInboundBuffer>().buffers.insert(host_anchor, buffered);
 
         world
-            .resource_mut::<Messages<OutboundPlayerAttached>>()
-            .write(OutboundPlayerAttached {
+            .resource_mut::<Messages<crate::world::bus::OutboundPlayerAttached>>()
+            .write(crate::world::bus::OutboundPlayerAttached {
                 host_anchor,
                 new_in_dim_entity: new_in_dim,
             });
@@ -1249,35 +1141,29 @@ mod tests {
         let buffer = world.resource::<PendingInboundBuffer>();
         assert!(buffer.buffers.get(&host_anchor).map_or(true, |v| v.is_empty()));
 
-        let partition = world.resource::<PendingInboundPartition>();
-        let dest_bucket = partition
-            .per_dim
-            .get(&dest_dim)
-            .expect("dest dim bucket present");
-        assert_eq!(dest_bucket.len(), 3);
+        let drained: Vec<_> = dest_srv_rx.try_iter().collect();
+        assert_eq!(drained.len(), 3, "3 buffered packets sent to serverbound channel");
     }
 
     #[test]
     fn bridge_player_attach_idempotent_on_unknown_host_anchor() {
         let mut world = World::new();
-        world.init_resource::<Messages<OutboundPlayerAttached>>();
+        world.init_resource::<Messages<crate::world::bus::OutboundPlayerAttached>>();
         world.init_resource::<SessionRegistry>();
         world.init_resource::<PendingInboundBuffer>();
-        world.init_resource::<PendingInboundPartition>();
+        world.init_resource::<DimChannelsResource>();
 
         let unknown = Entity::from_raw_u32(999).expect("nonzero");
         let new_in_dim = Entity::from_raw_u32(1).expect("nonzero");
 
         world
-            .resource_mut::<Messages<OutboundPlayerAttached>>()
-            .write(OutboundPlayerAttached {
+            .resource_mut::<Messages<crate::world::bus::OutboundPlayerAttached>>()
+            .write(crate::world::bus::OutboundPlayerAttached {
                 host_anchor: unknown,
                 new_in_dim_entity: new_in_dim,
             });
 
         run_attach(&mut world);
-
-        let partition = world.resource::<PendingInboundPartition>();
-        assert!(partition.per_dim.is_empty());
+        // No panic — idempotent on unknown anchor
     }
 }

@@ -1,17 +1,15 @@
 //! End-to-end validation of the cross-dimension player transfer
 //! choreography.
 //!
-//! This test mirrors the shape of `cross_subapp_message_bus.rs` (the
-//! original spike harness) but uses the PRODUCTION bus message types
-//! and the PRODUCTION bridge systems
-//! (`partition_main_inbound`, `bridge_player_transfer`,
+//! Uses the PRODUCTION bus message types and PRODUCTION bridge systems
+//! (`bridge_inbound_to_channel`, `bridge_player_transfer`,
 //! `bridge_player_attach`) wired into a host `App` plus two hand-built
 //! `SubApp`s mirroring a source and a destination `DimSubApp`.
 //!
 //! Invariants asserted:
 //! - The player is never visible in BOTH sub-apps' worlds at the same
 //!   tick boundary.
-//! - The `PlayerIndex.in_dim_entity == None` gap is observable to main
+//! - The `SessionRegistry.in_dim_entity == None` gap is observable to main
 //!   systems for exactly one tick (the boundary between the transfer
 //!   bridge tick and the attach bridge tick).
 //! - Inbound packets injected during the gap drain into the dest sub-app
@@ -23,15 +21,20 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::{DVec3, Vec2};
 use mcrs_minecraft::world::bridge::{
-    bridge_player_attach, bridge_player_transfer, partition_main_inbound,
+    bridge_inbound_to_channel, bridge_player_attach, bridge_player_transfer,
 };
 use bytes::Bytes;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
-    PendingInboundLifecycle, PendingInboundPartition, PlayerTransferSnapshot,
+    PlayerTransferSnapshot,
 };
+use mcrs_minecraft::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_engine::world::channels::{
+    DimSender, FromDimSender, ToDimReceiver,
+    FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+};
 use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::DimSubAppHandle;
 use mcrs_protocol::uuid::Uuid;
@@ -118,9 +121,7 @@ fn synthetic_snapshot() -> PlayerTransferSnapshot {
 fn build_test_app() -> App {
     let mut app = App::new();
 
-    // Mirror the seven host-side bus message registrations from
-    // WorldPlugin::build so the production bridge systems see initialised
-    // buffers.
+    // Host-side bus message registrations.
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<OutboundPlayerTransfer>();
@@ -133,22 +134,17 @@ fn build_test_app() -> App {
     app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<PendingInboundBuffer>();
-    app.init_resource::<PendingInboundPartition>();
-    app.init_resource::<PendingInboundLifecycle>();
+    app.init_resource::<DimChannelsResource>();
     app.init_resource::<TransferLog>();
     app.init_resource::<HostTickCount>();
 
-    // Allocate label entities first so they can be referenced by extract
-    // closures captured by `move`. The DimSubAppHandle marker is what
-    // bridge_player_transfer's live-sub-app validation looks for —
-    // without it the transfer is dropped before it can mutate
-    // SessionRegistry.
+    // Allocate label entities. The DimSubAppHandle marker is what
+    // bridge_player_transfer's live-sub-app validation looks for.
     let source_label_entity = app.world_mut().spawn(DimSubAppHandle).id();
     let dest_label_entity = app.world_mut().spawn(DimSubAppHandle).id();
     app.insert_resource(TestDestLabel(dest_label_entity));
 
-    // Allocate a host-anchor entity in the main world and seed SessionRegistry
-    // with the player living in the source dim.
+    // Allocate a host-anchor entity and seed SessionRegistry.
     let host_anchor = app.world_mut().spawn_empty().id();
     let src_in_dim = Entity::from_raw_u32(10).expect("nonzero");
     {
@@ -167,12 +163,10 @@ fn build_test_app() -> App {
     }
     app.insert_resource(TestHostAnchor(host_anchor));
 
-    // Chain the three production bridge systems in Update so they run in
-    // the documented order.
     app.add_systems(
         bevy_app::Update,
         (
-            partition_main_inbound,
+            bridge_inbound_to_channel,
             bridge_player_transfer,
             bridge_player_attach,
             record_transfer_event,
@@ -186,13 +180,26 @@ fn build_test_app() -> App {
     app
 }
 
+fn make_dim_channels(app: &mut App, label_entity: Entity) -> (flume::Receiver<ToDim>, flume::Receiver<ToDim>, flume::Sender<FromDim>) {
+    let (srv_tx, srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
+    let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+    let (from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
+    app.world_mut()
+        .resource_mut::<DimChannelsResource>()
+        .insert(label_entity, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
+    (srv_rx, ctl_rx, from_tx)
+}
+
 fn insert_source_sub_app(app: &mut App, label_entity: Entity) {
+    let (srv_rx, ctl_rx, _from_tx) = make_dim_channels(app, label_entity);
+
     let mut sub_app = SubApp::new();
     sub_app.update_schedule = Some(DimTick.intern());
     sub_app.add_schedule(Schedule::new(DimTick));
     register_sub_messages(&mut sub_app);
     sub_app.init_resource::<SourceLog>();
     sub_app.init_resource::<TriggerTransfer>();
+    sub_app.insert_resource(ToDimReceiver::<ToDim> { serverbound: srv_rx, control: ctl_rx });
 
     // Pre-populate the in-dim marker so tick 0 shows the player living
     // in the source sub-app.
@@ -203,18 +210,21 @@ fn insert_source_sub_app(app: &mut App, label_entity: Entity) {
     sub_app.set_extract(move |main_world, sub_world| {
         drain_outbound_transfer(main_world, sub_world);
         drain_outbound_attached(main_world, sub_world);
-        drain_inbound_for_label(main_world, sub_world, label_entity);
+        drain_inbound_for_dim(main_world, sub_world);
     });
 
     app.insert_sub_app(TestDimLabel(0), sub_app);
 }
 
 fn insert_dest_sub_app(app: &mut App, label_entity: Entity) {
+    let (srv_rx, ctl_rx, _from_tx) = make_dim_channels(app, label_entity);
+
     let mut sub_app = SubApp::new();
     sub_app.update_schedule = Some(DimTick.intern());
     sub_app.add_schedule(Schedule::new(DimTick));
     register_sub_messages(&mut sub_app);
     sub_app.init_resource::<DestLog>();
+    sub_app.insert_resource(ToDimReceiver::<ToDim> { serverbound: srv_rx, control: ctl_rx });
 
     sub_app.add_systems(
         DimTick,
@@ -224,7 +234,7 @@ fn insert_dest_sub_app(app: &mut App, label_entity: Entity) {
     sub_app.set_extract(move |main_world, sub_world| {
         drain_outbound_transfer(main_world, sub_world);
         drain_outbound_attached(main_world, sub_world);
-        drain_inbound_for_label(main_world, sub_world, label_entity);
+        drain_inbound_for_dim(main_world, sub_world);
     });
 
     app.insert_sub_app(TestDimLabel(1), sub_app);
@@ -266,39 +276,37 @@ fn drain_outbound_attached(main_world: &mut World, sub_world: &mut World) {
     }
 }
 
-fn drain_inbound_for_label(main_world: &mut World, sub_world: &mut World, label_entity: Entity) {
-    let inbound_packets: Vec<InboundPlayerPacket> = main_world
-        .resource_mut::<PendingInboundPartition>()
-        .per_dim
-        .entry(label_entity)
-        .or_default()
-        .drain(..)
-        .collect();
-    if !inbound_packets.is_empty() {
-        let mut sub_msgs = sub_world.resource_mut::<Messages<InboundPlayerPacket>>();
-        for msg in inbound_packets {
-            sub_msgs.write(msg);
-        }
-    }
-
-    let (spawns, despawns) = {
-        let mut bundle = main_world.resource_mut::<PendingInboundLifecycle>();
-        let entry = bundle.per_dim.entry(label_entity).or_default();
-        (
-            std::mem::take(&mut entry.spawns),
-            std::mem::take(&mut entry.despawns),
-        )
+/// Drain inbound messages from the dim's `ToDimReceiver` into the sub-app's
+/// per-message buffers. The `ToDimReceiver` lives in `sub_world`; the extract
+/// closure calls this to mirror what `drain_to_dim_inbox` does in production.
+fn drain_inbound_for_dim(_main_world: &mut World, sub_world: &mut World) {
+    let Some(rx) = sub_world.get_resource::<ToDimReceiver<ToDim>>() else {
+        return;
     };
-    if !spawns.is_empty() {
-        let mut sub_msgs = sub_world.resource_mut::<Messages<InboundPlayerSpawn>>();
-        for msg in spawns {
-            sub_msgs.write(msg);
-        }
-    }
-    if !despawns.is_empty() {
-        let mut sub_msgs = sub_world.resource_mut::<Messages<InboundPlayerDespawn>>();
-        for msg in despawns {
-            sub_msgs.write(msg);
+    let ctl_msgs: Vec<ToDim> = rx.control.try_iter().collect();
+    let srv_msgs: Vec<ToDim> = rx.serverbound.try_iter().collect();
+
+    for msg in ctl_msgs.into_iter().chain(srv_msgs) {
+        match msg {
+            ToDim::Spawn { host_anchor, session, snapshot } => {
+                sub_world
+                    .resource_mut::<Messages<InboundPlayerSpawn>>()
+                    .write(InboundPlayerSpawn { host_anchor, session, snapshot });
+            }
+            ToDim::Despawn { host_anchor } => {
+                sub_world
+                    .resource_mut::<Messages<InboundPlayerDespawn>>()
+                    .write(InboundPlayerDespawn { host_anchor, session: mcrs_engine::session::PlayerSession(0) });
+            }
+            ToDim::Serverbound { player, id, data, timestamp } => {
+                sub_world
+                    .resource_mut::<Messages<InboundPlayerPacket>>()
+                    .write(InboundPlayerPacket { player, id, data, timestamp });
+            }
+            ToDim::Attach { .. } => {
+                // Attach signals are consumed by the dim's spawn system;
+                // this test harness does not model that sub-system.
+            }
         }
     }
 }
@@ -317,12 +325,6 @@ fn source_maybe_despawn_marker(
         return;
     }
     trigger.fire = false;
-    // Despawn the in-dim marker in the same tick the transfer message
-    // sits in the source sub-app's buffer — mirrors the source
-    // `DimSubApp::Last` requirement of the transfer protocol. The
-    // transfer message itself is pre-injected by the test scaffolding
-    // because the production emitter still lives host-side and is not
-    // yet runnable from inside a sub-app.
     for entity in markers.iter() {
         commands.entity(entity).despawn();
     }
@@ -386,11 +388,6 @@ fn transfer_log(app: &App) -> Vec<TransferEvent> {
     app.world().resource::<TransferLog>().0.clone()
 }
 
-/// Pre-inject the transfer message + arm the marker-despawn trigger on
-/// the source sub-app. The eventual production emitter will derive
-/// `host_anchor` from `PlayerIndex` lookups inside its own scope; the
-/// test scaffolding bypasses that by writing the message directly into
-/// the source sub-app's buffer.
 fn arm_transfer(app: &mut App, host_anchor: Entity, dest_label: Entity) {
     let source_sub = app.sub_app_mut(TestDimLabel(0));
     {
@@ -430,8 +427,9 @@ fn cross_dim_transfer_completes_atomically_in_four_host_ticks() {
     app.update();
 
     // Tick 3: main's bridge_player_transfer drains main.Messages,
-    // mutates PlayerIndex, writes spawn to lifecycle. dest.extract drains
-    // the spawn; dest.update consumes it, spawns marker, emits attached.
+    // mutates SessionRegistry, writes spawn to dest control channel.
+    // dest.extract drains the spawn; dest.update consumes it, spawns
+    // marker, emits attached.
     app.update();
 
     // Tick 4: dest.extract drains attached message into main.
@@ -451,13 +449,11 @@ fn cross_dim_transfer_completes_atomically_in_four_host_ticks() {
         .new_in_dim_entity
         .expect("dest spawn should have created an in-dim entity");
 
-    // Sanity: both logs sampled at least 6 ticks.
     assert!(source.len() >= 6, "source logged at least 6 ticks: {source:?}");
     assert!(dest.len() >= 6, "dest logged at least 6 ticks: {dest:?}");
 
     // Atomicity invariant: at every tick boundary, the player is never
-    // visible in BOTH sub-apps. Equivalent: source-has-marker XOR
-    // dest-has-marker, OR neither has marker (during the transit gap).
+    // visible in BOTH sub-apps.
     for tick in 0..source.len().min(dest.len()) {
         assert!(
             !(source[tick] && dest[tick]),
@@ -465,22 +461,12 @@ fn cross_dim_transfer_completes_atomically_in_four_host_ticks() {
         );
     }
 
-    // The source had the marker at tick 0 and lost it from tick 2
-    // onwards (tick 1's update is when the despawn applies; depending on
-    // Bevy command-flush timing the source_log_marker for tick 1 may
-    // already see no marker).
     assert!(source[0], "tick 0: source has the player marker");
-
-    // The dest gained the marker AFTER bridge_player_transfer ran on
-    // tick 3.
     assert!(
         dest.iter().any(|&seen| seen),
         "dest eventually sees the player marker: {dest:?}",
     );
 
-    // PlayerIndex traversal: there exists exactly one host tick where
-    // in_dim_entity == None AND current_dim == dest_label (the
-    // transient gap between transfer and attach).
     let gap_ticks: Vec<&TransferEvent> = events
         .iter()
         .filter(|ev| ev.current_dim == dest_label && ev.in_dim_entity.is_none())
@@ -491,8 +477,6 @@ fn cross_dim_transfer_completes_atomically_in_four_host_ticks() {
          and in_dim_entity==None: {events:?}",
     );
 
-    // After the attach completes, the last event has in_dim_entity ==
-    // Some(new_in_dim).
     let last = events.last().expect("at least one event");
     assert_eq!(
         last.current_dim, dest_label,
@@ -520,14 +504,9 @@ fn inbound_packets_buffered_during_transit_drain_on_attach() {
     app.update();
     // Tick 2: source.extract drains into main.
     app.update();
-    // Tick 3: bridge_player_transfer mutates PlayerIndex (in_dim_entity =
-    // None); we inject the buffered packets BEFORE bridge_player_attach
-    // gets to run (which is tick 5).
 
     // Inject 2 inbound packets into main.Messages<InboundPlayerPacket>
-    // while the player is in the gap. partition_main_inbound on the next
-    // ticks will see in_dim_entity == None and append to
-    // inbound_pending.
+    // while the player is in the gap.
     for seq in 0..2i32 {
         app.world_mut()
             .resource_mut::<Messages<InboundPlayerPacket>>()
@@ -539,14 +518,10 @@ fn inbound_packets_buffered_during_transit_drain_on_attach() {
             });
     }
 
-    // Tick 3 actually advances past where bridge_player_transfer should
-    // have run; we already pumped 3 update()s above. Pump tick 4 + 5 to
-    // complete the choreography.
     app.update(); // tick 4: dest.extract drains attached into main
-    app.update(); // tick 5: bridge_player_attach drains inbound_pending into partition; dest.extract drains partition
+    app.update(); // tick 5: bridge_player_attach; packets route to dest channel
 
-    // Allow one more tick so the dest sub-app's `Update` reads the packets
-    // that the extract delivered.
+    // Allow one more tick so the dest sub-app's update reads the packets.
     app.update(); // tick 6
 
     let received = dest_received_packets(&app);
@@ -557,5 +532,5 @@ fn inbound_packets_buffered_during_transit_drain_on_attach() {
     );
     let mut sorted = received.clone();
     sorted.sort_unstable();
-    assert_eq!(sorted, vec![100, 101], "packets arrive with original seqs");
+    assert_eq!(sorted, vec![100, 101], "packet ids match: {received:?}");
 }

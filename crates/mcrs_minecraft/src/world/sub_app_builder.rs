@@ -11,7 +11,7 @@ use bevy_ecs::world::World;
 use bevy_time::{Fixed, Real, Time, Virtual};
 use tracing::{debug, warn};
 
-use crate::world::bus::OutboundPlayerPacket;
+use crate::world::bus::{InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerPacket};
 use crate::world::channel_types::{FromDim, ToDim};
 use mcrs_engine::world::channels::{
     DimChannels, FromDimSender, ToDimReceiver, FROM_DIM_CAPACITY, TO_DIM_CAPACITY,
@@ -144,6 +144,18 @@ pub fn spawn_dim_subapp(
     // and must NOT be registered here (a stray registration leaves an
     // undrained double-buffer that retains messages across ticks).
     sub_app.add_message::<OutboundPlayerPacket>();
+    // `InboundPlayerSpawn` is written by `drain_to_dim_inbox` from `ToDim::Spawn`
+    // and read by `consume_inbound_player_spawn` (added by `MinecraftEntityPlugin`).
+    sub_app.add_message::<InboundPlayerSpawn>();
+    // `InboundPlayerDespawn` is written by `drain_to_dim_inbox` from `ToDim::Despawn`
+    // and read by `drain_inbound_player_despawn` (added by `PlayerTrackerPlugin`).
+    sub_app.add_message::<crate::world::bus::InboundPlayerDespawn>();
+    // `InboundPlayerPacket` is read by `dispatch_inbound_to_dim` (added by
+    // `MinecraftEntityPlugin`). Serverbound packets arrive via `drain_to_dim_inbox`.
+    sub_app.add_message::<crate::world::bus::InboundPlayerPacket>();
+    // `OutboundPlayerAttached` is written by `consume_inbound_player_spawn` and
+    // extracted by the host to set `in_dim_entity` on the session entry.
+    sub_app.add_message::<crate::world::bus::OutboundPlayerAttached>();
     // `PlayerWillDestroyBlock` still flows intra-dim: the per-dim TNT plugin
     // reads it via MessageReader.
     sub_app.add_message::<PlayerWillDestroyBlock>();
@@ -273,6 +285,9 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(Time::<Real>::default());
 
     sub_app.set_extract(move |main_world, sub_world| {
+        use crate::world::bus::{OutboundPlayerAttached, OutboundPlayerPacket};
+        use crate::world::channel_types::{DimChannelsResource, FromDim};
+
         #[cfg(feature = "telemetry-tracy")]
         let _dim_span = tracing::info_span!("dim_extract", dim = %dim_for_extract).entered();
         if let Some(time_fixed) = main_world.get_resource::<Time<Fixed>>() {
@@ -286,6 +301,99 @@ pub fn spawn_dim_subapp(
         }
         if let Some(time) = main_world.get_resource::<Time<()>>() {
             sub_world.insert_resource(*time);
+        }
+
+        // Drain the FromDim channel for this dim into the host-world message buses.
+        // This runs after flush_from_dim_outbox (FixedLast) has sent all outbound
+        // messages to the channel, so the extract closure picks them up synchronously
+        // within the same host tick that produced them.
+        let from_dim_msgs: Vec<FromDim> = main_world
+            .get_resource::<DimChannelsResource>()
+            .and_then(|r| r.get(label_entity))
+            .map(|entry| entry.from_dim_receiver.try_iter().collect())
+            .unwrap_or_default();
+
+        if !from_dim_msgs.is_empty() {
+            use mcrs_engine::session::SessionRegistry;
+            for msg in from_dim_msgs {
+                match msg {
+                    FromDim::Clientbound { target, priority, data, session: _, epoch: _ } => {
+                        use crate::world::bus::PacketTarget;
+                        let (stamped_session, stamped_epoch) =
+                            if let PacketTarget::SinglePlayer(entity) = &target {
+                                let session_registry = main_world.resource::<SessionRegistry>();
+                                if let Some((s, e)) = session_registry.get_by_anchor(entity) {
+                                    (*s, e.epoch)
+                                } else {
+                                    (mcrs_engine::session::PlayerSession(0), 0)
+                                }
+                            } else {
+                                (mcrs_engine::session::PlayerSession(0), 0)
+                            };
+                        if let Some(mut host_pkts) =
+                            main_world.get_resource_mut::<Messages<OutboundPlayerPacket>>()
+                        {
+                            host_pkts.write(OutboundPlayerPacket {
+                                target,
+                                priority,
+                                data,
+                                session: stamped_session,
+                                epoch: stamped_epoch,
+                            });
+                        }
+                    }
+                    FromDim::Attached { host_anchor, new_in_dim_entity } => {
+                        if let Some(mut host_msgs) =
+                            main_world.get_resource_mut::<Messages<OutboundPlayerAttached>>()
+                        {
+                            host_msgs.write(OutboundPlayerAttached {
+                                host_anchor,
+                                new_in_dim_entity,
+                            });
+                        }
+                    }
+                    FromDim::Transfer { host_anchor, dest_dim, snapshot } => {
+                        if let Some(mut host_msgs) =
+                            main_world.get_resource_mut::<Messages<crate::world::bus::OutboundPlayerTransfer>>()
+                        {
+                            host_msgs.write(crate::world::bus::OutboundPlayerTransfer {
+                                host_anchor,
+                                dest_dim,
+                                snapshot,
+                            });
+                        }
+                    }
+                    FromDim::TransferRequest { host_anchor, dim_name, snapshot } => {
+                        if let Some(mut host_msgs) =
+                            main_world.get_resource_mut::<Messages<crate::world::bus::OutboundPlayerTransferRequest>>()
+                        {
+                            host_msgs.write(crate::world::bus::OutboundPlayerTransferRequest {
+                                host_anchor,
+                                dim_name,
+                                snapshot,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also extract OutboundPlayerAttached written directly to the sub-app Messages
+        // (i.e., before flush_from_dim_outbox drains it). This covers the case where
+        // consume_inbound_player_spawn writes OutboundPlayerAttached but it hasn't been
+        // flushed yet (e.g., if the sub-app update hasn't reached FixedLast).
+        let attached: Vec<OutboundPlayerAttached> = sub_world
+            .get_resource_mut::<Messages<OutboundPlayerAttached>>()
+            .map(|mut m| m.drain().collect())
+            .unwrap_or_default();
+        if !attached.is_empty() {
+            if let Some(mut host_msgs) =
+                main_world.get_resource_mut::<Messages<OutboundPlayerAttached>>()
+            {
+                for msg in attached {
+                    host_msgs.write(msg);
+                }
+            }
         }
     });
 
@@ -346,21 +454,35 @@ pub fn spawn_dim_subapp(
 /// transferred player.
 fn drain_to_dim_inbox(
     rx: Res<ToDimReceiver<ToDim>>,
-    _outbound_pkt: ResMut<Messages<OutboundPlayerPacket>>,
+    mut spawn_msgs: ResMut<Messages<InboundPlayerSpawn>>,
+    mut despawn_msgs: ResMut<Messages<InboundPlayerDespawn>>,
+    mut serverbound_msgs: ResMut<Messages<crate::world::bus::InboundPlayerPacket>>,
 ) {
     for msg in rx.control.try_iter() {
         match msg {
-            ToDim::Spawn { .. } | ToDim::Despawn { .. } | ToDim::Attach { .. } => {
-                // Lifecycle/control messages: handled host-side by
-                // bridge_player_transfer / bridge_player_attach. The dim
-                // receives them for future per-dim lifecycle system use.
+            ToDim::Spawn { host_anchor, session, snapshot } => {
+                spawn_msgs.write(InboundPlayerSpawn { host_anchor, session, snapshot });
             }
+            ToDim::Despawn { host_anchor } => {
+                despawn_msgs.write(InboundPlayerDespawn {
+                    host_anchor,
+                    session: mcrs_engine::session::PlayerSession(0),
+                });
+            }
+            ToDim::Attach { .. } => {}
             ToDim::Serverbound { .. } => {}
         }
     }
-    // Serverbound packets: drained to prevent buffer accumulation.
-    // Per-dim dispatch is wired in a follow-on migration step.
-    for _msg in rx.serverbound.try_iter() {}
+    for msg in rx.serverbound.try_iter() {
+        if let ToDim::Serverbound { player, id, data, timestamp } = msg {
+            serverbound_msgs.write(crate::world::bus::InboundPlayerPacket {
+                player,
+                id,
+                data,
+                timestamp,
+            });
+        }
+    }
 }
 
 /// Drains the dim's local `Messages<OutboundPlayerPacket>` into the `FromDim`

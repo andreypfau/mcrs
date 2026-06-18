@@ -32,13 +32,13 @@ use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
     OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer, PacketPayload,
-    PacketPriority, PacketTarget, PendingInboundLifecycle, PendingInboundPartition,
-    PlayerTransferSnapshot,
+    PacketPriority, PacketTarget, PlayerTransferSnapshot,
 };
 use mcrs_minecraft::world::entity::player::HostAnchor;
 use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
+use mcrs_minecraft::runner::pump_channels;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_network::metrics::{BRIDGE_ENCODE_UNHANDLED_TOTAL, TELEMETRY_TEST_LOCK};
 use mcrs_network::ServerSideConnection;
@@ -125,8 +125,7 @@ fn build_host_app() -> App {
     app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<PendingInboundBuffer>();
-    app.init_resource::<PendingInboundPartition>();
-    app.init_resource::<PendingInboundLifecycle>();
+    app.init_resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<OutboundPlayerTransfer>();
@@ -347,47 +346,48 @@ fn play_login_emitted_on_spawn() {
         );
     }
 
-    // Push InboundPlayerSpawn into the lifecycle buffer so the sub-app consumer
-    // materializes an in-dim entity this tick.
-    app.world_mut()
-        .resource_mut::<PendingInboundLifecycle>()
-        .per_dim
-        .entry(dim_label)
-        .or_default()
-        .spawns
-        .push(InboundPlayerSpawn {
-            host_anchor,
-            snapshot: PlayerTransferSnapshot {
-                uuid: Uuid::new_v4(),
-                username: "login_test".into(),
-                position: DVec3::new(0.0, 64.0, 0.0),
-                rotation: bevy_math::Vec2::ZERO,
-            },
-        session: PlayerSession(0),
-        });
+    // Send ToDim::Spawn on the dim's control channel so drain_to_dim_inbox
+    // routes it to Messages<InboundPlayerSpawn> inside the sub-app this tick.
+    {
+        use mcrs_minecraft::world::channel_types::ToDim;
+        app
+            .world()
+            .resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>()
+            .get(dim_label)
+            .expect("channel registered for dim_label")
+            .control_sender
+            .try_send(ToDim::Spawn {
+                host_anchor,
+                session: PlayerSession(0),
+                snapshot: PlayerTransferSnapshot {
+                    uuid: Uuid::new_v4(),
+                    username: "login_test".into(),
+                    position: DVec3::new(0.0, 64.0, 0.0),
+                    rotation: bevy_math::Vec2::ZERO,
+                },
+            }).expect("control channel not full");
+    }
 
-    // Tick 1: extract shuttles spawn into sub-app; sub-app consumer spawns
-    // entity; emit_play_login writes OutboundPlayerPacket; extract drains to host.
+    // Tick 1: sub-app extract runs (nothing in channel yet), then sub-app
+    // FixedPreUpdate drain_to_dim_inbox routes Spawn → Messages<InboundPlayerSpawn>.
+    // FixedLast flush_from_dim_outbox runs (outbox empty at that point).
+    // Update consume_inbound_player_spawn spawns entity and writes
+    // OutboundPlayerPacket to sub-app Messages. pump_channels: channel still
+    // empty (flush ran before spawn wrote).
     app.update();
+    pump_channels(&mut app);
 
-    // After tick 1 the extract has drained the sub-app outbound buffer into the
-    // host's Messages<OutboundPlayerPacket>. Drain and collect owned copies.
+    // Tick 2: sub-app extract drains sub-app Messages<OutboundPlayerAttached>.
+    // FixedLast flush_from_dim_outbox sends the play-login to FromDim channel.
+    // pump_channels drains the channel into host Messages<OutboundPlayerPacket>.
+    app.update();
+    pump_channels(&mut app);
+
     let packets: Vec<OutboundPlayerPacket> = app
         .world_mut()
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .drain()
         .collect();
-
-    // If no packets yet, pump one more tick (1-tick outbound latency).
-    let packets = if packets.is_empty() {
-        app.update();
-        app.world_mut()
-            .resource_mut::<Messages<OutboundPlayerPacket>>()
-            .drain()
-            .collect::<Vec<_>>()
-    } else {
-        packets
-    };
 
     let has_login = packets.iter().any(|p| {
         matches!(&p.data, PacketPayload::PlayerLogin { .. })
@@ -427,43 +427,42 @@ fn play_login_targets_host_anchor() {
         );
     }
 
-    app.world_mut()
-        .resource_mut::<PendingInboundLifecycle>()
-        .per_dim
-        .entry(dim_label)
-        .or_default()
-        .spawns
-        .push(InboundPlayerSpawn {
-            host_anchor,
-            snapshot: PlayerTransferSnapshot {
-                uuid: Uuid::new_v4(),
-                username: "target_test".into(),
-                position: DVec3::new(0.0, 64.0, 0.0),
-                rotation: bevy_math::Vec2::ZERO,
-            },
-        session: PlayerSession(0),
-        });
+    {
+        use mcrs_minecraft::world::channel_types::ToDim;
+        app
+            .world()
+            .resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>()
+            .get(dim_label)
+            .expect("channel registered for dim_label")
+            .control_sender
+            .try_send(ToDim::Spawn {
+                host_anchor,
+                session: PlayerSession(0),
+                snapshot: PlayerTransferSnapshot {
+                    uuid: Uuid::new_v4(),
+                    username: "target_test".into(),
+                    position: DVec3::new(0.0, 64.0, 0.0),
+                    rotation: bevy_math::Vec2::ZERO,
+                },
+            }).expect("control channel not full");
+    }
 
-    // Tick 1: spawn consumed; emit_play_login fires; extract drains to host.
+    // Tick 1: sub-app extract runs (nothing yet), then drain_to_dim_inbox routes
+    // Spawn; FixedLast flush runs (outbox empty); Update spawn consumer writes
+    // OutboundPlayerPacket. pump_channels: channel empty.
     app.update();
+    pump_channels(&mut app);
 
-    // Drain host's Messages<OutboundPlayerPacket> (already extracted from sub-app).
+    // Tick 2: sub-app FixedLast flush sends play-login to channel. pump_channels
+    // drains it into host Messages<OutboundPlayerPacket>.
+    app.update();
+    pump_channels(&mut app);
+
     let packets: Vec<OutboundPlayerPacket> = app
         .world_mut()
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .drain()
         .collect();
-
-    // If no packets yet, pump one more tick (1-tick outbound latency).
-    let packets = if packets.is_empty() {
-        app.update();
-        app.world_mut()
-            .resource_mut::<Messages<OutboundPlayerPacket>>()
-            .drain()
-            .collect::<Vec<_>>()
-    } else {
-        packets
-    };
 
     let login_pkt = packets
         .iter()
@@ -495,24 +494,27 @@ fn in_dim_entity_carries_host_anchor() {
 
     let host_anchor = app.world_mut().spawn_empty().id();
 
-    app.world_mut()
-        .resource_mut::<PendingInboundLifecycle>()
-        .per_dim
-        .entry(dim_label)
-        .or_default()
-        .spawns
-        .push(InboundPlayerSpawn {
-            host_anchor,
-            snapshot: PlayerTransferSnapshot {
-                uuid: Uuid::new_v4(),
-                username: "anchor_test".into(),
-                position: DVec3::new(0.0, 64.0, 0.0),
-                rotation: bevy_math::Vec2::ZERO,
-            },
-        session: PlayerSession(0),
-        });
+    {
+        use mcrs_minecraft::world::channel_types::ToDim;
+        app
+            .world()
+            .resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>()
+            .get(dim_label)
+            .expect("channel registered for dim_label")
+            .control_sender
+            .try_send(ToDim::Spawn {
+                host_anchor,
+                session: PlayerSession(0),
+                snapshot: PlayerTransferSnapshot {
+                    uuid: Uuid::new_v4(),
+                    username: "anchor_test".into(),
+                    position: DVec3::new(0.0, 64.0, 0.0),
+                    rotation: bevy_math::Vec2::ZERO,
+                },
+            }).expect("control channel not full");
+    }
 
-    // One tick: extract shuttles spawn; consumer spawns entity with HostAnchor.
+    // One tick: drain_to_dim_inbox routes spawn; consumer spawns entity with HostAnchor.
     app.update();
 
     let sub = app.sub_app_mut(DimAppLabel(dim_label));

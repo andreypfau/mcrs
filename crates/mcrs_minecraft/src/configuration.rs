@@ -1,7 +1,8 @@
 use crate::dimension_type::DimensionType;
 use crate::login::GameProfile;
 use crate::version::VERSION_ID;
-use crate::world::bus::{InboundPlayerSpawn, PendingInboundLifecycle, PlayerTransferSnapshot};
+use crate::world::bus::PlayerTransferSnapshot;
+use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::entity::player::column_view::ColumnView;
 use crate::world::player_index::HostAnchorRef;
 use mcrs_engine::session::SessionRegistry;
@@ -240,8 +241,8 @@ impl Plugin for ConfigurationStatePlugin {
         app.add_observer(on_known_packs_response);
         app.add_observer(on_configuration_ack);
         app.add_observer(on_game_configuration_ack);
-        // Runs in Update, before bridge_player_attach, so the spawn is buffered
-        // in PendingInboundLifecycle before the same tick's extract.
+        // Runs in Update, before bridge_player_attach, so the spawn is sent
+        // into the control channel before the same tick's dim drain.
         app.add_systems(Update, emit_initial_player_spawn);
     }
 }
@@ -696,28 +697,30 @@ fn on_game_configuration_ack(
 
 /// Runs each Update tick. For every connection in `InGameConnectionState` whose
 /// host-anchor still has `current_dim == Entity::PLACEHOLDER` (initial join not yet
-/// emitted), picks the first live `DimSubAppHandle` label entity (keyed by insertion
-/// order, which is consistent within a tick) and buffers one `InboundPlayerSpawn`
-/// into `PendingInboundLifecycle.per_dim[dim_label].spawns`, then sets
-/// `PlayerLocation.current_dim` to that label.
+/// emitted), picks the first live `DimSubAppHandle` label entity and sends one
+/// `ToDim::Spawn` into the dimension's control channel, then sets `current_dim`
+/// to that label entity.
 ///
 /// `current_dim` is set to the DimSubAppHandle LABEL entity (the key used by
-/// `PendingInboundLifecycle` and the extract closure), NOT a sub-app-internal
-/// `Dimension` entity. The two live in different worlds and must not be confused.
+/// `DimChannelsResource`), NOT a sub-app-internal `Dimension` entity.
 ///
 /// If no live label entity exists yet (dims still loading), the emit is deferred:
-/// no spawn is pushed and `current_dim` stays `PLACEHOLDER`. The idempotent guard
+/// no spawn is sent and `current_dim` stays `PLACEHOLDER`. The idempotent guard
 /// (`current_dim != PLACEHOLDER`) ensures at most one initial-join spawn per player.
 pub fn emit_initial_player_spawn(
     connections: Query<&HostAnchorRef, With<InGameConnectionState>>,
     mut session_registry: ResMut<SessionRegistry>,
     live_dims: Query<Entity, With<DimSubAppHandle>>,
     profiles: Query<&GameProfile>,
-    mut lifecycle: ResMut<PendingInboundLifecycle>,
+    dim_channels: Res<DimChannelsResource>,
 ) {
     let dim_label = match live_dims.iter().next() {
         Some(e) => e,
         None => return,
+    };
+
+    let Some(chan) = dim_channels.get(dim_label) else {
+        return;
     };
 
     // Collect anchors first so we can mutably borrow session_registry below.
@@ -740,12 +743,11 @@ pub fn emit_initial_player_spawn(
             rotation: Vec2::ZERO,
         };
         entry.dim = dim_label;
-        lifecycle
-            .per_dim
-            .entry(dim_label)
-            .or_default()
-            .spawns
-            .push(InboundPlayerSpawn { host_anchor, session, snapshot });
+        let _ = chan.control_sender.try_send(ToDim::Spawn {
+            host_anchor,
+            session,
+            snapshot,
+        });
     }
 }
 
