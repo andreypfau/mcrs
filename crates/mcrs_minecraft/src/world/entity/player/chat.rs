@@ -8,7 +8,9 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_engine::entity::physics::Transform;
-use mcrs_engine::session::{MoveId, PlayerSession};
+use mcrs_engine::entity::InTransit;
+use mcrs_engine::session::{Owner, PlayerSession};
+use mcrs_engine::world::in_flight::alloc_move_id;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_protocol::packets::game::serverbound::{ServerboundChat, ServerboundChatCommand};
 use mcrs_protocol::setting::ChatMode;
@@ -33,9 +35,10 @@ impl Plugin for ChatPlugin {
 /// directly, which is host-resident.
 fn handle_command(
     event: On<ReceivedPacketEvent>,
-    mut sender_query: Query<(&HostAnchor, &mut Transform, &GameProfile)>,
+    mut sender_query: Query<(&HostAnchor, &mut Transform, &GameProfile, &Owner)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-    mut move_sender: Res<mcrs_engine::world::channels::FromDimSender<crate::world::channel_types::FromDim>>,
+    move_sender: Res<mcrs_engine::world::channels::FromDimSender<crate::world::channel_types::FromDim>>,
+    mut commands: Commands,
 ) {
     let Some(pkt) = event.decode::<ServerboundChatCommand>() else {
         return;
@@ -50,7 +53,7 @@ fn handle_command(
                 return;
             }
             let pos = DVec3::new(coords[0], coords[1], coords[2]);
-            let Ok((host_anchor, mut transform, _)) = sender_query.get_mut(event.entity) else {
+            let Ok((host_anchor, mut transform, _, _)) = sender_query.get_mut(event.entity) else {
                 return;
             };
             let host = host_anchor.0;
@@ -92,21 +95,30 @@ fn handle_command(
                 other if other.contains(':') => other.to_string(),
                 other => format!("minecraft:{other}"),
             };
-            let Ok((_host_anchor, _transform, profile)) = sender_query.get(event.entity) else {
+            let Ok((_host_anchor, _transform, profile, owner)) = sender_query.get(event.entity) else {
                 return;
             };
+            let session = owner.0;
+            // Source-allocated id: stamp the in-transit entity with the same id
+            // the host echoes back on confirm/rollback so the source can match it.
+            let move_id = alloc_move_id();
+            let payload = MovePayload::Player {
+                uuid: profile.id,
+                username: profile.username.clone(),
+            };
             info!("dim move {:?} -> {}", event.entity, dim_name);
+            // Hide-on-move-out: keep the source entity live but excluded from every
+            // source-dim system until the target confirms (despawn) or the move is
+            // rolled back (un-hide). The entity is never despawned here.
+            commands.entity(event.entity).insert(InTransit { move_id });
             let _ = move_sender.0.try_send(crate::world::channel_types::FromDim::MoveEntity {
-                move_id: MoveId(0),
+                move_id,
                 target: dim_name,
                 cause: ArrivalCause::CommandTeleport {
                     pos: DVec3::new(0.0, 100.0, 0.0),
                 },
-                payload: MovePayload::Player {
-                    uuid: profile.id,
-                    username: profile.username.clone(),
-                },
-                player: None,
+                payload,
+                player: Some(session),
             });
         }
         _ => {}

@@ -113,7 +113,7 @@ pub fn pump_channels(app: &mut App) {
                         .write(pkt);
                 }
                 FromDim::MoveEntity {
-                    move_id: _,
+                    move_id,
                     target,
                     cause,
                     payload,
@@ -153,24 +153,26 @@ pub fn pump_channels(app: &mut App) {
                         post_bump_epoch = 0;
                     }
 
-                    // Allocate an in-flight entry with the host-assigned move id.
+                    // Key the in-flight entry on the source-allocated move id so it
+                    // matches the in-transit marker the source stamped on its entity.
                     // hidden_entity is Entity::PLACEHOLDER because the source sub-app
-                    // owns the entity; the host tracks it by source_dim + session only.
-                    let allocated_id = world
-                        .resource_mut::<InFlightMoves>()
-                        .alloc(InFlightEntry {
+                    // owns the entity and resolves confirm/rollback by move id itself.
+                    world.resource_mut::<InFlightMoves>().insert(
+                        move_id,
+                        InFlightEntry {
                             source_dim: dim_entity,
                             hidden_entity: bevy_ecs::entity::Entity::PLACEHOLDER,
                             session: player,
                             ticks_elapsed: 0,
-                        });
+                        },
+                    );
 
                     // Forward SpawnEntity to the destination dim's control channel.
                     let send_result = {
                         let channels = world.resource::<DimChannelsResource>();
                         channels.get(dest_dim).map(|chan| {
                             chan.control_sender.try_send(ToDim::SpawnEntity {
-                                move_id: allocated_id,
+                                move_id: move_id,
                                 epoch: post_bump_epoch,
                                 cause,
                                 payload,
@@ -183,17 +185,17 @@ pub fn pump_channels(app: &mut App) {
                         Some(Ok(())) => {}
                         Some(Err(flume::TrySendError::Disconnected(_))) => {
                             // Target dim channel is gone — immediate rollback.
-                            world.resource_mut::<InFlightMoves>().remove(allocated_id);
+                            world.resource_mut::<InFlightMoves>().remove(move_id);
                             pending_rollbacks.push(PendingRollback {
-                                move_id: allocated_id,
+                                move_id: move_id,
                                 source_dim: dim_entity,
                             });
                         }
                         Some(Err(flume::TrySendError::Full(_))) => {
                             // Control channel full — treat as saturated, tear down target.
-                            world.resource_mut::<InFlightMoves>().remove(allocated_id);
+                            world.resource_mut::<InFlightMoves>().remove(move_id);
                             pending_rollbacks.push(PendingRollback {
-                                move_id: allocated_id,
+                                move_id: move_id,
                                 source_dim: dim_entity,
                             });
                             let mut despawn_queue =
@@ -204,9 +206,9 @@ pub fn pump_channels(app: &mut App) {
                         }
                         None => {
                             // dest_dim has no channel entry — immediate rollback.
-                            world.resource_mut::<InFlightMoves>().remove(allocated_id);
+                            world.resource_mut::<InFlightMoves>().remove(move_id);
                             pending_rollbacks.push(PendingRollback {
-                                move_id: allocated_id,
+                                move_id: move_id,
                                 source_dim: dim_entity,
                             });
                         }
