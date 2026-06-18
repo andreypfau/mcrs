@@ -10,6 +10,7 @@ use crate::world::sub_app_builder::DimSubAppHandle;
 use tracing::{debug, error, info, warn};
 
 pub mod aoi;
+pub mod arrival;
 pub mod block;
 pub mod block_update;
 pub mod bridge;

@@ -278,6 +278,7 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(BlockUpdateWirePlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);
     sub_app.add_plugins(LootPlugin);
+    sub_app.add_plugins(crate::world::arrival::ArrivalPlugin);
 
     sub_app.insert_resource(registries.registry_access.clone());
     sub_app.insert_resource(registries.block_light_table.clone());
