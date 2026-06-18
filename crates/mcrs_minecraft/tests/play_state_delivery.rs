@@ -365,6 +365,7 @@ fn play_login_emitted_on_spawn() {
                     position: DVec3::new(0.0, 64.0, 0.0),
                     rotation: bevy_math::Vec2::ZERO,
                 },
+                dimensions: Vec::new(),
             }).expect("control channel not full");
     }
 
@@ -444,6 +445,7 @@ fn play_login_targets_host_anchor() {
                     position: DVec3::new(0.0, 64.0, 0.0),
                     rotation: bevy_math::Vec2::ZERO,
                 },
+                dimensions: Vec::new(),
             }).expect("control channel not full");
     }
 
@@ -511,6 +513,7 @@ fn in_dim_entity_carries_host_anchor() {
                     position: DVec3::new(0.0, 64.0, 0.0),
                     rotation: bevy_math::Vec2::ZERO,
                 },
+                dimensions: Vec::new(),
             }).expect("control channel not full");
     }
 

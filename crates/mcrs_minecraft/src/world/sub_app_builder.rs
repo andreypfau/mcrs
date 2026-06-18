@@ -402,8 +402,8 @@ fn drain_to_dim_inbox(
 ) {
     for msg in rx.control.try_iter() {
         match msg {
-            ToDim::Spawn { host_anchor, session, snapshot } => {
-                spawn_msgs.write(InboundPlayerSpawn { host_anchor, session, snapshot });
+            ToDim::Spawn { host_anchor, session, snapshot, dimensions } => {
+                spawn_msgs.write(InboundPlayerSpawn { host_anchor, session, snapshot, dimensions });
             }
             ToDim::Despawn { host_anchor } => {
                 despawn_msgs.write(InboundPlayerDespawn {

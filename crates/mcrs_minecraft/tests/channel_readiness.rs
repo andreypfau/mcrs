@@ -135,6 +135,7 @@ fn messages_buffered_before_dim_boots() {
                 position: bevy_math::DVec3::ZERO,
                 rotation: bevy_math::Vec2::ZERO,
             },
+            dimensions: Vec::new(),
         });
 
         let serverbound_results: Vec<_> = (200i32..203)

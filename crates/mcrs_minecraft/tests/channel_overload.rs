@@ -180,6 +180,7 @@ fn spawn_succeeds_when_serverbound_full() {
                 position: bevy_math::DVec3::ZERO,
                 rotation: bevy_math::Vec2::ZERO,
             },
+            dimensions: Vec::new(),
         });
         assert!(result.is_ok(), "Spawn must succeed even when serverbound channel is full (control reserve)");
     }
@@ -244,6 +245,7 @@ fn dim_teardown_only_on_control_reserve_exhausted() {
                     host_anchor: anchor,
                     session: PlayerSession(i as u64 + 1),
                     snapshot: snapshot.clone(),
+                    dimensions: Vec::new(),
                 })
                 .expect("fill control channel");
         }
@@ -313,6 +315,7 @@ fn control_full_enqueues_dim_teardown() {
                 host_anchor: dim,
                 session: PlayerSession(i as u64 + 1),
                 snapshot: snapshot.clone(),
+                dimensions: Vec::new(),
             })
             .expect("fill control channel");
     }

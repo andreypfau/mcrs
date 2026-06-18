@@ -38,6 +38,11 @@ pub struct InboundPlayerSpawn {
     pub host_anchor: Entity,
     pub session: PlayerSession,
     pub snapshot: PlayerTransferSnapshot,
+    /// Dimension resource-location strings forwarded from the host's
+    /// `LoadedWorldPreset` so the per-dim spawn consumer can fill
+    /// `ClientboundLogin.dimensions` without reading the preset resource
+    /// (which is host-only and absent from any DimWorld).
+    pub dimensions: Vec<String>,
 }
 
 #[derive(Message, Clone, Debug)]
@@ -343,6 +348,7 @@ mod tests {
             host_anchor: e,
             session: PlayerSession(0),
             snapshot: snapshot.clone(),
+            dimensions: Vec::new(),
         };
         assert_eq!(format!("{:?}", spawn.clone()), format!("{:?}", spawn));
 

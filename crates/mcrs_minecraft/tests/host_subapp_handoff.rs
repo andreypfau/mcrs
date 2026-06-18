@@ -323,6 +323,7 @@ fn spawn_consumer_materializes_in_dim_entity() {
                     position: DVec3::new(0.0, 64.0, 0.0),
                     rotation: Vec2::ZERO,
                 },
+                dimensions: Vec::new(),
             }).expect("control channel not full");
     }
 
@@ -441,6 +442,7 @@ fn no_duplicate_spawn_on_reread() {
                     position: DVec3::new(0.0, 64.0, 0.0),
                     rotation: Vec2::ZERO,
                 },
+                dimensions: Vec::new(),
             }).expect("control channel not full");
     }
 

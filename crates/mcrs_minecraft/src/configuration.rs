@@ -714,6 +714,7 @@ pub fn emit_initial_player_spawn(
     live_dims: Query<Entity, With<DimSubAppHandle>>,
     profiles: Query<&GameProfile>,
     dim_channels: Res<DimChannelsResource>,
+    world_preset: Res<LoadedWorldPreset>,
     mut despawn_queue: ResMut<DimDespawnQueue>,
 ) {
     let dim_label = match live_dims.iter().next() {
@@ -723,6 +724,16 @@ pub fn emit_initial_player_spawn(
 
     let Some(chan) = dim_channels.get(dim_label) else {
         return;
+    };
+
+    let dimensions: Vec<String> = if world_preset.dimensions.is_empty() {
+        vec!["minecraft:overworld".to_string()]
+    } else {
+        world_preset
+            .dimensions
+            .iter()
+            .map(|(dim_key, _)| dim_key.as_str().to_owned())
+            .collect()
     };
 
     // Collect anchors first so we can mutably borrow session_registry below.
@@ -752,6 +763,7 @@ pub fn emit_initial_player_spawn(
                 host_anchor,
                 session,
                 snapshot,
+                dimensions: dimensions.clone(),
             },
             &mut despawn_queue,
         );

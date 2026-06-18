@@ -32,6 +32,11 @@ pub enum ToDim {
         host_anchor: Entity,
         session: PlayerSession,
         snapshot: PlayerTransferSnapshot,
+        /// Dimension resource-location strings sourced from the host's
+        /// `LoadedWorldPreset`. The per-dim spawn consumer uses this list to
+        /// fill `ClientboundLogin.dimensions` without touching the preset
+        /// resource directly (which is not present in a DimWorld).
+        dimensions: Vec<String>,
     },
     /// The host signals that a player is leaving this dim (disconnected or
     /// transferred). The dim should despawn the player's in-dim entity.
