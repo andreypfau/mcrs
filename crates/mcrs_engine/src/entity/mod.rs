@@ -1,5 +1,6 @@
 use crate::entity::physics::{OldTransform, Transform};
 use crate::entity::player::Player;
+use crate::session::MoveId;
 use crate::world::chunk::{Chunk, ChunkIndex, ChunkPos};
 use crate::world::dimension::{Dimension, DimensionPlayers, InDimension, OldInDimension};
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Plugin};
@@ -101,6 +102,17 @@ impl ChunkEntities {
 #[component(storage = "SparseSet")]
 pub struct Despawned;
 
+/// Hides a live entity in place during a cross-dimension move.
+///
+/// The entity is NOT despawned — it remains in the source dim's world so the
+/// move can be rolled back by simply removing this marker.  Every system that
+/// excludes `Despawned` must also exclude `InTransit`.
+#[derive(Component, Debug)]
+#[component(storage = "SparseSet")]
+pub struct InTransit {
+    pub move_id: MoveId,
+}
+
 #[allow(clippy::type_complexity)]
 fn add_entity_to_chunk(
     dim_chunks: Query<&ChunkIndex>,
@@ -112,6 +124,7 @@ fn add_entity_to_chunk(
             Without<Chunk>,
             Without<OldTransform>,
             Without<Despawned>,
+            Without<InTransit>,
         ),
     >,
 ) {
@@ -141,6 +154,7 @@ fn add_old_transform(
             Without<Chunk>,
             Without<OldTransform>,
             Without<Despawned>,
+            Without<InTransit>,
         ),
     >,
     mut commands: Commands,
@@ -162,7 +176,7 @@ fn update_chunk_entities(
             &OldTransform,
             &OldInDimension,
         ),
-        (Without<Dimension>, Without<Chunk>, Without<Despawned>),
+        (Without<Dimension>, Without<Chunk>, Without<Despawned>, Without<InTransit>),
     >,
     mut commands: Commands,
 ) {
@@ -251,7 +265,7 @@ fn tick_chunk_entities(
             &InDimension,
             &OldInDimension,
         ),
-        Without<Despawned>,
+        (Without<Despawned>, Without<InTransit>),
     >,
     mut commands: Commands,
 ) {
@@ -279,7 +293,9 @@ fn tick_chunk_entities(
         });
 }
 
-fn update_old_transforms(mut entities: Query<(&mut OldTransform, &Transform), Without<Despawned>>) {
+fn update_old_transforms(
+    mut entities: Query<(&mut OldTransform, &Transform), (Without<Despawned>, Without<InTransit>)>,
+) {
     entities
         .iter_mut()
         .for_each(|(mut old_transform, transform)| {
@@ -308,7 +324,7 @@ pub struct EntityNetworkRemoveEvent {
 #[allow(clippy::type_complexity)]
 fn add_player_synced_entities(
     mut commands: Commands,
-    new_players: Query<Entity, (With<Player>, Added<InDimension>, Without<Despawned>)>,
+    new_players: Query<Entity, (With<Player>, Added<InDimension>, Without<Despawned>, Without<InTransit>)>,
 ) {
     new_players.iter().for_each(|entity| {
         commands
@@ -322,7 +338,7 @@ fn sync_entities(
     dim_players: Query<&DimensionPlayers>,
     player_data: Query<
         (&Transform, &PlayerSynchronizedEntities),
-        (With<Player>, Without<Despawned>),
+        (With<Player>, Without<Despawned>, Without<InTransit>),
     >,
     entities: Query<(
         Entity,
