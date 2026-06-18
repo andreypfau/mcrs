@@ -6,44 +6,27 @@
 //! grid into dim A only, and pumps a few ticks. Dim B's chunk
 //! observers must remain empty across the run.
 
-use bevy_app::App;
-use bevy_asset::AssetPlugin;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use bevy_state::app::{AppExtStates, StatesPlugin};
-use bevy_time::{Fixed, Time, TimePlugin};
-use mcrs_core::AppState;
-use mcrs_core::registry::access::RegistryAccess;
-use mcrs_core::registry::snapshot::RegistrySnapshot;
-use mcrs_core::registry::static_registry::StaticRegistry;
-use mcrs_core::tag::TagRegistry;
-use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_engine::geometry::ColumnPos;
-use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig, InDimension};
+use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
-use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_engine::world::sub_app::DimAppLabel;
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, TrackedBy};
-use mcrs_minecraft::world::bus::{
-    InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, OutboundPlayerTransfer,
-};
-use mcrs_minecraft::world::channel_types::DimChannelsResource;
-use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_lighting::table::BlockStateLightTable;
-use mcrs_vanilla::biome::Biome;
-use mcrs_vanilla::block::Block;
-use mcrs_vanilla::enchantment::EnchantmentData;
+
+mod common;
 
 #[test]
 fn aoi_state_does_not_leak_across_dim_boundary() {
-    let mut app = build_host_app();
-    enqueue_dim(&mut app, "test:overworld", true);
-    enqueue_dim(&mut app, "test:nether", false);
-    drain_dim_spawn_queue(&mut app);
+    let mut app = common::make_host_app();
+    common::materialise_sub_apps(
+        &mut app,
+        &[("test:overworld", true), ("test:nether", false)],
+    );
 
     // Enumerate the per-dim label entities. `app.sub_apps()` exposes
     // the interned labels but not the underlying `Entity` values; the
@@ -188,61 +171,4 @@ fn nonempty_tracked_by(sub_app: &mut bevy_app::SubApp) -> bool {
     q.iter(sub_app.world()).any(|t| !t.0.is_empty())
 }
 
-fn build_host_app() -> App {
-    // BEVY_ASSET_ROOT is set in .cargo/config.toml's [env] table so it
-    // is in the process environment before any thread starts. No
-    // per-test unsafe set_var is needed.
-
-    let mut app = App::new();
-    app.add_plugins(bevy_app::TaskPoolPlugin::default());
-    app.add_plugins(AssetPlugin::default());
-    app.add_plugins(TimePlugin);
-    app.insert_resource(Time::<Fixed>::from_hz(20.0));
-    app.add_plugins(StatesPlugin);
-    app.init_state::<AppState>();
-    // Host-side bus and channel registrations required by the production
-    // sub-app builder and extract closure path.
-    app.add_message::<OutboundPlayerPacket>();
-    app.add_message::<InboundPlayerPacket>();
-    app.add_message::<OutboundPlayerTransfer>();
-    app.add_message::<OutboundPlayerAttached>();
-    app.add_message::<OutboundPlayerDisconnect>();
-    app.add_message::<InboundPlayerDespawn>();
-    app.init_resource::<DimChannelsResource>();
-    app.init_resource::<DimSpawnQueue>();
-    app.init_resource::<DimDespawnQueue>();
-    app.insert_resource(RegistryAccess::default());
-    app.insert_resource(make_stub_block_light_table());
-    app.insert_resource(StaticRegistry::<Block>::new());
-    app.insert_resource(StaticRegistry::<EnchantmentData>::default());
-    app.insert_resource(TagRegistry::<Block>::default());
-    app.insert_resource(RegistrySnapshot::<Biome>::default());
-    app
-}
-
-fn enqueue_dim(app: &mut App, id: &str, sky: bool) {
-    app.world_mut()
-        .resource_mut::<DimSpawnQueue>()
-        .0
-        .push(DimSpawnRequest {
-            dimension_id: DimensionId::new(id),
-            type_config: DimensionTypeConfig::default(),
-            has_sky: sky,
-        });
-}
-
-fn make_stub_block_light_table() -> BlockStateLightTable {
-    let state_count = 2usize;
-    let emission = vec![0u8; state_count].into_boxed_slice();
-    let dampening = vec![0u8; state_count].into_boxed_slice();
-    let occlusion: Box<[&'static VoxelShape]> =
-        vec![VoxelShape::empty(); state_count].into_boxed_slice();
-    let flags = vec![0u8; state_count].into_boxed_slice();
-    BlockStateLightTable {
-        emission,
-        dampening,
-        occlusion,
-        flags,
-    }
-}
 

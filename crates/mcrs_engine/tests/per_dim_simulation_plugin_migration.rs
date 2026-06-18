@@ -11,102 +11,17 @@
 
 use bevy_app::App;
 use bevy_ecs::message::Messages;
-use bevy_ecs::prelude::*;
 use mcrs_minecraft::world::WorldPlugin;
 use mcrs_minecraft::world::bus::OutboundPlayerPacket;
 use mcrs_minecraft::world::entity::player::player_action::PlayerWillDestroyBlock;
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 
-mod harness {
-    use bevy_app::App;
-    use bevy_asset::AssetPlugin;
-    use bevy_state::app::{AppExtStates, StatesPlugin};
-    use bevy_state::prelude::NextState;
-    use bevy_time::{Fixed, Time, TimePlugin};
-    use mcrs_core::AppState;
-    use mcrs_core::registry::access::RegistryAccess;
-    use mcrs_core::registry::snapshot::RegistrySnapshot;
-    use mcrs_core::registry::static_registry::StaticRegistry;
-    use mcrs_core::tag::TagRegistry;
-    use mcrs_core::voxel_shape::VoxelShape;
-    use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
-    use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
-    use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
-    use mcrs_minecraft_lighting::table::BlockStateLightTable;
-    use mcrs_vanilla::biome::Biome;
-    use mcrs_vanilla::block::Block;
-    use mcrs_vanilla::enchantment::EnchantmentData;
-
-    pub fn make_stub_block_light_table() -> BlockStateLightTable {
-        let state_count = 2usize;
-        let emission = vec![0u8; state_count].into_boxed_slice();
-        let dampening = vec![0u8; state_count].into_boxed_slice();
-        let occlusion: Box<[&'static VoxelShape]> =
-            vec![VoxelShape::empty(); state_count].into_boxed_slice();
-        let flags = vec![0u8; state_count].into_boxed_slice();
-        BlockStateLightTable {
-            emission,
-            dampening,
-            occlusion,
-            flags,
-        }
-    }
-
-    pub fn make_main_app_with_minimal_plugins() -> App {
-        // BEVY_ASSET_ROOT is set in .cargo/config.toml's [env] table so
-        // it is in the process environment before any thread starts.
-        // No per-test unsafe set_var is needed.
-
-        let mut app = App::new();
-        app.add_plugins(bevy_app::TaskPoolPlugin::default());
-        app.add_plugins(AssetPlugin::default());
-        app.add_plugins(TimePlugin);
-        app.insert_resource(Time::<Fixed>::from_hz(20.0));
-        app.add_plugins(StatesPlugin);
-        app.init_state::<AppState>();
-        app.init_resource::<DimSpawnQueue>();
-        app.init_resource::<DimDespawnQueue>();
-        app.insert_resource(RegistryAccess::default());
-        app.insert_resource(make_stub_block_light_table());
-        app.insert_resource(StaticRegistry::<Block>::new());
-        app.insert_resource(StaticRegistry::<EnchantmentData>::default());
-        app.insert_resource(TagRegistry::<Block>::default());
-        app.insert_resource(RegistrySnapshot::<Biome>::default());
-        app.init_resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>();
-        app
-    }
-
-    #[allow(dead_code)]
-    pub fn drive_to_playing(app: &mut App) {
-        app.world_mut()
-            .resource_mut::<NextState<AppState>>()
-            .set(AppState::Playing);
-        app.update();
-    }
-
-    pub fn enqueue_spawn(app: &mut App, id: &str, sky: bool) {
-        app.world_mut()
-            .resource_mut::<DimSpawnQueue>()
-            .0
-            .push(DimSpawnRequest {
-                dimension_id: DimensionId::new(id),
-                type_config: DimensionTypeConfig::default(),
-                has_sky: sky,
-            });
-    }
-
-    pub fn materialise_sub_apps(app: &mut App, ids: &[(&str, bool)]) {
-        for (id, sky) in ids {
-            enqueue_spawn(app, id, *sky);
-        }
-        drain_dim_spawn_queue(app);
-    }
-}
+mod common;
 
 #[test]
 fn minecraft_block_plugin_messages_present_in_each_subapp() {
-    let mut app = harness::make_main_app_with_minimal_plugins();
-    harness::materialise_sub_apps(
+    let mut app = common::make_host_app();
+    common::materialise_sub_apps(
         &mut app,
         &[("test:overworld", true), ("test:nether", false)],
     );
@@ -142,8 +57,8 @@ fn minecraft_block_plugin_messages_present_in_each_subapp() {
 
 #[test]
 fn explosion_plugin_registered_per_dim_not_host() {
-    let mut app = harness::make_main_app_with_minimal_plugins();
-    harness::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
+    let mut app = common::make_host_app();
+    common::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
 
     let label = *app
         .sub_apps()
@@ -225,8 +140,8 @@ fn host_side_no_longer_registers_per_dim_simulation_plugins() {
 
 #[test]
 fn per_dim_simulation_plugins_now_in_sub_app() {
-    let mut app = harness::make_main_app_with_minimal_plugins();
-    harness::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
+    let mut app = common::make_host_app();
+    common::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
 
     let label = *app
         .sub_apps()

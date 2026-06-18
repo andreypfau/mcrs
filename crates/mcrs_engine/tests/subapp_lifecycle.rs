@@ -1,21 +1,15 @@
 // Integration tests for the per-dimension sub-app lifecycle. Each test
-// constructs a minimal host `App`, enqueues a synthetic spawn request, drains
-// the queue through the production builder, and inspects the resulting
-// sub-app population.
+// constructs a host `App` via the shared `common` fixture, enqueues a
+// synthetic spawn request, drains the queue through the production builder,
+// and inspects the resulting sub-app population.
 
-use bevy_app::{App, AppLabel, FixedPostUpdate, FixedPreUpdate, FixedUpdate};
-use bevy_asset::AssetPlugin;
+use bevy_app::{AppLabel, FixedPostUpdate, FixedPreUpdate, FixedUpdate};
 use bevy_ecs::prelude::*;
-use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
-use bevy_time::{Fixed, Time, TimePlugin};
+use bevy_time::{Fixed, Time};
 use mcrs_core::registry::access::RegistryAccess;
-use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
-use mcrs_core::tag::TagRegistry;
-use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
-use mcrs_vanilla::enchantment::EnchantmentData;
 use mcrs_engine::world::dimension::{Dimension, DimensionId, DimensionTypeConfig};
 use mcrs_engine::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
@@ -25,109 +19,14 @@ use mcrs_minecraft::world::sub_app_builder::{
     DimSubAppHandle,
 };
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
-use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 
-mod harness {
-    #![allow(dead_code)]
-    use super::*;
-
-    pub fn make_stub_block_light_table() -> BlockStateLightTable {
-        let state_count = 2usize;
-        let emission = vec![0u8; state_count].into_boxed_slice();
-        let dampening = vec![0u8; state_count].into_boxed_slice();
-        let occlusion: Box<[&'static VoxelShape]> =
-            vec![VoxelShape::empty(); state_count].into_boxed_slice();
-        let flags = vec![0u8; state_count].into_boxed_slice();
-        BlockStateLightTable {
-            emission,
-            dampening,
-            occlusion,
-            flags,
-        }
-    }
-
-    pub fn make_main_app() -> App {
-        // The per-dim sub-app composition pulls in `NoiseGeneratorSettingsPlugin`
-        // (via `ChunkPlugin`), whose `AssetServer::load` requires the noise
-        // settings JSON under `assets/minecraft/worldgen/noise_settings/`. Bevy
-        // 0.18's `AssetPlugin::default()` derives its file-source root from
-        // `CARGO_MANIFEST_DIR` when present (which `cargo test` always sets to
-        // the crate directory, not the workspace root). `BEVY_ASSET_ROOT`
-        // overrides that, so pointing it at the workspace root makes the
-        // assets reachable from every per-dim sub-app's `AssetServer`. Done
-        // once per test process via `OnceLock`.
-        static SET_ASSET_ROOT: std::sync::OnceLock<()> = std::sync::OnceLock::new();
-        SET_ASSET_ROOT.get_or_init(|| {
-            let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .and_then(|p| p.parent())
-                .expect("CARGO_MANIFEST_DIR must have two ancestors (workspace root)");
-            // SAFETY: set_var is safe to call when no other thread is reading
-            // the same env var. This OnceLock runs before any test body uses
-            // the value (via AssetPlugin construction inside spawn_dim_subapp).
-            unsafe {
-                std::env::set_var("BEVY_ASSET_ROOT", workspace_root);
-            }
-        });
-
-        let mut app = App::new();
-        // The per-dim sub-app composition pulls in `NoiseGeneratorSettingsPlugin`
-        // (via `ChunkPlugin`) whose `Startup` system uses `AssetServer::load`,
-        // which spawns work on `IoTaskPool`. Production sets the pools up via
-        // `ServerPlugin → TaskPoolPlugin`; tests need the same initialisation so
-        // sub-app `Startup` does not panic on an uninitialised pool.
-        app.add_plugins(bevy_app::TaskPoolPlugin::default());
-        app.add_plugins(AssetPlugin::default());
-        app.add_plugins(TimePlugin);
-        app.insert_resource(Time::<Fixed>::from_hz(20.0));
-        app.add_plugins(StatesPlugin);
-        app.init_state::<AppState>();
-        app.init_resource::<DimSpawnQueue>();
-        app.init_resource::<DimDespawnQueue>();
-        app.insert_resource(RegistryAccess::default());
-        app.insert_resource(make_stub_block_light_table());
-        app.insert_resource(StaticRegistry::<Block>::new());
-        app.insert_resource(StaticRegistry::<EnchantmentData>::default());
-        app.insert_resource(TagRegistry::<Block>::default());
-        app.insert_resource(RegistrySnapshot::<Biome>::default());
-
-        // Host-side registrations required by the production `spawn_dim_subapp`
-        // path: each sub-app's extract closure and pump_channels use these
-        // resources. Without them the first `app.update()` panics.
-        app.init_resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>();
-        app.add_message::<mcrs_minecraft::world::bus::OutboundPlayerPacket>();
-        app.add_message::<mcrs_minecraft::world::bus::InboundPlayerPacket>();
-        app.add_message::<mcrs_minecraft::world::bus::OutboundPlayerTransfer>();
-        app.add_message::<mcrs_minecraft::world::bus::OutboundPlayerAttached>();
-
-        app
-    }
-
-    pub fn drive_to_playing(app: &mut App) {
-        app.world_mut()
-            .resource_mut::<NextState<AppState>>()
-            .set(AppState::Playing);
-        app.update();
-    }
-
-    pub fn enqueue_spawn(app: &mut App, id: &str, sky: bool) {
-        app.world_mut()
-            .resource_mut::<DimSpawnQueue>()
-            .0
-            .push(DimSpawnRequest {
-                dimension_id: DimensionId::new(id),
-                type_config: DimensionTypeConfig::default(),
-                has_sky: sky,
-            });
-    }
-
-}
+mod common;
 
 #[test]
 fn dim_subapp_inserted_on_spawn() {
-    let mut app = harness::make_main_app();
-    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    let mut app = common::make_host_app();
+    common::enqueue_spawn(&mut app, "test:overworld", true);
     drain_dim_spawn_queue(&mut app);
     assert_eq!(
         app.sub_apps().sub_apps.len(),
@@ -138,8 +37,8 @@ fn dim_subapp_inserted_on_spawn() {
 
 #[test]
 fn dim_subapp_removed_on_despawn() {
-    let mut app = harness::make_main_app();
-    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    let mut app = common::make_host_app();
+    common::enqueue_spawn(&mut app, "test:overworld", true);
     drain_dim_spawn_queue(&mut app);
     assert_eq!(app.sub_apps().sub_apps.len(), 1);
 
@@ -181,9 +80,9 @@ fn dim_worlds_are_isolated() {
     #[allow(dead_code)]
     struct SentinelOverworld(u32);
 
-    let mut app = harness::make_main_app();
-    harness::enqueue_spawn(&mut app, "test:overworld", true);
-    harness::enqueue_spawn(&mut app, "test:nether", false);
+    let mut app = common::make_host_app();
+    common::enqueue_spawn(&mut app, "test:overworld", true);
+    common::enqueue_spawn(&mut app, "test:nether", false);
     drain_dim_spawn_queue(&mut app);
     assert_eq!(app.sub_apps().sub_apps.len(), 2);
 
@@ -231,9 +130,9 @@ fn sequential_pump_tick_count() {
         counter.0 += 1;
     }
 
-    let mut app = harness::make_main_app();
-    harness::enqueue_spawn(&mut app, "test:overworld", true);
-    harness::enqueue_spawn(&mut app, "test:nether", false);
+    let mut app = common::make_host_app();
+    common::enqueue_spawn(&mut app, "test:overworld", true);
+    common::enqueue_spawn(&mut app, "test:nether", false);
     drain_dim_spawn_queue(&mut app);
 
     let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
@@ -273,8 +172,8 @@ fn fixed_pre_and_post_update_advance_once_per_pump() {
     #[derive(Resource, Default)]
     struct PostCounter(u32);
 
-    let mut app = harness::make_main_app();
-    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    let mut app = common::make_host_app();
+    common::enqueue_spawn(&mut app, "test:overworld", true);
     drain_dim_spawn_queue(&mut app);
 
     let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
@@ -318,7 +217,7 @@ fn fixed_pre_and_post_update_advance_once_per_pump() {
 /// in the heavy plugin stack that `WorldPlugin` composes.
 #[test]
 fn subapp_torn_down_when_handle_despawned() {
-    let mut app = harness::make_main_app();
+    let mut app = common::make_host_app();
 
     // Mirror the production observer from WorldPlugin::build inline so the test
     // exercises the same wiring path without depending on unrelated plugins.
@@ -328,7 +227,7 @@ fn subapp_torn_down_when_handle_despawned() {
         },
     );
 
-    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    common::enqueue_spawn(&mut app, "test:overworld", true);
     drain_dim_spawn_queue(&mut app);
     assert_eq!(app.sub_apps().sub_apps.len(), 1, "one sub-app after spawn");
 
@@ -368,9 +267,9 @@ fn no_per_dim_task_pool() {
 
 #[test]
 fn registries_present_in_all_subapps() {
-    let mut app = harness::make_main_app();
-    harness::enqueue_spawn(&mut app, "test:overworld", true);
-    harness::enqueue_spawn(&mut app, "test:nether", false);
+    let mut app = common::make_host_app();
+    common::enqueue_spawn(&mut app, "test:overworld", true);
+    common::enqueue_spawn(&mut app, "test:nether", false);
     drain_dim_spawn_queue(&mut app);
 
     let host_registry: RegistryAccess = app.world().resource::<RegistryAccess>().clone();
@@ -403,8 +302,8 @@ fn registries_present_in_all_subapps() {
 
 #[test]
 fn time_extracted_into_subapp() {
-    let mut app = harness::make_main_app();
-    harness::enqueue_spawn(&mut app, "test:overworld", true);
+    let mut app = common::make_host_app();
+    common::enqueue_spawn(&mut app, "test:overworld", true);
     drain_dim_spawn_queue(&mut app);
 
     app.update();
@@ -462,10 +361,10 @@ fn eager_spawn_count_matches_dims() {
         }
     }
 
-    let mut app = harness::make_main_app();
+    let mut app = common::make_host_app();
     app.add_systems(OnEnter(AppState::Playing), enqueue_test_dims);
 
-    harness::drive_to_playing(&mut app);
+    common::drive_to_playing(&mut app);
 
     assert_eq!(
         app.world().resource::<DimSpawnQueue>().0.len(),
@@ -524,11 +423,11 @@ fn enqueue_dim_spawns_from_preset_is_idempotent() {
         }
     }
 
-    let mut app = harness::make_main_app();
+    let mut app = common::make_host_app();
     app.add_systems(OnEnter(AppState::Playing), enqueue_with_guard);
 
     // First transition into Playing: the inline system enqueues N dims.
-    harness::drive_to_playing(&mut app);
+    common::drive_to_playing(&mut app);
     drain_dim_spawn_queue(&mut app);
     assert_eq!(
         app.sub_apps().sub_apps.len(),
@@ -584,10 +483,10 @@ fn enqueue_dim_spawns_from_empty_preset_is_idempotent() {
         *guard = true;
     }
 
-    let mut app = harness::make_main_app();
+    let mut app = common::make_host_app();
     app.add_systems(OnEnter(AppState::Playing), enqueue_empty_preset_fallback);
 
-    harness::drive_to_playing(&mut app);
+    common::drive_to_playing(&mut app);
     drain_dim_spawn_queue(&mut app);
     assert_eq!(
         app.sub_apps().sub_apps.len(),
@@ -618,9 +517,9 @@ fn enqueue_dim_spawns_from_empty_preset_is_idempotent() {
 fn worldgen_chunk_plugin_present_in_each_subapp() {
     use mcrs_minecraft::world::chunk::ColumnScheduler;
 
-    let mut app = harness::make_main_app();
-    harness::enqueue_spawn(&mut app, "test:overworld", true);
-    harness::enqueue_spawn(&mut app, "test:nether", false);
+    let mut app = common::make_host_app();
+    common::enqueue_spawn(&mut app, "test:overworld", true);
+    common::enqueue_spawn(&mut app, "test:nether", false);
     drain_dim_spawn_queue(&mut app);
 
     let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
@@ -676,7 +575,7 @@ fn dim_tick_runs_full_main_pipeline() {
         sub_app.add_systems(Last, |mut h: ResMut<ScheduleHits>| h.last += 1);
     }
 
-    let mut app = harness::make_main_app();
+    let mut app = common::make_host_app();
     let registries = gather_dim_registries(app.world());
     let request = DimSpawnRequest {
         dimension_id: DimensionId::new("test:overworld"),
