@@ -41,6 +41,7 @@ fn build_app() -> App {
     app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
+    app.init_resource::<mcrs_engine::world::sub_app::DimDespawnQueue>();
     app.add_plugins(DisconnectProtocolPlugin);
     app
 }

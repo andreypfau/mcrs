@@ -364,7 +364,7 @@ fn disconnect_clears_pending() {
                                 mut player_index: bevy_ecs::system::ResMut<PlayerIndex>,
                                 mut session_registry: bevy_ecs::system::ResMut<SessionRegistry>,
                                 dim_channels: bevy_ecs::system::ResMut<DimChannelsResource>| {
-        process_disconnect(player, &mut player_index, &mut session_registry, &dim_channels, &mut commands);
+        process_disconnect(player, &mut player_index, &mut session_registry, &dim_channels, &mut mcrs_engine::world::sub_app::DimDespawnQueue::default(), &mut commands);
     }).expect("process_disconnect system ran");
 
     // SessionRegistry entry is gone.

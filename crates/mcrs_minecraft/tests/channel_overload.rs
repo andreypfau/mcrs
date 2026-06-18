@@ -271,3 +271,123 @@ fn dim_teardown_only_on_control_reserve_exhausted() {
         "teardown decision belongs to the caller; this test only verifies the structural condition"
     );
 }
+
+fn transfer_snapshot() -> mcrs_minecraft::world::bus::PlayerTransferSnapshot {
+    mcrs_minecraft::world::bus::PlayerTransferSnapshot {
+        uuid: mcrs_protocol::uuid::Uuid::nil(),
+        username: "test".into(),
+        position: bevy_math::DVec3::ZERO,
+        rotation: bevy_math::Vec2::ZERO,
+    }
+}
+
+#[test]
+fn control_full_enqueues_dim_teardown() {
+    use mcrs_engine::world::sub_app::DimDespawnQueue;
+    use mcrs_minecraft::world::channel_types::send_control_or_teardown;
+
+    let mut world = World::new();
+    let dim = world.spawn_empty().id();
+    let snapshot = transfer_snapshot();
+
+    // A control channel with headroom: the send is delivered and no teardown is
+    // scheduled.
+    let (ok_tx, ok_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+    let ok_sender = DimSender::new(ok_tx);
+    let mut queue = DimDespawnQueue::default();
+    send_control_or_teardown(&ok_sender, dim, ToDim::Despawn { host_anchor: dim }, &mut queue);
+    assert!(queue.0.is_empty(), "a control channel with room must not schedule teardown");
+    assert!(
+        matches!(ok_rx.try_recv(), Ok(ToDim::Despawn { .. })),
+        "the control message must be delivered when the channel has capacity"
+    );
+
+    // A saturated control channel (hard overload): the dim is scheduled for
+    // teardown instead of silently dropping the lifecycle message. The receiver
+    // is kept alive so the send reports Full, not Disconnected.
+    let (full_tx, _full_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
+    let full_sender = DimSender::new(full_tx);
+    for i in 0..TO_DIM_CONTROL_CAPACITY {
+        full_sender
+            .try_send(ToDim::Spawn {
+                host_anchor: dim,
+                session: PlayerSession(i as u64 + 1),
+                snapshot: snapshot.clone(),
+            })
+            .expect("fill control channel");
+    }
+    let mut queue = DimDespawnQueue::default();
+    send_control_or_teardown(&full_sender, dim, ToDim::Despawn { host_anchor: dim }, &mut queue);
+    assert_eq!(queue.0, vec![dim], "a saturated control channel must schedule the dim for teardown");
+
+    // A second failed send for the same dim must not double-enqueue.
+    send_control_or_teardown(&full_sender, dim, ToDim::Despawn { host_anchor: dim }, &mut queue);
+    assert_eq!(queue.0, vec![dim], "teardown scheduling must be deduplicated per dim");
+}
+
+#[test]
+fn bridge_transfer_full_control_schedules_teardown() {
+    use mcrs_engine::world::sub_app::DimDespawnQueue;
+    use mcrs_minecraft::world::bridge::bridge_player_transfer;
+    use mcrs_minecraft::world::bus::OutboundPlayerTransfer;
+    use mcrs_minecraft::world::sub_app_builder::DimSubAppHandle;
+
+    let mut world = build_world();
+    world.init_resource::<Messages<OutboundPlayerTransfer>>();
+    world.init_resource::<DimDespawnQueue>();
+
+    let old_dim = world.spawn(DimSubAppHandle).id();
+    let dest_dim = world.spawn(DimSubAppHandle).id();
+
+    // Keep both control receivers alive so a full sender reports Full (overload),
+    // not Disconnected (dim already gone).
+    let (_srv_old, _ctl_old_rx, _from_old) = make_channels(&mut world, old_dim);
+    let (_srv_dest, _ctl_dest_rx, _from_dest) = make_channels(&mut world, dest_dim);
+
+    let conn = spawn_connection(&mut world);
+    let anchor = world.spawn_empty().id();
+    let in_dim = world.spawn_empty().id();
+    register_session(&mut world, conn, anchor, old_dim, Some(in_dim));
+
+    let snapshot = transfer_snapshot();
+
+    // Saturate the SOURCE dim's control channel: the transfer's Despawn to it
+    // cannot land, which is the hard-overload teardown trigger.
+    {
+        let channels = world.resource::<DimChannelsResource>();
+        let entry = channels.get(old_dim).expect("old_dim channels present");
+        for i in 0..TO_DIM_CONTROL_CAPACITY {
+            entry
+                .control_sender
+                .try_send(ToDim::Spawn {
+                    host_anchor: anchor,
+                    session: PlayerSession(i as u64 + 1),
+                    snapshot: snapshot.clone(),
+                })
+                .expect("fill old_dim control channel");
+        }
+    }
+
+    world
+        .resource_mut::<Messages<OutboundPlayerTransfer>>()
+        .write(OutboundPlayerTransfer {
+            host_anchor: anchor,
+            dest_dim,
+            snapshot: snapshot.clone(),
+        });
+
+    let mut sys = IntoSystem::into_system(bridge_player_transfer);
+    sys.initialize(&mut world);
+    let _ = sys.run((), &mut world);
+    sys.apply_deferred(&mut world);
+
+    let queue = world.resource::<DimDespawnQueue>();
+    assert!(
+        queue.0.contains(&old_dim),
+        "a real transfer caller must schedule teardown when the source control channel is saturated"
+    );
+    assert!(
+        !queue.0.contains(&dest_dim),
+        "the destination dim has control headroom and must not be torn down"
+    );
+}

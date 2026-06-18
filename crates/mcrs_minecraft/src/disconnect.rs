@@ -34,7 +34,8 @@ use mcrs_engine::session::{PlayerSession, SessionRegistry};
 use crate::world::bus::{
     OutboundPlayerAttached, OutboundPlayerDisconnect, OutboundPlayerTransfer,
 };
-use crate::world::channel_types::{DimChannelsResource, ToDim};
+use crate::world::channel_types::{send_control_or_teardown, DimChannelsResource, ToDim};
+use mcrs_engine::world::sub_app::DimDespawnQueue;
 use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
 
 /// Per-tick cleanup budget. The initial 32 caps work at 640 disconnects/sec
@@ -140,6 +141,7 @@ pub fn on_player_disconnect(
     mut disconnected_this_tick: ResMut<DisconnectedThisTick>,
     mut overflow_counter: ResMut<OverflowCounter>,
     dim_channels: ResMut<DimChannelsResource>,
+    mut despawn_queue: ResMut<DimDespawnQueue>,
     mut commands: Commands,
 ) {
     let connection_entity = trigger.event().entity;
@@ -155,6 +157,7 @@ pub fn on_player_disconnect(
             &mut player_index,
             &mut session_registry,
             &dim_channels,
+            &mut despawn_queue,
             &mut commands,
         );
     } else if !pending_queue.push_back(host_anchor) {
@@ -186,6 +189,7 @@ pub fn process_disconnect(
     player_index: &mut PlayerIndex,
     session_registry: &mut SessionRegistry,
     dim_channels: &DimChannelsResource,
+    despawn_queue: &mut DimDespawnQueue,
     commands: &mut Commands,
 ) {
     let (session, current_dim, previous_dim, connection_entity) =
@@ -196,14 +200,24 @@ pub fn process_disconnect(
 
     let _ = session;
     if let Some(chan) = dim_channels.get(current_dim) {
-        let _ = chan.control_sender.try_send(ToDim::Despawn { host_anchor });
+        send_control_or_teardown(
+            &chan.control_sender,
+            current_dim,
+            ToDim::Despawn { host_anchor },
+            despawn_queue,
+        );
     }
 
     if let Some(prev) = previous_dim
         && prev != current_dim
     {
         if let Some(chan) = dim_channels.get(prev) {
-            let _ = chan.control_sender.try_send(ToDim::Despawn { host_anchor });
+            send_control_or_teardown(
+                &chan.control_sender,
+                prev,
+                ToDim::Despawn { host_anchor },
+                despawn_queue,
+            );
         }
     }
 
@@ -232,6 +246,7 @@ pub fn drain_pending_disconnects(
     mut player_index: ResMut<PlayerIndex>,
     mut session_registry: ResMut<SessionRegistry>,
     dim_channels: ResMut<DimChannelsResource>,
+    mut despawn_queue: ResMut<DimDespawnQueue>,
     mut commands: Commands,
 ) {
     disconnect_budget.refill();
@@ -246,6 +261,7 @@ pub fn drain_pending_disconnects(
             &mut player_index,
             &mut session_registry,
             &dim_channels,
+            &mut despawn_queue,
             &mut commands,
         );
     }
@@ -307,6 +323,7 @@ impl Plugin for DisconnectProtocolPlugin {
         app.init_resource::<PendingDisconnectQueue>();
         app.init_resource::<DisconnectedThisTick>();
         app.init_resource::<OverflowCounter>();
+        app.init_resource::<DimDespawnQueue>();
         app.add_observer(on_player_disconnect);
         app.add_systems(First, drain_pending_disconnects);
         app.add_systems(

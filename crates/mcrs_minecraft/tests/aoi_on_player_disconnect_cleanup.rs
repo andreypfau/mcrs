@@ -126,6 +126,7 @@ fn synthetic_disconnect(app: &mut App, host_anchor: Entity) {
                     &mut player_index,
                     &mut session_registry,
                     &dim_channels,
+                    &mut mcrs_engine::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
             },

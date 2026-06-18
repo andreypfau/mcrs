@@ -135,6 +135,7 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
                     &mut player_index,
                     &mut session_registry,
                     &dim_channels,
+                    &mut mcrs_engine::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
 
@@ -144,6 +145,7 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
                     &mut player_index,
                     &mut session_registry,
                     &dim_channels,
+                    &mut mcrs_engine::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
             },

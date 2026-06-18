@@ -137,6 +137,7 @@ fn build_test_app() -> App {
     app.init_resource::<DimChannelsResource>();
     app.init_resource::<TransferLog>();
     app.init_resource::<HostTickCount>();
+    app.init_resource::<mcrs_engine::world::sub_app::DimDespawnQueue>();
 
     // Allocate label entities. The DimSubAppHandle marker is what
     // bridge_player_transfer's live-sub-app validation looks for.

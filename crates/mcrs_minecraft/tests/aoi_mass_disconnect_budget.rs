@@ -118,6 +118,7 @@ fn fire_disconnect(app: &mut App, anchors: &[Entity]) {
                             &mut player_index,
                             &mut session_registry,
                             &dim_channels,
+                            &mut mcrs_engine::world::sub_app::DimDespawnQueue::default(),
                             &mut commands,
                         );
                     } else if !pending_queue.push_back(host_anchor) {

@@ -45,9 +45,12 @@ use mcrs_engine::session::{PlayerSession, SessionRegistry};
 use crate::world::bus::{
     OutboundPlayerTransfer, OutboundPlayerTransferRequest, PacketPayload, PacketTarget,
 };
-use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim};
+use crate::world::channel_types::{
+    send_control_or_teardown, DimChannelsResource, FromDim, ToDim,
+};
 use crate::world::player_index::{HostAnchorRef, PendingInboundBuffer};
 use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
+use mcrs_engine::world::sub_app::DimDespawnQueue;
 
 /// Attach `OutboundQueue` and `InboundRateBucket` to any connection entity that
 /// carries `ServerSideConnection` but not yet an `OutboundQueue`.
@@ -674,6 +677,7 @@ pub fn bridge_player_transfer(
     mut transfer_msgs: ResMut<Messages<OutboundPlayerTransfer>>,
     mut session_registry: ResMut<SessionRegistry>,
     dim_channels: Res<DimChannelsResource>,
+    mut despawn_queue: ResMut<DimDespawnQueue>,
     live_dims: Query<Entity, With<DimSubAppHandle>>,
 ) {
     let valid_dims: FxHashSet<Entity> = live_dims.iter().collect();
@@ -700,17 +704,27 @@ pub fn bridge_player_transfer(
 
         if old_dim != Entity::PLACEHOLDER && old_dim != msg.dest_dim {
             if let Some(chan) = dim_channels.get(old_dim) {
-                let _ = chan.control_sender.try_send(ToDim::Despawn {
-                    host_anchor: msg.host_anchor,
-                });
+                send_control_or_teardown(
+                    &chan.control_sender,
+                    old_dim,
+                    ToDim::Despawn {
+                        host_anchor: msg.host_anchor,
+                    },
+                    &mut despawn_queue,
+                );
             }
         }
         if let Some(chan) = dim_channels.get(msg.dest_dim) {
-            let _ = chan.control_sender.try_send(ToDim::Spawn {
-                host_anchor: msg.host_anchor,
-                session,
-                snapshot: msg.snapshot.clone(),
-            });
+            send_control_or_teardown(
+                &chan.control_sender,
+                msg.dest_dim,
+                ToDim::Spawn {
+                    host_anchor: msg.host_anchor,
+                    session,
+                    snapshot: msg.snapshot.clone(),
+                },
+                &mut despawn_queue,
+            );
         }
     }
 }
@@ -908,6 +922,7 @@ mod tests {
         world.init_resource::<Messages<OutboundPlayerTransfer>>();
         world.init_resource::<SessionRegistry>();
         world.init_resource::<DimChannelsResource>();
+        world.init_resource::<mcrs_engine::world::sub_app::DimDespawnQueue>();
 
         let host_anchor = world.spawn_empty().id();
         let connection_entity = world.spawn_empty().id();
@@ -962,6 +977,7 @@ mod tests {
         world.init_resource::<Messages<OutboundPlayerTransfer>>();
         world.init_resource::<SessionRegistry>();
         world.init_resource::<DimChannelsResource>();
+        world.init_resource::<mcrs_engine::world::sub_app::DimDespawnQueue>();
 
         let host_anchor = world.spawn_empty().id();
         let connection_entity = world.spawn_empty().id();
@@ -1048,6 +1064,7 @@ mod tests {
         world.init_resource::<Messages<OutboundPlayerTransfer>>();
         world.init_resource::<SessionRegistry>();
         world.init_resource::<DimChannelsResource>();
+        world.init_resource::<mcrs_engine::world::sub_app::DimDespawnQueue>();
 
         let host_anchor = world.spawn_empty().id();
         let connection_entity = world.spawn_empty().id();

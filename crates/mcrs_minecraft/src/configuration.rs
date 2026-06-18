@@ -2,7 +2,8 @@ use crate::dimension_type::DimensionType;
 use crate::login::GameProfile;
 use crate::version::VERSION_ID;
 use crate::world::bus::PlayerTransferSnapshot;
-use crate::world::channel_types::{DimChannelsResource, ToDim};
+use crate::world::channel_types::{send_control_or_teardown, DimChannelsResource, ToDim};
+use mcrs_engine::world::sub_app::DimDespawnQueue;
 use crate::world::entity::player::column_view::ColumnView;
 use crate::world::player_index::HostAnchorRef;
 use mcrs_engine::session::SessionRegistry;
@@ -713,6 +714,7 @@ pub fn emit_initial_player_spawn(
     live_dims: Query<Entity, With<DimSubAppHandle>>,
     profiles: Query<&GameProfile>,
     dim_channels: Res<DimChannelsResource>,
+    mut despawn_queue: ResMut<DimDespawnQueue>,
 ) {
     let dim_label = match live_dims.iter().next() {
         Some(e) => e,
@@ -743,11 +745,16 @@ pub fn emit_initial_player_spawn(
             rotation: Vec2::ZERO,
         };
         entry.dim = dim_label;
-        let _ = chan.control_sender.try_send(ToDim::Spawn {
-            host_anchor,
-            session,
-            snapshot,
-        });
+        send_control_or_teardown(
+            &chan.control_sender,
+            dim_label,
+            ToDim::Spawn {
+                host_anchor,
+                session,
+                snapshot,
+            },
+            &mut despawn_queue,
+        );
     }
 }
 
