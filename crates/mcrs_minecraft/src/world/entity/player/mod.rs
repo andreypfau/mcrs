@@ -142,6 +142,7 @@ fn consume_inbound_player_spawn(
                     ),
                 PlayerBundle {
                     game_mode: PlayerGameMode(default_game_mode()),
+                    teleport_state: TeleportState::after_login(),
                     ..Default::default()
                 },
                 PlayerChunkObserver::default(),
@@ -263,7 +264,7 @@ fn consume_inbound_player_spawn(
             target: PacketTarget::SinglePlayer(host),
             priority: PacketPriority::Critical,
             data: PacketPayload::PlayerPosition {
-                teleport_id: 1,
+                teleport_id: TeleportState::LOGIN_TELEPORT_ID,
                 position: spawn_pos,
             },
         session: PlayerSession(0),

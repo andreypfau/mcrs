@@ -8,8 +8,8 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::session::PlayerSession;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_protocol::packets::game::serverbound::{
-    ServerboundMovePlayerPos, ServerboundMovePlayerPosRot, ServerboundMovePlayerRot,
-    ServerboundMovePlayerStatusOnly,
+    ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,
+    ServerboundMovePlayerRot, ServerboundMovePlayerStatusOnly,
 };
 use mcrs_protocol::MoveFlags;
 
@@ -21,6 +21,7 @@ pub struct MovementPlugin;
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         app.add_observer(handle_move_packets);
+        app.add_observer(handle_accept_teleportation);
         app.add_message::<PlayerMovement>();
         app.add_systems(FixedUpdate, process_movement);
         app.add_systems(FixedPostUpdate, teleport);
@@ -46,6 +47,34 @@ impl TeleportState {
 
     pub fn pending_teleports(&self) -> u32 {
         self.pending_teleports
+    }
+
+    /// Claim the next teleport id from the shared sequence and register a
+    /// pending confirmation. Used by both the login position sync and the
+    /// server-authoritative `teleport` system so login ids draw from the same
+    /// monotonic counter and can never alias a later teleport id.
+    pub fn next_teleport_id(&mut self) -> i32 {
+        let id = self.teleport_id_counter as i32;
+        self.teleport_id_counter = self.teleport_id_counter.wrapping_add(1);
+        self.pending_teleports = self.pending_teleports.wrapping_add(1);
+        id
+    }
+
+    /// Teleport id reserved for the login position sync. The spawn consumer
+    /// sends `PlayerPosition` with this id at login, so the runtime counter is
+    /// initialized past it (see [`Self::after_login`]) and the first
+    /// server-authoritative teleport draws the next id without aliasing.
+    pub const LOGIN_TELEPORT_ID: i32 = 0;
+
+    /// Initial state for a freshly spawned player whose login position sync has
+    /// already claimed [`Self::LOGIN_TELEPORT_ID`]. The counter starts past the
+    /// login id and one confirmation is outstanding for that login teleport.
+    pub fn after_login() -> Self {
+        Self {
+            teleport_id_counter: (Self::LOGIN_TELEPORT_ID as u32).wrapping_add(1),
+            pending_teleports: 1,
+            ..Default::default()
+        }
     }
 }
 
@@ -129,19 +158,35 @@ fn teleport(
         if changed_pos || changed_y_rot || changed_x_rot {
             state.synced_transform = *transform;
 
+            let teleport_id = state.next_teleport_id();
             packet_writer.write(OutboundPlayerPacket {
                 target: PacketTarget::SinglePlayer(anchor.0),
                 priority: PacketPriority::Critical,
                 data: PacketPayload::PlayerPosition {
-                    teleport_id: state.teleport_id_counter as i32,
+                    teleport_id,
                     position: transform.translation,
                 },
                 session: PlayerSession(0),
                 epoch: 0,
             });
-
-            state.pending_teleports = state.pending_teleports.wrapping_add(1);
-            state.teleport_id_counter = state.teleport_id_counter.wrapping_add(1);
         }
+    }
+}
+
+/// Decrement the pending-teleport counter when the client confirms a teleport.
+/// The server increments `pending_teleports` for every server-authoritative
+/// position it sends (login sync and each `teleport` emit); without this the
+/// counter would grow without bound and any gate on it would block the player
+/// permanently. `event.entity` is the in-dim player entity, matching the
+/// `TeleportState` owner.
+fn handle_accept_teleportation(
+    event: On<ReceivedPacketEvent>,
+    mut players: Query<&mut TeleportState>,
+) {
+    if event.decode::<ServerboundAcceptTeleportation>().is_none() {
+        return;
+    }
+    if let Ok(mut state) = players.get_mut(event.entity) {
+        state.pending_teleports = state.pending_teleports.saturating_sub(1);
     }
 }
