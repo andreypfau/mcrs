@@ -2,7 +2,7 @@ use crate::login::GameProfile;
 use crate::world::bus::{
     ArrivalCause, MovePayload, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
-use crate::world::entity::player::{DisconnectReason, HostAnchor};
+use crate::world::entity::player::HostAnchor;
 use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
@@ -129,7 +129,6 @@ fn handle_chat(
     event: On<ReceivedPacketEvent>,
     sender_query: Query<(&GameProfile, Option<&ChatMode>, &HostAnchor)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-    mut commands: Commands,
 ) {
     let Some(pkt) = event.decode::<ServerboundChat>() else {
         return;
@@ -139,12 +138,10 @@ fn handle_chat(
     };
     let msg = pkt.message;
     if is_chat_message_illegal(&msg) {
-        commands
-            .entity(event.entity)
-            .insert(DisconnectReason(Text::translate(
-                "multiplayer.disconnect.illegal_characters",
-                vec![],
-            )));
+        info!(
+            player = %profile.username,
+            "dropping chat message with illegal characters"
+        );
         return;
     }
 

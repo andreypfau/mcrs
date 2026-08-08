@@ -1,5 +1,3 @@
-use crate::client_info::ClientViewDistance;
-use crate::configuration::LoadedWorldPreset;
 use crate::login::GameProfile;
 use crate::world::bus::{
     InboundConfirmMove, InboundPlayerDespawn, InboundPlayerSpawn, InboundRollbackMove,
@@ -15,20 +13,14 @@ use crate::world::entity::player::inventory::PlayerInventoryPlugin;
 use crate::world::entity::player::movement::MovementPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
 use crate::world::entity::{EntityBundle, MinecraftEntityType};
-use crate::world::inventory::{ContainerSeqno, PlayerInventoryBundle, PlayerInventoryQuery};
-use crate::world::item::minecraft::DIAMOND_PICKAXE;
-use crate::world::item::{ItemCommands, ItemStack};
-use bevy_app::{FixedUpdate, Plugin, PostUpdate, Update};
+use crate::world::inventory::{ContainerSeqno, PlayerInventoryBundle};
+use bevy_app::{FixedUpdate, Plugin, Update};
 use bevy_ecs::bundle::Bundle;
-use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::{Changed, Commands, Has, Query, RemovedComponents, Res, ResMut, With};
-use bevy_ecs::query::Added;
-use bevy_math::DVec3;
-use derive_more::{Deref, DerefMut};
+use bevy_ecs::prelude::{Commands, Query, ResMut, With};
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDistance};
@@ -37,14 +29,7 @@ use mcrs_engine::entity::{Despawned, EntityNetworkAddEvent, InTransit};
 use mcrs_engine::world::dimension::{Dimension, DimensionId, InDimension};
 use mcrs_engine::session::{DimPlayerIndex, Owner, PlayerSession};
 use crate::world::sub_app_builder::DimTypeIndex;
-use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
-use mcrs_protocol::entity::player::PlayerSpawnInfo;
-use mcrs_protocol::item::ComponentPatch;
-use mcrs_protocol::packets::game::clientbound::{
-    ClientboundContainerSetContent, ClientboundDisconnect, ClientboundEntityEvent,
-    ClientboundGameEvent, ClientboundLogin, ClientboundPlayerPosition,
-};
-use mcrs_protocol::{GameEventKind, GameMode, Look, Slot, Text, VarInt, WritePacket};
+use mcrs_protocol::GameMode;
 use movement::TeleportState;
 use tracing::{debug, info};
 
@@ -109,21 +94,6 @@ impl Plugin for DimPlayerPlugin {
     }
 }
 
-/// Plugin for the host (MainWorld) only. Registers the connection-lifecycle
-/// systems that query `ServerSideConnection` / `InGameConnectionState`.
-/// Not wired onto the host app until the host plugin set is refactored in
-/// a future phase; currently the host registers these systems directly in
-/// its own plugin composition.
-pub struct HostPlayerPlugin;
-
-impl Plugin for HostPlayerPlugin {
-    fn build(&self, app: &mut bevy_app::App) {
-        app.add_systems(Update, spawn_player);
-        app.add_systems(FixedUpdate, (disconnect_player, added_inventory, resync_player));
-        app.add_systems(PostUpdate, despawn_disconnected_clients);
-    }
-}
-
 #[derive(Bundle, Default)]
 pub struct PlayerBundle {
     pub teleport_state: TeleportState,
@@ -138,161 +108,6 @@ pub struct PlayerBundle {
     pub chunk_subscription_set: crate::world::aoi::ChunkSubscriptionSet,
     pub tracked_by: crate::world::aoi::TrackedBy,
     pub marker: Player,
-}
-
-/// Marker component that triggers a full re-sync of player state to the client.
-/// Added during reconfiguration to re-send position, inventory, etc.
-#[derive(Component)]
-#[component(storage = "SparseSet")]
-pub struct ResyncPlayer;
-
-#[derive(Clone, Debug, PartialEq, Component, Deref, DerefMut)]
-pub struct DisconnectReason(pub Text);
-
-fn spawn_player(
-    world_preset: Res<LoadedWorldPreset>,
-    dimensions: Query<(Entity, &DimensionId), With<Dimension>>,
-    mut query: Query<
-        (
-            Entity,
-            &ClientViewDistance,
-            &ConnectionState,
-            &GameProfile,
-            &mut ServerSideConnection,
-            Has<Player>,
-            Option<&PlayerGameMode>,
-            Option<&PlayerOpLevel>,
-        ),
-        Changed<ConnectionState>,
-    >,
-    mut commands: Commands,
-) {
-    // Wait for the world preset to be loaded via Bevy assets
-    if !world_preset.is_loaded {
-        return;
-    }
-
-    query
-        .iter_mut()
-        .for_each(|(entity, distance, con_state, profile, mut con, is_reconfiguration, existing_game_mode, existing_op_level)| {
-            if *con_state != ConnectionState::Game {
-                return;
-            }
-            let game_mode = existing_game_mode
-                .map(|gm| gm.0)
-                .unwrap_or_else(default_game_mode);
-            let op_level = existing_op_level
-                .copied()
-                .unwrap_or(PlayerOpLevel(PlayerOpLevel::MAX));
-            // Find dimension by first DimensionId in preset order
-            let dim = if let Some((first_dim_key, _)) = world_preset.dimensions.first() {
-                // Look for the dimension entity matching the first preset dimension
-                dimensions
-                    .iter()
-                    .find(|(_, dim_id)| dim_id.as_str() == first_dim_key.as_str())
-                    .map(|(entity, _)| entity)
-            } else {
-                // Fallback: use any available dimension if preset is empty
-                dimensions.iter().next().map(|(entity, _)| entity)
-            };
-            let Some(dim) = dim else {
-                tracing::warn!("No dimension found! Can't spawn player yet - dimensions may still be loading.");
-                return;
-            };
-
-            if is_reconfiguration {
-                // Reconfiguration: player already exists, re-send login with updated dimension types
-                info!("Reconfiguring player {:?} with updated registries", entity);
-
-                con.write_packet(&ClientboundLogin {
-                    player_id: entity.index_u32() as i32,
-                    hardcore: false,
-                    dimensions: world_preset
-                        .dimensions
-                        .iter()
-                        .map(|(dim_key, _)| dim_key.clone().into())
-                        .collect(),
-                    max_players: VarInt(100),
-                    chunk_radius: VarInt(12),
-                    simulation_distance: VarInt(12),
-                    reduced_debug_info: false,
-                    show_death_screen: false,
-                    do_limited_crafting: false,
-                    player_spawn_info: PlayerSpawnInfo {
-                        game_mode,
-                        ..Default::default()
-                    },
-                    enforces_secure_chat: false,
-                });
-                con.write_packet(&ClientboundGameEvent {
-                    game_event: GameEventKind::LevelChunksLoadStart,
-                });
-                con.write_packet(&ClientboundEntityEvent {
-                    entity_id: entity.index_u32() as i32,
-                    entity_status: op_level.entity_status(),
-                });
-
-                // Insert marker to trigger re-sync of position, inventory, chunks
-                commands.entity(entity).insert((
-                    ResyncPlayer,
-                    PlayerChunkObserver::default(),
-                ));
-            } else {
-                // Initial spawn: full login flow
-                con.write_packet(&ClientboundLogin {
-                    player_id: entity.index_u32() as i32,
-                    hardcore: false,
-                    dimensions: world_preset
-                        .dimensions
-                        .iter()
-                        .map(|(dim_key, _)| dim_key.clone().into())
-                        .collect(),
-                    max_players: VarInt(100),
-                    chunk_radius: VarInt(12),
-                    simulation_distance: VarInt(12),
-                    reduced_debug_info: false,
-                    show_death_screen: false,
-                    do_limited_crafting: false,
-                    player_spawn_info: PlayerSpawnInfo {
-                        game_mode,
-                        ..Default::default()
-                    },
-                    enforces_secure_chat: false,
-                });
-                con.write_packet(&ClientboundGameEvent {
-                    game_event: GameEventKind::LevelChunksLoadStart,
-                });
-                con.write_packet(&ClientboundEntityEvent {
-                    entity_id: entity.index_u32() as i32,
-                    entity_status: op_level.entity_status(),
-                });
-                let pos = DVec3::new(0.0, 64.0, 0.0);
-
-                let pickaxe = commands.spawn_item_stack(&DIAMOND_PICKAXE, 1);
-                let mut inventory = PlayerInventoryBundle::default();
-                inventory.hotbar.slots[0] = Some(pickaxe);
-
-                commands.entity(entity).insert((
-                    PlayerChunkObserver {
-                        ..Default::default()
-                    },
-                    EntityBundle::new(InDimension(dim))
-                        .with_uuid(profile.id)
-                        .with_transform(Transform::default().with_translation(pos)),
-                    PlayerBundle {
-                        view_distance: PlayerViewDistance {
-                            distance: **distance,
-                            ..Default::default()
-                        },
-                        inventory,
-                        game_mode: PlayerGameMode(game_mode),
-                        op_level,
-                        ..Default::default()
-                    },
-                ));
-                commands.trigger(PlayerJoinEvent { player: entity });
-            }
-        });
 }
 
 /// Per-dim system that materialises an in-dim player entity from an
@@ -572,63 +387,6 @@ fn player_joined(
     }
 }
 
-fn disconnect_player(
-    mut players: Query<(&mut ServerSideConnection, &DisconnectReason), With<InGameConnectionState>>,
-) {
-    players.iter_mut().for_each(|(mut con, reason)| {
-        let reason = reason.0.clone();
-        con.write_packet(&ClientboundDisconnect { reason })
-    })
-}
-
-fn despawn_disconnected_clients(
-    mut commands: Commands,
-    mut disconnected_clients: RemovedComponents<ServerSideConnection>,
-) {
-    disconnected_clients.read().for_each(|entity| {
-        if let Ok(mut entity) = commands.get_entity(entity) {
-            entity.insert(Despawned);
-        }
-    })
-}
-
-fn added_inventory(
-    mut players: Query<
-        (
-            &mut ServerSideConnection,
-            PlayerInventoryQuery,
-            &ContainerSeqno,
-        ),
-        (With<Player>, Added<ContainerSeqno>),
-    >,
-    items: Query<&ItemStack >,
-) {
-    for (mut con, inventory, seqno) in players.iter_mut() {
-        let slots = inventory
-            .all_slots()
-            .iter()
-            .map(|slot| {
-                slot.and_then(|slot| items.get(slot).ok())
-                    .map(|item| Slot::new(item.item_id(), item.count(), ComponentPatch::EMPTY))
-                    .unwrap_or(Slot::EMPTY)
-            })
-            .collect();
-        let carried_item = inventory
-            .carried_item
-            .and_then(|slot| items.get(slot).ok())
-            .map(|item| Slot::new(item.item_id(), item.count(), ComponentPatch::EMPTY))
-            .unwrap_or(Slot::EMPTY);
-
-        let pkt = ClientboundContainerSetContent {
-            container_id: VarInt(0),
-            state_seqno: VarInt((**seqno) as i32),
-            slot_data: slots,
-            carried_item,
-        };
-        con.write_packet(&pkt);
-    }
-}
-
 /// Source-dim system: when `ConfirmMove` arrives, find the in-transit entity
 /// and despawn it — the entity has safely arrived at the target and is no longer
 /// needed in the source dim.
@@ -661,59 +419,6 @@ pub fn unhide_on_rollback(
                 break;
             }
         }
-    }
-}
-
-fn resync_player(
-    mut players: Query<
-        (
-            Entity,
-            &mut ServerSideConnection,
-            &Transform,
-            PlayerInventoryQuery,
-            &ContainerSeqno,
-        ),
-        Added<ResyncPlayer>,
-    >,
-    items: Query<&ItemStack>,
-    mut commands: Commands,
-) {
-    for (entity, mut con, transform, inventory, seqno) in players.iter_mut() {
-        // Re-send position
-        con.write_packet(&ClientboundPlayerPosition {
-            teleport_id: VarInt(0),
-            position: transform.translation,
-            velocity: DVec3::ZERO,
-            look: Look {
-                yaw: transform.rotation.y,
-                pitch: transform.rotation.x,
-            },
-            flags: vec![],
-        });
-
-        // Re-send inventory
-        let slots = inventory
-            .all_slots()
-            .iter()
-            .map(|slot| {
-                slot.and_then(|slot| items.get(slot).ok())
-                    .map(|item| Slot::new(item.item_id(), item.count(), ComponentPatch::EMPTY))
-                    .unwrap_or(Slot::EMPTY)
-            })
-            .collect();
-        let carried_item = inventory
-            .carried_item
-            .and_then(|slot| items.get(slot).ok())
-            .map(|item| Slot::new(item.item_id(), item.count(), ComponentPatch::EMPTY))
-            .unwrap_or(Slot::EMPTY);
-        con.write_packet(&ClientboundContainerSetContent {
-            container_id: VarInt(0),
-            state_seqno: VarInt((**seqno) as i32),
-            slot_data: slots,
-            carried_item,
-        });
-
-        commands.entity(entity).remove::<ResyncPlayer>();
     }
 }
 
