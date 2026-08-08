@@ -52,13 +52,53 @@ fn dim_world_contains_no_host_only_resources() {
     }
 }
 
+/// The per-dim `DimPlayerPlugin::build` body must never register the host-only
+/// `spawn_player` login system. `spawn_player` queries `ServerSideConnection`,
+/// which is MainWorld-only, so running it inside a DimWorld sub-app is a bug.
+///
+/// This scans the `DimPlayerPlugin::build` block specifically (not the whole
+/// file) so it stays robust to the `Update` vs `bevy_app::Update` spelling and
+/// fails if `spawn_player` is reintroduced into the dim plugin set even though
+/// other plugins or host-side code may legitimately reference the name.
 #[test]
 fn spawn_player_not_in_dim_plugin() {
-    let source: &str =
-        include_str!("../../mcrs_minecraft/src/world/entity/player/mod.rs");
+    let source: &str = include_str!("../../mcrs_minecraft/src/world/entity/player/mod.rs");
+
+    let build_body = dim_player_plugin_build_body(source);
     assert!(
-        !source.contains("add_systems(bevy_app::Update, spawn_player)"),
-        "spawn_player must not be registered on bevy_app::Update in the dim plugin set; \
-         it is a host-only spawn path that must not run in DimWorld"
+        !build_body.contains("spawn_player"),
+        "spawn_player must not be registered inside DimPlayerPlugin::build; \
+         it is a host-only spawn path (queries ServerSideConnection) that must \
+         not run in DimWorld. DimPlayerPlugin::build body was:\n{build_body}"
     );
+}
+
+/// Extract the brace-delimited body of `impl Plugin for DimPlayerPlugin`'s
+/// `fn build`. Panics if the block cannot be located so the gate fails loudly
+/// rather than silently passing if the plugin is renamed or restructured.
+fn dim_player_plugin_build_body(source: &str) -> &str {
+    let impl_start = source
+        .find("impl Plugin for DimPlayerPlugin")
+        .expect("DimPlayerPlugin impl must exist in player/mod.rs");
+    let after_impl = &source[impl_start..];
+    let build_start = after_impl
+        .find("fn build")
+        .expect("DimPlayerPlugin must have a build fn");
+    let body = &after_impl[build_start..];
+    let open = body.find('{').expect("build fn must have an opening brace");
+
+    let mut depth = 0usize;
+    for (offset, ch) in body[open..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return &body[open..=open + offset];
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("unterminated DimPlayerPlugin::build block");
 }
