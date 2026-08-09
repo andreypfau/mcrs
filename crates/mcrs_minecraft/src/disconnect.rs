@@ -196,12 +196,11 @@ pub fn process_disconnect(
             None => return,
         };
 
-    let _ = session;
     if let Some(chan) = dim_channels.get(current_dim) {
         send_control_or_teardown(
             &chan.control_sender,
             current_dim,
-            ToDim::Despawn { host_anchor },
+            ToDim::Despawn { host_anchor, session },
             despawn_queue,
         );
     }
@@ -213,7 +212,7 @@ pub fn process_disconnect(
             send_control_or_teardown(
                 &chan.control_sender,
                 prev,
-                ToDim::Despawn { host_anchor },
+                ToDim::Despawn { host_anchor, session },
                 despawn_queue,
             );
         }

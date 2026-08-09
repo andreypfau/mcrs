@@ -394,11 +394,8 @@ fn drain_to_dim_inbox(
             ToDim::Spawn { host_anchor, session, snapshot, dimensions } => {
                 spawn_msgs.write(InboundPlayerSpawn { host_anchor, session, snapshot, dimensions });
             }
-            ToDim::Despawn { host_anchor } => {
-                despawn_msgs.write(InboundPlayerDespawn {
-                    host_anchor,
-                    session: mcrs_engine::session::PlayerSession(0),
-                });
+            ToDim::Despawn { host_anchor, session } => {
+                despawn_msgs.write(InboundPlayerDespawn { host_anchor, session });
             }
             ToDim::Serverbound { .. } => {}
             ToDim::SpawnEntity { move_id, epoch, cause, payload, player } => {

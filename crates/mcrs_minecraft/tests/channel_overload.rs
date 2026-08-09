@@ -255,7 +255,7 @@ fn dim_teardown_only_on_control_reserve_exhausted() {
     let result = {
         let channels = world.resource::<DimChannelsResource>();
         let entry = channels.get(dim).expect("channel present");
-        entry.control_sender.try_send(ToDim::Despawn { host_anchor: anchor })
+        entry.control_sender.try_send(ToDim::Despawn { host_anchor: anchor, session: PlayerSession(1) })
     };
     assert!(
         result.is_err(),
@@ -297,7 +297,7 @@ fn control_full_enqueues_dim_teardown() {
     let (ok_tx, ok_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
     let ok_sender = DimSender::new(ok_tx);
     let mut queue = DimDespawnQueue::default();
-    send_control_or_teardown(&ok_sender, dim, ToDim::Despawn { host_anchor: dim }, &mut queue);
+    send_control_or_teardown(&ok_sender, dim, ToDim::Despawn { host_anchor: dim, session: PlayerSession(1) }, &mut queue);
     assert!(queue.0.is_empty(), "a control channel with room must not schedule teardown");
     assert!(
         matches!(ok_rx.try_recv(), Ok(ToDim::Despawn { .. })),
@@ -320,11 +320,11 @@ fn control_full_enqueues_dim_teardown() {
             .expect("fill control channel");
     }
     let mut queue = DimDespawnQueue::default();
-    send_control_or_teardown(&full_sender, dim, ToDim::Despawn { host_anchor: dim }, &mut queue);
+    send_control_or_teardown(&full_sender, dim, ToDim::Despawn { host_anchor: dim, session: PlayerSession(1) }, &mut queue);
     assert_eq!(queue.0, vec![dim], "a saturated control channel must schedule the dim for teardown");
 
     // A second failed send for the same dim must not double-enqueue.
-    send_control_or_teardown(&full_sender, dim, ToDim::Despawn { host_anchor: dim }, &mut queue);
+    send_control_or_teardown(&full_sender, dim, ToDim::Despawn { host_anchor: dim, session: PlayerSession(1) }, &mut queue);
     assert_eq!(queue.0, vec![dim], "teardown scheduling must be deduplicated per dim");
 }
 

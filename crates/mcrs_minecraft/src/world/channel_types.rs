@@ -40,8 +40,12 @@ pub enum ToDim {
     },
     /// The host signals that a player is leaving this dim (disconnected or
     /// transferred). The dim should despawn the player's in-dim entity.
+    /// `session` carries the real `PlayerSession` so the dim can evict the
+    /// matching `DimPlayerIndex` entry; the entity despawn itself keys off
+    /// `host_anchor`.
     Despawn {
         host_anchor: Entity,
+        session: PlayerSession,
     },
     /// Confirmed-move spawn command to the target dim.  Non-sheddable.
     SpawnEntity {

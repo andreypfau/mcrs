@@ -110,19 +110,17 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
             .insert(current_dim, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
         ctl_rx
     };
-    {
-        let session = app
-            .world()
-            .resource::<SessionRegistry>()
-            .get_by_anchor(&host_anchor)
-            .map(|(s, _)| *s)
-            .expect("session present");
-        app.world_mut()
-            .resource_mut::<SessionRegistry>()
-            .get_mut(&session)
-            .expect("entry present")
-            .dim = current_dim;
-    }
+    let session = app
+        .world()
+        .resource::<SessionRegistry>()
+        .get_by_anchor(&host_anchor)
+        .map(|(s, _)| *s)
+        .expect("session present");
+    app.world_mut()
+        .resource_mut::<SessionRegistry>()
+        .get_mut(&session)
+        .expect("entry present")
+        .dim = current_dim;
 
     app.world_mut()
         .run_system_once(
@@ -171,8 +169,15 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
         "exactly one despawn routed to control channel (second call short-circuits)",
     );
     match &despawn_msgs[0] {
-        mcrs_minecraft::world::channel_types::ToDim::Despawn { host_anchor: ha } => {
+        mcrs_minecraft::world::channel_types::ToDim::Despawn {
+            host_anchor: ha,
+            session: sess,
+        } => {
             assert_eq!(*ha, host_anchor);
+            assert_eq!(
+                *sess, session,
+                "despawn must carry the real session so the dim can evict its DimPlayerIndex entry"
+            );
         }
         other => panic!("expected ToDim::Despawn, got {other:?}"),
     }
