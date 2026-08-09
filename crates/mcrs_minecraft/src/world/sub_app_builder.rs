@@ -427,13 +427,25 @@ fn drain_to_dim_inbox(
     }
 }
 
+/// Emit a `FromDim`-channel-full warning on the first drop and then once every
+/// this many further drops, so a saturated channel is visible in logs without
+/// flooding them.
+const FROM_DIM_DROP_LOG_INTERVAL: u64 = 256;
+
 /// Drains the dim's local `Messages<OutboundPlayerPacket>` into the `FromDim`
 /// channel so the host-side `pump_channels` can epoch-stamp and forward them.
+///
+/// A full channel means the host is not draining fast enough; the packet is
+/// dropped (clientbound packet loss is recoverable like network loss), but the
+/// loss is counted in `FROM_DIM_CHANNEL_DROP_TOTAL` and surfaced via a
+/// rate-limited warning so saturation is not silently invisible.
 fn flush_from_dim_outbox(
     mut msgs: ResMut<Messages<OutboundPlayerPacket>>,
     sender: Res<FromDimSender<FromDim>>,
+    mut dropped_since_log: Local<u64>,
 ) {
     use mcrs_engine::session::PlayerSession;
+    use std::sync::atomic::Ordering;
     for msg in msgs.drain() {
         let outbound = FromDim::Clientbound {
             target: msg.target,
@@ -442,12 +454,17 @@ fn flush_from_dim_outbox(
             session: PlayerSession(0),
             epoch: 0,
         };
-        match sender.0.try_send(outbound) {
-            Ok(()) => {}
-            Err(_) => {
-                // FromDim channel full: the dim's own outbox self-throttles.
-                // Drop the packet — the dim will shed further output until
-                // the host drains the channel.
+        if sender.0.try_send(outbound).is_err() {
+            mcrs_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL.fetch_add(1, Ordering::Relaxed);
+            let total = mcrs_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL.load(Ordering::Relaxed);
+            *dropped_since_log += 1;
+            if *dropped_since_log == 1 || dropped_since_log.is_multiple_of(FROM_DIM_DROP_LOG_INTERVAL)
+            {
+                warn!(
+                    target: "mcrs_minecraft::bridge",
+                    from_dim_drop_total = total,
+                    "FromDim channel full; dropping clientbound packet (host not draining)"
+                );
             }
         }
     }

@@ -14,6 +14,9 @@ pub static BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL: AtomicU64 = AtomicU64::new(0)
 pub static BRIDGE_OUTBOUND_MESSAGES_CONSUMED_TOTAL: AtomicU64 = AtomicU64::new(0);
 pub static BRIDGE_ENCODE_UNHANDLED_TOTAL: AtomicU64 = AtomicU64::new(0);
 pub static BRIDGE_OUTBOUND_NO_QUEUE_TOTAL: AtomicU64 = AtomicU64::new(0);
+/// Clientbound packets dropped because a dimension's `FromDim` channel was at
+/// capacity when `flush_from_dim_outbox` tried to forward them to the host.
+pub static FROM_DIM_CHANNEL_DROP_TOTAL: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy)]
 pub struct BridgeTelemetrySnapshot {
@@ -31,6 +34,7 @@ pub struct BridgeTelemetrySnapshot {
     pub outbound_messages_consumed_total: u64,
     pub encode_unhandled_total: u64,
     pub outbound_no_queue_total: u64,
+    pub from_dim_channel_drop_total: u64,
 }
 
 pub fn snapshot() -> BridgeTelemetrySnapshot {
@@ -51,6 +55,7 @@ pub fn snapshot() -> BridgeTelemetrySnapshot {
             .load(Ordering::Relaxed),
         encode_unhandled_total: BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed),
         outbound_no_queue_total: BRIDGE_OUTBOUND_NO_QUEUE_TOTAL.load(Ordering::Relaxed),
+        from_dim_channel_drop_total: FROM_DIM_CHANNEL_DROP_TOTAL.load(Ordering::Relaxed),
     }
 }
 
