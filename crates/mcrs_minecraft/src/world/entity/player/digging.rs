@@ -250,8 +250,13 @@ fn player_stop_destroy_block(
         if digging.block_pos != block_pos {
             return;
         }
+        // Vanilla destroys the block only once the full server-computed break
+        // duration has elapsed. `progress` saturates at 1.0, and the
+        // `+ time.timestep()` lookahead grants exactly one fixed tick of lag
+        // tolerance, so requiring `>= 1.0` matches vanilla without the
+        // item-duplication window a lower threshold (e.g. 0.7) would open.
         let progress = digging.progress(time.elapsed() + time.timestep());
-        if progress >= 0.7 {
+        if progress >= 1.0 {
             debug!("destroy block: {:?}", block_pos);
             destroy_block_progress.execute(dim.entity(), player, digging.block_pos, -1);
             let event = PlayerWillDestroyBlock {
