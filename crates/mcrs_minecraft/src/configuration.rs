@@ -56,11 +56,11 @@ const DEFAULT_WORLD_PRESET: &str = "normal";
 /// Canonical list of registries that the server synchronizes via
 /// `ClientboundRegistryData` during the Configuration phase.
 ///
-/// `RegistryAccess` holds 27 registries total (22 dynamic + 5 static), but
-/// only 23 of them are protocol-synced. The 4 non-synced static registries
-/// — block, item, sound_event, entity_type — remain in `RegistryAccess`
-/// for internal lookups but must not be sent as `ClientboundRegistryData`.
-/// Enchantment is the only static registry that is synced.
+/// 28 registries are protocol-synced (see `synced_registries_count`). The
+/// non-synced static registries — block, item, sound_event, entity_type —
+/// remain in `RegistryAccess` for internal lookups but must not be sent as
+/// `ClientboundRegistryData`. Enchantment is the only static registry that
+/// is synced.
 ///
 /// The list is sorted alphabetically so the protocol send order is
 /// deterministic and reproducible across restarts.
@@ -405,6 +405,15 @@ fn sync_dimension_type_changes(
 /// re-trigger the negotiation while a previous negotiation is still in
 /// flight (e.g. a stray `Changed<ConnectionState>` event from a separate
 /// system mutating other connection components).
+///
+/// Runs in `FixedPreUpdate` and reacts to `Changed<ConnectionState>`. The edge
+/// is set by the `handle_login_acknowledged` observer, which fires during
+/// inbound packet processing in `FixedPostUpdate`. `Changed<T>` is evaluated
+/// against this system's own last-run tick, not a single frame's edge, and the
+/// system has no run condition, so it runs every fixed tick. It therefore
+/// cannot miss the transition even when several fixed ticks elapse in one
+/// main-loop frame: the change set in one tick's `FixedPostUpdate` is observed
+/// at the next tick's `FixedPreUpdate`.
 fn on_configuration_enter(
     mut query: Query<
         (Entity, &mut ServerSideConnection, &ConnectionState),
@@ -430,7 +439,7 @@ fn on_configuration_enter(
 
 /// Step 2 of the Configuration handshake: triggered by
 /// `ServerboundSelectKnownPacks`. Sends `ClientboundRegistryData` for the
-/// 23 synced registries (alphabetical order), the `environment_attribute`
+/// 28 synced registries (alphabetical order), the `environment_attribute`
 /// special case, `ClientboundUpdateTags` for the 7 tag-capable registries,
 /// and finally `ClientboundFinishConfiguration`. Removes the
 /// `AwaitingKnownPacks` marker so the connection is eligible for future
@@ -464,7 +473,7 @@ fn on_known_packs_response(
         "Received KnownPacks response"
     );
 
-    // RegistryData: filter to the 23 protocol-synced registries and send
+    // RegistryData: filter to the 28 protocol-synced registries and send
     // them in alphabetical order by registry key for deterministic output.
     let mut registries: Vec<&dyn ErasedRegistrySnapshot> = access
         .iter()
@@ -806,12 +815,6 @@ pub fn get_world_preset_name() -> String {
                 );
                 return DEFAULT_WORLD_PRESET.to_string();
             }
-
-            let _path_name = if preset_name.contains(':') {
-                preset_name.split(':').next_back().unwrap_or(&preset_name)
-            } else {
-                &preset_name
-            };
 
             info!(
                 preset = %preset_name,
