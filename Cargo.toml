@@ -92,6 +92,28 @@ tokio = { version = "1", features = ["full"] }
 mcrs_minecraft.workspace = true
 mcrs_telemetry.workspace = true
 
+[dev-dependencies]
+bevy = { version = "0.19.1", default-features = false, features = [
+    "std",
+    "async_executor",
+    "bevy_asset",
+    "bevy_log",
+    "bevy_window",
+    "bevy_winit",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_image",
+    "png",
+] }
+serde.workspace = true
+serde_json.workspace = true
+
+[[example]]
+name = "block_viewer"
+path = "examples/block_viewer/main.rs"
+test = true
+
 [features]
 telemetry = ["mcrs_minecraft/telemetry"]
 telemetry-tracy = ["mcrs_minecraft/telemetry-tracy"]
