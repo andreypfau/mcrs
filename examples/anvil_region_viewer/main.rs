@@ -6,8 +6,9 @@
 //! ```
 //!
 //! Drag with the left mouse button to orbit, scroll to zoom, hold shift while dragging to pan.
-//! Press F10 to draw every triangle's edges in a colour derived from its texture, F11 for borderless
-//! fullscreen, which is the only way to read a real frame rate on macOS, and F12 to save a PNG.
+//! Press C to toggle cave culling, F10 to draw every triangle's edges in a colour derived from its
+//! texture, F11 for borderless fullscreen, which is the only way to read a real frame rate on macOS,
+//! and F12 to save a PNG.
 //!
 //! The region is static, so the whole pipeline is built around loading once and never touching the
 //! geometry again: blocks are baked per distinct block state rather than per block, full cubes are
@@ -25,6 +26,7 @@ mod bake;
 mod anvil;
 mod atlas;
 mod blocks;
+mod cave;
 mod mesh;
 mod render;
 
@@ -32,6 +34,7 @@ use std::fmt::Write as _;
 use std::sync::Arc;
 use std::time::Instant;
 
+use bevy::camera::visibility::VisibilitySystems;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::render::RenderPlugin;
@@ -57,13 +60,14 @@ fn main() {
             .into_owned()
     });
 
-    let geometry = match load(std::path::Path::new(&path)) {
-        Ok(geometry) => Arc::new(geometry),
+    let (geometry, cave) = match load(std::path::Path::new(&path)) {
+        Ok(loaded) => loaded,
         Err(error) => {
             eprintln!("cannot load {path}: {error}");
             std::process::exit(1);
         }
     };
+    let geometry = Arc::new(geometry);
 
     App::new()
         .add_plugins(DefaultPlugins
@@ -107,16 +111,22 @@ fn main() {
         ))
         .add_plugins(TerrainPlugin(geometry))
         .insert_resource(ClearColor(Color::srgb(0.55, 0.70, 0.94)))
+        .insert_resource(cave)
         .add_systems(Startup, (spawn_camera, spawn_overlay))
         .add_systems(Update, orbit)
         .add_systems(Update, frame_stats)
         .add_systems(Update, screenshot)
         .add_systems(Update, toggle_fullscreen)
         .add_systems(Update, toggle_wireframe)
+        .add_systems(Update, cave::toggle)
+        .add_systems(
+            PostUpdate,
+            cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
+        )
         .run();
 }
 
-fn load(path: &std::path::Path) -> Result<Geometry, String> {
+fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
     let started = Instant::now();
     let region = anvil::load(path)?;
     let parsed = started.elapsed();
@@ -154,6 +164,13 @@ fn load(path: &std::path::Path) -> Result<Geometry, String> {
         );
     }
 
+    let closed = region_mesh
+        .connectivity
+        .iter()
+        .filter(|mask| **mask == 0)
+        .count();
+    println!("{closed} sections are fully closed to sight lines");
+
     // A zero-length storage buffer is not a legal binding, so every arena keeps at least one entry.
     if region_mesh.simple.is_empty() {
         region_mesh.simple.push(0);
@@ -166,17 +183,25 @@ fn load(path: &std::path::Path) -> Result<Geometry, String> {
     }
 
     let sprites = catalog.sprites;
-    Ok(Geometry {
-        simple: region_mesh.simple,
-        complex: region_mesh.complex,
-        groups: region_mesh.groups,
-        streams: region_mesh.streams,
-        min_section_y: region.min_section_y,
-        atlas_size: sprites.size(),
-        atlas_layers: sprites.len() as u32,
-        atlas_mips: sprites.mip_chain(),
-        tint_map: blocks::tint_map(&region, &catalog.tints),
-    })
+    let cave = cave::CaveCull::new(
+        region_mesh.connectivity,
+        region.sections_y,
+        region.min_section_y,
+    );
+    Ok((
+        Geometry {
+            simple: region_mesh.simple,
+            complex: region_mesh.complex,
+            groups: region_mesh.groups,
+            streams: region_mesh.streams,
+            min_section_y: region.min_section_y,
+            atlas_size: sprites.size(),
+            atlas_layers: sprites.len() as u32,
+            atlas_mips: sprites.mip_chain(),
+            tint_map: blocks::tint_map(&region, &catalog.tints),
+        },
+        cave,
+    ))
 }
 
 /// Frame times over the last second, kept in a fixed ring so the counter itself never allocates
@@ -220,6 +245,7 @@ fn frame_stats(
     time: Res<Time>,
     mut stats: ResMut<FrameStats>,
     triangles: Res<DrawnTriangles>,
+    cave: Res<cave::CaveCull>,
     overlay: Single<&mut Text>,
 ) {
     let delta = time.delta_secs();
@@ -255,6 +281,14 @@ fn frame_stats(
         "{fps:.0} fps   {} tris   p95 {p95:.1} ms   p99 {p99:.1} ms",
         triangles.get(),
     );
+    if cave.enabled {
+        let _ = write!(overlay.0, "   cave {} sections", cave.reached());
+    } else {
+        overlay.0.push_str("   cave off");
+    }
+    // The `ANVIL_SCREENSHOT` shot is taken on frame 30, and the overlay is first written only after
+    // a second of accumulated time, so it is blank in the PNG. The numbers do reach stdout.
+    info!("{}", overlay.0);
 
     stats.frames = 0;
     stats.written = 0;

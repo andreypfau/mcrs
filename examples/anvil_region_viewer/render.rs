@@ -22,7 +22,7 @@ use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery
 use bevy::render::view::{
     ExtractedView, ViewDepthTexture, ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms,
 };
-use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
+use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
 use crate::mesh::{Group, STREAMS, StreamSpan};
 
@@ -124,6 +124,7 @@ impl Plugin for TerrainPlugin {
             .insert_resource(triangles)
             .insert_resource(StaticGeometry(self.0.clone()))
             .add_systems(RenderStartup, init_terrain)
+            .add_systems(ExtractSchedule, extract_cave_visibility)
             .add_systems(
                 Render,
                 (
@@ -148,6 +149,7 @@ struct Terrain {
     args: Buffer,
     args_readback: Buffer,
     params: Buffer,
+    cave: Buffer,
     view_layout: BindGroupLayoutDescriptor,
     cull_bind_group: BindGroup,
     draw_bind_group: BindGroup,
@@ -187,6 +189,12 @@ fn init_terrain(
         label: Some("terrain groups"),
         contents: bytemuck::cast_slice(&geometry.groups),
         usage: BufferUsages::STORAGE,
+    });
+    let cave = device.create_buffer_with_data(&BufferInitDescriptor {
+        label: Some("terrain cave visibility"),
+        // All ones until the first flood fill, so nothing goes missing on the earliest frames.
+        contents: bytemuck::cast_slice(&[u32::MAX; crate::cave::WORDS]),
+        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
     });
 
     // Worst case every quad survives culling, so the visible list is sized for the whole arena and
@@ -262,6 +270,7 @@ fn init_terrain(
                 storage_buffer_read_only_sized(false, None),
                 storage_buffer_sized(false, None),
                 storage_buffer_sized(false, None),
+                storage_buffer_read_only_sized(false, None),
             ),
         ),
     );
@@ -300,6 +309,7 @@ fn init_terrain(
             groups.as_entire_buffer_binding(),
             visible.as_entire_buffer_binding(),
             args.as_entire_buffer_binding(),
+            cave.as_entire_buffer_binding(),
         )),
     );
     let draw_bind_group = device.create_bind_group(
@@ -320,6 +330,7 @@ fn init_terrain(
         args,
         args_readback,
         params,
+        cave,
         view_layout,
         cull_bind_group,
         draw_bind_group,
@@ -507,6 +518,20 @@ fn prepare_wireframe(
             bytemuck::bytes_of(&flag),
         );
     }
+}
+
+/// The flood fill runs in `PostUpdate` against this frame's frustum, so the bitset the compute pass
+/// reads describes exactly the view it is culling for. Written straight from the main world rather
+/// than through an `ExtractResourcePlugin`, which would clone these 4 KiB every frame.
+fn extract_cave_visibility(
+    cave: Extract<Res<crate::cave::CaveCull>>,
+    terrain: Option<Res<Terrain>>,
+    queue: Res<RenderQueue>,
+) {
+    let Some(terrain) = terrain else {
+        return;
+    };
+    queue.write_buffer(&terrain.cave, 0, bytemuck::cast_slice(&cave.bits[..]));
 }
 
 /// The colour format a pipeline must declare is the view's, and no view exists yet when

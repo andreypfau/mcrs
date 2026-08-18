@@ -41,6 +41,7 @@ struct Params {
 @group(1) @binding(0) var<storage, read> groups: array<Group>;
 @group(1) @binding(1) var<storage, read_write> visible: array<u32>;
 @group(1) @binding(2) var<storage, read_write> args: array<DrawArgs>;
+@group(1) @binding(3) var<storage, read> cave_visible: array<u32>;
 
 const CULLED: u32 = 0xffffffffu;
 
@@ -96,10 +97,15 @@ fn cull(
     let g = groups[params.group_base + workgroup.x];
 
     if (local == 0u) {
+        // Bits 15..17 are the face group; the section number is the low 15 bits, which is exactly
+        // the bitset's index space. Model streams pack FACE_NONE = 7 in there, so the mask is
+        // mandatory: without it such a group would read the 7168th word of a 1024-word array.
+        let sec = g.section & 0x7fffu;
+        let reachable = (cave_visible[sec >> 5u] >> (sec & 31u)) & 1u;
         let mn = section_min(g);
         let mx = mn + 16.0;
         let face = (g.section >> 15u) & 7u;
-        if (in_frustum(mn, mx) && faces_camera(face, mn, mx)) {
+        if (reachable != 0u && in_frustum(mn, mx) && faces_camera(face, mn, mx)) {
             reserved_slot = atomicAdd(&args[params.args_index].instance_count, g.quad_count);
         } else {
             reserved_slot = CULLED;

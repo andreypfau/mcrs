@@ -35,6 +35,13 @@ pub const Y_BIAS: i32 = 64;
 const BORDER: usize = SECTION_SIZE + 2;
 const BORDER_VOLUME: usize = BORDER * BORDER * BORDER;
 
+/// 32×32×32 section slots, indexed `sx | sy << 5 | sz << 10` — the low 15 bits of [`Group::section`].
+pub const SECTION_SLOTS: usize = 32 * 32 * 32;
+
+/// Bit `entry * 6 + exit` is set when a sight line can cross the section from face `entry` to face
+/// `exit`. Faces follow [`FACE_AXES`] order, so the opposite face is `f ^ 1`.
+pub const CONNECT_ALL: u64 = (1 << 36) - 1;
+
 /// One contiguous run of quads from a single section and face group. The unit the compute shader
 /// culls: 64 threads per run scatter its surviving quad indices into the visible list.
 #[derive(Copy, Clone, Default, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -56,6 +63,10 @@ pub struct RegionMesh {
     pub groups: Vec<Group>,
     /// `(first_group, group_count, first_quad, quad_count)` per stream.
     pub streams: [StreamSpan; STREAMS],
+    /// Per-section face connectivity, indexed `sx | sy << 5 | sz << 10`. Slots the mesher never
+    /// touched stay [`CONNECT_ALL`]: a section missing from the file is air, and defaulting it to
+    /// "closed" would kill a sight-line walk on its very first step through open sky.
+    pub connectivity: Vec<u64>,
 }
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -118,6 +129,8 @@ struct Partial {
     complex: Vec<u32>,
     /// `(stream, group)` with `group.quad_base` relative to this worker's own arena.
     groups: Vec<(u32, Group)>,
+    /// `(packed section slot, mask)`.
+    connectivity: Vec<(u16, u64)>,
 }
 
 pub fn build(region: &Region, catalog: &Catalog) -> RegionMesh {
@@ -136,6 +149,7 @@ pub fn build(region: &Region, catalog: &Catalog) -> RegionMesh {
                     simple: Vec::new(),
                     complex: Vec::new(),
                     groups: Vec::new(),
+                    connectivity: Vec::new(),
                 };
                 loop {
                     let column = next.fetch_add(1, Ordering::Relaxed);
@@ -198,11 +212,19 @@ fn assemble(partials: Vec<Partial>) -> RegionMesh {
         groups.append(&mut by_stream[stream]);
     }
 
+    let mut connectivity = vec![CONNECT_ALL; SECTION_SLOTS];
+    for partial in &partials {
+        for &(slot, mask) in &partial.connectivity {
+            connectivity[slot as usize] = mask;
+        }
+    }
+
     RegionMesh {
         simple,
         complex,
         groups,
         streams,
+        connectivity,
     }
 }
 
@@ -239,11 +261,69 @@ fn mesh_section(
     let packed_section = (cx as u32) | ((sy as u32) << 5) | ((cz as u32) << 10);
     greedy(catalog, section, scratch, base, packed_section, partial);
     complex(catalog, section, scratch, base, packed_section, partial);
+    partial
+        .connectivity
+        .push((packed_section as u16, connectivity(&mut scratch.occludes)));
 }
 
 #[inline]
 fn border_index(x: i32, y: i32, z: i32) -> usize {
     ((y + 1) as usize) * BORDER * BORDER + ((z + 1) as usize) * BORDER + (x + 1) as usize
+}
+
+/// Which pairs of section faces a sight line can join, as bit `entry * 6 + exit`.
+///
+/// Scribbles over `occludes`, marking visited cells in it: this runs last in [`mesh_section`], and
+/// filling the border at the start of the next section rewrites the whole array, so nothing
+/// downstream ever sees the damage.
+fn connectivity(occludes: &mut [bool; BORDER_VOLUME]) -> u64 {
+    const N: i32 = SECTION_SIZE as i32;
+    let mut mask = 0u64;
+    let mut stack: Vec<[i32; 3]> = Vec::new();
+
+    for sy in 0..N {
+        for sz in 0..N {
+            for sx in 0..N {
+                if occludes[border_index(sx, sy, sz)] {
+                    continue;
+                }
+                occludes[border_index(sx, sy, sz)] = true;
+                stack.push([sx, sy, sz]);
+
+                let mut touched = 0u8;
+                while let Some([x, y, z]) = stack.pop() {
+                    touched |= (y == 0) as u8
+                        | ((y == N - 1) as u8) << 1
+                        | ((z == 0) as u8) << 2
+                        | ((z == N - 1) as u8) << 3
+                        | ((x == 0) as u8) << 4
+                        | ((x == N - 1) as u8) << 5;
+                    for face in 0..6usize {
+                        let n = face_normal(face);
+                        let (nx, ny, nz) = (x + n[0], y + n[1], z + n[2]);
+                        if nx < 0 || ny < 0 || nz < 0 || nx >= N || ny >= N || nz >= N {
+                            continue;
+                        }
+                        let index = border_index(nx, ny, nz);
+                        if occludes[index] {
+                            continue;
+                        }
+                        occludes[index] = true;
+                        stack.push([nx, ny, nz]);
+                    }
+                }
+
+                // Unioned per connected component, never globally: two separate tunnels through
+                // one section must not be reported as joined.
+                for entry in 0..6 {
+                    if touched >> entry & 1 == 1 {
+                        mask |= (touched as u64) << (entry * 6);
+                    }
+                }
+            }
+        }
+    }
+    mask
 }
 
 #[inline]
@@ -612,9 +692,58 @@ fn fixed(value: f32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Key, Y_BIAS, fixed, pack_quad, quad_anchor};
+    use super::{
+        BORDER_VOLUME, Key, Y_BIAS, border_index, connectivity, fixed, pack_quad, quad_anchor,
+    };
     use crate::blocks::{CORNER_UV, FACE_AXES, cube_corner};
     use bevy::math::Vec3;
+
+    fn pair(entry: usize, exit: usize) -> u64 {
+        1 << (entry * 6 + exit)
+    }
+
+    fn solid_section() -> Box<[bool; BORDER_VOLUME]> {
+        Box::new([true; BORDER_VOLUME])
+    }
+
+    /// Pins the flood fill and the Down=0 / Up=1 numbering in one go.
+    #[test]
+    fn a_vertical_shaft_connects_only_down_and_up() {
+        let mut occludes = solid_section();
+        for y in 0..16 {
+            occludes[border_index(8, y, 8)] = false;
+        }
+        assert_eq!(
+            connectivity(&mut occludes),
+            pair(0, 0) | pair(0, 1) | pair(1, 0) | pair(1, 1)
+        );
+    }
+
+    /// A naive implementation — "which faces does any air at all touch" — would report every pair
+    /// between Down/Up and West/East here. It is the one real way to get this algorithm wrong.
+    #[test]
+    fn two_disjoint_shafts_do_not_join() {
+        let mut occludes = solid_section();
+        for y in 0..16 {
+            occludes[border_index(2, y, 2)] = false;
+        }
+        for x in 0..16 {
+            occludes[border_index(x, 12, 12)] = false;
+        }
+        let mask = connectivity(&mut occludes);
+        assert_eq!(mask & (pair(0, 4) | pair(4, 0)), 0, "shafts must not merge");
+        assert_eq!(
+            mask,
+            pair(0, 0)
+                | pair(0, 1)
+                | pair(1, 0)
+                | pair(1, 1)
+                | pair(4, 4)
+                | pair(4, 5)
+                | pair(5, 4)
+                | pair(5, 5)
+        );
+    }
 
     #[test]
     fn fixed_point_covers_the_overhang_a_model_can_have() {
