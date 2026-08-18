@@ -600,7 +600,22 @@ fn prepare_pipelines(
                 // Bevy renders with a reversed depth buffer, so nearer fragments compare greater.
                 depth_compare: Some(CompareFunction::GreaterEqual),
                 stencil: default(),
-                bias: default(),
+                // The grass block, and every block like it, ships a tinted overlay as a second
+                // element exactly coplanar with the cube face under it. The face below goes down
+                // the greedy path and is merged across neighbouring blocks, while the overlay stays
+                // one quad per block, so the two rasterise the same plane from different triangles
+                // and their interpolated depths disagree by a rounding step. Pulling model quads a
+                // hair toward the camera settles every such tie in the overlay's favour, which is
+                // the side vanilla shows.
+                bias: if entry == "vertex_complex" {
+                    DepthBiasState {
+                        constant: 2,
+                        slope_scale: 1.0,
+                        clamp: 0.0,
+                    }
+                } else {
+                    default()
+                },
             }),
             multisample: MultisampleState {
                 count: 1,
