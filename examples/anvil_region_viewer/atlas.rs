@@ -5,6 +5,7 @@
 //! and would still bleed neighbouring sprites into the lower mips.
 
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
@@ -144,8 +145,18 @@ impl SpriteRegistry {
     /// exactly as `write_texture` wants it, so the caller uploads one level per call.
     pub fn mip_chain(&self) -> Vec<Vec<u8>> {
         let layers = self.sprites.len().max(1);
-        let mut levels = vec![self.pixels.clone()];
         let mut size = self.size as usize;
+        // Only alpha-tested sprites get their coverage held: a solid one has none to lose, and on a
+        // translucent one alpha is real transparency, so stretching it would distort glass and water.
+        let targets: Vec<Option<f32>> = (0..layers)
+            .map(|layer| {
+                let sprite = self.sprites.get(layer)?;
+                (sprite.opacity == Opacity::Cutout)
+                    .then(|| coverage(&self.pixels[layer * size * size * 4..], size * size, 1.0))
+            })
+            .collect();
+
+        let mut levels = vec![self.pixels.clone()];
         while size > 1 {
             let half = size / 2;
             let previous = levels.last().unwrap();
@@ -158,6 +169,9 @@ impl SpriteRegistry {
                         downsample_2x2(src, size, x * 2, y * 2, &mut dst[(y * half + x) * 4..]);
                     }
                 }
+                if let Some(target) = targets[layer] {
+                    match_coverage(dst, half * half, target);
+                }
             }
             levels.push(level);
             size = half;
@@ -166,36 +180,159 @@ impl SpriteRegistry {
     }
 }
 
+/// sRGB byte to the light it stands for. The atlas is `Rgba8UnormSrgb`, so its bytes are an
+/// encoding and not a quantity: averaging them directly lands below the encoding of the average
+/// light, and the shortfall compounds at every level of the chain.
+static SRGB_TO_LINEAR: LazyLock<[f32; 256]> = LazyLock::new(|| {
+    std::array::from_fn(|byte| {
+        let c = byte as f32 / 255.0;
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    })
+});
+
+fn linear_to_srgb(light: f32) -> u8 {
+    let c = if light <= 0.0031308 {
+        light * 12.92
+    } else {
+        1.055 * light.powf(1.0 / 2.4) - 0.055
+    };
+    (c * 255.0).round().clamp(0.0, 255.0) as u8
+}
+
+/// The share of texels that would survive the fragment shader's `alpha < 0.5` test with every alpha
+/// multiplied by `scale`.
+fn coverage(pixels: &[u8], texels: usize, scale: f32) -> f32 {
+    let kept = (0..texels)
+        .filter(|i| pixels[i * 4 + 3] as f32 * scale >= 128.0)
+        .count();
+    kept as f32 / texels as f32
+}
+
+/// Scales a level's alpha so that its share of texels above the shader's cutoff matches mip 0's.
+///
+/// Averaging alpha lowers that share at every level, which is why alpha-tested foliage goes bald in
+/// the distance instead of thinning. Coverage rises with the multiplier, so bisection finds it; ten
+/// steps land well inside the granularity of any level worth correcting, and the chain is built
+/// once at load.
+fn match_coverage(pixels: &mut [u8], texels: usize, target: f32) {
+    let (mut lo, mut hi) = (0.0f32, 4.0f32);
+    for _ in 0..10 {
+        let mid = 0.5 * (lo + hi);
+        if coverage(pixels, texels, mid) < target {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    for i in 0..texels {
+        let alpha = &mut pixels[i * 4 + 3];
+        *alpha = (*alpha as f32 * hi).round().min(255.0) as u8;
+    }
+}
+
 /// Alpha-weighted so a cutout sprite does not bleed the colour of its fully transparent texels —
 /// those carry arbitrary RGB in the vanilla pack and a plain average turns leaf edges black.
 fn downsample_2x2(src: &[u8], stride: usize, x: usize, y: usize, dst: &mut [u8]) {
-    let mut rgb = [0u32; 3];
+    let mut light = [0f32; 3];
     let mut alpha = 0u32;
-    let mut weight = 0u32;
+    let mut weight = 0f32;
     for dy in 0..2 {
         for dx in 0..2 {
             let s = ((y + dy) * stride + x + dx) * 4;
             let a = src[s + 3] as u32;
             for c in 0..3 {
-                rgb[c] += src[s + c] as u32 * a;
+                light[c] += SRGB_TO_LINEAR[src[s + c] as usize] * a as f32;
             }
             alpha += a;
-            weight += a;
+            weight += a as f32;
         }
     }
-    if weight == 0 {
+    if weight == 0.0 {
         dst[..4].copy_from_slice(&[0, 0, 0, 0]);
         return;
     }
     for c in 0..3 {
-        dst[c] = (rgb[c] / weight) as u8;
+        dst[c] = linear_to_srgb(light[c] / weight);
     }
+    // Alpha is a fraction already, not an encoded quantity, so it averages where colour cannot.
     dst[3] = (alpha / 4) as u8;
 }
 
 #[cfg(test)]
 mod tests {
-    use super::downsample_2x2;
+    use super::*;
+
+    fn one_sprite(size: usize, opacity: Opacity, pixels: Vec<u8>) -> SpriteRegistry {
+        SpriteRegistry {
+            sprites: vec![Sprite { opacity }],
+            index: HashMap::new(),
+            size: size as u32,
+            pixels,
+            pending: Vec::new(),
+        }
+    }
+
+    /// White texels, opaque wherever `keep` says so.
+    fn stencil(size: usize, keep: impl Fn(usize, usize) -> u8) -> Vec<u8> {
+        let mut pixels = vec![255u8; size * size * 4];
+        for y in 0..size {
+            for x in 0..size {
+                pixels[(y * size + x) * 4 + 3] = keep(x, y);
+            }
+        }
+        pixels
+    }
+
+    fn level_coverage(level: &[u8]) -> f32 {
+        coverage(level, level.len() / 4, 1.0)
+    }
+
+    /// Averaging sRGB bytes averages an encoding rather than the light it stands for. Half the light
+    /// of white encodes near 188; the byte average would claim 127 and darken every mip.
+    #[test]
+    fn downsampling_averages_light_rather_than_encoded_bytes() {
+        let src = [
+            0, 0, 0, 255, 255, 255, 255, 255, //
+            0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+        let mut dst = [0u8; 4];
+        downsample_2x2(&src, 2, 0, 0, &mut dst);
+        assert_eq!(&dst[..3], &[188, 188, 188]);
+    }
+
+    /// A fine alpha-tested pattern averages to just under the shader's cutoff, so an uncorrected
+    /// chain discards every texel of it: distant leaves go bald instead of thinning.
+    #[test]
+    fn an_alpha_tested_sprite_keeps_its_coverage_in_every_mip() {
+        let size = 16;
+        let pixels = stencil(size, |x, y| if (x + y) % 2 == 0 { 255 } else { 0 });
+        let levels = one_sprite(size, Opacity::Cutout, pixels).mip_chain();
+        assert_eq!(levels.len(), 5);
+        for (level, data) in levels.iter().enumerate() {
+            let kept = level_coverage(data);
+            assert!(kept >= 0.5, "level {level} kept only {kept} of the sprite");
+        }
+    }
+
+    /// Alpha on a translucent sprite is real transparency rather than a mask, so the coverage fix
+    /// must leave it alone: stretched to a mask, glass at half alpha would vanish outright.
+    #[test]
+    fn a_translucent_sprite_keeps_its_alpha_as_it_is() {
+        let size = 16;
+        let levels =
+            one_sprite(size, Opacity::Translucent, stencil(size, |_, _| 100)).mip_chain();
+        for (level, data) in levels.iter().enumerate() {
+            let alpha: Vec<u8> = data.iter().skip(3).step_by(4).copied().collect();
+            assert!(
+                alpha.iter().all(|&a| a == 100),
+                "level {level} rescaled a translucent alpha"
+            );
+        }
+    }
 
     #[test]
     fn downsampling_ignores_the_colour_of_transparent_texels() {
