@@ -30,7 +30,55 @@ pub struct BlockStateFile {
     #[serde(default)]
     variants: HashMap<String, VariantValue>,
     #[serde(default)]
-    multipart: Vec<serde_json::Value>,
+    multipart: Vec<MultipartCase>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct MultipartCase {
+    #[serde(default)]
+    when: Option<Condition>,
+    apply: VariantValue,
+}
+
+/// A `when` clause is either a set of property constraints joined by AND, or an explicit
+/// `OR` / `AND` list of such sets. Constraint values may be `a|b|c` alternatives.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum Condition {
+    Group {
+        #[serde(rename = "OR", default)]
+        or: Vec<Condition>,
+        #[serde(rename = "AND", default)]
+        and: Vec<Condition>,
+    },
+    Terms(HashMap<String, serde_json::Value>),
+}
+
+impl Condition {
+    fn matches(&self, props: &[(&str, &str)]) -> bool {
+        match self {
+            Condition::Group { or, and } => {
+                if !or.is_empty() {
+                    return or.iter().any(|c| c.matches(props));
+                }
+                if !and.is_empty() {
+                    return and.iter().all(|c| c.matches(props));
+                }
+                true
+            }
+            Condition::Terms(terms) => terms.iter().all(|(name, expected)| {
+                let expected = match expected {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                let actual = props.iter().find(|(k, _)| k == name).map(|(_, v)| *v);
+                match actual {
+                    Some(actual) => expected.split('|').any(|alt| alt == actual),
+                    None => false,
+                }
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -54,6 +102,36 @@ pub struct Variant {
 }
 
 impl BlockStateFile {
+    pub fn is_multipart(&self) -> bool {
+        !self.multipart.is_empty() && self.variants.is_empty()
+    }
+
+    /// Every variant that contributes geometry to this state. A `variants` blockstate contributes
+    /// exactly one; a `multipart` blockstate contributes every case whose `when` clause matches.
+    pub fn select_all(&self, props: &[(&str, &str)]) -> Result<Vec<Variant>, String> {
+        if !self.is_multipart() {
+            return Ok(vec![self.select(props)?]);
+        }
+        let mut out = Vec::new();
+        for case in &self.multipart {
+            if case.when.as_ref().is_some_and(|w| !w.matches(props)) {
+                continue;
+            }
+            match &case.apply {
+                VariantValue::One(v) => out.push(v.clone()),
+                VariantValue::Many(v) => {
+                    if let Some(first) = v.first() {
+                        out.push(first.clone());
+                    }
+                }
+            }
+        }
+        if out.is_empty() {
+            return Err(format!("no multipart case matches {props:?}"));
+        }
+        Ok(out)
+    }
+
     pub fn load(block: &str) -> Result<Self, String> {
         let path = resource_path(block, "blockstates", "json");
         let text = std::fs::read_to_string(&path)
@@ -62,8 +140,12 @@ impl BlockStateFile {
     }
 
     pub fn select(&self, props: &[(&str, &str)]) -> Result<Variant, String> {
-        if !self.multipart.is_empty() && self.variants.is_empty() {
-            return Err("multipart blockstates are not supported".into());
+        if self.is_multipart() {
+            return self
+                .select_all(props)?
+                .into_iter()
+                .next()
+                .ok_or_else(|| "no multipart case matches".to_string());
         }
         let mut keys: Vec<&str> = self.variants.keys().map(String::as_str).collect();
         keys.sort_unstable();
@@ -140,6 +222,9 @@ pub struct Face {
     pub cullface: Option<String>,
     #[serde(default)]
     pub rotation: i32,
+    /// Slot into the block's tint palette (grass, foliage, water). Absent means untinted.
+    #[serde(rename = "tintindex", default)]
+    pub tint_index: Option<u32>,
 }
 
 /// A texture slot is usually a plain sprite id, but 110 vanilla models spell it out as an object

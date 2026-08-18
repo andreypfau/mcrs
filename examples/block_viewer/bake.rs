@@ -272,6 +272,8 @@ pub struct BakedQuad {
     pub ao: [f32; 4],
     /// Vanilla's final vertex byte, sRGB space, before any tint colour is multiplied in.
     pub color: [u8; 4],
+    /// The face's `tintindex`, if it has one.
+    pub tint: Option<u32>,
 }
 
 #[derive(Debug)]
@@ -548,6 +550,7 @@ fn bake_face(
         cull,
         ao,
         color,
+        tint: face.tint_index,
     })
 }
 
@@ -558,10 +561,29 @@ pub fn bake(
     world: &dyn Neighborhood,
 ) -> Result<BakedBlock, String> {
     let states = BlockStateFile::load(block)?;
-    let variant = states.select(props)?;
-    let model = resolve_model(&variant.model)?;
-    let rotation = VariantRotation::from_degrees(variant.x, variant.y, variant.z)?;
-    bake_model(&model, rotation, variant.uvlock, pos, world)
+    let mut merged = BakedBlock {
+        quads: Vec::new(),
+        sprites: Vec::new(),
+    };
+    // A multipart blockstate contributes several models at once (a fence post plus each connected
+    // arm); their quads share one sprite table so the result bakes exactly like a single model.
+    for variant in states.select_all(props)? {
+        let model = resolve_model(&variant.model)?;
+        let rotation = VariantRotation::from_degrees(variant.x, variant.y, variant.z)?;
+        let part = bake_model(&model, rotation, variant.uvlock, pos, world)?;
+        for mut quad in part.quads {
+            let sprite = &part.sprites[quad.sprite];
+            quad.sprite = match merged.sprites.iter().position(|s| s == sprite) {
+                Some(index) => index,
+                None => {
+                    merged.sprites.push(sprite.clone());
+                    merged.sprites.len() - 1
+                }
+            };
+            merged.quads.push(quad);
+        }
+    }
+    Ok(merged)
 }
 
 fn bake_model(
