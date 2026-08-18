@@ -462,11 +462,19 @@ fn face_key(
         // Full daylight, so vanilla's `max(block, sky * daylight)` collapses to a plain max.
         light: (raw >> 4).max(raw & 0xf).max(info.emission as u32),
         ao,
-        // Splitting a quad along the wrong diagonal makes the ambient occlusion gradient kink
-        // visibly; the shader picks the other diagonal when this is set.
-        flip: corners[0] + corners[2] != corners[1] + corners[3],
+        flip: split_flip(corners),
         pass: cube.pass as u32,
     }
+}
+
+/// Which diagonal the shader splits the quad along: corners 0-2 normally, 1-3 when this is set.
+///
+/// Splitting a quad along the wrong diagonal makes the ambient occlusion gradient kink visibly. A
+/// corner on the split lies in both triangles, so its shade bleeds across the whole quad; picking
+/// the diagonal with the brighter pair keeps the darkest corner inside one triangle.
+#[inline]
+fn split_flip(corners: [u32; 4]) -> bool {
+    corners[0] + corners[2] < corners[1] + corners[3]
 }
 
 #[inline]
@@ -694,6 +702,7 @@ fn fixed(value: f32) -> u32 {
 mod tests {
     use super::{
         BORDER_VOLUME, Key, Y_BIAS, border_index, connectivity, fixed, pack_quad, quad_anchor,
+        split_flip,
     };
     use crate::blocks::{CORNER_UV, FACE_AXES, cube_corner};
     use bevy::math::Vec3;
@@ -743,6 +752,27 @@ mod tests {
                 | pair(5, 4)
                 | pair(5, 5)
         );
+    }
+
+    /// The split has to miss the darkest corner. On the other diagonal that corner belongs to both
+    /// triangles and its shadow interpolates across the entire quad instead of staying in place.
+    #[test]
+    fn the_split_diagonal_misses_the_darkest_corner() {
+        for dark in 0..4usize {
+            let mut corners = [3u32; 4];
+            corners[dark] = 0;
+            let diagonal = if split_flip(corners) { [1, 3] } else { [0, 2] };
+            assert!(
+                !diagonal.contains(&dark),
+                "corner {dark} dark: split runs {diagonal:?}"
+            );
+        }
+    }
+
+    /// Four equal corners leave nothing to fix, and the cheaper triangulation is the unflipped one.
+    #[test]
+    fn a_flat_quad_keeps_the_default_diagonal() {
+        assert!(!split_flip([2, 2, 2, 2]));
     }
 
     #[test]
