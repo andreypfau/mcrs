@@ -6,6 +6,7 @@
 
 use std::num::NonZeroU64;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 
 use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d};
 use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
@@ -73,10 +74,36 @@ struct Params {
     reserved: [u32; 2],
 }
 
-/// Draws only the outline of every quad, in the colour that quad's own texture has there, and
+/// Draws only the edges of every triangle, in the colour that face's own texture has there, and
 /// leaves the interiors unpainted so the geometry behind stays visible.
 #[derive(Resource, Clone, Copy, Default, ExtractResource)]
 pub struct Wireframe(pub bool);
+
+/// Triangles the culling pass let through, read back from the indirect draw arguments. Shared with
+/// the render world through an `Arc` rather than extracted, because the number only exists after
+/// the GPU has run, which is the wrong side of the extract boundary.
+#[derive(Resource, Clone, Default)]
+pub struct DrawnTriangles(Arc<ArgsReadback>);
+
+impl DrawnTriangles {
+    pub fn get(&self) -> u32 {
+        self.0.triangles.load(Ordering::Relaxed)
+    }
+}
+
+/// A copy is recorded only once the previous result has landed, so the staging buffer is never both
+/// mapped and the destination of a copy, which the backend rejects.
+#[derive(Default)]
+struct ArgsReadback {
+    triangles: AtomicU32,
+    state: AtomicU8,
+}
+
+impl ArgsReadback {
+    const IDLE: u8 = 0;
+    const COPIED: u8 = 1;
+    const MAPPING: u8 = 2;
+}
 
 pub struct TerrainPlugin(pub Arc<Geometry>);
 
@@ -85,13 +112,16 @@ impl Plugin for TerrainPlugin {
         bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "cull.wgsl");
         bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "terrain.wgsl");
 
+        let triangles = DrawnTriangles::default();
         app.init_resource::<Wireframe>()
-            .add_plugins(ExtractResourcePlugin::<Wireframe>::default());
+            .add_plugins(ExtractResourcePlugin::<Wireframe>::default())
+            .insert_resource(triangles.clone());
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
         render_app
+            .insert_resource(triangles)
             .insert_resource(StaticGeometry(self.0.clone()))
             .add_systems(RenderStartup, init_terrain)
             .add_systems(
@@ -100,6 +130,7 @@ impl Plugin for TerrainPlugin {
                     prepare_pipelines.in_set(RenderSystems::Prepare),
                     prepare_wireframe.in_set(RenderSystems::Prepare),
                     prepare_view_bind_group.in_set(RenderSystems::PrepareBindGroups),
+                    read_draw_args.in_set(RenderSystems::Cleanup),
                 ),
             )
             .add_systems(Core3d, cull_terrain.in_set(Core3dSystems::Prepass))
@@ -115,6 +146,7 @@ impl Plugin for TerrainPlugin {
 #[derive(Resource)]
 struct Terrain {
     args: Buffer,
+    args_readback: Buffer,
     params: Buffer,
     view_layout: BindGroupLayoutDescriptor,
     cull_bind_group: BindGroup,
@@ -197,7 +229,16 @@ fn init_terrain(
     let args = device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("terrain draw args"),
         contents: bytemuck::cast_slice(&args_init),
-        usage: BufferUsages::STORAGE | BufferUsages::INDIRECT | BufferUsages::COPY_DST,
+        usage: BufferUsages::STORAGE
+            | BufferUsages::INDIRECT
+            | BufferUsages::COPY_DST
+            | BufferUsages::COPY_SRC,
+    });
+    let args_readback = device.create_buffer(&BufferDescriptor {
+        label: Some("terrain draw args readback"),
+        size: size_of_val(&args_init) as u64,
+        usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+        mapped_at_creation: false,
     });
 
     let (atlas, atlas_sampler) = upload_atlas(&geometry, &device, &queue);
@@ -277,6 +318,7 @@ fn init_terrain(
 
     commands.insert_resource(Terrain {
         args,
+        args_readback,
         params,
         view_layout,
         cull_bind_group,
@@ -402,6 +444,43 @@ fn upload_tints(
         ..default()
     });
     (view, sampler)
+}
+
+/// Maps the copy the culling pass left behind. The number is a frame late, which cannot show in a
+/// readout that is only redrawn once a second, and the map never blocks: the callback lands
+/// whenever the device is next polled and the state only returns to idle then.
+fn read_draw_args(terrain: Option<Res<Terrain>>, triangles: Res<DrawnTriangles>) {
+    let Some(terrain) = terrain else {
+        return;
+    };
+    if triangles
+        .0
+        .state
+        .compare_exchange(
+            ArgsReadback::COPIED,
+            ArgsReadback::MAPPING,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        )
+        .is_err()
+    {
+        return;
+    }
+
+    let buffer = terrain.args_readback.clone();
+    let readback = triangles.0.clone();
+    buffer.clone().slice(..).map_async(MapMode::Read, move |result| {
+        if result.is_ok() {
+            let view = buffer.slice(..).get_mapped_range();
+            let args: &[DrawArgs] = bytemuck::cast_slice(&view);
+            // Every quad is two triangles, whichever stream drew it.
+            let count = args.iter().map(|arg| arg.instance_count).sum::<u32>() * 2;
+            readback.triangles.store(count, Ordering::Relaxed);
+            drop(view);
+            buffer.unmap();
+        }
+        readback.state.store(ArgsReadback::IDLE, Ordering::Relaxed);
+    });
 }
 
 /// The params table is otherwise written once at startup, so the flag is pushed only on the frame
@@ -535,6 +614,7 @@ fn cull_terrain(
     terrain: Option<Res<Terrain>>,
     view_bind_group: Option<Res<ViewBindGroup>>,
     pipeline_cache: Res<PipelineCache>,
+    triangles: Res<DrawnTriangles>,
     mut ctx: RenderContext,
 ) {
     let (Some(terrain), Some(view_bind_group)) = (terrain, view_bind_group) else {
@@ -544,6 +624,24 @@ fn cull_terrain(
         return;
     };
     let view_offset = view.into_inner().offset;
+
+    // The counts still describe the frame that is being replaced, so the copy is recorded before
+    // the clear rather than after the dispatch, where it would have to wait on the pass.
+    if triangles
+        .0
+        .state
+        .compare_exchange(
+            ArgsReadback::IDLE,
+            ArgsReadback::COPIED,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        )
+        .is_ok()
+    {
+        let size = terrain.args_readback.size();
+        ctx.command_encoder()
+            .copy_buffer_to_buffer(&terrain.args, 0, &terrain.args_readback, 0, size);
+    }
 
     // Reset only the instance counters; the rest of each draw command is constant for the run of
     // the program, so there is nothing else to upload per frame.

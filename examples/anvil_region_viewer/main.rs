@@ -6,7 +6,7 @@
 //! ```
 //!
 //! Drag with the left mouse button to orbit, scroll to zoom, hold shift while dragging to pan.
-//! Press F10 to outline every quad in a colour derived from its texture, F11 for borderless
+//! Press F10 to draw every triangle's edges in a colour derived from its texture, F11 for borderless
 //! fullscreen, which is the only way to read a real frame rate on macOS, and F12 to save a PNG.
 //!
 //! The region is static, so the whole pipeline is built around loading once and never touching the
@@ -45,7 +45,7 @@ use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use bevy::window::{MonitorSelection, PresentMode, WindowMode};
 use bevy::winit::{UpdateMode, WinitSettings};
 
-use render::{Geometry, TerrainPlugin, Wireframe};
+use render::{DrawnTriangles, Geometry, TerrainPlugin, Wireframe};
 
 const DEFAULT_REGION: &str = "examples/anvil_region_viewer/r.0.0.mca";
 
@@ -213,9 +213,15 @@ fn title_base(path: &str) -> String {
     format!("anvil region viewer — {name}")
 }
 
-/// Reports the rate plus the two tail percentiles once a second. An average alone hides exactly the
-/// thing worth seeing while orbiting: the occasional frame where culling lets far more through.
-fn frame_stats(time: Res<Time>, mut stats: ResMut<FrameStats>, overlay: Single<&mut Text>) {
+/// Reports the rate, the triangles culling let through, and the two tail percentiles once a second.
+/// An average alone hides exactly the thing worth seeing while orbiting: the occasional frame where
+/// culling lets far more through.
+fn frame_stats(
+    time: Res<Time>,
+    mut stats: ResMut<FrameStats>,
+    triangles: Res<DrawnTriangles>,
+    overlay: Single<&mut Text>,
+) {
     let delta = time.delta_secs();
     if delta <= 0.0 {
         return;
@@ -246,7 +252,8 @@ fn frame_stats(time: Res<Time>, mut stats: ResMut<FrameStats>, overlay: Single<&
     overlay.0.clear();
     let _ = write!(
         overlay.0,
-        "{fps:.0} fps   p95 {p95:.1} ms   p99 {p99:.1} ms",
+        "{fps:.0} fps   {} tris   p95 {p95:.1} ms   p99 {p99:.1} ms",
+        triangles.get(),
     );
 
     stats.frames = 0;
@@ -254,8 +261,8 @@ fn frame_stats(time: Res<Time>, mut stats: ResMut<FrameStats>, overlay: Single<&
     stats.elapsed = 0.0;
 }
 
-/// Press F10 to overlay the quad outlines, which show where greedy merging landed and which
-/// texture each face pulls from.
+/// Press F10 to draw the triangle edges, which show the real polygon count, where greedy merging
+/// landed, and which texture each face pulls from.
 fn toggle_wireframe(keys: Res<ButtonInput<KeyCode>>, mut wireframe: ResMut<Wireframe>) {
     if keys.just_pressed(KeyCode::F10) {
         wireframe.0 = !wireframe.0;

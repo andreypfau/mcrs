@@ -40,6 +40,10 @@ struct VertexOut {
     /// Corner position within the quad, so the fragment can find the quad's own edges. Greedy
     /// quads cover many blocks, so this is not the same thing as the texture coordinate.
     @location(5) quad_uv: vec2<f32>,
+    /// Signed distance to the diagonal the quad is split along, in quad-local units. Which of the
+    /// two diagonals that is depends on the winding, so it is resolved here rather than in the
+    /// fragment, which would otherwise need the winding flag too.
+    @location(6) diagonal: f32,
 };
 
 /// Quad corners in the order vanilla winds them, as (u, v).
@@ -148,6 +152,11 @@ fn vertex_simple(
     out.world_xz = world.xz;
     out.tint_kind = (hi >> 30u) & 3u;
     out.quad_uv = quad_uv;
+    out.diagonal = select(
+        quad_uv.x - quad_uv.y,
+        quad_uv.x + quad_uv.y - 1.0,
+        flip,
+    );
     return out;
 }
 
@@ -188,19 +197,24 @@ fn vertex_complex(
     out.shade = shade * light_curve(light);
     out.world_xz = world.xz;
     out.tint_kind = (w1 >> 26u) & 3u;
-    out.quad_uv = corner_uv(corner);
+    let quad_uv = corner_uv(corner);
+    out.quad_uv = quad_uv;
+    out.diagonal = quad_uv.x - quad_uv.y;
     return out;
 }
 
-/// Distance from the fragment to the nearest edge of its quad, measured in pixels: the screen-space
-/// derivative of the quad-local coordinate is how much of the quad one pixel spans, so dividing by
-/// it keeps the outline a pixel wide whether the quad is one block across or a chunk across.
-fn edge_pixels(quad_uv: vec2<f32>) -> f32 {
-    let width = max(fwidth(quad_uv), vec2<f32>(1e-6));
-    return min(
-        min(quad_uv.x, 1.0 - quad_uv.x) / width.x,
-        min(quad_uv.y, 1.0 - quad_uv.y) / width.y,
+/// Distance from the fragment to the nearest edge of its own triangle, measured in pixels: the
+/// screen-space derivative of a quad-local coordinate is how much of the quad one pixel spans, so
+/// dividing by it keeps the outline a pixel wide whether the quad is one block across or a chunk
+/// across. The split diagonal counts as an edge, so what is drawn is the triangle count.
+fn edge_pixels(in: VertexOut) -> f32 {
+    let width = max(fwidth(in.quad_uv), vec2<f32>(1e-6));
+    let border = min(
+        min(in.quad_uv.x, 1.0 - in.quad_uv.x) / width.x,
+        min(in.quad_uv.y, 1.0 - in.quad_uv.y) / width.y,
     );
+    let diagonal = abs(in.diagonal) / max(fwidth(in.diagonal), 1e-6);
+    return min(border, diagonal);
 }
 
 fn shade_sample(in: VertexOut) -> vec4<f32> {
@@ -222,7 +236,7 @@ fn shade_sample(in: VertexOut) -> vec4<f32> {
 fn wireframe_discards(in: VertexOut) -> bool {
     // Taken before any `discard`: that demotes the invocation to a helper, and the neighbours a
     // derivative reads may be exactly the ones that were discarded.
-    return params.wireframe != 0u && edge_pixels(in.quad_uv) > 1.0;
+    return params.wireframe != 0u && edge_pixels(in) > 1.0;
 }
 
 @fragment
