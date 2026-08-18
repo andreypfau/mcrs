@@ -24,7 +24,7 @@ use bevy::render::view::{
 };
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
-use crate::mesh::{Group, STREAMS, StreamSpan};
+use crate::mesh::{Group, MODEL_OVERHANG, STREAMS, StreamSpan};
 
 /// Dynamic uniform offsets must be a multiple of the device's alignment; 256 satisfies every
 /// backend we can land on, and the whole table is six entries.
@@ -71,7 +71,9 @@ struct Params {
     args_index: u32,
     min_section_y: i32,
     wireframe: u32,
-    reserved: [u32; 2],
+    /// How far this stream's geometry may reach outside its own section.
+    overhang: f32,
+    reserved: u32,
 }
 
 /// Draws only the edges of every triangle, in the colour that face's own texture has there, and
@@ -211,7 +213,10 @@ fn init_terrain(
             args_index: stream as u32,
             min_section_y: geometry.min_section_y,
             wireframe: 0,
-            reserved: [0; 2],
+            // Odd streams carry baked model quads, the only geometry that leaves its own section.
+            // Growing the greedy streams' boxes too would only weaken a test that is exact today.
+            overhang: if stream % 2 == 1 { MODEL_OVERHANG } else { 0.0 },
+            reserved: 0,
         };
         group_counts[stream] = span.group_count;
         visible_base += span.quad_count;

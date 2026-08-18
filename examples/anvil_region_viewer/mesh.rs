@@ -28,6 +28,10 @@ pub const STREAM_NAMES: [&str; STREAMS] = [
 /// Face group 7 means "no cullface": drawn whenever the section is visible.
 const FACE_NONE: u32 = 7;
 
+/// The six face groups model geometry can be sorted into, plus one for the quads that face no axis
+/// squarely and so are never backfacing as a run.
+const FACE_GROUPS: usize = 7;
+
 /// Quads live in region-absolute block coordinates, and `y` is biased so the lowest section starts
 /// at zero. 10 / 9 / 10 bits then cover a whole region without a per-draw section origin.
 pub const Y_BIAS: i32 = 64;
@@ -106,7 +110,7 @@ struct Scratch {
     used: Box<[bool; SECTION_SIZE * SECTION_SIZE]>,
     /// Geometry for the face group being built, split by pass so each run stays contiguous.
     simple_by_pass: [Vec<u64>; Pass::COUNT],
-    complex_by_pass: [Vec<u32>; Pass::COUNT],
+    complex_by_pass: [[Vec<u32>; FACE_GROUPS]; Pass::COUNT],
 }
 
 impl Scratch {
@@ -599,7 +603,9 @@ fn complex(
     partial: &mut Partial,
 ) {
     for pass in 0..Pass::COUNT {
-        scratch.complex_by_pass[pass].clear();
+        for group in &mut scratch.complex_by_pass[pass] {
+            group.clear();
+        }
     }
 
     for y in 0..SECTION_SIZE {
@@ -637,7 +643,8 @@ fn complex(
                     } else {
                         0
                     };
-                    let out = &mut scratch.complex_by_pass[quad.pass as usize];
+                    let group = quad.face.map_or(FACE_GROUPS - 1, |dir| dir as usize);
+                    let out = &mut scratch.complex_by_pass[quad.pass as usize][group];
                     for corner in 0..4 {
                         let p = quad.positions[corner];
                         let u = (quad.uvs[corner][0].clamp(0.0, 1.0) * 1023.0) as u32;
@@ -662,20 +669,27 @@ fn complex(
     }
 
     for pass in 0..Pass::COUNT {
-        let verts = std::mem::take(&mut scratch.complex_by_pass[pass]);
-        if !verts.is_empty() {
-            partial.groups.push((
-                (pass * 2 + 1) as u32,
-                Group {
-                    quad_base: (partial.complex.len() / 3 / 4) as u32,
-                    quad_count: (verts.len() / 3 / 4) as u32,
-                    section: packed_section | (FACE_NONE << 15),
-                    _pad: 0,
-                },
-            ));
-            partial.complex.extend_from_slice(&verts);
+        for group in 0..FACE_GROUPS {
+            let verts = std::mem::take(&mut scratch.complex_by_pass[pass][group]);
+            if !verts.is_empty() {
+                let face = if group == FACE_GROUPS - 1 {
+                    FACE_NONE
+                } else {
+                    group as u32
+                };
+                partial.groups.push((
+                    (pass * 2 + 1) as u32,
+                    Group {
+                        quad_base: (partial.complex.len() / 3 / 4) as u32,
+                        quad_count: (verts.len() / 3 / 4) as u32,
+                        section: packed_section | (face << 15),
+                        _pad: 0,
+                    },
+                ));
+                partial.complex.extend_from_slice(&verts);
+            }
+            scratch.complex_by_pass[pass][group] = verts;
         }
-        scratch.complex_by_pass[pass] = verts;
     }
 }
 
@@ -691,11 +705,16 @@ fn shade_bucket(shade: u8) -> u32 {
     }
 }
 
-/// Model positions live in 1/32 of a block, biased two blocks, so a face that pokes outside its own
-/// block — a fence arm, a rail on a slope — still packs into 16 bits alongside the region offset.
+/// How far outside its own block, and so its own section, a model quad may reach: a fence arm, a
+/// rail on a slope. Both the fixed-point encoding and the boxes the model streams are culled
+/// against have to leave room for it.
+pub const MODEL_OVERHANG: f32 = 2.0;
+
+/// Model positions live in 1/32 of a block, biased by the overhang, so a face that pokes outside its
+/// own block still packs into 16 bits alongside the region offset.
 #[inline]
 fn fixed(value: f32) -> u32 {
-    ((value + 2.0) * 32.0).round().clamp(0.0, 65535.0) as u32
+    ((value + MODEL_OVERHANG) * 32.0).round().clamp(0.0, 65535.0) as u32
 }
 
 #[cfg(test)]

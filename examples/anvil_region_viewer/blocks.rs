@@ -57,6 +57,9 @@ pub struct ModelQuad {
     pub positions: [Vec3; 4],
     pub uvs: [[f32; 2]; 4],
     pub cull: Option<Dir>,
+    /// The axis this quad's geometry squarely faces, when it has one. Quads sharing a face group
+    /// are all backfacing at once, so the culling pass can drop the whole run.
+    pub face: Option<Dir>,
     pub layer: u16,
     pub pass: Pass,
     /// Vanilla's directional face shade, already applied per corner.
@@ -258,6 +261,7 @@ fn build_one(
             positions: quad.positions,
             uvs: quad.uvs,
             cull: quad.cull,
+            face: face_group(&quad.positions),
             layer,
             pass: Pass::of(sprites.sprites[layer as usize].opacity),
             shade: quad.color,
@@ -273,6 +277,23 @@ fn build_one(
         tint_kind,
         emission,
     })
+}
+
+/// The axis a quad squarely faces, or `None` when it faces none of them squarely.
+///
+/// The tolerance has to be this tight, and `BakedQuad::dir` cannot stand in for the answer: that is
+/// the nearest axis with no tolerance at all, so the two 45-degree panes of a plant come back
+/// labelled `Up` and would disappear the moment the camera dropped below them.
+///
+/// Winding is counter-clockwise seen from outside, so the cross product of the first two edges is
+/// the outward normal.
+fn face_group(positions: &[Vec3; 4]) -> Option<Dir> {
+    let normal = (positions[1] - positions[0])
+        .cross(positions[2] - positions[0])
+        .normalize_or_zero();
+    Dir::ALL
+        .into_iter()
+        .find(|dir| normal.dot(dir.normal()) >= 1.0 - 1e-4)
 }
 
 fn tint_kind_of(name: &str) -> TintKind {
@@ -480,9 +501,33 @@ fn surface_biome(region: &Region, x: usize, z: usize) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use super::{cube_corner, split_cube};
+    use super::{cube_corner, face_group, split_cube};
     use crate::bake::{self, Dir, TinyWorld};
-    use bevy::math::IVec3;
+    use bevy::math::{IVec3, Vec3};
+
+    /// A quad joins a face group only when it faces that axis squarely, and the nearest axis is not
+    /// good enough to decide it: the two diagonal panes of a plant are nearest to some axis like
+    /// everything else, and grouping them by it would cull them away from one side.
+    #[test]
+    fn only_a_squarely_facing_quad_joins_a_face_group() {
+        for dir in Dir::ALL {
+            let face = std::array::from_fn(|corner| cube_corner(dir, corner));
+            assert_eq!(face_group(&face), Some(dir), "the {} face of a cube", dir.name());
+        }
+
+        let pane = [
+            Vec3::new(0.2, 1.0, 0.2),
+            Vec3::new(0.2, 0.0, 0.2),
+            Vec3::new(0.8, 0.0, 0.8),
+            Vec3::new(0.8, 1.0, 0.8),
+        ];
+        let normal = (pane[1] - pane[0]).cross(pane[2] - pane[0]);
+        assert!(
+            Dir::nearest(normal).is_some(),
+            "the nearest axis answers even for a pane that faces none of them"
+        );
+        assert_eq!(face_group(&pane), None, "a plant's diagonal pane");
+    }
 
     #[test]
     fn cube_uv_matches_the_vanilla_bake() {

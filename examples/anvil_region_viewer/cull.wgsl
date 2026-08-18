@@ -30,9 +30,10 @@ struct Params {
     args_index: u32,
     min_section_y: i32,
     wireframe: u32,
-    // Explicit scalars rather than a vec3: a vec3 would align to 16 and silently grow the struct
-    // past the 32 bytes the dynamic uniform offsets are laid out on.
-    pad0: u32,
+    // How far this stream's geometry may reach outside its own section. Explicit scalars rather
+    // than a vec3: a vec3 would align to 16 and silently grow the struct past the 32 bytes the
+    // dynamic uniform offsets are laid out on.
+    overhang: f32,
     pad1: u32,
 }
 
@@ -102,8 +103,12 @@ fn cull(
         // mandatory: without it such a group would read the 7168th word of a 1024-word array.
         let sec = g.section & 0x7fffu;
         let reachable = (cave_visible[sec >> 5u] >> (sec & 31u)) & 1u;
-        let mn = section_min(g);
-        let mx = mn + 16.0;
+        // Model geometry hangs outside the section that owns it — a fence arm, a rail on a slope —
+        // so both tests below run against a box grown by however far this stream can reach. Without
+        // it a section on the very edge of the frustum takes the quad poking into frame with it.
+        let origin = section_min(g);
+        let mn = origin - params.overhang;
+        let mx = origin + 16.0 + params.overhang;
         let face = (g.section >> 15u) & 7u;
         if (reachable != 0u && in_frustum(mn, mx) && faces_camera(face, mn, mx)) {
             reserved_slot = atomicAdd(&args[params.args_index].instance_count, g.quad_count);
