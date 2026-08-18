@@ -108,10 +108,18 @@ bevy = { version = "0.19.1", default-features = false, features = [
 ] }
 serde.workspace = true
 serde_json.workspace = true
+mcrs_nbt.workspace = true
+flate2.workspace = true
+bytemuck = { version = "1", features = ["derive"] }
 
 [[example]]
 name = "block_viewer"
 path = "examples/block_viewer/main.rs"
+test = true
+
+[[example]]
+name = "anvil_region_viewer"
+path = "examples/anvil_region_viewer/main.rs"
 test = true
 
 [features]
