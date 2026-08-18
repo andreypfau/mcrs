@@ -12,11 +12,11 @@ struct Params {
     visible_base: u32,
     args_index: u32,
     min_section_y: i32,
+    wireframe: u32,
     // Explicit scalars rather than a vec3: a vec3 would align to 16 and silently grow the struct
     // past the 32 bytes the dynamic uniform offsets are laid out on.
     pad0: u32,
     pad1: u32,
-    pad2: u32,
 }
 
 @group(0) @binding(0) var<uniform> view: View;
@@ -37,6 +37,9 @@ struct VertexOut {
     @location(2) shade: f32,
     @location(3) world_xz: vec2<f32>,
     @location(4) @interpolate(flat) tint_kind: u32,
+    /// Corner position within the quad, so the fragment can find the quad's own edges. Greedy
+    /// quads cover many blocks, so this is not the same thing as the texture coordinate.
+    @location(5) quad_uv: vec2<f32>,
 };
 
 /// Quad corners in the order vanilla winds them, as (u, v).
@@ -133,7 +136,8 @@ fn vertex_simple(
     let flip = ((hi >> 29u) & 1u) == 1u;
 
     let corner = corner_index(vertex, flip);
-    let c = corner_uv(corner) * size;
+    let quad_uv = corner_uv(corner);
+    let c = quad_uv * size;
     let world = anchor + face_u_dir(face) * c.x + face_v_dir(face) * c.y;
 
     var out: VertexOut;
@@ -143,6 +147,7 @@ fn vertex_simple(
     out.shade = face_shade(face) * light_curve(light) * ao_factor(ao_bits, corner);
     out.world_xz = world.xz;
     out.tint_kind = (hi >> 30u) & 3u;
+    out.quad_uv = quad_uv;
     return out;
 }
 
@@ -183,7 +188,19 @@ fn vertex_complex(
     out.shade = shade * light_curve(light);
     out.world_xz = world.xz;
     out.tint_kind = (w1 >> 26u) & 3u;
+    out.quad_uv = corner_uv(corner);
     return out;
+}
+
+/// Distance from the fragment to the nearest edge of its quad, measured in pixels: the screen-space
+/// derivative of the quad-local coordinate is how much of the quad one pixel spans, so dividing by
+/// it keeps the outline a pixel wide whether the quad is one block across or a chunk across.
+fn edge_pixels(quad_uv: vec2<f32>) -> f32 {
+    let width = max(fwidth(quad_uv), vec2<f32>(1e-6));
+    return min(
+        min(quad_uv.x, 1.0 - quad_uv.x) / width.x,
+        min(quad_uv.y, 1.0 - quad_uv.y) / width.y,
+    );
 }
 
 fn shade_sample(in: VertexOut) -> vec4<f32> {
@@ -200,10 +217,19 @@ fn shade_sample(in: VertexOut) -> vec4<f32> {
     return vec4<f32>(color.rgb * factor * in.shade, color.a);
 }
 
+/// Keeping only the outline leaves the quad's interior unwritten, so the depth buffer stays open
+/// there and the geometry behind shows through, all the way to the sky.
+fn wireframe_discards(in: VertexOut) -> bool {
+    // Taken before any `discard`: that demotes the invocation to a helper, and the neighbours a
+    // derivative reads may be exactly the ones that were discarded.
+    return params.wireframe != 0u && edge_pixels(in.quad_uv) > 1.0;
+}
+
 @fragment
 fn fragment_opaque(in: VertexOut) -> @location(0) vec4<f32> {
     let color = shade_sample(in);
-    if (color.a < 0.5) {
+    let hidden = wireframe_discards(in);
+    if (color.a < 0.5 || hidden) {
         discard;
     }
     return vec4<f32>(color.rgb, 1.0);
@@ -211,5 +237,9 @@ fn fragment_opaque(in: VertexOut) -> @location(0) vec4<f32> {
 
 @fragment
 fn fragment_blend(in: VertexOut) -> @location(0) vec4<f32> {
-    return shade_sample(in);
+    let color = shade_sample(in);
+    if (wireframe_discards(in)) {
+        discard;
+    }
+    return color;
 }

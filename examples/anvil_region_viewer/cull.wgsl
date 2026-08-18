@@ -29,11 +29,11 @@ struct Params {
     visible_base: u32,
     args_index: u32,
     min_section_y: i32,
+    wireframe: u32,
     // Explicit scalars rather than a vec3: a vec3 would align to 16 and silently grow the struct
     // past the 32 bytes the dynamic uniform offsets are laid out on.
     pad0: u32,
     pad1: u32,
-    pad2: u32,
 }
 
 @group(0) @binding(0) var<uniform> view: View;

@@ -16,6 +16,7 @@ use bevy::render::render_resource::binding_types::{
 };
 use bevy::render::render_resource::*;
 use bevy::render::diagnostic::RecordDiagnostics;
+use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
 use bevy::render::view::{
     ExtractedView, ViewDepthTexture, ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms,
@@ -28,6 +29,8 @@ use crate::mesh::{Group, STREAMS, StreamSpan};
 /// backend we can land on, and the whole table is six entries.
 const PARAMS_STRIDE: u32 = 256;
 const PARAMS_SIZE: u64 = 32;
+/// Byte offset of `Params::wireframe`, which follows five four-byte fields.
+const PARAMS_WIREFRAME_OFFSET: u64 = 20;
 const TINT_SIZE: u32 = 512;
 const TINT_LAYERS: u32 = 3;
 
@@ -66,8 +69,14 @@ struct Params {
     visible_base: u32,
     args_index: u32,
     min_section_y: i32,
-    reserved: [i32; 3],
+    wireframe: u32,
+    reserved: [u32; 2],
 }
+
+/// Draws only the outline of every quad, in the colour that quad's own texture has there, and
+/// leaves the interiors unpainted so the geometry behind stays visible.
+#[derive(Resource, Clone, Copy, Default, ExtractResource)]
+pub struct Wireframe(pub bool);
 
 pub struct TerrainPlugin(pub Arc<Geometry>);
 
@@ -75,6 +84,9 @@ impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
         bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "cull.wgsl");
         bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "terrain.wgsl");
+
+        app.init_resource::<Wireframe>()
+            .add_plugins(ExtractResourcePlugin::<Wireframe>::default());
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
@@ -86,6 +98,7 @@ impl Plugin for TerrainPlugin {
                 Render,
                 (
                     prepare_pipelines.in_set(RenderSystems::Prepare),
+                    prepare_wireframe.in_set(RenderSystems::Prepare),
                     prepare_view_bind_group.in_set(RenderSystems::PrepareBindGroups),
                 ),
             )
@@ -157,7 +170,8 @@ fn init_terrain(
             visible_base,
             args_index: stream as u32,
             min_section_y: geometry.min_section_y,
-            reserved: [0; 3],
+            wireframe: 0,
+            reserved: [0; 2],
         };
         group_counts[stream] = span.group_count;
         visible_base += span.quad_count;
@@ -171,7 +185,7 @@ fn init_terrain(
     let params = device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("terrain stream params"),
         contents: bytemuck::cast_slice(&params),
-        usage: BufferUsages::UNIFORM,
+        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
     });
 
     let args_init = [DrawArgs {
@@ -388,6 +402,32 @@ fn upload_tints(
         ..default()
     });
     (view, sampler)
+}
+
+/// The params table is otherwise written once at startup, so the flag is pushed only on the frame
+/// the key is pressed rather than re-uploaded every frame.
+fn prepare_wireframe(
+    wireframe: Res<Wireframe>,
+    terrain: Option<Res<Terrain>>,
+    queue: Res<RenderQueue>,
+    mut applied: Local<bool>,
+) {
+    let Some(terrain) = terrain else {
+        return;
+    };
+    if *applied == wireframe.0 {
+        return;
+    }
+    *applied = wireframe.0;
+
+    let flag = u32::from(wireframe.0);
+    for stream in 0..STREAMS {
+        queue.write_buffer(
+            &terrain.params,
+            stream as u64 * PARAMS_STRIDE as u64 + PARAMS_WIREFRAME_OFFSET,
+            bytemuck::bytes_of(&flag),
+        );
+    }
 }
 
 /// The colour format a pipeline must declare is the view's, and no view exists yet when

@@ -6,6 +6,8 @@
 //! ```
 //!
 //! Drag with the left mouse button to orbit, scroll to zoom, hold shift while dragging to pan.
+//! Press F10 to outline every quad in a colour derived from its texture, F11 for borderless
+//! fullscreen, which is the only way to read a real frame rate on macOS, and F12 to save a PNG.
 //!
 //! The region is static, so the whole pipeline is built around loading once and never touching the
 //! geometry again: blocks are baked per distinct block state rather than per block, full cubes are
@@ -40,10 +42,10 @@ use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseSc
 use bevy::prelude::*;
 use bevy::render::view::Msaa;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
-use bevy::window::PresentMode;
+use bevy::window::{MonitorSelection, PresentMode, WindowMode};
 use bevy::winit::{UpdateMode, WinitSettings};
 
-use render::{Geometry, TerrainPlugin};
+use render::{Geometry, TerrainPlugin, Wireframe};
 
 const DEFAULT_REGION: &str = "examples/anvil_region_viewer/r.0.0.mca";
 
@@ -77,9 +79,10 @@ fn main() {
                 primary_window: Some(Window {
                     title: title_base(&path),
                     // Asks for no vsync so the counter reflects the renderer rather than the
-                    // display. macOS keeps presenting at the refresh rate anyway — measured
-                    // identical at 320x240 and full screen — so treat the rate as a ceiling there
-                    // and read the percentiles for spikes instead.
+                    // display. This reaches Metal as `displaySyncEnabled = false`, but a composited
+                    // macOS window still gets its drawables recycled by the window server at the
+                    // refresh rate, so `nextDrawable` blocks for the rest of the frame regardless.
+                    // Fullscreen (F11) takes the window off that path and is what actually uncaps.
                     present_mode: PresentMode::AutoNoVsync,
                     ..default()
                 }),
@@ -91,10 +94,10 @@ fn main() {
             focused_mode: UpdateMode::Continuous,
             unfocused_mode: UpdateMode::Continuous,
         })
-        .insert_resource(FrameStats::new(&path))
+        .insert_resource(FrameStats::new())
         .add_plugins((
             FrameTimeDiagnosticsPlugin::default(),
-            // Real GPU time per pass, not a frame counter: the window is vsync-locked, so wall
+            // Per-pass timings, which stay meaningful while the window is capped and the wall
             // clock says nothing about how much headroom the culling and draw passes leave.
             RenderDiagnosticsPlugin,
             LogDiagnosticsPlugin {
@@ -104,10 +107,12 @@ fn main() {
         ))
         .add_plugins(TerrainPlugin(geometry))
         .insert_resource(ClearColor(Color::srgb(0.55, 0.70, 0.94)))
-        .add_systems(Startup, spawn_camera)
+        .add_systems(Startup, (spawn_camera, spawn_overlay))
         .add_systems(Update, orbit)
         .add_systems(Update, frame_stats)
         .add_systems(Update, screenshot)
+        .add_systems(Update, toggle_fullscreen)
+        .add_systems(Update, toggle_wireframe)
         .run();
 }
 
@@ -184,20 +189,18 @@ struct FrameStats {
     frames: u32,
     written: usize,
     elapsed: f32,
-    base: String,
 }
 
 impl FrameStats {
     const CAPACITY: usize = 4096;
 
-    fn new(path: &str) -> Self {
+    fn new() -> Self {
         Self {
             times: Box::new([0.0; Self::CAPACITY]),
             sorted: Box::new([0.0; Self::CAPACITY]),
             frames: 0,
             written: 0,
             elapsed: 0.0,
-            base: title_base(path),
         }
     }
 }
@@ -212,7 +215,7 @@ fn title_base(path: &str) -> String {
 
 /// Reports the rate plus the two tail percentiles once a second. An average alone hides exactly the
 /// thing worth seeing while orbiting: the occasional frame where culling lets far more through.
-fn frame_stats(time: Res<Time>, mut stats: ResMut<FrameStats>, window: Single<&mut Window>) {
+fn frame_stats(time: Res<Time>, mut stats: ResMut<FrameStats>, overlay: Single<&mut Text>) {
     let delta = time.delta_secs();
     if delta <= 0.0 {
         return;
@@ -237,19 +240,40 @@ fn frame_stats(time: Res<Time>, mut stats: ResMut<FrameStats>, window: Single<&m
     let p95 = stats.sorted[percentile_index(samples, 0.95)];
     let p99 = stats.sorted[percentile_index(samples, 0.99)];
 
-    // Written straight into the component's own buffer, so the once-a-second update does not build
-    // a throwaway string; touching it mutably here is also what tells winit to retitle the window.
-    let mut window = window;
-    window.title.clear();
-    window.title.push_str(&stats.base);
+    // Written straight into the component's own buffer, so the once-a-second update reuses the
+    // allocation instead of building a throwaway string, and the text is only re-laid-out then.
+    let mut overlay = overlay;
+    overlay.0.clear();
     let _ = write!(
-        window.title,
-        "  —  {fps:.0} fps   p95 {p95:.1} ms   p99 {p99:.1} ms",
+        overlay.0,
+        "{fps:.0} fps   p95 {p95:.1} ms   p99 {p99:.1} ms",
     );
 
     stats.frames = 0;
     stats.written = 0;
     stats.elapsed = 0.0;
+}
+
+/// Press F10 to overlay the quad outlines, which show where greedy merging landed and which
+/// texture each face pulls from.
+fn toggle_wireframe(keys: Res<ButtonInput<KeyCode>>, mut wireframe: ResMut<Wireframe>) {
+    if keys.just_pressed(KeyCode::F10) {
+        wireframe.0 = !wireframe.0;
+    }
+}
+
+/// Press F11 to swap between a window and borderless fullscreen. A composited window on macOS is
+/// pinned to the display refresh no matter what present mode is asked for; fullscreen is what lets
+/// the frame rate show the renderer instead.
+fn toggle_fullscreen(keys: Res<ButtonInput<KeyCode>>, window: Single<&mut Window>) {
+    if !keys.just_pressed(KeyCode::F11) {
+        return;
+    }
+    let mut window = window;
+    window.mode = match window.mode {
+        WindowMode::Windowed => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+        _ => WindowMode::Windowed,
+    };
 }
 
 #[inline]
@@ -309,6 +333,26 @@ fn spawn_camera(mut commands: Commands) {
         }),
         Transform::default(),
         orbit,
+    ));
+}
+
+/// The counter lives in the corner rather than the window title because fullscreen, which is the
+/// only mode that reports an honest frame rate on macOS, hides the title bar.
+fn spawn_overlay(mut commands: Commands) {
+    commands.spawn((
+        Text::new(""),
+        TextFont {
+            font_size: FontSize::Px(16.0),
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        TextShadow::default(),
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(8.0),
+            left: Val::Px(8.0),
+            ..default()
+        },
     ));
 }
 
