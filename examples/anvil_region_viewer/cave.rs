@@ -9,12 +9,21 @@
 use bevy::camera::primitives::{Aabb, Frustum};
 use bevy::prelude::*;
 
+use crate::mesh::SECTION_SLOTS;
+
 /// One bit per section slot, `sx | sy << 5 | sz << 10` — the same index `Group::section & 0x7fff`
 /// already carries on the GPU. 32768 bits is 1024 words.
 pub const WORDS: usize = 1024;
 
 /// Seeds and the camera's own section fan out through all six faces; there is no real face 7.
 const ENTRY_ANY: u32 = 7;
+
+/// Entry faces a section can be reached through: the six real ones, and [`ENTRY_ANY`] at 7.
+const ENTRIES: usize = 8;
+
+/// No sight line has entered this section through this face yet. Real values are six bits of spent
+/// directions, so the high bits are free for the marker.
+const NEVER: u8 = u8::MAX;
 
 /// `FACE_AXES` order: 0 Down(−Y), 1 Up(+Y), 2 North(−Z), 3 South(+Z), 4 West(−X), 5 East(+X).
 const NEIGHBOUR: [[i32; 3]; 6] =
@@ -26,17 +35,24 @@ const AXIS_FACE: [u32; 3] = [4, 0, 2];
 #[derive(Resource)]
 pub struct CaveCull {
     pub enabled: bool,
-    /// Reached sections, uploaded to the GPU as they are. They double as the visited set: a section
-    /// that fails the frustum is marked here and never expanded, and the GPU drops it anyway with
-    /// its own frustum test.
+    /// Reached sections, uploaded to the GPU as they are. A section that fails the frustum is marked
+    /// here and never expanded; the GPU drops it anyway with its own frustum test.
     pub bits: Box<[u32; WORDS]>,
+    /// Sections whose box the frustum accepted, so the test is paid once however many faces the
+    /// walk later arrives through.
+    inside: Box<[u32; WORDS]>,
+    /// Spent directions per section and entry face, indexed `slot << 3 | entry`, or [`NEVER`].
+    /// Which exits a section opens depends on the face entered through, so a walk that has already
+    /// crossed it one way still has to cross it the other.
+    spent: Vec<u8>,
     /// [`mesh::RegionMesh::connectivity`](crate::mesh::RegionMesh::connectivity), bit
     /// `entry * 6 + exit`.
     conn: Vec<u64>,
     sections_y: i32,
     min_section_y: i32,
-    /// `slot | entry << 15 | dirs << 18`. One push per section, so the queue never wraps and stops
-    /// growing after the first frame that fills it.
+    /// `slot | entry << 15 | dirs << 18`. One push per section and entry face, plus one more each
+    /// time a later arrival through that face turns out to have spent fewer directions. `dirs` only
+    /// ever shrinks, so those repeats are bounded by its six bits.
     queue: Vec<u32>,
 }
 
@@ -50,6 +66,8 @@ impl CaveCull {
         Self {
             enabled: true,
             bits: Box::new([u32::MAX; WORDS]),
+            inside: Box::new([0; WORDS]),
+            spent: vec![NEVER; SECTION_SLOTS * ENTRIES],
             conn,
             sections_y: sections_y as i32,
             min_section_y,
@@ -63,6 +81,8 @@ impl CaveCull {
 
     fn run(&mut self, camera: Vec3, frustum: &Frustum) {
         self.bits.fill(0);
+        self.inside.fill(0);
+        self.spent.fill(NEVER);
         self.queue.clear();
         if !self.seed(camera, frustum) {
             self.bits.fill(u32::MAX);
@@ -172,18 +192,30 @@ impl CaveCull {
     }
 
     fn push(&mut self, slot: u32, entry: u32, dirs: u32, frustum: &Frustum) {
-        let (word, bit) = ((slot >> 5) as usize, 1u32 << (slot & 31));
-        if self.bits[word] & bit != 0 {
+        // Two arrivals through the same face merge by intersection rather than union. `dirs` is a
+        // set of spent directions and it works by forbidding, so the smaller set is the weaker
+        // filter: dropping to it can only open exits, never close one that was already taken.
+        let seen = &mut self.spent[(slot as usize) << 3 | entry as usize];
+        let merged = if *seen == NEVER { dirs as u8 } else { *seen & dirs as u8 };
+        if merged == *seen {
             return;
         }
+        *seen = merged;
+
         // Marked before the frustum test so each section is tested at most once per frame. A section
         // the frustum rejects stays in the bitset — `in_frustum` in the shader drops it anyway — but
         // is never expanded, so it cannot carry a sight line around an obstacle.
-        self.bits[word] |= bit;
-        if !frustum.intersects_obb_identity(&self.aabb(slot)) {
+        let (word, bit) = ((slot >> 5) as usize, 1u32 << (slot & 31));
+        if self.bits[word] & bit == 0 {
+            self.bits[word] |= bit;
+            if frustum.intersects_obb_identity(&self.aabb(slot)) {
+                self.inside[word] |= bit;
+            }
+        }
+        if self.inside[word] & bit == 0 {
             return;
         }
-        self.queue.push(slot | entry << 15 | dirs << 18);
+        self.queue.push(slot | entry << 15 | (merged as u32) << 18);
     }
 
     fn aabb(&self, slot: u32) -> Aabb {
@@ -270,6 +302,40 @@ mod tests {
         assert!(visible(&cave, 15, 2, 16), "the turn to the west");
         assert!(!visible(&cave, 17, 2, 16), "east is closed by the mask");
         assert!(!visible(&cave, 16, 3, 16), "up is closed by the mask");
+    }
+
+    fn pair(entry: u32, exit: u32) -> u64 {
+        1 << (entry * 6 + exit)
+    }
+
+    /// One section crossable West→Up and North→Down, with a corridor reaching it from the west and
+    /// another from the north. The longer corridor delivers its sight line second.
+    fn two_ways_in(mx: u32, mz: u32) -> CaveCull {
+        let slot = |x: u32, y: u32, z: u32| (x | y << 5 | z << 10) as usize;
+        let mut conn = vec![0u64; SECTION_SLOTS];
+        conn[slot(mx, 2, mz)] = pair(4, 1) | pair(1, 4) | pair(2, 0) | pair(0, 2);
+        for x in 0..mx {
+            conn[slot(x, 2, mz)] = pair(4, 5) | pair(5, 4);
+        }
+        for z in 0..mz {
+            conn[slot(mx, 2, z)] = pair(2, 3) | pair(3, 2);
+        }
+        CaveCull::new(conn, 4, 0)
+    }
+
+    /// Which exits a section opens depends on the face the sight line came in through, so a section
+    /// already crossed one way still has to be crossed the other. Marking it done on the first
+    /// arrival drops the second way in along with everything only it could see, and which of the two
+    /// survives comes down to the order the walk happened to reach them in.
+    #[test]
+    fn a_section_reached_twice_opens_the_exits_of_both_ways_in() {
+        for (mx, mz) in [(16, 24), (24, 16)] {
+            let mut cave = two_ways_in(mx, mz);
+            let eye = Vec3::new(-160.0, 40.0, -160.0);
+            cave.run(eye, &wide(eye, Vec3::new(400.0, 40.0, 400.0)));
+            assert!(visible(&cave, mx, 3, mz), "{mx},{mz}: the way up, entered from the west");
+            assert!(visible(&cave, mx, 1, mz), "{mx},{mz}: the way down, entered from the north");
+        }
     }
 
     /// A camera inside rock has nothing to start from; culling has to switch itself off for the
