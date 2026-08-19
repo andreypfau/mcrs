@@ -136,15 +136,15 @@ fn main() {
         (layout.model_capacity * MODEL_BYTES) as f64 / 1e6,
     );
 
+    // The walk starts wherever the camera does; it slides itself into place on the first frame.
     let cave = cave::CaveCull::new(
-        vec![mesh::CONNECT_ALL; layout.grid.slots()],
-        layout.grid,
+        cave::cave_grid(),
+        layout.min_section,
         [
             window.regions[0] * anvil::REGION_CHUNKS,
             anvil::SECTIONS_Y,
             window.regions[1] * anvil::REGION_CHUNKS,
         ],
-        layout.min_section,
     );
     assert_eq!(
         cave.words(),
@@ -248,7 +248,8 @@ fn layout(window: &anvil::Window) -> Result<Layout, String> {
         quad_capacity: quad_mb * files * 1_000_000 / QUAD_BYTES,
         model_capacity: model_mb * files * 1_000_000 / MODEL_BYTES,
         group_capacity: GROUPS_PER_FILE * files,
-        cave_words: grid.slots().div_ceil(32),
+        cave_words: (cave::cave_grid().slots() + pack::SECTIONS_PER_RENDER_REGION)
+            .div_ceil(32),
         celestials: sky::celestials()?,
         clouds: sky::clouds()?,
         tint_origin: [
@@ -459,8 +460,10 @@ fn screenshot(
         *settled += 1;
     }
     let auto = std::env::var("ANVIL_SCREENSHOT").ok();
+    // Thirty frames after the loader goes quiet, or after ten seconds if it never does — with the
+    // view moving there is always something left to load and the first condition never comes.
     let path = match (&auto, keys.just_pressed(KeyCode::F12)) {
-        (Some(path), _) if *settled == 30 => path.clone(),
+        (Some(path), _) if *settled == 30 || *frames == 600 => path.clone(),
         (_, true) => "anvil_region_viewer.png".to_string(),
         _ => {
             if auto.is_some() && *frames > 3600 {

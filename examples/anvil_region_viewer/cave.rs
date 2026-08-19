@@ -10,7 +10,9 @@ use bevy::camera::primitives::{Aabb, Frustum};
 use bevy::prelude::*;
 
 use crate::anvil::SECTION_SIZE;
-use crate::pack::RegionGrid;
+use crate::pack::{
+    RENDER_REGION_X, RENDER_REGION_Y, RENDER_REGION_Z, RegionGrid, SECTIONS_PER_RENDER_REGION,
+};
 
 /// Seeds and the camera's own section fan out through all six faces; there is no real face 7.
 const ENTRY_ANY: u32 = 7;
@@ -36,11 +38,34 @@ const NEIGHBOUR: [[i32; 3]; 6] =
 /// The negative face of each axis, so that `AXIS_FACE[axis] | positive as u32` is the direction.
 const AXIS_FACE: [u32; 3] = [4, 0, 2];
 
+/// Render regions the walk covers on each horizontal axis.
+///
+/// The walk's cost and its arrays follow the camera rather than the loaded window: a window can be
+/// sixty-four region files wide, and a grid spanning that would be a million and a half sections
+/// for the walk to clear every frame — past what a queue entry can even name. Six render regions
+/// is fifteen hundred blocks across, which comfortably covers what the memory budget can hold
+/// around the camera.
+pub const CAVE_REGIONS: usize = 6;
+
+/// The grid the walk covers. Its vertical extent is the world's whole height, because a sight line
+/// goes up and down as readily as sideways.
+pub fn cave_grid() -> RegionGrid {
+    RegionGrid {
+        x: CAVE_REGIONS,
+        y: crate::anvil::SECTIONS_Y / crate::pack::RENDER_REGION_Y,
+        z: CAVE_REGIONS,
+    }
+}
+
 #[derive(Resource)]
 pub struct CaveCull {
     pub enabled: bool,
     /// Reached sections, uploaded to the GPU as they are. A section that fails the frustum is marked
     /// here and never expanded; the GPU drops it anyway with its own frustum test.
+    ///
+    /// One render region's worth of slots past the grid is kept permanently set. A region the
+    /// walk's grid does not reach points its draws there, so geometry outside the walk is drawn
+    /// rather than culled by a bit that was never written.
     pub bits: Box<[u32]>,
     /// Sections whose box the frustum accepted, so the test is paid once however many faces the
     /// walk later arrives through.
@@ -49,16 +74,19 @@ pub struct CaveCull {
     /// Which exits a section opens depends on the face entered through, so a walk that has already
     /// crossed it one way still has to cross it the other.
     spent: Vec<u8>,
-    /// [`mesh::RegionMesh::connectivity`](crate::mesh::RegionMesh::connectivity), bit
-    /// `entry * 6 + exit`.
+    /// Per-section crossing masks, bit `entry * 6 + exit`. A slot no loaded section covers stays
+    /// [`CONNECT_ALL`](crate::mesh::CONNECT_ALL): unloaded is not the same as solid, and a walk
+    /// that treated it as solid would cull away geometry that is still there.
     conn: Vec<u64>,
     grid: RegionGrid,
-    /// The sections the loaded world really holds, which is what the walk may step onto. The grid
-    /// rounds up to whole regions, so its far corner can be padding that no section occupies.
-    sections: [usize; 3],
-    /// Section coordinates of the loaded window's corner. Region coordinates run either side of
-    /// zero, so this is signed on all three axes and not only the vertical one.
+    /// Section coordinates of the walk's own corner. It slides with the camera, so this is the one
+    /// piece of the walk that moves.
     min_section: [i32; 3],
+    /// The loaded world, in world section coordinates. The walk may not step outside it: the grid
+    /// can reach past the last file, and a sight line let loose in that empty space would travel
+    /// round the outside of the world and light up its far side.
+    world_min: [i32; 3],
+    world_extent: [usize; 3],
     /// One push per section and entry face, plus one more each time a later arrival through that
     /// face turns out to have spent fewer directions. `dirs` only ever shrinks, so those repeats
     /// are bounded by its six bits.
@@ -66,51 +94,60 @@ pub struct CaveCull {
 }
 
 impl CaveCull {
-    pub fn new(
-        conn: Vec<u64>,
-        grid: RegionGrid,
-        sections: [usize; 3],
-        min_section: [i32; 3],
-    ) -> Self {
-        let covers = RegionGrid::covering(sections);
-        assert!(
-            covers == grid,
-            "the walk was given a {grid:?} grid for a world of {sections:?} sections, which needs \
-             {covers:?}"
-        );
+    pub fn new(grid: RegionGrid, min_section: [i32; 3], world_extent: [usize; 3]) -> Self {
         let slots = grid.slots();
         assert!(
-            slots < 1 << QUEUE_SLOT_BITS,
-            "the walk queue carries a section slot in {QUEUE_SLOT_BITS} bits, and this world has \
+            slots + SECTIONS_PER_RENDER_REGION < 1 << QUEUE_SLOT_BITS,
+            "the walk queue carries a section slot in {QUEUE_SLOT_BITS} bits, and this grid has \
              {slots} of them"
         );
+        let words = (slots + SECTIONS_PER_RENDER_REGION).div_ceil(32);
         Self {
             enabled: true,
-            bits: vec![u32::MAX; slots.div_ceil(32)].into_boxed_slice(),
-            inside: vec![0; slots.div_ceil(32)].into_boxed_slice(),
+            bits: vec![u32::MAX; words].into_boxed_slice(),
+            inside: vec![0; words].into_boxed_slice(),
             spent: vec![NEVER; slots * ENTRIES],
-            conn,
+            conn: vec![crate::mesh::CONNECT_ALL; slots],
             grid,
-            sections,
             min_section,
-            queue: Vec::with_capacity(sections[0] * sections[1] * sections[2]),
+            world_min: min_section,
+            world_extent,
+            queue: Vec::with_capacity(slots),
         }
     }
 
-    /// Takes the crossing masks of a render region the mesher has just finished. Sections it does
-    /// not name keep what they had: a section that is missing from the file is air, and defaulting
-    /// it to "closed" would kill a sight-line walk on its very first step through open sky.
-    pub fn set_connectivity(&mut self, entries: &[(u32, u64)]) {
-        for &(slot, mask) in entries {
-            self.conn[slot as usize] = mask;
+    pub fn grid(&self) -> RegionGrid {
+        self.grid
+    }
+
+    pub fn min_section(&self) -> [i32; 3] {
+        self.min_section
+    }
+
+    /// Where a region's draws point when the walk's grid does not reach them: a run of slots that
+    /// is always set, so those draws are never culled by a bit nobody wrote.
+    pub fn always_visible(&self) -> u32 {
+        self.grid.slots() as u32
+    }
+
+    /// Moves the walk's grid to a new corner, forgetting everything it held. The caller writes
+    /// back the masks of whatever is still loaded inside it.
+    pub fn retarget(&mut self, min_section: [i32; 3]) {
+        self.min_section = min_section;
+        self.conn.fill(crate::mesh::CONNECT_ALL);
+    }
+
+    /// Takes the crossing masks of a render region the mesher has just finished, by the section's
+    /// place inside that region. Sections it does not name keep what they had.
+    pub fn set_region(&mut self, base: usize, entries: &[(u32, u64)]) {
+        for &(local, mask) in entries {
+            self.conn[base + local as usize] = mask;
         }
     }
 
-    /// Forgets what a render region's sections said. An unloaded section is not known to be
-    /// solid, it is not known at all, and a walk that went on believing the rock it left behind
-    /// would cull away geometry that is still there.
-    pub fn forget(&mut self, base: usize, count: usize) {
-        self.conn[base..base + count].fill(crate::mesh::CONNECT_ALL);
+    /// Forgets what a render region's sections said.
+    pub fn forget(&mut self, base: usize) {
+        self.conn[base..base + SECTIONS_PER_RENDER_REGION].fill(crate::mesh::CONNECT_ALL);
     }
 
     /// Words of the bitset, which is also how much of it goes to the GPU.
@@ -124,6 +161,7 @@ impl CaveCull {
 
     fn run(&mut self, camera: Vec3, frustum: &Frustum) {
         self.bits.fill(0);
+        self.open_the_tail();
         self.inside.fill(0);
         self.spent.fill(NEVER);
         self.queue.clear();
@@ -132,7 +170,7 @@ impl CaveCull {
             return;
         }
 
-        let hi = self.limit();
+        let (lo, hi) = self.bounds();
         let mut head = 0;
         while head < self.queue.len() {
             let node = self.queue[head];
@@ -157,7 +195,7 @@ impl CaveCull {
                 let next = [here[0] + step[0], here[1] + step[1], here[2] + step[2]];
                 // Against what the world really holds, not what the region grid spans: the grid
                 // rounds up to whole regions, so its far corner can be slots no section occupies.
-                if (0..3).any(|a| next[a] < 0 || next[a] > hi[a]) {
+                if (0..3).any(|a| next[a] < lo[a] || next[a] > hi[a]) {
                     continue;
                 }
                 let neighbour =
@@ -171,7 +209,7 @@ impl CaveCull {
     /// `false` asks the caller to give up for this frame: with the camera inside a section no sight
     /// line crosses, the walk would die on its six neighbours and leave an empty screen.
     fn seed(&mut self, camera: Vec3, frustum: &Frustum) -> bool {
-        let hi = self.limit();
+        let (lo, hi) = self.bounds();
         let size = SECTION_SIZE as f32;
         let cs = [
             camera.x.div_euclid(size) as i32 - self.min_section[0],
@@ -184,7 +222,7 @@ impl CaveCull {
         let mut dirs = 0u32;
         let mut outside = [0i32; 3];
         for a in 0..3 {
-            if cs[a] < 0 {
+            if cs[a] < lo[a] {
                 outside[a] = -1;
                 dirs |= 1 << (AXIS_FACE[a] | 1);
             } else if cs[a] > hi[a] {
@@ -212,9 +250,9 @@ impl CaveCull {
                 continue;
             }
             let (b, c) = ((a + 1) % 3, (a + 2) % 3);
-            let fixed = if outside[a] < 0 { 0 } else { hi[a] };
-            for u in 0..=hi[b] {
-                for v in 0..=hi[c] {
+            let fixed = if outside[a] < 0 { lo[a] } else { hi[a] };
+            for u in lo[b]..=hi[b] {
+                for v in lo[c]..=hi[c] {
                     let mut p = [0i32; 3];
                     p[a] = fixed;
                     p[b] = u;
@@ -260,13 +298,27 @@ impl CaveCull {
             .push(slot | entry << QUEUE_ENTRY_SHIFT | (merged as u32) << QUEUE_DIRS_SHIFT);
     }
 
-    /// The last section on each axis the walk may step onto.
-    fn limit(&self) -> [i32; 3] {
-        [
-            self.sections[0] as i32 - 1,
-            self.sections[1] as i32 - 1,
-            self.sections[2] as i32 - 1,
-        ]
+    /// The sections the walk may step onto, in its own grid's coordinates: whichever is narrower
+    /// of the grid and the loaded world.
+    fn bounds(&self) -> ([i32; 3], [i32; 3]) {
+        let extent = [
+            self.grid.x * RENDER_REGION_X,
+            self.grid.y * RENDER_REGION_Y,
+            self.grid.z * RENDER_REGION_Z,
+        ];
+        let mut lo = [0i32; 3];
+        let mut hi = [0i32; 3];
+        for axis in 0..3 {
+            let offset = self.world_min[axis] - self.min_section[axis];
+            lo[axis] = offset.max(0);
+            hi[axis] = (offset + self.world_extent[axis] as i32).min(extent[axis] as i32) - 1;
+        }
+        (lo, hi)
+    }
+
+    /// The run past the grid that draws outside the walk point at stays set whatever the walk did.
+    fn open_the_tail(&mut self) {
+        self.bits[self.grid.slots() / 32..].fill(u32::MAX);
     }
 
     fn aabb(&self, slot: u32) -> Aabb {
@@ -306,10 +358,12 @@ mod tests {
     use super::*;
     use crate::mesh::CONNECT_ALL;
     use crate::anvil::REGION_CHUNKS;
+    use crate::pack::RENDER_REGION_X;
     use bevy::camera::CameraProjection;
 
-    /// A shallow world, so a fixture stays small while still spanning several render regions.
-    const SECTIONS: [usize; 3] = [REGION_CHUNKS, 4, REGION_CHUNKS];
+    /// A shallow world, so a fixture stays small while still spanning several render regions. Its
+    /// height is a whole render region, because the walk may step anywhere in its own grid.
+    const SECTIONS: [usize; 3] = [REGION_CHUNKS, RENDER_REGION_Y, REGION_CHUNKS];
 
     fn grid() -> RegionGrid {
         RegionGrid::covering(SECTIONS)
@@ -320,7 +374,13 @@ mod tests {
     }
 
     fn walk(conn: Vec<u64>) -> CaveCull {
-        CaveCull::new(conn, grid(), SECTIONS, [0; 3])
+        at(conn, [0; 3])
+    }
+
+    fn at(conn: Vec<u64>, corner: [i32; 3]) -> CaveCull {
+        let mut cave = CaveCull::new(grid(), corner, SECTIONS);
+        cave.conn.copy_from_slice(&conn);
+        cave
     }
 
     fn empty_conn() -> Vec<u64> {
@@ -366,6 +426,48 @@ mod tests {
         assert!(!visible(&cave, 10, 2, 16), "section behind the wall");
     }
 
+    /// The walk covers a box around the camera, not the whole loaded world, so geometry can sit
+    /// outside it. Those draws point past the grid at a run of slots that is always set: culling
+    /// them with a bit nobody wrote would make the far half of the view disappear.
+    #[test]
+    fn geometry_outside_the_walks_grid_is_drawn_rather_than_culled() {
+        let mut conn = open_conn();
+        for sy in 0..SECTIONS[1] {
+            for sz in 0..SECTIONS[2] {
+                conn[slot(20, sy, sz)] = 0;
+            }
+        }
+        let mut cave = walk(conn);
+        let eye = Vec3::new(900.0, 32.0, 256.0);
+        cave.run(eye, &wide(eye, Vec3::new(0.0, 32.0, 256.0)));
+        assert!(!visible(&cave, 10, 2, 16), "the walk really did cull something");
+
+        let tail = cave.always_visible() as usize;
+        for slot in tail..tail + SECTIONS_PER_RENDER_REGION {
+            assert!(
+                cave.bits[slot >> 5] >> (slot & 31) & 1 != 0,
+                "slot {slot} past the grid has to stay set"
+            );
+        }
+    }
+
+    /// Sliding the grid renumbers every slot in it, so what it held before means nothing at the
+    /// new corner. Keeping the old masks would cull against rock that is somewhere else now.
+    #[test]
+    fn sliding_the_grid_forgets_what_it_covered() {
+        let mut conn = open_conn();
+        conn[slot(5, 2, 5)] = 0;
+        let mut cave = walk(conn);
+        assert_eq!(cave.conn[slot(5, 2, 5)], 0);
+
+        cave.retarget([RENDER_REGION_X as i32, 0, 0]);
+        assert_eq!(cave.min_section(), [RENDER_REGION_X as i32, 0, 0]);
+        assert!(
+            cave.conn.iter().all(|mask| *mask == CONNECT_ALL),
+            "a grid that has slid holds nothing until the loader lays it back in"
+        );
+    }
+
     /// Region coordinates run either side of zero, so the window a walk covers can start at a
     /// negative section. Losing that offset puts the camera outside the window instead of inside
     /// it, and the walk then seeds the far boundary and reports the wall's other side.
@@ -378,7 +480,7 @@ mod tests {
                 conn[slot(20, sy, sz)] = 0;
             }
         }
-        let mut cave = CaveCull::new(conn, grid(), SECTIONS, corner);
+        let mut cave = at(conn, corner);
         // Window-relative section (25, 2, 16), which with this corner is world section (-7, 2, -16).
         let eye = Vec3::new(-104.0, 40.0, -248.0);
         cave.run(eye, &wide(eye, Vec3::new(-900.0, 40.0, -248.0)));

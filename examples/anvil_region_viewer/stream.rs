@@ -17,7 +17,9 @@ use std::time::Instant;
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 
-use crate::anvil::{self, Palette, REGION_BLOCKS, Region, SECTION_SIZE, Window, World};
+use crate::anvil::{
+    self, Palette, REGION_BLOCKS, REGION_CHUNKS, Region, SECTION_SIZE, Window, World,
+};
 use crate::arena::{Arena, Block};
 use crate::blocks::{self, BlockInfo, Catalog};
 use crate::cave::CaveCull;
@@ -101,6 +103,9 @@ struct Resident {
     quads: Block,
     models: Block,
     groups: Block,
+    /// The crossing masks of its sections, numbered inside the region. Kept so they can be laid
+    /// into the walk's grid again after it slides.
+    connectivity: Vec<(u32, u64)>,
 }
 
 /// What one round of baking produced.
@@ -243,20 +248,97 @@ impl Loader {
         self.models.free(held.models);
         self.groups.free(held.groups);
         self.uploads.push(Upload::Drop(region as u32));
-        cave.forget(
-            self.layout.grid.cave_base(region),
-            SECTIONS_PER_RENDER_REGION,
-        );
+        if let Some(base) = self.cave_base(cave, region) {
+            cave.forget(base);
+        }
         self.evicted += 1;
         // Room has come free, so what did not fit before may fit now.
         self.deferred.fill(false);
+    }
+
+    /// Where a region's sections sit in the walk's bitset, or `None` when the walk's grid has slid
+    /// away from it. A region the walk does not cover is not culled by it.
+    fn cave_base(&self, cave: &CaveCull, region: usize) -> Option<usize> {
+        let corner = self.layout.grid.corner(region);
+        let grid = cave.grid();
+        let extent = [
+            grid.x * RENDER_REGION_X,
+            grid.y * RENDER_REGION_Y,
+            grid.z * RENDER_REGION_Z,
+        ];
+        let mut local = [0usize; 3];
+        for axis in 0..3 {
+            let at = corner[axis] as i32 + self.layout.min_section[axis] - cave.min_section()[axis];
+            if at < 0 || at as usize >= extent[axis] {
+                return None;
+            }
+            local[axis] = at as usize;
+        }
+        Some(grid.split(local[0], local[1], local[2]).0 * SECTIONS_PER_RENDER_REGION)
+    }
+
+    /// Slides the walk's grid to sit around the camera, held inside the loaded window.
+    ///
+    /// Held inside it because geometry the grid does not reach is drawn rather than culled, and an
+    /// orbit camera parked outside the world would otherwise push half the grid into empty space
+    /// and leave the near half of the world uncovered. A window smaller than the grid is covered
+    /// whole and the walk never moves at all.
+    fn retarget(&mut self, cave: &mut CaveCull) {
+        let grid = cave.grid();
+        let extent = [
+            (grid.x * RENDER_REGION_X) as i32,
+            0,
+            (grid.z * RENDER_REGION_Z) as i32,
+        ];
+        let window = [
+            (self.world.regions[0] * REGION_CHUNKS) as i32,
+            0,
+            (self.world.regions[1] * REGION_CHUNKS) as i32,
+        ];
+        let mut corner = [0i32; 3];
+        for axis in [0, 2] {
+            let camera = if axis == 0 { self.camera.x } else { self.camera.z };
+            let here = (camera / (RENDER_REGION_X * SECTION_SIZE) as f32).floor() as i32;
+            let centred = (here - grid.x as i32 / 2) * RENDER_REGION_X as i32;
+            let low = self.layout.min_section[axis];
+            let high = low + window[axis] - extent[axis];
+            corner[axis] = centred.clamp(low, high.max(low));
+        }
+        corner[1] = crate::anvil::MIN_SECTION_Y;
+
+        if corner == cave.min_section() {
+            return;
+        }
+        cave.retarget(corner);
+
+        let mut bases = Vec::new();
+        for region in 0..self.layout.grid.len() {
+            let Some(held) = self.resident[region].as_ref() else {
+                continue;
+            };
+            match self.cave_base(cave, region) {
+                Some(base) => {
+                    cave.set_region(base, &held.connectivity);
+                    bases.push((region as u32, base as u32));
+                }
+                None => bases.push((region as u32, cave.always_visible())),
+            }
+        }
+        self.uploads.rebase(bases);
     }
 
     /// Gives a batch its place in the arenas and turns it into the draws that will name it.
     ///
     /// The offsets are handed out here rather than in the render world because this is also where
     /// the decision to make room for something will live.
-    fn place(&mut self, batch: Batch) -> Result<Placement, Batch> {
+    fn place(&mut self, batch: Batch, cave: &mut CaveCull) -> Result<Placement, Batch> {
+        let cave_base = match self.cave_base(cave, batch.region) {
+            Some(base) => {
+                cave.set_region(base, &batch.connectivity);
+                base as u32
+            }
+            None => cave.always_visible(),
+        };
         // All three or none: a region half in the arena would leave groups pointing at quads that
         // were never written.
         let Some(quads) = self.quads.alloc(batch.simple.len()) else {
@@ -297,7 +379,7 @@ impl Loader {
                 stream: stream as u32,
                 region: batch.region as u32,
                 origin: self.layout.grid.origin(self.layout.min_section, batch.region),
-                cave_base: self.layout.grid.cave_base(batch.region) as u32,
+                cave_base,
                 first_group: (groups.offset + first) as u32,
                 group_count: span.group_count,
                 quad_count: span.quad_count,
@@ -309,6 +391,7 @@ impl Loader {
             quads,
             models,
             groups,
+            connectivity: batch.connectivity,
         });
         Ok(Placement {
             quads: ((quads.offset * QUAD_WORDS * 4) as u64, batch.simple),
@@ -363,6 +446,7 @@ pub fn advance(
     let pool = AsyncComputeTaskPool::get();
     let loader = &mut *loader;
     loader.camera = camera.translation();
+    loader.retarget(&mut cave);
     // A region found too large to fit is only reconsidered once the view has really moved, not
     // every frame: meshing one costs a tenth of a second whether or not it turns out to fit.
     if loader.camera.distance(loader.anchor) > HYSTERESIS {
@@ -424,14 +508,11 @@ pub fn advance(
         None => true,
     });
     for batch in meshed {
-        // Applied whether or not the geometry found room: the world really is solid there, and a
-        // walk that believed otherwise would light up everything behind it.
-        cave.set_connectivity(&batch.connectivity);
         let region = batch.region;
         let here = loader.distance(region);
         let mut pending = batch;
         loop {
-            match loader.place(pending) {
+            match loader.place(pending, &mut cave) {
                 Ok(placement) => {
                     // A region of open sky holds nothing and still counts as loaded, or it would
                     // be meshed again every frame for as long as the view covered it.

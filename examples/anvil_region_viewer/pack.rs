@@ -212,11 +212,6 @@ impl RegionGrid {
         ]
     }
 
-    /// Where a render region's sections start in the sight-line bitset.
-    pub const fn cave_base(self, region: usize) -> usize {
-        region * SECTIONS_PER_RENDER_REGION
-    }
-
     /// The section coordinates of a region's own corner.
     pub const fn corner(self, region: usize) -> [usize; 3] {
         [

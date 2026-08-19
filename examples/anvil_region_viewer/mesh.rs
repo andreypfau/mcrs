@@ -74,8 +74,9 @@ pub struct Batch {
     pub groups: Vec<Group>,
     /// What each stream holds, which is also where its run of groups starts.
     pub spans: [StreamSpan; STREAMS],
-    /// `(section slot, mask)`, keyed the way the sight-line walk indexes sections. Sections the
-    /// mesher never touched are left alone by the caller and keep [`CONNECT_ALL`]: a section
+    /// `(section inside this region, mask)`. Numbered inside the region rather than against any
+    /// grid, so the walk can be given a different grid later and these laid into it again.
+    /// Sections the mesher never touched are left alone and keep [`CONNECT_ALL`]: a section
     /// missing from the file is air, and defaulting it to "closed" would kill a sight-line walk
     /// on its very first step through open sky.
     pub connectivity: Vec<(u32, u64)>,
@@ -138,7 +139,7 @@ struct Partial {
     complex: Vec<u32>,
     /// `(stream, render region, group)` with `group.quad_base` relative to this worker's own arena.
     groups: Vec<(u32, u32, Group)>,
-    /// `(section slot, mask)`, keyed the way the sight-line walk indexes sections.
+    /// `(section inside its region, mask)`.
     connectivity: Vec<(u32, u64)>,
 }
 
@@ -260,7 +261,7 @@ fn mesh_section(
     complex(catalog, scratch, local_section, region_index, partial);
     partial
         .connectivity
-        .push((grid.slot(sx, sy, sz) as u32, connectivity(&mut scratch.occludes)));
+        .push((local_section, connectivity(&mut scratch.occludes)));
 }
 
 #[inline]

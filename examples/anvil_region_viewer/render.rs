@@ -266,17 +266,33 @@ pub enum Upload {
 /// The queue the loader pushes into and the render world drains. An `Arc` rather than an extracted
 /// resource: the payloads are megabytes and extraction would clone every one of them.
 #[derive(Resource, Clone, Default)]
-pub struct Uploads(Arc<Mutex<VecDeque<Upload>>>);
+pub struct Uploads(Arc<Mutex<Waiting>>);
+
+#[derive(Default)]
+pub struct Waiting {
+    queue: VecDeque<Upload>,
+    /// Where each region's sections now sit in the sight-line bitset, after the walk's grid slid.
+    ///
+    /// A slot of its own rather than a place in the queue, and only the latest one matters: the
+    /// walk uploads its bitset every frame, so a rebasing that waited behind a few megabytes of
+    /// geometry would leave a frame reading the new bitset through the old bases — which is
+    /// geometry going missing, not geometry drawn twice.
+    rebase: Option<Vec<(u32, u32)>>,
+}
 
 impl Uploads {
     pub fn push(&self, upload: Upload) {
-        self.0.lock().unwrap().push_back(upload);
+        self.0.lock().unwrap().queue.push_back(upload);
+    }
+
+    pub fn rebase(&self, bases: Vec<(u32, u32)>) {
+        self.0.lock().unwrap().rebase = Some(bases);
     }
 
     /// How much is still queued. Geometry reaches the GPU a slice at a time, so the loader going
     /// quiet is not the same thing as the world being on screen.
     pub fn waiting(&self) -> usize {
-        self.0.lock().unwrap().len()
+        self.0.lock().unwrap().queue.len()
     }
 }
 
@@ -947,9 +963,20 @@ fn apply_uploads(
     };
     let mut budget = *UPLOAD_BUDGET;
 
+    // Ahead of everything else, and never held up by a half-written region: it only moves where
+    // draws read the bitset, and the bitset it belongs to went up this frame.
+    if let Some(bases) = uploads.0.lock().unwrap().rebase.take() {
+        for (region, base) in bases {
+            for draw in terrain.draws.iter_mut().filter(|draw| draw.region == region) {
+                draw.cave_base = base;
+            }
+        }
+        rebuild_params(terrain);
+    }
+
     loop {
         if terrain.pending.is_none() {
-            let next = uploads.0.lock().unwrap().pop_front();
+            let next = uploads.0.lock().unwrap().queue.pop_front();
             match next {
                 None => break,
                 Some(Upload::Tints { origin, size, data }) => {
