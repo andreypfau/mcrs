@@ -32,6 +32,7 @@ use bevy::render::view::{
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
 use crate::mesh::{Draw, Group, STREAMS};
+use crate::probe::{self, GpuTimings, Queries};
 use crate::pack::{MAX_SPRITE_ARRAYS, MODEL_OVERHANG, QUAD_WORDS, RegionGrid};
 
 /// Dynamic uniform offsets must be a multiple of the device's alignment; 256 satisfies every
@@ -451,22 +452,25 @@ impl Plugin for TerrainPlugin {
         bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "sky.wgsl");
 
         let triangles = DrawnTriangles::default();
+        let timings = GpuTimings::default();
         app.init_resource::<Wireframe>()
             .init_resource::<Sky>()
             .init_resource::<Clouds>()
             .add_plugins(ExtractResourcePlugin::<Wireframe>::default())
             .add_plugins(ExtractResourcePlugin::<Sky>::default())
             .add_plugins(ExtractResourcePlugin::<Clouds>::default())
-            .insert_resource(triangles.clone());
+            .insert_resource(triangles.clone())
+            .insert_resource(timings.clone());
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
         render_app
             .insert_resource(triangles)
+            .insert_resource(timings)
             .insert_resource(WorldLayout(self.0.clone()))
             .insert_resource(self.1.clone())
-            .add_systems(RenderStartup, init_terrain)
+            .add_systems(RenderStartup, (init_terrain, probe::init))
             .add_systems(ExtractSchedule, extract_cave_visibility)
             .add_systems(
                 Render,
@@ -479,9 +483,16 @@ impl Plugin for TerrainPlugin {
                     prepare_sky.in_set(RenderSystems::Prepare),
                     prepare_view_bind_group.in_set(RenderSystems::PrepareBindGroups),
                     read_draw_args.in_set(RenderSystems::Cleanup),
+                    probe::read.in_set(RenderSystems::Cleanup),
                 ),
             )
-            .add_systems(Core3d, cull_terrain.in_set(Core3dSystems::Prepass))
+            // Ahead of every pass that writes into the query set, so what it carries off is the
+            // frame before: a resolve recorded after those passes can still run before the last of
+            // them has written its closing sample, and the span then reads backwards.
+            .add_systems(
+                Core3d,
+                (probe::resolve, cull_terrain).chain().in_set(Core3dSystems::Prepass),
+            )
             .add_systems(
                 Core3d,
                 draw_terrain
@@ -1482,6 +1493,7 @@ fn cull_terrain(
     view_bind_group: Option<Res<ViewBindGroup>>,
     pipeline_cache: Res<PipelineCache>,
     triangles: Res<DrawnTriangles>,
+    queries: Option<Res<Queries>>,
     mut ctx: RenderContext,
 ) {
     let (Some(terrain), Some(view_bind_group)) = (terrain, view_bind_group) else {
@@ -1522,11 +1534,12 @@ fn cull_terrain(
 
     let diagnostics = ctx.diagnostic_recorder();
     let diagnostics = diagnostics.as_deref();
+    let timestamps = queries.as_ref().map(|q| q.compute(probe::CULL));
     let mut pass = ctx
         .command_encoder()
         .begin_compute_pass(&ComputePassDescriptor {
             label: Some("terrain cull"),
-            timestamp_writes: None,
+            timestamp_writes: timestamps,
         });
     let span = diagnostics.pass_span(&mut pass, "terrain_cull");
     pass.set_pipeline(pipeline);
@@ -1551,6 +1564,7 @@ fn draw_terrain(
     view_bind_group: Option<Res<ViewBindGroup>>,
     clouds: Res<Clouds>,
     pipeline_cache: Res<PipelineCache>,
+    queries: Option<Res<Queries>>,
     mut ctx: RenderContext,
 ) {
     let (Some(terrain), Some(view_bind_group)) = (terrain, view_bind_group) else {
@@ -1564,11 +1578,12 @@ fn draw_terrain(
     let depth_attachment = Some(depth.get_attachment(StoreOp::Store));
     let diagnostics = ctx.diagnostic_recorder();
     let diagnostics = diagnostics.as_deref();
+    let timestamps = queries.as_ref().map(|q| q.render(probe::TERRAIN));
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("terrain"),
         color_attachments: &color_attachments,
         depth_stencil_attachment: depth_attachment,
-        timestamp_writes: None,
+        timestamp_writes: timestamps,
         occlusion_query_set: None,
         multiview_mask: None,
     });

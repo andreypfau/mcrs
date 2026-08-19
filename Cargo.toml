@@ -115,6 +115,8 @@ serde_json.workspace = true
 mcrs_nbt.workspace = true
 flate2.workspace = true
 bytemuck = { version = "1", features = ["derive"] }
+# Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.
+wgpu = { version = "29", default-features = false }
 
 [[example]]
 name = "block_viewer"

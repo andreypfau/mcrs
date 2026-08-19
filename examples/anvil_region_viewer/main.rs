@@ -40,6 +40,7 @@ mod blocks;
 mod cave;
 mod mesh;
 mod pack;
+mod probe;
 mod render;
 mod sky;
 mod stream;
@@ -200,8 +201,8 @@ fn main() {
         ))
         .add_plugins((
             FrameTimeDiagnosticsPlugin::default(),
-            // Per-pass timings, which stay meaningful while the window is capped and the wall
-            // clock says nothing about how much headroom the culling and draw passes leave.
+            // Kept for what each pass costs the CPU to record. Its GPU figures read zero on this
+            // backend and the counter line carries the real ones instead; see `probe`.
             RenderDiagnosticsPlugin,
             LogDiagnosticsPlugin {
                 wait_duration: std::time::Duration::from_secs(2),
@@ -340,6 +341,7 @@ fn frame_stats(
     time: Res<Time>,
     mut stats: ResMut<FrameStats>,
     triangles: Res<DrawnTriangles>,
+    gpu: Res<probe::GpuTimings>,
     cave: Res<cave::CaveCull>,
     loader: Res<stream::Loader>,
     day: Res<sky::TimeOfDay>,
@@ -407,6 +409,13 @@ fn frame_stats(
     }
     if status.evicted > 0 {
         let _ = write!(overlay.0, "   {} evicted", status.evicted);
+    }
+    // What the GPU itself spent, which the frame time cannot separate: presentation waits and
+    // bevy's own passes sit in the same wall clock.
+    for (slot, name) in probe::NAMES.iter().enumerate() {
+        if let Some(ms) = gpu.median(slot) {
+            let _ = write!(overlay.0, "   {name} {ms:.2} ms");
+        }
     }
     let (hour, minute) = day.clock();
     let _ = write!(overlay.0, "   {hour:02}:{minute:02}");
