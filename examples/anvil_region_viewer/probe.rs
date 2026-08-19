@@ -125,6 +125,16 @@ const TIMESTAMP_BYTES: u64 = 8;
 const RESOLVE_BYTES: u64 = QUERY_RESOLVE_BUFFER_ALIGNMENT;
 
 pub fn init(mut commands: Commands, device: Res<RenderDevice>, queue: Res<RenderQueue>) {
+    // A pass carries a fixed number of counter slots, and Metal's own performance overlay wants
+    // them for the same passes when it is asked to time encoders. Whichever asks first gets them,
+    // and with these two taken the overlay can only reach the blits, which is not the breakdown
+    // anyone turned it on for. So this stands aside when it is running, and `ANVIL_PROBE=0` says
+    // the same by hand.
+    let overlay_times_encoders =
+        std::env::var("MTL_HUD_ENCODER_TIMING_ENABLED").is_ok_and(|on| on != "0");
+    if overlay_times_encoders || std::env::var("ANVIL_PROBE").is_ok_and(|on| on == "0") {
+        return;
+    }
     if !device.features().contains(WgpuFeatures::TIMESTAMP_QUERY) {
         warn!("this device does not time passes, so the per-pass figures stay blank");
         return;
