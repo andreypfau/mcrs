@@ -266,6 +266,17 @@ pub struct Sky {
     pub cloud: [f32; 4],
 }
 
+/// Whether the cloud layer is drawn. What the toggle skips is the draw itself rather than the
+/// clouds inside it, so with them off nothing walks the screen at all.
+#[derive(Resource, Clone, Copy, ExtractResource)]
+pub struct Clouds(pub bool);
+
+impl Default for Clouds {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
 /// Draws only the edges of every triangle, in the colour that face's own texture has there, and
 /// leaves the interiors unpainted so the geometry behind stays visible.
 #[derive(Resource, Clone, Copy, Default, ExtractResource)]
@@ -308,8 +319,10 @@ impl Plugin for TerrainPlugin {
         let triangles = DrawnTriangles::default();
         app.init_resource::<Wireframe>()
             .init_resource::<Sky>()
+            .init_resource::<Clouds>()
             .add_plugins(ExtractResourcePlugin::<Wireframe>::default())
             .add_plugins(ExtractResourcePlugin::<Sky>::default())
+            .add_plugins(ExtractResourcePlugin::<Clouds>::default())
             .insert_resource(triangles.clone());
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
@@ -1109,6 +1122,7 @@ fn draw_terrain(
     view: ViewQuery<(&ViewTarget, &ViewDepthTexture, &ViewUniformOffset)>,
     terrain: Option<Res<Terrain>>,
     view_bind_group: Option<Res<ViewBindGroup>>,
+    clouds: Res<Clouds>,
     pipeline_cache: Res<PipelineCache>,
     mut ctx: RenderContext,
 ) {
@@ -1160,7 +1174,10 @@ fn draw_terrain(
         pass.draw_indirect(&terrain.args, index as u64 * DRAW_ARGS_SIZE);
     }
 
-    // The clouds hang in the world, so they come after what can stand in front of them.
-    draw_sky(&mut pass, &terrain, &view_bind_group.0, view_offset.offset, &pipeline_cache, true);
+    // The clouds hang in the world, so they come after what can stand in front of them, and they
+    // are the only half of the sky that can be turned off.
+    if clouds.0 {
+        draw_sky(&mut pass, &terrain, &view_bind_group.0, view_offset.offset, &pipeline_cache, true);
+    }
     span.end(&mut pass);
 }

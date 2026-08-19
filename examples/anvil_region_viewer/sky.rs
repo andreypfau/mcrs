@@ -16,7 +16,7 @@ use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
 use bevy::prelude::*;
 
 use crate::model;
-use crate::render::{Atlas, Sky};
+use crate::render::{Atlas, Clouds, Sky};
 
 /// Ticks in a day, from the period of the overworld clock.
 const DAY: f32 = 24000.0;
@@ -213,7 +213,8 @@ pub struct DayCyclePlugin;
 impl Plugin for DayCyclePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TimeOfDay>()
-            .add_systems(Update, (scrub, apply).chain());
+            .add_systems(Update, (scrub, apply).chain())
+            .add_systems(Update, toggle_clouds);
     }
 }
 
@@ -368,6 +369,13 @@ fn scrub(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut day: ResMut<TimeO
     if direction != 0.0 {
         day.ticks = (day.ticks + direction * SCRUB * time.delta_secs())
             .rem_euclid(DAY * MOON_PHASES.len() as f32);
+    }
+}
+
+/// Press F9 to take the cloud layer out of the frame.
+fn toggle_clouds(keys: Res<ButtonInput<KeyCode>>, mut clouds: ResMut<Clouds>) {
+    if keys.just_pressed(KeyCode::F9) {
+        clouds.0 = !clouds.0;
     }
 }
 

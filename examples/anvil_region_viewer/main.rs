@@ -8,9 +8,9 @@
 //! Drag with the left mouse button to orbit, scroll to zoom, hold shift while dragging to pan.
 //! Hold + or - to run the clock: the sky, the sun, the moon, the stars and the light on the terrain
 //! all follow it, and the sky itself is drawn procedurally in the same pass the terrain is.
-//! Press C to toggle cave culling, F10 to draw every triangle's edges in a colour derived from its
-//! texture, F11 for borderless fullscreen, which is the only way to read a real frame rate on macOS,
-//! and F12 to save a PNG.
+//! Press C to toggle cave culling, F9 to take the clouds out of the sky, F10 to draw every
+//! triangle's edges in a colour derived from its texture, F11 for borderless fullscreen, which is
+//! the only way to read a real frame rate on macOS, and F12 to save a PNG.
 //!
 //! The region is static, so the whole pipeline is built around loading once and never touching the
 //! geometry again: blocks are baked per distinct block state rather than per block, full cubes are
