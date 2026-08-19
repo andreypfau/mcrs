@@ -909,7 +909,7 @@ mod tests {
         let key = Key {
             sprite: Some(SpriteRef {
                 array: 2,
-                layer: 300,
+                layer: 1000,
             }),
             tint: 2,
             light: 11,
@@ -933,6 +933,6 @@ mod tests {
         assert_eq!(QUAD_AO.read(&words), 0b11_10_01_00, "ao");
         assert_eq!(QUAD_FLIP.read(&words), 1, "flip");
         assert_eq!(QUAD_ARRAY.read(&words), 2, "array");
-        assert_eq!(QUAD_LAYER.read(&words), 300, "layer");
+        assert_eq!(QUAD_LAYER.read(&words), 1000, "layer");
     }
 }

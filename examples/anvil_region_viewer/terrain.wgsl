@@ -70,7 +70,7 @@ const QUAD_ARRAY_SHIFT: u32 = 20u;
 const QUAD_ARRAY_BITS: u32 = 2u;
 const QUAD_LAYER_WORD: u32 = 1u;
 const QUAD_LAYER_SHIFT: u32 = 22u;
-const QUAD_LAYER_BITS: u32 = 9u;
+const QUAD_LAYER_BITS: u32 = 10u;
 
 const MODEL_X_WORD: u32 = 0u;
 const MODEL_X_SHIFT: u32 = 0u;
@@ -106,7 +106,7 @@ const MODEL_ARRAY_SHIFT: u32 = 11u;
 const MODEL_ARRAY_BITS: u32 = 2u;
 const MODEL_LAYER_WORD: u32 = 2u;
 const MODEL_LAYER_SHIFT: u32 = 13u;
-const MODEL_LAYER_BITS: u32 = 9u;
+const MODEL_LAYER_BITS: u32 = 10u;
 
 /// Model positions are fixed point in units of this many steps per block, offset by however far a
 /// model may hang outside its own block so the result stays non-negative.

@@ -94,7 +94,7 @@ pub const QUAD_SECTION: Field = Field::new(1, 9, SECTION_INDEX.bits);
 /// Which sprite array the layer indexes. Arrays are split by sprite size, so the pack decides how
 /// many there are rather than the format.
 pub const QUAD_ARRAY: Field = Field::new(1, 20, 2);
-pub const QUAD_LAYER: Field = Field::new(1, 22, 9);
+pub const QUAD_LAYER: Field = Field::new(1, 22, 10);
 
 // Model vertex, three words per corner. Positions are fixed point relative to the section, wide
 // enough for the overhang on both sides.
@@ -122,7 +122,9 @@ pub const MODEL_OVERHANG: f32 = 2.0;
 /// Fixed-point steps per block in a model coordinate.
 pub const MODEL_STEPS: f32 = 32.0;
 
-/// How many sprites one array can hold.
+/// How many sprites one array can hold. With four arrays that is four thousand addressable
+/// sprites, against the eleven hundred a vanilla pack defines and the seventeen hundred it would
+/// reach with every animation frame unrolled.
 pub const MAX_SPRITES: usize = 1 << QUAD_LAYER.bits;
 
 /// How many sprite arrays the format can address, and so how many resolutions a pack may use.
@@ -309,6 +311,18 @@ mod tests {
         assert_eq!(QUAD_TINT.get(word), 2);
         assert_eq!(QUAD_FACE.get(word), 5);
         assert_eq!(QUAD_H.get(word), 0, "a neighbour must stay clear");
+    }
+
+    /// Both words of a quad are full, so a field that grew without another shrinking would run off
+    /// the end rather than quietly overlap a neighbour.
+    #[test]
+    fn a_quad_still_fits_in_its_eight_bytes() {
+        let quad = [
+            QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_LIGHT, QUAD_TINT, QUAD_AO,
+            QUAD_FLIP, QUAD_SECTION, QUAD_ARRAY, QUAD_LAYER,
+        ];
+        let bits: u32 = quad.iter().map(|field| field.bits).sum();
+        assert_eq!(bits, 64);
     }
 
     #[test]
