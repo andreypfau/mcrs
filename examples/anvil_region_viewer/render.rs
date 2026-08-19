@@ -24,7 +24,7 @@ use bevy::render::view::{
 };
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
-use crate::mesh::{Draw, Group, STREAMS};
+use crate::mesh::{Draw, Group};
 use crate::pack::{MAX_SPRITE_ARRAYS, MODEL_OVERHANG};
 
 /// Dynamic uniform offsets must be a multiple of the device's alignment; 256 satisfies every
@@ -595,10 +595,10 @@ fn prepare_wireframe(
     *applied = wireframe.0;
 
     let flag = u32::from(wireframe.0);
-    for stream in 0..STREAMS {
+    for index in 0..terrain.draws.len() {
         queue.write_buffer(
             &terrain.params,
-            stream as u64 * PARAMS_STRIDE as u64 + PARAMS_WIREFRAME_OFFSET,
+            index as u64 * PARAMS_STRIDE as u64 + PARAMS_WIREFRAME_OFFSET,
             bytemuck::bytes_of(&flag),
         );
     }
