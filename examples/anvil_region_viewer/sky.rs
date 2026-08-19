@@ -47,6 +47,33 @@ const AMBIENT: Vec3 = rgb(0x0a0a0a);
 const BLOCK_LIGHT_TINT: Vec3 = rgb(0xffd88c);
 const BLOCK_LIGHT_FACTOR: f32 = 1.4;
 
+/// `visual/cloud_height`: where the underside of the cloud layer sits.
+const CLOUD_HEIGHT: f32 = 192.33;
+
+/// How fast the field drifts, in blocks a second. Vanilla moves it three hundredths of a block a
+/// tick, and ties that to the world's clock; there is no world here, so it runs off the wall clock
+/// the animated sprites already run off.
+const CLOUD_SPEED: f32 = 0.6;
+
+/// The offset vanilla starts the field at in z.
+const CLOUD_ORIGIN_Z: f32 = 3.96;
+
+/// `visual/cloud_fog_end_distance`, capped by the cloud range option — both of which land here.
+/// The clouds fade out linearly over this and are gone beyond it, which is also where the march
+/// through them stops.
+const CLOUD_FADE: f32 = 2048.0;
+
+/// `visual/cloud_color`, which carries the alpha the layer is drawn at.
+const CLOUD_COLOR: Vec4 = argb(0xccffffff);
+
+/// The cloud half of `visual/cloud_color`'s track: white by day, near black by night.
+const CLOUD_TINT: [(f32, Vec3); 4] = [
+    (133.0, Vec3::ONE),
+    (11867.0, Vec3::ONE),
+    (13670.0, rgb(0x191926)),
+    (22330.0, rgb(0x191926)),
+];
+
 /// How far out the sky has faded entirely into the haze: `visual/sky_fog_end_distance`, which
 /// vanilla caps by the render distance. Nothing is culled by distance here, so the attribute stands.
 const SKY_FOG_END: f32 = 512.0;
@@ -192,18 +219,28 @@ impl Plugin for DayCyclePlugin {
 
 impl Default for Sky {
     fn default() -> Self {
-        sky_at(TimeOfDay::default().ticks, f32::MAX)
+        sky_at(TimeOfDay::default().ticks, f32::MAX, 0.0)
     }
+}
+
+/// The cloud field: one texel a cell, open where the sky shows through.
+pub fn clouds() -> Result<Atlas, String> {
+    sprites(&["environment/clouds".to_string()])
 }
 
 /// The sun and the eight moon phases, decoded into one square array for the sky shader to sample.
 pub fn celestials() -> Result<Atlas, String> {
+    let sun = std::iter::once("environment/celestial/sun".to_string());
+    let moon = MOON_PHASES.map(|phase| format!("environment/celestial/moon/{phase}"));
+    sprites(&sun.chain(moon).collect::<Vec<_>>())
+}
+
+/// Decodes square sprites of one size into the layers of a single array.
+fn sprites(ids: &[String]) -> Result<Atlas, String> {
     let mut pixels = Vec::new();
     let mut side = 0;
-    for id in std::iter::once("environment/celestial/sun".to_string())
-        .chain(MOON_PHASES.map(|phase| format!("environment/celestial/moon/{phase}")))
-    {
-        let path = model::resource_path(&id, "textures", "png");
+    for id in ids {
+        let path = model::resource_path(id, "textures", "png");
         let bytes =
             std::fs::read(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
         let image = Image::from_buffer(
@@ -235,8 +272,8 @@ pub fn celestials() -> Result<Atlas, String> {
     }
     Ok(Atlas {
         size: side,
-        layers: MOON_PHASES.len() as u32 + 1,
-        // One level: these are never seen small enough for a mip to be the right sample, and
+        layers: ids.len() as u32,
+        // One level: none of these is ever seen small enough for a mip to be the right sample, and
         // filtering them at all is what turned the sun into a smear.
         mips: vec![pixels],
     })
@@ -283,7 +320,7 @@ fn sun_angle(ticks: f32) -> f32 {
     (day * 2.0 + eased) / 3.0 * TAU
 }
 
-fn sky_at(ticks: f32, camera_height: f32) -> Sky {
+fn sky_at(ticks: f32, camera_height: f32, drift: f32) -> Sky {
     let sun = sun_angle(ticks);
     let sunrise = track(&SUNRISE, ticks);
     // A star is drawn as its own brightness times itself, because the pipeline both writes the
@@ -310,6 +347,10 @@ fn sky_at(ticks: f32, camera_height: f32) -> Sky {
             0.0,
         ],
         fog: linear(fog(ticks)).extend(SKY_FOG_END).into(),
+        cloud_color: linear(CLOUD_COLOR.truncate() * track(&CLOUD_TINT, ticks))
+            .extend(CLOUD_COLOR.w)
+            .into(),
+        cloud: [CLOUD_HEIGHT, drift, CLOUD_ORIGIN_Z, CLOUD_FADE],
     }
 }
 
@@ -332,11 +373,12 @@ fn scrub(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut day: ResMut<TimeO
 
 fn apply(
     day: Res<TimeOfDay>,
+    time: Res<Time>,
     camera: Single<&Transform, With<Camera3d>>,
     mut sky: ResMut<Sky>,
     mut clear: ResMut<ClearColor>,
 ) {
-    *sky = sky_at(day.ticks, camera.translation.y);
+    *sky = sky_at(day.ticks, camera.translation.y, time.elapsed_secs() * CLOUD_SPEED);
     let haze = fog(day.ticks);
     clear.0 = Color::srgb(haze.x, haze.y, haze.z);
 }
@@ -386,7 +428,7 @@ mod tests {
 
     #[test]
     fn the_moon_works_through_its_phases_and_returns_to_the_first() {
-        let layer = |day: f32| sky_at(day * DAY + 15000.0, 0.0).moon[0];
+        let layer = |day: f32| sky_at(day * DAY + 15000.0, 0.0, 0.0).moon[0];
         assert_eq!(layer(0.0), 1.0, "the first night is the full moon");
         assert_eq!(layer(3.0), 4.0);
         assert_eq!(layer(8.0), 1.0, "and eight nights on it is full again");
@@ -394,8 +436,8 @@ mod tests {
 
     #[test]
     fn the_dark_disc_is_only_drawn_from_under_the_horizon() {
-        assert_eq!(sky_at(6000.0, HORIZON + 1.0).disc[3], 0.0);
-        assert_eq!(sky_at(6000.0, HORIZON - 1.0).disc[3], 1.0);
+        assert_eq!(sky_at(6000.0, HORIZON + 1.0, 0.0).disc[3], 0.0);
+        assert_eq!(sky_at(6000.0, HORIZON - 1.0, 0.0).disc[3], 1.0);
     }
 
     #[test]

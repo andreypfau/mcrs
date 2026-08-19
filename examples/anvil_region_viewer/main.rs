@@ -256,6 +256,7 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
                 .collect(),
             animated_from: sprites.animated_from(),
             celestials: sky::celestials()?,
+            clouds: sky::clouds()?,
             tint_map: blocks::tint_map(&region, &catalog.tints),
         },
         cave,

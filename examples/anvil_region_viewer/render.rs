@@ -13,6 +13,7 @@ use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d};
 use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy::prelude::*;
 use bevy::render::globals::{GlobalsBuffer, GlobalsUniform};
+use bevy::render::render_phase::TrackedRenderPass;
 use bevy::render::render_resource::binding_types::{
     sampler, storage_buffer_read_only_sized, storage_buffer_sized, texture_2d_array,
     uniform_buffer, uniform_buffer_sized,
@@ -64,6 +65,33 @@ const ADDITIVE: BlendState = BlendState {
     },
 };
 
+/// Either half of the sky: the backdrop behind the terrain, or the clouds in front of it. Which
+/// half is which is the draw's own `depth` flag, so the order lives in the table rather than here.
+fn draw_sky<'pass>(
+    pass: &mut TrackedRenderPass<'pass>,
+    terrain: &'pass Terrain,
+    view_bind_group: &'pass BindGroup,
+    view_offset: u32,
+    pipeline_cache: &'pass PipelineCache,
+    depth: bool,
+) {
+    let Some(sky) = terrain.sky_pipelines else {
+        return;
+    };
+    pass.set_bind_group(1, &terrain.sky_bind_group, &[]);
+    for (index, draw) in SKY_DRAWS.iter().enumerate() {
+        if draw.depth != depth {
+            continue;
+        }
+        let Some(pipeline) = pipeline_cache.get_render_pipeline(sky[index]) else {
+            continue;
+        };
+        pass.set_render_pipeline(pipeline);
+        pass.set_bind_group(0, view_bind_group, &[view_offset, 0]);
+        pass.draw(0..draw.vertices, 0..1);
+    }
+}
+
 /// The sky, in the order `LevelRenderer` draws it: the disc, the twilight band, the two celestial
 /// bodies, then the stars over the top of them. Each is one draw of vertices the shader derives
 /// from their own indices, so none of them has a buffer behind it.
@@ -73,9 +101,13 @@ struct SkyDraw {
     fragment: &'static str,
     blend: Option<BlendState>,
     vertices: u32,
+    /// Whether the draw belongs in front of the terrain rather than behind it. The backdrop takes
+    /// no part in the depth buffer at all; the clouds hang inside the world and have to be told
+    /// what is standing in front of them.
+    depth: bool,
 }
 
-const SKY_DRAWS: [SkyDraw; 4] = [
+const SKY_DRAWS: [SkyDraw; 5] = [
     SkyDraw {
         label: "sky disc",
         vertex: "vertex_disc",
@@ -83,6 +115,7 @@ const SKY_DRAWS: [SkyDraw; 4] = [
         blend: None,
         // The disc above the horizon and the dark one below it, eight triangles each.
         vertices: 48,
+        depth: false,
     },
     SkyDraw {
         label: "sky twilight",
@@ -91,6 +124,7 @@ const SKY_DRAWS: [SkyDraw; 4] = [
         blend: Some(BlendState::ALPHA_BLENDING),
         // A sixteen step fan.
         vertices: 48,
+        depth: false,
     },
     SkyDraw {
         label: "sky celestial",
@@ -98,6 +132,7 @@ const SKY_DRAWS: [SkyDraw; 4] = [
         fragment: "fragment_celestial",
         blend: Some(ADDITIVE),
         vertices: 12,
+        depth: false,
     },
     SkyDraw {
         label: "sky stars",
@@ -105,6 +140,16 @@ const SKY_DRAWS: [SkyDraw; 4] = [
         fragment: "fragment_flat",
         blend: Some(ADDITIVE),
         vertices: STAR_COUNT * 6,
+        depth: false,
+    },
+    SkyDraw {
+        label: "sky clouds",
+        vertex: "vertex_clouds",
+        fragment: "fragment_clouds",
+        blend: Some(BlendState::ALPHA_BLENDING),
+        // One triangle over the whole screen; the layer is found by marching, not by drawing it.
+        vertices: 3,
+        depth: true,
     },
 ];
 
@@ -129,6 +174,8 @@ pub struct Geometry {
     pub animated_from: u32,
     /// The sun and the eight moon phases, one square layer each, in that order.
     pub celestials: Atlas,
+    /// One texel per cloud cell.
+    pub clouds: Atlas,
     /// `TINT_LAYERS` layers of `TINT_SIZE`², RGBA8, indexed by world x and z.
     pub tint_map: Vec<u8>,
 }
@@ -212,6 +259,11 @@ pub struct Sky {
     /// `rgb` the haze the world fades into, which is also what the frame is cleared to, and `a`
     /// how far from the camera the sky has faded entirely into it.
     pub fog: [f32; 4],
+    /// The colour the cloud layer is lit and tinted by, `a` included.
+    pub cloud_color: [f32; 4],
+    /// Where the underside of the cloud layer sits, how far the field has drifted in x and z, and
+    /// the distance the clouds have faded out by.
+    pub cloud: [f32; 4],
 }
 
 /// Draws only the edges of every triangle, in the colour that face's own texture has there, and
@@ -438,6 +490,7 @@ fn init_terrain(
 
     let (atlases, atlas_sampler) = upload_atlases(&geometry, &device, &queue);
     let celestials = upload_atlas(&geometry.celestials, "celestials", &device, &queue);
+    let clouds = upload_atlas(&geometry.clouds, "clouds", &device, &queue);
     // Nearest, and one mip only: a thirty-two pixel sun blown across the sky has to keep its edges
     // rather than smear into a blur, and there is no distance here for a mip chain to serve.
     let celestial_sampler = device.create_sampler(&SamplerDescriptor {
@@ -503,6 +556,7 @@ fn init_terrain(
             (
                 texture_2d_array(TextureSampleType::Float { filterable: true }),
                 sampler(SamplerBindingType::Filtering),
+                texture_2d_array(TextureSampleType::Float { filterable: true }),
             ),
         ),
     );
@@ -551,7 +605,7 @@ fn init_terrain(
     let sky_bind_group = device.create_bind_group(
         "sky",
         &pipeline_cache.get_bind_group_layout(&sky_layout),
-        &BindGroupEntries::sequential((&celestials, &celestial_sampler)),
+        &BindGroupEntries::sequential((&celestials, &celestial_sampler, &clouds)),
     );
 
     commands.insert_resource(Terrain {
@@ -924,12 +978,18 @@ fn prepare_pipelines(
                 cull_mode: None,
                 ..default()
             },
-            // The sky is the backdrop: it reads nothing from the depth buffer and leaves nothing
-            // in it, so the terrain drawn afterwards covers whatever it stands in front of.
+            // The backdrop reads nothing from the depth buffer and leaves nothing in it, so the
+            // terrain drawn afterwards covers whatever it stands in front of. The clouds are in
+            // the world rather than behind it: they test what the terrain left, against the depth
+            // their own shader works out for wherever the ray met a cell.
             depth_stencil: Some(DepthStencilState {
                 format: CORE_3D_DEPTH_FORMAT,
                 depth_write_enabled: Some(false),
-                depth_compare: Some(CompareFunction::Always),
+                depth_compare: Some(if draw.depth {
+                    CompareFunction::GreaterEqual
+                } else {
+                    CompareFunction::Always
+                }),
                 stencil: default(),
                 bias: default(),
             }),
@@ -1073,19 +1133,10 @@ fn draw_terrain(
     });
     let span = diagnostics.pass_span(&mut pass, "terrain_draw");
 
-    // The sky first, in vanilla's order, so the terrain covers whatever stands in front of it. The
-    // params slot is bound to the first draw's entry and never read: the sky takes nothing from it.
-    if let Some(sky) = terrain.sky_pipelines {
-        pass.set_bind_group(1, &terrain.sky_bind_group, &[]);
-        for (index, draw) in SKY_DRAWS.iter().enumerate() {
-            let Some(pipeline) = pipeline_cache.get_render_pipeline(sky[index]) else {
-                continue;
-            };
-            pass.set_render_pipeline(pipeline);
-            pass.set_bind_group(0, &view_bind_group.0, &[view_offset.offset, 0]);
-            pass.draw(0..draw.vertices, 0..1);
-        }
-    }
+    // The backdrop first, in vanilla's order, so the terrain covers whatever stands in front of
+    // it. The params slot is bound to the first draw's entry and never read: the sky takes nothing
+    // from it.
+    draw_sky(&mut pass, &terrain, &view_bind_group.0, view_offset.offset, &pipeline_cache, false);
 
     pass.set_bind_group(1, &terrain.draw_bind_group, &[]);
 
@@ -1108,5 +1159,8 @@ fn draw_terrain(
         );
         pass.draw_indirect(&terrain.args, index as u64 * DRAW_ARGS_SIZE);
     }
+
+    // The clouds hang in the world, so they come after what can stand in front of them.
+    draw_sky(&mut pass, &terrain, &view_bind_group.0, view_offset.offset, &pipeline_cache, true);
     span.end(&mut pass);
 }

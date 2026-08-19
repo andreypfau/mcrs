@@ -33,6 +33,11 @@ struct Sky {
     /// `rgb` the haze the world fades into, which is also what the frame is cleared to, and `a`
     /// how far from the camera the sky has faded entirely into it.
     fog: vec4<f32>,
+    /// The colour the cloud layer is lit and tinted by, `a` included.
+    cloud_color: vec4<f32>,
+    /// Where the underside of the cloud layer sits, how far the field has drifted in x and z, and
+    /// the distance the clouds have faded out by.
+    cloud: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> view: View;
@@ -41,6 +46,8 @@ struct Sky {
 // Layer zero is the sun and the eight above it are the moon's phases.
 @group(1) @binding(0) var celestials: texture_2d_array<f32>;
 @group(1) @binding(1) var celestial_sampler: sampler;
+/// One texel a cell: transparent where the sky is open, and the cloud's own colour where it is not.
+@group(1) @binding(2) var clouds: texture_2d_array<f32>;
 
 const SKY_DISC_RADIUS: f32 = 512.0;
 const SKY_DISC_Y: f32 = 16.0;
@@ -59,6 +66,23 @@ const SUN_SIZE: f32 = 30.0;
 const MOON_SIZE: f32 = 20.0;
 
 const STAR_DISTANCE: f32 = 100.0;
+
+/// A cloud cell is twelve blocks square and the layer four deep, and the texture repeats.
+const CLOUD_CELL: f32 = 12.0;
+const CLOUD_THICKNESS: f32 = 4.0;
+/// A cell counts as open below this much alpha, which is the threshold vanilla reads its texture
+/// with rather than a plain zero test.
+const CLOUD_OPEN: f32 = 10.0 / 255.0;
+/// How far the march may run before it gives up. Only a ray within a degree of the horizontal ever
+/// takes more than a handful of steps: the layer is four blocks deep, so anything pointed at it
+/// crosses in that much height and leaves.
+const CLOUD_STEPS: u32 = 192u;
+/// Vanilla's own shading, in the order the faces are met: the top is unshaded, the underside is
+/// darkest, and the two pairs of sides sit between them.
+const CLOUD_TOP: f32 = 1.0;
+const CLOUD_BOTTOM: f32 = 0.7;
+const CLOUD_SIDE_X: f32 = 0.9;
+const CLOUD_SIDE_Z: f32 = 0.8;
 
 struct SkyVertex {
     @builtin(position) clip_position: vec4<f32>,
@@ -298,4 +322,138 @@ fn fragment_celestial(in: SkyVertex) -> @location(0) vec4<f32> {
     // One mip and a nearest filter, so a thirty-two pixel sprite blown across the sky keeps its
     // edges instead of smearing.
     return textureSampleLevel(celestials, celestial_sampler, in.uv, in.layer, 0.0) * in.color;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Clouds.
+//
+// Vanilla builds these as geometry: it walks the cells around the camera, culls the faces between
+// neighbours, and writes the survivors into a buffer — then throws all of it away and builds it
+// again every time the camera crosses a twelve block boundary, which is a rebuild of the whole
+// layer for one step sideways. The size of that mesh is what bounds how far its clouds reach.
+//
+// Here there is no mesh at all. One screen-covering triangle carries a ray per pixel, and the ray
+// is walked through the cell grid the texture describes, a cell at a time, until it meets one that
+// is filled. That costs nothing when the camera moves, reaches as far as the fade allows rather
+// than as far as a buffer was sized for, and gives a silhouette that is exact per pixel instead of
+// per quad. The layer is only four blocks deep, so a ray that is not nearly horizontal is in and
+// out of it within a step or two.
+
+struct CloudVertex {
+    @builtin(position) clip_position: vec4<f32>,
+    /// Where this pixel sits on the near plane, which is what the ray is unprojected from.
+    @location(0) ndc: vec2<f32>,
+};
+
+struct CloudFragment {
+    @location(0) color: vec4<f32>,
+    /// The depth of the cell the ray met, so the terrain drawn before this occludes the cloud and
+    /// the cloud occludes nothing.
+    @builtin(frag_depth) depth: f32,
+};
+
+/// One triangle over the whole screen. Two would meet on a seam down the middle, and this needs no
+/// buffer either way.
+@vertex
+fn vertex_clouds(@builtin(vertex_index) index: u32) -> CloudVertex {
+    let corner = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u));
+    var out: CloudVertex;
+    out.ndc = corner * 2.0 - 1.0;
+    out.clip_position = vec4<f32>(out.ndc, 1.0, 1.0);
+    return out;
+}
+
+/// What the texture says about one cell, wrapped so the field repeats the way vanilla's does.
+fn cloud_cell(cell: vec2<i32>) -> vec4<f32> {
+    let size = vec2<i32>(textureDimensions(clouds));
+    return textureLoad(clouds, ((cell % size) + size) % size, 0, 0);
+}
+
+@fragment
+fn fragment_clouds(in: CloudVertex) -> CloudFragment {
+    var out: CloudFragment;
+    out.color = vec4<f32>(0.0);
+    out.depth = 0.0;
+
+    let origin = view.world_position.xyz;
+    // Unprojected on the near plane, which a reversed depth buffer keeps at one. The far plane
+    // would be the more obvious choice and is the wrong one: the projection here runs to infinity,
+    // so a point on it comes back with a zero w and nothing to divide by.
+    let near = view.world_from_clip * vec4<f32>(in.ndc, 1.0, 1.0);
+    let direction = normalize(near.xyz / near.w - origin);
+
+    let bottom = sky.cloud.x;
+    let top = bottom + CLOUD_THICKNESS;
+    let fade = sky.cloud.w;
+
+    // The stretch of the ray that is inside the layer at all. Everything outside it is open sky.
+    var enter = 0.0;
+    var leave = fade;
+    if abs(direction.y) < 1e-6 {
+        if origin.y < bottom || origin.y > top {
+            discard;
+        }
+    } else {
+        let first = (bottom - origin.y) / direction.y;
+        let second = (top - origin.y) / direction.y;
+        enter = max(0.0, min(first, second));
+        leave = min(fade, max(first, second));
+    }
+    if enter > leave {
+        discard;
+    }
+
+    // The field drifts rather than the world moving under it, so the drift is an offset on where
+    // the ray reads the texture. Wrapping it against the texture's own width keeps the number
+    // small however long the viewer has been running.
+    let span = f32(textureDimensions(clouds).x) * CLOUD_CELL;
+    let drift = vec2<f32>(sky.cloud.y % span, sky.cloud.z);
+    let start = (origin.xz + drift + direction.xz * enter) / CLOUD_CELL;
+
+    var cell = floor(start);
+    let step = sign(direction.xz);
+    // How far along the ray a whole cell is, per axis, and how far the first boundary is.
+    let per_cell = CLOUD_CELL / max(abs(direction.xz), vec2<f32>(1e-6));
+    var next = enter
+        + select(start - cell, cell + 1.0 - start, step > vec2<f32>(0.0)) * per_cell;
+
+    // The face the ray came in through. Until it crosses a cell wall that is whichever side of the
+    // layer it entered by, which is the one it is pointed away from.
+    var shade = select(CLOUD_BOTTOM, CLOUD_TOP, direction.y < 0.0);
+    var distance = enter;
+    var filled = vec4<f32>(0.0);
+    for (var taken = 0u; taken < CLOUD_STEPS; taken = taken + 1u) {
+        let sample = cloud_cell(vec2<i32>(cell));
+        if sample.a >= CLOUD_OPEN {
+            filled = sample;
+            break;
+        }
+        // Whichever wall is nearer is the one the ray leaves this cell by.
+        if next.x < next.y {
+            distance = next.x;
+            next.x = next.x + per_cell.x;
+            cell.x = cell.x + step.x;
+            shade = CLOUD_SIDE_X;
+        } else {
+            distance = next.y;
+            next.y = next.y + per_cell.y;
+            cell.y = cell.y + step.y;
+            shade = CLOUD_SIDE_Z;
+        }
+        if distance > leave {
+            break;
+        }
+    }
+    if filled.a < CLOUD_OPEN {
+        discard;
+    }
+
+    let position = origin + direction * distance;
+    let clip = view.clip_from_world * vec4<f32>(position, 1.0);
+    out.depth = clip.z / clip.w;
+    out.color = vec4<f32>(
+        filled.rgb * sky.cloud_color.rgb * shade,
+        filled.a * sky.cloud_color.a * (1.0 - clamp(distance / fade, 0.0, 1.0)),
+    );
+    return out;
 }
