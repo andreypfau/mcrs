@@ -24,15 +24,18 @@ use bevy::render::view::{
 };
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
-use crate::mesh::{Group, STREAMS, StreamSpan};
+use crate::mesh::{Draw, Group, STREAMS};
 use crate::pack::MODEL_OVERHANG;
 
 /// Dynamic uniform offsets must be a multiple of the device's alignment; 256 satisfies every
-/// backend we can land on, and the whole table is six entries.
+/// backend we can land on.
 const PARAMS_STRIDE: u32 = 256;
-const PARAMS_SIZE: u64 = 32;
-/// Byte offset of `Params::wireframe`, which follows five four-byte fields.
-const PARAMS_WIREFRAME_OFFSET: u64 = 20;
+const PARAMS_SIZE: u64 = 48;
+/// Byte offset of `Params::wireframe`, which follows eight four-byte fields.
+const PARAMS_WIREFRAME_OFFSET: u64 = 32;
+const DRAW_ARGS_SIZE: u64 = size_of::<DrawArgs>() as u64;
+/// Byte offset of `DrawArgs::instance_count`, the only field a frame rewrites.
+const INSTANCE_COUNT_OFFSET: u64 = 4;
 const TINT_SIZE: u32 = 512;
 const TINT_LAYERS: u32 = 3;
 
@@ -41,8 +44,10 @@ pub struct Geometry {
     pub simple: Vec<u64>,
     pub complex: Vec<u32>,
     pub groups: Vec<Group>,
-    pub streams: [StreamSpan; STREAMS],
-    pub min_section_y: i32,
+    /// One `draw_indirect` each, in draw order.
+    pub draws: Vec<Draw>,
+    /// Words of the sight-line bitset the walk will hand back every frame.
+    pub cave_words: usize,
     pub atlas_size: u32,
     pub atlas_layers: u32,
     /// Mip 0 first, then each smaller level, layer-major within a level.
@@ -70,11 +75,19 @@ struct Params {
     group_count: u32,
     visible_base: u32,
     args_index: u32,
-    min_section_y: i32,
+    /// The corner of this draw's render region, in blocks. Coordinates in a quad are relative to
+    /// their own section, so this is what puts the geometry back where it belongs. Explicit
+    /// scalars rather than a vec3: a vec3 would align to 16 and silently grow the struct.
+    origin_x: i32,
+    origin_y: i32,
+    origin_z: i32,
+    /// Where this region's sections start in the sight-line bitset.
+    cave_base: u32,
     wireframe: u32,
     /// How far this stream's geometry may reach outside its own section.
     overhang: f32,
-    reserved: u32,
+    reserved0: u32,
+    reserved1: u32,
 }
 
 /// Draws only the edges of every triangle, in the colour that face's own texture has there, and
@@ -162,9 +175,10 @@ struct Terrain {
     /// `[simple opaque, complex opaque, simple blended, complex blended]`, queued once the first
     /// view reveals the colour format the pipelines have to match.
     pipelines: Option<[CachedRenderPipelineId; 4]>,
-    streams: [StreamSpan; STREAMS],
-    /// Workgroups to dispatch per stream, one per culling group.
-    group_counts: [u32; STREAMS],
+    /// One entry per `draw_indirect`, in draw order.
+    draws: Vec<Draw>,
+    /// Workgroups to dispatch per draw, one per culling group.
+    group_counts: Vec<u32>,
 }
 
 #[derive(Resource)]
@@ -196,31 +210,43 @@ fn init_terrain(
     let cave = device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("terrain cave visibility"),
         // All ones until the first flood fill, so nothing goes missing on the earliest frames.
-        contents: bytemuck::cast_slice(&[u32::MAX; crate::cave::WORDS]),
+        contents: bytemuck::cast_slice(&vec![u32::MAX; geometry.cave_words]),
         usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
     });
 
     // Worst case every quad survives culling, so the visible list is sized for the whole arena and
-    // each stream owns a fixed slice of it. No allocation can ever be needed at draw time.
+    // each draw owns a fixed slice of it. No allocation can ever be needed at draw time.
+    let draws = geometry.draws.len().max(1);
+    let slots_per_entry = PARAMS_STRIDE as usize / 4;
     let mut visible_base = 0u32;
-    let mut params = vec![Params::default(); STREAMS * (PARAMS_STRIDE as usize / PARAMS_SIZE as usize)];
-    let mut group_counts = [0u32; STREAMS];
-    for stream in 0..STREAMS {
-        let span = geometry.streams[stream];
-        params[stream * (PARAMS_STRIDE as usize / PARAMS_SIZE as usize)] = Params {
-            group_base: span.first_group,
-            group_count: span.group_count,
+    let mut params = vec![0u32; draws * slots_per_entry];
+    let mut group_counts = vec![0u32; draws];
+    for (index, draw) in geometry.draws.iter().enumerate() {
+        let entry = Params {
+            group_base: draw.first_group,
+            group_count: draw.group_count,
             visible_base,
-            args_index: stream as u32,
-            min_section_y: geometry.min_section_y,
+            args_index: index as u32,
+            origin_x: draw.origin[0],
+            origin_y: draw.origin[1],
+            origin_z: draw.origin[2],
+            cave_base: draw.cave_base,
             wireframe: 0,
             // Odd streams carry baked model quads, the only geometry that leaves its own section.
             // Growing the greedy streams' boxes too would only weaken a test that is exact today.
-            overhang: if stream % 2 == 1 { MODEL_OVERHANG } else { 0.0 },
-            reserved: 0,
+            overhang: if draw.stream % 2 == 1 {
+                MODEL_OVERHANG
+            } else {
+                0.0
+            },
+            reserved0: 0,
+            reserved1: 0,
         };
-        group_counts[stream] = span.group_count;
-        visible_base += span.quad_count;
+        let slot = index * slots_per_entry;
+        params[slot..slot + PARAMS_SIZE as usize / 4]
+            .copy_from_slice(bytemuck::cast_slice(&[entry]));
+        group_counts[index] = draw.group_count;
+        visible_base += draw.quad_count;
     }
     let visible = device.create_buffer(&BufferDescriptor {
         label: Some("terrain visible list"),
@@ -229,17 +255,20 @@ fn init_terrain(
         mapped_at_creation: false,
     });
     let params = device.create_buffer_with_data(&BufferInitDescriptor {
-        label: Some("terrain stream params"),
+        label: Some("terrain draw params"),
         contents: bytemuck::cast_slice(&params),
         usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
     });
 
-    let args_init = [DrawArgs {
-        vertex_count: 6,
-        instance_count: 0,
-        first_vertex: 0,
-        first_instance: 0,
-    }; STREAMS];
+    let args_init = vec![
+        DrawArgs {
+            vertex_count: 6,
+            instance_count: 0,
+            first_vertex: 0,
+            first_instance: 0,
+        };
+        draws
+    ];
     let args = device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("terrain draw args"),
         contents: bytemuck::cast_slice(&args_init),
@@ -250,7 +279,7 @@ fn init_terrain(
     });
     let args_readback = device.create_buffer(&BufferDescriptor {
         label: Some("terrain draw args readback"),
-        size: size_of_val(&args_init) as u64,
+        size: size_of_val(args_init.as_slice()) as u64,
         usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
@@ -344,7 +373,7 @@ fn init_terrain(
         draw_layout,
         terrain_shader,
         pipelines: None,
-        streams: geometry.streams,
+        draws: geometry.draws.clone(),
         group_counts,
     });
 }
@@ -691,9 +720,12 @@ fn cull_terrain(
 
     // Reset only the instance counters; the rest of each draw command is constant for the run of
     // the program, so there is nothing else to upload per frame.
-    for stream in 0..STREAMS {
-        ctx.command_encoder()
-            .clear_buffer(&terrain.args, stream as u64 * 16 + 4, NonZeroU64::new(4).map(|n| n.get()));
+    for index in 0..terrain.draws.len() {
+        ctx.command_encoder().clear_buffer(
+            &terrain.args,
+            index as u64 * DRAW_ARGS_SIZE + INSTANCE_COUNT_OFFSET,
+            NonZeroU64::new(4).map(|n| n.get()),
+        );
     }
 
     let diagnostics = ctx.diagnostic_recorder();
@@ -707,15 +739,14 @@ fn cull_terrain(
     let span = diagnostics.pass_span(&mut pass, "terrain_cull");
     pass.set_pipeline(pipeline);
     pass.set_bind_group(1, &terrain.cull_bind_group, &[]);
-    for stream in 0..STREAMS {
-        let workgroups = terrain.group_counts[stream];
+    for (index, &workgroups) in terrain.group_counts.iter().enumerate() {
         if workgroups == 0 {
             continue;
         }
         pass.set_bind_group(
             0,
             &view_bind_group.0,
-            &[view_offset, stream as u32 * PARAMS_STRIDE],
+            &[view_offset, index as u32 * PARAMS_STRIDE],
         );
         pass.dispatch_workgroups(workgroups, 1, 1);
     }
@@ -751,12 +782,13 @@ fn draw_terrain(
     let span = diagnostics.pass_span(&mut pass, "terrain_draw");
     pass.set_bind_group(1, &terrain.draw_bind_group, &[]);
 
-    for stream in 0..STREAMS {
-        if terrain.streams[stream].quad_count == 0 {
+    for (index, draw) in terrain.draws.iter().enumerate() {
+        if draw.quad_count == 0 {
             continue;
         }
         // Solid and cutout share a pipeline (the alpha test never fires on a solid sprite); only
         // the translucent pass differs, and it must come last because it does not write depth.
+        let stream = draw.stream as usize;
         let pipeline_index = (stream / 4) * 2 + stream % 2;
         let Some(pipeline) = pipeline_cache.get_render_pipeline(pipelines[pipeline_index]) else {
             continue;
@@ -765,9 +797,9 @@ fn draw_terrain(
         pass.set_bind_group(
             0,
             &view_bind_group.0,
-            &[view_offset.offset, stream as u32 * PARAMS_STRIDE],
+            &[view_offset.offset, index as u32 * PARAMS_STRIDE],
         );
-        pass.draw_indirect(&terrain.args, stream as u64 * 16);
+        pass.draw_indirect(&terrain.args, index as u64 * DRAW_ARGS_SIZE);
     }
     span.end(&mut pass);
 }

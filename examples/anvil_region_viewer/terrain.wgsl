@@ -12,50 +12,95 @@ fn field(word: u32, shift: u32, bits: u32) -> u32 {
     return (word >> shift) & ((1u << bits) - 1u);
 }
 
-const Y_BIAS: i32 = 64;
+/// Which word a field lives in is part of the layout, so it is read from the layout rather than
+/// chosen at the call site.
+fn quad_field(quad: vec2<u32>, word: u32, shift: u32, bits: u32) -> u32 {
+    return field(select(quad.x, quad.y, word == 1u), shift, bits);
+}
 
+
+const SECTION_SIZE: f32 = 16.0;
+
+const LOCAL_X_WORD: u32 = 0u;
+const LOCAL_X_SHIFT: u32 = 0u;
+const LOCAL_X_BITS: u32 = 4u;
+const LOCAL_Y_WORD: u32 = 0u;
+const LOCAL_Y_SHIFT: u32 = 4u;
+const LOCAL_Y_BITS: u32 = 3u;
+const LOCAL_Z_WORD: u32 = 0u;
+const LOCAL_Z_SHIFT: u32 = 7u;
+const LOCAL_Z_BITS: u32 = 4u;
+
+const QUAD_X_WORD: u32 = 0u;
 const QUAD_X_SHIFT: u32 = 0u;
-const QUAD_X_BITS: u32 = 10u;
-const QUAD_Y_SHIFT: u32 = 10u;
-const QUAD_Y_BITS: u32 = 9u;
-const QUAD_Z_SHIFT: u32 = 19u;
-const QUAD_Z_BITS: u32 = 10u;
-const QUAD_FACE_SHIFT: u32 = 29u;
+const QUAD_X_BITS: u32 = 5u;
+const QUAD_Y_WORD: u32 = 0u;
+const QUAD_Y_SHIFT: u32 = 5u;
+const QUAD_Y_BITS: u32 = 5u;
+const QUAD_Z_WORD: u32 = 0u;
+const QUAD_Z_SHIFT: u32 = 10u;
+const QUAD_Z_BITS: u32 = 5u;
+const QUAD_FACE_WORD: u32 = 0u;
+const QUAD_FACE_SHIFT: u32 = 15u;
 const QUAD_FACE_BITS: u32 = 3u;
-
-const QUAD_W_SHIFT: u32 = 0u;
+const QUAD_W_WORD: u32 = 0u;
+const QUAD_W_SHIFT: u32 = 18u;
 const QUAD_W_BITS: u32 = 4u;
-const QUAD_H_SHIFT: u32 = 4u;
+const QUAD_H_WORD: u32 = 0u;
+const QUAD_H_SHIFT: u32 = 22u;
 const QUAD_H_BITS: u32 = 4u;
-const QUAD_LAYER_SHIFT: u32 = 8u;
-const QUAD_LAYER_BITS: u32 = 9u;
-const QUAD_AO_SHIFT: u32 = 17u;
-const QUAD_AO_BITS: u32 = 8u;
-const QUAD_LIGHT_SHIFT: u32 = 25u;
+const QUAD_LIGHT_WORD: u32 = 0u;
+const QUAD_LIGHT_SHIFT: u32 = 26u;
 const QUAD_LIGHT_BITS: u32 = 4u;
-const QUAD_FLIP_SHIFT: u32 = 29u;
-const QUAD_FLIP_BITS: u32 = 1u;
+const QUAD_TINT_WORD: u32 = 0u;
 const QUAD_TINT_SHIFT: u32 = 30u;
 const QUAD_TINT_BITS: u32 = 2u;
 
+const QUAD_AO_WORD: u32 = 1u;
+const QUAD_AO_SHIFT: u32 = 0u;
+const QUAD_AO_BITS: u32 = 8u;
+const QUAD_FLIP_WORD: u32 = 1u;
+const QUAD_FLIP_SHIFT: u32 = 8u;
+const QUAD_FLIP_BITS: u32 = 1u;
+const QUAD_SECTION_WORD: u32 = 1u;
+const QUAD_SECTION_SHIFT: u32 = 9u;
+const QUAD_SECTION_BITS: u32 = 11u;
+const QUAD_LAYER_WORD: u32 = 1u;
+const QUAD_LAYER_SHIFT: u32 = 20u;
+const QUAD_LAYER_BITS: u32 = 9u;
+
+const MODEL_X_WORD: u32 = 0u;
 const MODEL_X_SHIFT: u32 = 0u;
-const MODEL_X_BITS: u32 = 16u;
-const MODEL_Y_SHIFT: u32 = 16u;
-const MODEL_Y_BITS: u32 = 16u;
-const MODEL_Z_SHIFT: u32 = 0u;
-const MODEL_Z_BITS: u32 = 16u;
-const MODEL_U_SHIFT: u32 = 16u;
+const MODEL_X_BITS: u32 = 10u;
+const MODEL_Y_WORD: u32 = 0u;
+const MODEL_Y_SHIFT: u32 = 10u;
+const MODEL_Y_BITS: u32 = 10u;
+const MODEL_Z_WORD: u32 = 0u;
+const MODEL_Z_SHIFT: u32 = 20u;
+const MODEL_Z_BITS: u32 = 10u;
+
+const MODEL_U_WORD: u32 = 1u;
+const MODEL_U_SHIFT: u32 = 0u;
 const MODEL_U_BITS: u32 = 10u;
-const MODEL_TINT_SHIFT: u32 = 26u;
-const MODEL_TINT_BITS: u32 = 2u;
-const MODEL_LAYER_SHIFT: u32 = 0u;
-const MODEL_LAYER_BITS: u32 = 9u;
-const MODEL_V_SHIFT: u32 = 16u;
+const MODEL_V_WORD: u32 = 1u;
+const MODEL_V_SHIFT: u32 = 10u;
 const MODEL_V_BITS: u32 = 10u;
-const MODEL_LIGHT_SHIFT: u32 = 26u;
+const MODEL_TINT_WORD: u32 = 1u;
+const MODEL_TINT_SHIFT: u32 = 20u;
+const MODEL_TINT_BITS: u32 = 2u;
+const MODEL_LIGHT_WORD: u32 = 1u;
+const MODEL_LIGHT_SHIFT: u32 = 22u;
 const MODEL_LIGHT_BITS: u32 = 4u;
-const MODEL_SHADE_SHIFT: u32 = 30u;
+const MODEL_SHADE_WORD: u32 = 1u;
+const MODEL_SHADE_SHIFT: u32 = 26u;
 const MODEL_SHADE_BITS: u32 = 2u;
+
+const MODEL_SECTION_WORD: u32 = 2u;
+const MODEL_SECTION_SHIFT: u32 = 0u;
+const MODEL_SECTION_BITS: u32 = 11u;
+const MODEL_LAYER_WORD: u32 = 2u;
+const MODEL_LAYER_SHIFT: u32 = 11u;
+const MODEL_LAYER_BITS: u32 = 9u;
 
 /// Model positions are fixed point in units of this many steps per block, offset by however far a
 /// model may hang outside its own block so the result stays non-negative.
@@ -67,16 +112,37 @@ struct Params {
     group_count: u32,
     visible_base: u32,
     args_index: u32,
-    min_section_y: i32,
+    // The corner of this draw's render region, in blocks. Explicit scalars rather than a vec3: a
+    // vec3 would align to 16 and silently grow the struct.
+    origin_x: i32,
+    origin_y: i32,
+    origin_z: i32,
+    cave_base: u32,
     wireframe: u32,
-    // Explicit scalars rather than a vec3: a vec3 would align to 16 and silently grow the struct
-    // past the 32 bytes the dynamic uniform offsets are laid out on.
     overhang: f32,
+    pad0: u32,
     pad1: u32,
 }
 
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(1) var<uniform> params: Params;
+
+fn model_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {
+    return field(vertices[base + word], shift, bits);
+}
+
+/// Where the section a quad names starts, in world blocks. A coordinate in a quad is relative to
+/// its own section, and the region corner arrives with the draw, so this is the whole of what puts
+/// the geometry back where it belongs.
+fn section_origin(section: u32) -> vec3<f32> {
+    let region = vec3<f32>(f32(params.origin_x), f32(params.origin_y), f32(params.origin_z));
+    let local = vec3<f32>(
+        f32(field(section, LOCAL_X_SHIFT, LOCAL_X_BITS)),
+        f32(field(section, LOCAL_Y_SHIFT, LOCAL_Y_BITS)),
+        f32(field(section, LOCAL_Z_SHIFT, LOCAL_Z_BITS)),
+    );
+    return region + local * SECTION_SIZE;
+}
 
 @group(1) @binding(0) var<storage, read> quads: array<vec2<u32>>;
 @group(1) @binding(1) var<storage, read> vertices: array<u32>;
@@ -181,22 +247,21 @@ fn vertex_simple(
     @builtin(instance_index) instance: u32,
 ) -> VertexOut {
     let quad = quads[visible[params.visible_base + instance]];
-    let lo = quad.x;
-    let hi = quad.y;
 
-    let anchor = vec3<f32>(
-        f32(field(lo, QUAD_X_SHIFT, QUAD_X_BITS)),
-        f32(field(lo, QUAD_Y_SHIFT, QUAD_Y_BITS)) - f32(Y_BIAS),
-        f32(field(lo, QUAD_Z_SHIFT, QUAD_Z_BITS)),
-    );
-    let face = field(lo, QUAD_FACE_SHIFT, QUAD_FACE_BITS);
+    let anchor = section_origin(quad_field(quad, QUAD_SECTION_WORD, QUAD_SECTION_SHIFT, QUAD_SECTION_BITS))
+        + vec3<f32>(
+            f32(quad_field(quad, QUAD_X_WORD, QUAD_X_SHIFT, QUAD_X_BITS)),
+            f32(quad_field(quad, QUAD_Y_WORD, QUAD_Y_SHIFT, QUAD_Y_BITS)),
+            f32(quad_field(quad, QUAD_Z_WORD, QUAD_Z_SHIFT, QUAD_Z_BITS)),
+        );
+    let face = quad_field(quad, QUAD_FACE_WORD, QUAD_FACE_SHIFT, QUAD_FACE_BITS);
     let size = vec2<f32>(
-        f32(field(hi, QUAD_W_SHIFT, QUAD_W_BITS) + 1u),
-        f32(field(hi, QUAD_H_SHIFT, QUAD_H_BITS) + 1u),
+        f32(quad_field(quad, QUAD_W_WORD, QUAD_W_SHIFT, QUAD_W_BITS) + 1u),
+        f32(quad_field(quad, QUAD_H_WORD, QUAD_H_SHIFT, QUAD_H_BITS) + 1u),
     );
-    let ao_bits = field(hi, QUAD_AO_SHIFT, QUAD_AO_BITS);
-    let light = f32(field(hi, QUAD_LIGHT_SHIFT, QUAD_LIGHT_BITS));
-    let flip = field(hi, QUAD_FLIP_SHIFT, QUAD_FLIP_BITS) == 1u;
+    let ao_bits = quad_field(quad, QUAD_AO_WORD, QUAD_AO_SHIFT, QUAD_AO_BITS);
+    let light = f32(quad_field(quad, QUAD_LIGHT_WORD, QUAD_LIGHT_SHIFT, QUAD_LIGHT_BITS));
+    let flip = quad_field(quad, QUAD_FLIP_WORD, QUAD_FLIP_SHIFT, QUAD_FLIP_BITS) == 1u;
 
     let corner = corner_index(vertex, flip);
     let quad_uv = corner_uv(corner);
@@ -206,10 +271,10 @@ fn vertex_simple(
     var out: VertexOut;
     out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
     out.uv = c;
-    out.layer = field(hi, QUAD_LAYER_SHIFT, QUAD_LAYER_BITS);
+    out.layer = quad_field(quad, QUAD_LAYER_WORD, QUAD_LAYER_SHIFT, QUAD_LAYER_BITS);
     out.shade = face_shade(face) * light_curve(light) * ao_factor(ao_bits, corner);
     out.world_xz = world.xz;
-    out.tint_kind = field(hi, QUAD_TINT_SHIFT, QUAD_TINT_BITS);
+    out.tint_kind = quad_field(quad, QUAD_TINT_WORD, QUAD_TINT_SHIFT, QUAD_TINT_BITS);
     out.quad_uv = quad_uv;
     out.diagonal = select(
         quad_uv.x - quad_uv.y,
@@ -227,19 +292,17 @@ fn vertex_complex(
     let quad = visible[params.visible_base + instance];
     let corner = corner_index(vertex, false);
     let base = (quad * 4u + corner) * 3u;
-    let w0 = vertices[base];
-    let w1 = vertices[base + 1u];
-    let w2 = vertices[base + 2u];
 
-    let world = vec3<f32>(
-        f32(field(w0, MODEL_X_SHIFT, MODEL_X_BITS)) / MODEL_STEPS - MODEL_OVERHANG,
-        f32(field(w0, MODEL_Y_SHIFT, MODEL_Y_BITS)) / MODEL_STEPS - MODEL_OVERHANG - f32(Y_BIAS),
-        f32(field(w1, MODEL_Z_SHIFT, MODEL_Z_BITS)) / MODEL_STEPS - MODEL_OVERHANG,
-    );
-    let u = f32(field(w1, MODEL_U_SHIFT, MODEL_U_BITS)) / 1023.0;
-    let v = f32(field(w2, MODEL_V_SHIFT, MODEL_V_BITS)) / 1023.0;
-    let light = f32(field(w2, MODEL_LIGHT_SHIFT, MODEL_LIGHT_BITS));
-    let shade_bucket = field(w2, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS);
+    let local = vec3<f32>(
+        f32(model_field(base, MODEL_X_WORD, MODEL_X_SHIFT, MODEL_X_BITS)),
+        f32(model_field(base, MODEL_Y_WORD, MODEL_Y_SHIFT, MODEL_Y_BITS)),
+        f32(model_field(base, MODEL_Z_WORD, MODEL_Z_SHIFT, MODEL_Z_BITS)),
+    ) / MODEL_STEPS - MODEL_OVERHANG;
+    let world = section_origin(model_field(base, MODEL_SECTION_WORD, MODEL_SECTION_SHIFT, MODEL_SECTION_BITS)) + local;
+    let u = f32(model_field(base, MODEL_U_WORD, MODEL_U_SHIFT, MODEL_U_BITS)) / 1023.0;
+    let v = f32(model_field(base, MODEL_V_WORD, MODEL_V_SHIFT, MODEL_V_BITS)) / 1023.0;
+    let light = f32(model_field(base, MODEL_LIGHT_WORD, MODEL_LIGHT_SHIFT, MODEL_LIGHT_BITS));
+    let shade_bucket = model_field(base, MODEL_SHADE_WORD, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS);
     var shade = 1.0;
     switch shade_bucket {
         case 0u: { shade = 0.5; }
@@ -251,10 +314,10 @@ fn vertex_complex(
     var out: VertexOut;
     out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
     out.uv = vec2<f32>(u, v);
-    out.layer = field(w2, MODEL_LAYER_SHIFT, MODEL_LAYER_BITS);
+    out.layer = model_field(base, MODEL_LAYER_WORD, MODEL_LAYER_SHIFT, MODEL_LAYER_BITS);
     out.shade = shade * light_curve(light);
     out.world_xz = world.xz;
-    out.tint_kind = field(w1, MODEL_TINT_SHIFT, MODEL_TINT_BITS);
+    out.tint_kind = model_field(base, MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS);
     let quad_uv = corner_uv(corner);
     out.quad_uv = quad_uv;
     out.diagonal = quad_uv.x - quad_uv.y;

@@ -12,10 +12,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::anvil::{REGION_CHUNKS, Region, SECTION_SIZE, Section};
 use crate::blocks::{CORNER_UV, Catalog, FACE_AXES, Pass};
 use crate::pack::{
-    GROUP_FACE, MODEL_LAYER, MODEL_LIGHT, MODEL_SHADE, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X,
-    MODEL_Y, MODEL_Z, QUAD_AO, QUAD_FACE, QUAD_FLIP, QUAD_H, QUAD_LAYER, QUAD_LIGHT, QUAD_TINT,
-    MODEL_OVERHANG, MODEL_STEPS, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z, SECTION_INDEX, Y_BIAS,
-    pack_section,
+    GROUP_FACE, MODEL_LAYER, MODEL_LIGHT, MODEL_OVERHANG, MODEL_SECTION, MODEL_SHADE, MODEL_STEPS,
+    MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z, QUAD_AO, QUAD_FACE, QUAD_FLIP, QUAD_H,
+    QUAD_LAYER, QUAD_LIGHT, QUAD_SECTION, QUAD_TINT, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z,
+    RegionGrid, SECTIONS_PER_RENDER_REGION,
 };
 
 /// `pass * 2 + kind`, where kind is 0 for greedy quads and 1 for baked model quads.
@@ -41,10 +41,6 @@ const FACE_GROUPS: usize = 7;
 const BORDER: usize = SECTION_SIZE + 2;
 const BORDER_VOLUME: usize = BORDER * BORDER * BORDER;
 
-/// Every section number [`Group::section`] can carry, so the sight-line bitset never has to bounds
-/// check an index that came off the GPU side of the packing.
-pub const SECTION_SLOTS: usize = 1 << SECTION_INDEX.bits;
-
 /// Bit `entry * 6 + exit` is set when a sight line can cross the section from face `entry` to face
 /// `exit`. Faces follow [`FACE_AXES`] order, so the opposite face is `f ^ 1`.
 pub const CONNECT_ALL: u64 = (1 << 36) - 1;
@@ -56,8 +52,8 @@ pub const CONNECT_ALL: u64 = (1 << 36) - 1;
 pub struct Group {
     pub quad_base: u32,
     pub quad_count: u32,
-    /// The section this run came from, in units of 16 blocks, and the face group its quads point
-    /// at. Laid out by `SECTION_X`, `SECTION_Y`, `SECTION_Z` and `GROUP_FACE`.
+    /// Where inside its render region the section this run came from sits, and the face group its
+    /// quads point at. Laid out by `SECTION_INDEX` and `GROUP_FACE`.
     pub section: u32,
     pub _pad: u32,
 }
@@ -67,11 +63,17 @@ pub struct RegionMesh {
     pub simple: Vec<u64>,
     /// Packed model vertices, three `u32` each, four vertices per quad.
     pub complex: Vec<u32>,
-    /// Culling groups, ordered so each stream owns one contiguous span.
+    /// Culling groups, ordered so each draw owns one contiguous span.
     pub groups: Vec<Group>,
-    /// `(first_group, group_count, first_quad, quad_count)` per stream.
+    /// What each stream holds in total, for the load report. The draws below are what the frame
+    /// actually issues.
     pub streams: [StreamSpan; STREAMS],
-    /// Per-section face connectivity, indexed `sx | sy << 5 | sz << 10`. Slots the mesher never
+    /// One entry per stream and render region that holds anything, in draw order.
+    pub draws: Vec<Draw>,
+    /// The render regions the world was cut into.
+    pub grid: RegionGrid,
+    /// Per-section face connectivity, indexed the way the sight-line walk numbers sections. Slots
+    /// the mesher never
     /// touched stay [`CONNECT_ALL`]: a section missing from the file is air, and defaulting it to
     /// "closed" would kill a sight-line walk on its very first step through open sky.
     pub connectivity: Vec<u64>,
@@ -79,7 +81,6 @@ pub struct RegionMesh {
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct StreamSpan {
-    pub first_group: u32,
     pub group_count: u32,
     pub quad_count: u32,
 }
@@ -135,10 +136,26 @@ impl Scratch {
 struct Partial {
     simple: Vec<u64>,
     complex: Vec<u32>,
-    /// `(stream, group)` with `group.quad_base` relative to this worker's own arena.
-    groups: Vec<(u32, Group)>,
-    /// `(packed section slot, mask)`.
-    connectivity: Vec<(u16, u64)>,
+    /// `(stream, render region, group)` with `group.quad_base` relative to this worker's own arena.
+    groups: Vec<(u32, u32, Group)>,
+    /// `(section slot, mask)`, keyed the way the sight-line walk indexes sections.
+    connectivity: Vec<(u32, u64)>,
+}
+
+/// One `draw_indirect`: the groups of a single stream that lie inside a single render region.
+/// Draw order is stream order, so the list runs stream by stream.
+#[derive(Copy, Clone, Default, Debug)]
+pub struct Draw {
+    pub stream: u32,
+    /// The region's corner in blocks. Coordinates in a quad are relative to their section, so this
+    /// is what puts the geometry back where it belongs.
+    pub origin: [i32; 3],
+    /// Where this region's sections start in the sight-line bitset.
+    pub cave_base: u32,
+    pub first_group: u32,
+    pub group_count: u32,
+    /// Every quad these groups hold, which is the most culling can let through.
+    pub quad_count: u32,
 }
 
 pub fn build(region: &Region, catalog: &Catalog) -> RegionMesh {
@@ -148,6 +165,7 @@ pub fn build(region: &Region, catalog: &Catalog) -> RegionMesh {
     let next = AtomicUsize::new(0);
     let partials: Mutex<Vec<Partial>> = Mutex::new(Vec::new());
     let columns = REGION_CHUNKS * REGION_CHUNKS;
+    let grid = RegionGrid::covering([REGION_CHUNKS, region.sections_y, REGION_CHUNKS]);
 
     std::thread::scope(|scope| {
         for _ in 0..threads {
@@ -168,7 +186,9 @@ pub fn build(region: &Region, catalog: &Catalog) -> RegionMesh {
                     let cz = column / REGION_CHUNKS;
                     for sy in 0..region.sections_y {
                         if region.section(cx, sy, cz).is_some() {
-                            mesh_section(region, catalog, cx, sy, cz, &mut scratch, &mut partial);
+                            mesh_section(
+                                region, catalog, grid, cx, sy, cz, &mut scratch, &mut partial,
+                            );
                         }
                     }
                 }
@@ -177,24 +197,26 @@ pub fn build(region: &Region, catalog: &Catalog) -> RegionMesh {
         }
     });
 
-    assemble(partials.into_inner().unwrap())
+    assemble(partials.into_inner().unwrap(), grid, region.min_section_y)
 }
 
-fn assemble(partials: Vec<Partial>) -> RegionMesh {
+fn assemble(partials: Vec<Partial>, grid: RegionGrid, min_section_y: i32) -> RegionMesh {
     let mut simple = Vec::new();
     let mut complex = Vec::new();
-    let mut by_stream: Vec<Vec<Group>> = (0..STREAMS).map(|_| Vec::new()).collect();
+    // One bucket per stream and render region. A bucket is one `draw_indirect`, so the groups in
+    // it have to end up contiguous and every quad in it has to share the same region corner.
+    let mut buckets: Vec<Vec<Group>> = (0..STREAMS * grid.len()).map(|_| Vec::new()).collect();
     let mut simple_base = 0u32;
     let mut complex_base = 0u32;
 
     for partial in &partials {
-        for &(stream, group) in &partial.groups {
+        for &(stream, region, group) in &partial.groups {
             let base = if stream % 2 == 0 {
                 simple_base
             } else {
                 complex_base
             };
-            by_stream[stream as usize].push(Group {
+            buckets[stream as usize * grid.len() + region as usize].push(Group {
                 quad_base: group.quad_base + base,
                 ..group
             });
@@ -207,20 +229,41 @@ fn assemble(partials: Vec<Partial>) -> RegionMesh {
 
     let mut groups = Vec::new();
     let mut streams = [StreamSpan::default(); STREAMS];
+    let mut draws = Vec::new();
+    let size = SECTION_SIZE as i32;
     for stream in 0..STREAMS {
-        let mut quads = 0u32;
-        for group in &by_stream[stream] {
-            quads += group.quad_count;
+        let mut stream_quads = 0u32;
+        let mut stream_groups = 0u32;
+        for region in 0..grid.len() {
+            let bucket = &mut buckets[stream * grid.len() + region];
+            if bucket.is_empty() {
+                continue;
+            }
+            let quad_count = bucket.iter().map(|group| group.quad_count).sum();
+            let [sx, sy, sz] = grid.corner(region);
+            draws.push(Draw {
+                stream: stream as u32,
+                origin: [
+                    sx as i32 * size,
+                    (sy as i32 + min_section_y) * size,
+                    sz as i32 * size,
+                ],
+                cave_base: (region * SECTIONS_PER_RENDER_REGION) as u32,
+                first_group: groups.len() as u32,
+                group_count: bucket.len() as u32,
+                quad_count,
+            });
+            stream_quads += quad_count;
+            stream_groups += bucket.len() as u32;
+            groups.append(bucket);
         }
         streams[stream] = StreamSpan {
-            first_group: groups.len() as u32,
-            group_count: by_stream[stream].len() as u32,
-            quad_count: quads,
+            group_count: stream_groups,
+            quad_count: stream_quads,
         };
-        groups.append(&mut by_stream[stream]);
     }
 
-    let mut connectivity = vec![CONNECT_ALL; SECTION_SLOTS];
+    let mut connectivity = vec![CONNECT_ALL; grid.slots()];
     for partial in &partials {
         for &(slot, mask) in &partial.connectivity {
             connectivity[slot as usize] = mask;
@@ -232,13 +275,17 @@ fn assemble(partials: Vec<Partial>) -> RegionMesh {
         complex,
         groups,
         streams,
+        draws,
+        grid,
         connectivity,
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn mesh_section(
     region: &Region,
     catalog: &Catalog,
+    grid: RegionGrid,
     cx: usize,
     sy: usize,
     cz: usize,
@@ -266,12 +313,13 @@ fn mesh_section(
     let section = region
         .section(cx, sy, cz)
         .expect("caller checked the section exists");
-    let packed_section = pack_section(cx as u32, sy as u32, cz as u32);
-    greedy(catalog, section, scratch, base, packed_section, partial);
-    complex(catalog, section, scratch, base, packed_section, partial);
+    let (region_index, local_section) = grid.split(cx, sy, cz);
+    let region_index = region_index as u32;
+    greedy(catalog, section, scratch, local_section, region_index, partial);
+    complex(catalog, section, scratch, local_section, region_index, partial);
     partial
         .connectivity
-        .push((packed_section as u16, connectivity(&mut scratch.occludes)));
+        .push((grid.slot(cx, sy, cz) as u32, connectivity(&mut scratch.occludes)));
 }
 
 #[inline]
@@ -346,8 +394,8 @@ fn greedy(
     catalog: &Catalog,
     section: &Section,
     scratch: &mut Scratch,
-    base: [i32; 3],
-    packed_section: u32,
+    local_section: u32,
+    region_index: u32,
     partial: &mut Partial,
 ) {
     for face in 0..6usize {
@@ -377,7 +425,7 @@ fn greedy(
                 }
             }
             if any {
-                merge_slice(scratch, face, n, base);
+                merge_slice(scratch, face, n, local_section);
             }
         }
 
@@ -386,10 +434,11 @@ fn greedy(
             if !quads.is_empty() {
                 partial.groups.push((
                     (pass * 2) as u32,
+                    region_index,
                     Group {
                         quad_base: partial.simple.len() as u32,
                         quad_count: quads.len() as u32,
-                        section: packed_section | GROUP_FACE.pack(face as u64) as u32,
+                        section: local_section | GROUP_FACE.pack(face as u64) as u32,
                         _pad: 0,
                     },
                 ));
@@ -504,7 +553,7 @@ fn occludes_at(
     scratch.occludes[border_index(x, y, z)]
 }
 
-fn merge_slice(scratch: &mut Scratch, face: usize, n: usize, base: [i32; 3]) {
+fn merge_slice(scratch: &mut Scratch, face: usize, n: usize, local_section: u32) {
     for gv in 0..SECTION_SIZE {
         let mut gu = 0usize;
         while gu < SECTION_SIZE {
@@ -538,7 +587,7 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize, base: [i32; 3]) {
                 }
             }
             scratch.simple_by_pass[key.pass as usize]
-                .push(pack_quad(&key, face, n, gu, gv, w, h, base));
+                .push(pack_quad(&key, face, n, gu, gv, w, h, local_section));
             gu += w;
         }
     }
@@ -546,23 +595,21 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize, base: [i32; 3]) {
 
 /// The world-space anchor of a greedy quad: the corner at grid `(gu, gv)` on the face plane.
 #[inline]
-fn quad_anchor(face: usize, n: usize, gu: usize, gv: usize, base: [i32; 3]) -> [i32; 3] {
+fn quad_anchor(face: usize, n: usize, gu: usize, gv: usize) -> [i32; 3] {
     let axes = FACE_AXES[face];
-    let mut world = [0i32; 3];
-    world[axes[0] as usize] = base[axes[0] as usize] + n as i32 + if axes[1] == 1 { 1 } else { 0 };
-    world[axes[2] as usize] = base[axes[2] as usize]
-        + if axes[3] == 1 {
-            gu as i32
-        } else {
-            SECTION_SIZE as i32 - gu as i32
-        };
-    world[axes[4] as usize] = base[axes[4] as usize]
-        + if axes[5] == 1 {
-            gv as i32
-        } else {
-            SECTION_SIZE as i32 - gv as i32
-        };
-    world
+    let mut local = [0i32; 3];
+    local[axes[0] as usize] = n as i32 + if axes[1] == 1 { 1 } else { 0 };
+    local[axes[2] as usize] = if axes[3] == 1 {
+        gu as i32
+    } else {
+        SECTION_SIZE as i32 - gu as i32
+    };
+    local[axes[4] as usize] = if axes[5] == 1 {
+        gv as i32
+    } else {
+        SECTION_SIZE as i32 - gv as i32
+    };
+    local
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -575,21 +622,23 @@ fn pack_quad(
     gv: usize,
     w: usize,
     h: usize,
-    base: [i32; 3],
+    local_section: u32,
 ) -> u64 {
-    let anchor = quad_anchor(face, n, gu, gv, base);
-    let lo = QUAD_X.pack(anchor[0] as u64)
-        | QUAD_Y.pack((anchor[1] + Y_BIAS) as u64)
-        | QUAD_Z.pack(anchor[2] as u64)
-        | QUAD_FACE.pack(face as u64);
-    let hi = QUAD_W.pack(w as u64 - 1)
-        | QUAD_H.pack(h as u64 - 1)
-        | QUAD_LAYER.pack(key.layer_plus_one as u64 - 1)
-        | QUAD_AO.pack(key.ao as u64)
-        | QUAD_LIGHT.pack(key.light as u64)
-        | QUAD_FLIP.pack(key.flip as u64)
-        | QUAD_TINT.pack(key.tint as u64);
-    lo | (hi << 32)
+    let anchor = quad_anchor(face, n, gu, gv);
+    let mut words = [0u32; 2];
+    QUAD_X.set(&mut words, anchor[0] as u64);
+    QUAD_Y.set(&mut words, anchor[1] as u64);
+    QUAD_Z.set(&mut words, anchor[2] as u64);
+    QUAD_FACE.set(&mut words, face as u64);
+    QUAD_W.set(&mut words, w as u64 - 1);
+    QUAD_H.set(&mut words, h as u64 - 1);
+    QUAD_LIGHT.set(&mut words, key.light as u64);
+    QUAD_TINT.set(&mut words, key.tint as u64);
+    QUAD_AO.set(&mut words, key.ao as u64);
+    QUAD_FLIP.set(&mut words, key.flip as u64);
+    QUAD_SECTION.set(&mut words, local_section as u64);
+    QUAD_LAYER.set(&mut words, key.layer_plus_one as u64 - 1);
+    words[0] as u64 | (words[1] as u64) << 32
 }
 
 /// Baked model geometry, written out verbatim with the block's own light and the vanilla
@@ -602,8 +651,8 @@ fn complex(
     catalog: &Catalog,
     section: &Section,
     scratch: &mut Scratch,
-    base: [i32; 3],
-    packed_section: u32,
+    local_section: u32,
+    region_index: u32,
     partial: &mut Partial,
 ) {
     for pass in 0..Pass::COUNT {
@@ -653,23 +702,18 @@ fn complex(
                         let p = quad.positions[corner];
                         let u = (quad.uvs[corner][0].clamp(0.0, 1.0) * 1023.0) as u32;
                         let v = (quad.uvs[corner][1].clamp(0.0, 1.0) * 1023.0) as u32;
-                        out.push(
-                            MODEL_X.pack(fixed(p.x + (base[0] + x as i32) as f32) as u64) as u32
-                                | MODEL_Y.pack(fixed(
-                                    p.y + (base[1] + Y_BIAS + y as i32) as f32,
-                                ) as u64) as u32,
-                        );
-                        out.push(
-                            MODEL_Z.pack(fixed(p.z + (base[2] + z as i32) as f32) as u64) as u32
-                                | MODEL_U.pack(u as u64) as u32
-                                | MODEL_TINT.pack(tint as u64) as u32,
-                        );
-                        out.push(
-                            MODEL_LAYER.pack(quad.layer as u64) as u32
-                                | MODEL_V.pack(v as u64) as u32
-                                | MODEL_LIGHT.pack(light as u64) as u32
-                                | MODEL_SHADE.pack(shade_bucket(quad.shade[corner]) as u64) as u32,
-                        );
+                        let mut words = [0u32; 3];
+                        MODEL_X.set(&mut words, fixed(p.x + x as f32) as u64);
+                        MODEL_Y.set(&mut words, fixed(p.y + y as f32) as u64);
+                        MODEL_Z.set(&mut words, fixed(p.z + z as f32) as u64);
+                        MODEL_U.set(&mut words, u as u64);
+                        MODEL_V.set(&mut words, v as u64);
+                        MODEL_TINT.set(&mut words, tint as u64);
+                        MODEL_LIGHT.set(&mut words, light as u64);
+                        MODEL_SHADE.set(&mut words, shade_bucket(quad.shade[corner]) as u64);
+                        MODEL_SECTION.set(&mut words, local_section as u64);
+                        MODEL_LAYER.set(&mut words, quad.layer as u64);
+                        out.extend_from_slice(&words);
                     }
                 }
             }
@@ -687,10 +731,11 @@ fn complex(
                 };
                 partial.groups.push((
                     (pass * 2 + 1) as u32,
+                    region_index,
                     Group {
                         quad_base: (partial.complex.len() / 3 / 4) as u32,
                         quad_count: (verts.len() / 3 / 4) as u32,
-                        section: packed_section | GROUP_FACE.pack(face as u64) as u32,
+                        section: local_section | GROUP_FACE.pack(face as u64) as u32,
                         _pad: 0,
                     },
                 ));
@@ -726,9 +771,11 @@ fn fixed(value: f32) -> u32 {
 mod tests {
     use super::{
         BORDER_VOLUME, Key, QUAD_AO, QUAD_FACE, QUAD_FLIP, QUAD_H, QUAD_LAYER, QUAD_LIGHT,
-        QUAD_TINT, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z, Y_BIAS, border_index, connectivity, fixed,
+        QUAD_SECTION, QUAD_TINT, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z, border_index, connectivity, fixed,
         pack_quad, quad_anchor, split_flip,
     };
+    use crate::anvil::SECTION_SIZE;
+    use crate::pack::{MODEL_OVERHANG, MODEL_STEPS, pack_section};
     use crate::blocks::{CORNER_UV, FACE_AXES, cube_corner};
     use bevy::math::Vec3;
 
@@ -806,7 +853,13 @@ mod tests {
         assert_eq!(fixed(0.0), 64);
         assert_eq!(fixed(1.0), 96);
         assert_eq!(fixed(0.5), 80);
-        assert_eq!(fixed(512.0), 16448);
+        // The far corner a model may reach: the whole section plus the overhang on both sides.
+        let far = SECTION_SIZE as f32 + MODEL_OVERHANG;
+        assert_eq!(
+            fixed(far),
+            ((far + MODEL_OVERHANG) * MODEL_STEPS) as u32,
+            "the overhang past the far face has to survive the encoding"
+        );
     }
 
     /// A one-block quad must land on exactly the same corners the model baker produces for that
@@ -821,7 +874,7 @@ mod tests {
             let gu = if axes[3] == 1 { 0 } else { 15 };
             let gv = if axes[5] == 1 { 0 } else { 15 };
             let _ = grid;
-            let anchor = quad_anchor(face, 0, gu, gv, [0, 0, 0]);
+            let anchor = quad_anchor(face, 0, gu, gv);
 
             for corner in 0..4 {
                 let cu = CORNER_UV[corner][0];
@@ -854,20 +907,21 @@ mod tests {
             flip: true,
             pass: 1,
         };
-        let packed = pack_quad(&key, 3, 9, 3, 7, 12, 16, [32, -64, 480]);
-        let lo = packed as u64;
-        let hi = packed >> 32;
-        let anchor = quad_anchor(3, 9, 3, 7, [32, -64, 480]);
-        assert_eq!(QUAD_X.get(lo), anchor[0] as u64, "x");
-        assert_eq!(QUAD_Y.get(lo), (anchor[1] + Y_BIAS) as u64, "y");
-        assert_eq!(QUAD_Z.get(lo), anchor[2] as u64, "z");
-        assert_eq!(QUAD_FACE.get(lo), 3, "face");
-        assert_eq!(QUAD_W.get(hi) + 1, 12, "w");
-        assert_eq!(QUAD_H.get(hi) + 1, 16, "h");
-        assert_eq!(QUAD_LAYER.get(hi), 300, "layer");
-        assert_eq!(QUAD_AO.get(hi), 0b11_10_01_00, "ao");
-        assert_eq!(QUAD_LIGHT.get(hi), 11, "light");
-        assert_eq!(QUAD_FLIP.get(hi), 1, "flip");
-        assert_eq!(QUAD_TINT.get(hi), 2, "tint");
+        let section = pack_section(9, 5, 12);
+        let packed = pack_quad(&key, 3, 9, 3, 7, 12, 16, section);
+        let words = [packed as u32, (packed >> 32) as u32];
+        let anchor = quad_anchor(3, 9, 3, 7);
+        assert_eq!(QUAD_X.read(&words), anchor[0] as u64, "x");
+        assert_eq!(QUAD_Y.read(&words), anchor[1] as u64, "y");
+        assert_eq!(QUAD_Z.read(&words), anchor[2] as u64, "z");
+        assert_eq!(QUAD_SECTION.read(&words), section as u64, "section");
+        assert_eq!(QUAD_FACE.read(&words), 3, "face");
+        assert_eq!(QUAD_W.read(&words) + 1, 12, "w");
+        assert_eq!(QUAD_H.read(&words) + 1, 16, "h");
+        assert_eq!(QUAD_LIGHT.read(&words), 11, "light");
+        assert_eq!(QUAD_TINT.read(&words), 2, "tint");
+        assert_eq!(QUAD_AO.read(&words), 0b11_10_01_00, "ao");
+        assert_eq!(QUAD_FLIP.read(&words), 1, "flip");
+        assert_eq!(QUAD_LAYER.read(&words), 300, "layer");
     }
 }

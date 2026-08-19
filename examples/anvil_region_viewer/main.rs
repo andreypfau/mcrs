@@ -158,11 +158,17 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
         catalog.failures.len(),
         catalog.sprites.len(),
     );
+    let grid = region_mesh.grid;
     println!(
-        "{} greedy quads + {} model quads in {} culling groups",
+        "{} greedy quads + {} model quads in {} culling groups; \
+         {}x{}x{} render regions cost {} draws",
         region_mesh.greedy_quads(),
         region_mesh.model_quads(),
         region_mesh.groups.len(),
+        grid.x,
+        grid.y,
+        grid.z,
+        region_mesh.draws.len(),
     );
     for (stream, span) in region_mesh.streams.iter().enumerate() {
         println!(
@@ -192,7 +198,8 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
     let sprites = catalog.sprites;
     let cave = cave::CaveCull::new(
         region_mesh.connectivity,
-        region.sections_y,
+        region_mesh.grid,
+        [anvil::REGION_CHUNKS, region.sections_y, anvil::REGION_CHUNKS],
         region.min_section_y,
     );
     Ok((
@@ -200,8 +207,8 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
             simple: region_mesh.simple,
             complex: region_mesh.complex,
             groups: region_mesh.groups,
-            streams: region_mesh.streams,
-            min_section_y: region.min_section_y,
+            draws: region_mesh.draws,
+            cave_words: cave.words(),
             atlas_size: sprites.size(),
             atlas_layers: sprites.len() as u32,
             atlas_mips: sprites.mip_chain(),

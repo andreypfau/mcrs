@@ -14,16 +14,21 @@ fn field(word: u32, shift: u32, bits: u32) -> u32 {
     return (word >> shift) & ((1u << bits) - 1u);
 }
 
-const SECTION_X_SHIFT: u32 = 0u;
-const SECTION_X_BITS: u32 = 5u;
-const SECTION_Y_SHIFT: u32 = 5u;
-const SECTION_Y_BITS: u32 = 5u;
-const SECTION_Z_SHIFT: u32 = 10u;
-const SECTION_Z_BITS: u32 = 5u;
-const GROUP_FACE_SHIFT: u32 = 15u;
-const GROUP_FACE_BITS: u32 = 3u;
+const LOCAL_X_WORD: u32 = 0u;
+const LOCAL_X_SHIFT: u32 = 0u;
+const LOCAL_X_BITS: u32 = 4u;
+const LOCAL_Y_WORD: u32 = 0u;
+const LOCAL_Y_SHIFT: u32 = 4u;
+const LOCAL_Y_BITS: u32 = 3u;
+const LOCAL_Z_WORD: u32 = 0u;
+const LOCAL_Z_SHIFT: u32 = 7u;
+const LOCAL_Z_BITS: u32 = 4u;
+const SECTION_INDEX_WORD: u32 = 0u;
 const SECTION_INDEX_SHIFT: u32 = 0u;
-const SECTION_INDEX_BITS: u32 = 15u;
+const SECTION_INDEX_BITS: u32 = 11u;
+const GROUP_FACE_WORD: u32 = 0u;
+const GROUP_FACE_SHIFT: u32 = 11u;
+const GROUP_FACE_BITS: u32 = 3u;
 
 struct Group {
     quad_base: u32,
@@ -45,12 +50,17 @@ struct Params {
     group_count: u32,
     visible_base: u32,
     args_index: u32,
-    min_section_y: i32,
+    // The corner of this draw's render region, in blocks. Explicit scalars rather than a vec3: a
+    // vec3 would align to 16 and silently grow the struct.
+    origin_x: i32,
+    origin_y: i32,
+    origin_z: i32,
+    // Where this region's sections start in the sight-line bitset.
+    cave_base: u32,
     wireframe: u32,
-    // How far this stream's geometry may reach outside its own section. Explicit scalars rather
-    // than a vec3: a vec3 would align to 16 and silently grow the struct past the 32 bytes the
-    // dynamic uniform offsets are laid out on.
+    // How far this stream's geometry may reach outside its own section.
     overhang: f32,
+    pad0: u32,
     pad1: u32,
 }
 
@@ -64,15 +74,18 @@ struct Params {
 const CULLED: u32 = 0xffffffffu;
 
 /// Blocks along one edge of a section.
-const SECTION_SIZE: i32 = 16;
+const SECTION_SIZE: f32 = 16.0;
 
 var<workgroup> reserved_slot: u32;
 
 fn section_min(g: Group) -> vec3<f32> {
-    let sx = i32(field(g.section, SECTION_X_SHIFT, SECTION_X_BITS));
-    let sy = i32(field(g.section, SECTION_Y_SHIFT, SECTION_Y_BITS)) + params.min_section_y;
-    let sz = i32(field(g.section, SECTION_Z_SHIFT, SECTION_Z_BITS));
-    return vec3<f32>(f32(sx * SECTION_SIZE), f32(sy * SECTION_SIZE), f32(sz * SECTION_SIZE));
+    let region = vec3<f32>(f32(params.origin_x), f32(params.origin_y), f32(params.origin_z));
+    let local = vec3<f32>(
+        f32(field(g.section, LOCAL_X_SHIFT, LOCAL_X_BITS)),
+        f32(field(g.section, LOCAL_Y_SHIFT, LOCAL_Y_BITS)),
+        f32(field(g.section, LOCAL_Z_SHIFT, LOCAL_Z_BITS)),
+    );
+    return region + local * SECTION_SIZE;
 }
 
 /// The half spaces in `view.frustum` contain a point when `dot(plane.xyz, p) + plane.w > 0`, so the
@@ -120,15 +133,17 @@ fn cull(
     if (local == 0u) {
         // The face group has to be masked off before the section number is used as a bitset
         // index. Model streams carry face 7 there, and without the mask such a group would read
-        // far past the end of the array.
-        let sec = field(g.section, SECTION_INDEX_SHIFT, SECTION_INDEX_BITS);
+        // far past the end of the array. The section number is relative to the region, so the
+        // region's own base has to be added back for the bitset the walk fills.
+        let sec = params.cave_base
+            + field(g.section, SECTION_INDEX_SHIFT, SECTION_INDEX_BITS);
         let reachable = (cave_visible[sec >> 5u] >> (sec & 31u)) & 1u;
         // Model geometry hangs outside the section that owns it — a fence arm, a rail on a slope —
         // so both tests below run against a box grown by however far this stream can reach. Without
         // it a section on the very edge of the frustum takes the quad poking into frame with it.
         let origin = section_min(g);
         let mn = origin - params.overhang;
-        let mx = origin + f32(SECTION_SIZE) + params.overhang;
+        let mx = origin + SECTION_SIZE + params.overhang;
         let face = field(g.section, GROUP_FACE_SHIFT, GROUP_FACE_BITS);
         if (reachable != 0u && in_frustum(mn, mx) && faces_camera(face, mn, mx)) {
             reserved_slot = atomicAdd(&args[params.args_index].instance_count, g.quad_count);
