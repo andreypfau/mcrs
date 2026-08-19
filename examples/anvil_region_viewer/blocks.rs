@@ -9,8 +9,8 @@ use std::collections::HashMap;
 use bevy::math::{IVec3, Vec3};
 
 use crate::anvil::{BlockStateKey, REGION_CHUNKS, Region, SECTION_SIZE};
-use crate::atlas::{Opacity, SpriteRegistry};
-use crate::pack::MAX_SPRITES;
+use crate::atlas::{Opacity, SpriteRef, SpriteRegistry};
+use crate::pack::{MAX_SPRITES, MAX_SPRITE_ARRAYS};
 use crate::bake::{self, Dir, TinyWorld};
 use crate::model;
 
@@ -47,7 +47,7 @@ pub const TINT_KINDS: usize = 3;
 
 #[derive(Copy, Clone, Default)]
 pub struct CubeFace {
-    pub layer: u16,
+    pub sprite: SpriteRef,
     pub pass: u8,
     pub tinted: bool,
 }
@@ -61,7 +61,7 @@ pub struct ModelQuad {
     /// The axis this quad's geometry squarely faces, when it has one. Quads sharing a face group
     /// are all backfacing at once, so the culling pass can drop the whole run.
     pub face: Option<Dir>,
-    pub layer: u16,
+    pub sprite: SpriteRef,
     pub pass: Pass,
     /// Vanilla's directional face shade, already applied per corner.
     pub shade: [u8; 4],
@@ -172,14 +172,23 @@ pub fn build(region: &Region) -> Catalog {
             }
         }
     }
-    sprites.finish();
-    // Past this the packed layer field wraps and quads silently sample a different sprite, which
-    // no validation layer anywhere would report.
+    // Past either of these the packed fields wrap and quads silently sample a different sprite,
+    // which no validation layer anywhere would report.
     assert!(
-        sprites.len() <= MAX_SPRITES,
-        "the region references {} sprites, but a packed quad can address only {MAX_SPRITES}",
-        sprites.len(),
+        sprites.arrays().len() <= MAX_SPRITE_ARRAYS,
+        "the pack uses {} sprite resolutions, but a packed quad can address only \
+         {MAX_SPRITE_ARRAYS} arrays",
+        sprites.arrays().len(),
     );
+    for array in sprites.arrays() {
+        assert!(
+            array.sprites.len() <= MAX_SPRITES,
+            "{} sprites are {}x{}, but one array can hold only {MAX_SPRITES}",
+            array.sprites.len(),
+            array.size,
+            array.size,
+        );
+    }
 
     Catalog {
         blocks,
@@ -209,12 +218,12 @@ fn build_one(
     let tint_kind = tint_kind_of(&state.name);
 
     if let Some((_, sprite)) = FLUIDS.iter().find(|(name, _)| *name == state.name) {
-        let layer = sprites.intern(sprite)?;
-        let pass = Pass::of(sprites.sprites[layer as usize].opacity);
+        let interned = sprites.intern(sprite)?;
+        let pass = Pass::of(sprites.opacity(interned));
         let tinted = state.name != "minecraft:lava";
         return Ok(BlockInfo {
             cube: Some([CubeFace {
-                layer,
+                sprite: interned,
                 pass: pass as u8,
                 tinted,
             }; 6]),
@@ -233,7 +242,7 @@ fn build_one(
         return Ok(BlockInfo::default());
     }
 
-    let mut layers: Vec<u16> = Vec::with_capacity(baked.sprites.len());
+    let mut layers: Vec<SpriteRef> = Vec::with_capacity(baked.sprites.len());
     for sprite in &baked.sprites {
         layers.push(sprites.intern(sprite)?);
     }
@@ -247,11 +256,11 @@ fn build_one(
         let mut worst = Pass::Solid;
         for dir in Dir::ALL {
             let quad = &baked.quads[faces[dir as usize]];
-            let layer = layers[quad.sprite];
-            let pass = Pass::of(sprites.sprites[layer as usize].opacity);
+            let interned = layers[quad.sprite];
+            let pass = Pass::of(sprites.opacity(interned));
             worst = worst.max(pass);
             built[dir as usize] = CubeFace {
-                layer,
+                sprite: interned,
                 pass: pass as u8,
                 tinted: quad.tint.is_some(),
             };
@@ -264,14 +273,14 @@ fn build_one(
     let mut quads = Vec::with_capacity(extras.len());
     for &index in &extras {
         let quad = &baked.quads[index];
-        let layer = layers[quad.sprite];
+        let interned = layers[quad.sprite];
         quads.push(ModelQuad {
             positions: quad.positions,
             uvs: quad.uvs,
             cull: quad.cull,
             face: face_group(&quad.positions),
-            layer,
-            pass: Pass::of(sprites.sprites[layer as usize].opacity),
+            sprite: interned,
+            pass: Pass::of(sprites.opacity(interned)),
             shade: quad.color,
             tinted: quad.tint.is_some(),
         });

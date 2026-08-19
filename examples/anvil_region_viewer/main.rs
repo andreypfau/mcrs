@@ -159,6 +159,14 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
         catalog.sprites.len(),
     );
     let grid = region_mesh.grid;
+    for (index, array) in catalog.sprites.arrays().iter().enumerate() {
+        println!(
+            "  sprite array {index}: {:>4} sprites at {}x{}",
+            array.sprites.len(),
+            array.size,
+            array.size,
+        );
+    }
     println!(
         "{} greedy quads + {} model quads in {} culling groups; \
          {}x{}x{} render regions cost {} draws",
@@ -209,9 +217,15 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
             groups: region_mesh.groups,
             draws: region_mesh.draws,
             cave_words: cave.words(),
-            atlas_size: sprites.size(),
-            atlas_layers: sprites.len() as u32,
-            atlas_mips: sprites.mip_chain(),
+            atlases: sprites
+                .arrays()
+                .iter()
+                .map(|array| render::Atlas {
+                    size: array.size,
+                    layers: array.layers(),
+                    mips: array.mip_chain(),
+                })
+                .collect(),
             tint_map: blocks::tint_map(&region, &catalog.tints),
         },
         cave,

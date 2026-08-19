@@ -91,7 +91,10 @@ pub const QUAD_TINT: Field = Field::new(0, 30, 2);
 pub const QUAD_AO: Field = Field::new(1, 0, 8);
 pub const QUAD_FLIP: Field = Field::new(1, 8, 1);
 pub const QUAD_SECTION: Field = Field::new(1, 9, SECTION_INDEX.bits);
-pub const QUAD_LAYER: Field = Field::new(1, 20, 9);
+/// Which sprite array the layer indexes. Arrays are split by sprite size, so the pack decides how
+/// many there are rather than the format.
+pub const QUAD_ARRAY: Field = Field::new(1, 20, 2);
+pub const QUAD_LAYER: Field = Field::new(1, 22, 9);
 
 // Model vertex, three words per corner. Positions are fixed point relative to the section, wide
 // enough for the overhang on both sides.
@@ -104,9 +107,11 @@ pub const MODEL_TINT: Field = Field::new(1, 20, 2);
 pub const MODEL_LIGHT: Field = Field::new(1, 22, 4);
 pub const MODEL_SHADE: Field = Field::new(1, 26, 2);
 pub const MODEL_SECTION: Field = Field::new(2, 0, SECTION_INDEX.bits);
+pub const MODEL_ARRAY: Field = Field::new(2, SECTION_INDEX.bits, QUAD_ARRAY.bits);
 /// A sprite has to be addressable from the greedy path too, so this is no wider than
 /// [`QUAD_LAYER`] however much room the model vertex has left.
-pub const MODEL_LAYER: Field = Field::new(2, SECTION_INDEX.bits, QUAD_LAYER.bits);
+pub const MODEL_LAYER: Field =
+    Field::new(2, SECTION_INDEX.bits + QUAD_ARRAY.bits, QUAD_LAYER.bits);
 
 /// How far outside its own block a baked model quad may reach — a fence arm, a rail on a slope.
 /// The fixed-point coordinate is offset by it so the overhang still lands on a non-negative
@@ -117,8 +122,11 @@ pub const MODEL_OVERHANG: f32 = 2.0;
 /// Fixed-point steps per block in a model coordinate.
 pub const MODEL_STEPS: f32 = 32.0;
 
-/// How many sprites the packed layer field can address.
+/// How many sprites one array can hold.
 pub const MAX_SPRITES: usize = 1 << QUAD_LAYER.bits;
+
+/// How many sprite arrays the format can address, and so how many resolutions a pack may use.
+pub const MAX_SPRITE_ARRAYS: usize = 1 << QUAD_ARRAY.bits;
 
 /// The grid of render regions a loaded world is cut into. Every section belongs to exactly one,
 /// and a section's number is only meaningful next to the region that contains it.
@@ -217,6 +225,7 @@ const FIELDS: &[(&str, Field)] = &[
     ("QUAD_AO", QUAD_AO),
     ("QUAD_FLIP", QUAD_FLIP),
     ("QUAD_SECTION", QUAD_SECTION),
+    ("QUAD_ARRAY", QUAD_ARRAY),
     ("QUAD_LAYER", QUAD_LAYER),
     ("MODEL_X", MODEL_X),
     ("MODEL_Y", MODEL_Y),
@@ -227,6 +236,7 @@ const FIELDS: &[(&str, Field)] = &[
     ("MODEL_LIGHT", MODEL_LIGHT),
     ("MODEL_SHADE", MODEL_SHADE),
     ("MODEL_SECTION", MODEL_SECTION),
+    ("MODEL_ARRAY", MODEL_ARRAY),
     ("MODEL_LAYER", MODEL_LAYER),
 ];
 
@@ -357,7 +367,7 @@ mod tests {
                 "greedy quad",
                 &[
                     QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_LIGHT, QUAD_TINT,
-                    QUAD_AO, QUAD_FLIP, QUAD_SECTION, QUAD_LAYER,
+                    QUAD_AO, QUAD_FLIP, QUAD_SECTION, QUAD_ARRAY, QUAD_LAYER,
                 ][..],
             ),
             ("section number", &[LOCAL_X, LOCAL_Y, LOCAL_Z][..]),
@@ -366,7 +376,7 @@ mod tests {
                 "model vertex",
                 &[
                     MODEL_X, MODEL_Y, MODEL_Z, MODEL_U, MODEL_V, MODEL_TINT, MODEL_LIGHT,
-                    MODEL_SHADE, MODEL_SECTION, MODEL_LAYER,
+                    MODEL_SHADE, MODEL_SECTION, MODEL_ARRAY, MODEL_LAYER,
                 ][..],
             ),
         ];

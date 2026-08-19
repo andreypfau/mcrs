@@ -25,7 +25,7 @@ use bevy::render::view::{
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
 use crate::mesh::{Draw, Group, STREAMS};
-use crate::pack::MODEL_OVERHANG;
+use crate::pack::{MAX_SPRITE_ARRAYS, MODEL_OVERHANG};
 
 /// Dynamic uniform offsets must be a multiple of the device's alignment; 256 satisfies every
 /// backend we can land on.
@@ -48,12 +48,18 @@ pub struct Geometry {
     pub draws: Vec<Draw>,
     /// Words of the sight-line bitset the walk will hand back every frame.
     pub cave_words: usize,
-    pub atlas_size: u32,
-    pub atlas_layers: u32,
-    /// Mip 0 first, then each smaller level, layer-major within a level.
-    pub atlas_mips: Vec<Vec<u8>>,
+    /// One array per sprite resolution, in the order the packed `array` field names them.
+    pub atlases: Vec<Atlas>,
     /// `TINT_LAYERS` layers of `TINT_SIZE`², RGBA8, indexed by world x and z.
     pub tint_map: Vec<u8>,
+}
+
+/// One sprite resolution, ready to upload.
+pub struct Atlas {
+    pub size: u32,
+    pub layers: u32,
+    /// Mip 0 first, then each smaller level, layer-major within a level.
+    pub mips: Vec<Vec<u8>>,
 }
 
 #[derive(Resource, Deref)]
@@ -284,7 +290,7 @@ fn init_terrain(
         mapped_at_creation: false,
     });
 
-    let (atlas, atlas_sampler) = upload_atlas(&geometry, &device, &queue);
+    let (atlases, atlas_sampler) = upload_atlases(&geometry, &device, &queue);
     let (tints, tint_sampler) = upload_tints(&geometry, &device, &queue);
 
     let view_layout = BindGroupLayoutDescriptor::new(
@@ -309,6 +315,10 @@ fn init_terrain(
             ),
         ),
     );
+    // One binding per addressable sprite array. Binding arrays would collapse these into one entry
+    // but need a feature Metal does not offer, so the count is spelled out and pinned to the width
+    // of the packed field.
+    const _: () = assert!(MAX_SPRITE_ARRAYS == 4);
     let draw_layout = BindGroupLayoutDescriptor::new(
         "terrain draw data",
         &BindGroupLayoutEntries::sequential(
@@ -317,6 +327,9 @@ fn init_terrain(
                 storage_buffer_read_only_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
+                texture_2d_array(TextureSampleType::Float { filterable: true }),
+                texture_2d_array(TextureSampleType::Float { filterable: true }),
+                texture_2d_array(TextureSampleType::Float { filterable: true }),
                 texture_2d_array(TextureSampleType::Float { filterable: true }),
                 sampler(SamplerBindingType::Filtering),
                 texture_2d_array(TextureSampleType::Float { filterable: true }),
@@ -354,7 +367,10 @@ fn init_terrain(
             quads.as_entire_buffer_binding(),
             vertices.as_entire_buffer_binding(),
             visible.as_entire_buffer_binding(),
-            &atlas,
+            &atlases[0],
+            &atlases[1],
+            &atlases[2],
+            &atlases[3],
             &atlas_sampler,
             &tints,
             &tint_sampler,
@@ -378,27 +394,57 @@ fn init_terrain(
     });
 }
 
-fn upload_atlas(
+/// The shader has one binding per addressable array, so a pack that uses fewer resolutions still
+/// has to leave something bound. An unused slot gets a single blank layer, which no quad names.
+fn upload_atlases(
     geometry: &Geometry,
     device: &RenderDevice,
     queue: &RenderQueue,
-) -> (TextureView, Sampler) {
+) -> (Vec<TextureView>, Sampler) {
+    let limit = device.limits().max_texture_array_layers;
+    let blank = Atlas {
+        size: 1,
+        layers: 1,
+        mips: vec![vec![0u8; 4]],
+    };
+    let views = (0..MAX_SPRITE_ARRAYS)
+        .map(|index| {
+            let atlas = geometry.atlases.get(index).unwrap_or(&blank);
+            assert!(
+                atlas.layers <= limit,
+                "{} sprites are {}x{}, but this device binds at most {limit} array layers",
+                atlas.layers,
+                atlas.size,
+                atlas.size,
+            );
+            upload_atlas(atlas, index, device, queue)
+        })
+        .collect();
+    (views, atlas_sampler(device))
+}
+
+fn upload_atlas(
+    atlas: &Atlas,
+    index: usize,
+    device: &RenderDevice,
+    queue: &RenderQueue,
+) -> TextureView {
     let texture = device.create_texture(&TextureDescriptor {
-        label: Some("terrain atlas"),
+        label: Some(&format!("terrain atlas {index}")),
         size: Extent3d {
-            width: geometry.atlas_size,
-            height: geometry.atlas_size,
-            depth_or_array_layers: geometry.atlas_layers.max(1),
+            width: atlas.size,
+            height: atlas.size,
+            depth_or_array_layers: atlas.layers,
         },
-        mip_level_count: geometry.atlas_mips.len() as u32,
+        mip_level_count: atlas.mips.len() as u32,
         sample_count: 1,
         dimension: TextureDimension::D2,
         format: TextureFormat::Rgba8UnormSrgb,
         usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
         view_formats: &[],
     });
-    for (level, data) in geometry.atlas_mips.iter().enumerate() {
-        let size = (geometry.atlas_size >> level).max(1);
+    for (level, data) in atlas.mips.iter().enumerate() {
+        let size = (atlas.size >> level).max(1);
         queue.write_texture(
             TexelCopyTextureInfo {
                 texture: &texture,
@@ -415,17 +461,21 @@ fn upload_atlas(
             Extent3d {
                 width: size,
                 height: size,
-                depth_or_array_layers: geometry.atlas_layers.max(1),
+                depth_or_array_layers: atlas.layers,
             },
         );
     }
-    let view = texture.create_view(&TextureViewDescriptor {
+    texture.create_view(&TextureViewDescriptor {
         dimension: Some(TextureViewDimension::D2Array),
         ..default()
-    });
-    // Nearest within a level keeps the pixel art crisp; linear between levels stops distant terrain
-    // from boiling. `Repeat` is what lets a greedy quad tile its sprite `w × h` times for free.
-    let sampler = device.create_sampler(&SamplerDescriptor {
+    })
+}
+
+/// Nearest within a level keeps the pixel art crisp; linear between levels stops distant terrain
+/// from boiling. `Repeat` is what lets a greedy quad tile its sprite `w × h` times for free. Every
+/// array shares it: the filtering does not depend on how large the sprites in it are.
+fn atlas_sampler(device: &RenderDevice) -> Sampler {
+    device.create_sampler(&SamplerDescriptor {
         label: Some("terrain atlas"),
         address_mode_u: AddressMode::Repeat,
         address_mode_v: AddressMode::Repeat,
@@ -433,8 +483,7 @@ fn upload_atlas(
         min_filter: FilterMode::Nearest,
         mipmap_filter: MipmapFilterMode::Linear,
         ..default()
-    });
-    (view, sampler)
+    })
 }
 
 fn upload_tints(

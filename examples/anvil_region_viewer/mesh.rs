@@ -11,10 +11,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::anvil::{REGION_CHUNKS, Region, SECTION_SIZE, Section};
 use crate::blocks::{CORNER_UV, Catalog, FACE_AXES, Pass};
+use crate::atlas::SpriteRef;
 use crate::pack::{
-    GROUP_FACE, MODEL_LAYER, MODEL_LIGHT, MODEL_OVERHANG, MODEL_SECTION, MODEL_SHADE, MODEL_STEPS,
+    GROUP_FACE, MODEL_ARRAY, MODEL_LAYER, MODEL_LIGHT, MODEL_OVERHANG, MODEL_SECTION, MODEL_SHADE, MODEL_STEPS,
     MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z, QUAD_AO, QUAD_FACE, QUAD_FLIP, QUAD_H,
-    QUAD_LAYER, QUAD_LIGHT, QUAD_SECTION, QUAD_TINT, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z,
+    QUAD_ARRAY, QUAD_LAYER, QUAD_LIGHT, QUAD_SECTION, QUAD_TINT, QUAD_W, QUAD_X, QUAD_Y,
+    QUAD_Z,
     RegionGrid, SECTIONS_PER_RENDER_REGION,
 };
 
@@ -97,8 +99,9 @@ impl RegionMesh {
 
 #[derive(Copy, Clone, PartialEq, Eq, Default)]
 struct Key {
-    /// Zero means there is no face here.
-    layer_plus_one: u32,
+    /// `None` when there is no face here. Two faces only merge when they name the same sprite, so
+    /// the array is part of the key as much as the layer is.
+    sprite: Option<SpriteRef>,
     tint: u32,
     light: u32,
     ao: u32,
@@ -420,7 +423,7 @@ fn greedy(
                     let slot = gv * SECTION_SIZE + gu;
                     scratch.used[slot] = false;
                     let key = face_key(catalog, section, scratch, local, face);
-                    any |= key.layer_plus_one != 0;
+                    any |= key.sprite.is_some();
                     scratch.keys[slot] = key;
                 }
             }
@@ -510,7 +513,7 @@ fn face_key(
     let raw = scratch.light[front_index] as u32;
     let corners = [ao & 3, (ao >> 2) & 3, (ao >> 4) & 3, (ao >> 6) & 3];
     Key {
-        layer_plus_one: cube.layer as u32 + 1,
+        sprite: Some(cube.sprite),
         tint: if cube.tinted {
             info.tint_kind as u32 + 1
         } else {
@@ -559,7 +562,7 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize, local_section: u32)
         while gu < SECTION_SIZE {
             let slot = gv * SECTION_SIZE + gu;
             let key = scratch.keys[slot];
-            if key.layer_plus_one == 0 || scratch.used[slot] {
+            if key.sprite.is_none() || scratch.used[slot] {
                 gu += 1;
                 continue;
             }
@@ -637,7 +640,9 @@ fn pack_quad(
     QUAD_AO.set(&mut words, key.ao as u64);
     QUAD_FLIP.set(&mut words, key.flip as u64);
     QUAD_SECTION.set(&mut words, local_section as u64);
-    QUAD_LAYER.set(&mut words, key.layer_plus_one as u64 - 1);
+    let sprite = key.sprite.expect("a quad is only packed where there is a face");
+    QUAD_ARRAY.set(&mut words, sprite.array as u64);
+    QUAD_LAYER.set(&mut words, sprite.layer as u64);
     words[0] as u64 | (words[1] as u64) << 32
 }
 
@@ -712,7 +717,8 @@ fn complex(
                         MODEL_LIGHT.set(&mut words, light as u64);
                         MODEL_SHADE.set(&mut words, shade_bucket(quad.shade[corner]) as u64);
                         MODEL_SECTION.set(&mut words, local_section as u64);
-                        MODEL_LAYER.set(&mut words, quad.layer as u64);
+                        MODEL_ARRAY.set(&mut words, quad.sprite.array as u64);
+                        MODEL_LAYER.set(&mut words, quad.sprite.layer as u64);
                         out.extend_from_slice(&words);
                     }
                 }
@@ -771,9 +777,10 @@ fn fixed(value: f32) -> u32 {
 mod tests {
     use super::{
         BORDER_VOLUME, Key, QUAD_AO, QUAD_FACE, QUAD_FLIP, QUAD_H, QUAD_LAYER, QUAD_LIGHT,
-        QUAD_SECTION, QUAD_TINT, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z, border_index, connectivity, fixed,
-        pack_quad, quad_anchor, split_flip,
+        QUAD_ARRAY, QUAD_SECTION, QUAD_TINT, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z, border_index,
+        connectivity, fixed, pack_quad, quad_anchor, split_flip,
     };
+    use crate::atlas::SpriteRef;
     use crate::anvil::SECTION_SIZE;
     use crate::pack::{MODEL_OVERHANG, MODEL_STEPS, pack_section};
     use crate::blocks::{CORNER_UV, FACE_AXES, cube_corner};
@@ -900,7 +907,10 @@ mod tests {
     #[test]
     fn a_packed_quad_round_trips_every_field() {
         let key = Key {
-            layer_plus_one: 300 + 1,
+            sprite: Some(SpriteRef {
+                array: 2,
+                layer: 300,
+            }),
             tint: 2,
             light: 11,
             ao: 0b11_10_01_00,
@@ -922,6 +932,7 @@ mod tests {
         assert_eq!(QUAD_TINT.read(&words), 2, "tint");
         assert_eq!(QUAD_AO.read(&words), 0b11_10_01_00, "ao");
         assert_eq!(QUAD_FLIP.read(&words), 1, "flip");
+        assert_eq!(QUAD_ARRAY.read(&words), 2, "array");
         assert_eq!(QUAD_LAYER.read(&words), 300, "layer");
     }
 }

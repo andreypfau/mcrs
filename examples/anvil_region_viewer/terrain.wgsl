@@ -65,8 +65,11 @@ const QUAD_FLIP_BITS: u32 = 1u;
 const QUAD_SECTION_WORD: u32 = 1u;
 const QUAD_SECTION_SHIFT: u32 = 9u;
 const QUAD_SECTION_BITS: u32 = 11u;
+const QUAD_ARRAY_WORD: u32 = 1u;
+const QUAD_ARRAY_SHIFT: u32 = 20u;
+const QUAD_ARRAY_BITS: u32 = 2u;
 const QUAD_LAYER_WORD: u32 = 1u;
-const QUAD_LAYER_SHIFT: u32 = 20u;
+const QUAD_LAYER_SHIFT: u32 = 22u;
 const QUAD_LAYER_BITS: u32 = 9u;
 
 const MODEL_X_WORD: u32 = 0u;
@@ -98,8 +101,11 @@ const MODEL_SHADE_BITS: u32 = 2u;
 const MODEL_SECTION_WORD: u32 = 2u;
 const MODEL_SECTION_SHIFT: u32 = 0u;
 const MODEL_SECTION_BITS: u32 = 11u;
+const MODEL_ARRAY_WORD: u32 = 2u;
+const MODEL_ARRAY_SHIFT: u32 = 11u;
+const MODEL_ARRAY_BITS: u32 = 2u;
 const MODEL_LAYER_WORD: u32 = 2u;
-const MODEL_LAYER_SHIFT: u32 = 11u;
+const MODEL_LAYER_SHIFT: u32 = 13u;
 const MODEL_LAYER_BITS: u32 = 9u;
 
 /// Model positions are fixed point in units of this many steps per block, offset by however far a
@@ -147,15 +153,21 @@ fn section_origin(section: u32) -> vec3<f32> {
 @group(1) @binding(0) var<storage, read> quads: array<vec2<u32>>;
 @group(1) @binding(1) var<storage, read> vertices: array<u32>;
 @group(1) @binding(2) var<storage, read> visible: array<u32>;
-@group(1) @binding(3) var atlas: texture_2d_array<f32>;
-@group(1) @binding(4) var atlas_sampler: sampler;
-@group(1) @binding(5) var tints: texture_2d_array<f32>;
-@group(1) @binding(6) var tint_sampler: sampler;
+// One binding per sprite resolution rather than one atlas for everything: every layer of an array
+// is the same size, so mixing resolutions in one would drag them all up to the largest.
+@group(1) @binding(3) var atlas0: texture_2d_array<f32>;
+@group(1) @binding(4) var atlas1: texture_2d_array<f32>;
+@group(1) @binding(5) var atlas2: texture_2d_array<f32>;
+@group(1) @binding(6) var atlas3: texture_2d_array<f32>;
+@group(1) @binding(7) var atlas_sampler: sampler;
+@group(1) @binding(8) var tints: texture_2d_array<f32>;
+@group(1) @binding(9) var tint_sampler: sampler;
 
 struct VertexOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
     @location(1) @interpolate(flat) layer: u32,
+    @location(7) @interpolate(flat) array: u32,
     @location(2) shade: f32,
     @location(3) world_xz: vec2<f32>,
     @location(4) @interpolate(flat) tint_kind: u32,
@@ -272,6 +284,7 @@ fn vertex_simple(
     out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
     out.uv = c;
     out.layer = quad_field(quad, QUAD_LAYER_WORD, QUAD_LAYER_SHIFT, QUAD_LAYER_BITS);
+    out.array = quad_field(quad, QUAD_ARRAY_WORD, QUAD_ARRAY_SHIFT, QUAD_ARRAY_BITS);
     out.shade = face_shade(face) * light_curve(light) * ao_factor(ao_bits, corner);
     out.world_xz = world.xz;
     out.tint_kind = quad_field(quad, QUAD_TINT_WORD, QUAD_TINT_SHIFT, QUAD_TINT_BITS);
@@ -315,6 +328,7 @@ fn vertex_complex(
     out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
     out.uv = vec2<f32>(u, v);
     out.layer = model_field(base, MODEL_LAYER_WORD, MODEL_LAYER_SHIFT, MODEL_LAYER_BITS);
+    out.array = model_field(base, MODEL_ARRAY_WORD, MODEL_ARRAY_SHIFT, MODEL_ARRAY_BITS);
     out.shade = shade * light_curve(light);
     out.world_xz = world.xz;
     out.tint_kind = model_field(base, MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS);
@@ -338,8 +352,23 @@ fn edge_pixels(in: VertexOut) -> f32 {
     return min(border, diagonal);
 }
 
+/// Which array a quad samples varies between instances of one draw, and a `textureSample` under
+/// control flow that is not uniform is rejected outright. Taking the derivatives first and then
+/// asking for that exact level of detail lifts the sample out of the branch: `textureSampleGrad`
+/// needs no implicit derivative, so the switch is free to be as non-uniform as the data is.
+fn sample_atlas(array: u32, uv: vec2<f32>, layer: u32) -> vec4<f32> {
+    let ddx = dpdx(uv);
+    let ddy = dpdy(uv);
+    switch array {
+        case 1u: { return textureSampleGrad(atlas1, atlas_sampler, uv, layer, ddx, ddy); }
+        case 2u: { return textureSampleGrad(atlas2, atlas_sampler, uv, layer, ddx, ddy); }
+        case 3u: { return textureSampleGrad(atlas3, atlas_sampler, uv, layer, ddx, ddy); }
+        default: { return textureSampleGrad(atlas0, atlas_sampler, uv, layer, ddx, ddy); }
+    }
+}
+
 fn shade_sample(in: VertexOut) -> vec4<f32> {
-    let color = textureSample(atlas, atlas_sampler, in.uv, in.layer);
+    let color = sample_atlas(in.array, in.uv, in.layer);
     // Both samples are unconditional: `tint_kind` varies between instances inside one draw, so a
     // branch around a `textureSample` would not be uniform control flow and WGSL rejects it.
     let tint = textureSample(

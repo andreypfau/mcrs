@@ -1,8 +1,12 @@
-//! Collects the sprites a region actually references into one `texture_2d_array`.
+//! Collects the sprites a region actually references into one `texture_2d_array` per resolution.
 //!
 //! An array rather than an atlas: a greedy-merged quad spanning `w × h` blocks gets UVs `0..w, 0..h`
 //! and `AddressMode::Repeat` tiles it for free. An atlas would need `fract()` in the fragment shader
 //! and would still bleed neighbouring sprites into the lower mips.
+//!
+//! One array per resolution rather than one for everything: every layer of an array is the same
+//! size, so a single 512² texture in a resource pack would otherwise drag all eleven hundred 16²
+//! ones up to its size, and the memory that costs grows with the square.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -28,38 +32,53 @@ pub struct Sprite {
     pub opacity: Opacity,
 }
 
-/// Sprites are square and all the same size, so the whole set is one array texture. Animated
-/// sprites are a vertical strip of frames in the source PNG; only the first frame is taken.
-pub struct SpriteRegistry {
+/// Where a sprite lives: which array, and which layer of that array.
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub struct SpriteRef {
+    pub array: u8,
+    pub layer: u16,
+}
+
+/// Every sprite of one resolution, which becomes one array texture. Sprites are square; animated
+/// ones are a vertical strip of frames in the source PNG and only the first frame is taken.
+pub struct SpriteArray {
+    /// Side length of every layer.
+    pub size: u32,
     pub sprites: Vec<Sprite>,
-    index: HashMap<String, u16>,
-    /// Side length of every layer, chosen as the largest source sprite so nothing is downscaled.
-    size: u32,
     /// RGBA8 pixels, layer-major, mip 0 only. Mips are derived at upload time.
     pixels: Vec<u8>,
-    /// Decoded but not yet resized source frames, kept until [`Self::finish`] fixes the size.
-    pending: Vec<(u32, Vec<u8>)>,
+}
+
+pub struct SpriteRegistry {
+    arrays: Vec<SpriteArray>,
+    index: HashMap<String, SpriteRef>,
 }
 
 impl SpriteRegistry {
     pub fn new() -> Self {
         Self {
-            sprites: Vec::new(),
+            arrays: Vec::new(),
             index: HashMap::new(),
-            size: 0,
-            pixels: Vec::new(),
-            pending: Vec::new(),
         }
     }
 
+    /// Every sprite of every resolution.
     pub fn len(&self) -> usize {
-        self.sprites.len()
+        self.arrays.iter().map(|array| array.sprites.len()).sum()
+    }
+
+    pub fn arrays(&self) -> &[SpriteArray] {
+        &self.arrays
+    }
+
+    pub fn opacity(&self, sprite: SpriteRef) -> Opacity {
+        self.arrays[sprite.array as usize].sprites[sprite.layer as usize].opacity
     }
 
     /// Interns a sprite id, decoding its PNG the first time it is seen.
-    pub fn intern(&mut self, id: &str) -> Result<u16, String> {
-        if let Some(&layer) = self.index.get(id) {
-            return Ok(layer);
+    pub fn intern(&mut self, id: &str) -> Result<SpriteRef, String> {
+        if let Some(&sprite) = self.index.get(id) {
+            return Ok(sprite);
         }
         let path = model::resource_path(id, "textures", "png");
         let bytes =
@@ -103,42 +122,32 @@ impl SpriteRegistry {
             (false, false) => Opacity::Translucent,
         };
 
-        let layer = self.sprites.len() as u16;
-        self.sprites.push(Sprite { opacity });
-        self.index.insert(id.to_string(), layer);
-        self.size = self.size.max(width);
-        self.pending.push((width, frame));
-        Ok(layer)
-    }
-
-    /// Resamples every sprite to the common layer size. Called once, after all sprites are interned.
-    pub fn finish(&mut self) {
-        if self.size == 0 {
-            self.size = 16;
-        }
-        let size = self.size as usize;
-        self.pixels = vec![0; size * size * 4 * self.pending.len().max(1)];
-        for (layer, (width, frame)) in self.pending.iter().enumerate() {
-            let dst = &mut self.pixels[layer * size * size * 4..(layer + 1) * size * size * 4];
-            let src_size = *width as usize;
-            // Nearest-neighbour upscale keeps the pixel-art edges crisp; sources are never larger
-            // than `size`, so this never has to average texels down.
-            for y in 0..size {
-                let sy = y * src_size / size;
-                for x in 0..size {
-                    let sx = x * src_size / size;
-                    let s = (sy * src_size + sx) * 4;
-                    let d = (y * size + x) * 4;
-                    dst[d..d + 4].copy_from_slice(&frame[s..s + 4]);
-                }
+        let array = match self.arrays.iter().position(|array| array.size == width) {
+            Some(array) => array,
+            None => {
+                self.arrays.push(SpriteArray {
+                    size: width,
+                    sprites: Vec::new(),
+                    pixels: Vec::new(),
+                });
+                self.arrays.len() - 1
             }
-        }
-        self.pending.clear();
-        self.pending.shrink_to_fit();
+        };
+        let sprite = SpriteRef {
+            array: array as u8,
+            layer: self.arrays[array].sprites.len() as u16,
+        };
+        let array = &mut self.arrays[array];
+        array.sprites.push(Sprite { opacity });
+        array.pixels.extend_from_slice(&frame);
+        self.index.insert(id.to_string(), sprite);
+        Ok(sprite)
     }
+}
 
-    pub fn size(&self) -> u32 {
-        self.size
+impl SpriteArray {
+    pub fn layers(&self) -> u32 {
+        self.sprites.len().max(1) as u32
     }
 
     /// Mip 0 followed by every smaller level, layer-major within each level. Each level is laid out
@@ -156,7 +165,11 @@ impl SpriteRegistry {
             })
             .collect();
 
-        let mut levels = vec![self.pixels.clone()];
+        let mut levels = vec![if self.pixels.is_empty() {
+            vec![0; size * size * 4]
+        } else {
+            self.pixels.clone()
+        }];
         while size > 1 {
             let half = size / 2;
             let previous = levels.last().unwrap();
@@ -266,13 +279,11 @@ fn downsample_2x2(src: &[u8], stride: usize, x: usize, y: usize, dst: &mut [u8])
 mod tests {
     use super::*;
 
-    fn one_sprite(size: usize, opacity: Opacity, pixels: Vec<u8>) -> SpriteRegistry {
-        SpriteRegistry {
-            sprites: vec![Sprite { opacity }],
-            index: HashMap::new(),
+    fn one_sprite(size: usize, opacity: Opacity, pixels: Vec<u8>) -> SpriteArray {
+        SpriteArray {
             size: size as u32,
+            sprites: vec![Sprite { opacity }],
             pixels,
-            pending: Vec::new(),
         }
     }
 
@@ -332,6 +343,44 @@ mod tests {
                 "level {level} rescaled a translucent alpha"
             );
         }
+    }
+
+    /// A pack mixing resolutions must not force one size on everything: the sprites of each size
+    /// get their own array, and layer numbering restarts inside it.
+    #[test]
+    fn sprites_of_different_sizes_land_in_different_arrays() {
+        let mut registry = SpriteRegistry::new();
+        let small = registry.intern("minecraft:block/stone").unwrap();
+        let large = registry.intern("minecraft:block/water_flow").unwrap();
+        let also_small = registry.intern("minecraft:block/dirt").unwrap();
+        assert_ne!(small.array, large.array, "16x16 and 32x32 share an array");
+        assert_eq!(small.array, also_small.array);
+        assert_eq!((small.layer, also_small.layer), (0, 1), "layers restart per array");
+        assert_eq!(large.layer, 0);
+
+        let sizes: Vec<u32> = registry.arrays().iter().map(|array| array.size).collect();
+        assert_eq!(sizes, [16, 32]);
+        let counts: Vec<usize> = registry
+            .arrays()
+            .iter()
+            .map(|array| array.sprites.len())
+            .collect();
+        assert_eq!(counts, [2, 1]);
+        // Every layer of an array is its own size, so nothing was stretched to match a neighbour.
+        for array in registry.arrays() {
+            let expected = (array.size * array.size * 4) as usize * array.sprites.len();
+            assert_eq!(array.pixels.len(), expected);
+        }
+    }
+
+    /// Interning the same sprite twice must hand back the same place rather than a second copy.
+    #[test]
+    fn a_sprite_is_interned_once() {
+        let mut registry = SpriteRegistry::new();
+        let first = registry.intern("minecraft:block/stone").unwrap();
+        let again = registry.intern("minecraft:block/stone").unwrap();
+        assert_eq!(first, again);
+        assert_eq!(registry.len(), 1);
     }
 
     #[test]
