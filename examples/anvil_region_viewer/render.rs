@@ -401,6 +401,30 @@ pub struct Sky {
     pub cloud: [f32; 4],
 }
 
+/// Which streams are culled and drawn, one bit each, in the order of [`STREAM_NAMES`].
+///
+/// The terrain pass covers the sky, all six streams and the clouds together, and the GPU samples
+/// counters only where a pass begins and ends, so what one stream costs inside it cannot be read
+/// off directly. Splitting the pass would answer it and lie about the answer: a tile-based GPU
+/// pays a full store and load at every split. Leaving a stream out and taking the difference costs
+/// nothing and measures the frame that actually ships.
+#[derive(Resource, Clone, Copy, ExtractResource)]
+pub struct Streams(pub u32);
+
+impl Streams {
+    pub const ALL: u32 = (1 << STREAMS) - 1;
+
+    fn drawn(&self, stream: u32) -> bool {
+        self.0 & (1 << stream) != 0
+    }
+}
+
+impl Default for Streams {
+    fn default() -> Self {
+        Self(Self::ALL)
+    }
+}
+
 /// Whether the cloud layer is drawn. What the toggle skips is the draw itself rather than the
 /// clouds inside it, so with them off nothing walks the screen at all.
 #[derive(Resource, Clone, Copy, ExtractResource)]
@@ -456,9 +480,11 @@ impl Plugin for TerrainPlugin {
         app.init_resource::<Wireframe>()
             .init_resource::<Sky>()
             .init_resource::<Clouds>()
+            .init_resource::<Streams>()
             .add_plugins(ExtractResourcePlugin::<Wireframe>::default())
             .add_plugins(ExtractResourcePlugin::<Sky>::default())
             .add_plugins(ExtractResourcePlugin::<Clouds>::default())
+            .add_plugins(ExtractResourcePlugin::<Streams>::default())
             .insert_resource(triangles.clone())
             .insert_resource(timings.clone());
 
@@ -1494,6 +1520,7 @@ fn cull_terrain(
     pipeline_cache: Res<PipelineCache>,
     triangles: Res<DrawnTriangles>,
     queries: Option<Res<Queries>>,
+    streams: Res<Streams>,
     mut ctx: RenderContext,
 ) {
     let (Some(terrain), Some(view_bind_group)) = (terrain, view_bind_group) else {
@@ -1545,7 +1572,7 @@ fn cull_terrain(
     pass.set_pipeline(pipeline);
     pass.set_bind_group(1, &terrain.cull_bind_group, &[]);
     for (index, &workgroups) in terrain.group_counts.iter().enumerate() {
-        if workgroups == 0 {
+        if workgroups == 0 || !streams.drawn(terrain.draws[index].stream) {
             continue;
         }
         pass.set_bind_group(
@@ -1563,6 +1590,7 @@ fn draw_terrain(
     terrain: Option<Res<Terrain>>,
     view_bind_group: Option<Res<ViewBindGroup>>,
     clouds: Res<Clouds>,
+    streams: Res<Streams>,
     pipeline_cache: Res<PipelineCache>,
     queries: Option<Res<Queries>>,
     mut ctx: RenderContext,
@@ -1597,7 +1625,7 @@ fn draw_terrain(
     pass.set_bind_group(1, &terrain.draw_bind_group, &[]);
 
     for (index, draw) in terrain.draws.iter().enumerate() {
-        if draw.quad_count == 0 {
+        if draw.quad_count == 0 || !streams.drawn(draw.stream) {
             continue;
         }
         // Solid and cutout share a pipeline (the alpha test never fires on a solid sprite); only

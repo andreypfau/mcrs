@@ -193,6 +193,7 @@ fn main() {
             unfocused_mode: UpdateMode::Continuous,
         })
         .insert_resource(FrameStats::new())
+        .insert_resource(drawn_streams())
         .insert_resource(Sweep(
             std::env::var("ANVIL_SWEEP")
                 .ok()
@@ -284,6 +285,24 @@ fn arena_budget() -> (usize, usize, usize) {
     }
 }
 
+/// `ANVIL_STREAMS=0,2,4` draws only the streams named, numbered as in `mesh::STREAM_NAMES`.
+///
+/// The whole of the terrain draw is one pass and the GPU times it as one, so what a stream costs
+/// inside it is read by leaving it out and taking the difference against the full frame.
+fn drawn_streams() -> render::Streams {
+    let Ok(spec) = std::env::var("ANVIL_STREAMS") else {
+        return render::Streams::default();
+    };
+    let mut mask = 0;
+    for name in spec.split(',') {
+        match name.trim().parse::<u32>() {
+            Ok(stream) if (stream as usize) < mesh::STREAMS => mask |= 1 << stream,
+            _ => eprintln!("ANVIL_STREAMS takes stream numbers 0..{}", mesh::STREAMS - 1),
+        }
+    }
+    render::Streams(mask)
+}
+
 /// `ANVIL_CENTER=x,z` names the region the loaded window is centred on. Default is the origin,
 /// which for an even window straddles it and so puts negative region coordinates in the frame.
 fn window_centre() -> [i32; 2] {
@@ -342,6 +361,7 @@ fn frame_stats(
     mut stats: ResMut<FrameStats>,
     triangles: Res<DrawnTriangles>,
     gpu: Res<probe::GpuTimings>,
+    streams: Res<render::Streams>,
     cave: Res<cave::CaveCull>,
     loader: Res<stream::Loader>,
     day: Res<sky::TimeOfDay>,
@@ -409,6 +429,15 @@ fn frame_stats(
     }
     if status.evicted > 0 {
         let _ = write!(overlay.0, "   {} evicted", status.evicted);
+    }
+    // Named rather than counted, because a run that leaves streams out is only comparable against
+    // one that names the same set and the number alone would not say which.
+    if streams.0 != render::Streams::ALL {
+        for (stream, name) in mesh::STREAM_NAMES.iter().enumerate() {
+            if streams.0 & (1 << stream) != 0 {
+                let _ = write!(overlay.0, "   +{name}");
+            }
+        }
     }
     // What the GPU itself spent, which the frame time cannot separate: presentation waits and
     // bevy's own passes sit in the same wall clock.
