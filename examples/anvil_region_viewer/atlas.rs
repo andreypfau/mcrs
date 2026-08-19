@@ -117,13 +117,9 @@ impl SpriteRegistry {
             Some(animation) => animation.unroll(id, image_size),
             None => Vec::new(),
         };
-        let frames: Vec<u32> = if sequence.is_empty() {
-            vec![0]
-        } else {
-            (0..animation.as_ref().map_or(1, |a| a.frame_count(image_size))).collect()
-        };
+        let frames: &[u32] = if sequence.is_empty() { &[0] } else { &sequence };
         let mut pixels = Vec::with_capacity(frames.len() * (side * side * 4) as usize);
-        for &frame in &frames {
+        for &frame in frames {
             let cut = cut(&data, image_size.0, side, frame).ok_or_else(|| {
                 format!("{} has no frame {frame}", path.display())
             })?;
@@ -427,19 +423,83 @@ mod tests {
         }
     }
 
-    /// An animated sprite keeps every frame resident, one to a layer, so the array grows by the
-    /// frame count rather than by one.
+    /// An animated sprite keeps every step of its sequence resident, one to a layer, so the array
+    /// grows by the length of the run rather than by one.
     #[test]
-    fn every_frame_of_an_animation_gets_its_own_layer() {
+    fn every_step_of_an_animation_gets_its_own_layer() {
         let mut registry = SpriteRegistry::new();
         registry.intern("minecraft:block/stone").unwrap();
-        registry.intern("minecraft:block/lava_still").unwrap();
+        // Twenty frames in order, which is the shape fifty of the pack's animations have.
+        registry.intern("minecraft:block/kelp").unwrap();
         let array = &registry.arrays()[0];
         assert_eq!(array.sprites(), 2);
         assert_eq!(array.animated(), 1);
-        // A twenty-frame strip beside one still sprite.
         assert_eq!(array.layers(), 21);
         assert_eq!(array.pixels.len(), (array.size * array.size * 4) as usize * 21);
+    }
+
+    fn layer(array: &SpriteArray, layer: usize) -> &[u8] {
+        let stride = (array.size * array.size * 4) as usize;
+        &array.pixels[layer * stride..(layer + 1) * stride]
+    }
+
+    /// A sequence that revisits a frame gets that frame again as another layer rather than a
+    /// schedule pointing back at the first one. That is what leaves an animation describable as a
+    /// first layer, a length and one duration.
+    #[test]
+    fn a_sequence_that_revisits_a_frame_lays_it_down_twice() {
+        let mut registry = SpriteRegistry::new();
+        // Twenty frames run forwards and then back, which is thirty-eight steps.
+        registry.intern("minecraft:block/lava_still").unwrap();
+        let array = &registry.arrays()[0];
+        assert_eq!(array.layers(), 38);
+        // The run turns around on the last frame, so the step after the turn repeats the one before
+        // it, and both are resident.
+        assert_eq!(layer(array, 18), layer(array, 20));
+        assert_ne!(layer(array, 18), layer(array, 19));
+    }
+
+    /// A sequence in an arbitrary order with repeats is laid out in that order, one layer per step.
+    #[test]
+    fn a_sequence_out_of_order_is_laid_out_in_the_order_it_names() {
+        let mut registry = SpriteRegistry::new();
+        // Four frames named twenty-two times over.
+        registry.intern("minecraft:block/prismarine").unwrap();
+        let array = &registry.arrays()[0];
+        assert_eq!(array.layers(), 22);
+        // The listed order is 0, 1, 0, 2, ... so the first and third steps are the same frame.
+        assert_eq!(layer(array, 0), layer(array, 2));
+        assert_ne!(layer(array, 0), layer(array, 1));
+    }
+
+    /// A sequence may start anywhere in the image; the frames the image happens to hold first stop
+    /// being where the animation starts.
+    #[test]
+    fn a_sequence_starting_part_way_through_the_image_starts_there() {
+        let mut registry = SpriteRegistry::new();
+        // Thirty-two frames named starting at the seventeenth.
+        registry.intern("minecraft:block/fire_0").unwrap();
+        let array = &registry.arrays()[0];
+        assert_eq!(array.layers(), 32);
+        let stride = (array.size * array.size * 4) as usize;
+        let image = std::fs::read(crate::model::resource_path(
+            "minecraft:block/fire_0",
+            "textures",
+            "png",
+        ))
+        .unwrap();
+        let image = Image::from_buffer(
+            &image,
+            ImageType::Extension("png"),
+            CompressedImageFormats::NONE,
+            true,
+            ImageSampler::nearest(),
+            RenderAssetUsages::default(),
+        )
+        .unwrap();
+        let data = image.data.unwrap();
+        assert_eq!(layer(array, 0), &data[16 * stride..17 * stride]);
+        assert_eq!(layer(array, 16), &data[..stride]);
     }
 
     /// A frame sits in the image as a cell of a grid running across it and then down it, which is
