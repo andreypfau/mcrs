@@ -180,13 +180,17 @@ pub fn build(region: &Region) -> Catalog {
          {MAX_SPRITE_ARRAYS} arrays",
         sprites.arrays().len(),
     );
+    // Animations take the top of the layer field and every array's still sprites take the bottom
+    // of their own, so what has to fit is one array's stills beside every animation there is.
     for array in sprites.arrays() {
         assert!(
-            array.sprites() <= MAX_SPRITES,
-            "{} sprites are {}x{}, but one array can hold only {MAX_SPRITES}",
-            array.sprites(),
+            array.stills() + sprites.animations().len() <= MAX_SPRITES,
+            "{} still sprites are {}x{} and {} animations sit above them, but a quad can name \
+             only {MAX_SPRITES} layers",
+            array.stills(),
             array.size,
             array.size,
+            sprites.animations().len(),
         );
     }
 

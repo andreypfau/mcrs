@@ -60,7 +60,7 @@ struct Params {
     wireframe: u32,
     // How far this stream's geometry may reach outside its own section.
     overhang: f32,
-    pad0: u32,
+    animated_from: u32,
     pad1: u32,
 }
 

@@ -18,6 +18,9 @@ pub struct Animation {
     /// Ticks each step of the sequence lasts, unless the step names its own.
     #[serde(default = "one")]
     frametime: i64,
+    /// Whether a step blends into the next one instead of cutting to it.
+    #[serde(default)]
+    pub interpolate: bool,
     width: Option<u32>,
     height: Option<u32>,
     frames: Option<Vec<Frame>>,
@@ -98,7 +101,7 @@ impl Animation {
     /// A step naming a frame the image does not hold, or lasting no time at all, is dropped with a
     /// complaint rather than taken as written; what is left is an animation only if two steps
     /// survive.
-    pub fn unroll(&self, sprite: &str, image: (u32, u32)) -> Vec<u32> {
+    pub fn unroll(&self, sprite: &str, image: (u32, u32)) -> Unrolled {
         let total = self.frame_count(image) as i64;
         let listed: Vec<(i64, i64)> = match &self.frames {
             Some(frames) => frames.iter().map(|frame| frame.step(self.frametime)).collect(),
@@ -114,14 +117,26 @@ impl Animation {
                 kept.push((index, time));
             }
         }
-        let tick = kept.iter().fold(0, |step, &(_, time)| gcd(step, time));
-        let unrolled: Vec<u32> = kept
+        let frametime = kept.iter().fold(0, |step, &(_, time)| gcd(step, time)).max(1);
+        let frames: Vec<u32> = kept
             .iter()
-            .flat_map(|&(index, time)| std::iter::repeat_n(index as u32, (time / tick.max(1)) as usize))
+            .flat_map(|&(index, time)| {
+                std::iter::repeat_n(index as u32, (time / frametime) as usize)
+            })
             .collect();
         // One frame is a still image however many ways the metadata spells it.
-        if unrolled.len() < 2 { Vec::new() } else { unrolled }
+        let frames = if frames.len() < 2 { Vec::new() } else { frames };
+        Unrolled { frames, frametime: frametime as u32 }
     }
+}
+
+/// An animation with its sequence laid out one frame to a step.
+pub struct Unrolled {
+    /// The frame of the source image each step shows, or nothing where the sprite does not animate.
+    pub frames: Vec<u32>,
+    /// Ticks one step lasts. Every step lasts the same, which is what lets the shader find the
+    /// current one by arithmetic rather than by walking a schedule.
+    pub frametime: u32,
 }
 
 /// Loading runs before the app, and so before the log subscriber, which is why this prints.
@@ -154,14 +169,14 @@ mod tests {
     #[test]
     fn an_unlisted_sequence_runs_through_the_whole_image() {
         let meta = animation(r#"{"animation": {"frametime": 2}}"#);
-        assert_eq!(meta.unroll("unlisted", strip(4)), [0, 1, 2, 3]);
+        assert_eq!(meta.unroll("unlisted", strip(4)).frames, [0, 1, 2, 3]);
     }
 
     /// A listed sequence may repeat frames and run backwards; each entry is one step.
     #[test]
     fn a_listed_sequence_is_taken_in_the_order_it_is_written() {
         let meta = animation(r#"{"animation": {"frames": [0, 1, 2, 1, 0]}}"#);
-        assert_eq!(meta.unroll("listed", strip(3)), [0, 1, 2, 1, 0]);
+        assert_eq!(meta.unroll("listed", strip(3)).frames, [0, 1, 2, 1, 0]);
     }
 
     /// A step that lasts longer than the shortest one is repeated until it does, so every step of
@@ -171,26 +186,28 @@ mod tests {
         let meta = animation(
             r#"{"animation": {"frametime": 2, "frames": [0, {"index": 1, "time": 6}, 2]}}"#,
         );
-        assert_eq!(meta.unroll("timed", strip(3)), [0, 1, 1, 1, 2]);
+        let unrolled = meta.unroll("timed", strip(3));
+        assert_eq!(unrolled.frames, [0, 1, 1, 1, 2]);
+        assert_eq!(unrolled.frametime, 2, "the common beat is the shortest step");
     }
 
     #[test]
     fn a_step_that_lasts_no_time_is_dropped() {
         let meta = animation(r#"{"animation": {"frames": [0, {"index": 1, "time": -3}, 2]}}"#);
-        assert_eq!(meta.unroll("no time", strip(3)), [0, 2]);
+        assert_eq!(meta.unroll("no time", strip(3)).frames, [0, 2]);
     }
 
     #[test]
     fn a_step_naming_a_frame_the_image_does_not_hold_is_dropped() {
         let meta = animation(r#"{"animation": {"frames": [0, 7, 1]}}"#);
-        assert_eq!(meta.unroll("out of range", strip(3)), [0, 1]);
+        assert_eq!(meta.unroll("out of range", strip(3)).frames, [0, 1]);
     }
 
     /// One surviving step is a still image, and a still image must not be handed an animation.
     #[test]
     fn a_sequence_worn_down_to_one_step_does_not_animate() {
         let meta = animation(r#"{"animation": {"frames": [0, 9]}}"#);
-        assert!(meta.unroll("worn down", strip(3)).is_empty());
+        assert!(meta.unroll("worn down", strip(3)).frames.is_empty());
     }
 
     /// Frames sit in the image as a grid, not necessarily as a column: a frame is found at
@@ -199,7 +216,7 @@ mod tests {
     fn frames_are_counted_across_the_image_as_well_as_down_it() {
         let meta = animation(r#"{"animation": {"width": 16, "height": 16}}"#);
         assert_eq!(meta.frame_count((SIDE * 3, SIDE * 2)), 6);
-        assert_eq!(meta.unroll("grid", (SIDE * 3, SIDE * 2)), [0, 1, 2, 3, 4, 5]);
+        assert_eq!(meta.unroll("grid", (SIDE * 3, SIDE * 2)).frames, [0, 1, 2, 3, 4, 5]);
     }
 
     /// The frame is square on the shorter side unless the metadata says otherwise, and takes the

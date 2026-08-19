@@ -17,6 +17,7 @@ use bevy::prelude::*;
 
 use crate::anim;
 use crate::model;
+use crate::pack::MAX_SPRITES;
 
 /// How a sprite's alpha channel decides which pass its geometry belongs to.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -36,24 +37,44 @@ pub struct SpriteRef {
     pub layer: u16,
 }
 
-/// Every sprite of one resolution, which becomes one array texture. Layers are square; a still
-/// sprite is one of them and an animated one is as many as it has frames, all resident at once.
+/// One animated sprite: a run of layers, one per step of its sequence, and how fast to walk it.
+///
+/// There is no schedule to go with it. The sequence was laid out one step to a layer, so the step
+/// showing now is arithmetic on the clock and nothing has to be looked up per fragment.
+pub struct Animation {
+    pub array: u8,
+    /// Where the run starts among its array's animation layers, which follow all of its stills.
+    frame_base: u32,
+    pub count: u32,
+    /// Ticks one step lasts.
+    pub frametime: u32,
+    pub interpolate: bool,
+    opacity: Opacity,
+}
+
+/// Every sprite of one resolution, which becomes one array texture. Layers are square: the still
+/// sprites come first, one layer each, and the steps of every animation follow them.
 pub struct SpriteArray {
     /// Side length of every layer.
     pub size: u32,
-    /// What each layer's alpha channel makes of it, in upload order.
-    opacities: Vec<Opacity>,
-    /// Sprite ids interned into this array, which is fewer than the layers once anything animates.
-    sprites: usize,
-    /// How many of those sprites animate.
+    /// What each still sprite's alpha channel makes of it. A still sprite's layer is its place here.
+    stills: Vec<Opacity>,
+    /// The same for each animation layer, in the order the animations were interned.
+    frames: Vec<Opacity>,
+    /// How many of this array's sprites animate.
     animated: usize,
-    /// RGBA8 pixels, layer-major, mip 0 only. Mips are derived at upload time.
-    pixels: Vec<u8>,
+    /// RGBA8 pixels of the still layers, layer-major, mip 0 only. Mips are derived at upload time.
+    still_pixels: Vec<u8>,
+    /// The same for the animation layers, which are uploaded after the stills.
+    frame_pixels: Vec<u8>,
 }
 
 pub struct SpriteRegistry {
     arrays: Vec<SpriteArray>,
     index: HashMap<String, SpriteRef>,
+    /// Every animation of every resolution. A quad names one of these by counting down from the top
+    /// of its layer field, so a still sprite is anything below that and costs no lookup at all.
+    animations: Vec<Animation>,
 }
 
 impl SpriteRegistry {
@@ -61,20 +82,45 @@ impl SpriteRegistry {
         Self {
             arrays: Vec::new(),
             index: HashMap::new(),
+            animations: Vec::new(),
         }
     }
 
     /// Every sprite of every resolution.
     pub fn len(&self) -> usize {
-        self.arrays.iter().map(|array| array.sprites).sum()
+        self.arrays.iter().map(SpriteArray::sprites).sum()
     }
 
     pub fn arrays(&self) -> &[SpriteArray] {
         &self.arrays
     }
 
+    pub fn animations(&self) -> &[Animation] {
+        &self.animations
+    }
+
+    /// The lowest layer number that names an animation instead of a layer of the array. Animations
+    /// take the top of the field so that telling the two apart is one comparison against a uniform.
+    pub fn animated_from(&self) -> u32 {
+        (MAX_SPRITES - self.animations.len()) as u32
+    }
+
+    /// Where an animation's run of layers starts in its array, once the still sprites that come
+    /// before it are counted.
+    pub fn base_layer(&self, animation: &Animation) -> u32 {
+        self.arrays[animation.array as usize].stills.len() as u32 + animation.frame_base
+    }
+
+    fn animation(&self, layer: u16) -> Option<&Animation> {
+        let index = (MAX_SPRITES - 1).checked_sub(layer as usize)?;
+        self.animations.get(index)
+    }
+
     pub fn opacity(&self, sprite: SpriteRef) -> Opacity {
-        self.arrays[sprite.array as usize].opacities[sprite.layer as usize]
+        match self.animation(sprite.layer) {
+            Some(animation) => animation.opacity,
+            None => self.arrays[sprite.array as usize].stills[sprite.layer as usize],
+        }
     }
 
     /// Interns a sprite id, decoding its PNG the first time it is seen.
@@ -115,9 +161,9 @@ impl SpriteRegistry {
         // where there is no sequence rather than a different kind of thing.
         let sequence = match &animation {
             Some(animation) => animation.unroll(id, image_size),
-            None => Vec::new(),
+            None => anim::Unrolled { frames: Vec::new(), frametime: 1 },
         };
-        let frames: &[u32] = if sequence.is_empty() { &[0] } else { &sequence };
+        let frames: &[u32] = if sequence.frames.is_empty() { &[0] } else { &sequence.frames };
         let mut pixels = Vec::with_capacity(frames.len() * (side * side * 4) as usize);
         for &frame in frames {
             let cut = cut(&data, image_size.0, side, frame).ok_or_else(|| {
@@ -129,28 +175,51 @@ impl SpriteRegistry {
         // the two would want different passes, and a sprite is drawn in exactly one.
         let opacity = opacity_of(&pixels);
 
-        let array = match self.arrays.iter().position(|array| array.size == side) {
-            Some(array) => array,
+        let index = match self.arrays.iter().position(|array| array.size == side) {
+            Some(index) => index,
             None => {
                 self.arrays.push(SpriteArray {
                     size: side,
-                    opacities: Vec::new(),
-                    sprites: 0,
+                    stills: Vec::new(),
+                    frames: Vec::new(),
                     animated: 0,
-                    pixels: Vec::new(),
+                    still_pixels: Vec::new(),
+                    frame_pixels: Vec::new(),
                 });
                 self.arrays.len() - 1
             }
         };
-        let sprite = SpriteRef {
-            array: array as u8,
-            layer: self.arrays[array].opacities.len() as u16,
+        let array = &mut self.arrays[index];
+        let sprite = if sequence.frames.is_empty() {
+            let sprite = SpriteRef {
+                array: index as u8,
+                layer: array.stills.len() as u16,
+            };
+            array.stills.push(opacity);
+            array.still_pixels.extend_from_slice(&pixels);
+            sprite
+        } else {
+            let animation = Animation {
+                array: index as u8,
+                frame_base: array.frames.len() as u32,
+                count: frames.len() as u32,
+                frametime: sequence.frametime,
+                interpolate: animation.is_some_and(|a| a.interpolate),
+                opacity,
+            };
+            array.animated += 1;
+            array.frames.extend(std::iter::repeat_n(opacity, frames.len()));
+            array.frame_pixels.extend_from_slice(&pixels);
+            // Counting down from the top of the layer field rather than up from zero: what a layer
+            // number below the count of animations means then does not depend on how many sprites
+            // the pack turned out to have.
+            let sprite = SpriteRef {
+                array: index as u8,
+                layer: (MAX_SPRITES - 1 - self.animations.len()) as u16,
+            };
+            self.animations.push(animation);
+            sprite
         };
-        let array = &mut self.arrays[array];
-        array.opacities.extend(std::iter::repeat_n(opacity, frames.len()));
-        array.sprites += 1;
-        array.animated += usize::from(!sequence.is_empty());
-        array.pixels.extend_from_slice(&pixels);
         self.index.insert(id.to_string(), sprite);
         Ok(sprite)
     }
@@ -190,12 +259,12 @@ fn opacity_of(pixels: &[u8]) -> Opacity {
 
 impl SpriteArray {
     pub fn layers(&self) -> u32 {
-        self.opacities.len().max(1) as u32
+        (self.stills.len() + self.frames.len()).max(1) as u32
     }
 
     /// Sprite ids interned into this array, as against the layers they occupy.
     pub fn sprites(&self) -> usize {
-        self.sprites
+        self.stills.len() + self.animated
     }
 
     /// How many of this array's sprites animate.
@@ -203,21 +272,29 @@ impl SpriteArray {
         self.animated
     }
 
+    /// Layer numbers a still sprite of this array reaches, which is what the animations at the top
+    /// of the field have to stay clear of.
+    pub fn stills(&self) -> usize {
+        self.stills.len()
+    }
+
     /// Mip 0 followed by every smaller level, layer-major within each level. Each level is laid out
     /// exactly as `write_texture` wants it, so the caller uploads one level per call.
     pub fn mip_chain(&self) -> Vec<Vec<u8>> {
-        let layers = self.opacities.len().max(1);
+        let opacities: Vec<Opacity> = self.stills.iter().chain(&self.frames).copied().collect();
+        let pixels = [&self.still_pixels[..], &self.frame_pixels[..]].concat();
+        let layers = opacities.len().max(1);
         let mut size = self.size as usize;
         // Only alpha-tested sprites get their coverage held: a solid one has none to lose, and on a
         // translucent one alpha is real transparency, so stretching it would distort glass and water.
         let targets: Vec<Option<f32>> = (0..layers)
             .map(|layer| {
-                (*self.opacities.get(layer)? == Opacity::Cutout)
-                    .then(|| coverage(&self.pixels[layer * size * size * 4..], size * size, 1.0))
+                (*opacities.get(layer)? == Opacity::Cutout)
+                    .then(|| coverage(&pixels[layer * size * size * 4..], size * size, 1.0))
             })
             .collect();
 
-        let mut levels = vec![self.pixels.clone()];
+        let mut levels = vec![pixels];
         while size > 1 {
             let half = size / 2;
             let previous = levels.last().unwrap();
@@ -330,10 +407,11 @@ mod tests {
     fn one_sprite(size: usize, opacity: Opacity, pixels: Vec<u8>) -> SpriteArray {
         SpriteArray {
             size: size as u32,
-            opacities: vec![opacity],
-            sprites: 1,
+            stills: vec![opacity],
+            frames: Vec::new(),
             animated: 0,
-            pixels,
+            still_pixels: pixels,
+            frame_pixels: Vec::new(),
         }
     }
 
@@ -406,20 +484,22 @@ mod tests {
         assert_ne!(small.array, large.array, "16x16 and 32x32 share an array");
         assert_eq!(small.array, also_small.array);
         assert_eq!((small.layer, also_small.layer), (0, 1), "layers restart per array");
-        assert_eq!(large.layer, 0);
+        // water_flow animates, so its layer number names an animation from the top of the field
+        // rather than a layer of its array.
+        assert_eq!(large.layer as u32, registry.animated_from());
 
         let sizes: Vec<u32> = registry.arrays().iter().map(|array| array.size).collect();
         assert_eq!(sizes, [16, 32]);
         let counts: Vec<usize> = registry
             .arrays()
             .iter()
-            .map(|array| array.sprites)
+            .map(SpriteArray::sprites)
             .collect();
         assert_eq!(counts, [2, 1]);
         // Every layer of an array is its own size, so nothing was stretched to match a neighbour.
         for array in registry.arrays() {
             let expected = (array.size * array.size * 4) as usize * array.layers() as usize;
-            assert_eq!(array.pixels.len(), expected);
+            assert_eq!(array.still_pixels.len() + array.frame_pixels.len(), expected);
         }
     }
 
@@ -435,12 +515,15 @@ mod tests {
         assert_eq!(array.sprites(), 2);
         assert_eq!(array.animated(), 1);
         assert_eq!(array.layers(), 21);
-        assert_eq!(array.pixels.len(), (array.size * array.size * 4) as usize * 21);
+        let texels = (array.size * array.size * 4) as usize;
+        assert_eq!(array.still_pixels.len(), texels);
+        assert_eq!(array.frame_pixels.len(), texels * 20);
     }
 
+    /// Pixels of one animation layer, which follow the array's still sprites.
     fn layer(array: &SpriteArray, layer: usize) -> &[u8] {
         let stride = (array.size * array.size * 4) as usize;
-        &array.pixels[layer * stride..(layer + 1) * stride]
+        &array.frame_pixels[layer * stride..(layer + 1) * stride]
     }
 
     /// A sequence that revisits a frame gets that frame again as another layer rather than a
@@ -500,6 +583,58 @@ mod tests {
         let data = image.data.unwrap();
         assert_eq!(layer(array, 0), &data[16 * stride..17 * stride]);
         assert_eq!(layer(array, 16), &data[..stride]);
+    }
+
+    /// Every layer of a sprite's own image, decoded straight from the file.
+    fn source_frames(id: &str) -> Vec<Vec<u8>> {
+        let bytes = std::fs::read(model::resource_path(id, "textures", "png")).unwrap();
+        let image = Image::from_buffer(
+            &bytes,
+            ImageType::Extension("png"),
+            CompressedImageFormats::NONE,
+            true,
+            ImageSampler::nearest(),
+            RenderAssetUsages::default(),
+        )
+        .unwrap();
+        let side = image.width() as usize;
+        let stride = side * side * 4;
+        image.data.unwrap().chunks_exact(stride).map(<[u8]>::to_vec).collect()
+    }
+
+    /// Still sprites and animations arrive interleaved as the region interns them, but they do not
+    /// lie interleaved: an array's stills come first and the animation runs follow, so where a run
+    /// starts is only settled once the last still is in. A run pointing one sprite off shows the
+    /// wrong texture entirely and nothing anywhere would report it.
+    #[test]
+    fn an_animation_names_its_own_layers_whatever_order_the_interning_took() {
+        let mut registry = SpriteRegistry::new();
+        let stone = registry.intern("minecraft:block/stone").unwrap();
+        let kelp = registry.intern("minecraft:block/kelp").unwrap();
+        let dirt = registry.intern("minecraft:block/dirt").unwrap();
+        let seagrass = registry.intern("minecraft:block/seagrass").unwrap();
+
+        let array = &registry.arrays()[0];
+        let stride = (array.size * array.size * 4) as usize;
+        let resident = [&array.still_pixels[..], &array.frame_pixels[..]].concat();
+        let layer = |index: usize| &resident[index * stride..(index + 1) * stride];
+
+        assert_eq!((stone.layer, dirt.layer), (0, 1), "stills keep the low layers");
+        assert_eq!(layer(0), &source_frames("minecraft:block/stone")[0][..]);
+        assert_eq!(layer(1), &source_frames("minecraft:block/dirt")[0][..]);
+
+        for (id, sprite) in [
+            ("minecraft:block/kelp", kelp),
+            ("minecraft:block/seagrass", seagrass),
+        ] {
+            let animation = registry.animation(sprite.layer).expect("the sprite animates");
+            let base = registry.base_layer(animation) as usize;
+            let frames = source_frames(id);
+            assert_eq!(animation.count as usize, frames.len());
+            for step in 0..animation.count as usize {
+                assert_eq!(layer(base + step), &frames[step][..], "{id} step {step}");
+            }
+        }
     }
 
     /// A frame sits in the image as a cell of a grid running across it and then down it, which is

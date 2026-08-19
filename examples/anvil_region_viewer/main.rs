@@ -173,6 +173,17 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
         );
     }
     println!(
+        "  {} animations, {} of them interpolated; layer numbers from {} up name one",
+        catalog.sprites.animations().len(),
+        catalog
+            .sprites
+            .animations()
+            .iter()
+            .filter(|animation| animation.interpolate)
+            .count(),
+        catalog.sprites.animated_from(),
+    );
+    println!(
         "{} greedy quads + {} model quads in {} culling groups; \
          {}x{}x{} render regions cost {} draws",
         region_mesh.greedy_quads(),
@@ -231,6 +242,17 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
                     mips: array.mip_chain(),
                 })
                 .collect(),
+            animations: sprites
+                .animations()
+                .iter()
+                .map(|animation| render::Animation {
+                    base_layer: sprites.base_layer(animation),
+                    count: animation.count,
+                    frametime: animation.frametime,
+                    interpolate: u32::from(animation.interpolate),
+                })
+                .collect(),
+            animated_from: sprites.animated_from(),
             tint_map: blocks::tint_map(&region, &catalog.tints),
         },
         cave,

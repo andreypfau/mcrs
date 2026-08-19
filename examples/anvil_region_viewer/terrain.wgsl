@@ -5,6 +5,7 @@
 // unpack from eight bytes, baked model quads from four twelve-byte vertices.
 
 #import bevy_render::view::View
+#import bevy_render::globals::Globals
 
 // The packed geometry layout. The mesher writes these words and declares the same names, and a
 // test reads both sides back and fails if a width or an offset ever drifts apart.
@@ -126,12 +127,14 @@ struct Params {
     cave_base: u32,
     wireframe: u32,
     overhang: f32,
-    pad0: u32,
+    // The lowest layer number that names an animation rather than a layer of an array.
+    animated_from: u32,
     pad1: u32,
 }
 
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(1) var<uniform> params: Params;
+@group(0) @binding(2) var<uniform> globals: Globals;
 
 fn model_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {
     return field(vertices[base + word], shift, bits);
@@ -162,6 +165,21 @@ fn section_origin(section: u32) -> vec3<f32> {
 @group(1) @binding(7) var atlas_sampler: sampler;
 @group(1) @binding(8) var tints: texture_2d_array<f32>;
 @group(1) @binding(9) var tint_sampler: sampler;
+@group(1) @binding(10) var<storage, read> animations: array<Animation>;
+
+/// One animated sprite. Its sequence was laid out one step to a layer at load, so the step showing
+/// now is arithmetic on the clock: there is no schedule to read and nothing to write per frame.
+struct Animation {
+    base_layer: u32,
+    count: u32,
+    /// Ticks one step lasts.
+    frametime: u32,
+    /// Whether a step blends into the next one instead of cutting to it.
+    interpolate: u32,
+};
+
+/// Ticks a second, which is what a frame time in the metadata is counted in.
+const TICKS_PER_SECOND: f32 = 20.0;
 
 struct VertexOut {
     @builtin(position) clip_position: vec4<f32>,
@@ -355,12 +373,11 @@ fn edge_pixels(in: VertexOut) -> f32 {
 }
 
 /// Which array a quad samples varies between instances of one draw, and a `textureSample` under
-/// control flow that is not uniform is rejected outright. Taking the derivatives first and then
-/// asking for that exact level of detail lifts the sample out of the branch: `textureSampleGrad`
-/// needs no implicit derivative, so the switch is free to be as non-uniform as the data is.
-fn sample_atlas(array: u32, uv: vec2<f32>, layer: u32) -> vec4<f32> {
-    let ddx = dpdx(uv);
-    let ddy = dpdy(uv);
+/// control flow that is not uniform is rejected outright. Asking for an exact level of detail
+/// lifts the sample out of the branch: `textureSampleGrad` needs no implicit derivative, so the
+/// switch is free to be as non-uniform as the data is. The derivatives come from the caller for
+/// the same reason — taking one is only defined where control flow is uniform.
+fn sample_atlas(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
     switch array {
         case 1u: { return textureSampleGrad(atlas1, atlas_sampler, uv, layer, ddx, ddy); }
         case 2u: { return textureSampleGrad(atlas2, atlas_sampler, uv, layer, ddx, ddy); }
@@ -369,8 +386,30 @@ fn sample_atlas(array: u32, uv: vec2<f32>, layer: u32) -> vec4<f32> {
     }
 }
 
+/// A layer number below `animated_from` is a layer of the array and costs one sample and nothing
+/// else; above it, it names an animation instead, counting down from the top of the field. The
+/// branch is coherent, since a quad is animated or it is not.
+fn sprite_color(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
+    if (layer < params.animated_from) {
+        return sample_atlas(array, uv, layer, ddx, ddy);
+    }
+    let animation = animations[(1u << QUAD_LAYER_BITS) - 1u - layer];
+    let elapsed = globals.time * TICKS_PER_SECOND / f32(animation.frametime);
+    let step = u32(elapsed) % animation.count;
+    let color = sample_atlas(array, uv, animation.base_layer + step, ddx, ddy);
+    if (animation.interpolate == 0u) {
+        return color;
+    }
+    let next = animation.base_layer + (step + 1u) % animation.count;
+    return mix(color, sample_atlas(array, uv, next, ddx, ddy), fract(elapsed));
+}
+
 fn shade_sample(in: VertexOut) -> vec4<f32> {
-    let color = sample_atlas(in.array, in.uv, in.layer);
+    // Taken before the branch on whether the sprite animates, because a derivative is only defined
+    // where control flow is uniform and which sprite a quad names is not.
+    let ddx = dpdx(in.uv);
+    let ddy = dpdy(in.uv);
+    let color = sprite_color(in.array, in.uv, in.layer, ddx, ddy);
     // Both samples are unconditional: `tint_kind` varies between instances inside one draw, so a
     // branch around a `textureSample` would not be uniform control flow and WGSL rejects it.
     let tint = textureSample(

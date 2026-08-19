@@ -11,9 +11,10 @@ use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d};
 use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy::prelude::*;
+use bevy::render::globals::{GlobalsBuffer, GlobalsUniform};
 use bevy::render::render_resource::binding_types::{
     sampler, storage_buffer_read_only_sized, storage_buffer_sized, texture_2d_array,
-    uniform_buffer_sized,
+    uniform_buffer, uniform_buffer_sized,
 };
 use bevy::render::render_resource::*;
 use bevy::render::diagnostic::RecordDiagnostics;
@@ -57,8 +58,24 @@ pub struct Geometry {
     pub cave_words: usize,
     /// One array per sprite resolution, in the order the packed `array` field names them.
     pub atlases: Vec<Atlas>,
+    /// One entry per animated sprite, named by counting down from the top of a quad's layer field.
+    pub animations: Vec<Animation>,
+    /// The lowest layer number that names an animation rather than a layer of an array.
+    pub animated_from: u32,
     /// `TINT_LAYERS` layers of `TINT_SIZE`², RGBA8, indexed by world x and z.
     pub tint_map: Vec<u8>,
+}
+
+/// One animated sprite: where its run of layers starts, how long the run is, and how fast to walk
+/// it. The sequence was laid out one step to a layer, so this is all the shader needs to find the
+/// step showing now.
+#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct Animation {
+    pub base_layer: u32,
+    pub count: u32,
+    pub frametime: u32,
+    pub interpolate: u32,
 }
 
 /// One sprite resolution, ready to upload.
@@ -99,7 +116,8 @@ struct Params {
     wireframe: u32,
     /// How far this stream's geometry may reach outside its own section.
     overhang: f32,
-    reserved0: u32,
+    /// The lowest layer number that names an animation rather than a layer of an array.
+    animated_from: u32,
     reserved1: u32,
 }
 
@@ -220,6 +238,18 @@ fn init_terrain(
         contents: bytemuck::cast_slice(&geometry.groups),
         usage: BufferUsages::STORAGE,
     });
+    // A zero-length storage buffer is not a legal binding; a pack with no animation still binds one
+    // entry, which no quad names because the layer field never reaches it.
+    let padding = [Animation::default()];
+    let animations = device.create_buffer_with_data(&BufferInitDescriptor {
+        label: Some("terrain animations"),
+        contents: bytemuck::cast_slice(if geometry.animations.is_empty() {
+            &padding[..]
+        } else {
+            &geometry.animations
+        }),
+        usage: BufferUsages::STORAGE,
+    });
     let cave = device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("terrain cave visibility"),
         // All ones until the first flood fill, so nothing goes missing on the earliest frames.
@@ -252,7 +282,7 @@ fn init_terrain(
             } else {
                 0.0
             },
-            reserved0: 0,
+            animated_from: geometry.animated_from,
             reserved1: 0,
         };
         let slot = index * slots_per_entry;
@@ -307,6 +337,7 @@ fn init_terrain(
             (
                 uniform_buffer_sized(true, Some(ViewUniform::min_size())),
                 uniform_buffer_sized(true, NonZeroU64::new(PARAMS_SIZE)),
+                uniform_buffer::<GlobalsUniform>(false),
             ),
         ),
     );
@@ -341,6 +372,7 @@ fn init_terrain(
                 sampler(SamplerBindingType::Filtering),
                 texture_2d_array(TextureSampleType::Float { filterable: true }),
                 sampler(SamplerBindingType::Filtering),
+                storage_buffer_read_only_sized(false, None),
             ),
         ),
     );
@@ -381,6 +413,7 @@ fn init_terrain(
             &atlas_sampler,
             &tints,
             &tint_sampler,
+            animations.as_entire_buffer_binding(),
         )),
     );
 
@@ -719,11 +752,15 @@ fn prepare_view_bind_group(
     device: Res<RenderDevice>,
     pipeline_cache: Res<PipelineCache>,
     view_uniforms: Res<ViewUniforms>,
+    globals: Res<GlobalsBuffer>,
 ) {
     let Some(terrain) = terrain else {
         return;
     };
     let Some(view_binding) = view_uniforms.uniforms.binding() else {
+        return;
+    };
+    let Some(globals_binding) = globals.buffer.binding() else {
         return;
     };
     commands.insert_resource(ViewBindGroup(device.create_bind_group(
@@ -736,6 +773,7 @@ fn prepare_view_bind_group(
                 offset: 0,
                 size: NonZeroU64::new(PARAMS_SIZE),
             },
+            globals_binding,
         )),
     )));
 }
