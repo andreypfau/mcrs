@@ -18,6 +18,7 @@ use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 
 use crate::anvil::{self, Palette, REGION_BLOCKS, Region, SECTION_SIZE, Window, World};
+use crate::arena::Arena;
 use crate::blocks::{self, BlockInfo, Catalog};
 use crate::cave::CaveCull;
 use crate::mesh::{self, Batch, Draw, Group, STREAM_NAMES, STREAMS, Scratch, StreamSpan};
@@ -61,10 +62,10 @@ pub struct Loader {
     to_tint: Vec<[i32; 2]>,
     to_mesh: Vec<usize>,
     meshing: Vec<Task<Batch>>,
-    /// Where the next batch lands in each arena, in that arena's own units.
-    quad_next: usize,
-    model_next: usize,
-    group_next: usize,
+    /// The three arenas, in their own units: greedy quads, model quads, culling groups.
+    quads: Arena,
+    models: Arena,
+    groups: Arena,
     /// Sections of a file that fall outside the world's declared height.
     dropped: usize,
     /// Render regions whose geometry did not fit the arenas.
@@ -100,6 +101,11 @@ pub struct Status {
 impl Loader {
     pub fn new(layout: Arc<Layout>, uploads: Uploads, window: Window) -> Self {
         let world = World::new(window.min_region, window.regions);
+        let (layout_quads, layout_models, layout_groups) = (
+            layout.quad_capacity,
+            layout.model_capacity,
+            layout.group_capacity,
+        );
         let mut to_mesh: Vec<usize> = (0..layout.grid.len()).collect();
         // Nearest first, so what the camera starts inside of turns up before the far corners.
         let middle = [
@@ -133,9 +139,9 @@ impl Loader {
             tinting: Vec::new(),
             to_mesh,
             meshing: Vec::new(),
-            quad_next: 0,
-            model_next: 0,
-            group_next: 0,
+            quads: Arena::new(layout_quads),
+            models: Arena::new(layout_models),
+            groups: Arena::new(layout_groups),
             dropped: 0,
             overflowed: 0,
             sprites: 0,
@@ -151,8 +157,8 @@ impl Loader {
             files_total: self.expected.len(),
             regions: self.layout.grid.len() - self.to_mesh.len() - self.meshing.len(),
             regions_total: self.layout.grid.len(),
-            quads: self.quad_next as f32 / self.layout.quad_capacity as f32,
-            models: self.model_next as f32 / self.layout.model_capacity as f32,
+            quads: self.quads.held() as f32 / self.quads.capacity() as f32,
+            models: self.models.held() as f32 / self.models.capacity() as f32,
             overflowed: self.overflowed,
         }
     }
@@ -186,16 +192,18 @@ impl Loader {
     /// The offsets are handed out here rather than in the render world because this is also where
     /// the decision to make room for something will live.
     fn place(&mut self, batch: Batch) -> Option<Placement> {
-        let quads = batch.simple.len();
-        let models = batch.model_quads();
-        let groups = batch.groups.len();
-        if self.quad_next + quads > self.layout.quad_capacity
-            || self.model_next + models > self.layout.model_capacity
-            || self.group_next + groups > self.layout.group_capacity
-        {
-            self.overflowed += 1;
+        // All three or none: a region half in the arena would leave groups pointing at quads that
+        // were never written.
+        let quads = self.quads.alloc(batch.simple.len())?;
+        let Some(models) = self.models.alloc(batch.model_quads()) else {
+            self.quads.free(quads);
             return None;
-        }
+        };
+        let Some(groups) = self.groups.alloc(batch.groups.len()) else {
+            self.quads.free(quads);
+            self.models.free(models);
+            return None;
+        };
 
         let mut placed = batch.groups;
         let mut draws = Vec::new();
@@ -206,11 +214,11 @@ impl Loader {
                 continue;
             }
             // A group's quad_base is an index into the arena its stream draws from, and the two
-            // arenas fill at their own rates.
+            // arenas hand out their blocks independently.
             let base = if stream % 2 == 0 {
-                self.quad_next
+                quads.offset
             } else {
-                self.model_next
+                models.offset
             } as u32;
             self.streams[stream].group_count += span.group_count;
             self.streams[stream].quad_count += span.quad_count;
@@ -222,23 +230,22 @@ impl Loader {
                 stream: stream as u32,
                 origin: self.layout.grid.origin(self.layout.min_section, batch.region),
                 cave_base: self.layout.grid.cave_base(batch.region) as u32,
-                first_group: (self.group_next + first) as u32,
+                first_group: (groups.offset + first) as u32,
                 group_count: span.group_count,
                 quad_count: span.quad_count,
             });
             first += run;
         }
 
-        let placement = Placement {
-            quads: ((self.quad_next * QUAD_WORDS * 4) as u64, batch.simple),
-            vertices: ((self.model_next * 4 * 3 * 4) as u64, batch.complex),
-            groups: ((self.group_next * size_of::<Group>()) as u64, placed),
+        Some(Placement {
+            quads: ((quads.offset * QUAD_WORDS * 4) as u64, batch.simple),
+            vertices: ((models.offset * 4 * 3 * 4) as u64, batch.complex),
+            groups: (
+                (groups.offset * size_of::<Group>()) as u64,
+                placed,
+            ),
             draws,
-        };
-        self.quad_next += quads;
-        self.model_next += models;
-        self.group_next += groups;
-        Some(placement)
+        })
     }
 }
 
@@ -560,20 +567,26 @@ fn report(loader: &Loader) {
             STREAM_NAMES[stream], span.quad_count, span.group_count,
         );
     }
-    let quad_bytes = loader.quad_next * QUAD_WORDS * 4;
-    let model_bytes = loader.model_next * 4 * 3 * 4;
-    println!(
-        "  {} greedy quads in {:.1} MB of {:.0} ({:.0}% of the arena), \
-         {} model quads in {:.1} MB of {:.0} ({:.0}%)",
-        loader.quad_next,
-        quad_bytes as f64 / 1e6,
-        (loader.layout.quad_capacity * QUAD_WORDS * 4) as f64 / 1e6,
-        100.0 * loader.quad_next as f64 / loader.layout.quad_capacity as f64,
-        loader.model_next,
-        model_bytes as f64 / 1e6,
-        (loader.layout.model_capacity * 4 * 3 * 4) as f64 / 1e6,
-        100.0 * loader.model_next as f64 / loader.layout.model_capacity as f64,
-    );
+    let arena = |arena: &Arena, unit: usize| {
+        (
+            arena.asked(),
+            (arena.asked() * unit) as f64 / 1e6,
+            (arena.held() * unit) as f64 / 1e6,
+            (arena.capacity() * unit) as f64 / 1e6,
+            100.0 * arena.held() as f64 / arena.capacity() as f64,
+        )
+    };
+    for (name, (count, asked, held, capacity, share)) in [
+        ("greedy quads", arena(&loader.quads, QUAD_WORDS * 4)),
+        ("model quads", arena(&loader.models, 4 * 3 * 4)),
+        ("groups", arena(&loader.groups, size_of::<Group>())),
+    ] {
+        println!(
+            "  {count} {name} are {asked:.1} MB, held in {held:.1} MB of {capacity:.0} \
+             ({share:.0}% of the arena, {:.0}% of it rounding)",
+            100.0 * (held - asked) / held.max(f64::MIN_POSITIVE),
+        );
+    }
     if loader.dropped > 0 {
         println!(
             "  {} sections sit outside the {} the world declares and are not drawn",

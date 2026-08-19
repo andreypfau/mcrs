@@ -34,6 +34,7 @@ mod model;
 mod bake;
 mod anim;
 mod anvil;
+mod arena;
 mod atlas;
 mod blocks;
 mod cave;
@@ -70,13 +71,16 @@ const DEFAULT_REGION: &str = "examples/anvil_region_viewer/r.0.0.mca";
 /// of geometry.
 const DEFAULT_WINDOW: usize = 2;
 
-// How much room each region file gets in the two geometry arenas, in megabytes. Measured off this
-// world, where the heaviest file needs 38 MB of greedy quads and 158 MB of model vertices, with a
-// little over for a denser one. `ANVIL_ARENA=quads,models` overrides both. A region that does not
-// fit is dropped and counted rather than drawn half-written.
-const QUAD_MB_PER_FILE: usize = 48;
-const MODEL_MB_PER_FILE: usize = 176;
-/// Culling groups per file. The heaviest of these four holds seventy thousand.
+// How much room each region file gets in the two geometry arenas, in megabytes.
+//
+// Measured off this world, where the heaviest file needs 38 MB of greedy quads and 158 MB of model
+// vertices, plus the third the arena's size classes cost in rounding and a little over for a
+// denser file. `ANVIL_ARENA=quads,models` overrides both. A region that does not fit is dropped
+// and counted rather than drawn half-written.
+const QUAD_MB_PER_FILE: usize = 64;
+const MODEL_MB_PER_FILE: usize = 208;
+/// Culling groups per file. The heaviest of these four holds seventy thousand, and rounding takes
+/// its share of this arena too.
 const GROUPS_PER_FILE: usize = 1 << 17;
 
 /// Bytes one greedy quad and one model quad take in their arenas.
