@@ -53,8 +53,6 @@ impl BlockStateKey {
 /// order the file itself uses, and holds indices into [`Region::states`].
 pub struct Section {
     pub blocks: Box<[u16; SECTION_VOLUME]>,
-    /// `block_light << 4 | sky_light`, or `None` when the file omits both arrays for this section.
-    pub light: Option<Box<[u8; SECTION_VOLUME]>>,
     /// Biome index per 4³ cell, indexed `y * 16 + z * 4 + x`, into [`Region::biomes`].
     pub biomes: Box<[u8; 64]>,
 }
@@ -68,6 +66,13 @@ pub struct Region {
     /// `(cz * REGION_CHUNKS + cx) * sections_y + (sy - min_section_y)`; `None` for a section that is
     /// absent from the file or uniformly air.
     sections: Vec<Option<Section>>,
+    /// `block_light << 4 | sky_light`, indexed like `sections`. Kept apart from them because a
+    /// section the mesher drops as uniformly air still lights the faces around it.
+    lights: Vec<Option<Box<[u8; SECTION_VOLUME]>>>,
+    /// Per chunk column, the first section index above every stored light array. The file stops
+    /// writing sky light once nothing shadows it, so from here up the column is open sky. Zero for
+    /// a column the file never lit, which then reads as open sky throughout.
+    light_top: Vec<u16>,
 }
 
 impl Region {
@@ -112,8 +117,10 @@ impl Region {
         }
     }
 
-    /// `block_light << 4 | sky_light` at a region-local block coordinate. Sections without light
-    /// data read as fully sky-lit, which is what the vanilla client assumes above the world.
+    /// `block_light << 4 | sky_light` at a region-local block coordinate.
+    ///
+    /// The file omits a nibble array that is entirely zero, so a stored section without one is
+    /// dark, not lit; only above the column's topmost stored array does full sky take over.
     #[inline]
     pub fn light(&self, x: i32, y: i32, z: i32) -> u8 {
         let sy = y.div_euclid(SECTION_SIZE as i32) - self.min_section_y;
@@ -121,21 +128,26 @@ impl Region {
             || z < 0
             || x >= (REGION_CHUNKS * SECTION_SIZE) as i32
             || z >= (REGION_CHUNKS * SECTION_SIZE) as i32
-            || sy < 0
-            || sy as usize >= self.sections_y
         {
             return 0x0f;
         }
+        if sy < 0 {
+            return 0x00;
+        }
         let cx = x as usize / SECTION_SIZE;
         let cz = z as usize / SECTION_SIZE;
-        match self.section(cx, sy as usize, cz).and_then(|s| s.light.as_ref()) {
+        let column = cz * REGION_CHUNKS + cx;
+        if sy as usize >= self.light_top[column] as usize {
+            return 0x0f;
+        }
+        match self.lights[column * self.sections_y + sy as usize].as_ref() {
             Some(light) => {
                 let lx = x as usize % SECTION_SIZE;
                 let lz = z as usize % SECTION_SIZE;
                 let ly = y.rem_euclid(SECTION_SIZE as i32) as usize;
                 light[ly * 256 + lz * SECTION_SIZE + lx]
             }
-            None => 0x0f,
+            None => 0x00,
         }
     }
 }
@@ -269,9 +281,11 @@ pub fn load(path: &Path) -> Result<Region, String> {
 
     let min_section_y = min_y;
     let sections_y = (max_y - min_y + 1) as usize;
-    let mut sections: Vec<Option<Section>> =
-        Vec::with_capacity(REGION_CHUNKS * REGION_CHUNKS * sections_y);
-    sections.resize_with(REGION_CHUNKS * REGION_CHUNKS * sections_y, || None);
+    let slots = REGION_CHUNKS * REGION_CHUNKS * sections_y;
+    let mut sections: Vec<Option<Section>> = Vec::with_capacity(slots);
+    sections.resize_with(slots, || None);
+    let mut lights: Vec<Option<Box<[u8; SECTION_VOLUME]>>> = Vec::with_capacity(slots);
+    lights.resize_with(slots, || None);
 
     for (slot, chunk) in chunks {
         let cx = slot % REGION_CHUNKS;
@@ -281,6 +295,8 @@ pub fn load(path: &Path) -> Result<Region, String> {
             if sy < 0 || sy as usize >= sections_y {
                 continue;
             }
+            let slot = (cz * REGION_CHUNKS + cx) * sections_y + sy as usize;
+            lights[slot] = unpack_light(&section);
             let Some(built) = build_section(
                 &section,
                 &mut intern,
@@ -292,7 +308,18 @@ pub fn load(path: &Path) -> Result<Region, String> {
             else {
                 continue;
             };
-            sections[(cz * REGION_CHUNKS + cx) * sections_y + sy as usize] = Some(built);
+            sections[slot] = Some(built);
+        }
+    }
+
+    let mut light_top = vec![0u16; REGION_CHUNKS * REGION_CHUNKS];
+    for (column, top) in light_top.iter_mut().enumerate() {
+        let base = column * sections_y;
+        for sy in (0..sections_y).rev() {
+            if lights[base + sy].is_some() {
+                *top = sy as u16 + 1;
+                break;
+            }
         }
     }
 
@@ -303,6 +330,8 @@ pub fn load(path: &Path) -> Result<Region, String> {
         min_section_y,
         sections_y,
         sections,
+        lights,
+        light_top,
     })
 }
 
@@ -359,7 +388,6 @@ fn build_section(
         }
         return Ok(Some(Section {
             blocks: Box::new([palette[0]; SECTION_VOLUME]),
-            light: unpack_light(section),
             biomes: unpack_biomes(section, biome_intern, biome_names),
         }));
     };
@@ -403,7 +431,6 @@ fn build_section(
     }
     Ok(Some(Section {
         blocks,
-        light: unpack_light(section),
         biomes: unpack_biomes(section, biome_intern, biome_names),
     }))
 }
@@ -490,7 +517,7 @@ fn write_nibbles(source: &[i8], out: &mut [u8; SECTION_VOLUME], shift: u32) {
 
 #[cfg(test)]
 mod tests {
-    use super::bits_per_entry;
+    use super::*;
 
     #[test]
     fn palette_width_follows_the_anvil_rule() {
@@ -503,4 +530,41 @@ mod tests {
         assert_eq!(bits_per_entry(256), 8);
         assert_eq!(bits_per_entry(257), 9);
     }
+
+    /// A region whose column (0, 0) stores light only in its middle section.
+    fn one_lit_section() -> Region {
+        let mut lights: Vec<Option<Box<[u8; SECTION_VOLUME]>>> =
+            (0..REGION_CHUNKS * REGION_CHUNKS * 3).map(|_| None).collect();
+        lights[1] = Some(Box::new([0x3a; SECTION_VOLUME]));
+        let mut sections: Vec<Option<Section>> =
+            (0..REGION_CHUNKS * REGION_CHUNKS * 3).map(|_| None).collect();
+        sections[1] = Some(Section {
+            blocks: Box::new([1; SECTION_VOLUME]),
+            biomes: Box::new([0; 64]),
+        });
+        let mut light_top = vec![0u16; REGION_CHUNKS * REGION_CHUNKS];
+        light_top[0] = 2;
+        Region {
+            states: Vec::new(),
+            biomes: Vec::new(),
+            air_state: 0,
+            min_section_y: -1,
+            sections_y: 3,
+            sections,
+            lights,
+            light_top,
+        }
+    }
+
+    /// The file drops a nibble array that is all zeroes, so a stored section without one is dark.
+    /// Reading it as lit is what turns unlit caves fullbright.
+    #[test]
+    fn an_unlit_section_is_dark_and_only_the_sky_above_the_column_is_full() {
+        let region = one_lit_section();
+        assert_eq!(region.light(0, -16, 0), 0x00, "below the lit section");
+        assert_eq!(region.light(0, 0, 0), 0x3a, "the lit section itself");
+        assert_eq!(region.light(0, 16, 0), 0x0f, "open sky above the column");
+        assert_eq!(region.light(0, -17, 0), 0x00, "below the stored world");
+    }
 }
+
