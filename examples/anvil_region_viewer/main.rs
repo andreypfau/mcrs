@@ -88,6 +88,12 @@ fn main() {
                     // refresh rate, so `nextDrawable` blocks for the rest of the frame regardless.
                     // Fullscreen (F11) takes the window off that path and is what actually uncaps.
                     present_mode: PresentMode::AutoNoVsync,
+                    // The same swap F11 does, at startup, so a rate can be measured from a
+                    // terminal without a human at the window.
+                    mode: match std::env::var("ANVIL_FULLSCREEN") {
+                        Ok(_) => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+                        Err(_) => WindowMode::Windowed,
+                    },
                     ..default()
                 }),
                 ..default()
@@ -247,6 +253,9 @@ fn frame_stats(
     triangles: Res<DrawnTriangles>,
     cave: Res<cave::CaveCull>,
     overlay: Single<&mut Text>,
+    // The frame rate is meaningless without the pixel count behind it: this window opens on
+    // whichever display is current, and the two here differ enough to change the number outright.
+    window: Single<&Window>,
 ) {
     let delta = time.delta_secs();
     if delta <= 0.0 {
@@ -278,7 +287,9 @@ fn frame_stats(
     overlay.0.clear();
     let _ = write!(
         overlay.0,
-        "{fps:.0} fps   {} tris   p95 {p95:.1} ms   p99 {p99:.1} ms",
+        "{fps:.0} fps @ {}x{}   {} tris   p95 {p95:.1} ms   p99 {p99:.1} ms",
+        window.resolution.physical_width(),
+        window.resolution.physical_height(),
         triangles.get(),
     );
     if cave.enabled {
@@ -354,12 +365,7 @@ struct Orbit {
 }
 
 fn spawn_camera(mut commands: Commands) {
-    let orbit = Orbit {
-        yaw: 0.8,
-        pitch: 0.6,
-        radius: 420.0,
-        target: Vec3::new(256.0, 64.0, 256.0),
-    };
+    let orbit = starting_orbit();
     commands.spawn((
         Camera3d::default(),
         // No `Hdr` component: the terrain pipeline targets the default swap-chain format, and the
@@ -395,6 +401,31 @@ fn spawn_overlay(mut commands: Commands) {
             ..default()
         },
     ));
+}
+
+/// `ANVIL_VIEW=yaw,pitch,radius,x,y,z` pins the camera where the run starts, so a frame rate can
+/// be compared between builds rather than between two hand-held views that were never the same.
+fn starting_orbit() -> Orbit {
+    let default = Orbit {
+        yaw: 0.8,
+        pitch: 0.6,
+        radius: 420.0,
+        target: Vec3::new(256.0, 64.0, 256.0),
+    };
+    let Ok(spec) = std::env::var("ANVIL_VIEW") else {
+        return default;
+    };
+    let numbers: Vec<f32> = spec.split(',').filter_map(|n| n.trim().parse().ok()).collect();
+    let [yaw, pitch, radius, x, y, z] = numbers[..] else {
+        warn!("ANVIL_VIEW needs six numbers: yaw,pitch,radius,x,y,z");
+        return default;
+    };
+    Orbit {
+        yaw,
+        pitch,
+        radius,
+        target: Vec3::new(x, y, z),
+    }
 }
 
 fn orbit(
