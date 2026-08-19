@@ -31,8 +31,15 @@ use crate::pack::{MAX_SPRITE_ARRAYS, MODEL_OVERHANG};
 /// backend we can land on.
 const PARAMS_STRIDE: u32 = 256;
 const PARAMS_SIZE: u64 = 48;
-/// Byte offset of `Params::wireframe`, which follows eight four-byte fields.
+/// Byte offset of `Params::wireframe`, which follows eight four-byte fields. Both this and the
+/// size above are counted by hand and read by nothing that would notice them going stale, so they
+/// are pinned against the struct itself.
 const PARAMS_WIREFRAME_OFFSET: u64 = 32;
+const _: () = assert!(size_of::<Params>() as u64 == PARAMS_SIZE);
+const _: () = assert!(
+    PARAMS_WIREFRAME_OFFSET
+        == std::mem::offset_of!(Params, wireframe) as u64
+);
 const DRAW_ARGS_SIZE: u64 = size_of::<DrawArgs>() as u64;
 /// Byte offset of `DrawArgs::instance_count`, the only field a frame rewrites.
 const INSTANCE_COUNT_OFFSET: u64 = 4;
