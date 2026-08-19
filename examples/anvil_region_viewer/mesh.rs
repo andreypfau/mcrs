@@ -758,11 +758,16 @@ fn complex(
 fn shade_bucket(shade: u8) -> u32 {
     match shade {
         0..=140 => 0,   // down, 0.5
-        141..=175 => 1, // north / south, 0.6
-        176..=225 => 2, // east / west, 0.8
+        141..=175 => 1, // west / east, 0.6
+        176..=225 => 2, // north / south, 0.8
         _ => 3,         // up, 1.0
     }
 }
+
+/// The shade each bucket stands for, in bucket order. The shader holds its own copy of this table
+/// because it is what expands the two packed bits, and a test reads that copy back.
+#[cfg(test)]
+const BUCKET_SHADES: [f32; 4] = [0.5, 0.6, 0.8, 1.0];
 
 /// Model positions live in fixed point, biased by the overhang, so a face that pokes outside its
 /// own block still packs into a non-negative number.
@@ -777,8 +782,8 @@ fn fixed(value: f32) -> u32 {
 mod tests {
     use super::{
         BORDER_VOLUME, Key, QUAD_AO, QUAD_FACE, QUAD_FLIP, QUAD_H, QUAD_LAYER, QUAD_LIGHT,
-        QUAD_ARRAY, QUAD_SECTION, QUAD_TINT, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z, border_index,
-        connectivity, fixed, pack_quad, quad_anchor, split_flip,
+        BUCKET_SHADES, QUAD_ARRAY, QUAD_SECTION, QUAD_TINT, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z,
+        border_index, connectivity, fixed, pack_quad, quad_anchor, shade_bucket, split_flip,
     };
     use crate::atlas::SpriteRef;
     use crate::anvil::SECTION_SIZE;
@@ -899,6 +904,38 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The mesher buckets a baked shade byte and the shader turns the bucket back into a number,
+    /// and nothing links the two ends. Getting the order wrong there does not fail to compile and
+    /// does not move a single vertex: it just lights a wall as though it faced another way.
+    #[test]
+    fn a_bucketed_shade_decodes_to_the_shade_it_stood_for() {
+        // What the model baker emits for a face in open air, one byte per vanilla shade.
+        for (byte, shade) in [(127u8, 0.5), (153, 0.6), (204, 0.8), (255, 1.0)] {
+            let bucket = shade_bucket(byte) as usize;
+            assert_eq!(
+                BUCKET_SHADES[bucket], shade,
+                "a face baked at {shade} buckets to {bucket}"
+            );
+        }
+
+        let source = include_str!("terrain.wgsl");
+        let arms: Vec<f32> = source
+            .lines()
+            .filter_map(|line| {
+                let (_, rest) = line.trim().split_once("shade = ")?;
+                rest.split_once(';')?.0.parse().ok()
+            })
+            .collect();
+        assert_eq!(
+            arms.len(),
+            BUCKET_SHADES.len() + 1,
+            "the shader's shade table is not shaped the way this test reads it"
+        );
+        // The first is the variable's initialiser, then one arm per bucket, the last being the
+        // default the shader uses for the highest bucket.
+        assert_eq!(arms[1..], BUCKET_SHADES, "the shader expands the buckets differently");
     }
 
     #[test]

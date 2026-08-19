@@ -321,8 +321,8 @@ fn vertex_complex(
     var shade = 1.0;
     switch shade_bucket {
         case 0u: { shade = 0.5; }
-        case 1u: { shade = 0.8; }
-        case 2u: { shade = 0.6; }
+        case 1u: { shade = 0.6; }
+        case 2u: { shade = 0.8; }
         default: { shade = 1.0; }
     }
 
