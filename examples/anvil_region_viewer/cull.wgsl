@@ -28,7 +28,7 @@ const SECTION_INDEX_SHIFT: u32 = 0u;
 const SECTION_INDEX_BITS: u32 = 11u;
 const GROUP_FACE_WORD: u32 = 0u;
 const GROUP_FACE_SHIFT: u32 = 11u;
-const GROUP_FACE_BITS: u32 = 3u;
+const GROUP_FACE_BITS: u32 = 4u;
 
 struct Group {
     quad_base: u32,
@@ -112,7 +112,12 @@ fn in_frustum(mn: vec3<f32>, mx: vec3<f32>) -> bool {
 }
 
 /// Every quad in a face group shares one outward normal, so a group facing away from the camera is
-/// entirely backfacing. At least three of the six groups fail this for any camera position.
+/// entirely backfacing. At least three of the six axis groups fail this for any camera position.
+///
+/// A group survives when any point of its box could face the camera, which is `dot(n, camera)`
+/// against the least `dot(n, p)` the box holds. For an axis that is one comparison. The four
+/// diagonals are the same statement with the two horizontal terms added, and they matter because
+/// the panes of a plant point along them and nowhere else.
 fn faces_camera(face: u32, mn: vec3<f32>, mx: vec3<f32>) -> bool {
     let cam = view.world_position;
     switch face {
@@ -122,6 +127,10 @@ fn faces_camera(face: u32, mn: vec3<f32>, mx: vec3<f32>) -> bool {
         case 3u: { return cam.z > mn.z; }
         case 4u: { return cam.x < mx.x; }
         case 5u: { return cam.x > mn.x; }
+        case 6u: { return cam.x + cam.z > mn.x + mn.z; }
+        case 7u: { return cam.x - cam.z > mn.x - mx.z; }
+        case 8u: { return cam.z - cam.x > mn.z - mx.x; }
+        case 9u: { return cam.x + cam.z < mx.x + mx.z; }
         default: { return true; }
     }
 }

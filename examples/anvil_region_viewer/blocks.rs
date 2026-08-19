@@ -56,9 +56,10 @@ pub struct ModelQuad {
     pub positions: [Vec3; 4],
     pub uvs: [[f32; 2]; 4],
     pub cull: Option<Dir>,
-    /// The axis this quad's geometry squarely faces, when it has one. Quads sharing a face group
-    /// are all backfacing at once, so the culling pass can drop the whole run.
-    pub face: Option<Dir>,
+    /// The face group this quad's geometry squarely points along, when it points along one: the
+    /// six axes numbered as [`Dir`], then the four horizontal diagonals. Quads sharing a face
+    /// group are all backfacing at once, so the culling pass can drop the whole run.
+    pub face: Option<u8>,
     pub sprite: SpriteRef,
     pub pass: Pass,
     /// Vanilla's directional face shade, already applied per corner.
@@ -307,7 +308,12 @@ fn build_one(
     })
 }
 
-/// The axis a quad squarely faces, or `None` when it faces none of them squarely.
+/// The horizontal diagonals, in the order the culling pass numbers them after the six axes. These
+/// are where the panes of a plant point, and they are the only direction off the axes that any
+/// worthwhile number of quads share.
+const DIAGONALS: [[f32; 2]; 4] = [[1.0, 1.0], [1.0, -1.0], [-1.0, 1.0], [-1.0, -1.0]];
+
+/// The face group a quad squarely points along, or `None` when it points along none of them.
 ///
 /// The tolerance has to be this tight, and `BakedQuad::dir` cannot stand in for the answer: that is
 /// the nearest axis with no tolerance at all, so the two 45-degree panes of a plant come back
@@ -315,13 +321,20 @@ fn build_one(
 ///
 /// Winding is counter-clockwise seen from outside, so the cross product of the first two edges is
 /// the outward normal.
-fn face_group(positions: &[Vec3; 4]) -> Option<Dir> {
+fn face_group(positions: &[Vec3; 4]) -> Option<u8> {
     let normal = (positions[1] - positions[0])
         .cross(positions[2] - positions[0])
         .normalize_or_zero();
-    Dir::ALL
+    if let Some(dir) = Dir::ALL
         .into_iter()
         .find(|dir| normal.dot(dir.normal()) >= 1.0 - 1e-4)
+    {
+        return Some(dir as u8);
+    }
+    let diagonal = DIAGONALS.iter().position(|&[x, z]| {
+        normal.dot(Vec3::new(x, 0.0, z).normalize()) >= 1.0 - 1e-4
+    })?;
+    Some(Dir::ALL.len() as u8 + diagonal as u8)
 }
 
 fn tint_kind_of(name: &str) -> TintKind {
@@ -532,14 +545,21 @@ mod tests {
     use crate::bake::{self, Dir, TinyWorld};
     use bevy::math::{IVec3, Vec3};
 
-    /// A quad joins a face group only when it faces that axis squarely, and the nearest axis is not
-    /// good enough to decide it: the two diagonal panes of a plant are nearest to some axis like
-    /// everything else, and grouping them by it would cull them away from one side.
+    /// A quad joins a face group only when it points along that direction squarely, and the
+    /// nearest axis is not good enough to decide it: the two diagonal panes of a plant are nearest
+    /// to some axis like everything else, and grouping them by it would cull them away from one
+    /// side. They get the diagonal they really point along instead, which is what lets the culling
+    /// pass drop the half of them that faces away.
     #[test]
-    fn only_a_squarely_facing_quad_joins_a_face_group() {
+    fn a_quad_joins_the_face_group_it_squarely_points_along() {
         for dir in Dir::ALL {
             let face = std::array::from_fn(|corner| cube_corner(dir, corner));
-            assert_eq!(face_group(&face), Some(dir), "the {} face of a cube", dir.name());
+            assert_eq!(
+                face_group(&face),
+                Some(dir as u8),
+                "the {} face of a cube",
+                dir.name()
+            );
         }
 
         let pane = [
@@ -553,7 +573,17 @@ mod tests {
             Dir::nearest(normal).is_some(),
             "the nearest axis answers even for a pane that faces none of them"
         );
-        assert_eq!(face_group(&pane), None, "a plant's diagonal pane");
+        let group = face_group(&pane).expect("a plant's pane points along a diagonal");
+        assert!(
+            group >= Dir::ALL.len() as u8,
+            "a pane must not be filed under an axis, it would vanish from one side"
+        );
+        let mirrored = [pane[3], pane[2], pane[1], pane[0]];
+        assert_ne!(
+            face_group(&mirrored),
+            Some(group),
+            "the same pane wound the other way faces the other way"
+        );
     }
 
     #[test]

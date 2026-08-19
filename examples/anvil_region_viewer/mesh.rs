@@ -40,12 +40,14 @@ pub const STREAM_NAMES: [&str; STREAMS] = [
     "translucent model",
 ];
 
-/// Face group 7 means "no cullface": drawn whenever the section is visible.
-const FACE_NONE: u32 = 7;
+/// The last face group means "points nowhere the culling pass knows": drawn whenever the section
+/// is visible.
+const FACE_NONE: u32 = 10;
 
-/// The six face groups model geometry can be sorted into, plus one for the quads that face no axis
-/// squarely and so are never backfacing as a run.
-const FACE_GROUPS: usize = 7;
+/// The ten face groups model geometry can be sorted into — six axes and four horizontal diagonals
+/// — plus one for the quads that point squarely along none of them and so are never backfacing as
+/// a run.
+const FACE_GROUPS: usize = 11;
 
 const BORDER: usize = SECTION_SIZE + 2;
 const BORDER_VOLUME: usize = BORDER * BORDER * BORDER;
@@ -743,7 +745,7 @@ fn complex(
                     } else {
                         0
                     };
-                    let group = quad.face.map_or(FACE_GROUPS - 1, |dir| dir as usize);
+                    let group = quad.face.map_or(FACE_GROUPS - 1, |group| group as usize);
                     let out = &mut scratch.complex_by_pass[quad.pass as usize][group];
                     for corner in 0..4 {
                         let p = quad.positions[corner];

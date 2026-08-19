@@ -75,7 +75,11 @@ pub const LOCAL_Z: Field = Field::new(0, 7, 4);
 pub const SECTION_INDEX: Field = Field::new(0, 0, 11);
 
 /// The face group a culling group's quads all point at, above the section number it carries.
-pub const GROUP_FACE: Field = Field::new(0, SECTION_INDEX.bits, 3);
+///
+/// Six of them are the axes. Four more are the horizontal diagonals, which is where the panes of a
+/// plant point: they face no axis squarely, so without their own groups they would be the one run
+/// the culling pass can never drop.
+pub const GROUP_FACE: Field = Field::new(0, SECTION_INDEX.bits, 4);
 
 // Greedy quad, low word. The anchor is relative to its own section and runs 0..16 inclusive,
 // because a quad on the far face of a section anchors on the boundary. Width and height are stored
