@@ -1359,11 +1359,14 @@ fn prepare_pipelines(
     };
 
     let mut pipelines = [CachedRenderPipelineId::INVALID; 4];
-    for (index, (entry, blend)) in [
-        ("vertex_simple", false),
-        ("vertex_complex", false),
-        ("vertex_simple", true),
-        ("vertex_complex", true),
+    // Greedy quads and baked model quads hand the fragment stage different things and read what
+    // they look like from different places, so each kind gets its own pair of entry points rather
+    // than one pair branching on which it was handed.
+    for (index, (entry, fragment, blend)) in [
+        ("vertex_simple", "fragment_greedy_opaque", false),
+        ("vertex_complex", "fragment_model_opaque", false),
+        ("vertex_simple", "fragment_greedy_blend", true),
+        ("vertex_complex", "fragment_model_blend", true),
     ]
     .into_iter()
     .enumerate()
@@ -1378,9 +1381,7 @@ fn prepare_pipelines(
             },
             fragment: Some(FragmentState {
                 shader: terrain.terrain_shader.clone(),
-                entry_point: Some(
-                    if blend { "fragment_blend" } else { "fragment_opaque" }.into(),
-                ),
+                entry_point: Some(fragment.into()),
                 targets: vec![Some(ColorTargetState {
                     format: view.target_format,
                     blend: blend.then_some(BlendState::ALPHA_BLENDING),

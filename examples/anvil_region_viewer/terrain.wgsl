@@ -207,10 +207,6 @@ fn section_origin(section: u32) -> vec3<f32> {
 // inside its own section, which is what keeps it down to two words.
 @group(1) @binding(11) var<storage, read> faces: array<u32>;
 
-/// What a quad puts in `face_base` when its appearance is carried per vertex instead, which is
-/// what baked model quads do. No real base can reach it: the field is a bit narrower than a word.
-const NO_FACES: u32 = 0xffffffffu;
-
 /// One animated sprite. Its sequence was laid out one step to a layer at load, so the step showing
 /// now is arithmetic on the clock: there is no schedule to read and nothing to write per frame.
 struct Animation {
@@ -225,27 +221,45 @@ struct Animation {
 /// Ticks a second, which is what a frame time in the metadata is counted in.
 const TICKS_PER_SECOND: f32 = 20.0;
 
-struct VertexOut {
+struct GreedyOut {
+    @builtin(position) clip_position: vec4<f32>,
+    /// Corner position within the quad, so the fragment can find both the block it landed on and
+    /// the quad's own edges. The texture coordinate is this times the span and the diagonal the
+    /// quad splits along is the difference of its two parts, so neither is carried: a corner
+    /// writes what it hands the fragment stage to memory, and that is what the stage costs.
+    @location(0) quad_uv: vec2<f32>,
+    @location(1) world_xz: vec2<f32>,
+    /// Where this quad's run of face attributes starts. The sprite, tint, light and ambient
+    /// occlusion all come from there, one entry per block face, so none of them is carried either.
+    @location(2) @interpolate(flat) face_base: u32,
+    /// How many blocks the quad spans on each of its own axes. Also the stride of that run.
+    @location(3) @interpolate(flat) face_span: vec2<u32>,
+    /// Vanilla's directional shade for the face the quad points at.
+    @location(4) @interpolate(flat) directional: f32,
+};
+
+/// A baked model quad carries its appearance per corner, so it needs neither the side buffer nor
+/// anything that addresses it.
+struct ModelOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
-    @location(1) @interpolate(flat) layer: u32,
-    @location(7) @interpolate(flat) array: u32,
+    @location(1) world_xz: vec2<f32>,
     @location(2) shade: vec3<f32>,
-    @location(3) world_xz: vec2<f32>,
-    @location(4) @interpolate(flat) tint_kind: u32,
-    /// Corner position within the quad, so the fragment can find the quad's own edges. Greedy
-    /// quads cover many blocks, so this is not the same thing as the texture coordinate.
-    @location(5) quad_uv: vec2<f32>,
-    /// Signed distance to the diagonal the quad is split along, in quad-local units.
-    @location(6) diagonal: f32,
-    /// Where this quad's run of face attributes starts, or [`NO_FACES`] when the geometry brought
-    /// its appearance along per vertex.
-    @location(8) @interpolate(flat) face_base: u32,
-    /// How many blocks the quad spans on each of its own axes. Also the stride of that run.
-    @location(9) @interpolate(flat) face_span: vec2<u32>,
-    /// Vanilla's directional shade for the face the quad points at. Kept apart from `shade`
-    /// because the rest of that term is only known once a fragment has found its own block.
-    @location(10) @interpolate(flat) directional: f32,
+    @location(3) @interpolate(flat) layer: u32,
+    @location(4) @interpolate(flat) array: u32,
+    @location(5) @interpolate(flat) tint_kind: u32,
+    /// Only the outline needs this, but the outline needs it from both kinds of geometry.
+    @location(6) quad_uv: vec2<f32>,
+};
+
+/// What the two kinds of geometry agree on once each has worked out what its fragment looks like.
+struct Surface {
+    layer: u32,
+    array: u32,
+    tint_kind: u32,
+    shade: vec3<f32>,
+    uv: vec2<f32>,
+    world_xz: vec2<f32>,
 };
 
 /// Quad corners in the order vanilla winds them, as (u, v).
@@ -331,7 +345,7 @@ fn ao_factor(bits: u32, corner: u32) -> f32 {
 fn vertex_simple(
     @builtin(vertex_index) vertex: u32,
     @builtin(instance_index) instance: u32,
-) -> VertexOut {
+) -> GreedyOut {
     let quad = visible[params.visible_base + instance] * QUAD_WORDS;
 
     let section = quad_field(quad, QUAD_SECTION_WORD, QUAD_SECTION_SHIFT, QUAD_SECTION_BITS);
@@ -352,18 +366,10 @@ fn vertex_simple(
     let c = quad_uv * size;
     let world = anchor + face_u_dir(face) * c.x + face_v_dir(face) * c.y;
 
-    var out: VertexOut;
+    var out: GreedyOut;
     out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
-    // One unit to a block, which is both how the sprite tiles across the quad and how a fragment
-    // finds which of the quad's faces it landed on.
-    out.uv = c;
-    out.layer = 0u;
-    out.array = 0u;
-    out.shade = vec3<f32>(1.0);
-    out.world_xz = world.xz;
-    out.tint_kind = 0u;
     out.quad_uv = quad_uv;
-    out.diagonal = quad_uv.x - quad_uv.y;
+    out.world_xz = world.xz;
     // Resolved here rather than in the fragment: the table lookup is the same for every fragment
     // of a quad, so it costs one load an instance instead of one a pixel.
     out.face_base = params.face_origin
@@ -378,7 +384,7 @@ fn vertex_simple(
 fn vertex_complex(
     @builtin(vertex_index) vertex: u32,
     @builtin(instance_index) instance: u32,
-) -> VertexOut {
+) -> ModelOut {
     let quad = visible[params.visible_base + instance];
     let corner = corner_index(vertex);
     let base = (quad * 4u + corner) * 3u;
@@ -404,7 +410,7 @@ fn vertex_complex(
         default: { shade = 1.0; }
     }
 
-    var out: VertexOut;
+    var out: ModelOut;
     out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
     out.uv = vec2<f32>(u, v);
     out.layer = model_field(base, MODEL_LAYER_WORD, MODEL_LAYER_SHIFT, MODEL_LAYER_BITS);
@@ -412,12 +418,7 @@ fn vertex_complex(
     out.shade = lightmap(block_light, sky_light) * shade;
     out.world_xz = world.xz;
     out.tint_kind = model_field(base, MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS);
-    let quad_uv = corner_uv(corner);
-    out.quad_uv = quad_uv;
-    out.diagonal = quad_uv.x - quad_uv.y;
-    out.face_base = NO_FACES;
-    out.face_span = vec2<u32>(1u, 1u);
-    out.directional = 1.0;
+    out.quad_uv = corner_uv(corner);
     return out;
 }
 
@@ -425,13 +426,16 @@ fn vertex_complex(
 /// screen-space derivative of a quad-local coordinate is how much of the quad one pixel spans, so
 /// dividing by it keeps the outline a pixel wide whether the quad is one block across or a chunk
 /// across. The split diagonal counts as an edge, so what is drawn is the triangle count.
-fn edge_pixels(in: VertexOut) -> f32 {
-    let width = max(fwidth(in.quad_uv), vec2<f32>(1e-6));
+fn edge_pixels(quad_uv: vec2<f32>) -> f32 {
+    let width = max(fwidth(quad_uv), vec2<f32>(1e-6));
     let border = min(
-        min(in.quad_uv.x, 1.0 - in.quad_uv.x) / width.x,
-        min(in.quad_uv.y, 1.0 - in.quad_uv.y) / width.y,
+        min(quad_uv.x, 1.0 - quad_uv.x) / width.x,
+        min(quad_uv.y, 1.0 - quad_uv.y) / width.y,
     );
-    let diagonal = abs(in.diagonal) / max(fwidth(in.diagonal), 1e-6);
+    // Signed distance to the diagonal the quad splits along, which is the difference of the two
+    // parts of the corner coordinate and so needs nothing carried of its own.
+    let split = quad_uv.x - quad_uv.y;
+    let diagonal = abs(split) / max(fwidth(split), 1e-6);
     return min(border, diagonal);
 }
 
@@ -468,77 +472,106 @@ fn sprite_color(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2
     return mix(color, sample_atlas(array, uv, next, ddx, ddy), fract(elapsed));
 }
 
-fn shade_sample(in: VertexOut) -> vec4<f32> {
-    // Taken before the branch on whether the sprite animates, because a derivative is only defined
-    // where control flow is uniform and which sprite a fragment names is not. The coordinate they
-    // are taken from runs continuously across the whole quad, so they stay right even where the
-    // block under the fragment changes and the sprite jumps with it.
-    let ddx = dpdx(in.uv);
-    let ddy = dpdy(in.uv);
-
-    var layer = in.layer;
-    var array = in.array;
-    var tint_kind = in.tint_kind;
-    var shade = in.shade;
-    if (in.face_base != NO_FACES) {
-        // Which of the quad's blocks this fragment landed on, and where inside it. One unit is one
-        // block, so the whole part is the face and the fraction is the position on it. The clamp
-        // is for the far edge, where the coordinate reaches the span exactly.
-        let cell = min(vec2<u32>(max(in.uv, vec2<f32>(0.0))), in.face_span - vec2<u32>(1u));
-        let attr = faces[in.face_base + cell.y * in.face_span.x + cell.x];
-        layer = field(attr, FACE_LAYER_SHIFT, FACE_LAYER_BITS);
-        array = field(attr, FACE_ARRAY_SHIFT, FACE_ARRAY_BITS);
-        tint_kind = field(attr, FACE_TINT_SHIFT, FACE_TINT_BITS);
-        let block_light = f32(field(attr, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS));
-        let sky_light = f32(field(attr, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS));
-        let ao_bits = field(attr, FACE_AO_SHIFT, FACE_AO_BITS);
-        // Bilinear over the face's own four corners, in the order the mesher packed them: 0 and 3
-        // along the bottom edge, 1 and 2 along the top.
-        let f = in.uv - vec2<f32>(cell);
-        let ao = mix(
-            mix(ao_factor(ao_bits, 0u), ao_factor(ao_bits, 3u), f.x),
-            mix(ao_factor(ao_bits, 1u), ao_factor(ao_bits, 2u), f.x),
-            f.y,
-        );
-        shade = lightmap(block_light, sky_light) * (in.directional * ao);
-    }
-
-    let color = sprite_color(array, in.uv, layer, ddx, ddy);
+fn shade_surface(s: Surface, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
+    let color = sprite_color(s.array, s.uv, s.layer, ddx, ddy);
     // Both samples are unconditional: `tint_kind` varies between instances inside one draw, so a
     // branch around a `textureSample` would not be uniform control flow and WGSL rejects it.
     let tint_origin = vec2<f32>(f32(params.tint_origin_x), f32(params.tint_origin_z));
     let tint = textureSample(
         tints,
         tint_sampler,
-        (in.world_xz - tint_origin) / vec2<f32>(params.tint_span_x, params.tint_span_z),
-        max(tint_kind, 1u) - 1u,
+        (s.world_xz - tint_origin) / vec2<f32>(params.tint_span_x, params.tint_span_z),
+        max(s.tint_kind, 1u) - 1u,
     );
-    let factor = select(vec3<f32>(1.0), tint.rgb, tint_kind != 0u);
-    return vec4<f32>(color.rgb * factor * shade, color.a);
+    let factor = select(vec3<f32>(1.0), tint.rgb, s.tint_kind != 0u);
+    return vec4<f32>(color.rgb * factor * s.shade, color.a);
+}
+
+/// A greedy quad covers many blocks of many kinds, so what it looks like is read here rather than
+/// carried: one entry of the side buffer per block face, found from the corner coordinate.
+fn greedy_surface(in: GreedyOut) -> Surface {
+    // One unit to a block, which is both how the sprite tiles across the quad and how a fragment
+    // finds which of the quad's faces it landed on.
+    let uv = in.quad_uv * vec2<f32>(in.face_span);
+    // Which of the quad's blocks this fragment landed on, and where inside it. The whole part is
+    // the face and the fraction is the position on it. The clamp is for the far edge, where the
+    // coordinate reaches the span exactly.
+    let cell = min(vec2<u32>(max(uv, vec2<f32>(0.0))), in.face_span - vec2<u32>(1u));
+    let attr = faces[in.face_base + cell.y * in.face_span.x + cell.x];
+    let block_light = f32(field(attr, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS));
+    let sky_light = f32(field(attr, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS));
+    let ao_bits = field(attr, FACE_AO_SHIFT, FACE_AO_BITS);
+    // Bilinear over the face's own four corners, in the order the mesher packed them: 0 and 3
+    // along the bottom edge, 1 and 2 along the top.
+    let f = uv - vec2<f32>(cell);
+    let ao = mix(
+        mix(ao_factor(ao_bits, 0u), ao_factor(ao_bits, 3u), f.x),
+        mix(ao_factor(ao_bits, 1u), ao_factor(ao_bits, 2u), f.x),
+        f.y,
+    );
+
+    var s: Surface;
+    s.layer = field(attr, FACE_LAYER_SHIFT, FACE_LAYER_BITS);
+    s.array = field(attr, FACE_ARRAY_SHIFT, FACE_ARRAY_BITS);
+    s.tint_kind = field(attr, FACE_TINT_SHIFT, FACE_TINT_BITS);
+    s.shade = lightmap(block_light, sky_light) * (in.directional * ao);
+    s.uv = uv;
+    s.world_xz = in.world_xz;
+    return s;
+}
+
+fn model_surface(in: ModelOut) -> Surface {
+    var s: Surface;
+    s.layer = in.layer;
+    s.array = in.array;
+    s.tint_kind = in.tint_kind;
+    s.shade = in.shade;
+    s.uv = in.uv;
+    s.world_xz = in.world_xz;
+    return s;
 }
 
 /// Keeping only the outline leaves the quad's interior unwritten, so the depth buffer stays open
 /// there and the geometry behind shows through, all the way to the sky.
-fn wireframe_discards(in: VertexOut) -> bool {
+fn wireframe_discards(quad_uv: vec2<f32>) -> bool {
     // Taken before any `discard`: that demotes the invocation to a helper, and the neighbours a
     // derivative reads may be exactly the ones that were discarded.
-    return params.wireframe != 0u && edge_pixels(in) > 1.0;
+    return params.wireframe != 0u && edge_pixels(quad_uv) > 1.0;
 }
 
 @fragment
-fn fragment_opaque(in: VertexOut) -> @location(0) vec4<f32> {
-    let color = shade_sample(in);
-    let hidden = wireframe_discards(in);
-    if (color.a < 0.5 || hidden) {
+fn fragment_greedy_opaque(in: GreedyOut) -> @location(0) vec4<f32> {
+    let surface = greedy_surface(in);
+    let color = shade_surface(surface, dpdx(surface.uv), dpdy(surface.uv));
+    if (color.a < 0.5 || wireframe_discards(in.quad_uv)) {
         discard;
     }
     return vec4<f32>(color.rgb, 1.0);
 }
 
 @fragment
-fn fragment_blend(in: VertexOut) -> @location(0) vec4<f32> {
-    let color = shade_sample(in);
-    if (wireframe_discards(in)) {
+fn fragment_greedy_blend(in: GreedyOut) -> @location(0) vec4<f32> {
+    let surface = greedy_surface(in);
+    let color = shade_surface(surface, dpdx(surface.uv), dpdy(surface.uv));
+    if (wireframe_discards(in.quad_uv)) {
+        discard;
+    }
+    return color;
+}
+
+@fragment
+fn fragment_model_opaque(in: ModelOut) -> @location(0) vec4<f32> {
+    let color = shade_surface(model_surface(in), dpdx(in.uv), dpdy(in.uv));
+    if (color.a < 0.5 || wireframe_discards(in.quad_uv)) {
+        discard;
+    }
+    return vec4<f32>(color.rgb, 1.0);
+}
+
+@fragment
+fn fragment_model_blend(in: ModelOut) -> @location(0) vec4<f32> {
+    let color = shade_surface(model_surface(in), dpdx(in.uv), dpdy(in.uv));
+    if (wireframe_discards(in.quad_uv)) {
         discard;
     }
     return color;
