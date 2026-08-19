@@ -1524,6 +1524,7 @@ fn cull_terrain(
     pipeline_cache: Res<PipelineCache>,
     triangles: Res<DrawnTriangles>,
     queries: Option<Res<Queries>>,
+    timings: Res<GpuTimings>,
     streams: Res<Streams>,
     mut ctx: RenderContext,
 ) {
@@ -1565,7 +1566,7 @@ fn cull_terrain(
 
     let diagnostics = ctx.diagnostic_recorder();
     let diagnostics = diagnostics.as_deref();
-    let timestamps = queries.as_ref().map(|q| q.compute(probe::CULL));
+    let timestamps = queries.as_ref().map(|q| q.compute(probe::CULL, &timings));
     let mut pass = ctx
         .command_encoder()
         .begin_compute_pass(&ComputePassDescriptor {
@@ -1597,6 +1598,7 @@ fn draw_terrain(
     streams: Res<Streams>,
     pipeline_cache: Res<PipelineCache>,
     queries: Option<Res<Queries>>,
+    timings: Res<GpuTimings>,
     mut ctx: RenderContext,
 ) {
     let (Some(terrain), Some(view_bind_group)) = (terrain, view_bind_group) else {
@@ -1610,7 +1612,7 @@ fn draw_terrain(
     let depth_attachment = Some(depth.get_attachment(StoreOp::Store));
     let diagnostics = ctx.diagnostic_recorder();
     let diagnostics = diagnostics.as_deref();
-    let timestamps = queries.as_ref().map(|q| q.render(probe::TERRAIN));
+    let timestamps = queries.as_ref().map(|q| q.render(probe::TERRAIN, &timings));
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("terrain"),
         color_attachments: &color_attachments,

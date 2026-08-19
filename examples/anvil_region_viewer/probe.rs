@@ -5,7 +5,7 @@
 //! bevy's own diagnostics do, and every GPU figure it reports comes out zero. Asking for the same
 //! two samples through `timestamp_writes` on the pass descriptor is the one route Metal honours.
 
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
@@ -26,9 +26,16 @@ pub const SLOTS: usize = NAMES.len();
 /// the readout covers.
 const WINDOW: usize = 256;
 
-/// A pass that reads longer than this did not take that long: it is a slot the GPU left at the
-/// error value because the pass it belongs to was skipped that frame.
+/// A pass that reads longer than this did not take that long: it is a slot the GPU never wrote.
 const IMPLAUSIBLE_NS: u64 = 1_000_000_000;
+
+/// Frames the query set holds at once, so a resolve only ever reads one the GPU has long finished.
+///
+/// A render pass is not one thing on the GPU's timeline: on a tile-based one its opening sample is
+/// taken as the vertex stage starts and its closing sample as the fragment stage ends, with other
+/// work running in between. A resolve recorded either side of the pass therefore still lands in the
+/// middle of it, and the span reads backwards. Reading a frame two behind cannot.
+const RING: u32 = 3;
 
 const IDLE: u8 = 0;
 const COPIED: u8 = 1;
@@ -56,6 +63,16 @@ impl GpuTimings {
         Some(sorted[held / 2])
     }
 
+    /// First timestamp index of the ring entry this frame's passes write into.
+    fn writing(&self) -> u32 {
+        self.0.frame.load(Ordering::Relaxed) % RING * SLOTS as u32 * 2
+    }
+
+    /// The entry a resolve may read: the oldest, written `RING - 1` frames ago and long finished.
+    fn resolving(&self) -> u32 {
+        (self.0.frame.load(Ordering::Relaxed) + 1) % RING * SLOTS as u32 * 2
+    }
+
     fn push(&self, ms: [f32; SLOTS]) {
         let Ok(mut samples) = self.0.samples.lock() else {
             return;
@@ -70,6 +87,8 @@ impl GpuTimings {
 
 #[derive(Default)]
 struct Shared {
+    /// Which entry of the ring the passes write this frame.
+    frame: AtomicU32,
     samples: Mutex<Samples>,
     /// A resolve is recorded only once the previous result has landed, so the staging buffer is
     /// never both mapped and the destination of a copy, which the backend rejects.
@@ -102,20 +121,22 @@ pub struct Queries {
 
 impl Queries {
     /// Where a render pass writes the two samples that bracket it.
-    pub fn render(&self, slot: usize) -> RenderPassTimestampWrites<'_> {
+    pub fn render(&self, slot: usize, timings: &GpuTimings) -> RenderPassTimestampWrites<'_> {
+        let first = timings.writing() + slot as u32 * 2;
         RenderPassTimestampWrites {
             query_set: &self.set,
-            beginning_of_pass_write_index: Some(slot as u32 * 2),
-            end_of_pass_write_index: Some(slot as u32 * 2 + 1),
+            beginning_of_pass_write_index: Some(first),
+            end_of_pass_write_index: Some(first + 1),
         }
     }
 
     /// The same for a compute pass, which wgpu keeps as its own type.
-    pub fn compute(&self, slot: usize) -> ComputePassTimestampWrites<'_> {
+    pub fn compute(&self, slot: usize, timings: &GpuTimings) -> ComputePassTimestampWrites<'_> {
+        let first = timings.writing() + slot as u32 * 2;
         ComputePassTimestampWrites {
             query_set: &self.set,
-            beginning_of_pass_write_index: Some(slot as u32 * 2),
-            end_of_pass_write_index: Some(slot as u32 * 2 + 1),
+            beginning_of_pass_write_index: Some(first),
+            end_of_pass_write_index: Some(first + 1),
         }
     }
 }
@@ -142,7 +163,7 @@ pub fn init(mut commands: Commands, device: Res<RenderDevice>, queue: Res<Render
     let set = device.wgpu_device().create_query_set(&QuerySetDescriptor {
         label: Some("pass timings"),
         ty: QueryType::Timestamp,
-        count: (SLOTS * 2) as u32,
+        count: SLOTS as u32 * 2 * RING,
     });
     let resolve = device.create_buffer(&BufferDescriptor {
         label: Some("pass timings resolve"),
@@ -170,6 +191,9 @@ pub fn resolve(queries: Option<Res<Queries>>, timings: Res<GpuTimings>, mut ctx:
     let Some(queries) = queries else {
         return;
     };
+    // Advanced whether or not a result is carried off this frame, so that what the passes write
+    // and what a later resolve reads stay the agreed number of frames apart.
+    timings.0.frame.fetch_add(1, Ordering::Relaxed);
     if timings
         .0
         .state
@@ -178,8 +202,14 @@ pub fn resolve(queries: Option<Res<Queries>>, timings: Res<GpuTimings>, mut ctx:
     {
         return;
     }
+    let first = timings.resolving();
     let encoder = ctx.command_encoder();
-    encoder.resolve_query_set(&queries.set, 0..(SLOTS * 2) as u32, &queries.resolve, 0);
+    encoder.resolve_query_set(
+        &queries.set,
+        first..first + SLOTS as u32 * 2,
+        &queries.resolve,
+        0,
+    );
     encoder.copy_buffer_to_buffer(&queries.resolve, 0, &queries.readback, 0, RESOLVE_BYTES);
 }
 
@@ -206,9 +236,11 @@ pub fn read(queries: Option<Res<Queries>>, timings: Res<GpuTimings>) {
         if result.is_ok() {
             let view = buffer.slice(..).get_mapped_range();
             let ticks: &[u64] = bytemuck::cast_slice(&view[..(SLOTS * 2) as usize * TIMESTAMP_BYTES as usize]);
-            timings.push(std::array::from_fn(|slot| {
-                elapsed_ms(ticks[slot * 2], ticks[slot * 2 + 1], period)
-            }));
+            let ms: [Option<f32>; SLOTS] =
+                std::array::from_fn(|slot| elapsed_ms(ticks[slot * 2], ticks[slot * 2 + 1], period));
+            if let Some(ms) = ms.iter().copied().collect::<Option<Vec<_>>>() {
+                timings.push(std::array::from_fn(|slot| ms[slot]));
+            }
             drop(view);
             buffer.unmap();
         }
@@ -217,14 +249,14 @@ pub fn read(queries: Option<Res<Queries>>, timings: Res<GpuTimings>) {
 }
 
 /// A pass that did not run leaves its two slots at whatever they last held, or at the error value
-/// the backend fills them with, so a span that runs backwards or absurdly long reads as no time at
-/// all rather than as a figure someone might believe.
-fn elapsed_ms(begin: u64, end: u64, period_ns: f32) -> f32 {
+/// the backend fills them with. A span that runs backwards or absurdly long is one of those and
+/// has no answer, which is not the same as an answer of no time.
+fn elapsed_ms(begin: u64, end: u64, period_ns: f32) -> Option<f32> {
     let ticks = end.saturating_sub(begin);
     if end <= begin || (ticks as f64 * period_ns as f64) > IMPLAUSIBLE_NS as f64 {
-        return 0.0;
+        return None;
     }
-    (ticks as f64 * period_ns as f64 / 1e6) as f32
+    Some((ticks as f64 * period_ns as f64 / 1e6) as f32)
 }
 
 #[cfg(test)]
@@ -233,14 +265,29 @@ mod tests {
 
     #[test]
     fn a_span_is_the_ticks_between_its_ends_in_milliseconds() {
-        assert_eq!(elapsed_ms(1_000, 2_500_000, 1.0), 2.499);
+        assert_eq!(elapsed_ms(1_000, 2_500_000, 1.0), Some(2.499));
     }
 
     #[test]
-    fn a_slot_the_gpu_never_wrote_reads_as_no_time() {
-        assert_eq!(elapsed_ms(u64::MAX, u64::MAX, 1.0), 0.0);
-        assert_eq!(elapsed_ms(500, 100, 1.0), 0.0);
-        assert_eq!(elapsed_ms(0, u64::MAX, 1.0), 0.0);
+    fn a_slot_the_gpu_never_wrote_has_no_answer() {
+        assert_eq!(elapsed_ms(u64::MAX, u64::MAX, 1.0), None);
+        assert_eq!(elapsed_ms(500, 100, 1.0), None);
+        assert_eq!(elapsed_ms(0, u64::MAX, 1.0), None);
+    }
+
+    #[test]
+    fn the_ring_keeps_what_is_written_and_what_is_read_apart() {
+        let timings = GpuTimings::default();
+        let mut seen = Vec::new();
+        for _ in 0..RING * 2 {
+            seen.push((timings.writing(), timings.resolving()));
+            timings.0.frame.fetch_add(1, Ordering::Relaxed);
+        }
+        let stride = SLOTS as u32 * 2;
+        for (writing, resolving) in seen {
+            assert_ne!(writing, resolving, "a frame must not read the entry it writes");
+            assert!(writing < stride * RING && resolving < stride * RING);
+        }
     }
 
     #[test]
