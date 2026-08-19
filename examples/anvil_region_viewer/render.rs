@@ -1,8 +1,9 @@
 //! The GPU side: one static arena, a compute culling pass, and one indirect draw per stream.
 //!
 //! Nothing about the region changes after load, so every buffer is filled once in `RenderStartup`
-//! and never touched again. Per frame the only writes are a 24-byte clear of the draw counters and
-//! two bind-group rebuilds; no allocation, no upload, no per-section entity, no `Handle<Mesh>`.
+//! and never touched again. Per frame the only writes are a 24-byte clear of the draw counters, the
+//! small uniform the state of the sky is carried in, and two bind-group rebuilds; no allocation, no
+//! upload, no per-section entity, no `Handle<Mesh>`.
 
 use std::num::NonZeroU64;
 use std::sync::Arc;
@@ -26,7 +27,7 @@ use bevy::render::view::{
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
 use crate::mesh::{Draw, Group};
-use crate::pack::{MAX_SPRITE_ARRAYS, MODEL_OVERHANG};
+use crate::pack::{MAX_SPRITE_ARRAYS, MODEL_OVERHANG, QUAD_WORDS};
 
 /// Dynamic uniform offsets must be a multiple of the device's alignment; 256 satisfies every
 /// backend we can land on.
@@ -47,9 +48,73 @@ const INSTANCE_COUNT_OFFSET: u64 = 4;
 const TINT_SIZE: u32 = 512;
 const TINT_LAYERS: u32 = 3;
 
+/// Vanilla's own additive blend for the sun, the moon and the stars: what is drawn is added to the
+/// sky behind it rather than covering it, which is what makes the black square a sprite is painted
+/// on disappear.
+const ADDITIVE: BlendState = BlendState {
+    color: BlendComponent {
+        src_factor: BlendFactor::SrcAlpha,
+        dst_factor: BlendFactor::One,
+        operation: BlendOperation::Add,
+    },
+    alpha: BlendComponent {
+        src_factor: BlendFactor::One,
+        dst_factor: BlendFactor::Zero,
+        operation: BlendOperation::Add,
+    },
+};
+
+/// The sky, in the order `LevelRenderer` draws it: the disc, the twilight band, the two celestial
+/// bodies, then the stars over the top of them. Each is one draw of vertices the shader derives
+/// from their own indices, so none of them has a buffer behind it.
+struct SkyDraw {
+    label: &'static str,
+    vertex: &'static str,
+    fragment: &'static str,
+    blend: Option<BlendState>,
+    vertices: u32,
+}
+
+const SKY_DRAWS: [SkyDraw; 4] = [
+    SkyDraw {
+        label: "sky disc",
+        vertex: "vertex_disc",
+        fragment: "fragment_disc",
+        blend: None,
+        // The disc above the horizon and the dark one below it, eight triangles each.
+        vertices: 48,
+    },
+    SkyDraw {
+        label: "sky twilight",
+        vertex: "vertex_sunrise",
+        fragment: "fragment_flat",
+        blend: Some(BlendState::ALPHA_BLENDING),
+        // A sixteen step fan.
+        vertices: 48,
+    },
+    SkyDraw {
+        label: "sky celestial",
+        vertex: "vertex_celestial",
+        fragment: "fragment_celestial",
+        blend: Some(ADDITIVE),
+        vertices: 12,
+    },
+    SkyDraw {
+        label: "sky stars",
+        vertex: "vertex_stars",
+        fragment: "fragment_flat",
+        blend: Some(ADDITIVE),
+        vertices: STAR_COUNT * 6,
+    },
+];
+
+/// How many stars vanilla tries to place. The shader rejects the same share of them as vanilla
+/// does, so rather fewer than this actually reach the screen.
+const STAR_COUNT: u32 = 1500;
+
 /// Everything the renderer needs, built on the main thread before the app starts.
 pub struct Geometry {
-    pub simple: Vec<u64>,
+    pub simple: Vec<[u32; QUAD_WORDS]>,
     pub complex: Vec<u32>,
     pub groups: Vec<Group>,
     /// One `draw_indirect` each, in draw order.
@@ -62,6 +127,8 @@ pub struct Geometry {
     pub animations: Vec<Animation>,
     /// The lowest layer number that names an animation rather than a layer of an array.
     pub animated_from: u32,
+    /// The sun and the eight moon phases, one square layer each, in that order.
+    pub celestials: Atlas,
     /// `TINT_LAYERS` layers of `TINT_SIZE`², RGBA8, indexed by world x and z.
     pub tint_map: Vec<u8>,
 }
@@ -121,6 +188,32 @@ struct Params {
     reserved1: u32,
 }
 
+/// The state of the sky the terrain is lit by, as `terrain.wgsl` reads it. One uniform for the
+/// whole frame rather than a light texture: there are three terms, and evaluating them in the
+/// shader costs neither an upload nor a sample.
+#[derive(Resource, Clone, Copy, ExtractResource, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct Sky {
+    /// `rgb` the colour sky light arrives in, `a` how much of it the time of day lets through.
+    pub sky_light: [f32; 4],
+    /// `rgb` the tint of a torch at its dimmest, `a` the factor block light is scaled by.
+    pub block_light: [f32; 4],
+    /// The floor under both, which is what keeps a sealed cave from being pure black.
+    pub ambient: [f32; 4],
+    /// `rgb` the colour of the sky disc, `a` set when the camera has dropped below the horizon and
+    /// the dark disc under it has to be drawn.
+    pub disc: [f32; 4],
+    /// The twilight band: `rgb` its colour, `a` how far it has come in.
+    pub sunrise: [f32; 4],
+    /// Sun, moon and star angles in radians, and how bright the stars are.
+    pub angles: [f32; 4],
+    /// Which layer of the celestial array the moon shows, and how much rain dims the two discs.
+    pub moon: [f32; 4],
+    /// `rgb` the haze the world fades into, which is also what the frame is cleared to, and `a`
+    /// how far from the camera the sky has faded entirely into it.
+    pub fog: [f32; 4],
+}
+
 /// Draws only the edges of every triangle, in the colour that face's own texture has there, and
 /// leaves the interiors unpainted so the geometry behind stays visible.
 #[derive(Resource, Clone, Copy, Default, ExtractResource)]
@@ -158,10 +251,13 @@ impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
         bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "cull.wgsl");
         bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "terrain.wgsl");
+        bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "sky.wgsl");
 
         let triangles = DrawnTriangles::default();
         app.init_resource::<Wireframe>()
+            .init_resource::<Sky>()
             .add_plugins(ExtractResourcePlugin::<Wireframe>::default())
+            .add_plugins(ExtractResourcePlugin::<Sky>::default())
             .insert_resource(triangles.clone());
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
@@ -177,6 +273,7 @@ impl Plugin for TerrainPlugin {
                 (
                     prepare_pipelines.in_set(RenderSystems::Prepare),
                     prepare_wireframe.in_set(RenderSystems::Prepare),
+                    prepare_sky.in_set(RenderSystems::Prepare),
                     prepare_view_bind_group.in_set(RenderSystems::PrepareBindGroups),
                     read_draw_args.in_set(RenderSystems::Cleanup),
                 ),
@@ -196,16 +293,22 @@ struct Terrain {
     args: Buffer,
     args_readback: Buffer,
     params: Buffer,
+    sky: Buffer,
     cave: Buffer,
     view_layout: BindGroupLayoutDescriptor,
     cull_bind_group: BindGroup,
     draw_bind_group: BindGroup,
     cull_pipeline: CachedComputePipelineId,
     draw_layout: BindGroupLayoutDescriptor,
+    sky_layout: BindGroupLayoutDescriptor,
+    sky_bind_group: BindGroup,
     terrain_shader: Handle<Shader>,
+    sky_shader: Handle<Shader>,
     /// `[simple opaque, complex opaque, simple blended, complex blended]`, queued once the first
     /// view reveals the colour format the pipelines have to match.
     pipelines: Option<[CachedRenderPipelineId; 4]>,
+    /// The sky's own four, in the order vanilla draws them.
+    sky_pipelines: Option<[CachedRenderPipelineId; SKY_DRAWS.len()]>,
     /// One entry per `draw_indirect`, in draw order.
     draws: Vec<Draw>,
     /// Workgroups to dispatch per draw, one per culling group.
@@ -320,6 +423,12 @@ fn init_terrain(
             | BufferUsages::COPY_DST
             | BufferUsages::COPY_SRC,
     });
+    let sky = device.create_buffer(&BufferDescriptor {
+        label: Some("terrain sky"),
+        size: size_of::<Sky>() as u64,
+        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
     let args_readback = device.create_buffer(&BufferDescriptor {
         label: Some("terrain draw args readback"),
         size: size_of_val(args_init.as_slice()) as u64,
@@ -328,6 +437,15 @@ fn init_terrain(
     });
 
     let (atlases, atlas_sampler) = upload_atlases(&geometry, &device, &queue);
+    let celestials = upload_atlas(&geometry.celestials, "celestials", &device, &queue);
+    // Nearest, and one mip only: a thirty-two pixel sun blown across the sky has to keep its edges
+    // rather than smear into a blur, and there is no distance here for a mip chain to serve.
+    let celestial_sampler = device.create_sampler(&SamplerDescriptor {
+        label: Some("celestials"),
+        mag_filter: FilterMode::Nearest,
+        min_filter: FilterMode::Nearest,
+        ..default()
+    });
     let (tints, tint_sampler) = upload_tints(&geometry, &device, &queue);
 
     let view_layout = BindGroupLayoutDescriptor::new(
@@ -338,6 +456,7 @@ fn init_terrain(
                 uniform_buffer_sized(true, Some(ViewUniform::min_size())),
                 uniform_buffer_sized(true, NonZeroU64::new(PARAMS_SIZE)),
                 uniform_buffer::<GlobalsUniform>(false),
+                uniform_buffer_sized(false, NonZeroU64::new(size_of::<Sky>() as u64)),
             ),
         ),
     );
@@ -377,9 +496,21 @@ fn init_terrain(
         ),
     );
 
+    let sky_layout = BindGroupLayoutDescriptor::new(
+        "sky data",
+        &BindGroupLayoutEntries::sequential(
+            ShaderStages::FRAGMENT,
+            (
+                texture_2d_array(TextureSampleType::Float { filterable: true }),
+                sampler(SamplerBindingType::Filtering),
+            ),
+        ),
+    );
+
     let cull_shader = asset_server.load("embedded://anvil_region_viewer/cull.wgsl");
     let terrain_shader: Handle<Shader> =
         asset_server.load("embedded://anvil_region_viewer/terrain.wgsl");
+    let sky_shader: Handle<Shader> = asset_server.load("embedded://anvil_region_viewer/sky.wgsl");
 
     let cull_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
         label: Some("terrain cull".into()),
@@ -417,18 +548,29 @@ fn init_terrain(
         )),
     );
 
+    let sky_bind_group = device.create_bind_group(
+        "sky",
+        &pipeline_cache.get_bind_group_layout(&sky_layout),
+        &BindGroupEntries::sequential((&celestials, &celestial_sampler)),
+    );
+
     commands.insert_resource(Terrain {
         args,
         args_readback,
         params,
+        sky,
         cave,
         view_layout,
         cull_bind_group,
         draw_bind_group,
         cull_pipeline,
         draw_layout,
+        sky_layout,
+        sky_bind_group,
         terrain_shader,
+        sky_shader,
         pipelines: None,
+        sky_pipelines: None,
         draws: geometry.draws.clone(),
         group_counts,
     });
@@ -457,7 +599,7 @@ fn upload_atlases(
                 atlas.size,
                 atlas.size,
             );
-            upload_atlas(atlas, index, device, queue)
+            upload_atlas(atlas, &format!("terrain atlas {index}"), device, queue)
         })
         .collect();
     (views, atlas_sampler(device))
@@ -465,12 +607,12 @@ fn upload_atlases(
 
 fn upload_atlas(
     atlas: &Atlas,
-    index: usize,
+    label: &str,
     device: &RenderDevice,
     queue: &RenderQueue,
 ) -> TextureView {
     let texture = device.create_texture(&TextureDescriptor {
-        label: Some(&format!("terrain atlas {index}")),
+        label: Some(label),
         size: Extent3d {
             width: atlas.size,
             height: atlas.size,
@@ -644,6 +786,15 @@ fn prepare_wireframe(
     }
 }
 
+/// The sky is one small uniform for the whole frame, so it is pushed whole rather than by field
+/// the way the params table is.
+fn prepare_sky(sky: Res<Sky>, terrain: Option<Res<Terrain>>, queue: Res<RenderQueue>) {
+    let Some(terrain) = terrain else {
+        return;
+    };
+    queue.write_buffer(&terrain.sky, 0, bytemuck::bytes_of(&*sky));
+}
+
 /// The flood fill runs in `PostUpdate` against this frame's frustum, so the bitset the compute pass
 /// reads describes exactly the view it is culling for. Written straight from the main world rather
 /// than through an `ExtractResourcePlugin`, which would clone these 4 KiB every frame.
@@ -744,6 +895,52 @@ fn prepare_pipelines(
         });
     }
     terrain.pipelines = Some(pipelines);
+
+    let mut sky = [CachedRenderPipelineId::INVALID; SKY_DRAWS.len()];
+    for (index, draw) in SKY_DRAWS.iter().enumerate() {
+        sky[index] = pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
+            label: Some(draw.label.into()),
+            layout: vec![terrain.view_layout.clone(), terrain.sky_layout.clone()],
+            vertex: VertexState {
+                shader: terrain.sky_shader.clone(),
+                entry_point: Some(draw.vertex.into()),
+                ..default()
+            },
+            fragment: Some(FragmentState {
+                shader: terrain.sky_shader.clone(),
+                entry_point: Some(draw.fragment.into()),
+                targets: vec![Some(ColorTargetState {
+                    format: view.target_format,
+                    blend: draw.blend,
+                    write_mask: ColorWrites::ALL,
+                })],
+                ..default()
+            }),
+            primitive: PrimitiveState {
+                topology: PrimitiveTopology::TriangleList,
+                front_face: FrontFace::Ccw,
+                // A disc drawn round the camera and a star turned to face it are seen from
+                // whichever side they end up on, so neither may be culled by its winding.
+                cull_mode: None,
+                ..default()
+            },
+            // The sky is the backdrop: it reads nothing from the depth buffer and leaves nothing
+            // in it, so the terrain drawn afterwards covers whatever it stands in front of.
+            depth_stencil: Some(DepthStencilState {
+                format: CORE_3D_DEPTH_FORMAT,
+                depth_write_enabled: Some(false),
+                depth_compare: Some(CompareFunction::Always),
+                stencil: default(),
+                bias: default(),
+            }),
+            multisample: MultisampleState {
+                count: 1,
+                ..default()
+            },
+            ..default()
+        });
+    }
+    terrain.sky_pipelines = Some(sky);
 }
 
 fn prepare_view_bind_group(
@@ -774,6 +971,7 @@ fn prepare_view_bind_group(
                 size: NonZeroU64::new(PARAMS_SIZE),
             },
             globals_binding,
+            terrain.sky.as_entire_buffer_binding(),
         )),
     )));
 }
@@ -874,6 +1072,21 @@ fn draw_terrain(
         multiview_mask: None,
     });
     let span = diagnostics.pass_span(&mut pass, "terrain_draw");
+
+    // The sky first, in vanilla's order, so the terrain covers whatever stands in front of it. The
+    // params slot is bound to the first draw's entry and never read: the sky takes nothing from it.
+    if let Some(sky) = terrain.sky_pipelines {
+        pass.set_bind_group(1, &terrain.sky_bind_group, &[]);
+        for (index, draw) in SKY_DRAWS.iter().enumerate() {
+            let Some(pipeline) = pipeline_cache.get_render_pipeline(sky[index]) else {
+                continue;
+            };
+            pass.set_render_pipeline(pipeline);
+            pass.set_bind_group(0, &view_bind_group.0, &[view_offset.offset, 0]);
+            pass.draw(0..draw.vertices, 0..1);
+        }
+    }
+
     pass.set_bind_group(1, &terrain.draw_bind_group, &[]);
 
     for (index, draw) in terrain.draws.iter().enumerate() {

@@ -6,13 +6,15 @@
 //! ```
 //!
 //! Drag with the left mouse button to orbit, scroll to zoom, hold shift while dragging to pan.
+//! Hold + or - to run the clock: the sky, the sun, the moon, the stars and the light on the terrain
+//! all follow it, and the sky itself is drawn procedurally in the same pass the terrain is.
 //! Press C to toggle cave culling, F10 to draw every triangle's edges in a colour derived from its
 //! texture, F11 for borderless fullscreen, which is the only way to read a real frame rate on macOS,
 //! and F12 to save a PNG.
 //!
 //! The region is static, so the whole pipeline is built around loading once and never touching the
 //! geometry again: blocks are baked per distinct block state rather than per block, full cubes are
-//! greedy-merged into eight-byte quads, and every frame the GPU alone decides what to draw. There
+//! greedy-merged into twelve-byte quads, and every frame the GPU alone decides what to draw. There
 //! is no `Mesh` asset, no entity per section, and one indirect draw call per pass.
 
 // Shared verbatim with the block viewer rather than copied: the model resolver and the face bakery
@@ -31,6 +33,7 @@ mod cave;
 mod mesh;
 mod pack;
 mod render;
+mod sky;
 
 use std::fmt::Write as _;
 use std::sync::Arc;
@@ -117,8 +120,7 @@ fn main() {
                 ..default()
             },
         ))
-        .add_plugins(TerrainPlugin(geometry))
-        .insert_resource(ClearColor(Color::srgb(0.55, 0.70, 0.94)))
+        .add_plugins((TerrainPlugin(geometry), sky::DayCyclePlugin))
         .insert_resource(cave)
         .add_systems(Startup, (spawn_camera, spawn_overlay))
         .add_systems(Update, orbit)
@@ -210,7 +212,7 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
 
     // A zero-length storage buffer is not a legal binding, so every arena keeps at least one entry.
     if region_mesh.simple.is_empty() {
-        region_mesh.simple.push(0);
+        region_mesh.simple.push([0; pack::QUAD_WORDS]);
     }
     if region_mesh.complex.is_empty() {
         region_mesh.complex.resize(3, 0);
@@ -253,6 +255,7 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
                 })
                 .collect(),
             animated_from: sprites.animated_from(),
+            celestials: sky::celestials()?,
             tint_map: blocks::tint_map(&region, &catalog.tints),
         },
         cave,
@@ -301,6 +304,7 @@ fn frame_stats(
     mut stats: ResMut<FrameStats>,
     triangles: Res<DrawnTriangles>,
     cave: Res<cave::CaveCull>,
+    day: Res<sky::TimeOfDay>,
     overlay: Single<&mut Text>,
     // The frame rate is meaningless without the pixel count behind it: this window opens on
     // whichever display is current, and the two here differ enough to change the number outright.
@@ -346,6 +350,8 @@ fn frame_stats(
     } else {
         overlay.0.push_str("   cave off");
     }
+    let (hour, minute) = day.clock();
+    let _ = write!(overlay.0, "   {hour:02}:{minute:02}");
     // The `ANVIL_SCREENSHOT` shot is taken on frame 30, and the overlay is first written only after
     // a second of accumulated time, so it is blank in the PNG. The numbers do reach stdout.
     info!("{}", overlay.0);

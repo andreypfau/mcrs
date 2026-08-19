@@ -2,7 +2,7 @@
 //
 // Each instance is one quad. `instance_index` reads the compacted list the culling pass produced,
 // which yields an index into the geometry arena; `vertex_index % 6` picks the corner. Greedy quads
-// unpack from eight bytes, baked model quads from four twelve-byte vertices.
+// unpack from twelve bytes, baked model quads from four twelve-byte vertices.
 
 #import bevy_render::view::View
 #import bevy_render::globals::Globals
@@ -14,9 +14,9 @@ fn field(word: u32, shift: u32, bits: u32) -> u32 {
 }
 
 /// Which word a field lives in is part of the layout, so it is read from the layout rather than
-/// chosen at the call site.
-fn quad_field(quad: vec2<u32>, word: u32, shift: u32, bits: u32) -> u32 {
-    return field(select(quad.x, quad.y, word == 1u), shift, bits);
+/// chosen at the call site. `base` is where the quad starts in the arena.
+fn quad_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {
+    return field(quads[base + word], shift, bits);
 }
 
 
@@ -50,12 +50,17 @@ const QUAD_W_BITS: u32 = 4u;
 const QUAD_H_WORD: u32 = 0u;
 const QUAD_H_SHIFT: u32 = 22u;
 const QUAD_H_BITS: u32 = 4u;
-const QUAD_LIGHT_WORD: u32 = 0u;
-const QUAD_LIGHT_SHIFT: u32 = 26u;
-const QUAD_LIGHT_BITS: u32 = 4u;
+const QUAD_BLOCK_LIGHT_WORD: u32 = 0u;
+const QUAD_BLOCK_LIGHT_SHIFT: u32 = 26u;
+const QUAD_BLOCK_LIGHT_BITS: u32 = 4u;
 const QUAD_TINT_WORD: u32 = 0u;
 const QUAD_TINT_SHIFT: u32 = 30u;
 const QUAD_TINT_BITS: u32 = 2u;
+const QUAD_SKY_LIGHT_WORD: u32 = 2u;
+const QUAD_SKY_LIGHT_SHIFT: u32 = 0u;
+const QUAD_SKY_LIGHT_BITS: u32 = 4u;
+/// How many words one greedy quad occupies.
+const QUAD_WORDS: u32 = 3u;
 
 const QUAD_AO_WORD: u32 = 1u;
 const QUAD_AO_SHIFT: u32 = 0u;
@@ -92,12 +97,15 @@ const MODEL_V_BITS: u32 = 10u;
 const MODEL_TINT_WORD: u32 = 1u;
 const MODEL_TINT_SHIFT: u32 = 20u;
 const MODEL_TINT_BITS: u32 = 2u;
-const MODEL_LIGHT_WORD: u32 = 1u;
-const MODEL_LIGHT_SHIFT: u32 = 22u;
-const MODEL_LIGHT_BITS: u32 = 4u;
+const MODEL_BLOCK_LIGHT_WORD: u32 = 1u;
+const MODEL_BLOCK_LIGHT_SHIFT: u32 = 22u;
+const MODEL_BLOCK_LIGHT_BITS: u32 = 4u;
 const MODEL_SHADE_WORD: u32 = 1u;
 const MODEL_SHADE_SHIFT: u32 = 26u;
 const MODEL_SHADE_BITS: u32 = 2u;
+const MODEL_SKY_LIGHT_WORD: u32 = 1u;
+const MODEL_SKY_LIGHT_SHIFT: u32 = 28u;
+const MODEL_SKY_LIGHT_BITS: u32 = 4u;
 
 const MODEL_SECTION_WORD: u32 = 2u;
 const MODEL_SECTION_SHIFT: u32 = 0u;
@@ -132,9 +140,22 @@ struct Params {
     pad1: u32,
 }
 
+/// The state of the sky the whole frame is lit by. Vanilla builds a sixteen by sixteen lightmap
+/// texture out of these once a frame and samples it per vertex; there are few enough terms to
+/// evaluate them where the sample would have been, which costs no texture and no upload.
+struct Sky {
+    /// `rgb` the colour sky light arrives in, `a` how much of it the time of day lets through.
+    sky_light: vec4<f32>,
+    /// `rgb` the tint of a torch at its dimmest, `a` the factor block light is scaled by.
+    block_light: vec4<f32>,
+    /// The floor under both, which is what keeps a sealed cave from being pure black.
+    ambient: vec4<f32>,
+};
+
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(1) var<uniform> params: Params;
 @group(0) @binding(2) var<uniform> globals: Globals;
+@group(0) @binding(3) var<uniform> sky: Sky;
 
 fn model_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {
     return field(vertices[base + word], shift, bits);
@@ -153,7 +174,7 @@ fn section_origin(section: u32) -> vec3<f32> {
     return region + local * SECTION_SIZE;
 }
 
-@group(1) @binding(0) var<storage, read> quads: array<vec2<u32>>;
+@group(1) @binding(0) var<storage, read> quads: array<u32>;
 @group(1) @binding(1) var<storage, read> vertices: array<u32>;
 @group(1) @binding(2) var<storage, read> visible: array<u32>;
 // One binding per sprite resolution rather than one atlas for everything: every layer of an array
@@ -186,7 +207,7 @@ struct VertexOut {
     @location(0) uv: vec2<f32>,
     @location(1) @interpolate(flat) layer: u32,
     @location(7) @interpolate(flat) array: u32,
-    @location(2) shade: f32,
+    @location(2) shade: vec3<f32>,
     @location(3) world_xz: vec2<f32>,
     @location(4) @interpolate(flat) tint_kind: u32,
     /// Corner position within the quad, so the fragment can find the quad's own edges. Greedy
@@ -259,10 +280,25 @@ fn face_shade(face: u32) -> f32 {
     }
 }
 
-/// Vanilla's light curve at full daylight, with the small ambient floor the client also applies.
+/// Vanilla's light curve: how bright one light level reads, before any colour is applied.
 fn light_curve(level: f32) -> f32 {
     let f = level / 15.0;
-    return mix(0.05, 1.0, f / (4.0 - 3.0 * f));
+    return f / (4.0 - 3.0 * f);
+}
+
+/// What `lightmap.fsh` writes into the light texture, evaluated for one pair of light levels.
+/// Sky light and block light are summed rather than maxed, and only the sky half is scaled by the
+/// time of day — which is the whole of why a torch stays lit through the night.
+fn lightmap(block_level: f32, sky_level: f32) -> vec3<f32> {
+    var color = sky.ambient.rgb;
+    color += sky.sky_light.rgb * light_curve(sky_level) * sky.sky_light.a;
+    // Block light warms as it dims: the tint is strongest in the middle of the range and washes
+    // out to white at either end.
+    let f = block_level / 15.0;
+    let parabolic = (2.0 * f - 1.0) * (2.0 * f - 1.0);
+    let tint = mix(sky.block_light.rgb, vec3<f32>(1.0), 0.9 * parabolic);
+    color += tint * light_curve(block_level) * sky.block_light.a;
+    return clamp(color, vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
 /// Ambient occlusion samples average four neighbours that are each 0.2 when solid and 1.0 when
@@ -276,7 +312,7 @@ fn vertex_simple(
     @builtin(vertex_index) vertex: u32,
     @builtin(instance_index) instance: u32,
 ) -> VertexOut {
-    let quad = quads[visible[params.visible_base + instance]];
+    let quad = visible[params.visible_base + instance] * QUAD_WORDS;
 
     let anchor = section_origin(quad_field(quad, QUAD_SECTION_WORD, QUAD_SECTION_SHIFT, QUAD_SECTION_BITS))
         + vec3<f32>(
@@ -290,7 +326,8 @@ fn vertex_simple(
         f32(quad_field(quad, QUAD_H_WORD, QUAD_H_SHIFT, QUAD_H_BITS) + 1u),
     );
     let ao_bits = quad_field(quad, QUAD_AO_WORD, QUAD_AO_SHIFT, QUAD_AO_BITS);
-    let light = f32(quad_field(quad, QUAD_LIGHT_WORD, QUAD_LIGHT_SHIFT, QUAD_LIGHT_BITS));
+    let block_light = f32(quad_field(quad, QUAD_BLOCK_LIGHT_WORD, QUAD_BLOCK_LIGHT_SHIFT, QUAD_BLOCK_LIGHT_BITS));
+    let sky_light = f32(quad_field(quad, QUAD_SKY_LIGHT_WORD, QUAD_SKY_LIGHT_SHIFT, QUAD_SKY_LIGHT_BITS));
     let flip = quad_field(quad, QUAD_FLIP_WORD, QUAD_FLIP_SHIFT, QUAD_FLIP_BITS) == 1u;
 
     let corner = corner_index(vertex, flip);
@@ -303,7 +340,7 @@ fn vertex_simple(
     out.uv = c;
     out.layer = quad_field(quad, QUAD_LAYER_WORD, QUAD_LAYER_SHIFT, QUAD_LAYER_BITS);
     out.array = quad_field(quad, QUAD_ARRAY_WORD, QUAD_ARRAY_SHIFT, QUAD_ARRAY_BITS);
-    out.shade = face_shade(face) * light_curve(light) * ao_factor(ao_bits, corner);
+    out.shade = lightmap(block_light, sky_light) * (face_shade(face) * ao_factor(ao_bits, corner));
     out.world_xz = world.xz;
     out.tint_kind = quad_field(quad, QUAD_TINT_WORD, QUAD_TINT_SHIFT, QUAD_TINT_BITS);
     out.quad_uv = quad_uv;
@@ -334,7 +371,8 @@ fn vertex_complex(
     let uv_scale = f32((1u << MODEL_U_BITS) - 1u);
     let u = f32(model_field(base, MODEL_U_WORD, MODEL_U_SHIFT, MODEL_U_BITS)) / uv_scale;
     let v = f32(model_field(base, MODEL_V_WORD, MODEL_V_SHIFT, MODEL_V_BITS)) / uv_scale;
-    let light = f32(model_field(base, MODEL_LIGHT_WORD, MODEL_LIGHT_SHIFT, MODEL_LIGHT_BITS));
+    let block_light = f32(model_field(base, MODEL_BLOCK_LIGHT_WORD, MODEL_BLOCK_LIGHT_SHIFT, MODEL_BLOCK_LIGHT_BITS));
+    let sky_light = f32(model_field(base, MODEL_SKY_LIGHT_WORD, MODEL_SKY_LIGHT_SHIFT, MODEL_SKY_LIGHT_BITS));
     let shade_bucket = model_field(base, MODEL_SHADE_WORD, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS);
     var shade = 1.0;
     switch shade_bucket {
@@ -349,7 +387,7 @@ fn vertex_complex(
     out.uv = vec2<f32>(u, v);
     out.layer = model_field(base, MODEL_LAYER_WORD, MODEL_LAYER_SHIFT, MODEL_LAYER_BITS);
     out.array = model_field(base, MODEL_ARRAY_WORD, MODEL_ARRAY_SHIFT, MODEL_ARRAY_BITS);
-    out.shade = shade * light_curve(light);
+    out.shade = lightmap(block_light, sky_light) * shade;
     out.world_xz = world.xz;
     out.tint_kind = model_field(base, MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS);
     let quad_uv = corner_uv(corner);

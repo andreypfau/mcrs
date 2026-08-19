@@ -13,10 +13,11 @@ use crate::anvil::{REGION_CHUNKS, Region, SECTION_SIZE, Section};
 use crate::blocks::{CORNER_UV, Catalog, FACE_AXES, Pass};
 use crate::atlas::SpriteRef;
 use crate::pack::{
-    GROUP_FACE, MODEL_ARRAY, MODEL_LAYER, MODEL_LIGHT, MODEL_OVERHANG, MODEL_SECTION, MODEL_SHADE,
-    MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z, QUAD_AO, QUAD_ARRAY,
-    QUAD_FACE, QUAD_FLIP, QUAD_H, QUAD_LAYER, QUAD_LIGHT, QUAD_SECTION, QUAD_TINT, QUAD_W, QUAD_X,
-    QUAD_Y, QUAD_Z, RegionGrid, SECTIONS_PER_RENDER_REGION,
+    GROUP_FACE, MODEL_ARRAY, MODEL_BLOCK_LIGHT, MODEL_LAYER, MODEL_OVERHANG, MODEL_SECTION,
+    MODEL_SHADE, MODEL_SKY_LIGHT, MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y,
+    MODEL_Z, QUAD_AO, QUAD_ARRAY, QUAD_BLOCK_LIGHT, QUAD_FACE, QUAD_FLIP, QUAD_H, QUAD_LAYER,
+    QUAD_SECTION, QUAD_SKY_LIGHT, QUAD_TINT, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y, QUAD_Z, RegionGrid,
+    SECTIONS_PER_RENDER_REGION,
 };
 
 /// `pass * 2 + kind`, where kind is 0 for greedy quads and 1 for baked model quads.
@@ -60,8 +61,8 @@ pub struct Group {
 }
 
 pub struct RegionMesh {
-    /// Packed greedy quads, two `u32` each.
-    pub simple: Vec<u64>,
+    /// Packed greedy quads, [`QUAD_WORDS`] `u32` each.
+    pub simple: Vec<[u32; QUAD_WORDS]>,
     /// Packed model vertices, three `u32` each, four vertices per quad.
     pub complex: Vec<u32>,
     /// Culling groups, ordered so each draw owns one contiguous span.
@@ -102,7 +103,8 @@ struct Key {
     /// the array is part of the key as much as the layer is.
     sprite: Option<SpriteRef>,
     tint: u32,
-    light: u32,
+    block_light: u32,
+    sky_light: u32,
     ao: u32,
     flip: bool,
     pass: u32,
@@ -116,7 +118,7 @@ struct Scratch {
     keys: Box<[Key; SECTION_SIZE * SECTION_SIZE]>,
     used: Box<[bool; SECTION_SIZE * SECTION_SIZE]>,
     /// Geometry for the face group being built, split by pass so each run stays contiguous.
-    simple_by_pass: [Vec<u64>; Pass::COUNT],
+    simple_by_pass: [Vec<[u32; QUAD_WORDS]>; Pass::COUNT],
     complex_by_pass: [[Vec<u32>; FACE_GROUPS]; Pass::COUNT],
 }
 
@@ -136,7 +138,7 @@ impl Scratch {
 
 /// One worker's slice of the finished geometry. Concatenated into a single arena afterwards.
 struct Partial {
-    simple: Vec<u64>,
+    simple: Vec<[u32; QUAD_WORDS]>,
     complex: Vec<u32>,
     /// `(stream, render region, group)` with `group.quad_base` relative to this worker's own arena.
     groups: Vec<(u32, u32, Group)>,
@@ -518,8 +520,10 @@ fn face_key(
         } else {
             0
         },
-        // Full daylight, so vanilla's `max(block, sky * daylight)` collapses to a plain max.
-        light: (raw >> 4).max(raw & 0xf).max(info.emission as u32),
+        // Kept apart rather than folded into one value: only the sky half follows the time of
+        // day, and the block's own emission is block light like any other.
+        block_light: (raw >> 4).max(info.emission as u32),
+        sky_light: raw & 0xf,
         ao,
         flip: split_flip(corners),
         pass: cube.pass as u32,
@@ -625,16 +629,17 @@ fn pack_quad(
     w: usize,
     h: usize,
     local_section: u32,
-) -> u64 {
+) -> [u32; QUAD_WORDS] {
     let anchor = quad_anchor(face, n, gu, gv);
-    let mut words = [0u32; 2];
+    let mut words = [0u32; QUAD_WORDS];
     QUAD_X.set(&mut words, anchor[0] as u64);
     QUAD_Y.set(&mut words, anchor[1] as u64);
     QUAD_Z.set(&mut words, anchor[2] as u64);
     QUAD_FACE.set(&mut words, face as u64);
     QUAD_W.set(&mut words, w as u64 - 1);
     QUAD_H.set(&mut words, h as u64 - 1);
-    QUAD_LIGHT.set(&mut words, key.light as u64);
+    QUAD_BLOCK_LIGHT.set(&mut words, key.block_light as u64);
+    QUAD_SKY_LIGHT.set(&mut words, key.sky_light as u64);
     QUAD_TINT.set(&mut words, key.tint as u64);
     QUAD_AO.set(&mut words, key.ao as u64);
     QUAD_FLIP.set(&mut words, key.flip as u64);
@@ -642,7 +647,7 @@ fn pack_quad(
     let sprite = key.sprite.expect("a quad is only packed where there is a face");
     QUAD_ARRAY.set(&mut words, sprite.array as u64);
     QUAD_LAYER.set(&mut words, sprite.layer as u64);
-    words[0] as u64 | (words[1] as u64) << 32
+    words
 }
 
 /// Baked model geometry, written out verbatim with the block's own light and the vanilla
@@ -694,7 +699,8 @@ fn complex(
                         sample = front;
                     }
                     let raw = scratch.light[sample] as u32;
-                    let light = (raw >> 4).max(raw & 0xf).max(info.emission as u32);
+                    let block_light = (raw >> 4).max(info.emission as u32);
+                    let sky_light = raw & 0xf;
                     let tint = if quad.tinted {
                         info.tint_kind as u32 + 1
                     } else {
@@ -714,7 +720,8 @@ fn complex(
                         MODEL_U.set(&mut words, u as u64);
                         MODEL_V.set(&mut words, v as u64);
                         MODEL_TINT.set(&mut words, tint as u64);
-                        MODEL_LIGHT.set(&mut words, light as u64);
+                        MODEL_BLOCK_LIGHT.set(&mut words, block_light as u64);
+                        MODEL_SKY_LIGHT.set(&mut words, sky_light as u64);
                         MODEL_SHADE.set(&mut words, shade_bucket(quad.shade[corner]) as u64);
                         MODEL_SECTION.set(&mut words, local_section as u64);
                         MODEL_ARRAY.set(&mut words, quad.sprite.array as u64);
@@ -781,8 +788,9 @@ fn fixed(value: f32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::{
-        BORDER_VOLUME, Key, QUAD_AO, QUAD_FACE, QUAD_FLIP, QUAD_H, QUAD_LAYER, QUAD_LIGHT,
-        BUCKET_SHADES, QUAD_ARRAY, QUAD_SECTION, QUAD_TINT, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z,
+        BORDER_VOLUME, BUCKET_SHADES, Key, QUAD_AO, QUAD_ARRAY, QUAD_BLOCK_LIGHT, QUAD_FACE,
+        QUAD_FLIP, QUAD_H, QUAD_LAYER, QUAD_SECTION, QUAD_SKY_LIGHT, QUAD_TINT, QUAD_W, QUAD_X,
+        QUAD_Y, QUAD_Z,
         border_index, connectivity, fixed, pack_quad, quad_anchor, shade_bucket, split_flip,
     };
     use crate::atlas::SpriteRef;
@@ -946,14 +954,14 @@ mod tests {
                 layer: 1000,
             }),
             tint: 2,
-            light: 11,
+            block_light: 11,
+            sky_light: 6,
             ao: 0b11_10_01_00,
             flip: true,
             pass: 1,
         };
         let section = pack_section(9, 5, 12);
-        let packed = pack_quad(&key, 3, 9, 3, 7, 12, 16, section);
-        let words = [packed as u32, (packed >> 32) as u32];
+        let words = pack_quad(&key, 3, 9, 3, 7, 12, 16, section);
         let anchor = quad_anchor(3, 9, 3, 7);
         assert_eq!(QUAD_X.read(&words), anchor[0] as u64, "x");
         assert_eq!(QUAD_Y.read(&words), anchor[1] as u64, "y");
@@ -962,7 +970,8 @@ mod tests {
         assert_eq!(QUAD_FACE.read(&words), 3, "face");
         assert_eq!(QUAD_W.read(&words) + 1, 12, "w");
         assert_eq!(QUAD_H.read(&words) + 1, 16, "h");
-        assert_eq!(QUAD_LIGHT.read(&words), 11, "light");
+        assert_eq!(QUAD_BLOCK_LIGHT.read(&words), 11, "block light");
+        assert_eq!(QUAD_SKY_LIGHT.read(&words), 6, "sky light");
         assert_eq!(QUAD_TINT.read(&words), 2, "tint");
         assert_eq!(QUAD_AO.read(&words), 0b11_10_01_00, "ao");
         assert_eq!(QUAD_FLIP.read(&words), 1, "flip");

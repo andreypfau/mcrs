@@ -86,7 +86,7 @@ pub const QUAD_Z: Field = Field::new(0, 10, 5);
 pub const QUAD_FACE: Field = Field::new(0, 15, 3);
 pub const QUAD_W: Field = Field::new(0, 18, 4);
 pub const QUAD_H: Field = Field::new(0, 22, 4);
-pub const QUAD_LIGHT: Field = Field::new(0, 26, 4);
+pub const QUAD_BLOCK_LIGHT: Field = Field::new(0, 26, 4);
 pub const QUAD_TINT: Field = Field::new(0, 30, 2);
 
 // Greedy quad, high word. The layer sits at the top so it can widen into the bit above it without
@@ -99,6 +99,15 @@ pub const QUAD_SECTION: Field = Field::new(1, 9, SECTION_INDEX.bits);
 pub const QUAD_ARRAY: Field = Field::new(1, 20, 2);
 pub const QUAD_LAYER: Field = Field::new(1, 22, 10);
 
+// Greedy quad, third word. Sky light and block light have to stay apart because the two are lit by
+// different things: only the sky half follows the time of day. Twenty-eight bits of this word are
+// spare — the pair needed four more than the first two words had left, and the alternative to a
+// third word was a side buffer of nibbles that no other part of the format would have matched.
+pub const QUAD_SKY_LIGHT: Field = Field::new(2, 0, 4);
+
+/// How many `u32` one greedy quad occupies.
+pub const QUAD_WORDS: usize = 3;
+
 // Model vertex, three words per corner. Positions are fixed point relative to the section, wide
 // enough for the overhang on both sides.
 pub const MODEL_X: Field = Field::new(0, 0, 10);
@@ -107,8 +116,9 @@ pub const MODEL_Z: Field = Field::new(0, 20, 10);
 pub const MODEL_U: Field = Field::new(1, 0, 10);
 pub const MODEL_V: Field = Field::new(1, 10, 10);
 pub const MODEL_TINT: Field = Field::new(1, 20, 2);
-pub const MODEL_LIGHT: Field = Field::new(1, 22, 4);
+pub const MODEL_BLOCK_LIGHT: Field = Field::new(1, 22, 4);
 pub const MODEL_SHADE: Field = Field::new(1, 26, 2);
+pub const MODEL_SKY_LIGHT: Field = Field::new(1, 28, 4);
 pub const MODEL_SECTION: Field = Field::new(2, 0, SECTION_INDEX.bits);
 pub const MODEL_ARRAY: Field = Field::new(2, SECTION_INDEX.bits, QUAD_ARRAY.bits);
 /// A sprite has to be addressable from the greedy path too, so this is no wider than
@@ -225,7 +235,8 @@ const FIELDS: &[(&str, Field)] = &[
     ("QUAD_FACE", QUAD_FACE),
     ("QUAD_W", QUAD_W),
     ("QUAD_H", QUAD_H),
-    ("QUAD_LIGHT", QUAD_LIGHT),
+    ("QUAD_BLOCK_LIGHT", QUAD_BLOCK_LIGHT),
+    ("QUAD_SKY_LIGHT", QUAD_SKY_LIGHT),
     ("QUAD_TINT", QUAD_TINT),
     ("QUAD_AO", QUAD_AO),
     ("QUAD_FLIP", QUAD_FLIP),
@@ -238,7 +249,8 @@ const FIELDS: &[(&str, Field)] = &[
     ("MODEL_U", MODEL_U),
     ("MODEL_V", MODEL_V),
     ("MODEL_TINT", MODEL_TINT),
-    ("MODEL_LIGHT", MODEL_LIGHT),
+    ("MODEL_BLOCK_LIGHT", MODEL_BLOCK_LIGHT),
+    ("MODEL_SKY_LIGHT", MODEL_SKY_LIGHT),
     ("MODEL_SHADE", MODEL_SHADE),
     ("MODEL_SECTION", MODEL_SECTION),
     ("MODEL_ARRAY", MODEL_ARRAY),
@@ -250,6 +262,7 @@ const SCALARS: &[(&str, f64)] = &[
     ("SECTION_SIZE", crate::anvil::SECTION_SIZE as f64),
     ("MODEL_OVERHANG", MODEL_OVERHANG as f64),
     ("MODEL_STEPS", MODEL_STEPS as f64),
+    ("QUAD_WORDS", QUAD_WORDS as f64),
 ];
 
 #[cfg(test)]
@@ -327,8 +340,6 @@ mod tests {
         assert_eq!(QUAD_H.get(word), 0, "a neighbour must stay clear");
     }
 
-    /// Both words of a quad are full, so a field that grew without another shrinking would run off
-    /// the end rather than quietly overlap a neighbour.
     /// The fixed-point helper clamps every axis against one field's width, which is only sound
     /// while the three are the same.
     #[test]
@@ -344,14 +355,23 @@ mod tests {
         QUAD_FACE.pack(8);
     }
 
+    /// A field that grew without another shrinking would run off the end of its word rather than
+    /// quietly overlap a neighbour.
     #[test]
-    fn a_quad_still_fits_in_its_eight_bytes() {
+    fn no_word_of_a_quad_is_overfull() {
         let quad = [
-            QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_LIGHT, QUAD_TINT, QUAD_AO,
-            QUAD_FLIP, QUAD_SECTION, QUAD_ARRAY, QUAD_LAYER,
+            QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_BLOCK_LIGHT, QUAD_TINT, QUAD_AO,
+            QUAD_FLIP, QUAD_SECTION, QUAD_ARRAY, QUAD_LAYER, QUAD_SKY_LIGHT,
         ];
-        let bits: u32 = quad.iter().map(|field| field.bits).sum();
-        assert_eq!(bits, 64);
+        for word in 0..QUAD_WORDS as u32 {
+            let bits: u32 = quad
+                .iter()
+                .filter(|field| field.word == word)
+                .map(|field| field.bits)
+                .sum();
+            assert!(bits <= 32, "word {word} of a quad holds {bits} bits");
+        }
+        assert!(quad.iter().all(|field| (field.word as usize) < QUAD_WORDS));
     }
 
     #[test]
@@ -409,7 +429,7 @@ mod tests {
             (
                 "greedy quad",
                 &[
-                    QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_LIGHT, QUAD_TINT,
+                    QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_BLOCK_LIGHT, QUAD_TINT,
                     QUAD_AO, QUAD_FLIP, QUAD_SECTION, QUAD_ARRAY, QUAD_LAYER,
                 ][..],
             ),
@@ -418,7 +438,7 @@ mod tests {
             (
                 "model vertex",
                 &[
-                    MODEL_X, MODEL_Y, MODEL_Z, MODEL_U, MODEL_V, MODEL_TINT, MODEL_LIGHT,
+                    MODEL_X, MODEL_Y, MODEL_Z, MODEL_U, MODEL_V, MODEL_TINT, MODEL_BLOCK_LIGHT,
                     MODEL_SHADE, MODEL_SECTION, MODEL_ARRAY, MODEL_LAYER,
                 ][..],
             ),
