@@ -258,6 +258,9 @@ pub enum Upload {
         animated_from: u32,
     },
     Geometry(Placement),
+    /// A render region gave its room back. Its draws come out of the table before anything is
+    /// written over the blocks it held, which the queue being drained in order is what guarantees.
+    Drop(u32),
 }
 
 /// The queue the loader pushes into and the render world drains. An `Arc` rather than an extracted
@@ -1002,6 +1005,11 @@ fn apply_uploads(
                     if budget == 0 {
                         break;
                     }
+                    continue;
+                }
+                Some(Upload::Drop(region)) => {
+                    terrain.draws.retain(|draw| draw.region != region);
+                    rebuild_params(terrain);
                     continue;
                 }
                 Some(Upload::Geometry(placement)) => {

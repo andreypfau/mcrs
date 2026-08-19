@@ -18,12 +18,23 @@ use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 
 use crate::anvil::{self, Palette, REGION_BLOCKS, Region, SECTION_SIZE, Window, World};
-use crate::arena::Arena;
+use crate::arena::{Arena, Block};
 use crate::blocks::{self, BlockInfo, Catalog};
 use crate::cave::CaveCull;
 use crate::mesh::{self, Batch, Draw, Group, STREAM_NAMES, STREAMS, Scratch, StreamSpan};
-use crate::pack::{QUAD_WORDS, RENDER_REGION_X, RENDER_REGION_Z, RegionGrid};
+use crate::pack::{
+    QUAD_WORDS, RENDER_REGION_X, RENDER_REGION_Y, RENDER_REGION_Z, RegionGrid,
+    SECTIONS_PER_RENDER_REGION,
+};
 use crate::render::{Animation, Atlas, Layout, Placement, Upload, Uploads};
+
+/// How much farther a region has to be than the one asking for its room before it is given up, in
+/// blocks. One render region's width.
+///
+/// Without it a region on the very edge of what fits is dropped and re-meshed every time the
+/// camera moves a hair, which costs a tenth of a second of meshing each way and shows as the arena
+/// occupancy sawing while nobody is touching the mouse.
+const HYSTERESIS: f32 = (RENDER_REGION_X * SECTION_SIZE) as f32;
 
 /// Tasks of one kind running at once. Each parse holds a whole expanded region file and each mesh
 /// holds the geometry it has produced so far, so this is a memory bound rather than a throughput
@@ -60,22 +71,36 @@ pub struct Loader {
     baking: Option<(Arc<World>, Vec<[i32; 2]>, Task<Baked>)>,
     /// Files whose biome colours still have to be drawn, once their biomes are baked.
     to_tint: Vec<[i32; 2]>,
-    to_mesh: Vec<usize>,
-    meshing: Vec<Task<Batch>>,
+    /// What each render region holds, so it can be given back.
+    resident: Vec<Option<Resident>>,
+    /// Regions that were meshed and found no room. Retried when room comes free or the camera has
+    /// moved far enough for the order to have really changed, rather than every frame: meshing one
+    /// costs a tenth of a second whether or not it fits.
+    deferred: Vec<bool>,
+    meshing: Vec<(usize, Task<Batch>)>,
+    /// Where the camera is, and where it stood when the deferred list was last cleared.
+    camera: Vec3,
+    anchor: Vec3,
+    evicted: usize,
     /// The three arenas, in their own units: greedy quads, model quads, culling groups.
     quads: Arena,
     models: Arena,
     groups: Arena,
     /// Sections of a file that fall outside the world's declared height.
     dropped: usize,
-    /// Render regions whose geometry did not fit the arenas.
-    overflowed: usize,
     /// Sprites the render world has already been told about.
     sprites: usize,
     /// What each stream holds, for the report.
     streams: [StreamSpan; STREAMS],
     started: Instant,
     reported: bool,
+}
+
+/// The room one render region's geometry holds in the arenas.
+struct Resident {
+    quads: Block,
+    models: Block,
+    groups: Block,
 }
 
 /// What one round of baking produced.
@@ -93,9 +118,9 @@ pub struct Status {
     pub files_total: usize,
     pub regions: usize,
     pub regions_total: usize,
+    pub evicted: usize,
     pub quads: f32,
     pub models: f32,
-    pub overflowed: usize,
 }
 
 impl Loader {
@@ -106,23 +131,7 @@ impl Loader {
             layout.model_capacity,
             layout.group_capacity,
         );
-        let mut to_mesh: Vec<usize> = (0..layout.grid.len()).collect();
-        // Nearest first, so what the camera starts inside of turns up before the far corners.
-        let middle = [
-            layout.grid.x as f32 / 2.0 - 0.5,
-            layout.grid.z as f32 / 2.0 - 0.5,
-        ];
-        to_mesh.sort_by(|a, b| {
-            let key = |region: &usize| {
-                let [x, _, z] = layout.grid.corner(*region);
-                let (dx, dz) = (
-                    x as f32 / RENDER_REGION_X as f32 - middle[0],
-                    z as f32 / RENDER_REGION_Z as f32 - middle[1],
-                );
-                dx * dx + dz * dz
-            };
-            key(b).total_cmp(&key(a))
-        });
+        let regions = layout.grid.len();
         Self {
             expected: window.files.iter().map(|(coords, _)| *coords).collect(),
             to_parse: window.files,
@@ -137,13 +146,16 @@ impl Loader {
             baking: None,
             to_tint: Vec::new(),
             tinting: Vec::new(),
-            to_mesh,
+            resident: (0..regions).map(|_| None).collect(),
+            deferred: vec![false; regions],
             meshing: Vec::new(),
+            camera: Vec3::ZERO,
+            anchor: Vec3::splat(f32::MAX),
+            evicted: 0,
             quads: Arena::new(layout_quads),
             models: Arena::new(layout_models),
             groups: Arena::new(layout_groups),
             dropped: 0,
-            overflowed: 0,
             sprites: 0,
             streams: [StreamSpan::default(); STREAMS],
             started: Instant::now(),
@@ -155,11 +167,11 @@ impl Loader {
         Status {
             files: self.world.loaded(),
             files_total: self.expected.len(),
-            regions: self.layout.grid.len() - self.to_mesh.len() - self.meshing.len(),
+            regions: self.resident.iter().filter(|slot| slot.is_some()).count(),
             regions_total: self.layout.grid.len(),
+            evicted: self.evicted,
             quads: self.quads.held() as f32 / self.quads.capacity() as f32,
             models: self.models.held() as f32 / self.models.capacity() as f32,
-            overflowed: self.overflowed,
         }
     }
 
@@ -175,8 +187,8 @@ impl Loader {
             && self.baking.is_none()
             && self.to_tint.is_empty()
             && self.tinting.is_empty()
-            && self.to_mesh.is_empty()
             && self.meshing.is_empty()
+            && self.wanted().is_none()
     }
 
     /// Whether a render region can be meshed: every file it reads from is either in or known
@@ -187,22 +199,77 @@ impl Loader {
             .all(|coords| !self.expected.contains(coords) || self.world.holds(*coords))
     }
 
+    /// How far the camera is from a render region's box, in blocks. Zero inside it.
+    fn distance(&self, region: usize) -> f32 {
+        let origin = self.layout.grid.origin(self.layout.min_section, region);
+        let min = Vec3::new(origin[0] as f32, origin[1] as f32, origin[2] as f32);
+        let max = min
+            + Vec3::new(
+                (RENDER_REGION_X * SECTION_SIZE) as f32,
+                (RENDER_REGION_Y * SECTION_SIZE) as f32,
+                (RENDER_REGION_Z * SECTION_SIZE) as f32,
+            );
+        (self.camera.clamp(min, max) - self.camera).length()
+    }
+
+    /// The nearest render region worth meshing next, if any: not already held, not waiting on a
+    /// file, not already being meshed, and not one that has just been found too large to fit.
+    fn wanted(&self) -> Option<usize> {
+        (0..self.layout.grid.len())
+            .filter(|region| {
+                self.resident[*region].is_none()
+                    && !self.deferred[*region]
+                    && !self.meshing.iter().any(|(at, _)| at == region)
+                    && self.ready_to_mesh(*region)
+            })
+            .min_by(|a, b| self.distance(*a).total_cmp(&self.distance(*b)))
+    }
+
+    /// The region to make room with, or `None` when nothing held is far enough behind the one
+    /// asking to be worth the swap.
+    fn victim(&self, candidate: f32) -> Option<usize> {
+        let held = (0..self.layout.grid.len()).filter(|region| self.resident[*region].is_some());
+        let farthest = held.max_by(|a, b| self.distance(*a).total_cmp(&self.distance(*b)))?;
+        worth_evicting(self.distance(farthest), candidate).then_some(farthest)
+    }
+
+    /// Takes a region's room back. Its draws leave the table before anything is written over the
+    /// blocks it held, which the upload queue being drained in order is what guarantees.
+    fn evict(&mut self, region: usize, cave: &mut CaveCull) {
+        let Some(held) = self.resident[region].take() else {
+            return;
+        };
+        self.quads.free(held.quads);
+        self.models.free(held.models);
+        self.groups.free(held.groups);
+        self.uploads.push(Upload::Drop(region as u32));
+        cave.forget(
+            self.layout.grid.cave_base(region),
+            SECTIONS_PER_RENDER_REGION,
+        );
+        self.evicted += 1;
+        // Room has come free, so what did not fit before may fit now.
+        self.deferred.fill(false);
+    }
+
     /// Gives a batch its place in the arenas and turns it into the draws that will name it.
     ///
     /// The offsets are handed out here rather than in the render world because this is also where
     /// the decision to make room for something will live.
-    fn place(&mut self, batch: Batch) -> Option<Placement> {
+    fn place(&mut self, batch: Batch) -> Result<Placement, Batch> {
         // All three or none: a region half in the arena would leave groups pointing at quads that
         // were never written.
-        let quads = self.quads.alloc(batch.simple.len())?;
+        let Some(quads) = self.quads.alloc(batch.simple.len()) else {
+            return Err(batch);
+        };
         let Some(models) = self.models.alloc(batch.model_quads()) else {
             self.quads.free(quads);
-            return None;
+            return Err(batch);
         };
         let Some(groups) = self.groups.alloc(batch.groups.len()) else {
             self.quads.free(quads);
             self.models.free(models);
-            return None;
+            return Err(batch);
         };
 
         let mut placed = batch.groups;
@@ -228,6 +295,7 @@ impl Loader {
             }
             draws.push(Draw {
                 stream: stream as u32,
+                region: batch.region as u32,
                 origin: self.layout.grid.origin(self.layout.min_section, batch.region),
                 cave_base: self.layout.grid.cave_base(batch.region) as u32,
                 first_group: (groups.offset + first) as u32,
@@ -237,16 +305,26 @@ impl Loader {
             first += run;
         }
 
-        Some(Placement {
+        self.resident[batch.region] = Some(Resident {
+            quads,
+            models,
+            groups,
+        });
+        Ok(Placement {
             quads: ((quads.offset * QUAD_WORDS * 4) as u64, batch.simple),
             vertices: ((models.offset * 4 * 3 * 4) as u64, batch.complex),
-            groups: (
-                (groups.offset * size_of::<Group>()) as u64,
-                placed,
-            ),
+            groups: ((groups.offset * size_of::<Group>()) as u64, placed),
             draws,
         })
     }
+}
+
+/// Whether a region that far away should give its room to one this near.
+///
+/// The margin is what stops the two from trading places: for a swap to reverse, each would have to
+/// be the clearly farther one, which cannot hold both ways at once.
+fn worth_evicting(resident: f32, candidate: f32) -> bool {
+    resident > candidate + HYSTERESIS
 }
 
 /// The region files a render region's mesher reads from.
@@ -277,9 +355,20 @@ fn files_read(grid: RegionGrid, min_region: [i32; 2], region: usize) -> [[i32; 2
 ///
 /// A finished task is observed and dropped in the same pass: polling one again after it has given
 /// up its value panics, and dropping one that has not finished cancels it.
-pub fn advance(mut loader: ResMut<Loader>, mut cave: ResMut<CaveCull>) {
+pub fn advance(
+    mut loader: ResMut<Loader>,
+    mut cave: ResMut<CaveCull>,
+    camera: Single<&GlobalTransform, With<Camera3d>>,
+) {
     let pool = AsyncComputeTaskPool::get();
     let loader = &mut *loader;
+    loader.camera = camera.translation();
+    // A region found too large to fit is only reconsidered once the view has really moved, not
+    // every frame: meshing one costs a tenth of a second whether or not it turns out to fit.
+    if loader.camera.distance(loader.anchor) > HYSTERESIS {
+        loader.anchor = loader.camera;
+        loader.deferred.fill(false);
+    }
 
     let mut parsed = Vec::new();
     loader.parsing.retain_mut(|(coords, task)| match check_ready(task) {
@@ -327,7 +416,7 @@ pub fn advance(mut loader: ResMut<Loader>, mut cave: ResMut<CaveCull>) {
     }
 
     let mut meshed = Vec::new();
-    loader.meshing.retain_mut(|task| match check_ready(task) {
+    loader.meshing.retain_mut(|(_, task)| match check_ready(task) {
         Some(batch) => {
             meshed.push(batch);
             false
@@ -338,16 +427,33 @@ pub fn advance(mut loader: ResMut<Loader>, mut cave: ResMut<CaveCull>) {
         // Applied whether or not the geometry found room: the world really is solid there, and a
         // walk that believed otherwise would light up everything behind it.
         cave.set_connectivity(&batch.connectivity);
-        if batch.is_empty() {
-            continue;
-        }
         let region = batch.region;
-        match loader.place(batch) {
-            Some(placement) => loader.uploads.push(Upload::Geometry(placement)),
-            None => println!(
-                "render region {region} does not fit the arena and is missing from the frame; \
-                 raise ANVIL_ARENA",
-            ),
+        let here = loader.distance(region);
+        let mut pending = batch;
+        loop {
+            match loader.place(pending) {
+                Ok(placement) => {
+                    // A region of open sky holds nothing and still counts as loaded, or it would
+                    // be meshed again every frame for as long as the view covered it.
+                    if !placement.draws.is_empty() {
+                        loader.uploads.push(Upload::Geometry(placement));
+                    }
+                    break;
+                }
+                // Memory is the rule and distance only the order: room comes only from a region
+                // clearly farther away, and otherwise this one waits rather than starting a swap
+                // that would undo itself next frame.
+                Err(back) => match loader.victim(here) {
+                    Some(victim) => {
+                        loader.evict(victim, &mut cave);
+                        pending = back;
+                    }
+                    None => {
+                        loader.deferred[region] = true;
+                        break;
+                    }
+                },
+            }
         }
     }
 
@@ -359,22 +465,19 @@ pub fn advance(mut loader: ResMut<Loader>, mut cave: ResMut<CaveCull>) {
             .push((coords, pool.spawn(async move { anvil::load(&path) })));
     }
 
-    while loader.meshing.len() < IN_FLIGHT {
-        let Some(at) = loader
-            .to_mesh
-            .iter()
-            .rposition(|region| loader.ready_to_mesh(*region))
-        else {
-            break;
-        };
-        let region = loader.to_mesh.remove(at);
+    while loader.meshing.len() < IN_FLIGHT
+        && let Some(region) = loader.wanted()
+    {
         let world = loader.world.clone();
         let blocks = loader.blocks.clone();
         let grid = loader.layout.grid;
-        loader.meshing.push(pool.spawn(async move {
-            let mut scratch = Scratch::new();
-            mesh::mesh_render_region(&world, &blocks, grid, region, &mut scratch)
-        }));
+        loader.meshing.push((
+            region,
+            pool.spawn(async move {
+                let mut scratch = Scratch::new();
+                mesh::mesh_render_region(&world, &blocks, grid, region, &mut scratch)
+            }),
+        ));
     }
 
     if loader.idle() && !loader.reported {
@@ -594,10 +697,10 @@ fn report(loader: &Loader) {
             crate::anvil::SECTIONS_Y,
         );
     }
-    if loader.overflowed > 0 {
+    if loader.evicted > 0 {
         println!(
-            "  {} render regions did not fit the arena and are missing from the frame",
-            loader.overflowed,
+            "  {} render regions gave their room back to nearer ones",
+            loader.evicted,
         );
     }
 }
@@ -606,6 +709,22 @@ fn report(loader: &Loader) {
 mod tests {
     use super::*;
     use crate::anvil::{REGION_CHUNKS, SECTIONS_Y};
+
+    /// The rule that stops two regions trading places. For a swap to reverse, each would have to
+    /// be the clearly farther one, and that cannot hold both ways at once — so a camera sitting
+    /// still on a threshold cannot make the arena occupancy saw.
+    #[test]
+    fn two_regions_at_a_threshold_cannot_take_each_others_room() {
+        let (near, far) = (100.0, 100.0 + HYSTERESIS + 1.0);
+        assert!(worth_evicting(far, near), "the far one gives way to the near one");
+        assert!(!worth_evicting(near, far), "and never the other way round");
+
+        // Anything inside the margin is a stand-off, whichever way round it is asked.
+        for other in [100.0, 100.5, 100.0 + HYSTERESIS] {
+            assert!(!worth_evicting(other, near));
+            assert!(!worth_evicting(near, other));
+        }
+    }
 
     /// A file whose blocks the world has already seen brings no new states at all. Hanging
     /// publication on there being something to bake leaves that file parsed, resident, and never

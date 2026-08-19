@@ -79,6 +79,13 @@ const DEFAULT_WINDOW: usize = 2;
 // and counted rather than drawn half-written.
 const QUAD_MB_PER_FILE: usize = 64;
 const MODEL_MB_PER_FILE: usize = 208;
+
+/// Region files the arenas are sized for, however many the window covers.
+///
+/// The budget is the knob and the view is what follows from it, not the other way round: a wider
+/// window does not get a wider arena, it gets the same one and has to keep only what fits in it.
+/// Four files' worth is what the default window needs, and a single file still only pays for one.
+const BUDGET_FILES: usize = 4;
 /// Culling groups per file. The heaviest of these four holds seventy thousand, and rounding takes
 /// its share of this arena too.
 const GROUPS_PER_FILE: usize = 1 << 17;
@@ -183,6 +190,12 @@ fn main() {
             unfocused_mode: UpdateMode::Continuous,
         })
         .insert_resource(FrameStats::new())
+        .insert_resource(Sweep(
+            std::env::var("ANVIL_SWEEP")
+                .ok()
+                .and_then(|speed| speed.parse().ok())
+                .unwrap_or(0.0),
+        ))
         .add_plugins((
             FrameTimeDiagnosticsPlugin::default(),
             // Per-pass timings, which stay meaningful while the window is capped and the wall
@@ -219,9 +232,10 @@ fn layout(window: &anvil::Window) -> Result<Layout, String> {
         anvil::SECTIONS_Y,
         window.regions[1] * chunks,
     ]);
-    // Against the files that are really there rather than the slots of the window: a corner of the
-    // world with nothing in it should not cost a gigabyte of arena.
-    let files = window.files.len().max(1);
+    // Against the files that are really there rather than the slots of the window, and capped: a
+    // corner of the world with nothing in it should not cost a gigabyte of arena, and a wide window
+    // should not quietly buy itself more room than the budget allows.
+    let files = window.files.len().clamp(1, BUDGET_FILES);
     let (quad_mb, model_mb) = arena_budget();
     let span = anvil::REGION_BLOCKS as u32;
     Ok(Layout {
@@ -379,15 +393,16 @@ fn frame_stats(
         status.quads * 100.0,
         status.models * 100.0,
     );
-    if status.regions < status.regions_total {
-        let _ = write!(
-            overlay.0,
-            "   loading {}/{} files, {}/{} regions",
-            status.files, status.files_total, status.regions, status.regions_total,
-        );
+    let _ = write!(
+        overlay.0,
+        "   {}/{} regions",
+        status.regions, status.regions_total,
+    );
+    if status.files < status.files_total {
+        let _ = write!(overlay.0, "   loading {}/{} files", status.files, status.files_total);
     }
-    if status.overflowed > 0 {
-        let _ = write!(overlay.0, "   {} regions dropped", status.overflowed);
+    if status.evicted > 0 {
+        let _ = write!(overlay.0, "   {} evicted", status.evicted);
     }
     let (hour, minute) = day.clock();
     let _ = write!(overlay.0, "   {hour:02}:{minute:02}");
@@ -456,6 +471,14 @@ fn screenshot(
     };
     commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
 }
+
+/// `ANVIL_SWEEP=<blocks a second>` walks the camera along x on its own.
+///
+/// A pinned view is what a frame rate has to be compared at, but the faults streaming introduces
+/// only appear while the view is moving: a region arriving mid-frame, a seam crossed, a region
+/// giving its room to a nearer one. A scripted walk makes those repeatable from a terminal.
+#[derive(Resource)]
+struct Sweep(f32);
 
 #[derive(Component)]
 struct Orbit {
@@ -534,9 +557,12 @@ fn orbit(
     keys: Res<ButtonInput<KeyCode>>,
     motion: Res<AccumulatedMouseMotion>,
     scroll: Res<AccumulatedMouseScroll>,
+    time: Res<Time>,
+    sweep: Res<Sweep>,
     camera: Single<(&mut Orbit, &mut Transform)>,
 ) {
     let (mut orbit, mut transform) = camera.into_inner();
+    orbit.target.x += sweep.0 * time.delta_secs();
     let panning = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     if buttons.pressed(MouseButton::Left) {
         if panning {

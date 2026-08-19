@@ -106,6 +106,13 @@ impl CaveCull {
         }
     }
 
+    /// Forgets what a render region's sections said. An unloaded section is not known to be
+    /// solid, it is not known at all, and a walk that went on believing the rock it left behind
+    /// would cull away geometry that is still there.
+    pub fn forget(&mut self, base: usize, count: usize) {
+        self.conn[base..base + count].fill(crate::mesh::CONNECT_ALL);
+    }
+
     /// Words of the bitset, which is also how much of it goes to the GPU.
     pub fn words(&self) -> usize {
         self.bits.len()

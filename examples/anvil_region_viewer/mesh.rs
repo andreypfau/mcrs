@@ -85,10 +85,6 @@ impl Batch {
     pub fn model_quads(&self) -> usize {
         self.complex.len() / 3 / 4
     }
-
-    pub fn is_empty(&self) -> bool {
-        self.groups.is_empty()
-    }
 }
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -151,6 +147,9 @@ struct Partial {
 #[derive(Copy, Clone, Default, Debug)]
 pub struct Draw {
     pub stream: u32,
+    /// Which render region's geometry this draws, so it can be taken out again when that region
+    /// gives its room back.
+    pub region: u32,
     /// The region's corner in blocks. Coordinates in a quad are relative to their section, so this
     /// is what puts the geometry back where it belongs.
     pub origin: [i32; 3],
