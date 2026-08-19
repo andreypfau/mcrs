@@ -17,10 +17,12 @@
 //! triangle's edges in a colour derived from its texture, F11 for borderless fullscreen, which is
 //! the only way to read a real frame rate on macOS, and F12 to save a PNG.
 //!
-//! The region is static, so the whole pipeline is built around loading once and never touching the
-//! geometry again: blocks are baked per distinct block state rather than per block, full cubes are
-//! greedy-merged into twelve-byte quads, and every frame the GPU alone decides what to draw. There
-//! is no `Mesh` asset, no entity per section, and one indirect draw call per pass.
+//! Region files are parsed and meshed in the background and appear a render region at a time, so
+//! the window opens on an empty sky rather than after a pause. Everything else is built around
+//! never touching a quad again once it is down: blocks are baked per distinct block state rather
+//! than per block, full cubes are greedy-merged into twelve-byte quads, and every frame the GPU
+//! alone decides what to draw. There is no `Mesh` asset, no entity per section, and one indirect
+//! draw call per stream per render region.
 
 // Shared verbatim with the block viewer rather than copied: the model resolver and the face bakery
 // are the pieces this example most needs to stay identical to the single-block reference.
@@ -39,10 +41,10 @@ mod mesh;
 mod pack;
 mod render;
 mod sky;
+mod stream;
 
 use std::fmt::Write as _;
 use std::sync::Arc;
-use std::time::Instant;
 
 use bevy::camera::visibility::VisibilitySystems;
 use bevy::core_pipeline::tonemapping::Tonemapping;
@@ -58,14 +60,28 @@ use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use bevy::window::{MonitorSelection, PresentMode, WindowMode};
 use bevy::winit::{UpdateMode, WinitSettings};
 
-use render::{DrawnTriangles, Geometry, TerrainPlugin, Wireframe};
+use pack::RegionGrid;
+use render::{DrawnTriangles, Layout, TerrainPlugin, Uploads, Wireframe};
 
 const DEFAULT_REGION: &str = "examples/anvil_region_viewer/r.0.0.mca";
 
-/// Region files on a side when a directory is given. Two is 280 MB of geometry and a second and a
-/// half of loading, which is enough to show terrain running unbroken across a region seam; the
-/// sixty-four files of a real world would be four and a half gigabytes.
+/// Region files on a side when a directory is given. Two is enough to show terrain running
+/// unbroken across a region seam; the sixty-four files of a real world would be several gigabytes
+/// of geometry.
 const DEFAULT_WINDOW: usize = 2;
+
+// How much room each region file gets in the two geometry arenas, in megabytes. Measured off this
+// world, where the heaviest file needs 38 MB of greedy quads and 158 MB of model vertices, with a
+// little over for a denser one. `ANVIL_ARENA=quads,models` overrides both. A region that does not
+// fit is dropped and counted rather than drawn half-written.
+const QUAD_MB_PER_FILE: usize = 48;
+const MODEL_MB_PER_FILE: usize = 176;
+/// Culling groups per file. The heaviest of these four holds seventy thousand.
+const GROUPS_PER_FILE: usize = 1 << 17;
+
+/// Bytes one greedy quad and one model quad take in their arenas.
+const QUAD_BYTES: usize = pack::QUAD_WORDS * 4;
+const MODEL_BYTES: usize = 4 * 3 * 4;
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -75,20 +91,57 @@ fn main() {
             .to_string_lossy()
             .into_owned()
     });
-    let window = args
+    let size = args
         .next()
         .and_then(|size| size.parse().ok())
         .unwrap_or(DEFAULT_WINDOW)
         .max(1);
 
-    let (geometry, cave) = match load(std::path::Path::new(&path), window_centre(), window) {
-        Ok(loaded) => loaded,
+    let window = match anvil::window(std::path::Path::new(&path), window_centre(), size) {
+        Ok(window) => window,
         Err(error) => {
             eprintln!("cannot load {path}: {error}");
             std::process::exit(1);
         }
     };
-    let geometry = Arc::new(geometry);
+    let layout = match layout(&window) {
+        Ok(layout) => Arc::new(layout),
+        Err(error) => {
+            eprintln!("cannot start: {error}");
+            std::process::exit(1);
+        }
+    };
+    println!(
+        "{} region files at r.{}.{} and up, {}x{}x{} render regions, up to {} draws; \
+         arenas hold {:.0} MB of quads and {:.0} MB of model vertices",
+        window.files.len(),
+        window.min_region[0],
+        window.min_region[1],
+        layout.grid.x,
+        layout.grid.y,
+        layout.grid.z,
+        layout.max_draws(),
+        (layout.quad_capacity * QUAD_BYTES) as f64 / 1e6,
+        (layout.model_capacity * MODEL_BYTES) as f64 / 1e6,
+    );
+
+    let cave = cave::CaveCull::new(
+        vec![mesh::CONNECT_ALL; layout.grid.slots()],
+        layout.grid,
+        [
+            window.regions[0] * anvil::REGION_CHUNKS,
+            anvil::SECTIONS_Y,
+            window.regions[1] * anvil::REGION_CHUNKS,
+        ],
+        layout.min_section,
+    );
+    assert_eq!(
+        cave.words(),
+        layout.cave_words,
+        "the sight-line bitset and the buffer it goes into have to be the same size"
+    );
+    let uploads = Uploads::default();
+    let loader = stream::Loader::new(layout.clone(), uploads.clone(), window);
 
     App::new()
         .add_plugins(DefaultPlugins
@@ -136,9 +189,11 @@ fn main() {
                 ..default()
             },
         ))
-        .add_plugins((TerrainPlugin(geometry), sky::DayCyclePlugin))
+        .add_plugins((TerrainPlugin(layout, uploads), sky::DayCyclePlugin))
         .insert_resource(cave)
+        .insert_resource(loader)
         .add_systems(Startup, (spawn_camera, spawn_overlay))
+        .add_systems(Update, stream::advance)
         .add_systems(Update, orbit)
         .add_systems(Update, frame_stats)
         .add_systems(Update, screenshot)
@@ -150,6 +205,60 @@ fn main() {
             cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
         )
         .run();
+}
+
+/// The shape of the world, which the window settles before a single file is read.
+fn layout(window: &anvil::Window) -> Result<Layout, String> {
+    let chunks = anvil::REGION_CHUNKS;
+    let grid = RegionGrid::covering([
+        window.regions[0] * chunks,
+        anvil::SECTIONS_Y,
+        window.regions[1] * chunks,
+    ]);
+    // Against the files that are really there rather than the slots of the window: a corner of the
+    // world with nothing in it should not cost a gigabyte of arena.
+    let files = window.files.len().max(1);
+    let (quad_mb, model_mb) = arena_budget();
+    let span = anvil::REGION_BLOCKS as u32;
+    Ok(Layout {
+        grid,
+        min_section: [
+            window.min_region[0] * chunks as i32,
+            anvil::MIN_SECTION_Y,
+            window.min_region[1] * chunks as i32,
+        ],
+        quad_capacity: quad_mb * files * 1_000_000 / QUAD_BYTES,
+        model_capacity: model_mb * files * 1_000_000 / MODEL_BYTES,
+        group_capacity: GROUPS_PER_FILE * files,
+        cave_words: grid.slots().div_ceil(32),
+        celestials: sky::celestials()?,
+        clouds: sky::clouds()?,
+        tint_origin: [
+            window.min_region[0] * span as i32,
+            window.min_region[1] * span as i32,
+        ],
+        tint_size: [
+            window.regions[0] as u32 * span,
+            window.regions[1] as u32 * span,
+        ],
+    })
+}
+
+/// `ANVIL_ARENA=quads,models` sets how many megabytes a region file gets in each arena, which is
+/// what makes it checkable that the loader still fills a frame out of half the room.
+fn arena_budget() -> (usize, usize) {
+    let default = (QUAD_MB_PER_FILE, MODEL_MB_PER_FILE);
+    let Ok(spec) = std::env::var("ANVIL_ARENA") else {
+        return default;
+    };
+    let numbers: Vec<usize> = spec.split(',').filter_map(|n| n.trim().parse().ok()).collect();
+    match numbers[..] {
+        [quads, models] => (quads.max(1), models.max(1)),
+        _ => {
+            eprintln!("ANVIL_ARENA needs two sizes in megabytes: quads,models");
+            default
+        }
+    }
 }
 
 /// `ANVIL_CENTER=x,z` names the region the loaded window is centred on. Default is the origin,
@@ -166,154 +275,6 @@ fn window_centre() -> [i32; 2] {
             [0, 0]
         }
     }
-}
-
-fn load(
-    path: &std::path::Path,
-    centre: [i32; 2],
-    window: usize,
-) -> Result<(Geometry, cave::CaveCull), String> {
-    let started = Instant::now();
-    let world = anvil::load_world(path, centre, window)?;
-    let parsed = started.elapsed();
-
-    let started = Instant::now();
-    let catalog = blocks::build(&world);
-    let baked = started.elapsed();
-    // Plain printing, not `warn!`: loading happens before the app — and therefore the log
-    // subscriber — exists.
-    for failure in &catalog.failures {
-        println!("skipping {failure}");
-    }
-
-    let started = Instant::now();
-    let mut region_mesh = mesh::build(&world, &catalog);
-    let meshed = started.elapsed();
-
-    println!(
-        "{} region files at r.{}.{} and up, {} sections, {} block states ({} unrenderable), \
-         {} sprites; parsed in {parsed:.2?}, baked in {baked:.2?}, meshed in {meshed:.2?}",
-        world.loaded(),
-        world.min_region[0],
-        world.min_region[1],
-        world.non_empty_sections(),
-        world.states.len(),
-        catalog.failures.len(),
-        catalog.sprites.len(),
-    );
-    let grid = region_mesh.grid;
-    for (index, array) in catalog.sprites.arrays().iter().enumerate() {
-        println!(
-            "  sprite array {index}: {:>4} sprites at {}x{}, {} of them animated, \
-             {} resident layers of {} a quad can name",
-            array.sprites(),
-            array.size,
-            array.size,
-            array.animated(),
-            array.layers(),
-            pack::MAX_SPRITES,
-        );
-    }
-    println!(
-        "  {} animations, {} of them interpolated; layer numbers from {} up name one",
-        catalog.sprites.animations().len(),
-        catalog
-            .sprites
-            .animations()
-            .iter()
-            .filter(|animation| animation.interpolate)
-            .count(),
-        catalog.sprites.animated_from(),
-    );
-    println!(
-        "{} greedy quads + {} model quads in {} culling groups; \
-         {}x{}x{} render regions cost {} draws",
-        region_mesh.greedy_quads(),
-        region_mesh.model_quads(),
-        region_mesh.groups.len(),
-        grid.x,
-        grid.y,
-        grid.z,
-        region_mesh.draws.len(),
-    );
-    for (stream, span) in region_mesh.streams.iter().enumerate() {
-        println!(
-            "  {:<22} {:>9} quads in {:>6} groups",
-            mesh::STREAM_NAMES[stream], span.quad_count, span.group_count,
-        );
-    }
-    println!(
-        "{:.1} MB of quads, {:.1} MB of model vertices, {:.1} MB of visible list",
-        (region_mesh.simple.len() * pack::QUAD_WORDS * 4) as f64 / 1e6,
-        (region_mesh.complex.len() * 4) as f64 / 1e6,
-        (region_mesh.draws.iter().map(|draw| draw.quad_count as usize).sum::<usize>() * 4) as f64
-            / 1e6,
-    );
-
-    let closed = region_mesh
-        .connectivity
-        .iter()
-        .filter(|mask| **mask == 0)
-        .count();
-    println!("{closed} sections are fully closed to sight lines");
-
-    // A zero-length storage buffer is not a legal binding, so every arena keeps at least one entry.
-    if region_mesh.simple.is_empty() {
-        region_mesh.simple.push([0; pack::QUAD_WORDS]);
-    }
-    if region_mesh.complex.is_empty() {
-        region_mesh.complex.resize(3, 0);
-    }
-    if region_mesh.groups.is_empty() {
-        region_mesh.groups.push(mesh::Group::default());
-    }
-
-    let sprites = catalog.sprites;
-    let cave = cave::CaveCull::new(
-        region_mesh.connectivity,
-        region_mesh.grid,
-        world.sections,
-        world.min_section,
-    );
-    let span = anvil::REGION_BLOCKS as u32;
-    Ok((
-        Geometry {
-            simple: region_mesh.simple,
-            complex: region_mesh.complex,
-            groups: region_mesh.groups,
-            draws: region_mesh.draws,
-            cave_words: cave.words(),
-            atlases: sprites
-                .arrays()
-                .iter()
-                .map(|array| render::Atlas {
-                    size: array.size,
-                    layers: array.layers(),
-                    mips: array.mip_chain(),
-                })
-                .collect(),
-            animations: sprites
-                .animations()
-                .iter()
-                .map(|animation| render::Animation {
-                    base_layer: sprites.base_layer(animation),
-                    count: animation.count,
-                    frametime: animation.frametime,
-                    interpolate: u32::from(animation.interpolate),
-                })
-                .collect(),
-            animated_from: sprites.animated_from(),
-            celestials: sky::celestials()?,
-            clouds: sky::clouds()?,
-            tint_map: blocks::tint_map(&world, &catalog.tints),
-            tint_origin: [
-                world.min_region[0] * span as i32,
-                world.min_region[1] * span as i32,
-            ],
-            tint_size: [world.regions[0] as u32 * span, world.regions[1] as u32 * span],
-        },
-        cave,
-    ))
 }
 
 /// Frame times over the last second, kept in a fixed ring so the counter itself never allocates
@@ -358,6 +319,7 @@ fn frame_stats(
     mut stats: ResMut<FrameStats>,
     triangles: Res<DrawnTriangles>,
     cave: Res<cave::CaveCull>,
+    loader: Res<stream::Loader>,
     day: Res<sky::TimeOfDay>,
     overlay: Single<&mut Text>,
     // The frame rate is meaningless without the pixel count behind it: this window opens on
@@ -404,10 +366,29 @@ fn frame_stats(
     } else {
         overlay.0.push_str("   cave off");
     }
+    // How full the arena is, always rather than only while loading: a figure that saws is what
+    // says the loader is thrashing on a threshold.
+    let status = loader.status();
+    let _ = write!(
+        overlay.0,
+        "   arena {:.0}/{:.0}%",
+        status.quads * 100.0,
+        status.models * 100.0,
+    );
+    if status.regions < status.regions_total {
+        let _ = write!(
+            overlay.0,
+            "   loading {}/{} files, {}/{} regions",
+            status.files, status.files_total, status.regions, status.regions_total,
+        );
+    }
+    if status.overflowed > 0 {
+        let _ = write!(overlay.0, "   {} regions dropped", status.overflowed);
+    }
     let (hour, minute) = day.clock();
     let _ = write!(overlay.0, "   {hour:02}:{minute:02}");
-    // The `ANVIL_SCREENSHOT` shot is taken on frame 30, and the overlay is first written only after
-    // a second of accumulated time, so it is blank in the PNG. The numbers do reach stdout.
+    // The `ANVIL_SCREENSHOT` shot goes off thirty frames after loading settles, so the overlay is
+    // usually written by then. The numbers reach stdout either way.
     info!("{}", overlay.0);
 
     stats.frames = 0;
@@ -443,20 +424,27 @@ fn percentile_index(samples: usize, fraction: f32) -> usize {
 }
 
 /// Press F12 to write a PNG of the current view. Setting `ANVIL_SCREENSHOT` shoots one
-/// automatically a few frames in and exits, which is what makes the renderer checkable from a
-/// terminal without a human at the window.
+/// automatically once the window has finished filling and exits, which is what makes the renderer
+/// checkable from a terminal without a human at it.
 fn screenshot(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
+    loader: Res<stream::Loader>,
     mut frames: Local<u32>,
+    mut settled: Local<u32>,
 ) {
     *frames += 1;
+    // Counted from when the loader went quiet rather than from the start: the window fills in the
+    // background now, and a shot taken on a fixed frame catches whatever happened to be up.
+    if loader.done() {
+        *settled += 1;
+    }
     let auto = std::env::var("ANVIL_SCREENSHOT").ok();
     let path = match (&auto, keys.just_pressed(KeyCode::F12)) {
-        (Some(path), _) if *frames == 30 => path.clone(),
+        (Some(path), _) if *settled == 30 => path.clone(),
         (_, true) => "anvil_region_viewer.png".to_string(),
         _ => {
-            if auto.is_some() && *frames > 600 {
+            if auto.is_some() && *frames > 3600 {
                 commands.write_message(AppExit::Success);
             }
             return;

@@ -198,6 +198,25 @@ impl RegionGrid {
         self.len() * SECTIONS_PER_RENDER_REGION
     }
 
+    /// A render region's corner in world blocks, given where the loaded window starts. A
+    /// coordinate in a quad is relative to its own section and the rest arrives with the draw, so
+    /// this is the whole of what puts a region's geometry back where it belongs. All three axes
+    /// are signed: region files run either side of the origin.
+    pub const fn origin(self, min_section: [i32; 3], region: usize) -> [i32; 3] {
+        let [sx, sy, sz] = self.corner(region);
+        let size = crate::anvil::SECTION_SIZE as i32;
+        [
+            (sx as i32 + min_section[0]) * size,
+            (sy as i32 + min_section[1]) * size,
+            (sz as i32 + min_section[2]) * size,
+        ]
+    }
+
+    /// Where a render region's sections start in the sight-line bitset.
+    pub const fn cave_base(self, region: usize) -> usize {
+        region * SECTIONS_PER_RENDER_REGION
+    }
+
     /// The section coordinates of a region's own corner.
     pub const fn corner(self, region: usize) -> [usize; 3] {
         [
@@ -412,6 +431,21 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A region's origin is the whole of what puts its geometry back in the world, and region
+    /// coordinates run either side of zero. Carrying only the vertical half of the window's corner
+    /// leaves every region file's terrain stacked on the origin, which reads as a plausible
+    /// landscape rather than as a fault.
+    #[test]
+    fn a_region_below_the_origin_keeps_the_whole_corner_of_its_window() {
+        let grid = RegionGrid::covering([RENDER_REGION_X * 2, RENDER_REGION_Y, RENDER_REGION_Z * 2]);
+        assert_eq!(grid.origin([-32, -4, -32], 0), [-512, -64, -512]);
+        assert_eq!(
+            grid.origin([-32, -4, -32], 3),
+            [-512 + RENDER_REGION_X as i32 * 16, -64, -512 + RENDER_REGION_Z as i32 * 16],
+            "the far corner of a two-by-two grid"
+        );
     }
 
     #[test]

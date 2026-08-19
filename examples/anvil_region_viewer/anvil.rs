@@ -6,7 +6,8 @@
 
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use serde::Deserialize;
 
@@ -17,6 +18,13 @@ pub const REGION_CHUNKS: usize = 32;
 
 /// Blocks along one edge of a region file.
 pub const REGION_BLOCKS: usize = REGION_CHUNKS * SECTION_SIZE;
+
+// How tall a loaded world is, as the overworld's dimension type declares it rather than as the
+// sections a file happens to hold. It has to be settled before the first file is read: the render
+// region grid, the sight-line bitset and every draw's place in it are all derived from it, and a
+// span that grew once geometry was already on the GPU would renumber all three under it.
+pub const MIN_SECTION_Y: i32 = -4;
+pub const SECTIONS_Y: usize = 24;
 
 /// A block state as it appears in a section palette: `minecraft:oak_log` plus its properties,
 /// sorted so two palettes that list the same properties in a different order intern to one id.
@@ -155,19 +163,67 @@ impl Region {
     }
 }
 
+/// The block states and biomes a loaded world has interned, shared by every file in it.
+///
+/// Each region file numbers its own from zero, so a file joining the world is given tables
+/// remapping its ids onto these. Ids are handed out by appending and never change meaning, which
+/// is what lets a mesher already running hold an older, shorter catalog safely.
+pub struct Palette {
+    pub states: Vec<BlockStateKey>,
+    pub biomes: Vec<String>,
+    intern: HashMap<BlockStateKey, u16>,
+    biome_intern: HashMap<String, u8>,
+}
+
+impl Palette {
+    /// Air is interned first, so every part of the renderer can name it without a lookup.
+    pub const AIR: u16 = 0;
+
+    pub fn new() -> Self {
+        let mut palette = Self {
+            states: Vec::new(),
+            biomes: Vec::new(),
+            intern: HashMap::new(),
+            biome_intern: HashMap::new(),
+        };
+        let air = intern_state(
+            &mut palette.intern,
+            &mut palette.states,
+            BlockStateKey {
+                name: "minecraft:air".to_string(),
+                props: Vec::new(),
+            },
+        );
+        assert_eq!(air, Self::AIR);
+        palette
+    }
+
+    /// The tables mapping a region's own ids onto the shared ones.
+    fn absorb(&mut self, region: &Region) -> (Vec<u16>, Vec<u8>) {
+        let states = region
+            .states
+            .iter()
+            .map(|key| intern_state(&mut self.intern, &mut self.states, key.clone()))
+            .collect();
+        let biomes = region
+            .biomes
+            .iter()
+            .map(|name| intern_biome(&mut self.biome_intern, &mut self.biomes, name))
+            .collect();
+        (states, biomes)
+    }
+}
+
 /// A rectangle of region files addressed as one coordinate space.
 ///
-/// Each file interns its own block states and biomes, so a region joining the world is given a
-/// table remapping its ids onto the world's shared ones and reads go through that. Rewriting the
-/// section arrays instead would cost a pass over every block in the region for nothing: the remap
-/// is a few hundred entries and stays in cache.
+/// Cloning one is cheap and does not touch a block: every resident file sits behind its own
+/// handle, so a mesher can be handed the world as it stood when it started while later files keep
+/// arriving into a world that shares all the same files.
 ///
 /// Horizontal coordinates are relative to the window's own corner and the vertical one is the
 /// world's, which is the same split [`Region`] itself uses.
+#[derive(Clone)]
 pub struct World {
-    pub states: Vec<BlockStateKey>,
-    pub biomes: Vec<String>,
-    pub air_state: u16,
     /// Section coordinates of the window's corner, in the world's own signed numbering. Region
     /// coordinates run either side of zero, so none of the three may be assumed non-negative.
     pub min_section: [i32; 3],
@@ -177,9 +233,7 @@ pub struct World {
     pub min_region: [i32; 2],
     pub regions: [usize; 2],
     /// Row-major over the window, `rz * regions[0] + rx`.
-    slots: Vec<Option<Resident>>,
-    intern: HashMap<BlockStateKey, u16>,
-    biome_intern: HashMap<String, u8>,
+    slots: Vec<Option<Arc<Resident>>>,
 }
 
 /// One loaded region and the tables mapping its own ids onto the world's.
@@ -192,64 +246,47 @@ struct Resident {
 impl World {
     /// An empty window of `regions` region files with its corner at `min_region`.
     pub fn new(min_region: [i32; 2], regions: [usize; 2]) -> Self {
-        let mut states = Vec::new();
-        let mut intern = HashMap::new();
-        let air_state = intern_state(
-            &mut intern,
-            &mut states,
-            BlockStateKey {
-                name: "minecraft:air".to_string(),
-                props: Vec::new(),
-            },
-        );
         Self {
-            states,
-            biomes: Vec::new(),
-            air_state,
-            min_section: [min_region[0] * REGION_CHUNKS as i32, 0, min_region[1] * REGION_CHUNKS as i32],
-            sections: [regions[0] * REGION_CHUNKS, 0, regions[1] * REGION_CHUNKS],
+            min_section: [
+                min_region[0] * REGION_CHUNKS as i32,
+                MIN_SECTION_Y,
+                min_region[1] * REGION_CHUNKS as i32,
+            ],
+            sections: [regions[0] * REGION_CHUNKS, SECTIONS_Y, regions[1] * REGION_CHUNKS],
             min_region,
             regions,
             slots: (0..regions[0] * regions[1]).map(|_| None).collect(),
-            intern,
-            biome_intern: HashMap::new(),
         }
     }
 
-    /// Puts a parsed region into the window, remapping its ids onto the world's shared tables and
-    /// widening the world's vertical span to cover it.
-    pub fn insert(&mut self, coords: [i32; 2], region: Region) {
+    /// Puts a parsed region into the window. Returns how many of its sections fall outside the
+    /// world's declared height and so will never be drawn.
+    pub fn insert(&mut self, palette: &mut Palette, coords: [i32; 2], region: Region) -> usize {
         let Some(slot) = self.slot_of(coords) else {
-            return;
+            return 0;
         };
-        let states = region
-            .states
-            .iter()
-            .map(|key| intern_state(&mut self.intern, &mut self.states, key.clone()))
-            .collect();
-        let biomes = region
-            .biomes
-            .iter()
-            .map(|name| intern_biome(&mut self.biome_intern, &mut self.biomes, name))
-            .collect();
+        let (states, biomes) = palette.absorb(&region);
 
         let low = region.min_section_y;
         let high = low + region.sections_y as i32;
-        let (world_low, world_high) = match self.sections[1] {
-            0 => (low, high),
-            span => (
-                self.min_section[1].min(low),
-                (self.min_section[1] + span as i32).max(high),
-            ),
-        };
-        self.min_section[1] = world_low;
-        self.sections[1] = (world_high - world_low) as usize;
+        let world_high = self.min_section[1] + self.sections[1] as i32;
+        let outside = (self.min_section[1] - low).max(0) + (high - world_high).max(0);
 
-        self.slots[slot] = Some(Resident {
+        self.slots[slot] = Some(Arc::new(Resident {
             region,
             states,
             biomes,
-        });
+        }));
+        outside.max(0) as usize * REGION_CHUNKS * REGION_CHUNKS
+    }
+
+    /// Whether the file for these region coordinates is in, or whether they name a place outside
+    /// the window, where there is nothing to wait for.
+    pub fn holds(&self, coords: [i32; 2]) -> bool {
+        match self.slot_of(coords) {
+            Some(slot) => self.slots[slot].is_some(),
+            None => true,
+        }
     }
 
     fn slot_of(&self, coords: [i32; 2]) -> Option<usize> {
@@ -273,7 +310,8 @@ impl World {
         if rx < 0 || rz < 0 || rx as usize >= self.regions[0] || rz as usize >= self.regions[1] {
             return None;
         }
-        self.slots[rz as usize * self.regions[0] + rx as usize].as_ref()
+        self.slots[rz as usize * self.regions[0] + rx as usize]
+            .as_deref()
     }
 
     /// Block state id at a window-relative horizontal position and a world vertical one, in the
@@ -288,7 +326,7 @@ impl World {
                     .block(x.rem_euclid(span), y, z.rem_euclid(span));
                 resident.states[local as usize]
             }
-            None => self.air_state,
+            None => Palette::AIR,
         }
     }
 
@@ -309,7 +347,7 @@ impl World {
     #[inline]
     pub fn section(&self, sx: usize, sy: usize, sz: usize) -> Option<&Section> {
         let chunks = REGION_CHUNKS;
-        let resident = self.slots[sz / chunks * self.regions[0] + sx / chunks].as_ref()?;
+        let resident = self.slots[sz / chunks * self.regions[0] + sx / chunks].as_deref()?;
         let local_y = self.min_section[1] + sy as i32 - resident.region.min_section_y;
         if local_y < 0 || local_y as usize >= resident.region.sections_y {
             return None;
@@ -322,13 +360,26 @@ impl World {
     /// The biome of a section cell, in the world's shared numbering.
     pub fn biome(&self, sx: usize, sy: usize, sz: usize, cell: usize) -> u8 {
         let chunks = REGION_CHUNKS;
-        let Some(resident) = self.slots[sz / chunks * self.regions[0] + sx / chunks].as_ref() else {
+        let Some(resident) = self.slots[sz / chunks * self.regions[0] + sx / chunks].as_deref()
+        else {
             return 0;
         };
         match self.section(sx, sy, sz) {
             Some(section) => resident.biomes[section.biomes[cell] as usize],
             None => 0,
         }
+    }
+
+    /// The highest block state id any resident file can hand back. A catalog shorter than this
+    /// would be indexed past its end by a mesher, on a pool thread, with no frame to show for it.
+    pub fn states_reach(&self) -> usize {
+        self.slots
+            .iter()
+            .flatten()
+            .flat_map(|resident| resident.states.iter())
+            .map(|id| *id as usize + 1)
+            .max()
+            .unwrap_or(0)
     }
 
     pub fn loaded(&self) -> usize {
@@ -396,20 +447,31 @@ pub fn region_coords(name: &str) -> Option<[i32; 2]> {
     Some([x.parse().ok()?, z.parse().ok()?])
 }
 
-/// Loads a window of `size` by `size` region files centred on `centre`, or the one file named.
+/// A square of region files to load, and which of them exist.
+pub struct Window {
+    pub min_region: [i32; 2],
+    pub regions: [usize; 2],
+    /// The files that are really there, with the region coordinates each covers.
+    pub files: Vec<([i32; 2], PathBuf)>,
+}
+
+/// Works out which files a window of `size` by `size` around `centre` covers, or takes the one
+/// file named.
 ///
 /// The names of the wanted files are built rather than searched for. `poi/` and `entities/` sit
 /// beside `region/` holding files named `r.X.Z.mca` too, of a completely different shape, and any
 /// search that walked into them would fail on the first one it tried to parse.
-pub fn load_world(path: &Path, centre: [i32; 2], size: usize) -> Result<World, String> {
+pub fn window(path: &Path, centre: [i32; 2], size: usize) -> Result<Window, String> {
     if !path.is_dir() {
         let coords = path
             .file_name()
             .and_then(|name| region_coords(&name.to_string_lossy()))
             .unwrap_or([0, 0]);
-        let mut world = World::new(coords, [1, 1]);
-        world.insert(coords, load(path)?);
-        return Ok(world);
+        return Ok(Window {
+            min_region: coords,
+            regions: [1, 1],
+            files: vec![(coords, path.to_path_buf())],
+        });
     }
 
     // Half the window below the centre, so a window of any size holds the centre region and an
@@ -418,18 +480,17 @@ pub fn load_world(path: &Path, centre: [i32; 2], size: usize) -> Result<World, S
         centre[0] - (size / 2) as i32,
         centre[1] - (size / 2) as i32,
     ];
-    let mut world = World::new(min, [size, size]);
+    let mut files = Vec::new();
     for rz in 0..size as i32 {
         for rx in 0..size as i32 {
             let coords = [min[0] + rx, min[1] + rz];
             let file = path.join(format!("r.{}.{}.mca", coords[0], coords[1]));
-            if !file.is_file() {
-                continue;
+            if file.is_file() {
+                files.push((coords, file));
             }
-            world.insert(coords, load(&file)?);
         }
     }
-    if world.loaded() == 0 {
+    if files.is_empty() {
         return Err(format!(
             "{} holds none of the {size}x{size} region files around r.{}.{}",
             path.display(),
@@ -437,7 +498,11 @@ pub fn load_world(path: &Path, centre: [i32; 2], size: usize) -> Result<World, S
             centre[1],
         ));
     }
-    Ok(world)
+    Ok(Window {
+        min_region: min,
+        regions: [size, size],
+        files,
+    })
 }
 
 pub fn load(path: &Path) -> Result<Region, String> {
@@ -883,12 +948,13 @@ mod tests {
     /// one's blocks, which is a wrong frame that nothing fails on.
     #[test]
     fn a_window_reads_each_region_where_it_belongs_and_keeps_their_states_apart() {
+        let mut palette = Palette::new();
         let mut world = World::new([-1, -1], [2, 2]);
-        world.insert([-1, -1], uniform_region("minecraft:stone"));
-        world.insert([0, 0], uniform_region("minecraft:dirt"));
+        world.insert(&mut palette, [-1, -1], uniform_region("minecraft:stone"));
+        world.insert(&mut palette, [0, 0], uniform_region("minecraft:dirt"));
 
         let id = |name: &str| {
-            world
+            palette
                 .states
                 .iter()
                 .position(|state| state.name == name)
@@ -900,11 +966,11 @@ mod tests {
         let span = REGION_BLOCKS as i32;
         assert_eq!(world.block(span - 1, 0, span - 1), stone, "last block of r.-1.-1");
         assert_eq!(world.block(span, 0, span), dirt, "first block of r.0.0");
-        assert_eq!(world.block(span, 0, 0), world.air_state, "a slot with no file in it");
+        assert_eq!(world.block(span, 0, 0), Palette::AIR, "a slot with no file in it");
         // The mesher reads one block outside the section it is meshing, and at the window's own
         // corner that coordinate is negative. Truncating division rounds it back into the first
         // region and quietly closes the outward faces of the whole corner.
-        assert_eq!(world.block(-1, 0, 0), world.air_state, "past the window's corner");
+        assert_eq!(world.block(-1, 0, 0), Palette::AIR, "past the window's corner");
         assert_eq!(world.light(-1, 0, 0), 0x0f, "open sky past the window's corner");
     }
 

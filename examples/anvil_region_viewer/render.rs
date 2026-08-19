@@ -1,12 +1,16 @@
-//! The GPU side: one static arena, a compute culling pass, and one indirect draw per stream.
+//! The GPU side: arenas of geometry, a compute culling pass, and one indirect draw per stream.
 //!
-//! Nothing about the region changes after load, so every buffer is filled once in `RenderStartup`
-//! and never touched again. Per frame the only writes are a 24-byte clear of the draw counters, the
-//! small uniform the state of the sky is carried in, and two bind-group rebuilds; no allocation, no
-//! upload, no per-section entity, no `Handle<Mesh>`.
+//! Every buffer is created at its full size before anything is loaded, because the shape of the
+//! world — how many render regions, how many sections, how many draws at most — is settled by the
+//! window rather than by what turns out to be in it. Geometry then arrives from the loader a
+//! render region at a time and is written into the arenas at offsets the loader picked. A region's
+//! draws are published only once every byte of it has landed, and no more than a fixed number of
+//! bytes go up in one frame, so a region coming into view costs a slice of several frames rather
+//! than one long one.
 
+use std::collections::VecDeque;
 use std::num::NonZeroU64;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 
 use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d};
@@ -27,22 +31,33 @@ use bevy::render::view::{
 };
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
-use crate::mesh::{Draw, Group};
-use crate::pack::{MAX_SPRITE_ARRAYS, MODEL_OVERHANG, QUAD_WORDS};
+use crate::mesh::{Draw, Group, STREAMS};
+use crate::pack::{MAX_SPRITE_ARRAYS, MODEL_OVERHANG, QUAD_WORDS, RegionGrid};
 
 /// Dynamic uniform offsets must be a multiple of the device's alignment; 256 satisfies every
 /// backend we can land on.
 const PARAMS_STRIDE: u32 = 256;
 const PARAMS_SIZE: u64 = 64;
-/// Byte offset of `Params::wireframe`, which follows eight four-byte fields. Both this and the
-/// size above are counted by hand and read by nothing that would notice them going stale, so they
-/// are pinned against the struct itself.
-const PARAMS_WIREFRAME_OFFSET: u64 = 32;
 const _: () = assert!(size_of::<Params>() as u64 == PARAMS_SIZE);
-const _: () = assert!(
-    PARAMS_WIREFRAME_OFFSET
-        == std::mem::offset_of!(Params, wireframe) as u64
-);
+
+/// How many bytes of geometry reach the GPU in one frame, from `ANVIL_UPLOAD` in megabytes.
+///
+/// A region file runs to a couple of hundred megabytes, and handing it over in fewer, larger
+/// pieces lands as a stall on the frame a region comes into view. Measured on this world at 4K:
+/// four megabytes a frame holds the loading tail at 34 ms against a settled 30, sixteen pushes it
+/// to 80, and no limit at all to 63. Four also finishes sooner, because the main thread it is not
+/// stalling is the one driving the loader.
+static UPLOAD_BUDGET: std::sync::LazyLock<usize> = std::sync::LazyLock::new(|| {
+    std::env::var("ANVIL_UPLOAD")
+        .ok()
+        .and_then(|megabytes| megabytes.parse::<usize>().ok())
+        .unwrap_or(4)
+        << 20
+});
+
+/// Buffer writes have to start and end on a four-byte boundary, so a slice of a large upload is
+/// cut to one.
+const COPY_ALIGN: usize = 4;
 const DRAW_ARGS_SIZE: u64 = size_of::<DrawArgs>() as u64;
 /// Byte offset of `DrawArgs::instance_count`, the only field a frame rewrites.
 const INSTANCE_COUNT_OFFSET: u64 = 4;
@@ -156,30 +171,110 @@ const SKY_DRAWS: [SkyDraw; 5] = [
 /// does, so rather fewer than this actually reach the screen.
 const STAR_COUNT: u32 = 1500;
 
-/// Everything the renderer needs, built on the main thread before the app starts.
-pub struct Geometry {
-    pub simple: Vec<[u32; QUAD_WORDS]>,
-    pub complex: Vec<u32>,
-    pub groups: Vec<Group>,
-    /// One `draw_indirect` each, in draw order.
-    pub draws: Vec<Draw>,
-    /// Words of the sight-line bitset the walk will hand back every frame.
+/// The shape of the world, settled before anything is loaded.
+///
+/// None of it depends on what the region files turn out to hold: the window fixes how many render
+/// regions there are and how tall the world is, and everything sized from that can be allocated
+/// once. A span that grew after geometry was already on the GPU would renumber every region's
+/// place in the sight-line bitset under it.
+pub struct Layout {
+    pub grid: RegionGrid,
+    /// Section coordinates of the window's corner, signed on all three axes.
+    pub min_section: [i32; 3],
+    /// Greedy quads the arena holds.
+    pub quad_capacity: usize,
+    /// Model quads the arena holds, four vertices each.
+    pub model_capacity: usize,
+    pub group_capacity: usize,
+    /// Words of the sight-line bitset the walk hands back every frame.
     pub cave_words: usize,
-    /// One array per sprite resolution, in the order the packed `array` field names them.
-    pub atlases: Vec<Atlas>,
-    /// One entry per animated sprite, named by counting down from the top of a quad's layer field.
-    pub animations: Vec<Animation>,
-    /// The lowest layer number that names an animation rather than a layer of an array.
-    pub animated_from: u32,
     /// The sun and the eight moon phases, one square layer each, in that order.
     pub celestials: Atlas,
     /// One texel per cloud cell.
     pub clouds: Atlas,
-    /// `TINT_LAYERS` layers covering the loaded window, RGBA8, indexed by world x and z.
-    pub tint_map: Vec<u8>,
-    /// The window the map covers: its corner in world blocks and its extent in blocks.
+    /// The window the biome colour map covers: its corner in world blocks and its extent.
     pub tint_origin: [i32; 2],
     pub tint_size: [u32; 2],
+}
+
+impl Layout {
+    /// One `draw_indirect` per stream per render region is the most the world can ever issue.
+    pub fn max_draws(&self) -> usize {
+        STREAMS * self.grid.len()
+    }
+}
+
+/// Geometry already given its place in the arenas, waiting to go to the GPU.
+///
+/// The offsets were picked by the loader, so the render world only writes bytes. The draws are
+/// published once every byte has landed, which is what stops a frame from ever drawing out of a
+/// half-written arena.
+pub struct Placement {
+    /// `(byte offset, quads)` into the greedy quad arena.
+    pub quads: (u64, Vec<[u32; QUAD_WORDS]>),
+    /// `(byte offset, words)` into the model vertex arena.
+    pub vertices: (u64, Vec<u32>),
+    /// `(byte offset, groups)` into the culling group arena.
+    pub groups: (u64, Vec<Group>),
+    /// This region's draws, in stream order.
+    pub draws: Vec<Draw>,
+}
+
+impl Placement {
+    /// The three arenas in the order they are written, as bytes. Kept as a borrow rather than
+    /// packed into one buffer: a region file runs to hundreds of megabytes and copying it once
+    /// more on the way to the GPU would undo the point of spreading the write out.
+    fn part(&self, index: usize) -> (Arena, u64, &[u8]) {
+        match index {
+            0 => (Arena::Quads, self.quads.0, bytemuck::cast_slice(&self.quads.1)),
+            1 => (
+                Arena::Vertices,
+                self.vertices.0,
+                bytemuck::cast_slice(&self.vertices.1),
+            ),
+            _ => (
+                Arena::Groups,
+                self.groups.0,
+                bytemuck::cast_slice(&self.groups.1),
+            ),
+        }
+    }
+}
+
+/// Work the loader hands the render world.
+pub enum Upload {
+    /// One region file's biome colours, at its corner in the tint window.
+    Tints {
+        origin: [u32; 2],
+        size: u32,
+        data: Vec<u8>,
+    },
+    /// The sprite set grew. Every array, the animation table and the bind group that names them
+    /// are rebuilt together, because a layer number only means anything next to the array it
+    /// indexes and the threshold that separates a still sprite from an animation moves with them.
+    Sprites {
+        atlases: Vec<Atlas>,
+        animations: Vec<Animation>,
+        animated_from: u32,
+    },
+    Geometry(Placement),
+}
+
+/// The queue the loader pushes into and the render world drains. An `Arc` rather than an extracted
+/// resource: the payloads are megabytes and extraction would clone every one of them.
+#[derive(Resource, Clone, Default)]
+pub struct Uploads(Arc<Mutex<VecDeque<Upload>>>);
+
+impl Uploads {
+    pub fn push(&self, upload: Upload) {
+        self.0.lock().unwrap().push_back(upload);
+    }
+
+    /// How much is still queued. Geometry reaches the GPU a slice at a time, so the loader going
+    /// quiet is not the same thing as the world being on screen.
+    pub fn waiting(&self) -> usize {
+        self.0.lock().unwrap().len()
+    }
 }
 
 /// One animated sprite: where its run of layers starts, how long the run is, and how fast to walk
@@ -203,7 +298,7 @@ pub struct Atlas {
 }
 
 #[derive(Resource, Deref)]
-struct StaticGeometry(Arc<Geometry>);
+struct WorldLayout(Arc<Layout>);
 
 #[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
@@ -317,7 +412,7 @@ impl ArgsReadback {
     const MAPPING: u8 = 2;
 }
 
-pub struct TerrainPlugin(pub Arc<Geometry>);
+pub struct TerrainPlugin(pub Arc<Layout>, pub Uploads);
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
@@ -339,13 +434,17 @@ impl Plugin for TerrainPlugin {
         };
         render_app
             .insert_resource(triangles)
-            .insert_resource(StaticGeometry(self.0.clone()))
+            .insert_resource(WorldLayout(self.0.clone()))
+            .insert_resource(self.1.clone())
             .add_systems(RenderStartup, init_terrain)
             .add_systems(ExtractSchedule, extract_cave_visibility)
             .add_systems(
                 Render,
                 (
                     prepare_pipelines.in_set(RenderSystems::Prepare),
+                    // Ahead of the two systems that write into the params table, and well ahead of
+                    // the culling pass that reads what it publishes.
+                    apply_uploads.in_set(RenderSystems::Prepare).before(prepare_wireframe),
                     prepare_wireframe.in_set(RenderSystems::Prepare),
                     prepare_sky.in_set(RenderSystems::Prepare),
                     prepare_view_bind_group.in_set(RenderSystems::PrepareBindGroups),
@@ -364,11 +463,20 @@ impl Plugin for TerrainPlugin {
 
 #[derive(Resource)]
 struct Terrain {
+    layout: Arc<Layout>,
+    quads: Buffer,
+    vertices: Buffer,
+    group_buffer: Buffer,
+    animations: Buffer,
     args: Buffer,
     args_readback: Buffer,
     params: Buffer,
     sky: Buffer,
     cave: Buffer,
+    visible: Buffer,
+    tints: Texture,
+    atlas_sampler: Sampler,
+    tint_sampler: Sampler,
     view_layout: BindGroupLayoutDescriptor,
     cull_bind_group: BindGroup,
     draw_bind_group: BindGroup,
@@ -383,10 +491,38 @@ struct Terrain {
     pipelines: Option<[CachedRenderPipelineId; 4]>,
     /// The sky's own four, in the order vanilla draws them.
     sky_pipelines: Option<[CachedRenderPipelineId; SKY_DRAWS.len()]>,
-    /// One entry per `draw_indirect`, in draw order.
+    /// One entry per `draw_indirect`, in draw order. Grows as regions land.
     draws: Vec<Draw>,
     /// Workgroups to dispatch per draw, one per culling group.
     group_counts: Vec<u32>,
+    /// The params table as the CPU holds it, so a change to one field does not need the rest read
+    /// back off the GPU. Rewritten whole whenever anything in it moves; it is seventy kilobytes.
+    params_cpu: Vec<Params>,
+    params_dirty: bool,
+    /// The lowest layer number that names an animation. It moves as the sprite set grows, and
+    /// every params entry carries it.
+    animated_from: u32,
+    /// Whether the table's entries ask for edges only. Carried here so a region published while
+    /// the toggle is on does not come out solid among wireframe neighbours.
+    wireframe: u32,
+    /// Whatever of the current upload has not been handed over yet.
+    pending: Option<Pending>,
+}
+
+/// One upload part way through being written.
+struct Pending {
+    placement: Placement,
+    /// Which of the three arenas is being written.
+    part: usize,
+    /// Bytes of that arena's share already sent.
+    done: usize,
+}
+
+#[derive(Copy, Clone)]
+enum Arena {
+    Quads,
+    Vertices,
+    Groups,
 }
 
 #[derive(Resource)]
@@ -394,96 +530,62 @@ struct ViewBindGroup(BindGroup);
 
 fn init_terrain(
     mut commands: Commands,
-    geometry: Res<StaticGeometry>,
+    layout: Res<WorldLayout>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     asset_server: Res<AssetServer>,
     pipeline_cache: Res<PipelineCache>,
 ) {
-    let quads = device.create_buffer_with_data(&BufferInitDescriptor {
-        label: Some("terrain quads"),
-        contents: bytemuck::cast_slice(&geometry.simple),
-        usage: BufferUsages::STORAGE,
-    });
-    let vertices = device.create_buffer_with_data(&BufferInitDescriptor {
-        label: Some("terrain vertices"),
-        contents: bytemuck::cast_slice(&geometry.complex),
-        usage: BufferUsages::STORAGE,
-    });
-    let groups = device.create_buffer_with_data(&BufferInitDescriptor {
-        label: Some("terrain groups"),
-        contents: bytemuck::cast_slice(&geometry.groups),
-        usage: BufferUsages::STORAGE,
-    });
-    // A zero-length storage buffer is not a legal binding; a pack with no animation still binds one
-    // entry, which no quad names because the layer field never reaches it.
-    let padding = [Animation::default()];
+    let layout = layout.0.clone();
+    let arena = |label, bytes: u64| {
+        device.create_buffer(&BufferDescriptor {
+            label: Some(label),
+            // A zero-length storage buffer is not a legal binding, and a window with no files in
+            // it would ask for one.
+            size: bytes.max(size_of::<[u32; QUAD_WORDS]>() as u64),
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        })
+    };
+    let quads = arena(
+        "terrain quads",
+        (layout.quad_capacity * QUAD_WORDS * 4) as u64,
+    );
+    let vertices = arena(
+        "terrain vertices",
+        (layout.model_capacity * 4 * 3 * 4) as u64,
+    );
+    let group_buffer = arena(
+        "terrain groups",
+        (layout.group_capacity * size_of::<Group>()) as u64,
+    );
+    // Worst case every quad in the arenas survives culling, so the visible list is sized for both
+    // of them and each draw owns a slice of it. No allocation can ever be needed at draw time.
+    let visible = arena(
+        "terrain visible list",
+        ((layout.quad_capacity + layout.model_capacity) * 4) as u64,
+    );
+    // A pack with no animation still binds one entry, which no quad names because the layer field
+    // never reaches it.
     let animations = device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("terrain animations"),
-        contents: bytemuck::cast_slice(if geometry.animations.is_empty() {
-            &padding[..]
-        } else {
-            &geometry.animations
-        }),
-        usage: BufferUsages::STORAGE,
+        contents: bytemuck::cast_slice(&[Animation::default()]),
+        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
     });
     let cave = device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("terrain cave visibility"),
         // All ones until the first flood fill, so nothing goes missing on the earliest frames.
-        contents: bytemuck::cast_slice(&vec![u32::MAX; geometry.cave_words]),
+        contents: bytemuck::cast_slice(&vec![u32::MAX; layout.cave_words.max(1)]),
         usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
     });
 
-    // Worst case every quad survives culling, so the visible list is sized for the whole arena and
-    // each draw owns a fixed slice of it. No allocation can ever be needed at draw time.
-    let draws = geometry.draws.len().max(1);
-    let slots_per_entry = PARAMS_STRIDE as usize / 4;
-    let mut visible_base = 0u32;
-    let mut params = vec![0u32; draws * slots_per_entry];
-    let mut group_counts = vec![0u32; draws];
-    for (index, draw) in geometry.draws.iter().enumerate() {
-        let entry = Params {
-            group_base: draw.first_group,
-            group_count: draw.group_count,
-            visible_base,
-            args_index: index as u32,
-            origin_x: draw.origin[0],
-            origin_y: draw.origin[1],
-            origin_z: draw.origin[2],
-            cave_base: draw.cave_base,
-            wireframe: 0,
-            // Odd streams carry baked model quads, the only geometry that leaves its own section.
-            // Growing the greedy streams' boxes too would only weaken a test that is exact today.
-            overhang: if draw.stream % 2 == 1 {
-                MODEL_OVERHANG
-            } else {
-                0.0
-            },
-            animated_from: geometry.animated_from,
-            tint_origin_x: geometry.tint_origin[0],
-            tint_origin_z: geometry.tint_origin[1],
-            tint_span_x: geometry.tint_size[0] as f32,
-            tint_span_z: geometry.tint_size[1] as f32,
-            reserved1: 0,
-        };
-        let slot = index * slots_per_entry;
-        params[slot..slot + PARAMS_SIZE as usize / 4]
-            .copy_from_slice(bytemuck::cast_slice(&[entry]));
-        group_counts[index] = draw.group_count;
-        visible_base += draw.quad_count;
-    }
-    let visible = device.create_buffer(&BufferDescriptor {
-        label: Some("terrain visible list"),
-        size: (visible_base.max(1) as u64) * 4,
-        usage: BufferUsages::STORAGE,
+    let max_draws = layout.max_draws().max(1);
+    let params = device.create_buffer(&BufferDescriptor {
+        label: Some("terrain draw params"),
+        size: max_draws as u64 * PARAMS_STRIDE as u64,
+        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
-    let params = device.create_buffer_with_data(&BufferInitDescriptor {
-        label: Some("terrain draw params"),
-        contents: bytemuck::cast_slice(&params),
-        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-    });
-
     let args_init = vec![
         DrawArgs {
             vertex_count: 6,
@@ -491,7 +593,7 @@ fn init_terrain(
             first_vertex: 0,
             first_instance: 0,
         };
-        draws
+        max_draws
     ];
     let args = device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("terrain draw args"),
@@ -514,9 +616,9 @@ fn init_terrain(
         mapped_at_creation: false,
     });
 
-    let (atlases, atlas_sampler) = upload_atlases(&geometry, &device, &queue);
-    let celestials = upload_atlas(&geometry.celestials, "celestials", &device, &queue);
-    let clouds = upload_atlas(&geometry.clouds, "clouds", &device, &queue);
+    let (atlases, atlas_sampler) = upload_atlases(&[], &device, &queue);
+    let celestials = upload_atlas(&layout.celestials, "celestials", &device, &queue);
+    let clouds = upload_atlas(&layout.clouds, "clouds", &device, &queue);
     // Nearest, and one mip only: a thirty-two pixel sun blown across the sky has to keep its edges
     // rather than smear into a blur, and there is no distance here for a mip chain to serve.
     let celestial_sampler = device.create_sampler(&SamplerDescriptor {
@@ -525,7 +627,7 @@ fn init_terrain(
         min_filter: FilterMode::Nearest,
         ..default()
     });
-    let (tints, tint_sampler) = upload_tints(&geometry, &device, &queue);
+    let (tints, tint_sampler) = create_tints(&layout, &device);
 
     let view_layout = BindGroupLayoutDescriptor::new(
         "terrain view",
@@ -604,28 +706,24 @@ fn init_terrain(
         "terrain cull",
         &pipeline_cache.get_bind_group_layout(&cull_layout),
         &BindGroupEntries::sequential((
-            groups.as_entire_buffer_binding(),
+            group_buffer.as_entire_buffer_binding(),
             visible.as_entire_buffer_binding(),
             args.as_entire_buffer_binding(),
             cave.as_entire_buffer_binding(),
         )),
     );
-    let draw_bind_group = device.create_bind_group(
-        "terrain draw",
-        &pipeline_cache.get_bind_group_layout(&draw_layout),
-        &BindGroupEntries::sequential((
-            quads.as_entire_buffer_binding(),
-            vertices.as_entire_buffer_binding(),
-            visible.as_entire_buffer_binding(),
-            &atlases[0],
-            &atlases[1],
-            &atlases[2],
-            &atlases[3],
-            &atlas_sampler,
-            &tints,
-            &tint_sampler,
-            animations.as_entire_buffer_binding(),
-        )),
+    let draw_bind_group = draw_bind_group(
+        &device,
+        &pipeline_cache,
+        &draw_layout,
+        &quads,
+        &vertices,
+        &visible,
+        &atlases,
+        &atlas_sampler,
+        &tints,
+        &tint_sampler,
+        &animations,
     );
 
     let sky_bind_group = device.create_bind_group(
@@ -635,11 +733,27 @@ fn init_terrain(
     );
 
     commands.insert_resource(Terrain {
+        params_cpu: Vec::with_capacity(max_draws),
+        params_dirty: false,
+        animated_from: 0,
+        wireframe: 0,
+        pending: None,
+        draws: Vec::new(),
+        group_counts: Vec::new(),
+        layout,
+        quads,
+        vertices,
+        group_buffer,
+        animations,
         args,
         args_readback,
         params,
         sky,
         cave,
+        visible,
+        tints,
+        atlas_sampler,
+        tint_sampler,
         view_layout,
         cull_bind_group,
         draw_bind_group,
@@ -651,15 +765,52 @@ fn init_terrain(
         sky_shader,
         pipelines: None,
         sky_pipelines: None,
-        draws: geometry.draws.clone(),
-        group_counts,
     });
+}
+
+/// The draw bind group names every sprite array, so it has to be rebuilt whenever the set of them
+/// changes. Building it is cheap; the textures behind it are what cost.
+#[allow(clippy::too_many_arguments)]
+fn draw_bind_group(
+    device: &RenderDevice,
+    pipeline_cache: &PipelineCache,
+    layout: &BindGroupLayoutDescriptor,
+    quads: &Buffer,
+    vertices: &Buffer,
+    visible: &Buffer,
+    atlases: &[TextureView],
+    atlas_sampler: &Sampler,
+    tints: &Texture,
+    tint_sampler: &Sampler,
+    animations: &Buffer,
+) -> BindGroup {
+    let tint_view = tints.create_view(&TextureViewDescriptor {
+        dimension: Some(TextureViewDimension::D2Array),
+        ..default()
+    });
+    device.create_bind_group(
+        "terrain draw",
+        &pipeline_cache.get_bind_group_layout(layout),
+        &BindGroupEntries::sequential((
+            quads.as_entire_buffer_binding(),
+            vertices.as_entire_buffer_binding(),
+            visible.as_entire_buffer_binding(),
+            &atlases[0],
+            &atlases[1],
+            &atlases[2],
+            &atlases[3],
+            atlas_sampler,
+            &tint_view,
+            tint_sampler,
+            animations.as_entire_buffer_binding(),
+        )),
+    )
 }
 
 /// The shader has one binding per addressable array, so a pack that uses fewer resolutions still
 /// has to leave something bound. An unused slot gets a single blank layer, which no quad names.
 fn upload_atlases(
-    geometry: &Geometry,
+    atlases: &[Atlas],
     device: &RenderDevice,
     queue: &RenderQueue,
 ) -> (Vec<TextureView>, Sampler) {
@@ -671,7 +822,7 @@ fn upload_atlases(
     };
     let views = (0..MAX_SPRITE_ARRAYS)
         .map(|index| {
-            let atlas = geometry.atlases.get(index).unwrap_or(&blank);
+            let atlas = atlases.get(index).unwrap_or(&blank);
             assert!(
                 atlas.layers <= limit,
                 "{} sprites are {}x{}, but this device binds at most {limit} array layers",
@@ -748,12 +899,8 @@ fn atlas_sampler(device: &RenderDevice) -> Sampler {
     })
 }
 
-fn upload_tints(
-    geometry: &Geometry,
-    device: &RenderDevice,
-    queue: &RenderQueue,
-) -> (TextureView, Sampler) {
-    let [width, height] = geometry.tint_size;
+fn create_tints(layout: &Layout, device: &RenderDevice) -> (Texture, Sampler) {
+    let [width, height] = layout.tint_size;
     let texture = device.create_texture(&TextureDescriptor {
         label: Some("terrain tints"),
         size: Extent3d {
@@ -768,29 +915,6 @@ fn upload_tints(
         usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
         view_formats: &[],
     });
-    queue.write_texture(
-        TexelCopyTextureInfo {
-            texture: &texture,
-            mip_level: 0,
-            origin: Origin3d::ZERO,
-            aspect: TextureAspect::All,
-        },
-        &geometry.tint_map,
-        TexelCopyBufferLayout {
-            offset: 0,
-            bytes_per_row: Some(width * 4),
-            rows_per_image: Some(height),
-        },
-        Extent3d {
-            width,
-            height,
-            depth_or_array_layers: TINT_LAYERS,
-        },
-    );
-    let view = texture.create_view(&TextureViewDescriptor {
-        dimension: Some(TextureViewDimension::D2Array),
-        ..default()
-    });
     // Linear sampling across the biome map is what makes the transition between two biomes' grass
     // colours a gradient instead of a hard seam down the middle of a chunk.
     let sampler = device.create_sampler(&SamplerDescriptor {
@@ -801,7 +925,244 @@ fn upload_tints(
         min_filter: FilterMode::Linear,
         ..default()
     });
-    (view, sampler)
+    (texture, sampler)
+}
+
+/// Drains what the loader has produced, within a fixed number of bytes a frame.
+///
+/// A region's draws go into the table only after every byte of its geometry has landed, so the
+/// culling pass never sees a group pointing into an arena that has not been written yet.
+fn apply_uploads(
+    mut terrain: Option<ResMut<Terrain>>,
+    uploads: Res<Uploads>,
+    device: Res<RenderDevice>,
+    queue: Res<RenderQueue>,
+    pipeline_cache: Res<PipelineCache>,
+) {
+    let Some(terrain) = terrain.as_mut() else {
+        return;
+    };
+    let mut budget = *UPLOAD_BUDGET;
+
+    loop {
+        if terrain.pending.is_none() {
+            let next = uploads.0.lock().unwrap().pop_front();
+            match next {
+                None => break,
+                Some(Upload::Tints { origin, size, data }) => {
+                    write_tint_square(terrain, &queue, origin, size, &data);
+                    budget = budget.saturating_sub(data.len());
+                    if budget == 0 {
+                        break;
+                    }
+                    continue;
+                }
+                Some(Upload::Sprites {
+                    atlases,
+                    animations,
+                    animated_from,
+                }) => {
+                    let padding = [Animation::default()];
+                    let spent: usize = atlases
+                        .iter()
+                        .flat_map(|atlas| atlas.mips.iter())
+                        .map(|mip| mip.len())
+                        .sum();
+                    let (views, atlas_sampler) = upload_atlases(&atlases, &device, &queue);
+                    terrain.atlas_sampler = atlas_sampler;
+                    terrain.animations = device.create_buffer_with_data(&BufferInitDescriptor {
+                        label: Some("terrain animations"),
+                        contents: bytemuck::cast_slice(if animations.is_empty() {
+                            &padding[..]
+                        } else {
+                            &animations
+                        }),
+                        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+                    });
+                    terrain.draw_bind_group = draw_bind_group(
+                        &device,
+                        &pipeline_cache,
+                        &terrain.draw_layout,
+                        &terrain.quads,
+                        &terrain.vertices,
+                        &terrain.visible,
+                        &views,
+                        &terrain.atlas_sampler,
+                        &terrain.tints,
+                        &terrain.tint_sampler,
+                        &terrain.animations,
+                    );
+                    // The threshold that tells a still sprite from an animation moves as the set
+                    // grows, and every entry of the table carries it.
+                    terrain.animated_from = animated_from;
+                    rebuild_params(terrain);
+                    // Rebuilding every array and its mips is megabytes of texture, so it spends the
+                    // frame's budget like geometry does rather than landing on top of it.
+                    budget = budget.saturating_sub(spent);
+                    if budget == 0 {
+                        break;
+                    }
+                    continue;
+                }
+                Some(Upload::Geometry(placement)) => {
+                    terrain.pending = Some(Pending {
+                        placement,
+                        part: 0,
+                        done: 0,
+                    });
+                }
+            }
+        }
+
+        let mut pending = terrain.pending.take().expect("just filled");
+        while budget > 0 && pending.part < 3 {
+            let (arena, offset, data) = pending.placement.part(pending.part);
+            if data.is_empty() {
+                pending.part += 1;
+                pending.done = 0;
+                continue;
+            }
+            let left = data.len() - pending.done;
+            let mut take = left.min(budget);
+            if take < left {
+                take -= take % COPY_ALIGN;
+                if take == 0 {
+                    break;
+                }
+            }
+            let buffer = match arena {
+                Arena::Quads => &terrain.quads,
+                Arena::Vertices => &terrain.vertices,
+                Arena::Groups => &terrain.group_buffer,
+            };
+            queue.write_buffer(
+                buffer,
+                offset + pending.done as u64,
+                &data[pending.done..pending.done + take],
+            );
+            budget -= take;
+            pending.done += take;
+            if pending.done == data.len() {
+                pending.part += 1;
+                pending.done = 0;
+            }
+        }
+        if pending.part < 3 {
+            terrain.pending = Some(pending);
+            break;
+        }
+        publish(terrain, pending.placement.draws);
+        if budget == 0 {
+            break;
+        }
+    }
+
+    if terrain.params_dirty {
+        write_params(terrain, &queue);
+    }
+}
+
+/// Adds a region's draws and rebuilds the table around them.
+///
+/// The table has to stay in stream order, because stream order is draw order: the translucent
+/// streams write no depth, so opaque geometry from a region published later would draw straight
+/// over water published earlier and leave the sea missing in region-sized rectangles. A stable
+/// sort keeps regions in the order they landed within each stream.
+fn publish(terrain: &mut Terrain, draws: Vec<Draw>) {
+    terrain.draws.extend(draws);
+    terrain.draws.sort_by_key(|draw| draw.stream);
+    rebuild_params(terrain);
+}
+
+/// Rewrites every entry of the table from the draw list. At a few hundred entries this costs less
+/// than tracking which of them a change touched.
+fn rebuild_params(terrain: &mut Terrain) {
+    let animated_from = terrain.animated_from;
+    let wireframe = terrain.wireframe;
+    let tint_origin = terrain.layout.tint_origin;
+    let tint_size = terrain.layout.tint_size;
+    terrain.params_cpu.clear();
+    terrain.group_counts.clear();
+    let mut visible_base = 0u32;
+    for (index, draw) in terrain.draws.iter().enumerate() {
+        terrain.params_cpu.push(Params {
+            group_base: draw.first_group,
+            group_count: draw.group_count,
+            visible_base,
+            args_index: index as u32,
+            origin_x: draw.origin[0],
+            origin_y: draw.origin[1],
+            origin_z: draw.origin[2],
+            cave_base: draw.cave_base,
+            wireframe,
+            // Odd streams carry baked model quads, the only geometry that leaves its own section.
+            // Growing the greedy streams' boxes too would only weaken a test that is exact today.
+            overhang: if draw.stream % 2 == 1 {
+                MODEL_OVERHANG
+            } else {
+                0.0
+            },
+            animated_from,
+            tint_origin_x: tint_origin[0],
+            tint_origin_z: tint_origin[1],
+            tint_span_x: tint_size[0] as f32,
+            tint_span_z: tint_size[1] as f32,
+            reserved1: 0,
+        });
+        visible_base += draw.quad_count;
+        terrain.group_counts.push(draw.group_count);
+    }
+    terrain.params_dirty = true;
+}
+
+/// The table is strided for dynamic offsets, so it is assembled here rather than written entry by
+/// entry: at seventy kilobytes for a full window one write costs less than the bookkeeping would.
+fn write_params(terrain: &mut Terrain, queue: &RenderQueue) {
+    terrain.params_dirty = false;
+    let stride = PARAMS_STRIDE as usize;
+    let mut bytes = vec![0u8; terrain.params_cpu.len() * stride];
+    for (index, entry) in terrain.params_cpu.iter().enumerate() {
+        let at = index * stride;
+        bytes[at..at + PARAMS_SIZE as usize].copy_from_slice(bytemuck::bytes_of(entry));
+    }
+    if !bytes.is_empty() {
+        queue.write_buffer(&terrain.params, 0, &bytes);
+    }
+}
+
+fn write_tint_square(
+    terrain: &Terrain,
+    queue: &RenderQueue,
+    origin: [u32; 2],
+    size: u32,
+    data: &[u8],
+) {
+    let layer = (size * size * 4) as usize;
+    for kind in 0..TINT_LAYERS {
+        queue.write_texture(
+            TexelCopyTextureInfo {
+                texture: &terrain.tints,
+                mip_level: 0,
+                origin: Origin3d {
+                    x: origin[0],
+                    y: origin[1],
+                    z: kind,
+                },
+                aspect: TextureAspect::All,
+            },
+            &data[kind as usize * layer..(kind as usize + 1) * layer],
+            TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(size * 4),
+                rows_per_image: Some(size),
+            },
+            Extent3d {
+                width: size,
+                height: size,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
 }
 
 /// Maps the copy the culling pass left behind. The number is a frame late, which cannot show in a
@@ -841,34 +1202,25 @@ fn read_draw_args(terrain: Option<Res<Terrain>>, triangles: Res<DrawnTriangles>)
     });
 }
 
-/// The params table is otherwise written once at startup, so the flag is pushed only on the frame
-/// the key is pressed rather than re-uploaded every frame.
+/// The flag is pushed into the table only on the frame the key is pressed rather than re-uploaded
+/// every frame.
 fn prepare_wireframe(
     wireframe: Res<Wireframe>,
-    terrain: Option<Res<Terrain>>,
+    mut terrain: Option<ResMut<Terrain>>,
     queue: Res<RenderQueue>,
-    mut applied: Local<bool>,
 ) {
-    let Some(terrain) = terrain else {
+    let Some(terrain) = terrain.as_mut() else {
         return;
     };
-    if *applied == wireframe.0 {
+    let flag = u32::from(wireframe.0);
+    if terrain.wireframe == flag {
         return;
     }
-    *applied = wireframe.0;
-
-    let flag = u32::from(wireframe.0);
-    for index in 0..terrain.draws.len() {
-        queue.write_buffer(
-            &terrain.params,
-            index as u64 * PARAMS_STRIDE as u64 + PARAMS_WIREFRAME_OFFSET,
-            bytemuck::bytes_of(&flag),
-        );
-    }
+    terrain.wireframe = flag;
+    rebuild_params(terrain);
+    write_params(terrain, &queue);
 }
 
-/// The sky is one small uniform for the whole frame, so it is pushed whole rather than by field
-/// the way the params table is.
 fn prepare_sky(sky: Res<Sky>, terrain: Option<Res<Terrain>>, queue: Res<RenderQueue>) {
     let Some(terrain) = terrain else {
         return;

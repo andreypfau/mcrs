@@ -97,6 +97,15 @@ impl CaveCull {
         }
     }
 
+    /// Takes the crossing masks of a render region the mesher has just finished. Sections it does
+    /// not name keep what they had: a section that is missing from the file is air, and defaulting
+    /// it to "closed" would kill a sight-line walk on its very first step through open sky.
+    pub fn set_connectivity(&mut self, entries: &[(u32, u64)]) {
+        for &(slot, mask) in entries {
+            self.conn[slot as usize] = mask;
+        }
+    }
+
     /// Words of the bitset, which is also how much of it goes to the GPU.
     pub fn words(&self) -> usize {
         self.bits.len()

@@ -4,8 +4,6 @@
 //! millions of blocks. The region interns only a few hundred distinct states, so the whole catalog
 //! is built up front and the mesher then works from plain arrays.
 
-use std::collections::HashMap;
-
 use bevy::math::{IVec3, Vec3};
 
 use crate::anvil::{BlockStateKey, REGION_BLOCKS, SECTION_SIZE, World};
@@ -68,6 +66,7 @@ pub struct ModelQuad {
     pub tinted: bool,
 }
 
+#[derive(Clone)]
 pub struct BlockInfo {
     /// The six identity-UV faces of the unit cube, when the model contains them. This is the greedy
     /// mesher's input, and a model may have these *and* extra geometry: a grass block is a cube
@@ -157,49 +156,57 @@ const FLUIDS: [(&str, &str); 3] = [
     ("minecraft:lava", "minecraft:block/lava_still"),
 ];
 
-pub fn build(world: &World) -> Catalog {
-    let mut sprites = SpriteRegistry::new();
-    let mut blocks: Vec<BlockInfo> = Vec::with_capacity(world.states.len());
-    let mut failures = Vec::new();
-    let neighbours = TinyWorld::default();
+/// A catalog with nothing baked into it yet. Regions are baked in as they arrive, because the
+/// block states a world holds are only known once its files have been read.
+pub fn empty() -> Catalog {
+    Catalog {
+        blocks: Vec::new(),
+        sprites: SpriteRegistry::new(),
+        // Slot zero is the untinted white every block that takes no biome colour points at.
+        tints: vec![[1.0, 1.0, 1.0, 1.0]],
+        failures: Vec::new(),
+    }
+}
 
-    for state in &world.states {
-        match build_one(state, &neighbours, &mut sprites) {
-            Ok(info) => blocks.push(info),
+/// Bakes whatever the world has interned since the last call.
+///
+/// Ids are handed out by appending, so an id already baked never changes meaning and a catalog
+/// only ever grows. That is what lets a mesher hold an older, shorter catalog safely: it can only
+/// name states that existed when it started.
+pub fn extend(catalog: &mut Catalog, states: &[BlockStateKey], biomes: &[String]) {
+    let neighbours = TinyWorld::default();
+    for state in &states[catalog.blocks.len()..] {
+        match build_one(state, &neighbours, &mut catalog.sprites) {
+            Ok(info) => catalog.blocks.push(info),
             Err(reason) => {
-                failures.push(format!("{}: {reason}", state.label()));
-                blocks.push(BlockInfo::default());
+                catalog.failures.push(format!("{}: {reason}", state.label()));
+                catalog.blocks.push(BlockInfo::default());
             }
         }
     }
     // Past either of these the packed fields wrap and quads silently sample a different sprite,
     // which no validation layer anywhere would report.
     assert!(
-        sprites.arrays().len() <= MAX_SPRITE_ARRAYS,
+        catalog.sprites.arrays().len() <= MAX_SPRITE_ARRAYS,
         "the pack uses {} sprite resolutions, but a packed quad can address only \
          {MAX_SPRITE_ARRAYS} arrays",
-        sprites.arrays().len(),
+        catalog.sprites.arrays().len(),
     );
     // Animations take the top of the layer field and every array's still sprites take the bottom
     // of their own, so what has to fit is one array's stills beside every animation there is.
-    for array in sprites.arrays() {
+    for array in catalog.sprites.arrays() {
         assert!(
-            array.stills() + sprites.animations().len() <= MAX_SPRITES,
+            array.stills() + catalog.sprites.animations().len() <= MAX_SPRITES,
             "{} still sprites are {}x{} and {} animations sit above them, but a quad can name \
              only {MAX_SPRITES} layers",
             array.stills(),
             array.size,
             array.size,
-            sprites.animations().len(),
+            catalog.sprites.animations().len(),
         );
     }
 
-    Catalog {
-        blocks,
-        sprites,
-        tints: build_tints(world),
-        failures,
-    }
+    extend_tints(catalog, biomes);
 }
 
 fn build_one(
@@ -392,36 +399,32 @@ struct BiomeEffects {
 
 /// Vanilla samples grass and foliage colour from a 256×256 colourmap indexed by the biome's
 /// temperature and downfall; the per-biome `effects` overrides win when present.
-fn build_tints(world: &World) -> Vec<[f32; 4]> {
+fn extend_tints(catalog: &mut Catalog, biomes: &[String]) {
+    let done = (catalog.tints.len() - 1) / TINT_KINDS;
+    if done == biomes.len() {
+        return;
+    }
     let grass_map = load_colormap("grass");
     let foliage_map = load_colormap("foliage");
-    let mut tints = Vec::with_capacity(1 + world.biomes.len() * TINT_KINDS);
-    tints.push([1.0, 1.0, 1.0, 1.0]);
-
-    let mut cache: HashMap<String, [[f32; 4]; TINT_KINDS]> = HashMap::new();
-    for name in &world.biomes {
-        let colors = cache.entry(name.clone()).or_insert_with(|| {
-            let file = load_biome(name);
-            let (temperature, downfall, effects) = match file {
-                Some(file) => (file.temperature, file.downfall, file.effects),
-                None => (0.5, 0.5, BiomeEffects::default()),
-            };
-            let grass = effects
-                .grass_color
-                .map(rgb)
-                .or_else(|| sample_colormap(&grass_map, temperature, downfall))
-                .unwrap_or([0.56, 0.73, 0.35, 1.0]);
-            let foliage = effects
-                .foliage_color
-                .map(rgb)
-                .or_else(|| sample_colormap(&foliage_map, temperature, downfall))
-                .unwrap_or([0.29, 0.60, 0.21, 1.0]);
-            let water = effects.water_color.map(rgb).unwrap_or([0.25, 0.46, 0.89, 1.0]);
-            [grass, foliage, water]
-        });
-        tints.extend_from_slice(colors);
+    for name in &biomes[done..] {
+        let file = load_biome(name);
+        let (temperature, downfall, effects) = match file {
+            Some(file) => (file.temperature, file.downfall, file.effects),
+            None => (0.5, 0.5, BiomeEffects::default()),
+        };
+        let grass = effects
+            .grass_color
+            .map(rgb)
+            .or_else(|| sample_colormap(&grass_map, temperature, downfall))
+            .unwrap_or([0.56, 0.73, 0.35, 1.0]);
+        let foliage = effects
+            .foliage_color
+            .map(rgb)
+            .or_else(|| sample_colormap(&foliage_map, temperature, downfall))
+            .unwrap_or([0.29, 0.60, 0.21, 1.0]);
+        let water = effects.water_color.map(rgb).unwrap_or([0.25, 0.46, 0.89, 1.0]);
+        catalog.tints.extend_from_slice(&[grass, foliage, water]);
     }
-    tints
 }
 
 fn load_biome(name: &str) -> Option<BiomeFile> {
@@ -483,24 +486,23 @@ fn rgb(packed: u32) -> [f32; 4] {
     ]
 }
 
-/// Bakes the loaded world's biome colours into one map per tint kind, sampled in the fragment
-/// shader by world x and z. Keeping the colour out of the vertex means the greedy mesher can merge
-/// grass across a biome boundary, and linear filtering then blends the two colours for free —
-/// which is also how the client avoids a hard seam down the middle of a chunk.
+/// Bakes one region file's biome colours into a `REGION_BLOCKS` square per tint kind, sampled in
+/// the fragment shader by world x and z. Keeping the colour out of the vertex means the greedy
+/// mesher can merge grass across a biome boundary, and linear filtering then blends the two
+/// colours for free — which is also how the client avoids a hard seam down the middle of a chunk.
 ///
-/// The map covers the loaded window rather than a fixed square, so the shader is told where it
-/// starts and how wide it is instead of dividing by a constant.
-pub fn tint_map(world: &World, tints: &[[f32; 4]]) -> Vec<u8> {
-    let width = world.regions[0] * REGION_BLOCKS;
-    let depth = world.regions[1] * REGION_BLOCKS;
-    let mut out = vec![0u8; width * depth * 4 * TINT_KINDS];
-    for z in 0..depth {
-        for x in 0..width {
-            let biome = surface_biome(world, x, z);
+/// One file at a time because the map covering the whole window is written into as files land,
+/// and each of them only knows its own square.
+pub fn tint_square(world: &World, tints: &[[f32; 4]], corner: [usize; 2]) -> Vec<u8> {
+    const SIZE: usize = REGION_BLOCKS;
+    let mut out = vec![0u8; SIZE * SIZE * 4 * TINT_KINDS];
+    for z in 0..SIZE {
+        for x in 0..SIZE {
+            let biome = surface_biome(world, corner[0] + x, corner[1] + z);
             for kind in 0..TINT_KINDS {
                 let slot = 1 + biome as usize * TINT_KINDS + kind;
                 let color = tints.get(slot).copied().unwrap_or([1.0; 4]);
-                let offset = (kind * width * depth + z * width + x) * 4;
+                let offset = (kind * SIZE * SIZE + z * SIZE + x) * 4;
                 for channel in 0..4 {
                     out[offset + channel] = (color[channel].clamp(0.0, 1.0) * 255.0) as u8;
                 }
