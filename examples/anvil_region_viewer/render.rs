@@ -33,7 +33,7 @@ use crate::pack::{MAX_SPRITE_ARRAYS, MODEL_OVERHANG, QUAD_WORDS};
 /// Dynamic uniform offsets must be a multiple of the device's alignment; 256 satisfies every
 /// backend we can land on.
 const PARAMS_STRIDE: u32 = 256;
-const PARAMS_SIZE: u64 = 48;
+const PARAMS_SIZE: u64 = 64;
 /// Byte offset of `Params::wireframe`, which follows eight four-byte fields. Both this and the
 /// size above are counted by hand and read by nothing that would notice them going stale, so they
 /// are pinned against the struct itself.
@@ -46,7 +46,6 @@ const _: () = assert!(
 const DRAW_ARGS_SIZE: u64 = size_of::<DrawArgs>() as u64;
 /// Byte offset of `DrawArgs::instance_count`, the only field a frame rewrites.
 const INSTANCE_COUNT_OFFSET: u64 = 4;
-const TINT_SIZE: u32 = 512;
 const TINT_LAYERS: u32 = 3;
 
 /// Vanilla's own additive blend for the sun, the moon and the stars: what is drawn is added to the
@@ -176,8 +175,11 @@ pub struct Geometry {
     pub celestials: Atlas,
     /// One texel per cloud cell.
     pub clouds: Atlas,
-    /// `TINT_LAYERS` layers of `TINT_SIZE`², RGBA8, indexed by world x and z.
+    /// `TINT_LAYERS` layers covering the loaded window, RGBA8, indexed by world x and z.
     pub tint_map: Vec<u8>,
+    /// The window the map covers: its corner in world blocks and its extent in blocks.
+    pub tint_origin: [i32; 2],
+    pub tint_size: [u32; 2],
 }
 
 /// One animated sprite: where its run of layers starts, how long the run is, and how fast to walk
@@ -232,6 +234,13 @@ struct Params {
     overhang: f32,
     /// The lowest layer number that names an animation rather than a layer of an array.
     animated_from: u32,
+    /// Where the biome colour map starts in world blocks and how far it reaches. The map covers
+    /// the loaded window, which does not start at the origin, so a world position has to be
+    /// shifted and scaled rather than divided by a constant.
+    tint_origin_x: i32,
+    tint_origin_z: i32,
+    tint_span_x: f32,
+    tint_span_z: f32,
     reserved1: u32,
 }
 
@@ -451,6 +460,10 @@ fn init_terrain(
                 0.0
             },
             animated_from: geometry.animated_from,
+            tint_origin_x: geometry.tint_origin[0],
+            tint_origin_z: geometry.tint_origin[1],
+            tint_span_x: geometry.tint_size[0] as f32,
+            tint_span_z: geometry.tint_size[1] as f32,
             reserved1: 0,
         };
         let slot = index * slots_per_entry;
@@ -740,11 +753,12 @@ fn upload_tints(
     device: &RenderDevice,
     queue: &RenderQueue,
 ) -> (TextureView, Sampler) {
+    let [width, height] = geometry.tint_size;
     let texture = device.create_texture(&TextureDescriptor {
         label: Some("terrain tints"),
         size: Extent3d {
-            width: TINT_SIZE,
-            height: TINT_SIZE,
+            width,
+            height,
             depth_or_array_layers: TINT_LAYERS,
         },
         mip_level_count: 1,
@@ -764,12 +778,12 @@ fn upload_tints(
         &geometry.tint_map,
         TexelCopyBufferLayout {
             offset: 0,
-            bytes_per_row: Some(TINT_SIZE * 4),
-            rows_per_image: Some(TINT_SIZE),
+            bytes_per_row: Some(width * 4),
+            rows_per_image: Some(height),
         },
         Extent3d {
-            width: TINT_SIZE,
-            height: TINT_SIZE,
+            width,
+            height,
             depth_or_array_layers: TINT_LAYERS,
         },
     );

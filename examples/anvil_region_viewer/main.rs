@@ -3,7 +3,12 @@
 //! ```text
 //! cargo run --release --example anvil_region_viewer
 //! cargo run --release --example anvil_region_viewer -- path/to/r.0.0.mca
+//! cargo run --release --example anvil_region_viewer -- path/to/saves/world/region 3
 //! ```
+//!
+//! Given a directory, a square window of region files is loaded around the region `ANVIL_CENTER`
+//! names, two on a side unless a second argument says otherwise. A whole directory is deliberately
+//! not an option: sixty-four region files are several gigabytes of geometry.
 //!
 //! Drag with the left mouse button to orbit, scroll to zoom, hold shift while dragging to pan.
 //! Hold + or - to run the clock: the sky, the sun, the moon, the stars and the light on the terrain
@@ -57,15 +62,26 @@ use render::{DrawnTriangles, Geometry, TerrainPlugin, Wireframe};
 
 const DEFAULT_REGION: &str = "examples/anvil_region_viewer/r.0.0.mca";
 
+/// Region files on a side when a directory is given. Two is 280 MB of geometry and a second and a
+/// half of loading, which is enough to show terrain running unbroken across a region seam; the
+/// sixty-four files of a real world would be four and a half gigabytes.
+const DEFAULT_WINDOW: usize = 2;
+
 fn main() {
-    let path = std::env::args().nth(1).unwrap_or_else(|| {
+    let mut args = std::env::args().skip(1);
+    let path = args.next().unwrap_or_else(|| {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join(DEFAULT_REGION)
             .to_string_lossy()
             .into_owned()
     });
+    let window = args
+        .next()
+        .and_then(|size| size.parse().ok())
+        .unwrap_or(DEFAULT_WINDOW)
+        .max(1);
 
-    let (geometry, cave) = match load(std::path::Path::new(&path)) {
+    let (geometry, cave) = match load(std::path::Path::new(&path), window_centre(), window) {
         Ok(loaded) => loaded,
         Err(error) => {
             eprintln!("cannot load {path}: {error}");
@@ -136,13 +152,33 @@ fn main() {
         .run();
 }
 
-fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
+/// `ANVIL_CENTER=x,z` names the region the loaded window is centred on. Default is the origin,
+/// which for an even window straddles it and so puts negative region coordinates in the frame.
+fn window_centre() -> [i32; 2] {
+    let Ok(spec) = std::env::var("ANVIL_CENTER") else {
+        return [0, 0];
+    };
+    let numbers: Vec<i32> = spec.split(',').filter_map(|n| n.trim().parse().ok()).collect();
+    match numbers[..] {
+        [x, z] => [x, z],
+        _ => {
+            eprintln!("ANVIL_CENTER needs two region coordinates: x,z");
+            [0, 0]
+        }
+    }
+}
+
+fn load(
+    path: &std::path::Path,
+    centre: [i32; 2],
+    window: usize,
+) -> Result<(Geometry, cave::CaveCull), String> {
     let started = Instant::now();
-    let region = anvil::load(path)?;
+    let world = anvil::load_world(path, centre, window)?;
     let parsed = started.elapsed();
 
     let started = Instant::now();
-    let catalog = blocks::build(&region);
+    let catalog = blocks::build(&world);
     let baked = started.elapsed();
     // Plain printing, not `warn!`: loading happens before the app — and therefore the log
     // subscriber — exists.
@@ -151,13 +187,17 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
     }
 
     let started = Instant::now();
-    let mut region_mesh = mesh::build(&region, &catalog);
+    let mut region_mesh = mesh::build(&world, &catalog);
     let meshed = started.elapsed();
 
     println!(
-        "{} sections, {} block states ({} unrenderable), {} sprites; parsed in {parsed:.2?}, baked in {baked:.2?}, meshed in {meshed:.2?}",
-        region.non_empty_sections(),
-        region.states.len(),
+        "{} region files at r.{}.{} and up, {} sections, {} block states ({} unrenderable), \
+         {} sprites; parsed in {parsed:.2?}, baked in {baked:.2?}, meshed in {meshed:.2?}",
+        world.loaded(),
+        world.min_region[0],
+        world.min_region[1],
+        world.non_empty_sections(),
+        world.states.len(),
         catalog.failures.len(),
         catalog.sprites.len(),
     );
@@ -202,6 +242,13 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
             mesh::STREAM_NAMES[stream], span.quad_count, span.group_count,
         );
     }
+    println!(
+        "{:.1} MB of quads, {:.1} MB of model vertices, {:.1} MB of visible list",
+        (region_mesh.simple.len() * pack::QUAD_WORDS * 4) as f64 / 1e6,
+        (region_mesh.complex.len() * 4) as f64 / 1e6,
+        (region_mesh.draws.iter().map(|draw| draw.quad_count as usize).sum::<usize>() * 4) as f64
+            / 1e6,
+    );
 
     let closed = region_mesh
         .connectivity
@@ -225,9 +272,10 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
     let cave = cave::CaveCull::new(
         region_mesh.connectivity,
         region_mesh.grid,
-        [anvil::REGION_CHUNKS, region.sections_y, anvil::REGION_CHUNKS],
-        region.min_section_y,
+        world.sections,
+        world.min_section,
     );
+    let span = anvil::REGION_BLOCKS as u32;
     Ok((
         Geometry {
             simple: region_mesh.simple,
@@ -257,7 +305,12 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
             animated_from: sprites.animated_from(),
             celestials: sky::celestials()?,
             clouds: sky::clouds()?,
-            tint_map: blocks::tint_map(&region, &catalog.tints),
+            tint_map: blocks::tint_map(&world, &catalog.tints),
+            tint_origin: [
+                world.min_region[0] * span as i32,
+                world.min_region[1] * span as i32,
+            ],
+            tint_size: [world.regions[0] as u32 * span, world.regions[1] as u32 * span],
         },
         cave,
     ))

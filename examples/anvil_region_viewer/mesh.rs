@@ -9,7 +9,7 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::anvil::{REGION_CHUNKS, Region, SECTION_SIZE, Section};
+use crate::anvil::{SECTION_SIZE, World};
 use crate::blocks::{CORNER_UV, Catalog, FACE_AXES, Pass};
 use crate::atlas::SpriteRef;
 use crate::pack::{
@@ -162,14 +162,15 @@ pub struct Draw {
     pub quad_count: u32,
 }
 
-pub fn build(region: &Region, catalog: &Catalog) -> RegionMesh {
+pub fn build(world: &World, catalog: &Catalog) -> RegionMesh {
     let threads = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4);
     let next = AtomicUsize::new(0);
     let partials: Mutex<Vec<Partial>> = Mutex::new(Vec::new());
-    let columns = REGION_CHUNKS * REGION_CHUNKS;
-    let grid = RegionGrid::covering([REGION_CHUNKS, region.sections_y, REGION_CHUNKS]);
+    let across = world.sections[0];
+    let columns = across * world.sections[2];
+    let grid = RegionGrid::covering(world.sections);
 
     std::thread::scope(|scope| {
         for _ in 0..threads {
@@ -186,12 +187,12 @@ pub fn build(region: &Region, catalog: &Catalog) -> RegionMesh {
                     if column >= columns {
                         break;
                     }
-                    let cx = column % REGION_CHUNKS;
-                    let cz = column / REGION_CHUNKS;
-                    for sy in 0..region.sections_y {
-                        if region.section(cx, sy, cz).is_some() {
+                    let sx = column % across;
+                    let sz = column / across;
+                    for sy in 0..world.sections[1] {
+                        if world.section(sx, sy, sz).is_some() {
                             mesh_section(
-                                region, catalog, grid, cx, sy, cz, &mut scratch, &mut partial,
+                                world, catalog, grid, sx, sy, sz, &mut scratch, &mut partial,
                             );
                         }
                     }
@@ -201,10 +202,10 @@ pub fn build(region: &Region, catalog: &Catalog) -> RegionMesh {
         }
     });
 
-    assemble(partials.into_inner().unwrap(), grid, region.min_section_y)
+    assemble(partials.into_inner().unwrap(), grid, world.min_section)
 }
 
-fn assemble(partials: Vec<Partial>, grid: RegionGrid, min_section_y: i32) -> RegionMesh {
+fn assemble(partials: Vec<Partial>, grid: RegionGrid, min_section: [i32; 3]) -> RegionMesh {
     let mut simple = Vec::new();
     let mut complex = Vec::new();
     // One bucket per stream and render region. A bucket is one `draw_indirect`, so the groups in
@@ -248,9 +249,9 @@ fn assemble(partials: Vec<Partial>, grid: RegionGrid, min_section_y: i32) -> Reg
             draws.push(Draw {
                 stream: stream as u32,
                 origin: [
-                    sx as i32 * size,
-                    (sy as i32 + min_section_y) * size,
-                    sz as i32 * size,
+                    (sx as i32 + min_section[0]) * size,
+                    (sy as i32 + min_section[1]) * size,
+                    (sz as i32 + min_section[2]) * size,
                 ],
                 cave_base: (region * SECTIONS_PER_RENDER_REGION) as u32,
                 first_group: groups.len() as u32,
@@ -287,43 +288,40 @@ fn assemble(partials: Vec<Partial>, grid: RegionGrid, min_section_y: i32) -> Reg
 
 #[allow(clippy::too_many_arguments)]
 fn mesh_section(
-    region: &Region,
+    world: &World,
     catalog: &Catalog,
     grid: RegionGrid,
-    cx: usize,
+    sx: usize,
     sy: usize,
-    cz: usize,
+    sz: usize,
     scratch: &mut Scratch,
     partial: &mut Partial,
 ) {
     let base = [
-        (cx * SECTION_SIZE) as i32,
-        (sy as i32 + region.min_section_y) * SECTION_SIZE as i32,
-        (cz * SECTION_SIZE) as i32,
+        (sx * SECTION_SIZE) as i32,
+        (sy as i32 + world.min_section[1]) * SECTION_SIZE as i32,
+        (sz * SECTION_SIZE) as i32,
     ];
 
     for y in -1..=SECTION_SIZE as i32 {
         for z in -1..=SECTION_SIZE as i32 {
             for x in -1..=SECTION_SIZE as i32 {
                 let index = border_index(x, y, z);
-                let state = region.block(base[0] + x, base[1] + y, base[2] + z);
+                let state = world.block(base[0] + x, base[1] + y, base[2] + z);
                 scratch.states[index] = state;
                 scratch.occludes[index] = catalog.blocks[state as usize].occludes;
-                scratch.light[index] = region.light(base[0] + x, base[1] + y, base[2] + z);
+                scratch.light[index] = world.light(base[0] + x, base[1] + y, base[2] + z);
             }
         }
     }
 
-    let section = region
-        .section(cx, sy, cz)
-        .expect("caller checked the section exists");
-    let (region_index, local_section) = grid.split(cx, sy, cz);
+    let (region_index, local_section) = grid.split(sx, sy, sz);
     let region_index = region_index as u32;
-    greedy(catalog, section, scratch, local_section, region_index, partial);
-    complex(catalog, section, scratch, local_section, region_index, partial);
+    greedy(catalog, scratch, local_section, region_index, partial);
+    complex(catalog, scratch, local_section, region_index, partial);
     partial
         .connectivity
-        .push((grid.slot(cx, sy, cz) as u32, connectivity(&mut scratch.occludes)));
+        .push((grid.slot(sx, sy, sz) as u32, connectivity(&mut scratch.occludes)));
 }
 
 #[inline]
@@ -396,7 +394,6 @@ fn face_normal(face: usize) -> [i32; 3] {
 
 fn greedy(
     catalog: &Catalog,
-    section: &Section,
     scratch: &mut Scratch,
     local_section: u32,
     region_index: u32,
@@ -423,7 +420,7 @@ fn greedy(
                     local[v_axis] = grid_to_local(gv, v_positive);
                     let slot = gv * SECTION_SIZE + gu;
                     scratch.used[slot] = false;
-                    let key = face_key(catalog, section, scratch, local, face);
+                    let key = face_key(catalog, scratch, local, face);
                     any |= key.sprite.is_some();
                     scratch.keys[slot] = key;
                 }
@@ -464,7 +461,6 @@ fn grid_to_local(grid: usize, positive: bool) -> i32 {
 
 fn face_key(
     catalog: &Catalog,
-    section: &Section,
     scratch: &Scratch,
     local: [i32; 3],
     face: usize,
@@ -487,7 +483,6 @@ fn face_key(
     if info.self_culls && scratch.states[front_index] == here {
         return Key::default();
     }
-    let _ = section;
 
     let cube = cube[face];
     let axes = FACE_AXES[face];
@@ -658,7 +653,6 @@ fn pack_quad(
 /// corner sampling the greedy path uses if builds ever dominate the view.
 fn complex(
     catalog: &Catalog,
-    section: &Section,
     scratch: &mut Scratch,
     local_section: u32,
     region_index: u32,
@@ -673,12 +667,11 @@ fn complex(
     for y in 0..SECTION_SIZE {
         for z in 0..SECTION_SIZE {
             for x in 0..SECTION_SIZE {
-                let state = section.blocks[y * 256 + z * SECTION_SIZE + x];
-                let info = &catalog.blocks[state as usize];
+                let here = border_index(x as i32, y as i32, z as i32);
+                let info = &catalog.blocks[scratch.states[here] as usize];
                 if info.quads.is_empty() {
                     continue;
                 }
-                let here = border_index(x as i32, y as i32, z as i32);
 
                 for quad in &info.quads {
                     // A quad with a cullface sits on the block boundary, so its light comes from
@@ -788,19 +781,94 @@ fn fixed(value: f32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::{
-        BORDER_VOLUME, BUCKET_SHADES, Key, QUAD_AO, QUAD_ARRAY, QUAD_BLOCK_LIGHT, QUAD_FACE,
-        QUAD_FLIP, QUAD_H, QUAD_LAYER, QUAD_SECTION, QUAD_SKY_LIGHT, QUAD_TINT, QUAD_W, QUAD_X,
-        QUAD_Y, QUAD_Z,
-        border_index, connectivity, fixed, pack_quad, quad_anchor, shade_bucket, split_flip,
+        BORDER_VOLUME, BUCKET_SHADES, Group, Key, Partial, QUAD_AO, QUAD_ARRAY, QUAD_BLOCK_LIGHT,
+        QUAD_FACE, QUAD_FLIP, QUAD_H, QUAD_LAYER, QUAD_SECTION, QUAD_SKY_LIGHT, QUAD_TINT, QUAD_W,
+        QUAD_WORDS, QUAD_X, QUAD_Y, QUAD_Z,
+        assemble, border_index, connectivity, fixed, pack_quad, quad_anchor, shade_bucket,
+        split_flip,
     };
-    use crate::atlas::SpriteRef;
-    use crate::anvil::SECTION_SIZE;
-    use crate::pack::{MODEL_OVERHANG, MODEL_STEPS, pack_section};
+    use super::build;
+    use crate::atlas::{SpriteRef, SpriteRegistry};
+    use crate::anvil::{SECTION_SIZE, SECTION_VOLUME, World, one_section_region};
+    use crate::blocks::{BlockInfo, Catalog, ModelQuad, Pass};
+    use crate::pack::{
+        MODEL_OVERHANG, MODEL_STEPS, RENDER_REGION_X, RENDER_REGION_Y, RENDER_REGION_Z, RegionGrid,
+        pack_section,
+    };
     use crate::blocks::{CORNER_UV, FACE_AXES, cube_corner};
     use bevy::math::Vec3;
 
     fn pair(entry: usize, exit: usize) -> u64 {
         1 << (entry * 6 + exit)
+    }
+
+    /// Every mesher stage has to name a block in the world's own numbering. Each region file
+    /// interns its ids from zero, so a stage reaching past the world's remap into a file's palette
+    /// names a different block for every file but the first: not a crash, not a hole, just the
+    /// wrong model on every block of three regions out of four.
+    #[test]
+    fn the_model_mesher_names_blocks_in_the_worlds_numbering() {
+        let mut world = World::new([0, 0], [1, 1]);
+        world.insert([0, 0], one_section_region("minecraft:test_block"));
+        let id = world
+            .states
+            .iter()
+            .position(|state| state.name == "minecraft:test_block")
+            .unwrap();
+        assert_ne!(id, 0, "the fixture only bites while the two numberings disagree");
+
+        // Only the world's id for the block carries geometry. Whatever the file called it does not.
+        let mut blocks: Vec<BlockInfo> = (0..world.states.len()).map(|_| BlockInfo::default()).collect();
+        blocks[id].quads = vec![ModelQuad {
+            positions: [Vec3::ZERO; 4],
+            uvs: [[0.0; 2]; 4],
+            cull: None,
+            face: None,
+            sprite: SpriteRef::default(),
+            pass: Pass::Solid,
+            shade: [255; 4],
+            tinted: false,
+        }];
+        let catalog = Catalog {
+            blocks,
+            sprites: SpriteRegistry::new(),
+            tints: vec![[1.0; 4]],
+            failures: Vec::new(),
+        };
+
+        let mesh = build(&world, &catalog);
+        assert_eq!(
+            mesh.model_quads(),
+            SECTION_VOLUME,
+            "one model quad per block of the one section the fixture fills"
+        );
+    }
+
+    /// A draw's origin is the whole of what puts its geometry back in the world, and region
+    /// coordinates run either side of zero. Carrying only the vertical half of the window's corner
+    /// leaves every region file's terrain stacked on the origin, which reads as a plausible
+    /// landscape rather than as a fault.
+    #[test]
+    fn a_draw_below_the_origin_keeps_the_whole_corner_of_its_window() {
+        let grid = RegionGrid::covering([RENDER_REGION_X, RENDER_REGION_Y, RENDER_REGION_Z]);
+        let partial = Partial {
+            simple: vec![[0; QUAD_WORDS]],
+            complex: Vec::new(),
+            groups: vec![(
+                0,
+                0,
+                Group {
+                    quad_base: 0,
+                    quad_count: 1,
+                    section: 0,
+                    _pad: 0,
+                },
+            )],
+            connectivity: Vec::new(),
+        };
+        let mesh = assemble(vec![partial], grid, [-32, -4, -32]);
+        assert_eq!(mesh.draws.len(), 1);
+        assert_eq!(mesh.draws[0].origin, [-512, -64, -512]);
     }
 
     fn solid_section() -> Box<[bool; BORDER_VOLUME]> {

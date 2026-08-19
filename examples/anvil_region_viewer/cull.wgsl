@@ -61,6 +61,12 @@ struct Params {
     // How far this stream's geometry may reach outside its own section.
     overhang: f32,
     animated_from: u32,
+    // Where the biome colour map starts in world blocks and how far it reaches. Unread here, but
+    // both shaders bind the same uniform and a struct that disagreed on its size would not bind.
+    tint_origin_x: i32,
+    tint_origin_z: i32,
+    tint_span_x: f32,
+    tint_span_z: f32,
     pad1: u32,
 }
 

@@ -137,6 +137,13 @@ struct Params {
     overhang: f32,
     // The lowest layer number that names an animation rather than a layer of an array.
     animated_from: u32,
+    // Where the biome colour map starts in world blocks and how far it reaches. The map covers the
+    // loaded window, which does not start at the origin, so a world position has to be shifted and
+    // scaled rather than divided by a constant.
+    tint_origin_x: i32,
+    tint_origin_z: i32,
+    tint_span_x: f32,
+    tint_span_z: f32,
     pad1: u32,
 }
 
@@ -450,10 +457,11 @@ fn shade_sample(in: VertexOut) -> vec4<f32> {
     let color = sprite_color(in.array, in.uv, in.layer, ddx, ddy);
     // Both samples are unconditional: `tint_kind` varies between instances inside one draw, so a
     // branch around a `textureSample` would not be uniform control flow and WGSL rejects it.
+    let tint_origin = vec2<f32>(f32(params.tint_origin_x), f32(params.tint_origin_z));
     let tint = textureSample(
         tints,
         tint_sampler,
-        in.world_xz / 512.0,
+        (in.world_xz - tint_origin) / vec2<f32>(params.tint_span_x, params.tint_span_z),
         max(in.tint_kind, 1u) - 1u,
     );
     let factor = select(vec3<f32>(1.0), tint.rgb, in.tint_kind != 0u);

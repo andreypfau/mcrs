@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use bevy::math::{IVec3, Vec3};
 
-use crate::anvil::{BlockStateKey, REGION_CHUNKS, Region, SECTION_SIZE};
+use crate::anvil::{BlockStateKey, REGION_BLOCKS, SECTION_SIZE, World};
 use crate::atlas::{Opacity, SpriteRef, SpriteRegistry};
 use crate::pack::{MAX_SPRITES, MAX_SPRITE_ARRAYS};
 use crate::bake::{self, Dir, TinyWorld};
@@ -157,14 +157,14 @@ const FLUIDS: [(&str, &str); 3] = [
     ("minecraft:lava", "minecraft:block/lava_still"),
 ];
 
-pub fn build(region: &Region) -> Catalog {
+pub fn build(world: &World) -> Catalog {
     let mut sprites = SpriteRegistry::new();
-    let mut blocks: Vec<BlockInfo> = Vec::with_capacity(region.states.len());
+    let mut blocks: Vec<BlockInfo> = Vec::with_capacity(world.states.len());
     let mut failures = Vec::new();
-    let world = TinyWorld::default();
+    let neighbours = TinyWorld::default();
 
-    for state in &region.states {
-        match build_one(state, &world, &mut sprites) {
+    for state in &world.states {
+        match build_one(state, &neighbours, &mut sprites) {
             Ok(info) => blocks.push(info),
             Err(reason) => {
                 failures.push(format!("{}: {reason}", state.label()));
@@ -197,7 +197,7 @@ pub fn build(region: &Region) -> Catalog {
     Catalog {
         blocks,
         sprites,
-        tints: build_tints(region),
+        tints: build_tints(world),
         failures,
     }
 }
@@ -392,14 +392,14 @@ struct BiomeEffects {
 
 /// Vanilla samples grass and foliage colour from a 256×256 colourmap indexed by the biome's
 /// temperature and downfall; the per-biome `effects` overrides win when present.
-fn build_tints(region: &Region) -> Vec<[f32; 4]> {
+fn build_tints(world: &World) -> Vec<[f32; 4]> {
     let grass_map = load_colormap("grass");
     let foliage_map = load_colormap("foliage");
-    let mut tints = Vec::with_capacity(1 + region.biomes.len() * TINT_KINDS);
+    let mut tints = Vec::with_capacity(1 + world.biomes.len() * TINT_KINDS);
     tints.push([1.0, 1.0, 1.0, 1.0]);
 
     let mut cache: HashMap<String, [[f32; 4]; TINT_KINDS]> = HashMap::new();
-    for name in &region.biomes {
+    for name in &world.biomes {
         let colors = cache.entry(name.clone()).or_insert_with(|| {
             let file = load_biome(name);
             let (temperature, downfall, effects) = match file {
@@ -483,20 +483,24 @@ fn rgb(packed: u32) -> [f32; 4] {
     ]
 }
 
-/// Bakes the region's biome colours into a 512×512 map per tint kind, sampled in the fragment
+/// Bakes the loaded world's biome colours into one map per tint kind, sampled in the fragment
 /// shader by world x and z. Keeping the colour out of the vertex means the greedy mesher can merge
 /// grass across a biome boundary, and linear filtering then blends the two colours for free —
 /// which is also how the client avoids a hard seam down the middle of a chunk.
-pub fn tint_map(region: &Region, tints: &[[f32; 4]]) -> Vec<u8> {
-    const SIZE: usize = REGION_CHUNKS * SECTION_SIZE;
-    let mut out = vec![0u8; SIZE * SIZE * 4 * TINT_KINDS];
-    for z in 0..SIZE {
-        for x in 0..SIZE {
-            let biome = surface_biome(region, x, z);
+///
+/// The map covers the loaded window rather than a fixed square, so the shader is told where it
+/// starts and how wide it is instead of dividing by a constant.
+pub fn tint_map(world: &World, tints: &[[f32; 4]]) -> Vec<u8> {
+    let width = world.regions[0] * REGION_BLOCKS;
+    let depth = world.regions[1] * REGION_BLOCKS;
+    let mut out = vec![0u8; width * depth * 4 * TINT_KINDS];
+    for z in 0..depth {
+        for x in 0..width {
+            let biome = surface_biome(world, x, z);
             for kind in 0..TINT_KINDS {
                 let slot = 1 + biome as usize * TINT_KINDS + kind;
                 let color = tints.get(slot).copied().unwrap_or([1.0; 4]);
-                let offset = (kind * SIZE * SIZE + z * SIZE + x) * 4;
+                let offset = (kind * width * depth + z * width + x) * 4;
                 for channel in 0..4 {
                     out[offset + channel] = (color[channel].clamp(0.0, 1.0) * 255.0) as u8;
                 }
@@ -508,13 +512,13 @@ pub fn tint_map(region: &Region, tints: &[[f32; 4]]) -> Vec<u8> {
 
 /// The highest section that exists over this column decides the colour: tinted blocks are grass,
 /// foliage and water, which all sit at or near the surface.
-fn surface_biome(region: &Region, x: usize, z: usize) -> u8 {
-    let cx = x / SECTION_SIZE;
-    let cz = z / SECTION_SIZE;
+fn surface_biome(world: &World, x: usize, z: usize) -> u8 {
+    let sx = x / SECTION_SIZE;
+    let sz = z / SECTION_SIZE;
     let cell = ((z % SECTION_SIZE) / 4) * 4 + (x % SECTION_SIZE) / 4;
-    for sy in (0..region.sections_y).rev() {
-        if let Some(section) = region.section(cx, sy, cz) {
-            return section.biomes[3 * 16 + cell];
+    for sy in (0..world.sections[1]).rev() {
+        if world.section(sx, sy, sz).is_some() {
+            return world.biome(sx, sy, sz, 3 * 16 + cell);
         }
     }
     0

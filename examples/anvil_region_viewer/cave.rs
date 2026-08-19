@@ -56,7 +56,9 @@ pub struct CaveCull {
     /// The sections the loaded world really holds, which is what the walk may step onto. The grid
     /// rounds up to whole regions, so its far corner can be padding that no section occupies.
     sections: [usize; 3],
-    min_section_y: i32,
+    /// Section coordinates of the loaded window's corner. Region coordinates run either side of
+    /// zero, so this is signed on all three axes and not only the vertical one.
+    min_section: [i32; 3],
     /// One push per section and entry face, plus one more each time a later arrival through that
     /// face turns out to have spent fewer directions. `dirs` only ever shrinks, so those repeats
     /// are bounded by its six bits.
@@ -68,7 +70,7 @@ impl CaveCull {
         conn: Vec<u64>,
         grid: RegionGrid,
         sections: [usize; 3],
-        min_section_y: i32,
+        min_section: [i32; 3],
     ) -> Self {
         let covers = RegionGrid::covering(sections);
         assert!(
@@ -90,7 +92,7 @@ impl CaveCull {
             conn,
             grid,
             sections,
-            min_section_y,
+            min_section,
             queue: Vec::with_capacity(sections[0] * sections[1] * sections[2]),
         }
     }
@@ -156,9 +158,9 @@ impl CaveCull {
         let hi = self.limit();
         let size = SECTION_SIZE as f32;
         let cs = [
-            camera.x.div_euclid(size) as i32,
-            camera.y.div_euclid(size) as i32 - self.min_section_y,
-            camera.z.div_euclid(size) as i32,
+            camera.x.div_euclid(size) as i32 - self.min_section[0],
+            camera.y.div_euclid(size) as i32 - self.min_section[1],
+            camera.z.div_euclid(size) as i32 - self.min_section[2],
         ];
 
         // Travelling to the region already spends every axis the camera is outside of, so reversing
@@ -255,9 +257,9 @@ impl CaveCull {
         let [sx, sy, sz] = self.grid.section_at(slot as usize).map(|n| n as i32);
         let size = SECTION_SIZE as f32;
         let min = Vec3::new(
-            sx as f32 * size,
-            (sy + self.min_section_y) as f32 * size,
-            sz as f32 * size,
+            (sx + self.min_section[0]) as f32 * size,
+            (sy + self.min_section[1]) as f32 * size,
+            (sz + self.min_section[2]) as f32 * size,
         );
         Aabb::from_min_max(min, min + size)
     }
@@ -302,7 +304,7 @@ mod tests {
     }
 
     fn walk(conn: Vec<u64>) -> CaveCull {
-        CaveCull::new(conn, grid(), SECTIONS, 0)
+        CaveCull::new(conn, grid(), SECTIONS, [0; 3])
     }
 
     fn empty_conn() -> Vec<u64> {
@@ -345,6 +347,26 @@ mod tests {
         let eye = Vec3::new(900.0, 32.0, 256.0);
         cave.run(eye, &wide(eye, Vec3::new(0.0, 32.0, 256.0)));
         assert!(visible(&cave, 25, 2, 16), "section in front of the wall");
+        assert!(!visible(&cave, 10, 2, 16), "section behind the wall");
+    }
+
+    /// Region coordinates run either side of zero, so the window a walk covers can start at a
+    /// negative section. Losing that offset puts the camera outside the window instead of inside
+    /// it, and the walk then seeds the far boundary and reports the wall's other side.
+    #[test]
+    fn a_window_below_the_origin_culls_from_where_the_camera_really_is() {
+        let corner = [-(REGION_CHUNKS as i32), 0, -(REGION_CHUNKS as i32)];
+        let mut conn = open_conn();
+        for sy in 0..SECTIONS[1] {
+            for sz in 0..SECTIONS[2] {
+                conn[slot(20, sy, sz)] = 0;
+            }
+        }
+        let mut cave = CaveCull::new(conn, grid(), SECTIONS, corner);
+        // Window-relative section (25, 2, 16), which with this corner is world section (-7, 2, -16).
+        let eye = Vec3::new(-104.0, 40.0, -248.0);
+        cave.run(eye, &wide(eye, Vec3::new(-900.0, 40.0, -248.0)));
+        assert!(visible(&cave, 25, 2, 16), "the section the camera stands in");
         assert!(!visible(&cave, 10, 2, 16), "section behind the wall");
     }
 
