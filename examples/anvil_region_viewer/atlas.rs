@@ -100,7 +100,7 @@ impl SpriteRegistry {
         let width = image.width();
         let size = (width, image.height());
         let steps = match anim::read(&path)? {
-            Some(animation) => animation.unroll(size).len(),
+            Some(animation) => animation.unroll(id, size).len(),
             None => 0,
         };
         let data = image
@@ -151,7 +151,6 @@ impl SpriteRegistry {
         };
         let array = &mut self.arrays[array];
         array.sprites.push(Sprite { opacity });
-        // Fewer than two steps is a still image however the metadata spells it.
         if steps >= 2 {
             array.animated += 1;
             array.animation_layers += steps;
