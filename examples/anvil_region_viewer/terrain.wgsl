@@ -2,7 +2,7 @@
 //
 // Each instance is one quad. `instance_index` reads the compacted list the culling pass produced,
 // which yields an index into the geometry arena; `vertex_index % 6` picks the corner. Greedy quads
-// unpack from three words and read what they look like out of a side buffer, one entry per block
+// unpack from two words and read what they look like out of a side buffer, one entry per block
 // face, because a greedy quad now covers many blocks of many kinds. Baked model quads still carry
 // their appearance per vertex, four twelve-byte vertices to a quad.
 
@@ -53,14 +53,14 @@ const QUAD_H_WORD: u32 = 0u;
 const QUAD_H_SHIFT: u32 = 22u;
 const QUAD_H_BITS: u32 = 4u;
 /// How many words one greedy quad occupies.
-const QUAD_WORDS: u32 = 3u;
+const QUAD_WORDS: u32 = 2u;
 
 const QUAD_SECTION_WORD: u32 = 1u;
 const QUAD_SECTION_SHIFT: u32 = 0u;
 const QUAD_SECTION_BITS: u32 = 11u;
-const QUAD_FACE_BASE_WORD: u32 = 2u;
-const QUAD_FACE_BASE_SHIFT: u32 = 0u;
-const QUAD_FACE_BASE_BITS: u32 = 31u;
+const QUAD_FACE_BASE_WORD: u32 = 1u;
+const QUAD_FACE_BASE_SHIFT: u32 = 11u;
+const QUAD_FACE_BASE_BITS: u32 = 15u;
 
 // One block face, as it looks. A greedy quad covers many blocks and names only where its run of
 // these starts, so this is what the fragment reads instead of anything interpolated.
@@ -201,6 +201,9 @@ fn section_origin(section: u32) -> vec3<f32> {
 @group(1) @binding(8) var tints: texture_2d_array<f32>;
 @group(1) @binding(9) var tint_sampler: sampler;
 @group(1) @binding(10) var<storage, read> animations: array<Animation>;
+// The head of each render region's block is a table of where its sections' faces start, indexed by
+// the section number a quad carries; the attributes themselves follow it. A quad names a place
+// inside its own section, which is what keeps it down to two words.
 @group(1) @binding(11) var<storage, read> faces: array<u32>;
 
 /// What a quad puts in `face_base` when its appearance is carried per vertex instead, which is
@@ -330,7 +333,8 @@ fn vertex_simple(
 ) -> VertexOut {
     let quad = visible[params.visible_base + instance] * QUAD_WORDS;
 
-    let anchor = section_origin(quad_field(quad, QUAD_SECTION_WORD, QUAD_SECTION_SHIFT, QUAD_SECTION_BITS))
+    let section = quad_field(quad, QUAD_SECTION_WORD, QUAD_SECTION_SHIFT, QUAD_SECTION_BITS);
+    let anchor = section_origin(section)
         + vec3<f32>(
             f32(quad_field(quad, QUAD_X_WORD, QUAD_X_SHIFT, QUAD_X_BITS)),
             f32(quad_field(quad, QUAD_Y_WORD, QUAD_Y_SHIFT, QUAD_Y_BITS)),
@@ -359,7 +363,10 @@ fn vertex_simple(
     out.tint_kind = 0u;
     out.quad_uv = quad_uv;
     out.diagonal = quad_uv.x - quad_uv.y;
+    // Resolved here rather than in the fragment: the table lookup is the same for every fragment
+    // of a quad, so it costs one load an instance instead of one a pixel.
     out.face_base = params.face_origin
+        + faces[params.face_origin + section]
         + quad_field(quad, QUAD_FACE_BASE_WORD, QUAD_FACE_BASE_SHIFT, QUAD_FACE_BASE_BITS);
     out.face_span = span;
     out.directional = face_shade(face);

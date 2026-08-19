@@ -11,6 +11,11 @@
 //! quad points at, and the fragment shader picks its own entry out of that run. Faces therefore
 //! merge across block types and across lighting, and a real region file comes out with a little
 //! under half the quads it used to.
+//!
+//! A section's faces are written in one run, and the head of the buffer is a table of where those
+//! runs start. That is what keeps a quad down to two words: it names a place inside its own
+//! section, which is fifteen bits, instead of a place in the whole render region, which is
+//! twenty-one and would not have fitted beside everything else.
 
 use crate::anvil::{SECTION_SIZE, World};
 use crate::blocks::{BlockInfo, CORNER_UV, FACE_AXES, Pass};
@@ -19,7 +24,7 @@ use crate::pack::{
     MODEL_ARRAY, MODEL_BLOCK_LIGHT, MODEL_LAYER, MODEL_OVERHANG, MODEL_SECTION, MODEL_SHADE,
     MODEL_SKY_LIGHT, MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
     QUAD_FACE, QUAD_FACE_BASE, QUAD_H, QUAD_SECTION, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y, QUAD_Z,
-    RENDER_REGION_X, RENDER_REGION_Y, RENDER_REGION_Z, RegionGrid,
+    RENDER_REGION_X, RENDER_REGION_Y, RENDER_REGION_Z, RegionGrid, SECTION_FACE_TABLE,
 };
 
 /// `pass * 2 + kind`, where kind is 0 for greedy quads and 1 for baked model quads.
@@ -76,8 +81,10 @@ pub struct Batch {
     pub region: usize,
     /// Packed greedy quads, [`QUAD_WORDS`] `u32` each.
     pub simple: Vec<[u32; QUAD_WORDS]>,
-    /// One packed attribute per block face, in the order the quads that own them were written.
-    /// A quad's `QUAD_FACE_BASE` indexes this, so the two have to be placed as a pair.
+    /// [`SECTION_FACE_TABLE`] words saying where each section's faces start, then one packed
+    /// attribute per block face. A quad's `QUAD_FACE_BASE` counts from its own section's start, so
+    /// the two have to be placed as a pair. Empty when the region has no greedy geometry at all,
+    /// which is when the table would describe nothing.
     pub faces: Vec<u32>,
     /// Packed model vertices, three `u32` each, four vertices per quad.
     pub complex: Vec<u32>,
@@ -126,7 +133,10 @@ pub struct Scratch {
     used: Box<[bool; SECTION_SIZE * SECTION_SIZE]>,
     /// Geometry for the face group being built, split by pass so each run stays contiguous.
     simple_by_pass: [Vec<[u32; QUAD_WORDS]>; Pass::COUNT],
-    faces_by_pass: [Vec<u32>; Pass::COUNT],
+    /// The face attributes of the whole section, in the order the quads claimed them. Not split by
+    /// pass the way the quads are: a quad needs its own run contiguous and nothing more, so the
+    /// base it is packed with is already the one it will be read at.
+    section_faces: Vec<u32>,
     complex_by_pass: [[Vec<u32>; FACE_GROUPS]; Pass::COUNT],
 }
 
@@ -143,7 +153,7 @@ impl Scratch {
             attrs: Box::new([0; SECTION_SIZE * SECTION_SIZE]),
             used: Box::new([false; SECTION_SIZE * SECTION_SIZE]),
             simple_by_pass: Default::default(),
-            faces_by_pass: Default::default(),
+            section_faces: Vec::new(),
             complex_by_pass: Default::default(),
         }
     }
@@ -152,7 +162,10 @@ impl Scratch {
 /// One worker's slice of the finished geometry, before it is sorted into streams.
 struct Partial {
     simple: Vec<[u32; QUAD_WORDS]>,
+    /// The face table, then the face attributes of every section that has any.
     faces: Vec<u32>,
+    /// `(section inside its region, where its faces start)`, which is what fills the table.
+    section_faces: Vec<(u32, u32)>,
     complex: Vec<u32>,
     /// `(stream, render region, group)` with `group.quad_base` relative to this worker's own arena.
     groups: Vec<(u32, u32, Group)>,
@@ -197,7 +210,8 @@ pub fn mesh_render_region(
 ) -> Batch {
     let mut partial = Partial {
         simple: Vec::new(),
-        faces: Vec::new(),
+        faces: vec![0; SECTION_FACE_TABLE],
+        section_faces: Vec::new(),
         complex: Vec::new(),
         groups: Vec::new(),
         connectivity: Vec::new(),
@@ -216,6 +230,16 @@ pub fn mesh_render_region(
                 }
             }
         }
+    }
+
+    // A quad's base counts from its own section, so the table that says where each section's run
+    // begins is what makes one readable. Nothing to describe means no block at all rather than a
+    // table of zeroes.
+    if partial.section_faces.is_empty() {
+        partial.faces.clear();
+    }
+    for (section, start) in &partial.section_faces {
+        partial.faces[*section as usize] = *start;
     }
 
     // Stream order is draw order, and one draw covers one stream of one render region, so the
@@ -296,7 +320,12 @@ fn mesh_section(
 
     let (region_index, local_section) = grid.split(sx, sy, sz);
     let region_index = region_index as u32;
+    let faces_at = partial.faces.len() as u32;
     greedy(catalog, scratch, local_section, region_index, partial);
+    if !scratch.section_faces.is_empty() {
+        partial.faces.extend_from_slice(&scratch.section_faces);
+        partial.section_faces.push((local_section, faces_at));
+    }
     complex(catalog, scratch, local_section, region_index, partial);
     partial
         .connectivity
@@ -390,10 +419,10 @@ fn greedy(
     region_index: u32,
     partial: &mut Partial,
 ) {
+    scratch.section_faces.clear();
     for face in 0..6usize {
         for pass in 0..Pass::COUNT {
             scratch.simple_by_pass[pass].clear();
-            scratch.faces_by_pass[pass].clear();
         }
         let axes = FACE_AXES[face];
         let n_axis = axes[0] as usize;
@@ -460,16 +489,8 @@ fn greedy(
         }
 
         for pass in 0..Pass::COUNT {
-            let mut quads = std::mem::take(&mut scratch.simple_by_pass[pass]);
-            let faces = std::mem::take(&mut scratch.faces_by_pass[pass]);
+            let quads = std::mem::take(&mut scratch.simple_by_pass[pass]);
             if !quads.is_empty() {
-                // Each pass merged into its own run of face attributes, so a quad's base counts
-                // from the start of that run and has to be moved to where the run lands in the
-                // batch. The base has its word to itself, which is what lets this be an addition.
-                let base = partial.faces.len() as u32;
-                for quad in &mut quads {
-                    quad[QUAD_FACE_BASE.word as usize] += base;
-                }
                 partial.groups.push((
                     (pass * 2) as u32,
                     region_index,
@@ -481,10 +502,8 @@ fn greedy(
                     },
                 ));
                 partial.simple.extend_from_slice(&quads);
-                partial.faces.extend_from_slice(&faces);
             }
             scratch.simple_by_pass[pass] = quads;
-            scratch.faces_by_pass[pass] = faces;
         }
     }
 }
@@ -610,13 +629,13 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize, local_section: u32)
             }
             // Row by row along the quad's own axes, which is the order the fragment shader indexes
             // them in once it has floored its quad coordinate.
-            let base = scratch.faces_by_pass[pass].len() as u32;
+            let base = scratch.section_faces.len() as u32;
             for dv in 0..h {
                 for du in 0..w {
                     let cell = (gv + dv) * SECTION_SIZE + gu + du;
                     scratch.used[cell] = true;
                     let attr = scratch.attrs[cell];
-                    scratch.faces_by_pass[pass].push(attr);
+                    scratch.section_faces.push(attr);
                 }
             }
             scratch.simple_by_pass[pass]
@@ -807,8 +826,8 @@ fn fixed(value: f32) -> u32 {
 mod tests {
     use super::{
         BORDER_VOLUME, BUCKET_SHADES, FACE_ARRAY, FACE_LAYER, QUAD_FACE, QUAD_FACE_BASE, QUAD_H,
-        QUAD_SECTION, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z, Scratch, border_index, connectivity, fixed,
-        mesh_render_region, pack_quad, quad_anchor, shade_bucket,
+        QUAD_SECTION, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z, SECTION_FACE_TABLE, Scratch, border_index,
+        connectivity, fixed, mesh_render_region, pack_quad, quad_anchor, shade_bucket,
     };
     use crate::atlas::SpriteRef;
     use crate::anvil::{Palette, SECTION_SIZE, SECTION_VOLUME, World, one_section_region};
@@ -907,8 +926,9 @@ mod tests {
     }
 
     /// Every quad names as many face attributes as it covers blocks, and the runs of a batch tile
-    /// its face buffer with no gap and no overlap. A base off by one run is not a hole in the
-    /// frame: it draws the whole world out of its neighbours' sprites and light.
+    /// its face buffer with no gap and no overlap once each is resolved through the section table
+    /// the way the shader resolves it. A base off by one run is not a hole in the frame: it draws
+    /// the whole world out of its neighbours' sprites and light.
     #[test]
     fn the_face_runs_of_a_batch_tile_it_exactly() {
         let mut palette = Palette::new();
@@ -936,24 +956,29 @@ mod tests {
         for region in 0..grid.len() {
             let batch = mesh_render_region(&world, &blocks, grid, region, &mut scratch);
             quads += batch.simple.len();
+            if batch.simple.is_empty() {
+                assert!(batch.faces.is_empty(), "a table describing nothing was written");
+                continue;
+            }
             let mut runs: Vec<(u64, u64)> = batch
                 .simple
                 .iter()
                 .map(|quad| {
+                    let section = QUAD_SECTION.read(quad) as usize;
                     (
-                        QUAD_FACE_BASE.read(quad),
+                        batch.faces[section] as u64 + QUAD_FACE_BASE.read(quad),
                         (QUAD_W.read(quad) + 1) * (QUAD_H.read(quad) + 1),
                     )
                 })
                 .collect();
             runs.sort();
-            let mut at = 0u64;
+            let mut at = SECTION_FACE_TABLE as u64;
             for (base, len) in runs {
                 assert_eq!(base, at, "a face run does not start where the last one ended");
                 at += len;
             }
             assert_eq!(at as usize, batch.faces.len(), "the runs leave the buffer uncovered");
-            for attr in &batch.faces {
+            for attr in &batch.faces[SECTION_FACE_TABLE..] {
                 assert_eq!(FACE_LAYER.get(*attr as u64), 7, "sprite layer");
                 assert_eq!(FACE_ARRAY.get(*attr as u64), 1, "sprite array");
             }
@@ -1046,7 +1071,7 @@ mod tests {
     #[test]
     fn a_packed_quad_round_trips_every_field() {
         let section = pack_section(9, 5, 12);
-        let words = pack_quad(3, 9, 3, 7, 12, 16, section, 123_456);
+        let words = pack_quad(3, 9, 3, 7, 12, 16, section, 24_575);
         let anchor = quad_anchor(3, 9, 3, 7);
         assert_eq!(QUAD_X.read(&words), anchor[0] as u64, "x");
         assert_eq!(QUAD_Y.read(&words), anchor[1] as u64, "y");
@@ -1055,6 +1080,6 @@ mod tests {
         assert_eq!(QUAD_FACE.read(&words), 3, "face");
         assert_eq!(QUAD_W.read(&words) + 1, 12, "w");
         assert_eq!(QUAD_H.read(&words) + 1, 16, "h");
-        assert_eq!(QUAD_FACE_BASE.read(&words), 123_456, "face base");
+        assert_eq!(QUAD_FACE_BASE.read(&words), 24_575, "face base");
     }
 }

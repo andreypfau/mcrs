@@ -93,19 +93,28 @@ pub const QUAD_FACE: Field = Field::new(0, 15, 3);
 pub const QUAD_W: Field = Field::new(0, 18, 4);
 pub const QUAD_H: Field = Field::new(0, 22, 4);
 
-// Greedy quad, second word.
+// Greedy quad, second word. The base is where this quad's own run of face attributes starts
+// inside its section's run, which is the whole reason a quad fits in two words: a place in a
+// section needs fifteen bits where a place in a render region needed twenty-one and left nothing
+// to hold them with. The section's own run is found through the table at the head of the block,
+// and the block itself arrives with the draw.
 pub const QUAD_SECTION: Field = Field::new(1, 0, SECTION_INDEX.bits);
-
-// Greedy quad, third word: where this quad's own run of face attributes starts, counted from the
-// beginning of its render region's block. It has the word to itself so that placing a batch can
-// add the block's offset with a plain addition on the word, rather than unpacking and repacking
-// every quad. Relative to the region and not to the arena for the same reason the anchor is
-// relative to its section: the rest arrives with the draw. One bit short of the whole word because
-// a thirty-two bit field cannot be masked in WGSL: the shift that builds the mask is out of range.
-pub const QUAD_FACE_BASE: Field = Field::new(2, 0, 31);
+pub const QUAD_FACE_BASE: Field = Field::new(1, SECTION_INDEX.bits, 15);
 
 /// How many `u32` one greedy quad occupies.
-pub const QUAD_WORDS: usize = 3;
+pub const QUAD_WORDS: usize = 2;
+
+/// The head of a render region's face block: where each of its sections starts, indexed by the
+/// section number a quad carries. Sections with no greedy geometry are left at zero, which no quad
+/// ever reads.
+pub const SECTION_FACE_TABLE: usize = SECTIONS_PER_RENDER_REGION;
+
+// What makes the base above wide enough is a bound rather than a measurement: a section has six
+// faces to a block and cannot show more of them than that, whatever the world puts in it.
+const _: () = assert!(
+    (6 * crate::anvil::SECTION_VOLUME) as u64 <= QUAD_FACE_BASE.max(),
+    "a section can hold more block faces than a quad can name a place among"
+);
 
 // One face of one block, as the fragment shader reads it. A quad owns `w * h` of these laid out
 // row by row along its own axes, so the fragment finds its own by flooring the quad coordinate it

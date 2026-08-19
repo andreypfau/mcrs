@@ -76,7 +76,7 @@ const DEFAULT_WINDOW: usize = 2;
 // Measured off this world, plus the third the arena's size classes cost in rounding and a little
 // over for a denser file. `ANVIL_ARENA=quads,models,faces` overrides all three. A region that does
 // not fit is dropped and counted rather than drawn half-written.
-const QUAD_MB_PER_FILE: usize = 48;
+const QUAD_MB_PER_FILE: usize = 32;
 const MODEL_MB_PER_FILE: usize = 208;
 const FACE_MB_PER_FILE: usize = 40;
 
