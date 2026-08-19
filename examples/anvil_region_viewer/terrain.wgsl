@@ -1,7 +1,8 @@
 // Terrain rasterisation by vertex pulling: no vertex buffer, no index buffer, one draw per stream.
 //
 // Each instance is one quad. `instance_index` reads the compacted list the culling pass produced,
-// which yields an index into the geometry arena; `vertex_index % 6` picks the corner. Greedy quads
+// which yields an index into the geometry arena; `vertex_index` picks one of the four corners
+// of a triangle strip. Greedy quads
 // unpack from two words and read what they look like out of a side buffer, one entry per block
 // face, because a greedy quad now covers many blocks of many kinds. Baked model quads still carry
 // their appearance per vertex, four twelve-byte vertices to a quad.
@@ -261,12 +262,12 @@ fn corner_uv(index: u32) -> vec2<f32> {
 /// a quad: ambient occlusion is interpolated inside each block face, so no choice of diagonal can
 /// smear one block's shadow across a merged run.
 fn corner_index(vertex: u32) -> u32 {
+    // A strip of four, wound so that its two triangles are the same pair, split along the same
+    // diagonal, as the six-corner list this replaced: 1,2,0 and then 0,2,3.
     switch vertex {
-        case 0u: { return 0u; }
-        case 1u: { return 1u; }
-        case 2u: { return 2u; }
-        case 3u: { return 0u; }
-        case 4u: { return 2u; }
+        case 0u: { return 1u; }
+        case 1u: { return 2u; }
+        case 2u: { return 0u; }
         default: { return 3u; }
     }
 }

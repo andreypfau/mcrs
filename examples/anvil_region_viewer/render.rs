@@ -663,7 +663,7 @@ fn init_terrain(
     });
     let args_init = vec![
         DrawArgs {
-            vertex_count: 6,
+            vertex_count: 4,
             instance_count: 0,
             first_vertex: 0,
             first_instance: 0,
@@ -1389,7 +1389,10 @@ fn prepare_pipelines(
                 ..default()
             }),
             primitive: PrimitiveState {
-                topology: PrimitiveTopology::TriangleList,
+                // A quad is a strip of four corners, not a list of six: the two corners the
+                // diagonal shares are shaded once each instead of twice, and everything a corner
+                // hands the fragment stage is written once fewer as well.
+                topology: PrimitiveTopology::TriangleStrip,
                 front_face: FrontFace::Ccw,
                 cull_mode: Some(Face::Back),
                 ..default()
