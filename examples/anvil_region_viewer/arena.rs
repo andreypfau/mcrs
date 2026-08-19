@@ -1,6 +1,6 @@
 //! Suballocation of the geometry buffers.
 //!
-//! A buffer cannot be resized, so the three arenas are created at their full size once and handed
+//! A buffer cannot be resized, so the arenas are created at their full size once and handed
 //! out in blocks from here. Blocks come in size classes a power of two apart, which is what makes
 //! a block's buddy its own offset with one bit flipped: a request splits the smallest free block
 //! that will hold it and keeps splitting down, and giving one back joins it with its buddy again
@@ -10,8 +10,8 @@
 //! The price is up to twice the room a block really needs, which the report prints so it can be
 //! seen rather than guessed at.
 //!
-//! Units are whatever the arena stores — greedy quads, model quads, culling groups — so the byte
-//! size of one never appears here.
+//! Units are whatever the arena stores — greedy quads, model quads, face attributes, culling
+//! groups — so the byte size of one never appears here.
 
 use std::collections::HashSet;
 

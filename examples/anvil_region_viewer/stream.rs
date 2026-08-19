@@ -84,9 +84,11 @@ pub struct Loader {
     camera: Vec3,
     anchor: Vec3,
     evicted: usize,
-    /// The three arenas, in their own units: greedy quads, model quads, culling groups.
+    /// The four arenas, in their own units: greedy quads, model quads, face attributes, culling
+    /// groups.
     quads: Arena,
     models: Arena,
+    faces: Arena,
     groups: Arena,
     /// Sections of a file that fall outside the world's declared height.
     dropped: usize,
@@ -102,6 +104,7 @@ pub struct Loader {
 struct Resident {
     quads: Block,
     models: Block,
+    faces: Block,
     groups: Block,
     /// The crossing masks of its sections, numbered inside the region. Kept so they can be laid
     /// into the walk's grid again after it slides.
@@ -131,9 +134,10 @@ pub struct Status {
 impl Loader {
     pub fn new(layout: Arc<Layout>, uploads: Uploads, window: Window) -> Self {
         let world = World::new(window.min_region, window.regions);
-        let (layout_quads, layout_models, layout_groups) = (
+        let (layout_quads, layout_models, layout_faces, layout_groups) = (
             layout.quad_capacity,
             layout.model_capacity,
+            layout.face_capacity,
             layout.group_capacity,
         );
         let regions = layout.grid.len();
@@ -159,6 +163,7 @@ impl Loader {
             evicted: 0,
             quads: Arena::new(layout_quads),
             models: Arena::new(layout_models),
+            faces: Arena::new(layout_faces),
             groups: Arena::new(layout_groups),
             dropped: 0,
             sprites: 0,
@@ -246,6 +251,7 @@ impl Loader {
         };
         self.quads.free(held.quads);
         self.models.free(held.models);
+        self.faces.free(held.faces);
         self.groups.free(held.groups);
         self.uploads.push(Upload::Drop(region as u32));
         if let Some(base) = self.cave_base(cave, region) {
@@ -339,7 +345,7 @@ impl Loader {
             }
             None => cave.always_visible(),
         };
-        // All three or none: a region half in the arena would leave groups pointing at quads that
+        // All four or none: a region half in the arena would leave groups pointing at quads that
         // were never written.
         let Some(quads) = self.quads.alloc(batch.simple.len()) else {
             return Err(batch);
@@ -348,9 +354,15 @@ impl Loader {
             self.quads.free(quads);
             return Err(batch);
         };
+        let Some(faces) = self.faces.alloc(batch.faces.len()) else {
+            self.quads.free(quads);
+            self.models.free(models);
+            return Err(batch);
+        };
         let Some(groups) = self.groups.alloc(batch.groups.len()) else {
             self.quads.free(quads);
             self.models.free(models);
+            self.faces.free(faces);
             return Err(batch);
         };
 
@@ -380,6 +392,7 @@ impl Loader {
                 region: batch.region as u32,
                 origin: self.layout.grid.origin(self.layout.min_section, batch.region),
                 cave_base,
+                face_base: faces.offset as u32,
                 first_group: (groups.offset + first) as u32,
                 group_count: span.group_count,
                 quad_count: span.quad_count,
@@ -390,12 +403,14 @@ impl Loader {
         self.resident[batch.region] = Some(Resident {
             quads,
             models,
+            faces,
             groups,
             connectivity: batch.connectivity,
         });
         Ok(Placement {
             quads: ((quads.offset * QUAD_WORDS * 4) as u64, batch.simple),
             vertices: ((models.offset * 4 * 3 * 4) as u64, batch.complex),
+            faces: ((faces.offset * 4) as u64, batch.faces),
             groups: ((groups.offset * size_of::<Group>()) as u64, placed),
             draws,
         })
@@ -763,6 +778,7 @@ fn report(loader: &Loader) {
     for (name, (count, asked, held, capacity, share)) in [
         ("greedy quads", arena(&loader.quads, QUAD_WORDS * 4)),
         ("model quads", arena(&loader.models, 4 * 3 * 4)),
+        ("block faces", arena(&loader.faces, 4)),
         ("groups", arena(&loader.groups, size_of::<Group>())),
     ] {
         println!(

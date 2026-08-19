@@ -1,19 +1,24 @@
 //! Turns the region into packed GPU geometry.
 //!
-//! Two meshers run over every section. Full cubes go through greedy merging into 8-byte quads that
-//! the vertex shader unpacks with no vertex buffer and no index buffer at all; everything else
-//! emits its baked model quads as 12-byte vertices. Both write contiguous runs tagged with the
-//! section and face they came from, so the culling compute shader can drop whole runs — including
-//! the three-or-more face groups pointing away from the camera — before any vertex work happens.
+//! Two meshers run over every section. Full cubes go through greedy merging into quads that the
+//! vertex shader unpacks with no vertex buffer and no index buffer at all; everything else emits
+//! its baked model quads as 12-byte vertices. Both write contiguous runs tagged with the section
+//! and face they came from, so the culling compute shader can drop whole runs — including the
+//! three-or-more face groups pointing away from the camera — before any vertex work happens.
+//!
+//! A greedy quad carries nothing but where it is and how big it is. What a face looks like — its
+//! sprite, its light, its ambient occlusion — is written once per block face into a side buffer the
+//! quad points at, and the fragment shader picks its own entry out of that run. Faces therefore
+//! merge across block types and across lighting, and a real region file comes out with a little
+//! under half the quads it used to.
 
 use crate::anvil::{SECTION_SIZE, World};
 use crate::blocks::{BlockInfo, CORNER_UV, FACE_AXES, Pass};
-use crate::atlas::SpriteRef;
 use crate::pack::{
-    GROUP_FACE, MODEL_ARRAY, MODEL_BLOCK_LIGHT, MODEL_LAYER, MODEL_OVERHANG, MODEL_SECTION,
-    MODEL_SHADE, MODEL_SKY_LIGHT, MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y,
-    MODEL_Z, QUAD_AO, QUAD_ARRAY, QUAD_BLOCK_LIGHT, QUAD_FACE, QUAD_FLIP, QUAD_H, QUAD_LAYER,
-    QUAD_SECTION, QUAD_SKY_LIGHT, QUAD_TINT, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y, QUAD_Z,
+    FACE_AO, FACE_ARRAY, FACE_BLOCK_LIGHT, FACE_LAYER, FACE_SKY_LIGHT, FACE_TINT, GROUP_FACE,
+    MODEL_ARRAY, MODEL_BLOCK_LIGHT, MODEL_LAYER, MODEL_OVERHANG, MODEL_SECTION, MODEL_SHADE,
+    MODEL_SKY_LIGHT, MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
+    QUAD_FACE, QUAD_FACE_BASE, QUAD_H, QUAD_SECTION, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y, QUAD_Z,
     RENDER_REGION_X, RENDER_REGION_Y, RENDER_REGION_Z, RegionGrid,
 };
 
@@ -39,6 +44,10 @@ const FACE_GROUPS: usize = 7;
 
 const BORDER: usize = SECTION_SIZE + 2;
 const BORDER_VOLUME: usize = BORDER * BORDER * BORDER;
+
+/// One bit column per cell of a border-sized plane. A column runs along one axis and holds the
+/// whole section plus its border on that axis, which is eighteen bits of a `u32`.
+const COLUMNS: usize = BORDER * BORDER;
 
 /// Bit `entry * 6 + exit` is set when a sight line can cross the section from face `entry` to face
 /// `exit`. Faces follow [`FACE_AXES`] order, so the opposite face is `f ^ 1`.
@@ -67,6 +76,9 @@ pub struct Batch {
     pub region: usize,
     /// Packed greedy quads, [`QUAD_WORDS`] `u32` each.
     pub simple: Vec<[u32; QUAD_WORDS]>,
+    /// One packed attribute per block face, in the order the quads that own them were written.
+    /// A quad's `QUAD_FACE_BASE` indexes this, so the two have to be placed as a pair.
+    pub faces: Vec<u32>,
     /// Packed model vertices, three `u32` each, four vertices per quad.
     pub complex: Vec<u32>,
     /// Culling groups in stream order, so each stream owns one contiguous run. `quad_base` is
@@ -94,28 +106,27 @@ pub struct StreamSpan {
     pub quad_count: u32,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Default)]
-struct Key {
-    /// `None` when there is no face here. Two faces only merge when they name the same sprite, so
-    /// the array is part of the key as much as the layer is.
-    sprite: Option<SpriteRef>,
-    tint: u32,
-    block_light: u32,
-    sky_light: u32,
-    ao: u32,
-    flip: bool,
-    pass: u32,
-}
-
 pub struct Scratch {
     /// Section volume plus a one-block border, so neighbour lookups never re-enter [`Region`].
     states: Box<[u16; BORDER_VOLUME]>,
     occludes: Box<[bool; BORDER_VOLUME]>,
     light: Box<[u8; BORDER_VOLUME]>,
-    keys: Box<[Key; SECTION_SIZE * SECTION_SIZE]>,
+    /// The same two predicates again as bit columns, one array per axis the columns run along.
+    /// Whether a block has a face at all is then a shift and two ands over a whole column at once,
+    /// which is what keeps the expensive part — sprite, light, ambient occlusion — off the
+    /// nine cells in ten that carry no face.
+    cube_columns: Box<[[u32; COLUMNS]; 3]>,
+    occlude_columns: Box<[[u32; COLUMNS]; 3]>,
+    /// For the face group being built, one column of face bits per cell of the slice grid.
+    faces: Box<[u32; SECTION_SIZE * SECTION_SIZE]>,
+    /// The slice being merged: which pass each cell draws in, which is the whole of what decides
+    /// whether two faces may become one quad, and what each cell's face will look like.
+    passes: Box<[u8; SECTION_SIZE * SECTION_SIZE]>,
+    attrs: Box<[u32; SECTION_SIZE * SECTION_SIZE]>,
     used: Box<[bool; SECTION_SIZE * SECTION_SIZE]>,
     /// Geometry for the face group being built, split by pass so each run stays contiguous.
     simple_by_pass: [Vec<[u32; QUAD_WORDS]>; Pass::COUNT],
+    faces_by_pass: [Vec<u32>; Pass::COUNT],
     complex_by_pass: [[Vec<u32>; FACE_GROUPS]; Pass::COUNT],
 }
 
@@ -125,9 +136,14 @@ impl Scratch {
             states: Box::new([0; BORDER_VOLUME]),
             occludes: Box::new([false; BORDER_VOLUME]),
             light: Box::new([0; BORDER_VOLUME]),
-            keys: Box::new([Key::default(); SECTION_SIZE * SECTION_SIZE]),
+            cube_columns: Box::new([[0; COLUMNS]; 3]),
+            occlude_columns: Box::new([[0; COLUMNS]; 3]),
+            faces: Box::new([0; SECTION_SIZE * SECTION_SIZE]),
+            passes: Box::new([0; SECTION_SIZE * SECTION_SIZE]),
+            attrs: Box::new([0; SECTION_SIZE * SECTION_SIZE]),
             used: Box::new([false; SECTION_SIZE * SECTION_SIZE]),
             simple_by_pass: Default::default(),
+            faces_by_pass: Default::default(),
             complex_by_pass: Default::default(),
         }
     }
@@ -136,6 +152,7 @@ impl Scratch {
 /// One worker's slice of the finished geometry, before it is sorted into streams.
 struct Partial {
     simple: Vec<[u32; QUAD_WORDS]>,
+    faces: Vec<u32>,
     complex: Vec<u32>,
     /// `(stream, render region, group)` with `group.quad_base` relative to this worker's own arena.
     groups: Vec<(u32, u32, Group)>,
@@ -156,6 +173,9 @@ pub struct Draw {
     pub origin: [i32; 3],
     /// Where this region's sections start in the sight-line bitset.
     pub cave_base: u32,
+    /// Where this region's face attributes start in their arena. A quad's own base counts from
+    /// here, so this is the whole of what turns one into an index.
+    pub face_base: u32,
     pub first_group: u32,
     pub group_count: u32,
     /// Every quad these groups hold, which is the most culling can let through.
@@ -177,6 +197,7 @@ pub fn mesh_render_region(
 ) -> Batch {
     let mut partial = Partial {
         simple: Vec::new(),
+        faces: Vec::new(),
         complex: Vec::new(),
         groups: Vec::new(),
         connectivity: Vec::new(),
@@ -219,6 +240,7 @@ pub fn mesh_render_region(
     Batch {
         region,
         simple: partial.simple,
+        faces: partial.faces,
         complex: partial.complex,
         groups,
         spans,
@@ -243,14 +265,31 @@ fn mesh_section(
         (sz * SECTION_SIZE) as i32,
     ];
 
+    *scratch.cube_columns = [[0; COLUMNS]; 3];
+    *scratch.occlude_columns = [[0; COLUMNS]; 3];
     for y in -1..=SECTION_SIZE as i32 {
         for z in -1..=SECTION_SIZE as i32 {
             for x in -1..=SECTION_SIZE as i32 {
                 let index = border_index(x, y, z);
                 let state = world.block(base[0] + x, base[1] + y, base[2] + z);
+                let info = &catalog[state as usize];
                 scratch.states[index] = state;
-                scratch.occludes[index] = catalog[state as usize].occludes;
+                scratch.occludes[index] = info.occludes;
                 scratch.light[index] = world.light(base[0] + x, base[1] + y, base[2] + z);
+                if !info.occludes && info.cube.is_none() {
+                    continue;
+                }
+                let along = [x, y, z];
+                for axis in 0..3 {
+                    let column = column_index(axis, x, y, z);
+                    let bit = 1u32 << (along[axis] + 1);
+                    if info.cube.is_some() {
+                        scratch.cube_columns[axis][column] |= bit;
+                    }
+                    if info.occludes {
+                        scratch.occlude_columns[axis][column] |= bit;
+                    }
+                }
             }
         }
     }
@@ -267,6 +306,18 @@ fn mesh_section(
 #[inline]
 fn border_index(x: i32, y: i32, z: i32) -> usize {
     ((y + 1) as usize) * BORDER * BORDER + ((z + 1) as usize) * BORDER + (x + 1) as usize
+}
+
+/// Which column of `axis` a border coordinate falls in. The coordinate along `axis` is the bit
+/// inside the column, so it takes no part in the index.
+#[inline]
+fn column_index(axis: usize, x: i32, y: i32, z: i32) -> usize {
+    let (p, q) = match axis {
+        0 => (y, z),
+        1 => (x, z),
+        _ => (x, y),
+    };
+    (p + 1) as usize * BORDER + (q + 1) as usize
 }
 
 /// Which pairs of section faces a sight line can join, as bit `entry * 6 + exit`.
@@ -342,6 +393,7 @@ fn greedy(
     for face in 0..6usize {
         for pass in 0..Pass::COUNT {
             scratch.simple_by_pass[pass].clear();
+            scratch.faces_by_pass[pass].clear();
         }
         let axes = FACE_AXES[face];
         let n_axis = axes[0] as usize;
@@ -350,19 +402,56 @@ fn greedy(
         let v_axis = axes[4] as usize;
         let v_positive = axes[5] == 1;
 
+        // Where the faces of this group are, a whole column of the section at a time: a block has
+        // one where it carries a cube and the block one step along the axis does not occlude it.
+        let n_positive = axes[1] == 1;
+        let mut occupied = 0u32;
+        for gv in 0..SECTION_SIZE {
+            for gu in 0..SECTION_SIZE {
+                let mut local = [0i32; 3];
+                local[u_axis] = grid_to_local(gu, u_positive);
+                local[v_axis] = grid_to_local(gv, v_positive);
+                let column = column_index(n_axis, local[0], local[1], local[2]);
+                let cubes = scratch.cube_columns[n_axis][column];
+                let occludes = scratch.occlude_columns[n_axis][column];
+                let front = if n_positive { occludes >> 1 } else { occludes << 1 };
+                let visible = cubes & !front;
+                scratch.faces[gv * SECTION_SIZE + gu] = visible;
+                occupied |= visible;
+            }
+        }
+
         for n in 0..SECTION_SIZE {
+            // The border occupies bit zero, so a block at `n` is the bit above it.
+            let bit = 1u32 << (n + 1);
+            if occupied & bit == 0 {
+                continue;
+            }
             let mut any = false;
             for gv in 0..SECTION_SIZE {
                 for gu in 0..SECTION_SIZE {
+                    let slot = gv * SECTION_SIZE + gu;
+                    if scratch.faces[slot] & bit == 0 {
+                        scratch.used[slot] = true;
+                        continue;
+                    }
                     let mut local = [0i32; 3];
                     local[n_axis] = n as i32;
                     local[u_axis] = grid_to_local(gu, u_positive);
                     local[v_axis] = grid_to_local(gv, v_positive);
-                    let slot = gv * SECTION_SIZE + gu;
-                    scratch.used[slot] = false;
-                    let key = face_key(catalog, scratch, local, face);
-                    any |= key.sprite.is_some();
-                    scratch.keys[slot] = key;
+                    // Asked one cell at a time even though the columns already found the face: a
+                    // block that culls against its own kind is the one rule the two masks cannot
+                    // express, because it turns on what the neighbour is rather than on what it
+                    // hides.
+                    match face_attr(catalog, scratch, local, face) {
+                        Some((pass, attr)) => {
+                            scratch.used[slot] = false;
+                            scratch.passes[slot] = pass;
+                            scratch.attrs[slot] = attr;
+                            any = true;
+                        }
+                        None => scratch.used[slot] = true,
+                    }
                 }
             }
             if any {
@@ -371,8 +460,16 @@ fn greedy(
         }
 
         for pass in 0..Pass::COUNT {
-            let quads = std::mem::take(&mut scratch.simple_by_pass[pass]);
+            let mut quads = std::mem::take(&mut scratch.simple_by_pass[pass]);
+            let faces = std::mem::take(&mut scratch.faces_by_pass[pass]);
             if !quads.is_empty() {
+                // Each pass merged into its own run of face attributes, so a quad's base counts
+                // from the start of that run and has to be moved to where the run lands in the
+                // batch. The base has its word to itself, which is what lets this be an addition.
+                let base = partial.faces.len() as u32;
+                for quad in &mut quads {
+                    quad[QUAD_FACE_BASE.word as usize] += base;
+                }
                 partial.groups.push((
                     (pass * 2) as u32,
                     region_index,
@@ -384,8 +481,10 @@ fn greedy(
                     },
                 ));
                 partial.simple.extend_from_slice(&quads);
+                partial.faces.extend_from_slice(&faces);
             }
             scratch.simple_by_pass[pass] = quads;
+            scratch.faces_by_pass[pass] = faces;
         }
     }
 }
@@ -399,17 +498,16 @@ fn grid_to_local(grid: usize, positive: bool) -> i32 {
     }
 }
 
-fn face_key(
+/// What one face looks like, and which pass draws it. `None` where there is no face.
+fn face_attr(
     catalog: &[BlockInfo],
     scratch: &Scratch,
     local: [i32; 3],
     face: usize,
-) -> Key {
+) -> Option<(u8, u32)> {
     let here = scratch.states[border_index(local[0], local[1], local[2])];
     let info = &catalog[here as usize];
-    let Some(cube) = info.cube.as_ref() else {
-        return Key::default();
-    };
+    let cube = info.cube.as_ref()?;
     let normal = face_normal(face);
     let front = [
         local[0] + normal[0],
@@ -418,10 +516,10 @@ fn face_key(
     ];
     let front_index = border_index(front[0], front[1], front[2]);
     if scratch.occludes[front_index] {
-        return Key::default();
+        return None;
     }
     if info.self_culls && scratch.states[front_index] == here {
-        return Key::default();
+        return None;
     }
 
     let cube = cube[face];
@@ -447,32 +545,18 @@ fn face_key(
     }
 
     let raw = scratch.light[front_index] as u32;
-    let corners = [ao & 3, (ao >> 2) & 3, (ao >> 4) & 3, (ao >> 6) & 3];
-    Key {
-        sprite: Some(cube.sprite),
-        tint: if cube.tinted {
-            info.tint_kind as u32 + 1
-        } else {
-            0
-        },
-        // Kept apart rather than folded into one value: only the sky half follows the time of
-        // day, and the block's own emission is block light like any other.
-        block_light: (raw >> 4).max(info.emission as u32),
-        sky_light: raw & 0xf,
-        ao,
-        flip: split_flip(corners),
-        pass: cube.pass as u32,
+    let mut words = [0u32; 1];
+    FACE_LAYER.set(&mut words, cube.sprite.layer as u64);
+    FACE_ARRAY.set(&mut words, cube.sprite.array as u64);
+    if cube.tinted {
+        FACE_TINT.set(&mut words, info.tint_kind as u64 + 1);
     }
-}
-
-/// Which diagonal the shader splits the quad along: corners 0-2 normally, 1-3 when this is set.
-///
-/// Splitting a quad along the wrong diagonal makes the ambient occlusion gradient kink visibly. A
-/// corner on the split lies in both triangles, so its shade bleeds across the whole quad; picking
-/// the diagonal with the brighter pair keeps the darkest corner inside one triangle.
-#[inline]
-fn split_flip(corners: [u32; 4]) -> bool {
-    corners[0] + corners[2] < corners[1] + corners[3]
+    // Kept apart rather than folded into one value: only the sky half follows the time of day, and
+    // the block's own emission is block light like any other.
+    FACE_BLOCK_LIGHT.set(&mut words, (raw >> 4).max(info.emission as u32) as u64);
+    FACE_SKY_LIGHT.set(&mut words, (raw & 0xf) as u64);
+    FACE_AO.set(&mut words, ao as u64);
+    Some((cube.pass, words[0]))
 }
 
 #[inline]
@@ -499,15 +583,17 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize, local_section: u32)
         let mut gu = 0usize;
         while gu < SECTION_SIZE {
             let slot = gv * SECTION_SIZE + gu;
-            let key = scratch.keys[slot];
-            if key.sprite.is_none() || scratch.used[slot] {
+            // Both "already merged into a quad" and "carries no face at all", because the pass of
+            // a cell without a face is left over from whichever slice last wrote it.
+            if scratch.used[slot] {
                 gu += 1;
                 continue;
             }
+            let pass = scratch.passes[slot] as usize;
             let mut w = 1;
             while gu + w < SECTION_SIZE {
                 let probe = slot + w;
-                if scratch.used[probe] || scratch.keys[probe] != key {
+                if scratch.used[probe] || scratch.passes[probe] as usize != pass {
                     break;
                 }
                 w += 1;
@@ -516,19 +602,25 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize, local_section: u32)
             'grow: while gv + h < SECTION_SIZE {
                 for i in 0..w {
                     let probe = (gv + h) * SECTION_SIZE + gu + i;
-                    if scratch.used[probe] || scratch.keys[probe] != key {
+                    if scratch.used[probe] || scratch.passes[probe] as usize != pass {
                         break 'grow;
                     }
                 }
                 h += 1;
             }
+            // Row by row along the quad's own axes, which is the order the fragment shader indexes
+            // them in once it has floored its quad coordinate.
+            let base = scratch.faces_by_pass[pass].len() as u32;
             for dv in 0..h {
                 for du in 0..w {
-                    scratch.used[(gv + dv) * SECTION_SIZE + gu + du] = true;
+                    let cell = (gv + dv) * SECTION_SIZE + gu + du;
+                    scratch.used[cell] = true;
+                    let attr = scratch.attrs[cell];
+                    scratch.faces_by_pass[pass].push(attr);
                 }
             }
-            scratch.simple_by_pass[key.pass as usize]
-                .push(pack_quad(&key, face, n, gu, gv, w, h, local_section));
+            scratch.simple_by_pass[pass]
+                .push(pack_quad(face, n, gu, gv, w, h, local_section, base));
             gu += w;
         }
     }
@@ -556,7 +648,6 @@ fn quad_anchor(face: usize, n: usize, gu: usize, gv: usize) -> [i32; 3] {
 #[allow(clippy::too_many_arguments)]
 #[inline]
 fn pack_quad(
-    key: &Key,
     face: usize,
     n: usize,
     gu: usize,
@@ -564,6 +655,7 @@ fn pack_quad(
     w: usize,
     h: usize,
     local_section: u32,
+    face_base: u32,
 ) -> [u32; QUAD_WORDS] {
     let anchor = quad_anchor(face, n, gu, gv);
     let mut words = [0u32; QUAD_WORDS];
@@ -573,15 +665,8 @@ fn pack_quad(
     QUAD_FACE.set(&mut words, face as u64);
     QUAD_W.set(&mut words, w as u64 - 1);
     QUAD_H.set(&mut words, h as u64 - 1);
-    QUAD_BLOCK_LIGHT.set(&mut words, key.block_light as u64);
-    QUAD_SKY_LIGHT.set(&mut words, key.sky_light as u64);
-    QUAD_TINT.set(&mut words, key.tint as u64);
-    QUAD_AO.set(&mut words, key.ao as u64);
-    QUAD_FLIP.set(&mut words, key.flip as u64);
     QUAD_SECTION.set(&mut words, local_section as u64);
-    let sprite = key.sprite.expect("a quad is only packed where there is a face");
-    QUAD_ARRAY.set(&mut words, sprite.array as u64);
-    QUAD_LAYER.set(&mut words, sprite.layer as u64);
+    QUAD_FACE_BASE.set(&mut words, face_base as u64);
     words
 }
 
@@ -721,14 +806,13 @@ fn fixed(value: f32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::{
-        BORDER_VOLUME, BUCKET_SHADES, Key, QUAD_AO, QUAD_ARRAY, QUAD_BLOCK_LIGHT, QUAD_FACE,
-        QUAD_FLIP, QUAD_H, QUAD_LAYER, QUAD_SECTION, QUAD_SKY_LIGHT, QUAD_TINT, QUAD_W, QUAD_X,
-        QUAD_Y, QUAD_Z, Scratch, border_index, connectivity, fixed, mesh_render_region, pack_quad,
-        quad_anchor, shade_bucket, split_flip,
+        BORDER_VOLUME, BUCKET_SHADES, FACE_ARRAY, FACE_LAYER, QUAD_FACE, QUAD_FACE_BASE, QUAD_H,
+        QUAD_SECTION, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z, Scratch, border_index, connectivity, fixed,
+        mesh_render_region, pack_quad, quad_anchor, shade_bucket,
     };
     use crate::atlas::SpriteRef;
     use crate::anvil::{Palette, SECTION_SIZE, SECTION_VOLUME, World, one_section_region};
-    use crate::blocks::{BlockInfo, ModelQuad, Pass};
+    use crate::blocks::{BlockInfo, CubeFace, ModelQuad, Pass};
     use crate::pack::{MODEL_OVERHANG, MODEL_STEPS, RegionGrid, pack_section};
     use crate::blocks::{CORNER_UV, FACE_AXES, cube_corner};
     use bevy::math::Vec3;
@@ -822,25 +906,62 @@ mod tests {
         );
     }
 
-    /// The split has to miss the darkest corner. On the other diagonal that corner belongs to both
-    /// triangles and its shadow interpolates across the entire quad instead of staying in place.
+    /// Every quad names as many face attributes as it covers blocks, and the runs of a batch tile
+    /// its face buffer with no gap and no overlap. A base off by one run is not a hole in the
+    /// frame: it draws the whole world out of its neighbours' sprites and light.
     #[test]
-    fn the_split_diagonal_misses_the_darkest_corner() {
-        for dark in 0..4usize {
-            let mut corners = [3u32; 4];
-            corners[dark] = 0;
-            let diagonal = if split_flip(corners) { [1, 3] } else { [0, 2] };
-            assert!(
-                !diagonal.contains(&dark),
-                "corner {dark} dark: split runs {diagonal:?}"
-            );
-        }
-    }
+    fn the_face_runs_of_a_batch_tile_it_exactly() {
+        let mut palette = Palette::new();
+        let mut world = World::new([0, 0], [1, 1]);
+        world.insert(&mut palette, [0, 0], one_section_region("minecraft:test_block"));
+        let id = palette
+            .states
+            .iter()
+            .position(|state| state.name == "minecraft:test_block")
+            .unwrap();
+        let mut blocks: Vec<BlockInfo> =
+            (0..palette.states.len()).map(|_| BlockInfo::default()).collect();
+        blocks[id].cube = Some(
+            [CubeFace {
+                sprite: SpriteRef { array: 1, layer: 7 },
+                pass: Pass::Solid as u8,
+                tinted: false,
+            }; 6],
+        );
+        blocks[id].occludes = true;
 
-    /// Four equal corners leave nothing to fix, and the cheaper triangulation is the unflipped one.
-    #[test]
-    fn a_flat_quad_keeps_the_default_diagonal() {
-        assert!(!split_flip([2, 2, 2, 2]));
+        let grid = RegionGrid::covering(world.sections);
+        let mut scratch = Scratch::new();
+        let mut quads = 0usize;
+        for region in 0..grid.len() {
+            let batch = mesh_render_region(&world, &blocks, grid, region, &mut scratch);
+            quads += batch.simple.len();
+            let mut runs: Vec<(u64, u64)> = batch
+                .simple
+                .iter()
+                .map(|quad| {
+                    (
+                        QUAD_FACE_BASE.read(quad),
+                        (QUAD_W.read(quad) + 1) * (QUAD_H.read(quad) + 1),
+                    )
+                })
+                .collect();
+            runs.sort();
+            let mut at = 0u64;
+            for (base, len) in runs {
+                assert_eq!(base, at, "a face run does not start where the last one ended");
+                at += len;
+            }
+            assert_eq!(at as usize, batch.faces.len(), "the runs leave the buffer uncovered");
+            for attr in &batch.faces {
+                assert_eq!(FACE_LAYER.get(*attr as u64), 7, "sprite layer");
+                assert_eq!(FACE_ARRAY.get(*attr as u64), 1, "sprite array");
+            }
+        }
+        assert_eq!(
+            quads, 6,
+            "a lone solid section is six merged faces, one per side"
+        );
     }
 
     #[test]
@@ -924,20 +1045,8 @@ mod tests {
 
     #[test]
     fn a_packed_quad_round_trips_every_field() {
-        let key = Key {
-            sprite: Some(SpriteRef {
-                array: 2,
-                layer: 1000,
-            }),
-            tint: 2,
-            block_light: 11,
-            sky_light: 6,
-            ao: 0b11_10_01_00,
-            flip: true,
-            pass: 1,
-        };
         let section = pack_section(9, 5, 12);
-        let words = pack_quad(&key, 3, 9, 3, 7, 12, 16, section);
+        let words = pack_quad(3, 9, 3, 7, 12, 16, section, 123_456);
         let anchor = quad_anchor(3, 9, 3, 7);
         assert_eq!(QUAD_X.read(&words), anchor[0] as u64, "x");
         assert_eq!(QUAD_Y.read(&words), anchor[1] as u64, "y");
@@ -946,12 +1055,6 @@ mod tests {
         assert_eq!(QUAD_FACE.read(&words), 3, "face");
         assert_eq!(QUAD_W.read(&words) + 1, 12, "w");
         assert_eq!(QUAD_H.read(&words) + 1, 16, "h");
-        assert_eq!(QUAD_BLOCK_LIGHT.read(&words), 11, "block light");
-        assert_eq!(QUAD_SKY_LIGHT.read(&words), 6, "sky light");
-        assert_eq!(QUAD_TINT.read(&words), 2, "tint");
-        assert_eq!(QUAD_AO.read(&words), 0b11_10_01_00, "ao");
-        assert_eq!(QUAD_FLIP.read(&words), 1, "flip");
-        assert_eq!(QUAD_ARRAY.read(&words), 2, "array");
-        assert_eq!(QUAD_LAYER.read(&words), 1000, "layer");
+        assert_eq!(QUAD_FACE_BASE.read(&words), 123_456, "face base");
     }
 }

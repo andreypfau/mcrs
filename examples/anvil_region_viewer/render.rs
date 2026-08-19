@@ -185,6 +185,8 @@ pub struct Layout {
     pub quad_capacity: usize,
     /// Model quads the arena holds, four vertices each.
     pub model_capacity: usize,
+    /// Face attributes the arena holds, one per block face a greedy quad covers.
+    pub face_capacity: usize,
     pub group_capacity: usize,
     /// Words of the sight-line bitset the walk hands back every frame.
     pub cave_words: usize,
@@ -214,6 +216,8 @@ pub struct Placement {
     pub quads: (u64, Vec<[u32; QUAD_WORDS]>),
     /// `(byte offset, words)` into the model vertex arena.
     pub vertices: (u64, Vec<u32>),
+    /// `(byte offset, face attributes)` into the face arena.
+    pub faces: (u64, Vec<u32>),
     /// `(byte offset, groups)` into the culling group arena.
     pub groups: (u64, Vec<Group>),
     /// This region's draws, in stream order.
@@ -221,7 +225,7 @@ pub struct Placement {
 }
 
 impl Placement {
-    /// The three arenas in the order they are written, as bytes. Kept as a borrow rather than
+    /// The four arenas in the order they are written, as bytes. Kept as a borrow rather than
     /// packed into one buffer: a region file runs to hundreds of megabytes and copying it once
     /// more on the way to the GPU would undo the point of spreading the write out.
     fn part(&self, index: usize) -> (Arena, u64, &[u8]) {
@@ -231,6 +235,11 @@ impl Placement {
                 Arena::Vertices,
                 self.vertices.0,
                 bytemuck::cast_slice(&self.vertices.1),
+            ),
+            2 => (
+                Arena::Faces,
+                self.faces.0,
+                bytemuck::cast_slice(&self.faces.1),
             ),
             _ => (
                 Arena::Groups,
@@ -355,7 +364,9 @@ struct Params {
     tint_origin_z: i32,
     tint_span_x: f32,
     tint_span_z: f32,
-    reserved1: u32,
+    /// Where this draw's render region owns its face attributes, which a quad's own base counts
+    /// from.
+    face_origin: u32,
 }
 
 /// The state of the sky the terrain is lit by, as `terrain.wgsl` reads it. One uniform for the
@@ -485,6 +496,7 @@ struct Terrain {
     layout: Arc<Layout>,
     quads: Buffer,
     vertices: Buffer,
+    faces: Buffer,
     group_buffer: Buffer,
     animations: Buffer,
     args: Buffer,
@@ -531,7 +543,7 @@ struct Terrain {
 /// One upload part way through being written.
 struct Pending {
     placement: Placement,
-    /// Which of the three arenas is being written.
+    /// Which of the four arenas is being written.
     part: usize,
     /// Bytes of that arena's share already sent.
     done: usize,
@@ -541,8 +553,14 @@ struct Pending {
 enum Arena {
     Quads,
     Vertices,
+    Faces,
     Groups,
 }
+
+/// How many arenas one placement is written into, which is also how many parts it is cut up for
+/// the upload budget. The group arena goes last: it is what makes the rest reachable, so nothing
+/// may point into a quad or a face that has not landed yet.
+const ARENA_PARTS: usize = 4;
 
 #[derive(Resource)]
 struct ViewBindGroup(BindGroup);
@@ -574,6 +592,7 @@ fn init_terrain(
         "terrain vertices",
         (layout.model_capacity * 4 * 3 * 4) as u64,
     );
+    let faces = arena("terrain faces", (layout.face_capacity * 4) as u64);
     let group_buffer = arena(
         "terrain groups",
         (layout.group_capacity * size_of::<Group>()) as u64,
@@ -692,6 +711,7 @@ fn init_terrain(
                 texture_2d_array(TextureSampleType::Float { filterable: true }),
                 sampler(SamplerBindingType::Filtering),
                 storage_buffer_read_only_sized(false, None),
+                storage_buffer_read_only_sized(false, None),
             ),
         ),
     );
@@ -743,6 +763,7 @@ fn init_terrain(
         &tints,
         &tint_sampler,
         &animations,
+        &faces,
     );
 
     let sky_bind_group = device.create_bind_group(
@@ -762,6 +783,7 @@ fn init_terrain(
         layout,
         quads,
         vertices,
+        faces,
         group_buffer,
         animations,
         args,
@@ -802,6 +824,7 @@ fn draw_bind_group(
     tints: &Texture,
     tint_sampler: &Sampler,
     animations: &Buffer,
+    faces: &Buffer,
 ) -> BindGroup {
     let tint_view = tints.create_view(&TextureViewDescriptor {
         dimension: Some(TextureViewDimension::D2Array),
@@ -822,6 +845,7 @@ fn draw_bind_group(
             &tint_view,
             tint_sampler,
             animations.as_entire_buffer_binding(),
+            faces.as_entire_buffer_binding(),
         )),
     )
 }
@@ -1021,6 +1045,7 @@ fn apply_uploads(
                         &terrain.tints,
                         &terrain.tint_sampler,
                         &terrain.animations,
+                        &terrain.faces,
                     );
                     // The threshold that tells a still sprite from an animation moves as the set
                     // grows, and every entry of the table carries it.
@@ -1050,7 +1075,7 @@ fn apply_uploads(
         }
 
         let mut pending = terrain.pending.take().expect("just filled");
-        while budget > 0 && pending.part < 3 {
+        while budget > 0 && pending.part < ARENA_PARTS {
             let (arena, offset, data) = pending.placement.part(pending.part);
             if data.is_empty() {
                 pending.part += 1;
@@ -1068,6 +1093,7 @@ fn apply_uploads(
             let buffer = match arena {
                 Arena::Quads => &terrain.quads,
                 Arena::Vertices => &terrain.vertices,
+                Arena::Faces => &terrain.faces,
                 Arena::Groups => &terrain.group_buffer,
             };
             queue.write_buffer(
@@ -1082,7 +1108,7 @@ fn apply_uploads(
                 pending.done = 0;
             }
         }
-        if pending.part < 3 {
+        if pending.part < ARENA_PARTS {
             terrain.pending = Some(pending);
             break;
         }
@@ -1142,7 +1168,7 @@ fn rebuild_params(terrain: &mut Terrain) {
             tint_origin_z: tint_origin[1],
             tint_span_x: tint_size[0] as f32,
             tint_span_z: tint_size[1] as f32,
-            reserved1: 0,
+            face_origin: draw.face_base,
         });
         visible_base += draw.quad_count;
         terrain.group_counts.push(draw.group_count);

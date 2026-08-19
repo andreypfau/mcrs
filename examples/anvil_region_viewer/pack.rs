@@ -80,33 +80,50 @@ pub const GROUP_FACE: Field = Field::new(0, SECTION_INDEX.bits, 3);
 // Greedy quad, low word. The anchor is relative to its own section and runs 0..16 inclusive,
 // because a quad on the far face of a section anchors on the boundary. Width and height are stored
 // one less than they are, so the full sixteen blocks a merged quad can span still fit in four bits.
+//
+// Nothing about how a face looks is in here. Two faces merge when they lie in the same plane and
+// draw in the same pass, whatever blocks they belong to, and the sprite, the light and the ambient
+// occlusion are then read per fragment out of the face attributes below. That is what halves the
+// quad count: light and ambient occlusion are what a real region's faces mostly disagree about,
+// and disagreeing no longer keeps them apart.
 pub const QUAD_X: Field = Field::new(0, 0, 5);
 pub const QUAD_Y: Field = Field::new(0, 5, 5);
 pub const QUAD_Z: Field = Field::new(0, 10, 5);
 pub const QUAD_FACE: Field = Field::new(0, 15, 3);
 pub const QUAD_W: Field = Field::new(0, 18, 4);
 pub const QUAD_H: Field = Field::new(0, 22, 4);
-pub const QUAD_BLOCK_LIGHT: Field = Field::new(0, 26, 4);
-pub const QUAD_TINT: Field = Field::new(0, 30, 2);
 
-// Greedy quad, high word. The layer sits at the top so it can widen into the bit above it without
-// moving anything else.
-pub const QUAD_AO: Field = Field::new(1, 0, 8);
-pub const QUAD_FLIP: Field = Field::new(1, 8, 1);
-pub const QUAD_SECTION: Field = Field::new(1, 9, SECTION_INDEX.bits);
-/// Which sprite array the layer indexes. Arrays are split by sprite size, so the pack decides how
-/// many there are rather than the format.
-pub const QUAD_ARRAY: Field = Field::new(1, 20, 2);
-pub const QUAD_LAYER: Field = Field::new(1, 22, 10);
+// Greedy quad, second word.
+pub const QUAD_SECTION: Field = Field::new(1, 0, SECTION_INDEX.bits);
 
-// Greedy quad, third word. Sky light and block light have to stay apart because the two are lit by
-// different things: only the sky half follows the time of day. Twenty-eight bits of this word are
-// spare — the pair needed four more than the first two words had left, and the alternative to a
-// third word was a side buffer of nibbles that no other part of the format would have matched.
-pub const QUAD_SKY_LIGHT: Field = Field::new(2, 0, 4);
+// Greedy quad, third word: where this quad's own run of face attributes starts, counted from the
+// beginning of its render region's block. It has the word to itself so that placing a batch can
+// add the block's offset with a plain addition on the word, rather than unpacking and repacking
+// every quad. Relative to the region and not to the arena for the same reason the anchor is
+// relative to its section: the rest arrives with the draw. One bit short of the whole word because
+// a thirty-two bit field cannot be masked in WGSL: the shift that builds the mask is out of range.
+pub const QUAD_FACE_BASE: Field = Field::new(2, 0, 31);
 
 /// How many `u32` one greedy quad occupies.
 pub const QUAD_WORDS: usize = 3;
+
+// One face of one block, as the fragment shader reads it. A quad owns `w * h` of these laid out
+// row by row along its own axes, so the fragment finds its own by flooring the quad coordinate it
+// already interpolates.
+//
+// Ambient occlusion stays per corner and is interpolated inside the face rather than across the
+// quad, which is also why the quad no longer carries the diagonal it should be split along: a
+// gradient that never spans more than one block cannot kink across a merged run.
+pub const FACE_LAYER: Field = Field::new(0, 0, 10);
+/// Which sprite array the layer indexes. Arrays are split by sprite size, so the pack decides how
+/// many there are rather than the format.
+pub const FACE_ARRAY: Field = Field::new(0, 10, 2);
+pub const FACE_TINT: Field = Field::new(0, 12, 2);
+// Sky light and block light have to stay apart because the two are lit by different things: only
+// the sky half follows the time of day.
+pub const FACE_BLOCK_LIGHT: Field = Field::new(0, 14, 4);
+pub const FACE_SKY_LIGHT: Field = Field::new(0, 18, 4);
+pub const FACE_AO: Field = Field::new(0, 22, 8);
 
 // Model vertex, three words per corner. Positions are fixed point relative to the section, wide
 // enough for the overhang on both sides.
@@ -120,11 +137,11 @@ pub const MODEL_BLOCK_LIGHT: Field = Field::new(1, 22, 4);
 pub const MODEL_SHADE: Field = Field::new(1, 26, 2);
 pub const MODEL_SKY_LIGHT: Field = Field::new(1, 28, 4);
 pub const MODEL_SECTION: Field = Field::new(2, 0, SECTION_INDEX.bits);
-pub const MODEL_ARRAY: Field = Field::new(2, SECTION_INDEX.bits, QUAD_ARRAY.bits);
+pub const MODEL_ARRAY: Field = Field::new(2, SECTION_INDEX.bits, FACE_ARRAY.bits);
 /// A sprite has to be addressable from the greedy path too, so this is no wider than
-/// [`QUAD_LAYER`] however much room the model vertex has left.
+/// [`FACE_LAYER`] however much room the model vertex has left.
 pub const MODEL_LAYER: Field =
-    Field::new(2, SECTION_INDEX.bits + QUAD_ARRAY.bits, QUAD_LAYER.bits);
+    Field::new(2, SECTION_INDEX.bits + FACE_ARRAY.bits, FACE_LAYER.bits);
 
 /// How far outside its own block a baked model quad may reach — a fence arm, a rail on a slope.
 /// The fixed-point coordinate is offset by it so the overhang still lands on a non-negative
@@ -138,10 +155,10 @@ pub const MODEL_STEPS: f32 = 32.0;
 /// How many sprites one array can hold. With four arrays that is four thousand addressable
 /// sprites, against the eleven hundred a vanilla pack defines and the seventeen hundred it would
 /// reach with every animation frame unrolled.
-pub const MAX_SPRITES: usize = 1 << QUAD_LAYER.bits;
+pub const MAX_SPRITES: usize = 1 << FACE_LAYER.bits;
 
 /// How many sprite arrays the format can address, and so how many resolutions a pack may use.
-pub const MAX_SPRITE_ARRAYS: usize = 1 << QUAD_ARRAY.bits;
+pub const MAX_SPRITE_ARRAYS: usize = 1 << FACE_ARRAY.bits;
 
 /// The grid of render regions a loaded world is cut into. Every section belongs to exactly one,
 /// and a section's number is only meaningful next to the region that contains it.
@@ -249,14 +266,14 @@ const FIELDS: &[(&str, Field)] = &[
     ("QUAD_FACE", QUAD_FACE),
     ("QUAD_W", QUAD_W),
     ("QUAD_H", QUAD_H),
-    ("QUAD_BLOCK_LIGHT", QUAD_BLOCK_LIGHT),
-    ("QUAD_SKY_LIGHT", QUAD_SKY_LIGHT),
-    ("QUAD_TINT", QUAD_TINT),
-    ("QUAD_AO", QUAD_AO),
-    ("QUAD_FLIP", QUAD_FLIP),
     ("QUAD_SECTION", QUAD_SECTION),
-    ("QUAD_ARRAY", QUAD_ARRAY),
-    ("QUAD_LAYER", QUAD_LAYER),
+    ("QUAD_FACE_BASE", QUAD_FACE_BASE),
+    ("FACE_LAYER", FACE_LAYER),
+    ("FACE_ARRAY", FACE_ARRAY),
+    ("FACE_TINT", FACE_TINT),
+    ("FACE_BLOCK_LIGHT", FACE_BLOCK_LIGHT),
+    ("FACE_SKY_LIGHT", FACE_SKY_LIGHT),
+    ("FACE_AO", FACE_AO),
     ("MODEL_X", MODEL_X),
     ("MODEL_Y", MODEL_Y),
     ("MODEL_Z", MODEL_Z),
@@ -347,9 +364,9 @@ mod tests {
 
     #[test]
     fn a_field_round_trips_through_its_own_word() {
-        let word = QUAD_W.pack(11) | QUAD_TINT.pack(2) | QUAD_FACE.pack(5);
+        let word = QUAD_W.pack(11) | QUAD_X.pack(2) | QUAD_FACE.pack(5);
         assert_eq!(QUAD_W.get(word), 11);
-        assert_eq!(QUAD_TINT.get(word), 2);
+        assert_eq!(QUAD_X.get(word), 2);
         assert_eq!(QUAD_FACE.get(word), 5);
         assert_eq!(QUAD_H.get(word), 0, "a neighbour must stay clear");
     }
@@ -374,8 +391,7 @@ mod tests {
     #[test]
     fn no_word_of_a_quad_is_overfull() {
         let quad = [
-            QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_BLOCK_LIGHT, QUAD_TINT, QUAD_AO,
-            QUAD_FLIP, QUAD_SECTION, QUAD_ARRAY, QUAD_LAYER, QUAD_SKY_LIGHT,
+            QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_SECTION, QUAD_FACE_BASE,
         ];
         for word in 0..QUAD_WORDS as u32 {
             let bits: u32 = quad
@@ -457,9 +473,13 @@ mod tests {
         let values = [
             (
                 "greedy quad",
+                &[QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_SECTION, QUAD_FACE_BASE]
+                    [..],
+            ),
+            (
+                "face attribute",
                 &[
-                    QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_BLOCK_LIGHT, QUAD_TINT,
-                    QUAD_AO, QUAD_FLIP, QUAD_SECTION, QUAD_ARRAY, QUAD_LAYER,
+                    FACE_LAYER, FACE_ARRAY, FACE_TINT, FACE_BLOCK_LIGHT, FACE_SKY_LIGHT, FACE_AO,
                 ][..],
             ),
             ("section number", &[LOCAL_X, LOCAL_Y, LOCAL_Z][..]),

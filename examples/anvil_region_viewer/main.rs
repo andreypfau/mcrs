@@ -20,9 +20,9 @@
 //! Region files are parsed and meshed in the background and appear a render region at a time, so
 //! the window opens on an empty sky rather than after a pause. Everything else is built around
 //! never touching a quad again once it is down: blocks are baked per distinct block state rather
-//! than per block, full cubes are greedy-merged into twelve-byte quads, and every frame the GPU
-//! alone decides what to draw. There is no `Mesh` asset, no entity per section, and one indirect
-//! draw call per stream per render region.
+//! than per block, full cubes are greedy-merged whatever they are and whatever light they carry,
+//! and every frame the GPU alone decides what to draw. There is no `Mesh` asset, no entity per
+//! section, and one indirect draw call per stream per render region.
 
 // Shared verbatim with the block viewer rather than copied: the model resolver and the face bakery
 // are the pieces this example most needs to stay identical to the single-block reference.
@@ -71,14 +71,14 @@ const DEFAULT_REGION: &str = "examples/anvil_region_viewer/r.0.0.mca";
 /// of geometry.
 const DEFAULT_WINDOW: usize = 2;
 
-// How much room each region file gets in the two geometry arenas, in megabytes.
+// How much room each region file gets in the three geometry arenas, in megabytes.
 //
-// Measured off this world, where the heaviest file needs 38 MB of greedy quads and 158 MB of model
-// vertices, plus the third the arena's size classes cost in rounding and a little over for a
-// denser file. `ANVIL_ARENA=quads,models` overrides both. A region that does not fit is dropped
-// and counted rather than drawn half-written.
-const QUAD_MB_PER_FILE: usize = 64;
+// Measured off this world, plus the third the arena's size classes cost in rounding and a little
+// over for a denser file. `ANVIL_ARENA=quads,models,faces` overrides all three. A region that does
+// not fit is dropped and counted rather than drawn half-written.
+const QUAD_MB_PER_FILE: usize = 48;
 const MODEL_MB_PER_FILE: usize = 208;
+const FACE_MB_PER_FILE: usize = 40;
 
 /// Region files the arenas are sized for, however many the window covers.
 ///
@@ -90,9 +90,10 @@ const BUDGET_FILES: usize = 4;
 /// its share of this arena too.
 const GROUPS_PER_FILE: usize = 1 << 17;
 
-/// Bytes one greedy quad and one model quad take in their arenas.
+/// Bytes one greedy quad, one model quad and one block face take in their arenas.
 const QUAD_BYTES: usize = pack::QUAD_WORDS * 4;
 const MODEL_BYTES: usize = 4 * 3 * 4;
+const FACE_BYTES: usize = 4;
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -124,7 +125,7 @@ fn main() {
     };
     println!(
         "{} region files at r.{}.{} and up, {}x{}x{} render regions, up to {} draws; \
-         arenas hold {:.0} MB of quads and {:.0} MB of model vertices",
+         arenas hold {:.0} MB of quads, {:.0} MB of model vertices and {:.0} MB of block faces",
         window.files.len(),
         window.min_region[0],
         window.min_region[1],
@@ -134,6 +135,7 @@ fn main() {
         layout.max_draws(),
         (layout.quad_capacity * QUAD_BYTES) as f64 / 1e6,
         (layout.model_capacity * MODEL_BYTES) as f64 / 1e6,
+        (layout.face_capacity * FACE_BYTES) as f64 / 1e6,
     );
 
     // The walk starts wherever the camera does; it slides itself into place on the first frame.
@@ -236,7 +238,7 @@ fn layout(window: &anvil::Window) -> Result<Layout, String> {
     // corner of the world with nothing in it should not cost a gigabyte of arena, and a wide window
     // should not quietly buy itself more room than the budget allows.
     let files = window.files.len().clamp(1, BUDGET_FILES);
-    let (quad_mb, model_mb) = arena_budget();
+    let (quad_mb, model_mb, face_mb) = arena_budget();
     let span = anvil::REGION_BLOCKS as u32;
     Ok(Layout {
         grid,
@@ -247,6 +249,7 @@ fn layout(window: &anvil::Window) -> Result<Layout, String> {
         ],
         quad_capacity: quad_mb * files * 1_000_000 / QUAD_BYTES,
         model_capacity: model_mb * files * 1_000_000 / MODEL_BYTES,
+        face_capacity: face_mb * files * 1_000_000 / FACE_BYTES,
         group_capacity: GROUPS_PER_FILE * files,
         cave_words: (cave::cave_grid().slots() + pack::SECTIONS_PER_RENDER_REGION)
             .div_ceil(32),
@@ -263,18 +266,18 @@ fn layout(window: &anvil::Window) -> Result<Layout, String> {
     })
 }
 
-/// `ANVIL_ARENA=quads,models` sets how many megabytes a region file gets in each arena, which is
-/// what makes it checkable that the loader still fills a frame out of half the room.
-fn arena_budget() -> (usize, usize) {
-    let default = (QUAD_MB_PER_FILE, MODEL_MB_PER_FILE);
+/// `ANVIL_ARENA=quads,models,faces` sets how many megabytes a region file gets in each arena,
+/// which is what makes it checkable that the loader still fills a frame out of half the room.
+fn arena_budget() -> (usize, usize, usize) {
+    let default = (QUAD_MB_PER_FILE, MODEL_MB_PER_FILE, FACE_MB_PER_FILE);
     let Ok(spec) = std::env::var("ANVIL_ARENA") else {
         return default;
     };
     let numbers: Vec<usize> = spec.split(',').filter_map(|n| n.trim().parse().ok()).collect();
     match numbers[..] {
-        [quads, models] => (quads.max(1), models.max(1)),
+        [quads, models, faces] => (quads.max(1), models.max(1), faces.max(1)),
         _ => {
-            eprintln!("ANVIL_ARENA needs two sizes in megabytes: quads,models");
+            eprintln!("ANVIL_ARENA needs three sizes in megabytes: quads,models,faces");
             default
         }
     }

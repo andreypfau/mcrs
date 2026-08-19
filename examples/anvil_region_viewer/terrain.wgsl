@@ -2,7 +2,9 @@
 //
 // Each instance is one quad. `instance_index` reads the compacted list the culling pass produced,
 // which yields an index into the geometry arena; `vertex_index % 6` picks the corner. Greedy quads
-// unpack from twelve bytes, baked model quads from four twelve-byte vertices.
+// unpack from three words and read what they look like out of a side buffer, one entry per block
+// face, because a greedy quad now covers many blocks of many kinds. Baked model quads still carry
+// their appearance per vertex, four twelve-byte vertices to a quad.
 
 #import bevy_render::view::View
 #import bevy_render::globals::Globals
@@ -50,33 +52,36 @@ const QUAD_W_BITS: u32 = 4u;
 const QUAD_H_WORD: u32 = 0u;
 const QUAD_H_SHIFT: u32 = 22u;
 const QUAD_H_BITS: u32 = 4u;
-const QUAD_BLOCK_LIGHT_WORD: u32 = 0u;
-const QUAD_BLOCK_LIGHT_SHIFT: u32 = 26u;
-const QUAD_BLOCK_LIGHT_BITS: u32 = 4u;
-const QUAD_TINT_WORD: u32 = 0u;
-const QUAD_TINT_SHIFT: u32 = 30u;
-const QUAD_TINT_BITS: u32 = 2u;
-const QUAD_SKY_LIGHT_WORD: u32 = 2u;
-const QUAD_SKY_LIGHT_SHIFT: u32 = 0u;
-const QUAD_SKY_LIGHT_BITS: u32 = 4u;
 /// How many words one greedy quad occupies.
 const QUAD_WORDS: u32 = 3u;
 
-const QUAD_AO_WORD: u32 = 1u;
-const QUAD_AO_SHIFT: u32 = 0u;
-const QUAD_AO_BITS: u32 = 8u;
-const QUAD_FLIP_WORD: u32 = 1u;
-const QUAD_FLIP_SHIFT: u32 = 8u;
-const QUAD_FLIP_BITS: u32 = 1u;
 const QUAD_SECTION_WORD: u32 = 1u;
-const QUAD_SECTION_SHIFT: u32 = 9u;
+const QUAD_SECTION_SHIFT: u32 = 0u;
 const QUAD_SECTION_BITS: u32 = 11u;
-const QUAD_ARRAY_WORD: u32 = 1u;
-const QUAD_ARRAY_SHIFT: u32 = 20u;
-const QUAD_ARRAY_BITS: u32 = 2u;
-const QUAD_LAYER_WORD: u32 = 1u;
-const QUAD_LAYER_SHIFT: u32 = 22u;
-const QUAD_LAYER_BITS: u32 = 10u;
+const QUAD_FACE_BASE_WORD: u32 = 2u;
+const QUAD_FACE_BASE_SHIFT: u32 = 0u;
+const QUAD_FACE_BASE_BITS: u32 = 31u;
+
+// One block face, as it looks. A greedy quad covers many blocks and names only where its run of
+// these starts, so this is what the fragment reads instead of anything interpolated.
+const FACE_LAYER_WORD: u32 = 0u;
+const FACE_LAYER_SHIFT: u32 = 0u;
+const FACE_LAYER_BITS: u32 = 10u;
+const FACE_ARRAY_WORD: u32 = 0u;
+const FACE_ARRAY_SHIFT: u32 = 10u;
+const FACE_ARRAY_BITS: u32 = 2u;
+const FACE_TINT_WORD: u32 = 0u;
+const FACE_TINT_SHIFT: u32 = 12u;
+const FACE_TINT_BITS: u32 = 2u;
+const FACE_BLOCK_LIGHT_WORD: u32 = 0u;
+const FACE_BLOCK_LIGHT_SHIFT: u32 = 14u;
+const FACE_BLOCK_LIGHT_BITS: u32 = 4u;
+const FACE_SKY_LIGHT_WORD: u32 = 0u;
+const FACE_SKY_LIGHT_SHIFT: u32 = 18u;
+const FACE_SKY_LIGHT_BITS: u32 = 4u;
+const FACE_AO_WORD: u32 = 0u;
+const FACE_AO_SHIFT: u32 = 22u;
+const FACE_AO_BITS: u32 = 8u;
 
 const MODEL_X_WORD: u32 = 0u;
 const MODEL_X_SHIFT: u32 = 0u;
@@ -144,7 +149,9 @@ struct Params {
     tint_origin_z: i32,
     tint_span_x: f32,
     tint_span_z: f32,
-    pad1: u32,
+    /// Where this draw's render region owns its face attributes. A quad's own base counts from
+    /// there, so the two have to be added before the buffer is read.
+    face_origin: u32,
 }
 
 /// The state of the sky the whole frame is lit by. Vanilla builds a sixteen by sixteen lightmap
@@ -194,6 +201,11 @@ fn section_origin(section: u32) -> vec3<f32> {
 @group(1) @binding(8) var tints: texture_2d_array<f32>;
 @group(1) @binding(9) var tint_sampler: sampler;
 @group(1) @binding(10) var<storage, read> animations: array<Animation>;
+@group(1) @binding(11) var<storage, read> faces: array<u32>;
+
+/// What a quad puts in `face_base` when its appearance is carried per vertex instead, which is
+/// what baked model quads do. No real base can reach it: the field is a bit narrower than a word.
+const NO_FACES: u32 = 0xffffffffu;
 
 /// One animated sprite. Its sequence was laid out one step to a layer at load, so the step showing
 /// now is arithmetic on the clock: there is no schedule to read and nothing to write per frame.
@@ -220,10 +232,16 @@ struct VertexOut {
     /// Corner position within the quad, so the fragment can find the quad's own edges. Greedy
     /// quads cover many blocks, so this is not the same thing as the texture coordinate.
     @location(5) quad_uv: vec2<f32>,
-    /// Signed distance to the diagonal the quad is split along, in quad-local units. Which of the
-    /// two diagonals that is depends on the winding, so it is resolved here rather than in the
-    /// fragment, which would otherwise need the winding flag too.
+    /// Signed distance to the diagonal the quad is split along, in quad-local units.
     @location(6) diagonal: f32,
+    /// Where this quad's run of face attributes starts, or [`NO_FACES`] when the geometry brought
+    /// its appearance along per vertex.
+    @location(8) @interpolate(flat) face_base: u32,
+    /// How many blocks the quad spans on each of its own axes. Also the stride of that run.
+    @location(9) @interpolate(flat) face_span: vec2<u32>,
+    /// Vanilla's directional shade for the face the quad points at. Kept apart from `shade`
+    /// because the rest of that term is only known once a fragment has found its own block.
+    @location(10) @interpolate(flat) directional: f32,
 };
 
 /// Quad corners in the order vanilla winds them, as (u, v).
@@ -236,19 +254,10 @@ fn corner_uv(index: u32) -> vec2<f32> {
     }
 }
 
-/// Two triangles from four corners. The second winding is used when the ambient occlusion gradient
-/// is anisotropic, so the split follows the darker diagonal instead of cutting across it.
-fn corner_index(vertex: u32, flip: bool) -> u32 {
-    if (flip) {
-        switch vertex {
-            case 0u: { return 1u; }
-            case 1u: { return 2u; }
-            case 2u: { return 3u; }
-            case 3u: { return 1u; }
-            case 4u: { return 3u; }
-            default: { return 0u; }
-        }
-    }
+/// Two triangles from four corners. There is only one winding now that no shading gradient spans
+/// a quad: ambient occlusion is interpolated inside each block face, so no choice of diagonal can
+/// smear one block's shadow across a merged run.
+fn corner_index(vertex: u32) -> u32 {
     switch vertex {
         case 0u: { return 0u; }
         case 1u: { return 1u; }
@@ -328,34 +337,32 @@ fn vertex_simple(
             f32(quad_field(quad, QUAD_Z_WORD, QUAD_Z_SHIFT, QUAD_Z_BITS)),
         );
     let face = quad_field(quad, QUAD_FACE_WORD, QUAD_FACE_SHIFT, QUAD_FACE_BITS);
-    let size = vec2<f32>(
-        f32(quad_field(quad, QUAD_W_WORD, QUAD_W_SHIFT, QUAD_W_BITS) + 1u),
-        f32(quad_field(quad, QUAD_H_WORD, QUAD_H_SHIFT, QUAD_H_BITS) + 1u),
+    let span = vec2<u32>(
+        quad_field(quad, QUAD_W_WORD, QUAD_W_SHIFT, QUAD_W_BITS) + 1u,
+        quad_field(quad, QUAD_H_WORD, QUAD_H_SHIFT, QUAD_H_BITS) + 1u,
     );
-    let ao_bits = quad_field(quad, QUAD_AO_WORD, QUAD_AO_SHIFT, QUAD_AO_BITS);
-    let block_light = f32(quad_field(quad, QUAD_BLOCK_LIGHT_WORD, QUAD_BLOCK_LIGHT_SHIFT, QUAD_BLOCK_LIGHT_BITS));
-    let sky_light = f32(quad_field(quad, QUAD_SKY_LIGHT_WORD, QUAD_SKY_LIGHT_SHIFT, QUAD_SKY_LIGHT_BITS));
-    let flip = quad_field(quad, QUAD_FLIP_WORD, QUAD_FLIP_SHIFT, QUAD_FLIP_BITS) == 1u;
+    let size = vec2<f32>(span);
 
-    let corner = corner_index(vertex, flip);
-    let quad_uv = corner_uv(corner);
+    let quad_uv = corner_uv(corner_index(vertex));
     let c = quad_uv * size;
     let world = anchor + face_u_dir(face) * c.x + face_v_dir(face) * c.y;
 
     var out: VertexOut;
     out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
+    // One unit to a block, which is both how the sprite tiles across the quad and how a fragment
+    // finds which of the quad's faces it landed on.
     out.uv = c;
-    out.layer = quad_field(quad, QUAD_LAYER_WORD, QUAD_LAYER_SHIFT, QUAD_LAYER_BITS);
-    out.array = quad_field(quad, QUAD_ARRAY_WORD, QUAD_ARRAY_SHIFT, QUAD_ARRAY_BITS);
-    out.shade = lightmap(block_light, sky_light) * (face_shade(face) * ao_factor(ao_bits, corner));
+    out.layer = 0u;
+    out.array = 0u;
+    out.shade = vec3<f32>(1.0);
     out.world_xz = world.xz;
-    out.tint_kind = quad_field(quad, QUAD_TINT_WORD, QUAD_TINT_SHIFT, QUAD_TINT_BITS);
+    out.tint_kind = 0u;
     out.quad_uv = quad_uv;
-    out.diagonal = select(
-        quad_uv.x - quad_uv.y,
-        quad_uv.x + quad_uv.y - 1.0,
-        flip,
-    );
+    out.diagonal = quad_uv.x - quad_uv.y;
+    out.face_base = params.face_origin
+        + quad_field(quad, QUAD_FACE_BASE_WORD, QUAD_FACE_BASE_SHIFT, QUAD_FACE_BASE_BITS);
+    out.face_span = span;
+    out.directional = face_shade(face);
     return out;
 }
 
@@ -365,7 +372,7 @@ fn vertex_complex(
     @builtin(instance_index) instance: u32,
 ) -> VertexOut {
     let quad = visible[params.visible_base + instance];
-    let corner = corner_index(vertex, false);
+    let corner = corner_index(vertex);
     let base = (quad * 4u + corner) * 3u;
 
     let local = vec3<f32>(
@@ -400,6 +407,9 @@ fn vertex_complex(
     let quad_uv = corner_uv(corner);
     out.quad_uv = quad_uv;
     out.diagonal = quad_uv.x - quad_uv.y;
+    out.face_base = NO_FACES;
+    out.face_span = vec2<u32>(1u, 1u);
+    out.directional = 1.0;
     return out;
 }
 
@@ -432,13 +442,14 @@ fn sample_atlas(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2
 }
 
 /// A layer number below `animated_from` is a layer of the array and costs one sample and nothing
-/// else; above it, it names an animation instead, counting down from the top of the field. The
-/// branch is coherent, since a quad is animated or it is not.
+/// else; above it, it names an animation instead, counting down from the top of the field. Which
+/// side of it a fragment falls on now varies within a quad, which costs nothing extra: everything
+/// under the branch samples with the gradients handed in, so none of it needs uniform control flow.
 fn sprite_color(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
     if (layer < params.animated_from) {
         return sample_atlas(array, uv, layer, ddx, ddy);
     }
-    let animation = animations[(1u << QUAD_LAYER_BITS) - 1u - layer];
+    let animation = animations[(1u << FACE_LAYER_BITS) - 1u - layer];
     let elapsed = globals.time * TICKS_PER_SECOND / f32(animation.frametime);
     let step = u32(elapsed) % animation.count;
     let color = sample_atlas(array, uv, animation.base_layer + step, ddx, ddy);
@@ -451,10 +462,40 @@ fn sprite_color(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2
 
 fn shade_sample(in: VertexOut) -> vec4<f32> {
     // Taken before the branch on whether the sprite animates, because a derivative is only defined
-    // where control flow is uniform and which sprite a quad names is not.
+    // where control flow is uniform and which sprite a fragment names is not. The coordinate they
+    // are taken from runs continuously across the whole quad, so they stay right even where the
+    // block under the fragment changes and the sprite jumps with it.
     let ddx = dpdx(in.uv);
     let ddy = dpdy(in.uv);
-    let color = sprite_color(in.array, in.uv, in.layer, ddx, ddy);
+
+    var layer = in.layer;
+    var array = in.array;
+    var tint_kind = in.tint_kind;
+    var shade = in.shade;
+    if (in.face_base != NO_FACES) {
+        // Which of the quad's blocks this fragment landed on, and where inside it. One unit is one
+        // block, so the whole part is the face and the fraction is the position on it. The clamp
+        // is for the far edge, where the coordinate reaches the span exactly.
+        let cell = min(vec2<u32>(max(in.uv, vec2<f32>(0.0))), in.face_span - vec2<u32>(1u));
+        let attr = faces[in.face_base + cell.y * in.face_span.x + cell.x];
+        layer = field(attr, FACE_LAYER_SHIFT, FACE_LAYER_BITS);
+        array = field(attr, FACE_ARRAY_SHIFT, FACE_ARRAY_BITS);
+        tint_kind = field(attr, FACE_TINT_SHIFT, FACE_TINT_BITS);
+        let block_light = f32(field(attr, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS));
+        let sky_light = f32(field(attr, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS));
+        let ao_bits = field(attr, FACE_AO_SHIFT, FACE_AO_BITS);
+        // Bilinear over the face's own four corners, in the order the mesher packed them: 0 and 3
+        // along the bottom edge, 1 and 2 along the top.
+        let f = in.uv - vec2<f32>(cell);
+        let ao = mix(
+            mix(ao_factor(ao_bits, 0u), ao_factor(ao_bits, 3u), f.x),
+            mix(ao_factor(ao_bits, 1u), ao_factor(ao_bits, 2u), f.x),
+            f.y,
+        );
+        shade = lightmap(block_light, sky_light) * (in.directional * ao);
+    }
+
+    let color = sprite_color(array, in.uv, layer, ddx, ddy);
     // Both samples are unconditional: `tint_kind` varies between instances inside one draw, so a
     // branch around a `textureSample` would not be uniform control flow and WGSL rejects it.
     let tint_origin = vec2<f32>(f32(params.tint_origin_x), f32(params.tint_origin_z));
@@ -462,10 +503,10 @@ fn shade_sample(in: VertexOut) -> vec4<f32> {
         tints,
         tint_sampler,
         (in.world_xz - tint_origin) / vec2<f32>(params.tint_span_x, params.tint_span_z),
-        max(in.tint_kind, 1u) - 1u,
+        max(tint_kind, 1u) - 1u,
     );
-    let factor = select(vec3<f32>(1.0), tint.rgb, in.tint_kind != 0u);
-    return vec4<f32>(color.rgb * factor * in.shade, color.a);
+    let factor = select(vec3<f32>(1.0), tint.rgb, tint_kind != 0u);
+    return vec4<f32>(color.rgb * factor * shade, color.a);
 }
 
 /// Keeping only the outline leaves the quad's interior unwritten, so the depth buffer stays open
