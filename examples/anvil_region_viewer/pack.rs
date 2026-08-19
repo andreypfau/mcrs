@@ -29,6 +29,9 @@ impl Field {
     }
 
     pub const fn pack(self, value: u64) -> u64 {
+        // A value wider than its field would otherwise be truncated in silence, and the frame that
+        // comes out of that names the wrong sprite or puts a quad in the wrong section.
+        assert!(value <= self.max(), "a value does not fit the field it is packed into");
         (value & self.max()) << self.shift
     }
 
@@ -273,18 +276,20 @@ mod tests {
             ("terrain.wgsl", include_str!("terrain.wgsl")),
             ("cull.wgsl", include_str!("cull.wgsl")),
         ];
-        let mut checked = 0;
+        // Every part of every field has to turn up somewhere, or a shader could quietly go back to
+        // inlining a literal and drift from the table with the test still passing.
+        let mut seen: Vec<(&str, &str)> = Vec::new();
         for (file, source) in shaders {
             for (name, value) in declarations(source) {
                 if let Some(&(_, expected)) = SCALARS.iter().find(|(known, _)| *known == name) {
                     assert_eq!(value, expected, "{file} disagrees on {name}");
-                    checked += 1;
+                    seen.push((name, "SCALAR"));
                     continue;
                 }
                 let Some((field, part)) = name.rsplit_once('_') else {
                     continue;
                 };
-                let Some(&(_, field)) = FIELDS.iter().find(|(known, _)| *known == field) else {
+                let Some(&(known, field)) = FIELDS.iter().find(|(known, _)| *known == field) else {
                     continue;
                 };
                 let expected = match part {
@@ -294,14 +299,23 @@ mod tests {
                     _ => continue,
                 };
                 assert_eq!(value, expected as f64, "{file} disagrees on {name}");
-                checked += 1;
+                seen.push((known, part));
             }
         }
-        assert!(
-            checked >= FIELDS.len(),
-            "the shaders only declared {checked} of the packing constants, so most of the layout \
-             is going unchecked"
-        );
+        for (name, _) in FIELDS {
+            for part in ["WORD", "SHIFT", "BITS"] {
+                assert!(
+                    seen.contains(&(name, part)),
+                    "no shader declares {name}_{part}, so that much of the layout is unchecked"
+                );
+            }
+        }
+        for (name, _) in SCALARS {
+            assert!(
+                seen.contains(&(*name, "SCALAR")),
+                "no shader declares {name}, so it is unchecked"
+            );
+        }
     }
 
     #[test]
@@ -315,6 +329,21 @@ mod tests {
 
     /// Both words of a quad are full, so a field that grew without another shrinking would run off
     /// the end rather than quietly overlap a neighbour.
+    /// The fixed-point helper clamps every axis against one field's width, which is only sound
+    /// while the three are the same.
+    #[test]
+    fn the_three_model_axes_are_the_same_width() {
+        assert_eq!(MODEL_X.bits, MODEL_Y.bits);
+        assert_eq!(MODEL_X.bits, MODEL_Z.bits);
+        assert_eq!(MODEL_U.bits, MODEL_V.bits);
+    }
+
+    #[test]
+    #[should_panic(expected = "does not fit")]
+    fn packing_a_value_too_wide_for_its_field_is_caught() {
+        QUAD_FACE.pack(8);
+    }
+
     #[test]
     fn a_quad_still_fits_in_its_eight_bytes() {
         let quad = [

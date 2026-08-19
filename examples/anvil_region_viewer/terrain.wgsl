@@ -312,8 +312,10 @@ fn vertex_complex(
         f32(model_field(base, MODEL_Z_WORD, MODEL_Z_SHIFT, MODEL_Z_BITS)),
     ) / MODEL_STEPS - MODEL_OVERHANG;
     let world = section_origin(model_field(base, MODEL_SECTION_WORD, MODEL_SECTION_SHIFT, MODEL_SECTION_BITS)) + local;
-    let u = f32(model_field(base, MODEL_U_WORD, MODEL_U_SHIFT, MODEL_U_BITS)) / 1023.0;
-    let v = f32(model_field(base, MODEL_V_WORD, MODEL_V_SHIFT, MODEL_V_BITS)) / 1023.0;
+    // The same denominator the mesher scaled by: the widest value the field holds.
+    let uv_scale = f32((1u << MODEL_U_BITS) - 1u);
+    let u = f32(model_field(base, MODEL_U_WORD, MODEL_U_SHIFT, MODEL_U_BITS)) / uv_scale;
+    let v = f32(model_field(base, MODEL_V_WORD, MODEL_V_SHIFT, MODEL_V_BITS)) / uv_scale;
     let light = f32(model_field(base, MODEL_LIGHT_WORD, MODEL_LIGHT_SHIFT, MODEL_LIGHT_BITS));
     let shade_bucket = model_field(base, MODEL_SHADE_WORD, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS);
     var shade = 1.0;

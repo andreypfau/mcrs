@@ -165,11 +165,7 @@ impl SpriteArray {
             })
             .collect();
 
-        let mut levels = vec![if self.pixels.is_empty() {
-            vec![0; size * size * 4]
-        } else {
-            self.pixels.clone()
-        }];
+        let mut levels = vec![self.pixels.clone()];
         while size > 1 {
             let half = size / 2;
             let previous = levels.last().unwrap();

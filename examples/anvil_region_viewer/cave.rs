@@ -57,9 +57,9 @@ pub struct CaveCull {
     /// rounds up to whole regions, so its far corner can be padding that no section occupies.
     sections: [usize; 3],
     min_section_y: i32,
-    /// One push per section and entry face, plus one more each
-    /// time a later arrival through that face turns out to have spent fewer directions. `dirs` only
-    /// ever shrinks, so those repeats are bounded by its six bits.
+    /// One push per section and entry face, plus one more each time a later arrival through that
+    /// face turns out to have spent fewer directions. `dirs` only ever shrinks, so those repeats
+    /// are bounded by its six bits.
     queue: Vec<u32>,
 }
 
@@ -70,6 +70,12 @@ impl CaveCull {
         sections: [usize; 3],
         min_section_y: i32,
     ) -> Self {
+        let covers = RegionGrid::covering(sections);
+        assert!(
+            covers == grid,
+            "the walk was given a {grid:?} grid for a world of {sections:?} sections, which needs \
+             {covers:?}"
+        );
         let slots = grid.slots();
         assert!(
             slots < 1 << QUEUE_SLOT_BITS,

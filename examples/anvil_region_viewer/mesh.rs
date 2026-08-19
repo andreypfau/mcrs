@@ -13,11 +13,10 @@ use crate::anvil::{REGION_CHUNKS, Region, SECTION_SIZE, Section};
 use crate::blocks::{CORNER_UV, Catalog, FACE_AXES, Pass};
 use crate::atlas::SpriteRef;
 use crate::pack::{
-    GROUP_FACE, MODEL_ARRAY, MODEL_LAYER, MODEL_LIGHT, MODEL_OVERHANG, MODEL_SECTION, MODEL_SHADE, MODEL_STEPS,
-    MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z, QUAD_AO, QUAD_FACE, QUAD_FLIP, QUAD_H,
-    QUAD_ARRAY, QUAD_LAYER, QUAD_LIGHT, QUAD_SECTION, QUAD_TINT, QUAD_W, QUAD_X, QUAD_Y,
-    QUAD_Z,
-    RegionGrid, SECTIONS_PER_RENDER_REGION,
+    GROUP_FACE, MODEL_ARRAY, MODEL_LAYER, MODEL_LIGHT, MODEL_OVERHANG, MODEL_SECTION, MODEL_SHADE,
+    MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z, QUAD_AO, QUAD_ARRAY,
+    QUAD_FACE, QUAD_FLIP, QUAD_H, QUAD_LAYER, QUAD_LIGHT, QUAD_SECTION, QUAD_TINT, QUAD_W, QUAD_X,
+    QUAD_Y, QUAD_Z, RegionGrid, SECTIONS_PER_RENDER_REGION,
 };
 
 /// `pass * 2 + kind`, where kind is 0 for greedy quads and 1 for baked model quads.
@@ -75,9 +74,9 @@ pub struct RegionMesh {
     /// The render regions the world was cut into.
     pub grid: RegionGrid,
     /// Per-section face connectivity, indexed the way the sight-line walk numbers sections. Slots
-    /// the mesher never
-    /// touched stay [`CONNECT_ALL`]: a section missing from the file is air, and defaulting it to
-    /// "closed" would kill a sight-line walk on its very first step through open sky.
+    /// the mesher never touched stay [`CONNECT_ALL`]: a section missing from the file is air, and
+    /// defaulting it to "closed" would kill a sight-line walk on its very first step through open
+    /// sky.
     pub connectivity: Vec<u64>,
 }
 
@@ -705,8 +704,9 @@ fn complex(
                     let out = &mut scratch.complex_by_pass[quad.pass as usize][group];
                     for corner in 0..4 {
                         let p = quad.positions[corner];
-                        let u = (quad.uvs[corner][0].clamp(0.0, 1.0) * 1023.0) as u32;
-                        let v = (quad.uvs[corner][1].clamp(0.0, 1.0) * 1023.0) as u32;
+                        let scale = MODEL_U.max() as f32;
+                        let u = (quad.uvs[corner][0].clamp(0.0, 1.0) * scale) as u32;
+                        let v = (quad.uvs[corner][1].clamp(0.0, 1.0) * scale) as u32;
                         let mut words = [0u32; 3];
                         MODEL_X.set(&mut words, fixed(p.x + x as f32) as u64);
                         MODEL_Y.set(&mut words, fixed(p.y + y as f32) as u64);
@@ -876,11 +876,8 @@ mod tests {
         for face in 0..6usize {
             let axes = FACE_AXES[face];
             // Place the block at local (0,0,0) of a section rooted at the origin.
-            let mut grid = [0usize; 3];
-            grid[axes[2] as usize] = 0;
             let gu = if axes[3] == 1 { 0 } else { 15 };
             let gv = if axes[5] == 1 { 0 } else { 15 };
-            let _ = grid;
             let anchor = quad_anchor(face, 0, gu, gv);
 
             for corner in 0..4 {
