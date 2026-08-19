@@ -23,6 +23,7 @@ mod model;
 #[allow(dead_code, reason = "the block viewer uses the parts this example does not")]
 #[path = "../block_viewer/bake.rs"]
 mod bake;
+mod anim;
 mod anvil;
 mod atlas;
 mod blocks;
@@ -161,10 +162,14 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
     let grid = region_mesh.grid;
     for (index, array) in catalog.sprites.arrays().iter().enumerate() {
         println!(
-            "  sprite array {index}: {:>4} sprites at {}x{}",
+            "  sprite array {index}: {:>4} sprites at {}x{}, {} of them animated, \
+             {} resident layers of {} a quad can name",
             array.sprites.len(),
             array.size,
             array.size,
+            array.animated(),
+            array.resident_layers(),
+            pack::MAX_SPRITES,
         );
     }
     println!(

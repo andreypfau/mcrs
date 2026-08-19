@@ -15,6 +15,7 @@ use bevy::asset::RenderAssetUsages;
 use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
 use bevy::prelude::*;
 
+use crate::anim;
 use crate::model;
 
 /// How a sprite's alpha channel decides which pass its geometry belongs to.
@@ -40,11 +41,15 @@ pub struct SpriteRef {
 }
 
 /// Every sprite of one resolution, which becomes one array texture. Sprites are square; animated
-/// ones are a vertical strip of frames in the source PNG and only the first frame is taken.
+/// ones are a grid of frames in the source PNG and only the first frame is taken.
 pub struct SpriteArray {
     /// Side length of every layer.
     pub size: u32,
     pub sprites: Vec<Sprite>,
+    /// How many of the sprites animate.
+    animated: usize,
+    /// Layers the frames of those animations will occupy once each step of every sequence gets one.
+    animation_layers: usize,
     /// RGBA8 pixels, layer-major, mip 0 only. Mips are derived at upload time.
     pixels: Vec<u8>,
 }
@@ -93,6 +98,11 @@ impl SpriteRegistry {
         )
         .map_err(|e| format!("cannot decode {}: {e}", path.display()))?;
         let width = image.width();
+        let size = (width, image.height());
+        let steps = match anim::read(&path)? {
+            Some(animation) => animation.unroll(size).len(),
+            None => 0,
+        };
         let data = image
             .data
             .ok_or_else(|| format!("{} decoded without pixel data", path.display()))?;
@@ -128,6 +138,8 @@ impl SpriteRegistry {
                 self.arrays.push(SpriteArray {
                     size: width,
                     sprites: Vec::new(),
+                    animated: 0,
+                    animation_layers: 0,
                     pixels: Vec::new(),
                 });
                 self.arrays.len() - 1
@@ -139,6 +151,11 @@ impl SpriteRegistry {
         };
         let array = &mut self.arrays[array];
         array.sprites.push(Sprite { opacity });
+        // Fewer than two steps is a still image however the metadata spells it.
+        if steps >= 2 {
+            array.animated += 1;
+            array.animation_layers += steps;
+        }
         array.pixels.extend_from_slice(&frame);
         self.index.insert(id.to_string(), sprite);
         Ok(sprite)
@@ -148,6 +165,17 @@ impl SpriteRegistry {
 impl SpriteArray {
     pub fn layers(&self) -> u32 {
         self.sprites.len().max(1) as u32
+    }
+
+    /// How many of this array's sprites animate.
+    pub fn animated(&self) -> usize {
+        self.animated
+    }
+
+    /// Layers this array will hold once every animation's sequence is laid out one frame to a
+    /// layer: one for each still sprite, and one for each step of each animation.
+    pub fn resident_layers(&self) -> usize {
+        self.sprites.len() - self.animated + self.animation_layers
     }
 
     /// Mip 0 followed by every smaller level, layer-major within each level. Each level is laid out
@@ -279,6 +307,8 @@ mod tests {
         SpriteArray {
             size: size as u32,
             sprites: vec![Sprite { opacity }],
+            animated: 0,
+            animation_layers: 0,
             pixels,
         }
     }
