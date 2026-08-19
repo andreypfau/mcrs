@@ -24,7 +24,8 @@ use bevy::render::view::{
 };
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
-use crate::mesh::{Group, MODEL_OVERHANG, STREAMS, StreamSpan};
+use crate::mesh::{Group, STREAMS, StreamSpan};
+use crate::pack::MODEL_OVERHANG;
 
 /// Dynamic uniform offsets must be a multiple of the device's alignment; 256 satisfies every
 /// backend we can land on, and the whole table is six entries.

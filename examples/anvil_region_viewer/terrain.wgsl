@@ -6,6 +6,62 @@
 
 #import bevy_render::view::View
 
+// The packed geometry layout. The mesher writes these words and declares the same names, and a
+// test reads both sides back and fails if a width or an offset ever drifts apart.
+fn field(word: u32, shift: u32, bits: u32) -> u32 {
+    return (word >> shift) & ((1u << bits) - 1u);
+}
+
+const Y_BIAS: i32 = 64;
+
+const QUAD_X_SHIFT: u32 = 0u;
+const QUAD_X_BITS: u32 = 10u;
+const QUAD_Y_SHIFT: u32 = 10u;
+const QUAD_Y_BITS: u32 = 9u;
+const QUAD_Z_SHIFT: u32 = 19u;
+const QUAD_Z_BITS: u32 = 10u;
+const QUAD_FACE_SHIFT: u32 = 29u;
+const QUAD_FACE_BITS: u32 = 3u;
+
+const QUAD_W_SHIFT: u32 = 0u;
+const QUAD_W_BITS: u32 = 4u;
+const QUAD_H_SHIFT: u32 = 4u;
+const QUAD_H_BITS: u32 = 4u;
+const QUAD_LAYER_SHIFT: u32 = 8u;
+const QUAD_LAYER_BITS: u32 = 9u;
+const QUAD_AO_SHIFT: u32 = 17u;
+const QUAD_AO_BITS: u32 = 8u;
+const QUAD_LIGHT_SHIFT: u32 = 25u;
+const QUAD_LIGHT_BITS: u32 = 4u;
+const QUAD_FLIP_SHIFT: u32 = 29u;
+const QUAD_FLIP_BITS: u32 = 1u;
+const QUAD_TINT_SHIFT: u32 = 30u;
+const QUAD_TINT_BITS: u32 = 2u;
+
+const MODEL_X_SHIFT: u32 = 0u;
+const MODEL_X_BITS: u32 = 16u;
+const MODEL_Y_SHIFT: u32 = 16u;
+const MODEL_Y_BITS: u32 = 16u;
+const MODEL_Z_SHIFT: u32 = 0u;
+const MODEL_Z_BITS: u32 = 16u;
+const MODEL_U_SHIFT: u32 = 16u;
+const MODEL_U_BITS: u32 = 10u;
+const MODEL_TINT_SHIFT: u32 = 26u;
+const MODEL_TINT_BITS: u32 = 2u;
+const MODEL_LAYER_SHIFT: u32 = 0u;
+const MODEL_LAYER_BITS: u32 = 9u;
+const MODEL_V_SHIFT: u32 = 16u;
+const MODEL_V_BITS: u32 = 10u;
+const MODEL_LIGHT_SHIFT: u32 = 26u;
+const MODEL_LIGHT_BITS: u32 = 4u;
+const MODEL_SHADE_SHIFT: u32 = 30u;
+const MODEL_SHADE_BITS: u32 = 2u;
+
+/// Model positions are fixed point in units of this many steps per block, offset by however far a
+/// model may hang outside its own block so the result stays non-negative.
+const MODEL_STEPS: f32 = 32.0;
+const MODEL_OVERHANG: f32 = 2.0;
+
 struct Params {
     group_base: u32,
     group_count: u32,
@@ -15,7 +71,7 @@ struct Params {
     wireframe: u32,
     // Explicit scalars rather than a vec3: a vec3 would align to 16 and silently grow the struct
     // past the 32 bytes the dynamic uniform offsets are laid out on.
-    pad0: u32,
+    overhang: f32,
     pad1: u32,
 }
 
@@ -129,15 +185,18 @@ fn vertex_simple(
     let hi = quad.y;
 
     let anchor = vec3<f32>(
-        f32(lo & 0x3ffu),
-        f32((lo >> 10u) & 0x1ffu) - 64.0,
-        f32((lo >> 19u) & 0x3ffu),
+        f32(field(lo, QUAD_X_SHIFT, QUAD_X_BITS)),
+        f32(field(lo, QUAD_Y_SHIFT, QUAD_Y_BITS)) - f32(Y_BIAS),
+        f32(field(lo, QUAD_Z_SHIFT, QUAD_Z_BITS)),
     );
-    let face = (lo >> 29u) & 7u;
-    let size = vec2<f32>(f32((hi & 0xfu) + 1u), f32(((hi >> 4u) & 0xfu) + 1u));
-    let ao_bits = (hi >> 17u) & 0xffu;
-    let light = f32((hi >> 25u) & 0xfu);
-    let flip = ((hi >> 29u) & 1u) == 1u;
+    let face = field(lo, QUAD_FACE_SHIFT, QUAD_FACE_BITS);
+    let size = vec2<f32>(
+        f32(field(hi, QUAD_W_SHIFT, QUAD_W_BITS) + 1u),
+        f32(field(hi, QUAD_H_SHIFT, QUAD_H_BITS) + 1u),
+    );
+    let ao_bits = field(hi, QUAD_AO_SHIFT, QUAD_AO_BITS);
+    let light = f32(field(hi, QUAD_LIGHT_SHIFT, QUAD_LIGHT_BITS));
+    let flip = field(hi, QUAD_FLIP_SHIFT, QUAD_FLIP_BITS) == 1u;
 
     let corner = corner_index(vertex, flip);
     let quad_uv = corner_uv(corner);
@@ -147,10 +206,10 @@ fn vertex_simple(
     var out: VertexOut;
     out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
     out.uv = c;
-    out.layer = (hi >> 8u) & 0x1ffu;
+    out.layer = field(hi, QUAD_LAYER_SHIFT, QUAD_LAYER_BITS);
     out.shade = face_shade(face) * light_curve(light) * ao_factor(ao_bits, corner);
     out.world_xz = world.xz;
-    out.tint_kind = (hi >> 30u) & 3u;
+    out.tint_kind = field(hi, QUAD_TINT_SHIFT, QUAD_TINT_BITS);
     out.quad_uv = quad_uv;
     out.diagonal = select(
         quad_uv.x - quad_uv.y,
@@ -172,16 +231,15 @@ fn vertex_complex(
     let w1 = vertices[base + 1u];
     let w2 = vertices[base + 2u];
 
-    // Fixed point: 1/32 of a block, biased two blocks; y also carries the region's Y bias.
     let world = vec3<f32>(
-        f32(w0 & 0xffffu) / 32.0 - 2.0,
-        f32((w0 >> 16u) & 0xffffu) / 32.0 - 2.0 - 64.0,
-        f32(w1 & 0xffffu) / 32.0 - 2.0,
+        f32(field(w0, MODEL_X_SHIFT, MODEL_X_BITS)) / MODEL_STEPS - MODEL_OVERHANG,
+        f32(field(w0, MODEL_Y_SHIFT, MODEL_Y_BITS)) / MODEL_STEPS - MODEL_OVERHANG - f32(Y_BIAS),
+        f32(field(w1, MODEL_Z_SHIFT, MODEL_Z_BITS)) / MODEL_STEPS - MODEL_OVERHANG,
     );
-    let u = f32((w1 >> 16u) & 0x3ffu) / 1023.0;
-    let v = f32((w2 >> 16u) & 0x3ffu) / 1023.0;
-    let light = f32((w2 >> 26u) & 0xfu);
-    let shade_bucket = (w2 >> 30u) & 3u;
+    let u = f32(field(w1, MODEL_U_SHIFT, MODEL_U_BITS)) / 1023.0;
+    let v = f32(field(w2, MODEL_V_SHIFT, MODEL_V_BITS)) / 1023.0;
+    let light = f32(field(w2, MODEL_LIGHT_SHIFT, MODEL_LIGHT_BITS));
+    let shade_bucket = field(w2, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS);
     var shade = 1.0;
     switch shade_bucket {
         case 0u: { shade = 0.5; }
@@ -193,10 +251,10 @@ fn vertex_complex(
     var out: VertexOut;
     out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
     out.uv = vec2<f32>(u, v);
-    out.layer = w2 & 0x1ffu;
+    out.layer = field(w2, MODEL_LAYER_SHIFT, MODEL_LAYER_BITS);
     out.shade = shade * light_curve(light);
     out.world_xz = world.xz;
-    out.tint_kind = (w1 >> 26u) & 3u;
+    out.tint_kind = field(w1, MODEL_TINT_SHIFT, MODEL_TINT_BITS);
     let quad_uv = corner_uv(corner);
     out.quad_uv = quad_uv;
     out.diagonal = quad_uv.x - quad_uv.y;

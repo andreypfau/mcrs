@@ -28,6 +28,7 @@ mod atlas;
 mod blocks;
 mod cave;
 mod mesh;
+mod pack;
 mod render;
 
 use std::fmt::Write as _;

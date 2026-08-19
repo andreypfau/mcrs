@@ -10,6 +10,7 @@ use bevy::math::{IVec3, Vec3};
 
 use crate::anvil::{BlockStateKey, REGION_CHUNKS, Region, SECTION_SIZE};
 use crate::atlas::{Opacity, SpriteRegistry};
+use crate::pack::MAX_SPRITES;
 use crate::bake::{self, Dir, TinyWorld};
 use crate::model;
 
@@ -172,6 +173,13 @@ pub fn build(region: &Region) -> Catalog {
         }
     }
     sprites.finish();
+    // Past this the packed layer field wraps and quads silently sample a different sprite, which
+    // no validation layer anywhere would report.
+    assert!(
+        sprites.len() <= MAX_SPRITES,
+        "the region references {} sprites, but a packed quad can address only {MAX_SPRITES}",
+        sprites.len(),
+    );
 
     Catalog {
         blocks,

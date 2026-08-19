@@ -9,11 +9,13 @@
 use bevy::camera::primitives::{Aabb, Frustum};
 use bevy::prelude::*;
 
+use crate::anvil::SECTION_SIZE;
 use crate::mesh::SECTION_SLOTS;
+use crate::pack::{SECTION_INDEX, pack_section, section_coords};
 
-/// One bit per section slot, `sx | sy << 5 | sz << 10` — the same index `Group::section & 0x7fff`
-/// already carries on the GPU. 32768 bits is 1024 words.
-pub const WORDS: usize = 1024;
+/// One bit per section slot, indexed exactly the way a culling group carries its section number,
+/// so the shader can test a group without translating anything.
+pub const WORDS: usize = SECTION_SLOTS / 32;
 
 /// Seeds and the camera's own section fan out through all six faces; there is no real face 7.
 const ENTRY_ANY: u32 = 7;
@@ -24,6 +26,11 @@ const ENTRIES: usize = 8;
 /// No sight line has entered this section through this face yet. Real values are six bits of spent
 /// directions, so the high bits are free for the marker.
 const NEVER: u8 = u8::MAX;
+
+/// Queue entries carry the section number, the face the walk arrived through, and the directions
+/// already spent, stacked above the section number the packing hands out.
+const QUEUE_ENTRY_SHIFT: u32 = SECTION_INDEX.bits;
+const QUEUE_DIRS_SHIFT: u32 = QUEUE_ENTRY_SHIFT + 3;
 
 /// `FACE_AXES` order: 0 Down(−Y), 1 Up(+Y), 2 North(−Z), 3 South(+Z), 4 West(−X), 5 East(+X).
 const NEIGHBOUR: [[i32; 3]; 6] =
@@ -50,7 +57,7 @@ pub struct CaveCull {
     conn: Vec<u64>,
     sections_y: i32,
     min_section_y: i32,
-    /// `slot | entry << 15 | dirs << 18`. One push per section and entry face, plus one more each
+    /// One push per section and entry face, plus one more each
     /// time a later arrival through that face turns out to have spent fewer directions. `dirs` only
     /// ever shrinks, so those repeats are bounded by its six bits.
     queue: Vec<u32>,
@@ -94,14 +101,10 @@ impl CaveCull {
         while head < self.queue.len() {
             let node = self.queue[head];
             head += 1;
-            let slot = node & 0x7fff;
-            let entry = (node >> 15) & 7;
-            let dirs = (node >> 18) & 0x3f;
-            let here = [
-                (slot & 31) as i32,
-                ((slot >> 5) & 31) as i32,
-                ((slot >> 10) & 31) as i32,
-            ];
+            let slot = SECTION_INDEX.get(node as u64) as u32;
+            let entry = (node >> QUEUE_ENTRY_SHIFT) & 7;
+            let dirs = (node >> QUEUE_DIRS_SHIFT) & 0x3f;
+            let here = section_coords(slot);
             let mask = self.conn[slot as usize];
 
             for exit in 0..6u32 {
@@ -122,7 +125,7 @@ impl CaveCull {
                 if (0..3).any(|a| next[a] < 0 || next[a] > hi[a]) {
                     continue;
                 }
-                let neighbour = next[0] as u32 | (next[1] as u32) << 5 | (next[2] as u32) << 10;
+                let neighbour = pack_section(next[0] as u32, next[1] as u32, next[2] as u32);
                 // 3. the frustum, inside `push`, at most once per section.
                 self.push(neighbour, exit ^ 1, dirs | 1 << exit, frustum);
             }
@@ -133,10 +136,11 @@ impl CaveCull {
     /// line crosses, the walk would die on its six neighbours and leave an empty screen.
     fn seed(&mut self, camera: Vec3, frustum: &Frustum) -> bool {
         let hi = [31, self.sections_y - 1, 31];
+        let size = SECTION_SIZE as f32;
         let cs = [
-            camera.x.div_euclid(16.0) as i32,
-            camera.y.div_euclid(16.0) as i32 - self.min_section_y,
-            camera.z.div_euclid(16.0) as i32,
+            camera.x.div_euclid(size) as i32,
+            camera.y.div_euclid(size) as i32 - self.min_section_y,
+            camera.z.div_euclid(size) as i32,
         ];
 
         // Travelling to the region already spends every axis the camera is outside of, so reversing
@@ -154,7 +158,7 @@ impl CaveCull {
         }
 
         if outside == [0, 0, 0] {
-            let slot = cs[0] as u32 | (cs[1] as u32) << 5 | (cs[2] as u32) << 10;
+            let slot = pack_section(cs[0] as u32, cs[1] as u32, cs[2] as u32);
             // ponytail: a camera in solid rock or a sealed cavern turns culling off for the whole
             // frame instead of honestly culling from inside that cavern. The ceiling is that an
             // orbit pulled down to its minimum radius inside the terrain stops saving anything.
@@ -179,7 +183,7 @@ impl CaveCull {
                     p[a] = fixed;
                     p[b] = u;
                     p[c] = v;
-                    let slot = p[0] as u32 | (p[1] as u32) << 5 | (p[2] as u32) << 10;
+                    let slot = pack_section(p[0] as u32, p[1] as u32, p[2] as u32);
                     // ponytail: `entry = ANY` lets a seed tunnel exactly one section into the
                     // boundary rock. The ceiling is that the region's outer shell on the camera's
                     // side is effectively never culled. It costs nothing: a fully buried section
@@ -215,16 +219,19 @@ impl CaveCull {
         if self.inside[word] & bit == 0 {
             return;
         }
-        self.queue.push(slot | entry << 15 | (merged as u32) << 18);
+        self.queue
+            .push(slot | entry << QUEUE_ENTRY_SHIFT | (merged as u32) << QUEUE_DIRS_SHIFT);
     }
 
     fn aabb(&self, slot: u32) -> Aabb {
+        let [sx, sy, sz] = section_coords(slot);
+        let size = SECTION_SIZE as f32;
         let min = Vec3::new(
-            (slot & 31) as f32 * 16.0,
-            ((((slot >> 5) & 31) as i32 + self.min_section_y) * 16) as f32,
-            ((slot >> 10) & 31) as f32 * 16.0,
+            sx as f32 * size,
+            (sy + self.min_section_y) as f32 * size,
+            sz as f32 * size,
         );
-        Aabb::from_min_max(min, min + 16.0)
+        Aabb::from_min_max(min, min + size)
     }
 }
 
@@ -268,7 +275,7 @@ mod tests {
     }
 
     fn visible(cave: &CaveCull, sx: u32, sy: u32, sz: u32) -> bool {
-        let slot = sx | sy << 5 | sz << 10;
+        let slot = pack_section(sx, sy, sz);
         cave.bits[(slot >> 5) as usize] >> (slot & 31) & 1 != 0
     }
 
@@ -279,7 +286,7 @@ mod tests {
         let mut conn = vec![CONNECT_ALL; SECTION_SLOTS];
         for sy in 0..4u32 {
             for sz in 0..32u32 {
-                conn[(20 | sy << 5 | sz << 10) as usize] = 0;
+                conn[pack_section(20, sy, sz) as usize] = 0;
             }
         }
         let mut cave = CaveCull::new(conn, 4, 0);
@@ -294,8 +301,8 @@ mod tests {
     #[test]
     fn a_corner_section_turns_only_the_way_its_mask_allows() {
         let mut conn = vec![0u64; SECTION_SLOTS];
-        conn[(16 | 2 << 5 | 15 << 10) as usize] = CONNECT_ALL;
-        conn[(16 | 2 << 5 | 16 << 10) as usize] = 1 << (2 * 6 + 4) | 1 << (4 * 6 + 2);
+        conn[pack_section(16, 2, 15) as usize] = CONNECT_ALL;
+        conn[pack_section(16, 2, 16) as usize] = 1 << (2 * 6 + 4) | 1 << (4 * 6 + 2);
         let mut cave = CaveCull::new(conn, 4, 0);
         let eye = Vec3::new(264.0, 40.0, 248.0);
         cave.run(eye, &wide(eye, Vec3::new(264.0, 40.0, 400.0)));
@@ -311,7 +318,7 @@ mod tests {
     /// One section crossable West→Up and North→Down, with a corridor reaching it from the west and
     /// another from the north. The longer corridor delivers its sight line second.
     fn two_ways_in(mx: u32, mz: u32) -> CaveCull {
-        let slot = |x: u32, y: u32, z: u32| (x | y << 5 | z << 10) as usize;
+        let slot = |x: u32, y: u32, z: u32| pack_section(x, y, z) as usize;
         let mut conn = vec![0u64; SECTION_SLOTS];
         conn[slot(mx, 2, mz)] = pair(4, 1) | pair(1, 4) | pair(2, 0) | pair(0, 2);
         for x in 0..mx {

@@ -11,6 +11,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::anvil::{REGION_CHUNKS, Region, SECTION_SIZE, Section};
 use crate::blocks::{CORNER_UV, Catalog, FACE_AXES, Pass};
+use crate::pack::{
+    GROUP_FACE, MODEL_LAYER, MODEL_LIGHT, MODEL_SHADE, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X,
+    MODEL_Y, MODEL_Z, QUAD_AO, QUAD_FACE, QUAD_FLIP, QUAD_H, QUAD_LAYER, QUAD_LIGHT, QUAD_TINT,
+    MODEL_OVERHANG, MODEL_STEPS, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z, SECTION_INDEX, Y_BIAS,
+    pack_section,
+};
 
 /// `pass * 2 + kind`, where kind is 0 for greedy quads and 1 for baked model quads.
 pub const STREAMS: usize = Pass::COUNT * 2;
@@ -32,15 +38,12 @@ const FACE_NONE: u32 = 7;
 /// squarely and so are never backfacing as a run.
 const FACE_GROUPS: usize = 7;
 
-/// Quads live in region-absolute block coordinates, and `y` is biased so the lowest section starts
-/// at zero. 10 / 9 / 10 bits then cover a whole region without a per-draw section origin.
-pub const Y_BIAS: i32 = 64;
-
 const BORDER: usize = SECTION_SIZE + 2;
 const BORDER_VOLUME: usize = BORDER * BORDER * BORDER;
 
-/// 32×32×32 section slots, indexed `sx | sy << 5 | sz << 10` — the low 15 bits of [`Group::section`].
-pub const SECTION_SLOTS: usize = 32 * 32 * 32;
+/// Every section number [`Group::section`] can carry, so the sight-line bitset never has to bounds
+/// check an index that came off the GPU side of the packing.
+pub const SECTION_SLOTS: usize = 1 << SECTION_INDEX.bits;
 
 /// Bit `entry * 6 + exit` is set when a sight line can cross the section from face `entry` to face
 /// `exit`. Faces follow [`FACE_AXES`] order, so the opposite face is `f ^ 1`.
@@ -53,7 +56,8 @@ pub const CONNECT_ALL: u64 = (1 << 36) - 1;
 pub struct Group {
     pub quad_base: u32,
     pub quad_count: u32,
-    /// `sx | sy << 5 | sz << 10 | face << 15`, section coordinates in units of 16 blocks.
+    /// The section this run came from, in units of 16 blocks, and the face group its quads point
+    /// at. Laid out by `SECTION_X`, `SECTION_Y`, `SECTION_Z` and `GROUP_FACE`.
     pub section: u32,
     pub _pad: u32,
 }
@@ -262,7 +266,7 @@ fn mesh_section(
     let section = region
         .section(cx, sy, cz)
         .expect("caller checked the section exists");
-    let packed_section = (cx as u32) | ((sy as u32) << 5) | ((cz as u32) << 10);
+    let packed_section = pack_section(cx as u32, sy as u32, cz as u32);
     greedy(catalog, section, scratch, base, packed_section, partial);
     complex(catalog, section, scratch, base, packed_section, partial);
     partial
@@ -385,7 +389,7 @@ fn greedy(
                     Group {
                         quad_base: partial.simple.len() as u32,
                         quad_count: quads.len() as u32,
-                        section: packed_section | ((face as u32) << 15),
+                        section: packed_section | GROUP_FACE.pack(face as u64) as u32,
                         _pad: 0,
                     },
                 ));
@@ -574,17 +578,17 @@ fn pack_quad(
     base: [i32; 3],
 ) -> u64 {
     let anchor = quad_anchor(face, n, gu, gv, base);
-    let lo = (anchor[0] as u64 & 0x3ff)
-        | (((anchor[1] + Y_BIAS) as u64 & 0x1ff) << 10)
-        | ((anchor[2] as u64 & 0x3ff) << 19)
-        | ((face as u64 & 0x7) << 29);
-    let hi = ((w as u64 - 1) & 0xf)
-        | (((h as u64 - 1) & 0xf) << 4)
-        | (((key.layer_plus_one as u64 - 1) & 0x1ff) << 8)
-        | ((key.ao as u64 & 0xff) << 17)
-        | ((key.light as u64 & 0xf) << 25)
-        | ((key.flip as u64) << 29)
-        | ((key.tint as u64 & 0x3) << 30);
+    let lo = QUAD_X.pack(anchor[0] as u64)
+        | QUAD_Y.pack((anchor[1] + Y_BIAS) as u64)
+        | QUAD_Z.pack(anchor[2] as u64)
+        | QUAD_FACE.pack(face as u64);
+    let hi = QUAD_W.pack(w as u64 - 1)
+        | QUAD_H.pack(h as u64 - 1)
+        | QUAD_LAYER.pack(key.layer_plus_one as u64 - 1)
+        | QUAD_AO.pack(key.ao as u64)
+        | QUAD_LIGHT.pack(key.light as u64)
+        | QUAD_FLIP.pack(key.flip as u64)
+        | QUAD_TINT.pack(key.tint as u64);
     lo | (hi << 32)
 }
 
@@ -650,17 +654,21 @@ fn complex(
                         let u = (quad.uvs[corner][0].clamp(0.0, 1.0) * 1023.0) as u32;
                         let v = (quad.uvs[corner][1].clamp(0.0, 1.0) * 1023.0) as u32;
                         out.push(
-                            fixed(p.x + (base[0] + x as i32) as f32)
-                                | (fixed(p.y + (base[1] + Y_BIAS + y as i32) as f32) << 16),
+                            MODEL_X.pack(fixed(p.x + (base[0] + x as i32) as f32) as u64) as u32
+                                | MODEL_Y.pack(fixed(
+                                    p.y + (base[1] + Y_BIAS + y as i32) as f32,
+                                ) as u64) as u32,
                         );
                         out.push(
-                            fixed(p.z + (base[2] + z as i32) as f32) | (u << 16) | (tint << 26),
+                            MODEL_Z.pack(fixed(p.z + (base[2] + z as i32) as f32) as u64) as u32
+                                | MODEL_U.pack(u as u64) as u32
+                                | MODEL_TINT.pack(tint as u64) as u32,
                         );
                         out.push(
-                            quad.layer as u32
-                                | (v << 16)
-                                | (light << 26)
-                                | (shade_bucket(quad.shade[corner]) << 30),
+                            MODEL_LAYER.pack(quad.layer as u64) as u32
+                                | MODEL_V.pack(v as u64) as u32
+                                | MODEL_LIGHT.pack(light as u64) as u32
+                                | MODEL_SHADE.pack(shade_bucket(quad.shade[corner]) as u64) as u32,
                         );
                     }
                 }
@@ -682,7 +690,7 @@ fn complex(
                     Group {
                         quad_base: (partial.complex.len() / 3 / 4) as u32,
                         quad_count: (verts.len() / 3 / 4) as u32,
-                        section: packed_section | (face << 15),
+                        section: packed_section | GROUP_FACE.pack(face as u64) as u32,
                         _pad: 0,
                     },
                 ));
@@ -705,23 +713,21 @@ fn shade_bucket(shade: u8) -> u32 {
     }
 }
 
-/// How far outside its own block, and so its own section, a model quad may reach: a fence arm, a
-/// rail on a slope. Both the fixed-point encoding and the boxes the model streams are culled
-/// against have to leave room for it.
-pub const MODEL_OVERHANG: f32 = 2.0;
-
-/// Model positions live in 1/32 of a block, biased by the overhang, so a face that pokes outside its
-/// own block still packs into 16 bits alongside the region offset.
+/// Model positions live in fixed point, biased by the overhang, so a face that pokes outside its
+/// own block still packs into a non-negative number.
 #[inline]
 fn fixed(value: f32) -> u32 {
-    ((value + MODEL_OVERHANG) * 32.0).round().clamp(0.0, 65535.0) as u32
+    ((value + MODEL_OVERHANG) * MODEL_STEPS)
+        .round()
+        .clamp(0.0, MODEL_X.max() as f32) as u32
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        BORDER_VOLUME, Key, Y_BIAS, border_index, connectivity, fixed, pack_quad, quad_anchor,
-        split_flip,
+        BORDER_VOLUME, Key, QUAD_AO, QUAD_FACE, QUAD_FLIP, QUAD_H, QUAD_LAYER, QUAD_LIGHT,
+        QUAD_TINT, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z, Y_BIAS, border_index, connectivity, fixed,
+        pack_quad, quad_anchor, split_flip,
     };
     use crate::blocks::{CORNER_UV, FACE_AXES, cube_corner};
     use bevy::math::Vec3;
@@ -849,19 +855,19 @@ mod tests {
             pass: 1,
         };
         let packed = pack_quad(&key, 3, 9, 3, 7, 12, 16, [32, -64, 480]);
-        let lo = packed as u32;
-        let hi = (packed >> 32) as u32;
+        let lo = packed as u64;
+        let hi = packed >> 32;
         let anchor = quad_anchor(3, 9, 3, 7, [32, -64, 480]);
-        assert_eq!(lo & 0x3ff, anchor[0] as u32, "x");
-        assert_eq!((lo >> 10) & 0x1ff, (anchor[1] + Y_BIAS) as u32, "y");
-        assert_eq!((lo >> 19) & 0x3ff, anchor[2] as u32, "z");
-        assert_eq!((lo >> 29) & 0x7, 3, "face");
-        assert_eq!((hi & 0xf) + 1, 12, "w");
-        assert_eq!(((hi >> 4) & 0xf) + 1, 16, "h");
-        assert_eq!((hi >> 8) & 0x1ff, 300, "layer");
-        assert_eq!((hi >> 17) & 0xff, 0b11_10_01_00, "ao");
-        assert_eq!((hi >> 25) & 0xf, 11, "light");
-        assert_eq!((hi >> 29) & 1, 1, "flip");
-        assert_eq!((hi >> 30) & 0x3, 2, "tint");
+        assert_eq!(QUAD_X.get(lo), anchor[0] as u64, "x");
+        assert_eq!(QUAD_Y.get(lo), (anchor[1] + Y_BIAS) as u64, "y");
+        assert_eq!(QUAD_Z.get(lo), anchor[2] as u64, "z");
+        assert_eq!(QUAD_FACE.get(lo), 3, "face");
+        assert_eq!(QUAD_W.get(hi) + 1, 12, "w");
+        assert_eq!(QUAD_H.get(hi) + 1, 16, "h");
+        assert_eq!(QUAD_LAYER.get(hi), 300, "layer");
+        assert_eq!(QUAD_AO.get(hi), 0b11_10_01_00, "ao");
+        assert_eq!(QUAD_LIGHT.get(hi), 11, "light");
+        assert_eq!(QUAD_FLIP.get(hi), 1, "flip");
+        assert_eq!(QUAD_TINT.get(hi), 2, "tint");
     }
 }

@@ -8,10 +8,27 @@
 
 #import bevy_render::view::View
 
+// The packed geometry layout. The mesher writes these words and declares the same names, and a
+// test reads both sides back and fails if a width or an offset ever drifts apart.
+fn field(word: u32, shift: u32, bits: u32) -> u32 {
+    return (word >> shift) & ((1u << bits) - 1u);
+}
+
+const SECTION_X_SHIFT: u32 = 0u;
+const SECTION_X_BITS: u32 = 5u;
+const SECTION_Y_SHIFT: u32 = 5u;
+const SECTION_Y_BITS: u32 = 5u;
+const SECTION_Z_SHIFT: u32 = 10u;
+const SECTION_Z_BITS: u32 = 5u;
+const GROUP_FACE_SHIFT: u32 = 15u;
+const GROUP_FACE_BITS: u32 = 3u;
+const SECTION_INDEX_SHIFT: u32 = 0u;
+const SECTION_INDEX_BITS: u32 = 15u;
+
 struct Group {
     quad_base: u32,
     quad_count: u32,
-    // sx | sy << 5 | sz << 10 | face << 15, section coordinates in units of 16 blocks.
+    // The section this run came from, in units of 16 blocks, and the face group its quads point at.
     section: u32,
     reserved: u32,
 }
@@ -46,13 +63,16 @@ struct Params {
 
 const CULLED: u32 = 0xffffffffu;
 
+/// Blocks along one edge of a section.
+const SECTION_SIZE: i32 = 16;
+
 var<workgroup> reserved_slot: u32;
 
 fn section_min(g: Group) -> vec3<f32> {
-    let sx = i32(g.section & 31u);
-    let sy = i32((g.section >> 5u) & 31u) + params.min_section_y;
-    let sz = i32((g.section >> 10u) & 31u);
-    return vec3<f32>(f32(sx * 16), f32(sy * 16), f32(sz * 16));
+    let sx = i32(field(g.section, SECTION_X_SHIFT, SECTION_X_BITS));
+    let sy = i32(field(g.section, SECTION_Y_SHIFT, SECTION_Y_BITS)) + params.min_section_y;
+    let sz = i32(field(g.section, SECTION_Z_SHIFT, SECTION_Z_BITS));
+    return vec3<f32>(f32(sx * SECTION_SIZE), f32(sy * SECTION_SIZE), f32(sz * SECTION_SIZE));
 }
 
 /// The half spaces in `view.frustum` contain a point when `dot(plane.xyz, p) + plane.w > 0`, so the
@@ -98,18 +118,18 @@ fn cull(
     let g = groups[params.group_base + workgroup.x];
 
     if (local == 0u) {
-        // Bits 15..17 are the face group; the section number is the low 15 bits, which is exactly
-        // the bitset's index space. Model streams pack FACE_NONE = 7 in there, so the mask is
-        // mandatory: without it such a group would read the 7168th word of a 1024-word array.
-        let sec = g.section & 0x7fffu;
+        // The face group has to be masked off before the section number is used as a bitset
+        // index. Model streams carry face 7 there, and without the mask such a group would read
+        // far past the end of the array.
+        let sec = field(g.section, SECTION_INDEX_SHIFT, SECTION_INDEX_BITS);
         let reachable = (cave_visible[sec >> 5u] >> (sec & 31u)) & 1u;
         // Model geometry hangs outside the section that owns it — a fence arm, a rail on a slope —
         // so both tests below run against a box grown by however far this stream can reach. Without
         // it a section on the very edge of the frustum takes the quad poking into frame with it.
         let origin = section_min(g);
         let mn = origin - params.overhang;
-        let mx = origin + 16.0 + params.overhang;
-        let face = (g.section >> 15u) & 7u;
+        let mx = origin + f32(SECTION_SIZE) + params.overhang;
+        let face = field(g.section, GROUP_FACE_SHIFT, GROUP_FACE_BITS);
         if (reachable != 0u && in_frustum(mn, mx) && faces_camera(face, mn, mx)) {
             reserved_slot = atomicAdd(&args[params.args_index].instance_count, g.quad_count);
         } else {
