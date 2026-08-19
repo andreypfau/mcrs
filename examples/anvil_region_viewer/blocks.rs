@@ -182,9 +182,9 @@ pub fn build(region: &Region) -> Catalog {
     );
     for array in sprites.arrays() {
         assert!(
-            array.sprites.len() <= MAX_SPRITES,
+            array.sprites() <= MAX_SPRITES,
             "{} sprites are {}x{}, but one array can hold only {MAX_SPRITES}",
-            array.sprites.len(),
+            array.sprites(),
             array.size,
             array.size,
         );

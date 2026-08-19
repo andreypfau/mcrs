@@ -29,10 +29,6 @@ pub enum Opacity {
     Translucent,
 }
 
-pub struct Sprite {
-    pub opacity: Opacity,
-}
-
 /// Where a sprite lives: which array, and which layer of that array.
 #[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
 pub struct SpriteRef {
@@ -40,16 +36,17 @@ pub struct SpriteRef {
     pub layer: u16,
 }
 
-/// Every sprite of one resolution, which becomes one array texture. Sprites are square; animated
-/// ones are a grid of frames in the source PNG and only the first frame is taken.
+/// Every sprite of one resolution, which becomes one array texture. Layers are square; a still
+/// sprite is one of them and an animated one is as many as it has frames, all resident at once.
 pub struct SpriteArray {
     /// Side length of every layer.
     pub size: u32,
-    pub sprites: Vec<Sprite>,
-    /// How many of the sprites animate.
+    /// What each layer's alpha channel makes of it, in upload order.
+    opacities: Vec<Opacity>,
+    /// Sprite ids interned into this array, which is fewer than the layers once anything animates.
+    sprites: usize,
+    /// How many of those sprites animate.
     animated: usize,
-    /// Layers the frames of those animations will occupy once each step of every sequence gets one.
-    animation_layers: usize,
     /// RGBA8 pixels, layer-major, mip 0 only. Mips are derived at upload time.
     pixels: Vec<u8>,
 }
@@ -69,7 +66,7 @@ impl SpriteRegistry {
 
     /// Every sprite of every resolution.
     pub fn len(&self) -> usize {
-        self.arrays.iter().map(|array| array.sprites.len()).sum()
+        self.arrays.iter().map(|array| array.sprites).sum()
     }
 
     pub fn arrays(&self) -> &[SpriteArray] {
@@ -77,7 +74,7 @@ impl SpriteRegistry {
     }
 
     pub fn opacity(&self, sprite: SpriteRef) -> Opacity {
-        self.arrays[sprite.array as usize].sprites[sprite.layer as usize].opacity
+        self.arrays[sprite.array as usize].opacities[sprite.layer as usize]
     }
 
     /// Interns a sprite id, decoding its PNG the first time it is seen.
@@ -97,49 +94,53 @@ impl SpriteRegistry {
             RenderAssetUsages::default(),
         )
         .map_err(|e| format!("cannot decode {}: {e}", path.display()))?;
-        let width = image.width();
-        let size = (width, image.height());
-        let steps = match anim::read(&path)? {
-            Some(animation) => animation.unroll(id, size).len(),
-            None => 0,
+        let animation = anim::read(&path)?;
+        let image_size = (image.width(), image.height());
+        let (frame_width, frame_height) = match &animation {
+            Some(animation) => animation.frame_size(image_size),
+            None => (image.width(), image.width()),
         };
+        if frame_width != frame_height {
+            return Err(format!(
+                "{} has {frame_width}x{frame_height} frames, and every layer of an array is square",
+                path.display(),
+            ));
+        }
+        let side = frame_width;
         let data = image
             .data
             .ok_or_else(|| format!("{} decoded without pixel data", path.display()))?;
-        let frame = (width * width * 4) as usize;
-        if data.len() < frame {
-            return Err(format!(
-                "{} is smaller than one square frame",
-                path.display()
-            ));
-        }
-        let frame = data[..frame].to_vec();
 
-        let mut opaque = true;
-        let mut binary = true;
-        for i in (3..frame.len()).step_by(4) {
-            let a = frame[i];
-            if a != 255 {
-                opaque = false;
-            }
-            if a != 255 && a != 0 {
-                binary = false;
-            }
-        }
-        let opacity = match (opaque, binary) {
-            (true, _) => Opacity::Solid,
-            (false, true) => Opacity::Cutout,
-            (false, false) => Opacity::Translucent,
+        // Every step of the sequence is resident as its own layer, so a still sprite is the case
+        // where there is no sequence rather than a different kind of thing.
+        let sequence = match &animation {
+            Some(animation) => animation.unroll(id, image_size),
+            None => Vec::new(),
         };
+        let frames: Vec<u32> = if sequence.is_empty() {
+            vec![0]
+        } else {
+            (0..animation.as_ref().map_or(1, |a| a.frame_count(image_size))).collect()
+        };
+        let mut pixels = Vec::with_capacity(frames.len() * (side * side * 4) as usize);
+        for &frame in &frames {
+            let cut = cut(&data, image_size.0, side, frame).ok_or_else(|| {
+                format!("{} has no frame {frame}", path.display())
+            })?;
+            pixels.extend_from_slice(&cut);
+        }
+        // Taken over every frame at once: were a sprite's first frame opaque and another one not,
+        // the two would want different passes, and a sprite is drawn in exactly one.
+        let opacity = opacity_of(&pixels);
 
-        let array = match self.arrays.iter().position(|array| array.size == width) {
+        let array = match self.arrays.iter().position(|array| array.size == side) {
             Some(array) => array,
             None => {
                 self.arrays.push(SpriteArray {
-                    size: width,
-                    sprites: Vec::new(),
+                    size: side,
+                    opacities: Vec::new(),
+                    sprites: 0,
                     animated: 0,
-                    animation_layers: 0,
                     pixels: Vec::new(),
                 });
                 self.arrays.len() - 1
@@ -147,23 +148,58 @@ impl SpriteRegistry {
         };
         let sprite = SpriteRef {
             array: array as u8,
-            layer: self.arrays[array].sprites.len() as u16,
+            layer: self.arrays[array].opacities.len() as u16,
         };
         let array = &mut self.arrays[array];
-        array.sprites.push(Sprite { opacity });
-        if steps >= 2 {
-            array.animated += 1;
-            array.animation_layers += steps;
-        }
-        array.pixels.extend_from_slice(&frame);
+        array.opacities.extend(std::iter::repeat_n(opacity, frames.len()));
+        array.sprites += 1;
+        array.animated += usize::from(!sequence.is_empty());
+        array.pixels.extend_from_slice(&pixels);
         self.index.insert(id.to_string(), sprite);
         Ok(sprite)
     }
 }
 
+/// One frame of a sprite's image, which sits in it as a cell of a grid running across the image
+/// and then down it.
+fn cut(data: &[u8], image_width: u32, side: u32, frame: u32) -> Option<Vec<u8>> {
+    let columns = (image_width / side).max(1);
+    let (left, top) = (frame % columns * side, frame / columns * side);
+    let mut pixels = Vec::with_capacity((side * side * 4) as usize);
+    for row in 0..side {
+        let start = (((top + row) * image_width + left) * 4) as usize;
+        pixels.extend_from_slice(data.get(start..start + (side * 4) as usize)?);
+    }
+    Some(pixels)
+}
+
+fn opacity_of(pixels: &[u8]) -> Opacity {
+    let mut opaque = true;
+    let mut binary = true;
+    for i in (3..pixels.len()).step_by(4) {
+        let alpha = pixels[i];
+        if alpha != 255 {
+            opaque = false;
+        }
+        if alpha != 255 && alpha != 0 {
+            binary = false;
+        }
+    }
+    match (opaque, binary) {
+        (true, _) => Opacity::Solid,
+        (false, true) => Opacity::Cutout,
+        (false, false) => Opacity::Translucent,
+    }
+}
+
 impl SpriteArray {
     pub fn layers(&self) -> u32 {
-        self.sprites.len().max(1) as u32
+        self.opacities.len().max(1) as u32
+    }
+
+    /// Sprite ids interned into this array, as against the layers they occupy.
+    pub fn sprites(&self) -> usize {
+        self.sprites
     }
 
     /// How many of this array's sprites animate.
@@ -171,23 +207,16 @@ impl SpriteArray {
         self.animated
     }
 
-    /// Layers this array will hold once every animation's sequence is laid out one frame to a
-    /// layer: one for each still sprite, and one for each step of each animation.
-    pub fn resident_layers(&self) -> usize {
-        self.sprites.len() - self.animated + self.animation_layers
-    }
-
     /// Mip 0 followed by every smaller level, layer-major within each level. Each level is laid out
     /// exactly as `write_texture` wants it, so the caller uploads one level per call.
     pub fn mip_chain(&self) -> Vec<Vec<u8>> {
-        let layers = self.sprites.len().max(1);
+        let layers = self.opacities.len().max(1);
         let mut size = self.size as usize;
         // Only alpha-tested sprites get their coverage held: a solid one has none to lose, and on a
         // translucent one alpha is real transparency, so stretching it would distort glass and water.
         let targets: Vec<Option<f32>> = (0..layers)
             .map(|layer| {
-                let sprite = self.sprites.get(layer)?;
-                (sprite.opacity == Opacity::Cutout)
+                (*self.opacities.get(layer)? == Opacity::Cutout)
                     .then(|| coverage(&self.pixels[layer * size * size * 4..], size * size, 1.0))
             })
             .collect();
@@ -305,9 +334,9 @@ mod tests {
     fn one_sprite(size: usize, opacity: Opacity, pixels: Vec<u8>) -> SpriteArray {
         SpriteArray {
             size: size as u32,
-            sprites: vec![Sprite { opacity }],
+            opacities: vec![opacity],
+            sprites: 1,
             animated: 0,
-            animation_layers: 0,
             pixels,
         }
     }
@@ -388,14 +417,65 @@ mod tests {
         let counts: Vec<usize> = registry
             .arrays()
             .iter()
-            .map(|array| array.sprites.len())
+            .map(|array| array.sprites)
             .collect();
         assert_eq!(counts, [2, 1]);
         // Every layer of an array is its own size, so nothing was stretched to match a neighbour.
         for array in registry.arrays() {
-            let expected = (array.size * array.size * 4) as usize * array.sprites.len();
+            let expected = (array.size * array.size * 4) as usize * array.layers() as usize;
             assert_eq!(array.pixels.len(), expected);
         }
+    }
+
+    /// An animated sprite keeps every frame resident, one to a layer, so the array grows by the
+    /// frame count rather than by one.
+    #[test]
+    fn every_frame_of_an_animation_gets_its_own_layer() {
+        let mut registry = SpriteRegistry::new();
+        registry.intern("minecraft:block/stone").unwrap();
+        registry.intern("minecraft:block/lava_still").unwrap();
+        let array = &registry.arrays()[0];
+        assert_eq!(array.sprites(), 2);
+        assert_eq!(array.animated(), 1);
+        // A twenty-frame strip beside one still sprite.
+        assert_eq!(array.layers(), 21);
+        assert_eq!(array.pixels.len(), (array.size * array.size * 4) as usize * 21);
+    }
+
+    /// A frame sits in the image as a cell of a grid running across it and then down it, which is
+    /// what lets a sprite pack its frames side by side instead of in one tall column.
+    #[test]
+    fn a_frame_is_cut_out_of_the_grid_it_sits_in() {
+        // Four 2x2 frames in a 4x4 image, each filled with its own frame number.
+        let mut image = vec![0u8; 4 * 4 * 4];
+        for y in 0..4usize {
+            for x in 0..4usize {
+                image[(y * 4 + x) * 4] = (y / 2 * 2 + x / 2) as u8;
+            }
+        }
+        for frame in 0..4u32 {
+            let cut = cut(&image, 4, 2, frame).expect("the frame is inside the image");
+            assert!(
+                cut.iter().step_by(4).all(|&byte| byte as u32 == frame),
+                "frame {frame} was cut from the wrong cell",
+            );
+        }
+        assert!(cut(&image, 4, 2, 4).is_none(), "a frame past the last one is not there");
+    }
+
+    /// One sprite is drawn in one pass, so its opacity is the worst its frames reach: were it taken
+    /// from the first frame alone, an animation that only later turns translucent would be sorted
+    /// into the pass that cannot blend it.
+    #[test]
+    fn opacity_is_taken_over_every_frame_rather_than_the_first() {
+        let opaque = [255u8, 255, 255, 255];
+        let half = [255u8, 255, 255, 128];
+        let cut_out = [255u8, 255, 255, 0];
+        assert_eq!(opacity_of(&opaque), Opacity::Solid);
+        assert_eq!(opacity_of(&[opaque, opaque].concat()), Opacity::Solid);
+        assert_eq!(opacity_of(&[opaque, cut_out].concat()), Opacity::Cutout);
+        assert_eq!(opacity_of(&[opaque, half].concat()), Opacity::Translucent);
+        assert_eq!(opacity_of(&[cut_out, half].concat()), Opacity::Translucent);
     }
 
     /// Interning the same sprite twice must hand back the same place rather than a second copy.

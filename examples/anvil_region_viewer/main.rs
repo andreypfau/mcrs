@@ -164,11 +164,11 @@ fn load(path: &std::path::Path) -> Result<(Geometry, cave::CaveCull), String> {
         println!(
             "  sprite array {index}: {:>4} sprites at {}x{}, {} of them animated, \
              {} resident layers of {} a quad can name",
-            array.sprites.len(),
+            array.sprites(),
             array.size,
             array.size,
             array.animated(),
-            array.resident_layers(),
+            array.layers(),
             pack::MAX_SPRITES,
         );
     }
