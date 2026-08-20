@@ -417,11 +417,12 @@ pub struct Sky {
 #[derive(Resource, Clone, Copy, ExtractResource)]
 pub struct Streams(pub u32);
 
+/// The first stream drawn blended. Stream order is draw order, so this is also where the opaque
+/// half of the terrain ends and the cloud layer goes in.
+const BLENDED_STREAM: u32 = STREAMS as u32 - 2;
+
 impl Streams {
     pub const ALL: u32 = (1 << STREAMS) - 1;
-    /// The blended streams, which are the last two: stream order is draw order, and blended
-    /// geometry draws last.
-    pub const BLENDED: u32 = 0b11 << (STREAMS - 2);
 
     fn drawn(&self, stream: u32) -> bool {
         self.0 & (1 << stream) != 0
@@ -430,11 +431,7 @@ impl Streams {
 
 impl Default for Streams {
     fn default() -> Self {
-        // Water is drawn unsorted through one blending pass and is being reworked, so it is left
-        // out until it is. It also moves more between two frames of the same build than any change
-        // to the renderer does, which makes it the one thing that stops a frame being comparable
-        // against itself. `ANVIL_STREAMS=0,1,2,3,4,5` puts it back.
-        Self(Self::ALL & !Self::BLENDED)
+        Self(Self::ALL)
     }
 }
 
@@ -578,6 +575,9 @@ struct Terrain {
     cull_bind_group: BindGroup,
     draw_bind_group: BindGroup,
     cull_pipeline: CachedComputePipelineId,
+    /// The same pass laying a stream out by each run's own place rather than by an atomic, for the
+    /// blended streams, whose draw order decides what they blend to.
+    cull_stable_pipeline: CachedComputePipelineId,
     draw_layout: BindGroupLayoutDescriptor,
     sky_layout: BindGroupLayoutDescriptor,
     sky_bind_group: BindGroup,
@@ -802,8 +802,15 @@ fn init_terrain(
     let cull_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
         label: Some("terrain cull".into()),
         layout: vec![view_layout.clone(), cull_layout.clone()],
-        shader: cull_shader,
+        shader: cull_shader.clone(),
         entry_point: Some("cull".into()),
+        ..default()
+    });
+    let cull_stable_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
+        label: Some("terrain cull stable".into()),
+        layout: vec![view_layout.clone(), cull_layout.clone()],
+        shader: cull_shader,
+        entry_point: Some("cull_stable".into()),
         ..default()
     });
 
@@ -865,6 +872,7 @@ fn init_terrain(
         cull_bind_group,
         draw_bind_group,
         cull_pipeline,
+        cull_stable_pipeline,
         draw_layout,
         sky_layout,
         sky_bind_group,
@@ -1426,12 +1434,19 @@ fn prepare_pipelines(
                 // hands the fragment stage is written once fewer as well.
                 topology: PrimitiveTopology::TriangleStrip,
                 front_face: FrontFace::Ccw,
-                cull_mode: Some(Face::Back),
+                // The blended pass draws both sides of every quad, because a camera under the sea
+                // has to see the surface it is under. Nothing else in that pass loses by it: the
+                // culling pass still drops a run of glass whose group points away, and only water
+                // files its runs under the group that faces nowhere.
+                cull_mode: (!blend).then_some(Face::Back),
                 ..default()
             },
             depth_stencil: Some(DepthStencilState {
                 format: CORE_3D_DEPTH_FORMAT,
-                // The translucent pass must not occlude what is behind it.
+                // The blended pass leaves the depth buffer alone, so that everything behind a
+                // surface still reaches the frame and blends through it. What order those layers
+                // arrive in is settled by the culling pass, which lays a blended stream out by each
+                // run's own place in its draw rather than by an atomic — see `cull_stable`.
                 depth_write_enabled: Some(!blend),
                 // Bevy renders with a reversed depth buffer, so nearer fragments compare greater.
                 depth_compare: Some(CompareFunction::GreaterEqual),
@@ -1443,7 +1458,11 @@ fn prepare_pipelines(
                 // and their interpolated depths disagree by a rounding step. Pulling model quads a
                 // hair toward the camera settles every such tie in the overlay's favour, which is
                 // the side vanilla shows.
-                bias: if entry == "vertex_complex" {
+                // Only where a model quad really does share a plane with a merged one. The
+                // blended pass is water, and a fluid is already held off every plane it could
+                // share; a slope-scaled bias there would jump a shoreline quad in front of the sea
+                // it belongs to the moment the camera dropped to the waterline.
+                bias: if entry == "vertex_complex" && !blend {
                     DepthBiasState {
                         constant: 2,
                         slope_scale: 1.0,
@@ -1496,7 +1515,9 @@ fn prepare_pipelines(
             // their own shader works out for wherever the ray met a cell.
             depth_stencil: Some(DepthStencilState {
                 format: CORE_3D_DEPTH_FORMAT,
-                depth_write_enabled: Some(false),
+                // The clouds leave their own depth behind, which is what the blended pass then
+                // tests a sea against. The backdrop takes no part in the buffer at all.
+                depth_write_enabled: Some(draw.depth),
                 depth_compare: Some(if draw.depth {
                     CompareFunction::GreaterEqual
                 } else {
@@ -1562,7 +1583,10 @@ fn cull_terrain(
     let (Some(terrain), Some(view_bind_group)) = (terrain, view_bind_group) else {
         return;
     };
-    let Some(pipeline) = pipeline_cache.get_compute_pipeline(terrain.cull_pipeline) else {
+    let (Some(compacting), Some(stable)) = (
+        pipeline_cache.get_compute_pipeline(terrain.cull_pipeline),
+        pipeline_cache.get_compute_pipeline(terrain.cull_stable_pipeline),
+    ) else {
         return;
     };
     let view_offset = view.into_inner().offset;
@@ -1605,11 +1629,17 @@ fn cull_terrain(
             timestamp_writes: timestamps,
         });
     let span = diagnostics.pass_span(&mut pass, "terrain_cull");
-    pass.set_pipeline(pipeline);
     pass.set_bind_group(1, &terrain.cull_bind_group, &[]);
+    // Draws run in stream order, so the two pipelines swap over exactly once.
+    let mut blended = false;
+    pass.set_pipeline(compacting);
     for (index, &workgroups) in terrain.group_counts.iter().enumerate() {
         if workgroups == 0 || !streams.drawn(terrain.draws[index].stream) {
             continue;
+        }
+        if !blended && terrain.draws[index].stream >= BLENDED_STREAM {
+            blended = true;
+            pass.set_pipeline(stable);
         }
         pass.set_bind_group(
             0,
@@ -1682,9 +1712,28 @@ fn draw_terrain(
 
     pass.set_bind_group(1, &terrain.draw_bind_group, &[]);
 
+    let mut clouds_drawn = false;
     for (index, draw) in terrain.draws.iter().enumerate() {
         if draw.quad_count == 0 || !streams.drawn(draw.stream) {
             continue;
+        }
+        // The cloud layer sits between the two halves of the terrain: after everything opaque,
+        // which can stand in front of it, and before everything blended, which has to be seen
+        // through. It leaves its own depth behind, so a sea in front of a cloud is drawn and a sea
+        // behind one is not, and the water then blends over the cloud already painted there.
+        // Drawn last instead it would paint the sky straight over a sea the camera is looking up
+        // through, and no depth test would catch it, because blended geometry leaves no depth.
+        if clouds.0 && !clouds_drawn && draw.stream >= BLENDED_STREAM {
+            clouds_drawn = true;
+            draw_sky(
+                &mut pass,
+                &terrain,
+                &view_bind_group.0,
+                view_offset.offset,
+                &pipeline_cache,
+                true,
+            );
+            pass.set_bind_group(1, &terrain.draw_bind_group, &[]);
         }
         // Solid streams take the pipeline with no alpha test, which is what lets the GPU drop a
         // hidden fragment before shading it; the wireframe draws its interiors away and so needs
@@ -1707,10 +1756,10 @@ fn draw_terrain(
         pass.draw_indirect(&terrain.args, index as u64 * DRAW_ARGS_SIZE);
     }
 
-    // The clouds hang in the world, so they come after what can stand in front of them, and they
-    // are the only half of the sky that can be turned off.
-    if clouds.0 {
+    // A frame holding no blended geometry never reached the line above.
+    if clouds.0 && !clouds_drawn {
         draw_sky(&mut pass, &terrain, &view_bind_group.0, view_offset.offset, &pipeline_cache, true);
     }
+
     span.end(&mut pass);
 }

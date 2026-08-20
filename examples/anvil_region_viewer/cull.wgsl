@@ -35,7 +35,8 @@ struct Group {
     quad_count: u32,
     // The section this run came from, in units of 16 blocks, and the face group its quads point at.
     section: u32,
-    reserved: u32,
+    // Where this run's quads start counting among the quads of its own draw, culled runs included.
+    quad_prefix: u32,
 }
 
 struct DrawArgs {
@@ -135,6 +136,26 @@ fn faces_camera(face: u32, mn: vec3<f32>, mx: vec3<f32>) -> bool {
     }
 }
 
+/// Whether a run survives: its section reachable along a sight line, its box inside the frustum,
+/// and its face group pointing anywhere the camera could see.
+///
+/// Model geometry hangs outside the section that owns it — a fence arm, a rail on a slope — so both
+/// box tests run against a box grown by however far this stream can reach. Without it a section on
+/// the very edge of the frustum takes the quad poking into frame with it.
+fn survives(g: Group) -> bool {
+    // The face group has to be masked off before the section number is used as a bitset index.
+    // Model streams carry face 7 there, and without the mask such a group would read far past the
+    // end of the array. The section number is relative to the region, so the region's own base has
+    // to be added back for the bitset the walk fills.
+    let sec = params.cave_base + field(g.section, SECTION_INDEX_SHIFT, SECTION_INDEX_BITS);
+    let reachable = (cave_visible[sec >> 5u] >> (sec & 31u)) & 1u;
+    let origin = section_min(g);
+    let mn = origin - params.overhang;
+    let mx = origin + SECTION_SIZE + params.overhang;
+    let face = field(g.section, GROUP_FACE_SHIFT, GROUP_FACE_BITS);
+    return reachable != 0u && in_frustum(mn, mx) && faces_camera(face, mn, mx);
+}
+
 /// One SIMD group wide. Only one thread decides whether the run survives and the rest wait for it,
 /// so a wider workgroup buys nothing and idles twice the lanes; at 64 the pass costs half again as
 /// much. Giving one workgroup several runs to chew through is worse still — the scheduler is left
@@ -152,21 +173,7 @@ fn cull(
     let g = groups[params.group_base + workgroup.x];
 
     if (local == 0u) {
-        // The face group has to be masked off before the section number is used as a bitset
-        // index. Model streams carry face 7 there, and without the mask such a group would read
-        // far past the end of the array. The section number is relative to the region, so the
-        // region's own base has to be added back for the bitset the walk fills.
-        let sec = params.cave_base
-            + field(g.section, SECTION_INDEX_SHIFT, SECTION_INDEX_BITS);
-        let reachable = (cave_visible[sec >> 5u] >> (sec & 31u)) & 1u;
-        // Model geometry hangs outside the section that owns it — a fence arm, a rail on a slope —
-        // so both tests below run against a box grown by however far this stream can reach. Without
-        // it a section on the very edge of the frustum takes the quad poking into frame with it.
-        let origin = section_min(g);
-        let mn = origin - params.overhang;
-        let mx = origin + SECTION_SIZE + params.overhang;
-        let face = field(g.section, GROUP_FACE_SHIFT, GROUP_FACE_BITS);
-        if (reachable != 0u && in_frustum(mn, mx) && faces_camera(face, mn, mx)) {
+        if (survives(g)) {
             reserved_slot = atomicAdd(&args[params.args_index].instance_count, g.quad_count);
         } else {
             reserved_slot = CULLED;
@@ -184,6 +191,48 @@ fn cull(
             break;
         }
         visible[params.visible_base + base + i] = g.quad_base + i;
+        i = i + CULL_THREADS;
+    }
+}
+
+/// The same test, laying each run where its own place in the draw says rather than wherever the
+/// atomic hands out.
+///
+/// Which matters only for blended geometry, and matters a great deal there: the order the visible
+/// list holds is the order the quads are blended in, and the order the atomic hands out is whatever
+/// the GPU's scheduler felt like this frame. A sea drawn in a different order every frame blends to
+/// a different colour every frame. Opaque geometry has no such trouble — the depth test settles it
+/// — and keeps the compacting pass above, because that one draws only what survived.
+///
+/// Nothing is compacted away here, so the draw covers every quad of the stream and the culled ones
+/// are marked for the vertex stage to throw away as a quad with no area.
+@compute @workgroup_size(CULL_THREADS)
+fn cull_stable(
+    @builtin(workgroup_id) workgroup: vec3<u32>,
+    @builtin(local_invocation_index) local: u32,
+) {
+    if (workgroup.x >= params.group_count) {
+        return;
+    }
+    let g = groups[params.group_base + workgroup.x];
+
+    if (local == 0u) {
+        // Every run reaches this, culled or not, so the largest end offset any of them names is the
+        // whole stream's quad count — which is what the draw has to cover, and what no ordering
+        // between the runs can change.
+        atomicMax(&args[params.args_index].instance_count, g.quad_prefix + g.quad_count);
+        reserved_slot = select(CULLED, g.quad_prefix, survives(g));
+    }
+    workgroupBarrier();
+
+    let culled = reserved_slot == CULLED;
+    var i = local;
+    loop {
+        if (i >= g.quad_count) {
+            break;
+        }
+        visible[params.visible_base + g.quad_prefix + i] =
+            select(g.quad_base + i, CULLED, culled);
         i = i + CULL_THREADS;
     }
 }
