@@ -26,11 +26,13 @@ const NEIGHBOUR: [[i32; 3]; 6] = [
     crate::mesh::face_normal(5),
 ];
 
-/// Seeds and the camera's own section fan out through all six faces; there is no real face 7.
-const ENTRY_ANY: u32 = 7;
+/// Seeds and the camera's own section fan out through all six faces; there is no real face 6.
+const ENTRY_ANY: u32 = 6;
 
-/// Entry faces a section can be reached through: the six real ones, and [`ENTRY_ANY`] at 7.
-const ENTRIES: usize = 8;
+/// Entry faces a section can be reached through: the six real ones, and [`ENTRY_ANY`] just past
+/// them. Seven rather than a round eight because the marks are cleared in full every frame, and
+/// an eighth that nothing ever writes would be an eighth of that clearing spent on nothing.
+const ENTRIES: usize = 7;
 
 /// No sight line has entered this section through this face yet. Real values are six bits of spent
 /// directions, so the high bits are free for the marker.
@@ -104,7 +106,8 @@ pub struct CaveCull {
     /// Sections whose box the frustum accepted, so the test is paid once however many faces the
     /// walk later arrives through.
     inside: Box<[u32]>,
-    /// Spent directions per section and entry face, indexed `slot << 3 | entry`, or [`NEVER`].
+    /// Spent directions per section and entry face, indexed `slot * ENTRIES + entry`, or
+    /// [`NEVER`].
     /// Which exits a section opens depends on the face entered through, so a walk that has already
     /// crossed it one way still has to cross it the other.
     spent: Vec<u8>,
@@ -338,7 +341,7 @@ impl CaveCull {
         // filter: dropping to it can only open exits, never close one that was already taken.
         // [`NEVER`] is every bit set, which is why the first arrival needs no case of its own:
         // intersecting with it leaves exactly what that arrival brought.
-        let seen = &mut self.spent[(slot as usize) << 3 | entry as usize];
+        let seen = &mut self.spent[slot as usize * ENTRIES + entry as usize];
         let merged = *seen & dirs as u8;
         if merged == *seen {
             return;

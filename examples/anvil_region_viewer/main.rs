@@ -449,7 +449,7 @@ fn frame_stats(
     if cave.enabled {
         let _ = write!(line, "   cave {} sections", cave.reached());
         if let Some(ms) = cave.took_ms() {
-            let _ = write!(line, " in {ms:.2} ms");
+            let _ = write!(line, " in {ms:.3} ms");
         }
     } else {
         line.push_str("   cave off");
