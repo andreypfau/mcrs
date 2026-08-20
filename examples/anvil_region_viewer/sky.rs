@@ -349,9 +349,9 @@ fn sky_at(ticks: f32, camera_height: f32, drift: f32) -> Sky {
             .extend(f32::from(camera_height < HORIZON))
             .into(),
         sunrise: linear(sunrise.truncate()).extend(sunrise.w).into(),
-        // Vanilla keyframes the three angles apart but says the same thing with them: the moon is
-        // opposite the sun, and the stars turn with it.
-        angles: [sun, sun + PI, sun, stars],
+        // Vanilla keyframes the three angles apart but says the same thing with all three: the
+        // moon is opposite the sun and the stars turn with it, so the shader derives both.
+        angles: [sun, stars, 0.0, 0.0],
         moon: [
             1.0 + (ticks / DAY).floor().rem_euclid(MOON_PHASES.len() as f32),
             RAIN_BRIGHTNESS,

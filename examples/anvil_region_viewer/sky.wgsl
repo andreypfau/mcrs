@@ -26,7 +26,8 @@ struct Sky {
     disc: vec4<f32>,
     /// The twilight band: `rgb` its colour, `a` how far it has come in. Zero for most of the day.
     sunrise: vec4<f32>,
-    /// Sun, moon and star angles in radians, and how bright the stars are.
+    /// The sun's angle in radians, and how bright the stars are. The moon stands opposite the
+    /// sun and the stars turn with it, so neither carries an angle of its own.
     angles: vec4<f32>,
     /// Which layer of the celestial array the moon shows, and how much rain dims the two discs.
     moon: vec4<f32>,
@@ -49,7 +50,6 @@ struct Sky {
 /// One texel a cell: transparent where the sky is open, and the cloud's own colour where it is not.
 @group(1) @binding(2) var clouds: texture_2d_array<f32>;
 
-const SKY_DISC_RADIUS: f32 = 512.0;
 const SKY_DISC_Y: f32 = 16.0;
 /// The dark disc is built at -16 and then translated twelve blocks up.
 const DARK_DISC_Y: f32 = -4.0;
@@ -139,7 +139,10 @@ fn disc_corner(index: u32, y: f32) -> vec3<f32> {
     // the sign of the height so that both discs face the camera the same way round.
     let step = index / 3u + corner - 1u;
     let angle = (-180.0 + f32(step) * 45.0) * PI / 180.0;
-    return vec3<f32>(sign(y) * SKY_DISC_RADIUS * cos(angle), y, SKY_DISC_RADIUS * sin(angle));
+    // Built out to exactly where the fog finishes, so the rim reaches the haze and the horizon has
+    // no hard line. A radius of its own would say the same number twice and could drift from it.
+    let radius = sky.fog.a;
+    return vec3<f32>(sign(y) * radius * cos(angle), y, radius * sin(angle));
 }
 
 /// The sky disc, and under it the dark one that stands in for the void when the camera has dropped
@@ -222,7 +225,7 @@ fn vertex_celestial(@builtin(vertex_index) index: u32) -> SkyVertex {
 
     let is_moon = index >= 6u;
     let size = select(SUN_SIZE, MOON_SIZE, is_moon);
-    let angle = select(sky.angles.x, sky.angles.y, is_moon);
+    let angle = sky.angles.x + select(0.0, PI, is_moon);
     let local = vec3<f32>(sign_x * size, CELESTIAL_HEIGHT, sign_z * size);
 
     var uv = vec2<f32>(sign_x, sign_z) * 0.5 + 0.5;
@@ -274,7 +277,7 @@ fn vertex_stars(@builtin(vertex_index) index: u32) -> SkyVertex {
     out.uv = vec2<f32>(0.0);
     out.layer = 0u;
     out.distance = 0.0;
-    out.color = vec4<f32>(sky.angles.w);
+    out.color = vec4<f32>(sky.angles.y);
 
     let length_squared = dot(point, point);
     if length_squared <= 0.010000001 || length_squared >= 1.0 {
@@ -299,7 +302,7 @@ fn vertex_stars(@builtin(vertex_index) index: u32) -> SkyVertex {
         -flat.x * sin(spin) + flat.y * cos(spin),
     );
     let local = centre + left * turned.x + up * turned.y;
-    out.clip_position = to_clip(celestial_frame(local, sky.angles.z));
+    out.clip_position = to_clip(celestial_frame(local, sky.angles.x));
     return out;
 }
 
