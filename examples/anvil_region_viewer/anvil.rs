@@ -843,25 +843,46 @@ fn write_nibbles(source: &[i8], out: &mut [u8; SECTION_VOLUME], shift: u32) {
 /// with the wrong block rather than with nothing.
 #[cfg(test)]
 pub fn one_section_region(name: &str) -> Region {
+    one_section_region_of(&[name], |_, _, _| 0)
+}
+
+/// The same, filled cell by cell out of several states, for a fixture that needs one block to
+/// stand next to another. Air is the state after the last name, so nothing has to name it.
+#[cfg(test)]
+pub fn one_section_region_of(
+    names: &[&str],
+    pick: impl Fn(usize, usize, usize) -> usize,
+) -> Region {
     let slots = REGION_CHUNKS * REGION_CHUNKS;
     let mut sections: Vec<Option<Section>> = (0..slots).map(|_| None).collect();
+    let mut blocks = Box::new([0u16; SECTION_VOLUME]);
+    for y in 0..SECTION_SIZE {
+        for z in 0..SECTION_SIZE {
+            for x in 0..SECTION_SIZE {
+                blocks[(y * SECTION_SIZE + z) * SECTION_SIZE + x] = pick(x, y, z) as u16;
+            }
+        }
+    }
     sections[0] = Some(Section {
-        blocks: Box::new([0; SECTION_VOLUME]),
+        blocks,
         biomes: Box::new([0; 64]),
     });
+    let mut states: Vec<BlockStateKey> = names
+        .iter()
+        .map(|name| BlockStateKey {
+            name: name.to_string(),
+            props: Vec::new(),
+        })
+        .collect();
+    let air_state = states.len() as u16;
+    states.push(BlockStateKey {
+        name: "minecraft:air".to_string(),
+        props: Vec::new(),
+    });
     Region {
-        states: vec![
-            BlockStateKey {
-                name: name.to_string(),
-                props: Vec::new(),
-            },
-            BlockStateKey {
-                name: "minecraft:air".to_string(),
-                props: Vec::new(),
-            },
-        ],
+        states,
         biomes: vec!["minecraft:plains".to_string()],
-        air_state: 1,
+        air_state,
         min_section_y: 0,
         sections_y: 1,
         sections,

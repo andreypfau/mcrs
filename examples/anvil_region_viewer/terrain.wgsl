@@ -25,6 +25,12 @@ fn quad_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {
 
 const SECTION_SIZE: f32 = 16.0;
 
+/// What the culling pass leaves in the visible list where a run did not survive. Only the blended
+/// streams hold any: theirs is laid out by each run's own place in the draw so that the order the
+/// quads blend in does not change between frames, which means the list has a slot for every quad
+/// whether it is drawn or not.
+const CULLED: u32 = 0xffffffffu;
+
 const LOCAL_X_WORD: u32 = 0u;
 const LOCAL_X_SHIFT: u32 = 0u;
 const LOCAL_X_BITS: u32 = 4u;
@@ -53,6 +59,15 @@ const QUAD_W_BITS: u32 = 4u;
 const QUAD_H_WORD: u32 = 0u;
 const QUAD_H_SHIFT: u32 = 22u;
 const QUAD_H_BITS: u32 = 4u;
+/// How far below its own plane a fluid quad's top edge sits, in `MODEL_STEPS` per block. Zero on
+/// everything else, so the whole block path runs through the same arithmetic untouched.
+const QUAD_DROP_WORD: u32 = 0u;
+const QUAD_DROP_SHIFT: u32 = 26u;
+const QUAD_DROP_BITS: u32 = 5u;
+/// Set on every quad of a fluid, which is held `FLUID_INSET` inside its own block.
+const QUAD_FLUID_WORD: u32 = 0u;
+const QUAD_FLUID_SHIFT: u32 = 31u;
+const QUAD_FLUID_BITS: u32 = 1u;
 /// How many words one greedy quad occupies.
 const QUAD_WORDS: u32 = 2u;
 
@@ -61,7 +76,7 @@ const QUAD_SECTION_SHIFT: u32 = 0u;
 const QUAD_SECTION_BITS: u32 = 11u;
 const QUAD_FACE_BASE_WORD: u32 = 1u;
 const QUAD_FACE_BASE_SHIFT: u32 = 11u;
-const QUAD_FACE_BASE_BITS: u32 = 15u;
+const QUAD_FACE_BASE_BITS: u32 = 16u;
 
 // One block face, as it looks. A greedy quad covers many blocks and names only where its run of
 // these starts, so this is what the fragment reads instead of anything interpolated.
@@ -83,6 +98,11 @@ const FACE_SKY_LIGHT_BITS: u32 = 4u;
 const FACE_AO_WORD: u32 = 0u;
 const FACE_AO_SHIFT: u32 = 22u;
 const FACE_AO_BITS: u32 = 8u;
+/// Set on the vertical faces of a fluid, which map their sprite from its top-left quarter rather
+/// than one sprite to a block.
+const FACE_FLUID_WORD: u32 = 0u;
+const FACE_FLUID_SHIFT: u32 = 30u;
+const FACE_FLUID_BITS: u32 = 1u;
 
 const MODEL_X_WORD: u32 = 0u;
 const MODEL_X_SHIFT: u32 = 0u;
@@ -127,6 +147,12 @@ const MODEL_LAYER_BITS: u32 = 10u;
 /// model may hang outside its own block so the result stays non-negative.
 const MODEL_STEPS: f32 = 32.0;
 const MODEL_OVERHANG: f32 = 2.0;
+
+/// How far inside its own block every face of a fluid is held. A fluid face lands exactly where the
+/// face of the block beside it lands — water against glass, against leaves, against the flat side
+/// of a slab — and two quads in one plane have no order to be drawn in. Moving one of them back a
+/// thousandth of a block gives them one, which is what vanilla does and for the same reason.
+const FLUID_INSET: f32 = 0.001;
 
 struct Params {
     group_base: u32,
@@ -260,6 +286,12 @@ struct Surface {
     shade: vec3<f32>,
     uv: vec2<f32>,
     world_xz: vec2<f32>,
+    /// How far the sprite coordinate moves across one pixel. Carried rather than taken at the
+    /// sampling site because a fluid tiles its sprite inside every block, and the derivative of a
+    /// coordinate that wraps is a whole sprite wide on the seam — one row of pixels a block that
+    /// would otherwise drop to the coarsest mip there is.
+    ddx: vec2<f32>,
+    ddy: vec2<f32>,
 };
 
 /// Quad corners in the order vanilla winds them, as (u, v).
@@ -301,6 +333,18 @@ fn face_v_dir(face: u32) -> vec3<f32> {
         case 0u: { return vec3<f32>(0.0, 0.0, -1.0); }
         case 1u: { return vec3<f32>(0.0, 0.0, 1.0); }
         default: { return vec3<f32>(0.0, -1.0, 0.0); }
+    }
+}
+
+/// The outward normal of a face, which is the direction a fluid quad is held back along.
+fn face_normal(face: u32) -> vec3<f32> {
+    switch face {
+        case 0u: { return vec3<f32>(0.0, -1.0, 0.0); }
+        case 1u: { return vec3<f32>(0.0, 1.0, 0.0); }
+        case 2u: { return vec3<f32>(0.0, 0.0, -1.0); }
+        case 3u: { return vec3<f32>(0.0, 0.0, 1.0); }
+        case 4u: { return vec3<f32>(-1.0, 0.0, 0.0); }
+        default: { return vec3<f32>(1.0, 0.0, 0.0); }
     }
 }
 
@@ -346,7 +390,15 @@ fn vertex_simple(
     @builtin(vertex_index) vertex: u32,
     @builtin(instance_index) instance: u32,
 ) -> GreedyOut {
-    let quad = visible[params.visible_base + instance] * QUAD_WORDS;
+    let culled = visible[params.visible_base + instance];
+    var out: GreedyOut;
+    if (culled == CULLED) {
+        // Four corners in one place is no triangle, which is how a quad the culling pass threw
+        // away leaves the stage without anything downstream having to know it was ever here.
+        out.clip_position = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+        return out;
+    }
+    let quad = culled * QUAD_WORDS;
 
     let section = quad_field(quad, QUAD_SECTION_WORD, QUAD_SECTION_SHIFT, QUAD_SECTION_BITS);
     let anchor = section_origin(section)
@@ -362,11 +414,24 @@ fn vertex_simple(
     );
     let size = vec2<f32>(span);
 
-    let quad_uv = corner_uv(corner_index(vertex));
+    // A fluid surface stops short of the top of its block. The upward face sinks whole; a vertical
+    // face keeps its floor and pulls only its top edge down, and doing that through the quad
+    // coordinate rather than the position leaves that coordinate measuring depth below the block
+    // boundary — which is exactly what the flowing texture is mapped by.
+    let drop = f32(quad_field(quad, QUAD_DROP_WORD, QUAD_DROP_SHIFT, QUAD_DROP_BITS)) / MODEL_STEPS;
+    var quad_uv = corner_uv(corner_index(vertex));
+    if (face >= 2u) {
+        quad_uv.y = max(quad_uv.y, drop / size.y);
+    }
     let c = quad_uv * size;
-    let world = anchor + face_u_dir(face) * c.x + face_v_dir(face) * c.y;
+    var world = anchor + face_u_dir(face) * c.x + face_v_dir(face) * c.y;
+    if (face == 1u) {
+        world.y -= drop;
+    }
+    // Held back off its own block boundary, where the face of the block beside it is drawn.
+    let fluid = quad_field(quad, QUAD_FLUID_WORD, QUAD_FLUID_SHIFT, QUAD_FLUID_BITS);
+    world -= face_normal(face) * (FLUID_INSET * f32(fluid));
 
-    var out: GreedyOut;
     out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
     out.quad_uv = quad_uv;
     out.world_xz = world.xz;
@@ -386,6 +451,11 @@ fn vertex_complex(
     @builtin(instance_index) instance: u32,
 ) -> ModelOut {
     let quad = visible[params.visible_base + instance];
+    var out: ModelOut;
+    if (quad == CULLED) {
+        out.clip_position = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+        return out;
+    }
     let corner = corner_index(vertex);
     let base = (quad * 4u + corner) * 3u;
 
@@ -410,7 +480,6 @@ fn vertex_complex(
         default: { shade = 1.0; }
     }
 
-    var out: ModelOut;
     out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
     out.uv = vec2<f32>(u, v);
     out.layer = model_field(base, MODEL_LAYER_WORD, MODEL_LAYER_SHIFT, MODEL_LAYER_BITS);
@@ -472,8 +541,8 @@ fn sprite_color(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2
     return mix(color, sample_atlas(array, uv, next, ddx, ddy), fract(elapsed));
 }
 
-fn shade_surface(s: Surface, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
-    let color = sprite_color(s.array, s.uv, s.layer, ddx, ddy);
+fn shade_surface(s: Surface) -> vec4<f32> {
+    let color = sprite_color(s.array, s.uv, s.layer, s.ddx, s.ddy);
     // Both samples are unconditional: `tint_kind` varies between instances inside one draw, so a
     // branch around a `textureSample` would not be uniform control flow and WGSL rejects it.
     let tint_origin = vec2<f32>(f32(params.tint_origin_x), f32(params.tint_origin_z));
@@ -510,13 +579,22 @@ fn greedy_surface(in: GreedyOut) -> Surface {
         f.y,
     );
 
+    // A fluid's vertical faces sample the flowing sprite from its top-left quarter, once per block,
+    // which is what shows the texture at twice the size a block face would and makes a waterfall
+    // read as falling. The mesher leaves the occlusion field fully open on those faces, so nothing
+    // above has to know they are a fluid.
+    let fluid = field(attr, FACE_FLUID_SHIFT, FACE_FLUID_BITS) != 0u;
+    let scale = select(1.0, 0.5, fluid);
+
     var s: Surface;
     s.layer = field(attr, FACE_LAYER_SHIFT, FACE_LAYER_BITS);
     s.array = field(attr, FACE_ARRAY_SHIFT, FACE_ARRAY_BITS);
     s.tint_kind = field(attr, FACE_TINT_SHIFT, FACE_TINT_BITS);
     s.shade = lightmap(block_light, sky_light) * (in.directional * ao);
-    s.uv = uv;
+    s.uv = select(uv, fract(uv) * 0.5, fluid);
     s.world_xz = in.world_xz;
+    s.ddx = dpdx(uv) * scale;
+    s.ddy = dpdy(uv) * scale;
     return s;
 }
 
@@ -528,6 +606,8 @@ fn model_surface(in: ModelOut) -> Surface {
     s.shade = in.shade;
     s.uv = in.uv;
     s.world_xz = in.world_xz;
+    s.ddx = dpdx(in.uv);
+    s.ddy = dpdy(in.uv);
     return s;
 }
 
@@ -542,7 +622,7 @@ fn wireframe_discards(quad_uv: vec2<f32>) -> bool {
 @fragment
 fn fragment_greedy_opaque(in: GreedyOut) -> @location(0) vec4<f32> {
     let surface = greedy_surface(in);
-    let color = shade_surface(surface, dpdx(surface.uv), dpdy(surface.uv));
+    let color = shade_surface(surface);
     if (color.a < 0.5 || wireframe_discards(in.quad_uv)) {
         discard;
     }
@@ -557,20 +637,20 @@ fn fragment_greedy_opaque(in: GreedyOut) -> @location(0) vec4<f32> {
 @fragment
 fn fragment_greedy_solid(in: GreedyOut) -> @location(0) vec4<f32> {
     let surface = greedy_surface(in);
-    let color = shade_surface(surface, dpdx(surface.uv), dpdy(surface.uv));
+    let color = shade_surface(surface);
     return vec4<f32>(color.rgb, 1.0);
 }
 
 @fragment
 fn fragment_model_solid(in: ModelOut) -> @location(0) vec4<f32> {
-    let color = shade_surface(model_surface(in), dpdx(in.uv), dpdy(in.uv));
+    let color = shade_surface(model_surface(in));
     return vec4<f32>(color.rgb, 1.0);
 }
 
 @fragment
 fn fragment_greedy_blend(in: GreedyOut) -> @location(0) vec4<f32> {
     let surface = greedy_surface(in);
-    let color = shade_surface(surface, dpdx(surface.uv), dpdy(surface.uv));
+    let color = shade_surface(surface);
     if (wireframe_discards(in.quad_uv)) {
         discard;
     }
@@ -579,7 +659,7 @@ fn fragment_greedy_blend(in: GreedyOut) -> @location(0) vec4<f32> {
 
 @fragment
 fn fragment_model_opaque(in: ModelOut) -> @location(0) vec4<f32> {
-    let color = shade_surface(model_surface(in), dpdx(in.uv), dpdy(in.uv));
+    let color = shade_surface(model_surface(in));
     if (color.a < 0.5 || wireframe_discards(in.quad_uv)) {
         discard;
     }
@@ -588,7 +668,7 @@ fn fragment_model_opaque(in: ModelOut) -> @location(0) vec4<f32> {
 
 @fragment
 fn fragment_model_blend(in: ModelOut) -> @location(0) vec4<f32> {
-    let color = shade_surface(model_surface(in), dpdx(in.uv), dpdy(in.uv));
+    let color = shade_surface(model_surface(in));
     if (wireframe_discards(in.quad_uv)) {
         discard;
     }

@@ -96,6 +96,20 @@ pub const QUAD_Z: Field = Field::new(0, 10, 5);
 pub const QUAD_FACE: Field = Field::new(0, 15, 3);
 pub const QUAD_W: Field = Field::new(0, 18, 4);
 pub const QUAD_H: Field = Field::new(0, 22, 4);
+/// How far below its own plane a fluid quad's top edge sits, in [`MODEL_STEPS`] per block. Zero on
+/// everything that is not a fluid, which is what leaves the block path untouched.
+///
+/// A fluid surface stops eight ninths of the way up its block, so a quad merged out of fluid faces
+/// has to be able to say so. Two fluid cells only merge when their drop agrees, so one number per
+/// quad describes the whole of it. The units are the model path's own so that a merged flat quad
+/// and the sloped quads around it land on the same grid: a fluid meeting itself across the two
+/// paths would otherwise show a step of a fiftieth of a block down every shoreline.
+pub const QUAD_DROP: Field = Field::new(0, 26, 5);
+/// Set on every quad of a fluid, which is held [`FLUID_INSET`] inside its own block.
+///
+/// [`QUAD_DROP`] cannot stand in for this: a submerged fluid fills its block and drops by nothing,
+/// and it still has to be held off the faces around it.
+pub const QUAD_FLUID: Field = Field::new(0, 31, 1);
 
 // Greedy quad, second word. The base is where this quad's own run of face attributes starts
 // inside its section's run, which is the whole reason a quad fits in two words: a place in a
@@ -103,7 +117,7 @@ pub const QUAD_H: Field = Field::new(0, 22, 4);
 // to hold them with. The section's own run is found through the table at the head of the block,
 // and the block itself arrives with the draw.
 pub const QUAD_SECTION: Field = Field::new(1, 0, SECTION_INDEX.bits);
-pub const QUAD_FACE_BASE: Field = Field::new(1, SECTION_INDEX.bits, 15);
+pub const QUAD_FACE_BASE: Field = Field::new(1, SECTION_INDEX.bits, 16);
 
 /// How many `u32` one greedy quad occupies.
 pub const QUAD_WORDS: usize = 2;
@@ -113,11 +127,12 @@ pub const QUAD_WORDS: usize = 2;
 /// ever reads.
 pub const SECTION_FACE_TABLE: usize = SECTIONS_PER_RENDER_REGION;
 
-// What makes the base above wide enough is a bound rather than a measurement: a section has six
-// faces to a block and cannot show more of them than that, whatever the world puts in it.
+// What makes the base above wide enough is a bound rather than a measurement: a block has six faces
+// and the fluid filling it has six more, and no cell of a section can show more than that whatever
+// the world puts in it. Twelve rather than six because a waterlogged block is both at once.
 const _: () = assert!(
-    (6 * crate::anvil::SECTION_VOLUME) as u64 <= QUAD_FACE_BASE.max(),
-    "a section can hold more block faces than a quad can name a place among"
+    (12 * crate::anvil::SECTION_VOLUME) as u64 <= QUAD_FACE_BASE.max(),
+    "a section can hold more faces than a quad can name a place among"
 );
 
 // One face of one block, as the fragment shader reads it. A quad owns `w * h` of these laid out
@@ -137,6 +152,10 @@ pub const FACE_TINT: Field = Field::new(0, 12, 2);
 pub const FACE_BLOCK_LIGHT: Field = Field::new(0, 14, 4);
 pub const FACE_SKY_LIGHT: Field = Field::new(0, 18, 4);
 pub const FACE_AO: Field = Field::new(0, 22, 8);
+/// Set on the vertical faces of a fluid, which map their sprite the way vanilla's fluid renderer
+/// does rather than one sprite to a block: the flowing texture is sampled from its top-left
+/// quarter, so a waterfall shows the texture at twice the size a block face would.
+pub const FACE_FLUID: Field = Field::new(0, 30, 1);
 
 // Model vertex, three words per corner. Positions are fixed point relative to the section, wide
 // enough for the overhang on both sides.
@@ -164,6 +183,15 @@ pub const MODEL_OVERHANG: f32 = 2.0;
 
 /// Fixed-point steps per block in a model coordinate.
 pub const MODEL_STEPS: f32 = 32.0;
+
+/// How far inside its own block every face of a fluid is held.
+///
+/// A fluid face is drawn exactly where the face of the block beside it is drawn — water against
+/// glass, against leaves, against the flat side of a slab — and two quads in one plane fight for
+/// the depth buffer pixel by pixel. Vanilla answers this the same way and for the same reason: not
+/// by ordering the two, which nothing can do once they are the same distance away, but by moving
+/// the fluid a thousandth of a block back so there is an order to find.
+pub const FLUID_INSET: f32 = 0.001;
 
 /// How many sprites one array can hold. With four arrays that is four thousand addressable
 /// sprites, against the eleven hundred a vanilla pack defines and the seventeen hundred it would
@@ -288,6 +316,8 @@ const FIELDS: &[(&str, Field)] = &[
     ("QUAD_FACE", QUAD_FACE),
     ("QUAD_W", QUAD_W),
     ("QUAD_H", QUAD_H),
+    ("QUAD_DROP", QUAD_DROP),
+    ("QUAD_FLUID", QUAD_FLUID),
     ("QUAD_SECTION", QUAD_SECTION),
     ("QUAD_FACE_BASE", QUAD_FACE_BASE),
     ("FACE_LAYER", FACE_LAYER),
@@ -296,6 +326,7 @@ const FIELDS: &[(&str, Field)] = &[
     ("FACE_BLOCK_LIGHT", FACE_BLOCK_LIGHT),
     ("FACE_SKY_LIGHT", FACE_SKY_LIGHT),
     ("FACE_AO", FACE_AO),
+    ("FACE_FLUID", FACE_FLUID),
     ("MODEL_X", MODEL_X),
     ("MODEL_Y", MODEL_Y),
     ("MODEL_Z", MODEL_Z),
@@ -315,6 +346,7 @@ const SCALARS: &[(&str, f64)] = &[
     ("SECTION_SIZE", crate::anvil::SECTION_SIZE as f64),
     ("MODEL_OVERHANG", MODEL_OVERHANG as f64),
     ("MODEL_STEPS", MODEL_STEPS as f64),
+    ("FLUID_INSET", FLUID_INSET as f64),
     ("QUAD_WORDS", QUAD_WORDS as f64),
 ];
 
@@ -348,7 +380,9 @@ mod tests {
         for (file, source) in shaders {
             for (name, value) in declarations(source) {
                 if let Some(&(_, expected)) = SCALARS.iter().find(|(known, _)| *known == name) {
-                    assert_eq!(value, expected, "{file} disagrees on {name}");
+                    // Compared at the width the shader holds them at: a fraction widened from
+                    // `f32` never equals the same digits parsed straight into `f64`.
+                    assert_eq!(value as f32, expected as f32, "{file} disagrees on {name}");
                     seen.push((name, "SCALAR"));
                     continue;
                 }
@@ -413,7 +447,8 @@ mod tests {
     #[test]
     fn no_word_of_a_quad_is_overfull() {
         let quad = [
-            QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_SECTION, QUAD_FACE_BASE,
+            QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_DROP, QUAD_FLUID,
+            QUAD_SECTION, QUAD_FACE_BASE,
         ];
         for word in 0..QUAD_WORDS as u32 {
             let bits: u32 = quad

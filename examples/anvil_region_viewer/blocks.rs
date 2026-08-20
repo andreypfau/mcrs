@@ -81,8 +81,18 @@ pub struct BlockInfo {
     pub occludes: bool,
     /// Hides the touching face of an identical neighbour, the way glass and water do.
     pub self_culls: bool,
+    /// Which of the six faces this block's own opaque geometry covers corner to corner, as a bit
+    /// per [`Dir`]. Vanilla asks a voxel shape the same question, and the answer is what decides
+    /// whether the water in a waterlogged block shows through its own stair or slab, and whether a
+    /// fluid beside one is hidden by it. [`Self::occludes`] is the whole-block version and cannot
+    /// stand in: a stair covers two of its faces and none of the other four.
+    pub sturdy: u8,
     pub tint_kind: TintKind,
     pub emission: u8,
+    /// The fluid filling this block, drawn by its own mesher rather than by either model path. A
+    /// waterlogged block carries geometry *and* a fluid, so this sits beside the model rather than
+    /// replacing it.
+    pub fluid: Option<Fluid>,
 }
 
 impl Default for BlockInfo {
@@ -92,8 +102,10 @@ impl Default for BlockInfo {
             quads: Vec::new(),
             occludes: false,
             self_culls: false,
+            sturdy: 0,
             tint_kind: TintKind::Grass,
             emission: 0,
+            fluid: None,
         }
     }
 }
@@ -146,16 +158,86 @@ const EMISSION: [(&str, u8); 9] = [
     ("minecraft:budding_amethyst", 0),
 ];
 
-/// Blocks whose model carries no geometry because the client renders them as a fluid. They are
-/// meshed as plain cubes of their still texture.
-///
-/// ponytail: a real fluid mesher would slope the surface by `level` and use the flowing texture.
-/// A viewer of a mostly-underground region does not miss it; add it when surface oceans matter.
-const FLUIDS: [(&str, &str); 3] = [
-    ("minecraft:water", "minecraft:block/water_still"),
-    ("minecraft:bubble_column", "minecraft:block/water_still"),
-    ("minecraft:lava", "minecraft:block/lava_still"),
+/// Blocks vanilla gives a fluid to without a `waterlogged` property, because their own class
+/// answers `getFluidState` with a water source.
+const IMPLICITLY_WATERLOGGED: [&str; 5] = [
+    "minecraft:bubble_column",
+    "minecraft:kelp",
+    "minecraft:kelp_plant",
+    "minecraft:seagrass",
+    "minecraft:tall_seagrass",
 ];
+
+/// The fluid a block holds, as much of vanilla's `FluidState` as drawing one needs.
+///
+/// A fluid is not a model and never goes through the bakery: water and lava ship models with no
+/// elements at all, and the surface of a fluid is a shape the client computes from the levels of
+/// the eight blocks around it. What a block state carries here is only the input to that.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct Fluid {
+    /// Lava draws opaque in the solid pass and takes no biome tint; water is blended and tinted.
+    pub lava: bool,
+    /// Vanilla's fluid amount, which is this block's own height in ninths and runs 1..=8. A block
+    /// with the same fluid above it is a full cube whatever this says.
+    pub amount: u8,
+    /// The surface texture, used flat on the top and bottom of the fluid.
+    pub still: SpriteRef,
+    /// The flowing texture, used on every vertical face and on a surface that is moving.
+    pub flow: SpriteRef,
+    /// What a vertical face takes instead of the flowing texture where it meets something you can
+    /// see through. Vanilla ships one for water and none for lava.
+    pub overlay: Option<SpriteRef>,
+}
+
+/// Vanilla's `FlowingFluid.getLegacyLevel` read backwards: a block state's `level` is the amount
+/// counted down from eight, with eight added again when the fluid is falling. Falling changes only
+/// how fast the fluid spreads, never how it is drawn, so it is dropped here.
+fn amount_of(level: u32) -> u8 {
+    match level {
+        0 => 8,
+        1..=7 => 8 - level as u8,
+        _ => (16u32.saturating_sub(level)).clamp(1, 8) as u8,
+    }
+}
+
+/// The fluid a block state holds, and the two sprites drawing it needs.
+fn fluid_of(
+    state: &BlockStateKey,
+    sprites: &mut SpriteRegistry,
+) -> Result<Option<Fluid>, String> {
+    let prop = |key: &str| {
+        state
+            .props
+            .iter()
+            .find(|(name, _)| name == key)
+            .map(|(_, value)| value.as_str())
+    };
+    let (lava, amount) = match state.name.as_str() {
+        "minecraft:water" | "minecraft:lava" => {
+            let level = prop("level").and_then(|value| value.parse().ok()).unwrap_or(0);
+            (state.name == "minecraft:lava", amount_of(level))
+        }
+        name if IMPLICITLY_WATERLOGGED.contains(&name) => (false, 8),
+        _ if prop("waterlogged") == Some("true") => (false, 8),
+        _ => return Ok(None),
+    };
+    let (still, flow) = if lava {
+        ("minecraft:block/lava_still", "minecraft:block/lava_flow")
+    } else {
+        ("minecraft:block/water_still", "minecraft:block/water_flow")
+    };
+    let overlay = match lava {
+        true => None,
+        false => Some(sprites.intern("minecraft:block/water_overlay")?),
+    };
+    Ok(Some(Fluid {
+        lava,
+        amount,
+        still: sprites.intern(still)?,
+        flow: sprites.intern(flow)?,
+        overlay,
+    }))
+}
 
 /// A catalog with nothing baked into it yet. Regions are baked in as they arrive, because the
 /// block states a world holds are only known once its files have been read.
@@ -228,36 +310,27 @@ fn build_one(
         .map(|(_, level)| *level)
         .unwrap_or(0);
     let tint_kind = tint_kind_of(&state.name);
-
-    if let Some((_, sprite)) = FLUIDS.iter().find(|(name, _)| *name == state.name) {
-        let interned = sprites.intern(sprite)?;
-        let pass = Pass::of(sprites.opacity(interned));
-        let tinted = state.name != "minecraft:lava";
-        return Ok(BlockInfo {
-            cube: Some([CubeFace {
-                sprite: interned,
-                pass: pass as u8,
-                tinted,
-            }; 6]),
-            quads: Vec::new(),
-            occludes: false,
-            self_culls: true,
-            tint_kind,
-            emission,
-        });
-    }
+    let fluid = fluid_of(state, sprites)?;
 
     let baked = bake::bake(&state.name, &state.pairs(), IVec3::ZERO, world)?;
     if baked.quads.is_empty() {
-        // Block entities (chests, beds, spawners) ship a model with no elements; the client draws
-        // them with a separate entity renderer this viewer does not have.
-        return Ok(BlockInfo::default());
+        // Water and lava ship a model holding nothing but a particle texture, and block entities
+        // (chests, beds, spawners) ship one with no elements at all; the client draws those with a
+        // separate entity renderer this viewer does not have.
+        return Ok(BlockInfo {
+            fluid,
+            ..BlockInfo::default()
+        });
     }
 
     let mut layers: Vec<SpriteRef> = Vec::with_capacity(baked.sprites.len());
     for sprite in &baked.sprites {
         layers.push(sprites.intern(sprite)?);
     }
+
+    // Taken before the cube is split off, because the six faces of a full cube are exactly the
+    // ones that cover their own side and `split_cube` moves them out of the list.
+    let sturdy = sturdy_faces(&baked.quads, &layers, sprites);
 
     let (cube_faces, extras) = split_cube(&baked.quads);
     let mut cube = None;
@@ -303,9 +376,84 @@ fn build_one(
         quads,
         occludes,
         self_culls,
+        sturdy,
         tint_kind,
         emission,
+        fluid,
     })
+}
+
+/// How finely a face is measured for coverage. Model coordinates are already sixteenths of a
+/// block, so this is exact for the boxes every block model is built out of.
+const FACE_GRID: usize = 16;
+
+/// Which sides of the unit cube the model closes off, as a bit per [`Dir`].
+///
+/// A side counts as closed when the opaque quads lying on it cover it outright, which has to be
+/// asked of the quads together rather than one at a time: the closed side of a stair is its slab
+/// and its step, two quads meeting halfway up, and either alone covers nothing. That is why the
+/// coverage is painted onto a grid of sixteenths instead of tested as a rectangle — and painting a
+/// stair, a slab and a shut trapdoor onto it comes out where vanilla's own occlusion shapes do,
+/// because every block model there is is a union of boxes.
+fn sturdy_faces(
+    quads: &[bake::BakedQuad],
+    layers: &[SpriteRef],
+    sprites: &SpriteRegistry,
+) -> u8 {
+    let mut sides = [[0u16; FACE_GRID]; Dir::ALL.len()];
+    for quad in quads {
+        let Some(dir) = quad.cull else { continue };
+        if sprites.opacity(layers[quad.sprite]) != Opacity::Solid {
+            continue;
+        }
+        cover_face(&mut sides[dir as usize], &quad.positions, dir);
+    }
+    let mut mask = 0;
+    for dir in Dir::ALL {
+        if sides[dir as usize].iter().all(|row| *row == u16::MAX) {
+            mask |= 1 << dir as u8;
+        }
+    }
+    mask
+}
+
+/// Paints the sixteenths of one side of the block that a quad lying flat on it covers.
+///
+/// A quad that only partly covers a sixteenth is not counted for it: a face has to be closed to
+/// hide what is behind it, and half a texel of cover is a gap.
+fn cover_face(side: &mut [u16; FACE_GRID], positions: &[Vec3; 4], dir: Dir) {
+    let axes = FACE_AXES[dir as usize];
+    let normal = axes[0] as usize;
+    let plane = if axes[1] == 1 { 1.0 } else { 0.0 };
+    let mut low = [f32::INFINITY; 3];
+    let mut high = [f32::NEG_INFINITY; 3];
+    for position in positions {
+        let point = [position.x, position.y, position.z];
+        if (point[normal] - plane).abs() > 1e-4 {
+            return;
+        }
+        for axis in 0..3 {
+            low[axis] = low[axis].min(point[axis]);
+            high[axis] = high[axis].max(point[axis]);
+        }
+    }
+    let steps = FACE_GRID as f32;
+    let cell = |value: f32, round_up: bool| {
+        let scaled = value * steps;
+        let rounded = if round_up { scaled.ceil() } else { scaled.floor() };
+        rounded.clamp(0.0, steps) as usize
+    };
+    // The two axes the face runs along, which are every axis but the one it faces.
+    let mut tangents = (0..3).filter(|axis| *axis != normal);
+    let (rows, columns) = (tangents.next().unwrap(), tangents.next().unwrap());
+    let span = cell(low[columns], true)..cell(high[columns], false);
+    if span.is_empty() {
+        return;
+    }
+    let bits = (((1u32 << span.len()) - 1) << span.start) as u16;
+    for row in cell(low[rows], true)..cell(high[rows], false) {
+        side[row] |= bits;
+    }
 }
 
 /// The horizontal diagonals, in the order the culling pass numbers them after the six axes. These
@@ -541,9 +689,95 @@ fn surface_biome(world: &World, x: usize, z: usize) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use super::{cube_corner, face_group, split_cube};
+
+    /// Vanilla stores a fluid's height in the block state as `getLegacyLevel` wrote it: the amount
+    /// counted down from eight, with the whole scale repeated above eight for a falling fluid.
+    /// Reading it back the wrong way round turns a trickle into a full block and a full block into
+    /// a trickle, which no test of the mesher above it would ever notice.
+    #[test]
+    fn a_fluid_level_reads_back_as_the_height_vanilla_gives_it() {
+        let ninths = [8u8, 7, 6, 5, 4, 3, 2, 1, 8, 7, 6, 5, 4, 3, 2, 1];
+        for (level, height) in ninths.iter().enumerate() {
+            assert_eq!(super::amount_of(level as u32), *height, "level {level}");
+        }
+    }
+
+    use super::{BlockStateKey, cube_corner, face_group, split_cube};
+    use crate::atlas::SpriteRegistry;
     use crate::bake::{self, Dir, TinyWorld};
     use bevy::math::{IVec3, Vec3};
+
+    /// Bakes one block state the way the catalog does.
+    fn bake_state(name: &str, props: &[(&str, &str)]) -> super::BlockInfo {
+        let state = BlockStateKey {
+            name: name.to_string(),
+            props: props
+                .iter()
+                .map(|(key, value)| (key.to_string(), value.to_string()))
+                .collect(),
+        };
+        super::build_one(&state, &TinyWorld::default(), &mut SpriteRegistry::new())
+            .unwrap_or_else(|reason| panic!("{name} does not bake: {reason}"))
+    }
+
+    /// The six sides a block closes off, named, so a failure says which side went missing rather
+    /// than printing two numbers.
+    fn closed(name: &str, props: &[(&str, &str)]) -> Vec<&'static str> {
+        let sturdy = bake_state(name, props).sturdy;
+        Dir::ALL
+            .into_iter()
+            .filter(|dir| sturdy >> *dir as u8 & 1 == 1)
+            .map(|dir| dir.name())
+            .collect()
+    }
+
+    /// Which sides of a block are closed is what decides whether the water in a waterlogged block
+    /// shows through its own geometry, and it cannot be read off one quad at a time: the closed
+    /// side of a stair is a slab and a step meeting halfway up it, and neither covers the side
+    /// alone. Vanilla asks a voxel shape the same question and gets these same answers.
+    #[test]
+    fn a_block_closes_the_sides_its_own_geometry_covers() {
+        assert_eq!(
+            closed("minecraft:stone", &[]),
+            ["down", "up", "north", "south", "west", "east"],
+            "a full cube closes everything"
+        );
+        assert_eq!(
+            closed("minecraft:oak_slab", &[("type", "bottom")]),
+            ["down"],
+            "a slab closes the side it sits on and nothing else"
+        );
+        assert_eq!(closed("minecraft:oak_slab", &[("type", "top")]), ["up"]);
+        // A stair's slab covers the lower half of all four sides and its step covers the upper half
+        // of the one it stands against, so exactly that one side comes out closed.
+        assert_eq!(
+            closed(
+                "minecraft:oak_stairs",
+                &[("facing", "east"), ("half", "bottom"), ("shape", "straight")],
+            ),
+            ["down", "east"],
+        );
+        assert_eq!(
+            closed(
+                "minecraft:oak_stairs",
+                &[("facing", "north"), ("half", "top"), ("shape", "straight")],
+            ),
+            ["up", "north"],
+        );
+        assert!(
+            closed("minecraft:oak_fence", &[]).is_empty(),
+            "a fence post covers no side of its block"
+        );
+        assert!(
+            closed("minecraft:glass", &[]).is_empty(),
+            "glass covers every side and hides none of them, which is what the fluid overlay is for"
+        );
+        assert!(
+            closed("minecraft:oak_leaves", &[("persistent", "false"), ("distance", "7")])
+                .is_empty(),
+            "leaves are a cube full of holes and hide nothing"
+        );
+    }
 
     /// A quad joins a face group only when it points along that direction squarely, and the
     /// nearest axis is not good enough to decide it: the two diagonal panes of a plant are nearest
