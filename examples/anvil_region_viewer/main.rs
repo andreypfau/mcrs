@@ -59,7 +59,7 @@ use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseSc
 use bevy::prelude::*;
 use bevy::render::view::Msaa;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
-use bevy::window::{MonitorSelection, PresentMode, WindowMode, WindowPosition};
+use bevy::window::{MonitorSelection, PresentMode, VideoModeSelection, WindowMode, WindowPosition};
 use bevy::winit::{UpdateMode, WinitSettings};
 
 use pack::RegionGrid;
@@ -107,6 +107,31 @@ fn chosen_monitor() -> MonitorSelection {
             .map(MonitorSelection::Index)
             .unwrap_or(MonitorSelection::Current),
         Err(_) => MonitorSelection::Current,
+    }
+}
+
+/// The fullscreen `ANVIL_FULLSCREEN` asks for, or nothing for a window. `exclusive` takes the
+/// display outright instead of laying a borderless window over it, which are two different paths
+/// through the compositor and so two different frame rates.
+fn fullscreen_mode() -> Option<WindowMode> {
+    match std::env::var("ANVIL_FULLSCREEN").as_deref() {
+        Ok("exclusive") => Some(WindowMode::Fullscreen(
+            chosen_monitor(),
+            VideoModeSelection::Current,
+        )),
+        Ok(_) => Some(WindowMode::BorderlessFullscreen(chosen_monitor())),
+        Err(_) => None,
+    }
+}
+
+/// Goes fullscreen one frame after the window opens, which is the earliest a display named by
+/// index can be honoured: the list of monitors is still empty while the first window is being
+/// built, so a selection by index resolves to nothing there and silently falls back to whichever
+/// display the window landed on.
+fn enter_fullscreen(window: Single<&mut Window>) {
+    if let Some(mode) = fullscreen_mode() {
+        let mut window = window;
+        window.mode = mode;
     }
 }
 
@@ -192,10 +217,7 @@ fn main() {
                     present_mode: PresentMode::AutoNoVsync,
                     // The same swap F11 does, at startup, so a rate can be measured from a
                     // terminal without a human at the window.
-                    mode: match std::env::var("ANVIL_FULLSCREEN") {
-                        Ok(_) => WindowMode::BorderlessFullscreen(chosen_monitor()),
-                        Err(_) => WindowMode::Windowed,
-                    },
+                    // Fullscreen is entered a frame later rather than here; see `enter_fullscreen`.
                     position: WindowPosition::Centered(chosen_monitor()),
                     ..default()
                 }),
@@ -228,7 +250,7 @@ fn main() {
         .add_plugins((TerrainPlugin(layout, uploads), sky::DayCyclePlugin))
         .insert_resource(cave)
         .insert_resource(loader)
-        .add_systems(Startup, (spawn_camera, spawn_overlay))
+        .add_systems(Startup, (spawn_camera, spawn_overlay, enter_fullscreen))
         .add_systems(Update, stream::advance)
         .add_systems(Update, orbit)
         .add_systems(Update, frame_stats)
