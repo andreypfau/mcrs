@@ -59,7 +59,7 @@ use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseSc
 use bevy::prelude::*;
 use bevy::render::view::Msaa;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
-use bevy::window::{MonitorSelection, PresentMode, VideoModeSelection, WindowMode, WindowPosition};
+use bevy::window::{Monitor, MonitorSelection, PresentMode, VideoModeSelection, WindowMode, WindowPosition};
 use bevy::winit::{UpdateMode, WinitSettings};
 
 use pack::RegionGrid;
@@ -99,41 +99,87 @@ const FACE_BYTES: usize = 4;
 /// Which display the window opens on. Whichever display the pointer happens to sit on is not a
 /// fixed quantity, and a figure taken at one resolution does not compare with one taken at another,
 /// so a measurement has to be able to name the display rather than inherit it.
-fn chosen_monitor() -> MonitorSelection {
-    match std::env::var("ANVIL_MONITOR").as_deref() {
-        Ok("primary") => MonitorSelection::Primary,
-        Ok(index) => index
-            .parse()
-            .map(MonitorSelection::Index)
-            .unwrap_or(MonitorSelection::Current),
-        Err(_) => MonitorSelection::Current,
+///
+/// `ANVIL_MONITOR` takes `primary`, an index, or any part of how a display describes itself —
+/// its name and its resolution, as `3456x2234`. The last of those because an index is a guess at
+/// an order nothing promises, and macOS hands the windowing backend no display names worth
+/// reading: a laptop with a monitor plugged into it reports two numbered strangers, and the
+/// resolution is the only thing about them a person can recognise.
+fn chosen_monitor(monitors: &Query<(Entity, &Monitor)>) -> MonitorSelection {
+    let Ok(spec) = std::env::var("ANVIL_MONITOR") else {
+        return MonitorSelection::Current;
+    };
+    if spec == "primary" {
+        return MonitorSelection::Primary;
     }
+    if let Ok(index) = spec.parse() {
+        return MonitorSelection::Index(index);
+    }
+    let wanted = spec.to_lowercase();
+    let known: Vec<String> = monitors.iter().map(|(_, monitor)| describe(monitor)).collect();
+    let found = monitors
+        .iter()
+        .find(|(_, monitor)| describe(monitor).to_lowercase().contains(&wanted));
+    match found {
+        Some((entity, monitor)) => {
+            info!("ANVIL_MONITOR={spec} picked {} out of {known:?}", describe(monitor));
+            MonitorSelection::Entity(entity)
+        }
+        None => {
+            warn!("no display matches ANVIL_MONITOR={spec}; this machine has {known:?}");
+            MonitorSelection::Current
+        }
+    }
+}
+
+/// How a display describes itself: its name, if the platform gives one worth reading, and its
+/// resolution.
+fn describe(monitor: &Monitor) -> String {
+    format!(
+        "{} {}x{}",
+        monitor.name.as_deref().unwrap_or("display"),
+        monitor.physical_width,
+        monitor.physical_height,
+    )
 }
 
 /// The fullscreen `ANVIL_FULLSCREEN` asks for, or nothing for a window. `exclusive` takes the
 /// display outright instead of laying a borderless window over it, which are two different paths
 /// through the compositor and so two different frame rates.
-fn fullscreen_mode() -> Option<WindowMode> {
+fn fullscreen_mode(monitor: MonitorSelection) -> Option<WindowMode> {
     match std::env::var("ANVIL_FULLSCREEN").as_deref() {
         Ok("exclusive") => Some(WindowMode::Fullscreen(
-            chosen_monitor(),
+            monitor,
             VideoModeSelection::Current,
         )),
-        Ok(_) => Some(WindowMode::BorderlessFullscreen(chosen_monitor())),
+        Ok(_) => Some(WindowMode::BorderlessFullscreen(monitor)),
         Err(_) => None,
     }
 }
 
 /// Puts the window on the display it was told to, which is the earliest that can be done: the list
-/// of monitors is still empty while the first window is being built, so a selection by index
-/// resolves to nothing there and falls back to whichever display the window landed on.
-fn enter_fullscreen(window: Single<&mut Window>) {
-    if let Some(mode) = fullscreen_mode() {
-        let mut window = window;
-        if window.mode != mode {
-            window.mode = mode;
-        }
+/// of monitors is still empty while the first window is being built, so a selection resolves to
+/// nothing there and falls back to whichever display the window landed on.
+fn place_window(
+    window: Single<&mut Window>,
+    monitors: Query<(Entity, &Monitor)>,
+    mut placed: Local<bool>,
+) {
+    // Runs every frame until it lands rather than once at startup: displays are entities the
+    // windowing backend spawns, and on the frame the first window is built there are none of them
+    // yet. Asking then names no display at all and leaves the window wherever it opened.
+    if *placed || monitors.is_empty() {
+        return;
     }
+    let monitor = chosen_monitor(&monitors);
+    let mut window = window;
+    match fullscreen_mode(monitor) {
+        Some(mode) => window.mode = mode,
+        // A windowed run has to be moved outright, because the position it was built with resolved
+        // against that same empty list.
+        None => window.position = WindowPosition::Centered(monitor),
+    }
+    *placed = true;
 }
 
 fn main() {
@@ -219,14 +265,14 @@ fn main() {
                     // The same swap F11 does, at startup, so a rate can be measured from a
                     // terminal without a human at the window.
                     // Fullscreen twice over: here on whichever display the window opens on, and
-                    // again from `enter_fullscreen` once a display can be named. Asking only the
+                    // again from `place_window` once a display can be named. Asking only the
                     // second time leaves runs that come up windowed, and a frame rate read from a
                     // window is not the one being measured.
-                    mode: match fullscreen_mode() {
+                    mode: match fullscreen_mode(MonitorSelection::Current) {
                         Some(_) => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
                         None => WindowMode::Windowed,
                     },
-                    position: WindowPosition::Centered(chosen_monitor()),
+                    position: WindowPosition::default(),
                     ..default()
                 }),
                 ..default()
@@ -262,7 +308,8 @@ fn main() {
         .add_plugins((TerrainPlugin(layout, uploads), sky::DayCyclePlugin))
         .insert_resource(cave)
         .insert_resource(loader)
-        .add_systems(Startup, (spawn_camera, spawn_overlay, enter_fullscreen))
+        .add_systems(Startup, (spawn_camera, spawn_overlay))
+        .add_systems(Update, place_window)
         .add_systems(Update, stream::advance)
         .add_systems(Update, orbit)
         .add_systems(Update, frame_stats)
@@ -570,10 +617,9 @@ fn screenshot(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     loader: Res<stream::Loader>,
-    mut frames: Local<u32>,
+    time: Res<Time>,
     mut settled: Local<u32>,
 ) {
-    *frames += 1;
     // Counted from when the loader went quiet rather than from the start: the window fills in the
     // background now, and a shot taken on a fixed frame catches whatever happened to be up.
     if loader.done() {
@@ -582,11 +628,17 @@ fn screenshot(
     let auto = std::env::var("ANVIL_SCREENSHOT").ok();
     // Thirty frames after the loader goes quiet, or after ten seconds if it never does — with the
     // view moving there is always something left to load and the first condition never comes.
+    //
+    // Counted in seconds rather than frames, because how many frames ten seconds holds is the one
+    // thing this example exists to change: uncapped on a fast display it reaches six hundred of
+    // them before the first region has been read, and shoots an empty sky.
+    let elapsed = time.elapsed_secs();
+    let deadline = *settled == 30 || (elapsed >= 10.0 && elapsed - time.delta_secs() < 10.0);
     let path = match (&auto, keys.just_pressed(KeyCode::F12)) {
-        (Some(path), _) if *settled == 30 || *frames == 600 => path.clone(),
+        (Some(path), _) if deadline => path.clone(),
         (_, true) => "anvil_region_viewer.png".to_string(),
         _ => {
-            if auto.is_some() && *frames > 3600 {
+            if auto.is_some() && elapsed > 60.0 {
                 commands.write_message(AppExit::Success);
             }
             return;
