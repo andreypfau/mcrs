@@ -222,7 +222,10 @@ fn main() {
                     ..default()
                 }),
                 ..default()
-            }))
+            })
+            // Nothing here is a bevy mesh with a bevy material: the terrain is drawn from arenas
+            // the example fills itself. Everything this brings costs a frame and draws nothing.
+            .disable::<bevy::pbr::PbrPlugin>())
         // Bevy throttles an unfocused window to 60 Hz to save power, which silently pins the
         // counter to exactly that and hides what the renderer is really doing.
         .insert_resource(WinitSettings {
