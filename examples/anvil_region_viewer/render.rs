@@ -13,11 +13,11 @@ use std::num::NonZeroU64;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 
-use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d};
+use bevy::core_pipeline::core_3d::{AlphaMask3d, CORE_3D_DEPTH_FORMAT, Opaque3d, main_opaque_pass_3d};
 use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy::prelude::*;
 use bevy::render::globals::{GlobalsBuffer, GlobalsUniform};
-use bevy::render::render_phase::TrackedRenderPass;
+use bevy::render::render_phase::{TrackedRenderPass, ViewBinnedRenderPhases};
 use bevy::render::render_resource::binding_types::{
     sampler, storage_buffer_read_only_sized, storage_buffer_sized, texture_2d_array,
     uniform_buffer, uniform_buffer_sized,
@@ -509,6 +509,7 @@ impl Plugin for TerrainPlugin {
                 Render,
                 (
                     prepare_pipelines.in_set(RenderSystems::Prepare),
+                    drop_unused_bins.in_set(RenderSystems::Prepare),
                     // Ahead of the two systems that write into the params table, and well ahead of
                     // the culling pass that reads what it publishes.
                     apply_uploads.in_set(RenderSystems::Prepare).before(prepare_wireframe),
@@ -1595,6 +1596,20 @@ fn cull_terrain(
         pass.dispatch_workgroups(workgroups, 1, 1);
     }
     span.end(&mut pass);
+}
+
+/// Bevy's own opaque pass opens a pass over the whole target, with a colour and a depth
+/// attachment, before it looks at whether it has anything to draw. On a tile-based GPU that is a
+/// clear and a store of every pixel for nothing: not one thing in this example is drawn through it,
+/// because the terrain is not a mesh the renderer knows about and there is no other geometry.
+/// Emptying the view's bins makes that pass return before it opens anything, and the clear falls to
+/// the terrain pass, which is then the first to touch the target.
+fn drop_unused_bins(
+    mut opaque: ResMut<ViewBinnedRenderPhases<Opaque3d>>,
+    mut alpha_mask: ResMut<ViewBinnedRenderPhases<AlphaMask3d>>,
+) {
+    opaque.clear();
+    alpha_mask.clear();
 }
 
 fn draw_terrain(
