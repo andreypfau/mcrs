@@ -3,8 +3,9 @@
 //! Once a frame a breadth-first walk starts at the camera's section and steps into a neighbour only
 //! when four tests pass: the section being left can be crossed from the entry face to the exit face
 //! (the mask the mesher baked), the step does not reverse an axis already spent, the arrival says
-//! something the same face has not already said, and the neighbour's box lands inside the frustum. Everything the walk never reaches sits behind rock and is thrown
-//! away before any vertex work.
+//! something the same face has not already said, and the neighbour's box lands inside the frustum.
+//! Everything the walk never reaches — behind rock, off the screen, or past the loaded world — is
+//! thrown away before any vertex work.
 
 use bevy::camera::primitives::{Aabb, Frustum};
 use bevy::prelude::*;
@@ -42,14 +43,40 @@ const QUEUE_SLOT_BITS: u32 = 20;
 const QUEUE_ENTRY_SHIFT: u32 = QUEUE_SLOT_BITS;
 const QUEUE_DIRS_SHIFT: u32 = QUEUE_ENTRY_SHIFT + 3;
 
+/// The tail of always-set slots starts at a whole word, which only holds while a render region is
+/// a whole number of words of sections.
+const _: () = assert!(SECTIONS_PER_RENDER_REGION % 32 == 0);
+
+/// A queue entry has to fit the word it is stored in.
+const _: () = assert!(QUEUE_DIRS_SHIFT + 6 <= 32);
+
+/// Two things the walk rests on that the face order could quietly take away: that a face and its
+/// opposite differ by one bit, which is the whole of the no-reversal rule, and that [`AXIS_FACE`]
+/// names each axis's negative face, which is how a seed outside the grid decides what it has spent
+/// getting there. Neither would fail loudly if the mesher reordered its faces.
+const _: () = {
+    let mut face = 0;
+    while face < 6 {
+        let there = crate::mesh::face_normal(face);
+        let back = crate::mesh::face_normal(face ^ 1);
+        assert!(there[0] == -back[0] && there[1] == -back[1] && there[2] == -back[2]);
+        face += 1;
+    }
+    let mut axis = 0;
+    while axis < 3 {
+        assert!(crate::mesh::face_normal(AXIS_FACE[axis] as usize)[axis] == -1);
+        axis += 1;
+    }
+};
+
 /// The negative face of each axis, so that `AXIS_FACE[axis] | positive as u32` is the direction.
 const AXIS_FACE: [u32; 3] = [4, 0, 2];
 
 /// Render regions the walk covers on each horizontal axis.
 ///
-/// The walk's cost and its arrays follow the camera rather than the loaded window: a window can be
-/// sixty-four region files wide, and a grid spanning that would be a million and a half sections
-/// for the walk to clear every frame — past what a queue entry can even name. Six render regions
+/// The walk's cost and its arrays follow the camera rather than the loaded window: a window can hold
+/// sixty-four region files, eight to a side, and a grid spanning that would be a million and a half
+/// sections for the walk to clear every frame — past what a queue entry can even name. Six render regions
 /// is fifteen hundred blocks across, which comfortably covers what the memory budget can hold
 /// around the camera.
 pub const CAVE_REGIONS: usize = 6;
@@ -155,8 +182,8 @@ impl CaveCull {
         self.min_section
     }
 
-    /// Where a region's draws point when the walk's grid does not reach them: a run of slots that
-    /// is always set, so those draws are never culled by a bit nobody wrote.
+    /// Where the always-set run past the grid begins, which is where a region the walk does not
+    /// reach points its draws. See [`CaveCull::bits`].
     pub fn always_visible(&self) -> u32 {
         self.grid.slots() as u32
     }
@@ -171,6 +198,7 @@ impl CaveCull {
     /// Takes the crossing masks of a render region the mesher has just finished, by the section's
     /// place inside that region. Sections it does not name keep what they had.
     pub fn set_region(&mut self, base: usize, entries: &[(u32, u64)]) {
+        debug_assert_eq!(base % SECTIONS_PER_RENDER_REGION, 0, "a region starts where a region starts");
         for &(local, mask) in entries {
             self.conn[base + local as usize] = mask;
         }
@@ -178,6 +206,7 @@ impl CaveCull {
 
     /// Forgets what a render region's sections said.
     pub fn forget(&mut self, base: usize) {
+        debug_assert_eq!(base % SECTIONS_PER_RENDER_REGION, 0, "a region starts where a region starts");
         self.conn[base..base + SECTIONS_PER_RENDER_REGION].fill(crate::mesh::CONNECT_ALL);
     }
 
@@ -231,7 +260,8 @@ impl CaveCull {
                 }
                 let neighbour =
                     self.grid.slot(next[0] as usize, next[1] as usize, next[2] as usize) as u32;
-                // 3. the frustum, inside `push`, at most once per section.
+                // 3 and 4, both inside `push`: whether this arrival says anything the same face
+                //    has not already said, and then the frustum, at most once per section.
                 self.push(neighbour, exit ^ 1, dirs | 1 << exit, frustum);
             }
         }
@@ -346,9 +376,10 @@ impl CaveCull {
         (lo, hi)
     }
 
-    /// The run past the grid that draws outside the walk point at stays set whatever the walk did.
+    /// Re-opens that run, which the walk's own clearing has just closed.
     fn open_the_tail(&mut self) {
-        self.bits[self.grid.slots() / 32..].fill(u32::MAX);
+        let tail = self.always_visible() as usize / 32;
+        self.bits[tail..].fill(u32::MAX);
     }
 
     fn aabb(&self, slot: u32) -> Aabb {
@@ -532,6 +563,87 @@ mod tests {
         assert!(visible(&cave, 15, 2, 16), "the turn to the west");
         assert!(!visible(&cave, 17, 2, 16), "east is closed by the mask");
         assert!(!visible(&cave, 16, 3, 16), "up is closed by the mask");
+    }
+
+    /// Two routes that reach one section through the *same* face, having spent different
+    /// directions on the way. Both come from the boundary plane, so both start with west spent;
+    /// one then turns south to reach the row, the other north.
+    ///
+    /// Corridors: a row at each of `z = 12` and `z = 20` running west from the plane to `x = 17`,
+    /// and a column at `x = 17` joining them, so both meet at `(17, 2, 16)` and step west into
+    /// `(16, 2, 16)` through its east face.
+    fn one_face_two_ways() -> CaveCull {
+        let mut conn = empty_conn();
+        for (row, turn) in [(12usize, pair(5, 3)), (20, pair(5, 2))] {
+            for x in 18..SECTIONS[0] {
+                conn[slot(x, 2, row)] = pair(5, 4) | pair(4, 5);
+            }
+            conn[slot(17, 2, row)] = turn;
+        }
+        for z in 13..16 {
+            conn[slot(17, 2, z)] = pair(2, 3);
+        }
+        for z in 17..20 {
+            conn[slot(17, 2, z)] = pair(3, 2);
+        }
+        conn[slot(17, 2, 16)] = pair(2, 4) | pair(3, 4);
+        conn[slot(16, 2, 16)] = pair(5, 2) | pair(5, 3);
+        walk(conn)
+    }
+
+    /// Arrivals through one face merge by keeping only what both spent. The southbound route
+    /// reaches this section having spent south, which forbids it from turning north again; the
+    /// northbound route has spent north and cannot turn south. Only by dropping to what the two
+    /// have in common does the section open both ways, and a route that really does see through it
+    /// either way survives.
+    #[test]
+    fn a_second_arrival_through_one_face_keeps_only_what_both_spent() {
+        let mut cave = one_face_two_ways();
+        let eye = Vec3::new(900.0, 40.0, 264.0);
+        cave.run(eye, &wide(eye, Vec3::new(0.0, 40.0, 264.0)));
+        assert!(visible(&cave, 16, 2, 16), "the section both routes reach");
+        assert!(visible(&cave, 16, 2, 15), "north of it, which only the southbound route forbids");
+        assert!(visible(&cave, 16, 2, 17), "south of it, which only the northbound route forbids");
+    }
+
+    /// A camera diagonally outside the grid seeds two boundary planes, and travelling to each of
+    /// them spends that axis. Being outside on a second axis has to forbid stepping back along it
+    /// just as the first does, or a sight line could run away from the camera.
+    #[test]
+    fn a_camera_outside_on_two_axes_spends_both_of_them() {
+        let mut conn = empty_conn();
+        for x in 18..SECTIONS[0] {
+            conn[slot(x, 2, 16)] = pair(5, 4) | pair(4, 5);
+        }
+        // The one section that offers a way south as well as a way west.
+        conn[slot(17, 2, 16)] = pair(5, 4) | pair(5, 3);
+        let mut cave = walk(conn);
+        let eye = Vec3::new(900.0, 40.0, 900.0);
+        cave.run(eye, &wide(eye, Vec3::new(0.0, 40.0, 0.0)));
+        assert!(visible(&cave, 16, 2, 16), "west of the turn, which the walk may still reach");
+        assert!(
+            !visible(&cave, 17, 2, 17),
+            "south of the turn: getting to the boundary already spent north"
+        );
+    }
+
+    /// What the streamer really does: slide the grid, write each region's masks back into it, then
+    /// walk. The walk also has to stop at the loaded world rather than at its own grid, which after
+    /// a slide are no longer the same box.
+    #[test]
+    fn a_walk_after_a_slide_culls_against_the_masks_written_back() {
+        let mut cave = walk(open_conn());
+        cave.retarget([RENDER_REGION_X as i32, 0, 0]);
+        for sy in 0..SECTIONS[1] {
+            for sz in 0..SECTIONS[2] {
+                let (region, local) = grid().split(10, sy, sz);
+                cave.set_region(region * SECTIONS_PER_RENDER_REGION, &[(local, 0)]);
+            }
+        }
+        let eye = Vec3::new(900.0, 40.0, 264.0);
+        cave.run(eye, &wide(eye, Vec3::new(0.0, 40.0, 264.0)));
+        assert!(visible(&cave, 12, 2, 16), "section in front of the wall that was written back");
+        assert!(!visible(&cave, 5, 2, 16), "section behind it");
     }
 
     fn pair(entry: u32, exit: u32) -> u64 {
