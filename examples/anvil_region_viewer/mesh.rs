@@ -407,7 +407,7 @@ fn connectivity(occludes: &mut [bool; BORDER_VOLUME]) -> u64 {
 }
 
 #[inline]
-fn face_normal(face: usize) -> [i32; 3] {
+pub const fn face_normal(face: usize) -> [i32; 3] {
     let axes = FACE_AXES[face];
     let mut normal = [0i32; 3];
     normal[axes[0] as usize] = if axes[1] == 1 { 1 } else { -1 };

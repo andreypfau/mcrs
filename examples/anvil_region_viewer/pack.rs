@@ -223,6 +223,15 @@ impl RegionGrid {
         [cx + lx as usize, sy + ly as usize, cz + lz as usize]
     }
 
+    /// How many sections the grid spans on each axis, padding included.
+    pub const fn extent(self) -> [usize; 3] {
+        [
+            self.x * RENDER_REGION_X,
+            self.y * RENDER_REGION_Y,
+            self.z * RENDER_REGION_Z,
+        ]
+    }
+
     /// How many section slots the grid spans, padding included.
     pub const fn slots(self) -> usize {
         self.len() * SECTIONS_PER_RENDER_REGION

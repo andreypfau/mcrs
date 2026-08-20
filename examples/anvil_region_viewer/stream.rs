@@ -267,11 +267,7 @@ impl Loader {
     fn cave_base(&self, cave: &CaveCull, region: usize) -> Option<usize> {
         let corner = self.layout.grid.corner(region);
         let grid = cave.grid();
-        let extent = [
-            grid.x * RENDER_REGION_X,
-            grid.y * RENDER_REGION_Y,
-            grid.z * RENDER_REGION_Z,
-        ];
+        let extent = grid.extent();
         let mut local = [0usize; 3];
         for axis in 0..3 {
             let at = corner[axis] as i32 + self.layout.min_section[axis] - cave.min_section()[axis];
@@ -291,11 +287,8 @@ impl Loader {
     /// whole and the walk never moves at all.
     fn retarget(&mut self, cave: &mut CaveCull) {
         let grid = cave.grid();
-        let extent = [
-            (grid.x * RENDER_REGION_X) as i32,
-            0,
-            (grid.z * RENDER_REGION_Z) as i32,
-        ];
+        let span = grid.extent();
+        let extent = [span[0] as i32, 0, span[2] as i32];
         let window = [
             (self.world.regions[0] * REGION_CHUNKS) as i32,
             0,

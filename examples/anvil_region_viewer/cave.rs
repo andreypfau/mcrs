@@ -1,18 +1,29 @@
 //! Cave culling: which sections a sight line can actually reach from the camera.
 //!
 //! Once a frame a breadth-first walk starts at the camera's section and steps into a neighbour only
-//! when three tests pass: the section being left can be crossed from the entry face to the exit face
-//! (the mask the mesher baked), the step does not reverse an axis already spent, and the neighbour's
-//! box lands inside the frustum. Everything the walk never reaches sits behind rock and is thrown
+//! when four tests pass: the section being left can be crossed from the entry face to the exit face
+//! (the mask the mesher baked), the step does not reverse an axis already spent, the arrival says
+//! something the same face has not already said, and the neighbour's box lands inside the frustum. Everything the walk never reaches sits behind rock and is thrown
 //! away before any vertex work.
 
 use bevy::camera::primitives::{Aabb, Frustum};
 use bevy::prelude::*;
 
 use crate::anvil::SECTION_SIZE;
-use crate::pack::{
-    RENDER_REGION_X, RENDER_REGION_Y, RENDER_REGION_Z, RegionGrid, SECTIONS_PER_RENDER_REGION,
-};
+use crate::pack::{RegionGrid, SECTIONS_PER_RENDER_REGION};
+
+/// Which way each face steps, built from the mesher's own table rather than written out again: the
+/// crossing masks the walk reads are indexed by that same face order, and a second table would have
+/// to be kept agreeing with it by hand. Built at compile time, because the walk reads it six times
+/// per section and calling through costs more than the whole rest of the step.
+const NEIGHBOUR: [[i32; 3]; 6] = [
+    crate::mesh::face_normal(0),
+    crate::mesh::face_normal(1),
+    crate::mesh::face_normal(2),
+    crate::mesh::face_normal(3),
+    crate::mesh::face_normal(4),
+    crate::mesh::face_normal(5),
+];
 
 /// Seeds and the camera's own section fan out through all six faces; there is no real face 7.
 const ENTRY_ANY: u32 = 7;
@@ -30,10 +41,6 @@ const NEVER: u8 = u8::MAX;
 const QUEUE_SLOT_BITS: u32 = 20;
 const QUEUE_ENTRY_SHIFT: u32 = QUEUE_SLOT_BITS;
 const QUEUE_DIRS_SHIFT: u32 = QUEUE_ENTRY_SHIFT + 3;
-
-/// `FACE_AXES` order: 0 Down(−Y), 1 Up(+Y), 2 North(−Z), 3 South(+Z), 4 West(−X), 5 East(+X).
-const NEIGHBOUR: [[i32; 3]; 6] =
-    [[0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1], [-1, 0, 0], [1, 0, 0]];
 
 /// The negative face of each axis, so that `AXIS_FACE[axis] | positive as u32` is the direction.
 const AXIS_FACE: [u32; 3] = [4, 0, 2];
@@ -189,12 +196,12 @@ impl CaveCull {
         self.open_the_tail();
         self.inside.fill(0);
         self.queue.clear();
-        if !self.seed(camera, frustum) {
+        let (lo, hi) = self.bounds();
+        if !self.seed(camera, frustum, lo, hi) {
             self.bits.fill(u32::MAX);
             return;
         }
 
-        let (lo, hi) = self.bounds();
         let mut head = 0;
         while head < self.queue.len() {
             let node = self.queue[head];
@@ -232,8 +239,7 @@ impl CaveCull {
 
     /// `false` asks the caller to give up for this frame: with the camera inside a section no sight
     /// line crosses, the walk would die on its six neighbours and leave an empty screen.
-    fn seed(&mut self, camera: Vec3, frustum: &Frustum) -> bool {
-        let (lo, hi) = self.bounds();
+    fn seed(&mut self, camera: Vec3, frustum: &Frustum, lo: [i32; 3], hi: [i32; 3]) -> bool {
         let size = SECTION_SIZE as f32;
         let cs = [
             camera.x.div_euclid(size) as i32 - self.min_section[0],
@@ -283,10 +289,12 @@ impl CaveCull {
                     p[c] = v;
                     let slot =
                         self.grid.slot(p[0] as usize, p[1] as usize, p[2] as usize) as u32;
-                    // ponytail: `entry = ANY` lets a seed tunnel exactly one section into the
-                    // boundary rock. The ceiling is that the region's outer shell on the camera's
-                    // side is effectively never culled. It costs nothing: a fully buried section
-                    // emits no quad group at all, so there is nothing there to draw.
+                    // ponytail: `entry = ANY` waives the crossing mask for every exit of a
+                    // seeded section, because a walk arriving from outside the grid has no entry
+                    // face to name. The ceiling is that the grid's shell on the camera's side is
+                    // never culled and can expand one step further than a real entry face would
+                    // allow. The upgrade is to seed each boundary section through the face the
+                    // camera actually lies beyond.
                     self.push(slot, ENTRY_ANY, dirs, frustum);
                 }
             }
@@ -298,8 +306,10 @@ impl CaveCull {
         // Two arrivals through the same face merge by intersection rather than union. `dirs` is a
         // set of spent directions and it works by forbidding, so the smaller set is the weaker
         // filter: dropping to it can only open exits, never close one that was already taken.
+        // [`NEVER`] is every bit set, which is why the first arrival needs no case of its own:
+        // intersecting with it leaves exactly what that arrival brought.
         let seen = &mut self.spent[(slot as usize) << 3 | entry as usize];
-        let merged = if *seen == NEVER { dirs as u8 } else { *seen & dirs as u8 };
+        let merged = *seen & dirs as u8;
         if merged == *seen {
             return;
         }
@@ -325,11 +335,7 @@ impl CaveCull {
     /// The sections the walk may step onto, in its own grid's coordinates: whichever is narrower
     /// of the grid and the loaded world.
     fn bounds(&self) -> ([i32; 3], [i32; 3]) {
-        let extent = [
-            self.grid.x * RENDER_REGION_X,
-            self.grid.y * RENDER_REGION_Y,
-            self.grid.z * RENDER_REGION_Z,
-        ];
+        let extent = self.grid.extent();
         let mut lo = [0i32; 3];
         let mut hi = [0i32; 3];
         for axis in 0..3 {
@@ -386,7 +392,7 @@ mod tests {
     use super::*;
     use crate::mesh::CONNECT_ALL;
     use crate::anvil::REGION_CHUNKS;
-    use crate::pack::RENDER_REGION_X;
+    use crate::pack::{RENDER_REGION_X, RENDER_REGION_Y};
     use bevy::camera::CameraProjection;
 
     /// A shallow world, so a fixture stays small while still spanning several render regions. Its
@@ -409,6 +415,18 @@ mod tests {
         let mut cave = CaveCull::new(grid(), corner, SECTIONS);
         cave.conn.copy_from_slice(&conn);
         cave
+    }
+
+    /// A wall of sealed sections spanning the grid, which is what a test needs to have something
+    /// the walk must refuse to see through.
+    fn wall_at(sx: usize) -> Vec<u64> {
+        let mut conn = open_conn();
+        for sy in 0..SECTIONS[1] {
+            for sz in 0..SECTIONS[2] {
+                conn[slot(sx, sy, sz)] = 0;
+            }
+        }
+        conn
     }
 
     fn empty_conn() -> Vec<u64> {
@@ -441,12 +459,7 @@ mod tests {
     /// for this to pass.
     #[test]
     fn a_solid_wall_hides_what_is_behind_it() {
-        let mut conn = open_conn();
-        for sy in 0..SECTIONS[1] {
-            for sz in 0..SECTIONS[2] {
-                conn[slot(20, sy, sz)] = 0;
-            }
-        }
+        let conn = wall_at(20);
         let mut cave = walk(conn);
         let eye = Vec3::new(900.0, 32.0, 256.0);
         cave.run(eye, &wide(eye, Vec3::new(0.0, 32.0, 256.0)));
@@ -459,12 +472,7 @@ mod tests {
     /// them with a bit nobody wrote would make the far half of the view disappear.
     #[test]
     fn geometry_outside_the_walks_grid_is_drawn_rather_than_culled() {
-        let mut conn = open_conn();
-        for sy in 0..SECTIONS[1] {
-            for sz in 0..SECTIONS[2] {
-                conn[slot(20, sy, sz)] = 0;
-            }
-        }
+        let conn = wall_at(20);
         let mut cave = walk(conn);
         let eye = Vec3::new(900.0, 32.0, 256.0);
         cave.run(eye, &wide(eye, Vec3::new(0.0, 32.0, 256.0)));
@@ -502,12 +510,7 @@ mod tests {
     #[test]
     fn a_window_below_the_origin_culls_from_where_the_camera_really_is() {
         let corner = [-(REGION_CHUNKS as i32), 0, -(REGION_CHUNKS as i32)];
-        let mut conn = open_conn();
-        for sy in 0..SECTIONS[1] {
-            for sz in 0..SECTIONS[2] {
-                conn[slot(20, sy, sz)] = 0;
-            }
-        }
+        let conn = wall_at(20);
         let mut cave = at(conn, corner);
         // Window-relative section (25, 2, 16), which with this corner is world section (-7, 2, -16).
         let eye = Vec3::new(-104.0, 40.0, -248.0);
