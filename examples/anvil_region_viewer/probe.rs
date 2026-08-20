@@ -12,8 +12,8 @@ use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue};
 use wgpu::{
-    ComputePassTimestampWrites, QuerySet, QuerySetDescriptor, QueryType, RenderPassTimestampWrites,
-    QUERY_RESOLVE_BUFFER_ALIGNMENT,
+    CommandEncoderDescriptor, ComputePassDescriptor, ComputePassTimestampWrites, QuerySet,
+    QuerySetDescriptor, QueryType, RenderPassTimestampWrites, QUERY_RESOLVE_BUFFER_ALIGNMENT,
 };
 
 /// The passes that are timed, in the order their pair of timestamps sits in the query set.
@@ -177,6 +177,26 @@ pub fn init(mut commands: Commands, device: Res<RenderDevice>, queue: Res<Render
         usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
+    // Vulkan's resolve waits for every query in its range to become available, and one no pass has
+    // ever written never becomes available: the queue blocks until the driver's watchdog takes the
+    // device down. Metal returns its error value instead, which is why only one of the two backends
+    // needs this. An empty pass writes a pair without running anything, so one per pair leaves the
+    // whole set readable before the first resolve.
+    let mut priming = device.create_command_encoder(&CommandEncoderDescriptor {
+        label: Some("prime pass timings"),
+    });
+    for pair in 0..SLOTS as u32 * RING {
+        priming.begin_compute_pass(&ComputePassDescriptor {
+            label: Some("prime pass timings"),
+            timestamp_writes: Some(ComputePassTimestampWrites {
+                query_set: &set,
+                beginning_of_pass_write_index: Some(pair * 2),
+                end_of_pass_write_index: Some(pair * 2 + 1),
+            }),
+        });
+    }
+    queue.submit([priming.finish()]);
+
     commands.insert_resource(Queries {
         set,
         resolve,
