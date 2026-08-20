@@ -364,9 +364,13 @@ fn vertex_clouds(@builtin(vertex_index) index: u32) -> CloudVertex {
 }
 
 /// What the texture says about one cell, wrapped so the field repeats the way vanilla's does.
-fn cloud_cell(cell: vec2<i32>) -> vec4<f32> {
-    let size = vec2<i32>(textureDimensions(clouds));
-    return textureLoad(clouds, ((cell % size) + size) % size, 0, 0);
+///
+/// Masked rather than reduced by a remainder, which is the same wrap only while the side is a
+/// power of two — `clouds()` refuses to load a field that is not one. There is no integer divide
+/// in the hardware, and this runs on every pixel of the frame: the remainder cost a tenth of a
+/// millisecond a frame all by itself.
+fn cloud_cell(cell: vec2<i32>, size: vec2<i32>) -> vec4<f32> {
+    return textureLoad(clouds, cell & (size - vec2<i32>(1)), 0, 0);
 }
 
 @fragment
@@ -406,7 +410,8 @@ fn fragment_clouds(in: CloudVertex) -> CloudFragment {
     // The field drifts rather than the world moving under it, so the drift is an offset on where
     // the ray reads the texture. Wrapping it against the texture's own width keeps the number
     // small however long the viewer has been running.
-    let span = f32(textureDimensions(clouds).x) * CLOUD_CELL;
+    let size = vec2<i32>(textureDimensions(clouds));
+    let span = f32(size.x) * CLOUD_CELL;
     let drift = vec2<f32>(sky.cloud.y % span, sky.cloud.z);
     let start = (origin.xz + drift + direction.xz * enter) / CLOUD_CELL;
 
@@ -423,7 +428,7 @@ fn fragment_clouds(in: CloudVertex) -> CloudFragment {
     var distance = enter;
     var filled = vec4<f32>(0.0);
     for (var taken = 0u; taken < CLOUD_STEPS; taken = taken + 1u) {
-        let sample = cloud_cell(vec2<i32>(cell));
+        let sample = cloud_cell(vec2<i32>(cell), size);
         if sample.a >= CLOUD_OPEN {
             filled = sample;
             break;

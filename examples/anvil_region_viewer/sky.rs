@@ -225,8 +225,19 @@ impl Default for Sky {
 }
 
 /// The cloud field: one texel a cell, open where the sky shows through.
+///
+/// The march wraps the field by masking the cell it landed on, which is the wrap it wants only
+/// while the side is a power of two, so a field that is not one is refused here rather than drawn
+/// wrong.
 pub fn clouds() -> Result<Atlas, String> {
-    sprites(&["environment/clouds".to_string()])
+    let field = sprites(&["environment/clouds".to_string()])?;
+    if !field.size.is_power_of_two() {
+        return Err(format!(
+            "the cloud field is {0}x{0}, and the march can only wrap a power of two",
+            field.size,
+        ));
+    }
+    Ok(field)
 }
 
 /// The sun and the eight moon phases, decoded into one square array for the sky shader to sample.
