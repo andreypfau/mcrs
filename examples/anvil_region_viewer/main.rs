@@ -430,13 +430,12 @@ fn frame_stats(
     if status.evicted > 0 {
         let _ = write!(overlay.0, "   {} evicted", status.evicted);
     }
-    // Named rather than counted, because a run that leaves streams out is only comparable against
-    // one that names the same set and the number alone would not say which.
-    if streams.0 != render::Streams::ALL {
-        for (stream, name) in mesh::STREAM_NAMES.iter().enumerate() {
-            if streams.0 & (1 << stream) != 0 {
-                let _ = write!(overlay.0, "   +{name}");
-            }
+    // What is missing rather than what is there, because that is the shorter list and the one a
+    // measurement has to know: a frame that leaves streams out is only comparable against one that
+    // leaves out the same ones.
+    for (stream, name) in mesh::STREAM_NAMES.iter().enumerate() {
+        if streams.0 & (1 << stream) == 0 {
+            let _ = write!(overlay.0, "   no {name}");
         }
     }
     // What the GPU itself spent, which the frame time cannot separate: presentation waits and

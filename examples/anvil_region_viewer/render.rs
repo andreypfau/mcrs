@@ -413,6 +413,9 @@ pub struct Streams(pub u32);
 
 impl Streams {
     pub const ALL: u32 = (1 << STREAMS) - 1;
+    /// The blended streams, which are the last two: stream order is draw order, and blended
+    /// geometry draws last.
+    pub const BLENDED: u32 = 0b11 << (STREAMS - 2);
 
     fn drawn(&self, stream: u32) -> bool {
         self.0 & (1 << stream) != 0
@@ -421,7 +424,11 @@ impl Streams {
 
 impl Default for Streams {
     fn default() -> Self {
-        Self(Self::ALL)
+        // Water is drawn unsorted through one blending pass and is being reworked, so it is left
+        // out until it is. It also moves more between two frames of the same build than any change
+        // to the renderer does, which makes it the one thing that stops a frame being comparable
+        // against itself. `ANVIL_STREAMS=0,1,2,3,4,5` puts it back.
+        Self(Self::ALL & !Self::BLENDED)
     }
 }
 
