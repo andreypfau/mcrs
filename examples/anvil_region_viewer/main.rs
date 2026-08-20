@@ -344,6 +344,8 @@ struct FrameStats {
     frames: u32,
     written: usize,
     elapsed: f32,
+    /// The counter line itself, kept so the once-a-second rebuild reuses one allocation.
+    line: String,
 }
 
 impl FrameStats {
@@ -356,6 +358,7 @@ impl FrameStats {
             frames: 0,
             written: 0,
             elapsed: 0.0,
+            line: String::new(),
         }
     }
 }
@@ -380,7 +383,7 @@ fn frame_stats(
     cave: Res<cave::CaveCull>,
     loader: Res<stream::Loader>,
     day: Res<sky::TimeOfDay>,
-    overlay: Single<&mut Text>,
+    overlay: Option<Single<&mut Text>>,
     // The frame rate is meaningless without the pixel count behind it: this window opens on
     // whichever display is current, and the two here differ enough to change the number outright.
     window: Single<&Window>,
@@ -409,62 +412,64 @@ fn frame_stats(
     let p95 = stats.sorted[percentile_index(samples, 0.95)];
     let p99 = stats.sorted[percentile_index(samples, 0.99)];
 
-    // Written straight into the component's own buffer, so the once-a-second update reuses the
-    // allocation instead of building a throwaway string, and the text is only re-laid-out then.
-    let mut overlay = overlay;
-    overlay.0.clear();
+    let line = &mut stats.line;
+    line.clear();
     let _ = write!(
-        overlay.0,
+        line,
         "{fps:.0} fps @ {}x{}   {} tris   p95 {p95:.1} ms   p99 {p99:.1} ms",
         window.resolution.physical_width(),
         window.resolution.physical_height(),
         triangles.get(),
     );
     if cave.enabled {
-        let _ = write!(overlay.0, "   cave {} sections", cave.reached());
+        let _ = write!(line, "   cave {} sections", cave.reached());
     } else {
-        overlay.0.push_str("   cave off");
+        line.push_str("   cave off");
     }
     // How full the arena is, always rather than only while loading: a figure that saws is what
     // says the loader is thrashing on a threshold.
     let status = loader.status();
     let _ = write!(
-        overlay.0,
+        line,
         "   arena {:.0}/{:.0}%",
         status.quads * 100.0,
         status.models * 100.0,
     );
     let _ = write!(
-        overlay.0,
+        line,
         "   {}/{} regions",
         status.regions, status.regions_total,
     );
     if status.files < status.files_total {
-        let _ = write!(overlay.0, "   loading {}/{} files", status.files, status.files_total);
+        let _ = write!(line, "   loading {}/{} files", status.files, status.files_total);
     }
     if status.evicted > 0 {
-        let _ = write!(overlay.0, "   {} evicted", status.evicted);
+        let _ = write!(line, "   {} evicted", status.evicted);
     }
     // What is missing rather than what is there, because that is the shorter list and the one a
     // measurement has to know: a frame that leaves streams out is only comparable against one that
     // leaves out the same ones.
     for (stream, name) in mesh::STREAM_NAMES.iter().enumerate() {
         if streams.0 & (1 << stream) == 0 {
-            let _ = write!(overlay.0, "   no {name}");
+            let _ = write!(line, "   no {name}");
         }
     }
     // What the GPU itself spent, which the frame time cannot separate: presentation waits and
     // bevy's own passes sit in the same wall clock.
     for (slot, name) in probe::NAMES.iter().enumerate() {
         if let Some(ms) = gpu.median(slot) {
-            let _ = write!(overlay.0, "   {name} {ms:.2} ms");
+            let _ = write!(line, "   {name} {ms:.2} ms");
         }
     }
     let (hour, minute) = day.clock();
-    let _ = write!(overlay.0, "   {hour:02}:{minute:02}");
+    let _ = write!(line, "   {hour:02}:{minute:02}");
     // The `ANVIL_SCREENSHOT` shot goes off thirty frames after loading settles, so the overlay is
     // usually written by then. The numbers reach stdout either way.
-    info!("{}", overlay.0);
+    info!("{}", line);
+    if let Some(mut overlay) = overlay {
+        overlay.0.clear();
+        overlay.0.push_str(line);
+    }
 
     stats.frames = 0;
     stats.written = 0;
@@ -567,7 +572,13 @@ fn spawn_camera(mut commands: Commands) {
 
 /// The counter lives in the corner rather than the window title because fullscreen, which is the
 /// only mode that reports an honest frame rate on macOS, hides the title bar.
+/// The counter is drawn as UI text and written to stdout both. Laying that text out is work the
+/// renderer being measured does not do, so a measurement can drop the drawn half and read the
+/// stdout half instead.
 fn spawn_overlay(mut commands: Commands) {
+    if std::env::var("ANVIL_OVERLAY").is_ok_and(|on| on == "0") {
+        return;
+    }
     commands.spawn((
         Text::new(""),
         TextFont {
