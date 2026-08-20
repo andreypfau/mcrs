@@ -103,7 +103,9 @@ impl CaveCull {
         );
         let words = (slots + SECTIONS_PER_RENDER_REGION).div_ceil(32);
         Self {
-            enabled: true,
+            // The walk costs the main thread more than any other system, so a measurement of
+            // anything else needs to be able to take it out from a terminal.
+            enabled: !std::env::var("ANVIL_CAVE").is_ok_and(|on| on == "0"),
             bits: vec![u32::MAX; words].into_boxed_slice(),
             inside: vec![0; words].into_boxed_slice(),
             spent: vec![NEVER; slots * ENTRIES],

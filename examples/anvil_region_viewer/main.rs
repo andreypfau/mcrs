@@ -59,7 +59,7 @@ use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseSc
 use bevy::prelude::*;
 use bevy::render::view::Msaa;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
-use bevy::window::{MonitorSelection, PresentMode, WindowMode};
+use bevy::window::{MonitorSelection, PresentMode, WindowMode, WindowPosition};
 use bevy::winit::{UpdateMode, WinitSettings};
 
 use pack::RegionGrid;
@@ -95,6 +95,20 @@ const GROUPS_PER_FILE: usize = 1 << 17;
 const QUAD_BYTES: usize = pack::QUAD_WORDS * 4;
 const MODEL_BYTES: usize = 4 * 3 * 4;
 const FACE_BYTES: usize = 4;
+
+/// Which display the window opens on. Whichever display the pointer happens to sit on is not a
+/// fixed quantity, and a figure taken at one resolution does not compare with one taken at another,
+/// so a measurement has to be able to name the display rather than inherit it.
+fn chosen_monitor() -> MonitorSelection {
+    match std::env::var("ANVIL_MONITOR").as_deref() {
+        Ok("primary") => MonitorSelection::Primary,
+        Ok(index) => index
+            .parse()
+            .map(MonitorSelection::Index)
+            .unwrap_or(MonitorSelection::Current),
+        Err(_) => MonitorSelection::Current,
+    }
+}
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -179,9 +193,10 @@ fn main() {
                     // The same swap F11 does, at startup, so a rate can be measured from a
                     // terminal without a human at the window.
                     mode: match std::env::var("ANVIL_FULLSCREEN") {
-                        Ok(_) => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+                        Ok(_) => WindowMode::BorderlessFullscreen(chosen_monitor()),
                         Err(_) => WindowMode::Windowed,
                     },
+                    position: WindowPosition::Centered(chosen_monitor()),
                     ..default()
                 }),
                 ..default()
