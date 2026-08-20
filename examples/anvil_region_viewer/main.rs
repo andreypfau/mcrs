@@ -242,6 +242,7 @@ fn main() {
         })
         .insert_resource(FrameStats::new())
         .insert_resource(drawn_streams())
+        .insert_resource(raster_fraction())
         .insert_resource(Sweep(
             std::env::var("ANVIL_SWEEP")
                 .ok()
@@ -349,6 +350,29 @@ fn drawn_streams() -> render::Streams {
         }
     }
     render::Streams(mask)
+}
+
+/// `ANVIL_RASTER=0.5` rasterises the terrain pass into that fraction of the window's width and
+/// height, leaving the window, the display and the projection alone.
+///
+/// This is how the pass is asked what its pixels cost. Switching the display to a smaller video
+/// mode would answer a different question: the GPU clocks itself to how busy it is, so a figure
+/// taken at one mode does not compare with one taken at another. Shrinking only the rectangle
+/// keeps the frustum, the culling and every triangle exactly as they were, so the difference is
+/// pixels and nothing else.
+fn raster_fraction() -> render::Raster {
+    let Ok(spec) = std::env::var("ANVIL_RASTER") else {
+        return render::Raster::default();
+    };
+    match spec.trim().parse::<f32>() {
+        Ok(fraction) if (0.0..=1.0).contains(&fraction) && fraction > 0.0 => {
+            render::Raster(fraction)
+        }
+        _ => {
+            eprintln!("ANVIL_RASTER takes a fraction between 0 and 1");
+            render::Raster::default()
+        }
+    }
 }
 
 /// `ANVIL_CENTER=x,z` names the region the loaded window is centred on. Default is the origin,

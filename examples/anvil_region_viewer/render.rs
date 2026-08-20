@@ -443,6 +443,20 @@ impl Default for Clouds {
     }
 }
 
+/// The fraction of the window's pixels the terrain pass rasterises into, from `ANVIL_RASTER`.
+///
+/// The projection is left untouched, so the same triangles are drawn from the same frustum and
+/// only the rectangle they land in shrinks. What the pass then loses is the half of it that is
+/// paid per pixel, measured without moving the display's mode and with it the GPU's clocks.
+#[derive(Resource, Clone, Copy, ExtractResource)]
+pub struct Raster(pub f32);
+
+impl Default for Raster {
+    fn default() -> Self {
+        Self(1.0)
+    }
+}
+
 /// Draws only the edges of every triangle, in the colour that face's own texture has there, and
 /// leaves the interiors unpainted so the geometry behind stays visible.
 #[derive(Resource, Clone, Copy, Default, ExtractResource)]
@@ -492,6 +506,7 @@ impl Plugin for TerrainPlugin {
             .add_plugins(ExtractResourcePlugin::<Sky>::default())
             .add_plugins(ExtractResourcePlugin::<Clouds>::default())
             .add_plugins(ExtractResourcePlugin::<Streams>::default())
+            .add_plugins(ExtractResourcePlugin::<Raster>::default())
             .insert_resource(triangles.clone())
             .insert_resource(timings.clone());
 
@@ -1613,11 +1628,12 @@ fn drop_unused_bins(
 }
 
 fn draw_terrain(
-    view: ViewQuery<(&ViewTarget, &ViewDepthTexture, &ViewUniformOffset)>,
+    view: ViewQuery<(&ViewTarget, &ViewDepthTexture, &ViewUniformOffset, &ExtractedView)>,
     terrain: Option<Res<Terrain>>,
     view_bind_group: Option<Res<ViewBindGroup>>,
     clouds: Res<Clouds>,
     streams: Res<Streams>,
+    raster: Res<Raster>,
     pipeline_cache: Res<PipelineCache>,
     queries: Option<Res<Queries>>,
     timings: Res<GpuTimings>,
@@ -1629,7 +1645,7 @@ fn draw_terrain(
     let Some(pipelines) = terrain.pipelines else {
         return;
     };
-    let (target, depth, view_offset) = view.into_inner();
+    let (target, depth, view_offset, extracted) = view.into_inner();
     let color_attachments = [Some(target.get_color_attachment())];
     let depth_attachment = Some(depth.get_attachment(StoreOp::Store));
     let diagnostics = ctx.diagnostic_recorder();
@@ -1644,6 +1660,11 @@ fn draw_terrain(
         multiview_mask: None,
     });
     let span = diagnostics.pass_span(&mut pass, "terrain_draw");
+
+    if raster.0 < 1.0 {
+        let size = extracted.viewport.zw().as_vec2() * raster.0;
+        pass.set_viewport(0.0, 0.0, size.x.max(1.0), size.y.max(1.0), 0.0, 1.0);
+    }
 
     // The backdrop first, in vanilla's order, so the terrain covers whatever stands in front of
     // it. The params slot is bound to the first draw's entry and never read: the sky takes nothing
