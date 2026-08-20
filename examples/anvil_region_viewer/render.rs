@@ -35,6 +35,12 @@ use crate::mesh::{Draw, Group, STREAMS};
 use crate::probe::{self, GpuTimings, Queries};
 use crate::pack::{MAX_SPRITE_ARRAYS, MODEL_OVERHANG, QUAD_WORDS, RegionGrid};
 
+/// Raster pipelines, in the order `prepare_pipelines` queues them: alpha-tested greedy and model,
+/// blended greedy and model, then the pair that shades solid geometry with no alpha test at all.
+const TERRAIN_PIPELINES: usize = 6;
+/// Where that last pair starts, greedy first, so a solid stream indexes it by its own number.
+const UNTESTED_PIPELINE: usize = 4;
+
 /// Dynamic uniform offsets must be a multiple of the device's alignment; 256 satisfies every
 /// backend we can land on.
 const PARAMS_STRIDE: u32 = 256;
@@ -577,9 +583,9 @@ struct Terrain {
     sky_bind_group: BindGroup,
     terrain_shader: Handle<Shader>,
     sky_shader: Handle<Shader>,
-    /// `[simple opaque, complex opaque, simple blended, complex blended]`, queued once the first
-    /// view reveals the colour format the pipelines have to match.
-    pipelines: Option<[CachedRenderPipelineId; 4]>,
+    /// Queued once the first view reveals the colour format the pipelines have to match; see
+    /// [`TERRAIN_PIPELINES`] for what sits where.
+    pipelines: Option<[CachedRenderPipelineId; TERRAIN_PIPELINES]>,
     /// The sky's own four, in the order vanilla draws them.
     sky_pipelines: Option<[CachedRenderPipelineId; SKY_DRAWS.len()]>,
     /// One entry per `draw_indirect`, in draw order. Grows as regions land.
@@ -1381,7 +1387,7 @@ fn prepare_pipelines(
         return;
     };
 
-    let mut pipelines = [CachedRenderPipelineId::INVALID; 4];
+    let mut pipelines = [CachedRenderPipelineId::INVALID; TERRAIN_PIPELINES];
     // Greedy quads and baked model quads hand the fragment stage different things and read what
     // they look like from different places, so each kind gets its own pair of entry points rather
     // than one pair branching on which it was handed.
@@ -1390,6 +1396,8 @@ fn prepare_pipelines(
         ("vertex_complex", "fragment_model_opaque", false),
         ("vertex_simple", "fragment_greedy_blend", true),
         ("vertex_complex", "fragment_model_blend", true),
+        ("vertex_simple", "fragment_greedy_solid", false),
+        ("vertex_complex", "fragment_model_solid", false),
     ]
     .into_iter()
     .enumerate()
@@ -1633,6 +1641,7 @@ fn draw_terrain(
     view_bind_group: Option<Res<ViewBindGroup>>,
     clouds: Res<Clouds>,
     streams: Res<Streams>,
+    wireframe: Res<Wireframe>,
     raster: Res<Raster>,
     pipeline_cache: Res<PipelineCache>,
     queries: Option<Res<Queries>>,
@@ -1677,10 +1686,15 @@ fn draw_terrain(
         if draw.quad_count == 0 || !streams.drawn(draw.stream) {
             continue;
         }
-        // Solid and cutout share a pipeline (the alpha test never fires on a solid sprite); only
-        // the translucent pass differs, and it must come last because it does not write depth.
+        // Solid streams take the pipeline with no alpha test, which is what lets the GPU drop a
+        // hidden fragment before shading it; the wireframe draws its interiors away and so needs
+        // the discarding one back. Cutout shares that one, and the translucent pass differs again
+        // and must come last because it does not write depth.
         let stream = draw.stream as usize;
-        let pipeline_index = (stream / 4) * 2 + stream % 2;
+        let pipeline_index = match stream {
+            0 | 1 if !wireframe.0 => UNTESTED_PIPELINE + stream,
+            _ => (stream / 4) * 2 + stream % 2,
+        };
         let Some(pipeline) = pipeline_cache.get_render_pipeline(pipelines[pipeline_index]) else {
             continue;
         };

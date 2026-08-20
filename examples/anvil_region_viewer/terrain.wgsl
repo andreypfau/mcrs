@@ -549,6 +549,24 @@ fn fragment_greedy_opaque(in: GreedyOut) -> @location(0) vec4<f32> {
     return vec4<f32>(color.rgb, 1.0);
 }
 
+/// A tile-based GPU can only drop a hidden fragment before shading it if the shader cannot change
+/// whether the fragment exists. `discard` can, so an alpha-tested entry point forfeits hidden
+/// surface removal and every solid pixel behind another gets shaded anyway. Solid sprites never
+/// fail the alpha test, so they are drawn through these entry points instead, and the sky and the
+/// terrain behind the near terrain stop being shaded at all.
+@fragment
+fn fragment_greedy_solid(in: GreedyOut) -> @location(0) vec4<f32> {
+    let surface = greedy_surface(in);
+    let color = shade_surface(surface, dpdx(surface.uv), dpdy(surface.uv));
+    return vec4<f32>(color.rgb, 1.0);
+}
+
+@fragment
+fn fragment_model_solid(in: ModelOut) -> @location(0) vec4<f32> {
+    let color = shade_surface(model_surface(in), dpdx(in.uv), dpdy(in.uv));
+    return vec4<f32>(color.rgb, 1.0);
+}
+
 @fragment
 fn fragment_greedy_blend(in: GreedyOut) -> @location(0) vec4<f32> {
     let surface = greedy_surface(in);
