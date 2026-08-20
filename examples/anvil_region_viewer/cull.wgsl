@@ -135,7 +135,13 @@ fn faces_camera(face: u32, mn: vec3<f32>, mx: vec3<f32>) -> bool {
     }
 }
 
-@compute @workgroup_size(64)
+/// One SIMD group wide. Only one thread decides whether the run survives and the rest wait for it,
+/// so a wider workgroup buys nothing and idles twice the lanes; at 64 the pass costs half again as
+/// much. Giving one workgroup several runs to chew through is worse still — the scheduler is left
+/// with fewer independent workgroups to spread over the machine.
+const CULL_THREADS: u32 = 32u;
+
+@compute @workgroup_size(CULL_THREADS)
 fn cull(
     @builtin(workgroup_id) workgroup: vec3<u32>,
     @builtin(local_invocation_index) local: u32,
@@ -178,6 +184,6 @@ fn cull(
             break;
         }
         visible[params.visible_base + base + i] = g.quad_base + i;
-        i = i + 64u;
+        i = i + CULL_THREADS;
     }
 }
