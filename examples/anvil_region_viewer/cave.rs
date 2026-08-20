@@ -91,6 +91,10 @@ pub struct CaveCull {
     /// face turns out to have spent fewer directions. `dirs` only ever shrinks, so those repeats
     /// are bounded by its six bits.
     queue: Vec<u32>,
+    /// Microseconds the last walks took. The walk is the most expensive thing the main thread does
+    /// each frame, and nothing else reports what a system costs, so it reports its own.
+    took: Box<[u32; CaveCull::TIMED]>,
+    walks: usize,
 }
 
 impl CaveCull {
@@ -115,7 +119,25 @@ impl CaveCull {
             world_min: min_section,
             world_extent,
             queue: Vec::with_capacity(slots),
+            took: Box::new([0; Self::TIMED]),
+            walks: 0,
         }
+    }
+
+    /// Walks the median is taken over, which at these frame rates is well under a second.
+    const TIMED: usize = 256;
+
+    /// The median of the walks held, in milliseconds, or nothing before the first one. A median
+    /// because one walk that lands on a page fault should not move a figure describing the rest.
+    pub fn took_ms(&self) -> Option<f32> {
+        let held = self.walks.min(Self::TIMED);
+        if held == 0 {
+            return None;
+        }
+        let mut sorted = [0u32; Self::TIMED];
+        sorted[..held].copy_from_slice(&self.took[..held]);
+        sorted[..held].sort_unstable();
+        Some(sorted[held / 2] as f32 / 1000.0)
     }
 
     pub fn grid(&self) -> RegionGrid {
@@ -162,10 +184,10 @@ impl CaveCull {
     }
 
     fn run(&mut self, camera: Vec3, frustum: &Frustum) {
+        self.spent.fill(NEVER);
         self.bits.fill(0);
         self.open_the_tail();
         self.inside.fill(0);
-        self.spent.fill(NEVER);
         self.queue.clear();
         if !self.seed(camera, frustum) {
             self.bits.fill(u32::MAX);
@@ -344,7 +366,11 @@ pub fn cave_cull(
         cave.bits.fill(u32::MAX);
         return;
     }
+    let started = std::time::Instant::now();
     cave.run(transform.translation(), frustum);
+    let slot = cave.walks % CaveCull::TIMED;
+    cave.took[slot] = started.elapsed().as_micros() as u32;
+    cave.walks += 1;
 }
 
 /// Press C to turn the walk off and on. The shader has no flag for it: switched off, a bitset of all
