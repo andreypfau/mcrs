@@ -124,14 +124,15 @@ fn fullscreen_mode() -> Option<WindowMode> {
     }
 }
 
-/// Goes fullscreen one frame after the window opens, which is the earliest a display named by
-/// index can be honoured: the list of monitors is still empty while the first window is being
-/// built, so a selection by index resolves to nothing there and silently falls back to whichever
-/// display the window landed on.
+/// Puts the window on the display it was told to, which is the earliest that can be done: the list
+/// of monitors is still empty while the first window is being built, so a selection by index
+/// resolves to nothing there and falls back to whichever display the window landed on.
 fn enter_fullscreen(window: Single<&mut Window>) {
     if let Some(mode) = fullscreen_mode() {
         let mut window = window;
-        window.mode = mode;
+        if window.mode != mode {
+            window.mode = mode;
+        }
     }
 }
 
@@ -217,7 +218,14 @@ fn main() {
                     present_mode: PresentMode::AutoNoVsync,
                     // The same swap F11 does, at startup, so a rate can be measured from a
                     // terminal without a human at the window.
-                    // Fullscreen is entered a frame later rather than here; see `enter_fullscreen`.
+                    // Fullscreen twice over: here on whichever display the window opens on, and
+                    // again from `enter_fullscreen` once a display can be named. Asking only the
+                    // second time leaves runs that come up windowed, and a frame rate read from a
+                    // window is not the one being measured.
+                    mode: match fullscreen_mode() {
+                        Some(_) => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+                        None => WindowMode::Windowed,
+                    },
                     position: WindowPosition::Centered(chosen_monitor()),
                     ..default()
                 }),
