@@ -124,8 +124,7 @@ impl Plugin for MinecraftCorePlugin {
         app.register_asset_loader(test_types::TestEnvironmentLoader);
         app.init_asset::<test_types::TestInstance>();
         app.register_asset_loader(test_types::TestInstanceLoader);
-        app.init_asset::<world_clock::WorldClock>();
-        app.register_asset_loader(world_clock::WorldClockLoader);
+        app.add_plugins(world_clock::WorldClockPlugin);
         app.init_resource::<StaticRegistry<block::Block>>()
             .init_resource::<StaticRegistry<item::Item>>()
             .init_resource::<StaticRegistry<sound::SoundEvent>>()

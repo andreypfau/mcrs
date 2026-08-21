@@ -287,6 +287,7 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(Time::<Fixed>::default());
     sub_app.insert_resource(Time::<Virtual>::default());
     sub_app.insert_resource(Time::<Real>::default());
+    sub_app.init_resource::<mcrs_vanilla::world_clock::WorldClocks>();
 
     sub_app.set_extract(move |main_world, sub_world| {
         use crate::world::bus::OutboundPlayerAttached;
@@ -305,6 +306,7 @@ pub fn spawn_dim_subapp(
         if let Some(time) = main_world.get_resource::<Time<()>>() {
             sub_world.insert_resource(*time);
         }
+        mcrs_vanilla::world_clock::extract_world_clocks(main_world, sub_world);
 
         // Also extract OutboundPlayerAttached written directly to the sub-app Messages
         // (i.e., before flush_from_dim_outbox drains it). This covers the case where
