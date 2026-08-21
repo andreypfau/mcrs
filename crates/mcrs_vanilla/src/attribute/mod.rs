@@ -1,3 +1,4 @@
+pub mod lerp;
 pub mod modifier;
 pub mod registry;
 
@@ -11,6 +12,7 @@ use serde_json::Value;
 
 use crate::ResourceLocation;
 
+pub use lerp::Lerp;
 pub use modifier::{ModifierError, Operation, apply};
 pub use registry::{
     AttributeError, AttributeRange, AttributeSpec, AttributeType, AttributeValue,
