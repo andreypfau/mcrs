@@ -256,9 +256,9 @@ mod tests {
     #[test]
     fn the_shaders_unpack_the_fields_the_mesher_packs() {
         let shaders = [
-            ("layout.wgsl", include_str!("layout.wgsl")),
-            ("terrain.wgsl", include_str!("terrain.wgsl")),
-            ("cull.wgsl", include_str!("cull.wgsl")),
+            ("layout.wgsl", include_str!("render/shaders/layout.wgsl")),
+            ("terrain.wgsl", include_str!("render/shaders/terrain.wgsl")),
+            ("cull.wgsl", include_str!("render/shaders/cull.wgsl")),
         ];
         let mut seen: Vec<(&str, &str)> = Vec::new();
         for (file, source) in shaders {
