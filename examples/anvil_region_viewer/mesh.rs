@@ -22,7 +22,7 @@ use crate::atlas::SpriteRef;
 use crate::blocks::{BlockInfo, CORNER_UV, FACE_AXES, Fluid, Pass, TintKind};
 use crate::pack::{
     FACE_AO, FACE_ARRAY, FACE_BLOCK_LIGHT, FACE_FLUID, FACE_LAYER, FACE_SKY_LIGHT, FACE_TINT,
-    GROUP_FACE, MODEL_ARRAY, MODEL_BLOCK_LIGHT, MODEL_LAYER, MODEL_OVERHANG, MODEL_SECTION,
+    FACE_NONE, GROUP_FACE, MODEL_ARRAY, MODEL_BLOCK_LIGHT, MODEL_LAYER, MODEL_OVERHANG, MODEL_SECTION,
     MODEL_SHADE, MODEL_SKY_LIGHT, MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y,
     FLUID_INSET, MODEL_Z, QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H,
     QUAD_SECTION, QUAD_W, QUAD_WORDS,
@@ -43,14 +43,9 @@ pub const STREAM_NAMES: [&str; STREAMS] = [
     "translucent model",
 ];
 
-/// The last face group means "points nowhere the culling pass knows": drawn whenever the section
-/// is visible.
-const FACE_NONE: u32 = 10;
-
 /// The ten face groups model geometry can be sorted into — six axes and four horizontal diagonals
-/// — plus one for the quads that point squarely along none of them and so are never backfacing as
-/// a run.
-const FACE_GROUPS: usize = 11;
+/// — plus `FACE_NONE` for the quads that point squarely along none of them.
+const FACE_GROUPS: usize = FACE_NONE as usize + 1;
 
 const BORDER: usize = SECTION_SIZE + 2;
 const BORDER_VOLUME: usize = BORDER * BORDER * BORDER;

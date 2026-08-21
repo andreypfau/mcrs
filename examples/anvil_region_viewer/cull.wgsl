@@ -7,22 +7,12 @@
 // `draw_indirect` whose instance count the same atomic produced.
 
 #import bevy_render::view::View
+#import anvil_region_viewer::layout::{
+    CULLED, Params, SECTION_SIZE, section_origin,
+}
 
 // The packed geometry layout. The mesher writes these words and declares the same names, and a
 // test reads both sides back and fails if a width or an offset ever drifts apart.
-fn field(word: u32, shift: u32, bits: u32) -> u32 {
-    return (word >> shift) & ((1u << bits) - 1u);
-}
-
-const LOCAL_X_WORD: u32 = 0u;
-const LOCAL_X_SHIFT: u32 = 0u;
-const LOCAL_X_BITS: u32 = 4u;
-const LOCAL_Y_WORD: u32 = 0u;
-const LOCAL_Y_SHIFT: u32 = 4u;
-const LOCAL_Y_BITS: u32 = 3u;
-const LOCAL_Z_WORD: u32 = 0u;
-const LOCAL_Z_SHIFT: u32 = 7u;
-const LOCAL_Z_BITS: u32 = 4u;
 const SECTION_INDEX_WORD: u32 = 0u;
 const SECTION_INDEX_SHIFT: u32 = 0u;
 const SECTION_INDEX_BITS: u32 = 11u;
@@ -46,31 +36,6 @@ struct DrawArgs {
     first_instance: u32,
 }
 
-struct Params {
-    group_base: u32,
-    group_count: u32,
-    visible_base: u32,
-    args_index: u32,
-    // The corner of this draw's render region, in blocks. Explicit scalars rather than a vec3: a
-    // vec3 would align to 16 and silently grow the struct.
-    origin_x: i32,
-    origin_y: i32,
-    origin_z: i32,
-    // Where this region's sections start in the sight-line bitset.
-    cave_base: u32,
-    wireframe: u32,
-    // How far this stream's geometry may reach outside its own section.
-    overhang: f32,
-    animated_from: u32,
-    // Where the biome colour map starts in world blocks and how far it reaches. Unread here, but
-    // both shaders bind the same uniform and a struct that disagreed on its size would not bind.
-    tint_origin_x: i32,
-    tint_origin_z: i32,
-    tint_span_x: f32,
-    tint_span_z: f32,
-    pad1: u32,
-}
-
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(1) var<uniform> params: Params;
 @group(1) @binding(0) var<storage, read> groups: array<Group>;
@@ -78,21 +43,11 @@ struct Params {
 @group(1) @binding(2) var<storage, read_write> args: array<DrawArgs>;
 @group(1) @binding(3) var<storage, read> cave_visible: array<u32>;
 
-const CULLED: u32 = 0xffffffffu;
-
-/// Blocks along one edge of a section.
-const SECTION_SIZE: f32 = 16.0;
-
 var<workgroup> reserved_slot: u32;
 
 fn section_min(g: Group) -> vec3<f32> {
     let region = vec3<f32>(f32(params.origin_x), f32(params.origin_y), f32(params.origin_z));
-    let local = vec3<f32>(
-        f32(field(g.section, LOCAL_X_SHIFT, LOCAL_X_BITS)),
-        f32(field(g.section, LOCAL_Y_SHIFT, LOCAL_Y_BITS)),
-        f32(field(g.section, LOCAL_Z_SHIFT, LOCAL_Z_BITS)),
-    );
-    return region + local * SECTION_SIZE;
+    return section_origin(g.section, region);
 }
 
 /// The half spaces in `view.frustum` contain a point when `dot(plane.xyz, p) + plane.w > 0`, so the
@@ -112,28 +67,42 @@ fn in_frustum(mn: vec3<f32>, mx: vec3<f32>) -> bool {
     return true;
 }
 
+/// The outward normal every quad of a face group shares. The six axes first, then the four
+/// horizontal diagonals in the order the mesher numbers them — those are where the panes of a plant
+/// point, and nowhere else. Lengths do not matter to the only caller, which compares against zero.
+fn group_normal(face: u32) -> vec3<f32> {
+    switch face {
+        case 0u: { return vec3<f32>(0.0, -1.0, 0.0); }
+        case 1u: { return vec3<f32>(0.0, 1.0, 0.0); }
+        case 2u: { return vec3<f32>(0.0, 0.0, -1.0); }
+        case 3u: { return vec3<f32>(0.0, 0.0, 1.0); }
+        case 4u: { return vec3<f32>(-1.0, 0.0, 0.0); }
+        case 5u: { return vec3<f32>(1.0, 0.0, 0.0); }
+        case 6u: { return vec3<f32>(1.0, 0.0, 1.0); }
+        case 7u: { return vec3<f32>(1.0, 0.0, -1.0); }
+        case 8u: { return vec3<f32>(-1.0, 0.0, 1.0); }
+        default: { return vec3<f32>(-1.0, 0.0, -1.0); }
+    }
+}
+
+/// The face group a stream carries when its quads point every which way and none of this applies.
+const FACE_NONE: u32 = 10u;
+
 /// Every quad in a face group shares one outward normal, so a group facing away from the camera is
 /// entirely backfacing. At least three of the six axis groups fail this for any camera position.
 ///
 /// A group survives when any point of its box could face the camera, which is `dot(n, camera)`
-/// against the least `dot(n, p)` the box holds. For an axis that is one comparison. The four
-/// diagonals are the same statement with the two horizontal terms added, and they matter because
-/// the panes of a plant point along them and nowhere else.
+/// against the least `dot(n, p)` the box holds — and that least is reached at the corner taking
+/// `mn` on the axes where the normal is positive and `mx` on the rest. Stated once rather than
+/// solved by hand per group: the axes then cost the one comparison they always did, and the
+/// diagonals stop being a second set of inequalities whose corner choice has to be got right twice.
 fn faces_camera(face: u32, mn: vec3<f32>, mx: vec3<f32>) -> bool {
-    let cam = view.world_position;
-    switch face {
-        case 0u: { return cam.y < mx.y; }
-        case 1u: { return cam.y > mn.y; }
-        case 2u: { return cam.z < mx.z; }
-        case 3u: { return cam.z > mn.z; }
-        case 4u: { return cam.x < mx.x; }
-        case 5u: { return cam.x > mn.x; }
-        case 6u: { return cam.x + cam.z > mn.x + mn.z; }
-        case 7u: { return cam.x - cam.z > mn.x - mx.z; }
-        case 8u: { return cam.z - cam.x > mn.z - mx.x; }
-        case 9u: { return cam.x + cam.z < mx.x + mx.z; }
-        default: { return true; }
+    if (face >= FACE_NONE) {
+        return true;
     }
+    let n = group_normal(face);
+    let nearest = select(mx, mn, n > vec3<f32>(0.0));
+    return dot(n, view.world_position.xyz - nearest) > 0.0;
 }
 
 /// Whether a run survives: its section reachable along a sight line, its box inside the frustum,
@@ -144,15 +113,15 @@ fn faces_camera(face: u32, mn: vec3<f32>, mx: vec3<f32>) -> bool {
 /// the very edge of the frustum takes the quad poking into frame with it.
 fn survives(g: Group) -> bool {
     // The face group has to be masked off before the section number is used as a bitset index.
-    // Model streams carry face 7 there, and without the mask such a group would read far past the
-    // end of the array. The section number is relative to the region, so the region's own base has
-    // to be added back for the bitset the walk fills.
-    let sec = params.cave_base + field(g.section, SECTION_INDEX_SHIFT, SECTION_INDEX_BITS);
+    // Model streams carry `FACE_NONE` there, and without the mask such a group would read far past
+    // the end of the array. The section number is relative to the region, so the region's own base
+    // has to be added back for the bitset the walk fills.
+    let sec = params.cave_base + extractBits(g.section, SECTION_INDEX_SHIFT, SECTION_INDEX_BITS);
     let reachable = (cave_visible[sec >> 5u] >> (sec & 31u)) & 1u;
     let origin = section_min(g);
     let mn = origin - params.overhang;
     let mx = origin + SECTION_SIZE + params.overhang;
-    let face = field(g.section, GROUP_FACE_SHIFT, GROUP_FACE_BITS);
+    let face = extractBits(g.section, GROUP_FACE_SHIFT, GROUP_FACE_BITS);
     return reachable != 0u && in_frustum(mn, mx) && faces_camera(face, mn, mx);
 }
 

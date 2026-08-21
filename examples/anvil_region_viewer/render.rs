@@ -495,6 +495,7 @@ pub struct TerrainPlugin(pub Arc<Layout>, pub Uploads);
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
+        bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "layout.wgsl");
         bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "cull.wgsl");
         bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "terrain.wgsl");
         bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "sky.wgsl");
@@ -583,6 +584,10 @@ struct Terrain {
     sky_bind_group: BindGroup,
     terrain_shader: Handle<Shader>,
     sky_shader: Handle<Shader>,
+    /// The shared module the other three import. Never read: holding the handle is the whole of
+    /// what it is for, since dropping it would unload the module out from under them.
+    #[expect(dead_code, reason = "held to keep the imported shader module loaded")]
+    layout_shader: Handle<Shader>,
     /// Queued once the first view reveals the colour format the pipelines have to match; see
     /// [`TERRAIN_PIPELINES`] for what sits where.
     pipelines: Option<[CachedRenderPipelineId; TERRAIN_PIPELINES]>,
@@ -794,6 +799,12 @@ fn init_terrain(
         ),
     );
 
+    // Held for as long as the pipelines are, though nothing names it as its shader: the loader does
+    // not pull in what a shader imports, so the module every one of them imports has to be loaded
+    // here, and dropping the handle would unload it. A pipeline whose import never arrives waits
+    // for it silently — no error is logged and nothing draws.
+    let layout_shader: Handle<Shader> =
+        asset_server.load("embedded://anvil_region_viewer/layout.wgsl");
     let cull_shader = asset_server.load("embedded://anvil_region_viewer/cull.wgsl");
     let terrain_shader: Handle<Shader> =
         asset_server.load("embedded://anvil_region_viewer/terrain.wgsl");
@@ -878,6 +889,7 @@ fn init_terrain(
         sky_bind_group,
         terrain_shader,
         sky_shader,
+        layout_shader,
         pipelines: None,
         sky_pipelines: None,
     });

@@ -12,34 +12,9 @@
 // so the distances below are vanilla's own and nothing has to be scaled up to clear the world.
 
 #import bevy_render::view::View
+#import anvil_region_viewer::layout::{Sky, degenerate}
 
 const PI: f32 = 3.14159265359;
-
-/// The state of the sky for one frame. The terrain reads the first three fields as its light; the
-/// rest only matter here.
-struct Sky {
-    sky_light: vec4<f32>,
-    block_light: vec4<f32>,
-    ambient: vec4<f32>,
-    /// `rgb` the colour of the sky disc, `a` set when the camera is below the horizon and the dark
-    /// disc under it has to be drawn.
-    disc: vec4<f32>,
-    /// The twilight band: `rgb` its colour, `a` how far it has come in. Zero for most of the day.
-    sunrise: vec4<f32>,
-    /// The sun's angle in radians, and how bright the stars are. The moon stands opposite the
-    /// sun and the stars turn with it, so neither carries an angle of its own.
-    angles: vec4<f32>,
-    /// Which layer of the celestial array the moon shows, and how much rain dims the two discs.
-    moon: vec4<f32>,
-    /// `rgb` the haze the world fades into, which is also what the frame is cleared to, and `a`
-    /// how far from the camera the sky has faded entirely into it.
-    fog: vec4<f32>,
-    /// The colour the cloud layer is lit and tinted by, `a` included.
-    cloud_color: vec4<f32>,
-    /// Where the underside of the cloud layer sits, how far the field has drifted in x and z, and
-    /// the distance the clouds have faded out by.
-    cloud: vec4<f32>,
-};
 
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(3) var<uniform> sky: Sky;
@@ -96,12 +71,6 @@ struct SkyVertex {
 /// The sky is centred on the camera, so a position here is an offset from wherever it stands.
 fn to_clip(local: vec3<f32>) -> vec4<f32> {
     return view.clip_from_world * vec4<f32>(view.world_position.xyz + local, 1.0);
-}
-
-/// A vertex that must not draw. Every corner of its triangle lands on the same clip position, so
-/// the triangle has no area and nothing is rasterised.
-fn nothing() -> vec4<f32> {
-    return vec4<f32>(0.0, 0.0, 0.0, 1.0);
 }
 
 fn rotate_x(v: vec3<f32>, angle: f32) -> vec3<f32> {
@@ -163,7 +132,7 @@ fn vertex_disc(@builtin(vertex_index) index: u32) -> SkyVertex {
         out.clip_position = to_clip(local);
     } else {
         out.color = vec4<f32>(0.0);
-        out.clip_position = nothing();
+        out.clip_position = degenerate();
     }
     out.distance = length(local);
     return out;
@@ -179,7 +148,7 @@ fn vertex_sunrise(@builtin(vertex_index) index: u32) -> SkyVertex {
     out.distance = 0.0;
     let alpha = sky.sunrise.a;
     if alpha <= 0.001 {
-        out.clip_position = nothing();
+        out.clip_position = degenerate();
         out.color = vec4<f32>(0.0);
         return out;
     }
@@ -281,14 +250,14 @@ fn vertex_stars(@builtin(vertex_index) index: u32) -> SkyVertex {
 
     let length_squared = dot(point, point);
     if length_squared <= 0.010000001 || length_squared >= 1.0 {
-        out.clip_position = nothing();
+        out.clip_position = degenerate();
         return out;
     }
 
-    let centre = normalize(point) * STAR_DISTANCE;
     // The quad is turned to face the middle of the sky, which is where the camera is, and then
     // spun in its own plane so the field does not read as a grid of squares.
-    let facing = -normalize(centre);
+    let facing = -normalize(point);
+    let centre = -facing * STAR_DISTANCE;
     let left = normalize(cross(vec3<f32>(0.0, 1.0, 0.0), facing));
     let up = cross(facing, left);
 
@@ -297,10 +266,7 @@ fn vertex_stars(@builtin(vertex_index) index: u32) -> SkyVertex {
         select(-size, size, corner <= 1u),
         select(-size, size, corner == 1u || corner == 2u),
     );
-    let turned = vec2<f32>(
-        flat.x * cos(spin) + flat.y * sin(spin),
-        -flat.x * sin(spin) + flat.y * cos(spin),
-    );
+    let turned = rotate_z(vec3<f32>(flat, 0.0), -spin);
     let local = centre + left * turned.x + up * turned.y;
     out.clip_position = to_clip(celestial_frame(local, sky.angles.x));
     return out;
@@ -418,12 +384,16 @@ fn fragment_clouds(in: CloudVertex) -> CloudFragment {
     let drift = vec2<f32>(sky.cloud.y % span, sky.cloud.z);
     let start = (origin.xz + drift + direction.xz * enter) / CLOUD_CELL;
 
-    var cell = floor(start);
+    let corner = floor(start);
     let step = sign(direction.xz);
     // How far along the ray a whole cell is, per axis, and how far the first boundary is.
     let per_cell = CLOUD_CELL / max(abs(direction.xz), vec2<f32>(1e-6));
     var next = enter
-        + select(start - cell, cell + 1.0 - start, step > vec2<f32>(0.0)) * per_cell;
+        + select(start - corner, corner + 1.0 - start, step > vec2<f32>(0.0)) * per_cell;
+    // Walked as an index from here: the cell is only ever used to address the texture, and holding
+    // it as a float would convert it on every one of the steps below.
+    var cell = vec2<i32>(corner);
+    let cell_step = vec2<i32>(step);
 
     // The face the ray came in through. Until it crosses a cell wall that is whichever side of the
     // layer it entered by, which is the one it is pointed away from.
@@ -431,7 +401,7 @@ fn fragment_clouds(in: CloudVertex) -> CloudFragment {
     var distance = enter;
     var filled = vec4<f32>(0.0);
     for (var taken = 0u; taken < CLOUD_STEPS; taken = taken + 1u) {
-        let sample = cloud_cell(vec2<i32>(cell), size);
+        let sample = cloud_cell(cell, size);
         if sample.a >= CLOUD_OPEN {
             filled = sample;
             break;
@@ -440,12 +410,12 @@ fn fragment_clouds(in: CloudVertex) -> CloudFragment {
         if next.x < next.y {
             distance = next.x;
             next.x = next.x + per_cell.x;
-            cell.x = cell.x + step.x;
+            cell.x = cell.x + cell_step.x;
             shade = CLOUD_SIDE_X;
         } else {
             distance = next.y;
             next.y = next.y + per_cell.y;
-            cell.y = cell.y + step.y;
+            cell.y = cell.y + cell_step.y;
             shade = CLOUD_SIDE_Z;
         }
         if distance > leave {

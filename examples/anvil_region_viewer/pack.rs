@@ -2,7 +2,7 @@
 //!
 //! Three sides have to agree on it: the mesher writes the words, `terrain.wgsl` reads them to
 //! build vertices, and `cull.wgsl` reads the section number out of a group. WGSL cannot import
-//! Rust, so both shaders declare their own `NAME_SHIFT` and `NAME_BITS` constants under the names
+//! Rust, so the shaders declare their own `NAME_SHIFT` and `NAME_BITS` constants under the names
 //! used here, and the test at the bottom reads the shader sources back and fails if any of them
 //! drifts. A field whose width disagrees between the two sides does not fail to compile — it
 //! silently draws the wrong sprite or puts a quad in the wrong place.
@@ -193,6 +193,11 @@ pub const MODEL_STEPS: f32 = 32.0;
 /// the fluid a thousandth of a block back so there is an order to find.
 pub const FLUID_INSET: f32 = 0.001;
 
+/// The face group a run of quads carries when it points squarely along none of the ten the culling
+/// pass knows — the six axes and the four horizontal diagonals. Such a run is never backfacing as a
+/// whole, so the culling pass draws it whenever its section is visible.
+pub const FACE_NONE: u32 = 10;
+
 /// How many sprites one array can hold. With four arrays that is four thousand addressable
 /// sprites, against the eleven hundred a vanilla pack defines and the seventeen hundred it would
 /// reach with every animation frame unrolled.
@@ -348,6 +353,7 @@ const SCALARS: &[(&str, f64)] = &[
     ("MODEL_STEPS", MODEL_STEPS as f64),
     ("FLUID_INSET", FLUID_INSET as f64),
     ("QUAD_WORDS", QUAD_WORDS as f64),
+    ("FACE_NONE", FACE_NONE as f64),
 ];
 
 #[cfg(test)]
@@ -371,6 +377,7 @@ mod tests {
     #[test]
     fn the_shaders_unpack_the_fields_the_mesher_packs() {
         let shaders = [
+            ("layout.wgsl", include_str!("layout.wgsl")),
             ("terrain.wgsl", include_str!("terrain.wgsl")),
             ("cull.wgsl", include_str!("cull.wgsl")),
         ];

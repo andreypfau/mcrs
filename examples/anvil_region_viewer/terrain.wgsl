@@ -9,37 +9,18 @@
 
 #import bevy_render::view::View
 #import bevy_render::globals::Globals
+#import anvil_region_viewer::layout::{
+    CULLED, Params, Sky, degenerate, section_origin,
+}
 
 // The packed geometry layout. The mesher writes these words and declares the same names, and a
 // test reads both sides back and fails if a width or an offset ever drifts apart.
-fn field(word: u32, shift: u32, bits: u32) -> u32 {
-    return (word >> shift) & ((1u << bits) - 1u);
-}
 
 /// Which word a field lives in is part of the layout, so it is read from the layout rather than
 /// chosen at the call site. `base` is where the quad starts in the arena.
 fn quad_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {
-    return field(quads[base + word], shift, bits);
+    return extractBits(quads[base + word], shift, bits);
 }
-
-
-const SECTION_SIZE: f32 = 16.0;
-
-/// What the culling pass leaves in the visible list where a run did not survive. Only the blended
-/// streams hold any: theirs is laid out by each run's own place in the draw so that the order the
-/// quads blend in does not change between frames, which means the list has a slot for every quad
-/// whether it is drawn or not.
-const CULLED: u32 = 0xffffffffu;
-
-const LOCAL_X_WORD: u32 = 0u;
-const LOCAL_X_SHIFT: u32 = 0u;
-const LOCAL_X_BITS: u32 = 4u;
-const LOCAL_Y_WORD: u32 = 0u;
-const LOCAL_Y_SHIFT: u32 = 4u;
-const LOCAL_Y_BITS: u32 = 3u;
-const LOCAL_Z_WORD: u32 = 0u;
-const LOCAL_Z_SHIFT: u32 = 7u;
-const LOCAL_Z_BITS: u32 = 4u;
 
 const QUAD_X_WORD: u32 = 0u;
 const QUAD_X_SHIFT: u32 = 0u;
@@ -154,65 +135,18 @@ const MODEL_OVERHANG: f32 = 2.0;
 /// thousandth of a block gives them one, which is what vanilla does and for the same reason.
 const FLUID_INSET: f32 = 0.001;
 
-struct Params {
-    group_base: u32,
-    group_count: u32,
-    visible_base: u32,
-    args_index: u32,
-    // The corner of this draw's render region, in blocks. Explicit scalars rather than a vec3: a
-    // vec3 would align to 16 and silently grow the struct.
-    origin_x: i32,
-    origin_y: i32,
-    origin_z: i32,
-    cave_base: u32,
-    wireframe: u32,
-    overhang: f32,
-    // The lowest layer number that names an animation rather than a layer of an array.
-    animated_from: u32,
-    // Where the biome colour map starts in world blocks and how far it reaches. The map covers the
-    // loaded window, which does not start at the origin, so a world position has to be shifted and
-    // scaled rather than divided by a constant.
-    tint_origin_x: i32,
-    tint_origin_z: i32,
-    tint_span_x: f32,
-    tint_span_z: f32,
-    /// Where this draw's render region owns its face attributes. A quad's own base counts from
-    /// there, so the two have to be added before the buffer is read.
-    face_origin: u32,
-}
-
-/// The state of the sky the whole frame is lit by. Vanilla builds a sixteen by sixteen lightmap
-/// texture out of these once a frame and samples it per vertex; there are few enough terms to
-/// evaluate them where the sample would have been, which costs no texture and no upload.
-struct Sky {
-    /// `rgb` the colour sky light arrives in, `a` how much of it the time of day lets through.
-    sky_light: vec4<f32>,
-    /// `rgb` the tint of a torch at its dimmest, `a` the factor block light is scaled by.
-    block_light: vec4<f32>,
-    /// The floor under both, which is what keeps a sealed cave from being pure black.
-    ambient: vec4<f32>,
-};
-
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(1) var<uniform> params: Params;
 @group(0) @binding(2) var<uniform> globals: Globals;
 @group(0) @binding(3) var<uniform> sky: Sky;
 
 fn model_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {
-    return field(vertices[base + word], shift, bits);
+    return extractBits(vertices[base + word], shift, bits);
 }
 
-/// Where the section a quad names starts, in world blocks. A coordinate in a quad is relative to
-/// its own section, and the region corner arrives with the draw, so this is the whole of what puts
-/// the geometry back where it belongs.
-fn section_origin(section: u32) -> vec3<f32> {
-    let region = vec3<f32>(f32(params.origin_x), f32(params.origin_y), f32(params.origin_z));
-    let local = vec3<f32>(
-        f32(field(section, LOCAL_X_SHIFT, LOCAL_X_BITS)),
-        f32(field(section, LOCAL_Y_SHIFT, LOCAL_Y_BITS)),
-        f32(field(section, LOCAL_Z_SHIFT, LOCAL_Z_BITS)),
-    );
-    return region + local * SECTION_SIZE;
+/// The corner of this draw's render region, which is what a section coordinate is relative to.
+fn region_origin() -> vec3<f32> {
+    return vec3<f32>(f32(params.origin_x), f32(params.origin_y), f32(params.origin_z));
 }
 
 @group(1) @binding(0) var<storage, read> quads: array<u32>;
@@ -336,16 +270,12 @@ fn face_v_dir(face: u32) -> vec3<f32> {
     }
 }
 
-/// The outward normal of a face, which is the direction a fluid quad is held back along.
-fn face_normal(face: u32) -> vec3<f32> {
-    switch face {
-        case 0u: { return vec3<f32>(0.0, -1.0, 0.0); }
-        case 1u: { return vec3<f32>(0.0, 1.0, 0.0); }
-        case 2u: { return vec3<f32>(0.0, 0.0, -1.0); }
-        case 3u: { return vec3<f32>(0.0, 0.0, 1.0); }
-        case 4u: { return vec3<f32>(-1.0, 0.0, 0.0); }
-        default: { return vec3<f32>(1.0, 0.0, 0.0); }
-    }
+/// The outward normal of a face, which is the direction a fluid quad is held back along. Derived
+/// from the two sprite axes rather than tabled a third time: a sign flipped in either of those
+/// would otherwise leave a stale normal behind, and that shows up as a fluid surface inset the
+/// wrong way rather than as anything that fails to compile.
+fn face_normal(u_dir: vec3<f32>, v_dir: vec3<f32>) -> vec3<f32> {
+    return -cross(u_dir, v_dir);
 }
 
 /// Vanilla's directional face shade, from `CardinalLighting`.
@@ -393,15 +323,13 @@ fn vertex_simple(
     let culled = visible[params.visible_base + instance];
     var out: GreedyOut;
     if (culled == CULLED) {
-        // Four corners in one place is no triangle, which is how a quad the culling pass threw
-        // away leaves the stage without anything downstream having to know it was ever here.
-        out.clip_position = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+        out.clip_position = degenerate();
         return out;
     }
     let quad = culled * QUAD_WORDS;
 
     let section = quad_field(quad, QUAD_SECTION_WORD, QUAD_SECTION_SHIFT, QUAD_SECTION_BITS);
-    let anchor = section_origin(section)
+    let anchor = section_origin(section, region_origin())
         + vec3<f32>(
             f32(quad_field(quad, QUAD_X_WORD, QUAD_X_SHIFT, QUAD_X_BITS)),
             f32(quad_field(quad, QUAD_Y_WORD, QUAD_Y_SHIFT, QUAD_Y_BITS)),
@@ -424,13 +352,15 @@ fn vertex_simple(
         quad_uv.y = max(quad_uv.y, drop / size.y);
     }
     let c = quad_uv * size;
-    var world = anchor + face_u_dir(face) * c.x + face_v_dir(face) * c.y;
+    let u_dir = face_u_dir(face);
+    let v_dir = face_v_dir(face);
+    var world = anchor + u_dir * c.x + v_dir * c.y;
     if (face == 1u) {
         world.y -= drop;
     }
     // Held back off its own block boundary, where the face of the block beside it is drawn.
     let fluid = quad_field(quad, QUAD_FLUID_WORD, QUAD_FLUID_SHIFT, QUAD_FLUID_BITS);
-    world -= face_normal(face) * (FLUID_INSET * f32(fluid));
+    world -= face_normal(u_dir, v_dir) * (FLUID_INSET * f32(fluid));
 
     out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
     out.quad_uv = quad_uv;
@@ -453,7 +383,7 @@ fn vertex_complex(
     let quad = visible[params.visible_base + instance];
     var out: ModelOut;
     if (quad == CULLED) {
-        out.clip_position = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+        out.clip_position = degenerate();
         return out;
     }
     let corner = corner_index(vertex);
@@ -464,7 +394,10 @@ fn vertex_complex(
         f32(model_field(base, MODEL_Y_WORD, MODEL_Y_SHIFT, MODEL_Y_BITS)),
         f32(model_field(base, MODEL_Z_WORD, MODEL_Z_SHIFT, MODEL_Z_BITS)),
     ) / MODEL_STEPS - MODEL_OVERHANG;
-    let world = section_origin(model_field(base, MODEL_SECTION_WORD, MODEL_SECTION_SHIFT, MODEL_SECTION_BITS)) + local;
+    let world = section_origin(
+        model_field(base, MODEL_SECTION_WORD, MODEL_SECTION_SHIFT, MODEL_SECTION_BITS),
+        region_origin(),
+    ) + local;
     // The same denominator the mesher scaled by: the widest value the field holds.
     let uv_scale = f32((1u << MODEL_U_BITS) - 1u);
     let u = f32(model_field(base, MODEL_U_WORD, MODEL_U_SHIFT, MODEL_U_BITS)) / uv_scale;
@@ -543,16 +476,21 @@ fn sprite_color(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2
 
 fn shade_surface(s: Surface) -> vec4<f32> {
     let color = sprite_color(s.array, s.uv, s.layer, s.ddx, s.ddy);
-    // Both samples are unconditional: `tint_kind` varies between instances inside one draw, so a
-    // branch around a `textureSample` would not be uniform control flow and WGSL rejects it.
-    let tint_origin = vec2<f32>(f32(params.tint_origin_x), f32(params.tint_origin_z));
-    let tint = textureSample(
-        tints,
-        tint_sampler,
-        (s.world_xz - tint_origin) / vec2<f32>(params.tint_span_x, params.tint_span_z),
-        max(s.tint_kind, 1u) - 1u,
-    );
-    let factor = select(vec3<f32>(1.0), tint.rgb, s.tint_kind != 0u);
+    // Most of the world is untinted, and asking for an explicit level of detail is what lets the
+    // sample sit under a branch at all: `textureSample` takes an implicit derivative and so demands
+    // uniform control flow, which `tint_kind` does not have. The map is a single mip, so naming
+    // level zero is what the implicit lookup would have found anyway.
+    var factor = vec3<f32>(1.0);
+    if (s.tint_kind != 0u) {
+        let tint_origin = vec2<f32>(f32(params.tint_origin_x), f32(params.tint_origin_z));
+        factor = textureSampleLevel(
+            tints,
+            tint_sampler,
+            (s.world_xz - tint_origin) / vec2<f32>(params.tint_span_x, params.tint_span_z),
+            s.tint_kind - 1u,
+            0.0,
+        ).rgb;
+    }
     return vec4<f32>(color.rgb * factor * s.shade, color.a);
 }
 
@@ -567,9 +505,9 @@ fn greedy_surface(in: GreedyOut) -> Surface {
     // coordinate reaches the span exactly.
     let cell = min(vec2<u32>(max(uv, vec2<f32>(0.0))), in.face_span - vec2<u32>(1u));
     let attr = faces[in.face_base + cell.y * in.face_span.x + cell.x];
-    let block_light = f32(field(attr, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS));
-    let sky_light = f32(field(attr, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS));
-    let ao_bits = field(attr, FACE_AO_SHIFT, FACE_AO_BITS);
+    let block_light = f32(extractBits(attr, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS));
+    let sky_light = f32(extractBits(attr, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS));
+    let ao_bits = extractBits(attr, FACE_AO_SHIFT, FACE_AO_BITS);
     // Bilinear over the face's own four corners, in the order the mesher packed them: 0 and 3
     // along the bottom edge, 1 and 2 along the top.
     let f = uv - vec2<f32>(cell);
@@ -583,13 +521,13 @@ fn greedy_surface(in: GreedyOut) -> Surface {
     // which is what shows the texture at twice the size a block face would and makes a waterfall
     // read as falling. The mesher leaves the occlusion field fully open on those faces, so nothing
     // above has to know they are a fluid.
-    let fluid = field(attr, FACE_FLUID_SHIFT, FACE_FLUID_BITS) != 0u;
+    let fluid = extractBits(attr, FACE_FLUID_SHIFT, FACE_FLUID_BITS) != 0u;
     let scale = select(1.0, 0.5, fluid);
 
     var s: Surface;
-    s.layer = field(attr, FACE_LAYER_SHIFT, FACE_LAYER_BITS);
-    s.array = field(attr, FACE_ARRAY_SHIFT, FACE_ARRAY_BITS);
-    s.tint_kind = field(attr, FACE_TINT_SHIFT, FACE_TINT_BITS);
+    s.layer = extractBits(attr, FACE_LAYER_SHIFT, FACE_LAYER_BITS);
+    s.array = extractBits(attr, FACE_ARRAY_SHIFT, FACE_ARRAY_BITS);
+    s.tint_kind = extractBits(attr, FACE_TINT_SHIFT, FACE_TINT_BITS);
     s.shade = lightmap(block_light, sky_light) * (in.directional * ao);
     s.uv = select(uv, fract(uv) * 0.5, fluid);
     s.world_xz = in.world_xz;
@@ -619,11 +557,13 @@ fn wireframe_discards(quad_uv: vec2<f32>) -> bool {
     return params.wireframe != 0u && edge_pixels(quad_uv) > 1.0;
 }
 
-@fragment
-fn fragment_greedy_opaque(in: GreedyOut) -> @location(0) vec4<f32> {
-    let surface = greedy_surface(in);
-    let color = shade_surface(surface);
-    if (color.a < 0.5 || wireframe_discards(in.quad_uv)) {
+/// The three ways a shaded fragment is finished with. Which one a draw uses is a property of the
+/// stream, not of which of the two geometry representations it was built from, so each is stated
+/// once here and the six entry points below are the six pairings.
+
+/// Alpha tested, and so opaque wherever it survives.
+fn finish_opaque(color: vec4<f32>, quad_uv: vec2<f32>) -> vec4<f32> {
+    if (color.a < 0.5 || wireframe_discards(quad_uv)) {
         discard;
     }
     return vec4<f32>(color.rgb, 1.0);
@@ -632,45 +572,46 @@ fn fragment_greedy_opaque(in: GreedyOut) -> @location(0) vec4<f32> {
 /// A tile-based GPU can only drop a hidden fragment before shading it if the shader cannot change
 /// whether the fragment exists. `discard` can, so an alpha-tested entry point forfeits hidden
 /// surface removal and every solid pixel behind another gets shaded anyway. Solid sprites never
-/// fail the alpha test, so they are drawn through these entry points instead, and the sky and the
-/// terrain behind the near terrain stop being shaded at all.
-@fragment
-fn fragment_greedy_solid(in: GreedyOut) -> @location(0) vec4<f32> {
-    let surface = greedy_surface(in);
-    let color = shade_surface(surface);
+/// fail the alpha test, so they are drawn through this tail instead, and the sky and the terrain
+/// behind the near terrain stop being shaded at all. The wireframe toggle discards, so it is not
+/// offered here.
+fn finish_solid(color: vec4<f32>) -> vec4<f32> {
     return vec4<f32>(color.rgb, 1.0);
 }
 
+fn finish_blend(color: vec4<f32>, quad_uv: vec2<f32>) -> vec4<f32> {
+    if (wireframe_discards(quad_uv)) {
+        discard;
+    }
+    return color;
+}
+
 @fragment
-fn fragment_model_solid(in: ModelOut) -> @location(0) vec4<f32> {
-    let color = shade_surface(model_surface(in));
-    return vec4<f32>(color.rgb, 1.0);
+fn fragment_greedy_opaque(in: GreedyOut) -> @location(0) vec4<f32> {
+    return finish_opaque(shade_surface(greedy_surface(in)), in.quad_uv);
+}
+
+@fragment
+fn fragment_greedy_solid(in: GreedyOut) -> @location(0) vec4<f32> {
+    return finish_solid(shade_surface(greedy_surface(in)));
 }
 
 @fragment
 fn fragment_greedy_blend(in: GreedyOut) -> @location(0) vec4<f32> {
-    let surface = greedy_surface(in);
-    let color = shade_surface(surface);
-    if (wireframe_discards(in.quad_uv)) {
-        discard;
-    }
-    return color;
+    return finish_blend(shade_surface(greedy_surface(in)), in.quad_uv);
 }
 
 @fragment
 fn fragment_model_opaque(in: ModelOut) -> @location(0) vec4<f32> {
-    let color = shade_surface(model_surface(in));
-    if (color.a < 0.5 || wireframe_discards(in.quad_uv)) {
-        discard;
-    }
-    return vec4<f32>(color.rgb, 1.0);
+    return finish_opaque(shade_surface(model_surface(in)), in.quad_uv);
+}
+
+@fragment
+fn fragment_model_solid(in: ModelOut) -> @location(0) vec4<f32> {
+    return finish_solid(shade_surface(model_surface(in)));
 }
 
 @fragment
 fn fragment_model_blend(in: ModelOut) -> @location(0) vec4<f32> {
-    let color = shade_surface(model_surface(in));
-    if (wireframe_discards(in.quad_uv)) {
-        discard;
-    }
-    return color;
+    return finish_blend(shade_surface(model_surface(in)), in.quad_uv);
 }
