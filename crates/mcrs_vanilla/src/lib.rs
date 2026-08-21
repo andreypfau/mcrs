@@ -15,6 +15,7 @@ pub mod item;
 pub mod material;
 pub mod player_action;
 pub mod sound;
+pub mod attribute;
 pub mod biome;
 pub mod dimension;
 pub mod value;

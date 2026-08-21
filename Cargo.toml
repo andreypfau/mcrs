@@ -174,3 +174,7 @@ opt-level = 3
 
 [profile.dev.package."bevy_math"]
 opt-level = 3
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+objc2-metal = { version = "0.3", default-features = false, features = ["std", "MTLCaptureManager", "MTLDevice"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL", "NSError"] }

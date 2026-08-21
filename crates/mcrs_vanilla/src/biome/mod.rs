@@ -12,43 +12,49 @@ use serde::de::{self, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::ResourceLocation;
+use crate::attribute::EnvironmentAttributeMap;
+use crate::value::IntValueProvider;
 
-/// Full biome definition matching the Minecraft 1.21+ JSON format.
-///
-/// This is a leaf asset with no `Handle` references, so it deserializes
-/// directly without a Proto layer.
+pub const NATURAL_MOB_SPAWNS: &str = "minecraft:gameplay/natural_mob_spawns";
+
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct Biome {
     pub temperature: f32,
     pub downfall: f32,
     pub has_precipitation: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temperature_modifier: Option<String>,
     pub effects: BiomeEffects,
+    #[serde(default)]
+    pub attributes: EnvironmentAttributeMap,
     #[serde(default, deserialize_with = "one_or_many")]
     pub carvers: Vec<ResourceLocation<Arc<str>>>,
     #[serde(default)]
     pub features: Vec<Vec<ResourceLocation<Arc<str>>>>,
-    pub spawners: BiomeSpawners,
-    #[serde(default)]
-    pub spawn_costs: HashMap<ResourceLocation<Arc<str>>, SpawnCost>,
-    #[serde(default)]
-    pub attributes: Option<serde_json::Value>,
 }
 
 impl Biome {
     pub fn load(ctx: &mut LoadContext<'_>, loc: &ResourceLocation<Arc<str>>) -> Handle<Biome> {
         ctx.load(format!("{}/worldgen/biome/{}.json", loc.namespace(), loc.path()))
     }
+
+    pub fn natural_mob_spawns(&self) -> serde_json::Result<Option<MobSpawnSettings>> {
+        self.attributes.argument(NATURAL_MOB_SPAWNS)
+    }
 }
 
 /// Biome data subset for NETWORK_CODEC — omits server-only generation settings.
 ///
-/// Sent to clients during Configuration; excludes carvers, features,
-/// spawners, and spawn_costs which are irrelevant to the client.
+/// Sent to clients during Configuration; excludes carvers, features, and the
+/// attributes the client is not allowed to see.
 #[derive(Debug, Clone, Serialize)]
 pub struct NetworkBiome {
     pub temperature: f32,
     pub downfall: f32,
     pub has_precipitation: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature_modifier: Option<String>,
+    pub attributes: EnvironmentAttributeMap,
     pub effects: BiomeEffects,
 }
 
@@ -58,6 +64,8 @@ impl From<&Biome> for NetworkBiome {
             temperature: biome.temperature,
             downfall: biome.downfall,
             has_precipitation: biome.has_precipitation,
+            temperature_modifier: biome.temperature_modifier.clone(),
+            attributes: biome.attributes.filter_syncable(),
             effects: biome.effects.clone(),
         }
     }
@@ -83,7 +91,16 @@ pub struct BiomeEffects {
     pub dry_foliage_color: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// The `minecraft:gameplay/natural_mob_spawns` attribute argument.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MobSpawnSettings {
+    #[serde(default)]
+    pub spawn_costs: HashMap<ResourceLocation<Arc<str>>, SpawnCost>,
+    #[serde(default)]
+    pub spawns_by_category: BiomeSpawners,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BiomeSpawners {
     #[serde(default)]
     pub ambient: Vec<SpawnerData>,
@@ -107,10 +124,7 @@ pub struct BiomeSpawners {
 pub struct SpawnerData {
     #[serde(rename = "type")]
     pub entity_type: ResourceLocation<Arc<str>>,
-    #[serde(rename = "minCount")]
-    pub min_count: u32,
-    #[serde(rename = "maxCount")]
-    pub max_count: u32,
+    pub count: IntValueProvider,
     pub weight: u32,
 }
 
@@ -264,8 +278,19 @@ mod tests {
         assert!(json.get("effects").is_some());
         assert!(json.get("carvers").is_none());
         assert!(json.get("features").is_none());
-        assert!(json.get("spawners").is_none());
-        assert!(json.get("spawn_costs").is_none());
+
+        let attributes = json.get("attributes").expect("attributes are synced");
+        assert_eq!(attributes.get("minecraft:visual/sky_color").unwrap(), "#78a7ff");
+        assert!(attributes.get(NATURAL_MOB_SPAWNS).is_none(), "spawns are server-only");
+
+        let nbt = mcrs_nbt::to_nbt_compound(&network).expect("network biome must encode to NBT");
+        let Some(mcrs_nbt::tag::NbtTag::Compound(attributes)) = nbt.get("attributes") else {
+            panic!("attributes must reach the client as a compound");
+        };
+        assert_eq!(
+            attributes.get("minecraft:visual/sky_color"),
+            Some(&mcrs_nbt::tag::NbtTag::String("#78a7ff".to_string()))
+        );
 
         assert!((network.temperature - biome.temperature).abs() < f32::EPSILON);
         assert!((network.downfall - biome.downfall).abs() < f32::EPSILON);
@@ -285,7 +310,15 @@ mod tests {
         assert!(biome.has_precipitation);
         assert_eq!(biome.carvers.len(), 3);
         assert_eq!(biome.carvers[0].as_str(), "minecraft:cave");
-        assert!(!biome.spawners.creature.is_empty());
-        assert!(biome.attributes.is_some());
+        let spawns = biome.natural_mob_spawns().unwrap().expect("plains has spawns");
+        assert!(!spawns.spawns_by_category.creature.is_empty());
+        assert_eq!(
+            biome.attributes.get(NATURAL_MOB_SPAWNS).unwrap().modifier.as_deref(),
+            Some("overlay")
+        );
+        assert_eq!(
+            biome.attributes.get("minecraft:visual/sky_color").unwrap().argument,
+            serde_json::json!("#78a7ff")
+        );
     }
 }

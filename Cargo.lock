@@ -3227,6 +3227,8 @@ dependencies = [
  "mcrs_minecraft",
  "mcrs_nbt",
  "mcrs_telemetry",
+ "objc2-foundation 0.3.2",
+ "objc2-metal 0.3.2",
  "serde",
  "serde_json",
  "tokio",

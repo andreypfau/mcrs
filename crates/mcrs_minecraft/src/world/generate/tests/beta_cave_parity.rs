@@ -303,6 +303,7 @@ fn make_beta_biome() -> Biome {
         temperature: 0.5,
         downfall: 0.5,
         has_precipitation: true,
+        temperature_modifier: None,
         effects: mcrs_vanilla::biome::BiomeEffects {
             water_color: None,
             foliage_color: None,
@@ -312,18 +313,7 @@ fn make_beta_biome() -> Biome {
         },
         carvers: Vec::new(),
         features: Vec::new(),
-        spawners: mcrs_vanilla::biome::BiomeSpawners {
-            ambient: Vec::new(),
-            axolotls: Vec::new(),
-            creature: Vec::new(),
-            misc: Vec::new(),
-            monster: Vec::new(),
-            underground_water_creature: Vec::new(),
-            water_ambient: Vec::new(),
-            water_creature: Vec::new(),
-        },
-        spawn_costs: std::collections::HashMap::new(),
-        attributes: None,
+        attributes: Default::default(),
     }
 }
 

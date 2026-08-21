@@ -1,16 +1,16 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use bevy_asset::Assets;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::resource_location::ResourceLocation;
-use mcrs_vanilla::biome::{Biome, BiomeEffects, BiomeSpawners, NetworkBiome};
+use mcrs_vanilla::biome::{Biome, BiomeEffects, NetworkBiome};
 
 fn fixture_biome() -> Biome {
     Biome {
         temperature: 0.8,
         downfall: 0.4,
         has_precipitation: true,
+        temperature_modifier: None,
         effects: BiomeEffects {
             water_color: None,
             foliage_color: None,
@@ -20,18 +20,7 @@ fn fixture_biome() -> Biome {
         },
         carvers: Vec::new(),
         features: Vec::new(),
-        spawners: BiomeSpawners {
-            ambient: Vec::new(),
-            axolotls: Vec::new(),
-            creature: Vec::new(),
-            misc: Vec::new(),
-            monster: Vec::new(),
-            underground_water_creature: Vec::new(),
-            water_ambient: Vec::new(),
-            water_creature: Vec::new(),
-        },
-        spawn_costs: HashMap::new(),
-        attributes: None,
+        attributes: Default::default(),
     }
 }
 
