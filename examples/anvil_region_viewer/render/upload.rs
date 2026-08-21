@@ -8,9 +8,9 @@ use bevy::render::renderer::{RenderDevice, RenderQueue};
 use crate::mesh::{Draw, Group};
 use crate::pack::QUAD_WORDS;
 
-use super::params;
-use super::terrain::{Terrain, draw_bind_group};
-use super::texture::{upload_atlases, write_tint_square};
+use super::arenas::Arena;
+use super::terrain::Terrain;
+use super::texture::write_tint_square;
 use super::{Animation, Atlas};
 
 static BUDGET: std::sync::LazyLock<usize> =
@@ -70,14 +70,6 @@ pub(super) struct Pending {
     done: usize,
 }
 
-#[derive(Copy, Clone)]
-enum Arena {
-    Quads,
-    Vertices,
-    Faces,
-    Groups,
-}
-
 const ARENA_PARTS: usize = 4;
 
 impl Placement {
@@ -103,17 +95,6 @@ impl Placement {
     }
 }
 
-impl Terrain {
-    fn arena(&self, arena: Arena) -> &Buffer {
-        match arena {
-            Arena::Quads => &self.quads,
-            Arena::Vertices => &self.vertices,
-            Arena::Faces => &self.faces,
-            Arena::Groups => &self.group_buffer,
-        }
-    }
-}
-
 pub(super) fn apply_uploads(
     mut terrain: Option<ResMut<Terrain>>,
     uploads: Res<Uploads>,
@@ -124,24 +105,30 @@ pub(super) fn apply_uploads(
     let Some(terrain) = terrain.as_mut() else {
         return;
     };
+    let terrain = terrain.as_mut();
     let mut budget = *BUDGET;
 
     if let Some(bases) = uploads.0.lock().unwrap().rebase.take() {
         for (region, base) in bases {
-            for draw in terrain.draws.iter_mut().filter(|draw| draw.region == region) {
+            for draw in terrain
+                .list
+                .draws
+                .iter_mut()
+                .filter(|draw| draw.region == region)
+            {
                 draw.cave_base = base;
             }
         }
-        params::rebuild(terrain);
+        terrain.rebuild_params();
     }
 
     loop {
-        if terrain.pending.is_none() {
+        if terrain.arenas.pending.is_none() {
             let next = uploads.0.lock().unwrap().queue.pop_front();
             match next {
                 None => break,
                 Some(Upload::Tints { origin, size, data }) => {
-                    write_tint_square(terrain, &queue, origin, size, &data);
+                    write_tint_square(&terrain.sprites.tints, &queue, origin, size, &data);
                     budget = budget.saturating_sub(data.len());
                     if budget == 0 {
                         break;
@@ -153,27 +140,33 @@ pub(super) fn apply_uploads(
                     animations,
                     animated_from,
                 }) => {
-                    budget = budget.saturating_sub(swap_sprites(
-                        terrain,
-                        &device,
-                        &queue,
-                        &pipeline_cache,
+                    let spent = terrain.sprites.swap(
                         atlases,
                         &animations,
                         animated_from,
-                    ));
+                        &device,
+                        &queue,
+                    );
+                    terrain.binds.rebuild_draw(
+                        &terrain.arenas,
+                        &terrain.sprites,
+                        &device,
+                        &pipeline_cache,
+                    );
+                    terrain.rebuild_params();
+                    budget = budget.saturating_sub(spent);
                     if budget == 0 {
                         break;
                     }
                     continue;
                 }
                 Some(Upload::Drop(region)) => {
-                    terrain.draws.retain(|draw| draw.region != region);
-                    params::rebuild(terrain);
+                    terrain.list.draws.retain(|draw| draw.region != region);
+                    terrain.rebuild_params();
                     continue;
                 }
                 Some(Upload::Geometry(placement)) => {
-                    terrain.pending = Some(Pending {
+                    terrain.arenas.pending = Some(Pending {
                         placement,
                         part: 0,
                         done: 0,
@@ -182,7 +175,7 @@ pub(super) fn apply_uploads(
             }
         }
 
-        let mut pending = terrain.pending.take().expect("just filled");
+        let mut pending = terrain.arenas.pending.take().expect("just filled");
         while budget > 0 && pending.part < ARENA_PARTS {
             let (arena, offset, data) = pending.placement.part(pending.part);
             if data.is_empty() {
@@ -199,7 +192,7 @@ pub(super) fn apply_uploads(
                 }
             }
             queue.write_buffer(
-                terrain.arena(arena),
+                terrain.arenas.buffer(arena),
                 offset + pending.done as u64,
                 &data[pending.done..pending.done + take],
             );
@@ -211,7 +204,7 @@ pub(super) fn apply_uploads(
             }
         }
         if pending.part < ARENA_PARTS {
-            terrain.pending = Some(pending);
+            terrain.arenas.pending = Some(pending);
             break;
         }
         publish(terrain, pending.placement.draws);
@@ -220,58 +213,11 @@ pub(super) fn apply_uploads(
         }
     }
 
-    if terrain.params_dirty {
-        params::write(terrain, &queue);
-    }
-}
-
-fn swap_sprites(
-    terrain: &mut Terrain,
-    device: &RenderDevice,
-    queue: &RenderQueue,
-    pipeline_cache: &PipelineCache,
-    atlases: Vec<Atlas>,
-    animations: &[Animation],
-    animated_from: u32,
-) -> usize {
-    let padding = [Animation::default()];
-    let spent: usize = atlases
-        .iter()
-        .flat_map(|atlas| atlas.mips.iter())
-        .map(|mip| mip.len())
-        .sum();
-    let (views, atlas_sampler) = upload_atlases(&atlases, device, queue);
-    terrain.atlas_sampler = atlas_sampler;
-    terrain.animations = device.create_buffer_with_data(&BufferInitDescriptor {
-        label: Some("terrain animations"),
-        contents: bytemuck::cast_slice(if animations.is_empty() {
-            &padding[..]
-        } else {
-            animations
-        }),
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-    });
-    terrain.draw_bind_group = draw_bind_group(
-        device,
-        pipeline_cache,
-        &terrain.draw_layout,
-        &terrain.quads,
-        &terrain.vertices,
-        &terrain.visible,
-        &views,
-        &terrain.atlas_sampler,
-        &terrain.tints,
-        &terrain.tint_sampler,
-        &terrain.animations,
-        &terrain.faces,
-    );
-    terrain.animated_from = animated_from;
-    params::rebuild(terrain);
-    spent
+    terrain.list.flush(&terrain.frame.params, &queue);
 }
 
 fn publish(terrain: &mut Terrain, draws: Vec<Draw>) {
-    terrain.draws.extend(draws);
-    terrain.draws.sort_by_key(|draw| draw.stream);
-    params::rebuild(terrain);
+    terrain.list.draws.extend(draws);
+    terrain.list.draws.sort_by_key(|draw| draw.stream);
+    terrain.rebuild_params();
 }

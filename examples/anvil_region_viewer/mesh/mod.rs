@@ -26,6 +26,14 @@ pub const STREAM_NAMES: [&str; STREAMS] = [
     "translucent model",
 ];
 
+pub const fn stream_pass(stream: u32) -> Pass {
+    Pass::from_index(stream as usize / 2)
+}
+
+pub const fn stream_is_model(stream: u32) -> bool {
+    stream % 2 == 1
+}
+
 #[derive(Copy, Clone, Default, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct Group {

@@ -215,19 +215,19 @@ mod tests {
             );
         }
 
-        let source = include_str!("../render/shaders/terrain.wgsl");
-        let arms: Vec<f32> = source
+        let source = include_str!("../render/shaders/core/model.wgsl");
+        let table = source
+            .split_once("fn shade_bucket(")
+            .and_then(|(_, rest)| rest.split_once("\n}"))
+            .expect("model.wgsl no longer spells the shade table out in shade_bucket")
+            .0;
+        let arms: Vec<f32> = table
             .lines()
             .filter_map(|line| {
-                let (_, rest) = line.trim().split_once("shade = ")?;
+                let (_, rest) = line.trim().split_once("return ")?;
                 rest.split_once(';')?.0.parse().ok()
             })
             .collect();
-        assert_eq!(
-            arms.len(),
-            BUCKET_SHADES.len() + 1,
-            "the shader's shade table is not shaped the way this test reads it"
-        );
-        assert_eq!(arms[1..], BUCKET_SHADES, "the shader expands the buckets differently");
+        assert_eq!(arms, BUCKET_SHADES, "the shader expands the buckets differently");
     }
 }

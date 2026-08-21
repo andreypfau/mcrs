@@ -227,77 +227,70 @@ const FIELDS: &[(&str, Field)] = &[
 ];
 
 #[cfg(test)]
-const SCALARS: &[(&str, f64)] = &[
-    ("SECTION_SIZE", crate::anvil::SECTION_SIZE as f64),
-    ("MODEL_OVERHANG", MODEL_OVERHANG as f64),
-    ("MODEL_STEPS", MODEL_STEPS as f64),
-    ("FLUID_INSET", FLUID_INSET as f64),
-    ("QUAD_WORDS", QUAD_WORDS as f64),
-    ("FACE_NONE", FACE_NONE as f64),
+const FLOATS: &[(&str, f32)] = &[
+    ("SECTION_SIZE", crate::anvil::SECTION_SIZE as f32),
+    ("MODEL_OVERHANG", MODEL_OVERHANG),
+    ("MODEL_STEPS", MODEL_STEPS),
+    ("FLUID_INSET", FLUID_INSET),
 ];
+
+#[cfg(test)]
+const COUNTS: &[(&str, u32)] = &[
+    ("QUAD_WORDS", QUAD_WORDS as u32),
+    ("FACE_NONE", FACE_NONE),
+];
+
+#[cfg(test)]
+fn wgsl_fields() -> String {
+    let mut out = String::from(
+        "// Generated from the field table in pack.rs. `cargo test --example \
+anvil_region_viewer`\n// checks it; `ANVIL_BLESS=1 cargo test --example anvil_region_viewer` \
+rewrites it.\n#define_import_path anvil_region_viewer::fields\n",
+    );
+    let mut group = "";
+    for (name, field) in FIELDS {
+        let prefix = name.split_once('_').map_or(*name, |(head, _)| head);
+        if prefix != group {
+            out.push('\n');
+            group = prefix;
+        }
+        out.push_str(&format!("const {name}_WORD: u32 = {}u;\n", field.word));
+        out.push_str(&format!("const {name}_SHIFT: u32 = {}u;\n", field.shift));
+        out.push_str(&format!("const {name}_BITS: u32 = {}u;\n", field.bits));
+    }
+    out.push('\n');
+    for (name, value) in COUNTS {
+        out.push_str(&format!("const {name}: u32 = {value}u;\n"));
+    }
+    out.push('\n');
+    for (name, value) in FLOATS {
+        out.push_str(&format!("const {name}: f32 = {value:?};\n"));
+    }
+    out
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::anvil::{REGION_CHUNKS, SECTION_SIZE};
 
-    fn declarations(source: &str) -> Vec<(&str, f64)> {
-        source
-            .lines()
-            .filter_map(|line| {
-                let rest = line.trim().strip_prefix("const ")?;
-                let (name, rest) = rest.split_once(':')?;
-                let value = rest.split_once('=')?.1.trim().trim_end_matches(';').trim();
-                Some((name.trim(), value.trim_end_matches('u').parse().ok()?))
-            })
-            .collect()
-    }
-
     #[test]
-    fn the_shaders_unpack_the_fields_the_mesher_packs() {
-        let shaders = [
-            ("layout.wgsl", include_str!("render/shaders/layout.wgsl")),
-            ("terrain.wgsl", include_str!("render/shaders/terrain.wgsl")),
-            ("cull.wgsl", include_str!("render/shaders/cull.wgsl")),
-        ];
-        let mut seen: Vec<(&str, &str)> = Vec::new();
-        for (file, source) in shaders {
-            for (name, value) in declarations(source) {
-                if let Some(&(_, expected)) = SCALARS.iter().find(|(known, _)| *known == name) {
-                    assert_eq!(value as f32, expected as f32, "{file} disagrees on {name}");
-                    seen.push((name, "SCALAR"));
-                    continue;
-                }
-                let Some((field, part)) = name.rsplit_once('_') else {
-                    continue;
-                };
-                let Some(&(known, field)) = FIELDS.iter().find(|(known, _)| *known == field) else {
-                    continue;
-                };
-                let expected = match part {
-                    "WORD" => field.word,
-                    "SHIFT" => field.shift,
-                    "BITS" => field.bits,
-                    _ => continue,
-                };
-                assert_eq!(value, expected as f64, "{file} disagrees on {name}");
-                seen.push((known, part));
-            }
+    fn the_generated_field_header_matches_the_field_table() {
+        let path = std::path::Path::new(file!())
+            .parent()
+            .unwrap()
+            .join("render/shaders/include/fields.wgsl");
+        let generated = wgsl_fields();
+        if std::env::var("ANVIL_BLESS").is_ok() {
+            std::fs::write(&path, &generated).expect("cannot rewrite the generated header");
+            return;
         }
-        for (name, _) in FIELDS {
-            for part in ["WORD", "SHIFT", "BITS"] {
-                assert!(
-                    seen.contains(&(name, part)),
-                    "no shader declares {name}_{part}, so that much of the layout is unchecked"
-                );
-            }
-        }
-        for (name, _) in SCALARS {
-            assert!(
-                seen.contains(&(*name, "SCALAR")),
-                "no shader declares {name}, so it is unchecked"
-            );
-        }
+        let checked_in = std::fs::read_to_string(&path).unwrap_or_default();
+        assert_eq!(
+            checked_in, generated,
+            "{} is stale; rerun with ANVIL_BLESS=1 to rewrite it",
+            path.display()
+        );
     }
 
     #[test]

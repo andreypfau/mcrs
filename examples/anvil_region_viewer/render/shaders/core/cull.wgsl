@@ -1,14 +1,12 @@
-#import bevy_render::view::View
-#import anvil_region_viewer::layout::{
-    CULLED, Params, SECTION_SIZE, section_origin,
-}
 
-const SECTION_INDEX_WORD: u32 = 0u;
-const SECTION_INDEX_SHIFT: u32 = 0u;
-const SECTION_INDEX_BITS: u32 = 11u;
-const GROUP_FACE_WORD: u32 = 0u;
-const GROUP_FACE_SHIFT: u32 = 11u;
-const GROUP_FACE_BITS: u32 = 4u;
+#import anvil_region_viewer::fields::{
+    FACE_NONE,
+    GROUP_FACE_SHIFT, GROUP_FACE_BITS,
+    SECTION_INDEX_SHIFT, SECTION_INDEX_BITS,
+    SECTION_SIZE,
+}
+#import anvil_region_viewer::frame::{params, view}
+#import anvil_region_viewer::region::{CULLED, section_origin}
 
 struct Group {
     quad_base: u32,
@@ -24,12 +22,12 @@ struct DrawArgs {
     first_instance: u32,
 }
 
-@group(0) @binding(0) var<uniform> view: View;
-@group(0) @binding(1) var<uniform> params: Params;
 @group(1) @binding(0) var<storage, read> groups: array<Group>;
 @group(1) @binding(1) var<storage, read_write> visible: array<u32>;
 @group(1) @binding(2) var<storage, read_write> args: array<DrawArgs>;
 @group(1) @binding(3) var<storage, read> cave_visible: array<u32>;
+
+const CULL_THREADS: u32 = 32u;
 
 var<workgroup> reserved_slot: u32;
 
@@ -68,8 +66,6 @@ fn group_normal(face: u32) -> vec3<f32> {
     }
 }
 
-const FACE_NONE: u32 = 10u;
-
 fn faces_camera(face: u32, mn: vec3<f32>, mx: vec3<f32>) -> bool {
     if (face >= FACE_NONE) {
         return true;
@@ -88,8 +84,6 @@ fn survives(g: Group) -> bool {
     let face = extractBits(g.section, GROUP_FACE_SHIFT, GROUP_FACE_BITS);
     return reachable != 0u && in_frustum(mn, mx) && faces_camera(face, mn, mx);
 }
-
-const CULL_THREADS: u32 = 32u;
 
 @compute @workgroup_size(CULL_THREADS)
 fn cull(
@@ -124,6 +118,8 @@ fn cull(
     }
 }
 
+/// Blended geometry: every group keeps the slot the mesher gave it and culled quads leave a
+/// hole, because packing would reshuffle the back-to-front order the blend depends on.
 @compute @workgroup_size(CULL_THREADS)
 fn cull_stable(
     @builtin(workgroup_id) workgroup: vec3<u32>,

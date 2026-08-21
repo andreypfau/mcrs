@@ -4,7 +4,6 @@ use bevy::render::renderer::{RenderDevice, RenderQueue};
 
 use crate::pack::MAX_SPRITE_ARRAYS;
 
-use super::terrain::Terrain;
 use super::{Atlas, Layout};
 
 pub(super) const TINT_LAYERS: u32 = 3;
@@ -128,7 +127,7 @@ pub(super) fn create_tints(layout: &Layout, device: &RenderDevice) -> (Texture, 
 }
 
 pub(super) fn write_tint_square(
-    terrain: &Terrain,
+    tints: &Texture,
     queue: &RenderQueue,
     origin: [u32; 2],
     size: u32,
@@ -138,7 +137,7 @@ pub(super) fn write_tint_square(
     for kind in 0..TINT_LAYERS {
         queue.write_texture(
             TexelCopyTextureInfo {
-                texture: &terrain.tints,
+                texture: tints,
                 mip_level: 0,
                 origin: Origin3d {
                     x: origin[0],

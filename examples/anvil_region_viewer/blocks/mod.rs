@@ -24,6 +24,14 @@ pub enum Pass {
 impl Pass {
     pub const COUNT: usize = 3;
 
+    pub const fn from_index(index: usize) -> Pass {
+        match index {
+            0 => Pass::Solid,
+            1 => Pass::Cutout,
+            _ => Pass::Translucent,
+        }
+    }
+
     fn of(opacity: Opacity) -> Pass {
         match opacity {
             Opacity::Solid => Pass::Solid,

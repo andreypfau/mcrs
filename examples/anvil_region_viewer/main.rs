@@ -10,6 +10,8 @@ mod arena;
 mod atlas;
 mod blocks;
 mod camera;
+#[cfg(target_os = "macos")]
+mod capture;
 mod cave;
 mod config;
 mod daylight;
@@ -17,6 +19,7 @@ mod mesh;
 mod overlay;
 mod pack;
 mod probe;
+mod readback;
 mod render;
 mod stream;
 mod window;
@@ -148,6 +151,8 @@ fn main() {
                 window::place,
                 window::toggle_fullscreen,
                 window::screenshot,
+                #[cfg(target_os = "macos")]
+                capture::gputrace,
                 camera::orbit,
                 stream::advance,
                 overlay::frame_stats,

@@ -1,7 +1,13 @@
-mod params;
+mod arenas;
+mod binds;
+mod draws;
+mod frame;
+mod layer;
 mod pass;
 mod pipeline;
+mod shaders;
 mod sky;
+mod sprites;
 mod stats;
 mod terrain;
 mod texture;
@@ -72,8 +78,6 @@ pub struct Sky {
     pub cloud: [f32; 4],
 }
 
-const BLENDED_STREAM: u32 = STREAMS as u32 - 2;
-
 #[derive(Resource, Clone, Copy, ExtractResource)]
 pub struct Streams(pub u32);
 
@@ -121,18 +125,33 @@ pub fn toggle_wireframe(keys: Res<ButtonInput<KeyCode>>, mut wireframe: ResMut<W
 #[derive(Resource, Deref)]
 struct WorldLayout(Arc<Layout>);
 
+fn embed_shaders(app: &mut App) {
+    let root = "examples/anvil_region_viewer/";
+    bevy::asset::embedded_asset!(app, root, "shaders/include/fields.wgsl");
+    bevy::asset::embedded_asset!(app, root, "shaders/include/region.wgsl");
+    bevy::asset::embedded_asset!(app, root, "shaders/include/frame.wgsl");
+    bevy::asset::embedded_asset!(app, root, "shaders/include/quad.wgsl");
+    bevy::asset::embedded_asset!(app, root, "shaders/include/lighting.wgsl");
+    bevy::asset::embedded_asset!(app, root, "shaders/include/terrain_bindings.wgsl");
+    bevy::asset::embedded_asset!(app, root, "shaders/include/surface.wgsl");
+    bevy::asset::embedded_asset!(app, root, "shaders/include/finish.wgsl");
+    bevy::asset::embedded_asset!(app, root, "shaders/core/greedy.wgsl");
+    bevy::asset::embedded_asset!(app, root, "shaders/core/model.wgsl");
+    bevy::asset::embedded_asset!(app, root, "shaders/core/cull.wgsl");
+    bevy::asset::embedded_asset!(app, root, "shaders/include/sky_bindings.wgsl");
+    bevy::asset::embedded_asset!(app, root, "shaders/core/sky.wgsl");
+    bevy::asset::embedded_asset!(app, root, "shaders/core/clouds.wgsl");
+}
+
 pub struct TerrainPlugin(pub Arc<Layout>, pub Uploads);
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
-        bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "shaders/layout.wgsl");
-        bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "shaders/cull.wgsl");
-        bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "shaders/terrain.wgsl");
-        bevy::asset::embedded_asset!(app, "examples/anvil_region_viewer/", "shaders/sky.wgsl");
+        embed_shaders(app);
 
         let triangles = DrawnTriangles::default();
         let timings = GpuTimings::default();
-        app.init_resource::<Wireframe>()
+        app.insert_resource(crate::config::wireframe())
             .init_resource::<Sky>()
             .init_resource::<Clouds>()
             .init_resource::<Streams>()
@@ -161,8 +180,8 @@ impl Plugin for TerrainPlugin {
                     pass::drop_unused_bins.in_set(RenderSystems::Prepare),
                     upload::apply_uploads
                         .in_set(RenderSystems::Prepare)
-                        .before(params::prepare_wireframe),
-                    params::prepare_wireframe.in_set(RenderSystems::Prepare),
+                        .before(draws::prepare_wireframe),
+                    draws::prepare_wireframe.in_set(RenderSystems::Prepare),
                     sky::prepare.in_set(RenderSystems::Prepare),
                     pass::prepare_view_bind_group.in_set(RenderSystems::PrepareBindGroups),
                     stats::read_draw_args.in_set(RenderSystems::Cleanup),

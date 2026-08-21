@@ -1,13 +1,16 @@
-use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue};
 use wgpu::{
-    CommandEncoderDescriptor, ComputePassDescriptor, ComputePassTimestampWrites, QuerySet,
-    QuerySetDescriptor, QueryType, RenderPassTimestampWrites, QUERY_RESOLVE_BUFFER_ALIGNMENT,
+    CommandEncoderDescriptor, ComputePassDescriptor, ComputePassTimestampWrites,
+    QUERY_RESOLVE_BUFFER_ALIGNMENT, QuerySet, QuerySetDescriptor, QueryType,
+    RenderPassTimestampWrites,
 };
+
+use crate::readback::{self, Gate, Reader};
 
 pub const CULL: usize = 0;
 pub const TERRAIN: usize = 1;
@@ -19,10 +22,6 @@ const WINDOW: usize = 256;
 const IMPLAUSIBLE_NS: u64 = 1_000_000_000;
 
 const RING: u32 = 3;
-
-const IDLE: u8 = 0;
-const COPIED: u8 = 1;
-const MAPPING: u8 = 2;
 
 #[derive(Resource, Clone, Default)]
 pub struct GpuTimings(Arc<Shared>);
@@ -48,8 +47,23 @@ impl GpuTimings {
         (self.0.frame.load(Ordering::Relaxed) + 1) % RING * SLOTS as u32 * 2
     }
 
+    #[cfg(test)]
     fn push(&self, ms: [f32; SLOTS]) {
-        let Ok(mut samples) = self.0.samples.lock() else {
+        self.0.push(ms);
+    }
+}
+
+#[derive(Default)]
+struct Shared {
+    frame: AtomicU32,
+    samples: Mutex<Samples>,
+    gate: Gate,
+    period_ns: AtomicU32,
+}
+
+impl Shared {
+    fn push(&self, ms: [f32; SLOTS]) {
+        let Ok(mut samples) = self.samples.lock() else {
             return;
         };
         let slot = samples.written % WINDOW;
@@ -60,11 +74,20 @@ impl GpuTimings {
     }
 }
 
-#[derive(Default)]
-struct Shared {
-    frame: AtomicU32,
-    samples: Mutex<Samples>,
-    state: AtomicU8,
+impl Reader for Shared {
+    fn gate(&self) -> &Gate {
+        &self.gate
+    }
+
+    fn read(&self, bytes: &[u8]) {
+        let period = f32::from_bits(self.period_ns.load(Ordering::Relaxed));
+        let ticks: &[u64] = bytemuck::cast_slice(&bytes[..SLOTS * 2 * TIMESTAMP_BYTES as usize]);
+        let ms: [Option<f32>; SLOTS] =
+            std::array::from_fn(|slot| elapsed_ms(ticks[slot * 2], ticks[slot * 2 + 1], period));
+        if let Some(ms) = ms.iter().copied().collect::<Option<Vec<_>>>() {
+            self.push(std::array::from_fn(|slot| ms[slot]));
+        }
+    }
 }
 
 struct Samples {
@@ -86,7 +109,6 @@ pub struct Queries {
     set: QuerySet,
     resolve: Buffer,
     readback: Buffer,
-    period_ns: f32,
 }
 
 impl Queries {
@@ -112,7 +134,12 @@ impl Queries {
 const TIMESTAMP_BYTES: u64 = 8;
 const RESOLVE_BYTES: u64 = QUERY_RESOLVE_BUFFER_ALIGNMENT;
 
-pub fn init(mut commands: Commands, device: Res<RenderDevice>, queue: Res<RenderQueue>) {
+pub fn init(
+    mut commands: Commands,
+    device: Res<RenderDevice>,
+    queue: Res<RenderQueue>,
+    timings: Res<GpuTimings>,
+) {
     let overlay_times_encoders =
         std::env::var("MTL_HUD_ENCODER_TIMING_ENABLED").is_ok_and(|on| on != "0");
     if overlay_times_encoders || std::env::var("ANVIL_PROBE").is_ok_and(|on| on == "0") {
@@ -154,11 +181,14 @@ pub fn init(mut commands: Commands, device: Res<RenderDevice>, queue: Res<Render
     }
     queue.submit([priming.finish()]);
 
+    timings
+        .0
+        .period_ns
+        .store(queue.get_timestamp_period().to_bits(), Ordering::Relaxed);
     commands.insert_resource(Queries {
         set,
         resolve,
         readback,
-        period_ns: queue.get_timestamp_period(),
     });
 }
 
@@ -167,12 +197,7 @@ pub fn resolve(queries: Option<Res<Queries>>, timings: Res<GpuTimings>, mut ctx:
         return;
     };
     timings.0.frame.fetch_add(1, Ordering::Relaxed);
-    if timings
-        .0
-        .state
-        .compare_exchange(IDLE, COPIED, Ordering::Relaxed, Ordering::Relaxed)
-        .is_err()
-    {
+    if !timings.0.gate.claim_copy() {
         return;
     }
     let first = timings.resolving();
@@ -190,32 +215,10 @@ pub fn read(queries: Option<Res<Queries>>, timings: Res<GpuTimings>) {
     let Some(queries) = queries else {
         return;
     };
-    if timings
-        .0
-        .state
-        .compare_exchange(COPIED, MAPPING, Ordering::Relaxed, Ordering::Relaxed)
-        .is_err()
-    {
+    if !timings.0.gate.claim_map() {
         return;
     }
-
-    let buffer = queries.readback.clone();
-    let period = queries.period_ns;
-    let timings = timings.clone();
-    buffer.clone().slice(..).map_async(MapMode::Read, move |result| {
-        if result.is_ok() {
-            let view = buffer.slice(..).get_mapped_range();
-            let ticks: &[u64] = bytemuck::cast_slice(&view[..(SLOTS * 2) as usize * TIMESTAMP_BYTES as usize]);
-            let ms: [Option<f32>; SLOTS] =
-                std::array::from_fn(|slot| elapsed_ms(ticks[slot * 2], ticks[slot * 2 + 1], period));
-            if let Some(ms) = ms.iter().copied().collect::<Option<Vec<_>>>() {
-                timings.push(std::array::from_fn(|slot| ms[slot]));
-            }
-            drop(view);
-            buffer.unmap();
-        }
-        timings.0.state.store(IDLE, Ordering::Relaxed);
-    });
+    readback::map(queries.readback.clone(), timings.0.clone());
 }
 
 fn elapsed_ms(begin: u64, end: u64, period_ns: f32) -> Option<f32> {
@@ -271,5 +274,16 @@ mod tests {
     #[test]
     fn a_pass_with_no_frames_behind_it_reports_nothing() {
         assert_eq!(GpuTimings::default().median(CULL), None);
+    }
+
+    #[test]
+    fn a_resolved_frame_lands_in_the_window_as_milliseconds() {
+        let shared = Shared::default();
+        shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
+        let ticks: [u64; SLOTS * 2] = [0, 1_000_000, 0, 4_000_000];
+        shared.read(bytemuck::cast_slice(&ticks));
+        let timings = GpuTimings(Arc::new(shared));
+        assert_eq!(timings.median(CULL), Some(1.0));
+        assert_eq!(timings.median(TERRAIN), Some(4.0));
     }
 }

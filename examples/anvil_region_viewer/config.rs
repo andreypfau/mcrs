@@ -3,7 +3,7 @@ use bevy::window::{MonitorSelection, VideoModeSelection, WindowMode};
 
 use crate::camera::{Orbit, Sweep};
 use crate::mesh::STREAMS;
-use crate::render::{Raster, Streams};
+use crate::render::{Raster, Streams, Wireframe};
 
 const QUAD_MB_PER_FILE: usize = 32;
 const MODEL_MB_PER_FILE: usize = 208;
@@ -126,4 +126,12 @@ pub fn fullscreen_mode(monitor: MonitorSelection) -> Option<WindowMode> {
         Ok(_) => Some(WindowMode::BorderlessFullscreen(monitor)),
         Err(_) => None,
     }
+}
+
+pub fn gputrace_path() -> Option<String> {
+    std::env::var("ANVIL_GPUTRACE").ok()
+}
+
+pub fn wireframe() -> Wireframe {
+    Wireframe(std::env::var("ANVIL_WIREFRAME").is_ok_and(|on| on != "0"))
 }
