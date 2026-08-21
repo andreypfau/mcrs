@@ -1,31 +1,3 @@
-//! Renders a whole Minecraft Anvil region file with a custom, culling-driven pipeline.
-//!
-//! ```text
-//! cargo run --release --example anvil_region_viewer
-//! cargo run --release --example anvil_region_viewer -- path/to/r.0.0.mca
-//! cargo run --release --example anvil_region_viewer -- path/to/saves/world/region 3
-//! ```
-//!
-//! Given a directory, a square window of region files is loaded around the region `ANVIL_CENTER`
-//! names, two on a side unless a second argument says otherwise. A whole directory is deliberately
-//! not an option: sixty-four region files are several gigabytes of geometry.
-//!
-//! Drag with the left mouse button to orbit, scroll to zoom, hold shift while dragging to pan.
-//! Hold + or - to run the clock: the sky, the sun, the moon, the stars and the light on the terrain
-//! all follow it, and the sky itself is drawn procedurally in the same pass the terrain is.
-//! Press C to toggle cave culling, F9 to take the clouds out of the sky, F10 to draw every
-//! triangle's edges in a colour derived from its texture, F11 for borderless fullscreen, which is
-//! the only way to read a real frame rate on macOS, and F12 to save a PNG.
-//!
-//! Region files are parsed and meshed in the background and appear a render region at a time, so
-//! the window opens on an empty sky rather than after a pause. Everything else is built around
-//! never touching a quad again once it is down: blocks are baked per distinct block state rather
-//! than per block, full cubes are greedy-merged whatever they are and whatever light they carry,
-//! and every frame the GPU alone decides what to draw. There is no `Mesh` asset, no entity per
-//! section, and one indirect draw call per stream per render region.
-
-// Shared verbatim with the block viewer rather than copied: the model resolver and the face bakery
-// are the pieces this example most needs to stay identical to the single-block reference.
 #[allow(dead_code, reason = "the block viewer uses the parts this example does not")]
 #[path = "../block_viewer/model.rs"]
 mod model;
@@ -67,44 +39,19 @@ use render::{DrawnTriangles, Layout, TerrainPlugin, Uploads, Wireframe};
 
 const DEFAULT_REGION: &str = "examples/anvil_region_viewer/r.0.0.mca";
 
-/// Region files on a side when a directory is given. Two is enough to show terrain running
-/// unbroken across a region seam; the sixty-four files of a real world would be several gigabytes
-/// of geometry.
 const DEFAULT_WINDOW: usize = 2;
 
-// How much room each region file gets in the three geometry arenas, in megabytes.
-//
-// Measured off this world, plus the third the arena's size classes cost in rounding and a little
-// over for a denser file. `ANVIL_ARENA=quads,models,faces` overrides all three. A region that does
-// not fit is dropped and counted rather than drawn half-written.
 const QUAD_MB_PER_FILE: usize = 32;
 const MODEL_MB_PER_FILE: usize = 208;
 const FACE_MB_PER_FILE: usize = 40;
 
-/// Region files the arenas are sized for, however many the window covers.
-///
-/// The budget is the knob and the view is what follows from it, not the other way round: a wider
-/// window does not get a wider arena, it gets the same one and has to keep only what fits in it.
-/// Four files' worth is what the default window needs, and a single file still only pays for one.
 const BUDGET_FILES: usize = 4;
-/// Culling groups per file. The heaviest of these four holds seventy thousand, and rounding takes
-/// its share of this arena too.
 const GROUPS_PER_FILE: usize = 1 << 17;
 
-/// Bytes one greedy quad, one model quad and one block face take in their arenas.
 const QUAD_BYTES: usize = pack::QUAD_WORDS * 4;
 const MODEL_BYTES: usize = 4 * 3 * 4;
 const FACE_BYTES: usize = 4;
 
-/// Which display the window opens on. Whichever display the pointer happens to sit on is not a
-/// fixed quantity, and a figure taken at one resolution does not compare with one taken at another,
-/// so a measurement has to be able to name the display rather than inherit it.
-///
-/// `ANVIL_MONITOR` takes `primary`, an index, or any part of how a display describes itself —
-/// its name and its resolution, as `3456x2234`. The last of those because an index is a guess at
-/// an order nothing promises, and macOS hands the windowing backend no display names worth
-/// reading: a laptop with a monitor plugged into it reports two numbered strangers, and the
-/// resolution is the only thing about them a person can recognise.
 fn chosen_monitor(monitors: &Query<(Entity, &Monitor)>) -> MonitorSelection {
     let Ok(spec) = std::env::var("ANVIL_MONITOR") else {
         return MonitorSelection::Current;
@@ -132,8 +79,6 @@ fn chosen_monitor(monitors: &Query<(Entity, &Monitor)>) -> MonitorSelection {
     }
 }
 
-/// How a display describes itself: its name, if the platform gives one worth reading, and its
-/// resolution.
 fn describe(monitor: &Monitor) -> String {
     format!(
         "{} {}x{}",
@@ -143,9 +88,6 @@ fn describe(monitor: &Monitor) -> String {
     )
 }
 
-/// The fullscreen `ANVIL_FULLSCREEN` asks for, or nothing for a window. `exclusive` takes the
-/// display outright instead of laying a borderless window over it, which are two different paths
-/// through the compositor and so two different frame rates.
 fn fullscreen_mode(monitor: MonitorSelection) -> Option<WindowMode> {
     match std::env::var("ANVIL_FULLSCREEN").as_deref() {
         Ok("exclusive") => Some(WindowMode::Fullscreen(
@@ -157,17 +99,11 @@ fn fullscreen_mode(monitor: MonitorSelection) -> Option<WindowMode> {
     }
 }
 
-/// Puts the window on the display it was told to, which is the earliest that can be done: the list
-/// of monitors is still empty while the first window is being built, so a selection resolves to
-/// nothing there and falls back to whichever display the window landed on.
 fn place_window(
     window: Single<&mut Window>,
     monitors: Query<(Entity, &Monitor)>,
     mut placed: Local<bool>,
 ) {
-    // Runs every frame until it lands rather than once at startup: displays are entities the
-    // windowing backend spawns, and on the frame the first window is built there are none of them
-    // yet. Asking then names no display at all and leaves the window wherever it opened.
     if *placed || monitors.is_empty() {
         return;
     }
@@ -175,8 +111,6 @@ fn place_window(
     let mut window = window;
     match fullscreen_mode(monitor) {
         Some(mode) => window.mode = mode,
-        // A windowed run has to be moved outright, because the position it was built with resolved
-        // against that same empty list.
         None => window.position = WindowPosition::Centered(monitor),
     }
     *placed = true;
@@ -225,7 +159,6 @@ fn main() {
         (layout.face_capacity * FACE_BYTES) as f64 / 1e6,
     );
 
-    // The walk starts wherever the camera does; it slides itself into place on the first frame.
     let cave = cave::CaveCull::new(
         cave::cave_grid(),
         layout.min_section,
@@ -256,18 +189,7 @@ fn main() {
             .set(WindowPlugin {
                 primary_window: Some(Window {
                     title: title_base(&path),
-                    // Asks for no vsync so the counter reflects the renderer rather than the
-                    // display. This reaches Metal as `displaySyncEnabled = false`, but a composited
-                    // macOS window still gets its drawables recycled by the window server at the
-                    // refresh rate, so `nextDrawable` blocks for the rest of the frame regardless.
-                    // Fullscreen (F11) takes the window off that path and is what actually uncaps.
                     present_mode: PresentMode::AutoNoVsync,
-                    // The same swap F11 does, at startup, so a rate can be measured from a
-                    // terminal without a human at the window.
-                    // Fullscreen twice over: here on whichever display the window opens on, and
-                    // again from `place_window` once a display can be named. Asking only the
-                    // second time leaves runs that come up windowed, and a frame rate read from a
-                    // window is not the one being measured.
                     mode: match fullscreen_mode(MonitorSelection::Current) {
                         Some(_) => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
                         None => WindowMode::Windowed,
@@ -277,11 +199,7 @@ fn main() {
                 }),
                 ..default()
             })
-            // Nothing here is a bevy mesh with a bevy material: the terrain is drawn from arenas
-            // the example fills itself. Everything this brings costs a frame and draws nothing.
             .disable::<bevy::pbr::PbrPlugin>())
-        // Bevy throttles an unfocused window to 60 Hz to save power, which silently pins the
-        // counter to exactly that and hides what the renderer is really doing.
         .insert_resource(WinitSettings {
             focused_mode: UpdateMode::Continuous,
             unfocused_mode: UpdateMode::Continuous,
@@ -297,8 +215,6 @@ fn main() {
         ))
         .add_plugins((
             FrameTimeDiagnosticsPlugin::default(),
-            // Kept for what each pass costs the CPU to record. Its GPU figures read zero on this
-            // backend and the counter line carries the real ones instead; see `probe`.
             RenderDiagnosticsPlugin,
             LogDiagnosticsPlugin {
                 wait_duration: std::time::Duration::from_secs(2),
@@ -324,7 +240,6 @@ fn main() {
         .run();
 }
 
-/// The shape of the world, which the window settles before a single file is read.
 fn layout(window: &anvil::Window) -> Result<Layout, String> {
     let chunks = anvil::REGION_CHUNKS;
     let grid = RegionGrid::covering([
@@ -332,9 +247,6 @@ fn layout(window: &anvil::Window) -> Result<Layout, String> {
         anvil::SECTIONS_Y,
         window.regions[1] * chunks,
     ]);
-    // Against the files that are really there rather than the slots of the window, and capped: a
-    // corner of the world with nothing in it should not cost a gigabyte of arena, and a wide window
-    // should not quietly buy itself more room than the budget allows.
     let files = window.files.len().clamp(1, BUDGET_FILES);
     let (quad_mb, model_mb, face_mb) = arena_budget();
     let span = anvil::REGION_BLOCKS as u32;
@@ -364,8 +276,6 @@ fn layout(window: &anvil::Window) -> Result<Layout, String> {
     })
 }
 
-/// `ANVIL_ARENA=quads,models,faces` sets how many megabytes a region file gets in each arena,
-/// which is what makes it checkable that the loader still fills a frame out of half the room.
 fn arena_budget() -> (usize, usize, usize) {
     let default = (QUAD_MB_PER_FILE, MODEL_MB_PER_FILE, FACE_MB_PER_FILE);
     let Ok(spec) = std::env::var("ANVIL_ARENA") else {
@@ -381,10 +291,6 @@ fn arena_budget() -> (usize, usize, usize) {
     }
 }
 
-/// `ANVIL_STREAMS=0,2,4` draws only the streams named, numbered as in `mesh::STREAM_NAMES`.
-///
-/// The whole of the terrain draw is one pass and the GPU times it as one, so what a stream costs
-/// inside it is read by leaving it out and taking the difference against the full frame.
 fn drawn_streams() -> render::Streams {
     let Ok(spec) = std::env::var("ANVIL_STREAMS") else {
         return render::Streams::default();
@@ -399,14 +305,6 @@ fn drawn_streams() -> render::Streams {
     render::Streams(mask)
 }
 
-/// `ANVIL_RASTER=0.5` rasterises the terrain pass into that fraction of the window's width and
-/// height, leaving the window, the display and the projection alone.
-///
-/// This is how the pass is asked what its pixels cost. Switching the display to a smaller video
-/// mode would answer a different question: the GPU clocks itself to how busy it is, so a figure
-/// taken at one mode does not compare with one taken at another. Shrinking only the rectangle
-/// keeps the frustum, the culling and every triangle exactly as they were, so the difference is
-/// pixels and nothing else.
 fn raster_fraction() -> render::Raster {
     let Ok(spec) = std::env::var("ANVIL_RASTER") else {
         return render::Raster::default();
@@ -422,8 +320,6 @@ fn raster_fraction() -> render::Raster {
     }
 }
 
-/// `ANVIL_CENTER=x,z` names the region the loaded window is centred on. Default is the origin,
-/// which for an even window straddles it and so puts negative region coordinates in the frame.
 fn window_centre() -> [i32; 2] {
     let Ok(spec) = std::env::var("ANVIL_CENTER") else {
         return [0, 0];
@@ -438,17 +334,13 @@ fn window_centre() -> [i32; 2] {
     }
 }
 
-/// Frame times over the last second, kept in a fixed ring so the counter itself never allocates
-/// and never grows no matter how fast the renderer runs.
 #[derive(Resource)]
 struct FrameStats {
     times: Box<[f32; FrameStats::CAPACITY]>,
     sorted: Box<[f32; FrameStats::CAPACITY]>,
-    /// Frames this second, which can exceed the ring and still give a correct rate.
     frames: u32,
     written: usize,
     elapsed: f32,
-    /// The counter line itself, kept so the once-a-second rebuild reuses one allocation.
     line: String,
 }
 
@@ -475,9 +367,6 @@ fn title_base(path: &str) -> String {
     format!("anvil region viewer — {name}")
 }
 
-/// Reports the rate, the triangles culling let through, and the two tail percentiles once a second.
-/// An average alone hides exactly the thing worth seeing while orbiting: the occasional frame where
-/// culling lets far more through.
 fn frame_stats(
     time: Res<Time>,
     mut stats: ResMut<FrameStats>,
@@ -488,8 +377,6 @@ fn frame_stats(
     loader: Res<stream::Loader>,
     day: Res<sky::TimeOfDay>,
     overlay: Option<Single<&mut Text>>,
-    // The frame rate is meaningless without the pixel count behind it: this window opens on
-    // whichever display is current, and the two here differ enough to change the number outright.
     window: Single<&Window>,
 ) {
     let delta = time.delta_secs();
@@ -506,8 +393,6 @@ fn frame_stats(
         return;
     }
 
-    // Reborrowed once so the two arrays are seen as disjoint fields rather than two derefs of
-    // the same resource handle.
     let stats = &mut *stats;
     let samples = stats.written.min(FrameStats::CAPACITY);
     stats.sorted[..samples].copy_from_slice(&stats.times[..samples]);
@@ -533,8 +418,6 @@ fn frame_stats(
     } else {
         line.push_str("   cave off");
     }
-    // How full the arena is, always rather than only while loading: a figure that saws is what
-    // says the loader is thrashing on a threshold.
     let status = loader.status();
     let _ = write!(
         line,
@@ -553,16 +436,11 @@ fn frame_stats(
     if status.evicted > 0 {
         let _ = write!(line, "   {} evicted", status.evicted);
     }
-    // What is missing rather than what is there, because that is the shorter list and the one a
-    // measurement has to know: a frame that leaves streams out is only comparable against one that
-    // leaves out the same ones.
     for (stream, name) in mesh::STREAM_NAMES.iter().enumerate() {
         if streams.0 & (1 << stream) == 0 {
             let _ = write!(line, "   no {name}");
         }
     }
-    // What the GPU itself spent, which the frame time cannot separate: presentation waits and
-    // bevy's own passes sit in the same wall clock.
     for (slot, name) in probe::NAMES.iter().enumerate() {
         if let Some(ms) = gpu.median(slot) {
             let _ = write!(line, "   {name} {ms:.2} ms");
@@ -570,8 +448,6 @@ fn frame_stats(
     }
     let (hour, minute) = day.clock();
     let _ = write!(line, "   {hour:02}:{minute:02}");
-    // The `ANVIL_SCREENSHOT` shot goes off thirty frames after loading settles, so the overlay is
-    // usually written by then. The numbers reach stdout either way.
     info!("{}", line);
     if let Some(mut overlay) = overlay {
         overlay.0.clear();
@@ -583,17 +459,12 @@ fn frame_stats(
     stats.elapsed = 0.0;
 }
 
-/// Press F10 to draw the triangle edges, which show the real polygon count, where greedy merging
-/// landed, and which texture each face pulls from.
 fn toggle_wireframe(keys: Res<ButtonInput<KeyCode>>, mut wireframe: ResMut<Wireframe>) {
     if keys.just_pressed(KeyCode::F10) {
         wireframe.0 = !wireframe.0;
     }
 }
 
-/// Press F11 to swap between a window and borderless fullscreen. A composited window on macOS is
-/// pinned to the display refresh no matter what present mode is asked for; fullscreen is what lets
-/// the frame rate show the renderer instead.
 fn toggle_fullscreen(keys: Res<ButtonInput<KeyCode>>, window: Single<&mut Window>) {
     if !keys.just_pressed(KeyCode::F11) {
         return;
@@ -610,9 +481,6 @@ fn percentile_index(samples: usize, fraction: f32) -> usize {
     (((samples - 1) as f32) * fraction).round() as usize
 }
 
-/// Press F12 to write a PNG of the current view. Setting `ANVIL_SCREENSHOT` shoots one
-/// automatically once the window has finished filling and exits, which is what makes the renderer
-/// checkable from a terminal without a human at it.
 fn screenshot(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
@@ -620,18 +488,10 @@ fn screenshot(
     time: Res<Time>,
     mut settled: Local<u32>,
 ) {
-    // Counted from when the loader went quiet rather than from the start: the window fills in the
-    // background now, and a shot taken on a fixed frame catches whatever happened to be up.
     if loader.done() {
         *settled += 1;
     }
     let auto = std::env::var("ANVIL_SCREENSHOT").ok();
-    // Thirty frames after the loader goes quiet, or after ten seconds if it never does — with the
-    // view moving there is always something left to load and the first condition never comes.
-    //
-    // Counted in seconds rather than frames, because how many frames ten seconds holds is the one
-    // thing this example exists to change: uncapped on a fast display it reaches six hundred of
-    // them before the first region has been read, and shoots an empty sky.
     let elapsed = time.elapsed_secs();
     let deadline = *settled == 30 || (elapsed >= 10.0 && elapsed - time.delta_secs() < 10.0);
     let path = match (&auto, keys.just_pressed(KeyCode::F12)) {
@@ -647,11 +507,6 @@ fn screenshot(
     commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
 }
 
-/// `ANVIL_SWEEP=<blocks a second>` walks the camera along x on its own.
-///
-/// A pinned view is what a frame rate has to be compared at, but the faults streaming introduces
-/// only appear while the view is moving: a region arriving mid-frame, a seam crossed, a region
-/// giving its room to a nearer one. A scripted walk makes those repeatable from a terminal.
 #[derive(Resource)]
 struct Sweep(f32);
 
@@ -667,11 +522,7 @@ fn spawn_camera(mut commands: Commands) {
     let orbit = starting_orbit();
     commands.spawn((
         Camera3d::default(),
-        // No `Hdr` component: the terrain pipeline targets the default swap-chain format, and the
-        // vanilla shade values are already display-referred so there is nothing to tone map.
         Tonemapping::None,
-        // The terrain pipeline is built for a single sample; matching it here avoids specialising
-        // the whole pipeline set on a setting this viewer has no use for.
         Msaa::Off,
         Projection::Perspective(PerspectiveProjection {
             far: 4000.0,
@@ -682,11 +533,6 @@ fn spawn_camera(mut commands: Commands) {
     ));
 }
 
-/// The counter lives in the corner rather than the window title because fullscreen, which is the
-/// only mode that reports an honest frame rate on macOS, hides the title bar.
-/// The counter is drawn as UI text and written to stdout both. Laying that text out is work the
-/// renderer being measured does not do, so a measurement can drop the drawn half and read the
-/// stdout half instead.
 fn spawn_overlay(mut commands: Commands) {
     if std::env::var("ANVIL_OVERLAY").is_ok_and(|on| on == "0") {
         return;
@@ -708,8 +554,6 @@ fn spawn_overlay(mut commands: Commands) {
     ));
 }
 
-/// `ANVIL_VIEW=yaw,pitch,radius,x,y,z` pins the camera where the run starts, so a frame rate can
-/// be compared between builds rather than between two hand-held views that were never the same.
 fn starting_orbit() -> Orbit {
     let default = Orbit {
         yaw: 0.8,

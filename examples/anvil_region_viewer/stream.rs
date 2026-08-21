@@ -1,14 +1,3 @@
-//! Loading the window in the background.
-//!
-//! Two stages, with different conditions for being ready. Parsing a region file needs nothing but
-//! the file. Meshing a render region needs its own file *and* every file the mesher's one-block
-//! border reaches into, because a section meshed against a neighbour that has not arrived reads
-//! air there and comes out with a wall of faces down the seam, lit as if it faced open sky.
-//!
-//! Nothing here locks. A world is a rectangle of handles to parsed files, so the snapshot a mesher
-//! is handed costs a few pointer copies and stays fixed under it while later files keep arriving
-//! into a world that shares all the same ones.
-
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -30,97 +19,56 @@ use crate::pack::{
 };
 use crate::render::{Animation, Atlas, Layout, Placement, Upload, Uploads};
 
-/// How much farther a region has to be than the one asking for its room before it is given up, in
-/// blocks. One render region's width.
-///
-/// Without it a region on the very edge of what fits is dropped and re-meshed every time the
-/// camera moves a hair, which costs a tenth of a second of meshing each way and shows as the arena
-/// occupancy sawing while nobody is touching the mouse.
 const HYSTERESIS: f32 = (RENDER_REGION_X * SECTION_SIZE) as f32;
 
-/// Tasks of one kind running at once. Each parse holds a whole expanded region file and each mesh
-/// holds the geometry it has produced so far, so this is a memory bound rather than a throughput
-/// one: the pool has more threads than this and spends them on the other kind.
 const IN_FLIGHT: usize = 4;
 
-/// Everything still to be loaded, and everything loaded so far.
 #[derive(Resource)]
 pub struct Loader {
     layout: Arc<Layout>,
     uploads: Uploads,
     palette: Palette,
-    /// Away while a baking task holds it.
     catalog: Option<Catalog>,
-    /// What a mesher reads. Replaced, not mutated, once the states a file brought are baked.
     world: Arc<World>,
-    /// Every file interned so far, published or not. A file that lands while an earlier one is
-    /// still baking joins this and rides the same publish.
     newest: Arc<World>,
-    /// The only part of the catalog a mesher needs. Kept apart so a mesher never holds the sprite
-    /// pixels or the biome colours alive.
     blocks: Arc<Vec<BlockInfo>>,
-    /// Region files that exist, so a file that is simply not there is never waited on.
     expected: HashSet<[i32; 2]>,
     to_parse: Vec<([i32; 2], PathBuf)>,
     parsing: Vec<([i32; 2], Task<Result<Region, String>>)>,
     tinting: Vec<([u32; 2], Task<Vec<u8>>)>,
-    /// Baking touches the filesystem and parses JSON, so it is the one main-thread cost worth
-    /// tens of milliseconds. One at a time: it owns the catalog while it runs.
-    ///
-    /// The world and the tint list are the ones the baking states were taken from. Publishing
-    /// anything newer would hand a mesher a world whose block ids the baked catalog does not
-    /// reach, which is an index straight past the end of it on a pool thread.
     baking: Option<(Arc<World>, Vec<[i32; 2]>, Task<Baked>)>,
-    /// Files whose biome colours still have to be drawn, once their biomes are baked.
     to_tint: Vec<[i32; 2]>,
-    /// What each render region holds, so it can be given back.
     resident: Vec<Option<Resident>>,
-    /// Regions that were meshed and found no room. Retried when room comes free or the camera has
-    /// moved far enough for the order to have really changed, rather than every frame: meshing one
-    /// costs a tenth of a second whether or not it fits.
     deferred: Vec<bool>,
     meshing: Vec<(usize, Task<Batch>)>,
-    /// Where the camera is, and where it stood when the deferred list was last cleared.
     camera: Vec3,
     anchor: Vec3,
     evicted: usize,
-    /// The four arenas, in their own units: greedy quads, model quads, face attributes, culling
-    /// groups.
     quads: Arena,
     models: Arena,
     faces: Arena,
     groups: Arena,
-    /// Sections of a file that fall outside the world's declared height.
     dropped: usize,
-    /// Sprites the render world has already been told about.
     sprites: usize,
-    /// What each stream holds, for the report.
     streams: [StreamSpan; STREAMS],
     started: Instant,
     reported: bool,
 }
 
-/// The room one render region's geometry holds in the arenas.
 struct Resident {
     quads: Block,
     models: Block,
     faces: Block,
     groups: Block,
-    /// The crossing masks of its sections, numbered inside the region. Kept so they can be laid
-    /// into the walk's grid again after it slides.
     connectivity: Vec<(u32, u64)>,
 }
 
-/// What one round of baking produced.
 struct Baked {
     catalog: Catalog,
-    /// The only part of it a mesher needs.
     blocks: Vec<BlockInfo>,
-    /// Present when the sprite set grew, which is what makes the atlas need rebuilding.
     sprites: Option<Upload>,
 }
 
-/// What the counter line shows about loading.
 pub struct Status {
     pub files: usize,
     pub files_total: usize,
@@ -185,8 +133,6 @@ impl Loader {
         }
     }
 
-    /// Whether everything the window covers is loaded and on the GPU. Geometry reaches the GPU a
-    /// slice at a time, so the loader going quiet is not on its own enough.
     pub fn done(&self) -> bool {
         self.reported && self.uploads.waiting() == 0
     }
@@ -201,15 +147,12 @@ impl Loader {
             && self.wanted().is_none()
     }
 
-    /// Whether a render region can be meshed: every file it reads from is either in or known
-    /// never to arrive.
     fn ready_to_mesh(&self, region: usize) -> bool {
         files_read(self.layout.grid, self.world.min_region, region)
             .iter()
             .all(|coords| !self.expected.contains(coords) || self.world.holds(*coords))
     }
 
-    /// How far the camera is from a render region's box, in blocks. Zero inside it.
     fn distance(&self, region: usize) -> f32 {
         let origin = self.layout.grid.origin(self.layout.min_section, region);
         let min = Vec3::new(origin[0] as f32, origin[1] as f32, origin[2] as f32);
@@ -222,8 +165,6 @@ impl Loader {
         (self.camera.clamp(min, max) - self.camera).length()
     }
 
-    /// The nearest render region worth meshing next, if any: not already held, not waiting on a
-    /// file, not already being meshed, and not one that has just been found too large to fit.
     fn wanted(&self) -> Option<usize> {
         (0..self.layout.grid.len())
             .filter(|region| {
@@ -235,16 +176,12 @@ impl Loader {
             .min_by(|a, b| self.distance(*a).total_cmp(&self.distance(*b)))
     }
 
-    /// The region to make room with, or `None` when nothing held is far enough behind the one
-    /// asking to be worth the swap.
     fn victim(&self, candidate: f32) -> Option<usize> {
         let held = (0..self.layout.grid.len()).filter(|region| self.resident[*region].is_some());
         let farthest = held.max_by(|a, b| self.distance(*a).total_cmp(&self.distance(*b)))?;
         worth_evicting(self.distance(farthest), candidate).then_some(farthest)
     }
 
-    /// Takes a region's room back. Its draws leave the table before anything is written over the
-    /// blocks it held, which the upload queue being drained in order is what guarantees.
     fn evict(&mut self, region: usize, cave: &mut CaveCull) {
         let Some(held) = self.resident[region].take() else {
             return;
@@ -258,12 +195,9 @@ impl Loader {
             cave.forget(base);
         }
         self.evicted += 1;
-        // Room has come free, so what did not fit before may fit now.
         self.deferred.fill(false);
     }
 
-    /// Where a region's sections sit in the walk's bitset, or `None` when the walk's grid has slid
-    /// away from it. A region the walk does not cover is not culled by it.
     fn cave_base(&self, cave: &CaveCull, region: usize) -> Option<usize> {
         let corner = self.layout.grid.corner(region);
         let grid = cave.grid();
@@ -279,12 +213,6 @@ impl Loader {
         Some(grid.split(local[0], local[1], local[2]).0 * SECTIONS_PER_RENDER_REGION)
     }
 
-    /// Slides the walk's grid to sit around the camera, held inside the loaded window.
-    ///
-    /// Held inside it because geometry the grid does not reach is drawn rather than culled, and an
-    /// orbit camera parked outside the world would otherwise push half the grid into empty space
-    /// and leave the near half of the world uncovered. A window smaller than the grid is covered
-    /// whole and the walk never moves at all.
     fn retarget(&mut self, cave: &mut CaveCull) {
         let grid = cave.grid();
         let span = grid.extent();
@@ -326,10 +254,6 @@ impl Loader {
         self.uploads.rebase(bases);
     }
 
-    /// Gives a batch its place in the arenas and turns it into the draws that will name it.
-    ///
-    /// The offsets are handed out here rather than in the render world because this is also where
-    /// the decision to make room for something will live.
     fn place(&mut self, batch: Batch, cave: &mut CaveCull) -> Result<Placement, Batch> {
         let cave_base = match self.cave_base(cave, batch.region) {
             Some(base) => {
@@ -338,8 +262,6 @@ impl Loader {
             }
             None => cave.always_visible(),
         };
-        // All four or none: a region half in the arena would leave groups pointing at quads that
-        // were never written.
         let Some(quads) = self.quads.alloc(batch.simple.len()) else {
             return Err(batch);
         };
@@ -367,8 +289,6 @@ impl Loader {
             if span.group_count == 0 {
                 continue;
             }
-            // A group's quad_base is an index into the arena its stream draws from, and the two
-            // arenas hand out their blocks independently.
             let base = if stream % 2 == 0 {
                 quads.offset
             } else {
@@ -410,24 +330,10 @@ impl Loader {
     }
 }
 
-/// Whether a region that far away should give its room to one this near.
-///
-/// The margin is what stops the two from trading places: for a swap to reverse, each would have to
-/// be the clearly farther one, which cannot hold both ways at once.
 fn worth_evicting(resident: f32, candidate: f32) -> bool {
     resident > candidate + HYSTERESIS
 }
 
-/// The region files a render region's mesher reads from.
-///
-/// The mesher fills a one-block border around every section it touches, and ambient occlusion
-/// reaches diagonally past a corner on top of that, so the box read runs one block past the render
-/// region on each side. A region file is thirty-two sections across and a render region sixteen,
-/// so every render region is a corner quadrant of its file and that box always lands in a two by
-/// two block of files — the file itself, the two across its edges, and the one across its corner.
-/// Waiting only on the four edge neighbours leaves a one-block column of wrong ambient occlusion
-/// running the height of the world at every file corner, which reads as terrain rather than as a
-/// fault.
 fn files_read(grid: RegionGrid, min_region: [i32; 2], region: usize) -> [[i32; 2]; 4] {
     let [sx, _, sz] = grid.corner(region);
     let size = SECTION_SIZE as i32;
@@ -442,10 +348,6 @@ fn files_read(grid: RegionGrid, min_region: [i32; 2], region: usize) -> [[i32; 2
     })
 }
 
-/// Starts what can be started, collects what has finished, and hands the results on.
-///
-/// A finished task is observed and dropped in the same pass: polling one again after it has given
-/// up its value panics, and dropping one that has not finished cancels it.
 pub fn advance(
     mut loader: ResMut<Loader>,
     mut cave: ResMut<CaveCull>,
@@ -455,8 +357,6 @@ pub fn advance(
     let loader = &mut *loader;
     loader.camera = camera.translation();
     loader.retarget(&mut cave);
-    // A region found too large to fit is only reconsidered once the view has really moved, not
-    // every frame: meshing one costs a tenth of a second whether or not it turns out to fit.
     if loader.camera.distance(loader.anchor) > HYSTERESIS {
         loader.anchor = loader.camera;
         loader.deferred.fill(false);
@@ -474,9 +374,6 @@ pub fn advance(
         match result {
             Ok(region) => absorb(loader, coords, region),
             Err(error) => {
-                // A file that will not parse is a fact about the world, not a bug to bring the
-                // viewer down over. It has to stop being waited on, though, or every render region
-                // whose border reaches into it waits for it forever and stays empty in silence.
                 println!("skipping r.{}.{}: {error}", coords[0], coords[1]);
                 loader.expected.remove(&coords);
             }
@@ -522,16 +419,11 @@ pub fn advance(
         loop {
             match loader.place(pending, &mut cave) {
                 Ok(placement) => {
-                    // A region of open sky holds nothing and still counts as loaded, or it would
-                    // be meshed again every frame for as long as the view covered it.
                     if !placement.draws.is_empty() {
                         loader.uploads.push(Upload::Geometry(placement));
                     }
                     break;
                 }
-                // Memory is the rule and distance only the order: room comes only from a region
-                // clearly farther away, and otherwise this one waits rather than starting a swap
-                // that would undo itself next frame.
                 Err(back) => match loader.victim(here) {
                     Some(victim) => {
                         loader.evict(victim, &mut cave);
@@ -575,9 +467,6 @@ pub fn advance(
     }
 }
 
-/// Takes a parsed file's ids into the shared tables. The world it joins is not published until
-/// its block states are baked, because a mesher handed a world whose states the catalog does not
-/// yet cover would index straight past the end of it.
 fn absorb(loader: &mut Loader, coords: [i32; 2], region: Region) {
     let mut world = (*loader.newest).clone();
     loader.dropped += world.insert(&mut loader.palette, coords, region);
@@ -585,12 +474,6 @@ fn absorb(loader: &mut Loader, coords: [i32; 2], region: Region) {
     loader.to_tint.push(coords);
 }
 
-/// Moves the world on as far as it can: bakes what the palette has gained, or, when it has gained
-/// nothing, simply publishes the files that have joined.
-///
-/// The second half is not an optimisation. A file whose blocks the world has already seen brings
-/// no new states at all, and hanging publication on there being something to bake would leave that
-/// file parsed, resident, and never drawn.
 fn settle(loader: &mut Loader, pool: &'static AsyncComputeTaskPool) {
     if loader.baking.is_some() {
         return;
@@ -611,12 +494,9 @@ fn settle(loader: &mut Loader, pool: &'static AsyncComputeTaskPool) {
     }
 }
 
-/// What the loader can do next with what it has parsed.
 #[derive(PartialEq, Eq, Debug)]
 enum Next {
-    /// Block states have been interned that the catalog has not baked.
     Bake,
-    /// Nothing left to bake, but files have joined the world since it was last published.
     Publish,
     Wait,
 }
@@ -631,7 +511,6 @@ fn next_step(baked: usize, interned: usize, published_is_newest: bool) -> Next {
     }
 }
 
-/// Bakes whatever the palette has gained, off the main thread.
 fn start_baking(loader: &mut Loader, pool: &'static AsyncComputeTaskPool) {
     let Some(mut catalog) = loader.catalog.take() else {
         return;
@@ -678,12 +557,6 @@ fn start_baking(loader: &mut Loader, pool: &'static AsyncComputeTaskPool) {
     loader.baking = Some((world, tints, task));
 }
 
-/// Publishes what baking produced: the world and the block table together, then the atlas, then
-/// the biome colours of every file that has been waiting for them.
-///
-/// Order matters on the upload queue. A quad's sprite number only means anything beside the atlas
-/// it indexes, so the atlas has to be down before any geometry that names it, and the queue is
-/// drained in the order it is filled.
 fn publish(
     loader: &mut Loader,
     world: Arc<World>,
@@ -800,25 +673,18 @@ mod tests {
     use super::*;
     use crate::anvil::{REGION_CHUNKS, SECTIONS_Y};
 
-    /// The rule that stops two regions trading places. For a swap to reverse, each would have to
-    /// be the clearly farther one, and that cannot hold both ways at once — so a camera sitting
-    /// still on a threshold cannot make the arena occupancy saw.
     #[test]
     fn two_regions_at_a_threshold_cannot_take_each_others_room() {
         let (near, far) = (100.0, 100.0 + HYSTERESIS + 1.0);
         assert!(worth_evicting(far, near), "the far one gives way to the near one");
         assert!(!worth_evicting(near, far), "and never the other way round");
 
-        // Anything inside the margin is a stand-off, whichever way round it is asked.
         for other in [100.0, 100.5, 100.0 + HYSTERESIS] {
             assert!(!worth_evicting(other, near));
             assert!(!worth_evicting(near, other));
         }
     }
 
-    /// A file whose blocks the world has already seen brings no new states at all. Hanging
-    /// publication on there being something to bake leaves that file parsed, resident, and never
-    /// drawn — with the counter reading zero files loaded and nothing else to say why.
     #[test]
     fn a_file_that_brings_no_new_block_states_still_reaches_the_world() {
         assert_eq!(next_step(400, 400, false), Next::Publish);
@@ -826,21 +692,15 @@ mod tests {
         assert_eq!(next_step(400, 400, true), Next::Wait);
     }
 
-    /// A render region on the inside corner of a file reads across both of its edges and across
-    /// the corner between them. Missing the diagonal one leaves a column of wrong ambient
-    /// occlusion running the whole height of the world where four files meet.
     #[test]
     fn a_render_region_on_a_file_corner_reads_the_diagonal_file_too() {
         let grid = RegionGrid::covering([REGION_CHUNKS * 2, SECTIONS_Y, REGION_CHUNKS * 2]);
         assert_eq!([grid.x, grid.z], [4, 4]);
 
-        // The quadrant of r.-1.-1 that touches r.0.0 at a point.
         let mut files = files_read(grid, [-1, -1], 5);
         files.sort();
         assert_eq!(files, [[-1, -1], [-1, 0], [0, -1], [0, 0]]);
 
-        // The quadrant at the window's own outer corner reads outside it, where nothing will ever
-        // arrive and air is the right answer.
         let mut files = files_read(grid, [-1, -1], 0);
         files.sort();
         assert_eq!(files, [[-2, -2], [-2, -1], [-1, -2], [-1, -1]]);

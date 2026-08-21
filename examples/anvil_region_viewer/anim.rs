@@ -1,9 +1,3 @@
-//! The animation a sprite describes in the `.mcmeta` file beside its `.png`.
-//!
-//! Mirrors `AnimationMetadataSection` and the sequence `SpriteContents` builds from it: frames are
-//! addressed as a grid inside the source image, and the sequence is either the listed one or every
-//! frame in order.
-
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -15,10 +9,8 @@ struct File {
 
 #[derive(Deserialize)]
 pub struct Animation {
-    /// Ticks each step of the sequence lasts, unless the step names its own.
     #[serde(default = "one")]
     frametime: i64,
-    /// Whether a step blends into the next one instead of cutting to it.
     #[serde(default)]
     pub interpolate: bool,
     width: Option<u32>,
@@ -30,8 +22,6 @@ fn one() -> i64 {
     1
 }
 
-/// A step of the sequence: a frame of the image, on its own or with a duration that overrides the
-/// default.
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum Frame {
@@ -48,8 +38,6 @@ impl Frame {
     }
 }
 
-/// Reads the metadata beside a sprite. A sprite with no metadata file, or one that says nothing
-/// about animation, does not animate.
 pub fn read(png: &Path) -> Result<Option<Animation>, String> {
     let mut path = png.as_os_str().to_os_string();
     path.push(".mcmeta");
@@ -67,8 +55,6 @@ fn from_json(bytes: &[u8]) -> Result<Option<Animation>, serde_json::Error> {
 }
 
 impl Animation {
-    /// The size of one frame: both sides where they are given, the image's own side for the one
-    /// that is not, and a square of the shorter side where neither is.
     pub fn frame_size(&self, image: (u32, u32)) -> (u32, u32) {
         match (self.width, self.height) {
             (Some(width), Some(height)) => (width, height),
@@ -81,7 +67,6 @@ impl Animation {
         }
     }
 
-    /// How many frames the image holds, laid out as a grid of frame-sized cells.
     pub fn frame_count(&self, image: (u32, u32)) -> u32 {
         let (width, height) = self.frame_size(image);
         if width == 0 || height == 0 {
@@ -90,17 +75,6 @@ impl Animation {
         image.0 / width * (image.1 / height)
     }
 
-    /// Which frame of the image the animation shows at each step of its sequence, one entry per
-    /// step.
-    ///
-    /// A frame the sequence returns to appears again in the run rather than being pointed at twice,
-    /// and a step that lasts longer than the shortest one is repeated until it does. That costs a
-    /// duplicate entry but leaves every animation described by a first frame, a length and one
-    /// duration, with no schedule to look up.
-    ///
-    /// A step naming a frame the image does not hold, or lasting no time at all, is dropped with a
-    /// complaint rather than taken as written; what is left is an animation only if two steps
-    /// survive.
     pub fn unroll(&self, sprite: &str, image: (u32, u32)) -> Unrolled {
         let total = self.frame_count(image) as i64;
         let listed: Vec<(i64, i64)> = match &self.frames {
@@ -124,22 +98,16 @@ impl Animation {
                 std::iter::repeat_n(index as u32, (time / frametime) as usize)
             })
             .collect();
-        // One frame is a still image however many ways the metadata spells it.
         let frames = if frames.len() < 2 { Vec::new() } else { frames };
         Unrolled { frames, frametime: frametime as u32 }
     }
 }
 
-/// An animation with its sequence laid out one frame to a step.
 pub struct Unrolled {
-    /// The frame of the source image each step shows, or nothing where the sprite does not animate.
     pub frames: Vec<u32>,
-    /// Ticks one step lasts. Every step lasts the same, which is what lets the shader find the
-    /// current one by arithmetic rather than by walking a schedule.
     pub frametime: u32,
 }
 
-/// Loading runs before the app, and so before the log subscriber, which is why this prints.
 fn complain(sprite: &str, step: usize, reason: std::fmt::Arguments) {
     println!("dropping step {step} of {sprite}: it {reason}");
 }
@@ -152,7 +120,6 @@ fn gcd(a: i64, b: i64) -> i64 {
 mod tests {
     use super::*;
 
-    /// A strip of `frames` square frames, which is how the vanilla pack ships every animation.
     const SIDE: u32 = 16;
 
     fn strip(frames: u32) -> (u32, u32) {
@@ -165,22 +132,18 @@ mod tests {
             .expect("the metadata describes an animation")
     }
 
-    /// Without a list, the sequence is every frame of the image in order.
     #[test]
     fn an_unlisted_sequence_runs_through_the_whole_image() {
         let meta = animation(r#"{"animation": {"frametime": 2}}"#);
         assert_eq!(meta.unroll("unlisted", strip(4)).frames, [0, 1, 2, 3]);
     }
 
-    /// A listed sequence may repeat frames and run backwards; each entry is one step.
     #[test]
     fn a_listed_sequence_is_taken_in_the_order_it_is_written() {
         let meta = animation(r#"{"animation": {"frames": [0, 1, 2, 1, 0]}}"#);
         assert_eq!(meta.unroll("listed", strip(3)).frames, [0, 1, 2, 1, 0]);
     }
 
-    /// A step that lasts longer than the shortest one is repeated until it does, so every step of
-    /// the run still lasts the same and the shader needs no schedule to find the current one.
     #[test]
     fn a_step_with_its_own_duration_is_repeated_to_the_common_beat() {
         let meta = animation(
@@ -203,15 +166,12 @@ mod tests {
         assert_eq!(meta.unroll("out of range", strip(3)).frames, [0, 1]);
     }
 
-    /// One surviving step is a still image, and a still image must not be handed an animation.
     #[test]
     fn a_sequence_worn_down_to_one_step_does_not_animate() {
         let meta = animation(r#"{"animation": {"frames": [0, 9]}}"#);
         assert!(meta.unroll("worn down", strip(3)).frames.is_empty());
     }
 
-    /// Frames sit in the image as a grid, not necessarily as a column: a frame is found at
-    /// `index % columns` across and `index / columns` down.
     #[test]
     fn frames_are_counted_across_the_image_as_well_as_down_it() {
         let meta = animation(r#"{"animation": {"width": 16, "height": 16}}"#);
@@ -219,8 +179,6 @@ mod tests {
         assert_eq!(meta.unroll("grid", (SIDE * 3, SIDE * 2)).frames, [0, 1, 2, 3, 4, 5]);
     }
 
-    /// The frame is square on the shorter side unless the metadata says otherwise, and takes the
-    /// image's own side for whichever dimension it leaves out.
     #[test]
     fn a_frame_is_sized_the_way_the_metadata_leaves_it() {
         assert_eq!(animation(r#"{"animation": {}}"#).frame_size((16, 96)), (16, 16));
@@ -238,7 +196,6 @@ mod tests {
         );
     }
 
-    /// A metadata file that says nothing about animation leaves the sprite still.
     #[test]
     fn metadata_without_an_animation_section_is_not_one() {
         let file = from_json(br#"{"texture": {"blur": true}}"#).expect("the metadata parses");

@@ -1,14 +1,3 @@
-//! The time of day: what the terrain is lit by, what colour the sky is, where the sun and the moon
-//! stand, and how far the stars have come out.
-//!
-//! Every number here is read off vanilla's own data rather than guessed. The base colours are the
-//! attributes `dimension_type/overworld.json` sets, and the way each of them moves through the day
-//! is the keyframed tracks of `timeline/day.json`. Those tracks are piecewise linear in ticks and
-//! all wrap at the end of the day, so one interpolator serves every one of them.
-//!
-//! What this module produces is a single uniform; `sky.wgsl` draws the sky from it and the terrain
-//! shader lights the world from it, and neither has any other notion of what hour it is.
-
 use std::f32::consts::{PI, TAU};
 
 use bevy::asset::RenderAssetUsages;
@@ -18,11 +7,8 @@ use bevy::prelude::*;
 use crate::model;
 use crate::render::{Atlas, Clouds, Sky};
 
-/// Ticks in a day, from the period of the overworld clock.
 const DAY: f32 = 24000.0;
 
-/// The moon runs on a period of its own, eight days long, which is what gives it phases. The order
-/// is the one `timeline/moon.json` keyframes.
 const MOON_PHASES: [&str; 8] = [
     "full_moon",
     "waning_gibbous",
@@ -34,39 +20,25 @@ const MOON_PHASES: [&str; 8] = [
     "waxing_gibbous",
 ];
 
-/// How fast a held key scrubs, in ticks a second: a whole day in six seconds.
 const SCRUB: f32 = DAY / 6.0;
 
-// The overworld's own attributes. The tracks below scale these rather than replace them.
 const BASE_SKY: Vec3 = rgb(0x78a7ff);
 const BASE_FOG: Vec3 = rgb(0xc0d8ff);
 const AMBIENT: Vec3 = rgb(0x0a0a0a);
 
-/// `visual/block_light_tint`, the colour a torch reads as at its dimmest, and the factor block
-/// light is scaled by. Neither moves with the hour: a torch burns the same at midnight.
 const BLOCK_LIGHT_TINT: Vec3 = rgb(0xffd88c);
 const BLOCK_LIGHT_FACTOR: f32 = 1.4;
 
-/// `visual/cloud_height`: where the underside of the cloud layer sits.
 const CLOUD_HEIGHT: f32 = 192.33;
 
-/// How fast the field drifts, in blocks a second. Vanilla moves it three hundredths of a block a
-/// tick, and ties that to the world's clock; there is no world here, so it runs off the wall clock
-/// the animated sprites already run off.
 const CLOUD_SPEED: f32 = 0.6;
 
-/// The offset vanilla starts the field at in z.
 const CLOUD_ORIGIN_Z: f32 = 3.96;
 
-/// `visual/cloud_fog_end_distance`, capped by the cloud range option — both of which land here.
-/// The clouds fade out linearly over this and are gone beyond it, which is also where the march
-/// through them stops.
 const CLOUD_FADE: f32 = 2048.0;
 
-/// `visual/cloud_color`, which carries the alpha the layer is drawn at.
 const CLOUD_COLOR: Vec4 = argb(0xccffffff);
 
-/// The cloud half of `visual/cloud_color`'s track: white by day, near black by night.
 const CLOUD_TINT: [(f32, Vec3); 4] = [
     (133.0, Vec3::ONE),
     (11867.0, Vec3::ONE),
@@ -74,27 +46,17 @@ const CLOUD_TINT: [(f32, Vec3); 4] = [
     (22330.0, rgb(0x191926)),
 ];
 
-/// How far out the sky has faded entirely into the haze: `visual/sky_fog_end_distance`, which
-/// vanilla caps by the render distance. Nothing is culled by distance here, so the attribute stands.
 const SKY_FOG_END: f32 = 512.0;
 
-/// Sea level, which is the height vanilla calls the horizon: from below it the void is covered by a
-/// dark disc rather than left showing the sky.
 const HORIZON: f32 = 63.0;
 
-/// There is no weather here, so nothing ever dims the sun and the moon. Vanilla drives this from
-/// the rain level and the sky shader still reads it, so the two stay the same shape.
 const RAIN_BRIGHTNESS: f32 = 1.0;
 
-/// `visual/sky_light_factor`: how much of the sky's light the hour lets through.
 const SKY_LIGHT_FACTOR: [(f32, f32); 4] =
     [(730.0, 1.0), (11270.0, 1.0), (13140.0, 0.24), (22860.0, 0.24)];
 
-/// `visual/sky_color`, a multiplier over the dimension's own colour rather than a colour. Vanilla
-/// keyframes it white fading to black, so one number says what all three channels do.
 const SKY_COLOR: [(f32, f32); 4] = [(133.0, 1.0), (11867.0, 1.0), (13670.0, 0.0), (22330.0, 0.0)];
 
-/// `visual/fog_color`, the same idea but not grey: the night haze keeps a little blue in it.
 const FOG_COLOR: [(f32, Vec3); 4] = [
     (133.0, Vec3::ONE),
     (11867.0, Vec3::ONE),
@@ -102,7 +64,6 @@ const FOG_COLOR: [(f32, Vec3); 4] = [
     (22330.0, rgb(0x161616)),
 ];
 
-/// `visual/sky_light_color`: white by day, `#7a7aff` by night.
 const SKY_LIGHT_COLOR: [(f32, Vec3); 4] = [
     (730.0, Vec3::ONE),
     (11270.0, Vec3::ONE),
@@ -110,7 +71,6 @@ const SKY_LIGHT_COLOR: [(f32, Vec3); 4] = [
     (22860.0, rgb(0x7a7aff)),
 ];
 
-/// `visual/star_brightness`. The stars are out all night and fade through both twilights.
 const STAR_BRIGHTNESS: [(f32, f32); 12] = [
     (92.0, 0.037),
     (627.0, 0.0),
@@ -126,9 +86,6 @@ const STAR_BRIGHTNESS: [(f32, f32); 12] = [
     (23758.0, 0.101),
 ];
 
-/// `visual/sunrise_sunset_color`, as `0xAARRGGBB`. The alpha carries the band in and out, so it is
-/// zero through the middle of the day and the middle of the night; the colour swings from yellow
-/// through orange to red as the sun goes down, and back the other way as it comes up.
 const SUNRISE: [(f32, Vec4); 32] = [
     (71.0, argb(0x5fefa333)),
     (310.0, argb(0x29f5ba33)),
@@ -181,16 +138,12 @@ const fn argb(hex: u32) -> Vec4 {
     )
 }
 
-/// Where the clock stands, in ticks. Kept over eight days rather than one so the moon works
-/// through its phases as the hour is scrubbed forward.
 #[derive(Resource)]
 pub struct TimeOfDay {
     pub ticks: f32,
 }
 
 impl Default for TimeOfDay {
-    /// Noon, unless `ANVIL_TIME=<ticks>` pins the clock somewhere else — which is what lets a
-    /// night frame be shot from a terminal with nobody at the window to hold a key down.
     fn default() -> Self {
         let ticks = std::env::var("ANVIL_TIME")
             .ok()
@@ -201,7 +154,6 @@ impl Default for TimeOfDay {
 }
 
 impl TimeOfDay {
-    /// The hour as a clock reads it: tick zero is six in the morning.
     pub fn clock(&self) -> (u32, u32) {
         let minutes = (self.ticks.rem_euclid(DAY) / DAY * 1440.0 + 360.0) % 1440.0;
         (minutes as u32 / 60, minutes as u32 % 60)
@@ -224,11 +176,6 @@ impl Default for Sky {
     }
 }
 
-/// The cloud field: one texel a cell, open where the sky shows through.
-///
-/// The march wraps the field by masking the cell it landed on, which is the wrap it wants only
-/// while the side is a power of two, so a field that is not one is refused here rather than drawn
-/// wrong.
 pub fn clouds() -> Result<Atlas, String> {
     let field = sprites(&["environment/clouds".to_string()])?;
     if !field.size.is_power_of_two() {
@@ -240,14 +187,12 @@ pub fn clouds() -> Result<Atlas, String> {
     Ok(field)
 }
 
-/// The sun and the eight moon phases, decoded into one square array for the sky shader to sample.
 pub fn celestials() -> Result<Atlas, String> {
     let sun = std::iter::once("environment/celestial/sun".to_string());
     let moon = MOON_PHASES.map(|phase| format!("environment/celestial/moon/{phase}"));
     sprites(&sun.chain(moon).collect::<Vec<_>>())
 }
 
-/// Decodes square sprites of one size into the layers of a single array.
 fn sprites(ids: &[String]) -> Result<Atlas, String> {
     let mut pixels = Vec::new();
     let mut side = 0;
@@ -285,14 +230,10 @@ fn sprites(ids: &[String]) -> Result<Atlas, String> {
     Ok(Atlas {
         size: side,
         layers: ids.len() as u32,
-        // One level: none of these is ever seen small enough for a mip to be the right sample, and
-        // filtering them at all is what turned the sun into a smear.
         mips: vec![pixels],
     })
 }
 
-/// One keyframed track, read at a tick. The last keyframe runs into the first one a day later,
-/// which is how a track that ends before midnight still has a value at one in the morning.
 fn track<T>(keys: &[(f32, T)], ticks: f32) -> T
 where
     T: Copy + std::ops::Add<T, Output = T> + std::ops::Mul<f32, Output = T>,
@@ -314,18 +255,11 @@ where
     keys[0].1
 }
 
-/// Everything downstream works in the space its textures are sampled in, which is linear, so a
-/// colour written down the way a resource pack writes it has to be converted. Doing it here rather
-/// than in the shader is also what puts the arithmetic where vanilla's is: a factor applied to a
-/// linear colour and then encoded is the factor vanilla applies to the colour already encoded.
 fn linear(color: Vec3) -> Vec3 {
     let color = LinearRgba::from(Color::srgb(color.x, color.y, color.z));
     Vec3::new(color.red, color.green, color.blue)
 }
 
-/// Where the sun stands, in radians about the world's east-west axis. The timeline eases this with
-/// a cubic bezier; the closed form below is the curve that bezier was fitted to — flat through the
-/// middle of the day and of the night, quick through the two twilights.
 fn sun_angle(ticks: f32) -> f32 {
     let day = (ticks / DAY - 0.25).rem_euclid(1.0);
     let eased = 0.5 - (day * PI).cos() * 0.5;
@@ -335,9 +269,6 @@ fn sun_angle(ticks: f32) -> f32 {
 fn sky_at(ticks: f32, camera_height: f32, drift: f32) -> Sky {
     let sun = sun_angle(ticks);
     let sunrise = track(&SUNRISE, ticks);
-    // A star is drawn as its own brightness times itself, because the pipeline both writes the
-    // value and blends by it. Vanilla squares a number that is already encoded, so ours is
-    // converted before it is squared rather than after, or the night would come out far brighter.
     let stars = linear(Vec3::splat(track(&STAR_BRIGHTNESS, ticks))).x.sqrt();
     Sky {
         sky_light: linear(track(&SKY_LIGHT_COLOR, ticks))
@@ -349,8 +280,6 @@ fn sky_at(ticks: f32, camera_height: f32, drift: f32) -> Sky {
             .extend(f32::from(camera_height < HORIZON))
             .into(),
         sunrise: linear(sunrise.truncate()).extend(sunrise.w).into(),
-        // Vanilla keyframes the three angles apart but says the same thing with all three: the
-        // moon is opposite the sun and the stars turn with it, so the shader derives both.
         angles: [sun, stars, 0.0, 0.0],
         moon: [
             1.0 + (ticks / DAY).floor().rem_euclid(MOON_PHASES.len() as f32),
@@ -366,13 +295,10 @@ fn sky_at(ticks: f32, camera_height: f32, drift: f32) -> Sky {
     }
 }
 
-/// The haze the world fades into. Below the horizon it is all that shows, so it is also what the
-/// frame is cleared to, and the disc fading into exactly this is what hides the disc's own rim.
 fn fog(ticks: f32) -> Vec3 {
     BASE_FOG * track(&FOG_COLOR, ticks)
 }
 
-/// Hold `+` or `-` to run the clock forward or back.
 fn scrub(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut day: ResMut<TimeOfDay>) {
     let forward = keys.any_pressed([KeyCode::Equal, KeyCode::NumpadAdd]);
     let back = keys.any_pressed([KeyCode::Minus, KeyCode::NumpadSubtract]);
@@ -383,7 +309,6 @@ fn scrub(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut day: ResMut<TimeO
     }
 }
 
-/// Press F9 to take the cloud layer out of the frame.
 fn toggle_clouds(keys: Res<ButtonInput<KeyCode>>, mut clouds: ResMut<Clouds>) {
     if keys.just_pressed(KeyCode::F9) {
         clouds.0 = !clouds.0;
@@ -410,8 +335,6 @@ mod tests {
     fn a_track_holds_its_plateaus_and_wraps_through_midnight() {
         assert_eq!(track(&SKY_LIGHT_FACTOR, 6000.0), 1.0, "noon is full daylight");
         assert_eq!(track(&SKY_LIGHT_FACTOR, 18000.0), 0.24, "midnight is not");
-        // Between the last keyframe of the day and the first of the next one, which is the segment
-        // that only exists because the track wraps.
         let dawn = track(&SKY_LIGHT_FACTOR, 23000.0);
         assert!(dawn > 0.24 && dawn < 1.0, "dawn is between the two, not {dawn}");
         assert_eq!(track(&SKY_LIGHT_FACTOR, -1000.0), track(&SKY_LIGHT_FACTOR, 23000.0));
@@ -432,8 +355,6 @@ mod tests {
             * Vec3::Y;
         assert!(overhead.abs_diff_eq(Vec3::Y, 1e-4), "noon puts the sun at {overhead}");
 
-        // Dusk is eased, so the sun is still just above the horizon when the day's own count runs
-        // out; it crosses a little before the hour the timeline calls night.
         let setting = Quat::from_rotation_y(-PI / 2.0)
             * Quat::from_rotation_x(sun_angle(12000.0))
             * Vec3::Y;

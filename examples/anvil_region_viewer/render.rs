@@ -1,13 +1,3 @@
-//! The GPU side: arenas of geometry, a compute culling pass, and one indirect draw per stream.
-//!
-//! Every buffer is created at its full size before anything is loaded, because the shape of the
-//! world — how many render regions, how many sections, how many draws at most — is settled by the
-//! window rather than by what turns out to be in it. Geometry then arrives from the loader a
-//! render region at a time and is written into the arenas at offsets the loader picked. A region's
-//! draws are published only once every byte of it has landed, and no more than a fixed number of
-//! bytes go up in one frame, so a region coming into view costs a slice of several frames rather
-//! than one long one.
-
 use std::collections::VecDeque;
 use std::num::NonZeroU64;
 use std::sync::{Arc, Mutex};
@@ -35,25 +25,13 @@ use crate::mesh::{Draw, Group, STREAMS};
 use crate::probe::{self, GpuTimings, Queries};
 use crate::pack::{MAX_SPRITE_ARRAYS, MODEL_OVERHANG, QUAD_WORDS, RegionGrid};
 
-/// Raster pipelines, in the order `prepare_pipelines` queues them: alpha-tested greedy and model,
-/// blended greedy and model, then the pair that shades solid geometry with no alpha test at all.
 const TERRAIN_PIPELINES: usize = 6;
-/// Where that last pair starts, greedy first, so a solid stream indexes it by its own number.
 const UNTESTED_PIPELINE: usize = 4;
 
-/// Dynamic uniform offsets must be a multiple of the device's alignment; 256 satisfies every
-/// backend we can land on.
 const PARAMS_STRIDE: u32 = 256;
 const PARAMS_SIZE: u64 = 64;
 const _: () = assert!(size_of::<Params>() as u64 == PARAMS_SIZE);
 
-/// How many bytes of geometry reach the GPU in one frame, from `ANVIL_UPLOAD` in megabytes.
-///
-/// A region file runs to a couple of hundred megabytes, and handing it over in fewer, larger
-/// pieces lands as a stall on the frame a region comes into view. Measured on this world at 4K:
-/// four megabytes a frame holds the loading tail at 34 ms against a settled 30, sixteen pushes it
-/// to 80, and no limit at all to 63. Four also finishes sooner, because the main thread it is not
-/// stalling is the one driving the loader.
 static UPLOAD_BUDGET: std::sync::LazyLock<usize> = std::sync::LazyLock::new(|| {
     std::env::var("ANVIL_UPLOAD")
         .ok()
@@ -62,17 +40,11 @@ static UPLOAD_BUDGET: std::sync::LazyLock<usize> = std::sync::LazyLock::new(|| {
         << 20
 });
 
-/// Buffer writes have to start and end on a four-byte boundary, so a slice of a large upload is
-/// cut to one.
 const COPY_ALIGN: usize = 4;
 const DRAW_ARGS_SIZE: u64 = size_of::<DrawArgs>() as u64;
-/// Byte offset of `DrawArgs::instance_count`, the only field a frame rewrites.
 const INSTANCE_COUNT_OFFSET: u64 = 4;
 const TINT_LAYERS: u32 = 3;
 
-/// Vanilla's own additive blend for the sun, the moon and the stars: what is drawn is added to the
-/// sky behind it rather than covering it, which is what makes the black square a sprite is painted
-/// on disappear.
 const ADDITIVE: BlendState = BlendState {
     color: BlendComponent {
         src_factor: BlendFactor::SrcAlpha,
@@ -86,8 +58,6 @@ const ADDITIVE: BlendState = BlendState {
     },
 };
 
-/// Either half of the sky: the backdrop behind the terrain, or the clouds in front of it. Which
-/// half is which is the draw's own `depth` flag, so the order lives in the table rather than here.
 fn draw_sky<'pass>(
     pass: &mut TrackedRenderPass<'pass>,
     terrain: &'pass Terrain,
@@ -113,18 +83,12 @@ fn draw_sky<'pass>(
     }
 }
 
-/// The sky, in the order `LevelRenderer` draws it: the disc, the twilight band, the two celestial
-/// bodies, then the stars over the top of them. Each is one draw of vertices the shader derives
-/// from their own indices, so none of them has a buffer behind it.
 struct SkyDraw {
     label: &'static str,
     vertex: &'static str,
     fragment: &'static str,
     blend: Option<BlendState>,
     vertices: u32,
-    /// Whether the draw belongs in front of the terrain rather than behind it. The backdrop takes
-    /// no part in the depth buffer at all; the clouds hang inside the world and have to be told
-    /// what is standing in front of them.
     depth: bool,
 }
 
@@ -134,7 +98,6 @@ const SKY_DRAWS: [SkyDraw; 5] = [
         vertex: "vertex_disc",
         fragment: "fragment_disc",
         blend: None,
-        // The disc above the horizon and the dark one below it, eight triangles each.
         vertices: 48,
         depth: false,
     },
@@ -143,7 +106,6 @@ const SKY_DRAWS: [SkyDraw; 5] = [
         vertex: "vertex_sunrise",
         fragment: "fragment_flat",
         blend: Some(BlendState::ALPHA_BLENDING),
-        // A sixteen step fan.
         vertices: 48,
         depth: false,
     },
@@ -168,73 +130,42 @@ const SKY_DRAWS: [SkyDraw; 5] = [
         vertex: "vertex_clouds",
         fragment: "fragment_clouds",
         blend: Some(BlendState::ALPHA_BLENDING),
-        // One triangle over the whole screen; the layer is found by marching, not by drawing it.
         vertices: 3,
         depth: true,
     },
 ];
 
-/// How many stars vanilla tries to place. The shader rejects the same share of them as vanilla
-/// does, so rather fewer than this actually reach the screen.
 const STAR_COUNT: u32 = 1500;
 
-/// The shape of the world, settled before anything is loaded.
-///
-/// None of it depends on what the region files turn out to hold: the window fixes how many render
-/// regions there are and how tall the world is, and everything sized from that can be allocated
-/// once. A span that grew after geometry was already on the GPU would renumber every region's
-/// place in the sight-line bitset under it.
 pub struct Layout {
     pub grid: RegionGrid,
-    /// Section coordinates of the window's corner, signed on all three axes.
     pub min_section: [i32; 3],
-    /// Greedy quads the arena holds.
     pub quad_capacity: usize,
-    /// Model quads the arena holds, four vertices each.
     pub model_capacity: usize,
-    /// Face attributes the arena holds, one per block face a greedy quad covers.
     pub face_capacity: usize,
     pub group_capacity: usize,
-    /// Words of the sight-line bitset the walk hands back every frame.
     pub cave_words: usize,
-    /// The sun and the eight moon phases, one square layer each, in that order.
     pub celestials: Atlas,
-    /// One texel per cloud cell.
     pub clouds: Atlas,
-    /// The window the biome colour map covers: its corner in world blocks and its extent.
     pub tint_origin: [i32; 2],
     pub tint_size: [u32; 2],
 }
 
 impl Layout {
-    /// One `draw_indirect` per stream per render region is the most the world can ever issue.
     pub fn max_draws(&self) -> usize {
         STREAMS * self.grid.len()
     }
 }
 
-/// Geometry already given its place in the arenas, waiting to go to the GPU.
-///
-/// The offsets were picked by the loader, so the render world only writes bytes. The draws are
-/// published once every byte has landed, which is what stops a frame from ever drawing out of a
-/// half-written arena.
 pub struct Placement {
-    /// `(byte offset, quads)` into the greedy quad arena.
     pub quads: (u64, Vec<[u32; QUAD_WORDS]>),
-    /// `(byte offset, words)` into the model vertex arena.
     pub vertices: (u64, Vec<u32>),
-    /// `(byte offset, face attributes)` into the face arena.
     pub faces: (u64, Vec<u32>),
-    /// `(byte offset, groups)` into the culling group arena.
     pub groups: (u64, Vec<Group>),
-    /// This region's draws, in stream order.
     pub draws: Vec<Draw>,
 }
 
 impl Placement {
-    /// The four arenas in the order they are written, as bytes. Kept as a borrow rather than
-    /// packed into one buffer: a region file runs to hundreds of megabytes and copying it once
-    /// more on the way to the GPU would undo the point of spreading the write out.
     fn part(&self, index: usize) -> (Arena, u64, &[u8]) {
         match index {
             0 => (Arena::Quads, self.quads.0, bytemuck::cast_slice(&self.quads.1)),
@@ -257,42 +188,27 @@ impl Placement {
     }
 }
 
-/// Work the loader hands the render world.
 pub enum Upload {
-    /// One region file's biome colours, at its corner in the tint window.
     Tints {
         origin: [u32; 2],
         size: u32,
         data: Vec<u8>,
     },
-    /// The sprite set grew. Every array, the animation table and the bind group that names them
-    /// are rebuilt together, because a layer number only means anything next to the array it
-    /// indexes and the threshold that separates a still sprite from an animation moves with them.
     Sprites {
         atlases: Vec<Atlas>,
         animations: Vec<Animation>,
         animated_from: u32,
     },
     Geometry(Placement),
-    /// A render region gave its room back. Its draws come out of the table before anything is
-    /// written over the blocks it held, which the queue being drained in order is what guarantees.
     Drop(u32),
 }
 
-/// The queue the loader pushes into and the render world drains. An `Arc` rather than an extracted
-/// resource: the payloads are megabytes and extraction would clone every one of them.
 #[derive(Resource, Clone, Default)]
 pub struct Uploads(Arc<Mutex<Waiting>>);
 
 #[derive(Default)]
 pub struct Waiting {
     queue: VecDeque<Upload>,
-    /// Where each region's sections now sit in the sight-line bitset, after the walk's grid slid.
-    ///
-    /// A slot of its own rather than a place in the queue, and only the latest one matters: the
-    /// walk uploads its bitset every frame, so a rebasing that waited behind a few megabytes of
-    /// geometry would leave a frame reading the new bitset through the old bases — which is
-    /// geometry going missing, not geometry drawn twice.
     rebase: Option<Vec<(u32, u32)>>,
 }
 
@@ -305,16 +221,11 @@ impl Uploads {
         self.0.lock().unwrap().rebase = Some(bases);
     }
 
-    /// How much is still queued. Geometry reaches the GPU a slice at a time, so the loader going
-    /// quiet is not the same thing as the world being on screen.
     pub fn waiting(&self) -> usize {
         self.0.lock().unwrap().queue.len()
     }
 }
 
-/// One animated sprite: where its run of layers starts, how long the run is, and how fast to walk
-/// it. The sequence was laid out one step to a layer, so this is all the shader needs to find the
-/// step showing now.
 #[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct Animation {
@@ -324,11 +235,9 @@ pub struct Animation {
     pub interpolate: u32,
 }
 
-/// One sprite resolution, ready to upload.
 pub struct Atlas {
     pub size: u32,
     pub layers: u32,
-    /// Mip 0 first, then each smaller level, layer-major within a level.
     pub mips: Vec<Vec<u8>>,
 }
 
@@ -351,74 +260,38 @@ struct Params {
     group_count: u32,
     visible_base: u32,
     args_index: u32,
-    /// The corner of this draw's render region, in blocks. Coordinates in a quad are relative to
-    /// their own section, so this is what puts the geometry back where it belongs. Explicit
-    /// scalars rather than a vec3: a vec3 would align to 16 and silently grow the struct.
     origin_x: i32,
     origin_y: i32,
     origin_z: i32,
-    /// Where this region's sections start in the sight-line bitset.
     cave_base: u32,
     wireframe: u32,
-    /// How far this stream's geometry may reach outside its own section.
     overhang: f32,
-    /// The lowest layer number that names an animation rather than a layer of an array.
     animated_from: u32,
-    /// Where the biome colour map starts in world blocks and how far it reaches. The map covers
-    /// the loaded window, which does not start at the origin, so a world position has to be
-    /// shifted and scaled rather than divided by a constant.
     tint_origin_x: i32,
     tint_origin_z: i32,
     tint_span_x: f32,
     tint_span_z: f32,
-    /// Where this draw's render region owns its face attributes, which a quad's own base counts
-    /// from.
     face_origin: u32,
 }
 
-/// The state of the sky the terrain is lit by, as `terrain.wgsl` reads it. One uniform for the
-/// whole frame rather than a light texture: there are three terms, and evaluating them in the
-/// shader costs neither an upload nor a sample.
 #[derive(Resource, Clone, Copy, ExtractResource, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct Sky {
-    /// `rgb` the colour sky light arrives in, `a` how much of it the time of day lets through.
     pub sky_light: [f32; 4],
-    /// `rgb` the tint of a torch at its dimmest, `a` the factor block light is scaled by.
     pub block_light: [f32; 4],
-    /// The floor under both, which is what keeps a sealed cave from being pure black.
     pub ambient: [f32; 4],
-    /// `rgb` the colour of the sky disc, `a` set when the camera has dropped below the horizon and
-    /// the dark disc under it has to be drawn.
     pub disc: [f32; 4],
-    /// The twilight band: `rgb` its colour, `a` how far it has come in.
     pub sunrise: [f32; 4],
-    /// Sun, moon and star angles in radians, and how bright the stars are.
     pub angles: [f32; 4],
-    /// Which layer of the celestial array the moon shows, and how much rain dims the two discs.
     pub moon: [f32; 4],
-    /// `rgb` the haze the world fades into, which is also what the frame is cleared to, and `a`
-    /// how far from the camera the sky has faded entirely into it.
     pub fog: [f32; 4],
-    /// The colour the cloud layer is lit and tinted by, `a` included.
     pub cloud_color: [f32; 4],
-    /// Where the underside of the cloud layer sits, how far the field has drifted in x and z, and
-    /// the distance the clouds have faded out by.
     pub cloud: [f32; 4],
 }
 
-/// Which streams are culled and drawn, one bit each, in the order of [`STREAM_NAMES`].
-///
-/// The terrain pass covers the sky, all six streams and the clouds together, and the GPU samples
-/// counters only where a pass begins and ends, so what one stream costs inside it cannot be read
-/// off directly. Splitting the pass would answer it and lie about the answer: a tile-based GPU
-/// pays a full store and load at every split. Leaving a stream out and taking the difference costs
-/// nothing and measures the frame that actually ships.
 #[derive(Resource, Clone, Copy, ExtractResource)]
 pub struct Streams(pub u32);
 
-/// The first stream drawn blended. Stream order is draw order, so this is also where the opaque
-/// half of the terrain ends and the cloud layer goes in.
 const BLENDED_STREAM: u32 = STREAMS as u32 - 2;
 
 impl Streams {
@@ -435,8 +308,6 @@ impl Default for Streams {
     }
 }
 
-/// Whether the cloud layer is drawn. What the toggle skips is the draw itself rather than the
-/// clouds inside it, so with them off nothing walks the screen at all.
 #[derive(Resource, Clone, Copy, ExtractResource)]
 pub struct Clouds(pub bool);
 
@@ -446,11 +317,6 @@ impl Default for Clouds {
     }
 }
 
-/// The fraction of the window's pixels the terrain pass rasterises into, from `ANVIL_RASTER`.
-///
-/// The projection is left untouched, so the same triangles are drawn from the same frustum and
-/// only the rectangle they land in shrinks. What the pass then loses is the half of it that is
-/// paid per pixel, measured without moving the display's mode and with it the GPU's clocks.
 #[derive(Resource, Clone, Copy, ExtractResource)]
 pub struct Raster(pub f32);
 
@@ -460,14 +326,9 @@ impl Default for Raster {
     }
 }
 
-/// Draws only the edges of every triangle, in the colour that face's own texture has there, and
-/// leaves the interiors unpainted so the geometry behind stays visible.
 #[derive(Resource, Clone, Copy, Default, ExtractResource)]
 pub struct Wireframe(pub bool);
 
-/// Triangles the culling pass let through, read back from the indirect draw arguments. Shared with
-/// the render world through an `Arc` rather than extracted, because the number only exists after
-/// the GPU has run, which is the wrong side of the extract boundary.
 #[derive(Resource, Clone, Default)]
 pub struct DrawnTriangles(Arc<ArgsReadback>);
 
@@ -477,8 +338,6 @@ impl DrawnTriangles {
     }
 }
 
-/// A copy is recorded only once the previous result has landed, so the staging buffer is never both
-/// mapped and the destination of a copy, which the backend rejects.
 #[derive(Default)]
 struct ArgsReadback {
     triangles: AtomicU32,
@@ -529,8 +388,6 @@ impl Plugin for TerrainPlugin {
                 (
                     prepare_pipelines.in_set(RenderSystems::Prepare),
                     drop_unused_bins.in_set(RenderSystems::Prepare),
-                    // Ahead of the two systems that write into the params table, and well ahead of
-                    // the culling pass that reads what it publishes.
                     apply_uploads.in_set(RenderSystems::Prepare).before(prepare_wireframe),
                     prepare_wireframe.in_set(RenderSystems::Prepare),
                     prepare_sky.in_set(RenderSystems::Prepare),
@@ -539,9 +396,6 @@ impl Plugin for TerrainPlugin {
                     probe::read.in_set(RenderSystems::Cleanup),
                 ),
             )
-            // Ahead of every pass that writes into the query set, so what it carries off is the
-            // frame before: a resolve recorded after those passes can still run before the last of
-            // them has written its closing sample, and the span then reads backwards.
             .add_systems(
                 Core3d,
                 (probe::resolve, cull_terrain).chain().in_set(Core3dSystems::Prepass),
@@ -576,47 +430,28 @@ struct Terrain {
     cull_bind_group: BindGroup,
     draw_bind_group: BindGroup,
     cull_pipeline: CachedComputePipelineId,
-    /// The same pass laying a stream out by each run's own place rather than by an atomic, for the
-    /// blended streams, whose draw order decides what they blend to.
     cull_stable_pipeline: CachedComputePipelineId,
     draw_layout: BindGroupLayoutDescriptor,
     sky_layout: BindGroupLayoutDescriptor,
     sky_bind_group: BindGroup,
     terrain_shader: Handle<Shader>,
     sky_shader: Handle<Shader>,
-    /// The shared module the other three import. Never read: holding the handle is the whole of
-    /// what it is for, since dropping it would unload the module out from under them.
     #[expect(dead_code, reason = "held to keep the imported shader module loaded")]
     layout_shader: Handle<Shader>,
-    /// Queued once the first view reveals the colour format the pipelines have to match; see
-    /// [`TERRAIN_PIPELINES`] for what sits where.
     pipelines: Option<[CachedRenderPipelineId; TERRAIN_PIPELINES]>,
-    /// The sky's own four, in the order vanilla draws them.
     sky_pipelines: Option<[CachedRenderPipelineId; SKY_DRAWS.len()]>,
-    /// One entry per `draw_indirect`, in draw order. Grows as regions land.
     draws: Vec<Draw>,
-    /// Workgroups to dispatch per draw, one per culling group.
     group_counts: Vec<u32>,
-    /// The params table as the CPU holds it, so a change to one field does not need the rest read
-    /// back off the GPU. Rewritten whole whenever anything in it moves; it is seventy kilobytes.
     params_cpu: Vec<Params>,
     params_dirty: bool,
-    /// The lowest layer number that names an animation. It moves as the sprite set grows, and
-    /// every params entry carries it.
     animated_from: u32,
-    /// Whether the table's entries ask for edges only. Carried here so a region published while
-    /// the toggle is on does not come out solid among wireframe neighbours.
     wireframe: u32,
-    /// Whatever of the current upload has not been handed over yet.
     pending: Option<Pending>,
 }
 
-/// One upload part way through being written.
 struct Pending {
     placement: Placement,
-    /// Which of the four arenas is being written.
     part: usize,
-    /// Bytes of that arena's share already sent.
     done: usize,
 }
 
@@ -628,9 +463,6 @@ enum Arena {
     Groups,
 }
 
-/// How many arenas one placement is written into, which is also how many parts it is cut up for
-/// the upload budget. The group arena goes last: it is what makes the rest reachable, so nothing
-/// may point into a quad or a face that has not landed yet.
 const ARENA_PARTS: usize = 4;
 
 #[derive(Resource)]
@@ -648,8 +480,6 @@ fn init_terrain(
     let arena = |label, bytes: u64| {
         device.create_buffer(&BufferDescriptor {
             label: Some(label),
-            // A zero-length storage buffer is not a legal binding, and a window with no files in
-            // it would ask for one.
             size: bytes.max(size_of::<[u32; QUAD_WORDS]>() as u64),
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -668,14 +498,10 @@ fn init_terrain(
         "terrain groups",
         (layout.group_capacity * size_of::<Group>()) as u64,
     );
-    // Worst case every quad in the arenas survives culling, so the visible list is sized for both
-    // of them and each draw owns a slice of it. No allocation can ever be needed at draw time.
     let visible = arena(
         "terrain visible list",
         ((layout.quad_capacity + layout.model_capacity) * 4) as u64,
     );
-    // A pack with no animation still binds one entry, which no quad names because the layer field
-    // never reaches it.
     let animations = device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("terrain animations"),
         contents: bytemuck::cast_slice(&[Animation::default()]),
@@ -683,7 +509,6 @@ fn init_terrain(
     });
     let cave = device.create_buffer_with_data(&BufferInitDescriptor {
         label: Some("terrain cave visibility"),
-        // All ones until the first flood fill, so nothing goes missing on the earliest frames.
         contents: bytemuck::cast_slice(&vec![u32::MAX; layout.cave_words.max(1)]),
         usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
     });
@@ -728,8 +553,6 @@ fn init_terrain(
     let (atlases, atlas_sampler) = upload_atlases(&[], &device, &queue);
     let celestials = upload_atlas(&layout.celestials, "celestials", &device, &queue);
     let clouds = upload_atlas(&layout.clouds, "clouds", &device, &queue);
-    // Nearest, and one mip only: a thirty-two pixel sun blown across the sky has to keep its edges
-    // rather than smear into a blur, and there is no distance here for a mip chain to serve.
     let celestial_sampler = device.create_sampler(&SamplerDescriptor {
         label: Some("celestials"),
         mag_filter: FilterMode::Nearest,
@@ -762,9 +585,6 @@ fn init_terrain(
             ),
         ),
     );
-    // One binding per addressable sprite array. Binding arrays would collapse these into one entry
-    // but need a feature Metal does not offer, so the count is spelled out and pinned to the width
-    // of the packed field.
     const _: () = assert!(MAX_SPRITE_ARRAYS == 4);
     let draw_layout = BindGroupLayoutDescriptor::new(
         "terrain draw data",
@@ -799,10 +619,6 @@ fn init_terrain(
         ),
     );
 
-    // Held for as long as the pipelines are, though nothing names it as its shader: the loader does
-    // not pull in what a shader imports, so the module every one of them imports has to be loaded
-    // here, and dropping the handle would unload it. A pipeline whose import never arrives waits
-    // for it silently — no error is logged and nothing draws.
     let layout_shader: Handle<Shader> =
         asset_server.load("embedded://anvil_region_viewer/layout.wgsl");
     let cull_shader = asset_server.load("embedded://anvil_region_viewer/cull.wgsl");
@@ -895,8 +711,6 @@ fn init_terrain(
     });
 }
 
-/// The draw bind group names every sprite array, so it has to be rebuilt whenever the set of them
-/// changes. Building it is cheap; the textures behind it are what cost.
 #[allow(clippy::too_many_arguments)]
 fn draw_bind_group(
     device: &RenderDevice,
@@ -936,8 +750,6 @@ fn draw_bind_group(
     )
 }
 
-/// The shader has one binding per addressable array, so a pack that uses fewer resolutions still
-/// has to leave something bound. An unused slot gets a single blank layer, which no quad names.
 fn upload_atlases(
     atlases: &[Atlas],
     device: &RenderDevice,
@@ -1013,9 +825,6 @@ fn upload_atlas(
     })
 }
 
-/// Nearest within a level keeps the pixel art crisp; linear between levels stops distant terrain
-/// from boiling. `Repeat` is what lets a greedy quad tile its sprite `w × h` times for free. Every
-/// array shares it: the filtering does not depend on how large the sprites in it are.
 fn atlas_sampler(device: &RenderDevice) -> Sampler {
     device.create_sampler(&SamplerDescriptor {
         label: Some("terrain atlas"),
@@ -1044,8 +853,6 @@ fn create_tints(layout: &Layout, device: &RenderDevice) -> (Texture, Sampler) {
         usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
         view_formats: &[],
     });
-    // Linear sampling across the biome map is what makes the transition between two biomes' grass
-    // colours a gradient instead of a hard seam down the middle of a chunk.
     let sampler = device.create_sampler(&SamplerDescriptor {
         label: Some("terrain tints"),
         address_mode_u: AddressMode::ClampToEdge,
@@ -1057,10 +864,6 @@ fn create_tints(layout: &Layout, device: &RenderDevice) -> (Texture, Sampler) {
     (texture, sampler)
 }
 
-/// Drains what the loader has produced, within a fixed number of bytes a frame.
-///
-/// A region's draws go into the table only after every byte of its geometry has landed, so the
-/// culling pass never sees a group pointing into an arena that has not been written yet.
 fn apply_uploads(
     mut terrain: Option<ResMut<Terrain>>,
     uploads: Res<Uploads>,
@@ -1073,8 +876,6 @@ fn apply_uploads(
     };
     let mut budget = *UPLOAD_BUDGET;
 
-    // Ahead of everything else, and never held up by a half-written region: it only moves where
-    // draws read the bitset, and the bitset it belongs to went up this frame.
     if let Some(bases) = uploads.0.lock().unwrap().rebase.take() {
         for (region, base) in bases {
             for draw in terrain.draws.iter_mut().filter(|draw| draw.region == region) {
@@ -1133,12 +934,8 @@ fn apply_uploads(
                         &terrain.animations,
                         &terrain.faces,
                     );
-                    // The threshold that tells a still sprite from an animation moves as the set
-                    // grows, and every entry of the table carries it.
                     terrain.animated_from = animated_from;
                     rebuild_params(terrain);
-                    // Rebuilding every array and its mips is megabytes of texture, so it spends the
-                    // frame's budget like geometry does rather than landing on top of it.
                     budget = budget.saturating_sub(spent);
                     if budget == 0 {
                         break;
@@ -1209,20 +1006,12 @@ fn apply_uploads(
     }
 }
 
-/// Adds a region's draws and rebuilds the table around them.
-///
-/// The table has to stay in stream order, because stream order is draw order: the translucent
-/// streams write no depth, so opaque geometry from a region published later would draw straight
-/// over water published earlier and leave the sea missing in region-sized rectangles. A stable
-/// sort keeps regions in the order they landed within each stream.
 fn publish(terrain: &mut Terrain, draws: Vec<Draw>) {
     terrain.draws.extend(draws);
     terrain.draws.sort_by_key(|draw| draw.stream);
     rebuild_params(terrain);
 }
 
-/// Rewrites every entry of the table from the draw list. At a few hundred entries this costs less
-/// than tracking which of them a change touched.
 fn rebuild_params(terrain: &mut Terrain) {
     let animated_from = terrain.animated_from;
     let wireframe = terrain.wireframe;
@@ -1242,8 +1031,6 @@ fn rebuild_params(terrain: &mut Terrain) {
             origin_z: draw.origin[2],
             cave_base: draw.cave_base,
             wireframe,
-            // Odd streams carry baked model quads, the only geometry that leaves its own section.
-            // Growing the greedy streams' boxes too would only weaken a test that is exact today.
             overhang: if draw.stream % 2 == 1 {
                 MODEL_OVERHANG
             } else {
@@ -1262,8 +1049,6 @@ fn rebuild_params(terrain: &mut Terrain) {
     terrain.params_dirty = true;
 }
 
-/// The table is strided for dynamic offsets, so it is assembled here rather than written entry by
-/// entry: at seventy kilobytes for a full window one write costs less than the bookkeeping would.
 fn write_params(terrain: &mut Terrain, queue: &RenderQueue) {
     terrain.params_dirty = false;
     let stride = PARAMS_STRIDE as usize;
@@ -1312,9 +1097,6 @@ fn write_tint_square(
     }
 }
 
-/// Maps the copy the culling pass left behind. The number is a frame late, which cannot show in a
-/// readout that is only redrawn once a second, and the map never blocks: the callback lands
-/// whenever the device is next polled and the state only returns to idle then.
 fn read_draw_args(terrain: Option<Res<Terrain>>, triangles: Res<DrawnTriangles>) {
     let Some(terrain) = terrain else {
         return;
@@ -1339,7 +1121,6 @@ fn read_draw_args(terrain: Option<Res<Terrain>>, triangles: Res<DrawnTriangles>)
         if result.is_ok() {
             let view = buffer.slice(..).get_mapped_range();
             let args: &[DrawArgs] = bytemuck::cast_slice(&view);
-            // Every quad is two triangles, whichever stream drew it.
             let count = args.iter().map(|arg| arg.instance_count).sum::<u32>() * 2;
             readback.triangles.store(count, Ordering::Relaxed);
             drop(view);
@@ -1349,8 +1130,6 @@ fn read_draw_args(terrain: Option<Res<Terrain>>, triangles: Res<DrawnTriangles>)
     });
 }
 
-/// The flag is pushed into the table only on the frame the key is pressed rather than re-uploaded
-/// every frame.
 fn prepare_wireframe(
     wireframe: Res<Wireframe>,
     mut terrain: Option<ResMut<Terrain>>,
@@ -1375,9 +1154,6 @@ fn prepare_sky(sky: Res<Sky>, terrain: Option<Res<Terrain>>, queue: Res<RenderQu
     queue.write_buffer(&terrain.sky, 0, bytemuck::bytes_of(&*sky));
 }
 
-/// The flood fill runs in `PostUpdate` against this frame's frustum, so the bitset the compute pass
-/// reads describes exactly the view it is culling for. Written straight from the main world rather
-/// than through an `ExtractResourcePlugin`, which would clone these 4 KiB every frame.
 fn extract_cave_visibility(
     cave: Extract<Res<crate::cave::CaveCull>>,
     terrain: Option<Res<Terrain>>,
@@ -1389,9 +1165,6 @@ fn extract_cave_visibility(
     queue.write_buffer(&terrain.cave, 0, bytemuck::cast_slice(&cave.bits[..]));
 }
 
-/// The colour format a pipeline must declare is the view's, and no view exists yet when
-/// `RenderStartup` runs — so the four raster pipelines are queued the first frame a view appears.
-/// There is exactly one target here, so this happens once and never specialises again.
 fn prepare_pipelines(
     mut terrain: Option<ResMut<Terrain>>,
     views: Query<&ExtractedView>,
@@ -1408,9 +1181,6 @@ fn prepare_pipelines(
     };
 
     let mut pipelines = [CachedRenderPipelineId::INVALID; TERRAIN_PIPELINES];
-    // Greedy quads and baked model quads hand the fragment stage different things and read what
-    // they look like from different places, so each kind gets its own pair of entry points rather
-    // than one pair branching on which it was handed.
     for (index, (entry, fragment, blend)) in [
         ("vertex_simple", "fragment_greedy_opaque", false),
         ("vertex_complex", "fragment_model_opaque", false),
@@ -1441,39 +1211,16 @@ fn prepare_pipelines(
                 ..default()
             }),
             primitive: PrimitiveState {
-                // A quad is a strip of four corners, not a list of six: the two corners the
-                // diagonal shares are shaded once each instead of twice, and everything a corner
-                // hands the fragment stage is written once fewer as well.
                 topology: PrimitiveTopology::TriangleStrip,
                 front_face: FrontFace::Ccw,
-                // The blended pass draws both sides of every quad, because a camera under the sea
-                // has to see the surface it is under. Nothing else in that pass loses by it: the
-                // culling pass still drops a run of glass whose group points away, and only water
-                // files its runs under the group that faces nowhere.
                 cull_mode: (!blend).then_some(Face::Back),
                 ..default()
             },
             depth_stencil: Some(DepthStencilState {
                 format: CORE_3D_DEPTH_FORMAT,
-                // The blended pass leaves the depth buffer alone, so that everything behind a
-                // surface still reaches the frame and blends through it. What order those layers
-                // arrive in is settled by the culling pass, which lays a blended stream out by each
-                // run's own place in its draw rather than by an atomic — see `cull_stable`.
                 depth_write_enabled: Some(!blend),
-                // Bevy renders with a reversed depth buffer, so nearer fragments compare greater.
                 depth_compare: Some(CompareFunction::GreaterEqual),
                 stencil: default(),
-                // The grass block, and every block like it, ships a tinted overlay as a second
-                // element exactly coplanar with the cube face under it. The face below goes down
-                // the greedy path and is merged across neighbouring blocks, while the overlay stays
-                // one quad per block, so the two rasterise the same plane from different triangles
-                // and their interpolated depths disagree by a rounding step. Pulling model quads a
-                // hair toward the camera settles every such tie in the overlay's favour, which is
-                // the side vanilla shows.
-                // Only where a model quad really does share a plane with a merged one. The
-                // blended pass is water, and a fluid is already held off every plane it could
-                // share; a slope-scaled bias there would jump a shoreline quad in front of the sea
-                // it belongs to the moment the camera dropped to the waterline.
                 bias: if entry == "vertex_complex" && !blend {
                     DepthBiasState {
                         constant: 2,
@@ -1516,19 +1263,11 @@ fn prepare_pipelines(
             primitive: PrimitiveState {
                 topology: PrimitiveTopology::TriangleList,
                 front_face: FrontFace::Ccw,
-                // A disc drawn round the camera and a star turned to face it are seen from
-                // whichever side they end up on, so neither may be culled by its winding.
                 cull_mode: None,
                 ..default()
             },
-            // The backdrop reads nothing from the depth buffer and leaves nothing in it, so the
-            // terrain drawn afterwards covers whatever it stands in front of. The clouds are in
-            // the world rather than behind it: they test what the terrain left, against the depth
-            // their own shader works out for wherever the ray met a cell.
             depth_stencil: Some(DepthStencilState {
                 format: CORE_3D_DEPTH_FORMAT,
-                // The clouds leave their own depth behind, which is what the blended pass then
-                // tests a sea against. The backdrop takes no part in the buffer at all.
                 depth_write_enabled: Some(draw.depth),
                 depth_compare: Some(if draw.depth {
                     CompareFunction::GreaterEqual
@@ -1603,8 +1342,6 @@ fn cull_terrain(
     };
     let view_offset = view.into_inner().offset;
 
-    // The counts still describe the frame that is being replaced, so the copy is recorded before
-    // the clear rather than after the dispatch, where it would have to wait on the pass.
     if triangles
         .0
         .state
@@ -1621,8 +1358,6 @@ fn cull_terrain(
             .copy_buffer_to_buffer(&terrain.args, 0, &terrain.args_readback, 0, size);
     }
 
-    // Reset only the instance counters; the rest of each draw command is constant for the run of
-    // the program, so there is nothing else to upload per frame.
     for index in 0..terrain.draws.len() {
         ctx.command_encoder().clear_buffer(
             &terrain.args,
@@ -1642,7 +1377,6 @@ fn cull_terrain(
         });
     let span = diagnostics.pass_span(&mut pass, "terrain_cull");
     pass.set_bind_group(1, &terrain.cull_bind_group, &[]);
-    // Draws run in stream order, so the two pipelines swap over exactly once.
     let mut blended = false;
     pass.set_pipeline(compacting);
     for (index, &workgroups) in terrain.group_counts.iter().enumerate() {
@@ -1663,12 +1397,6 @@ fn cull_terrain(
     span.end(&mut pass);
 }
 
-/// Bevy's own opaque pass opens a pass over the whole target, with a colour and a depth
-/// attachment, before it looks at whether it has anything to draw. On a tile-based GPU that is a
-/// clear and a store of every pixel for nothing: not one thing in this example is drawn through it,
-/// because the terrain is not a mesh the renderer knows about and there is no other geometry.
-/// Emptying the view's bins makes that pass return before it opens anything, and the clear falls to
-/// the terrain pass, which is then the first to touch the target.
 fn drop_unused_bins(
     mut opaque: ResMut<ViewBinnedRenderPhases<Opaque3d>>,
     mut alpha_mask: ResMut<ViewBinnedRenderPhases<AlphaMask3d>>,
@@ -1717,9 +1445,6 @@ fn draw_terrain(
         pass.set_viewport(0.0, 0.0, size.x.max(1.0), size.y.max(1.0), 0.0, 1.0);
     }
 
-    // The backdrop first, in vanilla's order, so the terrain covers whatever stands in front of
-    // it. The params slot is bound to the first draw's entry and never read: the sky takes nothing
-    // from it.
     draw_sky(&mut pass, &terrain, &view_bind_group.0, view_offset.offset, &pipeline_cache, false);
 
     pass.set_bind_group(1, &terrain.draw_bind_group, &[]);
@@ -1729,12 +1454,6 @@ fn draw_terrain(
         if draw.quad_count == 0 || !streams.drawn(draw.stream) {
             continue;
         }
-        // The cloud layer sits between the two halves of the terrain: after everything opaque,
-        // which can stand in front of it, and before everything blended, which has to be seen
-        // through. It leaves its own depth behind, so a sea in front of a cloud is drawn and a sea
-        // behind one is not, and the water then blends over the cloud already painted there.
-        // Drawn last instead it would paint the sky straight over a sea the camera is looking up
-        // through, and no depth test would catch it, because blended geometry leaves no depth.
         if clouds.0 && !clouds_drawn && draw.stream >= BLENDED_STREAM {
             clouds_drawn = true;
             draw_sky(
@@ -1747,10 +1466,6 @@ fn draw_terrain(
             );
             pass.set_bind_group(1, &terrain.draw_bind_group, &[]);
         }
-        // Solid streams take the pipeline with no alpha test, which is what lets the GPU drop a
-        // hidden fragment before shading it; the wireframe draws its interiors away and so needs
-        // the discarding one back. Cutout shares that one, and the translucent pass differs again
-        // and must come last because it does not write depth.
         let stream = draw.stream as usize;
         let pipeline_index = match stream {
             0 | 1 if !wireframe.0 => UNTESTED_PIPELINE + stream,
@@ -1768,7 +1483,6 @@ fn draw_terrain(
         pass.draw_indirect(&terrain.args, index as u64 * DRAW_ARGS_SIZE);
     }
 
-    // A frame holding no blended geometry never reached the line above.
     if clouds.0 && !clouds_drawn {
         draw_sky(&mut pass, &terrain, &view_bind_group.0, view_offset.offset, &pipeline_cache, true);
     }

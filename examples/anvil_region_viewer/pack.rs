@@ -1,16 +1,3 @@
-//! The bit layout of the packed geometry, in one place.
-//!
-//! Three sides have to agree on it: the mesher writes the words, `terrain.wgsl` reads them to
-//! build vertices, and `cull.wgsl` reads the section number out of a group. WGSL cannot import
-//! Rust, so the shaders declare their own `NAME_SHIFT` and `NAME_BITS` constants under the names
-//! used here, and the test at the bottom reads the shader sources back and fails if any of them
-//! drifts. A field whose width disagrees between the two sides does not fail to compile — it
-//! silently draws the wrong sprite or puts a quad in the wrong place.
-
-/// One field of a packed value: which word of it the field lives in, where it starts and how wide
-/// it is. The word is part of the layout and not a choice the reader makes: moving a field from one
-/// word to another while a read site keeps the old one produces a frame that is wrong without
-/// anything failing to compile.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Field {
     pub word: u32,
@@ -23,14 +10,11 @@ impl Field {
         Self { word, shift, bits }
     }
 
-    /// The largest value the field holds. Also its mask once shifted down.
     pub const fn max(self) -> u64 {
         (1u64 << self.bits) - 1
     }
 
     pub const fn pack(self, value: u64) -> u64 {
-        // A value wider than its field would otherwise be truncated in silence, and the frame that
-        // comes out of that names the wrong sprite or puts a quad in the wrong section.
         assert!(value <= self.max(), "a value does not fit the field it is packed into");
         (value & self.max()) << self.shift
     }
@@ -39,7 +23,6 @@ impl Field {
         (word >> self.shift) & self.max()
     }
 
-    /// Writes the value into whichever word of `words` the field belongs to.
     pub fn set(self, words: &mut [u32], value: u64) {
         words[self.word as usize] |= self.pack(value) as u32;
     }
@@ -50,115 +33,49 @@ impl Field {
     }
 }
 
-// A render region is what one `draw_indirect` covers. A quad carries the number of its section
-// inside the region, and the region's own corner arrives in that draw's uniform, so a coordinate
-// never has to be wide enough to name a place in the world — only a place in a section.
-//
-// The shape below is a size trade, not a natural constant. A larger region spends more bits on the
-// section number and leaves fewer for the sprite; a smaller one spends fewer bits but costs more
-// draws, and this backend has no multi-draw indirect to fold them back into one. Sixteen by eight
-// by sixteen sections holds the section number to eleven bits while keeping a wide view in the low
-// thousands of draws.
 pub const RENDER_REGION_X: usize = 16;
 pub const RENDER_REGION_Y: usize = 8;
 pub const RENDER_REGION_Z: usize = 16;
 pub const SECTIONS_PER_RENDER_REGION: usize =
     RENDER_REGION_X * RENDER_REGION_Y * RENDER_REGION_Z;
 
-// The section number, as carried by a quad and by the group that culls it.
 pub const LOCAL_X: Field = Field::new(0, 0, 4);
 pub const LOCAL_Y: Field = Field::new(0, 4, 3);
 pub const LOCAL_Z: Field = Field::new(0, 7, 4);
 
-/// The section number as a whole, which is also its offset into the region's slice of the
-/// sight-line bitset.
 pub const SECTION_INDEX: Field = Field::new(0, 0, 11);
 
-/// The face group a culling group's quads all point at, above the section number it carries.
-///
-/// Six of them are the axes. Four more are the horizontal diagonals, which is where the panes of a
-/// plant point: they face no axis squarely, so without their own groups they would be the one run
-/// the culling pass can never drop.
 pub const GROUP_FACE: Field = Field::new(0, SECTION_INDEX.bits, 4);
 
-// Greedy quad, low word. The anchor is relative to its own section and runs 0..16 inclusive,
-// because a quad on the far face of a section anchors on the boundary. Width and height are stored
-// one less than they are, so the full sixteen blocks a merged quad can span still fit in four bits.
-//
-// Nothing about how a face looks is in here. Two faces merge when they lie in the same plane and
-// draw in the same pass, whatever blocks they belong to, and the sprite, the light and the ambient
-// occlusion are then read per fragment out of the face attributes below. That is what halves the
-// quad count: light and ambient occlusion are what a real region's faces mostly disagree about,
-// and disagreeing no longer keeps them apart.
 pub const QUAD_X: Field = Field::new(0, 0, 5);
 pub const QUAD_Y: Field = Field::new(0, 5, 5);
 pub const QUAD_Z: Field = Field::new(0, 10, 5);
 pub const QUAD_FACE: Field = Field::new(0, 15, 3);
 pub const QUAD_W: Field = Field::new(0, 18, 4);
 pub const QUAD_H: Field = Field::new(0, 22, 4);
-/// How far below its own plane a fluid quad's top edge sits, in [`MODEL_STEPS`] per block. Zero on
-/// everything that is not a fluid, which is what leaves the block path untouched.
-///
-/// A fluid surface stops eight ninths of the way up its block, so a quad merged out of fluid faces
-/// has to be able to say so. Two fluid cells only merge when their drop agrees, so one number per
-/// quad describes the whole of it. The units are the model path's own so that a merged flat quad
-/// and the sloped quads around it land on the same grid: a fluid meeting itself across the two
-/// paths would otherwise show a step of a fiftieth of a block down every shoreline.
 pub const QUAD_DROP: Field = Field::new(0, 26, 5);
-/// Set on every quad of a fluid, which is held [`FLUID_INSET`] inside its own block.
-///
-/// [`QUAD_DROP`] cannot stand in for this: a submerged fluid fills its block and drops by nothing,
-/// and it still has to be held off the faces around it.
 pub const QUAD_FLUID: Field = Field::new(0, 31, 1);
 
-// Greedy quad, second word. The base is where this quad's own run of face attributes starts
-// inside its section's run, which is the whole reason a quad fits in two words: a place in a
-// section needs fifteen bits where a place in a render region needed twenty-one and left nothing
-// to hold them with. The section's own run is found through the table at the head of the block,
-// and the block itself arrives with the draw.
 pub const QUAD_SECTION: Field = Field::new(1, 0, SECTION_INDEX.bits);
 pub const QUAD_FACE_BASE: Field = Field::new(1, SECTION_INDEX.bits, 16);
 
-/// How many `u32` one greedy quad occupies.
 pub const QUAD_WORDS: usize = 2;
 
-/// The head of a render region's face block: where each of its sections starts, indexed by the
-/// section number a quad carries. Sections with no greedy geometry are left at zero, which no quad
-/// ever reads.
 pub const SECTION_FACE_TABLE: usize = SECTIONS_PER_RENDER_REGION;
 
-// What makes the base above wide enough is a bound rather than a measurement: a block has six faces
-// and the fluid filling it has six more, and no cell of a section can show more than that whatever
-// the world puts in it. Twelve rather than six because a waterlogged block is both at once.
 const _: () = assert!(
     (12 * crate::anvil::SECTION_VOLUME) as u64 <= QUAD_FACE_BASE.max(),
     "a section can hold more faces than a quad can name a place among"
 );
 
-// One face of one block, as the fragment shader reads it. A quad owns `w * h` of these laid out
-// row by row along its own axes, so the fragment finds its own by flooring the quad coordinate it
-// already interpolates.
-//
-// Ambient occlusion stays per corner and is interpolated inside the face rather than across the
-// quad, which is also why the quad no longer carries the diagonal it should be split along: a
-// gradient that never spans more than one block cannot kink across a merged run.
 pub const FACE_LAYER: Field = Field::new(0, 0, 10);
-/// Which sprite array the layer indexes. Arrays are split by sprite size, so the pack decides how
-/// many there are rather than the format.
 pub const FACE_ARRAY: Field = Field::new(0, 10, 2);
 pub const FACE_TINT: Field = Field::new(0, 12, 2);
-// Sky light and block light have to stay apart because the two are lit by different things: only
-// the sky half follows the time of day.
 pub const FACE_BLOCK_LIGHT: Field = Field::new(0, 14, 4);
 pub const FACE_SKY_LIGHT: Field = Field::new(0, 18, 4);
 pub const FACE_AO: Field = Field::new(0, 22, 8);
-/// Set on the vertical faces of a fluid, which map their sprite the way vanilla's fluid renderer
-/// does rather than one sprite to a block: the flowing texture is sampled from its top-left
-/// quarter, so a waterfall shows the texture at twice the size a block face would.
 pub const FACE_FLUID: Field = Field::new(0, 30, 1);
 
-// Model vertex, three words per corner. Positions are fixed point relative to the section, wide
-// enough for the overhang on both sides.
 pub const MODEL_X: Field = Field::new(0, 0, 10);
 pub const MODEL_Y: Field = Field::new(0, 10, 10);
 pub const MODEL_Z: Field = Field::new(0, 20, 10);
@@ -170,44 +87,21 @@ pub const MODEL_SHADE: Field = Field::new(1, 26, 2);
 pub const MODEL_SKY_LIGHT: Field = Field::new(1, 28, 4);
 pub const MODEL_SECTION: Field = Field::new(2, 0, SECTION_INDEX.bits);
 pub const MODEL_ARRAY: Field = Field::new(2, SECTION_INDEX.bits, FACE_ARRAY.bits);
-/// A sprite has to be addressable from the greedy path too, so this is no wider than
-/// [`FACE_LAYER`] however much room the model vertex has left.
 pub const MODEL_LAYER: Field =
     Field::new(2, SECTION_INDEX.bits + FACE_ARRAY.bits, FACE_LAYER.bits);
 
-/// How far outside its own block a baked model quad may reach — a fence arm, a rail on a slope.
-/// The fixed-point coordinate is offset by it so the overhang still lands on a non-negative
-/// number, and the culling box of a model stream is grown by it so a section on the edge of the
-/// frustum takes the quad poking into frame with it.
 pub const MODEL_OVERHANG: f32 = 2.0;
 
-/// Fixed-point steps per block in a model coordinate.
 pub const MODEL_STEPS: f32 = 32.0;
 
-/// How far inside its own block every face of a fluid is held.
-///
-/// A fluid face is drawn exactly where the face of the block beside it is drawn — water against
-/// glass, against leaves, against the flat side of a slab — and two quads in one plane fight for
-/// the depth buffer pixel by pixel. Vanilla answers this the same way and for the same reason: not
-/// by ordering the two, which nothing can do once they are the same distance away, but by moving
-/// the fluid a thousandth of a block back so there is an order to find.
 pub const FLUID_INSET: f32 = 0.001;
 
-/// The face group a run of quads carries when it points squarely along none of the ten the culling
-/// pass knows — the six axes and the four horizontal diagonals. Such a run is never backfacing as a
-/// whole, so the culling pass draws it whenever its section is visible.
 pub const FACE_NONE: u32 = 10;
 
-/// How many sprites one array can hold. With four arrays that is four thousand addressable
-/// sprites, against the eleven hundred a vanilla pack defines and the seventeen hundred it would
-/// reach with every animation frame unrolled.
 pub const MAX_SPRITES: usize = 1 << FACE_LAYER.bits;
 
-/// How many sprite arrays the format can address, and so how many resolutions a pack may use.
 pub const MAX_SPRITE_ARRAYS: usize = 1 << FACE_ARRAY.bits;
 
-/// The grid of render regions a loaded world is cut into. Every section belongs to exactly one,
-/// and a section's number is only meaningful next to the region that contains it.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct RegionGrid {
     pub x: usize,
@@ -228,7 +122,6 @@ impl RegionGrid {
         self.x * self.y * self.z
     }
 
-    /// Which region a section belongs to, and where it sits inside that region.
     pub const fn split(self, sx: usize, sy: usize, sz: usize) -> (usize, u32) {
         let region = sx / RENDER_REGION_X
             + sz / RENDER_REGION_Z * self.x
@@ -241,22 +134,17 @@ impl RegionGrid {
         (region, local)
     }
 
-    /// A section's index in the one space the sight-line walk, the bitset the walk fills and the
-    /// culling shader all share. Keeping them on one space is what stops the culling from drifting
-    /// out of step with the geometry.
     pub const fn slot(self, sx: usize, sy: usize, sz: usize) -> usize {
         let (region, local) = self.split(sx, sy, sz);
         region * SECTIONS_PER_RENDER_REGION + local as usize
     }
 
-    /// The inverse of [`Self::slot`].
     pub const fn section_at(self, slot: usize) -> [usize; 3] {
         let [cx, sy, cz] = self.corner(slot / SECTIONS_PER_RENDER_REGION);
         let [lx, ly, lz] = section_coords((slot % SECTIONS_PER_RENDER_REGION) as u32);
         [cx + lx as usize, sy + ly as usize, cz + lz as usize]
     }
 
-    /// How many sections the grid spans on each axis, padding included.
     pub const fn extent(self) -> [usize; 3] {
         [
             self.x * RENDER_REGION_X,
@@ -265,15 +153,10 @@ impl RegionGrid {
         ]
     }
 
-    /// How many section slots the grid spans, padding included.
     pub const fn slots(self) -> usize {
         self.len() * SECTIONS_PER_RENDER_REGION
     }
 
-    /// A render region's corner in world blocks, given where the loaded window starts. A
-    /// coordinate in a quad is relative to its own section and the rest arrives with the draw, so
-    /// this is the whole of what puts a region's geometry back where it belongs. All three axes
-    /// are signed: region files run either side of the origin.
     pub const fn origin(self, min_section: [i32; 3], region: usize) -> [i32; 3] {
         let [sx, sy, sz] = self.corner(region);
         let size = crate::anvil::SECTION_SIZE as i32;
@@ -284,7 +167,6 @@ impl RegionGrid {
         ]
     }
 
-    /// The section coordinates of a region's own corner.
     pub const fn corner(self, region: usize) -> [usize; 3] {
         [
             region % self.x * RENDER_REGION_X,
@@ -294,12 +176,10 @@ impl RegionGrid {
     }
 }
 
-/// Where a section sits inside its render region, which is what a quad and a group both carry.
 pub const fn pack_section(lx: u32, ly: u32, lz: u32) -> u32 {
     (LOCAL_X.pack(lx as u64) | LOCAL_Y.pack(ly as u64) | LOCAL_Z.pack(lz as u64)) as u32
 }
 
-/// The inverse of [`pack_section`].
 pub const fn section_coords(section: u32) -> [i32; 3] {
     [
         LOCAL_X.get(section as u64) as i32,
@@ -361,7 +241,6 @@ mod tests {
     use super::*;
     use crate::anvil::{REGION_CHUNKS, SECTION_SIZE};
 
-    /// `const NAME: type = value;`, with the WGSL integer suffix dropped.
     fn declarations(source: &str) -> Vec<(&str, f64)> {
         source
             .lines()
@@ -381,14 +260,10 @@ mod tests {
             ("terrain.wgsl", include_str!("terrain.wgsl")),
             ("cull.wgsl", include_str!("cull.wgsl")),
         ];
-        // Every part of every field has to turn up somewhere, or a shader could quietly go back to
-        // inlining a literal and drift from the table with the test still passing.
         let mut seen: Vec<(&str, &str)> = Vec::new();
         for (file, source) in shaders {
             for (name, value) in declarations(source) {
                 if let Some(&(_, expected)) = SCALARS.iter().find(|(known, _)| *known == name) {
-                    // Compared at the width the shader holds them at: a fraction widened from
-                    // `f32` never equals the same digits parsed straight into `f64`.
                     assert_eq!(value as f32, expected as f32, "{file} disagrees on {name}");
                     seen.push((name, "SCALAR"));
                     continue;
@@ -434,8 +309,6 @@ mod tests {
         assert_eq!(QUAD_H.get(word), 0, "a neighbour must stay clear");
     }
 
-    /// The fixed-point helper clamps every axis against one field's width, which is only sound
-    /// while the three are the same.
     #[test]
     fn the_three_model_axes_are_the_same_width() {
         assert_eq!(MODEL_X.bits, MODEL_Y.bits);
@@ -449,8 +322,6 @@ mod tests {
         QUAD_FACE.pack(8);
     }
 
-    /// A field that grew without another shrinking would run off the end of its word rather than
-    /// quietly overlap a neighbour.
     #[test]
     fn no_word_of_a_quad_is_overfull() {
         let quad = [
@@ -508,10 +379,6 @@ mod tests {
         }
     }
 
-    /// A region's origin is the whole of what puts its geometry back in the world, and region
-    /// coordinates run either side of zero. Carrying only the vertical half of the window's corner
-    /// leaves every region file's terrain stacked on the origin, which reads as a plausible
-    /// landscape rather than as a fault.
     #[test]
     fn a_region_below_the_origin_keeps_the_whole_corner_of_its_window() {
         let grid = RegionGrid::covering([RENDER_REGION_X * 2, RENDER_REGION_Y, RENDER_REGION_Z * 2]);
