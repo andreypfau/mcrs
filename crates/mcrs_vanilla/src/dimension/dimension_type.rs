@@ -6,6 +6,7 @@ use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::attribute::EnvironmentAttributeMap;
 use crate::block::Block;
 use crate::value::IntValueProvider;
 use crate::ResourceLocation;
@@ -38,7 +39,7 @@ pub(crate) struct ProtoDimensionType {
     #[serde(default)]
     pub has_fixed_time: Option<bool>,
     #[serde(default)]
-    pub attributes: Option<Value>,
+    pub attributes: EnvironmentAttributeMap,
     #[serde(default)]
     pub timelines: Option<Value>,
     #[serde(default)]
@@ -115,7 +116,7 @@ pub struct DimensionType {
     pub skybox: Skybox,
     pub cardinal_light: CardinalLight,
     pub has_fixed_time: Option<bool>,
-    pub attributes: Option<Value>,
+    pub attributes: EnvironmentAttributeMap,
     pub timelines: Option<Value>,
     pub default_clock: Option<String>,
 }
@@ -162,8 +163,8 @@ pub struct NetworkDimensionType {
     pub cardinal_light: CardinalLight,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub has_fixed_time: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<Value>,
+    #[serde(skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
+    pub attributes: EnvironmentAttributeMap,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timelines: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -252,4 +253,66 @@ pub enum CardinalLight {
     Default,
     #[serde(rename = "nether")]
     Nether,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn dimension_type_dir() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("assets/minecraft/dimension_type")
+    }
+
+    #[test]
+    fn every_dimension_type_parses_through_the_registry() {
+        let mut count = 0;
+        for entry in std::fs::read_dir(dimension_type_dir()).expect("dimension_type dir") {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+            let bytes = std::fs::read(&path).unwrap();
+            let raw: Value = serde_json::from_slice(&bytes).unwrap();
+            let proto: ProtoDimensionType = serde_json::from_slice(&bytes)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+
+            assert!(!proto.attributes.is_empty(), "{} has attributes", path.display());
+            assert_eq!(
+                serde_json::to_value(&proto.attributes).unwrap(),
+                raw["attributes"],
+                "{} attributes must round-trip unchanged",
+                path.display()
+            );
+            // What the client actually receives must not drift from the raw
+            // JSON the field used to be serialized from.
+            assert_eq!(
+                mcrs_nbt::to_nbt_compound(&proto.attributes).unwrap(),
+                mcrs_nbt::to_nbt_compound(&raw["attributes"]).unwrap(),
+                "{} attributes must encode to the same NBT",
+                path.display()
+            );
+            count += 1;
+        }
+        assert_eq!(count, 4);
+    }
+
+    #[test]
+    fn overworld_carries_both_entry_shapes() {
+        let bytes = std::fs::read(dimension_type_dir().join("overworld.json")).unwrap();
+        let proto: ProtoDimensionType = serde_json::from_slice(&bytes).unwrap();
+
+        // an object-valued attribute that is not the {argument, modifier} shape
+        let music = proto.attributes.get("minecraft:audio/background_music").unwrap();
+        assert_eq!(music.modifier, crate::attribute::Operation::Override);
+        assert!(music.argument.is_object());
+
+        let bed_rule = proto.attributes.get("minecraft:gameplay/bed_rule").unwrap();
+        assert_eq!(bed_rule.argument["can_sleep"], serde_json::json!("when_dark"));
+    }
 }

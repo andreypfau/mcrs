@@ -2,7 +2,7 @@ pub mod beta_surface;
 pub mod climate;
 pub mod source;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bevy_asset::io::Reader;
@@ -92,35 +92,39 @@ pub struct BiomeEffects {
 }
 
 /// The `minecraft:gameplay/natural_mob_spawns` attribute argument.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+///
+/// A category absent from `spawns_by_category` is undefined and falls through
+/// to the layer below; a category present but empty suppresses it, which is how
+/// `deep_dark` and `the_void` silence the dimension's spawns.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MobSpawnSettings {
-    #[serde(default)]
-    pub spawn_costs: HashMap<ResourceLocation<Arc<str>>, SpawnCost>,
-    #[serde(default)]
-    pub spawns_by_category: BiomeSpawners,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub spawn_costs: BTreeMap<ResourceLocation<Arc<str>>, SpawnCost>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub spawns_by_category: BTreeMap<MobCategory, Vec<SpawnerData>>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct BiomeSpawners {
-    #[serde(default)]
-    pub ambient: Vec<SpawnerData>,
-    #[serde(default)]
-    pub axolotls: Vec<SpawnerData>,
-    #[serde(default)]
-    pub creature: Vec<SpawnerData>,
-    #[serde(default)]
-    pub misc: Vec<SpawnerData>,
-    #[serde(default)]
-    pub monster: Vec<SpawnerData>,
-    #[serde(default)]
-    pub underground_water_creature: Vec<SpawnerData>,
-    #[serde(default)]
-    pub water_ambient: Vec<SpawnerData>,
-    #[serde(default)]
-    pub water_creature: Vec<SpawnerData>,
+impl MobSpawnSettings {
+    pub fn is_empty(&self) -> bool {
+        self.spawn_costs.is_empty() && self.spawns_by_category.is_empty()
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MobCategory {
+    Ambient,
+    Axolotls,
+    Creature,
+    Misc,
+    Monster,
+    UndergroundWaterCreature,
+    WaterAmbient,
+    WaterCreature,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SpawnerData {
     #[serde(rename = "type")]
     pub entity_type: ResourceLocation<Arc<str>>,
@@ -128,7 +132,7 @@ pub struct SpawnerData {
     pub weight: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SpawnCost {
     pub charge: f64,
     pub energy_budget: f64,
@@ -246,7 +250,18 @@ mod tests {
             }
             let bytes = std::fs::read(&path).unwrap();
             match serde_json::from_slice::<Biome>(&bytes) {
-                Ok(_) => count += 1,
+                Ok(biome) => {
+                    let raw: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                    let attributes =
+                        raw.get("attributes").cloned().unwrap_or_else(|| serde_json::json!({}));
+                    assert_eq!(
+                        serde_json::to_value(&biome.attributes).unwrap(),
+                        attributes,
+                        "{} attributes must round-trip unchanged",
+                        path.display()
+                    );
+                    count += 1;
+                }
                 Err(e) => failures.push((path.display().to_string(), e.to_string())),
             }
         }
@@ -311,10 +326,10 @@ mod tests {
         assert_eq!(biome.carvers.len(), 3);
         assert_eq!(biome.carvers[0].as_str(), "minecraft:cave");
         let spawns = biome.natural_mob_spawns().unwrap().expect("plains has spawns");
-        assert!(!spawns.spawns_by_category.creature.is_empty());
+        assert!(!spawns.spawns_by_category[&MobCategory::Creature].is_empty());
         assert_eq!(
-            biome.attributes.get(NATURAL_MOB_SPAWNS).unwrap().modifier.as_deref(),
-            Some("overlay")
+            biome.attributes.get(NATURAL_MOB_SPAWNS).unwrap().modifier,
+            crate::attribute::Operation::Overlay
         );
         assert_eq!(
             biome.attributes.get("minecraft:visual/sky_color").unwrap().argument,
