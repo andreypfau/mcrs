@@ -2,53 +2,43 @@
   "type": "minecraft:chest",
   "pools": [
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 3.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 3.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:diamond",
           "weight": 5
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 5.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 5.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:iron_ingot",
           "weight": 5
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 3.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 3.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:gold_ingot",
           "weight": 15
         },
@@ -69,17 +59,14 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 7.0,
-                "min": 3.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 7.0,
+              "min": 3.0
             }
-          ],
+          },
           "name": "minecraft:nether_wart",
           "weight": 5
         },
@@ -110,17 +97,14 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 4.0,
-                "min": 2.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 4.0,
+              "min": 2.0
             }
-          ],
+          },
           "name": "minecraft:obsidian",
           "weight": 2
         }
@@ -132,7 +116,6 @@
       }
     },
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:empty",

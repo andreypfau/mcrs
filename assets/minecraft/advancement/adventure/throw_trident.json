@@ -6,12 +6,12 @@
         "damage": {
           "type": {
             "direct_entity": {
-              "type": "minecraft:trident"
+              "minecraft:entity_type": "minecraft:trident"
             },
             "tags": [
               {
                 "expected": true,
-                "id": "minecraft:is_projectile"
+                "id": "#minecraft:is_projectile"
               }
             ]
           }

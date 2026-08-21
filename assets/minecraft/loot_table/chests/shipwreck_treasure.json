@@ -2,53 +2,43 @@
   "type": "minecraft:chest",
   "pools": [
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 5.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 5.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:iron_ingot",
           "weight": 90
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 5.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 5.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:gold_ingot",
           "weight": 10
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 5.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 5.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:emerald",
           "weight": 40
         },
@@ -70,53 +60,43 @@
       }
     },
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 10.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 10.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:iron_nugget",
           "weight": 50
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 10.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 10.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:gold_nugget",
           "weight": 10
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 10.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 10.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:lapis_lazuli",
           "weight": 20
         }
@@ -128,7 +108,6 @@
       }
     },
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:empty",
@@ -136,20 +115,16 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": 2.0,
-              "function": "minecraft:set_count"
-            }
-          ],
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": 2.0
+          },
           "name": "minecraft:coast_armor_trim_smithing_template"
         }
       ],
       "rolls": 1.0
     },
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:empty",
@@ -157,49 +132,37 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
-            }
-          ],
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": 1.0
+          },
           "name": "minecraft:copper_nautilus_armor",
           "weight": 20
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
-            }
-          ],
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": 1.0
+          },
           "name": "minecraft:iron_nautilus_armor",
           "weight": 10
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
-            }
-          ],
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": 1.0
+          },
           "name": "minecraft:golden_nautilus_armor",
           "weight": 5
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
-            }
-          ],
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": 1.0
+          },
           "name": "minecraft:diamond_nautilus_armor",
           "weight": 2
         }

@@ -1,7 +1,7 @@
 {
   "parent": "minecraft:recipes/root",
   "criteria": {
-    "has_nether_brick_slab": {
+    "has_slab": {
       "conditions": {
         "items": [
           {
@@ -13,7 +13,7 @@
     },
     "has_the_recipe": {
       "conditions": {
-        "recipe": "minecraft:chiseled_nether_bricks"
+        "recipes": "minecraft:chiseled_nether_bricks"
       },
       "trigger": "minecraft:recipe_unlocked"
     }
@@ -21,7 +21,7 @@
   "requirements": [
     [
       "has_the_recipe",
-      "has_nether_brick_slab"
+      "has_slab"
     ]
   ],
   "rewards": {

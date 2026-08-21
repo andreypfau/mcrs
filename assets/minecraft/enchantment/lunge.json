@@ -52,57 +52,54 @@
           ]
         },
         "requirements": {
-          "condition": "minecraft:all_of",
+          "type": "minecraft:all_of",
           "terms": [
             {
-              "condition": "minecraft:inverted",
+              "type": "minecraft:inverted",
               "term": {
-                "condition": "minecraft:entity_properties",
+                "type": "minecraft:entity_properties",
                 "entity": "this",
                 "predicate": {
-                  "vehicle": {}
+                  "minecraft:vehicle": {}
                 }
               }
             },
             {
-              "condition": "minecraft:entity_properties",
+              "type": "minecraft:entity_properties",
               "entity": "this",
               "predicate": {
-                "flags": {
+                "minecraft:flags": {
                   "is_fall_flying": false
                 }
               }
             },
             {
-              "condition": "minecraft:entity_properties",
+              "type": "minecraft:entity_properties",
               "entity": "this",
               "predicate": {
-                "flags": {
+                "minecraft:flags": {
                   "is_in_water": false
                 }
               }
             },
             {
-              "condition": "minecraft:any_of",
+              "type": "minecraft:any_of",
               "terms": [
                 {
-                  "condition": "minecraft:inverted",
+                  "type": "minecraft:inverted",
                   "term": {
-                    "condition": "minecraft:entity_properties",
+                    "type": "minecraft:entity_properties",
                     "entity": "this",
                     "predicate": {
-                      "type_specific": {
-                        "type": "minecraft:player"
-                      }
+                      "minecraft:type_specific/player": {}
                     }
                   }
                 },
                 {
-                  "condition": "minecraft:entity_properties",
+                  "type": "minecraft:entity_properties",
                   "entity": "this",
                   "predicate": {
-                    "type_specific": {
-                      "type": "minecraft:player",
+                    "minecraft:type_specific/player": {
                       "gamemode": [
                         "creative"
                       ]
@@ -110,11 +107,10 @@
                   }
                 },
                 {
-                  "condition": "minecraft:entity_properties",
+                  "type": "minecraft:entity_properties",
                   "entity": "this",
                   "predicate": {
-                    "type_specific": {
-                      "type": "minecraft:player",
+                    "minecraft:type_specific/player": {
                       "food": {
                         "level": {
                           "min": 7

@@ -2,32 +2,35 @@
   "type": "minecraft:chest",
   "pools": [
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
+              "type": "minecraft:exploration_map",
               "decoration": "minecraft:red_x",
-              "function": "minecraft:exploration_map",
+              "destination": "#minecraft:on_treasure_maps",
               "skip_existing_chunks": false,
               "zoom": 1
             },
             {
-              "function": "minecraft:set_name",
-              "name": {
-                "translate": "filled_map.buried_treasure"
+              "type": "minecraft:filtered",
+              "item_filter": {
+                "predicates": {
+                  "minecraft:map_id": {}
+                }
               },
-              "target": "item_name"
+              "on_fail": {
+                "type": "minecraft:discard"
+              }
             }
           ],
-          "name": "minecraft:map"
+          "name": "minecraft:buried_treasure_map"
         }
       ],
       "rolls": 1.0
     },
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:item",
@@ -43,49 +46,40 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 10.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 10.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:paper",
           "weight": 20
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 5.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 5.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:feather",
           "weight": 10
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 5.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 5.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:book",
           "weight": 5
         }
@@ -93,7 +87,6 @@
       "rolls": 3.0
     },
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:empty",
@@ -101,20 +94,16 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": 2.0,
-              "function": "minecraft:set_count"
-            }
-          ],
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": 2.0
+          },
           "name": "minecraft:coast_armor_trim_smithing_template"
         }
       ],
       "rolls": 1.0
     },
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:empty",
@@ -122,49 +111,37 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
-            }
-          ],
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": 1.0
+          },
           "name": "minecraft:copper_nautilus_armor",
           "weight": 20
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
-            }
-          ],
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": 1.0
+          },
           "name": "minecraft:iron_nautilus_armor",
           "weight": 10
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
-            }
-          ],
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": 1.0
+          },
           "name": "minecraft:golden_nautilus_armor",
           "weight": 5
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
-            }
-          ],
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": 1.0
+          },
           "name": "minecraft:diamond_nautilus_armor",
           "weight": 2
         }

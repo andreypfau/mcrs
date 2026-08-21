@@ -25,5 +25,13 @@
         "texture": "minecraft:iron"
       }
     ]
-  }
+  },
+  "trim_overrides": [
+    {
+      "palette": "minecraft:trim/iron_darker",
+      "when": {
+        "material": "minecraft:iron"
+      }
+    }
+  ]
 }

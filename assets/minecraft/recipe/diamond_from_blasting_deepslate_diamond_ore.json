@@ -1,7 +1,6 @@
 {
   "type": "minecraft:blasting",
-  "category": "misc",
-  "cookingtime": 100,
+  "cookingtime": 200,
   "experience": 1.0,
   "group": "diamond",
   "ingredient": "minecraft:deepslate_diamond_ore",

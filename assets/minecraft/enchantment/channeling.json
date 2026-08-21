@@ -22,21 +22,21 @@
           ]
         },
         "requirements": {
-          "condition": "minecraft:all_of",
+          "type": "minecraft:all_of",
           "terms": [
             {
-              "condition": "minecraft:weather_check",
+              "type": "minecraft:weather_check",
               "thundering": true
             },
             {
-              "condition": "minecraft:entity_properties",
+              "type": "minecraft:entity_properties",
               "entity": "this",
               "predicate": {
-                "type": "minecraft:trident"
+                "minecraft:entity_type": "minecraft:trident"
               }
             },
             {
-              "condition": "minecraft:location_check",
+              "type": "minecraft:location_check",
               "predicate": {
                 "block": {
                   "blocks": "#minecraft:lightning_rods"
@@ -68,26 +68,26 @@
         },
         "enchanted": "attacker",
         "requirements": {
-          "condition": "minecraft:all_of",
+          "type": "minecraft:all_of",
           "terms": [
             {
-              "condition": "minecraft:weather_check",
+              "type": "minecraft:weather_check",
               "thundering": true
             },
             {
-              "condition": "minecraft:entity_properties",
+              "type": "minecraft:entity_properties",
               "entity": "this",
               "predicate": {
-                "location": {
+                "minecraft:location": {
                   "can_see_sky": true
                 }
               }
             },
             {
-              "condition": "minecraft:entity_properties",
+              "type": "minecraft:entity_properties",
               "entity": "direct_attacker",
               "predicate": {
-                "type": "minecraft:trident"
+                "minecraft:entity_type": "minecraft:trident"
               }
             }
           ]

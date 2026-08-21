@@ -8,16 +8,5 @@
     "foliage_color": "#60a17b"
   },
   "carvers": [],
-  "features": [],
-  "spawners": {
-    "ambient": [],
-    "axolotls": [],
-    "creature": [],
-    "misc": [],
-    "monster": [],
-    "underground_water_creature": [],
-    "water_ambient": [],
-    "water_creature": []
-  },
-  "spawn_costs": {}
+  "features": []
 }

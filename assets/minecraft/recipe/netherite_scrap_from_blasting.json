@@ -1,7 +1,6 @@
 {
   "type": "minecraft:blasting",
-  "category": "misc",
-  "cookingtime": 100,
+  "cookingtime": 200,
   "experience": 2.0,
   "ingredient": "minecraft:ancient_debris",
   "result": {

@@ -25,5 +25,13 @@
         "texture": "minecraft:gold"
       }
     ]
-  }
+  },
+  "trim_overrides": [
+    {
+      "palette": "minecraft:trim/gold_darker",
+      "when": {
+        "material": "minecraft:gold"
+      }
+    }
+  ]
 }

@@ -25,5 +25,13 @@
         "texture": "minecraft:copper"
       }
     ]
-  }
+  },
+  "trim_overrides": [
+    {
+      "palette": "minecraft:trim/copper_darker",
+      "when": {
+        "material": "minecraft:copper"
+      }
+    }
+  ]
 }

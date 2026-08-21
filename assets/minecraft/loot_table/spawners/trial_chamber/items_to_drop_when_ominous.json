@@ -2,18 +2,16 @@
   "type": "minecraft:chest",
   "pools": [
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
+              "type": "minecraft:set_count",
+              "count": 1.0
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:wind_charged"
             }
           ],
@@ -21,14 +19,13 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
+              "type": "minecraft:set_count",
+              "count": 1.0
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:oozing"
             }
           ],
@@ -36,14 +33,13 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
+              "type": "minecraft:set_count",
+              "count": 1.0
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:weaving"
             }
           ],
@@ -51,14 +47,13 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
+              "type": "minecraft:set_count",
+              "count": 1.0
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:infested"
             }
           ],
@@ -66,14 +61,13 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
+              "type": "minecraft:set_count",
+              "count": 1.0
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:strength"
             }
           ],
@@ -81,14 +75,13 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
+              "type": "minecraft:set_count",
+              "count": 1.0
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:swiftness"
             }
           ],
@@ -96,14 +89,13 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
+              "type": "minecraft:set_count",
+              "count": 1.0
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:slow_falling"
             }
           ],
@@ -113,29 +105,24 @@
       "rolls": 1.0
     },
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
-            }
-          ],
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": 1.0
+          },
           "name": "minecraft:arrow"
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
+              "type": "minecraft:set_count",
+              "count": 1.0
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:poison"
             }
           ],
@@ -143,14 +130,13 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
-              "count": 1.0,
-              "function": "minecraft:set_count"
+              "type": "minecraft:set_count",
+              "count": 1.0
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:strong_slowness"
             }
           ],
@@ -158,32 +144,26 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 3.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 3.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:fire_charge"
         },
         {
           "type": "minecraft:item",
-          "functions": [
-            {
-              "add": false,
-              "count": {
-                "type": "minecraft:uniform",
-                "max": 3.0,
-                "min": 1.0
-              },
-              "function": "minecraft:set_count"
+          "modifier": {
+            "type": "minecraft:set_count",
+            "count": {
+              "type": "minecraft:uniform",
+              "max": 3.0,
+              "min": 1.0
             }
-          ],
+          },
           "name": "minecraft:wind_charge"
         }
       ],

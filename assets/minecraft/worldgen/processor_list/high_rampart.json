@@ -12,9 +12,7 @@
           "location_predicate": {
             "predicate_type": "minecraft:always_true"
           },
-          "output_state": {
-            "Name": "minecraft:cracked_polished_blackstone_bricks"
-          }
+          "output_state": "minecraft:cracked_polished_blackstone_bricks"
         },
         {
           "input_predicate": {
@@ -23,15 +21,10 @@
           "location_predicate": {
             "predicate_type": "minecraft:always_true"
           },
-          "output_state": {
-            "Name": "minecraft:air"
-          },
+          "output_state": "minecraft:air",
           "position_predicate": {
-            "axis": "y",
             "max_chance": 0.05,
             "max_dist": 100,
-            "min_chance": 0.0,
-            "min_dist": 0,
             "predicate_type": "minecraft:axis_aligned_linear_pos"
           }
         },
@@ -44,9 +37,7 @@
           "location_predicate": {
             "predicate_type": "minecraft:always_true"
           },
-          "output_state": {
-            "Name": "minecraft:blackstone"
-          }
+          "output_state": "minecraft:blackstone"
         }
       ]
     }

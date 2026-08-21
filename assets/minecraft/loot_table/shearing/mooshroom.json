@@ -2,39 +2,34 @@
   "type": "minecraft:shearing",
   "pools": [
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:alternatives",
           "children": [
             {
               "type": "minecraft:loot_table",
-              "conditions": [
-                {
-                  "condition": "minecraft:entity_properties",
-                  "entity": "this",
-                  "predicate": {
-                    "components": {
-                      "minecraft:mooshroom/variant": "red"
-                    }
+              "condition": {
+                "type": "minecraft:entity_properties",
+                "entity": "this",
+                "predicate": {
+                  "minecraft:components": {
+                    "minecraft:mooshroom/variant": "red"
                   }
                 }
-              ],
+              },
               "value": "minecraft:shearing/mooshroom/red"
             },
             {
               "type": "minecraft:loot_table",
-              "conditions": [
-                {
-                  "condition": "minecraft:entity_properties",
-                  "entity": "this",
-                  "predicate": {
-                    "components": {
-                      "minecraft:mooshroom/variant": "brown"
-                    }
+              "condition": {
+                "type": "minecraft:entity_properties",
+                "entity": "this",
+                "predicate": {
+                  "minecraft:components": {
+                    "minecraft:mooshroom/variant": "brown"
                   }
                 }
-              ],
+              },
               "value": "minecraft:shearing/mooshroom/brown"
             }
           ]

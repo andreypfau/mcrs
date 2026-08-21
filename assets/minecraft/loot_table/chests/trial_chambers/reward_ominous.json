@@ -2,7 +2,6 @@
   "type": "minecraft:chest",
   "pools": [
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:loot_table",
@@ -18,7 +17,6 @@
       "rolls": 1.0
     },
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:loot_table",
@@ -32,13 +30,10 @@
       }
     },
     {
-      "bonus_rolls": 0.0,
-      "conditions": [
-        {
-          "chance": 0.75,
-          "condition": "minecraft:random_chance"
-        }
-      ],
+      "condition": {
+        "type": "minecraft:random_chance",
+        "chance": 0.75
+      },
       "entries": [
         {
           "type": "minecraft:loot_table",

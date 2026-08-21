@@ -2,7 +2,6 @@
   "type": "minecraft:gift",
   "pools": [
     {
-      "bonus_rolls": 0.0,
       "entries": [
         {
           "type": "minecraft:item",
@@ -11,18 +10,17 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
+              "type": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
                 "max": 1.0,
                 "min": 0.0
-              },
-              "function": "minecraft:set_count"
+              }
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:swiftness"
             }
           ],
@@ -30,18 +28,17 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
+              "type": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
                 "max": 1.0,
                 "min": 0.0
-              },
-              "function": "minecraft:set_count"
+              }
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:slowness"
             }
           ],
@@ -49,18 +46,17 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
+              "type": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
                 "max": 1.0,
                 "min": 0.0
-              },
-              "function": "minecraft:set_count"
+              }
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:strength"
             }
           ],
@@ -68,18 +64,17 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
+              "type": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
                 "max": 1.0,
                 "min": 0.0
-              },
-              "function": "minecraft:set_count"
+              }
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:healing"
             }
           ],
@@ -87,18 +82,17 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
+              "type": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
                 "max": 1.0,
                 "min": 0.0
-              },
-              "function": "minecraft:set_count"
+              }
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:harming"
             }
           ],
@@ -106,18 +100,17 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
+              "type": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
                 "max": 1.0,
                 "min": 0.0
-              },
-              "function": "minecraft:set_count"
+              }
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:leaping"
             }
           ],
@@ -125,18 +118,17 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
+              "type": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
                 "max": 1.0,
                 "min": 0.0
-              },
-              "function": "minecraft:set_count"
+              }
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:regeneration"
             }
           ],
@@ -144,18 +136,17 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
+              "type": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
                 "max": 1.0,
                 "min": 0.0
-              },
-              "function": "minecraft:set_count"
+              }
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:fire_resistance"
             }
           ],
@@ -163,18 +154,17 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
+              "type": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
                 "max": 1.0,
                 "min": 0.0
-              },
-              "function": "minecraft:set_count"
+              }
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:water_breathing"
             }
           ],
@@ -182,18 +172,17 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
+              "type": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
                 "max": 1.0,
                 "min": 0.0
-              },
-              "function": "minecraft:set_count"
+              }
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:invisibility"
             }
           ],
@@ -201,18 +190,17 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
+              "type": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
                 "max": 1.0,
                 "min": 0.0
-              },
-              "function": "minecraft:set_count"
+              }
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:night_vision"
             }
           ],
@@ -220,18 +208,17 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
+              "type": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
                 "max": 1.0,
                 "min": 0.0
-              },
-              "function": "minecraft:set_count"
+              }
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:weakness"
             }
           ],
@@ -239,18 +226,17 @@
         },
         {
           "type": "minecraft:item",
-          "functions": [
+          "modifier": [
             {
-              "add": false,
+              "type": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
                 "max": 1.0,
                 "min": 0.0
-              },
-              "function": "minecraft:set_count"
+              }
             },
             {
-              "function": "minecraft:set_potion",
+              "type": "minecraft:set_potion",
               "id": "minecraft:poison"
             }
           ],
