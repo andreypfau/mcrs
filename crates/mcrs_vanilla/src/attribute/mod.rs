@@ -70,8 +70,15 @@ impl AttributeEntry {
     }
 
     /// The argument as a typed value, parsed on demand through the registry.
+    ///
+    /// Not materialized: the argument is already a `serde_json::Value`, so the
+    /// `visual/*` types a frame walks cost an enum match and at worst a
+    /// `from_str_radix` over eight hex digits, with no allocation. The types
+    /// that do allocate here — `ambient_particles`, `natural_mob_spawns`, the
+    /// opaque payloads — are not on the per-frame path. If one lands there,
+    /// measure before storing a parsed form beside the raw JSON.
     pub fn value(&self, spec: &AttributeSpec) -> Result<AttributeValue, AttributeError> {
-        registry::parse_argument(spec, self.modifier, &self.argument)
+        spec.parse_argument(self.modifier, &self.argument)
     }
 
     /// Split the JSON into (argument, modifier) the way
@@ -80,7 +87,7 @@ impl AttributeEntry {
     /// never be mistaken for the `{argument, modifier}` shape.
     pub fn parse(spec: &AttributeSpec, value: Value) -> Result<Self, AttributeError> {
         if spec.ty.matches_value(&value) {
-            registry::parse_value(spec, &value)?;
+            spec.parse_value(&value)?;
             return Ok(AttributeEntry::override_value(value));
         }
 
@@ -113,7 +120,7 @@ impl AttributeEntry {
                 format!("entry has unexpected fields {unexpected:?}"),
             ));
         }
-        registry::parse_argument(spec, modifier, &argument)?;
+        spec.parse_argument(modifier, &argument)?;
         Ok(AttributeEntry { argument, modifier })
     }
 }

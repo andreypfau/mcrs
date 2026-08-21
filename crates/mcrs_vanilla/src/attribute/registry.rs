@@ -26,6 +26,10 @@ pub enum AttributeValue {
     Integer(i32),
     List(Vec<Value>),
     MobSpawns(Box<MobSpawnSettings>),
+    /// `FloatWithAlpha`: the argument of a float `alpha_blend`.
+    FloatWithAlpha { value: f32, alpha: f32 },
+    /// `ColorModifier.BlendToGray`: the argument of a colour `blend_to_gray`.
+    BlendToGray { brightness: f32, factor: f32 },
     Opaque(Value),
 }
 
@@ -86,10 +90,13 @@ impl AttributeType {
             // a hex string, a packed int, or an rgb(a) vector — never an object
             Self::RgbColor | Self::ArgbColor => !value.is_object(),
             Self::AmbientParticles => value.is_array(),
+            // Every field is optional, so without `deny_unknown_fields` this
+            // would also accept `{argument, modifier}` and swallow every overlay.
             Self::MobSpawnSettings => MobSpawnSettings::deserialize(value).is_ok(),
-            // The remaining types have an empty modifier library, so `override`
-            // is their only operation and the `{argument, modifier}` shape has
-            // no modifier it could name. Anything here is the value.
+            // The remaining types have an empty modifier library, and
+            // `Entry.createCodec` encodes `override` through `Either.left`, so
+            // `{argument, modifier: override}` is a shape nothing can emit.
+            // Anything here is the value, kept verbatim rather than validated.
             _ => true,
         }
     }
@@ -120,6 +127,70 @@ pub struct AttributeSpec {
     pub spatially_interpolated: bool,
 }
 
+impl AttributeSpec {
+    /// Parse `value` as this attribute's own value, validating it against the range.
+    pub fn parse_value(&self, value: &Value) -> Result<AttributeValue, AttributeError> {
+        let parsed = parse_typed(self.id, self.ty, value)?;
+        if let (AttributeRange::Bounded { min, max }, AttributeValue::Float(v)) =
+            (self.range, &parsed)
+            && (*v < min || *v > max)
+        {
+            return Err(malformed(self.id, format!("{v} is not in range [{min}; {max}]")));
+        }
+        Ok(parsed)
+    }
+
+    /// Parse the argument of `op` applied to this attribute.
+    ///
+    /// Only `override` takes the attribute's own value; every other operation
+    /// carries the argument its modifier declares, which is why the parse is
+    /// dispatched on the (attribute type, operation) pair.
+    pub fn parse_argument(
+        &self,
+        op: Operation,
+        value: &Value,
+    ) -> Result<AttributeValue, AttributeError> {
+        use AttributeType as T;
+        use Operation::*;
+
+        if !self.ty.allows(op) {
+            return Err(malformed(
+                self.id,
+                format!("{op:?} is not a valid modifier for {:?}", self.ty),
+            ));
+        }
+        match (self.ty, op) {
+            (_, Override) => self.parse_value(value),
+            // FloatModifier.Simple takes a plain float, unconstrained by the
+            // attribute's own range.
+            (T::Float | T::AngleDegrees, Add | Subtract | Multiply | Minimum | Maximum) => {
+                parse_typed(self.id, T::Float, value)
+            }
+            (T::Integer, Add | Subtract | Multiply | Minimum | Maximum) => {
+                parse_typed(self.id, T::Integer, value)
+            }
+            (T::Boolean, And | Nand | Or | Nor | Xor | Xnor) => {
+                parse_typed(self.id, T::Boolean, value)
+            }
+            // `ColorModifier.ADD`/`SUBTRACT` are one instance shared by both
+            // colour libraries, so their argument shape cannot vary by attribute
+            // type; `multiply` is split into MULTIPLY_RGB and MULTIPLY_ARGB
+            // because only `ARGB.multiply` consumes the argument's alpha.
+            (T::RgbColor | T::ArgbColor, Add | Subtract) | (T::RgbColor, Multiply) => {
+                parse_typed(self.id, T::RgbColor, value)
+            }
+            (T::ArgbColor, Multiply) | (T::RgbColor | T::ArgbColor, AlphaBlend) => {
+                parse_typed(self.id, T::ArgbColor, value)
+            }
+            (T::Float | T::AngleDegrees, AlphaBlend) => parse_float_with_alpha(self.id, value),
+            (T::RgbColor | T::ArgbColor, BlendToGray) => parse_blend_to_gray(self.id, value),
+            (T::AmbientParticles, Append) => parse_typed(self.id, T::AmbientParticles, value),
+            (T::MobSpawnSettings, Overlay) => parse_typed(self.id, T::MobSpawnSettings, value),
+            _ => Err(malformed(self.id, format!("no argument codec for {op:?}"))),
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum AttributeError {
     #[error("unknown environment attribute `{0}`; the registry is behind the game version")]
@@ -132,6 +203,8 @@ pub(super) fn malformed(id: &'static str, reason: impl Into<String>) -> Attribut
     AttributeError::Malformed { id, reason: reason.into() }
 }
 
+/// A static rather than a Bevy resource: every entry point into this table is a
+/// `serde` impl, and `Deserialize` has no way to reach a `World`.
 pub static ENVIRONMENT_ATTRIBUTES: LazyLock<BTreeMap<&'static str, AttributeSpec>> =
     LazyLock::new(|| table().into_iter().map(|spec| (spec.id, spec)).collect());
 
@@ -145,59 +218,38 @@ pub fn is_syncable(id: &str) -> bool {
     attribute(id).is_some_and(|spec| spec.syncable)
 }
 
-/// Parse `value` as this attribute's own value, validating it against the range.
-pub fn parse_value(spec: &AttributeSpec, value: &Value) -> Result<AttributeValue, AttributeError> {
-    let parsed = parse_typed(spec.id, spec.ty, value)?;
-    if let (AttributeRange::Bounded { min, max }, AttributeValue::Float(v)) = (spec.range, &parsed)
-        && (*v < min || *v > max)
-    {
-        return Err(malformed(spec.id, format!("{v} is not in range [{min}; {max}]")));
+/// `FloatWithAlpha.CODEC`: a bare float, which implies `alpha: 1`, or the full
+/// `{value, alpha}` form.
+fn parse_float_with_alpha(id: &'static str, value: &Value) -> Result<AttributeValue, AttributeError> {
+    let wrong = || malformed(id, format!("{value} is not a valid alpha_blend argument"));
+    if let Some(v) = value.as_f64() {
+        return Ok(AttributeValue::FloatWithAlpha { value: v as f32, alpha: 1.0 });
     }
-    Ok(parsed)
+    let fields = value.as_object().ok_or_else(wrong)?;
+    let alpha = match fields.get("alpha") {
+        Some(alpha) => unit(id, "alpha", alpha.as_f64().ok_or_else(wrong)? as f32)?,
+        None => 1.0,
+    };
+    let value = fields.get("value").and_then(Value::as_f64).ok_or_else(wrong)? as f32;
+    Ok(AttributeValue::FloatWithAlpha { value, alpha })
 }
 
-/// Parse the argument of `op` applied to this attribute.
-///
-/// Only `override` takes the attribute's own value; every other operation
-/// carries the argument its modifier declares, which is why the parse is
-/// dispatched on the (attribute type, operation) pair.
-pub fn parse_argument(
-    spec: &AttributeSpec,
-    op: Operation,
-    value: &Value,
-) -> Result<AttributeValue, AttributeError> {
-    use AttributeType as T;
-    use Operation::*;
+/// `ColorModifier.BlendToGray.CODEC`: both fields required and in `[0; 1]`.
+fn parse_blend_to_gray(id: &'static str, value: &Value) -> Result<AttributeValue, AttributeError> {
+    let wrong = || malformed(id, format!("{value} is not a valid blend_to_gray argument"));
+    let fields = value.as_object().ok_or_else(wrong)?;
+    let field = |name: &str| {
+        let raw = fields.get(name).and_then(Value::as_f64).ok_or_else(wrong)? as f32;
+        unit(id, name, raw)
+    };
+    Ok(AttributeValue::BlendToGray { brightness: field("brightness")?, factor: field("factor")? })
+}
 
-    if !spec.ty.allows(op) {
-        return Err(malformed(spec.id, format!("{op:?} is not a valid modifier for {:?}", spec.ty)));
+fn unit(id: &'static str, name: &str, value: f32) -> Result<f32, AttributeError> {
+    if !(0.0..=1.0).contains(&value) {
+        return Err(malformed(id, format!("`{name}` {value} is not in range [0; 1]")));
     }
-    match (spec.ty, op) {
-        (_, Override) => parse_value(spec, value),
-        // FloatModifier.Simple takes a plain float, unconstrained by the
-        // attribute's own range.
-        (T::Float | T::AngleDegrees, Add | Subtract | Multiply | Minimum | Maximum) => {
-            parse_typed(spec.id, T::Float, value)
-        }
-        (T::Integer, Add | Subtract | Multiply | Minimum | Maximum) => {
-            parse_typed(spec.id, T::Integer, value)
-        }
-        (T::Boolean, And | Nand | Or | Nor | Xor | Xnor) => parse_typed(spec.id, T::Boolean, value),
-        // ColorModifier.RgbModifier keeps the six-digit form; ArgbModifier and
-        // the alpha blend accept the eight-digit one as well.
-        (T::RgbColor, Add | Subtract | Multiply) => parse_typed(spec.id, T::RgbColor, value),
-        (T::ArgbColor, Add | Subtract | Multiply) | (T::RgbColor | T::ArgbColor, AlphaBlend) => {
-            parse_typed(spec.id, T::ArgbColor, value)
-        }
-        // FloatWithAlpha and ColorModifier.BlendToGray are compound arguments
-        // that only the unimplemented weather modifiers use.
-        (T::Float | T::AngleDegrees, AlphaBlend) | (_, BlendToGray) => {
-            Ok(AttributeValue::Opaque(value.clone()))
-        }
-        (T::AmbientParticles, Append) => parse_typed(spec.id, T::AmbientParticles, value),
-        (T::MobSpawnSettings, Overlay) => parse_typed(spec.id, T::MobSpawnSettings, value),
-        _ => Err(malformed(spec.id, format!("no argument codec for {op:?}"))),
-    }
+    Ok(value)
 }
 
 fn parse_typed(
@@ -227,11 +279,8 @@ fn parse_typed(
 }
 
 /// `ExtraCodecs.STRING_RGB_COLOR` / `STRING_ARGB_COLOR`: a `#`-prefixed hex
-/// string of `digits` length, or a packed integer.
-///
-/// ponytail: the vector forms (`RGB_COLOR_CODEC`'s vec3, `ARGB_COLOR_CODEC`'s
-/// vec4) are not accepted. No shipped attribute uses them. Upgrade by mapping a
-/// 3- or 4-element float array through `ARGB.colorFromFloat`.
+/// string of `digits` length, a packed integer, or the float vector form —
+/// three components for rgb, four for argb with the alpha last.
 fn parse_color(value: &Value, digits: usize) -> Option<u32> {
     match value {
         Value::String(s) => {
@@ -243,8 +292,22 @@ fn parse_color(value: &Value, digits: usize) -> Option<u32> {
             Some(if digits == 6 { raw | 0xFF00_0000 } else { raw })
         }
         Value::Number(n) => n.as_i64().map(|v| v as u32),
+        Value::Array(components) => {
+            let expected = if digits == 6 { 3 } else { 4 };
+            if components.len() != expected {
+                return None;
+            }
+            let channel = |i: usize| Some(as_8bit_channel(components[i].as_f64()? as f32));
+            let alpha = if expected == 4 { channel(3)? } else { 255 };
+            Some(alpha << 24 | channel(0)? << 16 | channel(1)? << 8 | channel(2)?)
+        }
         _ => None,
     }
+}
+
+/// `ARGB.as8BitChannel`: floor, then the same truncation `ARGB.color` applies.
+fn as_8bit_channel(value: f32) -> u32 {
+    (value * 255.0).floor() as i32 as u32 & 0xFF
 }
 
 // ── The table ────────────────────────────────────────────────────────────────
@@ -390,20 +453,38 @@ mod tests {
     fn parses_colors_and_ranges() {
         let sky_color = attribute("minecraft:visual/sky_color").unwrap();
         assert_eq!(
-            parse_value(sky_color, &json!("#78a7ff")).unwrap(),
+            sky_color.parse_value(&json!("#78a7ff")).unwrap(),
             AttributeValue::Color(0xFF78_A7FF)
         );
-        assert!(parse_value(sky_color, &json!("#ccffffff")).is_err(), "rgb takes 6 digits");
+        assert!(sky_color.parse_value(&json!("#ccffffff")).is_err(), "rgb takes 6 digits");
 
         let cloud_color = attribute("minecraft:visual/cloud_color").unwrap();
         assert_eq!(
-            parse_value(cloud_color, &json!("#ccffffff")).unwrap(),
+            cloud_color.parse_value(&json!("#ccffffff")).unwrap(),
             AttributeValue::Color(0xCCFF_FFFF)
         );
 
         let volume = attribute("minecraft:audio/music_volume").unwrap();
-        assert_eq!(parse_value(volume, &json!(0.5)).unwrap(), AttributeValue::Float(0.5));
-        assert!(parse_value(volume, &json!(1.5)).is_err(), "music_volume is UNIT");
+        assert_eq!(volume.parse_value(&json!(0.5)).unwrap(), AttributeValue::Float(0.5));
+        assert!(volume.parse_value(&json!(1.5)).is_err(), "music_volume is UNIT");
+    }
+
+    #[test]
+    fn colors_accept_the_float_vector_form() {
+        let sky_color = attribute("minecraft:visual/sky_color").unwrap();
+        let cloud_color = attribute("minecraft:visual/cloud_color").unwrap();
+
+        assert_eq!(
+            sky_color.parse_value(&json!([1.0, 0.5, 0.0])).unwrap(),
+            AttributeValue::Color(0xFFFF_7F00)
+        );
+        // the fourth component is the alpha
+        assert_eq!(
+            cloud_color.parse_value(&json!([1.0, 0.5, 0.0, 0.5])).unwrap(),
+            AttributeValue::Color(0x7FFF_7F00)
+        );
+        assert!(sky_color.parse_value(&json!([1.0, 0.5, 0.0, 0.5])).is_err(), "rgb takes 3");
+        assert!(cloud_color.parse_value(&json!([1.0, 0.5, 0.0])).is_err(), "argb takes 4");
     }
 
     #[test]
@@ -412,9 +493,33 @@ mod tests {
         // is legal here even though the attribute itself is NON_NEGATIVE.
         let end = attribute("minecraft:visual/water_fog_end_distance").unwrap();
         assert_eq!(
-            parse_argument(end, Operation::Multiply, &json!(0.85)).unwrap(),
+            end.parse_argument(Operation::Multiply, &json!(0.85)).unwrap(),
             AttributeValue::Float(0.85)
         );
-        assert!(parse_argument(end, Operation::Or, &json!(true)).is_err());
+        assert!(end.parse_argument(Operation::Or, &json!(true)).is_err());
+    }
+
+    #[test]
+    fn color_add_takes_the_six_digit_form_on_both_colour_types() {
+        let sky_color = attribute("minecraft:visual/sky_color").unwrap();
+        let cloud_color = attribute("minecraft:visual/cloud_color").unwrap();
+        for spec in [sky_color, cloud_color] {
+            assert_eq!(
+                spec.parse_argument(Operation::Add, &json!("#102030")).unwrap(),
+                AttributeValue::Color(0xFF10_2030),
+                "{} takes the six-digit form for add",
+                spec.id
+            );
+            assert!(
+                spec.parse_argument(Operation::Subtract, &json!("#80102030")).is_err(),
+                "{} must reject an eight-digit subtract argument",
+                spec.id
+            );
+        }
+        assert_eq!(
+            cloud_color.parse_argument(Operation::Multiply, &json!("#80102030")).unwrap(),
+            AttributeValue::Color(0x8010_2030)
+        );
+        assert!(sky_color.parse_argument(Operation::Multiply, &json!("#80102030")).is_err());
     }
 }

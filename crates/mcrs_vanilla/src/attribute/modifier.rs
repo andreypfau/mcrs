@@ -40,8 +40,6 @@ pub enum Operation {
 pub enum ModifierError {
     #[error("{op:?} is not a valid modifier for {ty:?}")]
     NotAllowed { ty: AttributeType, op: Operation },
-    #[error("{op:?} on {ty:?} is not implemented")]
-    Unimplemented { ty: AttributeType, op: Operation },
     #[error("{op:?} on {ty:?} was given values it cannot combine")]
     Mismatch { ty: AttributeType, op: Operation },
 }
@@ -64,29 +62,98 @@ pub fn apply(
     let mismatch = || ModifierError::Mismatch { ty, op };
     match (op, subject, argument) {
         (Operation::Override, _, argument) => Ok(argument.clone()),
+
+        (Operation::Add, V::Float(a), V::Float(b)) => Ok(V::Float(a + b)),
+        (Operation::Subtract, V::Float(a), V::Float(b)) => Ok(V::Float(a - b)),
         (Operation::Multiply, V::Float(a), V::Float(b)) => Ok(V::Float(a * b)),
-        (Operation::Multiply, V::Integer(a), V::Integer(b)) => Ok(V::Integer(a * b)),
-        (Operation::Multiply, V::Color(a), V::Color(b)) => Ok(V::Color(multiply_color(*a, *b))),
+        (Operation::Minimum, V::Float(a), V::Float(b)) => Ok(V::Float(a.min(*b))),
         (Operation::Maximum, V::Float(a), V::Float(b)) => Ok(V::Float(a.max(*b))),
+        (Operation::AlphaBlend, V::Float(a), V::FloatWithAlpha { value, alpha }) => {
+            Ok(V::Float(a + alpha * (value - a)))
+        }
+
+        // Java int arithmetic wraps.
+        (Operation::Add, V::Integer(a), V::Integer(b)) => Ok(V::Integer(a.wrapping_add(*b))),
+        (Operation::Subtract, V::Integer(a), V::Integer(b)) => Ok(V::Integer(a.wrapping_sub(*b))),
+        (Operation::Multiply, V::Integer(a), V::Integer(b)) => Ok(V::Integer(a.wrapping_mul(*b))),
+        (Operation::Minimum, V::Integer(a), V::Integer(b)) => Ok(V::Integer(*a.min(b))),
         (Operation::Maximum, V::Integer(a), V::Integer(b)) => Ok(V::Integer(*a.max(b))),
-        (Operation::Or, V::Bool(a), V::Bool(b)) => Ok(V::Bool(*a || *b)),
+
+        (Operation::Add, V::Color(a), V::Color(b)) => Ok(V::Color(add_rgb(*a, *b))),
+        (Operation::Subtract, V::Color(a), V::Color(b)) => Ok(V::Color(subtract_rgb(*a, *b))),
+        (Operation::Multiply, V::Color(a), V::Color(b)) => Ok(V::Color(multiply_color(*a, *b))),
+        (Operation::AlphaBlend, V::Color(a), V::Color(b)) => Ok(V::Color(alpha_blend(*a, *b))),
+        (Operation::BlendToGray, V::Color(a), V::BlendToGray { brightness, factor }) => {
+            Ok(V::Color(blend_to_gray(*a, *brightness, *factor)))
+        }
+
         (Operation::And, V::Bool(a), V::Bool(b)) => Ok(V::Bool(*a && *b)),
+        (Operation::Nand, V::Bool(a), V::Bool(b)) => Ok(V::Bool(!(*a && *b))),
+        (Operation::Or, V::Bool(a), V::Bool(b)) => Ok(V::Bool(*a || *b)),
+        (Operation::Nor, V::Bool(a), V::Bool(b)) => Ok(V::Bool(!(*a || *b))),
+        (Operation::Xor, V::Bool(a), V::Bool(b)) => Ok(V::Bool(a != b)),
+        (Operation::Xnor, V::Bool(a), V::Bool(b)) => Ok(V::Bool(a == b)),
+
         (Operation::Append, V::List(a), V::List(b)) => Ok(V::List([a.clone(), b.clone()].concat())),
         (Operation::Overlay, V::MobSpawns(a), V::MobSpawns(b)) => {
             Ok(V::MobSpawns(Box::new(overlay_spawns(a, b))))
         }
-        (
-            Operation::Multiply
-            | Operation::Maximum
-            | Operation::Or
-            | Operation::And
-            | Operation::Append
-            | Operation::Overlay,
-            _,
-            _,
-        ) => Err(mismatch()),
-        _ => Err(ModifierError::Unimplemented { ty, op }),
+
+        _ => Err(mismatch()),
     }
+}
+
+/// `ARGB.addRgb` / `subtractRgb`: per channel and clamped, keeping the
+/// subject's alpha — the argument's is not read.
+fn add_rgb(lhs: u32, rhs: u32) -> u32 {
+    zip_rgb(lhs, rhs, |a, b| (a + b).min(255))
+}
+
+fn subtract_rgb(lhs: u32, rhs: u32) -> u32 {
+    zip_rgb(lhs, rhs, |a, b| a.saturating_sub(b))
+}
+
+fn zip_rgb(lhs: u32, rhs: u32, channel: impl Fn(u32, u32) -> u32) -> u32 {
+    let at = |color: u32, shift: u32| color >> shift & 0xFF;
+    lhs & 0xFF00_0000
+        | channel(at(lhs, 16), at(rhs, 16)) << 16
+        | channel(at(lhs, 8), at(rhs, 8)) << 8
+        | channel(at(lhs, 0), at(rhs, 0))
+}
+
+/// `ARGB.alphaBlend`: `source` over `destination`, premultiplied by the
+/// source's alpha.
+fn alpha_blend(destination: u32, source: u32) -> u32 {
+    let at = |color: u32, shift: u32| color >> shift & 0xFF;
+    let (destination_alpha, source_alpha) = (at(destination, 24), at(source, 24));
+    if source_alpha == 255 {
+        return source;
+    }
+    if source_alpha == 0 {
+        return destination;
+    }
+    let alpha = source_alpha + destination_alpha * (255 - source_alpha) / 255;
+    let channel = |shift: u32| {
+        (at(source, shift) * source_alpha + at(destination, shift) * (alpha - source_alpha)) / alpha
+    };
+    alpha << 24 | channel(16) << 16 | channel(8) << 8 | channel(0)
+}
+
+/// `ColorModifier.BLEND_TO_GRAY`: scale the luminance of `subject` by
+/// `brightness`, then lerp towards it by `factor`.
+fn blend_to_gray(subject: u32, brightness: f32, factor: f32) -> u32 {
+    let at = |color: u32, shift: u32| color >> shift & 0xFF;
+    let luminance = (at(subject, 16) as f32 * 0.3
+        + at(subject, 8) as f32 * 0.59
+        + at(subject, 0) as f32 * 0.11) as u32;
+    let scaled = ((luminance as f32 * brightness) as u32).min(255);
+    let lerp = |from: u32, to: u32| {
+        (from as i32 + (factor * (to as i32 - from as i32) as f32).floor() as i32) as u32
+    };
+    at(subject, 24) << 24
+        | lerp(at(subject, 16), scaled) << 16
+        | lerp(at(subject, 8), scaled) << 8
+        | lerp(at(subject, 0), scaled)
 }
 
 /// `ARGB.multiply`: per-channel, alpha included. `-1` (opaque white) is the
@@ -126,7 +193,7 @@ fn overlay_spawns(first: &MobSpawnSettings, second: &MobSpawnSettings) -> MobSpa
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::attribute::registry::{attribute, parse_argument, parse_value};
+    use crate::attribute::registry::attribute;
     use serde_json::json;
 
     fn spec(id: &str) -> &'static super::super::registry::AttributeSpec {
@@ -142,8 +209,8 @@ mod tests {
         argument: serde_json::Value,
     ) -> AttributeValue {
         let spec = spec(id);
-        let base = parse_value(spec, &base).unwrap();
-        let argument = parse_argument(spec, op, &argument).unwrap();
+        let base = spec.parse_value(&base).unwrap();
+        let argument = spec.parse_argument(op, &argument).unwrap();
         apply(spec.ty, op, &base, &argument).unwrap()
     }
 
@@ -263,13 +330,157 @@ mod tests {
         );
         assert!(matches!(err, Err(ModifierError::NotAllowed { .. })));
 
+        // blend_to_gray is allowed on a colour, but not with a raw payload
         let err = apply(
             AttributeType::RgbColor,
             Operation::BlendToGray,
             &AttributeValue::Color(0),
             &AttributeValue::Opaque(json!({"brightness": 0.5, "factor": 0.5})),
         );
-        assert!(matches!(err, Err(ModifierError::Unimplemented { .. })));
+        assert!(matches!(err, Err(ModifierError::Mismatch { .. })));
+    }
+
+    #[test]
+    fn float_arithmetic_matches_the_reference() {
+        let distance = "minecraft:visual/fog_end_distance";
+        assert_eq!(
+            compose(distance, json!(100.0), Operation::Add, json!(25.0)),
+            AttributeValue::Float(125.0)
+        );
+        assert_eq!(
+            compose(distance, json!(100.0), Operation::Subtract, json!(25.0)),
+            AttributeValue::Float(75.0)
+        );
+        assert_eq!(
+            compose(distance, json!(100.0), Operation::Minimum, json!(25.0)),
+            AttributeValue::Float(25.0)
+        );
+        // FloatWithAlpha lerps from the subject towards the argument
+        assert_eq!(
+            compose(
+                distance,
+                json!(100.0),
+                Operation::AlphaBlend,
+                json!({"value": 200.0, "alpha": 0.25})
+            ),
+            AttributeValue::Float(125.0)
+        );
+        // a bare float means alpha 1, so the argument wins outright
+        assert_eq!(
+            compose(distance, json!(100.0), Operation::AlphaBlend, json!(200.0)),
+            AttributeValue::Float(200.0)
+        );
+    }
+
+    #[test]
+    fn colour_arithmetic_matches_the_reference() {
+        let sky = "minecraft:visual/sky_color";
+        // add and subtract clamp per channel and keep the subject's alpha
+        assert_eq!(
+            compose(sky, json!("#80ff40"), Operation::Add, json!("#4010c0")),
+            AttributeValue::Color(0xFFC0_FFFF)
+        );
+        assert_eq!(
+            compose(sky, json!("#80ff40"), Operation::Subtract, json!("#40ff80")),
+            AttributeValue::Color(0xFF40_0000)
+        );
+        // an opaque source replaces the destination outright
+        assert_eq!(
+            compose(sky, json!("#102030"), Operation::AlphaBlend, json!("#ff405060")),
+            AttributeValue::Color(0xFF40_5060)
+        );
+        // a fully transparent source leaves it alone
+        assert_eq!(
+            compose(sky, json!("#102030"), Operation::AlphaBlend, json!("#00405060")),
+            AttributeValue::Color(0xFF10_2030)
+        );
+        // factor 1 lands on the scaled greyscale, factor 0 leaves the subject
+        assert_eq!(
+            compose(
+                sky,
+                json!("#646464"),
+                Operation::BlendToGray,
+                json!({"brightness": 0.5, "factor": 1.0})
+            ),
+            AttributeValue::Color(0xFF32_3232)
+        );
+        assert_eq!(
+            compose(
+                sky,
+                json!("#646464"),
+                Operation::BlendToGray,
+                json!({"brightness": 0.5, "factor": 0.0})
+            ),
+            AttributeValue::Color(0xFF64_6464)
+        );
+    }
+
+    #[test]
+    fn every_boolean_operation_is_implemented() {
+        let creaking = "minecraft:gameplay/creaking_active";
+        let cases = [
+            (Operation::And, false, true, false),
+            (Operation::Nand, false, true, true),
+            (Operation::Or, false, true, true),
+            (Operation::Nor, false, true, false),
+            (Operation::Xor, true, true, false),
+            (Operation::Xnor, true, true, true),
+        ];
+        for (op, subject, argument, expected) in cases {
+            assert_eq!(
+                compose(creaking, json!(subject), op, json!(argument)),
+                AttributeValue::Bool(expected),
+                "{op:?} {subject} {argument}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_operation_has_an_implementation() {
+        // No operation may reach `apply` and find nothing to do: the arguments
+        // below are the shape each one's codec produces.
+        use AttributeValue as V;
+        let cases: [(AttributeType, Operation, V, V); 16] = [
+            (AttributeType::Boolean, Operation::Override, V::Bool(false), V::Bool(true)),
+            (AttributeType::Boolean, Operation::And, V::Bool(true), V::Bool(true)),
+            (AttributeType::Boolean, Operation::Nand, V::Bool(true), V::Bool(true)),
+            (AttributeType::Boolean, Operation::Or, V::Bool(true), V::Bool(true)),
+            (AttributeType::Boolean, Operation::Nor, V::Bool(true), V::Bool(true)),
+            (AttributeType::Boolean, Operation::Xor, V::Bool(true), V::Bool(true)),
+            (AttributeType::Boolean, Operation::Xnor, V::Bool(true), V::Bool(true)),
+            (AttributeType::Float, Operation::Add, V::Float(1.0), V::Float(2.0)),
+            (AttributeType::Float, Operation::Subtract, V::Float(1.0), V::Float(2.0)),
+            (AttributeType::Float, Operation::Multiply, V::Float(1.0), V::Float(2.0)),
+            (AttributeType::Float, Operation::Minimum, V::Float(1.0), V::Float(2.0)),
+            (AttributeType::Float, Operation::Maximum, V::Float(1.0), V::Float(2.0)),
+            (
+                AttributeType::Float,
+                Operation::AlphaBlend,
+                V::Float(1.0),
+                V::FloatWithAlpha { value: 2.0, alpha: 0.5 },
+            ),
+            (
+                AttributeType::RgbColor,
+                Operation::BlendToGray,
+                V::Color(0xFF80_8080),
+                V::BlendToGray { brightness: 0.5, factor: 0.5 },
+            ),
+            (
+                AttributeType::AmbientParticles,
+                Operation::Append,
+                V::List(Vec::new()),
+                V::List(Vec::new()),
+            ),
+            (
+                AttributeType::MobSpawnSettings,
+                Operation::Overlay,
+                V::MobSpawns(Box::default()),
+                V::MobSpawns(Box::default()),
+            ),
+        ];
+        for (ty, op, subject, argument) in cases {
+            assert!(apply(ty, op, &subject, &argument).is_ok(), "{ty:?} {op:?}");
+        }
     }
 
     #[test]
