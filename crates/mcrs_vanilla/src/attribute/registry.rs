@@ -140,6 +140,17 @@ impl AttributeSpec {
         Ok(parsed)
     }
 
+    /// `AttributeRange.sanitize`: clamp a composed value into the attribute's
+    /// range. Layers compose freely and only the result has to be legal.
+    pub fn sanitize(&self, value: AttributeValue) -> AttributeValue {
+        match (self.range, &value) {
+            (AttributeRange::Bounded { min, max }, AttributeValue::Float(v)) => {
+                AttributeValue::Float(v.clamp(min, max))
+            }
+            _ => value,
+        }
+    }
+
     /// Parse the argument of `op` applied to this attribute.
     ///
     /// Only `override` takes the attribute's own value; every other operation

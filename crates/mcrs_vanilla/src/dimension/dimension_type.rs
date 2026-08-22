@@ -235,7 +235,7 @@ impl AssetLoader for DimensionTypeLoader {
 
 // ── Supporting enums ──
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Skybox {
     #[default]
     #[serde(rename = "overworld")]

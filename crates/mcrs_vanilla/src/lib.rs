@@ -18,6 +18,7 @@ pub mod sound;
 pub mod attribute;
 pub mod biome;
 pub mod dimension;
+pub mod environment;
 pub mod value;
 pub mod worldgen;
 pub mod variant;

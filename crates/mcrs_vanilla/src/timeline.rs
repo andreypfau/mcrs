@@ -290,27 +290,35 @@ impl TrackSampler {
     }
 
     pub fn sample(&self, ticks: i64) -> AttributeValue {
+        self.sample_at(ticks as f64)
+    }
+
+    /// Sample between two ticks.
+    ///
+    /// A track is already continuous across its own period, so a fractional
+    /// tick needs no history: there is nothing to blend the result against.
+    pub fn sample_at(&self, ticks: f64) -> AttributeValue {
         let sample = match self.period_ticks {
-            Some(period) => ticks.rem_euclid(i64::from(period)),
+            Some(period) => ticks.rem_euclid(f64::from(period)),
             None => ticks,
         };
         let segment = self
             .segments
             .iter()
-            .find(|segment| sample < segment.to_ticks)
+            .find(|segment| sample < segment.to_ticks as f64)
             .unwrap_or_else(|| self.segments.last().expect("a baked track has a segment"));
 
-        if sample <= segment.from_ticks {
+        if sample <= segment.from_ticks as f64 {
             return segment.from_value.clone();
         }
-        if sample >= segment.to_ticks {
+        if sample >= segment.to_ticks as f64 {
             return segment.to_value.clone();
         }
         // Both ends were just excluded, so `from_ticks < sample < to_ticks` and
         // the zero-length segment between two keyframes on the same tick — how
         // `sun_angle` writes a full revolution — never reaches the division.
-        let alpha =
-            (sample - segment.from_ticks) as f32 / (segment.to_ticks - segment.from_ticks) as f32;
+        let alpha = ((sample - segment.from_ticks as f64)
+            / (segment.to_ticks - segment.from_ticks) as f64) as f32;
         self.lerp.apply(
             self.easing.apply(alpha),
             &segment.from_value,
@@ -341,11 +349,19 @@ impl AttributeTrackSampler {
         base: &AttributeValue,
         ticks: i64,
     ) -> Result<AttributeValue, ModifierError> {
+        self.apply_at(base, ticks as f64)
+    }
+
+    pub fn apply_at(
+        &self,
+        base: &AttributeValue,
+        ticks: f64,
+    ) -> Result<AttributeValue, ModifierError> {
         crate::attribute::apply(
             self.attribute.ty,
             self.modifier,
             base,
-            &self.argument.sample(ticks),
+            &self.argument.sample_at(ticks),
         )
     }
 }
