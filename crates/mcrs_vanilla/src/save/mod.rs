@@ -281,12 +281,12 @@ fn parse_world_clocks(bytes: &[u8], path: &Path) -> Result<WorldClockStates, Sav
     let file: SavedDataFile<WorldClockStates> = decode(bytes, path)?;
     check_data_version(file.data_version, path)?;
     for (clock, state) in &file.data {
-        if state.rate <= 0.0 {
+        if !(state.rate > 0.0 && state.rate <= f32::MAX) {
             return Err(SaveError::OutOfRange {
                 path: path.to_path_buf(),
                 field: "rate",
                 value: format!("{} on `{clock}`", state.rate),
-                expected: "> 0",
+                expected: "> 0 and finite",
             });
         }
     }

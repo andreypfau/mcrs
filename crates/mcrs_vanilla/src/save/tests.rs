@@ -51,6 +51,18 @@ fn level_dat(data_version: i32, with_uuid: bool) -> Vec<u8> {
     gzip(root)
 }
 
+fn level_dat_with_spawn(spawn: NbtCompound) -> Vec<u8> {
+    let mut data = NbtCompound::new();
+    data.put_int("DataVersion", WORLD_VERSION);
+    data.put_string("LevelName", "New World".to_string());
+    data.put_long("Time", 25);
+    data.put("singleplayer_uuid", NbtTag::IntArray(OBSERVED_UUID_INTS.to_vec()));
+    data.put_component("spawn", spawn);
+    let mut root = NbtCompound::new();
+    root.put_component("Data", data);
+    gzip(root)
+}
+
 fn saved_data(data_version: i32, payload: NbtCompound) -> Vec<u8> {
     let mut root = NbtCompound::new();
     root.put_component("data", payload);
@@ -199,6 +211,58 @@ fn a_zero_clock_rate_is_rejected() {
     let err = parse_world_clocks(&saved_data(WORLD_VERSION, payload), path()).unwrap_err();
     assert!(
         matches!(err, SaveError::OutOfRange { field: "rate", .. }),
+        "{err}"
+    );
+}
+
+#[test]
+fn a_non_finite_clock_rate_is_rejected() {
+    for rate in [f32::NAN, f32::INFINITY] {
+        let mut overworld = NbtCompound::new();
+        overworld.put_long("total_ticks", 1757);
+        overworld.put_float("rate", rate);
+        let mut payload = NbtCompound::new();
+        payload.put_component("minecraft:overworld", overworld);
+
+        let err = parse_world_clocks(&saved_data(WORLD_VERSION, payload), path()).unwrap_err();
+        assert!(
+            matches!(err, SaveError::OutOfRange { field: "rate", .. }),
+            "rate {rate} accepted: {err}"
+        );
+    }
+}
+
+#[test]
+fn a_spawn_angle_outside_its_range_is_rejected() {
+    for (field, yaw, pitch) in [("spawn.yaw", 180.5, 0.0), ("spawn.pitch", 0.0, -90.5)] {
+        let mut spawn = NbtCompound::new();
+        spawn.put("pos", NbtTag::IntArray(vec![0, 70, 64]));
+        spawn.put_float("yaw", yaw);
+        spawn.put_float("pitch", pitch);
+        spawn.put_string("dimension", "minecraft:overworld".to_string());
+
+        let err = parse_level_dat(&level_dat_with_spawn(spawn), path()).unwrap_err();
+        assert!(
+            matches!(err, SaveError::OutOfRange { field: f, .. } if f == field),
+            "{field}: {err}"
+        );
+    }
+}
+
+#[test]
+fn a_spawn_position_of_the_wrong_length_is_rejected() {
+    let mut spawn = NbtCompound::new();
+    spawn.put("pos", NbtTag::IntArray(vec![0, 70]));
+    spawn.put_float("yaw", 0.0);
+    spawn.put_float("pitch", 0.0);
+    spawn.put_string("dimension", "minecraft:overworld".to_string());
+
+    let err = parse_level_dat(&level_dat_with_spawn(spawn), path()).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            SaveError::WrongLength { found: 2, expected: 3, .. }
+        ),
         "{err}"
     );
 }
