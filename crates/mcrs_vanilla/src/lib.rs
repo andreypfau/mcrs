@@ -265,13 +265,17 @@ impl Plugin for MinecraftCorePlugin {
             entity_types.freeze();
             tracing::info!("frozen StaticRegistry<EntityType>");
         }
-        {
-            let mut enchantments = app.world_mut().resource_mut::<StaticRegistry<EnchantmentData>>();
-            enchantment::registry::register_all_enchantments(&mut enchantments);
-            tracing::info!(count = enchantments.len(), "registered StaticRegistry<EnchantmentData>");
-            enchantments.freeze();
-            tracing::info!("frozen StaticRegistry<EnchantmentData>");
-        }
+        app.world_mut().resource_scope(
+            |world, mut enchantments: Mut<StaticRegistry<EnchantmentData>>| {
+                enchantment::registry::register_all_enchantments(
+                    &mut enchantments,
+                    world.resource::<AssetServer>(),
+                );
+                tracing::info!(count = enchantments.len(), "registered StaticRegistry<EnchantmentData>");
+                enchantments.freeze();
+                tracing::info!("frozen StaticRegistry<EnchantmentData>");
+            },
+        );
     }
 }
 

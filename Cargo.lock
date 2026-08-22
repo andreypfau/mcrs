@@ -3236,6 +3236,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_client"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "mcrs_core",
+ "mcrs_vanilla",
+]
+
+[[package]]
 name = "mcrs_core"
 version = "0.1.0"
 dependencies = [

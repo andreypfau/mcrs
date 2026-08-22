@@ -1,3 +1,9 @@
+use std::path::Path;
+
+use bevy_asset::io::AssetSourceId;
+use bevy_asset::{AssetServer, io::Reader};
+use bevy_tasks::block_on;
+
 use super::data::{EnchantmentData, ProtoEnchantmentData};
 use mcrs_core::{ResourceLocation, StaticRegistry};
 
@@ -48,13 +54,29 @@ pub const VANILLA_ENCHANTMENTS: &[&str] = &[
     "minecraft:vanishing_curse",
 ];
 
-pub fn register_all_enchantments(registry: &mut StaticRegistry<EnchantmentData>) {
+pub fn register_all_enchantments(
+    registry: &mut StaticRegistry<EnchantmentData>,
+    asset_server: &AssetServer,
+) {
+    let source = asset_server
+        .get_source(AssetSourceId::Default)
+        .expect("default AssetSource missing");
+    let reader = source.reader();
     for &name in VANILLA_ENCHANTMENTS {
         let loc = ResourceLocation::parse(name).expect("invalid enchantment RL");
-        let path = format!("assets/{}/enchantment/{}.json", loc.namespace(), loc.path());
-        let json = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("failed to read enchantment file {path}: {e}"));
-        let proto: ProtoEnchantmentData = serde_json::from_str(&json)
+        let path = format!("{}/enchantment/{}.json", loc.namespace(), loc.path());
+        let bytes = block_on(async {
+            let mut file = reader
+                .read(Path::new(&path))
+                .await
+                .unwrap_or_else(|e| panic!("failed to read enchantment file {path}: {e}"));
+            let mut bytes = Vec::new();
+            file.read_to_end(&mut bytes)
+                .await
+                .unwrap_or_else(|e| panic!("failed to read enchantment file {path}: {e}"));
+            bytes
+        });
+        let proto: ProtoEnchantmentData = serde_json::from_slice(&bytes)
             .unwrap_or_else(|e| panic!("failed to parse enchantment JSON {path}: {e}"));
         let data = proto
             .resolve()

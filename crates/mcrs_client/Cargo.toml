@@ -1,0 +1,21 @@
+[package]
+name = "mcrs_client"
+description = "Minecraft client: window, asset corpus and environment registries"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bevy = { version = "0.19.1", default-features = false, features = [
+    "std",
+    "async_executor",
+    "bevy_asset",
+    "bevy_log",
+    "bevy_state",
+    "bevy_window",
+    "bevy_winit",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "png",
+] }
+mcrs_core.workspace = true
+mcrs_vanilla.workspace = true
