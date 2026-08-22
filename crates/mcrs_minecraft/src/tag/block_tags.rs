@@ -6,8 +6,6 @@ pub const MINEABLE_PICKAXE: TagKey<Block> = TagKey::of("minecraft", "mineable/pi
 pub const MINEABLE_AXE: TagKey<Block> = TagKey::of("minecraft", "mineable/axe");
 pub const MINEABLE_SHOVEL: TagKey<Block> = TagKey::of("minecraft", "mineable/shovel");
 pub const MINEABLE_HOE: TagKey<Block> = TagKey::of("minecraft", "mineable/hoe");
-pub const NEEDS_CORRECT_TOOL: TagKey<Block> =
-    TagKey::of("minecraft", "needs_correct_tool_for_drops");
 
 // World logic — expand as features need them
 pub const LOGS: TagKey<Block> = TagKey::of("minecraft", "logs");

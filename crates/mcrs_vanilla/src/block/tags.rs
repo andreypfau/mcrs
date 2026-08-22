@@ -7,8 +7,6 @@ pub const MINEABLE_PICKAXE: TagKey<Block> =
 pub const MINEABLE_AXE: TagKey<Block> = TagKey::new(mcrs_core::rl!("minecraft:mineable/axe"));
 pub const MINEABLE_SHOVEL: TagKey<Block> = TagKey::new(mcrs_core::rl!("minecraft:mineable/shovel"));
 pub const MINEABLE_HOE: TagKey<Block> = TagKey::new(mcrs_core::rl!("minecraft:mineable/hoe"));
-pub const NEEDS_CORRECT_TOOL: TagKey<Block> =
-    TagKey::new(mcrs_core::rl!("minecraft:needs_correct_tool_for_drops"));
 
 // incorrect_for_* — used by ToolMaterial to deny drops
 pub const INCORRECT_FOR_WOODEN_TOOL: TagKey<Block> =
@@ -46,7 +44,6 @@ pub const ALL_BLOCK_TAGS: &[TagKey<Block>] = &[
     MINEABLE_AXE,
     MINEABLE_SHOVEL,
     MINEABLE_HOE,
-    NEEDS_CORRECT_TOOL,
     INCORRECT_FOR_WOODEN_TOOL,
     INCORRECT_FOR_STONE_TOOL,
     INCORRECT_FOR_COPPER_TOOL,
