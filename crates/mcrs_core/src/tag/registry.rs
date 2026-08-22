@@ -120,11 +120,12 @@ impl<T: TaggedRegistry + 'static, I: TagId> TagLoader<T, I> {
         if self.handles.contains_key(key.as_str()) {
             return;
         }
-        let segment = T::REGISTRY_PATH.to_string();
         let handle = asset_server
-            .load_with_settings::<TagFile, TagFileSettings>(key.asset_path(), move |s| {
-                s.registry_segment = segment.clone()
-            });
+            .load_builder()
+            .with_settings(|s: &mut TagFileSettings| {
+                s.registry_segment = T::REGISTRY_PATH.to_string();
+            })
+            .load::<TagFile>(key.asset_path());
         self.handles.insert(key.to_arc().location().clone(), handle);
     }
 
