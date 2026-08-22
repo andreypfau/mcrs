@@ -50,17 +50,15 @@ pub struct TrimPattern {
     pub asset_id: String,
     pub description: serde_json::Value,
     #[serde(default)]
-    pub decal: Option<bool>,
+    pub decal: bool,
 }
 
 leaf_asset!(TrimPattern, TrimPatternLoader, TrimPatternLoaderError);
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct TrimMaterial {
-    pub asset_name: String,
+    pub palette_id: String,
     pub description: serde_json::Value,
-    #[serde(default)]
-    pub override_armor_assets: Option<serde_json::Value>,
 }
 
 leaf_asset!(TrimMaterial, TrimMaterialLoader, TrimMaterialLoaderError);
