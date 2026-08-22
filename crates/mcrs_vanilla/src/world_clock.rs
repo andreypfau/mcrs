@@ -71,16 +71,24 @@ impl AssetLoader for WorldClockLoader {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ClockState {
     pub total_ticks: i64,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub partial_tick: f32,
-    #[serde(default = "default_rate")]
+    #[serde(default = "default_rate", skip_serializing_if = "is_default_rate")]
     pub rate: f32,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub paused: bool,
 }
 
 fn default_rate() -> f32 {
     1.0
+}
+
+fn is_default<T: Default + PartialEq>(value: &T) -> bool {
+    *value == T::default()
+}
+
+fn is_default_rate(rate: &f32) -> bool {
+    *rate == default_rate()
 }
 
 impl Default for ClockState {

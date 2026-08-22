@@ -20,6 +20,10 @@ fn gzip(compound: NbtCompound) -> Vec<u8> {
     write_gzip_compound_tag_to_bytes(&compound).unwrap()
 }
 
+fn keys(compound: &NbtCompound) -> Vec<&str> {
+    compound.child_tags.iter().map(|(name, _)| name.as_str()).collect()
+}
+
 fn clock(id: &str) -> ResourceLocation<Arc<str>> {
     ResourceLocation::parse(id).unwrap()
 }
@@ -213,6 +217,42 @@ fn a_zero_clock_rate_is_rejected() {
         matches!(err, SaveError::OutOfRange { field: "rate", .. }),
         "{err}"
     );
+}
+
+#[test]
+fn a_clock_state_writes_back_only_what_the_save_held() {
+    let written = mcrs_nbt::to_nbt_compound(&ClockState {
+        total_ticks: 1757,
+        ..ClockState::default()
+    })
+    .unwrap();
+    assert_eq!(keys(&written), ["total_ticks"]);
+
+    let written = mcrs_nbt::to_nbt_compound(&ClockState {
+        total_ticks: 1757,
+        partial_tick: 0.25,
+        rate: 0.5,
+        paused: true,
+    })
+    .unwrap();
+    assert_eq!(
+        keys(&written),
+        ["total_ticks", "partial_tick", "rate", "paused"]
+    );
+}
+
+#[test]
+fn a_clock_state_round_trips_through_the_save_shape() {
+    let clocks =
+        parse_world_clocks(&saved_data(WORLD_VERSION, world_clocks_payload()), path()).unwrap();
+
+    let mut payload = NbtCompound::new();
+    for (id, state) in &clocks {
+        payload.put_component(&id.to_string(), mcrs_nbt::to_nbt_compound(state).unwrap());
+    }
+    let reread = parse_world_clocks(&saved_data(WORLD_VERSION, payload), path()).unwrap();
+
+    assert_eq!(clocks, reread);
 }
 
 #[test]
