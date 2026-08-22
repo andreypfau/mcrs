@@ -43,7 +43,8 @@ use bevy_time::{Fixed, Time, TimePlugin};
 use mcrs_core::AppState;
 use mcrs_minecraft_lighting::table::{build_block_light_table, BlockStateLightTable};
 use mcrs_network::NetworkPlugin;
-use mcrs_vanilla::{freeze_static_tags, transition_to_playing};
+use mcrs_core::tag::TagPhase;
+use mcrs_vanilla::transition_to_playing;
 use std::num::NonZeroU32;
 
 pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
@@ -84,7 +85,7 @@ impl Plugin for ServerPlugin {
         app.add_systems(
             OnEnter(AppState::WorldgenFreeze),
             build_block_light_table
-                .after(freeze_static_tags)
+                .after(TagPhase::Freeze)
                 .before(transition_to_playing),
         );
         app.add_plugins(ClientInfoPlugin);

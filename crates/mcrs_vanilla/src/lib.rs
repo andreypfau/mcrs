@@ -45,7 +45,8 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_core::tag::file::TagFile;
 use mcrs_core::tag::key::TaggedRegistry;
-use mcrs_core::{AppState, ResourceLocation, StaticRegistry, TagRegistry};
+use mcrs_core::tag::{TagLoader, TagLoadersSettled, TagPhase, TagRegistryAppExt};
+use mcrs_core::{AppState, ResourceLocation, StaticRegistry};
 use crate::dimension::dimension_type::DimensionType;
 
 #[derive(Resource, Default)]
@@ -130,12 +131,19 @@ impl Plugin for MinecraftCorePlugin {
             .init_resource::<StaticRegistry<item::Item>>()
             .init_resource::<StaticRegistry<sound::SoundEvent>>()
             .init_resource::<StaticRegistry<entity::EntityType>>()
-            .init_resource::<TagRegistry<block::Block>>()
-            .init_resource::<TagRegistry<item::Item>>()
-            .init_resource::<TagRegistry<entity::EntityType>>()
             .init_resource::<StaticRegistry<EnchantmentData>>()
-            .init_resource::<TagRegistry<EnchantmentData>>()
             .init_resource::<LoadedRegistryAssets>();
+
+        app.add_tagged_registry::<block::Block, StaticRegistry<block::Block>>(
+            block_tags::ALL_BLOCK_TAGS,
+        )
+        .add_tagged_registry::<item::Item, StaticRegistry<item::Item>>(item_tags::ALL_ITEM_TAGS)
+        .add_tagged_registry::<EnchantmentData, StaticRegistry<EnchantmentData>>(
+            enchantment_tags::ALL_ENCHANTMENT_TAGS,
+        )
+        .add_tagged_registry::<entity::EntityType, StaticRegistry<entity::EntityType>>(
+            entity_type_tags::ALL_ENTITY_TYPE_TAGS,
+        );
 
         app.init_resource::<mcrs_core::RegistryAccess>();
 
@@ -170,21 +178,14 @@ impl Plugin for MinecraftCorePlugin {
         ]);
 
         app.add_systems(PostStartup, start_loading_data_pack)
-            .add_systems(
-                OnEnter(AppState::LoadingDataPack),
-                (
-                    request_block_tags,
-                    request_item_tags,
-                    request_enchantment_tags,
-                    request_entity_type_tags,
-                    request_data_pack_assets,
-                ),
-            )
+            .add_systems(OnEnter(AppState::LoadingDataPack), request_data_pack_assets)
             .add_systems(
                 Update,
-                check_tags_ready.run_if(in_state(AppState::LoadingDataPack)),
+                check_tags_ready
+                    .after(TagPhase::Settled)
+                    .run_if(in_state(AppState::LoadingDataPack)),
             )
-            // Ordering contract: every system in this chain that calls
+            // Ordering contract: every system in this schedule that calls
             // `RegistryAccess::register` — including systems injected by the
             // `snapshot_registry!` macro elsewhere in the codebase — must
             // complete before `transition_to_playing` fires. `transition_to_playing`
@@ -192,22 +193,17 @@ impl Plugin for MinecraftCorePlugin {
             // `spawn_dim_subapp` runs at `OnEnter(AppState::Playing)`, where it
             // takes the first clone of `RegistryAccess`. `RegistryAccess::register`
             // requires `Arc::get_mut` (refcount == 1); calling it after any clone
-            // exists panics. The `OnEnter` schedule guarantees all systems in this
-            // chain finish before the transition completes, so the ordering holds
-            // as long as no `register` call is added outside `OnEnter(WorldgenFreeze)`.
+            // exists panics. The `OnEnter` schedule guarantees all its systems
+            // finish before the transition completes, so the ordering holds as
+            // long as no `register` call is added outside `OnEnter(WorldgenFreeze)`.
             .add_systems(
                 OnEnter(AppState::WorldgenFreeze),
                 (
-                    resolve_block_tags,
-                    resolve_infiniburn_tags,
-                    resolve_item_tags,
-                    resolve_enchantment_tags,
-                    resolve_entity_type_tags,
-                    freeze_static_tags,
-                    register_static_registries_with_access,
-                    transition_to_playing,
-                )
-                    .chain(),
+                    resolve_infiniburn_tags.in_set(TagPhase::Resolve),
+                    (register_static_registries_with_access, transition_to_playing)
+                        .chain()
+                        .after(TagPhase::Freeze),
+                ),
             );
     }
 
@@ -268,40 +264,9 @@ fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::LoadingDataPack);
 }
 
-fn request_block_tags(mut tags: ResMut<TagRegistry<block::Block>>, asset_server: Res<AssetServer>) {
-    for tag in block_tags::ALL_BLOCK_TAGS {
-        tags.request(tag, &asset_server);
-    }
-}
 
-fn request_item_tags(mut tags: ResMut<TagRegistry<item::Item>>, asset_server: Res<AssetServer>) {
-    for tag in item_tags::ALL_ITEM_TAGS {
-        tags.request(tag, &asset_server);
-    }
-}
 
-fn request_entity_type_tags(
-    mut tags: ResMut<TagRegistry<entity::EntityType>>,
-    asset_server: Res<AssetServer>,
-) {
-    for tag in entity_type_tags::ALL_ENTITY_TYPE_TAGS {
-        tags.request(tag, &asset_server);
-    }
-    tracing::info!(
-        count = entity_type_tags::ALL_ENTITY_TYPE_TAGS.len(),
-        "requested entity_type tag files"
-    );
-}
 
-fn request_enchantment_tags(
-    mut tags: ResMut<TagRegistry<EnchantmentData>>,
-    asset_server: Res<AssetServer>,
-) {
-    for tag in enchantment_tags::ALL_ENCHANTMENT_TAGS {
-        tags.request(tag, &asset_server);
-    }
-    tracing::info!(count = enchantment_tags::ALL_ENCHANTMENT_TAGS.len(), "requested enchantment tag files");
-}
 
 // File listings baked from `assets/` at build time. Used as the fallback
 // manifest when the active `AssetSource` cannot enumerate directories
@@ -410,49 +375,23 @@ fn request_data_pack_assets(
 }
 
 fn check_tags_ready(
-    block_tags: Res<TagRegistry<block::Block>>,
-    item_tags: Res<TagRegistry<item::Item>>,
-    enchantment_tags: Res<TagRegistry<EnchantmentData>>,
-    entity_type_tags: Res<TagRegistry<entity::EntityType>>,
+    tags_settled: Res<TagLoadersSettled>,
     registry_assets: Res<LoadedRegistryAssets>,
     asset_server: Res<AssetServer>,
     mut next: ResMut<NextState<AppState>>,
 ) {
-    if block_tags.all_handles_settled(&asset_server)
-        && item_tags.all_handles_settled(&asset_server)
-        && enchantment_tags.all_handles_settled(&asset_server)
-        && entity_type_tags.all_handles_settled(&asset_server)
-        && registry_assets.all_handles_settled(&asset_server)
-    {
+    if tags_settled.get() && registry_assets.all_handles_settled(&asset_server) {
         tracing::info!("all tag files and registry assets settled — entering WorldgenFreeze");
         next.set(AppState::WorldgenFreeze);
     }
 }
 
-fn resolve_block_tags(
-    mut tags: ResMut<TagRegistry<block::Block>>,
-    tag_files: Res<Assets<TagFile>>,
-    registry: Res<StaticRegistry<block::Block>>,
-) {
-    let handles = tags.drain_handles();
-    let mut resolved = 0usize;
-    for (loc, handle) in handles {
-        if let Some(tf) = tag_files.get(&handle) {
-            let ids = TagRegistry::resolve_tag_file(tf, &tag_files, &registry);
-            resolved += ids.len();
-            tags.insert(loc, ids);
-        } else {
-            tracing::warn!("block tag file not available at WorldgenFreeze: {loc}");
-        }
-    }
-    tracing::info!(resolved_entries = resolved, "resolved TagRegistry<Block>");
-}
 
 /// Resolve infiniburn tag files from loaded `DimensionType` assets into
-/// `TagRegistry<Block>`. The tag files were loaded as sub-assets by
+/// the block `TagLoader`. The tag files were loaded as sub-assets by
 /// `DimensionTypeLoader`, so they're guaranteed to be available here.
 fn resolve_infiniburn_tags(
-    mut tags: ResMut<TagRegistry<block::Block>>,
+    mut tags: ResMut<TagLoader<block::Block>>,
     tag_files: Res<Assets<TagFile>>,
     registry: Res<StaticRegistry<block::Block>>,
     dim_types: Res<Assets<DimensionType>>,
@@ -461,96 +400,20 @@ fn resolve_infiniburn_tags(
     for (_id, dim_type) in dim_types.iter() {
         let key = dim_type.infiniburn.key();
         if let Some(tf) = tag_files.get(dim_type.infiniburn.handle()) {
-            let ids = TagRegistry::resolve_tag_file(tf, &tag_files, &registry);
-            resolved += ids.len();
-            tags.insert(key.location().clone(), ids);
+            tags.resolve_and_insert(key.location().clone(), tf, &tag_files, &*registry);
+            resolved += 1;
         } else {
             tracing::warn!("infiniburn tag file not available at WorldgenFreeze: {}", key.as_str());
         }
     }
     if resolved > 0 {
-        tracing::info!(resolved_entries = resolved, "resolved infiniburn tags");
+        tracing::info!(resolved_tags = resolved, "resolved infiniburn tags");
     }
 }
 
-fn resolve_item_tags(
-    mut tags: ResMut<TagRegistry<item::Item>>,
-    tag_files: Res<Assets<TagFile>>,
-    registry: Res<StaticRegistry<item::Item>>,
-) {
-    let handles = tags.drain_handles();
-    let mut resolved = 0usize;
-    for (loc, handle) in handles {
-        if let Some(tf) = tag_files.get(&handle) {
-            let ids = TagRegistry::resolve_tag_file(tf, &tag_files, &registry);
-            resolved += ids.len();
-            tags.insert(loc, ids);
-        } else {
-            tracing::warn!("item tag file not available at WorldgenFreeze: {loc}");
-        }
-    }
-    tracing::info!(resolved_entries = resolved, "resolved TagRegistry<Item>");
-}
 
-fn resolve_enchantment_tags(
-    mut tags: ResMut<TagRegistry<EnchantmentData>>,
-    tag_files: Res<Assets<TagFile>>,
-    registry: Res<StaticRegistry<EnchantmentData>>,
-) {
-    let handles = tags.drain_handles();
-    let mut resolved = 0usize;
-    for (loc, handle) in handles {
-        if let Some(tf) = tag_files.get(&handle) {
-            let ids = TagRegistry::resolve_tag_file(tf, &tag_files, &registry);
-            resolved += ids.len();
-            tags.insert(loc, ids);
-        } else {
-            tracing::warn!("enchantment tag file not available at WorldgenFreeze: {loc}");
-        }
-    }
-    tracing::info!(resolved_entries = resolved, "resolved TagRegistry<EnchantmentData>");
-}
 
-fn resolve_entity_type_tags(
-    mut tags: ResMut<TagRegistry<entity::EntityType>>,
-    tag_files: Res<Assets<TagFile>>,
-    registry: Res<StaticRegistry<entity::EntityType>>,
-) {
-    let handles = tags.drain_handles();
-    let mut resolved = 0usize;
-    for (loc, handle) in handles {
-        if let Some(tf) = tag_files.get(&handle) {
-            let ids = TagRegistry::resolve_tag_file(tf, &tag_files, &registry);
-            resolved += ids.len();
-            tags.insert(loc, ids);
-        } else {
-            tracing::warn!("entity_type tag file not available at WorldgenFreeze: {loc}");
-        }
-    }
-    tracing::info!(
-        resolved_entries = resolved,
-        "resolved TagRegistry<EntityType>"
-    );
-}
 
-pub fn freeze_static_tags(
-    mut block_tags: ResMut<TagRegistry<block::Block>>,
-    mut item_tags: ResMut<TagRegistry<item::Item>>,
-    mut enchantment_tags: ResMut<TagRegistry<EnchantmentData>>,
-    mut entity_type_tags: ResMut<TagRegistry<entity::EntityType>>,
-    block_registry: Res<StaticRegistry<block::Block>>,
-    item_registry: Res<StaticRegistry<item::Item>>,
-    enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
-    entity_type_registry: Res<StaticRegistry<entity::EntityType>>,
-) {
-    block_tags.freeze(block_registry.len() as u32);
-    item_tags.freeze(item_registry.len() as u32);
-    enchantment_tags.freeze(enchantment_registry.len() as u32);
-    entity_type_tags.freeze(entity_type_registry.len() as u32);
-    tracing::info!(
-        "frozen TagRegistry<Block>, TagRegistry<Item>, TagRegistry<EnchantmentData>, and TagRegistry<EntityType>"
-    );
-}
 
 fn register_static_registries_with_access(
     block_registry: Res<StaticRegistry<block::Block>>,

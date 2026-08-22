@@ -1,19 +1,56 @@
 use crate::registry::StaticId;
+use std::collections::HashSet;
+use std::hash::Hash;
 use std::marker::PhantomData;
 
-/// A compact bitset indexed by `StaticId<T>`, backed by `Vec<u64>`.
-///
-/// After `TagRegistry::freeze()` each tag's membership set is stored as an
-/// `IdBitSet` — membership tests become a single array index + bitmask
-/// instead of a `HashSet` hash probe.
-pub struct IdBitSet<T> {
-    words: Vec<u64>,
-    len: u32,
-    _marker: PhantomData<fn() -> T>,
+/// A dense index into the registry a tag is defined over.
+pub trait TagId: Copy + Eq + Hash + Send + Sync + 'static {
+    fn raw(self) -> u32;
+    fn from_raw(raw: u32) -> Self;
 }
 
+impl TagId for u32 {
+    #[inline]
+    fn raw(self) -> u32 {
+        self
+    }
 
-impl<T> Clone for IdBitSet<T> {
+    #[inline]
+    fn from_raw(raw: u32) -> Self {
+        raw
+    }
+}
+
+impl<T: 'static> TagId for StaticId<T> {
+    #[inline]
+    fn raw(self) -> u32 {
+        self.id
+    }
+
+    #[inline]
+    fn from_raw(raw: u32) -> Self {
+        StaticId::new(raw)
+    }
+}
+
+/// A compact bitset indexed by `I`, backed by `Vec<u64>`.
+///
+/// After `TagLoader::freeze()` each tag's membership set is stored as a
+/// `BitSet` — membership tests become a single array index + bitmask
+/// instead of a `HashSet` hash probe.
+pub struct BitSet<I> {
+    words: Vec<u64>,
+    len: u32,
+    _marker: PhantomData<fn() -> I>,
+}
+
+/// Bitset over a static registry's typed ids.
+pub type IdBitSet<T> = BitSet<StaticId<T>>;
+
+/// Bitset over a dynamic registry's dense `u32` ids.
+pub type RawBitSet = BitSet<u32>;
+
+impl<I> Clone for BitSet<I> {
     fn clone(&self) -> Self {
         Self {
             words: self.words.clone(),
@@ -23,19 +60,18 @@ impl<T> Clone for IdBitSet<T> {
     }
 }
 
-impl<T> IdBitSet<T> {
-    /// Create an empty bitset with room for IDs in `0..cap`.
+impl<I: TagId> BitSet<I> {
+    /// Create an empty bitset with room for ids in `0..cap`.
     pub fn with_capacity(cap: u32) -> Self {
-        let num_words = word_count(cap);
         Self {
-            words: vec![0u64; num_words],
+            words: vec![0u64; word_count(cap)],
             len: 0,
             _marker: PhantomData,
         }
     }
 
     /// Set the bit for `id`. No-op if already set.
-    pub fn insert(&mut self, id: StaticId<T>) {
+    pub fn insert(&mut self, id: I) {
         let raw = id.raw() as usize;
         let (word, bit) = (raw / 64, raw % 64);
         if word >= self.words.len() {
@@ -50,7 +86,7 @@ impl<T> IdBitSet<T> {
 
     /// O(1) membership test: single array index + bitmask.
     #[inline]
-    pub fn contains(&self, id: StaticId<T>) -> bool {
+    pub fn contains(&self, id: I) -> bool {
         let raw = id.raw() as usize;
         let (word, bit) = (raw / 64, raw % 64);
         word < self.words.len() && (self.words[word] & (1u64 << bit)) != 0
@@ -67,24 +103,20 @@ impl<T> IdBitSet<T> {
         self.len == 0
     }
 
-    /// Iterate over all set `StaticId<T>` values using `trailing_zeros()` for
-    /// efficient scanning of sparse words.
-    pub fn iter(&self) -> IdBitSetIter<'_, T> {
-        IdBitSetIter {
+    /// Iterate over all set ids using `trailing_zeros()` for efficient
+    /// scanning of sparse words.
+    pub fn iter(&self) -> BitSetIter<'_, I> {
+        BitSetIter {
             words: &self.words,
             word_idx: 0,
-            current: if self.words.is_empty() {
-                0
-            } else {
-                self.words[0]
-            },
+            current: self.words.first().copied().unwrap_or(0),
             _marker: PhantomData,
         }
     }
 
-    /// Build from a `HashSet<StaticId<T>>` with the given capacity (typically
+    /// Build from a `HashSet<I>` with the given capacity (typically
     /// `registry.len()`). Bridge from the pre-freeze representation.
-    pub fn from_hash_set(set: &std::collections::HashSet<StaticId<T>>, capacity: u32) -> Self {
+    pub fn from_hash_set(set: &HashSet<I>, capacity: u32) -> Self {
         let mut bs = Self::with_capacity(capacity);
         for &id in set {
             bs.insert(id);
@@ -93,24 +125,22 @@ impl<T> IdBitSet<T> {
     }
 }
 
-pub struct IdBitSetIter<'a, T> {
+pub struct BitSetIter<'a, I> {
     words: &'a [u64],
     word_idx: usize,
     current: u64,
-    _marker: PhantomData<fn() -> T>,
+    _marker: PhantomData<fn() -> I>,
 }
 
-impl<T> Iterator for IdBitSetIter<'_, T> {
-    type Item = StaticId<T>;
+impl<I: TagId> Iterator for BitSetIter<'_, I> {
+    type Item = I;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if self.current != 0 {
                 let tz = self.current.trailing_zeros();
-                // Clear the lowest set bit.
                 self.current &= self.current - 1;
-                let raw = (self.word_idx * 64 + tz as usize) as u32;
-                return Some(StaticId::new(raw));
+                return Some(I::from_raw((self.word_idx * 64 + tz as usize) as u32));
             }
             self.word_idx += 1;
             if self.word_idx >= self.words.len() {
@@ -286,5 +316,78 @@ mod tests {
             assert!(bs.contains(id(w * 64 + 63)));
             assert!(!bs.contains(id(w * 64 + 1)));
         }
+    }
+
+    // ── RawBitSet (same storage, plain `u32` ids) ──
+
+    #[test]
+    fn raw_bitset_empty() {
+        let bs = RawBitSet::with_capacity(128);
+        assert_eq!(bs.len(), 0);
+        assert!(bs.is_empty());
+        assert!(!bs.contains(0));
+    }
+
+    #[test]
+    fn raw_bitset_insert_and_contains() {
+        let mut bs = RawBitSet::with_capacity(256);
+        bs.insert(0);
+        bs.insert(63);
+        bs.insert(64);
+        bs.insert(200);
+        assert_eq!(bs.len(), 4);
+        assert!(bs.contains(0));
+        assert!(bs.contains(63));
+        assert!(bs.contains(64));
+        assert!(bs.contains(200));
+        assert!(!bs.contains(1));
+        assert!(!bs.contains(65));
+    }
+
+    #[test]
+    fn raw_bitset_duplicate_insert() {
+        let mut bs = RawBitSet::with_capacity(64);
+        bs.insert(10);
+        assert_eq!(bs.len(), 1);
+        bs.insert(10);
+        assert_eq!(bs.len(), 1);
+    }
+
+    #[test]
+    fn raw_bitset_from_hash_set() {
+        let mut set = HashSet::new();
+        set.insert(5u32);
+        set.insert(10);
+        set.insert(100);
+        let bs = RawBitSet::from_hash_set(&set, 128);
+        assert_eq!(bs.len(), 3);
+        assert!(bs.contains(5));
+        assert!(bs.contains(10));
+        assert!(bs.contains(100));
+        assert!(!bs.contains(0));
+    }
+
+    #[test]
+    fn raw_bitset_iter() {
+        let mut bs = RawBitSet::with_capacity(256);
+        bs.insert(3);
+        bs.insert(7);
+        bs.insert(128);
+        let got: Vec<u32> = bs.iter().collect();
+        assert_eq!(got, vec![3, 7, 128]);
+    }
+
+    #[test]
+    fn raw_bitset_contains_out_of_range() {
+        let bs = RawBitSet::with_capacity(64);
+        assert!(!bs.contains(9999));
+    }
+
+    #[test]
+    fn raw_bitset_zero_capacity() {
+        let bs = RawBitSet::with_capacity(0);
+        assert!(bs.is_empty());
+        assert!(!bs.contains(0));
+        assert_eq!(bs.iter().count(), 0);
     }
 }

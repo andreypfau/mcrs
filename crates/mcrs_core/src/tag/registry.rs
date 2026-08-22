@@ -1,93 +1,123 @@
 use crate::registry::{StaticId, StaticRegistry};
 use crate::resource_location::ResourceLocation;
-use crate::tag::bitset::IdBitSet;
+use crate::tag::bitset::{BitSet, TagId};
+use crate::tag::dyn_index::DynRegistryIndex;
 use crate::tag::file::{TagEntry, TagFile, TagFileSettings};
 use crate::tag::key::{TagKey, TaggedRegistry};
-use bevy_asset::{AssetServer, Assets, Handle};
+use bevy_asset::{AssetServer, Assets, Handle, RecursiveDependencyLoadState};
 use bevy_ecs::resource::Resource;
 use std::collections::{HashMap, HashSet};
+use std::marker::PhantomData;
 use std::sync::Arc;
 
-/// The tag registry for static registry types (blocks, items).
+/// The registry a tag file's element references are resolved against.
+pub trait TagSource: Send + Sync + 'static {
+    type Id: TagId;
+
+    fn id_of(&self, loc: &str) -> Option<Self::Id>;
+
+    /// Upper bound on ids, used to size the frozen bitsets.
+    fn capacity(&self) -> u32;
+}
+
+impl<T: Send + Sync + 'static> TagSource for StaticRegistry<T> {
+    type Id = StaticId<T>;
+
+    fn id_of(&self, loc: &str) -> Option<StaticId<T>> {
+        StaticRegistry::id_of(self, loc)
+    }
+
+    fn capacity(&self) -> u32 {
+        self.len() as u32
+    }
+}
+
+impl<T: TaggedRegistry + Send + Sync + 'static> TagSource for DynRegistryIndex<T> {
+    type Id = u32;
+
+    fn id_of(&self, loc: &str) -> Option<u32> {
+        DynRegistryIndex::get(self, loc)
+    }
+
+    fn capacity(&self) -> u32 {
+        self.len()
+    }
+}
+
+/// Recursively expand a `TagFile` into the set of ids it names.
 ///
-/// Two-phase lifecycle:
-/// - **Loading** (`LoadingState`): mutable `HashMap<RL, HashSet<StaticId<T>>>`
-///   for requesting tag files and inserting resolved entries.
-/// - **Frozen**: immutable `HashMap<RL, usize>` index into a dense
-///   `Vec<IdBitSet<T>>`. Membership tests become a single bit check.
+/// `#tag` references are followed through nested tag file handles; plain
+/// element references are looked up in `source`.
+pub fn resolve_tag_file<S: TagSource>(
+    tag_file: &TagFile,
+    all_files: &Assets<TagFile>,
+    source: &S,
+) -> HashSet<S::Id> {
+    let mut out = HashSet::new();
+    for entry in &tag_file.values {
+        match entry {
+            TagEntry::Element(loc) => match source.id_of(loc.as_str()) {
+                Some(id) => {
+                    out.insert(id);
+                }
+                None => tracing::warn!("tag references unknown registry entry: {loc}"),
+            },
+            TagEntry::OptionalElement(loc) => {
+                if let Some(id) = source.id_of(loc.as_str()) {
+                    out.insert(id);
+                }
+            }
+            TagEntry::Tag(h) | TagEntry::OptionalTag(h) => {
+                if let Some(nested) = all_files.get(h) {
+                    out.extend(resolve_tag_file(nested, all_files, source));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The loading half of a tagged registry: requests tag files, collects
+/// resolved membership sets, and is consumed by [`TagLoader::freeze`].
 ///
-/// Internal storage uses `ResourceLocation<Arc<str>>` keys. Lookups accept
-/// `&str` via `Borrow<str>` for zero-allocation access from any
-/// `ResourceLocation` variant.
+/// Its presence in the world *is* the loading phase — the frozen
+/// [`TagRegistry`] only exists once this has been consumed, so no reader can
+/// ask a membership question against half-loaded data.
 #[derive(Resource)]
-pub struct TagRegistry<T: TaggedRegistry + 'static> {
-    /// Loading state (request + insert). `None` after `freeze()`.
-    loading: Option<LoadingState<T>>,
-    /// Post-freeze: tag RL → index into `bitsets`.
-    index: HashMap<ResourceLocation<Arc<str>>, usize>,
-    /// Post-freeze: dense bitset storage, indexed by tag slot.
-    bitsets: Vec<IdBitSet<T>>,
-}
-
-struct LoadingState<T: TaggedRegistry + 'static> {
-    inner: HashMap<ResourceLocation<Arc<str>>, HashSet<StaticId<T>>>,
+pub struct TagLoader<T: TaggedRegistry + 'static, I: TagId = StaticId<T>> {
+    requested: &'static [TagKey<T>],
     handles: HashMap<ResourceLocation<Arc<str>>, Handle<TagFile>>,
+    resolved: HashMap<ResourceLocation<Arc<str>>, HashSet<I>>,
 }
 
+pub type DynTagLoader<T> = TagLoader<T, u32>;
 
-impl<T: TaggedRegistry + 'static> Clone for LoadingState<T> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            handles: self.handles.clone(),
-        }
-    }
-}
-
-impl<T: TaggedRegistry + 'static> Clone for TagRegistry<T> {
-    fn clone(&self) -> Self {
-        Self {
-            loading: self.loading.clone(),
-            index: self.index.clone(),
-            bitsets: self.bitsets.clone(),
-        }
-    }
-}
-
-impl<T: TaggedRegistry + 'static> Default for TagRegistry<T> {
+impl<T: TaggedRegistry + 'static, I: TagId> Default for TagLoader<T, I> {
     fn default() -> Self {
-        TagRegistry {
-            loading: Some(LoadingState {
-                inner: HashMap::new(),
-                handles: HashMap::new(),
-            }),
-            index: HashMap::new(),
-            bitsets: Vec::new(),
-        }
+        Self::new(&[])
     }
 }
 
-impl<T: TaggedRegistry + 'static> TagRegistry<T> {
-    pub fn new() -> Self {
-        Self::default()
+impl<T: TaggedRegistry + 'static, I: TagId> TagLoader<T, I> {
+    pub fn new(requested: &'static [TagKey<T>]) -> Self {
+        TagLoader {
+            requested,
+            handles: HashMap::new(),
+            resolved: HashMap::new(),
+        }
     }
 
-    /// Request a tag to be loaded. Call once per tag during plugin Startup.
+    /// The tag list this loader was declared with.
+    pub fn requested(&self) -> &'static [TagKey<T>] {
+        self.requested
+    }
+
+    /// Request a tag file to be loaded. No-op if already requested.
     ///
-    /// No-op if the tag was already requested. Loading uses `TagFileSettings`
-    /// so the loader can resolve nested `#tag` references correctly.
-    ///
-    /// Generic over `S` so both static (`TagKey<T>`) and runtime
-    /// (`TagKey<T, Arc<str>>`) tag keys can be used.
-    ///
-    /// # Panics
-    /// Panics if called after `freeze()`.
+    /// Loading uses `TagFileSettings` so the loader can resolve nested `#tag`
+    /// references correctly.
     pub fn request<S: AsRef<str>>(&mut self, key: &TagKey<T, S>, asset_server: &AssetServer) {
-        let m = self
-            .loading
-            .as_mut()
-            .expect("request() called after freeze()");
-        if m.handles.contains_key(key.as_str()) {
+        if self.handles.contains_key(key.as_str()) {
             return;
         }
         let segment = T::REGISTRY_PATH.to_string();
@@ -95,192 +125,159 @@ impl<T: TaggedRegistry + 'static> TagRegistry<T> {
             .load_with_settings::<TagFile, TagFileSettings>(key.asset_path(), move |s| {
                 s.registry_segment = segment.clone()
             });
-        m.handles.insert(key.to_arc().location().clone(), handle);
+        self.handles.insert(key.to_arc().location().clone(), handle);
     }
 
-    /// Drain all pending tag handles. Call at WorldgenFreeze to get handles for resolution.
-    ///
-    /// # Panics
-    /// Panics if called after `freeze()`.
+    /// Take all pending tag handles for resolution.
     pub fn drain_handles(&mut self) -> Vec<(ResourceLocation<Arc<str>>, Handle<TagFile>)> {
-        let m = self
-            .loading
-            .as_mut()
-            .expect("drain_handles() called after freeze()");
-        m.handles.drain().collect()
+        self.handles.drain().collect()
     }
 
-    /// Insert a resolved tag set (called during the WorldgenFreeze phase).
-    ///
-    /// # Panics
-    /// Panics if called after `freeze()`.
-    pub fn insert(&mut self, loc: ResourceLocation<Arc<str>>, ids: HashSet<StaticId<T>>) {
-        let m = self
-            .loading
-            .as_mut()
-            .expect("insert() called after freeze()");
-        m.inner.insert(loc, ids);
+    pub fn insert(&mut self, loc: ResourceLocation<Arc<str>>, ids: HashSet<I>) {
+        self.resolved.insert(loc, ids);
     }
 
-    /// Convert all `HashSet` tag data into dense `IdBitSet` storage.
-    ///
-    /// After this call, `contains()` uses a bit test instead of a hash lookup.
-    /// `request()`, `drain_handles()`, and `insert()` will panic.
-    pub fn freeze(&mut self, registry_len: u32) {
-        let m = self.loading.take().expect("freeze() called twice");
-        let mut index = HashMap::with_capacity(m.inner.len());
-        let mut bitsets = Vec::with_capacity(m.inner.len());
-        for (loc, set) in m.inner {
-            let slot = bitsets.len();
-            bitsets.push(IdBitSet::from_hash_set(&set, registry_len));
-            index.insert(loc, slot);
-        }
-        self.index = index;
-        self.bitsets = bitsets;
-    }
-
-    /// Check whether `id` is a member of the given tag (typed `TagKey`).
-    /// Zero-alloc: uses `Borrow<str>` for lookup.
-    ///
-    /// After `freeze()`: HashMap string lookup + bit test.
-    /// Before `freeze()`: HashMap string lookup + HashSet probe (fallback).
-    pub fn contains<S: AsRef<str>>(&self, tag: &TagKey<T, S>, id: StaticId<T>) -> bool {
-        if let Some(m) = &self.loading {
-            // Pre-freeze fallback.
-            m.inner
-                .get(tag.as_str())
-                .map_or(false, |set| set.contains(&id))
-        } else {
-            // Post-freeze fast path.
-            self.index
-                .get(tag.as_str())
-                .map_or(false, |&slot| self.bitsets[slot].contains(id))
-        }
-    }
-
-    /// Return the bitset for a tag, or `None` if not loaded / not frozen.
-    pub fn get<S: AsRef<str>>(&self, tag: &TagKey<T, S>) -> Option<&IdBitSet<T>> {
-        let &slot = self.index.get(tag.as_str())?;
-        Some(&self.bitsets[slot])
-    }
-
-    /// Number of tags still pending resolution (not yet drained).
-    pub fn pending_handles_count(&self) -> usize {
-        self.loading.as_ref().map_or(0, |m| m.handles.len())
-    }
-
-    /// Returns `true` once every pending handle (and all its recursive dependencies)
-    /// is fully loaded by Bevy's asset system.
-    pub fn all_handles_loaded(&self, asset_server: &AssetServer) -> bool {
-        match &self.loading {
-            Some(m) => m
-                .handles
-                .values()
-                .all(|h| asset_server.is_loaded_with_dependencies(h.id())),
-            None => true,
-        }
-    }
-
-    /// Returns `true` once every pending handle has either fully loaded or
-    /// failed to load. Use this gate when missing tag files must not stall
-    /// startup forever; resolution will emit a warning per missing file.
-    pub fn all_handles_settled(&self, asset_server: &AssetServer) -> bool {
-        use bevy_asset::LoadState;
-        match &self.loading {
-            Some(m) => m.handles.values().all(|h| {
-                matches!(
-                    asset_server.load_state(h.id()),
-                    LoadState::Loaded | LoadState::Failed(_)
-                )
-            }),
-            None => true,
-        }
-    }
-
-    /// Returns `true` if no tags have been resolved yet.
-    pub fn is_empty(&self) -> bool {
-        if let Some(m) = &self.loading {
-            m.inner.is_empty()
-        } else {
-            self.bitsets.is_empty()
-        }
-    }
-
-    /// Returns `true` if `freeze()` has been called.
-    pub fn is_frozen(&self) -> bool {
-        self.loading.is_none()
-    }
-
-    /// Iterate over all resolved (tag RL, bitset) pairs.
-    /// Only available after `freeze()`.
-    pub fn iter(&self) -> impl Iterator<Item = (&ResourceLocation<Arc<str>>, &IdBitSet<T>)> {
-        self.index
-            .iter()
-            .map(|(loc, &slot)| (loc, &self.bitsets[slot]))
-    }
-
-    /// Recursively expand a `TagFile` into a set of `StaticId<T>`.
-    ///
-    /// Resolves `#tag` references by following nested tag file handles,
-    /// and plain element references by looking up the static registry.
-    pub fn resolve_tag_file(
-        tag_file: &TagFile,
-        all_files: &Assets<TagFile>,
-        registry: &StaticRegistry<T>,
-    ) -> HashSet<StaticId<T>> {
-        let mut out = HashSet::new();
-        for entry in &tag_file.values {
-            match entry {
-                TagEntry::Element(loc) => {
-                    if let Some(id) = registry.id_of(loc.as_str()) {
-                        out.insert(id);
-                    } else {
-                        tracing::warn!("tag references unknown registry entry: {loc}");
-                    }
-                }
-                TagEntry::OptionalElement(loc) => {
-                    if let Some(id) = registry.id_of(loc.as_str()) {
-                        out.insert(id);
-                    }
-                }
-                TagEntry::Tag(h) | TagEntry::OptionalTag(h) => {
-                    if let Some(nested) = all_files.get(h) {
-                        out.extend(Self::resolve_tag_file(nested, all_files, registry));
-                    }
-                }
-            }
-        }
-        out
-    }
-
-    /// Resolve a tag file and insert the result into this registry in one step.
-    ///
-    /// Convenience wrapper around [`Self::resolve_tag_file`] + [`Self::insert`].
-    ///
-    /// # Panics
-    /// Panics if called after `freeze()`.
-    pub fn resolve_and_insert(
+    /// Resolve a tag file against `source` and store the result.
+    pub fn resolve_and_insert<S: TagSource<Id = I>>(
         &mut self,
         loc: ResourceLocation<Arc<str>>,
         tag_file: &TagFile,
         all_files: &Assets<TagFile>,
-        registry: &StaticRegistry<T>,
+        source: &S,
     ) {
-        let ids = Self::resolve_tag_file(tag_file, all_files, registry);
+        let ids = resolve_tag_file(tag_file, all_files, source);
         self.insert(loc, ids);
+    }
+
+    /// Returns `true` once every pending handle and everything it pulls in has
+    /// either loaded or failed. Nested `#tag` references are dependencies, so
+    /// waiting on the tag file alone resolves it against a half-loaded tree.
+    /// Failures count as settled: a missing tag file must not stall startup,
+    /// resolution warns about it instead.
+    pub fn all_handles_settled(&self, asset_server: &AssetServer) -> bool {
+        self.handles.values().all(|h| {
+            matches!(
+                asset_server.recursive_dependency_load_state(h.id()),
+                RecursiveDependencyLoadState::Loaded | RecursiveDependencyLoadState::Failed(_)
+            )
+        })
+    }
+
+    /// Convert the resolved sets into dense bitset storage.
+    pub fn freeze<S: TagSource<Id = I>>(self, source: &S) -> TagRegistry<T, I> {
+        let capacity = source.capacity();
+        let mut index = HashMap::with_capacity(self.resolved.len());
+        let mut bitsets = Vec::with_capacity(self.resolved.len());
+        for (loc, set) in self.resolved {
+            index.insert(loc, bitsets.len());
+            bitsets.push(BitSet::from_hash_set(&set, capacity));
+        }
+        TagRegistry {
+            index,
+            bitsets,
+            _marker: PhantomData,
+        }
+    }
+}
+
+/// A frozen tagged registry: tag `ResourceLocation` → dense bitset of member ids.
+///
+/// Membership is a single bit test instead of a hash probe; the cost is one
+/// `u64` word per 64 registry entries per tag, paid once at freeze.
+#[derive(Resource)]
+pub struct TagRegistry<T: TaggedRegistry + 'static, I: TagId = StaticId<T>> {
+    index: HashMap<ResourceLocation<Arc<str>>, usize>,
+    bitsets: Vec<BitSet<I>>,
+    _marker: PhantomData<fn() -> T>,
+}
+
+pub type DynTagRegistry<T> = TagRegistry<T, u32>;
+
+impl<T: TaggedRegistry + 'static, I: TagId> Default for TagRegistry<T, I> {
+    fn default() -> Self {
+        TagRegistry {
+            index: HashMap::new(),
+            bitsets: Vec::new(),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T: TaggedRegistry + 'static, I: TagId> Clone for TagRegistry<T, I> {
+    fn clone(&self) -> Self {
+        TagRegistry {
+            index: self.index.clone(),
+            bitsets: self.bitsets.clone(),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T: TaggedRegistry + 'static, I: TagId> TagRegistry<T, I> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Check whether `id` is a member of the given tag. Zero-alloc: uses
+    /// `Borrow<str>` for lookup, then one bit test.
+    pub fn contains<S: AsRef<str>>(&self, tag: &TagKey<T, S>, id: I) -> bool {
+        self.index
+            .get(tag.as_str())
+            .is_some_and(|&slot| self.bitsets[slot].contains(id))
+    }
+
+    /// Return the bitset for a tag, or `None` if the tag has no members here.
+    pub fn get<S: AsRef<str>>(&self, tag: &TagKey<T, S>) -> Option<&BitSet<I>> {
+        let &slot = self.index.get(tag.as_str())?;
+        Some(&self.bitsets[slot])
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.bitsets.is_empty()
+    }
+
+    /// Iterate over all (tag RL, bitset) pairs.
+    pub fn iter(&self) -> impl Iterator<Item = (&ResourceLocation<Arc<str>>, &BitSet<I>)> {
+        self.index
+            .iter()
+            .map(|(loc, &slot)| (loc, &self.bitsets[slot]))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::registry::StaticId;
-    use crate::tag::key::TaggedRegistry;
 
-    /// Dummy registry element type for testing.
     struct TestBlock;
     impl TaggedRegistry for TestBlock {
         const REGISTRY_PATH: &'static str = "block";
+    }
+
+    struct TestBiome;
+    impl TaggedRegistry for TestBiome {
+        const REGISTRY_PATH: &'static str = "worldgen/biome";
+    }
+
+    /// A source with no entries beyond a fixed id space, so loader tests can
+    /// freeze without building a whole registry.
+    struct IdSpace<I>(u32, PhantomData<fn() -> I>);
+
+    impl<I: TagId> IdSpace<I> {
+        fn new(capacity: u32) -> Self {
+            IdSpace(capacity, PhantomData)
+        }
+    }
+
+    impl<I: TagId> TagSource for IdSpace<I> {
+        type Id = I;
+
+        fn id_of(&self, _loc: &str) -> Option<I> {
+            None
+        }
+
+        fn capacity(&self) -> u32 {
+            self.0
+        }
     }
 
     fn id(raw: u32) -> StaticId<TestBlock> {
@@ -291,86 +288,76 @@ mod tests {
         TagKey::new(ResourceLocation::new_static(s))
     }
 
+    fn biome_tag(s: &'static str) -> TagKey<TestBiome> {
+        TagKey::new(ResourceLocation::new_static(s))
+    }
+
     fn rl_arc(s: &str) -> ResourceLocation<Arc<str>> {
         ResourceLocation::parse(s).unwrap()
     }
 
-    // ── Basic lifecycle: new → insert → contains → freeze → contains ──
+    fn block_loader() -> TagLoader<TestBlock> {
+        TagLoader::default()
+    }
+
+    fn set(ids: impl IntoIterator<Item = u32>) -> HashSet<StaticId<TestBlock>> {
+        ids.into_iter().map(id).collect()
+    }
+
+    // ── Lifecycle: insert → freeze → query ──
 
     #[test]
-    fn new_is_empty_and_not_frozen() {
-        let st = TagRegistry::<TestBlock>::new();
-        assert!(st.is_empty());
-        assert!(!st.is_frozen());
+    fn empty_loader_freezes_to_empty_registry() {
+        let reg = block_loader().freeze(&IdSpace::new(64));
+        assert!(reg.is_empty());
+        assert_eq!(reg.iter().count(), 0);
     }
 
     #[test]
-    fn insert_and_contains_before_freeze() {
-        let mut st = TagRegistry::<TestBlock>::new();
-        let mut set = HashSet::new();
-        set.insert(id(0));
-        set.insert(id(5));
-        set.insert(id(10));
-        st.insert(rl_arc("minecraft:mineable/pickaxe"), set);
+    fn insert_then_contains_after_freeze() {
+        let mut loader = block_loader();
+        loader.insert(rl_arc("minecraft:mineable/pickaxe"), set([0, 5, 10]));
+        let reg = loader.freeze(&IdSpace::new(128));
 
-        assert!(!st.is_empty());
-        assert!(!st.is_frozen());
+        assert!(!reg.is_empty());
 
         let tag = tag("minecraft:mineable/pickaxe");
-        assert!(st.contains(&tag, id(0)));
-        assert!(st.contains(&tag, id(5)));
-        assert!(st.contains(&tag, id(10)));
-        assert!(!st.contains(&tag, id(1)));
-        assert!(!st.contains(&tag, id(99)));
+        assert!(reg.contains(&tag, id(0)));
+        assert!(reg.contains(&tag, id(5)));
+        assert!(reg.contains(&tag, id(10)));
+        assert!(!reg.contains(&tag, id(1)));
+        assert!(!reg.contains(&tag, id(99)));
     }
 
     #[test]
     fn contains_unknown_tag_returns_false() {
-        let st = TagRegistry::<TestBlock>::new();
-        let tag = tag("minecraft:nonexistent");
-        assert!(!st.contains(&tag, id(0)));
+        let reg = block_loader().freeze(&IdSpace::new(64));
+        assert!(!reg.contains(&tag("minecraft:nonexistent"), id(0)));
     }
 
     #[test]
     fn freeze_converts_to_bitset() {
-        let mut st = TagRegistry::<TestBlock>::new();
-        let mut set = HashSet::new();
-        set.insert(id(2));
-        set.insert(id(7));
-        set.insert(id(63));
-        set.insert(id(64));
-        st.insert(rl_arc("minecraft:logs"), set);
-
-        st.freeze(128);
-
-        assert!(st.is_frozen());
-        assert!(!st.is_empty());
+        let mut loader = block_loader();
+        loader.insert(rl_arc("minecraft:logs"), set([2, 7, 63, 64]));
+        let reg = loader.freeze(&IdSpace::new(128));
 
         let tag = tag("minecraft:logs");
-        assert!(st.contains(&tag, id(2)));
-        assert!(st.contains(&tag, id(7)));
-        assert!(st.contains(&tag, id(63)));
-        assert!(st.contains(&tag, id(64)));
-        assert!(!st.contains(&tag, id(0)));
-        assert!(!st.contains(&tag, id(65)));
-        assert!(!st.contains(&tag, id(127)));
+        assert!(reg.contains(&tag, id(2)));
+        assert!(reg.contains(&tag, id(7)));
+        assert!(reg.contains(&tag, id(63)));
+        assert!(reg.contains(&tag, id(64)));
+        assert!(!reg.contains(&tag, id(0)));
+        assert!(!reg.contains(&tag, id(65)));
+        assert!(!reg.contains(&tag, id(127)));
     }
 
     #[test]
     fn get_returns_bitset_after_freeze() {
-        let mut st = TagRegistry::<TestBlock>::new();
-        let mut set = HashSet::new();
-        set.insert(id(3));
-        set.insert(id(42));
-        st.insert(rl_arc("minecraft:sand"), set);
+        let mut loader = block_loader();
+        loader.insert(rl_arc("minecraft:sand"), set([3, 42]));
+        let reg = loader.freeze(&IdSpace::new(64));
 
-        // get() returns None before freeze (only index is populated after freeze).
-        let tag = tag("minecraft:sand");
-        assert!(st.get(&tag).is_none());
-
-        st.freeze(64);
-
-        let bs = st.get(&tag).expect("tag should exist after freeze");
+        let bs = reg.get(&tag("minecraft:sand")).expect("tag should exist");
         assert_eq!(bs.len(), 2);
         assert!(bs.contains(id(3)));
         assert!(bs.contains(id(42)));
@@ -379,64 +366,41 @@ mod tests {
 
     #[test]
     fn get_unknown_tag_returns_none() {
-        let mut st = TagRegistry::<TestBlock>::new();
-        st.freeze(64);
-        let tag = tag("minecraft:nope");
-        assert!(st.get(&tag).is_none());
+        let reg = block_loader().freeze(&IdSpace::new(64));
+        assert!(reg.get(&tag("minecraft:nope")).is_none());
     }
-
-    // ── Multiple tags ──
 
     #[test]
     fn multiple_tags_independent() {
-        let mut st = TagRegistry::<TestBlock>::new();
-
-        let mut set_a = HashSet::new();
-        set_a.insert(id(1));
-        set_a.insert(id(2));
-        st.insert(rl_arc("minecraft:logs"), set_a);
-
-        let mut set_b = HashSet::new();
-        set_b.insert(id(2));
-        set_b.insert(id(3));
-        st.insert(rl_arc("minecraft:leaves"), set_b);
-
-        st.freeze(64);
+        let mut loader = block_loader();
+        loader.insert(rl_arc("minecraft:logs"), set([1, 2]));
+        loader.insert(rl_arc("minecraft:leaves"), set([2, 3]));
+        let reg = loader.freeze(&IdSpace::new(64));
 
         let logs = tag("minecraft:logs");
         let leaves = tag("minecraft:leaves");
 
-        assert!(st.contains(&logs, id(1)));
-        assert!(st.contains(&logs, id(2)));
-        assert!(!st.contains(&logs, id(3)));
+        assert!(reg.contains(&logs, id(1)));
+        assert!(reg.contains(&logs, id(2)));
+        assert!(!reg.contains(&logs, id(3)));
 
-        assert!(!st.contains(&leaves, id(1)));
-        assert!(st.contains(&leaves, id(2)));
-        assert!(st.contains(&leaves, id(3)));
+        assert!(!reg.contains(&leaves, id(1)));
+        assert!(reg.contains(&leaves, id(2)));
+        assert!(reg.contains(&leaves, id(3)));
     }
-
-    // ── iter() ──
 
     #[test]
     fn iter_yields_all_tags() {
-        let mut st = TagRegistry::<TestBlock>::new();
+        let mut loader = block_loader();
+        loader.insert(rl_arc("minecraft:wool"), set([10]));
+        loader.insert(rl_arc("minecraft:snow"), set([20]));
+        let reg = loader.freeze(&IdSpace::new(64));
 
-        let mut set1 = HashSet::new();
-        set1.insert(id(10));
-        st.insert(rl_arc("minecraft:wool"), set1);
-
-        let mut set2 = HashSet::new();
-        set2.insert(id(20));
-        st.insert(rl_arc("minecraft:snow"), set2);
-
-        st.freeze(64);
-
-        let mut tag_names: Vec<String> = st.iter().map(|(rl, _)| rl.as_str().to_string()).collect();
+        let mut tag_names: Vec<String> = reg.iter().map(|(rl, _)| rl.as_str().to_string()).collect();
         tag_names.sort();
         assert_eq!(tag_names, vec!["minecraft:snow", "minecraft:wool"]);
 
-        // Verify each bitset has the right content.
-        for (rl, bs) in st.iter() {
+        for (rl, bs) in reg.iter() {
             match rl.as_str() {
                 "minecraft:wool" => {
                     assert_eq!(bs.len(), 1);
@@ -452,91 +416,131 @@ mod tests {
     }
 
     #[test]
-    fn iter_empty_after_freeze() {
-        let mut st = TagRegistry::<TestBlock>::new();
-        st.freeze(64);
-        assert_eq!(st.iter().count(), 0);
-    }
-
-    // ── is_empty ──
-
-    #[test]
-    fn is_empty_after_freeze_with_no_tags() {
-        let mut st = TagRegistry::<TestBlock>::new();
-        st.freeze(64);
-        assert!(st.is_empty());
-    }
-
-    #[test]
     fn is_empty_false_after_freeze_with_tags() {
-        let mut st = TagRegistry::<TestBlock>::new();
-        let mut set = HashSet::new();
-        set.insert(id(0));
-        st.insert(rl_arc("minecraft:test"), set);
-        st.freeze(64);
-        assert!(!st.is_empty());
-    }
-
-    // ── Panic guards ──
-
-    #[test]
-    #[should_panic(expected = "freeze() called twice")]
-    fn double_freeze_panics() {
-        let mut st = TagRegistry::<TestBlock>::new();
-        st.freeze(64);
-        st.freeze(64);
+        let mut loader = block_loader();
+        loader.insert(rl_arc("minecraft:test"), set([0]));
+        assert!(!loader.freeze(&IdSpace::new(64)).is_empty());
     }
 
     #[test]
-    #[should_panic(expected = "insert() called after freeze()")]
-    fn insert_after_freeze_panics() {
-        let mut st = TagRegistry::<TestBlock>::new();
-        st.freeze(64);
-        st.insert(rl_arc("minecraft:test"), HashSet::new());
-    }
-
-    #[test]
-    #[should_panic(expected = "drain_handles() called after freeze()")]
-    fn drain_handles_after_freeze_panics() {
-        let mut st = TagRegistry::<TestBlock>::new();
-        st.freeze(64);
-        let _ = st.drain_handles();
-    }
-
-    // ── Consistency: pre-freeze HashSet vs post-freeze bitset ──
-
-    #[test]
-    fn contains_matches_before_and_after_freeze() {
-        let mut st = TagRegistry::<TestBlock>::new();
+    fn contains_matches_the_inserted_set() {
         let ids: Vec<u32> = vec![0, 1, 15, 63, 64, 100, 127, 255, 500, 999];
-        let mut set = HashSet::new();
-        for &raw in &ids {
-            set.insert(id(raw));
-        }
-        st.insert(rl_arc("minecraft:big_tag"), set);
+        let mut loader = block_loader();
+        loader.insert(rl_arc("minecraft:big_tag"), set(ids.iter().copied()));
+        let reg = loader.freeze(&IdSpace::new(1024));
 
         let tag = tag("minecraft:big_tag");
-
-        // Check pre-freeze.
         for raw in 0..1024 {
-            let expected = ids.contains(&raw);
             assert_eq!(
-                st.contains(&tag, id(raw)),
-                expected,
-                "pre-freeze mismatch at id {raw}"
+                reg.contains(&tag, id(raw)),
+                ids.contains(&raw),
+                "mismatch at id {raw}"
             );
         }
+    }
 
-        st.freeze(1024);
+    // ── The same implementation, keyed by a dynamic registry's `u32` ids ──
 
-        // Check post-freeze — should be identical.
-        for raw in 0..1024 {
-            let expected = ids.contains(&raw);
-            assert_eq!(
-                st.contains(&tag, id(raw)),
-                expected,
-                "post-freeze mismatch at id {raw}"
-            );
-        }
+    #[test]
+    fn dyn_loader_freezes_against_index() {
+        let index = DynRegistryIndex::<TestBiome>::build(
+            vec![
+                rl_arc("minecraft:desert"),
+                rl_arc("minecraft:forest"),
+                rl_arc("minecraft:plains"),
+            ]
+            .into_iter(),
+        );
+
+        let mut loader = DynTagLoader::<TestBiome>::default();
+        loader.insert(rl_arc("minecraft:is_forest"), HashSet::from([0u32, 2]));
+        let reg = loader.freeze(&index);
+
+        let t = biome_tag("minecraft:is_forest");
+        assert!(reg.contains(&t, 0));
+        assert!(reg.contains(&t, 2));
+        assert!(!reg.contains(&t, 1));
+
+        let bs = reg.get(&t).expect("tag should exist");
+        assert_eq!(bs.len(), 2);
+
+        let names: Vec<String> = reg.iter().map(|(rl, _)| rl.as_str().to_string()).collect();
+        assert_eq!(names, vec!["minecraft:is_forest"]);
+    }
+
+    #[test]
+    fn dyn_registry_is_empty_when_nothing_resolved() {
+        let index = DynRegistryIndex::<TestBiome>::build(std::iter::empty());
+        let reg = DynTagLoader::<TestBiome>::default().freeze(&index);
+        assert!(reg.is_empty());
+        assert_eq!(reg.iter().count(), 0);
+    }
+
+    // ── resolve_tag_file ──
+
+    fn biome_index() -> DynRegistryIndex<TestBiome> {
+        DynRegistryIndex::build(
+            vec![
+                rl_arc("minecraft:desert"),
+                rl_arc("minecraft:forest"),
+                rl_arc("minecraft:plains"),
+            ]
+            .into_iter(),
+        )
+    }
+
+    #[test]
+    fn resolve_elements() {
+        let tag_file = TagFile {
+            replace: false,
+            values: vec![
+                TagEntry::Element(rl_arc("minecraft:forest")),
+                TagEntry::Element(rl_arc("minecraft:plains")),
+            ],
+        };
+
+        let all_files = Assets::<TagFile>::default();
+        let result = resolve_tag_file(&tag_file, &all_files, &biome_index());
+        assert!(result.contains(&1));
+        assert!(result.contains(&2));
+        assert!(!result.contains(&0));
+    }
+
+    #[test]
+    fn resolve_optional_element_missing() {
+        let index = DynRegistryIndex::<TestBiome>::build(std::iter::empty());
+        let tag_file = TagFile {
+            replace: false,
+            values: vec![TagEntry::OptionalElement(rl_arc("minecraft:nonexistent"))],
+        };
+
+        let all_files = Assets::<TagFile>::default();
+        assert!(resolve_tag_file(&tag_file, &all_files, &index).is_empty());
+    }
+
+    #[test]
+    fn resolve_follows_nested_tag_references() {
+        let mut all_files = Assets::<TagFile>::default();
+        let leaf = all_files.add(TagFile {
+            replace: false,
+            values: vec![TagEntry::Element(rl_arc("minecraft:desert"))],
+        });
+        let middle = all_files.add(TagFile {
+            replace: false,
+            values: vec![
+                TagEntry::Tag(leaf),
+                TagEntry::Element(rl_arc("minecraft:forest")),
+            ],
+        });
+        let root = TagFile {
+            replace: false,
+            values: vec![
+                TagEntry::OptionalTag(middle),
+                TagEntry::Element(rl_arc("minecraft:plains")),
+            ],
+        };
+
+        let result = resolve_tag_file(&root, &all_files, &biome_index());
+        assert_eq!(result, HashSet::from([0, 1, 2]));
     }
 }

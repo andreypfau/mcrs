@@ -449,10 +449,10 @@ fn on_known_packs_response(
     mut query: Query<(Entity, &mut ServerSideConnection), With<AwaitingKnownPacks>>,
     access: Res<RegistryAccess>,
     dimension_types: Res<LoadedDimensionTypes>,
-    block_tags: Res<TagRegistry<VanillaBlock>>,
-    item_tags: Res<TagRegistry<VanillaItem>>,
-    enchantment_tags: Res<TagRegistry<EnchantmentData>>,
-    entity_type_tags: Res<TagRegistry<VanillaEntityType>>,
+    block_tags: Option<Res<TagRegistry<VanillaBlock>>>,
+    item_tags: Option<Res<TagRegistry<VanillaItem>>>,
+    enchantment_tags: Option<Res<TagRegistry<EnchantmentData>>>,
+    entity_type_tags: Option<Res<TagRegistry<VanillaEntityType>>>,
     mut commands: Commands,
 ) {
     let Ok((entity, mut con)) = query.get_mut(event.entity) else {
@@ -544,7 +544,7 @@ fn on_known_packs_response(
     // registries.
     let mut tag_registries = Vec::new();
 
-    if !block_tags.is_empty() {
+    if let Some(block_tags) = block_tags.as_deref().filter(|t| !t.is_empty()) {
         let groups: Vec<TagGroup> = block_tags
             .iter()
             .map(|(tag_loc, bitset)| TagGroup {
@@ -558,7 +558,7 @@ fn on_known_packs_response(
             tags: groups,
         });
     }
-    if !item_tags.is_empty() {
+    if let Some(item_tags) = item_tags.as_deref().filter(|t| !t.is_empty()) {
         let groups: Vec<TagGroup> = item_tags
             .iter()
             .map(|(tag_loc, bitset)| TagGroup {
@@ -572,7 +572,7 @@ fn on_known_packs_response(
             tags: groups,
         });
     }
-    if !enchantment_tags.is_empty() {
+    if let Some(enchantment_tags) = enchantment_tags.as_deref().filter(|t| !t.is_empty()) {
         let groups: Vec<TagGroup> = enchantment_tags
             .iter()
             .map(|(tag_loc, bitset)| TagGroup {
@@ -586,7 +586,7 @@ fn on_known_packs_response(
             tags: groups,
         });
     }
-    if !entity_type_tags.is_empty() {
+    if let Some(entity_type_tags) = entity_type_tags.as_deref().filter(|t| !t.is_empty()) {
         let groups: Vec<TagGroup> = entity_type_tags
             .iter()
             .map(|(tag_loc, bitset)| TagGroup {
