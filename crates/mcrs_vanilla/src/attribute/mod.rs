@@ -16,7 +16,7 @@ pub use lerp::Lerp;
 pub use modifier::{ModifierError, Operation, apply};
 pub use registry::{
     AttributeError, AttributeRange, AttributeSpec, AttributeType, AttributeValue,
-    ENVIRONMENT_ATTRIBUTES, attribute, is_syncable,
+    ENVIRONMENT_ATTRIBUTES, RawArgument, attribute, is_syncable,
 };
 
 /// `EnvironmentAttributeMap`: attribute id to a modifier applied to that attribute.

@@ -1,31 +1,61 @@
 use std::collections::{BTreeMap, HashMap};
-
-use serde::de::IntoDeserializer;
+use std::ops::Deref;
+use std::sync::Arc;
 
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use serde::{Deserialize, Serialize};
+use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
+use serde::ser::{SerializeMap, SerializeSeq};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use mcrs_core::tag::key::TaggedRegistry;
 
+use crate::ResourceLocation;
 use crate::attribute::{
-    AttributeError, AttributeSpec, AttributeValue, Lerp, ModifierError, Operation, attribute,
+    AttributeSpec, AttributeValue, Lerp, ModifierError, Operation, RawArgument, attribute,
 };
 
-#[derive(Debug, Clone, Deserialize, TypePath)]
+#[derive(Debug, Clone, TypePath)]
 pub struct Timeline {
-    pub clock: String,
-    #[serde(default)]
+    pub clock: ResourceLocation<Arc<str>>,
     pub period_ticks: Option<u32>,
-    #[serde(default)]
-    pub tracks: HashMap<String, Track>,
-    #[serde(default)]
+    pub tracks: Tracks,
     pub time_markers: HashMap<String, TimeMarker>,
 }
 
 impl TaggedRegistry for Timeline {
     const REGISTRY_PATH: &'static str = "timeline";
+}
+
+#[derive(Deserialize)]
+struct TimelineRepr {
+    clock: ResourceLocation<Arc<str>>,
+    #[serde(default)]
+    period_ticks: Option<u32>,
+    #[serde(default)]
+    tracks: Tracks,
+    #[serde(default)]
+    time_markers: HashMap<String, TimeMarker>,
+}
+
+impl<'de> Deserialize<'de> for Timeline {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let repr = TimelineRepr::deserialize(d)?;
+        if let Some(period) = repr.period_ticks {
+            for (id, track) in repr.tracks.iter() {
+                track.validate_period(period).map_err(|kind| {
+                    D::Error::custom(TimelineError { track: (*id).to_owned(), kind })
+                })?;
+            }
+        }
+        Ok(Timeline {
+            clock: repr.clock,
+            period_ticks: repr.period_ticks,
+            tracks: repr.tracks,
+            time_markers: repr.time_markers,
+        })
+    }
 }
 
 /// A time marker as a timeline declares it: a bare tick count, or an object
@@ -72,29 +102,202 @@ impl Serialize for TimeMarker {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Track {
-    pub keyframes: Vec<Keyframe>,
-    #[serde(default)]
-    pub modifier: Option<String>,
-    #[serde(default)]
-    pub ease: Option<serde_json::Value>,
+/// `Timeline.TRACKS_CODEC`, a `Codec.dispatchedMap`: the attribute a key names
+/// chooses the type its track's keyframe values are read and written in.
+#[derive(Debug, Clone, Default)]
+pub struct Tracks(BTreeMap<&'static str, Track>);
+
+impl Deref for Tracks {
+    type Target = BTreeMap<&'static str, Track>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl FromIterator<Track> for Tracks {
+    fn from_iter<I: IntoIterator<Item = Track>>(tracks: I) -> Self {
+        Tracks(
+            tracks
+                .into_iter()
+                .map(|track| (track.attribute.id, track))
+                .collect(),
+        )
+    }
+}
+
+impl<'de> Deserialize<'de> for Tracks {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_map(TracksVisitor)
+    }
+}
+
+struct TracksVisitor;
+
+impl<'de> Visitor<'de> for TracksVisitor {
+    type Value = Tracks;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("a map of environment attribute id to track")
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Tracks, A::Error> {
+        let mut tracks = BTreeMap::new();
+        while let Some(id) = map.next_key::<String>()? {
+            let spec = attribute(&id)
+                .ok_or_else(|| A::Error::custom(TrackError::UnknownAttribute(id.clone())))?;
+            let track = map.next_value_seed(TrackSeed(spec)).map_err(|e| {
+                A::Error::custom(format!("timeline track `{id}`: {e}"))
+            })?;
+            tracks.insert(spec.id, track);
+        }
+        Ok(Tracks(tracks))
+    }
+}
+
+impl Serialize for Tracks {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut map = s.serialize_map(Some(self.0.len()))?;
+        for (id, track) in &self.0 {
+            map.serialize_entry(id, track)?;
+        }
+        map.end()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Track {
+    pub attribute: &'static AttributeSpec,
+    pub keyframes: Vec<Keyframe>,
+    pub modifier: Option<Operation>,
+    pub ease: Option<Easing>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Keyframe {
     pub ticks: u32,
-    pub value: serde_json::Value,
+    pub value: AttributeValue,
+}
+
+/// `AttributeTrack.createCodec(attribute)`: the seed the map key hands its
+/// value, so a keyframe is parsed in the type the (attribute, modifier) pair
+/// selects rather than in whatever shape the JSON happened to have.
+struct TrackSeed(&'static AttributeSpec);
+
+impl<'de> DeserializeSeed<'de> for TrackSeed {
+    type Value = Track;
+
+    fn deserialize<D: Deserializer<'de>>(self, d: D) -> Result<Track, D::Error> {
+        #[derive(Deserialize)]
+        struct RawKeyframe {
+            ticks: u32,
+            value: RawArgument,
+        }
+
+        #[derive(Deserialize)]
+        struct RawTrack {
+            keyframes: Vec<RawKeyframe>,
+            #[serde(default)]
+            modifier: Option<Operation>,
+            #[serde(default)]
+            ease: Option<Easing>,
+        }
+
+        let raw = RawTrack::deserialize(d)?;
+        let modifier = raw.modifier.unwrap_or(Operation::Override);
+        let keyframes = raw
+            .keyframes
+            .iter()
+            .map(|keyframe| {
+                Ok(Keyframe {
+                    ticks: keyframe.ticks,
+                    value: keyframe
+                        .value
+                        .parse(self.0, modifier)
+                        .map_err(D::Error::custom)?,
+                })
+            })
+            .collect::<Result<Vec<_>, D::Error>>()?;
+        validate_keyframes(&keyframes).map_err(D::Error::custom)?;
+
+        Ok(Track {
+            attribute: self.0,
+            keyframes,
+            modifier: raw.modifier,
+            ease: raw.ease,
+        })
+    }
+}
+
+impl Serialize for Track {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut map = s.serialize_map(Some(
+            1 + usize::from(self.modifier.is_some()) + usize::from(self.ease.is_some()),
+        ))?;
+        map.serialize_entry("keyframes", &Keyframes(self))?;
+        if let Some(modifier) = &self.modifier {
+            map.serialize_entry("modifier", modifier)?;
+        }
+        if let Some(ease) = &self.ease {
+            map.serialize_entry("ease", ease)?;
+        }
+        map.end()
+    }
+}
+
+struct Keyframes<'a>(&'a Track);
+
+impl Serialize for Keyframes<'_> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut seq = s.serialize_seq(Some(self.0.keyframes.len()))?;
+        for keyframe in &self.0.keyframes {
+            seq.serialize_element(&KeyframeEntry { track: self.0, keyframe })?;
+        }
+        seq.end()
+    }
+}
+
+struct KeyframeEntry<'a> {
+    track: &'a Track,
+    keyframe: &'a Keyframe,
+}
+
+impl Serialize for KeyframeEntry<'_> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut map = s.serialize_map(Some(2))?;
+        map.serialize_entry("ticks", &self.keyframe.ticks)?;
+        map.serialize_entry(
+            "value",
+            &Argument {
+                spec: self.track.attribute,
+                op: self.track.operation(),
+                value: &self.keyframe.value,
+            },
+        )?;
+        map.end()
+    }
+}
+
+struct Argument<'a> {
+    spec: &'static AttributeSpec,
+    op: Operation,
+    value: &'a AttributeValue,
+}
+
+impl Serialize for Argument<'_> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.spec.serialize_argument(self.op, self.value, s)
+    }
 }
 
 /// Timeline data subset for NETWORK_CODEC — mirrors the fields the vanilla
 /// 26.1 client expects: clock, optional period_ticks, tracks, time_markers.
 #[derive(Debug, Clone, Serialize)]
 pub struct NetworkTimeline {
-    pub clock: String,
+    pub clock: ResourceLocation<Arc<str>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub period_ticks: Option<u32>,
-    pub tracks: HashMap<String, Track>,
+    pub tracks: Tracks,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub time_markers: HashMap<String, TimeMarker>,
 }
@@ -163,47 +366,6 @@ pub enum Easing {
 }
 
 impl Easing {
-    /// An absent `ease` field means `linear`.
-    pub fn parse(ease: Option<&serde_json::Value>) -> Result<Self, TrackError> {
-        let Some(ease) = ease else {
-            return Ok(Easing::Linear);
-        };
-        match ease {
-            serde_json::Value::String(name) => match name.as_str() {
-                "linear" => Ok(Easing::Linear),
-                "constant" => Ok(Easing::Constant),
-                _ => Err(TrackError::UnsupportedEasing(name.clone())),
-            },
-            serde_json::Value::Object(fields) if fields.len() == 1 => {
-                let controls = fields
-                    .get("cubic_bezier")
-                    .and_then(serde_json::Value::as_array)
-                    .filter(|controls| controls.len() == 4)
-                    .map(|controls| {
-                        controls
-                            .iter()
-                            .map(serde_json::Value::as_f64)
-                            .collect::<Option<Vec<_>>>()
-                    });
-                match controls {
-                    Some(Some(controls)) => CubicBezier::new(
-                        controls[0] as f32,
-                        controls[1] as f32,
-                        controls[2] as f32,
-                        controls[3] as f32,
-                    )
-                    .map(Easing::CubicBezier),
-                    _ => match fields.keys().next().map(String::as_str) {
-                        Some("cubic_bezier") => Err(TrackError::MalformedEasing(ease.clone())),
-                        Some(name) => Err(TrackError::UnsupportedEasing(name.to_owned())),
-                        None => Err(TrackError::MalformedEasing(ease.clone())),
-                    },
-                }
-            }
-            other => Err(TrackError::MalformedEasing(other.clone())),
-        }
-    }
-
     pub fn apply(self, x: f32) -> f32 {
         match self {
             Easing::Linear => x,
@@ -213,10 +375,68 @@ impl Easing {
     }
 }
 
+impl<'de> Deserialize<'de> for Easing {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_any(EasingVisitor)
+    }
+}
+
+struct EasingVisitor;
+
+impl<'de> Visitor<'de> for EasingVisitor {
+    type Value = Easing;
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("an easing name or {\"cubic_bezier\": [x1, y1, x2, y2]}")
+    }
+
+    fn visit_str<E: serde::de::Error>(self, name: &str) -> Result<Easing, E> {
+        match name {
+            "linear" => Ok(Easing::Linear),
+            "constant" => Ok(Easing::Constant),
+            _ => Err(E::custom(TrackError::UnsupportedEasing(name.to_owned()))),
+        }
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Easing, A::Error> {
+        let Some(name) = map.next_key::<String>()? else {
+            return Err(A::Error::custom("`ease` object names no curve"));
+        };
+        if name != "cubic_bezier" {
+            return Err(A::Error::custom(TrackError::UnsupportedEasing(name)));
+        }
+        let [x1, y1, x2, y2] = map.next_value::<[f32; 4]>()?;
+        let easing = CubicBezier::new(x1, y1, x2, y2)
+            .map(Easing::CubicBezier)
+            .map_err(A::Error::custom)?;
+        if let Some(extra) = map.next_key::<String>()? {
+            return Err(A::Error::custom(format!(
+                "`ease` object names more than one curve, including `{extra}`"
+            )));
+        }
+        Ok(easing)
+    }
+}
+
+impl Serialize for Easing {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Easing::Linear => s.serialize_str("linear"),
+            Easing::Constant => s.serialize_str("constant"),
+            Easing::CubicBezier(bezier) => {
+                let mut map = s.serialize_map(Some(1))?;
+                map.serialize_entry("cubic_bezier", &bezier.controls)?;
+                map.end()
+            }
+        }
+    }
+}
+
 /// `EasingType.CubicBezier`, with its two cubics derived from the control
 /// points once here rather than on every sample.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CubicBezier {
+    controls: [f32; 4],
     x: CubicCurve,
     y: CubicCurve,
 }
@@ -260,6 +480,7 @@ impl CubicBezier {
             }
         }
         Ok(CubicBezier {
+            controls: [x1, y1, x2, y2],
             x: CubicCurve::from_controls(x1, x2),
             y: CubicCurve::from_controls(y1, y2),
         })
@@ -428,14 +649,10 @@ pub struct TimelineError {
 pub enum TrackError {
     #[error("`{0}` is not an environment attribute; the registry is behind the game version")]
     UnknownAttribute(String),
-    #[error("`{0}` is not a modifier operation")]
-    UnknownModifier(String),
     #[error(
         "`{0}` is not a supported easing; only `linear`, `constant` and `cubic_bezier` are implemented"
     )]
     UnsupportedEasing(String),
-    #[error("`ease` must be a name or `{{\"cubic_bezier\": [x1, y1, x2, y2]}}`, got {0}")]
-    MalformedEasing(serde_json::Value),
     #[error("cubic_bezier control `{name}` is {value}, which is not in range [0; 1]")]
     BezierControl { name: &'static str, value: f32 },
     #[error("keyframes must not be empty")]
@@ -446,81 +663,63 @@ pub enum TrackError {
     RepeatedTick(u32),
     #[error("keyframe at tick {ticks} must be in range [0; {period}]")]
     OutsidePeriod { ticks: u32, period: u32 },
-    #[error(transparent)]
-    Attribute(#[from] AttributeError),
 }
 
 impl Track {
-    /// Validation happens here rather than at load: baking is the only
-    /// consumer, so a track that never bakes can never be sampled wrong.
-    pub fn bake(
-        &self,
-        attribute_id: &str,
-        period_ticks: Option<u32>,
-    ) -> Result<AttributeTrackSampler, TrackError> {
-        let spec = attribute(attribute_id)
-            .ok_or_else(|| TrackError::UnknownAttribute(attribute_id.to_owned()))?;
-        let modifier = match &self.modifier {
-            None => Operation::Override,
-            Some(name) => Operation::deserialize(name.as_str().into_deserializer())
-                .map_err(|_: serde::de::value::Error| TrackError::UnknownModifier(name.clone()))?,
-        };
-        let easing = Easing::parse(self.ease.as_ref())?;
-        self.validate(period_ticks)?;
+    /// An absent `modifier` field means `override`.
+    pub fn operation(&self) -> Operation {
+        self.modifier.unwrap_or(Operation::Override)
+    }
 
-        let keyframes = self
+    /// Everything a sampler needs, derived from keyframes that were already
+    /// typed and ordered when the asset loaded.
+    pub fn bake(&self, period_ticks: Option<u32>) -> AttributeTrackSampler {
+        let modifier = self.operation();
+        let keyframes: Vec<(i64, AttributeValue)> = self
             .keyframes
             .iter()
-            .map(|keyframe| {
-                Ok((
-                    i64::from(keyframe.ticks),
-                    spec.parse_argument(modifier, &keyframe.value)?,
-                ))
-            })
-            .collect::<Result<Vec<_>, TrackError>>()?;
+            .map(|keyframe| (i64::from(keyframe.ticks), keyframe.value.clone()))
+            .collect();
 
-        Ok(AttributeTrackSampler {
-            attribute: spec,
+        AttributeTrackSampler {
+            attribute: self.attribute,
             modifier,
             argument: TrackSampler {
                 period_ticks,
-                easing,
-                lerp: spec.argument_keyframe_lerp(modifier),
+                easing: self.ease.unwrap_or(Easing::Linear),
+                lerp: self.attribute.argument_keyframe_lerp(modifier),
                 segments: bake_segments(&keyframes, period_ticks),
             },
-        })
+        }
     }
 
-    /// `KeyframeTrack.validateKeyframes` and `validatePeriod`.
-    fn validate(&self, period_ticks: Option<u32>) -> Result<(), TrackError> {
-        let Some(first) = self.keyframes.first() else {
-            return Err(TrackError::NoKeyframes);
-        };
-        let (mut previous, mut repeats) = (first.ticks, 0);
-        for keyframe in &self.keyframes {
-            if keyframe.ticks < previous {
-                return Err(TrackError::OutOfOrder(keyframe.ticks));
-            }
-            repeats = if keyframe.ticks == previous {
-                repeats + 1
-            } else {
-                1
-            };
-            if repeats > 2 {
-                return Err(TrackError::RepeatedTick(keyframe.ticks));
-            }
-            if let Some(period) = period_ticks
-                && keyframe.ticks > period
-            {
-                return Err(TrackError::OutsidePeriod {
-                    ticks: keyframe.ticks,
-                    period,
-                });
-            }
-            previous = keyframe.ticks;
+    /// `KeyframeTrack.validatePeriod`. The period is a sibling of `tracks`, so
+    /// this is the one check the track's own seed cannot make.
+    fn validate_period(&self, period: u32) -> Result<(), TrackError> {
+        match self.keyframes.iter().find(|k| k.ticks > period) {
+            Some(keyframe) => Err(TrackError::OutsidePeriod { ticks: keyframe.ticks, period }),
+            None => Ok(()),
         }
-        Ok(())
     }
+}
+
+/// `KeyframeTrack.validateKeyframes`.
+fn validate_keyframes(keyframes: &[Keyframe]) -> Result<(), TrackError> {
+    let Some(first) = keyframes.first() else {
+        return Err(TrackError::NoKeyframes);
+    };
+    let (mut previous, mut repeats) = (first.ticks, 0);
+    for keyframe in keyframes {
+        if keyframe.ticks < previous {
+            return Err(TrackError::OutOfOrder(keyframe.ticks));
+        }
+        repeats = if keyframe.ticks == previous { repeats + 1 } else { 1 };
+        if repeats > 2 {
+            return Err(TrackError::RepeatedTick(keyframe.ticks));
+        }
+        previous = keyframe.ticks;
+    }
+    Ok(())
 }
 
 /// `KeyframeTrackSampler.bakeSegments`.
@@ -560,6 +759,7 @@ fn bake_segments(keyframes: &[(i64, AttributeValue)], period_ticks: Option<u32>)
         .collect()
 }
 
+
 impl Timeline {
     /// The tick this timeline stands at within its own period.
     pub fn current_ticks(&self, total_ticks: i64) -> i64 {
@@ -581,26 +781,26 @@ impl Timeline {
     ///
     /// Derived once from the loaded asset and never invalidated, so the result
     /// is worth keeping; the samplers it holds retain nothing themselves.
-    pub fn bake(&self) -> Result<BTreeMap<String, AttributeTrackSampler>, TimelineError> {
+    pub fn bake(&self) -> BTreeMap<&'static str, AttributeTrackSampler> {
         self.tracks
             .iter()
-            .map(|(id, track)| {
-                let sampler = track
-                    .bake(id, self.period_ticks)
-                    .map_err(|kind| TimelineError {
-                        track: id.clone(),
-                        kind,
-                    })?;
-                Ok((id.clone(), sampler))
-            })
+            .map(|(id, track)| (*id, track.bake(self.period_ticks)))
             .collect()
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_nbt::tag::NbtTag;
+    use serde_json::{Value, json};
     use std::path::PathBuf;
+
+    const SHIPPED: [&str; 4] = [
+        "day.json",
+        "moon.json",
+        "villager_schedule.json",
+        "early_game.json",
+    ];
 
     fn assets_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -611,13 +811,46 @@ mod tests {
             .join("assets")
     }
 
+    fn raw(name: &str) -> Value {
+        let bytes = std::fs::read(assets_dir().join("minecraft/timeline").join(name)).unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    fn timeline(name: &str) -> Timeline {
+        serde_json::from_value(raw(name)).unwrap()
+    }
+
+    /// A one-track timeline read the way a datapack reaches one.
+    fn load(attribute: &str, period_ticks: Option<u32>, track: Value) -> Result<Timeline, String> {
+        let mut doc = json!({"clock": "minecraft:overworld", "tracks": {attribute: track}});
+        if let Some(period) = period_ticks {
+            doc["period_ticks"] = json!(period);
+        }
+        serde_json::from_value(doc).map_err(|e| e.to_string())
+    }
+
+    fn bake_one(
+        attribute: &str,
+        period_ticks: Option<u32>,
+        track: Value,
+    ) -> Result<AttributeTrackSampler, String> {
+        let timeline = load(attribute, period_ticks, track)?;
+        Ok(timeline.tracks[attribute].bake(timeline.period_ticks))
+    }
+
+    /// What the client actually receives, read back as JSON.
+    ///
+    /// Through the text, never `to_value`: a keyframe holds an `f32` and
+    /// `serde_json::Value` has only `f64`, so `to_value` would widen `0.362`
+    /// into `0.3619999885559082` where the encoder writes `0.362`.
+    fn sent(timeline: &Timeline) -> Value {
+        let text = serde_json::to_string(&NetworkTimeline::from(timeline)).unwrap();
+        serde_json::from_str(&text).unwrap()
+    }
+
     #[test]
     fn network_timeline_round_trips_required_fields() {
-        let bytes =
-            std::fs::read(assets_dir().join("minecraft/timeline/villager_schedule.json")).unwrap();
-        let timeline: Timeline = serde_json::from_slice(&bytes).unwrap();
-        let network = NetworkTimeline::from(&timeline);
-        let json = serde_json::to_value(&network).unwrap();
+        let json = sent(&timeline("villager_schedule.json"));
         assert!(json.get("clock").is_some());
         assert!(json.get("tracks").is_some());
         assert_eq!(
@@ -627,25 +860,145 @@ mod tests {
     }
 
     #[test]
-    fn both_time_marker_shapes_survive_the_network_round_trip() {
-        let raw: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(assets_dir().join("minecraft/timeline/day.json")).unwrap())
-                .unwrap();
-        let timeline: Timeline = serde_json::from_value(raw.clone()).unwrap();
+    fn every_shipped_timeline_survives_the_network_round_trip_unchanged() {
+        for name in SHIPPED {
+            assert_eq!(sent(&timeline(name)), raw(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn both_easing_shapes_and_both_marker_shapes_survive_the_round_trip() {
+        let day = timeline("day.json");
 
         assert_eq!(
-            timeline.time_markers["minecraft:day"],
+            day.tracks["minecraft:visual/sun_angle"].ease,
+            Some(Easing::CubicBezier(
+                CubicBezier::new(0.362, 0.241, 0.638, 0.759).unwrap()
+            ))
+        );
+        assert_eq!(
+            day.tracks["minecraft:gameplay/cat_waking_up_gift_chance"].ease,
+            Some(Easing::Constant)
+        );
+        assert_eq!(day.tracks["minecraft:visual/sky_color"].ease, None);
+        assert_eq!(
+            day.time_markers["minecraft:day"],
             TimeMarker { ticks: 1000, show_in_commands: true }
         );
         assert_eq!(
-            timeline.time_markers["minecraft:roll_village_siege"],
+            day.time_markers["minecraft:roll_village_siege"],
             TimeMarker { ticks: 18000, show_in_commands: false }
         );
 
-        let sent = serde_json::to_value(NetworkTimeline::from(&timeline)).unwrap();
-        assert_eq!(sent["time_markers"], raw["time_markers"]);
+        let sent = sent(&day);
+        // the object easing keeps its four controls, the named one stays a name
+        assert_eq!(
+            sent["tracks"]["minecraft:visual/sun_angle"]["ease"],
+            json!({"cubic_bezier": [0.362, 0.241, 0.638, 0.759]})
+        );
+        assert_eq!(
+            sent["tracks"]["minecraft:gameplay/cat_waking_up_gift_chance"]["ease"],
+            json!("constant")
+        );
+        assert!(sent["tracks"]["minecraft:visual/sky_color"].get("ease").is_none());
+        // an absent modifier stays absent rather than being written as `override`
+        assert!(sent["tracks"]["minecraft:visual/sun_angle"].get("modifier").is_none());
+
+        assert_eq!(sent["time_markers"], raw("day.json")["time_markers"]);
         assert!(sent["time_markers"]["minecraft:roll_village_siege"].is_number());
         assert!(sent["time_markers"]["minecraft:day"].is_object());
+    }
+
+    #[test]
+    fn the_nbt_form_types_every_keyframe_the_way_the_client_reads_it() {
+        let day = timeline("day.json");
+        let nbt = mcrs_nbt::to_nbt_compound(&NetworkTimeline::from(&day)).unwrap();
+
+        assert_eq!(nbt.get_string("clock"), Some("minecraft:overworld"));
+        assert_eq!(nbt.get("period_ticks"), Some(&NbtTag::Int(24000)));
+
+        let tracks = nbt.get_compound("tracks").unwrap();
+        let keyframe = |id: &str, index: usize| match &tracks
+            .get_compound(id)
+            .unwrap()
+            .get_list("keyframes")
+            .unwrap()[index]
+        {
+            NbtTag::Compound(fields) => fields.clone(),
+            other => panic!("a keyframe must be a compound, got {other:?}"),
+        };
+        let value = |id: &str, index: usize| keyframe(id, index).get("value").unwrap().clone();
+
+        assert_eq!(
+            keyframe("minecraft:visual/sky_light_factor", 0).get("ticks"),
+            Some(&NbtTag::Int(730))
+        );
+        // `Codec.FLOAT` writes a float tag, never a double
+        assert_eq!(
+            value("minecraft:visual/sky_light_factor", 0),
+            NbtTag::Float(1.0)
+        );
+        // an rgb argument is the hex string `STRING_RGB_COLOR` encodes with
+        assert_eq!(
+            value("minecraft:visual/sky_color", 0),
+            NbtTag::String("#ffffff".to_owned())
+        );
+        // …while `ColorModifier.ArgbModifier` writes a packed int whenever the
+        // argument's alpha is full, and an int tag is not a long tag
+        assert_eq!(value("minecraft:visual/cloud_color", 0), NbtTag::Int(-1));
+        assert_eq!(
+            value("minecraft:visual/sunrise_sunset_color", 0),
+            NbtTag::String("#5fefa333".to_owned())
+        );
+        assert_eq!(value("minecraft:gameplay/monsters_burn", 0), NbtTag::Byte(0));
+
+        assert_eq!(
+            tracks
+                .get_compound("minecraft:visual/sun_angle")
+                .unwrap()
+                .get_compound("ease")
+                .unwrap()
+                .get_list("cubic_bezier")
+                .unwrap(),
+            &[
+                NbtTag::Float(0.362),
+                NbtTag::Float(0.241),
+                NbtTag::Float(0.638),
+                NbtTag::Float(0.759)
+            ]
+        );
+        assert_eq!(
+            tracks
+                .get_compound("minecraft:gameplay/cat_waking_up_gift_chance")
+                .unwrap()
+                .get_string("ease"),
+            Some("constant")
+        );
+
+        // an opaque payload keeps whatever shape it had, here a string
+        let moon = mcrs_nbt::to_nbt_compound(&NetworkTimeline::from(&timeline("moon.json"))).unwrap();
+        assert_eq!(
+            moon.get_compound("tracks")
+                .unwrap()
+                .get_compound("minecraft:visual/moon_phase")
+                .unwrap()
+                .get_list("keyframes")
+                .unwrap()[0]
+                .extract_compound()
+                .unwrap()
+                .get("value"),
+            Some(&NbtTag::String("full_moon".to_owned()))
+        );
+
+        let markers = nbt.get_compound("time_markers").unwrap();
+        assert_eq!(
+            markers.get("minecraft:roll_village_siege"),
+            Some(&NbtTag::Int(18000))
+        );
+        assert_eq!(
+            markers.get_compound("minecraft:day").unwrap().get("ticks"),
+            Some(&NbtTag::Int(1000))
+        );
     }
 
     #[test]
@@ -700,11 +1053,6 @@ mod tests {
 
     const DAY: f32 = 24000.0;
 
-    fn timeline(name: &str) -> Timeline {
-        let bytes = std::fs::read(assets_dir().join("minecraft/timeline").join(name)).unwrap();
-        serde_json::from_slice(&bytes).unwrap()
-    }
-
     fn float(value: &AttributeValue) -> f32 {
         match value {
             AttributeValue::Float(v) => *v,
@@ -726,21 +1074,12 @@ mod tests {
         }
     }
 
-    /// The keyframes of one track, read back through the registry the same way
-    /// the sampler reads them.
+    /// The keyframes of one track, as the sampler reads them.
     fn keys(timeline: &Timeline, id: &str) -> Vec<(f32, [f32; 4])> {
-        let track = &timeline.tracks[id];
-        let sampler = track.bake(id, timeline.period_ticks).unwrap();
-        track
+        timeline.tracks[id]
             .keyframes
             .iter()
-            .map(|keyframe| {
-                let value = sampler
-                    .attribute
-                    .parse_argument(sampler.modifier, &keyframe.value)
-                    .unwrap();
-                (keyframe.ticks as f32, as_channels(&value))
-            })
+            .map(|keyframe| (keyframe.ticks as f32, as_channels(&keyframe.value)))
             .collect()
     }
 
@@ -787,7 +1126,7 @@ mod tests {
         for (name, tracks, period) in expected {
             let timeline = timeline(name);
             assert_eq!(timeline.period_ticks, period, "{name} period");
-            let baked = timeline.bake().unwrap_or_else(|e| panic!("{name}: {e}"));
+            let baked = timeline.bake();
             assert_eq!(baked.len(), tracks, "{name} track count");
 
             for (id, sampler) in &baked {
@@ -805,37 +1144,28 @@ mod tests {
 
     #[test]
     fn only_the_easings_the_assets_use_are_implemented() {
-        let track = |ease: serde_json::Value| Track {
-            keyframes: vec![
-                Keyframe {
-                    ticks: 0,
-                    value: serde_json::json!(0.0),
-                },
-                Keyframe {
-                    ticks: 100,
-                    value: serde_json::json!(1.0),
-                },
-            ],
-            modifier: Some("multiply".to_owned()),
-            ease: Some(ease),
-        };
-        let bake = |ease: serde_json::Value| {
-            track(ease).bake("minecraft:visual/sky_light_factor", Some(24000))
+        let bake = |ease: Value| {
+            bake_one(
+                "minecraft:visual/sky_light_factor",
+                Some(24000),
+                json!({
+                    "keyframes": [
+                        {"ticks": 0, "value": 0.0},
+                        {"ticks": 100, "value": 1.0},
+                    ],
+                    "modifier": "multiply",
+                    "ease": ease,
+                }),
+            )
         };
 
+        assert_eq!(bake(json!("linear")).unwrap().argument.easing(), Easing::Linear);
         assert_eq!(
-            bake(serde_json::json!("linear")).unwrap().argument.easing(),
-            Easing::Linear
-        );
-        assert_eq!(
-            bake(serde_json::json!("constant"))
-                .unwrap()
-                .argument
-                .easing(),
+            bake(json!("constant")).unwrap().argument.easing(),
             Easing::Constant
         );
         assert!(matches!(
-            bake(serde_json::json!({"cubic_bezier": [0.362, 0.241, 0.638, 0.759]}))
+            bake(json!({"cubic_bezier": [0.362, 0.241, 0.638, 0.759]}))
                 .unwrap()
                 .argument
                 .easing(),
@@ -844,22 +1174,22 @@ mod tests {
 
         // a curve the reference registers but we do not implement must not
         // quietly behave as linear
-        let err = bake(serde_json::json!("in_out_bounce"))
-            .unwrap_err()
-            .to_string();
+        let err = bake(json!("in_out_bounce")).unwrap_err();
         assert!(
             err.contains("in_out_bounce") && err.contains("not a supported easing"),
             "{err}"
         );
-        assert!(bake(serde_json::json!("nonsense")).is_err());
+        assert!(bake(json!("nonsense")).is_err());
         assert!(
-            bake(serde_json::json!({"cubic_bezier": [0.5, 0.5, 0.5]})).is_err(),
+            bake(json!({"cubic_bezier": [0.5, 0.5, 0.5]})).is_err(),
             "needs four"
         );
         assert!(
-            bake(serde_json::json!({"cubic_bezier": [1.5, 0.0, 0.5, 1.0]})).is_err(),
+            bake(json!({"cubic_bezier": [1.5, 0.0, 0.5, 1.0]})).is_err(),
             "x1 must be in [0; 1]"
         );
+        assert!(bake(json!({"in_out_bounce": []})).is_err(), "not a curve we have");
+        assert!(bake(json!(7)).is_err(), "not a curve at all");
     }
 
     #[test]
@@ -922,7 +1252,7 @@ mod tests {
 
         for id in interpolated {
             let table = keys(&day, id);
-            let sampler = day.tracks[id].bake(id, day.period_ticks).unwrap();
+            let sampler = day.tracks[id].bake(day.period_ticks);
             let is_color = matches!(sampler.sample_argument(0), AttributeValue::Color(_));
 
             let ticks = table
@@ -951,12 +1281,8 @@ mod tests {
     #[test]
     fn sun_angle_agrees_with_the_daylight_closed_form_across_a_day() {
         let day = timeline("day.json");
-        let sun = day.tracks["minecraft:visual/sun_angle"]
-            .bake("minecraft:visual/sun_angle", day.period_ticks)
-            .unwrap();
-        let moon = day.tracks["minecraft:visual/moon_angle"]
-            .bake("minecraft:visual/moon_angle", day.period_ticks)
-            .unwrap();
+        let sun = day.tracks["minecraft:visual/sun_angle"].bake(day.period_ticks);
+        let moon = day.tracks["minecraft:visual/moon_angle"].bake(day.period_ticks);
 
         let mut worst: f32 = 0.0;
         for tick in 0..24000 {
@@ -984,9 +1310,7 @@ mod tests {
     #[test]
     fn two_keyframes_on_one_tick_make_a_full_revolution() {
         let day = timeline("day.json");
-        let sun = day.tracks["minecraft:visual/sun_angle"]
-            .bake("minecraft:visual/sun_angle", day.period_ticks)
-            .unwrap();
+        let sun = day.tracks["minecraft:visual/sun_angle"].bake(day.period_ticks);
 
         // the zero-length middle segment is what makes tick 6000 read as 0
         assert_eq!(float(&sun.sample_argument(6000)), 0.0);
@@ -1007,7 +1331,7 @@ mod tests {
     fn a_periodic_track_wraps_instead_of_clamping() {
         let day = timeline("day.json");
         let id = "minecraft:visual/sky_light_factor";
-        let sampler = day.tracks[id].bake(id, day.period_ticks).unwrap();
+        let sampler = day.tracks[id].bake(day.period_ticks);
         let at = |tick| float(&sampler.sample_argument(tick));
 
         // the keyframes run 730 → 22860, so 100 is before the first and 23000
@@ -1040,7 +1364,7 @@ mod tests {
         let early = timeline("early_game.json");
         assert_eq!(early.period_ticks, None);
         let id = "minecraft:gameplay/can_pillager_patrol_spawn";
-        let sampler = early.bake().unwrap().remove(id).unwrap();
+        let sampler = early.bake().remove(id).unwrap();
         let at = |tick| sampler.sample_argument(tick);
 
         let (no, yes) = (AttributeValue::Bool(false), AttributeValue::Bool(true));
@@ -1060,9 +1384,9 @@ mod tests {
     fn a_not_interpolated_track_holds_each_value_for_a_whole_segment() {
         let moon = timeline("moon.json");
         let id = "minecraft:visual/moon_phase";
-        let sampler = moon.tracks[id].bake(id, moon.period_ticks).unwrap();
+        let sampler = moon.tracks[id].bake(moon.period_ticks);
         let at = |tick| sampler.sample_argument(tick);
-        let phase = |name: &str| AttributeValue::Opaque(serde_json::json!(name));
+        let phase = |name: &str| AttributeValue::Opaque(json!(name));
 
         // nominally a linear track, but MOON_PHASE is not interpolated, so each
         // phase holds for a whole day instead of blending into the next
@@ -1086,7 +1410,7 @@ mod tests {
     fn a_constant_easing_holds_until_the_next_keyframe() {
         let day = timeline("day.json");
         let id = "minecraft:gameplay/cat_waking_up_gift_chance";
-        let sampler = day.tracks[id].bake(id, day.period_ticks).unwrap();
+        let sampler = day.tracks[id].bake(day.period_ticks);
         assert_eq!(sampler.argument.easing(), Easing::Constant);
 
         // keyframes are 362 → 0.0 and 23667 → 0.7
@@ -1097,20 +1421,19 @@ mod tests {
     }
 
     #[test]
-    fn malformed_tracks_are_rejected() {
-        let track = |keyframes: Vec<(u32, f32)>| Track {
-            keyframes: keyframes
-                .into_iter()
-                .map(|(ticks, value)| Keyframe {
-                    ticks,
-                    value: serde_json::json!(value),
-                })
-                .collect(),
-            modifier: Some("multiply".to_owned()),
-            ease: None,
+    fn malformed_tracks_are_rejected_at_load() {
+        let track = |keyframes: Vec<(u32, f32)>| {
+            json!({
+                "keyframes": keyframes
+                    .into_iter()
+                    .map(|(ticks, value)| json!({"ticks": ticks, "value": value}))
+                    .collect::<Vec<_>>(),
+                "modifier": "multiply",
+            })
         };
-        let bake =
-            |keyframes, period| track(keyframes).bake("minecraft:visual/sky_light_factor", period);
+        let bake = |keyframes, period| {
+            bake_one("minecraft:visual/sky_light_factor", period, track(keyframes))
+        };
 
         assert!(
             bake(vec![], Some(24000)).is_err(),
@@ -1137,84 +1460,63 @@ mod tests {
             "unless there is no period"
         );
 
-        let unknown = Track {
-            keyframes: vec![],
-            modifier: None,
-            ease: None,
-        }
-        .bake("minecraft:visual/sky_colour", None)
-        .unwrap_err()
-        .to_string();
+        let unknown = load(
+            "minecraft:visual/sky_colour",
+            None,
+            json!({"keyframes": [{"ticks": 0, "value": "#ffffff"}]}),
+        )
+        .unwrap_err();
         assert!(
             unknown.contains("is not an environment attribute"),
             "{unknown}"
         );
 
-        let bad_modifier = Track {
-            keyframes: vec![Keyframe {
-                ticks: 0,
-                value: serde_json::json!(1.0),
-            }],
-            modifier: Some("blend".to_owned()),
-            ease: None,
-        }
-        .bake("minecraft:visual/sky_light_factor", None)
-        .unwrap_err()
-        .to_string();
+        let bad_modifier = load(
+            "minecraft:visual/sky_light_factor",
+            None,
+            json!({"keyframes": [{"ticks": 0, "value": 1.0}], "modifier": "blend"}),
+        )
+        .unwrap_err();
         assert!(
-            bad_modifier.contains("not a modifier operation"),
+            bad_modifier.contains("unknown variant `blend`"),
             "{bad_modifier}"
         );
+
+        let wrong_modifier = load(
+            "minecraft:visual/sky_light_factor",
+            None,
+            json!({"keyframes": [{"ticks": 0, "value": true}], "modifier": "or"}),
+        )
+        .unwrap_err();
+        assert!(
+            wrong_modifier.contains("Or is not a valid modifier for Float"),
+            "{wrong_modifier}"
+        );
+
+        let wrong_value = load(
+            "minecraft:visual/sky_light_factor",
+            None,
+            json!({"keyframes": [{"ticks": 0, "value": "noon"}], "modifier": "multiply"}),
+        )
+        .unwrap_err();
+        assert!(wrong_value.contains("is not a valid Float value"), "{wrong_value}");
     }
 
     #[test]
     fn a_single_keyframe_track_is_a_constant() {
-        let track = Track {
-            keyframes: vec![Keyframe {
-                ticks: 500,
-                value: serde_json::json!(0.25),
-            }],
-            modifier: Some("multiply".to_owned()),
-            ease: None,
-        };
         for period in [Some(24000), None] {
-            let sampler = track
-                .bake("minecraft:visual/sky_light_factor", period)
-                .unwrap();
+            let sampler = bake_one(
+                "minecraft:visual/sky_light_factor",
+                period,
+                json!({
+                    "keyframes": [{"ticks": 500, "value": 0.25}],
+                    "modifier": "multiply",
+                }),
+            )
+            .unwrap();
             for tick in [-1_000_000, -1, 0, 500, 23_999, 1_000_000] {
                 assert_eq!(float(&sampler.sample_argument(tick)), 0.25, "at {tick}");
             }
-        }
-    }
-
-    #[test]
-    fn baking_leaves_the_network_json_untouched() {
-        let raw: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(assets_dir().join("minecraft/timeline/day.json")).unwrap(),
-        )
-        .unwrap();
-        let timeline: Timeline = serde_json::from_value(raw.clone()).unwrap();
-        timeline.bake().unwrap();
-
-        let network = serde_json::to_value(NetworkTimeline::from(&timeline)).unwrap();
-        assert_eq!(network["clock"], raw["clock"]);
-        assert_eq!(network["period_ticks"], raw["period_ticks"]);
-        assert_eq!(network["time_markers"], raw["time_markers"]);
-        for (id, track) in raw["tracks"].as_object().unwrap() {
-            // the typed keyframes and the parsed easing are derived, never
-            // written back: what goes out to the client is the input verbatim
-            assert_eq!(
-                network["tracks"][id]["keyframes"], track["keyframes"],
-                "{id}"
-            );
-            assert_eq!(
-                network["tracks"][id]["ease"],
-                track
-                    .get("ease")
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Null),
-                "{id}"
-            );
         }
     }
 }

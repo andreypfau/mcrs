@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{Value, json};
 
 use super::modifier::Operation;
@@ -151,16 +151,12 @@ impl AttributeSpec {
         }
     }
 
-    /// Parse the argument of `op` applied to this attribute.
+    /// The codec the argument of `op` is read and written with.
     ///
     /// Only `override` takes the attribute's own value; every other operation
-    /// carries the argument its modifier declares, which is why the parse is
+    /// carries the argument its modifier declares, which is why the choice is
     /// dispatched on the (attribute type, operation) pair.
-    pub fn parse_argument(
-        &self,
-        op: Operation,
-        value: &Value,
-    ) -> Result<AttributeValue, AttributeError> {
+    fn argument_shape(&self, op: Operation) -> Result<ArgumentShape, AttributeError> {
         use AttributeType as T;
         use Operation::*;
 
@@ -170,35 +166,166 @@ impl AttributeSpec {
                 format!("{op:?} is not a valid modifier for {:?}", self.ty),
             ));
         }
-        match (self.ty, op) {
-            (_, Override) => self.parse_value(value),
+        Ok(match (self.ty, op) {
+            (_, Override) => ArgumentShape::Value,
             // FloatModifier.Simple takes a plain float, unconstrained by the
             // attribute's own range.
             (T::Float | T::AngleDegrees, Add | Subtract | Multiply | Minimum | Maximum) => {
-                parse_typed(self.id, T::Float, value)
+                ArgumentShape::Typed(T::Float)
             }
             (T::Integer, Add | Subtract | Multiply | Minimum | Maximum) => {
-                parse_typed(self.id, T::Integer, value)
+                ArgumentShape::Typed(T::Integer)
             }
             (T::Boolean, And | Nand | Or | Nor | Xor | Xnor) => {
-                parse_typed(self.id, T::Boolean, value)
+                ArgumentShape::Typed(T::Boolean)
             }
             // `ColorModifier.ADD`/`SUBTRACT` are one instance shared by both
             // colour libraries, so their argument shape cannot vary by attribute
             // type; `multiply` is split into MULTIPLY_RGB and MULTIPLY_ARGB
             // because only `ARGB.multiply` consumes the argument's alpha.
             (T::RgbColor | T::ArgbColor, Add | Subtract) | (T::RgbColor, Multiply) => {
-                parse_typed(self.id, T::RgbColor, value)
+                ArgumentShape::Typed(T::RgbColor)
             }
-            (T::ArgbColor, Multiply) | (T::RgbColor | T::ArgbColor, AlphaBlend) => {
-                parse_typed(self.id, T::ArgbColor, value)
-            }
-            (T::Float | T::AngleDegrees, AlphaBlend) => parse_float_with_alpha(self.id, value),
-            (T::RgbColor | T::ArgbColor, BlendToGray) => parse_blend_to_gray(self.id, value),
-            (T::AmbientParticles, Append) => parse_typed(self.id, T::AmbientParticles, value),
-            (T::MobSpawnSettings, Overlay) => parse_typed(self.id, T::MobSpawnSettings, value),
-            _ => Err(malformed(self.id, format!("no argument codec for {op:?}"))),
+            (T::RgbColor | T::ArgbColor, AlphaBlend) => ArgumentShape::Typed(T::ArgbColor),
+            (T::ArgbColor, Multiply) => ArgumentShape::ArgbOrPacked,
+            (T::Float | T::AngleDegrees, AlphaBlend) => ArgumentShape::FloatWithAlpha,
+            (T::RgbColor | T::ArgbColor, BlendToGray) => ArgumentShape::BlendToGray,
+            (T::AmbientParticles, Append) => ArgumentShape::Typed(T::AmbientParticles),
+            (T::MobSpawnSettings, Overlay) => ArgumentShape::Typed(T::MobSpawnSettings),
+            _ => return Err(malformed(self.id, format!("no argument codec for {op:?}"))),
+        })
+    }
+
+    /// Parse the argument of `op` applied to this attribute.
+    pub fn parse_argument(
+        &self,
+        op: Operation,
+        value: &Value,
+    ) -> Result<AttributeValue, AttributeError> {
+        match self.argument_shape(op)? {
+            ArgumentShape::Value => self.parse_value(value),
+            ArgumentShape::Typed(ty) => parse_typed(self.id, ty, value),
+            ArgumentShape::ArgbOrPacked => parse_typed(self.id, AttributeType::ArgbColor, value),
+            ArgumentShape::FloatWithAlpha => parse_float_with_alpha(self.id, value),
+            ArgumentShape::BlendToGray => parse_blend_to_gray(self.id, value),
         }
+    }
+
+    /// Write `value` back in the form the argument codec of `op` encodes with.
+    ///
+    /// Vanilla's codecs are symmetric, so this is what a re-serialized timeline
+    /// or attribute entry has to produce: a colour that has no alpha to carry
+    /// goes out packed, everything else in the one form its codec writes.
+    pub fn serialize_argument<S: Serializer>(
+        &self,
+        op: Operation,
+        value: &AttributeValue,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        use serde::ser::Error;
+
+        let shape = self.argument_shape(op).map_err(S::Error::custom)?;
+        let ty = match (shape, value) {
+            (ArgumentShape::Value, _) => self.ty,
+            (ArgumentShape::Typed(ty), _) => ty,
+            (ArgumentShape::ArgbOrPacked, AttributeValue::Color(packed)) => {
+                return if packed >> 24 == 0xFF {
+                    serializer.serialize_i32(*packed as i32)
+                } else {
+                    serializer.serialize_str(&format!("#{packed:08x}"))
+                };
+            }
+            (ArgumentShape::FloatWithAlpha, AttributeValue::FloatWithAlpha { value, alpha }) => {
+                return if *alpha == 1.0 {
+                    serializer.serialize_f32(*value)
+                } else {
+                    FloatWithAlpha { value: *value, alpha: *alpha }.serialize(serializer)
+                };
+            }
+            (ArgumentShape::BlendToGray, AttributeValue::BlendToGray { brightness, factor }) => {
+                return BlendToGray { brightness: *brightness, factor: *factor }
+                    .serialize(serializer);
+            }
+            (shape, value) => {
+                return Err(S::Error::custom(malformed(
+                    self.id,
+                    format!("{value:?} is not a {shape:?} argument"),
+                )));
+            }
+        };
+        serialize_typed(self.id, ty, value, serializer)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ArgumentShape {
+    /// The attribute's own value codec, validated against its range.
+    Value,
+    Typed(AttributeType),
+    /// `ColorModifier.ArgbModifier`: hex only while the argument carries alpha.
+    ArgbOrPacked,
+    FloatWithAlpha,
+    BlendToGray,
+}
+
+#[derive(Serialize)]
+struct FloatWithAlpha {
+    value: f32,
+    alpha: f32,
+}
+
+#[derive(Serialize)]
+struct BlendToGray {
+    brightness: f32,
+    factor: f32,
+}
+
+/// An argument still in the shape the source wrote it.
+///
+/// Vanilla decodes from an already-materialized `DynamicOps` tree, so the field
+/// that selects an argument codec may follow the value it selects for — a
+/// track's `modifier` follows its `keyframes`. Serde streams, so that value has
+/// to be held until the sibling that types it has been read.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RawArgument(Value);
+
+impl RawArgument {
+    pub fn parse(
+        &self,
+        spec: &AttributeSpec,
+        op: Operation,
+    ) -> Result<AttributeValue, AttributeError> {
+        spec.parse_argument(op, &self.0)
+    }
+}
+
+fn serialize_typed<S: Serializer>(
+    id: &'static str,
+    ty: AttributeType,
+    value: &AttributeValue,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    use serde::ser::Error;
+
+    let wrong = || S::Error::custom(malformed(id, format!("{value:?} is not a {ty:?} value")));
+    match (ty, value) {
+        (AttributeType::Boolean, AttributeValue::Bool(v)) => serializer.serialize_bool(*v),
+        (AttributeType::Float | AttributeType::AngleDegrees, AttributeValue::Float(v)) => {
+            serializer.serialize_f32(*v)
+        }
+        (AttributeType::Integer, AttributeValue::Integer(v)) => serializer.serialize_i32(*v),
+        (AttributeType::RgbColor, AttributeValue::Color(packed)) => {
+            serializer.serialize_str(&format!("#{:06x}", packed & 0x00FF_FFFF))
+        }
+        (AttributeType::ArgbColor, AttributeValue::Color(packed)) => {
+            serializer.serialize_str(&format!("#{packed:08x}"))
+        }
+        (AttributeType::AmbientParticles, AttributeValue::List(items)) => items.serialize(serializer),
+        (AttributeType::MobSpawnSettings, AttributeValue::MobSpawns(spawns)) => {
+            spawns.serialize(serializer)
+        }
+        (_, AttributeValue::Opaque(raw)) => raw.serialize(serializer),
+        _ => Err(wrong()),
     }
 }
 

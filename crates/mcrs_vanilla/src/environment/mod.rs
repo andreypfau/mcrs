@@ -26,7 +26,7 @@ use crate::attribute::{
     ModifierError, Operation, apply,
 };
 use crate::dimension::dimension_type::{DimensionType, Skybox};
-use crate::timeline::{AttributeTrackSampler, Timeline, TimelineError};
+use crate::timeline::{AttributeTrackSampler, Timeline};
 use crate::world_clock::{ClockTimeMarkers, WorldClocks};
 
 pub use spatial::{
@@ -48,12 +48,8 @@ pub enum EnvironmentError {
     Attribute(#[from] AttributeError),
     #[error(transparent)]
     Modifier(#[from] ModifierError),
-    #[error(transparent)]
-    Timeline(#[from] TimelineError),
     #[error("unknown environment attribute `{0}`; the registry is behind the game version")]
     UnknownAttribute(String),
-    #[error("`{0}` is not a valid clock id")]
-    MalformedClock(String),
 }
 
 #[derive(Debug, Clone)]
@@ -195,17 +191,15 @@ impl EnvironmentAttributes {
 
         let mut clocks: Vec<ResourceLocation<Arc<str>>> = Vec::new();
         for timeline in timelines {
-            let clock = ResourceLocation::parse(&timeline.clock)
-                .map_err(|_| EnvironmentError::MalformedClock(timeline.clock.clone()))?;
-            let clock = match clocks.iter().position(|known| *known == clock) {
+            let clock = match clocks.iter().position(|known| known == &timeline.clock) {
                 Some(known) => known,
                 None => {
-                    clocks.push(clock);
+                    clocks.push(timeline.clock.clone());
                     clocks.len() - 1
                 }
             };
-            for (id, sampler) in timeline.bake()? {
-                stacks[index_of(&id)?].layers.push(Layer::Track { clock, sampler });
+            for (id, sampler) in timeline.bake() {
+                stacks[index_of(id)?].layers.push(Layer::Track { clock, sampler });
             }
         }
 

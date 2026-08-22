@@ -285,10 +285,7 @@ impl ClockTimeMarkers {
         self.0.clear();
         let mut errors = Vec::new();
         for timeline in timelines {
-            let Ok(clock) = ResourceLocation::<Arc<str>>::parse(&timeline.clock) else {
-                errors.push(TimeMarkerError::Malformed(timeline.clock.clone()));
-                continue;
-            };
+            let clock = &timeline.clock;
             for (id, marker) in &timeline.time_markers {
                 // Exclusive at the top, unlike the inclusive keyframe bound:
                 // a marker on the period boundary would occur twice a period.
@@ -317,7 +314,7 @@ impl ClockTimeMarkers {
                     }
                     Entry::Occupied(_) => errors.push(TimeMarkerError::Duplicate {
                         marker: id.clone(),
-                        clock: timeline.clock.clone(),
+                        clock: clock.to_string(),
                     }),
                 }
             }
@@ -668,7 +665,7 @@ mod tests {
             }
         }))
         .unwrap();
-        assert!(timeline.bake().is_ok());
+        assert_eq!(timeline.bake().len(), 1);
     }
 
     #[test]
@@ -761,14 +758,14 @@ mod tests {
         )
         .unwrap();
         let timeline: Timeline = serde_json::from_slice(&bytes).unwrap();
-        let sky_light = timeline.bake().unwrap()["minecraft:gameplay/sky_light_level"].clone();
+        let sky_light = timeline.bake()["minecraft:gameplay/sky_light_level"].clone();
 
         let mut app = app_with(clocks(&[OVERWORLD]), true);
         let sample = |app: &App| {
             let state = app
                 .world()
                 .resource::<WorldClocks>()
-                .get(&timeline.clock)
+                .get(timeline.clock.as_str())
                 .expect("the timeline names a clock the registry has");
             match sky_light.sample_argument(state.total_ticks) {
                 AttributeValue::Float(v) => v,
