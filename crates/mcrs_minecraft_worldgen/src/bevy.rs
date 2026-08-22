@@ -428,10 +428,6 @@ impl AssetLoader for NoiseGeneratorSettingsLoader {
             density_functions: BTreeMap::new(),
             noises: BTreeMap::new(),
         };
-        visitor.visit_density_function_holder(&noise.noise_router.barrier);
-        visitor.visit_density_function_holder(&noise.noise_router.fluid_level_floodedness);
-        visitor.visit_density_function_holder(&noise.noise_router.fluid_level_spread);
-        visitor.visit_density_function_holder(&noise.noise_router.lava);
         visitor.visit_density_function_holder(&noise.noise_router.temperature);
         visitor.visit_density_function_holder(&noise.noise_router.vegetation);
         visitor.visit_density_function_holder(&noise.noise_router.continents);
@@ -440,9 +436,6 @@ impl AssetLoader for NoiseGeneratorSettingsLoader {
         visitor.visit_density_function_holder(&noise.noise_router.ridges);
         visitor.visit_density_function_holder(&noise.noise_router.preliminary_surface_level);
         visitor.visit_density_function_holder(&noise.noise_router.final_density);
-        visitor.visit_density_function_holder(&noise.noise_router.vein_toggle);
-        visitor.visit_density_function_holder(&noise.noise_router.vein_ridged);
-        visitor.visit_density_function_holder(&noise.noise_router.vein_gap);
 
         Ok(NoiseGeneratorSettingsAsset {
             settings: noise,

@@ -68,6 +68,59 @@ impl NoiseSampler {
         })
     }
 
+    pub fn from_params<R>(
+        random: &mut R,
+        base_octave: i32,
+        octave_amplitudes: Vec<f32>,
+        base_amplitude: f64,
+    ) -> Self
+    where
+        R: Random,
+    {
+        let first = OctavePerlinNoise::<f32>::new(
+            random,
+            base_octave,
+            octave_amplitudes.clone(),
+            random.is_legacy(),
+        );
+        let second = OctavePerlinNoise::<f32>::new(
+            random,
+            base_octave,
+            octave_amplitudes.clone(),
+            random.is_legacy(),
+        );
+
+        let count = octave_amplitudes.len() as i32;
+        let persistence =
+            2.0f64.powi(count - 1) / (2.0f64.powi(count) - 1.0);
+        let mut amplitude = persistence;
+        let mut target_amplitude = 0.0f64;
+        let mut variance = 0.0f64;
+        for modifier in &octave_amplitudes {
+            if *modifier != 0.0 {
+                let octave_amplitude = (amplitude * *modifier as f64).abs();
+                target_amplitude += octave_amplitude;
+                variance += (0.2702247831245211 * octave_amplitude).powi(2);
+            }
+            amplitude *= 0.5;
+        }
+        let deviation = variance.sqrt();
+        let normalization = if deviation == 0.0 {
+            0.0
+        } else {
+            (target_amplitude / 3.0) / (deviation * std::f64::consts::SQRT_2)
+        };
+        let value_factor = (normalization * base_amplitude) as f32;
+
+        let max_value = (first.max_value() + second.max_value()) * value_factor;
+        Self::Normal(NormalNoise {
+            first,
+            second,
+            value_factor,
+            max_value,
+        })
+    }
+
     pub fn beta_octave_2d(noise: OctavePerlinNoise<f32>, frequency: f32, max_value: f32) -> Self {
         Self::BetaOctave2d(BetaOctave2dNoise {
             noise,

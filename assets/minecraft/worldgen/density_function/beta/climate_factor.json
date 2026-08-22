@@ -1,23 +1,23 @@
 {
   "type": "minecraft:add",
-  "argument1": 1.0,
-  "argument2": {
+  "left": 1.0,
+  "right": {
     "type": "minecraft:mul",
-    "argument1": -1.0,
-    "argument2": {
+    "left": -1.0,
+    "right": {
       "type": "minecraft:square",
-      "argument": {
+      "input": {
         "type": "minecraft:square",
-        "argument": {
+        "input": {
           "type": "minecraft:add",
-          "argument1": 1.0,
-          "argument2": {
+          "left": 1.0,
+          "right": {
             "type": "minecraft:mul",
-            "argument1": -1.0,
-            "argument2": {
+            "left": -1.0,
+            "right": {
               "type": "minecraft:mul",
-              "argument1": "minecraft:beta/temperature",
-              "argument2": "minecraft:beta/vegetation"
+              "left": "minecraft:beta/temperature",
+              "right": "minecraft:beta/vegetation"
             }
           }
         }

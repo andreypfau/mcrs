@@ -31,7 +31,7 @@ pub enum DensityFunctionHolder {
 
 impl From<SingleArgumentFunction> for DensityFunctionHolder {
     fn from(func: SingleArgumentFunction) -> Self {
-        func.argument
+        func.input
     }
 }
 
@@ -69,14 +69,8 @@ pub enum ProtoDensityFunction {
         xz_scale: HashableF64,
         y_scale: HashableF64,
     },
-    #[serde(alias = "minecraft:end_islands")]
-    EndIslands,
-    #[serde(alias = "minecraft:weird_scaled_sampler")]
-    WeirdScaledSampler {
-        input: DensityFunctionHolder,
-        noise: NoiseHolder,
-        rarity_value_mapper: RarityValueMapper,
-    },
+    #[serde(alias = "minecraft:end_outer_islands")]
+    EndOuterIslands,
     #[serde(alias = "minecraft:shifted_noise")]
     ShiftedNoise {
         shift_x: DensityFunctionHolder,
@@ -95,11 +89,11 @@ pub enum ProtoDensityFunction {
         when_out_of_range: DensityFunctionHolder,
     },
     #[serde(alias = "minecraft:shift_a")]
-    ShiftA { argument: NoiseHolder },
+    ShiftA { noise: NoiseHolder },
     #[serde(alias = "minecraft:shift_b")]
-    ShiftB { argument: NoiseHolder },
+    ShiftB { noise: NoiseHolder },
     #[serde(rename = "minecraft:shift", alias = "shift")]
-    Shift { argument: NoiseHolder },
+    Shift { noise: NoiseHolder },
     #[serde(rename = "minecraft:blend_density", alias = "blend_density")]
     BlendDensity(SingleArgumentFunction),
     #[serde(alias = "minecraft:clamp")]
@@ -118,14 +112,20 @@ pub enum ProtoDensityFunction {
     HalfNegative(SingleArgumentFunction),
     #[serde(alias = "minecraft:quarter_negative")]
     QuarterNegative(SingleArgumentFunction),
-    #[serde(alias = "minecraft:invert")]
-    Invert(SingleArgumentFunction),
+    #[serde(alias = "minecraft:reciprocal")]
+    Reciprocal(SingleArgumentFunction),
+    #[serde(alias = "minecraft:negate")]
+    Negate(SingleArgumentFunction),
     #[serde(alias = "minecraft:squeeze")]
     Squeeze(SingleArgumentFunction),
     #[serde(alias = "minecraft:add")]
     Add(TwoArgumentFunction),
     #[serde(alias = "minecraft:mul")]
     Mul(TwoArgumentFunction),
+    #[serde(alias = "minecraft:sub")]
+    Sub(TwoArgumentFunction),
+    #[serde(alias = "minecraft:div")]
+    Div(TwoArgumentFunction),
     #[serde(alias = "minecraft:min")]
     Min(TwoArgumentFunction),
     #[serde(alias = "minecraft:max")]
@@ -134,12 +134,38 @@ pub enum ProtoDensityFunction {
     Spline { spline: SplineHolder },
     #[serde(alias = "minecraft:constant")]
     Constant(HashableF64),
-    #[serde(alias = "minecraft:y_clamped_gradient")]
-    YClampedGradient {
-        from_y: i32,
-        to_y: i32,
+    #[serde(alias = "minecraft:gradient")]
+    Gradient {
+        axis: Axis,
+        #[serde(default)]
+        tiling: TilingMode,
+        from_coordinate: i32,
+        to_coordinate: i32,
         from_value: HashableF64,
         to_value: HashableF64,
+    },
+    #[serde(alias = "minecraft:lerp")]
+    Lerp {
+        alpha: DensityFunctionHolder,
+        first: DensityFunctionHolder,
+        second: DensityFunctionHolder,
+    },
+    #[serde(alias = "minecraft:slice")]
+    Slice {
+        axis: Axis,
+        coordinate: i32,
+        input: DensityFunctionHolder,
+    },
+    #[serde(alias = "minecraft:interval_select")]
+    IntervalSelect {
+        input: DensityFunctionHolder,
+        thresholds: Vec<HashableF64>,
+        functions: Vec<DensityFunctionHolder>,
+    },
+    #[serde(alias = "minecraft:distance_to_point")]
+    DistanceToPoint {
+        point: [i32; 3],
+        metric: DistanceMetric,
     },
     #[serde(alias = "minecraft:find_top_surface")]
     FindTopSurface {
@@ -161,32 +187,76 @@ pub enum NoiseHolder {
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NoiseParam {
-    #[cfg(feature = "serde")]
-    #[serde(rename = "firstOctave")]
-    pub first_octave: i32,
-    pub amplitudes: Vec<HashableF64>,
+    pub base_octave: i32,
+    #[cfg_attr(feature = "serde", serde(default = "NoiseParam::default_base_amplitude"))]
+    pub base_amplitude: HashableF64,
+    #[cfg_attr(feature = "serde", serde(default = "NoiseParam::default_octave_count"))]
+    pub octave_count: usize,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub amplitude_modifiers: Vec<HashableF64>,
+}
+
+impl NoiseParam {
+    fn default_base_amplitude() -> HashableF64 {
+        HashableF64(1.0)
+    }
+
+    fn default_octave_count() -> usize {
+        1
+    }
+
+    pub fn octave_amplitudes(&self) -> Vec<f64> {
+        (0..self.octave_count)
+            .map(|i| {
+                self.amplitude_modifiers
+                    .get(i)
+                    .map(|m| m.0)
+                    .unwrap_or(1.0)
+            })
+            .collect()
+    }
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum RarityValueMapper {
-    #[serde(rename = "type_1")]
-    Type1,
-    #[serde(rename = "type_2")]
-    Type2,
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+pub enum Axis {
+    X,
+    Y,
+    Z,
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+pub enum TilingMode {
+    #[default]
+    ClampToEdge,
+    Repeat,
+    MirroredRepeat,
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+pub enum DistanceMetric {
+    Euclidean,
+    EuclideanSquared,
+    Manhattan,
+    Chebyshev,
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SingleArgumentFunction {
-    pub argument: DensityFunctionHolder,
+    pub input: DensityFunctionHolder,
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TwoArgumentFunction {
-    pub argument1: DensityFunctionHolder,
-    pub argument2: DensityFunctionHolder,
+    pub left: DensityFunctionHolder,
+    pub right: DensityFunctionHolder,
 }
 
 #[derive(Hash, Clone, Eq, PartialEq, Debug)]
@@ -255,12 +325,7 @@ pub trait Visitor {
                 xz_scale,
                 y_scale,
             } => self.visit_noise(noise, xz_scale.0, y_scale.0),
-            ProtoDensityFunction::EndIslands => self.visit_end_islands(),
-            ProtoDensityFunction::WeirdScaledSampler {
-                input,
-                noise,
-                rarity_value_mapper,
-            } => self.visit_weird_scaled_sampler(input, noise, rarity_value_mapper),
+            ProtoDensityFunction::EndOuterIslands => self.visit_end_outer_islands(),
             ProtoDensityFunction::ShiftedNoise {
                 shift_x,
                 shift_y,
@@ -282,9 +347,9 @@ pub trait Visitor {
                 when_in_range,
                 when_out_of_range,
             ),
-            ProtoDensityFunction::ShiftA { argument } => self.visit_shift_a(argument),
-            ProtoDensityFunction::ShiftB { argument } => self.visit_shift_b(argument),
-            ProtoDensityFunction::Shift { argument } => self.visit_shift(argument),
+            ProtoDensityFunction::ShiftA { noise } => self.visit_shift_a(noise),
+            ProtoDensityFunction::ShiftB { noise } => self.visit_shift_b(noise),
+            ProtoDensityFunction::Shift { noise } => self.visit_shift(noise),
             ProtoDensityFunction::BlendDensity(x) => self.visit_blend_density(x),
             ProtoDensityFunction::Clamp { input, min, max } => {
                 self.visit_clamp(input, min.0, max.0)
@@ -294,20 +359,50 @@ pub trait Visitor {
             ProtoDensityFunction::Cube(x) => self.visit_cube(x),
             ProtoDensityFunction::HalfNegative(x) => self.visit_half_negative(x),
             ProtoDensityFunction::QuarterNegative(x) => self.visit_quarter_negative(x),
-            ProtoDensityFunction::Invert(x) => self.visit_invert(x),
+            ProtoDensityFunction::Reciprocal(x) => self.visit_reciprocal(x),
+            ProtoDensityFunction::Negate(x) => self.visit_negate(x),
             ProtoDensityFunction::Squeeze(x) => self.visit_squeeze(x),
             ProtoDensityFunction::Add(x) => self.visit_add(x),
             ProtoDensityFunction::Mul(x) => self.visit_mul(x),
+            ProtoDensityFunction::Sub(x) => self.visit_sub(x),
+            ProtoDensityFunction::Div(x) => self.visit_div(x),
             ProtoDensityFunction::Min(x) => self.visit_min(x),
             ProtoDensityFunction::Max(x) => self.visit_max(x),
             ProtoDensityFunction::Spline { spline } => self.visit_spline(spline),
             ProtoDensityFunction::Constant(x) => self.visit_constant(x.0),
-            ProtoDensityFunction::YClampedGradient {
-                from_y,
-                to_y,
+            ProtoDensityFunction::Gradient {
+                axis,
+                tiling,
+                from_coordinate,
+                to_coordinate,
                 from_value,
                 to_value,
-            } => self.visit_y_clamped_gradient(*from_y, *to_y, from_value.0, to_value.0),
+            } => self.visit_gradient(
+                *axis,
+                *tiling,
+                *from_coordinate,
+                *to_coordinate,
+                from_value.0,
+                to_value.0,
+            ),
+            ProtoDensityFunction::Lerp {
+                alpha,
+                first,
+                second,
+            } => self.visit_lerp(alpha, first, second),
+            ProtoDensityFunction::Slice {
+                axis,
+                coordinate,
+                input,
+            } => self.visit_slice(*axis, *coordinate, input),
+            ProtoDensityFunction::IntervalSelect {
+                input,
+                thresholds,
+                functions,
+            } => self.visit_interval_select(input, thresholds, functions),
+            ProtoDensityFunction::DistanceToPoint { point, metric } => {
+                self.visit_distance_to_point(*point, *metric)
+            }
             ProtoDensityFunction::FindTopSurface {
                 density,
                 upper_bound,
@@ -332,12 +427,12 @@ pub trait Visitor {
     }
 
     fn visit_single_argument_function(&mut self, function: &SingleArgumentFunction) {
-        self.visit_density_function_holder(&function.argument)
+        self.visit_density_function_holder(&function.input)
     }
 
     fn visit_two_argument_function(&mut self, function: &TwoArgumentFunction) {
-        self.visit_density_function_holder(&function.argument1);
-        self.visit_density_function_holder(&function.argument2)
+        self.visit_density_function_holder(&function.left);
+        self.visit_density_function_holder(&function.right)
     }
 
     fn visit_interpolated(&mut self, function: &SingleArgumentFunction) {
@@ -364,17 +459,7 @@ pub trait Visitor {
         self.visit_noise_holder(noise)
     }
 
-    fn visit_end_islands(&mut self) {}
-
-    fn visit_weird_scaled_sampler(
-        &mut self,
-        input: &DensityFunctionHolder,
-        noise: &NoiseHolder,
-        rarity_value_mapper: &RarityValueMapper,
-    ) {
-        self.visit_noise_holder(noise);
-        self.visit_density_function_holder(input)
-    }
+    fn visit_end_outer_islands(&mut self) {}
 
     fn visit_shifted_noise(
         &mut self,
@@ -434,7 +519,10 @@ pub trait Visitor {
     fn visit_quarter_negative(&mut self, function: &SingleArgumentFunction) {
         self.visit_single_argument_function(function)
     }
-    fn visit_invert(&mut self, function: &SingleArgumentFunction) {
+    fn visit_reciprocal(&mut self, function: &SingleArgumentFunction) {
+        self.visit_single_argument_function(function)
+    }
+    fn visit_negate(&mut self, function: &SingleArgumentFunction) {
         self.visit_single_argument_function(function)
     }
     fn visit_squeeze(&mut self, function: &SingleArgumentFunction) {
@@ -444,6 +532,12 @@ pub trait Visitor {
         self.visit_two_argument_function(function)
     }
     fn visit_mul(&mut self, function: &TwoArgumentFunction) {
+        self.visit_two_argument_function(function)
+    }
+    fn visit_sub(&mut self, function: &TwoArgumentFunction) {
+        self.visit_two_argument_function(function)
+    }
+    fn visit_div(&mut self, function: &TwoArgumentFunction) {
         self.visit_two_argument_function(function)
     }
     fn visit_min(&mut self, function: &TwoArgumentFunction) {
@@ -465,9 +559,45 @@ pub trait Visitor {
             }
         }
     }
-    fn visit_y_clamped_gradient(&mut self, from_y: i32, to_y: i32, from_value: f64, to_value: f64) {
-        // No inner functions to visit
+    fn visit_gradient(
+        &mut self,
+        axis: Axis,
+        tiling: TilingMode,
+        from_coordinate: i32,
+        to_coordinate: i32,
+        from_value: f64,
+        to_value: f64,
+    ) {
     }
+
+    fn visit_lerp(
+        &mut self,
+        alpha: &DensityFunctionHolder,
+        first: &DensityFunctionHolder,
+        second: &DensityFunctionHolder,
+    ) {
+        self.visit_density_function_holder(alpha);
+        self.visit_density_function_holder(first);
+        self.visit_density_function_holder(second)
+    }
+
+    fn visit_slice(&mut self, axis: Axis, coordinate: i32, input: &DensityFunctionHolder) {
+        self.visit_density_function_holder(input)
+    }
+
+    fn visit_interval_select(
+        &mut self,
+        input: &DensityFunctionHolder,
+        thresholds: &[HashableF64],
+        functions: &[DensityFunctionHolder],
+    ) {
+        self.visit_density_function_holder(input);
+        for function in functions {
+            self.visit_density_function_holder(function);
+        }
+    }
+
+    fn visit_distance_to_point(&mut self, point: [i32; 3], metric: DistanceMetric) {}
     fn visit_find_top_surface(
         &mut self,
         density: &DensityFunctionHolder,

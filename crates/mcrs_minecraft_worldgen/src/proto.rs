@@ -1,5 +1,4 @@
-use crate::climate::ParamPoint;
-use crate::density_function::proto::{DensityFunctionHolder, ProtoDensityFunction};
+use crate::density_function::proto::{DensityFunctionHolder, HashableF64, ProtoDensityFunction};
 use mcrs_protocol::{BlockStateId, Ident};
 
 #[derive(PartialEq, Debug, Clone)]
@@ -10,13 +9,40 @@ pub struct NoiseGeneratorSettings {
     pub default_block: BlockState,
     pub default_fluid: BlockState,
     pub noise_router: NoiseRouter,
-    pub surface_rule: SurfaceRule,
-    pub spawn_target: Vec<ParamPoint>,
+    pub material_rule: Ident<String>,
+    pub spawn_target: Vec<SpawnTargetPoint>,
     pub sea_level: i32,
     pub disable_mob_generation: bool,
-    pub aquifers_enabled: bool,
-    pub ore_veins_enabled: bool,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub aquifers: Option<Aquifers>,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub ore_veins: Vec<OreVein>,
     pub legacy_random_source: bool,
+}
+
+pub type SpawnTargetPoint = std::collections::BTreeMap<Ident<String>, Interval<HashableF64>>;
+
+#[derive(Hash, PartialEq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Aquifers {
+    pub barrier: DensityFunctionHolder,
+    pub exclusion: DensityFunctionHolder,
+    pub fluid_level_floodedness: DensityFunctionHolder,
+    pub fluid_level_spread: DensityFunctionHolder,
+    pub lava: DensityFunctionHolder,
+    pub surface_level: DensityFunctionHolder,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OreVein {
+    pub density: DensityFunctionHolder,
+    pub richness: DensityFunctionHolder,
+    pub filler_gap: DensityFunctionHolder,
+    pub filler_block: BlockState,
+    pub ore_block: BlockState,
+    pub raw_ore_block: BlockState,
+    pub raw_ore_chance: f64,
 }
 
 #[derive(Hash, PartialEq, Debug, Clone)]
@@ -31,10 +57,6 @@ pub struct NoiseSettings {
 #[derive(Hash, PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NoiseRouter {
-    pub barrier: DensityFunctionHolder,
-    pub fluid_level_floodedness: DensityFunctionHolder,
-    pub fluid_level_spread: DensityFunctionHolder,
-    pub lava: DensityFunctionHolder,
     pub temperature: DensityFunctionHolder,
     pub vegetation: DensityFunctionHolder,
     pub continents: DensityFunctionHolder,
@@ -43,9 +65,6 @@ pub struct NoiseRouter {
     pub ridges: DensityFunctionHolder,
     pub preliminary_surface_level: DensityFunctionHolder,
     pub final_density: DensityFunctionHolder,
-    pub vein_toggle: DensityFunctionHolder,
-    pub vein_ridged: DensityFunctionHolder,
-    pub vein_gap: DensityFunctionHolder,
 }
 
 #[derive(PartialEq, Debug, Clone)]
@@ -132,14 +151,44 @@ pub enum CaveSurface {
 }
 
 #[derive(Hash, PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlockState {
-    #[cfg(feature = "serde")]
-    #[serde(rename = "Name")]
     pub name: Ident<String>,
-    #[cfg(feature = "serde")]
-    #[serde(rename = "Properties")]
     pub properties: Option<std::collections::BTreeMap<String, String>>,
+}
+
+#[cfg(feature = "serde")]
+#[derive(serde::Serialize, serde::Deserialize)]
+struct DispatchedBlockState {
+    id: Ident<String>,
+    #[serde(default)]
+    properties: std::collections::BTreeMap<String, String>,
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for BlockState {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        match Either::<Ident<String>, DispatchedBlockState>::deserialize(deserializer)? {
+            Either::Left(name) => Ok(BlockState { name, properties: None }),
+            Either::Right(state) => Ok(BlockState {
+                name: state.id,
+                properties: Some(state.properties),
+            }),
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for BlockState {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match &self.properties {
+            None => self.name.serialize(serializer),
+            Some(properties) => DispatchedBlockState {
+                id: self.name.clone(),
+                properties: properties.clone(),
+            }
+            .serialize(serializer),
+        }
+    }
 }
 
 
