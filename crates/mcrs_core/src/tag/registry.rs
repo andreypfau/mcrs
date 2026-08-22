@@ -53,28 +53,55 @@ pub fn resolve_tag_file<S: TagSource>(
     all_files: &Assets<TagFile>,
     source: &S,
 ) -> HashSet<S::Id> {
-    let mut out = HashSet::new();
+    resolve_tag_file_ordered(tag_file, all_files, source)
+        .into_iter()
+        .collect()
+}
+
+/// Expand a `TagFile` in the order it lists its entries, with nested `#tag`
+/// references expanded in place and repeats keeping their first position.
+///
+/// For tags that denote a sequence rather than a set — a dimension's
+/// timelines stack in this order — which the frozen bitset cannot express.
+pub fn resolve_tag_file_ordered<S: TagSource>(
+    tag_file: &TagFile,
+    all_files: &Assets<TagFile>,
+    source: &S,
+) -> Vec<S::Id> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    extend_from_tag_file(tag_file, all_files, source, &mut out, &mut seen);
+    out
+}
+
+fn extend_from_tag_file<S: TagSource>(
+    tag_file: &TagFile,
+    all_files: &Assets<TagFile>,
+    source: &S,
+    out: &mut Vec<S::Id>,
+    seen: &mut HashSet<S::Id>,
+) {
     for entry in &tag_file.values {
         match entry {
             TagEntry::Element(loc) => match source.id_of(loc.as_str()) {
-                Some(id) => {
-                    out.insert(id);
-                }
+                Some(id) if seen.insert(id) => out.push(id),
+                Some(_) => {}
                 None => tracing::warn!("tag references unknown registry entry: {loc}"),
             },
             TagEntry::OptionalElement(loc) => {
-                if let Some(id) = source.id_of(loc.as_str()) {
-                    out.insert(id);
+                if let Some(id) = source.id_of(loc.as_str())
+                    && seen.insert(id)
+                {
+                    out.push(id);
                 }
             }
             TagEntry::Tag(h) | TagEntry::OptionalTag(h) => {
                 if let Some(nested) = all_files.get(h) {
-                    out.extend(resolve_tag_file(nested, all_files, source));
+                    extend_from_tag_file(nested, all_files, source, out, seen);
                 }
             }
         }
     }
-    out
 }
 
 /// The loading half of a tagged registry: requests tag files, collects

@@ -11,5 +11,8 @@ pub use bitset::{BitSet, IdBitSet, RawBitSet, TagId};
 pub use dyn_index::DynRegistryIndex;
 pub use file::{TagEntry, TagFile, TagFileLoader, TagFileSettings};
 pub use key::{TagKey, TaggedRegistry};
-pub use registry::{DynTagLoader, DynTagRegistry, TagLoader, TagRegistry, TagSource, resolve_tag_file};
+pub use registry::{
+    DynTagLoader, DynTagRegistry, TagLoader, TagRegistry, TagSource, resolve_tag_file,
+    resolve_tag_file_ordered,
+};
 pub use tag_ref::TagRef;
