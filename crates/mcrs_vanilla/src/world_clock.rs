@@ -68,12 +68,19 @@ impl AssetLoader for WorldClockLoader {
 ///
 /// `total_ticks` is the only fact; the tick within a timeline period, the
 /// time of day and the network form are all derived from it on read.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ClockState {
     pub total_ticks: i64,
+    #[serde(default)]
     pub partial_tick: f32,
+    #[serde(default = "default_rate")]
     pub rate: f32,
+    #[serde(default)]
     pub paused: bool,
+}
+
+fn default_rate() -> f32 {
+    1.0
 }
 
 impl Default for ClockState {

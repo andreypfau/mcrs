@@ -32,6 +32,7 @@ pub mod chat_type;
 pub mod dialog;
 pub mod timeline;
 pub mod test_types;
+pub mod save;
 pub mod world_clock;
 
 use crate::block::tags as block_tags;

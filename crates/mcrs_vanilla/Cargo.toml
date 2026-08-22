@@ -28,3 +28,4 @@ mcrs_minecraft_worldgen.workspace = true
 bevy_math.workspace = true
 rand.workspace = true
 derive_more.workspace = true
+uuid.workspace = true
