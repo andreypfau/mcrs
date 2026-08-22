@@ -4,6 +4,8 @@ use serde_json::json;
 
 use super::sky::{SkyEffects, SkyField, SkyFrame, SkyLayout, SkyValue};
 use super::*;
+use mcrs_core::tag::file::TagEntry;
+
 use crate::attribute::attribute;
 use crate::dimension::dimension_type::ProtoDimensionType;
 use crate::world_clock::{ClockState, WorldClocks};
@@ -30,11 +32,26 @@ fn timeline(name: &str) -> Timeline {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-/// `#minecraft:in_overworld`, flattened in the order the tag files list it.
-fn overworld_timelines() -> Vec<Timeline> {
-    ["villager_schedule.json", "day.json", "moon.json", "early_game.json"]
-        .map(timeline)
-        .into()
+/// The timelines a tag names, read from the shipped tag files and flattened
+/// through `#` references, in the order the tag file lists them.
+fn tagged_timelines(tag: &str) -> Vec<Timeline> {
+    fn collect(tag: &str, out: &mut Vec<String>) {
+        let path = assets_dir()
+            .join("tags/timeline")
+            .join(format!("{}.json", tag.trim_start_matches("minecraft:")));
+        let file: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+        for value in file["values"].as_array().unwrap() {
+            let entry = value.as_str().unwrap();
+            match entry.strip_prefix('#') {
+                Some(nested) => collect(nested, out),
+                None => out.push(entry.trim_start_matches("minecraft:").to_owned()),
+            }
+        }
+    }
+    let mut names = Vec::new();
+    collect(tag, &mut names);
+    names.iter().map(|name| timeline(&format!("{name}.json"))).collect()
 }
 
 fn shape<'a>(id: &'a str, proto: &'a ProtoDimensionType) -> DimensionEnvironment<'a> {
@@ -54,7 +71,7 @@ fn build(id: &str, file: &str, timelines: &[Timeline]) -> EnvironmentAttributes 
 }
 
 fn overworld() -> (EnvironmentAttributes, Vec<Timeline>) {
-    let timelines = overworld_timelines();
+    let timelines = tagged_timelines("in_overworld");
     (build("minecraft:overworld", "overworld.json", &timelines), timelines)
 }
 
@@ -348,8 +365,25 @@ fn the_dimension_constant_set_comes_from_the_loaded_timelines() {
 }
 
 #[test]
+fn a_dimension_with_no_timelines_still_builds() {
+    let attributes = build("minecraft:overworld", "overworld.json", &[]);
+    assert!(attributes.clocks().is_empty());
+
+    let ticks = ticks_at(&attributes, NOON, 0.0);
+    assert!(ticks.is_empty());
+    let empty = SpatialAttributeInterpolator::default();
+    let ctx = context(&ticks, &empty, Weather::default());
+
+    // With no track the attribute holds the dimension constant at every tick.
+    let at_noon = float(&attributes, "minecraft:gameplay/sky_light_level", &ctx);
+    let ticks = ticks_at(&attributes, MIDNIGHT, 0.0);
+    let ctx = context(&ticks, &empty, Weather::default());
+    assert_eq!(at_noon, float(&attributes, "minecraft:gameplay/sky_light_level", &ctx));
+}
+
+#[test]
 fn a_track_for_cloud_height_moves_it_into_the_frame_block() {
-    let mut timelines = overworld_timelines();
+    let mut timelines = tagged_timelines("in_overworld");
     timelines.push(
         serde_json::from_value(json!({
             "clock": "minecraft:overworld",
@@ -468,4 +502,63 @@ fn a_composed_value_is_clamped_back_into_its_range() {
 
     let level = float(&attributes, "minecraft:gameplay/sky_light_level", &ctx);
     assert!((0.0..=15.0).contains(&level), "sky_light_level is [0; 15], got {level}");
+}
+
+/// Two timelines writing one attribute stack in the order the tag file lists
+/// them. The nested tag is listed second but names the alphabetically first
+/// timeline, so resolving by registry id would let the wrong one win.
+#[test]
+fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
+    fn overriding(level: f32) -> Timeline {
+        serde_json::from_value(json!({
+            "clock": "minecraft:overworld",
+            "period_ticks": 24000,
+            "tracks": {
+                "minecraft:gameplay/sky_light_level": {
+                    "modifier": "override",
+                    "keyframes": [{ "ticks": 0, "value": level }],
+                },
+            },
+        }))
+        .unwrap()
+    }
+
+    fn rl(id: &str) -> ResourceLocation<Arc<str>> {
+        ResourceLocation::parse(id).unwrap()
+    }
+
+    let alpha = overriding(0.25);
+    let zulu = overriding(0.75);
+
+    let mut tag_files = Assets::<TagFile>::default();
+    let nested = tag_files.add(TagFile {
+        replace: false,
+        values: vec![TagEntry::Element(rl("test:alpha"))],
+    });
+    let listing = TagFile {
+        replace: false,
+        values: vec![TagEntry::Element(rl("test:zulu")), TagEntry::Tag(nested)],
+    };
+
+    let index = DynRegistryIndex::<Timeline>::build([rl("test:alpha"), rl("test:zulu")].into_iter());
+    let order = resolve_tag_file_ordered(&listing, &tag_files, &index);
+    assert_eq!(order, vec![index.get("test:zulu").unwrap(), index.get("test:alpha").unwrap()]);
+
+    let ordered: Vec<&Timeline> = order
+        .iter()
+        .map(|id| match index.location(*id).unwrap().as_str() {
+            "test:alpha" => &alpha,
+            "test:zulu" => &zulu,
+            other => panic!("unexpected member {other}"),
+        })
+        .collect();
+
+    let proto = dimension_type("overworld.json");
+    let attributes =
+        EnvironmentAttributes::build(&shape("minecraft:overworld", &proto), &ordered).unwrap();
+
+    let ticks = ticks_at(&attributes, 0, 0.0);
+    let empty = SpatialAttributeInterpolator::default();
+    let ctx = context(&ticks, &empty, Weather::default());
+    assert_eq!(float(&attributes, "minecraft:gameplay/sky_light_level", &ctx), 0.25);
 }

@@ -7,6 +7,8 @@ use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDepe
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 
+use mcrs_core::tag::key::TaggedRegistry;
+
 use crate::attribute::{
     AttributeError, AttributeSpec, AttributeValue, Lerp, ModifierError, Operation, attribute,
 };
@@ -19,7 +21,55 @@ pub struct Timeline {
     #[serde(default)]
     pub tracks: HashMap<String, Track>,
     #[serde(default)]
-    pub time_markers: HashMap<String, serde_json::Value>,
+    pub time_markers: HashMap<String, TimeMarker>,
+}
+
+impl TaggedRegistry for Timeline {
+    const REGISTRY_PATH: &'static str = "timeline";
+}
+
+/// A time marker as a timeline declares it: a bare tick count, or an object
+/// that also asks for the marker to be offered to commands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TimeMarker {
+    pub ticks: u32,
+    pub show_in_commands: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+struct FullTimeMarker {
+    ticks: u32,
+    #[serde(default)]
+    show_in_commands: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum TimeMarkerRepr {
+    Bare(u32),
+    Full(FullTimeMarker),
+}
+
+impl<'de> Deserialize<'de> for TimeMarker {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(match TimeMarkerRepr::deserialize(d)? {
+            TimeMarkerRepr::Bare(ticks) => TimeMarker { ticks, show_in_commands: false },
+            TimeMarkerRepr::Full(full) => TimeMarker {
+                ticks: full.ticks,
+                show_in_commands: full.show_in_commands,
+            },
+        })
+    }
+}
+
+impl Serialize for TimeMarker {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        if self.show_in_commands {
+            FullTimeMarker { ticks: self.ticks, show_in_commands: true }.serialize(s)
+        } else {
+            s.serialize_u32(self.ticks)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,7 +96,7 @@ pub struct NetworkTimeline {
     pub period_ticks: Option<u32>,
     pub tracks: HashMap<String, Track>,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub time_markers: HashMap<String, serde_json::Value>,
+    pub time_markers: HashMap<String, TimeMarker>,
 }
 
 impl From<&Timeline> for NetworkTimeline {
@@ -511,6 +561,22 @@ fn bake_segments(keyframes: &[(i64, AttributeValue)], period_ticks: Option<u32>)
 }
 
 impl Timeline {
+    /// The tick this timeline stands at within its own period.
+    pub fn current_ticks(&self, total_ticks: i64) -> i64 {
+        match self.period_ticks {
+            Some(period) => total_ticks.rem_euclid(i64::from(period)),
+            None => total_ticks,
+        }
+    }
+
+    /// How many whole periods this timeline has completed.
+    pub fn period_count(&self, total_ticks: i64) -> i64 {
+        match self.period_ticks {
+            Some(period) => total_ticks.div_euclid(i64::from(period)),
+            None => 0,
+        }
+    }
+
     /// Bake every track of this timeline.
     ///
     /// Derived once from the loaded asset and never invalidated, so the result
@@ -558,6 +624,42 @@ mod tests {
             json.get("period_ticks").and_then(|v| v.as_u64()),
             Some(24000)
         );
+    }
+
+    #[test]
+    fn both_time_marker_shapes_survive_the_network_round_trip() {
+        let raw: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(assets_dir().join("minecraft/timeline/day.json")).unwrap())
+                .unwrap();
+        let timeline: Timeline = serde_json::from_value(raw.clone()).unwrap();
+
+        assert_eq!(
+            timeline.time_markers["minecraft:day"],
+            TimeMarker { ticks: 1000, show_in_commands: true }
+        );
+        assert_eq!(
+            timeline.time_markers["minecraft:roll_village_siege"],
+            TimeMarker { ticks: 18000, show_in_commands: false }
+        );
+
+        let sent = serde_json::to_value(NetworkTimeline::from(&timeline)).unwrap();
+        assert_eq!(sent["time_markers"], raw["time_markers"]);
+        assert!(sent["time_markers"]["minecraft:roll_village_siege"].is_number());
+        assert!(sent["time_markers"]["minecraft:day"].is_object());
+    }
+
+    #[test]
+    fn a_marker_with_no_period_reports_no_period_count() {
+        let early_game = timeline("early_game.json");
+        assert_eq!(early_game.period_ticks, None);
+        assert_eq!(early_game.current_ticks(50_000), 50_000);
+        assert_eq!(early_game.period_count(50_000), 0);
+
+        let day = timeline("day.json");
+        assert_eq!(day.current_ticks(50_000), 2_000);
+        assert_eq!(day.period_count(50_000), 2);
+        assert_eq!(day.current_ticks(0), 0);
+        assert_eq!(day.period_count(23_999), 0);
     }
 
     #[test]

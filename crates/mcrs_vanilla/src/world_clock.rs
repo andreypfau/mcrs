@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::collections::btree_map::Entry;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use bevy_app::{App, FixedUpdate, Plugin};
@@ -13,6 +14,8 @@ use bevy_state::state::OnEnter;
 use mcrs_core::registry::snapshot::rl_from_asset_path;
 use mcrs_core::{AppState, ResourceLocation};
 use serde::{Deserialize, Serialize};
+
+use crate::timeline::Timeline;
 
 /// Unit-shaped registry entry. Vanilla `WorldClock.DIRECT_CODEC` is
 /// `MapCodec.unitCodec(WorldClock::new)`, so the wire payload is an
@@ -182,6 +185,147 @@ impl WorldClocks {
     }
 }
 
+/// A time marker resolved against the timeline that declared it.
+///
+/// The period is the *timeline's*, not the marker's: the same id declared in a
+/// timeline with no period is a one-off instant rather than a recurring one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClockTimeMarker {
+    pub ticks: u32,
+    pub period_ticks: Option<u32>,
+    pub show_in_commands: bool,
+}
+
+impl ClockTimeMarker {
+    pub fn occurs_at(&self, total_ticks: i64) -> bool {
+        i64::from(self.ticks)
+            == match self.period_ticks {
+                Some(period) => total_ticks.rem_euclid(i64::from(period)),
+                None => total_ticks,
+            }
+    }
+
+    /// The total tick count a clock must be moved to for this marker to occur
+    /// next. Always strictly forward: standing on the marker moves a whole
+    /// period, never nowhere.
+    pub fn resolve_time_to_move_to(&self, total_ticks: i64) -> i64 {
+        let Some(period) = self.period_ticks.map(i64::from) else {
+            return i64::from(self.ticks);
+        };
+        let duration = i64::from(self.ticks) - total_ticks.rem_euclid(period);
+        total_ticks + if duration > 0 { duration } else { period + duration }
+    }
+
+    pub fn repetition_count(&self, total_ticks: i64) -> i64 {
+        let Some(period) = self.period_ticks.map(i64::from) else {
+            return i64::from(total_ticks >= i64::from(self.ticks));
+        };
+        total_ticks.div_euclid(period)
+            + i64::from(total_ticks.rem_euclid(period) >= i64::from(self.ticks))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TimeMarkerError {
+    #[error("time marker `{marker}` at tick {ticks} must be in range [0; {period})")]
+    OutsidePeriod {
+        marker: String,
+        ticks: u32,
+        period: u32,
+    },
+    #[error("time marker `{marker}` is declared more than once on clock `{clock}`")]
+    Duplicate { marker: String, clock: String },
+    #[error("`{0}` is not a valid resource location")]
+    Malformed(String),
+}
+
+/// Every time marker the loaded timelines declare, grouped by the clock they
+/// run on.
+///
+/// Markers have no registry of their own: this table is the projection of the
+/// `timeline` registry that makes them addressable, and it is rebuilt from
+/// that registry rather than accumulated.
+#[derive(Resource, Debug, Clone, Default)]
+pub struct ClockTimeMarkers(
+    HashMap<ResourceLocation<Arc<str>>, BTreeMap<ResourceLocation<Arc<str>>, ClockTimeMarker>>,
+);
+
+impl ClockTimeMarkers {
+    pub fn get(&self, clock: &str, marker: &str) -> Option<&ClockTimeMarker> {
+        self.0.get(clock)?.get(marker)
+    }
+
+    pub fn of_clock(
+        &self,
+        clock: &str,
+    ) -> impl Iterator<Item = (&ResourceLocation<Arc<str>>, &ClockTimeMarker)> {
+        self.0.get(clock).into_iter().flat_map(BTreeMap::iter)
+    }
+
+    pub fn clocks(&self) -> impl Iterator<Item = &ResourceLocation<Arc<str>>> {
+        self.0.keys()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.values().map(BTreeMap::len).sum()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.values().all(BTreeMap::is_empty)
+    }
+
+    /// Fold the markers of every loaded timeline into one table per clock.
+    ///
+    /// Returns everything the data got wrong; a rejected marker is left out of
+    /// the table rather than replacing what is already there.
+    pub fn rebuild<'a>(
+        &mut self,
+        timelines: impl IntoIterator<Item = &'a Timeline>,
+    ) -> Vec<TimeMarkerError> {
+        self.0.clear();
+        let mut errors = Vec::new();
+        for timeline in timelines {
+            let Ok(clock) = ResourceLocation::<Arc<str>>::parse(&timeline.clock) else {
+                errors.push(TimeMarkerError::Malformed(timeline.clock.clone()));
+                continue;
+            };
+            for (id, marker) in &timeline.time_markers {
+                // Exclusive at the top, unlike the inclusive keyframe bound:
+                // a marker on the period boundary would occur twice a period.
+                if let Some(period) = timeline.period_ticks
+                    && marker.ticks >= period
+                {
+                    errors.push(TimeMarkerError::OutsidePeriod {
+                        marker: id.clone(),
+                        ticks: marker.ticks,
+                        period,
+                    });
+                    continue;
+                }
+                let Ok(id_rl) = ResourceLocation::<Arc<str>>::parse(id) else {
+                    errors.push(TimeMarkerError::Malformed(id.clone()));
+                    continue;
+                };
+                let resolved = ClockTimeMarker {
+                    ticks: marker.ticks,
+                    period_ticks: timeline.period_ticks,
+                    show_in_commands: marker.show_in_commands,
+                };
+                match self.0.entry(clock.clone()).or_default().entry(id_rl) {
+                    Entry::Vacant(slot) => {
+                        slot.insert(resolved);
+                    }
+                    Entry::Occupied(_) => errors.push(TimeMarkerError::Duplicate {
+                        marker: id.clone(),
+                        clock: timeline.clock.clone(),
+                    }),
+                }
+            }
+        }
+        errors
+    }
+}
+
 /// The global `advance_time` gamerule. Truth until a save reader supplies it.
 #[derive(Resource, Debug, Clone, Copy)]
 pub struct AdvanceTime(pub bool);
@@ -199,6 +343,7 @@ impl Plugin for WorldClockPlugin {
         app.init_asset::<WorldClock>()
             .register_asset_loader(WorldClockLoader)
             .init_resource::<WorldClocks>()
+            .init_resource::<ClockTimeMarkers>()
             .init_resource::<AdvanceTime>()
             .add_systems(OnEnter(AppState::WorldgenFreeze), seed_world_clocks)
             .add_systems(
@@ -208,7 +353,7 @@ impl Plugin for WorldClockPlugin {
     }
 }
 
-fn seed_world_clocks(
+pub fn seed_world_clocks(
     mut clocks: ResMut<WorldClocks>,
     assets: Res<Assets<WorldClock>>,
     asset_server: Res<AssetServer>,
@@ -426,6 +571,186 @@ mod tests {
         };
         assert!(received.is_paused());
         assert!(!running.is_paused());
+    }
+
+    // ── Time markers ─────────────────────────────────────────────────────────
+
+    const DAY_TIMELINE: &str = "day.json";
+
+    fn shipped_timeline(name: &str) -> Timeline {
+        let bytes = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/minecraft/timeline")
+            .join(name);
+        serde_json::from_slice(&std::fs::read(bytes).unwrap()).unwrap()
+    }
+
+    fn timeline_json(clock: &str, period: Option<u32>, markers: serde_json::Value) -> Timeline {
+        let mut json = serde_json::json!({"clock": clock, "time_markers": markers});
+        if let Some(period) = period {
+            json["period_ticks"] = period.into();
+        }
+        serde_json::from_value(json).unwrap()
+    }
+
+    fn markers_of(timelines: &[Timeline]) -> (ClockTimeMarkers, Vec<TimeMarkerError>) {
+        let mut table = ClockTimeMarkers::default();
+        let errors = table.rebuild(timelines);
+        (table, errors)
+    }
+
+    #[test]
+    fn the_shipped_markers_land_on_the_overworld_clock() {
+        let (markers, errors) = markers_of(&[
+            shipped_timeline(DAY_TIMELINE),
+            shipped_timeline("moon.json"),
+            shipped_timeline("early_game.json"),
+            shipped_timeline("villager_schedule.json"),
+        ]);
+        assert!(errors.is_empty(), "{errors:?}");
+
+        let names: Vec<&str> = markers.of_clock(OVERWORLD).map(|(id, _)| id.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "minecraft:day",
+                "minecraft:midnight",
+                "minecraft:night",
+                "minecraft:noon",
+                "minecraft:roll_village_siege",
+                "minecraft:wake_up_from_sleep",
+            ]
+        );
+
+        let day = markers.get(OVERWORLD, "minecraft:day").unwrap();
+        assert_eq!(day.ticks, 1000);
+        assert_eq!(day.period_ticks, Some(24_000));
+        assert!(day.show_in_commands);
+        assert!(!markers.get(OVERWORLD, "minecraft:roll_village_siege").unwrap().show_in_commands);
+
+        // Two markers may share a tick; two markers may not share an id.
+        assert_eq!(markers.get(OVERWORLD, "minecraft:midnight").unwrap().ticks, 18_000);
+        assert_eq!(markers.get(OVERWORLD, "minecraft:roll_village_siege").unwrap().ticks, 18_000);
+    }
+
+    #[test]
+    fn a_clock_with_no_markers_answers_none_rather_than_panicking() {
+        let (markers, _) = markers_of(&[shipped_timeline(DAY_TIMELINE)]);
+        assert!(markers.get("minecraft:the_end", "minecraft:day").is_none());
+        assert_eq!(markers.of_clock("minecraft:the_end").count(), 0);
+        assert!(markers.get(OVERWORLD, "datapack:nothing").is_none());
+    }
+
+    #[test]
+    fn a_marker_on_the_period_boundary_is_rejected() {
+        let (markers, errors) = markers_of(&[timeline_json(
+            OVERWORLD,
+            Some(24_000),
+            serde_json::json!({"minecraft:day": 24_000, "minecraft:noon": 23_999}),
+        )]);
+
+        assert!(matches!(
+            errors.as_slice(),
+            [TimeMarkerError::OutsidePeriod { ticks: 24_000, period: 24_000, .. }]
+        ), "{errors:?}");
+        assert!(markers.get(OVERWORLD, "minecraft:day").is_none());
+        assert!(markers.get(OVERWORLD, "minecraft:noon").is_some());
+    }
+
+    #[test]
+    fn a_keyframe_on_the_period_boundary_is_still_accepted() {
+        let timeline: Timeline = serde_json::from_value(serde_json::json!({
+            "clock": OVERWORLD,
+            "period_ticks": 24_000,
+            "tracks": {
+                "minecraft:visual/star_brightness": {
+                    "keyframes": [{"ticks": 0, "value": 0.0}, {"ticks": 24_000, "value": 1.0}]
+                }
+            }
+        }))
+        .unwrap();
+        assert!(timeline.bake().is_ok());
+    }
+
+    #[test]
+    fn one_marker_id_may_not_be_declared_twice_for_one_clock() {
+        let (markers, errors) = markers_of(&[
+            timeline_json(OVERWORLD, Some(24_000), serde_json::json!({"minecraft:noon": 6_000})),
+            timeline_json(OVERWORLD, Some(24_000), serde_json::json!({"minecraft:noon": 7_000})),
+        ]);
+        assert!(matches!(errors.as_slice(), [TimeMarkerError::Duplicate { .. }]), "{errors:?}");
+        assert_eq!(markers.get(OVERWORLD, "minecraft:noon").unwrap().ticks, 6_000);
+    }
+
+    #[test]
+    fn one_marker_id_on_two_clocks_is_fine() {
+        let (markers, errors) = markers_of(&[
+            timeline_json(OVERWORLD, Some(24_000), serde_json::json!({"minecraft:noon": 6_000})),
+            timeline_json("minecraft:the_end", None, serde_json::json!({"minecraft:noon": 7_000})),
+        ]);
+        assert!(errors.is_empty(), "{errors:?}");
+        assert_eq!(markers.get(OVERWORLD, "minecraft:noon").unwrap().ticks, 6_000);
+        let end = markers.get("minecraft:the_end", "minecraft:noon").unwrap();
+        assert_eq!((end.ticks, end.period_ticks), (7_000, None));
+    }
+
+    #[test]
+    fn rebuilding_replaces_the_table_rather_than_adding_to_it() {
+        let mut markers = ClockTimeMarkers::default();
+        markers.rebuild(&[shipped_timeline(DAY_TIMELINE)]);
+        assert_eq!(markers.len(), 6);
+
+        markers.rebuild(&[timeline_json(
+            OVERWORLD,
+            Some(24_000),
+            serde_json::json!({"minecraft:noon": 6_000}),
+        )]);
+        assert_eq!(markers.len(), 1);
+        assert!(markers.get(OVERWORLD, "minecraft:day").is_none());
+    }
+
+    #[test]
+    fn a_periodic_marker_always_moves_forward() {
+        let day = ClockTimeMarker { ticks: 1000, period_ticks: Some(24_000), show_in_commands: true };
+
+        assert!(!day.occurs_at(2_000));
+        assert_eq!(day.resolve_time_to_move_to(2_000), 25_000);
+
+        // Standing on the marker jumps a whole period rather than nowhere.
+        assert!(day.occurs_at(1_000));
+        assert_eq!(day.resolve_time_to_move_to(1_000), 25_000);
+
+        assert_eq!(day.resolve_time_to_move_to(0), 1_000);
+        assert_eq!(day.resolve_time_to_move_to(24_000), 25_000);
+        assert!(day.occurs_at(25_000));
+
+        assert_eq!(day.repetition_count(0), 0);
+        assert_eq!(day.repetition_count(999), 0);
+        assert_eq!(day.repetition_count(1_000), 1);
+        assert_eq!(day.repetition_count(24_000), 1);
+        assert_eq!(day.repetition_count(25_000), 2);
+    }
+
+    #[test]
+    fn a_marker_at_tick_zero_occurs_at_tick_zero() {
+        let wake_up =
+            ClockTimeMarker { ticks: 0, period_ticks: Some(24_000), show_in_commands: false };
+        assert!(wake_up.occurs_at(0));
+        assert_eq!(wake_up.repetition_count(0), 1);
+        assert_eq!(wake_up.resolve_time_to_move_to(0), 24_000);
+        assert_eq!(wake_up.repetition_count(24_000), 2);
+    }
+
+    #[test]
+    fn a_marker_without_a_period_happens_once() {
+        let once = ClockTimeMarker { ticks: 1_000, period_ticks: None, show_in_commands: false };
+
+        assert!(once.occurs_at(1_000));
+        assert!(!once.occurs_at(25_000));
+        assert_eq!(once.resolve_time_to_move_to(2_000), 1_000);
+        assert_eq!(once.resolve_time_to_move_to(0), 1_000);
+        assert_eq!(once.repetition_count(999), 0);
+        assert_eq!(once.repetition_count(1_000), 1);
+        assert_eq!(once.repetition_count(1_000_000), 1);
     }
 
     #[test]

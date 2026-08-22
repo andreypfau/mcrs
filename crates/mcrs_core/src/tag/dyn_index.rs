@@ -13,6 +13,7 @@ use std::sync::Arc;
 #[derive(Resource)]
 pub struct DynRegistryIndex<T: TaggedRegistry> {
     map: HashMap<ResourceLocation<Arc<str>>, u32>,
+    sorted: Vec<ResourceLocation<Arc<str>>>,
     _marker: PhantomData<fn() -> T>,
 }
 
@@ -21,18 +22,23 @@ impl<T: TaggedRegistry> DynRegistryIndex<T> {
         let mut sorted: Vec<ResourceLocation<Arc<str>>> = entries.collect();
         sorted.sort_by(|a, b| a.as_str().cmp(b.as_str()));
         let map = sorted
-            .into_iter()
+            .iter()
             .enumerate()
-            .map(|(i, rl)| (rl, i as u32))
+            .map(|(i, rl)| (rl.clone(), i as u32))
             .collect();
         Self {
             map,
+            sorted,
             _marker: PhantomData,
         }
     }
 
     pub fn get(&self, rl: &str) -> Option<u32> {
         self.map.get(rl).copied()
+    }
+
+    pub fn location(&self, id: u32) -> Option<&ResourceLocation<Arc<str>>> {
+        self.sorted.get(id as usize)
     }
 
     pub fn len(&self) -> u32 {

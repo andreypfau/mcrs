@@ -45,7 +45,13 @@ use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_core::tag::file::TagFile;
 use mcrs_core::tag::key::TaggedRegistry;
-use mcrs_core::tag::{TagLoader, TagLoadersSettled, TagPhase, TagRegistryAppExt};
+use mcrs_core::tag::{
+    DynRegistryIndex, DynTagLoader, TagLoader, TagLoadersSettled, TagPhase, TagRegistryAppExt,
+};
+use mcrs_core::registry::snapshot::rl_from_asset_path;
+use crate::environment::{freeze_timelines, DimensionEnvironments};
+use crate::timeline::Timeline;
+use crate::world_clock::seed_world_clocks;
 use mcrs_core::{AppState, ResourceLocation, StaticRegistry};
 use crate::dimension::dimension_type::DimensionType;
 
@@ -143,7 +149,10 @@ impl Plugin for MinecraftCorePlugin {
         )
         .add_tagged_registry::<entity::EntityType, StaticRegistry<entity::EntityType>>(
             entity_type_tags::ALL_ENTITY_TYPE_TAGS,
-        );
+        )
+        .add_tagged_registry::<Timeline, DynRegistryIndex<Timeline>>(&[]);
+
+        app.init_resource::<DimensionEnvironments>();
 
         app.init_resource::<mcrs_core::RegistryAccess>();
 
@@ -199,7 +208,12 @@ impl Plugin for MinecraftCorePlugin {
             .add_systems(
                 OnEnter(AppState::WorldgenFreeze),
                 (
-                    resolve_infiniburn_tags.in_set(TagPhase::Resolve),
+                    index_timelines.before(TagPhase::Resolve),
+                    (resolve_infiniburn_tags, resolve_timeline_tags).in_set(TagPhase::Resolve),
+                    freeze_timelines
+                        .after(TagPhase::Freeze)
+                        .after(seed_world_clocks)
+                        .before(transition_to_playing),
                     (register_static_registries_with_access, transition_to_playing)
                         .chain()
                         .after(TagPhase::Freeze),
@@ -414,6 +428,44 @@ fn resolve_infiniburn_tags(
 
 
 
+
+/// The dense id space the timeline tag bitsets are resolved against.
+fn index_timelines(
+    timelines: Res<Assets<Timeline>>,
+    asset_server: Res<AssetServer>,
+    mut commands: Commands,
+) {
+    let entries: Vec<_> = timelines
+        .iter()
+        .filter_map(|(id, _)| rl_from_asset_path(asset_server.get_path(id)?.path()))
+        .collect();
+    tracing::info!(count = entries.len(), "indexed timelines");
+    commands.insert_resource(DynRegistryIndex::<Timeline>::build(entries.into_iter()));
+}
+
+/// Resolve the timeline tag every dimension type names. The tag files were
+/// loaded as sub-assets by `DimensionTypeLoader`, so they are available here.
+fn resolve_timeline_tags(
+    mut tags: ResMut<DynTagLoader<Timeline>>,
+    tag_files: Res<Assets<TagFile>>,
+    index: Res<DynRegistryIndex<Timeline>>,
+    dim_types: Res<Assets<DimensionType>>,
+) {
+    for (_id, dim_type) in dim_types.iter() {
+        let Some(tag) = &dim_type.timelines else {
+            continue;
+        };
+        match tag_files.get(tag.handle()) {
+            Some(tag_file) => {
+                tags.resolve_and_insert(tag.key().location().clone(), tag_file, &tag_files, &*index)
+            }
+            None => tracing::warn!(
+                "timeline tag file not available at WorldgenFreeze: {}",
+                tag.key().as_str()
+            ),
+        }
+    }
+}
 
 fn register_static_registries_with_access(
     block_registry: Res<StaticRegistry<block::Block>>,

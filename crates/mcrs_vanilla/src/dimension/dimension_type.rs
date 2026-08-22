@@ -8,6 +8,7 @@ use serde_json::Value;
 
 use crate::attribute::EnvironmentAttributeMap;
 use crate::block::Block;
+use crate::timeline::Timeline;
 use crate::value::IntValueProvider;
 use crate::ResourceLocation;
 use mcrs_core::tag::tag_ref::TagRef;
@@ -41,7 +42,7 @@ pub(crate) struct ProtoDimensionType {
     #[serde(default)]
     pub attributes: EnvironmentAttributeMap,
     #[serde(default)]
-    pub timelines: Option<Value>,
+    pub timelines: Option<String>,
     #[serde(default)]
     pub default_clock: Option<String>,
 }
@@ -49,7 +50,7 @@ pub(crate) struct ProtoDimensionType {
 /// Error when converting a [`ProtoDimensionType`] to [`DimensionType`].
 #[derive(Debug, thiserror::Error)]
 pub enum DimensionTypeResolveError {
-    #[error("infiniburn field `{0}` does not start with '#'")]
+    #[error("tag field `{0}` does not start with '#'")]
     MissingHashPrefix(String),
     #[error("invalid resource location in infiniburn: {0}")]
     InvalidResourceLocation(#[from] mcrs_core::resource_location::ResourceLocationError),
@@ -69,6 +70,18 @@ impl ProtoDimensionType {
 
         let infiniburn = TagRef::<Block>::load(tag_str, load_context)?;
 
+        let timelines = self
+            .timelines
+            .as_deref()
+            .map(|raw| {
+                let tag_str = raw
+                    .strip_prefix('#')
+                    .ok_or_else(|| DimensionTypeResolveError::MissingHashPrefix(raw.to_owned()))?;
+                TagRef::<Timeline>::load(tag_str, load_context)
+                    .map_err(DimensionTypeResolveError::from)
+            })
+            .transpose()?;
+
         Ok(DimensionType {
             has_skylight: self.has_skylight,
             has_ceiling: self.has_ceiling,
@@ -85,7 +98,7 @@ impl ProtoDimensionType {
             cardinal_light: self.cardinal_light,
             has_fixed_time: self.has_fixed_time,
             attributes: self.attributes,
-            timelines: self.timelines,
+            timelines,
             default_clock: self.default_clock,
         })
     }
@@ -117,7 +130,7 @@ pub struct DimensionType {
     pub cardinal_light: CardinalLight,
     pub has_fixed_time: Option<bool>,
     pub attributes: EnvironmentAttributeMap,
-    pub timelines: Option<Value>,
+    pub timelines: Option<TagRef<Timeline>>,
     pub default_clock: Option<String>,
 }
 
@@ -139,6 +152,9 @@ impl Asset for DimensionType {}
 impl VisitAssetDependencies for DimensionType {
     fn visit_dependencies(&self, visit: &mut impl FnMut(UntypedAssetId)) {
         visit(self.infiniburn.handle().id().untyped());
+        if let Some(timelines) = &self.timelines {
+            visit(timelines.handle().id().untyped());
+        }
     }
 }
 
@@ -166,7 +182,7 @@ pub struct NetworkDimensionType {
     #[serde(skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
     pub attributes: EnvironmentAttributeMap,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub timelines: Option<Value>,
+    pub timelines: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_clock: Option<String>,
 }
@@ -189,7 +205,10 @@ impl From<&DimensionType> for NetworkDimensionType {
             cardinal_light: dt.cardinal_light.clone(),
             has_fixed_time: dt.has_fixed_time,
             attributes: dt.attributes.clone(),
-            timelines: dt.timelines.clone(),
+            timelines: dt
+                .timelines
+                .as_ref()
+                .map(|tag| format!("#{}", tag.key().as_str())),
             default_clock: dt.default_clock.clone(),
         }
     }

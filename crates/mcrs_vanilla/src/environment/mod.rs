@@ -9,10 +9,15 @@
 pub mod sky;
 pub mod spatial;
 
+use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 
+use bevy_asset::{AssetServer, Assets};
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
+use mcrs_core::registry::snapshot::rl_from_asset_path;
+use mcrs_core::tag::file::TagFile;
+use mcrs_core::tag::{DynRegistryIndex, resolve_tag_file_ordered};
 use serde_json::json;
 
 use crate::ResourceLocation;
@@ -22,7 +27,7 @@ use crate::attribute::{
 };
 use crate::dimension::dimension_type::{DimensionType, Skybox};
 use crate::timeline::{AttributeTrackSampler, Timeline, TimelineError};
-use crate::world_clock::WorldClocks;
+use crate::world_clock::{ClockTimeMarkers, WorldClocks};
 
 pub use spatial::{
     BiomeAttributes, BiomeAttributeSource, SpatialAttributeInterpolator, UniformBiomes,
@@ -250,6 +255,100 @@ impl EnvironmentAttributes {
     pub fn value(&self, id: &str, ctx: &EnvironmentContext) -> Option<AttributeValue> {
         Some(self.stacks[Self::index(id)?].evaluate(ctx))
     }
+}
+
+/// One layer stack set per loaded dimension type.
+///
+/// Derived from the dimension type registry, the `timeline` registry and the
+/// tag that joins them; rebuilt whole rather than patched.
+#[derive(Resource, Debug, Clone, Default)]
+pub struct DimensionEnvironments(HashMap<ResourceLocation<Arc<str>>, EnvironmentAttributes>);
+
+impl DimensionEnvironments {
+    pub fn get(&self, dimension_type: &str) -> Option<&EnvironmentAttributes> {
+        self.0.get(dimension_type)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&ResourceLocation<Arc<str>>, &EnvironmentAttributes)> {
+        self.0.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+/// Fold the loaded `timeline` registry into everything derived from it: the
+/// time marker table beside the clocks, and one layer stack set per dimension.
+pub fn freeze_timelines(
+    timelines: Res<Assets<Timeline>>,
+    dimension_types: Res<Assets<DimensionType>>,
+    timeline_index: Res<DynRegistryIndex<Timeline>>,
+    tag_files: Res<Assets<TagFile>>,
+    asset_server: Res<AssetServer>,
+    mut markers: ResMut<ClockTimeMarkers>,
+    mut environments: ResMut<DimensionEnvironments>,
+) {
+    let mut loaded: Vec<(ResourceLocation<Arc<str>>, &Timeline)> = timelines
+        .iter()
+        .filter_map(|(id, timeline)| {
+            Some((rl_from_asset_path(asset_server.get_path(id)?.path())?, timeline))
+        })
+        .collect();
+    loaded.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
+
+    for error in markers.rebuild(loaded.iter().map(|(_, timeline)| *timeline)) {
+        tracing::error!(%error, "rejected time marker");
+    }
+
+    let by_id: HashMap<&str, &Timeline> = loaded
+        .iter()
+        .map(|(id, timeline)| (id.as_str(), *timeline))
+        .collect();
+
+    environments.0.clear();
+    for (asset_id, dimension_type) in dimension_types.iter() {
+        let Some(id) = asset_server
+            .get_path(asset_id)
+            .and_then(|path| rl_from_asset_path(path.path()))
+        else {
+            continue;
+        };
+
+        let members = dimension_type
+            .timelines
+            .as_ref()
+            .and_then(|tag| tag_files.get(tag.handle()))
+            .map(|tag_file| resolve_tag_file_ordered(tag_file, &tag_files, &*timeline_index))
+            .unwrap_or_default();
+        let dimension_timelines: Vec<&Timeline> = members
+            .into_iter()
+            .filter_map(|member| {
+                let id = timeline_index.location(member)?;
+                by_id.get(id.as_str()).copied()
+            })
+            .collect();
+
+        match EnvironmentAttributes::build(
+            &DimensionEnvironment::of(id.as_str(), dimension_type),
+            &dimension_timelines,
+        ) {
+            Ok(attributes) => {
+                environments.0.insert(id, attributes);
+            }
+            Err(error) => tracing::error!(dimension = %id, %error, "could not build environment"),
+        }
+    }
+
+    tracing::info!(
+        dimensions = environments.len(),
+        markers = markers.len(),
+        "froze timelines"
+    );
 }
 
 /// Everything a layer stack needs that is not fixed for the dimension.
