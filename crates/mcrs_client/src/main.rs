@@ -12,6 +12,7 @@ use mcrs_vanilla::timeline::Timeline;
 use mcrs_vanilla::world_clock::{AdvanceTime, WorldClock, WorldClocks};
 
 mod player;
+mod sky;
 
 fn main() {
     let world = world_folder();
@@ -35,6 +36,7 @@ fn main() {
     .add_plugins(mcrs_core::MinecraftEnginePlugin)
     .add_plugins(mcrs_vanilla::MinecraftCorePlugin)
     .add_plugins(player::PlayerPlugin)
+    .add_plugins(sky::SkyTexturePlugin)
     .add_systems(
         OnEnter(AppState::Playing),
         (log_registry_counts, log_seeded_resources),
