@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 use std::io::Cursor;
+use std::marker::PhantomData;
 
 use mcrs_nbt::compound::NbtCompound;
+use mcrs_palette::{self as palette, SectionKind};
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
@@ -18,24 +20,22 @@ pub struct BlockState {
     pub properties: BTreeMap<String, String>,
 }
 
-/// Palette entries plus one index per cell, in `Strategy.getIndex` order:
-/// `(y << AXIS_BITS | z) << AXIS_BITS | x`. `MIN_BITS` is the narrowest width the
-/// strategy will store a non-empty palette at, which is why a three-entry block
-/// palette is packed at four bits rather than two.
+/// Palette entries plus one index per cell, in `Strategy.getIndex` order.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PalettedContainer<T, const AXIS_BITS: u32, const MIN_BITS: u32> {
+pub struct PalettedContainer<T, K> {
     pub palette: Vec<T>,
     entries: Box<[u16]>,
+    kind: PhantomData<K>,
 }
 
-pub type BlockStates = PalettedContainer<BlockState, 4, 4>;
-pub type Biomes = PalettedContainer<String, 2, 1>;
+pub type BlockStates = PalettedContainer<BlockState, palette::Blocks>;
+pub type Biomes = PalettedContainer<String, palette::Biomes>;
 
-impl<T, const AXIS_BITS: u32, const MIN_BITS: u32> PalettedContainer<T, AXIS_BITS, MIN_BITS> {
-    pub const ENTRY_COUNT: usize = 1 << (3 * AXIS_BITS);
+impl<T, K: SectionKind> PalettedContainer<T, K> {
+    pub const ENTRY_COUNT: usize = K::ENTRY_COUNT;
 
-    pub const fn index(x: usize, y: usize, z: usize) -> usize {
-        (y << AXIS_BITS | z) << AXIS_BITS | x
+    pub fn index(x: usize, y: usize, z: usize) -> usize {
+        K::index(x, y, z)
     }
 
     pub fn get(&self, x: usize, y: usize, z: usize) -> &T {
@@ -59,43 +59,29 @@ impl<T, const AXIS_BITS: u32, const MIN_BITS: u32> PalettedContainer<T, AXIS_BIT
                 max: u16::MAX as usize + 1,
             });
         }
-        let bits = match bits_for_distinct_values(len) {
-            0 => {
-                if raw.data.is_some() {
-                    return Err(ErrorKind::UnexpectedData { y, field });
-                }
-                return Ok(Self {
-                    palette: raw.palette,
-                    entries: vec![0u16; Self::ENTRY_COUNT].into_boxed_slice(),
-                });
+        let bits = K::storage_bits(len);
+        if bits == 0 {
+            if raw.data.is_some() {
+                return Err(ErrorKind::UnexpectedData { y, field });
             }
-            bits => bits.max(MIN_BITS),
-        };
+            return Ok(Self {
+                palette: raw.palette,
+                entries: vec![0u16; Self::ENTRY_COUNT].into_boxed_slice(),
+                kind: PhantomData,
+            });
+        }
 
         let Some(data) = raw.data else {
             return Err(ErrorKind::MissingData { y, field, bits });
         };
-        let per_long = 64 / bits as usize;
-        let expected = Self::ENTRY_COUNT.div_ceil(per_long);
-        if data.len() != expected {
-            return Err(ErrorKind::DataLength {
-                y,
-                field,
-                found: data.len(),
-                expected,
-                bits,
-            });
-        }
-
-        let mask = (1u64 << bits) - 1;
         let mut entries = vec![0u16; Self::ENTRY_COUNT];
-        for (cells, &word) in entries.chunks_mut(per_long).zip(data.iter()) {
-            let mut word = word as u64;
-            for cell in cells {
-                *cell = (word & mask) as u16;
-                word >>= bits;
-            }
-        }
+        palette::unpack_into(bits, &data, &mut entries).map_err(|e| ErrorKind::DataLength {
+            y,
+            field,
+            found: e.found,
+            expected: e.expected,
+            bits,
+        })?;
 
         // One pass over a u16 slice vectorizes; a per-cell bound check does not.
         if entries
@@ -120,15 +106,8 @@ impl<T, const AXIS_BITS: u32, const MIN_BITS: u32> PalettedContainer<T, AXIS_BIT
         Ok(Self {
             palette: raw.palette,
             entries: entries.into_boxed_slice(),
+            kind: PhantomData,
         })
-    }
-}
-
-/// `Mth.ceillog2`: the palette size a stored entry must be able to address.
-fn bits_for_distinct_values(count: usize) -> u32 {
-    match count {
-        0 | 1 => 0,
-        n => usize::BITS - (n - 1).leading_zeros(),
     }
 }
 

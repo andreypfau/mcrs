@@ -1,3 +1,4 @@
+use mcrs_palette::ceillog2;
 use rustc_hash::FxHashMap;
 use std::hash::Hash;
 
@@ -112,7 +113,7 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
     fn bits_per_entry(&self) -> u8 {
         match self {
             Self::Homogeneous(_) => 0,
-            Self::Heterogeneous(data) => encompassing_bits(data.counts.len()),
+            Self::Heterogeneous(data) => ceillog2(data.counts.len()) as u8,
         }
     }
 
@@ -120,29 +121,15 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
         match self {
             Self::Homogeneous(registry_id) => (Box::new([*registry_id]), Box::new([])),
             Self::Heterogeneous(data) => {
-                debug_assert!(bits_per_entry >= encompassing_bits(data.counts.len()));
+                debug_assert!(bits_per_entry as u32 >= ceillog2(data.counts.len()));
                 debug_assert!(bits_per_entry <= 15);
 
-                let blocks_per_i64 = 64 / bits_per_entry;
+                let cells = data.cube.as_flattened().as_flattened();
+                let packed = mcrs_palette::pack_from(bits_per_entry as u32, cells, |key| {
+                    data.index[key] as u32
+                });
 
-                let packed_indices: Box<[i64]> = data
-                    .cube
-                    .as_flattened()
-                    .as_flattened()
-                    .chunks(blocks_per_i64 as usize)
-                    .map(|chunk| {
-                        chunk.iter().enumerate().fold(0, |acc, (index, key)| {
-                            let key_index = data.index[key];
-                            debug_assert!((1 << bits_per_entry) > key_index);
-
-                            let packed_offset_index =
-                                (key_index as u64) << (bits_per_entry as u64 * index as u64);
-                            acc | packed_offset_index as i64
-                        })
-                    })
-                    .collect();
-
-                (data.palette.clone().into_boxed_slice(), packed_indices)
+                (data.palette.clone().into_boxed_slice(), packed)
             }
         }
     }
@@ -153,7 +140,6 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
         minimum_bits_per_entry: u8,
     ) -> Self {
         if palette_slice.is_empty() {
-            // log::warn!("No palette data! Defaulting...");
             return Self::Homogeneous(V::default());
         }
 
@@ -161,41 +147,12 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
             return Self::Homogeneous(palette_slice[0]);
         }
 
-        let bits_per_key = encompassing_bits(palette_slice.len()).max(minimum_bits_per_entry);
-        let index_mask = (1 << bits_per_key) - 1;
-        let keys_per_i64 = 64 / bits_per_key;
-
-        let mut decompressed_values = Vec::with_capacity(Self::VOLUME);
-
-        // We already have the palette from the input `palette_slice`.
-        // The counts will be created in the next step.
-
-        let mut packed_data_iter = packed_data.iter();
-        let mut current_packed_word = *packed_data_iter.next().unwrap_or(&0);
-
-        for i in 0..Self::VOLUME {
-            let bit_index_in_word = i % keys_per_i64 as usize;
-
-            if bit_index_in_word == 0 && i > 0 {
-                current_packed_word = *packed_data_iter.next().unwrap_or(&0);
-            }
-
-            let lookup_index = (current_packed_word as u64
-                >> (bit_index_in_word as u64 * bits_per_key as u64))
-                & index_mask;
-
-            let value = palette_slice
-                .get(lookup_index as usize)
-                .copied()
-                .unwrap_or_else(|| {
-                    // log::warn!("Lookup index out of bounds! Defaulting...");
-                    V::default()
-                });
-
-            decompressed_values.push(value);
+        let bits_per_key = (ceillog2(palette_slice.len()) as u8).max(minimum_bits_per_entry);
+        let mut indices = vec![0u16; Self::VOLUME];
+        if mcrs_palette::unpack_into(bits_per_key as u32, packed_data, &mut indices).is_err() {
+            return Self::Homogeneous(V::default());
         }
 
-        // Build reverse index and counts using O(1) lookups.
         let palette_vec: Vec<V> = palette_slice.to_vec();
         let index: FxHashMap<V, usize> = palette_vec
             .iter()
@@ -204,16 +161,21 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
             .collect();
 
         let mut counts = vec![0u16; palette_slice.len()];
-        for &value in &decompressed_values {
-            if let Some(&idx) = index.get(&value) {
-                counts[idx] += 1;
+        let mut cube = Box::new([[[V::default(); DIM]; DIM]; DIM]);
+        for (cell, &lookup) in cube
+            .as_flattened_mut()
+            .as_flattened_mut()
+            .iter_mut()
+            .zip(indices.iter())
+        {
+            match palette_vec.get(lookup as usize) {
+                Some(&value) => {
+                    counts[lookup as usize] += 1;
+                    *cell = value;
+                }
+                None => *cell = V::default(),
             }
         }
-
-        let mut cube = Box::new([[[V::default(); DIM]; DIM]; DIM]);
-        cube.as_flattened_mut()
-            .as_flattened_mut()
-            .copy_from_slice(&decompressed_values);
 
         Self::Heterogeneous(Box::new(HeterogeneousPaletteData {
             cube,
@@ -381,15 +343,5 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
 impl<V: Default + Hash + Eq + Copy, const DIM: usize> Default for PalettedContainer<V, DIM> {
     fn default() -> Self {
         Self::Homogeneous(V::default())
-    }
-}
-
-/// The minimum number of bits required to represent this number
-#[inline]
-pub fn encompassing_bits(count: usize) -> u8 {
-    if count == 1 {
-        1
-    } else {
-        count.ilog2() as u8 + if count.is_power_of_two() { 0 } else { 1 }
     }
 }

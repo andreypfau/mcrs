@@ -1,8 +1,9 @@
 use bevy_ecs::component::Component;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk;
+use mcrs_engine::world::chunk::palette::PalettedContainer;
 use mcrs_engine::world::chunk::palette::PalettedContainer::{Heterogeneous, Homogeneous};
-use mcrs_engine::world::chunk::palette::{PalettedContainer, encompassing_bits};
+use mcrs_palette::{PaletteForm, SectionKind};
 use mcrs_protocol::BlockStateId;
 
 impl BiomePalette {
@@ -20,42 +21,25 @@ impl BiomePalette {
                 palette: mcrs_protocol::chunk::Palette::Single(*registry_id),
                 packed_data: Box::new([]),
             },
-            Heterogeneous(data) => {
-                let raw_bits_per_entry = encompassing_bits(data.counts.len());
-                if raw_bits_per_entry > BIOME_NETWORK_MAX_MAP_BITS {
-                    let bits_per_entry = BIOME_NETWORK_MAX_BITS;
-                    let values_per_i64 = 64 / bits_per_entry;
-                    let packed_data = data
-                        .cube
-                        .as_flattened()
-                        .as_flattened()
-                        .chunks(values_per_i64 as usize)
-                        .map(|chunk| {
-                            chunk.iter().enumerate().fold(0, |acc, (index, value)| {
-                                debug_assert!((1 << bits_per_entry) > *value);
-                                let packed_offset_index =
-                                    (*value as u64) << (bits_per_entry as u64 * index as u64);
-                                acc | packed_offset_index as i64
-                            })
-                        })
-                        .collect();
-
+            Heterogeneous(data) => match mcrs_palette::Biomes::network_form(data.counts.len()) {
+                PaletteForm::Single => unreachable!("a heterogeneous container has two entries"),
+                PaletteForm::Indirect { bits } => {
+                    let (palette, packed) = self.0.to_palette_and_packed_data(bits as u8);
                     mcrs_protocol::chunk::PalettedContainer {
-                        bits_per_entry,
-                        palette: mcrs_protocol::chunk::Palette::Direct,
-                        packed_data,
-                    }
-                } else {
-                    let bits_per_entry = raw_bits_per_entry.max(BIOME_NETWORK_MIN_MAP_BITS);
-                    let (palette, packed) = self.0.to_palette_and_packed_data(bits_per_entry);
-
-                    mcrs_protocol::chunk::PalettedContainer {
-                        bits_per_entry,
+                        bits_per_entry: bits as u8,
                         palette: mcrs_protocol::chunk::Palette::Indirect(palette),
                         packed_data: packed,
                     }
                 }
-            }
+                PaletteForm::Direct { bits } => {
+                    let cells = data.cube.as_flattened().as_flattened();
+                    mcrs_protocol::chunk::PalettedContainer {
+                        bits_per_entry: bits as u8,
+                        palette: mcrs_protocol::chunk::Palette::Direct,
+                        packed_data: mcrs_palette::pack_from(bits, cells, |&id| id as u32),
+                    }
+                }
+            },
         }
     }
 }
@@ -68,43 +52,25 @@ impl BlockPalette {
                 palette: mcrs_protocol::chunk::Palette::Single(*registry_id),
                 packed_data: Box::new([]),
             },
-            Heterogeneous(data) => {
-                let raw_bits_per_entry = encompassing_bits(data.counts.len());
-                if raw_bits_per_entry > BLOCK_NETWORK_MAX_MAP_BITS {
-                    let bits_per_entry = BLOCK_NETWORK_MAX_BITS;
-                    let values_per_i64 = 64 / bits_per_entry;
-                    let packed_data = data
-                        .cube
-                        .as_flattened()
-                        .as_flattened()
-                        .chunks(values_per_i64 as usize)
-                        .map(|chunk| {
-                            chunk.iter().enumerate().fold(0, |acc, (index, value)| {
-                                // debug_assert!((1 << bits_per_entry) > *value);
-
-                                let packed_offset_index =
-                                    (**value as i64) << (bits_per_entry as u64 * index as u64);
-                                acc | packed_offset_index
-                            })
-                        })
-                        .collect();
-
+            Heterogeneous(data) => match mcrs_palette::Blocks::network_form(data.counts.len()) {
+                PaletteForm::Single => unreachable!("a heterogeneous container has two entries"),
+                PaletteForm::Indirect { bits } => {
+                    let (palette, packed) = self.0.to_palette_and_packed_data(bits as u8);
                     mcrs_protocol::chunk::PalettedContainer {
-                        bits_per_entry,
-                        palette: mcrs_protocol::chunk::Palette::Direct,
-                        packed_data,
-                    }
-                } else {
-                    let bits_per_entry = raw_bits_per_entry.max(BLOCK_NETWORK_MIN_MAP_BITS);
-                    let (palette, packed) = self.0.to_palette_and_packed_data(bits_per_entry);
-
-                    mcrs_protocol::chunk::PalettedContainer {
-                        bits_per_entry,
+                        bits_per_entry: bits as u8,
                         palette: mcrs_protocol::chunk::Palette::Indirect(palette),
                         packed_data: packed,
                     }
                 }
-            }
+                PaletteForm::Direct { bits } => {
+                    let cells = data.cube.as_flattened().as_flattened();
+                    mcrs_protocol::chunk::PalettedContainer {
+                        bits_per_entry: bits as u8,
+                        palette: mcrs_protocol::chunk::Palette::Direct,
+                        packed_data: mcrs_palette::pack_from(bits, cells, |id| id.0 as u32),
+                    }
+                }
+            },
         }
     }
 
@@ -204,14 +170,6 @@ impl BlockPalette {
 
 #[derive(Component, Debug, Clone, Default)]
 pub struct BlockPalette(PalettedContainer<BlockStateId, 16>);
-const BLOCK_DISK_MIN_BITS: u8 = 4;
-const BLOCK_NETWORK_MIN_MAP_BITS: u8 = 4;
-const BLOCK_NETWORK_MAX_MAP_BITS: u8 = 8;
-pub(crate) const BLOCK_NETWORK_MAX_BITS: u8 = 15;
 
 #[derive(Component, Debug, Clone, Default)]
 pub struct BiomePalette(PalettedContainer<u8, 4>);
-const BIOME_DISK_MIN_BITS: u8 = 0;
-const BIOME_NETWORK_MIN_MAP_BITS: u8 = 1;
-const BIOME_NETWORK_MAX_MAP_BITS: u8 = 3;
-pub(crate) const BIOME_NETWORK_MAX_BITS: u8 = 7;

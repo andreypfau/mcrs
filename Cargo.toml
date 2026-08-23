@@ -115,6 +115,7 @@ bevy = { version = "0.19.1", default-features = false, features = [
 serde.workspace = true
 serde_json.workspace = true
 mcrs_nbt.workspace = true
+mcrs_palette.workspace = true
 flate2.workspace = true
 bytemuck = { version = "1", features = ["derive"] }
 # Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.

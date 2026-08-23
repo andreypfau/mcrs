@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io::{Cursor, Read};
 use std::path::Path;
 
+use mcrs_palette::SectionKind;
 use serde::Deserialize;
 
 use super::{
@@ -231,7 +232,16 @@ fn build_section(
         }));
     };
 
-    let bits = bits_per_entry(palette.len());
+    let bits = mcrs_palette::Blocks::storage_bits(palette.len()) as usize;
+    if bits == 0 {
+        if palette[0] == air_state {
+            return Ok(None);
+        }
+        return Ok(Some(Section {
+            blocks: Box::new([palette[0]; SECTION_VOLUME]),
+            biomes: unpack_biomes(section, biome_intern, biome_names),
+        }));
+    }
     let per_long = 64 / bits;
     let needed = SECTION_VOLUME.div_ceil(per_long);
     if data.len() < needed {
@@ -302,7 +312,11 @@ fn unpack_biomes(
         out.fill(palette[0]);
         return out;
     };
-    let bits = (usize::BITS - source.palette.len().saturating_sub(1).leading_zeros()).max(1) as usize;
+    let bits = mcrs_palette::Biomes::storage_bits(source.palette.len()) as usize;
+    if bits == 0 {
+        out.fill(palette[0]);
+        return out;
+    }
     let per_long = 64 / bits;
     let mask = (1u64 << bits) - 1;
     let mut written = 0usize;
@@ -318,12 +332,6 @@ fn unpack_biomes(
         }
     }
     out
-}
-
-#[inline]
-fn bits_per_entry(palette_len: usize) -> usize {
-    let needed = usize::BITS - (palette_len.saturating_sub(1)).leading_zeros();
-    (needed as usize).max(4)
 }
 
 fn unpack_light(section: &SectionNbt) -> Option<Box<[u8; SECTION_VOLUME]>> {
@@ -349,19 +357,3 @@ fn write_nibbles(source: &[i8], out: &mut [u8; SECTION_VOLUME], shift: u32) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::bits_per_entry;
-
-    #[test]
-    fn palette_width_follows_the_anvil_rule() {
-        assert_eq!(bits_per_entry(1), 4);
-        assert_eq!(bits_per_entry(16), 4);
-        assert_eq!(bits_per_entry(17), 5);
-        assert_eq!(bits_per_entry(32), 5);
-        assert_eq!(bits_per_entry(33), 6);
-        assert_eq!(bits_per_entry(43), 6);
-        assert_eq!(bits_per_entry(256), 8);
-        assert_eq!(bits_per_entry(257), 9);
-    }
-}
