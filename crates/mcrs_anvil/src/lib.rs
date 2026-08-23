@@ -1,13 +1,15 @@
 mod chunk;
+mod palette;
 mod region;
 
 #[cfg(test)]
 mod tests;
 
 pub use chunk::{
-    Biomes, BlockState, BlockStates, Chunk, LIGHT_BYTES, Light, PalettedContainer, Section,
+    Biomes, BlockStates, Chunk, LIGHT_BYTES, Light, PalettedContainer, Section,
     parse as parse_chunk,
 };
+pub use palette::{BlockStateLookup, Palette, Properties};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 
 use std::path::PathBuf;
@@ -75,6 +77,8 @@ pub enum ErrorKind {
     Nbt(#[from] mcrs_nbt::Error),
     #[error("DataVersion {found}, expected {expected}")]
     DataVersion { found: i32, expected: i32 },
+    #[error("`{name}` is not a block state this registry knows")]
+    UnknownPaletteEntry { name: String },
     #[error("section {y}: `{field}` palette is empty")]
     EmptyPalette { y: i8, field: &'static str },
     #[error(

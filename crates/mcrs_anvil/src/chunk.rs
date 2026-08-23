@@ -3,50 +3,76 @@ use std::io::Cursor;
 use std::marker::PhantomData;
 
 use mcrs_nbt::compound::NbtCompound;
-use mcrs_palette::{self as palette, SectionKind};
+use mcrs_palette::SectionKind;
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
+use crate::palette::{BlockStateLookup, Palette, Properties};
 use crate::{DATA_VERSION, ErrorKind};
 
 pub const LIGHT_BYTES: usize = 2048;
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct BlockState {
-    #[serde(rename = "Name")]
-    pub name: String,
-    #[serde(rename = "Properties", default)]
-    pub properties: BTreeMap<String, String>,
-}
-
 /// Palette entries plus one index per cell, in `Strategy.getIndex` order.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PalettedContainer<T, K> {
-    pub palette: Vec<T>,
-    entries: Box<[u16]>,
+pub struct PalettedContainer<K> {
+    pub palette: Palette,
+    entries: Cells,
     kind: PhantomData<K>,
 }
 
-pub type BlockStates = PalettedContainer<BlockState, palette::Blocks>;
-pub type Biomes = PalettedContainer<String, palette::Biomes>;
+pub type BlockStates = PalettedContainer<mcrs_palette::Blocks>;
+pub type Biomes = PalettedContainer<mcrs_palette::Biomes>;
 
-impl<T, K: SectionKind> PalettedContainer<T, K> {
+impl<K: SectionKind> PalettedContainer<K> {
     pub const ENTRY_COUNT: usize = K::ENTRY_COUNT;
 
     pub fn index(x: usize, y: usize, z: usize) -> usize {
         K::index(x, y, z)
     }
 
-    pub fn get(&self, x: usize, y: usize, z: usize) -> &T {
-        &self.palette[self.entries[Self::index(x, y, z)] as usize]
+    /// Which palette entry the cell holds.
+    pub fn palette_index(&self, x: usize, y: usize, z: usize) -> usize {
+        match &self.entries {
+            Cells::Uniform => 0,
+            Cells::Packed(cells) => cells[Self::index(x, y, z)] as usize,
+        }
+    }
+
+    pub fn name(&self, x: usize, y: usize, z: usize) -> &str {
+        self.palette.name(self.palette_index(x, y, z))
+    }
+
+    pub fn properties(&self, x: usize, y: usize, z: usize) -> Properties<'_> {
+        self.palette.properties(self.palette_index(x, y, z))
+    }
+
+    /// One id per palette entry, resolved while the names are still borrowed.
+    /// Combine with `entries()` through `mcrs_palette::remap_into` to get a
+    /// cell-indexed array without a second pass over the names.
+    pub fn resolve_palette<R: BlockStateLookup>(
+        &self,
+        registry: &R,
+    ) -> Result<Vec<u32>, ErrorKind> {
+        (0..self.palette.len())
+            .map(|i| {
+                let name = self.palette.name(i);
+                registry
+                    .resolve(name, self.palette.properties(i))
+                    .ok_or_else(|| ErrorKind::UnknownPaletteEntry {
+                        name: name.to_string(),
+                    })
+            })
+            .collect()
     }
 
     pub fn entries(&self) -> &[u16] {
-        &self.entries
+        match &self.entries {
+            Cells::Uniform => &ZEROS[..Self::ENTRY_COUNT],
+            Cells::Packed(cells) => cells,
+        }
     }
 
-    fn unpack(raw: RawPalettedContainer<T>, y: i8, field: &'static str) -> Result<Self, ErrorKind> {
+    fn unpack(raw: RawPalettedContainer, y: i8, field: &'static str) -> Result<Self, ErrorKind> {
         let len = raw.palette.len();
         if len == 0 {
             return Err(ErrorKind::EmptyPalette { y, field });
@@ -66,7 +92,7 @@ impl<T, K: SectionKind> PalettedContainer<T, K> {
             }
             return Ok(Self {
                 palette: raw.palette,
-                entries: vec![0u16; Self::ENTRY_COUNT].into_boxed_slice(),
+                entries: Cells::Uniform,
                 kind: PhantomData,
             });
         }
@@ -75,12 +101,14 @@ impl<T, K: SectionKind> PalettedContainer<T, K> {
             return Err(ErrorKind::MissingData { y, field, bits });
         };
         let mut entries = vec![0u16; Self::ENTRY_COUNT];
-        palette::unpack_into(bits, &data, &mut entries).map_err(|e| ErrorKind::DataLength {
-            y,
-            field,
-            found: e.found,
-            expected: e.expected,
-            bits,
+        mcrs_palette::unpack_into(bits, &data, &mut entries).map_err(|e| {
+            ErrorKind::DataLength {
+                y,
+                field,
+                found: e.found,
+                expected: e.expected,
+                bits,
+            }
         })?;
 
         // One pass over a u16 slice vectorizes; a per-cell bound check does not.
@@ -105,10 +133,21 @@ impl<T, K: SectionKind> PalettedContainer<T, K> {
 
         Ok(Self {
             palette: raw.palette,
-            entries: entries.into_boxed_slice(),
+            entries: Cells::Packed(entries.into_boxed_slice()),
             kind: PhantomData,
         })
     }
+}
+
+/// A single-entry palette addresses no cells, so it stores none. `entries()`
+/// still answers with a slice, which is why the zeroes are static rather than
+/// allocated per container.
+static ZEROS: [u16; 4096] = [0; 4096];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Cells {
+    Uniform,
+    Packed(Box<[u16]>),
 }
 
 /// One nibble per cell, indexed the same way block states are.
@@ -148,8 +187,8 @@ pub struct Chunk {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct RawPalettedContainer<T> {
-    palette: Vec<T>,
+struct RawPalettedContainer {
+    palette: Palette,
     data: Option<Vec<i64>>,
 }
 
@@ -158,12 +197,12 @@ struct RawPalettedContainer<T> {
 struct RawSection {
     #[serde(rename = "Y")]
     y: i8,
-    block_states: Option<RawPalettedContainer<BlockState>>,
-    biomes: Option<RawPalettedContainer<String>>,
+    block_states: Option<RawPalettedContainer>,
+    biomes: Option<RawPalettedContainer>,
     #[serde(rename = "BlockLight")]
-    block_light: Option<Vec<u8>>,
+    block_light: Option<RawLight>,
     #[serde(rename = "SkyLight")]
-    sky_light: Option<Vec<u8>>,
+    sky_light: Option<RawLight>,
 }
 
 /// Underscored fields exist so that `deny_unknown_fields` accepts a vanilla chunk
@@ -252,13 +291,48 @@ fn parse_section(raw: RawSection) -> Result<Section, ErrorKind> {
             .transpose()?,
         block_light: raw
             .block_light
-            .map(|bytes| light(bytes, y, "BlockLight"))
+            .map(|bytes| light(bytes.0, y, "BlockLight"))
             .transpose()?,
         sky_light: raw
             .sky_light
-            .map(|bytes| light(bytes, y, "SkyLight"))
+            .map(|bytes| light(bytes.0, y, "SkyLight"))
             .transpose()?,
     })
+}
+
+/// Asks the deserializer for the byte array whole. Reading it as a sequence
+/// costs a visitor round trip per byte, and every section carries two of them.
+struct RawLight(Vec<u8>);
+
+impl<'de> Deserialize<'de> for RawLight {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Bytes;
+
+        impl<'de> serde::de::Visitor<'de> for Bytes {
+            type Value = RawLight;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a byte array")
+            }
+
+            fn visit_bytes<E: serde::de::Error>(self, v: &[u8]) -> Result<RawLight, E> {
+                Ok(RawLight(v.to_vec()))
+            }
+
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> Result<RawLight, A::Error> {
+                let mut out = Vec::with_capacity(seq.size_hint().unwrap_or(LIGHT_BYTES));
+                while let Some(byte) = seq.next_element::<u8>()? {
+                    out.push(byte);
+                }
+                Ok(RawLight(out))
+            }
+        }
+
+        d.deserialize_bytes(Bytes)
+    }
 }
 
 fn light(bytes: Vec<u8>, y: i8, field: &'static str) -> Result<Light, ErrorKind> {

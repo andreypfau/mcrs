@@ -129,7 +129,25 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
 
     forward_to_deserialize_any! {
         char str string unit unit_struct seq tuple tuple_struct
-        bytes newtype_struct byte_buf
+        newtype_struct
+    }
+
+    // A byte array read element-wise costs one visitor round trip per byte, and
+    // a chunk section carries two 2048-byte light layers.
+    fn deserialize_bytes<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        if self.tag_to_deserialize_stack != Some(BYTE_ARRAY_ID) {
+            return self.deserialize_any(visitor);
+        }
+        let len = self.input.get_i32_be()?;
+        if len < 0 {
+            return Err(Error::NegativeLength(len));
+        }
+        self.input.read_into(&mut self.scratch, len as usize)?;
+        visitor.visit_bytes(&self.scratch)
+    }
+
+    fn deserialize_byte_buf<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+        self.deserialize_bytes(visitor)
     }
 
     // Inside a list every element carries the same tag, so the element type is

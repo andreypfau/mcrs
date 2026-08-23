@@ -6,7 +6,10 @@ use mcrs_nbt::tag::NbtTag;
 
 use crate::chunk::LIGHT_BYTES;
 use crate::region::SECTOR_BYTES;
-use crate::{AnvilError, Biomes, BlockStates, DATA_VERSION, ErrorKind, RegionFile};
+use crate::{
+    AnvilError, Biomes, BlockStateLookup, BlockStates, DATA_VERSION, ErrorKind, Properties,
+    RegionFile,
+};
 
 const GZIP: u8 = 1;
 const ZLIB: u8 = 2;
@@ -188,7 +191,12 @@ fn every_compression_id_round_trips() {
         let chunk = read_one(&fixture, version, &root).unwrap();
         assert_eq!(chunk.sections.len(), 1, "compression {version}");
         assert_eq!(
-            chunk.sections[0].block_states.as_ref().unwrap().palette[0].name,
+            chunk.sections[0]
+                .block_states
+                .as_ref()
+                .unwrap()
+                .palette
+                .name(0),
             "minecraft:stone",
             "compression {version}"
         );
@@ -243,7 +251,12 @@ fn external_chunks_come_from_the_mcc_file() {
     let chunk = region.read_chunk(33, 2).unwrap().unwrap();
     assert_eq!(chunk.x, 33);
     assert_eq!(
-        chunk.sections[0].block_states.as_ref().unwrap().palette[0].name,
+        chunk.sections[0]
+            .block_states
+            .as_ref()
+            .unwrap()
+            .palette
+            .name(0),
         "minecraft:deepslate"
     );
 }
@@ -298,8 +311,124 @@ fn a_single_value_section_carries_no_data() {
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
     assert_eq!(blocks.palette.len(), 1);
     for (x, y, z) in [(0, 0, 0), (15, 15, 15), (7, 3, 11)] {
-        assert_eq!(blocks.get(x, y, z).name, "minecraft:bedrock");
+        assert_eq!(blocks.name(x, y, z), "minecraft:bedrock");
     }
+}
+
+/// A single-entry palette stores no cells, so `entries()` has to answer from
+/// somewhere other than the container.
+struct FakeRegistry;
+
+impl BlockStateLookup for FakeRegistry {
+    fn resolve(&self, name: &str, properties: Properties<'_>) -> Option<u32> {
+        let base = match name {
+            "minecraft:air" => 0,
+            "minecraft:stone" => 100,
+            "minecraft:oak_log" => 200,
+            _ => return None,
+        };
+        Some(
+            base + if properties.get("axis") == Some("y") {
+                1
+            } else {
+                0
+            },
+        )
+    }
+}
+
+/// The registry sees the name and its properties while both are still borrowed
+/// out of the palette's text, so nothing is resolved twice or copied.
+#[test]
+fn the_palette_resolves_through_a_registry() {
+    let fixture = Fixture::new("resolve");
+    let mut entries = vec![0u16; BlockStates::ENTRY_COUNT];
+    entries[BlockStates::index(1, 0, 0)] = 1;
+    entries[BlockStates::index(0, 0, 1)] = 2;
+    let root = chunk_nbt(
+        0,
+        0,
+        vec![NbtTag::Compound(section(
+            0,
+            container(
+                vec![
+                    NbtTag::Compound(block("minecraft:air")),
+                    NbtTag::Compound(block("minecraft:stone")),
+                    NbtTag::Compound(block_with("minecraft:oak_log", "axis", "y")),
+                ],
+                Some(pack(&entries, 4)),
+            ),
+        ))],
+    );
+    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
+    let blocks = chunk.sections[0].block_states.as_ref().unwrap();
+
+    let ids = blocks.resolve_palette(&FakeRegistry).unwrap();
+    assert_eq!(ids, vec![0, 100, 201]);
+    assert_eq!(ids[blocks.palette_index(0, 0, 0)], 0);
+    assert_eq!(ids[blocks.palette_index(1, 0, 0)], 100);
+    assert_eq!(ids[blocks.palette_index(0, 0, 1)], 201);
+}
+
+/// The palette entry is read by hand rather than derived, so its rejection of
+/// an unknown key needs its own test.
+#[test]
+fn an_unknown_key_in_a_palette_entry_is_a_loud_error() {
+    let fixture = Fixture::new("palette_unknown_key");
+    let mut entry = block("minecraft:stone");
+    entry.put_int("Weight", 3);
+    let root = chunk_nbt(
+        0,
+        0,
+        vec![NbtTag::Compound(section(
+            0,
+            container(vec![NbtTag::Compound(entry)], None),
+        ))],
+    );
+    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
+    assert!(matches!(err.kind, ErrorKind::Nbt(_)), "{err}");
+    assert!(err.to_string().contains("Weight"), "{err}");
+}
+
+#[test]
+fn an_unresolvable_palette_entry_is_a_loud_error() {
+    let fixture = Fixture::new("resolve_unknown");
+    let root = chunk_nbt(
+        0,
+        0,
+        vec![NbtTag::Compound(section(
+            0,
+            container(vec![NbtTag::Compound(block("modded:widget"))], None),
+        ))],
+    );
+    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
+    let err = chunk.sections[0]
+        .block_states
+        .as_ref()
+        .unwrap()
+        .resolve_palette(&FakeRegistry)
+        .unwrap_err();
+    assert!(
+        matches!(&err, ErrorKind::UnknownPaletteEntry { name } if name == "modded:widget"),
+        "{err}"
+    );
+}
+
+#[test]
+fn a_single_value_section_still_reports_every_cell() {
+    let fixture = Fixture::new("single_value_entries");
+    let root = chunk_nbt(
+        0,
+        0,
+        vec![NbtTag::Compound(section(
+            0,
+            container(vec![NbtTag::Compound(block("minecraft:bedrock"))], None),
+        ))],
+    );
+    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
+    let blocks = chunk.sections[0].block_states.as_ref().unwrap();
+    assert_eq!(blocks.entries().len(), BlockStates::ENTRY_COUNT);
+    assert!(blocks.entries().iter().all(|&e| e == 0));
 }
 
 #[test]
@@ -353,20 +482,13 @@ fn a_three_entry_block_palette_is_stored_at_four_bits() {
     );
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    assert_eq!(blocks.get(0, 0, 0).name, "minecraft:air");
-    assert_eq!(blocks.get(1, 0, 0).name, "minecraft:stone");
-    assert_eq!(blocks.get(0, 0, 1).name, "minecraft:oak_log");
-    assert_eq!(blocks.get(15, 15, 15).name, "minecraft:oak_log");
-    assert_eq!(blocks.get(5, 9, 13).name, "minecraft:stone");
-    assert_eq!(blocks.get(2, 0, 0).name, "minecraft:air");
-    assert_eq!(
-        blocks
-            .get(0, 0, 1)
-            .properties
-            .get("axis")
-            .map(String::as_str),
-        Some("y")
-    );
+    assert_eq!(blocks.name(0, 0, 0), "minecraft:air");
+    assert_eq!(blocks.name(1, 0, 0), "minecraft:stone");
+    assert_eq!(blocks.name(0, 0, 1), "minecraft:oak_log");
+    assert_eq!(blocks.name(15, 15, 15), "minecraft:oak_log");
+    assert_eq!(blocks.name(5, 9, 13), "minecraft:stone");
+    assert_eq!(blocks.name(2, 0, 0), "minecraft:air");
+    assert_eq!(blocks.properties(0, 0, 1).get("axis"), Some("y"));
 }
 
 /// A palette above 256 entries leaves the linear/hashmap configurations behind
@@ -394,10 +516,10 @@ fn a_global_palette_section_is_stored_at_its_own_width() {
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
     assert_eq!(blocks.palette.len(), 300);
-    assert_eq!(blocks.get(0, 0, 0).name, "minecraft:block_299");
-    assert_eq!(blocks.get(3, 4, 5).name, "minecraft:block_256");
-    assert_eq!(blocks.get(15, 15, 15).name, "minecraft:block_137");
-    assert_eq!(blocks.get(1, 0, 0).name, "minecraft:block_0");
+    assert_eq!(blocks.name(0, 0, 0), "minecraft:block_299");
+    assert_eq!(blocks.name(3, 4, 5), "minecraft:block_256");
+    assert_eq!(blocks.name(15, 15, 15), "minecraft:block_137");
+    assert_eq!(blocks.name(1, 0, 0), "minecraft:block_0");
 }
 
 /// Biomes have no four-bit floor: two entries are stored at one bit.
@@ -426,10 +548,10 @@ fn a_two_entry_biome_palette_is_stored_at_one_bit() {
 
     let chunk = read_one(&fixture, ZLIB, &chunk_nbt(0, 0, vec![NbtTag::Compound(s)])).unwrap();
     let biomes = chunk.sections[0].biomes.as_ref().unwrap();
-    assert_eq!(biomes.get(0, 0, 0), "minecraft:desert");
-    assert_eq!(biomes.get(3, 3, 3), "minecraft:desert");
-    assert_eq!(biomes.get(1, 2, 3), "minecraft:plains");
-    assert_eq!(biomes.get(2, 0, 0), "minecraft:plains");
+    assert_eq!(biomes.name(0, 0, 0), "minecraft:desert");
+    assert_eq!(biomes.name(3, 3, 3), "minecraft:desert");
+    assert_eq!(biomes.name(1, 2, 3), "minecraft:plains");
+    assert_eq!(biomes.name(2, 0, 0), "minecraft:plains");
 }
 
 #[test]
@@ -479,10 +601,10 @@ fn a_256_entry_palette_is_stored_at_eight_bits() {
     );
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    assert_eq!(blocks.get(0, 0, 0).name, "minecraft:block_255");
-    assert_eq!(blocks.get(9, 0, 0).name, "minecraft:block_200");
-    assert_eq!(blocks.get(15, 15, 15).name, "minecraft:block_1");
-    assert_eq!(blocks.get(1, 0, 0).name, "minecraft:block_0");
+    assert_eq!(blocks.name(0, 0, 0), "minecraft:block_255");
+    assert_eq!(blocks.name(9, 0, 0), "minecraft:block_200");
+    assert_eq!(blocks.name(15, 15, 15), "minecraft:block_1");
+    assert_eq!(blocks.name(1, 0, 0), "minecraft:block_0");
 }
 
 /// Above 65536 entries an index no longer fits the decoded entry, so a crafted
