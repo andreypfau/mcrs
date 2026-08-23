@@ -1,4 +1,6 @@
 mod chunk;
+#[cfg(any(test, feature = "bench-helpers"))]
+pub mod fixture;
 mod palette;
 mod region;
 
