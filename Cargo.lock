@@ -3240,8 +3240,11 @@ name = "mcrs_client"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bytemuck",
  "mcrs_core",
  "mcrs_vanilla",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

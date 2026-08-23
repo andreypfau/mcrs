@@ -20,5 +20,10 @@ bevy = { version = "0.19.1", default-features = false, features = [
     "mouse",
     "png",
 ] }
+bytemuck = { version = "1", features = ["derive"] }
 mcrs_core.workspace = true
 mcrs_vanilla.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true

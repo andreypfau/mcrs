@@ -1,6 +1,7 @@
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
+use bevy::render::view::Msaa;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 const EYE_HEIGHT: f32 = 1.62;
@@ -21,15 +22,19 @@ pub struct PlayerLook {
     pub pitch: f32,
 }
 
-pub struct PlayerPlugin;
+/// `mouse_look` is off for a scripted run, where a stray mouse delta would turn
+/// the camera away from the view the save asked for.
+pub struct PlayerPlugin {
+    pub mouse_look: bool,
+}
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, (grab_cursor, sync_look_transforms))
-            .add_systems(
-                Update,
-                (release_cursor_on_escape, apply_mouse_look, sync_look_transforms).chain(),
-            );
+            .add_systems(Update, (release_cursor_on_escape, sync_look_transforms).chain());
+        if self.mouse_look {
+            app.add_systems(Update, apply_mouse_look.before(sync_look_transforms));
+        }
     }
 }
 
@@ -40,6 +45,9 @@ pub fn spawn_player(world: &mut World, translation: Vec3, yaw: f32, pitch: f32) 
     world.spawn((
         PlayerCamera,
         Camera3d::default(),
+        // The sky pipelines are built for a single sample; multisampling the
+        // view would leave them unable to render into it.
+        Msaa::Off,
         // The default `TonyMcMapFace` tonemapper needs the `tonemapping_luts`
         // feature, which nothing else here requires.
         Tonemapping::None,

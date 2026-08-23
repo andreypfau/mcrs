@@ -14,10 +14,12 @@ use mcrs_vanilla::world_clock::{AdvanceTime, WorldClock, WorldClocks};
 mod player;
 mod screenshot;
 mod sky;
+mod sky_render;
 
 fn main() {
     let world = world_folder();
     let save_data = load_save(&world);
+    let frozen_at = frozen_time();
 
     let mut app = App::new();
     app.add_plugins(
@@ -36,8 +38,8 @@ fn main() {
     )
     .add_plugins(mcrs_core::MinecraftEnginePlugin)
     .add_plugins(mcrs_vanilla::MinecraftCorePlugin)
-    .add_plugins(player::PlayerPlugin)
-    .add_plugins(sky::SkyTexturePlugin)
+    .add_plugins(player::PlayerPlugin { mouse_look: frozen_at.is_none() })
+    .add_plugins(sky::SkyPlugin)
     .add_plugins(screenshot::ScreenshotPlugin)
     .add_systems(
         OnEnter(AppState::Playing),
@@ -52,14 +54,20 @@ fn main() {
     // `init_resource::<WorldClocks>()` during its own build, so an earlier
     // insert here would be overwritten.
     let mut world_clocks = WorldClocks::default();
-    for (id, state) in save_data.world_clocks {
+    for (id, mut state) in save_data.world_clocks {
+        if let Some(ticks) = frozen_at {
+            state.total_ticks = ticks;
+            state.partial_tick = 0.0;
+        }
         world_clocks.insert(id, state);
     }
     app.insert_resource(world_clocks)
-        .insert_resource(AdvanceTime(save_data.advance_time))
-        .insert_resource(save_data.weather);
+        .insert_resource(AdvanceTime(save_data.advance_time && frozen_at.is_none()))
+        .insert_resource(save_data.weather)
+        .insert_resource(sky::PlayerDimension(save_data.dimension));
 
-    player::spawn_player(app.world_mut(), save_data.translation, save_data.yaw, save_data.pitch);
+    let (yaw, pitch) = look_override().unwrap_or((save_data.yaw, save_data.pitch));
+    player::spawn_player(app.world_mut(), save_data.translation, yaw, pitch);
 
     app.run();
 }
@@ -86,6 +94,7 @@ fn asset_corpus() -> PathBuf {
 
 struct SaveData {
     world_clocks: save::WorldClockStates,
+    dimension: String,
     advance_time: bool,
     weather: Weather,
     translation: Vec3,
@@ -99,12 +108,13 @@ fn load_save(world: &Path) -> SaveData {
     let weather = save::read_weather(world).unwrap_or_else(|err| fatal(err));
     let game_rules = save::read_game_rules(world).unwrap_or_else(|err| fatal(err));
 
-    let (translation, yaw, pitch) = match level.singleplayer_uuid {
+    let (translation, yaw, pitch, dimension) = match level.singleplayer_uuid {
         Some(uuid) => match save::read_player(world, uuid) {
             Ok(player) => (
                 Vec3::new(player.pos[0] as f32, player.pos[1] as f32, player.pos[2] as f32),
                 player.yaw,
                 player.pitch,
+                player.dimension,
             ),
             Err(SaveError::Missing { .. }) => spawn_fallback(&level.spawn),
             Err(err) => fatal(err),
@@ -114,6 +124,7 @@ fn load_save(world: &Path) -> SaveData {
 
     SaveData {
         world_clocks,
+        dimension,
         advance_time: game_rules.advance_time,
         weather: Weather {
             rain: if weather.raining { 1.0 } else { 0.0 },
@@ -127,12 +138,41 @@ fn load_save(world: &Path) -> SaveData {
 
 /// A spawn point is a block position; the player stands at its centre in X and
 /// Z, and Y is the block's own floor.
-fn spawn_fallback(spawn: &save::RespawnData) -> (Vec3, f32, f32) {
+fn spawn_fallback(spawn: &save::RespawnData) -> (Vec3, f32, f32, String) {
     (
         Vec3::new(spawn.pos[0] as f32 + 0.5, spawn.pos[1] as f32, spawn.pos[2] as f32 + 0.5),
         spawn.yaw,
         spawn.pitch,
+        "minecraft:overworld".to_owned(),
     )
+}
+
+/// `MCRS_LOOK=<yaw>,<pitch>` aims the camera somewhere other than where the
+/// save left it, in Minecraft degrees.
+fn look_override() -> Option<(f32, f32)> {
+    let look = std::env::var("MCRS_LOOK").ok()?;
+    let angles = look
+        .split_once(',')
+        .and_then(|(yaw, pitch)| Some((yaw.trim().parse().ok()?, pitch.trim().parse().ok()?)));
+    let Some(angles) = angles else {
+        eprintln!("MCRS_LOOK={look}: expected <yaw>,<pitch> in degrees");
+        std::process::exit(1);
+    };
+    Some(angles)
+}
+
+/// `MCRS_TIME=<ticks>` pins every clock and stops them, so a scripted
+/// screenshot lands on the tick it asked for. It also turns mouse look off, so
+/// the camera keeps the angle the save recorded.
+fn frozen_time() -> Option<i64> {
+    let ticks = std::env::var("MCRS_TIME").ok()?;
+    match ticks.trim().parse() {
+        Ok(ticks) => Some(ticks),
+        Err(err) => {
+            eprintln!("MCRS_TIME={ticks}: {err}");
+            std::process::exit(1);
+        }
+    }
 }
 
 fn fatal(err: SaveError) -> ! {
