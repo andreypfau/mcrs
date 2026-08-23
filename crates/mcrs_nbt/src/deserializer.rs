@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::{Seek, SeekFrom};
 
 use crate::*;
@@ -51,6 +52,13 @@ impl<R: Read + Seek> NbtReadHelper<R> {
     define_get_number_be!(get_f32_be, f32);
     define_get_number_be!(get_f64_be, f64);
 
+    /// Fills `buf` with `count` bytes, reusing its allocation.
+    pub fn read_into(&mut self, buf: &mut Vec<u8>, count: usize) -> Result<()> {
+        buf.clear();
+        buf.resize(count, 0);
+        self.reader.read_exact(buf).map_err(Error::Incomplete)
+    }
+
     pub fn read_boxed_slice(&mut self, count: usize) -> Result<Box<[u8]>> {
         let mut buf = vec![0u8; count];
         self.reader
@@ -68,6 +76,7 @@ pub struct Deserializer<R: Read + Seek> {
     // Yes, this breaks with recursion. Just an attempt at a sanity check
     in_list: bool,
     is_named: bool,
+    scratch: Vec<u8>,
 }
 
 impl<R: Read + Seek> Deserializer<R> {
@@ -77,7 +86,17 @@ impl<R: Read + Seek> Deserializer<R> {
             tag_to_deserialize_stack: None,
             in_list: false,
             is_named,
+            scratch: Vec::new(),
         }
+    }
+
+    /// Reads one NBT string through the reusable scratch buffer. CESU-8 borrows
+    /// for the plain-ASCII case, which is every key and nearly every value, so a
+    /// caller that only needs `&str` pays no allocation at all.
+    fn read_str(&mut self) -> Result<Cow<'_, str>> {
+        let len = self.input.get_u16_be()? as usize;
+        self.input.read_into(&mut self.scratch, len)?;
+        cesu8::from_java_cesu8(&self.scratch).map_err(|_| Error::Cesu8DecodingError)
     }
 }
 
@@ -93,13 +112,36 @@ pub fn from_bytes_unnamed<'a, T: Deserialize<'a>>(r: impl Read + Seek) -> Result
     T::deserialize(&mut deserializer)
 }
 
+macro_rules! define_in_list_number {
+    ($name:ident, $tag:expr, $read:ident, $visit:ident) => {
+        fn $name<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+            if self.in_list && self.tag_to_deserialize_stack == Some($tag) {
+                let value = self.input.$read()?;
+                return visitor.$visit::<Error>(value);
+            }
+            self.deserialize_any(visitor)
+        }
+    };
+}
+
 impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
     type Error = Error;
 
     forward_to_deserialize_any! {
-        i8 i16 i32 i64 f32 f64 char str string unit unit_struct seq tuple tuple_struct
+        char str string unit unit_struct seq tuple tuple_struct
         bytes newtype_struct byte_buf
     }
+
+    // Inside a list every element carries the same tag, so the element type is
+    // already known: read it straight rather than round-tripping through an
+    // `NbtTag`. A `Vec<i64>` off a LONG_ARRAY is thousands of elements per
+    // section, and the tag check keeps a mistyped list falling back to `any`.
+    define_in_list_number!(deserialize_i8, BYTE_ID, get_i8_be, visit_i8);
+    define_in_list_number!(deserialize_i16, SHORT_ID, get_i16_be, visit_i16);
+    define_in_list_number!(deserialize_i32, INT_ID, get_i32_be, visit_i32);
+    define_in_list_number!(deserialize_i64, LONG_ID, get_i64_be, visit_i64);
+    define_in_list_number!(deserialize_f32, FLOAT_ID, get_f32_be, visit_f32);
+    define_in_list_number!(deserialize_f64, DOUBLE_ID, get_f64_be, visit_f64);
 
     fn deserialize_ignored_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         let Some(tag) = self.tag_to_deserialize_stack else {
@@ -143,6 +185,10 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
                 Ok(result)
             }
             COMPOUND_ID => visitor.visit_map(CompoundAccess { de: self }),
+            STRING_ID => {
+                let value = self.read_str()?;
+                visitor.visit_str(&value)
+            }
             _ => {
                 let result = match NbtTag::deserialize_data(&mut self.input, tag_to_deserialize)? {
                     NbtTag::Byte(value) => visitor.visit_i8::<Error>(value)?,
@@ -151,7 +197,6 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
                     NbtTag::Long(value) => visitor.visit_i64::<Error>(value)?,
                     NbtTag::Float(value) => visitor.visit_f32::<Error>(value)?,
                     NbtTag::Double(value) => visitor.visit_f64::<Error>(value)?,
-                    NbtTag::String(value) => visitor.visit_string::<Error>(value)?,
                     _ => unreachable!(),
                 };
                 Ok(result)
@@ -227,9 +272,8 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
             }
 
             if self.is_named {
-                // Consume struct name, similar to get_nbt_string but without cesu8::from_java_cesu8
-                let length = self.input.get_u16_be()? as usize;
-                let _ = self.input.read_boxed_slice(length)?;
+                let length = self.input.get_u16_be()? as i64;
+                self.input.skip_bytes(length)?;
             }
         }
 
@@ -247,8 +291,8 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
     }
 
     fn deserialize_identifier<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        let str = get_nbt_string(&mut self.input)?;
-        visitor.visit_string(str)
+        let name = self.read_str()?;
+        visitor.visit_str(&name)
     }
 
     fn is_human_readable(&self) -> bool {
@@ -287,8 +331,8 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for MapKey<'_, R> {
     type Error = Error;
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        let key = get_nbt_string(&mut self.de.input)?;
-        visitor.visit_string(key)
+        let key = self.de.read_str()?;
+        visitor.visit_str(&key)
     }
 
     forward_to_deserialize_any! {
