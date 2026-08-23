@@ -83,6 +83,7 @@ mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
 mcrs_random = { path = "crates/mcrs_random" }
 mcrs_minecraft_lighting = { path = "crates/mcrs_minecraft_lighting" }
 mcrs_telemetry = { path = "crates/mcrs_telemetry" }
+mcrs_anvil = { path = "crates/mcrs_anvil" }
 
 [dependencies]
 bevy_app.workspace = true
