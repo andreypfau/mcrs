@@ -282,8 +282,13 @@ fn e2e_aoi_surrounding_update() {
 /// outbound packets flow all the way to the mock socket.
 fn build_join_host_app() -> App {
     let mut app = App::new();
-    app.add_plugins(TaskPoolPlugin::default());
-    app.add_plugins(AssetPlugin::default());
+    app.add_plugins(TaskPoolPlugin {
+        task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
+    });
+    app.add_plugins(AssetPlugin {
+        watch_for_changes_override: Some(false),
+        ..Default::default()
+    });
     app.add_plugins(TimePlugin);
     app.insert_resource(Time::<Fixed>::from_hz(20.0));
     app.add_plugins(StatesPlugin);

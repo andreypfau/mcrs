@@ -45,7 +45,10 @@ fn make_stub_block_light_table() -> BlockStateLightTable {
 
 fn make_main_app() -> App {
     let mut app = App::new();
-    app.add_plugins(AssetPlugin::default());
+    app.add_plugins(AssetPlugin {
+        watch_for_changes_override: Some(false),
+        ..Default::default()
+    });
     app.add_plugins(TimePlugin);
     app.insert_resource(Time::<Fixed>::from_hz(20.0));
     app.add_plugins(StatesPlugin);

@@ -26,9 +26,14 @@ fn run_to_playing() -> App {
     std::env::set_current_dir(workspace_root()).unwrap();
 
     let mut app = App::new();
-    app.add_plugins(TaskPoolPlugin::default());
+    app.add_plugins(TaskPoolPlugin {
+        task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
+    });
     app.add_plugins(StatesPlugin);
-    app.add_plugins(AssetPlugin::default());
+    app.add_plugins(AssetPlugin {
+        watch_for_changes_override: Some(false),
+        ..Default::default()
+    });
     app.add_plugins(mcrs_core::MinecraftEnginePlugin);
     app.add_plugins(MinecraftCorePlugin);
     app.finish();

@@ -18,7 +18,9 @@ fn per_system_spans_emit_under_telemetry_tracy() {
     let (_guard, buffer) = common::lock_and_clear();
 
     let mut app = App::new();
-    app.add_plugins(TaskPoolPlugin::default());
+    app.add_plugins(TaskPoolPlugin {
+        task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
+    });
     app.add_systems(Update, no_op_system);
     app.update();
 

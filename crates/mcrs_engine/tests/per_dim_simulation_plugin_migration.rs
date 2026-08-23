@@ -96,8 +96,13 @@ fn host_side_no_longer_registers_per_dim_simulation_plugins() {
     // AppState::Playing; the assertions only inspect resources installed
     // during plugin build().
     let mut app = App::new();
-    app.add_plugins(bevy_app::TaskPoolPlugin::default());
-    app.add_plugins(bevy_asset::AssetPlugin::default());
+    app.add_plugins(bevy_app::TaskPoolPlugin {
+        task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
+    });
+    app.add_plugins(bevy_asset::AssetPlugin {
+        watch_for_changes_override: Some(false),
+        ..Default::default()
+    });
     app.add_plugins(bevy_time::TimePlugin);
     app.add_plugins(bevy_state::app::StatesPlugin);
     use bevy_state::app::AppExtStates;

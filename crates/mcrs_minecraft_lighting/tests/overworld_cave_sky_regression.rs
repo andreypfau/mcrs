@@ -266,7 +266,10 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
     app.add_plugins(StatesPlugin);
     app.init_state::<AppState>();
 
-    app.add_plugins(AssetPlugin::default());
+    app.add_plugins(AssetPlugin {
+        watch_for_changes_override: Some(false),
+        ..Default::default()
+    });
 
     // DimensionPlugin adds ColumnPlugin + the engine ticket-based ChunkPlugin.
     app.add_plugins(DimensionPlugin);
