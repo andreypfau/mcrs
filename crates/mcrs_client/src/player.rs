@@ -22,19 +22,20 @@ pub struct PlayerLook {
     pub pitch: f32,
 }
 
-/// `mouse_look` is off for a scripted run, where a stray mouse delta would turn
-/// the camera away from the view the save asked for.
-pub struct PlayerPlugin {
-    pub mouse_look: bool,
-}
+pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (grab_cursor, sync_look_transforms))
-            .add_systems(Update, (release_cursor_on_escape, sync_look_transforms).chain());
-        if self.mouse_look {
-            app.add_systems(Update, apply_mouse_look.before(sync_look_transforms));
-        }
+        app.add_systems(Startup, sync_look_transforms).add_systems(
+            Update,
+            (
+                release_cursor_on_escape,
+                apply_mouse_look,
+                grab_cursor_on_click,
+                sync_look_transforms,
+            )
+                .chain(),
+        );
     }
 }
 
@@ -56,9 +57,17 @@ pub fn spawn_player(world: &mut World, translation: Vec3, yaw: f32, pitch: f32) 
     ));
 }
 
-fn grab_cursor(mut window: Single<&mut CursorOptions, With<PrimaryWindow>>) {
-    window.grab_mode = CursorGrabMode::Locked;
-    window.visible = false;
+/// Grabbing after the look has been applied drops the motion the pointer made
+/// while it was still free, which would otherwise land as a jump on the frame
+/// the player clicks.
+fn grab_cursor_on_click(
+    buttons: Res<ButtonInput<MouseButton>>,
+    mut window: Single<&mut CursorOptions, With<PrimaryWindow>>,
+) {
+    if buttons.just_pressed(MouseButton::Left) {
+        window.grab_mode = CursorGrabMode::Locked;
+        window.visible = false;
+    }
 }
 
 fn release_cursor_on_escape(

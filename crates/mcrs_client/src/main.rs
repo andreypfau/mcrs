@@ -38,7 +38,7 @@ fn main() {
     )
     .add_plugins(mcrs_core::MinecraftEnginePlugin)
     .add_plugins(mcrs_vanilla::MinecraftCorePlugin)
-    .add_plugins(player::PlayerPlugin { mouse_look: frozen_at.is_none() })
+    .add_plugins(player::PlayerPlugin)
     .add_plugins(sky::SkyPlugin)
     .add_plugins(screenshot::ScreenshotPlugin)
     .add_systems(
@@ -162,8 +162,7 @@ fn look_override() -> Option<(f32, f32)> {
 }
 
 /// `MCRS_TIME=<ticks>` pins every clock and stops them, so a scripted
-/// screenshot lands on the tick it asked for. It also turns mouse look off, so
-/// the camera keeps the angle the save recorded.
+/// screenshot lands on the tick it asked for.
 fn frozen_time() -> Option<i64> {
     let ticks = std::env::var("MCRS_TIME").ok()?;
     match ticks.trim().parse() {
