@@ -315,8 +315,8 @@ fn a_single_value_section_carries_no_data() {
     }
 }
 
-/// A single-entry palette stores no cells, so `entries()` has to answer from
-/// somewhere other than the container.
+/// A single-entry palette stores no cells, so the container has to answer for
+/// them from somewhere other than its data.
 struct FakeRegistry;
 
 impl BlockStateLookup for FakeRegistry {
@@ -368,6 +368,67 @@ fn the_palette_resolves_through_a_registry() {
     assert_eq!(ids[blocks.palette_index(0, 0, 0)], 0);
     assert_eq!(ids[blocks.palette_index(1, 0, 0)], 100);
     assert_eq!(ids[blocks.palette_index(0, 0, 1)], 201);
+}
+
+#[test]
+fn remapping_writes_one_resolved_id_per_cell() {
+    let fixture = Fixture::new("remap");
+    let mut entries = vec![0u16; BlockStates::ENTRY_COUNT];
+    entries[BlockStates::index(1, 0, 0)] = 1;
+    entries[BlockStates::index(0, 0, 1)] = 2;
+    entries[BlockStates::index(15, 15, 15)] = 2;
+    let root = chunk_nbt(
+        0,
+        0,
+        vec![NbtTag::Compound(section(
+            0,
+            container(
+                vec![
+                    NbtTag::Compound(block("minecraft:air")),
+                    NbtTag::Compound(block("minecraft:stone")),
+                    NbtTag::Compound(block_with("minecraft:oak_log", "axis", "y")),
+                ],
+                Some(pack(&entries, 4)),
+            ),
+        ))],
+    );
+    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
+    let blocks = chunk.sections[0].block_states.as_ref().unwrap();
+
+    let ids = blocks.resolve_palette(&FakeRegistry).unwrap();
+    let mut cells = vec![u32::MAX; BlockStates::ENTRY_COUNT];
+    blocks.remap_into(&ids, &mut cells);
+
+    assert_eq!(cells[BlockStates::index(0, 0, 0)], 0);
+    assert_eq!(cells[BlockStates::index(1, 0, 0)], 100);
+    assert_eq!(cells[BlockStates::index(0, 0, 1)], 201);
+    assert_eq!(cells[BlockStates::index(15, 15, 15)], 201);
+    assert_eq!(cells.iter().filter(|&&c| c == 201).count(), 2);
+    assert_eq!(cells.iter().filter(|&&c| c == 100).count(), 1);
+
+    let mut indices = vec![u16::MAX; BlockStates::ENTRY_COUNT];
+    blocks.unpack_into(&mut indices);
+    assert_eq!(indices, entries);
+}
+
+/// A single-entry container stores no cells, so it answers from the palette.
+#[test]
+fn a_uniform_container_remaps_every_cell() {
+    let fixture = Fixture::new("remap_uniform");
+    let root = chunk_nbt(
+        0,
+        0,
+        vec![NbtTag::Compound(section(
+            0,
+            container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
+        ))],
+    );
+    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
+    let blocks = chunk.sections[0].block_states.as_ref().unwrap();
+    let ids = blocks.resolve_palette(&FakeRegistry).unwrap();
+    let mut cells = vec![u32::MAX; BlockStates::ENTRY_COUNT];
+    blocks.remap_into(&ids, &mut cells);
+    assert!(cells.iter().all(|&c| c == 100));
 }
 
 /// The palette entry is read by hand rather than derived, so its rejection of
@@ -427,8 +488,9 @@ fn a_single_value_section_still_reports_every_cell() {
     );
     let chunk = read_one(&fixture, ZLIB, &root).unwrap();
     let blocks = chunk.sections[0].block_states.as_ref().unwrap();
-    assert_eq!(blocks.entries().len(), BlockStates::ENTRY_COUNT);
-    assert!(blocks.entries().iter().all(|&e| e == 0));
+    let mut cells = vec![0xffffu16; BlockStates::ENTRY_COUNT];
+    blocks.unpack_into(&mut cells);
+    assert!(cells.iter().all(|&e| e == 0));
 }
 
 #[test]

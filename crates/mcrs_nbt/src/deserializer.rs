@@ -132,17 +132,23 @@ impl<'de, R: Read + Seek> de::Deserializer<'de> for &mut Deserializer<R> {
         newtype_struct
     }
 
-    // A byte array read element-wise costs one visitor round trip per byte, and
-    // a chunk section carries two 2048-byte light layers.
+    // The whole payload goes to the visitor in one piece; read element-wise it
+    // costs a visitor round trip each. A plain list still falls through to `any`.
     fn deserialize_bytes<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        if self.tag_to_deserialize_stack != Some(BYTE_ARRAY_ID) {
-            return self.deserialize_any(visitor);
+        let width = match self.tag_to_deserialize_stack {
+            Some(BYTE_ARRAY_ID) => 1,
+            Some(INT_ARRAY_ID) => 4,
+            Some(LONG_ARRAY_ID) => 8,
+            _ => return self.deserialize_any(visitor),
+        };
+        let count = self.input.get_i32_be()?;
+        if count < 0 {
+            return Err(Error::NegativeLength(count));
         }
-        let len = self.input.get_i32_be()?;
-        if len < 0 {
-            return Err(Error::NegativeLength(len));
-        }
-        self.input.read_into(&mut self.scratch, len as usize)?;
+        let bytes = (count as usize)
+            .checked_mul(width)
+            .ok_or(Error::LargeLength(count as usize))?;
+        self.input.read_into(&mut self.scratch, bytes)?;
         visitor.visit_bytes(&self.scratch)
     }
 

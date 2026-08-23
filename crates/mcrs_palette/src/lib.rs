@@ -108,18 +108,24 @@ pub struct DataLength {
     pub expected: usize,
 }
 
+pub fn check_len(bits: u32, data: &[i64], entry_count: usize) -> Result<(), DataLength> {
+    let expected = packed_len(bits, entry_count);
+    if data.len() == expected {
+        Ok(())
+    } else {
+        Err(DataLength {
+            found: data.len(),
+            expected,
+        })
+    }
+}
+
 /// Unpacks `data` into one entry per element of `out`, low entry first, with the
 /// spare high bits of each word discarded. `bits` must be in `1..=16`.
 pub fn unpack_into(bits: u32, data: &[i64], out: &mut [u16]) -> Result<(), DataLength> {
     debug_assert!((1..=16).contains(&bits));
+    check_len(bits, data, out.len())?;
     let per_long = entries_per_long(bits);
-    let expected = out.len().div_ceil(per_long);
-    if data.len() != expected {
-        return Err(DataLength {
-            found: data.len(),
-            expected,
-        });
-    }
     let mask = (1u64 << bits) - 1;
     for (cells, &word) in out.chunks_mut(per_long).zip(data) {
         let mut word = word as u64;
@@ -129,6 +135,73 @@ pub fn unpack_into(bits: u32, data: &[i64], out: &mut [u16]) -> Result<(), DataL
         }
     }
     Ok(())
+}
+
+#[inline]
+pub fn entry_at(bits: u32, data: &[i64], index: usize) -> u16 {
+    let per_long = entries_per_long(bits);
+    let word = data[index / per_long] as u64;
+    ((word >> ((index % per_long) as u32 * bits)) & ((1u64 << bits) - 1)) as u16
+}
+
+/// Masking alternate lanes leaves `bits` spare bits above each one kept, which
+/// is the room a carry out of that lane needs.
+fn even_lanes(bits: u32, lane_limit: usize, limit: u64) -> (u64, u64, u64) {
+    let lane_mask = (1u64 << bits) - 1;
+    let bump = (1u64 << bits) - limit;
+    let (mut lanes, mut carries, mut addend) = (0u64, 0u64, 0u64);
+    let mut lane = 0usize;
+    while lane < lane_limit && (lane as u32 + 1) * bits <= 64 {
+        let shift = lane as u32 * bits;
+        lanes |= lane_mask << shift;
+        carries |= 1u64 << (shift + bits);
+        addend |= bump << shift;
+        lane += 2;
+    }
+    (lanes, carries, addend)
+}
+
+/// Adding `2^bits - limit` to a lane carries out of it exactly when the lane
+/// reaches `limit`, so one word answers for all of its cells at once.
+pub fn any_entry_past(bits: u32, data: &[i64], entry_count: usize, limit: usize) -> bool {
+    debug_assert!((1..=16).contains(&bits));
+    if limit >= 1usize << bits {
+        return false;
+    }
+    let per_long = entries_per_long(bits);
+    let full = entry_count / per_long;
+    let (lo_lanes, lo_carries, lo_addend) = even_lanes(bits, per_long, limit as u64);
+    let (hi_lanes, hi_carries, hi_addend) = even_lanes(bits, per_long - 1, limit as u64);
+
+    for &word in &data[..full] {
+        let word = word as u64;
+        let lo = (word & lo_lanes) + lo_addend;
+        let hi = ((word >> bits) & hi_lanes) + hi_addend;
+        if lo & lo_carries != 0 || hi & hi_carries != 0 {
+            return true;
+        }
+    }
+
+    let tail = entry_count % per_long;
+    if tail == 0 {
+        return false;
+    }
+    let mask = (1u64 << bits) - 1;
+    let mut word = data[full] as u64;
+    (0..tail).any(|_| {
+        let lane = word & mask;
+        word >>= bits;
+        lane as usize >= limit
+    })
+}
+
+/// Only the error path needs this, so it may be as slow as it likes.
+pub fn first_entry_past(bits: u32, data: &[i64], entry_count: usize, limit: usize) -> Option<u16> {
+    let per_long = entries_per_long(bits);
+    let mask = (1u64 << bits) - 1;
+    (0..entry_count)
+        .map(|i| ((data[i / per_long] as u64 >> ((i % per_long) as u32 * bits)) & mask) as u16)
+        .find(|&e| e as usize >= limit)
 }
 
 /// Packs one entry per element of `cells`, taking each entry's value from `id`.
@@ -148,18 +221,23 @@ pub fn pack_from<T>(bits: u32, cells: &[T], mut id: impl FnMut(&T) -> u32) -> Bo
         .collect()
 }
 
-/// Unpacks and translates in one pass through a flat `2^bits` table, the shape
-/// Lithium uses instead of a hash probe per cell.
-pub fn remap_into(
+/// Every stored entry must be a valid index into `table`; a caller that
+/// validated at load already knows this.
+pub fn remap_into<T: Copy>(
     bits: u32,
     data: &[i64],
-    table: &[u16],
-    out: &mut [u16],
+    table: &[T],
+    out: &mut [T],
 ) -> Result<(), DataLength> {
-    debug_assert_eq!(table.len(), 1usize << bits);
-    unpack_into(bits, data, out)?;
-    for cell in out {
-        *cell = table[*cell as usize];
+    check_len(bits, data, out.len())?;
+    let per_long = entries_per_long(bits);
+    let mask = (1u64 << bits) - 1;
+    for (cells, &word) in out.chunks_mut(per_long).zip(data) {
+        let mut word = word as u64;
+        for cell in cells {
+            *cell = table[(word & mask) as usize];
+            word >>= bits;
+        }
     }
     Ok(())
 }

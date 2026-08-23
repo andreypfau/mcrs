@@ -12,11 +12,12 @@ use crate::{DATA_VERSION, ErrorKind};
 
 pub const LIGHT_BYTES: usize = 2048;
 
-/// Palette entries plus one index per cell, in `Strategy.getIndex` order.
+/// Palette entries plus one index per cell, in `Strategy.getIndex` order. Cells
+/// stay packed: the consumer walks them once anyway, through `remap_into`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PalettedContainer<K> {
     pub palette: Palette,
-    entries: Cells,
+    cells: Cells,
     kind: PhantomData<K>,
 }
 
@@ -32,9 +33,11 @@ impl<K: SectionKind> PalettedContainer<K> {
 
     /// Which palette entry the cell holds.
     pub fn palette_index(&self, x: usize, y: usize, z: usize) -> usize {
-        match &self.entries {
+        match &self.cells {
             Cells::Uniform => 0,
-            Cells::Packed(cells) => cells[Self::index(x, y, z)] as usize,
+            Cells::Packed { bits, data } => {
+                mcrs_palette::entry_at(*bits, data, Self::index(x, y, z)) as usize
+            }
         }
     }
 
@@ -47,8 +50,6 @@ impl<K: SectionKind> PalettedContainer<K> {
     }
 
     /// One id per palette entry, resolved while the names are still borrowed.
-    /// Combine with `entries()` through `mcrs_palette::remap_into` to get a
-    /// cell-indexed array without a second pass over the names.
     pub fn resolve_palette<R: BlockStateLookup>(
         &self,
         registry: &R,
@@ -65,10 +66,22 @@ impl<K: SectionKind> PalettedContainer<K> {
             .collect()
     }
 
-    pub fn entries(&self) -> &[u16] {
-        match &self.entries {
-            Cells::Uniform => &ZEROS[..Self::ENTRY_COUNT],
-            Cells::Packed(cells) => cells,
+    pub fn unpack_into(&self, out: &mut [u16]) {
+        assert_eq!(out.len(), Self::ENTRY_COUNT);
+        match &self.cells {
+            Cells::Uniform => out.fill(0),
+            Cells::Packed { bits, data } => mcrs_palette::unpack_into(*bits, data, out)
+                .expect("the data length was checked at load"),
+        }
+    }
+
+    pub fn remap_into<T: Copy>(&self, entries: &[T], out: &mut [T]) {
+        assert_eq!(out.len(), Self::ENTRY_COUNT);
+        assert_eq!(entries.len(), self.palette.len());
+        match &self.cells {
+            Cells::Uniform => out.fill(entries[0]),
+            Cells::Packed { bits, data } => mcrs_palette::remap_into(*bits, data, entries, out)
+                .expect("the data length was checked at load"),
         }
     }
 
@@ -92,7 +105,7 @@ impl<K: SectionKind> PalettedContainer<K> {
             }
             return Ok(Self {
                 palette: raw.palette,
-                entries: Cells::Uniform,
+                cells: Cells::Uniform,
                 kind: PhantomData,
             });
         }
@@ -100,8 +113,8 @@ impl<K: SectionKind> PalettedContainer<K> {
         let Some(data) = raw.data else {
             return Err(ErrorKind::MissingData { y, field, bits });
         };
-        let mut entries = vec![0u16; Self::ENTRY_COUNT];
-        mcrs_palette::unpack_into(bits, &data, &mut entries).map_err(|e| {
+        let data = data.0;
+        mcrs_palette::check_len(bits, &data, Self::ENTRY_COUNT).map_err(|e| {
             ErrorKind::DataLength {
                 y,
                 field,
@@ -111,18 +124,9 @@ impl<K: SectionKind> PalettedContainer<K> {
             }
         })?;
 
-        // One pass over a u16 slice vectorizes; a per-cell bound check does not.
-        if entries
-            .iter()
-            .copied()
-            .max()
-            .is_some_and(|m| m as usize >= len)
-        {
-            let index = entries
-                .iter()
-                .copied()
-                .find(|&e| e as usize >= len)
-                .unwrap();
+        if mcrs_palette::any_entry_past(bits, &data, Self::ENTRY_COUNT, len) {
+            let index = mcrs_palette::first_entry_past(bits, &data, Self::ENTRY_COUNT, len)
+                .expect("the maximum is already past the palette");
             return Err(ErrorKind::PaletteIndex {
                 y,
                 field,
@@ -133,21 +137,16 @@ impl<K: SectionKind> PalettedContainer<K> {
 
         Ok(Self {
             palette: raw.palette,
-            entries: Cells::Packed(entries.into_boxed_slice()),
+            cells: Cells::Packed { bits, data },
             kind: PhantomData,
         })
     }
 }
 
-/// A single-entry palette addresses no cells, so it stores none. `entries()`
-/// still answers with a slice, which is why the zeroes are static rather than
-/// allocated per container.
-static ZEROS: [u16; 4096] = [0; 4096];
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Cells {
     Uniform,
-    Packed(Box<[u16]>),
+    Packed { bits: u32, data: Box<[i64]> },
 }
 
 /// One nibble per cell, indexed the same way block states are.
@@ -189,7 +188,7 @@ pub struct Chunk {
 #[serde(deny_unknown_fields)]
 struct RawPalettedContainer {
     palette: Palette,
-    data: Option<Vec<i64>>,
+    data: Option<PackedData>,
 }
 
 #[derive(Deserialize)]
@@ -298,6 +297,48 @@ fn parse_section(raw: RawSection) -> Result<Section, ErrorKind> {
             .map(|bytes| light(bytes.0, y, "SkyLight"))
             .transpose()?,
     })
+}
+
+/// Asks the deserializer for the long array whole; read as a sequence it costs
+/// a visitor round trip per element.
+struct PackedData(Box<[i64]>);
+
+impl<'de> Deserialize<'de> for PackedData {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Longs;
+
+        impl<'de> serde::de::Visitor<'de> for Longs {
+            type Value = PackedData;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a long array")
+            }
+
+            fn visit_bytes<E: serde::de::Error>(self, v: &[u8]) -> Result<PackedData, E> {
+                if !v.len().is_multiple_of(8) {
+                    return Err(E::invalid_length(v.len(), &self));
+                }
+                Ok(PackedData(
+                    v.chunks_exact(8)
+                        .map(|word| i64::from_be_bytes(word.try_into().unwrap()))
+                        .collect(),
+                ))
+            }
+
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> Result<PackedData, A::Error> {
+                let mut out = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+                while let Some(word) = seq.next_element::<i64>()? {
+                    out.push(word);
+                }
+                Ok(PackedData(out.into_boxed_slice()))
+            }
+        }
+
+        d.deserialize_bytes(Longs)
+    }
 }
 
 /// Asks the deserializer for the byte array whole. Reading it as a sequence
