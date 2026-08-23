@@ -3491,6 +3491,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_palette"
+version = "0.1.0"
+
+[[package]]
 name = "mcrs_protocol"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,7 @@
+[package]
+name = "mcrs_palette"
+description = "mcrs_palette"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
