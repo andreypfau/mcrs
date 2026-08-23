@@ -31,8 +31,7 @@ impl SkySources {
     }
 }
 
-/// Exists only once both arrays are assembled; that is the readiness signal the
-/// sky pass gates on.
+/// Exists only once both arrays are assembled.
 #[derive(Resource)]
 pub struct SkyTextures {
     pub celestials: Handle<Image>,
@@ -68,6 +67,10 @@ fn assemble_arrays(
     sources: Res<SkySources>,
     mut images: ResMut<Assets<Image>>,
     assembled: Option<Res<SkyTextures>>,
+    // `insert_resource` below is deferred, so `assembled` still reads `None` on
+    // the frame after the first build; without this the leftover `Added` events
+    // would build a second pair of arrays and orphan the first.
+    mut created: Local<bool>,
     mut commands: Commands,
 ) {
     let mut touched = false;
@@ -82,6 +85,9 @@ fn assemble_arrays(
     if !touched || sources.handles().any(|handle| images.get(handle).is_none()) {
         return;
     }
+    if *created && assembled.is_none() {
+        return;
+    }
 
     let (celestials, clouds) = match assemble(&images, &sources) {
         Ok(arrays) => arrays,
@@ -94,11 +100,9 @@ fn assemble_arrays(
     log_array("celestials", &celestials);
     log_array("clouds", &clouds);
 
-    match assembled {
+    match assembled.map(|existing| (existing.celestials.clone(), existing.clouds.clone())) {
         Some(existing) => {
-            for (handle, rebuilt) in
-                [(&existing.celestials, celestials), (&existing.clouds, clouds)]
-            {
+            for (handle, rebuilt) in [(&existing.0, celestials), (&existing.1, clouds)] {
                 match images.get_mut(handle) {
                     Some(mut slot) => *slot = rebuilt,
                     None => error!("the assembled sky array vanished from Assets<Image>"),
@@ -106,11 +110,11 @@ fn assemble_arrays(
             }
         }
         None => {
-            let textures = SkyTextures {
+            commands.insert_resource(SkyTextures {
                 celestials: images.add(celestials),
                 clouds: images.add(clouds),
-            };
-            commands.insert_resource(textures);
+            });
+            *created = true;
         }
     }
 }
@@ -119,6 +123,12 @@ fn assemble(images: &Assets<Image>, sources: &SkySources) -> Result<(Image, Imag
     let mut format = None;
     let celestials = array(images, &sources.celestials, &mut format)?;
     let clouds = array(images, &sources.clouds, &mut format)?;
+    let side = clouds.texture_descriptor.size.width;
+    if !side.is_power_of_two() {
+        return Err(format!(
+            "the cloud field is {side}x{side}, and the march can only wrap a power of two"
+        ));
+    }
     Ok((celestials, clouds))
 }
 

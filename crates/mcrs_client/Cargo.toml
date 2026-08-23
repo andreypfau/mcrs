@@ -9,6 +9,7 @@ bevy = { version = "0.19.1", default-features = false, features = [
     "std",
     "async_executor",
     "bevy_asset",
+    "file_watcher",
     "bevy_log",
     "bevy_state",
     "bevy_window",
