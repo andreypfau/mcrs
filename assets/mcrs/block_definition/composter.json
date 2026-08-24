@@ -1,0 +1,231 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:composter",
+      "properties": {
+        "level": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ]
+      },
+      "base_state_id": 25100,
+      "default_state_id": 25100
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:light_dampening": 0,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#8f7748",
+      "minecraft:collision_box": [
+        { "origin": [-8, 0, -8], "size": [16, 2, 16] },
+        { "origin": [-8, 2, -8], "size": [2, 14, 16] },
+        { "origin": [-6, 2, -8], "size": [14, 14, 2] },
+        { "origin": [-6, 2, 6], "size": [14, 14, 2] },
+        { "origin": [6, 2, -6], "size": [2, 14, 12] }
+      ],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0.6
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "mcrs:hardness": 0.6,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": true,
+      "mcrs:push_reaction": "push_pull",
+      "mcrs:instrument": "bass",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:propagates_skylight_down": true,
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": false,
+      "mcrs:has_block_entity": false,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": true
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 0",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 2, 16] },
+            { "origin": [-8, 2, -8], "size": [2, 14, 16] },
+            { "origin": [-6, 2, -8], "size": [14, 14, 2] },
+            { "origin": [-6, 2, 6], "size": [14, 14, 2] },
+            { "origin": [6, 2, -6], "size": [2, 14, 12] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 2, 16] },
+            { "origin": [-8, 2, -8], "size": [2, 14, 16] },
+            { "origin": [-6, 2, -8], "size": [14, 14, 2] },
+            { "origin": [-6, 2, 6], "size": [14, 14, 2] },
+            { "origin": [6, 2, -6], "size": [2, 14, 12] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 1",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 3, 16] },
+            { "origin": [-8, 3, -8], "size": [2, 13, 16] },
+            { "origin": [-6, 3, -8], "size": [14, 13, 2] },
+            { "origin": [-6, 3, 6], "size": [14, 13, 2] },
+            { "origin": [6, 3, -6], "size": [2, 13, 12] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 3, 16] },
+            { "origin": [-8, 3, -8], "size": [2, 13, 16] },
+            { "origin": [-6, 3, -8], "size": [14, 13, 2] },
+            { "origin": [-6, 3, 6], "size": [14, 13, 2] },
+            { "origin": [6, 3, -6], "size": [2, 13, 12] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 2",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 5, 16] },
+            { "origin": [-8, 5, -8], "size": [2, 11, 16] },
+            { "origin": [-6, 5, -8], "size": [14, 11, 2] },
+            { "origin": [-6, 5, 6], "size": [14, 11, 2] },
+            { "origin": [6, 5, -6], "size": [2, 11, 12] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 5, 16] },
+            { "origin": [-8, 5, -8], "size": [2, 11, 16] },
+            { "origin": [-6, 5, -8], "size": [14, 11, 2] },
+            { "origin": [-6, 5, 6], "size": [14, 11, 2] },
+            { "origin": [6, 5, -6], "size": [2, 11, 12] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 3",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 7, 16] },
+            { "origin": [-8, 7, -8], "size": [2, 9, 16] },
+            { "origin": [-6, 7, -8], "size": [14, 9, 2] },
+            { "origin": [-6, 7, 6], "size": [14, 9, 2] },
+            { "origin": [6, 7, -6], "size": [2, 9, 12] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 7, 16] },
+            { "origin": [-8, 7, -8], "size": [2, 9, 16] },
+            { "origin": [-6, 7, -8], "size": [14, 9, 2] },
+            { "origin": [-6, 7, 6], "size": [14, 9, 2] },
+            { "origin": [6, 7, -6], "size": [2, 9, 12] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 4",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 9, 16] },
+            { "origin": [-8, 9, -8], "size": [2, 7, 16] },
+            { "origin": [-6, 9, -8], "size": [14, 7, 2] },
+            { "origin": [-6, 9, 6], "size": [14, 7, 2] },
+            { "origin": [6, 9, -6], "size": [2, 7, 12] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 9, 16] },
+            { "origin": [-8, 9, -8], "size": [2, 7, 16] },
+            { "origin": [-6, 9, -8], "size": [14, 7, 2] },
+            { "origin": [-6, 9, 6], "size": [14, 7, 2] },
+            { "origin": [6, 9, -6], "size": [2, 7, 12] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 5",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 11, 16] },
+            { "origin": [-8, 11, -8], "size": [2, 5, 16] },
+            { "origin": [-6, 11, -8], "size": [14, 5, 2] },
+            { "origin": [-6, 11, 6], "size": [14, 5, 2] },
+            { "origin": [6, 11, -6], "size": [2, 5, 12] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 11, 16] },
+            { "origin": [-8, 11, -8], "size": [2, 5, 16] },
+            { "origin": [-6, 11, -8], "size": [14, 5, 2] },
+            { "origin": [-6, 11, 6], "size": [14, 5, 2] },
+            { "origin": [6, 11, -6], "size": [2, 5, 12] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 6",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 13, 16] },
+            { "origin": [-8, 13, -8], "size": [2, 3, 16] },
+            { "origin": [-6, 13, -8], "size": [14, 3, 2] },
+            { "origin": [-6, 13, 6], "size": [14, 3, 2] },
+            { "origin": [6, 13, -6], "size": [2, 3, 12] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 13, 16] },
+            { "origin": [-8, 13, -8], "size": [2, 3, 16] },
+            { "origin": [-6, 13, -8], "size": [14, 3, 2] },
+            { "origin": [-6, 13, 6], "size": [14, 3, 2] },
+            { "origin": [6, 13, -6], "size": [2, 3, 12] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 7",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 15, 16] },
+            { "origin": [-8, 15, -8], "size": [2, 1, 16] },
+            { "origin": [-6, 15, -8], "size": [14, 1, 2] },
+            { "origin": [-6, 15, 6], "size": [14, 1, 2] },
+            { "origin": [6, 15, -6], "size": [2, 1, 12] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 15, 16] },
+            { "origin": [-8, 15, -8], "size": [2, 1, 16] },
+            { "origin": [-6, 15, -8], "size": [14, 1, 2] },
+            { "origin": [-6, 15, 6], "size": [14, 1, 2] },
+            { "origin": [6, 15, -6], "size": [2, 1, 12] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027level\u0027) \u003d\u003d 8",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 15, 16] },
+            { "origin": [-8, 15, -8], "size": [2, 1, 16] },
+            { "origin": [-6, 15, -8], "size": [14, 1, 2] },
+            { "origin": [-6, 15, 6], "size": [14, 1, 2] },
+            { "origin": [6, 15, -6], "size": [2, 1, 12] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 15, 16] },
+            { "origin": [-8, 15, -8], "size": [2, 1, 16] },
+            { "origin": [-6, 15, -8], "size": [14, 1, 2] },
+            { "origin": [-6, 15, 6], "size": [14, 1, 2] },
+            { "origin": [6, 15, -6], "size": [2, 1, 12] }
+          ]
+        }
+      }
+    ]
+  }
+}

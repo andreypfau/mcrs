@@ -5,6 +5,7 @@ use mcrs_protocol::BlockStateId;
 use std::hash::{Hash, Hasher};
 
 pub mod behaviour;
+pub mod definition;
 #[macro_use]
 mod macros;
 pub mod minecraft;

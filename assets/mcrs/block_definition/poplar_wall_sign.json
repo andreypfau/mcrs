@@ -1,0 +1,103 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:poplar_wall_sign",
+      "properties": {
+        "facing": [
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "waterlogged": [
+          true,
+          false
+        ]
+      },
+      "base_state_id": 7487,
+      "default_state_id": 7488
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#999999",
+      "minecraft:collision_box": [],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 1
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "mcrs:hardness": 1,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": true,
+      "mcrs:push_reaction": "push_pull",
+      "mcrs:instrument": "bass",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:occlusion_shape": [],
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": false,
+      "mcrs:has_block_entity": true,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": false
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1,
+          "mcrs:propagates_skylight_down": false,
+          "mcrs:fluid_state": {
+            "fluid": "minecraft:water",
+            "level": 8,
+            "source": true
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0,
+          "mcrs:propagates_skylight_down": true
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 4.5, 6], "size": [16, 8, 2] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 4.5, -8], "size": [16, 8, 2] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [6, 4.5, -8], "size": [2, 8, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 4.5, -8], "size": [2, 8, 16] }
+          ]
+        }
+      }
+    ]
+  }
+}

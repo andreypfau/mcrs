@@ -1,0 +1,79 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:kelp",
+      "properties": {
+        "age": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25
+        ]
+      },
+      "base_state_id": 18419,
+      "default_state_id": 18419
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:light_dampening": 1,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#4040ff",
+      "minecraft:collision_box": [],
+      "minecraft:selection_box": [
+        { "origin": [-8, 0, -8], "size": [16, 9, 16] }
+      ],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "mcrs:hardness": 0,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": false,
+      "mcrs:push_reaction": "popped",
+      "mcrs:instrument": "harp",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:occlusion_shape": [],
+      "mcrs:propagates_skylight_down": false,
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": false,
+      "mcrs:has_block_entity": false,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": false,
+      "mcrs:fluid_state": {
+        "fluid": "minecraft:water",
+        "level": 8,
+        "source": true
+      }
+    },
+    "permutations": []
+  }
+}

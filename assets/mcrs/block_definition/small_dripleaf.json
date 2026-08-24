@@ -1,0 +1,78 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:small_dripleaf",
+      "properties": {
+        "facing": [
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "half": [
+          "upper",
+          "lower"
+        ],
+        "waterlogged": [
+          true,
+          false
+        ]
+      },
+      "base_state_id": 33753,
+      "default_state_id": 33756
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#007c00",
+      "minecraft:collision_box": [],
+      "minecraft:selection_box": [
+        { "origin": [-6, 0, -6], "size": [12, 13, 12] }
+      ],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "mcrs:hardness": 0,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": false,
+      "mcrs:push_reaction": "popped",
+      "mcrs:instrument": "harp",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:occlusion_shape": [],
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": false,
+      "mcrs:has_block_entity": false,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": false
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1,
+          "mcrs:propagates_skylight_down": false,
+          "mcrs:fluid_state": {
+            "fluid": "minecraft:water",
+            "level": 8,
+            "source": true
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0,
+          "mcrs:propagates_skylight_down": true
+        }
+      }
+    ]
+  }
+}

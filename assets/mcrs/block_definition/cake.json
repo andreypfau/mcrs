@@ -1,0 +1,149 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:cake",
+      "properties": {
+        "bites": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "base_state_id": 8697,
+      "default_state_id": 8697
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:light_dampening": 0,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#000000",
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0.5
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "mcrs:hardness": 0.5,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": false,
+      "mcrs:push_reaction": "popped",
+      "mcrs:instrument": "harp",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:propagates_skylight_down": true,
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": false,
+      "mcrs:has_block_entity": false,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": true
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027bites\u0027) \u003d\u003d 0",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-7, 0, -7], "size": [14, 8, 14] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-7, 0, -7], "size": [14, 8, 14] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-7, 0, -7], "size": [14, 8, 14] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027bites\u0027) \u003d\u003d 1",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-5, 0, -7], "size": [12, 8, 14] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -7], "size": [12, 8, 14] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-5, 0, -7], "size": [12, 8, 14] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027bites\u0027) \u003d\u003d 2",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-3, 0, -7], "size": [10, 8, 14] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-3, 0, -7], "size": [10, 8, 14] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-3, 0, -7], "size": [10, 8, 14] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027bites\u0027) \u003d\u003d 3",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-1, 0, -7], "size": [8, 8, 14] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-1, 0, -7], "size": [8, 8, 14] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-1, 0, -7], "size": [8, 8, 14] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027bites\u0027) \u003d\u003d 4",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [1, 0, -7], "size": [6, 8, 14] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [1, 0, -7], "size": [6, 8, 14] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [1, 0, -7], "size": [6, 8, 14] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027bites\u0027) \u003d\u003d 5",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [3, 0, -7], "size": [4, 8, 14] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [3, 0, -7], "size": [4, 8, 14] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [3, 0, -7], "size": [4, 8, 14] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027bites\u0027) \u003d\u003d 6",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [5, 0, -7], "size": [2, 8, 14] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [5, 0, -7], "size": [2, 8, 14] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [5, 0, -7], "size": [2, 8, 14] }
+          ]
+        }
+      }
+    ]
+  }
+}

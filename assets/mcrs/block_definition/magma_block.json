@@ -1,0 +1,48 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:magma_block",
+      "base_state_id": 16826,
+      "default_state_id": 16826
+    },
+    "components": {
+      "minecraft:light_emission": 3,
+      "minecraft:light_dampening": 15,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#700200",
+      "minecraft:collision_box": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "minecraft:selection_box": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0.5
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": true
+      },
+      "mcrs:hardness": 0.5,
+      "mcrs:requires_correct_tool_for_drops": true,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": false,
+      "mcrs:push_reaction": "push_pull",
+      "mcrs:instrument": "basedrum",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:occlusion_shape": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "mcrs:propagates_skylight_down": false,
+      "mcrs:emissive_rendering": true,
+      "mcrs:is_solid_render": true,
+      "mcrs:is_collision_shape_full_block": true,
+      "mcrs:has_block_entity": false,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": false
+    },
+    "permutations": []
+  }
+}

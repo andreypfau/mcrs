@@ -1,0 +1,88 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:vault",
+      "properties": {
+        "facing": [
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "ominous": [
+          true,
+          false
+        ],
+        "vault_state": [
+          "inactive",
+          "active",
+          "unlocking",
+          "ejecting"
+        ]
+      },
+      "base_state_id": 35519,
+      "default_state_id": 35523
+    },
+    "components": {
+      "minecraft:light_dampening": 1,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#707070",
+      "minecraft:collision_box": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "minecraft:selection_box": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 50
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": true
+      },
+      "mcrs:hardness": 50,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": false,
+      "mcrs:push_reaction": "push_pull",
+      "mcrs:instrument": "basedrum",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:occlusion_shape": [],
+      "mcrs:propagates_skylight_down": false,
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": true,
+      "mcrs:has_block_entity": true,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": false
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027vault_state\u0027) \u003d\u003d \u0027inactive\u0027",
+        "components": {
+          "minecraft:light_emission": 6
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027vault_state\u0027) \u003d\u003d \u0027active\u0027",
+        "components": {
+          "minecraft:light_emission": 12
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027vault_state\u0027) \u003d\u003d \u0027unlocking\u0027",
+        "components": {
+          "minecraft:light_emission": 12
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027vault_state\u0027) \u003d\u003d \u0027ejecting\u0027",
+        "components": {
+          "minecraft:light_emission": 12
+        }
+      }
+    ]
+  }
+}

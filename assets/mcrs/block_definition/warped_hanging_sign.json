@@ -1,0 +1,215 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:warped_hanging_sign",
+      "properties": {
+        "attached": [
+          true,
+          false
+        ],
+        "rotation": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "waterlogged": [
+          true,
+          false
+        ]
+      },
+      "base_state_id": 8079,
+      "default_state_id": 8128
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#3a8e8c",
+      "minecraft:collision_box": [],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 1
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "mcrs:hardness": 1,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": false,
+      "mcrs:push_reaction": "push_pull",
+      "mcrs:instrument": "bass",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:occlusion_shape": [],
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": false,
+      "mcrs:has_block_entity": true,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": false
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1,
+          "mcrs:propagates_skylight_down": false,
+          "mcrs:fluid_state": {
+            "fluid": "minecraft:water",
+            "level": 8,
+            "source": true
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0,
+          "mcrs:propagates_skylight_down": true
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 0",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-7, 0, -1], "size": [14, 10, 2] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 1",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 2",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 3",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 4",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-1, 0, -7], "size": [2, 10, 14] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 5",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 6",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 7",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 8",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-7, 0, -1], "size": [14, 10, 2] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 9",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 10",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 11",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 12",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-1, 0, -7], "size": [2, 10, 14] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 13",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 14",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027rotation\u0027) \u003d\u003d 15",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+          ]
+        }
+      }
+    ]
+  }
+}

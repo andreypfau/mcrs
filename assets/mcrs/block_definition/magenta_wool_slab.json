@@ -1,0 +1,143 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:magenta_wool_slab",
+      "properties": {
+        "type": [
+          "top",
+          "bottom",
+          "double"
+        ],
+        "waterlogged": [
+          true,
+          false
+        ]
+      },
+      "base_state_id": 3717,
+      "default_state_id": 3720
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#b24cd8",
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0.8
+      },
+      "mcrs:hardness": 0.8,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": true,
+      "mcrs:push_reaction": "push_pull",
+      "mcrs:instrument": "guitar",
+      "mcrs:render_shape": "model",
+      "mcrs:emissive_rendering": false,
+      "mcrs:has_block_entity": false,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": false
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027top\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 8, -8], "size": [16, 8, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 8, -8], "size": [16, 8, 16] }
+          ],
+          "minecraft:redstone_conductivity": {
+            "redstone_conductor": false
+          },
+          "mcrs:use_shape_for_light_occlusion": true,
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 8, -8], "size": [16, 8, 16] }
+          ],
+          "mcrs:is_solid_render": false,
+          "mcrs:is_collision_shape_full_block": false
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027bottom\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 8, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 8, 16] }
+          ],
+          "minecraft:redstone_conductivity": {
+            "redstone_conductor": false
+          },
+          "mcrs:use_shape_for_light_occlusion": true,
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 8, 16] }
+          ],
+          "mcrs:is_solid_render": false,
+          "mcrs:is_collision_shape_full_block": false
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027double\u0027",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+          ],
+          "minecraft:redstone_conductivity": {
+            "redstone_conductor": true
+          },
+          "mcrs:use_shape_for_light_occlusion": false,
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+          ],
+          "mcrs:is_solid_render": true,
+          "mcrs:is_collision_shape_full_block": true
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "mcrs:fluid_state": {
+            "fluid": "minecraft:water",
+            "level": 8,
+            "source": true
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {}
+      }
+    ],
+    "mcrs:state_components": [
+      {
+        "minecraft:light_dampening": 1,
+        "mcrs:propagates_skylight_down": false
+      },
+      {
+        "minecraft:light_dampening": 0,
+        "mcrs:propagates_skylight_down": true
+      },
+      {
+        "minecraft:light_dampening": 1,
+        "mcrs:propagates_skylight_down": false
+      },
+      {
+        "minecraft:light_dampening": 0,
+        "mcrs:propagates_skylight_down": true
+      },
+      {
+        "minecraft:light_dampening": 15,
+        "mcrs:propagates_skylight_down": false
+      },
+      {
+        "minecraft:light_dampening": 15,
+        "mcrs:propagates_skylight_down": false
+      }
+    ]
+  }
+}

@@ -86,12 +86,17 @@ pub mod map {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[repr(u8)]
 pub enum PushReaction {
+    #[serde(rename = "push_pull")]
     Normal,
+    #[serde(rename = "popped")]
     Destroy,
+    #[serde(rename = "immoveable")]
     Block,
+    #[serde(rename = "ignore")]
     Ignore,
+    #[serde(rename = "push")]
     PushOnly,
 }

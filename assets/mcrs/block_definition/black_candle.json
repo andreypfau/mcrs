@@ -1,0 +1,165 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:black_candle",
+      "properties": {
+        "candles": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "lit": [
+          true,
+          false
+        ],
+        "waterlogged": [
+          true,
+          false
+        ]
+      },
+      "base_state_id": 26709,
+      "default_state_id": 26712
+    },
+    "components": {
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#191919",
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0.1
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "mcrs:hardness": 0.1,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": false,
+      "mcrs:push_reaction": "popped",
+      "mcrs:instrument": "harp",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:occlusion_shape": [],
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": false,
+      "mcrs:has_block_entity": false,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": false
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027candles\u0027) \u003d\u003d 1 \u0026\u0026 q.block_state(\u0027lit\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_emission": 3
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027candles\u0027) \u003d\u003d 1 \u0026\u0026 q.block_state(\u0027lit\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_emission": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027candles\u0027) \u003d\u003d 2 \u0026\u0026 q.block_state(\u0027lit\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_emission": 6
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027candles\u0027) \u003d\u003d 2 \u0026\u0026 q.block_state(\u0027lit\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_emission": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027candles\u0027) \u003d\u003d 3 \u0026\u0026 q.block_state(\u0027lit\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_emission": 9
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027candles\u0027) \u003d\u003d 3 \u0026\u0026 q.block_state(\u0027lit\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_emission": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027candles\u0027) \u003d\u003d 4 \u0026\u0026 q.block_state(\u0027lit\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_emission": 12
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027candles\u0027) \u003d\u003d 4 \u0026\u0026 q.block_state(\u0027lit\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_emission": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1,
+          "mcrs:propagates_skylight_down": false,
+          "mcrs:fluid_state": {
+            "fluid": "minecraft:water",
+            "level": 8,
+            "source": true
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0,
+          "mcrs:propagates_skylight_down": true
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027candles\u0027) \u003d\u003d 1",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-1, 0, -1], "size": [2, 6, 2] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-1, 0, -1], "size": [2, 6, 2] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027candles\u0027) \u003d\u003d 2",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-3, 0, -2], "size": [6, 6, 3] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-3, 0, -2], "size": [6, 6, 3] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027candles\u0027) \u003d\u003d 3",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-3, 0, -2], "size": [5, 6, 5] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-3, 0, -2], "size": [5, 6, 5] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027candles\u0027) \u003d\u003d 4",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-3, 0, -3], "size": [6, 6, 5] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-3, 0, -3], "size": [6, 6, 5] }
+          ]
+        }
+      }
+    ]
+  }
+}

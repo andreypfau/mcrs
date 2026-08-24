@@ -1,0 +1,64 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:pale_hanging_moss",
+      "properties": {
+        "tip": [
+          true,
+          false
+        ]
+      },
+      "base_state_id": 35716,
+      "default_state_id": 35716
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:light_dampening": 0,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#999999",
+      "minecraft:collision_box": [],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "mcrs:hardness": 0,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": true,
+      "mcrs:push_reaction": "popped",
+      "mcrs:instrument": "harp",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:occlusion_shape": [],
+      "mcrs:propagates_skylight_down": true,
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": false,
+      "mcrs:has_block_entity": false,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": false
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027tip\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-7, 2, -7], "size": [14, 14, 14] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027tip\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-7, 0, -7], "size": [14, 16, 14] }
+          ]
+        }
+      }
+    ]
+  }
+}

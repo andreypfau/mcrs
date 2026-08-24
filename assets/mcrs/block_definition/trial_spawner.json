@@ -1,0 +1,96 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:trial_spawner",
+      "properties": {
+        "ominous": [
+          true,
+          false
+        ],
+        "trial_spawner_state": [
+          "inactive",
+          "waiting_for_players",
+          "active",
+          "waiting_for_reward_ejection",
+          "ejecting_reward",
+          "cooldown"
+        ]
+      },
+      "base_state_id": 35507,
+      "default_state_id": 35513
+    },
+    "components": {
+      "minecraft:light_dampening": 1,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#707070",
+      "minecraft:collision_box": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "minecraft:selection_box": [
+        { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+      ],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 50
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": true
+      },
+      "mcrs:hardness": 50,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": false,
+      "mcrs:push_reaction": "push_pull",
+      "mcrs:instrument": "basedrum",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:occlusion_shape": [],
+      "mcrs:propagates_skylight_down": false,
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": true,
+      "mcrs:has_block_entity": true,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": false
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027trial_spawner_state\u0027) \u003d\u003d \u0027inactive\u0027",
+        "components": {
+          "minecraft:light_emission": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027trial_spawner_state\u0027) \u003d\u003d \u0027waiting_for_players\u0027",
+        "components": {
+          "minecraft:light_emission": 4
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027trial_spawner_state\u0027) \u003d\u003d \u0027active\u0027",
+        "components": {
+          "minecraft:light_emission": 8
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027trial_spawner_state\u0027) \u003d\u003d \u0027waiting_for_reward_ejection\u0027",
+        "components": {
+          "minecraft:light_emission": 8
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027trial_spawner_state\u0027) \u003d\u003d \u0027ejecting_reward\u0027",
+        "components": {
+          "minecraft:light_emission": 8
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027trial_spawner_state\u0027) \u003d\u003d \u0027cooldown\u0027",
+        "components": {
+          "minecraft:light_emission": 0
+        }
+      }
+    ]
+  }
+}

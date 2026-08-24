@@ -1,0 +1,64 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:nether_portal",
+      "properties": {
+        "axis": [
+          "x",
+          "z"
+        ]
+      },
+      "base_state_id": 8687,
+      "default_state_id": 8687
+    },
+    "components": {
+      "minecraft:light_emission": 11,
+      "minecraft:light_dampening": 0,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#000000",
+      "minecraft:collision_box": [],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "mcrs:hardness": -1,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": false,
+      "mcrs:push_reaction": "immoveable",
+      "mcrs:instrument": "harp",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:occlusion_shape": [],
+      "mcrs:propagates_skylight_down": true,
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": false,
+      "mcrs:has_block_entity": false,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": false
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027axis\u0027) \u003d\u003d \u0027x\u0027",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -2], "size": [16, 16, 4] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027axis\u0027) \u003d\u003d \u0027z\u0027",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-2, 0, -8], "size": [4, 16, 16] }
+          ]
+        }
+      }
+    ]
+  }
+}

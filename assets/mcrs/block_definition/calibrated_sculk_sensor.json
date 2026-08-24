@@ -1,0 +1,118 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:calibrated_sculk_sensor",
+      "properties": {
+        "facing": [
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "power": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "sculk_sensor_phase": [
+          "inactive",
+          "active",
+          "cooldown"
+        ],
+        "waterlogged": [
+          true,
+          false
+        ]
+      },
+      "base_state_id": 30616,
+      "default_state_id": 30617
+    },
+    "components": {
+      "minecraft:light_emission": 1,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#4c7f99",
+      "minecraft:collision_box": [
+        { "origin": [-8, 0, -8], "size": [16, 8, 16] }
+      ],
+      "minecraft:selection_box": [
+        { "origin": [-8, 0, -8], "size": [16, 8, 16] }
+      ],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 1.5
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "mcrs:hardness": 1.5,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": false,
+      "mcrs:push_reaction": "push_pull",
+      "mcrs:instrument": "harp",
+      "mcrs:use_shape_for_light_occlusion": true,
+      "mcrs:render_shape": "model",
+      "mcrs:occlusion_shape": [
+        { "origin": [-8, 0, -8], "size": [16, 8, 16] }
+      ],
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": false,
+      "mcrs:has_block_entity": true,
+      "mcrs:is_signal_source": true,
+      "mcrs:has_analog_output_signal": true
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1,
+          "mcrs:propagates_skylight_down": false,
+          "mcrs:fluid_state": {
+            "fluid": "minecraft:water",
+            "level": 8,
+            "source": true
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0,
+          "mcrs:propagates_skylight_down": true
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027sculk_sensor_phase\u0027) \u003d\u003d \u0027inactive\u0027",
+        "components": {
+          "mcrs:emissive_rendering": false
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027sculk_sensor_phase\u0027) \u003d\u003d \u0027active\u0027",
+        "components": {
+          "mcrs:emissive_rendering": true
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027sculk_sensor_phase\u0027) \u003d\u003d \u0027cooldown\u0027",
+        "components": {
+          "mcrs:emissive_rendering": false
+        }
+      }
+    ]
+  }
+}

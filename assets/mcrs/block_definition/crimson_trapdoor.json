@@ -1,0 +1,258 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:crimson_trapdoor",
+      "properties": {
+        "facing": [
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "half": [
+          "top",
+          "bottom"
+        ],
+        "open": [
+          true,
+          false
+        ],
+        "powered": [
+          true,
+          false
+        ],
+        "waterlogged": [
+          true,
+          false
+        ]
+      },
+      "base_state_id": 24471,
+      "default_state_id": 24486
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#943f61",
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 3
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "mcrs:hardness": 3,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": false,
+      "mcrs:push_reaction": "push_pull",
+      "mcrs:instrument": "bass",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:occlusion_shape": [],
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": false,
+      "mcrs:has_block_entity": false,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": false
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1,
+          "mcrs:propagates_skylight_down": false,
+          "mcrs:fluid_state": {
+            "fluid": "minecraft:water",
+            "level": 8,
+            "source": true
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0,
+          "mcrs:propagates_skylight_down": true
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027top\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, 5], "size": [16, 16, 3] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, 5], "size": [16, 16, 3] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027top\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 13, -8], "size": [16, 3, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 13, -8], "size": [16, 3, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027bottom\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, 5], "size": [16, 16, 3] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, 5], "size": [16, 16, 3] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027bottom\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 3, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 3, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027top\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 3] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 3] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027top\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 13, -8], "size": [16, 3, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 13, -8], "size": [16, 3, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027bottom\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 3] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 3] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027bottom\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 3, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 3, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027top\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [5, 0, -8], "size": [3, 16, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [5, 0, -8], "size": [3, 16, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027top\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 13, -8], "size": [16, 3, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 13, -8], "size": [16, 3, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027bottom\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [5, 0, -8], "size": [3, 16, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [5, 0, -8], "size": [3, 16, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027bottom\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 3, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 3, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027top\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [3, 16, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [3, 16, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027top\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 13, -8], "size": [16, 3, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 13, -8], "size": [16, 3, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027bottom\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [3, 16, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [3, 16, 16] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027half\u0027) \u003d\u003d \u0027bottom\u0027 \u0026\u0026 q.block_state(\u0027open\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 3, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 3, 16] }
+          ]
+        }
+      }
+    ]
+  }
+}

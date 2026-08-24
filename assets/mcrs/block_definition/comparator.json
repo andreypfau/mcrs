@@ -1,0 +1,64 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:comparator",
+      "properties": {
+        "facing": [
+          "north",
+          "south",
+          "west",
+          "east"
+        ],
+        "mode": [
+          "compare",
+          "subtract"
+        ],
+        "powered": [
+          true,
+          false
+        ]
+      },
+      "base_state_id": 13030,
+      "default_state_id": 13031
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:light_dampening": 0,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#000000",
+      "minecraft:collision_box": [
+        { "origin": [-8, 0, -8], "size": [16, 2, 16] }
+      ],
+      "minecraft:selection_box": [
+        { "origin": [-8, 0, -8], "size": [16, 2, 16] }
+      ],
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "mcrs:hardness": 0,
+      "mcrs:requires_correct_tool_for_drops": false,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": false,
+      "mcrs:ignited_by_lava": false,
+      "mcrs:push_reaction": "popped",
+      "mcrs:instrument": "harp",
+      "mcrs:use_shape_for_light_occlusion": false,
+      "mcrs:render_shape": "model",
+      "mcrs:occlusion_shape": [
+        { "origin": [-8, 0, -8], "size": [16, 2, 16] }
+      ],
+      "mcrs:propagates_skylight_down": true,
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_solid_render": false,
+      "mcrs:is_collision_shape_full_block": false,
+      "mcrs:has_block_entity": true,
+      "mcrs:is_signal_source": true,
+      "mcrs:has_analog_output_signal": false
+    },
+    "permutations": []
+  }
+}

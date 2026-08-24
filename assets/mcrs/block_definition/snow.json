@@ -1,0 +1,183 @@
+{
+  "format_version": "1.21.130",
+  "minecraft:block": {
+    "description": {
+      "identifier": "minecraft:snow",
+      "properties": {
+        "layers": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ]
+      },
+      "base_state_id": 8589,
+      "default_state_id": 8589
+    },
+    "components": {
+      "minecraft:light_emission": 0,
+      "minecraft:friction": 0.6,
+      "minecraft:map_color": "#ffffff",
+      "minecraft:destructible_by_explosion": {
+        "explosion_resistance": 0.1
+      },
+      "minecraft:redstone_conductivity": {
+        "redstone_conductor": false
+      },
+      "mcrs:hardness": 0.1,
+      "mcrs:requires_correct_tool_for_drops": true,
+      "mcrs:is_air": false,
+      "mcrs:replaceable": true,
+      "mcrs:ignited_by_lava": false,
+      "mcrs:push_reaction": "popped",
+      "mcrs:instrument": "harp",
+      "mcrs:use_shape_for_light_occlusion": true,
+      "mcrs:render_shape": "model",
+      "mcrs:emissive_rendering": false,
+      "mcrs:is_collision_shape_full_block": false,
+      "mcrs:has_block_entity": false,
+      "mcrs:is_signal_source": false,
+      "mcrs:has_analog_output_signal": false
+    },
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027layers\u0027) \u003d\u003d 1",
+        "components": {
+          "minecraft:light_dampening": 0,
+          "minecraft:collision_box": [],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 2, 16] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 2, 16] }
+          ],
+          "mcrs:propagates_skylight_down": true,
+          "mcrs:is_solid_render": false
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027layers\u0027) \u003d\u003d 2",
+        "components": {
+          "minecraft:light_dampening": 0,
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 2, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 4, 16] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 4, 16] }
+          ],
+          "mcrs:propagates_skylight_down": true,
+          "mcrs:is_solid_render": false
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027layers\u0027) \u003d\u003d 3",
+        "components": {
+          "minecraft:light_dampening": 0,
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 4, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 6, 16] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 6, 16] }
+          ],
+          "mcrs:propagates_skylight_down": true,
+          "mcrs:is_solid_render": false
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027layers\u0027) \u003d\u003d 4",
+        "components": {
+          "minecraft:light_dampening": 0,
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 6, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 8, 16] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 8, 16] }
+          ],
+          "mcrs:propagates_skylight_down": true,
+          "mcrs:is_solid_render": false
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027layers\u0027) \u003d\u003d 5",
+        "components": {
+          "minecraft:light_dampening": 0,
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 8, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 10, 16] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 10, 16] }
+          ],
+          "mcrs:propagates_skylight_down": true,
+          "mcrs:is_solid_render": false
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027layers\u0027) \u003d\u003d 6",
+        "components": {
+          "minecraft:light_dampening": 0,
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 10, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 12, 16] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 12, 16] }
+          ],
+          "mcrs:propagates_skylight_down": true,
+          "mcrs:is_solid_render": false
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027layers\u0027) \u003d\u003d 7",
+        "components": {
+          "minecraft:light_dampening": 0,
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 12, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 14, 16] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 14, 16] }
+          ],
+          "mcrs:propagates_skylight_down": true,
+          "mcrs:is_solid_render": false
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027layers\u0027) \u003d\u003d 8",
+        "components": {
+          "minecraft:light_dampening": 15,
+          "minecraft:collision_box": [
+            { "origin": [-8, 0, -8], "size": [16, 14, 16] }
+          ],
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+          ],
+          "mcrs:occlusion_shape": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+          ],
+          "mcrs:propagates_skylight_down": false,
+          "mcrs:is_solid_render": true
+        }
+      }
+    ]
+  }
+}
