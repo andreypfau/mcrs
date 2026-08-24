@@ -1,26 +1,32 @@
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::input::mouse::AccumulatedMouseMotion;
+use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::render::view::Msaa;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
+use mcrs_engine::entity::physics::{OldTransform, Rotation, Transform as PhysicsTransform, Velocity};
+use mcrs_vanilla::entity::player::{Flying, FlyingSpeed};
+
+use crate::camera::FovFilter;
+use crate::local_player::Sprint;
+use crate::options::SENSITIVITY;
+
 const EYE_HEIGHT: f32 = 1.62;
 
-const LOOK_SENSITIVITY: f32 = 0.15;
+/// `MouseHandler.turnPlayer` builds `sens = (sensitivity * 0.6 + 0.2)^3 * 8` and
+/// `Entity.turn` then scales by `0.15`; at the default `sensitivity` the chain
+/// collapses to `degrees = pixels * 0.15`.
+const LOOK_SENSITIVITY: f32 = {
+    let sens = SENSITIVITY * 0.6 + 0.2;
+    sens * sens * sens * 8.0 * 0.15
+};
 
 #[derive(Component)]
 pub struct Player;
 
 #[derive(Component)]
 pub struct PlayerCamera;
-
-/// Minecraft yaw and pitch in degrees. Truth; both `Transform::rotation`s are
-/// derived from it.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct PlayerLook {
-    pub yaw: f32,
-    pub pitch: f32,
-}
 
 pub struct PlayerPlugin;
 
@@ -39,12 +45,25 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-pub fn spawn_player(world: &mut World, translation: Vec3, yaw: f32, pitch: f32) {
+pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) {
+    let physics =
+        PhysicsTransform::from_translation(position).with_rotation(Rotation::new(yaw, pitch));
     let player = world
-        .spawn((Player, PlayerLook { yaw, pitch }, Transform::from_translation(translation)))
+        .spawn((
+            Player,
+            physics,
+            OldTransform(physics),
+            Velocity(DVec3::ZERO),
+            Flying,
+            FlyingSpeed::default(),
+            Sprint::default(),
+            Transform::from_translation(position.as_vec3()),
+        ))
         .id();
     world.spawn((
         PlayerCamera,
+        FovFilter::default(),
+        Projection::default(),
         Camera3d::default(),
         // The sky pipelines are built for a single sample; multisampling the
         // view would leave them unable to render into it.
@@ -83,29 +102,30 @@ fn release_cursor_on_escape(
 fn apply_mouse_look(
     motion: Res<AccumulatedMouseMotion>,
     window: Single<&CursorOptions, With<PrimaryWindow>>,
-    mut look: Single<&mut PlayerLook>,
+    mut transform: Single<&mut PhysicsTransform, With<Player>>,
 ) {
     if window.grab_mode == CursorGrabMode::None || motion.delta == Vec2::ZERO {
         return;
     }
-    look.yaw = wrap_yaw(look.yaw + motion.delta.x * LOOK_SENSITIVITY);
-    look.pitch = (look.pitch + motion.delta.y * LOOK_SENSITIVITY).clamp(-90.0, 90.0);
-}
-
-fn wrap_yaw(yaw: f32) -> f32 {
-    (yaw + 180.0).rem_euclid(360.0) - 180.0
+    transform.rotation = transform.rotation.turn(
+        motion.delta.x * LOOK_SENSITIVITY,
+        motion.delta.y * LOOK_SENSITIVITY,
+    );
 }
 
 /// The half-turn is not decoration: Minecraft measures the look direction off
 /// +Z while Bevy's camera looks down -Z, and the pitch sign flips with it.
 #[allow(clippy::type_complexity)]
 fn sync_look_transforms(
-    player: Single<(&PlayerLook, &mut Transform), (With<Player>, Without<PlayerCamera>, Changed<PlayerLook>)>,
+    player: Single<
+        (&PhysicsTransform, &mut Transform),
+        (With<Player>, Without<PlayerCamera>, Changed<PhysicsTransform>),
+    >,
     mut camera: Single<&mut Transform, (With<PlayerCamera>, Without<Player>)>,
 ) {
-    let (look, mut player_transform) = player.into_inner();
-    player_transform.rotation = yaw_rotation(look.yaw);
-    camera.rotation = pitch_rotation(look.pitch);
+    let (physics, mut player_transform) = player.into_inner();
+    player_transform.rotation = yaw_rotation(physics.rotation.yaw());
+    camera.rotation = pitch_rotation(physics.rotation.pitch());
 }
 
 fn yaw_rotation(yaw: f32) -> Quat {
@@ -117,10 +137,10 @@ fn pitch_rotation(pitch: f32) -> Quat {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
-    fn minecraft_look_direction(yaw: f32, pitch: f32) -> Vec3 {
+    pub(crate) fn minecraft_look_direction(yaw: f32, pitch: f32) -> Vec3 {
         let (pitch, yaw) = (pitch.to_radians(), -yaw.to_radians());
         Vec3::new(
             yaw.sin() * pitch.cos(),

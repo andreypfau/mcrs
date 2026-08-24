@@ -175,8 +175,8 @@ pub fn entity_pos_sync(
             position: transform.translation,
             velocity: DVec3::ZERO,
             look: Look {
-                yaw: transform.rotation.y,
-                pitch: transform.rotation.x,
+                yaw: transform.rotation.yaw(),
+                pitch: transform.rotation.pitch(),
             },
             on_ground: true,
         },

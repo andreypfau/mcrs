@@ -1,9 +1,11 @@
 use std::path::{Path, PathBuf};
 
 use bevy::asset::AssetPlugin;
+use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::transform::TransformSystems;
 use mcrs_core::AppState;
+use mcrs_engine::entity::physics::Transform as PhysicsTransform;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::dimension::dimension_type::DimensionType;
 use mcrs_vanilla::environment::Weather;
@@ -11,6 +13,10 @@ use mcrs_vanilla::save::{self, SaveError};
 use mcrs_vanilla::timeline::Timeline;
 use mcrs_vanilla::world_clock::{AdvanceTime, WorldClock, WorldClocks};
 
+mod camera;
+mod input;
+mod local_player;
+mod options;
 mod player;
 mod screenshot;
 mod sky;
@@ -39,6 +45,10 @@ fn main() {
     .add_plugins(mcrs_core::MinecraftEnginePlugin)
     .add_plugins(mcrs_vanilla::MinecraftCorePlugin)
     .add_plugins(player::PlayerPlugin)
+    .add_plugins(input::ClientInputPlugin)
+    .add_plugins(local_player::LocalPlayerPlugin)
+    .add_plugins(camera::CameraPlugin)
+    .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .add_plugins(sky::SkyPlugin)
     .add_plugins(screenshot::ScreenshotPlugin)
     .add_systems(
@@ -67,7 +77,7 @@ fn main() {
         .insert_resource(sky::PlayerDimension(save_data.dimension));
 
     let (yaw, pitch) = look_override().unwrap_or((save_data.yaw, save_data.pitch));
-    player::spawn_player(app.world_mut(), save_data.translation, yaw, pitch);
+    player::spawn_player(app.world_mut(), save_data.position, yaw, pitch);
 
     app.run();
 }
@@ -97,7 +107,7 @@ struct SaveData {
     dimension: String,
     advance_time: bool,
     weather: Weather,
-    translation: Vec3,
+    position: DVec3,
     yaw: f32,
     pitch: f32,
 }
@@ -108,10 +118,10 @@ fn load_save(world: &Path) -> SaveData {
     let weather = save::read_weather(world).unwrap_or_else(|err| fatal(err));
     let game_rules = save::read_game_rules(world).unwrap_or_else(|err| fatal(err));
 
-    let (translation, yaw, pitch, dimension) = match level.singleplayer_uuid {
+    let (position, yaw, pitch, dimension) = match level.singleplayer_uuid {
         Some(uuid) => match save::read_player(world, uuid) {
             Ok(player) => (
-                Vec3::new(player.pos[0] as f32, player.pos[1] as f32, player.pos[2] as f32),
+                DVec3::from_array(player.pos),
                 player.yaw,
                 player.pitch,
                 player.dimension,
@@ -130,7 +140,7 @@ fn load_save(world: &Path) -> SaveData {
             rain: if weather.raining { 1.0 } else { 0.0 },
             thunder: if weather.thundering { 1.0 } else { 0.0 },
         },
-        translation,
+        position,
         yaw,
         pitch,
     }
@@ -138,9 +148,9 @@ fn load_save(world: &Path) -> SaveData {
 
 /// A spawn point is a block position; the player stands at its centre in X and
 /// Z, and Y is the block's own floor.
-fn spawn_fallback(spawn: &save::RespawnData) -> (Vec3, f32, f32, String) {
+fn spawn_fallback(spawn: &save::RespawnData) -> (DVec3, f32, f32, String) {
     (
-        Vec3::new(spawn.pos[0] as f32 + 0.5, spawn.pos[1] as f32, spawn.pos[2] as f32 + 0.5),
+        DVec3::new(spawn.pos[0] as f64 + 0.5, spawn.pos[1] as f64, spawn.pos[2] as f64 + 0.5),
         spawn.yaw,
         spawn.pitch,
         "minecraft:overworld".to_owned(),
@@ -195,15 +205,15 @@ fn log_registry_counts(
 }
 
 fn log_spawned_transforms(
-    player: Single<(&Transform, &player::PlayerLook), With<player::Player>>,
+    player: Single<(&Transform, &PhysicsTransform), With<player::Player>>,
     camera: Single<&GlobalTransform, With<player::PlayerCamera>>,
 ) {
-    let (transform, look) = player.into_inner();
+    let (transform, physics) = player.into_inner();
     info!(
         player_translation = ?transform.translation,
         camera_world_translation = ?camera.translation(),
-        yaw = look.yaw,
-        pitch = look.pitch,
+        yaw = physics.rotation.yaw(),
+        pitch = physics.rotation.pitch(),
         "spawned player"
     );
 }

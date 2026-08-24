@@ -3,8 +3,8 @@ use bevy_ecs::component::Component;
 use bevy_ecs::prelude::{
     Changed, DetectChangesMut, Entity, Message, MessageReader, MessageWriter, Mut, On, Query, With,
 };
-use bevy_math::{DVec3, Quat};
-use mcrs_engine::entity::physics::Transform;
+use bevy_math::DVec3;
+use mcrs_engine::entity::physics::{Rotation, Transform};
 use mcrs_engine::session::PlayerSession;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_protocol::packets::game::serverbound::{
@@ -89,10 +89,12 @@ fn handle_move_packets(on: On<ReceivedPacketEvent>, mut writer: MessageWriter<Pl
             p.flags,
         ));
     } else if let Some(p) = on.decode::<ServerboundMovePlayerPosRot>() {
-        let m = PlayerMovement::new(e, Some(p.position.into()), Some(p.look.into()), p.flags);
+        let look = Rotation::new(p.look.yaw, p.look.pitch);
+        let m = PlayerMovement::new(e, Some(p.position.into()), Some(look), p.flags);
         writer.write(m);
     } else if let Some(p) = on.decode::<ServerboundMovePlayerRot>() {
-        let m = PlayerMovement::new(e, None, Some(p.look.into()), p.flags);
+        let look = Rotation::new(p.look.yaw, p.look.pitch);
+        let m = PlayerMovement::new(e, None, Some(look), p.flags);
         writer.write(m);
     } else if let Some(p) = on.decode::<ServerboundMovePlayerStatusOnly>() {
         writer.write(PlayerMovement::new(e, None, None, p.flags));
@@ -103,7 +105,7 @@ fn handle_move_packets(on: On<ReceivedPacketEvent>, mut writer: MessageWriter<Pl
 pub struct PlayerMovement {
     entity: Entity,
     position: Option<DVec3>,
-    look: Option<Quat>,
+    look: Option<Rotation>,
     flags: MoveFlags,
 }
 
@@ -111,7 +113,7 @@ impl PlayerMovement {
     pub fn new(
         entity: Entity,
         position: Option<DVec3>,
-        look: Option<Quat>,
+        look: Option<Rotation>,
         flags: MoveFlags,
     ) -> Self {
         Self {
@@ -152,10 +154,9 @@ fn teleport(
 ) {
     for (anchor, mut state, transform) in &mut clients {
         let changed_pos = transform.translation != state.synced_transform.translation;
-        let changed_y_rot = transform.rotation.y != state.synced_transform.rotation.y;
-        let changed_x_rot = transform.rotation.x != state.synced_transform.rotation.x;
+        let changed_rot = transform.rotation != state.synced_transform.rotation;
 
-        if changed_pos || changed_y_rot || changed_x_rot {
+        if changed_pos || changed_rot {
             state.synced_transform = *transform;
 
             let teleport_id = state.next_teleport_id();

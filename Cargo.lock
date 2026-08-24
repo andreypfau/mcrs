@@ -3272,6 +3272,7 @@ dependencies = [
  "bevy",
  "bytemuck",
  "mcrs_core",
+ "mcrs_engine",
  "mcrs_vanilla",
  "serde",
  "serde_json",
