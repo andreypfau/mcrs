@@ -5,7 +5,6 @@ use std::marker::PhantomData;
 use mcrs_nbt::compound::NbtCompound;
 use mcrs_palette::SectionKind;
 use serde::Deserialize;
-use serde::de::IgnoredAny;
 
 use crate::palette::{BlockStateLookup, Palette, Properties};
 use crate::{DATA_VERSION, ErrorKind};
@@ -192,7 +191,6 @@ struct RawPalettedContainer {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct RawSection {
     #[serde(rename = "Y")]
     y: i8,
@@ -204,11 +202,7 @@ struct RawSection {
     sky_light: Option<RawLight>,
 }
 
-/// Underscored fields exist so that `deny_unknown_fields` accepts a vanilla chunk
-/// while still rejecting a key this decoder has never heard of. Their contents
-/// have no consumer yet; give one a type when it grows one.
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct RawChunk {
     #[serde(rename = "DataVersion")]
     data_version: i32,
@@ -232,26 +226,35 @@ struct RawChunk {
     inhabited_time: i64,
     #[serde(rename = "LastUpdate", default)]
     last_update: i64,
-    #[serde(rename = "block_ticks")]
-    _block_ticks: Option<IgnoredAny>,
-    #[serde(rename = "fluid_ticks")]
-    _fluid_ticks: Option<IgnoredAny>,
-    #[serde(rename = "PostProcessing")]
-    _post_processing: Option<IgnoredAny>,
-    #[serde(rename = "structures")]
-    _structures: Option<IgnoredAny>,
-    #[serde(rename = "entities")]
-    _entities: Option<IgnoredAny>,
-    #[serde(rename = "UpgradeData")]
-    _upgrade_data: Option<IgnoredAny>,
-    #[serde(rename = "blending_data")]
-    _blending_data: Option<IgnoredAny>,
-    #[serde(rename = "below_zero_retrogen")]
-    _below_zero_retrogen: Option<IgnoredAny>,
+}
+
+#[derive(Deserialize)]
+struct RawChunkVersion {
+    #[serde(rename = "DataVersion", default)]
+    data_version: Option<i32>,
+}
+
+/// A chunk written by an older version fails on a field this layout never had,
+/// which says nothing useful. Re-read just the version so the error names it.
+fn wrong_version(nbt: &[u8]) -> Option<ErrorKind> {
+    let raw: RawChunkVersion = mcrs_nbt::from_bytes(Cursor::new(nbt)).ok()?;
+    match raw.data_version {
+        None => Some(ErrorKind::MissingDataVersion {
+            expected: DATA_VERSION,
+        }),
+        Some(found) if found != DATA_VERSION => Some(ErrorKind::DataVersion {
+            found,
+            expected: DATA_VERSION,
+        }),
+        Some(_) => None,
+    }
 }
 
 pub fn parse(nbt: &[u8]) -> Result<Chunk, ErrorKind> {
-    let raw: RawChunk = mcrs_nbt::from_bytes(Cursor::new(nbt))?;
+    let raw: RawChunk = match mcrs_nbt::from_bytes(Cursor::new(nbt)) {
+        Ok(raw) => raw,
+        Err(err) => return Err(wrong_version(nbt).unwrap_or_else(|| err.into())),
+    };
     if raw.data_version != DATA_VERSION {
         return Err(ErrorKind::DataVersion {
             found: raw.data_version,

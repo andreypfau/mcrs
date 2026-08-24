@@ -854,14 +854,56 @@ fn a_stale_data_version_is_a_loud_error() {
     );
 }
 
+/// Vanilla reads the fields it names off the compound and ignores the rest, and
+/// a real save carries keys other tools wrote: a world opened once under
+/// Starlight puts `starlight.skylight_state` on every section. The `DataVersion`
+/// gate is what catches format drift; refusing a stranger's key on top of it
+/// only makes modded worlds unreadable.
 #[test]
-fn an_unknown_root_key_is_a_loud_error() {
+fn a_key_this_decoder_does_not_know_is_ignored() {
     let fixture = Fixture::new("unknown_key");
-    let mut root = chunk_nbt(0, 0, Vec::new());
+    let mut section = section(0, container(vec![NbtTag::Compound(block("minecraft:stone"))], None));
+    section.put_int("starlight.skylight_state", 3);
+    let mut root = chunk_nbt(0, 0, vec![NbtTag::Compound(section)]);
     root.put_int("SomeFutureField", 1);
+    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
+    assert_eq!(chunk.sections.len(), 1);
+}
+
+/// `DataVersion` arrived in 15w32a, so a chunk older than that has no version
+/// to disagree with and must say so rather than leaking a missing-field message.
+#[test]
+fn a_chunk_older_than_the_version_tag_says_so() {
+    let fixture = Fixture::new("no_version");
+    let mut root = NbtCompound::new();
+    root.put_component("Level", NbtCompound::new());
     let err = read_one(&fixture, ZLIB, &root).unwrap_err();
-    assert!(matches!(err.kind, ErrorKind::Nbt(_)), "{err}");
-    assert!(err.to_string().contains("SomeFutureField"), "{err}");
+    assert!(
+        matches!(err.kind, ErrorKind::MissingDataVersion { expected: 5011 }),
+        "{err}"
+    );
+}
+
+/// An older chunk trips over whatever field this layout gained or lost long
+/// before anything looks at its version, so the version has to be re-read to
+/// produce the error that actually explains the failure.
+#[test]
+fn an_older_layout_reports_its_version_not_its_first_odd_field() {
+    let fixture = Fixture::new("old_layout");
+    let mut root = NbtCompound::new();
+    root.put_int("DataVersion", 1343);
+    root.put_component("Level", NbtCompound::new());
+    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
+    assert!(
+        matches!(
+            err.kind,
+            ErrorKind::DataVersion {
+                found: 1343,
+                expected: 5011
+            }
+        ),
+        "{err}"
+    );
 }
 
 #[test]

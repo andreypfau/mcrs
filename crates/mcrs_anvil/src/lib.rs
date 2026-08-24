@@ -79,6 +79,8 @@ pub enum ErrorKind {
     Nbt(#[from] mcrs_nbt::Error),
     #[error("DataVersion {found}, expected {expected}")]
     DataVersion { found: i32, expected: i32 },
+    #[error("no DataVersion, so older than the tag itself; expected {expected}")]
+    MissingDataVersion { expected: i32 },
     #[error("`{name}` is not a block state this registry knows")]
     UnknownPaletteEntry { name: String },
     #[error("section {y}: `{field}` palette is empty")]
