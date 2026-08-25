@@ -16,7 +16,7 @@ use bevy::render::view::{
 };
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
-use mcrs_vanilla::environment::sky::{SkyEffects, SkyFrame, SkyKey};
+use crate::sky_state::{SkyEffects, SkyFrame, SkyKey};
 use mcrs_vanilla::world_clock::WorldClocks;
 
 use crate::sky::{SkyEnvironment, SkyTextures, SkyUniform};

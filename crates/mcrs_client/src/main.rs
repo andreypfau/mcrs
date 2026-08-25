@@ -20,6 +20,7 @@ mod options;
 mod player;
 mod screenshot;
 mod sky;
+mod sky_state;
 mod sky_render;
 
 fn main() {

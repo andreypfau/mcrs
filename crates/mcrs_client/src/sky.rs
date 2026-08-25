@@ -12,7 +12,7 @@ use mcrs_core::ResourceLocation;
 use mcrs_core::registry::snapshot::rl_from_asset_path;
 
 use mcrs_vanilla::dimension::dimension_type::DimensionType;
-use mcrs_vanilla::environment::sky::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
+use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
 use mcrs_vanilla::environment::{
     DimensionEnvironments, EnvironmentAttributes, EnvironmentContext, SpatialAttributeInterpolator,
     Weather,

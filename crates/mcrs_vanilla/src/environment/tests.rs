@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use serde_json::json;
 
-use super::sky::{SkyEffects, SkyField, SkyFrame, SkyLayout, SkyValue};
 use super::*;
 use mcrs_core::tag::file::TagEntry;
 
@@ -333,37 +332,6 @@ fn evaluation_is_a_pure_function_of_its_context() {
     assert_eq!(first, again, "going back to the earlier tick must give the earlier angle");
 }
 
-// ── The two sky blocks ───────────────────────────────────────────────────────
-
-#[test]
-fn the_dimension_constant_set_comes_from_the_loaded_timelines() {
-    let (attributes, _timelines) = overworld();
-    let layout = SkyLayout::derive(&attributes);
-
-    let frame: Vec<SkyField> = layout.frame_fields().collect();
-    let constant: Vec<SkyField> = layout.constant_fields().collect();
-    assert_eq!(frame.len() + constant.len(), SkyField::ALL.len());
-    assert_eq!(frame.len(), 11, "{frame:?}");
-    assert_eq!(constant.len(), 11, "the 13 constants less the two particle payloads");
-
-    for field in [
-        SkyField::SkyColor,
-        SkyField::FogColor,
-        SkyField::CloudColor,
-        SkyField::SkyLightColor,
-        SkyField::SkyLightFactor,
-        SkyField::SunriseSunsetColor,
-        SkyField::StarBrightness,
-        SkyField::SunAngle,
-        SkyField::MoonAngle,
-        SkyField::StarAngle,
-        SkyField::MoonPhase,
-    ] {
-        assert!(frame.contains(&field), "{field:?} has a track and belongs in the frame block");
-    }
-    assert!(constant.contains(&SkyField::CloudHeight));
-}
-
 #[test]
 fn a_dimension_with_no_timelines_still_builds() {
     let attributes = build("minecraft:overworld", "overworld.json", &[]);
@@ -379,115 +347,6 @@ fn a_dimension_with_no_timelines_still_builds() {
     let ticks = ticks_at(&attributes, MIDNIGHT, 0.0);
     let ctx = context(&ticks, &empty, Weather::default());
     assert_eq!(at_noon, float(&attributes, "minecraft:gameplay/sky_light_level", &ctx));
-}
-
-#[test]
-fn a_track_for_cloud_height_moves_it_into_the_frame_block() {
-    let mut timelines = tagged_timelines("in_overworld");
-    timelines.push(
-        serde_json::from_value(json!({
-            "clock": "minecraft:overworld",
-            "period_ticks": 24000,
-            "tracks": {
-                "minecraft:visual/cloud_height": {
-                    "keyframes": [{"ticks": 0, "value": 192.33}, {"ticks": 12000, "value": 128.0}],
-                },
-            },
-        }))
-        .unwrap(),
-    );
-    let attributes = build("minecraft:overworld", "overworld.json", &timelines);
-    let layout = SkyLayout::derive(&attributes);
-
-    let frame: Vec<SkyField> = layout.frame_fields().collect();
-    assert!(frame.contains(&SkyField::CloudHeight), "{frame:?}");
-    assert!(!layout.constant_fields().any(|field| field == SkyField::CloudHeight));
-    assert_eq!(frame.len(), 12);
-}
-
-#[test]
-fn one_pass_fills_the_frame_block_in_layout_order() {
-    let (attributes, _timelines) = overworld();
-    let layout = SkyLayout::derive(&attributes);
-    let empty = SpatialAttributeInterpolator::default();
-    let ticks = ticks_at(&attributes, NOON, 0.0);
-    let weather = Weather { rain: 0.5, thunder: 0.25 };
-
-    let mut frame = SkyFrame::default();
-    let ctx = EnvironmentContext {
-        position: DVec3::new(8.0, 64.0, -8.0),
-        ticks: &ticks,
-        biomes: &empty,
-        weather,
-    };
-    layout.evaluate(&attributes, &ctx, &mut frame);
-
-    assert_eq!(frame.values.len(), layout.frame_fields().count());
-    assert_eq!(frame.camera, [8.0, 64.0, -8.0]);
-    assert_eq!((frame.rain, frame.thunder), (0.5, 0.25));
-    assert_eq!(frame.get(&layout, SkyField::SunAngle), Some(SkyValue::Scalar(0.0)));
-
-    // a second pass over the same context reuses the buffer and lands on the
-    // same values: nothing is carried between frames
-    let before = frame.values.clone();
-    layout.evaluate(&attributes, &ctx, &mut frame);
-    assert_eq!(frame.values, before);
-}
-
-#[test]
-fn the_overworld_draws_the_whole_sky() {
-    let (attributes, _timelines) = overworld();
-    let layout = SkyLayout::derive(&attributes);
-    let empty = SpatialAttributeInterpolator::default();
-    let ticks = ticks_at(&attributes, NOON, 0.0);
-
-    let constants = layout.constants(&attributes, &context(&ticks, &empty, Weather::default()));
-    assert_eq!(constants.key.skybox, Skybox::Overworld);
-    assert_eq!(constants.key.effects, SkyEffects::all());
-    assert_eq!(constants.key.draws(), 5);
-    assert_eq!(constants.get(SkyField::CloudHeight), Some(SkyValue::Scalar(192.33)));
-}
-
-#[test]
-fn the_nether_has_no_sun_moon_stars_or_clouds() {
-    let nether_timelines = [timeline("villager_schedule.json")];
-    let borrowed: Vec<&Timeline> = nether_timelines.iter().collect();
-    let proto = dimension_type("the_nether.json");
-    let attributes =
-        EnvironmentAttributes::build(&shape("minecraft:the_nether", &proto), &borrowed).unwrap();
-
-    let layout = SkyLayout::derive(&attributes);
-    let empty = SpatialAttributeInterpolator::default();
-    let ticks = ticks_at(&attributes, NOON, 0.0);
-    let ctx = context(&ticks, &empty, Weather::default());
-    let constants = layout.constants(&attributes, &ctx);
-
-    assert_eq!(constants.key.skybox, Skybox::None);
-    assert_eq!(constants.key.effects, SkyEffects::DISC);
-    assert_eq!(constants.key.draws(), 1);
-
-    let overworld_draws = {
-        let (overworld, _timelines) = overworld();
-        SkyLayout::derive(&overworld)
-            .constants(&overworld, &context(&ticks_at(&overworld, NOON, 0.0), &empty, Weather::default()))
-            .key
-            .draws()
-    };
-    assert_eq!(overworld_draws - constants.key.draws(), 4);
-
-    for id in [
-        "minecraft:visual/sun_angle",
-        "minecraft:visual/moon_angle",
-        "minecraft:visual/star_angle",
-        "minecraft:visual/star_brightness",
-    ] {
-        assert_eq!(float(&attributes, id, &ctx), 0.0, "{id} must be inert in the nether");
-    }
-    assert_eq!(
-        color(&attributes, "minecraft:visual/cloud_color", &ctx) >> 24,
-        0,
-        "a fully transparent cloud colour is what removes the cloud draw"
-    );
 }
 
 #[test]

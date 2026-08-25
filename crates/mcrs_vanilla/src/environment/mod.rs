@@ -6,7 +6,6 @@
 //! stack is derived once from immutable assets and every read composes it
 //! afresh.
 
-pub mod sky;
 pub mod spatial;
 
 use std::collections::HashMap;
