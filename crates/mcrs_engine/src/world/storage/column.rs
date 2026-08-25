@@ -467,9 +467,7 @@ fn reconcile_column_chunks(
         if let Ok(mut column_chunks) = columns.get_mut(slot.entity) {
             column_chunks.set_loaded(chunk_pos.y, chunk_entity);
         }
-        commands
-            .entity(chunk_entity)
-            .insert(InColumn(slot.entity));
+        commands.entity(chunk_entity).insert(InColumn(slot.entity));
     }
 
     for (chunk_pos, in_dim) in newly_unloading.iter() {

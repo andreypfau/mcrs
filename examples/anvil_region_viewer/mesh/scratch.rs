@@ -131,7 +131,11 @@ impl Scratch {
                 self.fluid_columns[kind][axis][column],
             ),
         };
-        let front = if n_positive { blocker >> 1 } else { blocker << 1 };
+        let front = if n_positive {
+            blocker >> 1
+        } else {
+            blocker << 1
+        };
         own & !front
     }
 }

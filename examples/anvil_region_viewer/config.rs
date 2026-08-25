@@ -12,7 +12,9 @@ const FACE_MB_PER_FILE: usize = 40;
 const UPLOAD_MB: usize = 4;
 
 fn numbers<T: std::str::FromStr>(spec: &str) -> Vec<T> {
-    spec.split(',').filter_map(|n| n.trim().parse().ok()).collect()
+    spec.split(',')
+        .filter_map(|n| n.trim().parse().ok())
+        .collect()
 }
 
 pub fn upload_budget() -> usize {

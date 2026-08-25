@@ -1,7 +1,7 @@
 use crate::block::tags as block_tags;
-use crate::item::component::tool::ToolMaterial;
-use crate::item::component::ItemComponents;
 use crate::item::Item;
+use crate::item::component::ItemComponents;
+use crate::item::component::tool::ToolMaterial;
 use mcrs_core::StaticRegistry;
 use mcrs_protocol::ItemId;
 

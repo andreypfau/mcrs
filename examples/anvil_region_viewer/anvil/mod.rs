@@ -202,7 +202,11 @@ impl World {
                 MIN_SECTION_Y,
                 min_region[1] * REGION_CHUNKS as i32,
             ],
-            sections: [regions[0] * REGION_CHUNKS, SECTIONS_Y, regions[1] * REGION_CHUNKS],
+            sections: [
+                regions[0] * REGION_CHUNKS,
+                SECTIONS_Y,
+                regions[1] * REGION_CHUNKS,
+            ],
             min_region,
             regions,
             slots: (0..regions[0] * regions[1]).map(|_| None).collect(),
@@ -252,8 +256,7 @@ impl World {
         if rx < 0 || rz < 0 || rx as usize >= self.regions[0] || rz as usize >= self.regions[1] {
             return None;
         }
-        self.slots[rz as usize * self.regions[0] + rx as usize]
-            .as_deref()
+        self.slots[rz as usize * self.regions[0] + rx as usize].as_deref()
     }
 
     #[inline]
@@ -330,7 +333,10 @@ impl World {
 }
 
 pub fn region_coords(name: &str) -> Option<[i32; 2]> {
-    let (x, z) = name.strip_prefix("r.")?.strip_suffix(".mca")?.split_once('.')?;
+    let (x, z) = name
+        .strip_prefix("r.")?
+        .strip_suffix(".mca")?
+        .split_once('.')?;
     Some([x.parse().ok()?, z.parse().ok()?])
 }
 
@@ -353,10 +359,7 @@ pub fn window(path: &Path, centre: [i32; 2], size: usize) -> Result<Window, Stri
         });
     }
 
-    let min = [
-        centre[0] - (size / 2) as i32,
-        centre[1] - (size / 2) as i32,
-    ];
+    let min = [centre[0] - (size / 2) as i32, centre[1] - (size / 2) as i32];
     let mut files = Vec::new();
     for rz in 0..size as i32 {
         for rx in 0..size as i32 {
@@ -395,11 +398,7 @@ fn intern_state(
     id
 }
 
-fn intern_biome(
-    intern: &mut HashMap<String, u8>,
-    names: &mut Vec<String>,
-    name: &str,
-) -> u8 {
+fn intern_biome(intern: &mut HashMap<String, u8>, names: &mut Vec<String>, name: &str) -> u8 {
     if let Some(&id) = intern.get(name) {
         return id;
     }
@@ -463,10 +462,13 @@ mod tests {
 
     fn one_lit_section() -> Region {
         let mut lights: Vec<Option<Box<[u8; SECTION_VOLUME]>>> =
-            (0..REGION_CHUNKS * REGION_CHUNKS * 3).map(|_| None).collect();
+            (0..REGION_CHUNKS * REGION_CHUNKS * 3)
+                .map(|_| None)
+                .collect();
         lights[1] = Some(Box::new([0x3a; SECTION_VOLUME]));
-        let mut sections: Vec<Option<Section>> =
-            (0..REGION_CHUNKS * REGION_CHUNKS * 3).map(|_| None).collect();
+        let mut sections: Vec<Option<Section>> = (0..REGION_CHUNKS * REGION_CHUNKS * 3)
+            .map(|_| None)
+            .collect();
         sections[1] = Some(Section {
             blocks: Box::new([1; SECTION_VOLUME]),
             biomes: Box::new([0; 64]),
@@ -533,11 +535,27 @@ mod tests {
         assert_ne!(stone, dirt);
 
         let span = REGION_BLOCKS as i32;
-        assert_eq!(world.block(span - 1, 0, span - 1), stone, "last block of r.-1.-1");
+        assert_eq!(
+            world.block(span - 1, 0, span - 1),
+            stone,
+            "last block of r.-1.-1"
+        );
         assert_eq!(world.block(span, 0, span), dirt, "first block of r.0.0");
-        assert_eq!(world.block(span, 0, 0), Palette::AIR, "a slot with no file in it");
-        assert_eq!(world.block(-1, 0, 0), Palette::AIR, "past the window's corner");
-        assert_eq!(world.light(-1, 0, 0), 0x0f, "open sky past the window's corner");
+        assert_eq!(
+            world.block(span, 0, 0),
+            Palette::AIR,
+            "a slot with no file in it"
+        );
+        assert_eq!(
+            world.block(-1, 0, 0),
+            Palette::AIR,
+            "past the window's corner"
+        );
+        assert_eq!(
+            world.light(-1, 0, 0),
+            0x0f,
+            "open sky past the window's corner"
+        );
     }
 
     #[test]

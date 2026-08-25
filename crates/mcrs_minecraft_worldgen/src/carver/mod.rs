@@ -64,7 +64,12 @@ where
                     if state == water_state || state == stationary_water_state {
                         abort = true;
                     }
-                    if y != y_min - 1 && x != x_min && x != x_max - 1 && z != z_min && z != z_max - 1 {
+                    if y != y_min - 1
+                        && x != x_min
+                        && x != x_max - 1
+                        && z != z_min
+                        && z != z_max - 1
+                    {
                         y = y_min;
                     }
                 }

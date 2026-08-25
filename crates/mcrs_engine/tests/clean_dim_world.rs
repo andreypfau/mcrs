@@ -14,7 +14,10 @@ fn dim_world_contains_no_host_only_resources() {
     drain_dim_spawn_queue(&mut app);
 
     let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
-    assert!(!labels.is_empty(), "at least one sub-app must exist after spawn drain");
+    assert!(
+        !labels.is_empty(),
+        "at least one sub-app must exist after spawn drain"
+    );
 
     for label in &labels {
         let sub_app = app

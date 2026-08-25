@@ -5,9 +5,7 @@ use std::path::Path;
 use mcrs_palette::SectionKind;
 use serde::Deserialize;
 
-use super::{
-    BlockStateKey, REGION_CHUNKS, Region, SECTION_VOLUME, Section, intern_state,
-};
+use super::{BlockStateKey, REGION_CHUNKS, Region, SECTION_VOLUME, Section, intern_state};
 
 #[derive(Deserialize)]
 struct ChunkNbt {
@@ -55,10 +53,12 @@ struct PaletteEntryNbt {
     properties: HashMap<String, String>,
 }
 pub fn load(path: &Path) -> Result<Region, String> {
-    let bytes =
-        std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    let bytes = std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     if bytes.len() < 8192 {
-        return Err(format!("{} is shorter than a region header", path.display()));
+        return Err(format!(
+            "{} is shorter than a region header",
+            path.display()
+        ));
     }
 
     let mut intern: HashMap<BlockStateKey, u16> = HashMap::new();
@@ -81,7 +81,8 @@ pub fn load(path: &Path) -> Result<Region, String> {
 
     for slot in 0..REGION_CHUNKS * REGION_CHUNKS {
         let head = slot * 4;
-        let offset = u32::from_be_bytes([0, bytes[head], bytes[head + 1], bytes[head + 2]]) as usize;
+        let offset =
+            u32::from_be_bytes([0, bytes[head], bytes[head + 1], bytes[head + 2]]) as usize;
         let sector_count = bytes[head + 3] as usize;
         if offset == 0 || sector_count == 0 {
             continue;
@@ -99,7 +100,9 @@ pub fn load(path: &Path) -> Result<Region, String> {
         let scheme = bytes[start + 4];
         let payload_end = start + 4 + length;
         if length == 0 || payload_end > bytes.len() {
-            return Err(format!("chunk {slot} declares an impossible payload length"));
+            return Err(format!(
+                "chunk {slot} declares an impossible payload length"
+            ));
         }
         let payload = &bytes[start + 5..payload_end];
 
@@ -356,4 +359,3 @@ fn write_nibbles(source: &[i8], out: &mut [u8; SECTION_VOLUME], shift: u32) {
         out[i * 2 + 1] |= (byte >> 4) << shift;
     }
 }
-

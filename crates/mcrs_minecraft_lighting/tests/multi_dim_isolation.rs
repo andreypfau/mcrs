@@ -33,8 +33,8 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::state::NextState;
-use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
+use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
@@ -45,12 +45,12 @@ use mcrs_engine::world::dimension::{
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::codec::{BlockLightDirty, SkyLightDirty};
 use mcrs_minecraft_lighting::components::{BlockLight, SkyLight};
+use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::storage::LightStorage;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
-use mcrs_minecraft_lighting::metrics::{snapshot, TELEMETRY_TEST_LOCK};
-use mcrs_minecraft_lighting::LightingPlugin;
+use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_protocol::BlockStateId;
 
 const TEST_DIM_HEIGHT: u32 = 384;
@@ -72,8 +72,7 @@ fn make_stub_block_light_table_with_torch() -> BlockStateLightTable {
     // State 1: solid opaque (full dampening).
     emission[1] = 0;
     dampening[1] = 15;
-    flags[1] =
-        flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
+    flags[1] = flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
     // State 2: torch (emitter, no dampening, not air).
     emission[2] = 14;
     dampening[2] = 0;

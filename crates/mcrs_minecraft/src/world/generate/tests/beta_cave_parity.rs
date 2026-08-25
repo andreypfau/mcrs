@@ -6,21 +6,23 @@ use mcrs_core::RegistrySnapshot;
 use mcrs_core::resource_location::ResourceLocation;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_worldgen::carver::WorldCarver;
 use mcrs_minecraft_worldgen::carver::cave::CaveWorldCarver;
 use mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig;
-use mcrs_minecraft_worldgen::carver::WorldCarver;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_protocol::BlockStateId;
 use mcrs_random::Random;
 use mcrs_random::legacy::LegacyRandom;
-use rand_xoshiro::rand_core::{Infallible, TryRng};
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_vanilla::block::minecraft;
+use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use crate::world::chunk::CancellationToken;
-use crate::world::generate::{apply_beta_caves, apply_beta_surface, generate_column, BetaCaveBlockIds};
+use crate::world::generate::{
+    BetaCaveBlockIds, apply_beta_caves, apply_beta_surface, generate_column,
+};
 
 // ── Corpus deserialization ────────────────────────────────────────────────────
 
@@ -62,44 +64,66 @@ fn load_corpus() -> BetaSurfaceCorpus {
 
 fn modern_id_for_beta(beta_id: u8) -> BlockStateId {
     match beta_id {
-        0  => minecraft::AIR.default_state_id,
-        1  => minecraft::STONE.default_state_id,
-        2  => minecraft::GRASS_BLOCK.default_state_id,
-        3  => minecraft::DIRT.default_state_id,
-        7  => minecraft::BEDROCK.default_state_id,
-        9  => minecraft::WATER.default_state_id,
+        0 => minecraft::AIR.default_state_id,
+        1 => minecraft::STONE.default_state_id,
+        2 => minecraft::GRASS_BLOCK.default_state_id,
+        3 => minecraft::DIRT.default_state_id,
+        7 => minecraft::BEDROCK.default_state_id,
+        9 => minecraft::WATER.default_state_id,
         12 => minecraft::SAND.default_state_id,
         13 => minecraft::GRAVEL.default_state_id,
         24 => minecraft::SANDSTONE.default_state_id,
         79 => minecraft::ICE.default_state_id,
-        _  => minecraft::AIR.default_state_id,
+        _ => minecraft::AIR.default_state_id,
     }
 }
 
 fn beta_id_for_modern(modern: BlockStateId) -> u8 {
-    let air       = minecraft::AIR.default_state_id;
-    let stone     = minecraft::STONE.default_state_id;
-    let grass     = minecraft::GRASS_BLOCK.default_state_id;
-    let dirt      = minecraft::DIRT.default_state_id;
-    let bedrock   = minecraft::BEDROCK.default_state_id;
-    let sand      = minecraft::SAND.default_state_id;
-    let gravel    = minecraft::GRAVEL.default_state_id;
+    let air = minecraft::AIR.default_state_id;
+    let stone = minecraft::STONE.default_state_id;
+    let grass = minecraft::GRASS_BLOCK.default_state_id;
+    let dirt = minecraft::DIRT.default_state_id;
+    let bedrock = minecraft::BEDROCK.default_state_id;
+    let sand = minecraft::SAND.default_state_id;
+    let gravel = minecraft::GRAVEL.default_state_id;
     let sandstone = minecraft::SANDSTONE.default_state_id;
-    let water     = minecraft::WATER.default_state_id;
-    let lava      = minecraft::LAVA.default_state_id;
-    let ice       = minecraft::ICE.default_state_id;
+    let water = minecraft::WATER.default_state_id;
+    let lava = minecraft::LAVA.default_state_id;
+    let ice = minecraft::ICE.default_state_id;
 
-    if modern == air        { return 0;  }
-    if modern == stone      { return 1;  }
-    if modern == grass      { return 2;  }
-    if modern == dirt       { return 3;  }
-    if modern == bedrock    { return 7;  }
-    if modern == water      { return 9;  }
-    if modern == lava       { return 10; }
-    if modern == sand       { return 12; }
-    if modern == gravel     { return 13; }
-    if modern == sandstone  { return 24; }
-    if modern == ice        { return 79; }
+    if modern == air {
+        return 0;
+    }
+    if modern == stone {
+        return 1;
+    }
+    if modern == grass {
+        return 2;
+    }
+    if modern == dirt {
+        return 3;
+    }
+    if modern == bedrock {
+        return 7;
+    }
+    if modern == water {
+        return 9;
+    }
+    if modern == lava {
+        return 10;
+    }
+    if modern == sand {
+        return 12;
+    }
+    if modern == gravel {
+        return 13;
+    }
+    if modern == sandstone {
+        return 24;
+    }
+    if modern == ice {
+        return 79;
+    }
     0
 }
 
@@ -108,17 +132,17 @@ fn beta_id_for_modern(modern: BlockStateId) -> u8 {
 fn make_cave_config() -> (BetaCaveCarverConfig, BetaCaveBlockIds) {
     let ids = BetaCaveBlockIds::resolve();
     let config = BetaCaveCarverConfig {
-        air_state:              ids.air,
-        lava_state:             ids.lava,
-        stone_state:            ids.stone,
-        dirt_state:             ids.dirt,
-        grass_state:            ids.grass,
-        water_state:            ids.water,
+        air_state: ids.air,
+        lava_state: ids.lava,
+        stone_state: ids.stone,
+        dirt_state: ids.dirt,
+        grass_state: ids.grass,
+        water_state: ids.water,
         stationary_water_state: ids.stationary_water,
-        lava_level:             10,
-        range:                  8,
+        lava_level: 10,
+        range: 8,
         horizontal_radius_multiplier: 1.0,
-        vertical_radius_multiplier:   1.0,
+        vertical_radius_multiplier: 1.0,
     };
     (config, ids)
 }
@@ -137,7 +161,10 @@ struct CountingRng {
 
 impl CountingRng {
     fn new(seed: u64, draws: std::rc::Rc<std::cell::Cell<u64>>) -> Self {
-        CountingRng { inner: LegacyRandom::new(seed), draws }
+        CountingRng {
+            inner: LegacyRandom::new(seed),
+            draws,
+        }
     }
 
     fn inc(&self) {
@@ -160,13 +187,17 @@ impl TryRng for CountingRng {
 
     fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {
         let n = (dst.len() + 7) / 8;
-        for _ in 0..n { self.inc(); }
+        for _ in 0..n {
+            self.inc();
+        }
         self.inner.try_fill_bytes(dst)
     }
 }
 
 impl Random for CountingRng {
-    fn is_legacy(&self) -> bool { true }
+    fn is_legacy(&self) -> bool {
+        true
+    }
 
     fn next_bool(&mut self) -> bool {
         self.inc();
@@ -222,8 +253,8 @@ fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64
     let carver = CaveWorldCarver;
 
     // Stone-filled dummy sections so the carver has blocks to process.
-    let mut sections: Vec<Option<(BlockPalette, BiomePalette)>> =
-        (0..8).map(|_| {
+    let mut sections: Vec<Option<(BlockPalette, BiomePalette)>> = (0..8)
+        .map(|_| {
             let mut p = BlockPalette::default();
             let b = BiomePalette::default();
             for x in 0..16i32 {
@@ -330,7 +361,9 @@ fn load_density_functions_from_disk() -> BTreeMap<
             mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
         >,
     ) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
@@ -342,7 +375,9 @@ fn load_density_functions_from_disk() -> BTreeMap<
                 };
                 recurse(&path, &new_prefix, map);
             } else if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                let Ok(json) = std::fs::read_to_string(&path) else { continue };
+                let Ok(json) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
                 let Ok(DensityFunctionHolder::Owned(pdf)) =
                     serde_json::from_str::<DensityFunctionHolder>(&json)
                 else {
@@ -403,11 +438,9 @@ fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
             (rl, ocean_ids[i])
         }))
         .collect();
-    let snapshot = RegistrySnapshot::<Biome>::build(
-        all_pairs,
-        &assets,
-        |_| Ok(mcrs_nbt::compound::NbtCompound::new()),
-    );
+    let snapshot = RegistrySnapshot::<Biome>::build(all_pairs, &assets, |_| {
+        Ok(mcrs_nbt::compound::NbtCompound::new())
+    });
     let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = std::array::from_fn(|i| {
         ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap()
     });
@@ -462,10 +495,9 @@ fn beta_cave_parity_gate() {
         let block_x = cx * 16;
         let block_z = cz * 16;
 
-        let mut sections: Vec<Option<(BlockPalette, BiomePalette)>> =
-            (0..y_sections.len())
-                .map(|_| Some((BlockPalette::default(), BiomePalette::default())))
-                .collect();
+        let mut sections: Vec<Option<(BlockPalette, BiomePalette)>> = (0..y_sections.len())
+            .map(|_| Some((BlockPalette::default(), BiomePalette::default())))
+            .collect();
 
         for fix_col in fixture_cols.iter() {
             let local_x = fix_col.wx - block_x;
@@ -487,7 +519,15 @@ fn beta_cave_parity_gate() {
             }
         }
 
-        apply_beta_caves(&mut sections, &y_sections, *cx, *cz, world_seed, &config, &ids);
+        apply_beta_caves(
+            &mut sections,
+            &y_sections,
+            *cx,
+            *cz,
+            world_seed,
+            &config,
+            &ids,
+        );
 
         for fix_col in fixture_cols.iter() {
             total_columns += 1;
@@ -518,12 +558,23 @@ fn beta_cave_parity_gate() {
     }
 
     if !mismatches.is_empty() {
-        let first_10: Vec<String> = mismatches.iter().take(10).map(|(wx, wz, diffs)| {
-            let first_diff = diffs.first().map(|(y, got, want)| {
-                format!("Y={} got={} want={}", y, got, want)
-            }).unwrap_or_default();
-            format!("  ({:+5},{:+5}): {} block mismatches [{}]", wx, wz, diffs.len(), first_diff)
-        }).collect();
+        let first_10: Vec<String> = mismatches
+            .iter()
+            .take(10)
+            .map(|(wx, wz, diffs)| {
+                let first_diff = diffs
+                    .first()
+                    .map(|(y, got, want)| format!("Y={} got={} want={}", y, got, want))
+                    .unwrap_or_default();
+                format!(
+                    "  ({:+5},{:+5}): {} block mismatches [{}]",
+                    wx,
+                    wz,
+                    diffs.len(),
+                    first_diff
+                )
+            })
+            .collect();
 
         panic!(
             "\nBETA CAVE PARITY GATE FAILED\n\
@@ -536,9 +587,11 @@ fn beta_cave_parity_gate() {
     }
 
     assert_eq!(
-        mismatches.len(), 0,
+        mismatches.len(),
+        0,
         "cave parity: {} mismatches / {} columns",
-        mismatches.len(), total_columns
+        mismatches.len(),
+        total_columns
     );
 }
 
@@ -605,7 +658,15 @@ fn generate_column_beta_has_caves() {
         &mut rng,
     );
 
-    apply_beta_caves(&mut sections, &y_sections, chunk_x, chunk_z, world_seed, &config, &ids);
+    apply_beta_caves(
+        &mut sections,
+        &y_sections,
+        chunk_x,
+        chunk_z,
+        world_seed,
+        &config,
+        &ids,
+    );
 
     let air = ids.air;
     let lava = ids.lava;
@@ -636,7 +697,9 @@ fn generate_column_beta_has_caves() {
                     let base_y = sy * 16;
                     for local_y in 0..16i32 {
                         let world_y = base_y + local_y;
-                        if world_y >= surface_y { continue; }
+                        if world_y >= surface_y {
+                            continue;
+                        }
                         let state = blocks.get(BlockPos::new(local_x, local_y, local_z));
                         if state == air {
                             found_cave_air = true;
@@ -698,7 +761,15 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 &biome_source,
                 &mut rng,
             );
-            apply_beta_caves(&mut sections, &y_sections, chunk_x, chunk_z, world_seed, &config, &ids);
+            apply_beta_caves(
+                &mut sections,
+                &y_sections,
+                chunk_x,
+                chunk_z,
+                world_seed,
+                &config,
+                &ids,
+            );
 
             let mut air_below_32 = 0usize;
             for (si, &sy) in y_sections.iter().enumerate() {
@@ -739,4 +810,3 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
         "real Beta generation pipeline must produce at least 1 chunk with air below Y 32"
     );
 }
-

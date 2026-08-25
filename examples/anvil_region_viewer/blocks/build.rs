@@ -43,10 +43,7 @@ fn amount_of(level: u32) -> u8 {
     }
 }
 
-fn fluid_of(
-    state: &BlockStateKey,
-    sprites: &mut SpriteRegistry,
-) -> Result<Option<Fluid>, String> {
+fn fluid_of(state: &BlockStateKey, sprites: &mut SpriteRegistry) -> Result<Option<Fluid>, String> {
     let prop = |key: &str| {
         state
             .props
@@ -56,7 +53,9 @@ fn fluid_of(
     };
     let (lava, amount) = match state.name.as_str() {
         "minecraft:water" | "minecraft:lava" => {
-            let level = prop("level").and_then(|value| value.parse().ok()).unwrap_or(0);
+            let level = prop("level")
+                .and_then(|value| value.parse().ok())
+                .unwrap_or(0);
             (state.name == "minecraft:lava", amount_of(level))
         }
         name if IMPLICITLY_WATERLOGGED.contains(&name) => (false, 8),
@@ -169,11 +168,7 @@ pub(super) fn build_one(
 
 const FACE_GRID: usize = 16;
 
-fn sturdy_faces(
-    quads: &[bake::BakedQuad],
-    layers: &[SpriteRef],
-    sprites: &SpriteRegistry,
-) -> u8 {
+fn sturdy_faces(quads: &[bake::BakedQuad], layers: &[SpriteRef], sprites: &SpriteRegistry) -> u8 {
     let mut sides = [[0u16; FACE_GRID]; Dir::ALL.len()];
     for quad in quads {
         let Some(dir) = quad.cull else { continue };
@@ -210,7 +205,11 @@ fn cover_face(side: &mut [u16; FACE_GRID], positions: &[Vec3; 4], dir: Dir) {
     let steps = FACE_GRID as f32;
     let cell = |value: f32, round_up: bool| {
         let scaled = value * steps;
-        let rounded = if round_up { scaled.ceil() } else { scaled.floor() };
+        let rounded = if round_up {
+            scaled.ceil()
+        } else {
+            scaled.floor()
+        };
         rounded.clamp(0.0, steps) as usize
     };
     let mut tangents = (0..3).filter(|axis| *axis != normal);
@@ -237,9 +236,9 @@ fn face_group(positions: &[Vec3; 4]) -> Option<u8> {
     {
         return Some(dir as u8);
     }
-    let diagonal = DIAGONALS.iter().position(|&[x, z]| {
-        normal.dot(Vec3::new(x, 0.0, z).normalize()) >= 1.0 - 1e-4
-    })?;
+    let diagonal = DIAGONALS
+        .iter()
+        .position(|&[x, z]| normal.dot(Vec3::new(x, 0.0, z).normalize()) >= 1.0 - 1e-4)?;
     Some(Dir::ALL.len() as u8 + diagonal as u8)
 }
 
@@ -286,7 +285,6 @@ fn is_cube_face(quad: &bake::BakedQuad) -> bool {
     }
     true
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -341,7 +339,11 @@ mod tests {
         assert_eq!(
             closed(
                 "minecraft:oak_stairs",
-                &[("facing", "east"), ("half", "bottom"), ("shape", "straight")],
+                &[
+                    ("facing", "east"),
+                    ("half", "bottom"),
+                    ("shape", "straight")
+                ],
             ),
             ["down", "east"],
         );
@@ -361,8 +363,11 @@ mod tests {
             "glass covers every side and hides none of them, which is what the fluid overlay is for"
         );
         assert!(
-            closed("minecraft:oak_leaves", &[("persistent", "false"), ("distance", "7")])
-                .is_empty(),
+            closed(
+                "minecraft:oak_leaves",
+                &[("persistent", "false"), ("distance", "7")]
+            )
+            .is_empty(),
             "leaves are a cube full of holes and hide nothing"
         );
     }
@@ -436,8 +441,13 @@ mod tests {
             "a log turned on its side has rotated UVs and cannot tile"
         );
 
-        let grass = bake::bake("minecraft:grass_block", &[("snowy", "false")], IVec3::ZERO, &world)
-            .expect("grass block bakes");
+        let grass = bake::bake(
+            "minecraft:grass_block",
+            &[("snowy", "false")],
+            IVec3::ZERO,
+            &world,
+        )
+        .expect("grass block bakes");
         let (cube, extras) = split_cube(&grass.quads);
         assert!(cube.is_some(), "the grass block hides a full cube");
         assert_eq!(extras.len(), 4, "four tinted side overlays are left over");

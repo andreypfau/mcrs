@@ -228,7 +228,12 @@ impl ClockTimeMarker {
             return i64::from(self.ticks);
         };
         let duration = i64::from(self.ticks) - total_ticks.rem_euclid(period);
-        total_ticks + if duration > 0 { duration } else { period + duration }
+        total_ticks
+            + if duration > 0 {
+                duration
+            } else {
+                period + duration
+            }
     }
 
     pub fn repetition_count(&self, total_ticks: i64) -> i64 {
@@ -466,7 +471,11 @@ mod tests {
             tick_app(&mut app);
         }
 
-        let state = *app.world().resource::<WorldClocks>().get(OVERWORLD).unwrap();
+        let state = *app
+            .world()
+            .resource::<WorldClocks>()
+            .get(OVERWORLD)
+            .unwrap();
         assert_eq!(state.total_ticks, 24_000);
         assert_eq!(state.total_ticks.rem_euclid(24_000), 0);
         assert_eq!(state.partial_tick, 0.0);
@@ -553,7 +562,13 @@ mod tests {
 
         assert_eq!(total_ticks(&app, OVERWORLD), 0);
         assert_eq!(total_ticks(&app, "minecraft:the_end"), 0);
-        assert!(!app.world().resource::<WorldClocks>().get(OVERWORLD).unwrap().paused);
+        assert!(
+            !app.world()
+                .resource::<WorldClocks>()
+                .get(OVERWORLD)
+                .unwrap()
+                .paused
+        );
 
         app.world_mut().resource_mut::<AdvanceTime>().0 = true;
         for _ in 0..10 {
@@ -620,7 +635,10 @@ mod tests {
         ]);
         assert!(errors.is_empty(), "{errors:?}");
 
-        let names: Vec<&str> = markers.of_clock(OVERWORLD).map(|(id, _)| id.as_str()).collect();
+        let names: Vec<&str> = markers
+            .of_clock(OVERWORLD)
+            .map(|(id, _)| id.as_str())
+            .collect();
         assert_eq!(
             names,
             [
@@ -637,11 +655,25 @@ mod tests {
         assert_eq!(day.ticks, 1000);
         assert_eq!(day.period_ticks, Some(24_000));
         assert!(day.show_in_commands);
-        assert!(!markers.get(OVERWORLD, "minecraft:roll_village_siege").unwrap().show_in_commands);
+        assert!(
+            !markers
+                .get(OVERWORLD, "minecraft:roll_village_siege")
+                .unwrap()
+                .show_in_commands
+        );
 
         // Two markers may share a tick; two markers may not share an id.
-        assert_eq!(markers.get(OVERWORLD, "minecraft:midnight").unwrap().ticks, 18_000);
-        assert_eq!(markers.get(OVERWORLD, "minecraft:roll_village_siege").unwrap().ticks, 18_000);
+        assert_eq!(
+            markers.get(OVERWORLD, "minecraft:midnight").unwrap().ticks,
+            18_000
+        );
+        assert_eq!(
+            markers
+                .get(OVERWORLD, "minecraft:roll_village_siege")
+                .unwrap()
+                .ticks,
+            18_000
+        );
     }
 
     #[test]
@@ -660,10 +692,17 @@ mod tests {
             serde_json::json!({"minecraft:day": 24_000, "minecraft:noon": 23_999}),
         )]);
 
-        assert!(matches!(
-            errors.as_slice(),
-            [TimeMarkerError::OutsidePeriod { ticks: 24_000, period: 24_000, .. }]
-        ), "{errors:?}");
+        assert!(
+            matches!(
+                errors.as_slice(),
+                [TimeMarkerError::OutsidePeriod {
+                    ticks: 24_000,
+                    period: 24_000,
+                    ..
+                }]
+            ),
+            "{errors:?}"
+        );
         assert!(markers.get(OVERWORLD, "minecraft:day").is_none());
         assert!(markers.get(OVERWORLD, "minecraft:noon").is_some());
     }
@@ -686,21 +725,46 @@ mod tests {
     #[test]
     fn one_marker_id_may_not_be_declared_twice_for_one_clock() {
         let (markers, errors) = markers_of(&[
-            timeline_json(OVERWORLD, Some(24_000), serde_json::json!({"minecraft:noon": 6_000})),
-            timeline_json(OVERWORLD, Some(24_000), serde_json::json!({"minecraft:noon": 7_000})),
+            timeline_json(
+                OVERWORLD,
+                Some(24_000),
+                serde_json::json!({"minecraft:noon": 6_000}),
+            ),
+            timeline_json(
+                OVERWORLD,
+                Some(24_000),
+                serde_json::json!({"minecraft:noon": 7_000}),
+            ),
         ]);
-        assert!(matches!(errors.as_slice(), [TimeMarkerError::Duplicate { .. }]), "{errors:?}");
-        assert_eq!(markers.get(OVERWORLD, "minecraft:noon").unwrap().ticks, 6_000);
+        assert!(
+            matches!(errors.as_slice(), [TimeMarkerError::Duplicate { .. }]),
+            "{errors:?}"
+        );
+        assert_eq!(
+            markers.get(OVERWORLD, "minecraft:noon").unwrap().ticks,
+            6_000
+        );
     }
 
     #[test]
     fn one_marker_id_on_two_clocks_is_fine() {
         let (markers, errors) = markers_of(&[
-            timeline_json(OVERWORLD, Some(24_000), serde_json::json!({"minecraft:noon": 6_000})),
-            timeline_json("minecraft:the_end", None, serde_json::json!({"minecraft:noon": 7_000})),
+            timeline_json(
+                OVERWORLD,
+                Some(24_000),
+                serde_json::json!({"minecraft:noon": 6_000}),
+            ),
+            timeline_json(
+                "minecraft:the_end",
+                None,
+                serde_json::json!({"minecraft:noon": 7_000}),
+            ),
         ]);
         assert!(errors.is_empty(), "{errors:?}");
-        assert_eq!(markers.get(OVERWORLD, "minecraft:noon").unwrap().ticks, 6_000);
+        assert_eq!(
+            markers.get(OVERWORLD, "minecraft:noon").unwrap().ticks,
+            6_000
+        );
         let end = markers.get("minecraft:the_end", "minecraft:noon").unwrap();
         assert_eq!((end.ticks, end.period_ticks), (7_000, None));
     }
@@ -722,7 +786,11 @@ mod tests {
 
     #[test]
     fn a_periodic_marker_always_moves_forward() {
-        let day = ClockTimeMarker { ticks: 1000, period_ticks: Some(24_000), show_in_commands: true };
+        let day = ClockTimeMarker {
+            ticks: 1000,
+            period_ticks: Some(24_000),
+            show_in_commands: true,
+        };
 
         assert!(!day.occurs_at(2_000));
         assert_eq!(day.resolve_time_to_move_to(2_000), 25_000);
@@ -744,8 +812,11 @@ mod tests {
 
     #[test]
     fn a_marker_at_tick_zero_occurs_at_tick_zero() {
-        let wake_up =
-            ClockTimeMarker { ticks: 0, period_ticks: Some(24_000), show_in_commands: false };
+        let wake_up = ClockTimeMarker {
+            ticks: 0,
+            period_ticks: Some(24_000),
+            show_in_commands: false,
+        };
         assert!(wake_up.occurs_at(0));
         assert_eq!(wake_up.repetition_count(0), 1);
         assert_eq!(wake_up.resolve_time_to_move_to(0), 24_000);
@@ -754,7 +825,11 @@ mod tests {
 
     #[test]
     fn a_marker_without_a_period_happens_once() {
-        let once = ClockTimeMarker { ticks: 1_000, period_ticks: None, show_in_commands: false };
+        let once = ClockTimeMarker {
+            ticks: 1_000,
+            period_ticks: None,
+            show_in_commands: false,
+        };
 
         assert!(once.occurs_at(1_000));
         assert!(!once.occurs_at(25_000));

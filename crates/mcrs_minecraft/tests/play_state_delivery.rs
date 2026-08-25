@@ -19,32 +19,32 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use bytes::Bytes;
+use mcrs_core::AppState;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
-use mcrs_core::AppState;
-use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_engine::session::PlayerSession;
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft::runner::pump_channels;
 use mcrs_minecraft::world::bridge::dispatch_encode;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload,
-    PacketPriority, PacketTarget, PlayerTransferSnapshot,
+    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
+    PlayerTransferSnapshot,
 };
 use mcrs_minecraft::world::entity::player::HostAnchor;
-use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
-use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
-use mcrs_minecraft::runner::pump_channels;
+use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
-use mcrs_network::metrics::{BRIDGE_ENCODE_UNHANDLED_TOTAL, TELEMETRY_TEST_LOCK};
 use mcrs_network::ServerSideConnection;
+use mcrs_network::metrics::{BRIDGE_ENCODE_UNHANDLED_TOTAL, TELEMETRY_TEST_LOCK};
+use mcrs_protocol::GameMode;
 use mcrs_protocol::chunk::LightData;
 use mcrs_protocol::uuid::Uuid;
-use mcrs_protocol::GameMode;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
@@ -99,8 +99,8 @@ fn push_critical(world: &mut World, entity: Entity, payload: PacketPayload) {
             target: PacketTarget::SinglePlayer(entity),
             priority: PacketPriority::Critical,
             data: payload,
-        session: PlayerSession(0),
-        epoch: 0,
+            session: PlayerSession(0),
+            epoch: 0,
         });
 }
 
@@ -170,7 +170,9 @@ fn spawn_subapp(app: &mut App) -> Entity {
 /// incrementing `BRIDGE_ENCODE_UNHANDLED_TOTAL`.
 #[test]
 fn player_login_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = TELEMETRY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
@@ -198,17 +200,26 @@ fn player_login_encodes() {
     run_dispatch(&mut world);
 
     let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
-    assert_eq!(after - before, 0, "PlayerLogin must not increment unhandled");
+    assert_eq!(
+        after - before,
+        0,
+        "PlayerLogin must not increment unhandled"
+    );
 
     let blob = rx.try_recv().expect("blob sent to socket");
-    assert!(!blob.is_empty(), "PlayerLogin must produce a non-empty blob");
+    assert!(
+        !blob.is_empty(),
+        "PlayerLogin must produce a non-empty blob"
+    );
 }
 
 /// `PacketPayload::LevelChunksLoadStart` encodes to a non-empty blob
 /// (the GameEvent packet).
 #[test]
 fn level_chunks_load_start_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = TELEMETRY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
@@ -217,17 +228,26 @@ fn level_chunks_load_start_encodes() {
     run_dispatch(&mut world);
 
     let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
-    assert_eq!(after - before, 0, "LevelChunksLoadStart must not increment unhandled");
+    assert_eq!(
+        after - before,
+        0,
+        "LevelChunksLoadStart must not increment unhandled"
+    );
 
     let blob = rx.try_recv().expect("blob sent to socket");
-    assert!(!blob.is_empty(), "LevelChunksLoadStart must produce a non-empty blob");
+    assert!(
+        !blob.is_empty(),
+        "LevelChunksLoadStart must produce a non-empty blob"
+    );
 }
 
 /// `PacketPayload::PlayerLoginEntityEvent` encodes to a non-empty blob
 /// (the EntityEvent packet).
 #[test]
 fn player_login_entity_event_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = TELEMETRY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
@@ -243,16 +263,25 @@ fn player_login_entity_event_encodes() {
     run_dispatch(&mut world);
 
     let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
-    assert_eq!(after - before, 0, "PlayerLoginEntityEvent must not increment unhandled");
+    assert_eq!(
+        after - before,
+        0,
+        "PlayerLoginEntityEvent must not increment unhandled"
+    );
 
     let blob = rx.try_recv().expect("blob sent to socket");
-    assert!(!blob.is_empty(), "PlayerLoginEntityEvent must produce a non-empty blob");
+    assert!(
+        !blob.is_empty(),
+        "PlayerLoginEntityEvent must produce a non-empty blob"
+    );
 }
 
 /// `PacketPayload::SetChunkCacheCenter` encodes to a non-empty blob.
 #[test]
 fn cache_center_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = TELEMETRY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
@@ -265,16 +294,25 @@ fn cache_center_encodes() {
     run_dispatch(&mut world);
 
     let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
-    assert_eq!(after - before, 0, "SetChunkCacheCenter must not increment unhandled");
+    assert_eq!(
+        after - before,
+        0,
+        "SetChunkCacheCenter must not increment unhandled"
+    );
 
     let blob = rx.try_recv().expect("blob sent to socket");
-    assert!(!blob.is_empty(), "SetChunkCacheCenter must produce a non-empty blob");
+    assert!(
+        !blob.is_empty(),
+        "SetChunkCacheCenter must produce a non-empty blob"
+    );
 }
 
 /// `PacketPayload::SetChunkCacheRadius` encodes to a non-empty blob.
 #[test]
 fn cache_radius_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = TELEMETRY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
@@ -287,16 +325,25 @@ fn cache_radius_encodes() {
     run_dispatch(&mut world);
 
     let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
-    assert_eq!(after - before, 0, "SetChunkCacheRadius must not increment unhandled");
+    assert_eq!(
+        after - before,
+        0,
+        "SetChunkCacheRadius must not increment unhandled"
+    );
 
     let blob = rx.try_recv().expect("blob sent to socket");
-    assert!(!blob.is_empty(), "SetChunkCacheRadius must produce a non-empty blob");
+    assert!(
+        !blob.is_empty(),
+        "SetChunkCacheRadius must produce a non-empty blob"
+    );
 }
 
 /// `PacketPayload::PlayerInfoUpdate` encodes to a non-empty blob.
 #[test]
 fn player_info_update_encodes() {
-    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = TELEMETRY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
@@ -316,10 +363,17 @@ fn player_info_update_encodes() {
     run_dispatch(&mut world);
 
     let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
-    assert_eq!(after - before, 0, "PlayerInfoUpdate must not increment unhandled");
+    assert_eq!(
+        after - before,
+        0,
+        "PlayerInfoUpdate must not increment unhandled"
+    );
 
     let blob = rx.try_recv().expect("blob sent to socket");
-    assert!(!blob.is_empty(), "PlayerInfoUpdate must produce a non-empty blob");
+    assert!(
+        !blob.is_empty(),
+        "PlayerInfoUpdate must produce a non-empty blob"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -337,7 +391,10 @@ fn play_login_emitted_on_spawn() {
 
     let host_anchor = app.world_mut().spawn_empty().id();
     {
-        let session = app.world_mut().resource_mut::<PlayerSessionCounter>().next();
+        let session = app
+            .world_mut()
+            .resource_mut::<PlayerSessionCounter>()
+            .next();
         app.world_mut().resource_mut::<SessionRegistry>().insert(
             session,
             SessionEntry {
@@ -355,8 +412,7 @@ fn play_login_emitted_on_spawn() {
     // routes it to Messages<InboundPlayerSpawn> inside the sub-app this tick.
     {
         use mcrs_minecraft::world::channel_types::ToDim;
-        app
-            .world()
+        app.world()
             .resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>()
             .get(dim_label)
             .expect("channel registered for dim_label")
@@ -371,7 +427,8 @@ fn play_login_emitted_on_spawn() {
                     rotation: bevy_math::Vec2::ZERO,
                 },
                 dimensions: Vec::new(),
-            }).expect("control channel not full");
+            })
+            .expect("control channel not full");
     }
 
     // Tick 1: sub-app extract runs (nothing in channel yet), then sub-app
@@ -419,7 +476,10 @@ fn play_login_targets_host_anchor() {
 
     let host_anchor = app.world_mut().spawn_empty().id();
     {
-        let session = app.world_mut().resource_mut::<PlayerSessionCounter>().next();
+        let session = app
+            .world_mut()
+            .resource_mut::<PlayerSessionCounter>()
+            .next();
         app.world_mut().resource_mut::<SessionRegistry>().insert(
             session,
             SessionEntry {
@@ -435,8 +495,7 @@ fn play_login_targets_host_anchor() {
 
     {
         use mcrs_minecraft::world::channel_types::ToDim;
-        app
-            .world()
+        app.world()
             .resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>()
             .get(dim_label)
             .expect("channel registered for dim_label")
@@ -451,7 +510,8 @@ fn play_login_targets_host_anchor() {
                     rotation: bevy_math::Vec2::ZERO,
                 },
                 dimensions: Vec::new(),
-            }).expect("control channel not full");
+            })
+            .expect("control channel not full");
     }
 
     // Tick 1: sub-app extract runs (nothing yet), then drain_to_dim_inbox routes
@@ -483,7 +543,10 @@ fn play_login_targets_host_anchor() {
                 "PlayerLogin target must be the host-anchor entity, not the in-dim entity"
             );
         }
-        other => panic!("PlayerLogin target must be SinglePlayer(host_anchor), got {:?}", other),
+        other => panic!(
+            "PlayerLogin target must be SinglePlayer(host_anchor), got {:?}",
+            other
+        ),
     }
 }
 
@@ -503,8 +566,7 @@ fn in_dim_entity_carries_host_anchor() {
 
     {
         use mcrs_minecraft::world::channel_types::ToDim;
-        app
-            .world()
+        app.world()
             .resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>()
             .get(dim_label)
             .expect("channel registered for dim_label")
@@ -519,7 +581,8 @@ fn in_dim_entity_carries_host_anchor() {
                     rotation: bevy_math::Vec2::ZERO,
                 },
                 dimensions: Vec::new(),
-            }).expect("control channel not full");
+            })
+            .expect("control channel not full");
     }
 
     // One tick: drain_to_dim_inbox routes spawn; consumer spawns entity with HostAnchor.
@@ -527,13 +590,13 @@ fn in_dim_entity_carries_host_anchor() {
 
     let sub = app.sub_app_mut(DimAppLabel(dim_label));
     let world = sub.world_mut();
-    let anchors: Vec<HostAnchor> = world
-        .query::<&HostAnchor>()
-        .iter(world)
-        .copied()
-        .collect();
+    let anchors: Vec<HostAnchor> = world.query::<&HostAnchor>().iter(world).copied().collect();
 
-    assert_eq!(anchors.len(), 1, "exactly one in-dim entity should carry HostAnchor");
+    assert_eq!(
+        anchors.len(),
+        1,
+        "exactly one in-dim entity should carry HostAnchor"
+    );
     assert_eq!(
         anchors[0].0, host_anchor,
         "HostAnchor.0 must equal the host-anchor entity from the spawn message"
@@ -553,7 +616,9 @@ fn in_dim_entity_carries_host_anchor() {
 /// correctly through dispatch_encode (pre-condition for the bus path to work).
 #[test]
 fn chunk_delivery_emits_chunkload() {
-    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = TELEMETRY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
@@ -585,7 +650,9 @@ fn chunk_delivery_emits_chunkload() {
 /// bridge_dispatch.rs but repeated here as part of the delivery suite).
 #[test]
 fn light_delivery_emits_lightupdate() {
-    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = TELEMETRY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
@@ -602,10 +669,17 @@ fn light_delivery_emits_lightupdate() {
     run_dispatch(&mut world);
 
     let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
-    assert_eq!(after - before, 0, "LightUpdate must not increment unhandled");
+    assert_eq!(
+        after - before,
+        0,
+        "LightUpdate must not increment unhandled"
+    );
 
     let blob = rx.try_recv().expect("LightUpdate blob sent to socket");
-    assert!(!blob.is_empty(), "LightUpdate must produce a non-empty blob");
+    assert!(
+        !blob.is_empty(),
+        "LightUpdate must produce a non-empty blob"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -616,7 +690,9 @@ fn light_delivery_emits_lightupdate() {
 /// encode correctly through dispatch_encode (bus routing pre-condition).
 #[test]
 fn view_enter_leave_route_via_bus() {
-    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = TELEMETRY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
@@ -644,10 +720,17 @@ fn view_enter_leave_route_via_bus() {
     run_dispatch(&mut world);
 
     let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
-    assert_eq!(after - before, 0, "view enter/leave must not increment unhandled");
+    assert_eq!(
+        after - before,
+        0,
+        "view enter/leave must not increment unhandled"
+    );
 
     let blob = rx.try_recv().expect("view enter/leave blob sent");
-    assert!(!blob.is_empty(), "view enter/leave must produce a non-empty blob");
+    assert!(
+        !blob.is_empty(),
+        "view enter/leave must produce a non-empty blob"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -659,18 +742,35 @@ fn view_enter_leave_route_via_bus() {
 /// view-change packets).
 #[test]
 fn on_view_update_routes_cache_center() {
-    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = TELEMETRY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let (mut world, entity, mut rx) = build_dispatch_world();
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
 
-    push_critical(&mut world, entity, PacketPayload::SetChunkCacheCenter { x: 5, z: 3 });
-    push_critical(&mut world, entity, PacketPayload::SetChunkCacheRadius { radius: 10 });
+    push_critical(
+        &mut world,
+        entity,
+        PacketPayload::SetChunkCacheCenter { x: 5, z: 3 },
+    );
+    push_critical(
+        &mut world,
+        entity,
+        PacketPayload::SetChunkCacheRadius { radius: 10 },
+    );
     run_dispatch(&mut world);
 
     let after = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
-    assert_eq!(after - before, 0, "cache center/radius must not increment unhandled");
+    assert_eq!(
+        after - before,
+        0,
+        "cache center/radius must not increment unhandled"
+    );
 
     let blob = rx.try_recv().expect("cache center/radius blob sent");
-    assert!(!blob.is_empty(), "cache center/radius must produce a non-empty blob");
+    assert!(
+        !blob.is_empty(),
+        "cache center/radius must produce a non-empty blob"
+    );
 }

@@ -9,13 +9,13 @@ pub mod clientbound {
     use bevy_math::DVec3;
     use mcrs_engine::world::block::BlockPos;
     use mcrs_engine::world::chunk::ChunkPos;
+    use mcrs_ident::Ident;
     use mcrs_protocol::{BlockStateId, ByteAngle};
     use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_text::Text;
     use std::borrow::Cow;
     use std::io::Write;
     use uuid::Uuid;
-    use mcrs_ident::Ident;
-    use mcrs_text::Text;
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x01, state=Game)]

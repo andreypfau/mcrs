@@ -13,9 +13,9 @@ use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Query, Res, ResMut, With}
 use bevy_math::DVec3;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::session::{DimPlayerIndex, Owner, PlayerSession};
+use mcrs_engine::world::channels::FromDimSender;
 use mcrs_engine::world::chunk::ChunkIndex;
 use mcrs_engine::world::dimension::{Dimension, InDimension};
-use mcrs_engine::world::channels::FromDimSender;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
 use mcrs_minecraft_block::palette::BlockPalette;
 
@@ -56,27 +56,37 @@ fn resolve_arrivals(
         );
 
         let new_entity = match &spawn.payload {
-            MovePayload::Player { uuid: _, username: _ } => {
+            MovePayload::Player {
+                uuid: _,
+                username: _,
+            } => {
                 let session = spawn.player.unwrap_or(PlayerSession(0));
-                let entity = commands.spawn((
-                    InDimension(dim_entity),
-                    Transform::default().with_translation(resolved_pos),
-                    Owner(session),
-                )).id();
+                let entity = commands
+                    .spawn((
+                        InDimension(dim_entity),
+                        Transform::default().with_translation(resolved_pos),
+                        Owner(session),
+                    ))
+                    .id();
                 if let Some(session) = spawn.player {
                     dim_player_index.0.insert(session, entity);
                 }
                 entity
             }
-            MovePayload::NonPlayer { .. } => {
-                commands.spawn((
+            MovePayload::NonPlayer { .. } => commands
+                .spawn((
                     InDimension(dim_entity),
                     Transform::default().with_translation(resolved_pos),
-                )).id()
-            }
+                ))
+                .id(),
         };
 
-        let _ = (new_entity, sender.0.try_send(FromDim::Spawned { move_id: spawn.move_id }));
+        let _ = (
+            new_entity,
+            sender.0.try_send(FromDim::Spawned {
+                move_id: spawn.move_id,
+            }),
+        );
     }
 }
 

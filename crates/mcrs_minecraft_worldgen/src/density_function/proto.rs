@@ -188,7 +188,10 @@ pub enum NoiseHolder {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NoiseParam {
     pub base_octave: i32,
-    #[cfg_attr(feature = "serde", serde(default = "NoiseParam::default_base_amplitude"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default = "NoiseParam::default_base_amplitude")
+    )]
     pub base_amplitude: HashableF64,
     #[cfg_attr(feature = "serde", serde(default = "NoiseParam::default_octave_count"))]
     pub octave_count: usize,
@@ -207,12 +210,7 @@ impl NoiseParam {
 
     pub fn octave_amplitudes(&self) -> Vec<f64> {
         (0..self.octave_count)
-            .map(|i| {
-                self.amplitude_modifiers
-                    .get(i)
-                    .map(|m| m.0)
-                    .unwrap_or(1.0)
-            })
+            .map(|i| self.amplitude_modifiers.get(i).map(|m| m.0).unwrap_or(1.0))
             .collect()
     }
 }

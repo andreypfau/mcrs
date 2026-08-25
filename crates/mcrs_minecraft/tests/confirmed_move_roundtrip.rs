@@ -21,9 +21,9 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::{Despawned, InTransit};
 use mcrs_engine::session::{MoveId, PlayerSession, SessionEntry, SessionRegistry};
 use mcrs_engine::world::channels::{
-    DimSender, ToDimReceiver, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY, ToDimReceiver,
 };
-use mcrs_engine::world::in_flight::{alloc_move_id, InFlightMoves};
+use mcrs_engine::world::in_flight::{InFlightMoves, alloc_move_id};
 use mcrs_engine::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft::runner::pump_channels;
 use mcrs_minecraft::world::bus::{
@@ -56,16 +56,22 @@ struct Harness {
 fn make_dim_channels(
     app: &mut App,
     label_entity: Entity,
-) -> (flume::Receiver<ToDim>, flume::Receiver<ToDim>, flume::Sender<FromDim>) {
+) -> (
+    flume::Receiver<ToDim>,
+    flume::Receiver<ToDim>,
+    flume::Sender<FromDim>,
+) {
     let (srv_tx, srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
     let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
     let (from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-    app.world_mut().resource_mut::<DimChannelsResource>().insert(
-        label_entity,
-        DimSender::new(srv_tx),
-        DimSender::new(ctl_tx),
-        from_rx,
-    );
+    app.world_mut()
+        .resource_mut::<DimChannelsResource>()
+        .insert(
+            label_entity,
+            DimSender::new(srv_tx),
+            DimSender::new(ctl_tx),
+            from_rx,
+        );
     (srv_rx, ctl_rx, from_tx)
 }
 
@@ -161,7 +167,10 @@ fn drive_dim(dim: &mut App) {
 fn initiate_move(h: &Harness, source_dim: &mut App, move_id: MoveId) -> Entity {
     let entity = source_dim
         .world_mut()
-        .spawn((InTransit { move_id }, Transform::from_translation(START_POS)))
+        .spawn((
+            InTransit { move_id },
+            Transform::from_translation(START_POS),
+        ))
         .id();
     h.source_from_tx
         .send(FromDim::MoveEntity {
@@ -219,7 +228,10 @@ fn confirmed_move_keeps_source_until_confirm_then_despawns() {
         h.dest_label,
         "session dim must advance to the destination"
     );
-    assert!(in_flight_present(&h, move_id), "host tracks the in-flight move");
+    assert!(
+        in_flight_present(&h, move_id),
+        "host tracks the in-flight move"
+    );
 
     // Target received the spawn command, keyed on the source's move id and the
     // post-bump epoch.

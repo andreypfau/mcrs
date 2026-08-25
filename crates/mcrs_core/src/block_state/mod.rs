@@ -230,11 +230,7 @@ impl PropertyValue for bool {
         }
     }
     fn to_index(self) -> u8 {
-        if self {
-            0
-        } else {
-            1
-        }
+        if self { 0 } else { 1 }
     }
 }
 

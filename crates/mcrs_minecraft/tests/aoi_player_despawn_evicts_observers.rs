@@ -15,9 +15,9 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_engine::geometry::ColumnPos;
+use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
-use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, PlayerTrackerPlugin, TrackedBy};
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketTarget,
@@ -153,7 +153,10 @@ fn production_topology_main_world_despawn_evicts_in_dim_observers() {
     main_app
         .world_mut()
         .resource_mut::<Messages<InboundPlayerDespawn>>()
-        .write(InboundPlayerDespawn { host_anchor, session: PlayerSession(0) });
+        .write(InboundPlayerDespawn {
+            host_anchor,
+            session: PlayerSession(0),
+        });
 
     // --- Tick 2: drain and evict ---
     // Extract shuttles the despawn into sub Messages<InboundPlayerDespawn>.
@@ -163,8 +166,7 @@ fn production_topology_main_world_despawn_evicts_in_dim_observers() {
 
     let count_after = count_columns_observing_in_sub(&main_app, &columns, in_dim_player);
     assert_eq!(
-        count_after,
-        0,
+        count_after, 0,
         "expected zero columns observing the in-dim Player after despawn, got {}",
         count_after
     );
@@ -252,7 +254,13 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
                     .spawn((Column, PlayerObservers::default(), InDimension(dim)))
                     .id();
                 entities.push(column);
-                col_map.insert(col_pos, ColumnSlot { entity: column, section_count: 1 });
+                col_map.insert(
+                    col_pos,
+                    ColumnSlot {
+                        entity: column,
+                        section_count: 1,
+                    },
+                );
             }
         }
         sub_app
@@ -332,7 +340,10 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     main_app
         .world_mut()
         .resource_mut::<Messages<InboundPlayerDespawn>>()
-        .write(InboundPlayerDespawn { host_anchor: host_anchor_t, session: PlayerSession(0) });
+        .write(InboundPlayerDespawn {
+            host_anchor: host_anchor_t,
+            session: PlayerSession(0),
+        });
 
     // --- Tick 2: drain and evict (O does NOT move) ---
     // FixedPreUpdate: drain_inbound_player_despawn fires:

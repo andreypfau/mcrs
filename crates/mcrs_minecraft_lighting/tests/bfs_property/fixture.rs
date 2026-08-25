@@ -11,15 +11,13 @@ use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::bfs::{
-    pack_bfs_entry, propagate_decrease, propagate_decrease_sky, propagate_increase,
-    propagate_increase_sky, ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL,
+    ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL, pack_bfs_entry, propagate_decrease,
+    propagate_decrease_sky, propagate_increase, propagate_increase_sky,
 };
-use mcrs_minecraft_lighting::components::{
-    BlockOutbox, BlockBfsQueues, SkyOutbox, SkyBfsQueues,
-};
+use mcrs_minecraft_lighting::components::{BlockBfsQueues, BlockOutbox, SkyBfsQueues, SkyOutbox};
 use mcrs_minecraft_lighting::nibble::LightNibbles;
 use mcrs_minecraft_lighting::storage::LightStorage;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
+use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_protocol::BlockStateId;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -152,14 +150,9 @@ pub fn build_fixture(seed: u64) -> Fixture {
         let y = rng.random_range(0..16u8);
         let z = rng.random_range(0..16u8);
         let level = rng.random_range(1..=15u8);
-        block_queues.decrease_queue.push(pack_bfs_entry(
-            x,
-            z,
-            y,
-            level,
-            ALL_DIRECTIONS_BITSET,
-            0,
-        ));
+        block_queues
+            .decrease_queue
+            .push(pack_bfs_entry(x, z, y, level, ALL_DIRECTIONS_BITSET, 0));
     }
 
     Fixture {
@@ -227,8 +220,7 @@ fn storage_to_bytes(s: &LightStorage) -> [u8; 2048] {
 }
 
 pub mod b64 {
-    const ALPHABET: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     pub fn encode(bytes: &[u8]) -> String {
         let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);

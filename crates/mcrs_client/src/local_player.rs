@@ -81,7 +81,12 @@ fn fly(
     keys: Res<ButtonInput<KeyCode>>,
     cursor: Single<&CursorOptions, With<PrimaryWindow>>,
     player: Single<
-        (&mut Sprint, &mut Velocity, &mut PhysicsTransform, &FlyingSpeed),
+        (
+            &mut Sprint,
+            &mut Velocity,
+            &mut PhysicsTransform,
+            &FlyingSpeed,
+        ),
         (With<Player>, With<Flying>),
     >,
 ) {
@@ -227,17 +232,7 @@ mod tests {
     fn one_jump_tick_decays_to_a_standstill() {
         let mut local = Local::new();
         let expected = [
-            0.15,
-            0.09,
-            0.054,
-            0.0324,
-            0.01944,
-            0.011664,
-            0.0069984,
-            0.00419904,
-            0.0,
-            0.0,
-            0.0,
+            0.15, 0.09, 0.054, 0.0324, 0.01944, 0.011664, 0.0069984, 0.00419904, 0.0, 0.0, 0.0,
         ];
         for (tick, expected) in expected.into_iter().enumerate() {
             let input = if tick == 0 {

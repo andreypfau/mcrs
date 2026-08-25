@@ -40,7 +40,6 @@ impl Default for SkyBfsQueues {
 #[component(storage = "SparseSet")]
 pub struct SkyBfsPending;
 
-
 /// Sky-light counterpart of `BlockOutboxDirty`. Inserted by sky BFS / column-walker
 /// after pushing cross-chunk wavefronts; consumed (and removed) by
 /// `distribute_sky_wavefronts` when it drains the outbox.
@@ -83,8 +82,14 @@ mod tests {
         let ws = SkyBfsQueues::default();
         assert!(ws.increase_queue.is_empty());
         assert!(ws.decrease_queue.is_empty());
-        assert_eq!(ws.increase_queue.capacity(), WORKSPACE_QUEUE_BASELINE_CAPACITY);
-        assert_eq!(ws.decrease_queue.capacity(), WORKSPACE_QUEUE_BASELINE_CAPACITY);
+        assert_eq!(
+            ws.increase_queue.capacity(),
+            WORKSPACE_QUEUE_BASELINE_CAPACITY
+        );
+        assert_eq!(
+            ws.decrease_queue.capacity(),
+            WORKSPACE_QUEUE_BASELINE_CAPACITY
+        );
     }
 
     #[test]

@@ -25,14 +25,14 @@
 //! `chunk_y_for_chunk` is a shared helper used by both per-channel
 //! `emit_*_light_dirty` systems.
 
-use bevy_ecs::prelude::{Commands, Entity, Or, Query, With, Without};
-use mcrs_engine::world::column::{ChunkLookup, ColumnChunks};
-use mcrs_engine::world::lighting::LightTicket;
+use crate::storage::LightStorage;
 use crate::{
     BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockOutbox, SkyBfsPending,
     SkyBfsQueues, SkyInbox, SkyLight, SkyOutbox,
 };
-use crate::storage::LightStorage;
+use bevy_ecs::prelude::{Commands, Entity, Or, Query, With, Without};
+use mcrs_engine::world::column::{ChunkLookup, ColumnChunks};
+use mcrs_engine::world::lighting::LightTicket;
 
 /// Downgrades `LightStorage::Dense` to `Empty` (all-zero) or `Uniform(15)`
 /// (all-fifteen) on every chunk parked on either channel. The check
@@ -46,12 +46,14 @@ pub fn downgrade_light_storage(
         Or<(With<BlockBfsPending>, With<SkyBfsPending>)>,
     >,
 ) {
-    chunks.par_iter_mut().for_each(|(mut block_light, mut sky_light_opt)| {
-        downgrade_storage_in_place(&mut block_light.0);
-        if let Some(sky_light) = sky_light_opt.as_deref_mut() {
-            downgrade_storage_in_place(&mut sky_light.0);
-        }
-    });
+    chunks
+        .par_iter_mut()
+        .for_each(|(mut block_light, mut sky_light_opt)| {
+            downgrade_storage_in_place(&mut block_light.0);
+            if let Some(sky_light) = sky_light_opt.as_deref_mut() {
+                downgrade_storage_in_place(&mut sky_light.0);
+            }
+        });
 }
 
 #[inline]
@@ -85,7 +87,11 @@ pub fn clear_light_tickets(
             &BlockBfsQueues,
             &SkyBfsQueues,
         ),
-        (With<LightTicket>, Without<BlockBfsPending>, Without<SkyBfsPending>),
+        (
+            With<LightTicket>,
+            Without<BlockBfsPending>,
+            Without<SkyBfsPending>,
+        ),
     >,
     mut commands: Commands,
 ) {
@@ -124,11 +130,11 @@ pub(crate) fn chunk_y_for_chunk(index: &ColumnChunks, target: Entity) -> Option<
 mod tests {
     use super::*;
     use crate::CrossChunkWavefront;
+    use crate::block_light::emit_dirty::clear_block_bfs_pending_safety_net;
     use crate::nibble::LightNibbles;
+    use crate::sky_light::emit_dirty::clear_sky_bfs_pending_safety_net;
     use bevy_app::{App, Update};
     use mcrs_engine::world::lighting::LightTicket;
-    use crate::block_light::emit_dirty::clear_block_bfs_pending_safety_net;
-    use crate::sky_light::emit_dirty::clear_sky_bfs_pending_safety_net;
 
     fn build_downgrade_app() -> App {
         let mut app = App::new();
@@ -170,10 +176,7 @@ mod tests {
             ))
             .id();
         app.update();
-        let bl = app
-            .world()
-            .get::<BlockLight>(entity)
-            .expect("block light");
+        let bl = app.world().get::<BlockLight>(entity).expect("block light");
         assert!(
             matches!(bl.0, LightStorage::Empty),
             "all-zero Dense downgrades to Empty"
@@ -192,10 +195,7 @@ mod tests {
             ))
             .id();
         app.update();
-        let bl = app
-            .world()
-            .get::<BlockLight>(entity)
-            .expect("block light");
+        let bl = app.world().get::<BlockLight>(entity).expect("block light");
         assert!(
             matches!(bl.0, LightStorage::Uniform(15)),
             "all-fifteen Dense downgrades to Uniform(15)"
@@ -215,10 +215,7 @@ mod tests {
             ))
             .id();
         app.update();
-        let bl = app
-            .world()
-            .get::<BlockLight>(entity)
-            .expect("block light");
+        let bl = app.world().get::<BlockLight>(entity).expect("block light");
         assert!(
             matches!(bl.0, LightStorage::Dense(_)),
             "heterogeneous Dense must stay Dense"

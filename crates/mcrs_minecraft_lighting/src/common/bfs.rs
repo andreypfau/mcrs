@@ -7,12 +7,12 @@
 //! per-cell entry carries Y plus a 6-bit direction bitset and a 3-bit
 //! flag field, none of which `CrossChunkWavefront` needs.
 
-use mcrs_core::voxel_shape::{Direction, VoxelShape};
-use mcrs_minecraft_block::palette::BlockPalette;
-use crate::{BlockBfsQueues, BlockOutbox, CrossChunkWavefront, SkyBfsQueues, SkyOutbox};
 use crate::geom::chunk_xyz_to_face_cell;
 use crate::storage::LightStorage;
-use crate::table::{flag_bits, BlockStateLightTable};
+use crate::table::{BlockStateLightTable, flag_bits};
+use crate::{BlockBfsQueues, BlockOutbox, CrossChunkWavefront, SkyBfsQueues, SkyOutbox};
+use mcrs_core::voxel_shape::{Direction, VoxelShape};
+use mcrs_minecraft_block::palette::BlockPalette;
 
 pub(crate) const FLAG_HAS_SIDED_TRANSPARENT_BLOCKS: u8 = 1 << 0;
 // Promoted from pub(crate) to pub so external snapshot / property
@@ -325,18 +325,16 @@ pub(crate) trait BfsChannel {
     /// Block channel returns `propagated_level.saturating_sub(opacity.max(1))`.
     /// Sky channel returns 15 for the Down + level==15 + PROPAGATES_SKYLIGHT_DOWN
     /// vertical free-fall case and the same block formula otherwise.
-    fn increase_target_level(
-        propagated_level: u8,
-        d: Direction,
-        opacity: u8,
-        dst_flags: u8,
-    ) -> u8;
+    fn increase_target_level(propagated_level: u8, d: Direction, opacity: u8, dst_flags: u8) -> u8;
 
     /// Decrease-wave emission re-emit. Block channel returns
     /// `Some(emission)` for emitter cells encountered en-route so the
     /// increase pass restores their emission via `FLAG_WRITE_LEVEL`. Sky
     /// channel returns `None` unconditionally (no per-cell emission).
-    fn emission_for(table: &BlockStateLightTable, dst_state: mcrs_protocol::BlockStateId) -> Option<u8>;
+    fn emission_for(
+        table: &BlockStateLightTable,
+        dst_state: mcrs_protocol::BlockStateId,
+    ) -> Option<u8>;
 }
 
 pub(crate) struct BlockBfs;
@@ -377,11 +375,7 @@ impl BfsChannel for BlockBfs {
         dst_state: mcrs_protocol::BlockStateId,
     ) -> Option<u8> {
         let emitted = table.emission_for(dst_state);
-        if emitted != 0 {
-            Some(emitted)
-        } else {
-            None
-        }
+        if emitted != 0 { Some(emitted) } else { None }
     }
 }
 
@@ -405,12 +399,7 @@ impl BfsChannel for SkyBfs {
     }
 
     #[inline(always)]
-    fn increase_target_level(
-        propagated_level: u8,
-        d: Direction,
-        opacity: u8,
-        dst_flags: u8,
-    ) -> u8 {
+    fn increase_target_level(propagated_level: u8, d: Direction, opacity: u8, dst_flags: u8) -> u8 {
         if d == Direction::Down
             && propagated_level == 15
             && (dst_flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN) != 0
@@ -749,21 +738,13 @@ mod tests {
                                 assert_eq!(unpack_bfs_entry_x(packed), x, "x mismatch");
                                 assert_eq!(unpack_bfs_entry_z(packed), z, "z mismatch");
                                 assert_eq!(unpack_bfs_entry_y(packed) as u8, y, "y mismatch");
-                                assert_eq!(
-                                    unpack_bfs_entry_level(packed),
-                                    level,
-                                    "level mismatch"
-                                );
+                                assert_eq!(unpack_bfs_entry_level(packed), level, "level mismatch");
                                 assert_eq!(
                                     unpack_bfs_entry_dir_bitset(packed),
                                     dir_bitset,
                                     "dir_bitset mismatch"
                                 );
-                                assert_eq!(
-                                    unpack_bfs_entry_flags(packed),
-                                    flags,
-                                    "flags mismatch"
-                                );
+                                assert_eq!(unpack_bfs_entry_flags(packed), flags, "flags mismatch");
                             }
                         }
                     }
@@ -812,12 +793,7 @@ mod tests {
         for d in ALL_DIRECTIONS {
             let bitset = DIRECTIONS_EXCEPT_OPPOSITE[d.index()];
             let opp_bit = 1u8 << d.opposite().index();
-            assert_eq!(
-                bitset & opp_bit,
-                0,
-                "opposite bit not cleared for {:?}",
-                d
-            );
+            assert_eq!(bitset & opp_bit, 0, "opposite bit not cleared for {:?}", d);
             assert_eq!(
                 bitset.count_ones(),
                 5,
@@ -914,7 +890,11 @@ mod tests {
             for z in 0..16 {
                 for x in 0..16 {
                     let dist = manhattan((x, y, z), (8, 8, 8));
-                    let expected = if dist == 0 { 14 } else { 14u8.saturating_sub(dist) };
+                    let expected = if dist == 0 {
+                        14
+                    } else {
+                        14u8.saturating_sub(dist)
+                    };
                     let actual = light.get(x as usize, y as usize, z as usize);
                     assert_eq!(
                         actual, expected,
@@ -1405,9 +1385,14 @@ mod tests {
         let mut queues = SkyBfsQueues::default();
         let mut outbox = SkyOutbox::default();
 
-        queues
-            .increase_queue
-            .push(pack_bfs_entry(8, 8, 15, 15, ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL));
+        queues.increase_queue.push(pack_bfs_entry(
+            8,
+            8,
+            15,
+            15,
+            ALL_DIRECTIONS_BITSET,
+            FLAG_WRITE_LEVEL,
+        ));
 
         propagate_increase_sky(&table, &palette, &mut light, &mut queues, &mut outbox);
 
@@ -1476,9 +1461,14 @@ mod tests {
         let mut queues = SkyBfsQueues::default();
         let mut outbox = SkyOutbox::default();
 
-        queues
-            .increase_queue
-            .push(pack_bfs_entry(8, 8, 15, 15, ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL));
+        queues.increase_queue.push(pack_bfs_entry(
+            8,
+            8,
+            15,
+            15,
+            ALL_DIRECTIONS_BITSET,
+            FLAG_WRITE_LEVEL,
+        ));
 
         propagate_increase_sky(&table, &palette, &mut light, &mut queues, &mut outbox);
 
@@ -1504,14 +1494,9 @@ mod tests {
 
         let east_only_bitset = 1u8 << Direction::East.index();
         light.set(5, 5, 5, 14);
-        queues.increase_queue.push(pack_bfs_entry(
-            5,
-            5,
-            5,
-            14,
-            east_only_bitset,
-            0,
-        ));
+        queues
+            .increase_queue
+            .push(pack_bfs_entry(5, 5, 5, 14, east_only_bitset, 0));
 
         propagate_increase_sky(&table, &palette, &mut light, &mut queues, &mut outbox);
 
@@ -1650,5 +1635,4 @@ mod tests {
             );
         }
     }
-
 }

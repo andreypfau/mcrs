@@ -7,25 +7,21 @@
 use std::sync::atomic::Ordering;
 
 use bevy_ecs::message::MessageWriter;
-use bevy_ecs::prelude::{
-    Added, Changed, Commands, Entity, Or, Query, ResMut, With, Without,
-};
+use bevy_ecs::prelude::{Added, Changed, Commands, Entity, Or, Query, ResMut, With, Without};
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_engine::geometry::ColumnPos;
+use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::storage::column::{Column, ColumnIndex};
-use mcrs_engine::session::PlayerSession;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 
 use crate::world::aoi::components::ChunkSubscriptionSet;
 use crate::world::aoi::probe::AoiTickProbe;
-use crate::world::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 
 #[cfg_attr(
     feature = "telemetry-tracy",
@@ -124,23 +120,17 @@ pub fn update_own_pov(
                     let player_id = player;
                     let column_entity = slot.entity;
                     commands.queue(move |world: &mut bevy_ecs::world::World| {
-                        if let Some(mut obs) =
-                            world.get_mut::<PlayerObservers>(column_entity)
-                        {
+                        if let Some(mut obs) = world.get_mut::<PlayerObservers>(column_entity) {
                             if !obs.0.contains(&player_id) {
                                 obs.0.push(player_id);
                             }
-                        } else if let Ok(mut entity_mut) =
-                            world.get_entity_mut(column_entity)
-                        {
+                        } else if let Ok(mut entity_mut) = world.get_entity_mut(column_entity) {
                             // get_entity_mut no-ops if the column was
                             // despawned between this system body and
                             // command flush (e.g., a ticket release
                             // raced ahead of FixedPostUpdate).
                             // entity_mut would panic in that case.
-                            entity_mut.insert(PlayerObservers(SmallVec::from_slice(
-                                &[player_id],
-                            )));
+                            entity_mut.insert(PlayerObservers(SmallVec::from_slice(&[player_id])));
                         }
                     });
                 }
@@ -174,8 +164,8 @@ pub fn update_own_pov(
                 target: PacketTarget::SinglePlayer(player),
                 priority: PacketPriority::Normal,
                 data: PacketPayload::ChunkUnload { column: *pos },
-            session: PlayerSession(0),
-            epoch: 0,
+                session: PlayerSession(0),
+                epoch: 0,
             });
             mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                 .fetch_add(1, Ordering::Relaxed);

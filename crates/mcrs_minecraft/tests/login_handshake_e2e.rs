@@ -32,16 +32,18 @@ use bevy_math::DVec3;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
+use mcrs_core::AppState;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
-use mcrs_core::AppState;
-use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_engine::session::PlayerSession;
+use mcrs_engine::session::SessionRegistry;
+use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::configuration::emit_initial_player_spawn;
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
+use mcrs_minecraft::runner::pump_channels;
 use mcrs_minecraft::world::aoi::TrackedBy;
 use mcrs_minecraft::world::bridge::{
     bridge_inbound_to_channel, bridge_outbound, bridge_player_attach, dispatch_encode,
@@ -49,13 +51,10 @@ use mcrs_minecraft::world::bridge::{
 use mcrs_minecraft::world::bridge_queue::{InboundRateBucket, OutboundQueue};
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload,
-    PacketPriority, PacketTarget,
+    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
-use mcrs_engine::session::SessionRegistry;
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
-use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
-use mcrs_minecraft::runner::pump_channels;
+use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::uuid::Uuid;
@@ -303,7 +302,12 @@ fn build_join_host_app() -> App {
         let occlusion: Box<[&'static VoxelShape]> =
             vec![VoxelShape::empty(); state_count].into_boxed_slice();
         let flags = vec![0u8; state_count].into_boxed_slice();
-        app.insert_resource(BlockStateLightTable { emission, dampening, occlusion, flags });
+        app.insert_resource(BlockStateLightTable {
+            emission,
+            dampening,
+            occlusion,
+            flags,
+        });
     }
     app.insert_resource(StaticRegistry::<Block>::new());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
@@ -325,7 +329,12 @@ fn build_join_host_app() -> App {
 
     app.add_systems(
         Update,
-        (bridge_inbound_to_channel, bridge_player_attach, bridge_outbound, dispatch_encode),
+        (
+            bridge_inbound_to_channel,
+            bridge_player_attach,
+            bridge_outbound,
+            dispatch_encode,
+        ),
     );
     app.add_plugins(LoginPlugin);
     app.add_systems(Update, emit_initial_player_spawn);
@@ -452,10 +461,10 @@ fn e2e_join_releases_joining_world() {
     );
 
     // Assertion 2: play-login delivered — at least one non-empty blob on the socket.
-    let blob = rx
-        .try_recv()
-        .expect("dispatch_encode must have sent at least one blob to the mock socket; \
-                 play-login not delivered — 'Joining world' would hang");
+    let blob = rx.try_recv().expect(
+        "dispatch_encode must have sent at least one blob to the mock socket; \
+                 play-login not delivered — 'Joining world' would hang",
+    );
     assert!(
         !blob.is_empty(),
         "the blob reaching the mock socket must be non-empty (play-login bytes)",
@@ -501,7 +510,13 @@ fn seed_columns(app: &mut App, dim: Entity, centre: mcrs_engine::geometry::Colum
                 .get_mut::<ColumnIndex>(dim)
                 .expect("dim has ColumnIndex")
                 .0
-                .insert(pos, ColumnSlot { entity: column, section_count: 1 });
+                .insert(
+                    pos,
+                    ColumnSlot {
+                        entity: column,
+                        section_count: 1,
+                    },
+                );
         }
     }
 }

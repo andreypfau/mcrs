@@ -25,11 +25,11 @@ use bevy_asset::AssetPlugin;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
+use mcrs_core::AppState;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
-use mcrs_core::AppState;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
 use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig, InDimension};
@@ -37,11 +37,11 @@ use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, D
 use mcrs_minecraft::world::bridge::partition_main_inbound;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket,
-    PendingInboundLifecycle, PendingInboundPartition,
+    OutboundPlayerDisconnect, OutboundPlayerPacket, PendingInboundLifecycle,
+    PendingInboundPartition,
 };
 use mcrs_minecraft::world::player_index::PlayerIndex;
-use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
+use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
 use vanilla::biome::Biome;
 use vanilla::block::Block;
@@ -140,7 +140,9 @@ fn drive_to_playing_and_spawn_subapps(app: &mut App) {
 
 /// Collect all DimSubAppHandle label entities from the main world.
 fn label_entities(app: &mut App) -> Vec<bevy_ecs::entity::Entity> {
-    let mut q = app.world_mut().query::<(bevy_ecs::entity::Entity, &DimSubAppHandle)>();
+    let mut q = app
+        .world_mut()
+        .query::<(bevy_ecs::entity::Entity, &DimSubAppHandle)>();
     q.iter(app.world()).map(|(e, _)| e).collect()
 }
 
@@ -210,57 +212,45 @@ fn dim_span_pair_fires_and_lighting_inherits_dim_field() {
 
     // (a) dim_extract fires for test:overworld
     assert!(
-        captured
-            .iter()
-            .any(|s| s.name == "dim_extract"
-                && s.fields.get("dim").map(|d| d.as_str()) == Some("test:overworld")),
+        captured.iter().any(|s| s.name == "dim_extract"
+            && s.fields.get("dim").map(|d| d.as_str()) == Some("test:overworld")),
         "expected dim_extract span with dim = \"test:overworld\" but found 0 emissions"
     );
 
     // (b) dim_tick fires for test:overworld
     assert!(
-        captured
-            .iter()
-            .any(|s| s.name == "dim_tick"
-                && s.fields.get("dim").map(|d| d.as_str()) == Some("test:overworld")),
+        captured.iter().any(|s| s.name == "dim_tick"
+            && s.fields.get("dim").map(|d| d.as_str()) == Some("test:overworld")),
         "expected dim_tick span with dim = \"test:overworld\" but found 0 emissions"
     );
 
     // (c) dim_extract fires for test:the_nether
     assert!(
-        captured
-            .iter()
-            .any(|s| s.name == "dim_extract"
-                && s.fields.get("dim").map(|d| d.as_str()) == Some("test:the_nether")),
+        captured.iter().any(|s| s.name == "dim_extract"
+            && s.fields.get("dim").map(|d| d.as_str()) == Some("test:the_nether")),
         "expected dim_extract span with dim = \"test:the_nether\" but found 0 emissions"
     );
 
     // (d) dim_tick fires for test:the_nether
     assert!(
-        captured
-            .iter()
-            .any(|s| s.name == "dim_tick"
-                && s.fields.get("dim").map(|d| d.as_str()) == Some("test:the_nether")),
+        captured.iter().any(|s| s.name == "dim_tick"
+            && s.fields.get("dim").map(|d| d.as_str()) == Some("test:the_nether")),
         "expected dim_tick span with dim = \"test:the_nether\" but found 0 emissions"
     );
 
     // (e) At least one lighting::* span captured during an overworld pump
     //     has parent_dim == "test:overworld" (parent-chain inheritance).
     assert!(
-        captured
-            .iter()
-            .any(|s| s.name.starts_with("lighting::")
-                && s.parent_dim.as_deref() == Some("test:overworld")),
+        captured.iter().any(|s| s.name.starts_with("lighting::")
+            && s.parent_dim.as_deref() == Some("test:overworld")),
         "expected at least one lighting::* span with parent dim = \"test:overworld\" \
          but found 0; note: only #[instrument] spans inherit dim, not Bevy system spans"
     );
 
     // (f) At least one lighting::* span with parent_dim == "test:the_nether".
     assert!(
-        captured
-            .iter()
-            .any(|s| s.name.starts_with("lighting::")
-                && s.parent_dim.as_deref() == Some("test:the_nether")),
+        captured.iter().any(|s| s.name.starts_with("lighting::")
+            && s.parent_dim.as_deref() == Some("test:the_nether")),
         "expected at least one lighting::* span with parent dim = \"test:the_nether\" \
          but found 0; note: only #[instrument] spans inherit dim, not Bevy system spans"
     );

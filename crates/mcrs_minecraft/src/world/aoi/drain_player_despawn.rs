@@ -17,8 +17,8 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Entity, Query, With, Without};
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::player::Player;
-use mcrs_engine::world::storage::column::Column;
 use mcrs_engine::session::PlayerSession;
+use mcrs_engine::world::storage::column::Column;
 use smallvec::SmallVec;
 
 use crate::world::aoi::components::{ChunkSubscriptionSet, TrackedBy};
@@ -91,8 +91,8 @@ pub fn drain_inbound_player_despawn(
                         data: PacketPayload::PlayerLeftView {
                             entity_ids: entity_ids.clone(),
                         },
-                    session: PlayerSession(0),
-                    epoch: 0,
+                        session: PlayerSession(0),
+                        epoch: 0,
                     });
                     mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                         .fetch_add(1, Ordering::Relaxed);

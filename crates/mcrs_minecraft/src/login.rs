@@ -12,8 +12,8 @@ use mcrs_protocol::profile::Property;
 use mcrs_protocol::{Bounded, WritePacket, uuid};
 use std::borrow::Cow;
 
-use mcrs_engine::session::{PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry};
 use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
+use mcrs_engine::session::{PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry};
 
 pub struct LoginPlugin;
 

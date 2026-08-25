@@ -70,14 +70,12 @@ impl Default for CommonDialogData {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct ActionButton {
     #[serde(flatten)]
     pub button: CommonButtonData,
     pub action: Option<Action>,
 }
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CommonButtonData {

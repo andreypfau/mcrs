@@ -122,14 +122,20 @@ impl SpriteRegistry {
 
         let sequence = match &animation {
             Some(animation) => animation.unroll(id, image_size),
-            None => anim::Unrolled { frames: Vec::new(), frametime: 1 },
+            None => anim::Unrolled {
+                frames: Vec::new(),
+                frametime: 1,
+            },
         };
-        let frames: &[u32] = if sequence.frames.is_empty() { &[0] } else { &sequence.frames };
+        let frames: &[u32] = if sequence.frames.is_empty() {
+            &[0]
+        } else {
+            &sequence.frames
+        };
         let mut pixels = Vec::with_capacity(frames.len() * (side * side * 4) as usize);
         for &frame in frames {
-            let cut = cut(&data, image_size.0, side, frame).ok_or_else(|| {
-                format!("{} has no frame {frame}", path.display())
-            })?;
+            let cut = cut(&data, image_size.0, side, frame)
+                .ok_or_else(|| format!("{} has no frame {frame}", path.display()))?;
             pixels.extend_from_slice(&cut);
         }
         let opacity = opacity_of(&pixels);
@@ -167,7 +173,9 @@ impl SpriteRegistry {
                 opacity,
             };
             array.animated += 1;
-            array.frames.extend(std::iter::repeat_n(opacity, frames.len()));
+            array
+                .frames
+                .extend(std::iter::repeat_n(opacity, frames.len()));
             array.frame_pixels.extend_from_slice(&pixels);
             let sprite = SpriteRef {
                 array: index as u8,
@@ -363,10 +371,7 @@ mod tests {
 
     #[test]
     fn downsampling_averages_light_rather_than_encoded_bytes() {
-        let src = [
-            0, 0, 0, 255, 255, 255, 255, 255,
-            0, 0, 0, 0, 0, 0, 0, 0,
-        ];
+        let src = [0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0];
         let mut dst = [0u8; 4];
         downsample_2x2(&src, 2, 0, 0, &mut dst);
         assert_eq!(&dst[..3], &[188, 188, 188]);
@@ -387,8 +392,7 @@ mod tests {
     #[test]
     fn a_translucent_sprite_keeps_its_alpha_as_it_is() {
         let size = 16;
-        let levels =
-            one_sprite(size, Opacity::Translucent, stencil(size, |_, _| 100)).mip_chain();
+        let levels = one_sprite(size, Opacity::Translucent, stencil(size, |_, _| 100)).mip_chain();
         for (level, data) in levels.iter().enumerate() {
             let alpha: Vec<u8> = data.iter().skip(3).step_by(4).copied().collect();
             assert!(
@@ -406,20 +410,23 @@ mod tests {
         let also_small = registry.intern("minecraft:block/dirt").unwrap();
         assert_ne!(small.array, large.array, "16x16 and 32x32 share an array");
         assert_eq!(small.array, also_small.array);
-        assert_eq!((small.layer, also_small.layer), (0, 1), "layers restart per array");
+        assert_eq!(
+            (small.layer, also_small.layer),
+            (0, 1),
+            "layers restart per array"
+        );
         assert_eq!(large.layer as u32, registry.animated_from());
 
         let sizes: Vec<u32> = registry.arrays().iter().map(|array| array.size).collect();
         assert_eq!(sizes, [16, 32]);
-        let counts: Vec<usize> = registry
-            .arrays()
-            .iter()
-            .map(SpriteArray::sprites)
-            .collect();
+        let counts: Vec<usize> = registry.arrays().iter().map(SpriteArray::sprites).collect();
         assert_eq!(counts, [2, 1]);
         for array in registry.arrays() {
             let expected = (array.size * array.size * 4) as usize * array.layers() as usize;
-            assert_eq!(array.still_pixels.len() + array.frame_pixels.len(), expected);
+            assert_eq!(
+                array.still_pixels.len() + array.frame_pixels.len(),
+                expected
+            );
         }
     }
 
@@ -502,7 +509,12 @@ mod tests {
         .unwrap();
         let side = image.width() as usize;
         let stride = side * side * 4;
-        image.data.unwrap().chunks_exact(stride).map(<[u8]>::to_vec).collect()
+        image
+            .data
+            .unwrap()
+            .chunks_exact(stride)
+            .map(<[u8]>::to_vec)
+            .collect()
     }
 
     #[test]
@@ -518,7 +530,11 @@ mod tests {
         let resident = [&array.still_pixels[..], &array.frame_pixels[..]].concat();
         let layer = |index: usize| &resident[index * stride..(index + 1) * stride];
 
-        assert_eq!((stone.layer, dirt.layer), (0, 1), "stills keep the low layers");
+        assert_eq!(
+            (stone.layer, dirt.layer),
+            (0, 1),
+            "stills keep the low layers"
+        );
         assert_eq!(layer(0), &source_frames("minecraft:block/stone")[0][..]);
         assert_eq!(layer(1), &source_frames("minecraft:block/dirt")[0][..]);
 
@@ -526,7 +542,9 @@ mod tests {
             ("minecraft:block/kelp", kelp),
             ("minecraft:block/seagrass", seagrass),
         ] {
-            let animation = registry.animation(sprite.layer).expect("the sprite animates");
+            let animation = registry
+                .animation(sprite.layer)
+                .expect("the sprite animates");
             let base = registry.base_layer(animation) as usize;
             let frames = source_frames(id);
             assert_eq!(animation.count as usize, frames.len());
@@ -551,7 +569,10 @@ mod tests {
                 "frame {frame} was cut from the wrong cell",
             );
         }
-        assert!(cut(&image, 4, 2, 4).is_none(), "a frame past the last one is not there");
+        assert!(
+            cut(&image, 4, 2, 4).is_none(),
+            "a frame past the last one is not there"
+        );
     }
 
     #[test]
@@ -577,10 +598,7 @@ mod tests {
 
     #[test]
     fn downsampling_ignores_the_colour_of_transparent_texels() {
-        let src = [
-            255, 255, 255, 255, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0,
-        ];
+        let src = [255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         let mut dst = [0u8; 4];
         downsample_2x2(&src, 2, 0, 0, &mut dst);
         assert_eq!(&dst[..3], &[255, 255, 255]);

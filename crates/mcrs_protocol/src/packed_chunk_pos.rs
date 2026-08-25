@@ -42,12 +42,10 @@ impl TryFrom<ChunkPos> for PackedChunkPos {
 
     fn try_from(pos: ChunkPos) -> Result<Self, Self::Error> {
         match (pos.x, pos.y, pos.z) {
-            (-2097152..=2097151, -524288..=524287, -2097152..=2097151) => {
-                Ok(PackedChunkPos::new()
-                    .with_x(pos.x)
-                    .with_y(pos.y)
-                    .with_z(pos.z))
-            }
+            (-2097152..=2097151, -524288..=524287, -2097152..=2097151) => Ok(PackedChunkPos::new()
+                .with_x(pos.x)
+                .with_y(pos.y)
+                .with_z(pos.z)),
             _ => Err(Error(pos)),
         }
     }

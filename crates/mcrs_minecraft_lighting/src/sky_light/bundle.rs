@@ -1,7 +1,7 @@
-use bevy_ecs::bundle::Bundle;
-use crate::{SkyBfsQueues, SkyInbox, SkyLight, SkyOutbox, SkyParkedEgress};
 use crate::codec::LightStorage;
 use crate::nibble::LightNibbles;
+use crate::{SkyBfsQueues, SkyInbox, SkyLight, SkyOutbox, SkyParkedEgress};
+use bevy_ecs::bundle::Bundle;
 
 #[derive(Bundle)]
 pub struct SkyLightBundle {

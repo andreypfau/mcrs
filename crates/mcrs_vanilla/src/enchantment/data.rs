@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use mcrs_core::tag::key::{TagKey, TaggedRegistry};
 use mcrs_core::ResourceLocation;
-use serde::{ser::SerializeMap, ser::SerializeSeq, Deserialize, Serialize, Serializer};
+use mcrs_core::tag::key::{TagKey, TaggedRegistry};
+use serde::{Deserialize, Serialize, Serializer, ser::SerializeMap, ser::SerializeSeq};
 
 use crate::item::Item;
 
@@ -215,10 +215,16 @@ impl From<&EnchantmentData> for NetworkEnchantmentData {
             anvil_cost: data.anvil_cost,
             slots: data.slots.clone(),
             supported_items: format!("#{}", data.supported_items.as_str()),
-            primary_items: data.primary_items.as_ref().map(|k| format!("#{}", k.as_str())),
+            primary_items: data
+                .primary_items
+                .as_ref()
+                .map(|k| format!("#{}", k.as_str())),
             weight: data.weight,
             max_level: data.max_level,
-            exclusive_set: data.exclusive_set.as_ref().map(|k| format!("#{}", k.as_str())),
+            exclusive_set: data
+                .exclusive_set
+                .as_ref()
+                .map(|k| format!("#{}", k.as_str())),
             effects: data.effects.clone(),
         }
     }
@@ -246,10 +252,8 @@ mod tests {
 
     #[test]
     fn deserialize_and_resolve_sharpness() {
-        let bytes = std::fs::read(
-            assets_dir().join("minecraft/enchantment/sharpness.json"),
-        )
-        .unwrap();
+        let bytes =
+            std::fs::read(assets_dir().join("minecraft/enchantment/sharpness.json")).unwrap();
         let proto: ProtoEnchantmentData = serde_json::from_slice(&bytes).unwrap();
 
         assert_eq!(proto.supported_items, "#minecraft:enchantable/sharp_weapon");
@@ -316,10 +320,7 @@ mod tests {
 
     #[test]
     fn enchantment_without_exclusive_set() {
-        let bytes = std::fs::read(
-            assets_dir().join("minecraft/enchantment/mending.json"),
-        )
-        .unwrap();
+        let bytes = std::fs::read(assets_dir().join("minecraft/enchantment/mending.json")).unwrap();
         let proto: ProtoEnchantmentData = serde_json::from_slice(&bytes).unwrap();
         let data = proto.resolve().unwrap();
         assert!(data.exclusive_set.is_none());

@@ -68,7 +68,10 @@ pub struct AttributeEntry {
 
 impl AttributeEntry {
     pub fn override_value(argument: Value) -> Self {
-        AttributeEntry { argument, modifier: Operation::Override }
+        AttributeEntry {
+            argument,
+            modifier: Operation::Override,
+        }
     }
 
     /// The argument as a typed value, parsed on demand through the registry.
@@ -96,7 +99,10 @@ impl AttributeEntry {
         let Value::Object(mut fields) = value else {
             return Err(registry::malformed(
                 spec.id,
-                format!("{value} is neither a {:?} value nor a modifier entry", spec.ty),
+                format!(
+                    "{value} is neither a {:?} value nor a modifier entry",
+                    spec.ty
+                ),
             ));
         };
         let modifier = match fields.remove("modifier") {
@@ -184,19 +190,27 @@ mod tests {
             Operation::Override
         );
         assert_eq!(
-            map.get("minecraft:visual/water_fog_end_distance").unwrap().modifier,
+            map.get("minecraft:visual/water_fog_end_distance")
+                .unwrap()
+                .modifier,
             Operation::Multiply
         );
         // a value that is itself an object must not be mistaken for the full shape
         assert_eq!(
-            map.get("minecraft:audio/background_music").unwrap().modifier,
+            map.get("minecraft:audio/background_music")
+                .unwrap()
+                .modifier,
             Operation::Override
         );
 
         assert_eq!(serde_json::to_value(&map).unwrap(), json);
 
         let syncable = map.filter_syncable();
-        assert!(syncable.get("minecraft:gameplay/increased_fire_burnout").is_none());
+        assert!(
+            syncable
+                .get("minecraft:gameplay/increased_fire_burnout")
+                .is_none()
+        );
         assert_eq!(syncable.0.len(), 3);
     }
 
@@ -210,7 +224,10 @@ mod tests {
         let map: EnvironmentAttributeMap = serde_json::from_value(json.clone()).unwrap();
         let entry = map.get("minecraft:audio/background_music").unwrap();
         assert_eq!(entry.modifier, Operation::Override);
-        assert_eq!(entry.argument, serde_json::json!({"argument": {}, "modifier": "override"}));
+        assert_eq!(
+            entry.argument,
+            serde_json::json!({"argument": {}, "modifier": "override"})
+        );
         assert_eq!(serde_json::to_value(&map).unwrap(), json);
     }
 
@@ -220,7 +237,10 @@ mod tests {
             "minecraft:visual/sky_colour": "#78a7ff",
         }))
         .unwrap_err();
-        assert!(err.to_string().contains("unknown environment attribute"), "{err}");
+        assert!(
+            err.to_string().contains("unknown environment attribute"),
+            "{err}"
+        );
     }
 
     #[test]
@@ -240,7 +260,10 @@ mod tests {
         .unwrap();
         let spec = attribute("minecraft:visual/sky_color").unwrap();
         assert_eq!(
-            map.get("minecraft:visual/sky_color").unwrap().value(spec).unwrap(),
+            map.get("minecraft:visual/sky_color")
+                .unwrap()
+                .value(spec)
+                .unwrap(),
             AttributeValue::Color(0xFF78_A7FF)
         );
     }

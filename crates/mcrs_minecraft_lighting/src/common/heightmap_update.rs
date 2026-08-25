@@ -21,12 +21,12 @@
 // Concurrency: `Query<&mut Heightmaps>` plus a separate `Query<&BlockPalette>`
 // give the scheduler exclusive write access to heightmap state for the
 // duration of the system; no manual locking is needed.
-use crate::heightmap::{scan_top_down, HeightmapVariant};
-use crate::table::{flag_bits, BlockStateLightTable};
+use crate::heightmap::{HeightmapVariant, scan_top_down};
+use crate::table::{BlockStateLightTable, flag_bits};
 use bevy_ecs::entity::EntityHashMap;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, Local, Query, Res};
-use mcrs_engine::world::column::{Heightmaps, InColumn, ColumnChunks};
+use mcrs_engine::world::column::{ColumnChunks, Heightmaps, InColumn};
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 
@@ -234,9 +234,8 @@ mod tests {
         flags[0] = flag_bits::PROPAGATES_SKYLIGHT_DOWN;
         emission[1] = 0;
         dampening[1] = 15;
-        flags[1] = flag_bits::IS_NOT_AIR
-            | flag_bits::IS_SOLID_OPAQUE
-            | flag_bits::IS_MOTION_BLOCKING;
+        flags[1] =
+            flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
         BlockStateLightTable {
             emission,
             dampening,

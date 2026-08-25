@@ -3,11 +3,14 @@
 //! re-exports the block-side surface so callers can land on
 //! `crate::block_light::emit_dirty::*` as the canonical path.
 
-use bevy_ecs::prelude::{Changed, Commands, Query, With};
+use crate::{
+    BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockLightDirty, BlockOutbox,
+    emit_dirty,
+};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
+use bevy_ecs::prelude::{Changed, Commands, Query, With};
 use mcrs_engine::world::column::{ColumnChunks, ColumnPosComponent, InColumn};
-use crate::{emit_dirty, BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockLightDirty, BlockOutbox};
 
 /// Removes `BlockBfsPending` from chunks whose block-channel outbox,
 /// inbox, and queues queues are all empty. Emits `tracing::debug!`
@@ -16,10 +19,7 @@ use crate::{emit_dirty, BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight,
 /// `propagate_increase_block_system` missed. Scheduled in parallel with
 /// its sky-channel mirror under disjoint component access.
 pub fn clear_block_bfs_pending_safety_net(
-    chunks: Query<
-        (Entity, &BlockOutbox, &BlockInbox, &BlockBfsQueues),
-        With<BlockBfsPending>,
-    >,
+    chunks: Query<(Entity, &BlockOutbox, &BlockInbox, &BlockBfsQueues), With<BlockBfsPending>>,
     mut commands: Commands,
 ) {
     for (entity, be, bi, bws) in chunks.iter() {

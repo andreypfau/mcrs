@@ -106,7 +106,6 @@ impl TryRng for RandomSource {
     }
 }
 
-
 impl Random for RandomSource {
     fn is_legacy(&self) -> bool {
         match self {

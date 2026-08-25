@@ -1,12 +1,12 @@
 use std::io::{Cursor, Write};
 
 use anyhow::Context;
+use mcrs_ident::{Ident, IdentError};
 use mcrs_nbt::Nbt;
 use mcrs_nbt::compound::NbtCompound;
 use mcrs_nbt::deserializer::NbtReadHelper;
 use mcrs_nbt::serializer::WriteAdaptor;
 use uuid::Uuid;
-use mcrs_ident::{Ident, IdentError};
 
 use crate::{Decode, Encode, ItemId, VarInt};
 

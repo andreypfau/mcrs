@@ -10,9 +10,7 @@ pub(super) static BLOCK: VoxelShape = VoxelShape {
         max: Vec3::ONE,
     },
     occludes_full_block: true,
-    face_cache: [
-        &BLOCK, &BLOCK, &BLOCK, &BLOCK, &BLOCK, &BLOCK,
-    ],
+    face_cache: [&BLOCK, &BLOCK, &BLOCK, &BLOCK, &BLOCK, &BLOCK],
 };
 
 #[inline]

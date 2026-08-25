@@ -173,7 +173,11 @@ impl OctavePerlinNoise<f32> {
         let mut scaled = [(0.0f32, 0.0f32, 0.0f32); MAX_BATCH];
         for j in 0..n {
             let (x, y, z) = positions[j];
-            scaled[j] = (x * self.lacunarity, y * self.lacunarity, z * self.lacunarity);
+            scaled[j] = (
+                x * self.lacunarity,
+                y * self.lacunarity,
+                z * self.lacunarity,
+            );
         }
 
         let mut maintained = [(0.0f32, 0.0f32, 0.0f32); MAX_BATCH];
@@ -257,7 +261,15 @@ impl OctavePerlinNoise<f32> {
     ///
     /// Matches ChunkProviderGenerate.java's n.a(arr, x, y, z, ..., xScale, yScale, zScale)
     /// per-position: sample at (x * xScale * freq, y * yScale * freq, z * zScale * freq).
-    pub fn sample_xyz_beta(&self, x: f32, y: f32, z: f32, scale_x: f32, scale_y: f32, scale_z: f32) -> f32 {
+    pub fn sample_xyz_beta(
+        &self,
+        x: f32,
+        y: f32,
+        z: f32,
+        scale_x: f32,
+        scale_y: f32,
+        scale_z: f32,
+    ) -> f32 {
         let len = self.octave_samplers.len();
         let mut freq = 1.0_f32;
         let mut acc = 0.0_f32;
@@ -321,7 +333,15 @@ impl OctavePerlinNoise<f64> {
     ///
     /// Note: this single-point method does NOT replicate the y-lattice cache that persists
     /// across (x,z) columns in Java's bulk fill. Use `fill_3d_bulk` for terrain density grids.
-    pub fn sample_xyz_beta(&self, x: f64, y: f64, z: f64, scale_x: f64, scale_y: f64, scale_z: f64) -> f64 {
+    pub fn sample_xyz_beta(
+        &self,
+        x: f64,
+        y: f64,
+        z: f64,
+        scale_x: f64,
+        scale_y: f64,
+        scale_z: f64,
+    ) -> f64 {
         let len = self.octave_samplers.len();
         let mut freq = 1.0_f64;
         let mut acc = 0.0_f64;
@@ -332,7 +352,8 @@ impl OctavePerlinNoise<f64> {
                     x * scale_x * freq,
                     y * scale_y * freq,
                     z * scale_z * freq,
-                    0.0, 0.0,
+                    0.0,
+                    0.0,
                 ) / freq;
             }
             freq /= 2.0;
@@ -352,9 +373,15 @@ impl OctavePerlinNoise<f64> {
     pub fn fill_3d_bulk(
         &self,
         out: &mut [f64],
-        x_start: f64, y_start: f64, z_start: f64,
-        x_size: usize, y_size: usize, z_size: usize,
-        scale_x: f64, scale_y: f64, scale_z: f64,
+        x_start: f64,
+        y_start: f64,
+        z_start: f64,
+        x_size: usize,
+        y_size: usize,
+        z_size: usize,
+        scale_x: f64,
+        scale_y: f64,
+        scale_z: f64,
     ) {
         let len = self.octave_samplers.len();
         let mut freq = 1.0_f64;
@@ -363,9 +390,15 @@ impl OctavePerlinNoise<f64> {
             if let Some(sampler) = &self.octave_samplers[idx] {
                 sampler.fill_3d_bulk(
                     out,
-                    x_start, y_start, z_start,
-                    x_size, y_size, z_size,
-                    scale_x * freq, scale_y * freq, scale_z * freq,
+                    x_start,
+                    y_start,
+                    z_start,
+                    x_size,
+                    y_size,
+                    z_size,
+                    scale_x * freq,
+                    scale_y * freq,
+                    scale_z * freq,
                     1.0 / freq,
                 );
             }
@@ -457,7 +490,10 @@ mod test {
         }
 
         let got = noise.sample_xy(x, y);
-        assert_eq!(got, expected, "sample_xy must equal the hand-rolled Java loop exactly");
+        assert_eq!(
+            got, expected,
+            "sample_xy must equal the hand-rolled Java loop exactly"
+        );
         assert!(got.is_finite(), "sample_xy must return a finite value");
 
         if let Some(pinned) = fx.sample_xy_100_200 {
@@ -485,8 +521,14 @@ mod test {
         let mut rng = LegacyRandom::new(845);
         let amplitudes = vec![1.0_f64, 1.0, 1.0, 1.0];
         let noise = OctavePerlinNoise::<f64>::new(&mut rng, -3, amplitudes, true);
-        println!("beta_octave_perlin_noise_4_octave.rng_seed_after_construction: {}", rng.seed);
-        println!("beta_octave_perlin_noise_4_octave.sample_xy_100_200: {:.15}", noise.sample_xy(100.0, 200.0));
+        println!(
+            "beta_octave_perlin_noise_4_octave.rng_seed_after_construction: {}",
+            rng.seed
+        );
+        println!(
+            "beta_octave_perlin_noise_4_octave.sample_xy_100_200: {:.15}",
+            noise.sample_xy(100.0, 200.0)
+        );
     }
 
     #[cfg(feature = "batch-noise")]
@@ -519,6 +561,8 @@ mod test {
 impl OctavePerlinNoise<f64> {
     pub fn get_octave_f64(&self, k: usize) -> Option<&ImprovedNoise<f64>> {
         let len = self.octave_samplers.len();
-        self.octave_samplers.get(len - 1 - k).and_then(|s| s.as_ref())
+        self.octave_samplers
+            .get(len - 1 - k)
+            .and_then(|s| s.as_ref())
     }
 }

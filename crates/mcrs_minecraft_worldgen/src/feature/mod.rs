@@ -28,7 +28,9 @@ impl OreFeature {
         G: Fn(i32, i32, i32) -> BlockStateId,
         S: FnMut(i32, i32, i32, BlockStateId),
     {
-        do_place(config, origin_x, origin_y, origin_z, get_block, set_block, rng);
+        do_place(
+            config, origin_x, origin_y, origin_z, get_block, set_block, rng,
+        );
     }
 }
 
@@ -123,7 +125,10 @@ mod tests {
 
     fn beta_coal_config() -> OreConfig {
         OreConfig {
-            targets: vec![TargetBlockState { target: STONE, state: COAL_ORE }],
+            targets: vec![TargetBlockState {
+                target: STONE,
+                state: COAL_ORE,
+            }],
             size: 16,
             y_offset: OreYOffset::BetaPlus2,
         }
@@ -139,7 +144,9 @@ mod tests {
     impl FlatBlocks {
         fn all_stone(width: usize, height: usize) -> Self {
             Self {
-                data: (0..width * width * height).map(|_| Cell::new(STONE)).collect(),
+                data: (0..width * width * height)
+                    .map(|_| Cell::new(STONE))
+                    .collect(),
                 width,
                 height,
             }
@@ -155,7 +162,8 @@ mod tests {
         }
 
         fn get(&self, wx: i32, wy: i32, wz: i32) -> BlockStateId {
-            self.idx(wx, wy, wz).map_or(BlockStateId(0), |i| self.data[i].get())
+            self.idx(wx, wy, wz)
+                .map_or(BlockStateId(0), |i| self.data[i].get())
         }
 
         fn set(&self, wx: i32, wy: i32, wz: i32, state: BlockStateId) {
@@ -195,7 +203,10 @@ mod tests {
 
         // Every write must be COAL_ORE (came from replacing STONE only)
         for &(_, _, _, state) in &replacements {
-            assert_eq!(state, COAL_ORE, "ore placer must only write the target ore state");
+            assert_eq!(
+                state, COAL_ORE,
+                "ore placer must only write the target ore state"
+            );
         }
         // The explicitly non-stone cell must be untouched
         assert_eq!(
@@ -213,7 +224,7 @@ mod tests {
         let mut rng = LegacyRandom::new(381);
 
         // Replicate the draw sequence in do_place:
-        let _ = rng.next_f32();          // angle f
+        let _ = rng.next_f32(); // angle f
         let r0 = rng.next_i32_bound(3); // d4 draw
         let r1 = rng.next_i32_bound(3); // d5 draw
 
@@ -229,8 +240,14 @@ mod tests {
             "Beta y1 must be >= origin_y+2 (Beta +2 offset), got {d5}"
         );
         // Also verify these are NOT the modern -2 sign
-        assert!(d4 > origin_y as f64, "Beta y0 must exceed origin_y (never -2)");
-        assert!(d5 > origin_y as f64, "Beta y1 must exceed origin_y (never -2)");
+        assert!(
+            d4 > origin_y as f64,
+            "Beta y0 must exceed origin_y (never -2)"
+        );
+        assert!(
+            d5 > origin_y as f64,
+            "Beta y1 must exceed origin_y (never -2)"
+        );
     }
 
     #[test]
@@ -240,7 +257,10 @@ mod tests {
         //   = 3 + 9 = 12 method calls consuming 3 + 18 = 21 LCG advances.
         // This test pins the RNG state after placement for regression detection.
         let config = OreConfig {
-            targets: vec![TargetBlockState { target: STONE, state: COAL_ORE }],
+            targets: vec![TargetBlockState {
+                target: STONE,
+                state: COAL_ORE,
+            }],
             size: 8,
             y_offset: OreYOffset::BetaPlus2,
         };
@@ -263,10 +283,11 @@ mod tests {
         // Replay the known draw sequence on the same starting state, then assert
         // the resulting RNG state matches what place() left behind.
         let mut replay = state_before;
-        replay.next_f32();             // angle f
-        replay.next_i32_bound(3);      // d4
-        replay.next_i32_bound(3);      // d5
-        for _ in 0..=config.size {    // size+1 iterations
+        replay.next_f32(); // angle f
+        replay.next_i32_bound(3); // d4
+        replay.next_i32_bound(3); // d5
+        for _ in 0..=config.size {
+            // size+1 iterations
             replay.next_f64();
         }
 

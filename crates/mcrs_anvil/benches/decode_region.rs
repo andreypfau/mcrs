@@ -11,7 +11,9 @@ impl BlockStateLookup for Names {
     fn resolve(&self, name: &str, properties: Properties<'_>) -> Option<u32> {
         let mut id = name.len() as u32;
         for (key, value) in properties.iter() {
-            id = id.wrapping_mul(31).wrapping_add((key.len() + value.len()) as u32);
+            id = id
+                .wrapping_mul(31)
+                .wrapping_add((key.len() + value.len()) as u32);
         }
         Some(id)
     }

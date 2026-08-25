@@ -85,7 +85,6 @@ impl TryRng for LegacyRandom {
     }
 }
 
-
 impl Random for LegacyRandom {
     fn is_legacy(&self) -> bool {
         true

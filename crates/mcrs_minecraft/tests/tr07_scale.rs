@@ -23,7 +23,9 @@
 #[path = "harness/mod.rs"]
 mod harness;
 
-use harness::scale_bots::{profile_duration_secs, run_profile, run_profile_ticks, write_baseline_json};
+use harness::scale_bots::{
+    profile_duration_secs, run_profile, run_profile_ticks, write_baseline_json,
+};
 
 /// Deterministic tick budget for the smoke variants. Even, so exactly
 /// `SMOKE_TICKS / 2` injection ticks occur (one BlockUpdate per bot on every

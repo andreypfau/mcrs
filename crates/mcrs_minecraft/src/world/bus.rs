@@ -308,7 +308,6 @@ pub struct InboundRollbackMove {
     pub move_id: mcrs_engine::session::MoveId,
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -356,10 +355,7 @@ mod tests {
             host_anchor: e,
             new_in_dim_entity: e,
         };
-        assert_eq!(
-            format!("{:?}", attached.clone()),
-            format!("{:?}", attached)
-        );
+        assert_eq!(format!("{:?}", attached.clone()), format!("{:?}", attached));
 
         let disconnect = OutboundPlayerDisconnect { host_anchor: e };
         assert_eq!(
@@ -367,11 +363,11 @@ mod tests {
             format!("{:?}", disconnect)
         );
 
-        let despawn = InboundPlayerDespawn { host_anchor: e, session: PlayerSession(0) };
-        assert_eq!(
-            format!("{:?}", despawn.clone()),
-            format!("{:?}", despawn)
-        );
+        let despawn = InboundPlayerDespawn {
+            host_anchor: e,
+            session: PlayerSession(0),
+        };
+        assert_eq!(format!("{:?}", despawn.clone()), format!("{:?}", despawn));
     }
 
     #[test]
@@ -390,5 +386,4 @@ mod tests {
             _ => panic!("expected PlayerSet"),
         }
     }
-
 }

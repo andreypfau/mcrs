@@ -1,14 +1,16 @@
 use bevy_ecs::prelude::*;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::components::SkyBfsPending;
-use mcrs_minecraft_lighting::metrics::{snapshot, TELEMETRY_TEST_LOCK};
+use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
 use mcrs_protocol::BlockStateId;
 use std::time::{Duration, Instant};
 
 fn bench_roof_removal(c: &mut Criterion) {
-    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = TELEMETRY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let before = snapshot();
 
     let mut group = c.benchmark_group("roof_removal_16x16");
@@ -24,7 +26,9 @@ fn bench_roof_removal(c: &mut Criterion) {
                 // setup-equivalent for this scenario — it lives outside
                 // the timing window like the App build itself.
                 {
-                    let mut q = app.world_mut().query_filtered::<Entity, With<BlockPalette>>();
+                    let mut q = app
+                        .world_mut()
+                        .query_filtered::<Entity, With<BlockPalette>>();
                     let chunks: Vec<Entity> = q.iter(app.world()).collect();
                     for entity in chunks {
                         let mut palette = app.world_mut().get_mut::<BlockPalette>(entity).unwrap();

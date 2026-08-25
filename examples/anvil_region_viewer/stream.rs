@@ -224,7 +224,11 @@ impl Loader {
         ];
         let mut corner = [0i32; 3];
         for axis in [0, 2] {
-            let camera = if axis == 0 { self.camera.x } else { self.camera.z };
+            let camera = if axis == 0 {
+                self.camera.x
+            } else {
+                self.camera.z
+            };
             let here = (camera / (RENDER_REGION_X * SECTION_SIZE) as f32).floor() as i32;
             let centred = (here - grid.x as i32 / 2) * RENDER_REGION_X as i32;
             let low = self.layout.min_section[axis];
@@ -303,7 +307,10 @@ impl Loader {
             draws.push(Draw {
                 stream: stream as u32,
                 region: batch.region as u32,
-                origin: self.layout.grid.origin(self.layout.min_section, batch.region),
+                origin: self
+                    .layout
+                    .grid
+                    .origin(self.layout.min_section, batch.region),
                 cave_base,
                 face_base: faces.offset as u32,
                 first_group: (groups.offset + first) as u32,
@@ -363,13 +370,15 @@ pub fn advance(
     }
 
     let mut parsed = Vec::new();
-    loader.parsing.retain_mut(|(coords, task)| match check_ready(task) {
-        Some(result) => {
-            parsed.push((*coords, result));
-            false
-        }
-        None => true,
-    });
+    loader
+        .parsing
+        .retain_mut(|(coords, task)| match check_ready(task) {
+            Some(result) => {
+                parsed.push((*coords, result));
+                false
+            }
+            None => true,
+        });
     for (coords, result) in parsed {
         match result {
             Ok(region) => absorb(loader, coords, region),
@@ -383,19 +392,25 @@ pub fn advance(
     if let Some((_, _, task)) = loader.baking.as_mut()
         && let Some(baked) = check_ready(task)
     {
-        let (world, tinted) = loader.baking.take().map(|(w, t, _)| (w, t)).expect("just held");
+        let (world, tinted) = loader
+            .baking
+            .take()
+            .map(|(w, t, _)| (w, t))
+            .expect("just held");
         publish(loader, world, tinted, Some(baked), pool);
     }
     settle(loader, pool);
 
     let mut tinted = Vec::new();
-    loader.tinting.retain_mut(|(origin, task)| match check_ready(task) {
-        Some(data) => {
-            tinted.push((*origin, data));
-            false
-        }
-        None => true,
-    });
+    loader
+        .tinting
+        .retain_mut(|(origin, task)| match check_ready(task) {
+            Some(data) => {
+                tinted.push((*origin, data));
+                false
+            }
+            None => true,
+        });
     for (origin, data) in tinted {
         loader.uploads.push(Upload::Tints {
             origin,
@@ -405,13 +420,15 @@ pub fn advance(
     }
 
     let mut meshed = Vec::new();
-    loader.meshing.retain_mut(|(_, task)| match check_ready(task) {
-        Some(batch) => {
-            meshed.push(batch);
-            false
-        }
-        None => true,
-    });
+    loader
+        .meshing
+        .retain_mut(|(_, task)| match check_ready(task) {
+            Some(batch) => {
+                meshed.push(batch);
+                false
+            }
+            None => true,
+        });
     for batch in meshed {
         let region = batch.region;
         let here = loader.distance(region);
@@ -676,7 +693,10 @@ mod tests {
     #[test]
     fn two_regions_at_a_threshold_cannot_take_each_others_room() {
         let (near, far) = (100.0, 100.0 + HYSTERESIS + 1.0);
-        assert!(worth_evicting(far, near), "the far one gives way to the near one");
+        assert!(
+            worth_evicting(far, near),
+            "the far one gives way to the near one"
+        );
         assert!(!worth_evicting(near, far), "and never the other way round");
 
         for other in [100.0, 100.5, 100.0 + HYSTERESIS] {

@@ -7,54 +7,54 @@
     clippy::too_many_arguments
 )]
 
+pub mod attribute;
+pub mod banner_pattern;
+pub mod biome;
 pub mod block;
+pub mod chat_type;
+pub mod damage_type;
+pub mod dialog;
+pub mod dimension;
 pub mod enchantment;
 pub mod entity;
-pub mod explosion;
-pub mod item;
-pub mod material;
-pub mod player_action;
-pub mod sound;
-pub mod attribute;
-pub mod biome;
-pub mod dimension;
 pub mod environment;
-pub mod value;
-pub mod worldgen;
-pub mod variant;
-pub mod trim;
-pub mod damage_type;
-pub mod painting_variant;
-pub mod banner_pattern;
-pub mod jukebox_song;
+pub mod explosion;
 pub mod instrument;
-pub mod chat_type;
-pub mod dialog;
-pub mod timeline;
-pub mod test_types;
+pub mod item;
+pub mod jukebox_song;
+pub mod material;
+pub mod painting_variant;
+pub mod player_action;
 pub mod save;
+pub mod sound;
+pub mod test_types;
+pub mod timeline;
+pub mod trim;
+pub mod value;
+pub mod variant;
 pub mod world_clock;
+pub mod worldgen;
 
 use crate::block::tags as block_tags;
+use crate::dimension::dimension_type::DimensionType;
 use crate::enchantment::data::EnchantmentData;
 use crate::enchantment::tags as enchantment_tags;
 use crate::entity::tags as entity_type_tags;
+use crate::environment::{DimensionEnvironments, freeze_timelines};
 use crate::item::tags as item_tags;
+use crate::timeline::Timeline;
+use crate::world_clock::seed_world_clocks;
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::{Asset, AssetApp, AssetServer, Assets, UntypedHandle};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
+use mcrs_core::registry::snapshot::rl_from_asset_path;
 use mcrs_core::tag::file::TagFile;
 use mcrs_core::tag::key::TaggedRegistry;
 use mcrs_core::tag::{
     DynRegistryIndex, DynTagLoader, TagLoader, TagLoadersSettled, TagPhase, TagRegistryAppExt,
 };
-use mcrs_core::registry::snapshot::rl_from_asset_path;
-use crate::environment::{freeze_timelines, DimensionEnvironments};
-use crate::timeline::Timeline;
-use crate::world_clock::seed_world_clocks;
 use mcrs_core::{AppState, ResourceLocation, StaticRegistry};
-use crate::dimension::dimension_type::DimensionType;
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -157,35 +157,177 @@ impl Plugin for MinecraftCorePlugin {
 
         app.init_resource::<mcrs_core::RegistryAccess>();
 
-        mcrs_core::snapshot_registry!(app, [
-            (biome::Biome, "minecraft:worldgen/biome", |b: &biome::Biome| mcrs_nbt::to_nbt_compound(&biome::NetworkBiome::from(b)), Some(mcrs_core::PackSource::vanilla_core())),
-            (dimension::dimension_type::DimensionType, "minecraft:dimension_type", |d: &dimension::dimension_type::DimensionType| mcrs_nbt::to_nbt_compound(&dimension::dimension_type::NetworkDimensionType::from(d)), Some(mcrs_core::PackSource::vanilla_core())),
-            (timeline::Timeline, "minecraft:timeline", |t: &timeline::Timeline| mcrs_nbt::to_nbt_compound(&timeline::NetworkTimeline::from(t)), Some(mcrs_core::PackSource::vanilla_core())),
-            (chat_type::ChatType, "minecraft:chat_type", |v: &chat_type::ChatType| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (trim::TrimPattern, "minecraft:trim_pattern", |v: &trim::TrimPattern| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (trim::TrimMaterial, "minecraft:trim_material", |v: &trim::TrimMaterial| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (variant::WolfVariant, "minecraft:wolf_variant", |v: &variant::WolfVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (variant::WolfSoundVariant, "minecraft:wolf_sound_variant", |v: &variant::WolfSoundVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (variant::PigSoundVariant, "minecraft:pig_sound_variant", |v: &variant::PigSoundVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (variant::CatSoundVariant, "minecraft:cat_sound_variant", |v: &variant::CatSoundVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (variant::CowSoundVariant, "minecraft:cow_sound_variant", |v: &variant::CowSoundVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (variant::ChickenSoundVariant, "minecraft:chicken_sound_variant", |v: &variant::ChickenSoundVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (variant::PigVariant, "minecraft:pig_variant", |v: &variant::PigVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (variant::FrogVariant, "minecraft:frog_variant", |v: &variant::FrogVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (variant::CatVariant, "minecraft:cat_variant", |v: &variant::CatVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (variant::CowVariant, "minecraft:cow_variant", |v: &variant::CowVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (variant::ChickenVariant, "minecraft:chicken_variant", |v: &variant::ChickenVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (variant::ZombieNautilusVariant, "minecraft:zombie_nautilus_variant", |v: &variant::ZombieNautilusVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (painting_variant::PaintingVariant, "minecraft:painting_variant", |v: &painting_variant::PaintingVariant| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (damage_type::DamageType, "minecraft:damage_type", |v: &damage_type::DamageType| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (banner_pattern::BannerPattern, "minecraft:banner_pattern", |v: &banner_pattern::BannerPattern| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (jukebox_song::JukeboxSong, "minecraft:jukebox_song", |v: &jukebox_song::JukeboxSong| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (instrument::Instrument, "minecraft:instrument", |v: &instrument::Instrument| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (dialog::Dialog, "minecraft:dialog", |v: &dialog::Dialog| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (test_types::TestEnvironment, "minecraft:test_environment", |v: &test_types::TestEnvironment| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (test_types::TestInstance, "minecraft:test_instance", |v: &test_types::TestInstance| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-            (world_clock::WorldClock, "minecraft:world_clock", |v: &world_clock::WorldClock| mcrs_nbt::to_nbt_compound(v), Some(mcrs_core::PackSource::vanilla_core())),
-        ]);
+        mcrs_core::snapshot_registry!(
+            app,
+            [
+                (
+                    biome::Biome,
+                    "minecraft:worldgen/biome",
+                    |b: &biome::Biome| mcrs_nbt::to_nbt_compound(&biome::NetworkBiome::from(b)),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    dimension::dimension_type::DimensionType,
+                    "minecraft:dimension_type",
+                    |d: &dimension::dimension_type::DimensionType| mcrs_nbt::to_nbt_compound(
+                        &dimension::dimension_type::NetworkDimensionType::from(d)
+                    ),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    timeline::Timeline,
+                    "minecraft:timeline",
+                    |t: &timeline::Timeline| mcrs_nbt::to_nbt_compound(
+                        &timeline::NetworkTimeline::from(t)
+                    ),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    chat_type::ChatType,
+                    "minecraft:chat_type",
+                    |v: &chat_type::ChatType| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    trim::TrimPattern,
+                    "minecraft:trim_pattern",
+                    |v: &trim::TrimPattern| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    trim::TrimMaterial,
+                    "minecraft:trim_material",
+                    |v: &trim::TrimMaterial| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    variant::WolfVariant,
+                    "minecraft:wolf_variant",
+                    |v: &variant::WolfVariant| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    variant::WolfSoundVariant,
+                    "minecraft:wolf_sound_variant",
+                    |v: &variant::WolfSoundVariant| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    variant::PigSoundVariant,
+                    "minecraft:pig_sound_variant",
+                    |v: &variant::PigSoundVariant| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    variant::CatSoundVariant,
+                    "minecraft:cat_sound_variant",
+                    |v: &variant::CatSoundVariant| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    variant::CowSoundVariant,
+                    "minecraft:cow_sound_variant",
+                    |v: &variant::CowSoundVariant| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    variant::ChickenSoundVariant,
+                    "minecraft:chicken_sound_variant",
+                    |v: &variant::ChickenSoundVariant| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    variant::PigVariant,
+                    "minecraft:pig_variant",
+                    |v: &variant::PigVariant| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    variant::FrogVariant,
+                    "minecraft:frog_variant",
+                    |v: &variant::FrogVariant| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    variant::CatVariant,
+                    "minecraft:cat_variant",
+                    |v: &variant::CatVariant| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    variant::CowVariant,
+                    "minecraft:cow_variant",
+                    |v: &variant::CowVariant| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    variant::ChickenVariant,
+                    "minecraft:chicken_variant",
+                    |v: &variant::ChickenVariant| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    variant::ZombieNautilusVariant,
+                    "minecraft:zombie_nautilus_variant",
+                    |v: &variant::ZombieNautilusVariant| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    painting_variant::PaintingVariant,
+                    "minecraft:painting_variant",
+                    |v: &painting_variant::PaintingVariant| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    damage_type::DamageType,
+                    "minecraft:damage_type",
+                    |v: &damage_type::DamageType| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    banner_pattern::BannerPattern,
+                    "minecraft:banner_pattern",
+                    |v: &banner_pattern::BannerPattern| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    jukebox_song::JukeboxSong,
+                    "minecraft:jukebox_song",
+                    |v: &jukebox_song::JukeboxSong| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    instrument::Instrument,
+                    "minecraft:instrument",
+                    |v: &instrument::Instrument| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    dialog::Dialog,
+                    "minecraft:dialog",
+                    |v: &dialog::Dialog| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    test_types::TestEnvironment,
+                    "minecraft:test_environment",
+                    |v: &test_types::TestEnvironment| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    test_types::TestInstance,
+                    "minecraft:test_instance",
+                    |v: &test_types::TestInstance| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+                (
+                    world_clock::WorldClock,
+                    "minecraft:world_clock",
+                    |v: &world_clock::WorldClock| mcrs_nbt::to_nbt_compound(v),
+                    Some(mcrs_core::PackSource::vanilla_core())
+                ),
+            ]
+        );
 
         app.add_systems(PostStartup, start_loading_data_pack)
             .add_systems(OnEnter(AppState::LoadingDataPack), request_data_pack_assets)
@@ -215,7 +357,10 @@ impl Plugin for MinecraftCorePlugin {
                         .after(TagPhase::Freeze)
                         .after(seed_world_clocks)
                         .before(transition_to_playing),
-                    (register_static_registries_with_access, transition_to_playing)
+                    (
+                        register_static_registries_with_access,
+                        transition_to_playing,
+                    )
                         .chain()
                         .after(TagPhase::Freeze),
                 ),
@@ -271,14 +416,22 @@ impl Plugin for MinecraftCorePlugin {
                 .world_mut()
                 .resource_mut::<StaticRegistry<sound::SoundEvent>>();
             sound::minecraft::register_all_sounds(&mut sounds);
-            tracing::info!(count = sounds.len(), "registered StaticRegistry<SoundEvent>");
+            tracing::info!(
+                count = sounds.len(),
+                "registered StaticRegistry<SoundEvent>"
+            );
             sounds.freeze();
             tracing::info!("frozen StaticRegistry<SoundEvent>");
         }
         {
-            let mut entity_types = app.world_mut().resource_mut::<StaticRegistry<entity::EntityType>>();
+            let mut entity_types = app
+                .world_mut()
+                .resource_mut::<StaticRegistry<entity::EntityType>>();
             entity::minecraft::register_all_entity_types(&mut entity_types);
-            tracing::info!(count = entity_types.len(), "registered StaticRegistry<EntityType>");
+            tracing::info!(
+                count = entity_types.len(),
+                "registered StaticRegistry<EntityType>"
+            );
             entity_types.freeze();
             tracing::info!("frozen StaticRegistry<EntityType>");
         }
@@ -288,7 +441,10 @@ impl Plugin for MinecraftCorePlugin {
                     &mut enchantments,
                     world.resource::<AssetServer>(),
                 );
-                tracing::info!(count = enchantments.len(), "registered StaticRegistry<EnchantmentData>");
+                tracing::info!(
+                    count = enchantments.len(),
+                    "registered StaticRegistry<EnchantmentData>"
+                );
                 enchantments.freeze();
                 tracing::info!("frozen StaticRegistry<EnchantmentData>");
             },
@@ -299,10 +455,6 @@ impl Plugin for MinecraftCorePlugin {
 fn start_loading_data_pack(mut next: ResMut<NextState<AppState>>) {
     next.set(AppState::LoadingDataPack);
 }
-
-
-
-
 
 // File listings baked from `assets/` at build time. Used as the fallback
 // manifest when the active `AssetSource` cannot enumerate directories
@@ -373,7 +525,12 @@ fn request_registry<T: Asset>(
     for path in files {
         loaded.handles.push(asset_server.load::<T>(path).untyped());
     }
-    tracing::info!(folder, count, kind = std::any::type_name::<T>(), "requested registry assets");
+    tracing::info!(
+        folder,
+        count,
+        kind = std::any::type_name::<T>(),
+        "requested registry assets"
+    );
 }
 
 fn request_data_pack_assets(
@@ -382,32 +539,157 @@ fn request_data_pack_assets(
 ) {
     use registry_files::*;
     request_registry::<biome::Biome>(&asset_server, &mut loaded, FOLDER_BIOME, FILES_BIOME);
-    request_registry::<dimension::dimension_type::DimensionType>(&asset_server, &mut loaded, FOLDER_DIMENSION_TYPE, FILES_DIMENSION_TYPE);
-    request_registry::<chat_type::ChatType>(&asset_server, &mut loaded, FOLDER_CHAT_TYPE, FILES_CHAT_TYPE);
-    request_registry::<trim::TrimPattern>(&asset_server, &mut loaded, FOLDER_TRIM_PATTERN, FILES_TRIM_PATTERN);
-    request_registry::<trim::TrimMaterial>(&asset_server, &mut loaded, FOLDER_TRIM_MATERIAL, FILES_TRIM_MATERIAL);
-    request_registry::<variant::WolfVariant>(&asset_server, &mut loaded, FOLDER_WOLF_VARIANT, FILES_WOLF_VARIANT);
-    request_registry::<variant::WolfSoundVariant>(&asset_server, &mut loaded, FOLDER_WOLF_SOUND_VARIANT, FILES_WOLF_SOUND_VARIANT);
-    request_registry::<variant::PigSoundVariant>(&asset_server, &mut loaded, FOLDER_PIG_SOUND_VARIANT, FILES_PIG_SOUND_VARIANT);
-    request_registry::<variant::CatSoundVariant>(&asset_server, &mut loaded, FOLDER_CAT_SOUND_VARIANT, FILES_CAT_SOUND_VARIANT);
-    request_registry::<variant::CowSoundVariant>(&asset_server, &mut loaded, FOLDER_COW_SOUND_VARIANT, FILES_COW_SOUND_VARIANT);
-    request_registry::<variant::ChickenSoundVariant>(&asset_server, &mut loaded, FOLDER_CHICKEN_SOUND_VARIANT, FILES_CHICKEN_SOUND_VARIANT);
-    request_registry::<variant::PigVariant>(&asset_server, &mut loaded, FOLDER_PIG_VARIANT, FILES_PIG_VARIANT);
-    request_registry::<variant::FrogVariant>(&asset_server, &mut loaded, FOLDER_FROG_VARIANT, FILES_FROG_VARIANT);
-    request_registry::<variant::CatVariant>(&asset_server, &mut loaded, FOLDER_CAT_VARIANT, FILES_CAT_VARIANT);
-    request_registry::<variant::CowVariant>(&asset_server, &mut loaded, FOLDER_COW_VARIANT, FILES_COW_VARIANT);
-    request_registry::<variant::ChickenVariant>(&asset_server, &mut loaded, FOLDER_CHICKEN_VARIANT, FILES_CHICKEN_VARIANT);
-    request_registry::<variant::ZombieNautilusVariant>(&asset_server, &mut loaded, FOLDER_ZOMBIE_NAUTILUS_VARIANT, FILES_ZOMBIE_NAUTILUS_VARIANT);
-    request_registry::<painting_variant::PaintingVariant>(&asset_server, &mut loaded, FOLDER_PAINTING_VARIANT, FILES_PAINTING_VARIANT);
-    request_registry::<damage_type::DamageType>(&asset_server, &mut loaded, FOLDER_DAMAGE_TYPE, FILES_DAMAGE_TYPE);
-    request_registry::<banner_pattern::BannerPattern>(&asset_server, &mut loaded, FOLDER_BANNER_PATTERN, FILES_BANNER_PATTERN);
-    request_registry::<jukebox_song::JukeboxSong>(&asset_server, &mut loaded, FOLDER_JUKEBOX_SONG, FILES_JUKEBOX_SONG);
-    request_registry::<instrument::Instrument>(&asset_server, &mut loaded, FOLDER_INSTRUMENT, FILES_INSTRUMENT);
+    request_registry::<dimension::dimension_type::DimensionType>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_DIMENSION_TYPE,
+        FILES_DIMENSION_TYPE,
+    );
+    request_registry::<chat_type::ChatType>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_CHAT_TYPE,
+        FILES_CHAT_TYPE,
+    );
+    request_registry::<trim::TrimPattern>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_TRIM_PATTERN,
+        FILES_TRIM_PATTERN,
+    );
+    request_registry::<trim::TrimMaterial>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_TRIM_MATERIAL,
+        FILES_TRIM_MATERIAL,
+    );
+    request_registry::<variant::WolfVariant>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_WOLF_VARIANT,
+        FILES_WOLF_VARIANT,
+    );
+    request_registry::<variant::WolfSoundVariant>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_WOLF_SOUND_VARIANT,
+        FILES_WOLF_SOUND_VARIANT,
+    );
+    request_registry::<variant::PigSoundVariant>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_PIG_SOUND_VARIANT,
+        FILES_PIG_SOUND_VARIANT,
+    );
+    request_registry::<variant::CatSoundVariant>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_CAT_SOUND_VARIANT,
+        FILES_CAT_SOUND_VARIANT,
+    );
+    request_registry::<variant::CowSoundVariant>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_COW_SOUND_VARIANT,
+        FILES_COW_SOUND_VARIANT,
+    );
+    request_registry::<variant::ChickenSoundVariant>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_CHICKEN_SOUND_VARIANT,
+        FILES_CHICKEN_SOUND_VARIANT,
+    );
+    request_registry::<variant::PigVariant>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_PIG_VARIANT,
+        FILES_PIG_VARIANT,
+    );
+    request_registry::<variant::FrogVariant>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_FROG_VARIANT,
+        FILES_FROG_VARIANT,
+    );
+    request_registry::<variant::CatVariant>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_CAT_VARIANT,
+        FILES_CAT_VARIANT,
+    );
+    request_registry::<variant::CowVariant>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_COW_VARIANT,
+        FILES_COW_VARIANT,
+    );
+    request_registry::<variant::ChickenVariant>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_CHICKEN_VARIANT,
+        FILES_CHICKEN_VARIANT,
+    );
+    request_registry::<variant::ZombieNautilusVariant>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_ZOMBIE_NAUTILUS_VARIANT,
+        FILES_ZOMBIE_NAUTILUS_VARIANT,
+    );
+    request_registry::<painting_variant::PaintingVariant>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_PAINTING_VARIANT,
+        FILES_PAINTING_VARIANT,
+    );
+    request_registry::<damage_type::DamageType>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_DAMAGE_TYPE,
+        FILES_DAMAGE_TYPE,
+    );
+    request_registry::<banner_pattern::BannerPattern>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_BANNER_PATTERN,
+        FILES_BANNER_PATTERN,
+    );
+    request_registry::<jukebox_song::JukeboxSong>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_JUKEBOX_SONG,
+        FILES_JUKEBOX_SONG,
+    );
+    request_registry::<instrument::Instrument>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_INSTRUMENT,
+        FILES_INSTRUMENT,
+    );
     request_registry::<dialog::Dialog>(&asset_server, &mut loaded, FOLDER_DIALOG, FILES_DIALOG);
-    request_registry::<timeline::Timeline>(&asset_server, &mut loaded, FOLDER_TIMELINE, FILES_TIMELINE);
-    request_registry::<world_clock::WorldClock>(&asset_server, &mut loaded, FOLDER_WORLD_CLOCK, FILES_WORLD_CLOCK);
-    request_registry::<test_types::TestEnvironment>(&asset_server, &mut loaded, FOLDER_TEST_ENVIRONMENT, FILES_TEST_ENVIRONMENT);
-    request_registry::<test_types::TestInstance>(&asset_server, &mut loaded, FOLDER_TEST_INSTANCE, FILES_TEST_INSTANCE);
+    request_registry::<timeline::Timeline>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_TIMELINE,
+        FILES_TIMELINE,
+    );
+    request_registry::<world_clock::WorldClock>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_WORLD_CLOCK,
+        FILES_WORLD_CLOCK,
+    );
+    request_registry::<test_types::TestEnvironment>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_TEST_ENVIRONMENT,
+        FILES_TEST_ENVIRONMENT,
+    );
+    request_registry::<test_types::TestInstance>(
+        &asset_server,
+        &mut loaded,
+        FOLDER_TEST_INSTANCE,
+        FILES_TEST_INSTANCE,
+    );
 }
 
 fn check_tags_ready(
@@ -421,7 +703,6 @@ fn check_tags_ready(
         next.set(AppState::WorldgenFreeze);
     }
 }
-
 
 /// Resolve infiniburn tag files from loaded `DimensionType` assets into
 /// the block `TagLoader`. The tag files were loaded as sub-assets by
@@ -439,17 +720,16 @@ fn resolve_infiniburn_tags(
             tags.resolve_and_insert(key.location().clone(), tf, &tag_files, &*registry);
             resolved += 1;
         } else {
-            tracing::warn!("infiniburn tag file not available at WorldgenFreeze: {}", key.as_str());
+            tracing::warn!(
+                "infiniburn tag file not available at WorldgenFreeze: {}",
+                key.as_str()
+            );
         }
     }
     if resolved > 0 {
         tracing::info!(resolved_tags = resolved, "resolved infiniburn tags");
     }
 }
-
-
-
-
 
 /// The dense id space the timeline tag bitsets are resolved against.
 fn index_timelines(
@@ -497,30 +777,40 @@ fn register_static_registries_with_access(
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
     mut access: ResMut<mcrs_core::RegistryAccess>,
 ) {
-    access.register(Box::new(
-        mcrs_core::RegistrySnapshotErased::from_static("minecraft:block", &block_registry, |_, _| None, Some(mcrs_core::PackSource::vanilla_core())),
-    ));
-    access.register(Box::new(
-        mcrs_core::RegistrySnapshotErased::from_static("minecraft:item", &item_registry, |_, _| None, Some(mcrs_core::PackSource::vanilla_core())),
-    ));
-    access.register(Box::new(
-        mcrs_core::RegistrySnapshotErased::from_static("minecraft:sound_event", &sound_registry, |_, _| None, Some(mcrs_core::PackSource::vanilla_core())),
-    ));
-    access.register(Box::new(
-        mcrs_core::RegistrySnapshotErased::from_static("minecraft:entity_type", &entity_registry, |_, _| None, Some(mcrs_core::PackSource::vanilla_core())),
-    ));
-    access.register(Box::new(
-        mcrs_core::RegistrySnapshotErased::from_static(
-            "minecraft:enchantment",
-            &enchantment_registry,
-            |_, data| {
-                use crate::enchantment::data::NetworkEnchantmentData;
-                let network = NetworkEnchantmentData::from(data);
-                mcrs_nbt::to_nbt_compound(&network).ok()
-            },
-            Some(mcrs_core::PackSource::vanilla_core()),
-        ),
-    ));
+    access.register(Box::new(mcrs_core::RegistrySnapshotErased::from_static(
+        "minecraft:block",
+        &block_registry,
+        |_, _| None,
+        Some(mcrs_core::PackSource::vanilla_core()),
+    )));
+    access.register(Box::new(mcrs_core::RegistrySnapshotErased::from_static(
+        "minecraft:item",
+        &item_registry,
+        |_, _| None,
+        Some(mcrs_core::PackSource::vanilla_core()),
+    )));
+    access.register(Box::new(mcrs_core::RegistrySnapshotErased::from_static(
+        "minecraft:sound_event",
+        &sound_registry,
+        |_, _| None,
+        Some(mcrs_core::PackSource::vanilla_core()),
+    )));
+    access.register(Box::new(mcrs_core::RegistrySnapshotErased::from_static(
+        "minecraft:entity_type",
+        &entity_registry,
+        |_, _| None,
+        Some(mcrs_core::PackSource::vanilla_core()),
+    )));
+    access.register(Box::new(mcrs_core::RegistrySnapshotErased::from_static(
+        "minecraft:enchantment",
+        &enchantment_registry,
+        |_, data| {
+            use crate::enchantment::data::NetworkEnchantmentData;
+            let network = NetworkEnchantmentData::from(data);
+            mcrs_nbt::to_nbt_compound(&network).ok()
+        },
+        Some(mcrs_core::PackSource::vanilla_core()),
+    )));
     tracing::info!(count = access.len(), "populated RegistryAccess");
 }
 

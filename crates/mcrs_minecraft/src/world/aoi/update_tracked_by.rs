@@ -12,18 +12,16 @@ use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::geometry::ColumnPos;
+use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::storage::column::{Column, ColumnIndex};
-use mcrs_engine::session::PlayerSession;
-use smallvec::SmallVec;
 use mcrs_protocol::uuid::Uuid;
+use smallvec::SmallVec;
 
 use crate::login::GameProfile;
 use crate::world::aoi::components::TrackedBy;
 use crate::world::aoi::probe::AoiTickProbe;
-use crate::world::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
+use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::MinecraftEntityType;
 
 /// Chunk-column radius for player-to-player tracking. ~5 chunks ≈ 80
@@ -86,9 +84,7 @@ pub fn update_tracked_by(
                     let Ok((_, other_xf, _)) = all_players.get(other_entity) else {
                         continue;
                     };
-                    if transform
-                        .translation
-                        .distance_squared(other_xf.translation)
+                    if transform.translation.distance_squared(other_xf.translation)
                         > TRACKING_RADIUS_BLOCKS_SQ
                     {
                         continue;
@@ -121,8 +117,8 @@ pub fn update_tracked_by(
                         yaw: transform.rotation.yaw(),
                         pitch: transform.rotation.pitch(),
                     },
-                session: PlayerSession(0),
-                epoch: 0,
+                    session: PlayerSession(0),
+                    epoch: 0,
                 });
                 mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                     .fetch_add(1, Ordering::Relaxed);
@@ -136,8 +132,8 @@ pub fn update_tracked_by(
                     target: PacketTarget::SinglePlayer(old_entity),
                     priority: PacketPriority::Normal,
                     data: PacketPayload::PlayerLeftView { entity_ids: ids },
-                session: PlayerSession(0),
-                epoch: 0,
+                    session: PlayerSession(0),
+                    epoch: 0,
                 });
                 mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                     .fetch_add(1, Ordering::Relaxed);

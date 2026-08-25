@@ -18,13 +18,13 @@
 //! than derived from ECS state so the checker stays a pure function reachable
 //! from both unit tests and a debug-only verification system.
 
+use crate::codec::LightStorage;
+use crate::invariants::{CHUNK_DIM, DIRECTIONS, direction_offset};
+use crate::table::{BlockStateLightTable, flag_bits};
 use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
-use crate::codec::LightStorage;
-use crate::invariants::{direction_offset, CHUNK_DIM, DIRECTIONS};
-use crate::table::{flag_bits, BlockStateLightTable};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkyViolationKind {
@@ -225,7 +225,8 @@ mod tests {
         let table = make_test_table();
         let palette = make_palette(&[]);
         let light = LightStorage::Uniform(15);
-        let result = check_sky_light_invariants(&table, &palette, &light, /* is_topmost */ true);
+        let result =
+            check_sky_light_invariants(&table, &palette, &light, /* is_topmost */ true);
         assert!(
             result.is_ok(),
             "expected Ok(()) for all-air topmost chunk at uniform 15; got {:?}",

@@ -140,10 +140,7 @@ mod tests {
             .or_else(|| err.downcast_ref::<&str>().copied())
             .expect("panic payload not a string");
 
-        assert!(
-            payload.contains(label),
-            "payload missing label: {payload}"
-        );
+        assert!(payload.contains(label), "payload missing label: {payload}");
         assert!(
             payload.contains("expected"),
             "payload missing 'expected' substring: {payload}"

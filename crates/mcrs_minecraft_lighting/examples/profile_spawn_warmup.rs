@@ -13,10 +13,10 @@ use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use mcrs_engine::world::column::ColumnLifecycleSet;
-use mcrs_minecraft_lighting::components::{BlockBfsPending, SkyBfsPending};
 use mcrs_minecraft_block::block_update::BlockUpdateSet;
-use mcrs_minecraft_lighting::sets::LightingSet;
+use mcrs_minecraft_lighting::components::{BlockBfsPending, SkyBfsPending};
 use mcrs_minecraft_lighting::metrics::snapshot as lighting_snapshot;
+use mcrs_minecraft_lighting::sets::LightingSet;
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
@@ -154,8 +154,7 @@ impl Plugin for PhaseTimingPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                start_phase!(reconcile_index_start)
-                    .before(ColumnLifecycleSet::Reconcile),
+                start_phase!(reconcile_index_start).before(ColumnLifecycleSet::Reconcile),
                 end_phase!(reconcile_index_start, reconcile_index_total)
                     .after(ColumnLifecycleSet::ReconcileIndex)
                     .before(ColumnLifecycleSet::PrimeHeightmaps),
@@ -222,28 +221,43 @@ impl Plugin for PhaseTimingPlugin {
                 start_phase!(emit_dirty_start)
                     .after(LightingSet::Converge)
                     .before(LightingSet::EmitDirty),
-                end_phase!(emit_dirty_start, emit_dirty_total)
-                    .after(LightingSet::EmitDirty),
+                end_phase!(emit_dirty_start, emit_dirty_total).after(LightingSet::EmitDirty),
             ),
         );
     }
 }
 
 fn reset_accumulators() {
-    PHASE_ACCUMULATORS.reconcile_index_total.store(0, Ordering::Relaxed);
-    PHASE_ACCUMULATORS.prime_heightmaps_total.store(0, Ordering::Relaxed);
-    PHASE_ACCUMULATORS.attach_state_total.store(0, Ordering::Relaxed);
+    PHASE_ACCUMULATORS
+        .reconcile_index_total
+        .store(0, Ordering::Relaxed);
+    PHASE_ACCUMULATORS
+        .prime_heightmaps_total
+        .store(0, Ordering::Relaxed);
+    PHASE_ACCUMULATORS
+        .attach_state_total
+        .store(0, Ordering::Relaxed);
     PHASE_ACCUMULATORS.enqueue_total.store(0, Ordering::Relaxed);
-    PHASE_ACCUMULATORS.converge_total.store(0, Ordering::Relaxed);
-    PHASE_ACCUMULATORS.emit_dirty_total.store(0, Ordering::Relaxed);
+    PHASE_ACCUMULATORS
+        .converge_total
+        .store(0, Ordering::Relaxed);
+    PHASE_ACCUMULATORS
+        .emit_dirty_total
+        .store(0, Ordering::Relaxed);
     PHASE_ACCUMULATORS.tick_total.store(0, Ordering::Relaxed);
 }
 
 fn read_accumulators() -> PhaseSnapshot {
     PhaseSnapshot {
-        reconcile_index: PHASE_ACCUMULATORS.reconcile_index_total.load(Ordering::Relaxed),
-        prime_heightmaps: PHASE_ACCUMULATORS.prime_heightmaps_total.load(Ordering::Relaxed),
-        attach_state: PHASE_ACCUMULATORS.attach_state_total.load(Ordering::Relaxed),
+        reconcile_index: PHASE_ACCUMULATORS
+            .reconcile_index_total
+            .load(Ordering::Relaxed),
+        prime_heightmaps: PHASE_ACCUMULATORS
+            .prime_heightmaps_total
+            .load(Ordering::Relaxed),
+        attach_state: PHASE_ACCUMULATORS
+            .attach_state_total
+            .load(Ordering::Relaxed),
         enqueue: PHASE_ACCUMULATORS.enqueue_total.load(Ordering::Relaxed),
         converge: PHASE_ACCUMULATORS.converge_total.load(Ordering::Relaxed),
         emit_dirty: PHASE_ACCUMULATORS.emit_dirty_total.load(Ordering::Relaxed),
@@ -349,7 +363,9 @@ fn main() {
         println!(
             "## PROBE: dirty at Converge entry = {} (first at chunk ({},{},{})), iters consumed = {}",
             dirty_at_entry,
-            dx, dy, dz,
+            dx,
+            dy,
+            dz,
             iters_after - iters_before
         );
         // Walk a second tick to see what's left dirty
@@ -420,8 +436,12 @@ fn main() {
 
     let avg_iters: f64 =
         iters_deltas.iter().copied().map(|n| n as f64).sum::<f64>() / SAMPLES as f64;
-    let avg_dirty: f64 =
-        dirty_at_converge_entry.iter().copied().map(|n| n as f64).sum::<f64>() / SAMPLES as f64;
+    let avg_dirty: f64 = dirty_at_converge_entry
+        .iter()
+        .copied()
+        .map(|n| n as f64)
+        .sum::<f64>()
+        / SAMPLES as f64;
     println!(
         "## converge counters per routine tick: iters_delta avg={:.2} min={} max={}, residual dirty after tick avg={:.2}",
         avg_iters,
@@ -438,9 +458,18 @@ fn main() {
     println!();
     println!("## FixedUpdate tick 1 — per-set breakdown");
 
-    print_phase_atomic("reconcile + reconcile_index", phase_snaps.iter().map(|s| s.reconcile_index));
-    print_phase_atomic("prime_heightmaps", phase_snaps.iter().map(|s| s.prime_heightmaps));
-    print_phase_atomic("attach_lighting_state", phase_snaps.iter().map(|s| s.attach_state));
+    print_phase_atomic(
+        "reconcile + reconcile_index",
+        phase_snaps.iter().map(|s| s.reconcile_index),
+    );
+    print_phase_atomic(
+        "prime_heightmaps",
+        phase_snaps.iter().map(|s| s.prime_heightmaps),
+    );
+    print_phase_atomic(
+        "attach_lighting_state",
+        phase_snaps.iter().map(|s| s.attach_state),
+    );
     print_phase_atomic(
         "LightingSet::Enqueue (seed/pull/enqueue)",
         phase_snaps.iter().map(|s| s.enqueue),
@@ -454,10 +483,21 @@ fn main() {
         phase_snaps.iter().map(|s| s.emit_dirty),
     );
     println!();
-    print_phase_atomic("(sum of set timings, sanity check)", phase_snaps.iter().map(|s| {
-        s.reconcile_index + s.prime_heightmaps + s.attach_state + s.enqueue + s.converge + s.emit_dirty
-    }));
-    print_phase_atomic("tick (across all ticks)", phase_snaps.iter().map(|s| s.tick));
+    print_phase_atomic(
+        "(sum of set timings, sanity check)",
+        phase_snaps.iter().map(|s| {
+            s.reconcile_index
+                + s.prime_heightmaps
+                + s.attach_state
+                + s.enqueue
+                + s.converge
+                + s.emit_dirty
+        }),
+    );
+    print_phase_atomic(
+        "tick (across all ticks)",
+        phase_snaps.iter().map(|s| s.tick),
+    );
 
     let avg_ticks: f64 =
         tick_counts.iter().copied().map(|n| n as f64).sum::<f64>() / SAMPLES as f64;

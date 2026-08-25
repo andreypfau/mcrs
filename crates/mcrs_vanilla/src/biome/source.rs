@@ -3,8 +3,8 @@ use std::sync::Arc;
 use bevy_asset::{Handle, LoadContext, UntypedAssetId};
 use serde::Deserialize;
 
-use super::climate::ClimateParameters;
 use super::Biome;
+use super::climate::ClimateParameters;
 use crate::ResourceLocation;
 
 // ===========================================================================
@@ -162,7 +162,12 @@ impl BiomeSource {
         }
     }
 
-    pub fn beta_biome_id(&self, temp: f32, rain: f32, is_ocean: bool) -> bevy_asset::AssetId<Biome> {
+    pub fn beta_biome_id(
+        &self,
+        temp: f32,
+        rain: f32,
+        is_ocean: bool,
+    ) -> bevy_asset::AssetId<Biome> {
         match self {
             BiomeSource::Beta {
                 land_biomes,
@@ -185,7 +190,12 @@ impl BiomeSource {
 
     /// Resolve the biome's resource location from Beta climate. Stable across
     /// AssetServers; use with [`RegistrySnapshot::by_location`] to get a network ID.
-    pub fn beta_biome_location(&self, temp: f32, rain: f32, is_ocean: bool) -> &ResourceLocation<Arc<str>> {
+    pub fn beta_biome_location(
+        &self,
+        temp: f32,
+        rain: f32,
+        is_ocean: bool,
+    ) -> &ResourceLocation<Arc<str>> {
         match self {
             BiomeSource::Beta {
                 land_biome_ids,

@@ -7,7 +7,7 @@
     clippy::too_many_arguments
 )]
 
-pub mod palette;
-pub mod block_update;
 pub mod block;
+pub mod block_update;
 pub mod material;
+pub mod palette;

@@ -78,7 +78,10 @@ impl Animation {
     pub fn unroll(&self, sprite: &str, image: (u32, u32)) -> Unrolled {
         let total = self.frame_count(image) as i64;
         let listed: Vec<(i64, i64)> = match &self.frames {
-            Some(frames) => frames.iter().map(|frame| frame.step(self.frametime)).collect(),
+            Some(frames) => frames
+                .iter()
+                .map(|frame| frame.step(self.frametime))
+                .collect(),
             None => (0..total).map(|index| (index, self.frametime)).collect(),
         };
         let mut kept = Vec::with_capacity(listed.len());
@@ -91,7 +94,10 @@ impl Animation {
                 kept.push((index, time));
             }
         }
-        let frametime = kept.iter().fold(0, |step, &(_, time)| gcd(step, time)).max(1);
+        let frametime = kept
+            .iter()
+            .fold(0, |step, &(_, time)| gcd(step, time))
+            .max(1);
         let frames: Vec<u32> = kept
             .iter()
             .flat_map(|&(index, time)| {
@@ -99,7 +105,10 @@ impl Animation {
             })
             .collect();
         let frames = if frames.len() < 2 { Vec::new() } else { frames };
-        Unrolled { frames, frametime: frametime as u32 }
+        Unrolled {
+            frames,
+            frametime: frametime as u32,
+        }
     }
 }
 
@@ -151,7 +160,10 @@ mod tests {
         );
         let unrolled = meta.unroll("timed", strip(3));
         assert_eq!(unrolled.frames, [0, 1, 1, 1, 2]);
-        assert_eq!(unrolled.frametime, 2, "the common beat is the shortest step");
+        assert_eq!(
+            unrolled.frametime, 2,
+            "the common beat is the shortest step"
+        );
     }
 
     #[test]
@@ -176,12 +188,18 @@ mod tests {
     fn frames_are_counted_across_the_image_as_well_as_down_it() {
         let meta = animation(r#"{"animation": {"width": 16, "height": 16}}"#);
         assert_eq!(meta.frame_count((SIDE * 3, SIDE * 2)), 6);
-        assert_eq!(meta.unroll("grid", (SIDE * 3, SIDE * 2)).frames, [0, 1, 2, 3, 4, 5]);
+        assert_eq!(
+            meta.unroll("grid", (SIDE * 3, SIDE * 2)).frames,
+            [0, 1, 2, 3, 4, 5]
+        );
     }
 
     #[test]
     fn a_frame_is_sized_the_way_the_metadata_leaves_it() {
-        assert_eq!(animation(r#"{"animation": {}}"#).frame_size((16, 96)), (16, 16));
+        assert_eq!(
+            animation(r#"{"animation": {}}"#).frame_size((16, 96)),
+            (16, 16)
+        );
         assert_eq!(
             animation(r#"{"animation": {"width": 8}}"#).frame_size((16, 96)),
             (8, 96),

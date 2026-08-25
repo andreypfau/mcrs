@@ -1,10 +1,12 @@
-use crate::world::generate::{apply_beta_caves, apply_beta_ores, apply_beta_surface, generate_column, BetaCaveBlockIds, BetaOreBlockIds};
-use mcrs_random::legacy::LegacyRandom;
+use crate::world::generate::{
+    BetaCaveBlockIds, BetaOreBlockIds, apply_beta_caves, apply_beta_ores, apply_beta_surface,
+    generate_column,
+};
 use bevy_app::{App, FixedPreUpdate, Plugin};
+use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Query, Resource, With, resource_exists};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::system::{Commands, Local, Res, ResMut};
 use bevy_math::IVec3;
 use bevy_tasks::futures_lite::future;
@@ -17,8 +19,12 @@ use mcrs_engine::world::chunk::{
     ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos, ChunkUnloading,
 };
 use mcrs_engine::world::lighting::LightTicket;
-use mcrs_minecraft_worldgen::bevy::{NoiseGeneratorSettingsPlugin, OverworldNoiseRouter, WorldGenConfig};
+use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_worldgen::bevy::{
+    NoiseGeneratorSettingsPlugin, OverworldNoiseRouter, WorldGenConfig,
+};
 use mcrs_protocol::ColumnPos;
+use mcrs_random::legacy::LegacyRandom;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::BiomeSource;
 use mcrs_vanilla::worldgen::beta_biome::{ActiveBiomeSource, BetaBiomeSourcePlugin};
@@ -27,7 +33,6 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use tracing::trace;
-use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 
 /// Ordering anchor for the worldgen ingest path. The lighting plugin chains
 /// its enqueue set after `WorldgenIngestSet::ProcessCompletedColumns` so the
@@ -385,7 +390,10 @@ fn enqueue_pending_columns(
     // or merged into an existing pending column.
     let mut columns: HashMap<ColumnPos, Vec<(Entity, i32)>> = HashMap::new();
     for (entity, pos) in loading_query.iter() {
-        trace!("Requested generation for chunk section at ({}, {}, {})", pos.x, pos.y, pos.z);
+        trace!(
+            "Requested generation for chunk section at ({}, {}, {})",
+            pos.x, pos.y, pos.z
+        );
 
         columns
             .entry(ColumnPos::new(pos.x, pos.z))
@@ -398,16 +406,21 @@ fn enqueue_pending_columns(
             // Merge new sections into the existing pending column so the
             // column is dispatched with ALL its sections in a single batch.
             if let Some(&key) = scheduler.priority_index.get(&col)
-                && let Some(pending) = scheduler.pending.get_mut(&key) {
-                    for &(entity, _) in &sections {
-                        commands
-                            .entity(entity)
-                            .insert(ChunkGenerating)
-                            .remove::<ChunkLoading>();
-                    }
-                    trace!("Merged {} sections into pending column {:?}", sections.len(), col);
-                    pending.sections.extend(sections);
+                && let Some(pending) = scheduler.pending.get_mut(&key)
+            {
+                for &(entity, _) in &sections {
+                    commands
+                        .entity(entity)
+                        .insert(ChunkGenerating)
+                        .remove::<ChunkLoading>();
                 }
+                trace!(
+                    "Merged {} sections into pending column {:?}",
+                    sections.len(),
+                    col
+                );
+                pending.sections.extend(sections);
+            }
             continue;
         }
 
@@ -430,7 +443,10 @@ fn enqueue_pending_columns(
         let key = ColumnKey::new(distance_sq, col);
         let pending_column = PendingColumn::new(sections);
 
-        trace!("Enqueued chunk column at ({:?}) for generation - {:?}", key, pending_column.sections);
+        trace!(
+            "Enqueued chunk column at ({:?}) for generation - {:?}",
+            key, pending_column.sections
+        );
 
         scheduler.pending.insert(key, pending_column);
         scheduler.priority_index.insert(col, key);
@@ -682,7 +698,10 @@ fn dispatch_column_generation(
 
         // Sort sections by Y (bottom-to-top) for Y-boundary cache reuse
         pending_column.sections.sort_by_key(|(_, y)| *y);
-        trace!("Dispatching chunk column at ({:?}) for generation - {:?}", col, pending_column.sections);
+        trace!(
+            "Dispatching chunk column at ({:?}) for generation - {:?}",
+            col, pending_column.sections
+        );
 
         // Prepare data for the async task
         let router = overworld_noise_router.0.clone();
@@ -703,10 +722,20 @@ fn dispatch_column_generation(
         let task = task_pool.spawn(async move {
             let router = router.as_ref();
             let biome_context = biome_ctx.as_ref().map(|(src, reg)| {
-                (src.as_ref() as &BiomeSource, reg.as_ref() as &RegistrySnapshot<Biome>)
+                (
+                    src.as_ref() as &BiomeSource,
+                    reg.as_ref() as &RegistrySnapshot<Biome>,
+                )
             });
 
-            let mut results = generate_column(col.x, col.z, &y_sections, router, biome_context, &cancel_clone);
+            let mut results = generate_column(
+                col.x,
+                col.z,
+                &y_sections,
+                router,
+                biome_context,
+                &cancel_clone,
+            );
 
             // Beta surface pass: place surface/filler/bedrock blocks with a
             // single per-chunk RNG seeded from the chunk coords.
@@ -728,19 +757,20 @@ fn dispatch_column_generation(
 
                     let world_seed = router.world_seed() as i64;
                     let cave_ids = BetaCaveBlockIds::resolve();
-                    let cave_config = mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig {
-                        air_state: cave_ids.air,
-                        lava_state: cave_ids.lava,
-                        stone_state: cave_ids.stone,
-                        dirt_state: cave_ids.dirt,
-                        grass_state: cave_ids.grass,
-                        water_state: cave_ids.water,
-                        stationary_water_state: cave_ids.stationary_water,
-                        lava_level: 10,
-                        range: 8,
-                        horizontal_radius_multiplier: 1.0,
-                        vertical_radius_multiplier: 1.0,
-                    };
+                    let cave_config =
+                        mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig {
+                            air_state: cave_ids.air,
+                            lava_state: cave_ids.lava,
+                            stone_state: cave_ids.stone,
+                            dirt_state: cave_ids.dirt,
+                            grass_state: cave_ids.grass,
+                            water_state: cave_ids.water,
+                            stationary_water_state: cave_ids.stationary_water,
+                            lava_level: 10,
+                            range: 8,
+                            horizontal_radius_multiplier: 1.0,
+                            vertical_radius_multiplier: 1.0,
+                        };
                     apply_beta_caves(
                         &mut results,
                         &y_sections,
@@ -802,11 +832,7 @@ mod tests {
         let _ = WorldgenIngestSet::ProcessCompletedColumns;
     }
 
-    fn spawn_observer_with_view(
-        app: &mut App,
-        center: ChunkPos,
-        distance: u8,
-    ) -> Entity {
+    fn spawn_observer_with_view(app: &mut App, center: ChunkPos, distance: u8) -> Entity {
         let observer = PlayerChunkObserver {
             last_last_chunk_tracking_view: Some(ChunkTrackingView {
                 center,
@@ -878,10 +904,7 @@ mod tests {
         spawn_observer_with_view(&mut app, ChunkPos::new(0, 0, 0), 2);
 
         let stale_pos = ChunkPos::new(100, 0, 100);
-        let stale_section = app
-            .world_mut()
-            .spawn((stale_pos, ChunkGenerating))
-            .id();
+        let stale_section = app.world_mut().spawn((stale_pos, ChunkGenerating)).id();
 
         let stale_col = ColumnPos::new(stale_pos.x, stale_pos.z);
         let key = ColumnKey::new(0, stale_col);

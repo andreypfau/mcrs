@@ -1,5 +1,5 @@
+use crate::enchantment::EnchantmentData;
 use crate::world::block::Block;
-use mcrs_minecraft_block::block_update::BlockSetRequest;
 use crate::world::entity::attribute::Attribute;
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::attribute::{BlockBreakSpeed, MiningEfficiency};
@@ -7,13 +7,11 @@ use crate::world::entity::player::player_action::{
     PlayerAction, PlayerActionKind, PlayerWillDestroyBlock,
 };
 use crate::world::inventory::PlayerHotbarSlots;
-use crate::world::item::{Item, ItemStack};
-use crate::world::item::component::Tool;
 use crate::world::item::component::Enchantments;
-use crate::enchantment::EnchantmentData;
+use crate::world::item::component::Tool;
+use crate::world::item::{Item, ItemStack};
 use crate::world::loot::BlockLootTables;
 use crate::world::loot::context::BlockBreakContext;
-use mcrs_minecraft_block::palette::BlockPalette;
 use bevy_app::{FixedUpdate, Plugin, Update};
 use bevy_asset::AssetServer;
 use bevy_ecs::prelude::*;
@@ -21,10 +19,12 @@ use bevy_ecs::system::SystemParam;
 use bevy_time::{Fixed, Time};
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::reposition::Reposition;
+use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::ChunkIndex;
-use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::dimension::{DimensionPlayers, InDimension};
+use mcrs_minecraft_block::block_update::BlockSetRequest;
+use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
@@ -35,7 +35,6 @@ use mcrs_vanilla::block::Block as VanillaBlock;
 use rand::RngExt;
 use std::time::Duration;
 use tracing::{debug, trace};
-
 
 pub struct DiggingPlugin;
 
@@ -76,7 +75,7 @@ impl Digging {
 fn tick_digging(
     time: Res<Time<Fixed>>,
     mut players: Query<(Entity, &InDimension, &mut Digging, &Transform)>,
-    chunks: Query<&BlockPalette >,
+    chunks: Query<&BlockPalette>,
     mut packet_queue: Local<Vec<(Entity, Entity, BlockPos, i8)>>,
     mut send: SendDestroyBlockProgress,
     mut commands: Commands,
@@ -121,7 +120,7 @@ fn tick_digging(
 fn player_start_destroy_block(
     mut reader: MessageReader<PlayerAction>,
     dimensions: Query<&ChunkIndex>,
-    chunks: Query<&BlockPalette >,
+    chunks: Query<&BlockPalette>,
     mut players: Query<(
         &InDimension,
         &Transform,
@@ -160,7 +159,7 @@ fn player_start_destroy_block(
         let Some(chunk) = chunk_index.get(block_pos) else {
             return;
         };
-        let Ok(block_states ) = chunks.get(chunk) else {
+        let Ok(block_states) = chunks.get(chunk) else {
             return;
         };
 
@@ -274,15 +273,7 @@ fn player_stop_destroy_block(
 #[derive(SystemParam)]
 struct SendDestroyBlockProgress<'w, 's> {
     dim_players: Query<'w, 's, &'static DimensionPlayers>,
-    all_players: Query<
-        'w,
-        's,
-        (
-            Entity,
-            &'static HostAnchor,
-            &'static Reposition,
-        ),
-    >,
+    all_players: Query<'w, 's, (Entity, &'static HostAnchor, &'static Reposition)>,
     packet_writer: MessageWriter<'w, OutboundPlayerPacket>,
 }
 
@@ -328,7 +319,8 @@ where
     if hardness == -1.0 {
         return 0.0;
     }
-    let (has_correct_tool, mut speed) = extract_tool_data(block, hotbar, items, tag_registry, block_registry);
+    let (has_correct_tool, mut speed) =
+        extract_tool_data(block, hotbar, items, tag_registry, block_registry);
     if speed > 1.0 {
         speed += mining_efficiency.value();
     }
@@ -384,7 +376,8 @@ pub fn get_tool_destroy_speed(
     tag_registry: &TagRegistry<VanillaBlock>,
     block_registry: &StaticRegistry<VanillaBlock>,
 ) -> f32 {
-    let (has_correct_tool, speed) = extract_tool_data(block, hotbar, items, tag_registry, block_registry);
+    let (has_correct_tool, speed) =
+        extract_tool_data(block, hotbar, items, tag_registry, block_registry);
     let modifier = if has_correct_tool { 30.0 } else { 100.0 };
     speed / modifier
 }
@@ -421,7 +414,12 @@ fn handle_player_will_destroy_block(
         let has_correct_tool = if block.requires_correct_tool_for_drops() {
             if let Some(slot) = hotbar.get_selected_slot() {
                 if let Ok((stack, _, tool)) = items.get(slot) {
-                    if let Some(tool) = tool.or_else(|| AsRef::<Item>::as_ref(&stack.item_id()).components.tool.as_ref()) {
+                    if let Some(tool) = tool.or_else(|| {
+                        AsRef::<Item>::as_ref(&stack.item_id())
+                            .components
+                            .tool
+                            .as_ref()
+                    }) {
                         tool.is_correct_block_for_drops(block, &tag_registry, &block_registry)
                     } else {
                         false
@@ -443,9 +441,7 @@ fn handle_player_will_destroy_block(
                 .and_then(|(_, enchantments, _)| enchantments);
 
             if let Some(table) = loot_tables.tables.get(block_id.as_str()) {
-                let ctx = BlockBreakContext {
-                    tool_enchantments,
-                };
+                let ctx = BlockBreakContext { tool_enchantments };
                 let drops = table.evaluate(&ctx);
                 for drop in &drops {
                     debug!(
@@ -466,15 +462,14 @@ fn handle_player_will_destroy_block(
                     .unwrap_or(false)
             });
 
-            if !has_silk_touch
-                && let Some((min, max)) = block.xp_range() {
-                    let xp = if min == max {
-                        min
-                    } else {
-                        rand::rng().random_range(min..=max)
-                    };
-                    debug!(block = %block_id, xp = xp, "XP drop");
-                }
+            if !has_silk_touch && let Some((min, max)) = block.xp_range() {
+                let xp = if min == max {
+                    min
+                } else {
+                    rand::rng().random_range(min..=max)
+                };
+                debug!(block = %block_id, xp = xp, "XP drop");
+            }
         }
 
         writer.write(BlockSetRequest::remove_block(**dim, event.block_pos));

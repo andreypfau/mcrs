@@ -4,8 +4,7 @@ mod common;
 
 #[test]
 fn teleport_does_not_query_server_side_connection() {
-    let source: &str =
-        include_str!("../../mcrs_minecraft/src/world/entity/player/movement.rs");
+    let source: &str = include_str!("../../mcrs_minecraft/src/world/entity/player/movement.rs");
     assert!(
         !source.contains("ServerSideConnection"),
         "movement.rs must not query ServerSideConnection; \
@@ -15,8 +14,7 @@ fn teleport_does_not_query_server_side_connection() {
 
 #[test]
 fn digging_does_not_query_server_side_connection() {
-    let source: &str =
-        include_str!("../../mcrs_minecraft/src/world/entity/player/digging.rs");
+    let source: &str = include_str!("../../mcrs_minecraft/src/world/entity/player/digging.rs");
     assert!(
         !source.contains("ServerSideConnection"),
         "digging.rs must not query ServerSideConnection; \
@@ -26,8 +24,7 @@ fn digging_does_not_query_server_side_connection() {
 
 #[test]
 fn game_mode_does_not_query_server_side_connection() {
-    let source: &str =
-        include_str!("../../mcrs_minecraft/src/world/entity/player/game_mode.rs");
+    let source: &str = include_str!("../../mcrs_minecraft/src/world/entity/player/game_mode.rs");
     assert!(
         !source.contains("ServerSideConnection"),
         "game_mode.rs must not query ServerSideConnection; \
@@ -63,11 +60,13 @@ fn teleport_emits_outbound_player_packet() {
             .expect("sub-app present");
         let world = sub_app.world_mut();
         let anchor = world.spawn(()).id();
-        player_entity = world.spawn((
-            HostAnchor(anchor),
-            Transform::default(),
-            TeleportState::default(),
-        )).id();
+        player_entity = world
+            .spawn((
+                HostAnchor(anchor),
+                Transform::default(),
+                TeleportState::default(),
+            ))
+            .id();
     }
 
     {

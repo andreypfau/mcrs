@@ -50,7 +50,10 @@ fn tagged_timelines(tag: &str) -> Vec<Timeline> {
     }
     let mut names = Vec::new();
     collect(tag, &mut names);
-    names.iter().map(|name| timeline(&format!("{name}.json"))).collect()
+    names
+        .iter()
+        .map(|name| timeline(&format!("{name}.json")))
+        .collect()
 }
 
 fn shape<'a>(id: &'a str, proto: &'a ProtoDimensionType) -> DimensionEnvironment<'a> {
@@ -71,7 +74,10 @@ fn build(id: &str, file: &str, timelines: &[Timeline]) -> EnvironmentAttributes 
 
 fn overworld() -> (EnvironmentAttributes, Vec<Timeline>) {
     let timelines = tagged_timelines("in_overworld");
-    (build("minecraft:overworld", "overworld.json", &timelines), timelines)
+    (
+        build("minecraft:overworld", "overworld.json", &timelines),
+        timelines,
+    )
 }
 
 fn biomes(json: serde_json::Value) -> SpatialAttributeInterpolator {
@@ -91,7 +97,11 @@ fn ticks_at(attributes: &EnvironmentAttributes, total_ticks: i64, partial_tick: 
     for clock in attributes.clocks() {
         clocks.insert(
             clock.clone(),
-            ClockState { total_ticks, partial_tick, ..ClockState::default() },
+            ClockState {
+                total_ticks,
+                partial_tick,
+                ..ClockState::default()
+            },
         );
     }
     let mut ticks = Vec::new();
@@ -104,7 +114,12 @@ fn context<'a>(
     biomes: &'a SpatialAttributeInterpolator,
     weather: Weather,
 ) -> EnvironmentContext<'a> {
-    EnvironmentContext { position: DVec3::ZERO, ticks, biomes, weather }
+    EnvironmentContext {
+        position: DVec3::ZERO,
+        ticks,
+        biomes,
+        weather,
+    }
 }
 
 fn color(attributes: &EnvironmentAttributes, id: &str, ctx: &EnvironmentContext) -> u32 {
@@ -144,7 +159,10 @@ fn layer_two_is_the_dimension_and_beats_the_default() {
     let ctx = context(&ticks, &empty, Weather::default());
 
     let ambient = "minecraft:visual/ambient_light_color";
-    assert_eq!(attribute(ambient).unwrap().default, AttributeValue::Color(0xFF00_0000));
+    assert_eq!(
+        attribute(ambient).unwrap().default,
+        AttributeValue::Color(0xFF00_0000)
+    );
     assert_eq!(color(&attributes, ambient, &ctx), 0xFF0A_0A0A);
 }
 
@@ -155,7 +173,10 @@ fn layer_three_is_the_biome_and_beats_the_dimension() {
     let ticks = ticks_at(&attributes, NOON, 0.0);
     let ctx = context(&ticks, &swamp, Weather::default());
 
-    assert_eq!(color(&attributes, "minecraft:visual/sky_color", &ctx), 0xFF6A_7039);
+    assert_eq!(
+        color(&attributes, "minecraft:visual/sky_color", &ctx),
+        0xFF6A_7039
+    );
 }
 
 #[test]
@@ -168,9 +189,20 @@ fn layer_four_is_the_timeline_and_beats_the_biome() {
     let sky = "minecraft:visual/sky_color";
 
     // the day track multiplies by white at noon and by black at midnight
-    assert_eq!(color(&attributes, sky, &context(&noon, &swamp, Weather::default())), 0xFF6A_7039);
     assert_eq!(
-        color(&attributes, sky, &context(&midnight, &swamp, Weather::default())),
+        color(
+            &attributes,
+            sky,
+            &context(&noon, &swamp, Weather::default())
+        ),
+        0xFF6A_7039
+    );
+    assert_eq!(
+        color(
+            &attributes,
+            sky,
+            &context(&midnight, &swamp, Weather::default())
+        ),
         0xFF00_0000
     );
 }
@@ -182,16 +214,34 @@ fn layer_five_is_weather_and_beats_the_timeline() {
     let ticks = ticks_at(&attributes, NOON, 0.0);
     let sky = "minecraft:visual/sky_color";
 
-    let clear = color(&attributes, sky, &context(&ticks, &empty, Weather::default()));
+    let clear = color(
+        &attributes,
+        sky,
+        &context(&ticks, &empty, Weather::default()),
+    );
     let raining = color(
         &attributes,
         sky,
-        &context(&ticks, &empty, Weather { rain: 1.0, thunder: 0.0 }),
+        &context(
+            &ticks,
+            &empty,
+            Weather {
+                rain: 1.0,
+                thunder: 0.0,
+            },
+        ),
     );
     let thundering = color(
         &attributes,
         sky,
-        &context(&ticks, &empty, Weather { rain: 1.0, thunder: 1.0 }),
+        &context(
+            &ticks,
+            &empty,
+            Weather {
+                rain: 1.0,
+                thunder: 1.0,
+            },
+        ),
     );
 
     assert_eq!(clear, 0xFF78_A7FF);
@@ -202,7 +252,10 @@ fn layer_five_is_weather_and_beats_the_timeline() {
         let channel = |shift: u32| (packed >> shift & 0xFF) as i32;
         (channel(16) - channel(0)).abs()
     };
-    assert!(grey(thundering) < grey(raining), "thunder is the greyer of the two");
+    assert!(
+        grey(thundering) < grey(raining),
+        "thunder is the greyer of the two"
+    );
 }
 
 #[test]
@@ -213,7 +266,18 @@ fn a_dimension_without_weather_has_no_weather_layer() {
 
     let sky = "minecraft:visual/sky_color";
     assert_eq!(
-        color(&end, sky, &context(&ticks, &empty, Weather { rain: 1.0, thunder: 1.0 })),
+        color(
+            &end,
+            sky,
+            &context(
+                &ticks,
+                &empty,
+                Weather {
+                    rain: 1.0,
+                    thunder: 1.0
+                }
+            )
+        ),
         color(&end, sky, &context(&ticks, &empty, Weather::default())),
     );
 }
@@ -238,7 +302,10 @@ fn a_not_positional_attribute_skips_the_positional_layers() {
         "a biome must not be able to move a not-positional attribute"
     );
     // …while the biome does reach the positional attribute beside it
-    assert_eq!(color(&attributes, "minecraft:visual/sky_color", &ctx), 0xFF6A_7039);
+    assert_eq!(
+        color(&attributes, "minecraft:visual/sky_color", &ctx),
+        0xFF6A_7039
+    );
 }
 
 // ── End to end through a clock ───────────────────────────────────────────────
@@ -251,20 +318,30 @@ fn overworld_sky_color_at_noon_is_the_dimension_colour_through_the_day_track() {
     let mut clocks = WorldClocks::default();
     clocks.insert(
         ResourceLocation::parse("minecraft:overworld").unwrap(),
-        ClockState { total_ticks: NOON, ..ClockState::default() },
+        ClockState {
+            total_ticks: NOON,
+            ..ClockState::default()
+        },
     );
     let mut ticks = Vec::new();
     attributes.clock_ticks(&clocks, &mut ticks);
     assert_eq!(ticks, vec![NOON as f64]);
 
     let ctx = context(&ticks, &empty, Weather::default());
-    assert_eq!(color(&attributes, "minecraft:visual/sky_color", &ctx), 0xFF78_A7FF);
+    assert_eq!(
+        color(&attributes, "minecraft:visual/sky_color", &ctx),
+        0xFF78_A7FF
+    );
 
     // and the same track takes it to black at midnight
     clocks.get_mut("minecraft:overworld").unwrap().total_ticks = MIDNIGHT;
     attributes.clock_ticks(&clocks, &mut ticks);
     assert_eq!(
-        color(&attributes, "minecraft:visual/sky_color", &context(&ticks, &empty, Weather::default())),
+        color(
+            &attributes,
+            "minecraft:visual/sky_color",
+            &context(&ticks, &empty, Weather::default())
+        ),
         0xFF00_0000
     );
 }
@@ -295,7 +372,11 @@ fn the_sun_crosses_the_wrap_without_reversing() {
             let total_ticks = NOON - 10 + step / 8;
             let partial_tick = (step % 8) as f32 / 8.0;
             let ticks = ticks_at(&attributes, total_ticks, partial_tick);
-            float(&attributes, sun, &context(&ticks, &empty, Weather::default()))
+            float(
+                &attributes,
+                sun,
+                &context(&ticks, &empty, Weather::default()),
+            )
         })
         .collect();
 
@@ -307,13 +388,21 @@ fn the_sun_crosses_the_wrap_without_reversing() {
         .windows(2)
         .filter(|pair| {
             let delta = wrap_degrees(pair[1] - pair[0]);
-            assert!(delta > -jitter, "the sun went backwards: {} -> {}", pair[0], pair[1]);
+            assert!(
+                delta > -jitter,
+                "the sun went backwards: {} -> {}",
+                pair[0],
+                pair[1]
+            );
             assert!(delta < 5.0, "the sun jumped: {} -> {}", pair[0], pair[1]);
             pair[1] < pair[0] - jitter
         })
         .count();
     assert_eq!(crossings, 1, "the sweep must cross 360 -> 0 exactly once");
-    assert!(angles[0] > 300.0 && *angles.last().unwrap() < 60.0, "{angles:?}");
+    assert!(
+        angles[0] > 300.0 && *angles.last().unwrap() < 60.0,
+        "{angles:?}"
+    );
 }
 
 #[test]
@@ -324,12 +413,27 @@ fn evaluation_is_a_pure_function_of_its_context() {
 
     let early = ticks_at(&attributes, 0, 0.0);
     let late = ticks_at(&attributes, 3000, 0.0);
-    let first = float(&attributes, sun, &context(&early, &empty, Weather::default()));
-    let moved = float(&attributes, sun, &context(&late, &empty, Weather::default()));
-    let again = float(&attributes, sun, &context(&early, &empty, Weather::default()));
+    let first = float(
+        &attributes,
+        sun,
+        &context(&early, &empty, Weather::default()),
+    );
+    let moved = float(
+        &attributes,
+        sun,
+        &context(&late, &empty, Weather::default()),
+    );
+    let again = float(
+        &attributes,
+        sun,
+        &context(&early, &empty, Weather::default()),
+    );
 
     assert_ne!(first, moved, "a later tick must give a different angle");
-    assert_eq!(first, again, "going back to the earlier tick must give the earlier angle");
+    assert_eq!(
+        first, again,
+        "going back to the earlier tick must give the earlier angle"
+    );
 }
 
 #[test]
@@ -346,7 +450,10 @@ fn a_dimension_with_no_timelines_still_builds() {
     let at_noon = float(&attributes, "minecraft:gameplay/sky_light_level", &ctx);
     let ticks = ticks_at(&attributes, MIDNIGHT, 0.0);
     let ctx = context(&ticks, &empty, Weather::default());
-    assert_eq!(at_noon, float(&attributes, "minecraft:gameplay/sky_light_level", &ctx));
+    assert_eq!(
+        at_noon,
+        float(&attributes, "minecraft:gameplay/sky_light_level", &ctx)
+    );
 }
 
 #[test]
@@ -354,13 +461,26 @@ fn a_composed_value_is_clamped_back_into_its_range() {
     let (attributes, _timelines) = overworld();
     let empty = SpatialAttributeInterpolator::default();
     let ticks = ticks_at(&attributes, MIDNIGHT, 0.0);
-    let ctx = context(&ticks, &empty, Weather { rain: 1.0, thunder: 1.0 });
+    let ctx = context(
+        &ticks,
+        &empty,
+        Weather {
+            rain: 1.0,
+            thunder: 1.0,
+        },
+    );
 
     let factor = float(&attributes, "minecraft:visual/sky_light_factor", &ctx);
-    assert!((0.0..=1.0).contains(&factor), "sky_light_factor is a unit float, got {factor}");
+    assert!(
+        (0.0..=1.0).contains(&factor),
+        "sky_light_factor is a unit float, got {factor}"
+    );
 
     let level = float(&attributes, "minecraft:gameplay/sky_light_level", &ctx);
-    assert!((0.0..=15.0).contains(&level), "sky_light_level is [0; 15], got {level}");
+    assert!(
+        (0.0..=15.0).contains(&level),
+        "sky_light_level is [0; 15], got {level}"
+    );
 }
 
 /// Two timelines writing one attribute stack in the order the tag file lists
@@ -399,9 +519,16 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
         values: vec![TagEntry::Element(rl("test:zulu")), TagEntry::Tag(nested)],
     };
 
-    let index = DynRegistryIndex::<Timeline>::build([rl("test:alpha"), rl("test:zulu")].into_iter());
+    let index =
+        DynRegistryIndex::<Timeline>::build([rl("test:alpha"), rl("test:zulu")].into_iter());
     let order = resolve_tag_file_ordered(&listing, &tag_files, &index);
-    assert_eq!(order, vec![index.get("test:zulu").unwrap(), index.get("test:alpha").unwrap()]);
+    assert_eq!(
+        order,
+        vec![
+            index.get("test:zulu").unwrap(),
+            index.get("test:alpha").unwrap()
+        ]
+    );
 
     let ordered: Vec<&Timeline> = order
         .iter()
@@ -419,5 +546,8 @@ fn the_timeline_a_tag_lists_last_wins_the_attribute_they_share() {
     let ticks = ticks_at(&attributes, 0, 0.0);
     let empty = SpatialAttributeInterpolator::default();
     let ctx = context(&ticks, &empty, Weather::default());
-    assert_eq!(float(&attributes, "minecraft:gameplay/sky_light_level", &ctx), 0.25);
+    assert_eq!(
+        float(&attributes, "minecraft:gameplay/sky_light_level", &ctx),
+        0.25
+    );
 }

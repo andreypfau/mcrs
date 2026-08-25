@@ -34,17 +34,17 @@ use mcrs_engine::world::chunk::{ChunkLoading, ChunkPos};
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_minecraft::world::chunk::{ColumnScheduler, ChunkPlugin as WorldgenChunkPlugin};
+use mcrs_minecraft::world::chunk::{ChunkPlugin as WorldgenChunkPlugin, ColumnScheduler};
+use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::components::{
     BlockBfsPending, BlockNeedsInitialSeed, SkyBfsPending, SkyLight, SkyNeedsInitialSeed,
 };
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
-use mcrs_minecraft_lighting::LightingPlugin;
+use mcrs_minecraft_worldgen::bevy::OverworldNoiseRouter;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::density_function::proto::{
     DensityFunctionHolder, NoiseParam, ProtoDensityFunction,
 };
-use mcrs_minecraft_worldgen::bevy::OverworldNoiseRouter;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_protocol::Ident;
 use mcrs_vanilla::block::Block;
@@ -120,8 +120,8 @@ fn load_overworld_noise_router(assets_path: &std::path::Path) -> OverworldNoiseR
     let settings_path = assets_path.join("minecraft/worldgen/noise_settings/overworld.json");
     let settings_data = std::fs::read(&settings_path)
         .unwrap_or_else(|e| panic!("failed to read overworld noise settings: {e}"));
-    let settings: NoiseGeneratorSettings = serde_json::from_slice(&settings_data)
-        .expect("failed to parse overworld noise settings");
+    let settings: NoiseGeneratorSettings =
+        serde_json::from_slice(&settings_data).expect("failed to parse overworld noise settings");
 
     let df_dir = assets_path.join("minecraft/worldgen/density_function");
     let mut df_files = Vec::new();
@@ -153,7 +153,14 @@ fn load_overworld_noise_router(assets_path: &std::path::Path) -> OverworldNoiseR
 
     // Match the production seed in `NoiseGeneratorSettingsPlugin` (bevy.rs).
     // Test with the same world the live server generates.
-    let router = build_functions(&functions, &noises, &settings, 2, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86));
+    let router = build_functions(
+        &functions,
+        &noises,
+        &settings,
+        2,
+        mcrs_protocol::BlockStateId(1),
+        mcrs_protocol::BlockStateId(86),
+    );
     OverworldNoiseRouter(Arc::new(router))
 }
 
@@ -218,7 +225,12 @@ fn build_production_block_light_table() -> BlockStateLightTable {
         }
     }
 
-    BlockStateLightTable { emission, dampening, occlusion, flags }
+    BlockStateLightTable {
+        emission,
+        dampening,
+        occlusion,
+        flags,
+    }
 }
 
 // ---- Convergence helpers -----------------------------------------------------
@@ -234,14 +246,16 @@ fn has_light_dirty(world: &mut World) -> bool {
 }
 
 fn has_needs_initial_light(world: &mut World) -> bool {
-    let mut q = world
-        .query_filtered::<(), Or<(With<BlockNeedsInitialSeed>, With<SkyNeedsInitialSeed>)>>();
+    let mut q =
+        world.query_filtered::<(), Or<(With<BlockNeedsInitialSeed>, With<SkyNeedsInitialSeed>)>>();
     q.iter(world).next().is_some()
 }
 
 fn count_chunk_loading(world: &mut World, dim_entity: Entity) -> usize {
     let mut q = world.query_filtered::<&InDimension, With<ChunkLoading>>();
-    q.iter(world).filter(|in_dim| in_dim.0 == dim_entity).count()
+    q.iter(world)
+        .filter(|in_dim| in_dim.0 == dim_entity)
+        .count()
 }
 
 // ---- Test -------------------------------------------------------------------
@@ -249,11 +263,11 @@ fn count_chunk_loading(world: &mut World, dim_entity: Entity) -> usize {
 #[test]
 fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
     let assets_path = workspace_assets_path();
-    if !assets_path.join("minecraft/worldgen/noise_settings/overworld.json").exists() {
-        eprintln!(
-            "SKIP: assets not found at {}",
-            assets_path.display()
-        );
+    if !assets_path
+        .join("minecraft/worldgen/noise_settings/overworld.json")
+        .exists()
+    {
+        eprintln!("SKIP: assets not found at {}", assets_path.display());
         return;
     }
 
@@ -338,12 +352,12 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
     // (128 blocks) so half the view overlaps with the prior position and half
     // is freshly streamed.
     let path: &[(f64, f64, f64)] = &[
-        (0.0, 80.0, 0.0),     // initial spawn (already set above)
-        (128.0, 80.0, 0.0),   // east 8 chunks
-        (128.0, 80.0, 128.0), // east+south 8 chunks
-        (-128.0, 80.0, 128.0),// west of origin
+        (0.0, 80.0, 0.0),      // initial spawn (already set above)
+        (128.0, 80.0, 0.0),    // east 8 chunks
+        (128.0, 80.0, 128.0),  // east+south 8 chunks
+        (-128.0, 80.0, 128.0), // west of origin
         (-128.0, 80.0, -128.0),
-        (0.0, 80.0, 0.0),     // back to origin
+        (0.0, 80.0, 0.0), // back to origin
     ];
 
     for (step_idx, &(px, py, pz)) in path.iter().enumerate() {
@@ -374,7 +388,9 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
                 eprintln!(
                     "Phase {} ({:.0}, {:.0}, {:.0}) converged in {} ticks ({:.1}s)",
                     step_idx,
-                    px, py, pz,
+                    px,
+                    py,
+                    pz,
                     tick + 1,
                     phase_start.elapsed().as_secs_f64()
                 );
@@ -387,7 +403,8 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
                 let sched = app.world().resource::<ColumnScheduler>();
                 eprintln!(
                     "phase {} tick {}: parked={} in_flight={} loading={} dirty={} needs_init={}",
-                    step_idx, tick,
+                    step_idx,
+                    tick,
                     sched.pending.len(),
                     sched.in_flight.len(),
                     loading,
@@ -406,7 +423,9 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
                 "phase {} ({:.0}, {:.0}, {:.0}) failed to converge in {} ticks; \
                  scheduler parked={} in_flight={} loading={}",
                 step_idx,
-                px, py, pz,
+                px,
+                py,
+                pz,
                 hard_cap_per_phase,
                 sched.pending.len(),
                 sched.in_flight.len(),
@@ -426,7 +445,10 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
             .collect()
     };
 
-    eprintln!("Scanning {} chunks for sky_light violations at world_y <= 0", chunks.len());
+    eprintln!(
+        "Scanning {} chunks for sky_light violations at world_y <= 0",
+        chunks.len()
+    );
 
     // Hard check on the user-reported cell. Must be loaded; must be dark.
     // World cell (-59, -32, -60) → chunk_x=-4, chunk_z=-4, chunk_y=-2,
@@ -479,7 +501,9 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
                             chunk_pos.x * 16 + x as i32,
                             world_y,
                             chunk_pos.z * 16 + z as i32,
-                            chunk_pos.x, chunk_pos.y, chunk_pos.z,
+                            chunk_pos.x,
+                            chunk_pos.y,
+                            chunk_pos.z,
                             level,
                         ));
                     }

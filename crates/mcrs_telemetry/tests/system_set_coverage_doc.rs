@@ -4,8 +4,7 @@ use std::path::Path;
 fn readme_documents_per_system_span_strategy() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let readme_path = Path::new(manifest_dir).join("README.md");
-    let readme = std::fs::read_to_string(&readme_path)
-        .expect("crate-root README.md must exist");
+    let readme = std::fs::read_to_string(&readme_path).expect("crate-root README.md must exist");
 
     assert!(
         readme.contains("bevy_ecs/trace"),

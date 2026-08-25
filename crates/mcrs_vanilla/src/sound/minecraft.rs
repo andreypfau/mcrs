@@ -1,4 +1,4 @@
-use mcrs_core::{rl, ResourceLocation, StaticRegistry};
+use mcrs_core::{ResourceLocation, StaticRegistry, rl};
 
 use super::SoundEvent;
 

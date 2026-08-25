@@ -20,8 +20,8 @@ pub struct DynamicBlockTagSet {
 
 impl DynamicBlockTagSet {
     pub fn new(s: &str) -> Self {
-        let rl: ResourceLocation<Arc<str>> = ResourceLocation::parse(s)
-            .unwrap_or_else(|_| panic!("invalid tag identifier: {s}"));
+        let rl: ResourceLocation<Arc<str>> =
+            ResourceLocation::parse(s).unwrap_or_else(|_| panic!("invalid tag identifier: {s}"));
         Self {
             tag_key: TagKey::from_location(rl),
         }

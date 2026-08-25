@@ -12,8 +12,8 @@
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
-use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
+use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{ColumnPlugin, Heightmaps};
@@ -21,9 +21,9 @@ use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_minecraft_lighting::lifecycle::ColumnHeightmapScan;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
 use mcrs_minecraft_lighting::LightingPlugin;
+use mcrs_minecraft_lighting::lifecycle::ColumnHeightmapScan;
+use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_protocol::BlockStateId;
 
 const AIR: BlockStateId = BlockStateId(0);
@@ -107,7 +107,10 @@ fn unique_column(app: &mut App) -> Entity {
 }
 
 fn read_heightmap_pairs(app: &App, col: Entity) -> [(i32, i32); 256] {
-    let hm = app.world().get::<Heightmaps>(col).expect("Heightmaps on column");
+    let hm = app
+        .world()
+        .get::<Heightmaps>(col)
+        .expect("Heightmaps on column");
     let mut out = [(0i32, 0i32); 256];
     for z in 0..16usize {
         for x in 0..16usize {
@@ -121,9 +124,7 @@ fn read_heightmap_pairs(app: &App, col: Entity) -> [(i32, i32); 256] {
 fn run_to_finalized(app: &mut App, max_ticks: usize) {
     for _ in 0..max_ticks {
         app.world_mut().run_schedule(FixedUpdate);
-        let mut q = app
-            .world_mut()
-            .query::<&ColumnHeightmapScan>();
+        let mut q = app.world_mut().query::<&ColumnHeightmapScan>();
         let finalized = q.iter(app.world()).any(|scan| scan.is_finalized());
         if finalized {
             return;
@@ -271,4 +272,3 @@ fn lone_column_among_air_closes_only_that_column() {
         );
     }
 }
-

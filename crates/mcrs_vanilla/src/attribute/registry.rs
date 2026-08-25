@@ -27,9 +27,15 @@ pub enum AttributeValue {
     List(Vec<Value>),
     MobSpawns(Box<MobSpawnSettings>),
     /// `FloatWithAlpha`: the argument of a float `alpha_blend`.
-    FloatWithAlpha { value: f32, alpha: f32 },
+    FloatWithAlpha {
+        value: f32,
+        alpha: f32,
+    },
     /// `ColorModifier.BlendToGray`: the argument of a colour `blend_to_gray`.
-    BlendToGray { brightness: f32, factor: f32 },
+    BlendToGray {
+        brightness: f32,
+        factor: f32,
+    },
     Opaque(Value),
 }
 
@@ -111,8 +117,14 @@ pub enum AttributeRange {
 
 impl AttributeRange {
     pub const UNIT: Self = Self::Bounded { min: 0.0, max: 1.0 };
-    pub const UNIT_EPSILON: Self = Self::Bounded { min: 0.0, max: 0.9999999 };
-    pub const NON_NEGATIVE: Self = Self::Bounded { min: 0.0, max: f32::INFINITY };
+    pub const UNIT_EPSILON: Self = Self::Bounded {
+        min: 0.0,
+        max: 0.9999999,
+    };
+    pub const NON_NEGATIVE: Self = Self::Bounded {
+        min: 0.0,
+        max: f32::INFINITY,
+    };
 }
 
 /// One row of the registry: everything that is fixed about an attribute.
@@ -135,7 +147,10 @@ impl AttributeSpec {
             (self.range, &parsed)
             && (*v < min || *v > max)
         {
-            return Err(malformed(self.id, format!("{v} is not in range [{min}; {max}]")));
+            return Err(malformed(
+                self.id,
+                format!("{v} is not in range [{min}; {max}]"),
+            ));
         }
         Ok(parsed)
     }
@@ -176,9 +191,7 @@ impl AttributeSpec {
             (T::Integer, Add | Subtract | Multiply | Minimum | Maximum) => {
                 ArgumentShape::Typed(T::Integer)
             }
-            (T::Boolean, And | Nand | Or | Nor | Xor | Xnor) => {
-                ArgumentShape::Typed(T::Boolean)
-            }
+            (T::Boolean, And | Nand | Or | Nor | Xor | Xnor) => ArgumentShape::Typed(T::Boolean),
             // `ColorModifier.ADD`/`SUBTRACT` are one instance shared by both
             // colour libraries, so their argument shape cannot vary by attribute
             // type; `multiply` is split into MULTIPLY_RGB and MULTIPLY_ARGB
@@ -239,12 +252,19 @@ impl AttributeSpec {
                 return if *alpha == 1.0 {
                     serializer.serialize_f32(*value)
                 } else {
-                    FloatWithAlpha { value: *value, alpha: *alpha }.serialize(serializer)
+                    FloatWithAlpha {
+                        value: *value,
+                        alpha: *alpha,
+                    }
+                    .serialize(serializer)
                 };
             }
             (ArgumentShape::BlendToGray, AttributeValue::BlendToGray { brightness, factor }) => {
-                return BlendToGray { brightness: *brightness, factor: *factor }
-                    .serialize(serializer);
+                return BlendToGray {
+                    brightness: *brightness,
+                    factor: *factor,
+                }
+                .serialize(serializer);
             }
             (shape, value) => {
                 return Err(S::Error::custom(malformed(
@@ -320,7 +340,9 @@ fn serialize_typed<S: Serializer>(
         (AttributeType::ArgbColor, AttributeValue::Color(packed)) => {
             serializer.serialize_str(&format!("#{packed:08x}"))
         }
-        (AttributeType::AmbientParticles, AttributeValue::List(items)) => items.serialize(serializer),
+        (AttributeType::AmbientParticles, AttributeValue::List(items)) => {
+            items.serialize(serializer)
+        }
         (AttributeType::MobSpawnSettings, AttributeValue::MobSpawns(spawns)) => {
             spawns.serialize(serializer)
         }
@@ -338,7 +360,10 @@ pub enum AttributeError {
 }
 
 pub(super) fn malformed(id: &'static str, reason: impl Into<String>) -> AttributeError {
-    AttributeError::Malformed { id, reason: reason.into() }
+    AttributeError::Malformed {
+        id,
+        reason: reason.into(),
+    }
 }
 
 /// A static rather than a Bevy resource: every entry point into this table is a
@@ -358,17 +383,26 @@ pub fn is_syncable(id: &str) -> bool {
 
 /// `FloatWithAlpha.CODEC`: a bare float, which implies `alpha: 1`, or the full
 /// `{value, alpha}` form.
-fn parse_float_with_alpha(id: &'static str, value: &Value) -> Result<AttributeValue, AttributeError> {
+fn parse_float_with_alpha(
+    id: &'static str,
+    value: &Value,
+) -> Result<AttributeValue, AttributeError> {
     let wrong = || malformed(id, format!("{value} is not a valid alpha_blend argument"));
     if let Some(v) = value.as_f64() {
-        return Ok(AttributeValue::FloatWithAlpha { value: v as f32, alpha: 1.0 });
+        return Ok(AttributeValue::FloatWithAlpha {
+            value: v as f32,
+            alpha: 1.0,
+        });
     }
     let fields = value.as_object().ok_or_else(wrong)?;
     let alpha = match fields.get("alpha") {
         Some(alpha) => unit(id, "alpha", alpha.as_f64().ok_or_else(wrong)? as f32)?,
         None => 1.0,
     };
-    let value = fields.get("value").and_then(Value::as_f64).ok_or_else(wrong)? as f32;
+    let value = fields
+        .get("value")
+        .and_then(Value::as_f64)
+        .ok_or_else(wrong)? as f32;
     Ok(AttributeValue::FloatWithAlpha { value, alpha })
 }
 
@@ -380,12 +414,18 @@ fn parse_blend_to_gray(id: &'static str, value: &Value) -> Result<AttributeValue
         let raw = fields.get(name).and_then(Value::as_f64).ok_or_else(wrong)? as f32;
         unit(id, name, raw)
     };
-    Ok(AttributeValue::BlendToGray { brightness: field("brightness")?, factor: field("factor")? })
+    Ok(AttributeValue::BlendToGray {
+        brightness: field("brightness")?,
+        factor: field("factor")?,
+    })
 }
 
 fn unit(id: &'static str, name: &str, value: f32) -> Result<f32, AttributeError> {
     if !(0.0..=1.0).contains(&value) {
-        return Err(malformed(id, format!("`{name}` {value} is not in range [0; 1]")));
+        return Err(malformed(
+            id,
+            format!("`{name}` {value} is not in range [0; 1]"),
+        ));
     }
     Ok(value)
 }
@@ -401,9 +441,13 @@ fn parse_typed(
         AttributeType::Float | AttributeType::AngleDegrees => {
             AttributeValue::Float(value.as_f64().ok_or_else(wrong)? as f32)
         }
-        AttributeType::Integer => {
-            AttributeValue::Integer(value.as_i64().ok_or_else(wrong)?.try_into().map_err(|_| wrong())?)
-        }
+        AttributeType::Integer => AttributeValue::Integer(
+            value
+                .as_i64()
+                .ok_or_else(wrong)?
+                .try_into()
+                .map_err(|_| wrong())?,
+        ),
         AttributeType::RgbColor => AttributeValue::Color(parse_color(value, 6).ok_or_else(wrong)?),
         AttributeType::ArgbColor => AttributeValue::Color(parse_color(value, 8).ok_or_else(wrong)?),
         AttributeType::AmbientParticles => {
@@ -557,8 +601,10 @@ mod tests {
         assert_eq!(ENVIRONMENT_ATTRIBUTES.len(), 51);
         assert_eq!(table().len(), 51, "ids must be unique");
 
-        let syncable: Vec<_> =
-            ENVIRONMENT_ATTRIBUTES.values().filter(|spec| spec.syncable).collect();
+        let syncable: Vec<_> = ENVIRONMENT_ATTRIBUTES
+            .values()
+            .filter(|spec| spec.syncable)
+            .collect();
         assert_eq!(syncable.len(), 33);
         assert!(
             syncable
@@ -569,7 +615,11 @@ mod tests {
         );
 
         for spec in ENVIRONMENT_ATTRIBUTES.values() {
-            assert!(spec.id.starts_with("minecraft:"), "{} is not namespaced", spec.id);
+            assert!(
+                spec.id.starts_with("minecraft:"),
+                "{} is not namespaced",
+                spec.id
+            );
         }
     }
 
@@ -594,7 +644,10 @@ mod tests {
             sky_color.parse_value(&json!("#78a7ff")).unwrap(),
             AttributeValue::Color(0xFF78_A7FF)
         );
-        assert!(sky_color.parse_value(&json!("#ccffffff")).is_err(), "rgb takes 6 digits");
+        assert!(
+            sky_color.parse_value(&json!("#ccffffff")).is_err(),
+            "rgb takes 6 digits"
+        );
 
         let cloud_color = attribute("minecraft:visual/cloud_color").unwrap();
         assert_eq!(
@@ -603,8 +656,14 @@ mod tests {
         );
 
         let volume = attribute("minecraft:audio/music_volume").unwrap();
-        assert_eq!(volume.parse_value(&json!(0.5)).unwrap(), AttributeValue::Float(0.5));
-        assert!(volume.parse_value(&json!(1.5)).is_err(), "music_volume is UNIT");
+        assert_eq!(
+            volume.parse_value(&json!(0.5)).unwrap(),
+            AttributeValue::Float(0.5)
+        );
+        assert!(
+            volume.parse_value(&json!(1.5)).is_err(),
+            "music_volume is UNIT"
+        );
     }
 
     #[test]
@@ -618,11 +677,19 @@ mod tests {
         );
         // the fourth component is the alpha
         assert_eq!(
-            cloud_color.parse_value(&json!([1.0, 0.5, 0.0, 0.5])).unwrap(),
+            cloud_color
+                .parse_value(&json!([1.0, 0.5, 0.0, 0.5]))
+                .unwrap(),
             AttributeValue::Color(0x7FFF_7F00)
         );
-        assert!(sky_color.parse_value(&json!([1.0, 0.5, 0.0, 0.5])).is_err(), "rgb takes 3");
-        assert!(cloud_color.parse_value(&json!([1.0, 0.5, 0.0])).is_err(), "argb takes 4");
+        assert!(
+            sky_color.parse_value(&json!([1.0, 0.5, 0.0, 0.5])).is_err(),
+            "rgb takes 3"
+        );
+        assert!(
+            cloud_color.parse_value(&json!([1.0, 0.5, 0.0])).is_err(),
+            "argb takes 4"
+        );
     }
 
     #[test]
@@ -631,7 +698,8 @@ mod tests {
         // is legal here even though the attribute itself is NON_NEGATIVE.
         let end = attribute("minecraft:visual/water_fog_end_distance").unwrap();
         assert_eq!(
-            end.parse_argument(Operation::Multiply, &json!(0.85)).unwrap(),
+            end.parse_argument(Operation::Multiply, &json!(0.85))
+                .unwrap(),
             AttributeValue::Float(0.85)
         );
         assert!(end.parse_argument(Operation::Or, &json!(true)).is_err());
@@ -643,21 +711,29 @@ mod tests {
         let cloud_color = attribute("minecraft:visual/cloud_color").unwrap();
         for spec in [sky_color, cloud_color] {
             assert_eq!(
-                spec.parse_argument(Operation::Add, &json!("#102030")).unwrap(),
+                spec.parse_argument(Operation::Add, &json!("#102030"))
+                    .unwrap(),
                 AttributeValue::Color(0xFF10_2030),
                 "{} takes the six-digit form for add",
                 spec.id
             );
             assert!(
-                spec.parse_argument(Operation::Subtract, &json!("#80102030")).is_err(),
+                spec.parse_argument(Operation::Subtract, &json!("#80102030"))
+                    .is_err(),
                 "{} must reject an eight-digit subtract argument",
                 spec.id
             );
         }
         assert_eq!(
-            cloud_color.parse_argument(Operation::Multiply, &json!("#80102030")).unwrap(),
+            cloud_color
+                .parse_argument(Operation::Multiply, &json!("#80102030"))
+                .unwrap(),
             AttributeValue::Color(0x8010_2030)
         );
-        assert!(sky_color.parse_argument(Operation::Multiply, &json!("#80102030")).is_err());
+        assert!(
+            sky_color
+                .parse_argument(Operation::Multiply, &json!("#80102030"))
+                .is_err()
+        );
     }
 }

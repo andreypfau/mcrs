@@ -12,11 +12,10 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_state::app::AppExtStates;
 use bevy_state::app::StatesPlugin;
-use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
+use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::world::column::{
-    Column, ColumnPos, ColumnPosComponent, ColumnPlugin, InColumn,
-    ColumnChunks,
+    Column, ColumnChunks, ColumnPlugin, ColumnPos, ColumnPosComponent, InColumn,
 };
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
@@ -24,7 +23,7 @@ use mcrs_engine::world::dimension::{
 use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyLight};
 use mcrs_minecraft_lighting::nibble::LightNibbles;
 use mcrs_minecraft_lighting::storage::LightStorage;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
+use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_minecraft_lighting::{BlockLightDirty, ColumnLightUpdate, LightingPlugin, SkyLightDirty};
 
 const TEST_DIM_HEIGHT: u32 = 384;
@@ -55,8 +54,7 @@ fn make_stub_block_light_table() -> BlockStateLightTable {
     flags[0] = flag_bits::PROPAGATES_SKYLIGHT_DOWN;
     emission[1] = 0;
     dampening[1] = 15;
-    flags[1] =
-        flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
+    flags[1] = flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
     BlockStateLightTable {
         emission,
         dampening,
@@ -89,11 +87,7 @@ fn spawn_test_column(app: &mut App, dim: Entity, column_pos: ColumnPos) -> Colum
     let mut chunk_entities: Vec<Entity> = Vec::with_capacity(CHUNK_COUNT);
     let column = app
         .world_mut()
-        .spawn((
-            ColumnPosComponent(column_pos),
-            InDimension(dim),
-            Column,
-        ))
+        .spawn((ColumnPosComponent(column_pos), InDimension(dim), Column))
         .id();
     for i in 0..CHUNK_COUNT {
         let chunk_y = MIN_CHUNK_Y + i as i32;
@@ -253,7 +247,10 @@ fn codec_merges_block_and_sky_dirty_into_one_packet() {
     let expected_bit = wire_bit_for_chunk_y(chunk_y);
     assert_eq!(popcount(&update.light_data.block_light_mask), 1);
     assert_eq!(popcount(&update.light_data.sky_light_mask), 1);
-    assert!(bit_is_set(&update.light_data.block_light_mask, expected_bit));
+    assert!(bit_is_set(
+        &update.light_data.block_light_mask,
+        expected_bit
+    ));
     assert!(bit_is_set(&update.light_data.sky_light_mask, expected_bit));
     assert_eq!(update.light_data.block_light_arrays.len(), 1);
     assert_eq!(update.light_data.sky_light_arrays.len(), 1);

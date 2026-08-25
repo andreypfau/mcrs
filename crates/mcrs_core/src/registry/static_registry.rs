@@ -136,8 +136,7 @@ impl<T: 'static> StaticRegistry<T> {
     pub fn freeze(&mut self) {
         assert!(!self.frozen, "freeze() called twice");
         for (i, (_, value)) in self.entries.iter().enumerate() {
-            self.reverse
-                .insert(*value as *const T as usize, i as u32);
+            self.reverse.insert(*value as *const T as usize, i as u32);
         }
         self.frozen = true;
         tracing::info!(count = self.entries.len(), "frozen StaticRegistry");

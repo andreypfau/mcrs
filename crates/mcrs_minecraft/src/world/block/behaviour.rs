@@ -1,8 +1,8 @@
 use crate::sound::SoundType;
 use crate::world::block::minecraft::note_block::NoteBlockInstrument;
+use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_block::material::PushReaction;
 use mcrs_minecraft_block::material::map::MapColor;
-use mcrs_engine::world::block::BlockPos;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Properties {

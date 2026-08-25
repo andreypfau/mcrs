@@ -12,7 +12,10 @@ impl SimplexOctaveNoise {
         let noises = (0..octaves)
             .map(|_| SimplexNoise::from_random(random))
             .collect();
-        Self { noises, noise_scale: 1.5 }
+        Self {
+            noises,
+            noise_scale: 1.5,
+        }
     }
 
     pub fn sample(
@@ -30,7 +33,8 @@ impl SimplexOctaveNoise {
         let mut amplitude = 1.0_f64;
         let mut frequency = 1.0_f64;
         for noise in &self.noises {
-            total += noise.sample(x, z, scale_x * frequency, scale_z * frequency) * (0.55 / amplitude);
+            total +=
+                noise.sample(x, z, scale_x * frequency, scale_z * frequency) * (0.55 / amplitude);
             frequency *= lacunarity;
             amplitude *= persistence;
         }

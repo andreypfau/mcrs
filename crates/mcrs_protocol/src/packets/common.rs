@@ -1,11 +1,11 @@
 pub mod clientbound {
     use crate::{Bounded, RawBytes};
     use derive_more::Into;
+    use mcrs_ident::Ident;
     use mcrs_protocol_macros::{Decode, Encode};
+    use mcrs_text::Text;
     use std::borrow::Cow;
     use uuid::Uuid;
-    use mcrs_ident::Ident;
-    use mcrs_text::Text;
 
     const MAX_PAYLOAD_SIZE: usize = 0x100000;
 
@@ -47,11 +47,11 @@ pub mod clientbound {
 
 pub mod serverbound {
     use crate::{Bounded, RawBytes};
+    use mcrs_ident::Ident;
     use mcrs_nbt::compound::NbtCompound;
     use mcrs_protocol_macros::{Decode, Encode};
     use std::borrow::Cow;
     use uuid::Uuid;
-    use mcrs_ident::Ident;
 
     pub const MAX_PAYLOAD_SIZE: usize = 32767;
 

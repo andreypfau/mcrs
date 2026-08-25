@@ -15,7 +15,10 @@ const CAPTURED_FIXTURE: &[u8] =
 
 #[test]
 fn fixture_files_exist() {
-    assert!(!EMPTY_FIXTURE.is_empty(), "empty-layout fixture is zero-length");
+    assert!(
+        !EMPTY_FIXTURE.is_empty(),
+        "empty-layout fixture is zero-length"
+    );
     assert!(
         !ONE_SECTION_FIXTURE.is_empty(),
         "one-section-layout fixture is zero-length"
@@ -122,8 +125,7 @@ fn clientbound_light_update_one_section_round_trip() {
 #[ignore = "captures real bytes via packet capture during manual handshake; remove #[ignore] when the fixture is populated."]
 fn clientbound_light_update_captured_fixture_round_trip() {
     let mut r: &[u8] = CAPTURED_FIXTURE;
-    let decoded =
-        ClientboundLightUpdate::decode(&mut r).expect("decode captured-fixture payload");
+    let decoded = ClientboundLightUpdate::decode(&mut r).expect("decode captured-fixture payload");
     assert!(
         r.is_empty(),
         "captured fixture has {} trailing bytes after decode",

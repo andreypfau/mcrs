@@ -5,28 +5,25 @@ use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
+use bytes::Bytes;
+use mcrs_core::AppState;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
-use mcrs_core::AppState;
-use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_engine::session::PlayerSession;
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft::runner::pump_channels;
 use mcrs_minecraft::world::bridge::bridge_inbound_to_channel;
-use bytes::Bytes;
 use mcrs_minecraft::world::bus::{
-    InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached,
-    OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload,
-    PacketPriority, PacketTarget, TestPayload,
+    InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
+    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
-use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
-use mcrs_minecraft::world::sub_app_builder::{
-    drain_dim_spawn_queue, DimSubAppHandle,
-};
-use mcrs_minecraft::runner::pump_channels;
+use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
@@ -112,9 +109,7 @@ fn enqueue_overworld(app: &mut App) {
 }
 
 fn first_label_entity(app: &mut App) -> Entity {
-    let mut q = app
-        .world_mut()
-        .query::<(Entity, &DimSubAppHandle)>();
+    let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
     let handles: Vec<Entity> = q.iter(app.world()).map(|(e, _)| e).collect();
     assert_eq!(
         handles.len(),
@@ -210,7 +205,10 @@ fn inbound_latency_is_zero_host_ticks() {
     let host_anchor = Entity::from_raw_u32(42).expect("nonzero");
     let player = host_anchor;
     let in_dim = Entity::from_raw_u32(99).expect("nonzero");
-    let session = app.world_mut().resource_mut::<PlayerSessionCounter>().next();
+    let session = app
+        .world_mut()
+        .resource_mut::<PlayerSessionCounter>()
+        .next();
     app.world_mut().resource_mut::<SessionRegistry>().insert(
         session,
         SessionEntry {
@@ -284,7 +282,10 @@ fn fifo_ordering_preserved() {
 
     let host_anchor = Entity::from_raw_u32(7).expect("nonzero");
     let in_dim = Entity::from_raw_u32(8).expect("nonzero");
-    let session = app.world_mut().resource_mut::<PlayerSessionCounter>().next();
+    let session = app
+        .world_mut()
+        .resource_mut::<PlayerSessionCounter>()
+        .next();
     app.world_mut().resource_mut::<SessionRegistry>().insert(
         session,
         SessionEntry {

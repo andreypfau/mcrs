@@ -15,7 +15,10 @@ impl Field {
     }
 
     pub const fn pack(self, value: u64) -> u64 {
-        assert!(value <= self.max(), "a value does not fit the field it is packed into");
+        assert!(
+            value <= self.max(),
+            "a value does not fit the field it is packed into"
+        );
         (value & self.max()) << self.shift
     }
 
@@ -36,8 +39,7 @@ impl Field {
 pub const RENDER_REGION_X: usize = 16;
 pub const RENDER_REGION_Y: usize = 8;
 pub const RENDER_REGION_Z: usize = 16;
-pub const SECTIONS_PER_RENDER_REGION: usize =
-    RENDER_REGION_X * RENDER_REGION_Y * RENDER_REGION_Z;
+pub const SECTIONS_PER_RENDER_REGION: usize = RENDER_REGION_X * RENDER_REGION_Y * RENDER_REGION_Z;
 
 pub const LOCAL_X: Field = Field::new(0, 0, 4);
 pub const LOCAL_Y: Field = Field::new(0, 4, 3);
@@ -87,8 +89,7 @@ pub const MODEL_SHADE: Field = Field::new(1, 26, 2);
 pub const MODEL_SKY_LIGHT: Field = Field::new(1, 28, 4);
 pub const MODEL_SECTION: Field = Field::new(2, 0, SECTION_INDEX.bits);
 pub const MODEL_ARRAY: Field = Field::new(2, SECTION_INDEX.bits, FACE_ARRAY.bits);
-pub const MODEL_LAYER: Field =
-    Field::new(2, SECTION_INDEX.bits + FACE_ARRAY.bits, FACE_LAYER.bits);
+pub const MODEL_LAYER: Field = Field::new(2, SECTION_INDEX.bits + FACE_ARRAY.bits, FACE_LAYER.bits);
 
 pub const MODEL_OVERHANG: f32 = 2.0;
 
@@ -235,10 +236,7 @@ const FLOATS: &[(&str, f32)] = &[
 ];
 
 #[cfg(test)]
-const COUNTS: &[(&str, u32)] = &[
-    ("QUAD_WORDS", QUAD_WORDS as u32),
-    ("FACE_NONE", FACE_NONE),
-];
+const COUNTS: &[(&str, u32)] = &[("QUAD_WORDS", QUAD_WORDS as u32), ("FACE_NONE", FACE_NONE)];
 
 #[cfg(test)]
 fn wgsl_fields() -> String {
@@ -287,7 +285,8 @@ mod tests {
         }
         let checked_in = std::fs::read_to_string(&path).unwrap_or_default();
         assert_eq!(
-            checked_in, generated,
+            checked_in,
+            generated,
             "{} is stale; rerun with ANVIL_BLESS=1 to rewrite it",
             path.display()
         );
@@ -318,8 +317,16 @@ mod tests {
     #[test]
     fn no_word_of_a_quad_is_overfull() {
         let quad = [
-            QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_DROP, QUAD_FLUID,
-            QUAD_SECTION, QUAD_FACE_BASE,
+            QUAD_X,
+            QUAD_Y,
+            QUAD_Z,
+            QUAD_FACE,
+            QUAD_W,
+            QUAD_H,
+            QUAD_DROP,
+            QUAD_FLUID,
+            QUAD_SECTION,
+            QUAD_FACE_BASE,
         ];
         for word in 0..QUAD_WORDS as u32 {
             let bits: u32 = quad
@@ -374,11 +381,16 @@ mod tests {
 
     #[test]
     fn a_region_below_the_origin_keeps_the_whole_corner_of_its_window() {
-        let grid = RegionGrid::covering([RENDER_REGION_X * 2, RENDER_REGION_Y, RENDER_REGION_Z * 2]);
+        let grid =
+            RegionGrid::covering([RENDER_REGION_X * 2, RENDER_REGION_Y, RENDER_REGION_Z * 2]);
         assert_eq!(grid.origin([-32, -4, -32], 0), [-512, -64, -512]);
         assert_eq!(
             grid.origin([-32, -4, -32], 3),
-            [-512 + RENDER_REGION_X as i32 * 16, -64, -512 + RENDER_REGION_Z as i32 * 16],
+            [
+                -512 + RENDER_REGION_X as i32 * 16,
+                -64,
+                -512 + RENDER_REGION_Z as i32 * 16
+            ],
             "the far corner of a two-by-two grid"
         );
     }
@@ -397,13 +409,26 @@ mod tests {
         let values = [
             (
                 "greedy quad",
-                &[QUAD_X, QUAD_Y, QUAD_Z, QUAD_FACE, QUAD_W, QUAD_H, QUAD_SECTION, QUAD_FACE_BASE]
-                    [..],
+                &[
+                    QUAD_X,
+                    QUAD_Y,
+                    QUAD_Z,
+                    QUAD_FACE,
+                    QUAD_W,
+                    QUAD_H,
+                    QUAD_SECTION,
+                    QUAD_FACE_BASE,
+                ][..],
             ),
             (
                 "face attribute",
                 &[
-                    FACE_LAYER, FACE_ARRAY, FACE_TINT, FACE_BLOCK_LIGHT, FACE_SKY_LIGHT, FACE_AO,
+                    FACE_LAYER,
+                    FACE_ARRAY,
+                    FACE_TINT,
+                    FACE_BLOCK_LIGHT,
+                    FACE_SKY_LIGHT,
+                    FACE_AO,
                 ][..],
             ),
             ("section number", &[LOCAL_X, LOCAL_Y, LOCAL_Z][..]),
@@ -411,8 +436,17 @@ mod tests {
             (
                 "model vertex",
                 &[
-                    MODEL_X, MODEL_Y, MODEL_Z, MODEL_U, MODEL_V, MODEL_TINT, MODEL_BLOCK_LIGHT,
-                    MODEL_SHADE, MODEL_SECTION, MODEL_ARRAY, MODEL_LAYER,
+                    MODEL_X,
+                    MODEL_Y,
+                    MODEL_Z,
+                    MODEL_U,
+                    MODEL_V,
+                    MODEL_TINT,
+                    MODEL_BLOCK_LIGHT,
+                    MODEL_SHADE,
+                    MODEL_SECTION,
+                    MODEL_ARRAY,
+                    MODEL_LAYER,
                 ][..],
             ),
         ];

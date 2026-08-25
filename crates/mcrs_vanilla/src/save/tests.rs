@@ -21,7 +21,11 @@ fn gzip(compound: NbtCompound) -> Vec<u8> {
 }
 
 fn keys(compound: &NbtCompound) -> Vec<&str> {
-    compound.child_tags.iter().map(|(name, _)| name.as_str()).collect()
+    compound
+        .child_tags
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect()
 }
 
 fn clock(id: &str) -> ResourceLocation<Arc<str>> {
@@ -43,7 +47,10 @@ fn level_data(data_version: i32, with_uuid: bool) -> NbtCompound {
     data.put_string("LevelName", "New World".to_string());
     data.put_long("Time", 25);
     if with_uuid {
-        data.put("singleplayer_uuid", NbtTag::IntArray(OBSERVED_UUID_INTS.to_vec()));
+        data.put(
+            "singleplayer_uuid",
+            NbtTag::IntArray(OBSERVED_UUID_INTS.to_vec()),
+        );
     }
     data.put_component("spawn", spawn_compound());
     data
@@ -60,7 +67,10 @@ fn level_dat_with_spawn(spawn: NbtCompound) -> Vec<u8> {
     data.put_int("DataVersion", WORLD_VERSION);
     data.put_string("LevelName", "New World".to_string());
     data.put_long("Time", 25);
-    data.put("singleplayer_uuid", NbtTag::IntArray(OBSERVED_UUID_INTS.to_vec()));
+    data.put(
+        "singleplayer_uuid",
+        NbtTag::IntArray(OBSERVED_UUID_INTS.to_vec()),
+    );
     data.put_component("spawn", spawn);
     let mut root = NbtCompound::new();
     root.put_component("Data", data);
@@ -124,10 +134,7 @@ fn player_data(data_version: i32) -> Vec<u8> {
     );
     root.put_list(
         "Rotation",
-        vec![
-            NbtTag::Float(OBSERVED_YAW),
-            NbtTag::Float(OBSERVED_PITCH),
-        ],
+        vec![NbtTag::Float(OBSERVED_YAW), NbtTag::Float(OBSERVED_PITCH)],
     );
     root.put_string("Dimension", "minecraft:overworld".to_string());
     root.put("UUID", NbtTag::IntArray(OBSERVED_UUID_INTS.to_vec()));
@@ -301,7 +308,11 @@ fn a_spawn_position_of_the_wrong_length_is_rejected() {
     assert!(
         matches!(
             err,
-            SaveError::WrongLength { found: 2, expected: 3, .. }
+            SaveError::WrongLength {
+                found: 2,
+                expected: 3,
+                ..
+            }
         ),
         "{err}"
     );
@@ -325,7 +336,9 @@ fn weather_reads_all_five_fields() {
 #[test]
 fn weather_missing_a_required_field_is_an_error() {
     let mut payload = weather_payload();
-    payload.child_tags.retain(|(name, _)| name != "thunder_time");
+    payload
+        .child_tags
+        .retain(|(name, _)| name != "thunder_time");
     let err = parse_weather(&saved_data(WORLD_VERSION, payload), path()).unwrap_err();
     assert!(matches!(err, SaveError::Nbt { .. }), "{err}");
 }
@@ -390,7 +403,10 @@ fn the_previous_data_version_is_rejected_by_name_on_every_file_kind() {
             "{err}"
         );
         let message = err.to_string();
-        assert!(message.contains("4903") && message.contains("5011"), "{message}");
+        assert!(
+            message.contains("4903") && message.contains("5011"),
+            "{message}"
+        );
     }
 }
 

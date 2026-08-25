@@ -1,8 +1,8 @@
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
-use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_core::AppState;
+use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::ColumnPlugin;
@@ -12,9 +12,9 @@ use mcrs_engine::world::dimension::{
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 
-use crate::components::{BlockBfsPending, SkyBfsPending};
-use crate::table::{flag_bits, BlockStateLightTable};
 use crate::LightingPlugin;
+use crate::components::{BlockBfsPending, SkyBfsPending};
+use crate::table::{BlockStateLightTable, flag_bits};
 
 pub const TEST_DIM_HEIGHT: u32 = 384;
 pub const TEST_DIM_MIN_Y: i32 = -64;
@@ -163,7 +163,12 @@ pub fn build_single_torch_app() -> App {
     app.add_plugins(LightingPlugin);
     app.insert_resource(make_stub_block_light_table_with_torch());
     let dim = spawn_test_dimension(&mut app, true);
-    spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), torch_palette_with_one_emitter());
+    spawn_test_chunk(
+        &mut app,
+        dim,
+        ChunkPos::new(0, 0, 0),
+        torch_palette_with_one_emitter(),
+    );
     app
 }
 
@@ -176,7 +181,9 @@ pub fn build_single_torch_app() -> App {
 /// converge. This variant sizes the dimension to exactly one section so the
 /// single loaded chunk is both the top and bottom of the column.
 pub fn build_single_torch_app_single_section() -> App {
-    use mcrs_engine::world::dimension::{DimensionBundle, DimensionTypeConfig, DimensionId, HasSkyLight};
+    use mcrs_engine::world::dimension::{
+        DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight,
+    };
 
     let mut app = App::new();
     app.add_plugins(StatesPlugin);
@@ -193,7 +200,12 @@ pub fn build_single_torch_app_single_section() -> App {
         })
         .id();
     app.world_mut().entity_mut(dim).insert(HasSkyLight);
-    spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), torch_palette_with_one_emitter());
+    spawn_test_chunk(
+        &mut app,
+        dim,
+        ChunkPos::new(0, 0, 0),
+        torch_palette_with_one_emitter(),
+    );
     app
 }
 
@@ -217,7 +229,12 @@ pub fn build_roof_removal_app() -> App {
     app.add_plugins(LightingPlugin);
     app.insert_resource(make_stub_block_light_table());
     let dim = spawn_test_dimension(&mut app, true);
-    spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), stone_cap_then_air_palette());
+    spawn_test_chunk(
+        &mut app,
+        dim,
+        ChunkPos::new(0, 0, 0),
+        stone_cap_then_air_palette(),
+    );
     app
 }
 
@@ -230,7 +247,12 @@ pub fn build_pit_dig_app() -> App {
     app.insert_resource(make_stub_block_light_table());
     let dim = spawn_test_dimension(&mut app, true);
     for chunk_y in 0..4i32 {
-        spawn_test_chunk(&mut app, dim, ChunkPos::new(0, chunk_y, 0), solid_column_palette());
+        spawn_test_chunk(
+            &mut app,
+            dim,
+            ChunkPos::new(0, chunk_y, 0),
+            solid_column_palette(),
+        );
     }
     app
 }
@@ -252,7 +274,12 @@ pub fn build_warmed_vd12_app_factory() -> Box<dyn Fn() -> App + Send + Sync> {
                     } else {
                         air_palette()
                     };
-                    spawn_test_chunk(&mut app, dim, ChunkPos::new(chunk_x, chunk_y, chunk_z), palette);
+                    spawn_test_chunk(
+                        &mut app,
+                        dim,
+                        ChunkPos::new(chunk_x, chunk_y, chunk_z),
+                        palette,
+                    );
                 }
             }
         }
@@ -291,7 +318,12 @@ pub fn spawn_edge_column(app: &mut App) -> Entity {
         .iter(app.world())
         .find(|&e| app.world().get::<HasSkyLight>(e).is_some())
         .expect("no sky-having dimension entity found");
-    let first = spawn_test_chunk(app, dim, ChunkPos::new(13, 0, 0), stone_cap_then_air_palette());
+    let first = spawn_test_chunk(
+        app,
+        dim,
+        ChunkPos::new(13, 0, 0),
+        stone_cap_then_air_palette(),
+    );
     for chunk_y in 1..24i32 {
         spawn_test_chunk(app, dim, ChunkPos::new(13, chunk_y, 0), air_palette());
     }

@@ -1,10 +1,12 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use mcrs_minecraft_lighting::metrics::{snapshot, TELEMETRY_TEST_LOCK};
+use criterion::{Criterion, criterion_group, criterion_main};
+use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
 use std::time::{Duration, Instant};
 
 fn bench_single_torch(c: &mut Criterion) {
-    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = TELEMETRY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let before = snapshot();
 
     let mut group = c.benchmark_group("single_torch");

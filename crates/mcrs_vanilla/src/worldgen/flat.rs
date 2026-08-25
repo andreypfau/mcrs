@@ -4,8 +4,8 @@ use bevy_asset::{Handle, LoadContext, UntypedAssetId};
 use serde::Deserialize;
 
 use super::structure_set::StructureSet;
-use crate::biome::Biome;
 use crate::ResourceLocation;
+use crate::biome::Biome;
 
 // ===========================================================================
 // Runtime types

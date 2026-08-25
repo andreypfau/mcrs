@@ -4,13 +4,13 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 
 use bevy_state::prelude::NextState;
 use mcrs_core::AppState;
-use mcrs_engine::world::column::{ColumnIndex, Heightmaps, ColumnChunks};
+use mcrs_engine::world::column::{ColumnChunks, ColumnIndex, Heightmaps};
 use mcrs_engine::world::dimension::HasSkyLight;
 use mcrs_engine::world::lighting::LightTicket;
 use mcrs_minecraft_lighting::components::{
-    BlockBfsPending, BlockOutbox, BlockInbox, BlockLight, BlockBfsQueues,
-    BlockNeedsInitialSeed, BlockParkedEgress, IsAllAir, SkyBfsPending, SkyOutbox, SkyInbox,
-    SkyLight, WasTopmostAtSeed, SkyBfsQueues, SkyNeedsInitialSeed, SkyParkedEgress,
+    BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockNeedsInitialSeed, BlockOutbox,
+    BlockParkedEgress, IsAllAir, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight,
+    SkyNeedsInitialSeed, SkyOutbox, SkyParkedEgress, WasTopmostAtSeed,
 };
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::test_bench::bench_helpers::{
@@ -58,13 +58,25 @@ struct SmallVecOccupancy {
 
 impl SmallVecOccupancy {
     fn spilled_pct(&self) -> f64 {
-        if self.samples == 0 { 0.0 } else { self.spilled as f64 / self.samples as f64 * 100.0 }
+        if self.samples == 0 {
+            0.0
+        } else {
+            self.spilled as f64 / self.samples as f64 * 100.0
+        }
     }
     fn over_8_pct(&self) -> f64 {
-        if self.samples == 0 { 0.0 } else { self.over_8 as f64 / self.samples as f64 * 100.0 }
+        if self.samples == 0 {
+            0.0
+        } else {
+            self.over_8 as f64 / self.samples as f64 * 100.0
+        }
     }
     fn over_16_pct(&self) -> f64 {
-        if self.samples == 0 { 0.0 } else { self.over_16 as f64 / self.samples as f64 * 100.0 }
+        if self.samples == 0 {
+            0.0
+        } else {
+            self.over_16 as f64 / self.samples as f64 * 100.0
+        }
     }
 }
 
@@ -306,8 +318,8 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
     // "chunk_indexes": per-column ColumnChunks (Box<[Option<Entity>]>)
     let mut chunk_indexes: usize = 0;
     for idx in world.query::<&ColumnChunks>().iter(world) {
-        chunk_indexes +=
-            mem::size_of_val(idx) + idx.sections.len() * mem::size_of::<Option<bevy_ecs::prelude::Entity>>();
+        chunk_indexes += mem::size_of_val(idx)
+            + idx.sections.len() * mem::size_of::<Option<bevy_ecs::prelude::Entity>>();
     }
 
     // "column_indexes": per-dimension ColumnIndex (FxHashMap)
@@ -358,13 +370,34 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
         * 8;
 
     let categories = vec![
-        CategoryBytes { name: "light_nibbles".into(), bytes: light_nibbles },
-        CategoryBytes { name: "wavefront_buffers".into(), bytes: wavefront_buffers },
-        CategoryBytes { name: "workspaces".into(), bytes: workspaces },
-        CategoryBytes { name: "heightmaps".into(), bytes: heightmaps },
-        CategoryBytes { name: "chunk_indexes".into(), bytes: chunk_indexes },
-        CategoryBytes { name: "column_indexes".into(), bytes: column_indexes },
-        CategoryBytes { name: "sparse_markers".into(), bytes: sparse_markers },
+        CategoryBytes {
+            name: "light_nibbles".into(),
+            bytes: light_nibbles,
+        },
+        CategoryBytes {
+            name: "wavefront_buffers".into(),
+            bytes: wavefront_buffers,
+        },
+        CategoryBytes {
+            name: "workspaces".into(),
+            bytes: workspaces,
+        },
+        CategoryBytes {
+            name: "heightmaps".into(),
+            bytes: heightmaps,
+        },
+        CategoryBytes {
+            name: "chunk_indexes".into(),
+            bytes: chunk_indexes,
+        },
+        CategoryBytes {
+            name: "column_indexes".into(),
+            bytes: column_indexes,
+        },
+        CategoryBytes {
+            name: "sparse_markers".into(),
+            bytes: sparse_markers,
+        },
     ];
 
     let total_bytes: usize = categories.iter().map(|c| c.bytes).sum();
@@ -454,7 +487,10 @@ fn write_stdout_markdown(snap: &MemorySnapshot) {
         };
         println!("| {} | {} | {:.3} | {:.1}% |", cat.name, cat.bytes, mb, pct);
     }
-    println!("| **Total** | {} | {:.3} | 100% |", snap.total_bytes, snap.total_mb);
+    println!(
+        "| **Total** | {} | {:.3} | 100% |",
+        snap.total_bytes, snap.total_mb
+    );
     println!();
     println!("Budget: {} MB", snap.budget_mb);
     if snap.exceeded_budget {
@@ -505,10 +541,22 @@ fn write_allocation_discipline(snap: &MemorySnapshot) {
     println!();
     println!("| Queue | n | min | p50 | mean | p95 | p99 | max |");
     println!("|-------|---|-----|-----|------|-----|-----|-----|");
-    row("BlockLight.increase_queue", &alloc.block_increase_queue_cap_nonzero);
-    row("BlockLight.decrease_queue", &alloc.block_decrease_queue_cap_nonzero);
-    row("SkyLight.increase_queue", &alloc.sky_increase_queue_cap_nonzero);
-    row("SkyLight.decrease_queue", &alloc.sky_decrease_queue_cap_nonzero);
+    row(
+        "BlockLight.increase_queue",
+        &alloc.block_increase_queue_cap_nonzero,
+    );
+    row(
+        "BlockLight.decrease_queue",
+        &alloc.block_decrease_queue_cap_nonzero,
+    );
+    row(
+        "SkyLight.increase_queue",
+        &alloc.sky_increase_queue_cap_nonzero,
+    );
+    row(
+        "SkyLight.decrease_queue",
+        &alloc.sky_decrease_queue_cap_nonzero,
+    );
 
     println!();
     println!("## SmallVec inline occupancy (six per-section wavefront buffers)");
@@ -517,7 +565,11 @@ fn write_allocation_discipline(snap: &MemorySnapshot) {
     let occ_row = |name: &str, o: &SmallVecOccupancy| {
         println!(
             "| {} | {} | {:.2}% | {:.2}% | {:.2}% |",
-            name, o.samples, o.spilled_pct(), o.over_8_pct(), o.over_16_pct(),
+            name,
+            o.samples,
+            o.spilled_pct(),
+            o.over_8_pct(),
+            o.over_16_pct(),
         );
     };
     occ_row("BlockOutbox", &alloc.block_outbox);
@@ -529,7 +581,10 @@ fn write_allocation_discipline(snap: &MemorySnapshot) {
 
     println!();
     println!("## Steady-state heap");
-    println!("- ECS-walked total: {} bytes ({:.3} MiB)", snap.total_bytes, snap.total_mb);
+    println!(
+        "- ECS-walked total: {} bytes ({:.3} MiB)",
+        snap.total_bytes, snap.total_mb
+    );
     if let Some(dhat) = snap.dhat_total_bytes {
         let dhat_mib = dhat as f64 / (1024.0 * 1024.0);
         println!("- dhat curr_bytes: {} bytes ({:.3} MiB)", dhat, dhat_mib);
@@ -547,24 +602,32 @@ fn write_json(snap: &MemorySnapshot, path: &str) -> std::io::Result<()> {
 fn write_html(snap: &MemorySnapshot, path: &str) -> std::io::Result<()> {
     std::fs::create_dir_all(HTML_OUT_DIR)?;
 
-    let rows = snap.categories.iter().map(|cat| {
-        let mb = cat.bytes as f64 / (1024.0 * 1024.0);
-        let pct = if snap.total_bytes > 0 {
-            (cat.bytes as f64 / snap.total_bytes as f64 * 100.0) as u32
-        } else {
-            0
-        };
-        format!(
-            "<tr><td>{}</td><td>{}</td><td>{:.3}</td><td>\
+    let rows = snap
+        .categories
+        .iter()
+        .map(|cat| {
+            let mb = cat.bytes as f64 / (1024.0 * 1024.0);
+            let pct = if snap.total_bytes > 0 {
+                (cat.bytes as f64 / snap.total_bytes as f64 * 100.0) as u32
+            } else {
+                0
+            };
+            format!(
+                "<tr><td>{}</td><td>{}</td><td>{:.3}</td><td>\
              <div style=\"width:{}%;background:#4a90d9;height:12px\"></div>{pct}%\
              </td></tr>",
-            cat.name, cat.bytes, mb, pct
-        )
-    }).collect::<Vec<_>>().join("\n");
+                cat.name, cat.bytes, mb, pct
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
 
     let status_class = if snap.exceeded_budget { "fail" } else { "pass" };
     let status_text = if snap.exceeded_budget {
-        format!("FAIL — overspend by {:.3} MB", snap.total_mb - snap.budget_mb as f64)
+        format!(
+            "FAIL — overspend by {:.3} MB",
+            snap.total_mb - snap.budget_mb as f64
+        )
     } else {
         "PASS".into()
     };

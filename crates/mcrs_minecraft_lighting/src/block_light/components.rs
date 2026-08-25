@@ -82,7 +82,6 @@ impl Default for BlockBfsQueues {
 #[component(storage = "SparseSet")]
 pub struct BlockBfsPending;
 
-
 /// Marks a chunk whose `BlockOutbox` is non-empty. Inserted by BFS systems
 /// after pushing cross-chunk wavefronts; consumed (and removed) by
 /// `distribute_block_wavefronts` when it drains the outbox. The marker
@@ -109,8 +108,14 @@ mod tests {
         let ws = BlockBfsQueues::default();
         assert!(ws.increase_queue.is_empty());
         assert!(ws.decrease_queue.is_empty());
-        assert_eq!(ws.increase_queue.capacity(), WORKSPACE_QUEUE_BASELINE_CAPACITY);
-        assert_eq!(ws.decrease_queue.capacity(), WORKSPACE_QUEUE_BASELINE_CAPACITY);
+        assert_eq!(
+            ws.increase_queue.capacity(),
+            WORKSPACE_QUEUE_BASELINE_CAPACITY
+        );
+        assert_eq!(
+            ws.decrease_queue.capacity(),
+            WORKSPACE_QUEUE_BASELINE_CAPACITY
+        );
     }
 
     #[test]

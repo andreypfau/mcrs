@@ -1,17 +1,17 @@
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
+use bevy_asset::{AssetServer, Assets};
 use bevy_state::app::StatesPlugin;
 use bevy_state::state::State;
+use mcrs_core::AppState;
+use mcrs_core::registry::snapshot::rl_from_asset_path;
 use mcrs_core::resource_location::ResourceLocation;
 use mcrs_core::tag::{DynRegistryIndex, DynTagRegistry, TagKey};
-use mcrs_core::AppState;
-use bevy_asset::{AssetServer, Assets};
-use mcrs_core::registry::snapshot::rl_from_asset_path;
+use mcrs_vanilla::MinecraftCorePlugin;
 use mcrs_vanilla::dimension::dimension_type::{DimensionType, NetworkDimensionType};
 use mcrs_vanilla::environment::DimensionEnvironments;
 use mcrs_vanilla::timeline::Timeline;
 use mcrs_vanilla::world_clock::{ClockTimeMarkers, WorldClocks};
-use mcrs_vanilla::MinecraftCorePlugin;
 
 const OVERWORLD_CLOCK: &str = "minecraft:overworld";
 
@@ -45,7 +45,10 @@ fn run_to_playing() -> App {
         if *app.world().resource::<State<AppState>>().get() == AppState::Playing {
             return app;
         }
-        assert!(std::time::Instant::now() < deadline, "never reached Playing");
+        assert!(
+            std::time::Instant::now() < deadline,
+            "never reached Playing"
+        );
     }
 }
 
@@ -57,7 +60,13 @@ fn members(app: &App, tag: &str) -> Vec<String> {
         .get(&key)
         .expect("the tag is resolved")
         .iter()
-        .map(|id| index.location(id).expect("a member id maps back").as_str().to_owned())
+        .map(|id| {
+            index
+                .location(id)
+                .expect("a member id maps back")
+                .as_str()
+                .to_owned()
+        })
         .collect();
     names.sort();
     names
@@ -76,8 +85,14 @@ fn the_timeline_tags_resolve_through_universal() {
             "minecraft:villager_schedule",
         ]
     );
-    assert_eq!(members(&app, "minecraft:in_nether"), ["minecraft:villager_schedule"]);
-    assert_eq!(members(&app, "minecraft:in_end"), ["minecraft:villager_schedule"]);
+    assert_eq!(
+        members(&app, "minecraft:in_nether"),
+        ["minecraft:villager_schedule"]
+    );
+    assert_eq!(
+        members(&app, "minecraft:in_end"),
+        ["minecraft:villager_schedule"]
+    );
 }
 
 #[test]
@@ -85,13 +100,22 @@ fn every_dimension_builds_its_environment_from_its_tag() {
     let app = run_to_playing();
     let environments = app.world().resource::<DimensionEnvironments>();
 
-    for id in ["minecraft:overworld", "minecraft:overworld_caves", "minecraft:the_nether", "minecraft:the_end"] {
+    for id in [
+        "minecraft:overworld",
+        "minecraft:overworld_caves",
+        "minecraft:the_nether",
+        "minecraft:the_end",
+    ] {
         assert!(environments.get(id).is_some(), "{id} has no environment");
     }
 
     let overworld = environments.get("minecraft:overworld").unwrap();
     assert_eq!(
-        overworld.clocks().iter().map(|c| c.as_str()).collect::<Vec<_>>(),
+        overworld
+            .clocks()
+            .iter()
+            .map(|c| c.as_str())
+            .collect::<Vec<_>>(),
         [OVERWORLD_CLOCK]
     );
 
@@ -113,11 +137,17 @@ fn the_shipped_time_markers_reach_the_overworld_clock() {
     let markers = app.world().resource::<ClockTimeMarkers>();
 
     assert!(
-        app.world().resource::<WorldClocks>().get(OVERWORLD_CLOCK).is_some(),
+        app.world()
+            .resource::<WorldClocks>()
+            .get(OVERWORLD_CLOCK)
+            .is_some(),
         "the clocks must be seeded before the markers are folded"
     );
 
-    let names: Vec<&str> = markers.of_clock(OVERWORLD_CLOCK).map(|(id, _)| id.as_str()).collect();
+    let names: Vec<&str> = markers
+        .of_clock(OVERWORLD_CLOCK)
+        .map(|(id, _)| id.as_str())
+        .collect();
     assert_eq!(
         names,
         [
@@ -152,7 +182,11 @@ fn the_dimension_timelines_tag_round_trips_to_the_string_the_asset_holds() {
             continue;
         };
         let raw: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(format!("assets/minecraft/dimension_type/{}.json", rl.path())).unwrap(),
+            &std::fs::read(format!(
+                "assets/minecraft/dimension_type/{}.json",
+                rl.path()
+            ))
+            .unwrap(),
         )
         .unwrap();
 

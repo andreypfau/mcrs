@@ -1,8 +1,8 @@
 use crate::game_mode::OptGameMode;
 use crate::{Bounded, FixedBitSet, GameMode, GlobalPos, VarInt};
+use mcrs_ident::{Ident, ident};
 use mcrs_protocol_macros::{Decode, Encode};
 use std::borrow::Cow;
-use mcrs_ident::{Ident, ident};
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct PlayerSpawnInfo<'a> {

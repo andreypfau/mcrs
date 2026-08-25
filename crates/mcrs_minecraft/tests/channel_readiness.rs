@@ -6,12 +6,12 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
 use bytes::Bytes;
+use mcrs_core::AppState;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
-use mcrs_core::AppState;
 use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::bus::{
@@ -20,7 +20,7 @@ use mcrs_minecraft::world::bus::{
 };
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
-use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
+use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
@@ -36,7 +36,12 @@ fn make_stub_block_light_table() -> BlockStateLightTable {
     let occlusion: Box<[&'static VoxelShape]> =
         vec![VoxelShape::empty(); state_count].into_boxed_slice();
     let flags = vec![0u8; state_count].into_boxed_slice();
-    BlockStateLightTable { emission, dampening, occlusion, flags }
+    BlockStateLightTable {
+        emission,
+        dampening,
+        occlusion,
+        flags,
+    }
 }
 
 fn build_app() -> App {
@@ -111,7 +116,11 @@ fn messages_buffered_before_dim_boots() {
     let label_entity = {
         let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
         let handles: Vec<Entity> = q.iter(app.world()).map(|(e, _)| e).collect();
-        assert_eq!(handles.len(), 1, "expected exactly one DimSubAppHandle entity");
+        assert_eq!(
+            handles.len(),
+            1,
+            "expected exactly one DimSubAppHandle entity"
+        );
         handles[0]
     };
 
@@ -129,7 +138,9 @@ fn messages_buffered_before_dim_boots() {
     // is the pending queue (structural readiness).
     let send_results: Vec<Result<(), _>> = {
         let channels = app.world().resource::<DimChannelsResource>();
-        let entry = channels.get(label_entity).expect("channel entry exists before first tick");
+        let entry = channels
+            .get(label_entity)
+            .expect("channel entry exists before first tick");
 
         let spawn_result = entry.control_sender.try_send(ToDim::Spawn {
             host_anchor: anchor,

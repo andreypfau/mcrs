@@ -115,6 +115,14 @@ mod tests {
         };
     }
 
-    deserialize_all_test!(deserialize_all_trim_patterns, TrimPattern, "minecraft/trim_pattern");
-    deserialize_all_test!(deserialize_all_trim_materials, TrimMaterial, "minecraft/trim_material");
+    deserialize_all_test!(
+        deserialize_all_trim_patterns,
+        TrimPattern,
+        "minecraft/trim_pattern"
+    );
+    deserialize_all_test!(
+        deserialize_all_trim_materials,
+        TrimMaterial,
+        "minecraft/trim_material"
+    );
 }

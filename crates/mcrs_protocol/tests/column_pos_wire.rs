@@ -34,16 +34,16 @@ fn column_pos_decode_round_trip() {
         let mut slice: &[u8] = &buf;
         let decoded = ColumnPos::decode(&mut slice).expect("decode");
         assert_eq!(decoded, case, "round-trip mismatch for {case:?}");
-        assert!(slice.is_empty(), "decode must consume every byte for {case:?}");
+        assert!(
+            slice.is_empty(),
+            "decode must consume every byte for {case:?}"
+        );
     }
 }
 
 #[test]
 fn column_pos_wire_size_is_eight_bytes() {
-    for pos in [
-        ColumnPos::default(),
-        ColumnPos::new(i32::MAX, i32::MIN),
-    ] {
+    for pos in [ColumnPos::default(), ColumnPos::new(i32::MAX, i32::MIN)] {
         let mut buf = Vec::new();
         pos.encode(&mut buf).expect("encode");
         assert_eq!(buf.len(), 8, "ColumnPos must encode to exactly 8 bytes");

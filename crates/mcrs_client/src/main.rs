@@ -20,8 +20,8 @@ mod options;
 mod player;
 mod screenshot;
 mod sky;
-mod sky_state;
 mod sky_render;
+mod sky_state;
 
 fn main() {
     let world = world_folder();
@@ -151,7 +151,11 @@ fn load_save(world: &Path) -> SaveData {
 /// Z, and Y is the block's own floor.
 fn spawn_fallback(spawn: &save::RespawnData) -> (DVec3, f32, f32, String) {
     (
-        DVec3::new(spawn.pos[0] as f64 + 0.5, spawn.pos[1] as f64, spawn.pos[2] as f64 + 0.5),
+        DVec3::new(
+            spawn.pos[0] as f64 + 0.5,
+            spawn.pos[1] as f64,
+            spawn.pos[2] as f64 + 0.5,
+        ),
         spawn.yaw,
         spawn.pitch,
         "minecraft:overworld".to_owned(),
@@ -219,7 +223,11 @@ fn log_spawned_transforms(
     );
 }
 
-fn log_seeded_resources(clocks: Res<WorldClocks>, advance_time: Res<AdvanceTime>, weather: Res<Weather>) {
+fn log_seeded_resources(
+    clocks: Res<WorldClocks>,
+    advance_time: Res<AdvanceTime>,
+    weather: Res<Weather>,
+) {
     info!(
         clocks = ?clocks.iter().map(|(id, state)| (id.to_string(), state.total_ticks)).collect::<Vec<_>>(),
         advance_time = advance_time.0,

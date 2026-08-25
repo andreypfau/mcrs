@@ -122,7 +122,10 @@ mod tests {
         assert_eq!(Rotation::new(0.0, 120.0).pitch(), 90.0);
         assert_eq!(Rotation::new(0.0, -120.0).pitch(), -90.0);
         assert_eq!(Rotation::new(0.0, 8.099984).pitch(), 8.099984);
-        assert_eq!(Rotation::ZERO.turn(0.0, 500.0).turn(0.0, 500.0).pitch(), 90.0);
+        assert_eq!(
+            Rotation::ZERO.turn(0.0, 500.0).turn(0.0, 500.0).pitch(),
+            90.0
+        );
     }
 
     #[test]

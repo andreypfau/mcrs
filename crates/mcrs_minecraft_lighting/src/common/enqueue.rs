@@ -46,7 +46,11 @@ pub(crate) const CARDINAL_DIRECTIONS: [Direction; 6] = [
 /// finalizes with a correctly primed heightmap, so deferring is safe.
 pub fn consume_needs_full_reseed(
     newly_marked: Query<
-        (Entity, &ColumnChunks, Option<&crate::lifecycle::ColumnHeightmapScan>),
+        (
+            Entity,
+            &ColumnChunks,
+            Option<&crate::lifecycle::ColumnHeightmapScan>,
+        ),
         (With<Column>, Added<NeedsFullReseed>),
     >,
     in_dimensions: Query<&InDimension>,
@@ -92,8 +96,8 @@ pub fn consume_needs_full_reseed(
 mod tests {
     use super::*;
     use crate::bfs::{
-        unpack_bfs_entry_flags, unpack_bfs_entry_level, unpack_bfs_entry_x, unpack_bfs_entry_y,
-        unpack_bfs_entry_z, FLAG_RECHECK_LEVEL, FLAG_WRITE_LEVEL,
+        FLAG_RECHECK_LEVEL, FLAG_WRITE_LEVEL, unpack_bfs_entry_flags, unpack_bfs_entry_level,
+        unpack_bfs_entry_x, unpack_bfs_entry_y, unpack_bfs_entry_z,
     };
     use crate::block_light::enqueue::{
         enqueue_block_light_on_block_placed, pull_block_neighbor_edges, seed_block_emitters,
@@ -103,7 +107,7 @@ mod tests {
         enqueue_sky_light_on_block_placed, invalidate_previous_topmost, pull_sky_neighbor_edges,
         seed_sky_initial,
     };
-    use crate::table::{flag_bits, BlockStateLightTable};
+    use crate::table::{BlockStateLightTable, flag_bits};
     use crate::{
         BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockParkedEgress,
         CrossChunkWavefront, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyParkedEgress,
@@ -127,7 +131,7 @@ mod tests {
 
     mod mcrs_lighting_table_helpers {
         use super::*;
-        use crate::table::{flag_bits, BlockStateLightTable};
+        use crate::table::{BlockStateLightTable, flag_bits};
 
         pub const AIR: BlockStateId = BlockStateId(0);
         pub const STONE: BlockStateId = BlockStateId(1);
@@ -219,10 +223,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<BlockBfsQueues>(entity)
-            .expect("queues");
+        let queues = app.world().get::<BlockBfsQueues>(entity).expect("queues");
         assert_eq!(queues.increase_queue.len(), 1, "one increase seed");
         assert!(
             queues.decrease_queue.is_empty(),
@@ -250,10 +251,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<BlockBfsQueues>(entity)
-            .expect("queues");
+        let queues = app.world().get::<BlockBfsQueues>(entity).expect("queues");
         assert_eq!(queues.decrease_queue.len(), 1, "one decrease seed");
         assert!(
             queues.increase_queue.is_empty(),
@@ -278,10 +276,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<BlockBfsQueues>(entity)
-            .expect("queues");
+        let queues = app.world().get::<BlockBfsQueues>(entity).expect("queues");
         assert_eq!(queues.decrease_queue.len(), 1);
         assert_eq!(queues.increase_queue.len(), 1);
         assert_eq!(
@@ -311,10 +306,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<BlockBfsQueues>(entity)
-            .expect("queues");
+        let queues = app.world().get::<BlockBfsQueues>(entity).expect("queues");
         assert!(queues.increase_queue.is_empty());
         assert!(queues.decrease_queue.is_empty());
         assert!(
@@ -336,10 +328,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<BlockBfsQueues>(entity)
-            .expect("queues");
+        let queues = app.world().get::<BlockBfsQueues>(entity).expect("queues");
         assert!(
             queues.increase_queue.is_empty(),
             "dampening-only skips increase"
@@ -389,10 +378,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<BlockBfsQueues>(entity)
-            .expect("queues");
+        let queues = app.world().get::<BlockBfsQueues>(entity).expect("queues");
         assert_eq!(queues.increase_queue.len(), 1);
         let entry = queues.increase_queue[0];
         assert_eq!(unpack_bfs_entry_x(entry), 13, "x = -3 rem_euclid 16 = 13");
@@ -453,10 +439,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<SkyBfsQueues>(chunk)
-            .expect("sky queues");
+        let queues = app.world().get::<SkyBfsQueues>(chunk).expect("sky queues");
         assert_eq!(
             queues.increase_queue.len(),
             256,
@@ -590,10 +573,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<SkyBfsQueues>(entity)
-            .expect("sky queues");
+        let queues = app.world().get::<SkyBfsQueues>(entity).expect("sky queues");
         assert!(
             !queues.decrease_queue.is_empty(),
             "dampening change pushes a decrease seed"
@@ -634,10 +614,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<SkyBfsQueues>(entity)
-            .expect("sky queues");
+        let queues = app.world().get::<SkyBfsQueues>(entity).expect("sky queues");
         assert_eq!(
             queues.increase_queue.len(),
             1,
@@ -673,10 +650,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<SkyBfsQueues>(entity)
-            .expect("sky queues");
+        let queues = app.world().get::<SkyBfsQueues>(entity).expect("sky queues");
         assert!(queues.increase_queue.is_empty());
         assert!(queues.decrease_queue.is_empty());
         assert!(
@@ -773,10 +747,7 @@ mod tests {
             0,
             "seed cell cleared because opacity rose"
         );
-        let queues = app
-            .world()
-            .get::<SkyBfsQueues>(entity)
-            .expect("sky queues");
+        let queues = app.world().get::<SkyBfsQueues>(entity).expect("sky queues");
         assert_eq!(queues.decrease_queue.len(), 1);
         assert_eq!(
             unpack_bfs_entry_level(queues.decrease_queue[0]),
@@ -807,10 +778,7 @@ mod tests {
             3,
             "seed cell unchanged because opacity did not rise"
         );
-        let queues = app
-            .world()
-            .get::<SkyBfsQueues>(entity)
-            .expect("sky queues");
+        let queues = app.world().get::<SkyBfsQueues>(entity).expect("sky queues");
         assert_eq!(queues.decrease_queue.len(), 1);
         assert_eq!(
             unpack_bfs_entry_level(queues.decrease_queue[0]),
@@ -830,10 +798,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<SkyBfsQueues>(entity)
-            .expect("sky queues");
+        let queues = app.world().get::<SkyBfsQueues>(entity).expect("sky queues");
         // y=15 sits at the top of the chunk, so the Up neighbour at y=16
         // is outside the chunk and is skipped by the bounds guard. Five
         // neighbour-recheck seeds remain.
@@ -867,10 +832,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<SkyBfsQueues>(entity)
-            .expect("sky queues");
+        let queues = app.world().get::<SkyBfsQueues>(entity).expect("sky queues");
         assert_eq!(
             queues.increase_queue.len(),
             1,
@@ -911,10 +873,8 @@ mod tests {
         // test exclusively exercises the occlusion-shape pointer comparison.
         dampening[SHAPE_A.0 as usize] = 5;
         dampening[SHAPE_B.0 as usize] = 5;
-        flags[SHAPE_A.0 as usize] =
-            flag_bits::IS_CONDITIONALLY_OPAQUE | flag_bits::IS_NOT_AIR;
-        flags[SHAPE_B.0 as usize] =
-            flag_bits::IS_CONDITIONALLY_OPAQUE | flag_bits::IS_NOT_AIR;
+        flags[SHAPE_A.0 as usize] = flag_bits::IS_CONDITIONALLY_OPAQUE | flag_bits::IS_NOT_AIR;
+        flags[SHAPE_B.0 as usize] = flag_bits::IS_CONDITIONALLY_OPAQUE | flag_bits::IS_NOT_AIR;
         occlusion[SHAPE_A.0 as usize] = VoxelShape::empty();
         occlusion[SHAPE_B.0 as usize] = VoxelShape::block();
 
@@ -950,10 +910,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<SkyBfsQueues>(entity)
-            .expect("sky queues");
+        let queues = app.world().get::<SkyBfsQueues>(entity).expect("sky queues");
         assert_eq!(
             queues.decrease_queue.len(),
             1,
@@ -1057,19 +1014,13 @@ mod tests {
 
         app.update();
 
-        let block_ws = app
-            .world()
-            .get::<BlockBfsQueues>(chunk)
-            .expect("block ws");
+        let block_ws = app.world().get::<BlockBfsQueues>(chunk).expect("block ws");
         assert_eq!(
             block_ws.increase_queue.len(),
             5,
             "five torches emit five increase seeds"
         );
-        let sky_ws = app
-            .world()
-            .get::<SkyBfsQueues>(chunk)
-            .expect("sky ws");
+        let sky_ws = app.world().get::<SkyBfsQueues>(chunk).expect("sky ws");
         assert_eq!(
             sky_ws.increase_queue.len(),
             256,
@@ -1218,10 +1169,7 @@ mod tests {
         app.update();
 
         // Block-light emitter seed lands as usual.
-        let block_ws = app
-            .world()
-            .get::<BlockBfsQueues>(chunk)
-            .expect("block ws");
+        let block_ws = app.world().get::<BlockBfsQueues>(chunk).expect("block ws");
         assert_eq!(block_ws.increase_queue.len(), 1);
 
         // No sky queues was attached, so sky pathways are inert.
@@ -1282,10 +1230,7 @@ mod tests {
 
         app.update();
 
-        let queues = app
-            .world()
-            .get::<SkyBfsQueues>(chunk)
-            .expect("sky queues");
+        let queues = app.world().get::<SkyBfsQueues>(chunk).expect("sky queues");
         assert_eq!(
             queues.increase_queue.len(),
             256,
@@ -1448,10 +1393,7 @@ mod tests {
         app.world_mut().entity_mut(chunk_b).insert(ChunkLoaded);
         app.update();
 
-        let inbox = app
-            .world()
-            .get::<BlockInbox>(chunk_b)
-            .expect("inbox on B");
+        let inbox = app.world().get::<BlockInbox>(chunk_b).expect("inbox on B");
         assert_eq!(
             inbox.0.len(),
             256,
@@ -1593,10 +1535,7 @@ mod tests {
             "A's parked outbox drained after B loaded"
         );
 
-        let b_incoming = app
-            .world()
-            .get::<BlockInbox>(chunk_b)
-            .expect("inbox on B");
+        let b_incoming = app.world().get::<BlockInbox>(chunk_b).expect("inbox on B");
         let west_index = Direction::West.index() as u8;
         let drained = b_incoming
             .0
@@ -1655,10 +1594,7 @@ mod tests {
         app.world_mut().entity_mut(chunk_b).insert(ChunkLoaded);
         app.update();
 
-        let b_incoming = app
-            .world()
-            .get::<BlockInbox>(chunk_b)
-            .expect("inbox on B");
+        let b_incoming = app.world().get::<BlockInbox>(chunk_b).expect("inbox on B");
         assert!(
             b_incoming.0.is_empty(),
             "B must NOT receive face cells from A — block channel has no Uniform(15) escape hatch"
@@ -1750,8 +1686,7 @@ mod tests {
                 Column,
                 ColumnChunks {
                     min_section_y: 0,
-                    sections: vec![Some(chunk_a), None, Some(chunk_b)]
-                        .into_boxed_slice(),
+                    sections: vec![Some(chunk_a), None, Some(chunk_b)].into_boxed_slice(),
                 },
             ))
             .id();
@@ -1873,11 +1808,7 @@ mod tests {
                 west_index,
                 "all entries enter from the West face (A is West of B)"
             );
-            assert_eq!(
-                w.level(),
-                14,
-                "level = 15 - 1 manhattan attenuation"
-            );
+            assert_eq!(w.level(), 14, "level = 15 - 1 manhattan attenuation");
         }
         assert!(
             app.world().get::<SkyBfsPending>(chunk_b).is_some(),
@@ -1969,12 +1900,14 @@ mod tests {
             let mut app = build_app();
             let chunks: Vec<bevy_ecs::entity::Entity> =
                 (0..N_CHUNKS).map(|_| spawn_chunk(&mut app)).collect();
-            let proto_to_real: std::collections::HashMap<bevy_ecs::entity::Entity, bevy_ecs::entity::Entity> =
-                proto_chunks
-                    .iter()
-                    .enumerate()
-                    .map(|(i, p)| (*p, chunks[i]))
-                    .collect();
+            let proto_to_real: std::collections::HashMap<
+                bevy_ecs::entity::Entity,
+                bevy_ecs::entity::Entity,
+            > = proto_chunks
+                .iter()
+                .enumerate()
+                .map(|(i, p)| (*p, chunks[i]))
+                .collect();
 
             for placed in events {
                 let mut remapped = *placed;
@@ -2078,12 +2011,14 @@ mod tests {
             let chunks: Vec<bevy_ecs::entity::Entity> = (0..N_CHUNKS)
                 .map(|_| spawn_sky_chunk_topmost(&mut app))
                 .collect();
-            let proto_to_real: std::collections::HashMap<bevy_ecs::entity::Entity, bevy_ecs::entity::Entity> =
-                proto_chunks
-                    .iter()
-                    .enumerate()
-                    .map(|(i, p)| (*p, chunks[i]))
-                    .collect();
+            let proto_to_real: std::collections::HashMap<
+                bevy_ecs::entity::Entity,
+                bevy_ecs::entity::Entity,
+            > = proto_chunks
+                .iter()
+                .enumerate()
+                .map(|(i, p)| (*p, chunks[i]))
+                .collect();
 
             for placed in events {
                 let mut remapped = *placed;

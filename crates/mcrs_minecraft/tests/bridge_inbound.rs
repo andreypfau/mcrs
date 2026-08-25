@@ -13,14 +13,14 @@ use bevy_ecs::prelude::Commands;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
+use bytes::Bytes;
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::bridge::bridge_inbound;
 use mcrs_minecraft::world::bridge_queue::{
-    InboundRateBucket, OutboundQueue, INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_TICKS,
+    INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_TICKS, InboundRateBucket, OutboundQueue,
 };
-use bytes::Bytes;
 use mcrs_minecraft::world::bus::{InboundPlayerPacket, OutboundPlayerPacket};
 use mcrs_minecraft::world::channel_types::DimChannelsResource;
-use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PendingInboundBuffer, PlayerIndex};
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::metrics::{BRIDGE_KICK_FLOOD_TOTAL, TELEMETRY_TEST_LOCK};
@@ -51,9 +51,7 @@ fn build_inbound_world() -> World {
 ///
 /// Returns `(socket_entity, inbound_tx)`. Send `ReceivedPacket` values into
 /// `inbound_tx` to simulate packets arriving from the client.
-fn spawn_ingame_connection(
-    world: &mut World,
-) -> (Entity, mpsc::Sender<ReceivedPacket>) {
+fn spawn_ingame_connection(world: &mut World) -> (Entity, mpsc::Sender<ReceivedPacket>) {
     let (raw, _outgoing_rx, inbound_tx) = mock_connection::make_mock_raw_connection_full();
     let entity = world
         .spawn((
@@ -140,9 +138,11 @@ fn bridge_inbound_emits_received_packet_event() {
     world.init_resource::<EventCounter>();
 
     // Register an observer that counts ReceivedPacketEvent triggers.
-    world.add_observer(|_ev: On<ReceivedPacketEvent>, mut counter: bevy_ecs::system::ResMut<EventCounter>| {
-        counter.count += 1;
-    });
+    world.add_observer(
+        |_ev: On<ReceivedPacketEvent>, mut counter: bevy_ecs::system::ResMut<EventCounter>| {
+            counter.count += 1;
+        },
+    );
 
     let dim_a = Entity::from_raw_u32(10).expect("nonzero");
     let dim_b = Entity::from_raw_u32(11).expect("nonzero");
@@ -189,9 +189,11 @@ fn bridge_inbound_emits_event_regardless_of_transit_state() {
     let mut world = build_inbound_world();
     world.init_resource::<EventCounter>();
 
-    world.add_observer(|_ev: On<ReceivedPacketEvent>, mut counter: bevy_ecs::system::ResMut<EventCounter>| {
-        counter.count += 1;
-    });
+    world.add_observer(
+        |_ev: On<ReceivedPacketEvent>, mut counter: bevy_ecs::system::ResMut<EventCounter>| {
+            counter.count += 1;
+        },
+    );
 
     let dim = Entity::from_raw_u32(10).expect("nonzero");
     let player = Entity::from_raw_u32(20).expect("nonzero");
@@ -223,7 +225,9 @@ fn bridge_inbound_emits_event_regardless_of_transit_state() {
 /// Packets received within the budget are NOT dropped.
 #[test]
 fn inbound_rate_kick() {
-    let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = TELEMETRY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
 
     let mut world = build_inbound_world();
 
@@ -288,7 +292,10 @@ fn no_unattached_outbound_queue_after_fixed_preupdate() {
         .query_filtered::<Entity, (With<ServerSideConnection>, Without<OutboundQueue>)>()
         .iter(&world)
         .count();
-    assert_eq!(gap_before, 1, "should have one unattached connection before attach");
+    assert_eq!(
+        gap_before, 1,
+        "should have one unattached connection before attach"
+    );
 
     // Run attach_outbound_queue (simulating FixedPreUpdate).
     let mut sys = IntoSystem::into_system(attach_outbound_queue);
@@ -349,7 +356,10 @@ fn disconnect_clears_pending() {
 
     // Verify SessionRegistry entry exists before disconnect.
     assert!(
-        world.resource::<SessionRegistry>().get_by_anchor(&player).is_some(),
+        world
+            .resource::<SessionRegistry>()
+            .get_by_anchor(&player)
+            .is_some(),
         "SessionRegistry entry should exist before disconnect"
     );
 
@@ -360,16 +370,30 @@ fn disconnect_clears_pending() {
     );
 
     // Run process_disconnect (simulating the observer path).
-    world.run_system_once(move |mut commands: bevy_ecs::prelude::Commands,
-                                mut player_index: bevy_ecs::system::ResMut<PlayerIndex>,
-                                mut session_registry: bevy_ecs::system::ResMut<SessionRegistry>,
-                                dim_channels: bevy_ecs::system::ResMut<DimChannelsResource>| {
-        process_disconnect(player, &mut player_index, &mut session_registry, &dim_channels, &mut mcrs_engine::world::sub_app::DimDespawnQueue::default(), &mut commands);
-    }).expect("process_disconnect system ran");
+    world
+        .run_system_once(
+            move |mut commands: bevy_ecs::prelude::Commands,
+                  mut player_index: bevy_ecs::system::ResMut<PlayerIndex>,
+                  mut session_registry: bevy_ecs::system::ResMut<SessionRegistry>,
+                  dim_channels: bevy_ecs::system::ResMut<DimChannelsResource>| {
+                process_disconnect(
+                    player,
+                    &mut player_index,
+                    &mut session_registry,
+                    &dim_channels,
+                    &mut mcrs_engine::world::sub_app::DimDespawnQueue::default(),
+                    &mut commands,
+                );
+            },
+        )
+        .expect("process_disconnect system ran");
 
     // SessionRegistry entry is gone.
     assert!(
-        world.resource::<SessionRegistry>().get_by_anchor(&player).is_none(),
+        world
+            .resource::<SessionRegistry>()
+            .get_by_anchor(&player)
+            .is_none(),
         "SessionRegistry entry must be removed after disconnect"
     );
 

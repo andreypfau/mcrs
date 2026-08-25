@@ -2,11 +2,9 @@ use crate::dimension_type::DimensionType;
 use crate::login::GameProfile;
 use crate::version::VERSION_ID;
 use crate::world::bus::PlayerTransferSnapshot;
-use crate::world::channel_types::{send_control_or_teardown, DimChannelsResource, ToDim};
-use mcrs_engine::world::sub_app::DimDespawnQueue;
+use crate::world::channel_types::{DimChannelsResource, ToDim, send_control_or_teardown};
 use crate::world::entity::player::column_view::ColumnView;
 use crate::world::player_index::HostAnchorRef;
-use mcrs_engine::session::SessionRegistry;
 use crate::world::sub_app_builder::DimSubAppHandle;
 use crate::world_preset_loader::{
     DimensionTypeAsset, DimensionTypeLoader, WorldPresetAsset, WorldPresetLoader,
@@ -25,6 +23,8 @@ use mcrs_core::registry::access::ErasedRegistrySnapshot;
 use mcrs_core::tag::registry::TagRegistry;
 use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_engine::session::PlayerSession;
+use mcrs_engine::session::SessionRegistry;
+use mcrs_engine::world::sub_app::DimDespawnQueue;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::packets::configuration::clientbound::{
@@ -237,7 +237,10 @@ impl Plugin for ConfigurationStatePlugin {
         app.init_resource::<LoadedDimensionTypes>();
 
         app.add_systems(Startup, start_loading_world_preset);
-        app.add_systems(Update, (process_loaded_world_preset, sync_dimension_type_changes));
+        app.add_systems(
+            Update,
+            (process_loaded_world_preset, sync_dimension_type_changes),
+        );
         app.add_systems(bevy_app::FixedPreUpdate, on_configuration_enter);
         app.add_observer(on_known_packs_response);
         app.add_observer(on_configuration_ack);
@@ -251,10 +254,7 @@ impl Plugin for ConfigurationStatePlugin {
 #[derive(Resource, Default)]
 struct WorldPresetHandle(Option<Handle<WorldPresetAsset>>);
 
-fn start_loading_world_preset(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-) {
+fn start_loading_world_preset(mut commands: Commands, asset_server: Res<AssetServer>) {
     let preset_name = get_world_preset_name();
     let asset_path = resolve_preset_asset_path(&preset_name);
 

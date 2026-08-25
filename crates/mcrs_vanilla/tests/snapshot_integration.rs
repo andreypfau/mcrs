@@ -35,8 +35,7 @@ fn snapshot_integration_biome_populated_with_in_memory_fixtures() {
         ResourceLocation::parse("minecraft:plains").unwrap();
     let desert_rl: ResourceLocation<Arc<str>> =
         ResourceLocation::parse("minecraft:desert").unwrap();
-    let ocean_rl: ResourceLocation<Arc<str>> =
-        ResourceLocation::parse("minecraft:ocean").unwrap();
+    let ocean_rl: ResourceLocation<Arc<str>> = ResourceLocation::parse("minecraft:ocean").unwrap();
 
     let pairs = vec![
         (plains_rl.clone(), plains_id),

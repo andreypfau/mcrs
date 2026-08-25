@@ -14,12 +14,12 @@
 //! every termination path increments `LIGHT_CONVERGE_ITERATIONS_TOTAL` by
 //! the number of iterations consumed this tick.
 
+use crate::metrics::{LIGHT_CONVERGE_CAPPED_TOTAL, LIGHT_CONVERGE_ITERATIONS_TOTAL};
+use crate::{BlockBfsPending, SkyBfsPending};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::ScheduleLabel;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
-use crate::{BlockBfsPending, SkyBfsPending};
-use crate::metrics::{LIGHT_CONVERGE_CAPPED_TOTAL, LIGHT_CONVERGE_ITERATIONS_TOTAL};
 
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LightConvergeSchedule;
@@ -85,8 +85,7 @@ pub fn light_converge_driver(world: &mut World) {
         if !any_dirty {
             #[cfg(feature = "telemetry-tracy")]
             tracing::Span::current().record("iter", iteration + 1);
-            LIGHT_CONVERGE_ITERATIONS_TOTAL
-                .fetch_add(iteration as u64 + 1, Ordering::Relaxed);
+            LIGHT_CONVERGE_ITERATIONS_TOTAL.fetch_add(iteration as u64 + 1, Ordering::Relaxed);
             return;
         }
 
@@ -94,8 +93,7 @@ pub fn light_converge_driver(world: &mut World) {
         if elapsed >= HARD_BUDGET {
             #[cfg(feature = "telemetry-tracy")]
             tracing::Span::current().record("iter", iteration + 1);
-            LIGHT_CONVERGE_ITERATIONS_TOTAL
-                .fetch_add(iteration as u64 + 1, Ordering::Relaxed);
+            LIGHT_CONVERGE_ITERATIONS_TOTAL.fetch_add(iteration as u64 + 1, Ordering::Relaxed);
             LIGHT_CONVERGE_CAPPED_TOTAL.fetch_add(1, Ordering::Relaxed);
             tracing::warn!(
                 iteration = iteration + 1,
@@ -117,7 +115,10 @@ pub fn light_converge_driver(world: &mut World) {
     tracing::Span::current().record("iter", MAX_ITERATIONS);
     LIGHT_CONVERGE_ITERATIONS_TOTAL.fetch_add(MAX_ITERATIONS as u64, Ordering::Relaxed);
     LIGHT_CONVERGE_CAPPED_TOTAL.fetch_add(1, Ordering::Relaxed);
-    tracing::warn!(iteration = MAX_ITERATIONS, "light converge hit MAX_ITERATIONS cap");
+    tracing::warn!(
+        iteration = MAX_ITERATIONS,
+        "light converge hit MAX_ITERATIONS cap"
+    );
 }
 
 #[cfg(test)]
@@ -237,10 +238,7 @@ mod tests {
     /// Stub schedule body that sleeps long enough for a single iteration to
     /// blow the `HARD_BUDGET` wall-clock budget, and re-marks the chunk
     /// dirty so the driver doesn't exit via the quiescence path first.
-    fn slow_redirty_30ms(
-        mut commands: Commands,
-        dirty: Query<Entity, With<BlockBfsPending>>,
-    ) {
+    fn slow_redirty_30ms(mut commands: Commands, dirty: Query<Entity, With<BlockBfsPending>>) {
         std::thread::sleep(Duration::from_millis(30));
         for e in dirty.iter() {
             commands.entity(e).insert(BlockBfsPending);

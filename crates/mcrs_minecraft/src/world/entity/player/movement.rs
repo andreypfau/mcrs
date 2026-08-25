@@ -7,11 +7,11 @@ use bevy_math::DVec3;
 use mcrs_engine::entity::physics::{Rotation, Transform};
 use mcrs_engine::session::PlayerSession;
 use mcrs_network::event::ReceivedPacketEvent;
+use mcrs_protocol::MoveFlags;
 use mcrs_protocol::packets::game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,
     ServerboundMovePlayerRot, ServerboundMovePlayerStatusOnly,
 };
-use mcrs_protocol::MoveFlags;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
@@ -28,8 +28,7 @@ impl Plugin for MovementPlugin {
     }
 }
 
-#[derive(Component, Debug)]
-#[derive(Default)]
+#[derive(Component, Debug, Default)]
 pub struct TeleportState {
     /// Counts up as teleports are made.
     teleport_id_counter: u32,
@@ -77,7 +76,6 @@ impl TeleportState {
         }
     }
 }
-
 
 fn handle_move_packets(on: On<ReceivedPacketEvent>, mut writer: MessageWriter<PlayerMovement>) {
     let e = on.entity;
@@ -138,8 +136,12 @@ fn process_movement(
         let Ok((mut state, mut transform)) = query.get_mut(m.entity) else {
             return;
         };
-        if let Some(p) = m.position { transform.set_if_neq(transform.with_translation(p.clamp(MIN_POS, MAX_POS))); }
-        if let Some(l) = m.look { transform.set_if_neq(transform.with_rotation(l)); }
+        if let Some(p) = m.position {
+            transform.set_if_neq(transform.with_translation(p.clamp(MIN_POS, MAX_POS)));
+        }
+        if let Some(l) = m.look {
+            transform.set_if_neq(transform.with_rotation(l));
+        }
         state.synced_transform = *transform;
     })
 }

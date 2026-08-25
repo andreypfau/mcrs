@@ -30,15 +30,15 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::World;
 use bevy_ecs::system::{IntoSystem, System};
 use mcrs_engine::session::PlayerSession;
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::bridge::bridge_outbound;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
-use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_network::metrics::{
-    snapshot, BridgeTelemetrySnapshot, BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL,
+    BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL, BridgeTelemetrySnapshot, snapshot,
 };
 use mcrs_protocol::BlockStateId;
 
@@ -128,7 +128,13 @@ pub fn run_profile_ticks(
     cross_dim_rate: f32,
     ticks: u64,
 ) -> ScaleReport {
-    run_profile_bounded(name, dims, bots_total, cross_dim_rate, RunLength::Ticks(ticks))
+    run_profile_bounded(
+        name,
+        dims,
+        bots_total,
+        cross_dim_rate,
+        RunLength::Ticks(ticks),
+    )
 }
 
 /// Run a scale profile for `duration_secs` of wall clock. Used only by the
@@ -165,9 +171,7 @@ fn run_profile_bounded(
     // Synthetic dimension entities — plain entity handles used as dim keys
     // in SessionRegistry. No dim sub-app is spawned; the harness exercises
     // the bridge_outbound queue-routing path only (no sub-app extract closure).
-    let dim_entities: Vec<Entity> = (0..dims.max(1))
-        .map(|_| world.spawn_empty().id())
-        .collect();
+    let dim_entities: Vec<Entity> = (0..dims.max(1)).map(|_| world.spawn_empty().id()).collect();
 
     // One OutboundQueue entity per bot (no real socket or ServerSideConnection;
     // dispatch_encode requires ServerSideConnection to send bytes, so the
@@ -231,8 +235,7 @@ fn run_profile_bounded(
                 if Instant::now() >= deadline {
                     break;
                 }
-                run_start.elapsed().as_secs_f32()
-                    / deadline.duration_since(run_start).as_secs_f32()
+                run_start.elapsed().as_secs_f32() / deadline.duration_since(run_start).as_secs_f32()
             }
         };
 
@@ -271,10 +274,7 @@ fn run_profile_bounded(
             for (_player, _socket, session) in bot_entities.iter().take(transfer_count) {
                 if let Some(entry) = world.resource_mut::<SessionRegistry>().get_mut(session) {
                     let old_dim = entry.dim;
-                    let idx = dim_entities
-                        .iter()
-                        .position(|&d| d == old_dim)
-                        .unwrap_or(0);
+                    let idx = dim_entities.iter().position(|&d| d == old_dim).unwrap_or(0);
                     let new_dim = dim_entities[(idx + 1) % dim_entities.len()];
                     entry.dim = new_dim;
                     entry.previous_dim = Some(old_dim);

@@ -10,7 +10,11 @@ fn counter_starts_at_one_and_never_repeats() {
     for _ in 0..1000 {
         sessions.push(counter.next());
     }
-    assert_eq!(sessions[0], PlayerSession(1), "first allocation must be PlayerSession(1)");
+    assert_eq!(
+        sessions[0],
+        PlayerSession(1),
+        "first allocation must be PlayerSession(1)"
+    );
     for i in 1..sessions.len() {
         assert!(
             sessions[i].0 > sessions[i - 1].0,
@@ -107,9 +111,39 @@ fn registry_iter_in_dim_filters_by_dim() {
     let a1 = Entity::from_raw_u32(11).unwrap();
     let a2 = Entity::from_raw_u32(12).unwrap();
     let a3 = Entity::from_raw_u32(13).unwrap();
-    registry.insert(s1, SessionEntry { connection_entity: conn, host_anchor: a1, dim: dim_a, previous_dim: None, in_dim_entity: None, epoch: 0 });
-    registry.insert(s2, SessionEntry { connection_entity: conn, host_anchor: a2, dim: dim_a, previous_dim: None, in_dim_entity: None, epoch: 0 });
-    registry.insert(s3, SessionEntry { connection_entity: conn, host_anchor: a3, dim: dim_b, previous_dim: None, in_dim_entity: None, epoch: 0 });
+    registry.insert(
+        s1,
+        SessionEntry {
+            connection_entity: conn,
+            host_anchor: a1,
+            dim: dim_a,
+            previous_dim: None,
+            in_dim_entity: None,
+            epoch: 0,
+        },
+    );
+    registry.insert(
+        s2,
+        SessionEntry {
+            connection_entity: conn,
+            host_anchor: a2,
+            dim: dim_a,
+            previous_dim: None,
+            in_dim_entity: None,
+            epoch: 0,
+        },
+    );
+    registry.insert(
+        s3,
+        SessionEntry {
+            connection_entity: conn,
+            host_anchor: a3,
+            dim: dim_b,
+            previous_dim: None,
+            in_dim_entity: None,
+            epoch: 0,
+        },
+    );
 
     let in_a: Vec<PlayerSession> = registry.iter_in_dim(dim_a).map(|(s, _)| *s).collect();
     assert_eq!(in_a.len(), 2, "dim_a should have exactly 2 sessions");

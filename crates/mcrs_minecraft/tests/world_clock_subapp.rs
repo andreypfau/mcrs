@@ -110,7 +110,10 @@ fn sub_app_clock(app: &mut App, dim_label: Entity) -> ClockState {
 }
 
 fn main_clock(app: &App) -> ClockState {
-    *app.world().resource::<WorldClocks>().get(OVERWORLD).unwrap()
+    *app.world()
+        .resource::<WorldClocks>()
+        .get(OVERWORLD)
+        .unwrap()
 }
 
 #[test]

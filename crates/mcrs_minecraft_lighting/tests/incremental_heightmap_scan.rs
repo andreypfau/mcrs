@@ -37,10 +37,10 @@ use mcrs_engine::world::dimension::{
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::components::IsAllAir;
 use mcrs_minecraft_lighting::lifecycle::ColumnHeightmapScan;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
-use mcrs_minecraft_lighting::LightingPlugin;
+use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_protocol::BlockStateId;
 
 const AIR: BlockStateId = BlockStateId(0);
@@ -601,9 +601,7 @@ fn re_trigger_changed_without_new_chunks_is_noop() {
 
     let surface_before: Vec<i32> = {
         let h = app.world().get::<Heightmaps>(col).unwrap();
-        (0..256)
-            .map(|i| h.surface_get(i & 15, i >> 4))
-            .collect()
+        (0..256).map(|i| h.surface_get(i & 15, i >> 4)).collect()
     };
 
     // Touch ColumnChunks to mark it changed without adding a slot.

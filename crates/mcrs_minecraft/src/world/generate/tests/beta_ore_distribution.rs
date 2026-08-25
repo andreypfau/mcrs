@@ -3,15 +3,15 @@ use std::rc::Rc;
 
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_worldgen::feature::config::{OreConfig, OreYOffset, TargetBlockState};
 use mcrs_minecraft_worldgen::feature::OreFeature;
+use mcrs_minecraft_worldgen::feature::config::{OreConfig, OreYOffset, TargetBlockState};
 use mcrs_protocol::BlockStateId;
-use mcrs_random::legacy::LegacyRandom;
 use mcrs_random::Random;
+use mcrs_random::legacy::LegacyRandom;
 use mcrs_vanilla::block::minecraft;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
-use crate::world::generate::{place_all_ores, BetaOreBlockIds};
+use crate::world::generate::{BetaOreBlockIds, place_all_ores};
 
 // ── Counting RNG: pins total LegacyRandom advances for the ore stream ───────────
 
@@ -23,7 +23,10 @@ struct CountingRng {
 
 impl CountingRng {
     fn new(seed: u64, draws: Rc<Cell<u64>>) -> Self {
-        CountingRng { inner: LegacyRandom::new(seed), draws }
+        CountingRng {
+            inner: LegacyRandom::new(seed),
+            draws,
+        }
     }
     fn inc(&self) {
         self.draws.set(self.draws.get() + 1);
@@ -71,15 +74,24 @@ impl Random for CountingRng {
     }
     fn fork(&mut self) -> Self {
         self.inc();
-        CountingRng { inner: self.inner.fork(), draws: self.draws.clone() }
+        CountingRng {
+            inner: self.inner.fork(),
+            draws: self.draws.clone(),
+        }
     }
     fn fork_at<T: Into<bevy_math::IVec3>>(&mut self, pos: T) -> Self {
         self.inc();
-        CountingRng { inner: self.inner.fork_at(pos), draws: self.draws.clone() }
+        CountingRng {
+            inner: self.inner.fork_at(pos),
+            draws: self.draws.clone(),
+        }
     }
     fn fork_hash(&mut self, seed: impl AsRef<[u8]>) -> Self {
         self.inc();
-        CountingRng { inner: self.inner.fork_hash(seed), draws: self.draws.clone() }
+        CountingRng {
+            inner: self.inner.fork_hash(seed),
+            draws: self.draws.clone(),
+        }
     }
 }
 
@@ -135,7 +147,10 @@ const NON_CLAY_TABLE: &[(&str, i32, i32, i32)] = &[
 fn simulate<R: Random>(
     rng: &mut R,
     ids: &BetaOreBlockIds,
-) -> (std::collections::BTreeMap<String, i32>, std::collections::BTreeMap<String, Vec<i32>>) {
+) -> (
+    std::collections::BTreeMap<String, i32>,
+    std::collections::BTreeMap<String, Vec<i32>>,
+) {
     let stone = ids.stone;
     let feature = OreFeature;
     let (mut sections, y_sections) = stone_sections();
@@ -156,7 +171,10 @@ fn simulate<R: Random>(
     // Clay 10x32: coord draws happen every iteration; placement only when water is
     // below the origin. On a stone chunk no water exists, so 0 veins place.
     let clay_cfg = OreConfig {
-        targets: vec![TargetBlockState { target: stone, state: ids.clay }],
+        targets: vec![TargetBlockState {
+            target: stone,
+            state: ids.clay,
+        }],
         size: 32,
         y_offset: OreYOffset::BetaPlus2,
     };
@@ -185,7 +203,10 @@ fn simulate<R: Random>(
             _ => unreachable!(),
         };
         let cfg = OreConfig {
-            targets: vec![TargetBlockState { target: stone, state }],
+            targets: vec![TargetBlockState {
+                target: stone,
+                state,
+            }],
             size,
             y_offset: OreYOffset::BetaPlus2,
         };
@@ -201,7 +222,10 @@ fn simulate<R: Random>(
 
     // Lapis 1x6: x, then Y = nextInt(16)+nextInt(16), then z.
     let lapis_cfg = OreConfig {
-        targets: vec![TargetBlockState { target: stone, state: ids.lapis }],
+        targets: vec![TargetBlockState {
+            target: stone,
+            state: ids.lapis,
+        }],
         size: 6,
         y_offset: OreYOffset::BetaPlus2,
     };
@@ -278,9 +302,18 @@ fn beta_ore_distribution() {
     // Y-range bounds on the per-vein origin draw.
     assert!(ys["iron"].iter().all(|&y| y < 64), "iron origin-Y < 64");
     assert!(ys["gold"].iter().all(|&y| y < 32), "gold origin-Y < 32");
-    assert!(ys["redstone"].iter().all(|&y| y < 16), "redstone origin-Y < 16");
-    assert!(ys["diamond"].iter().all(|&y| y < 16), "diamond origin-Y < 16");
-    assert!(ys["lapis"].iter().all(|&y| (0..32).contains(&y)), "lapis origin-Y in 0..32");
+    assert!(
+        ys["redstone"].iter().all(|&y| y < 16),
+        "redstone origin-Y < 16"
+    );
+    assert!(
+        ys["diamond"].iter().all(|&y| y < 16),
+        "diamond origin-Y < 16"
+    );
+    assert!(
+        ys["lapis"].iter().all(|&y| (0..32).contains(&y)),
+        "lapis origin-Y in 0..32"
+    );
     assert!(ys["coal"].iter().all(|&y| y < 128), "coal origin-Y < 128");
 }
 
@@ -313,7 +346,10 @@ fn beta_ore_draw_count_pin() {
     );
 
     if ORE_DRAW_COUNT_CHUNK_0_0_SEED_12345 == 0 {
-        println!("ORE DRAW COUNT PIN (chunk 0,0 seed 12345): {}", driver_count);
+        println!(
+            "ORE DRAW COUNT PIN (chunk 0,0 seed 12345): {}",
+            driver_count
+        );
         assert!(driver_count > 0);
     } else {
         assert_eq!(driver_count, ORE_DRAW_COUNT_CHUNK_0_0_SEED_12345);

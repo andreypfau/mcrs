@@ -6,11 +6,11 @@ use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::ResourceLocation;
 use crate::attribute::EnvironmentAttributeMap;
 use crate::block::Block;
 use crate::timeline::Timeline;
 use crate::value::IntValueProvider;
-use crate::ResourceLocation;
 use mcrs_core::tag::tag_ref::TagRef;
 
 // ── Proto (deserialization-only) ──
@@ -301,7 +301,11 @@ mod tests {
             let proto: ProtoDimensionType = serde_json::from_slice(&bytes)
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
 
-            assert!(!proto.attributes.is_empty(), "{} has attributes", path.display());
+            assert!(
+                !proto.attributes.is_empty(),
+                "{} has attributes",
+                path.display()
+            );
             assert_eq!(
                 serde_json::to_value(&proto.attributes).unwrap(),
                 raw["attributes"],
@@ -327,11 +331,17 @@ mod tests {
         let proto: ProtoDimensionType = serde_json::from_slice(&bytes).unwrap();
 
         // an object-valued attribute that is not the {argument, modifier} shape
-        let music = proto.attributes.get("minecraft:audio/background_music").unwrap();
+        let music = proto
+            .attributes
+            .get("minecraft:audio/background_music")
+            .unwrap();
         assert_eq!(music.modifier, crate::attribute::Operation::Override);
         assert!(music.argument.is_object());
 
         let bed_rule = proto.attributes.get("minecraft:gameplay/bed_rule").unwrap();
-        assert_eq!(bed_rule.argument["can_sleep"], serde_json::json!("when_dark"));
+        assert_eq!(
+            bed_rule.argument["can_sleep"],
+            serde_json::json!("when_dark")
+        );
     }
 }

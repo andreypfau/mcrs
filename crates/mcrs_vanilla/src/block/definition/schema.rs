@@ -6,8 +6,8 @@ use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::material::map::MapColor;
 use crate::material::PushReaction;
+use crate::material::map::MapColor;
 use mcrs_core::ResourceLocation;
 
 #[derive(Debug, Deserialize)]
@@ -89,7 +89,9 @@ impl<'de> Deserialize<'de> for BlockProperties {
                     }
                     let values: Vec<PropertyValue> = map.next_value()?;
                     if values.is_empty() {
-                        return Err(de::Error::custom(format!("property `{name}` has no values")));
+                        return Err(de::Error::custom(format!(
+                            "property `{name}` has no values"
+                        )));
                     }
                     properties.push(BlockProperty { name, values });
                 }
@@ -176,7 +178,10 @@ pub struct BlockBox {
 }
 
 impl BlockBox {
-    pub const FULL_CUBE: BlockBox = BlockBox { origin: [-8.0, 0.0, -8.0], size: [16.0, 16.0, 16.0] };
+    pub const FULL_CUBE: BlockBox = BlockBox {
+        origin: [-8.0, 0.0, -8.0],
+        size: [16.0, 16.0, 16.0],
+    };
 }
 
 /// `minecraft:collision_box` and friends: a boolean, one box, or an array of
@@ -196,12 +201,15 @@ impl<'de> Deserialize<'de> for BoxList {
             }
 
             fn visit_bool<E: de::Error>(self, v: bool) -> Result<BoxList, E> {
-                Ok(BoxList(if v { vec![BlockBox::FULL_CUBE] } else { Vec::new() }))
+                Ok(BoxList(if v {
+                    vec![BlockBox::FULL_CUBE]
+                } else {
+                    Vec::new()
+                }))
             }
 
             fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<BoxList, A::Error> {
-                let single =
-                    BlockBox::deserialize(de::value::MapAccessDeserializer::new(map))?;
+                let single = BlockBox::deserialize(de::value::MapAccessDeserializer::new(map))?;
                 Ok(BoxList(vec![single]))
             }
 
@@ -425,8 +433,7 @@ mod tests {
 
     #[test]
     fn property_values_keep_their_json_type() {
-        let values: Vec<PropertyValue> =
-            serde_json::from_str(r#"["true", true, "3", 3]"#).unwrap();
+        let values: Vec<PropertyValue> = serde_json::from_str(r#"["true", true, "3", 3]"#).unwrap();
         assert_eq!(
             values,
             vec![
@@ -453,7 +460,13 @@ mod tests {
         assert!(boxes.0.is_empty());
         let boxes: BoxList =
             serde_json::from_str(r#"{"origin":[-2,0,-2],"size":[4,10,4]}"#).unwrap();
-        assert_eq!(boxes.0, vec![BlockBox { origin: [-2.0, 0.0, -2.0], size: [4.0, 10.0, 4.0] }]);
+        assert_eq!(
+            boxes.0,
+            vec![BlockBox {
+                origin: [-2.0, 0.0, -2.0],
+                size: [4.0, 10.0, 4.0]
+            }]
+        );
         let boxes: BoxList =
             serde_json::from_str(r#"[{"origin":[-8,0,-8],"size":[16,16,16]}]"#).unwrap();
         assert_eq!(boxes.0, vec![BlockBox::FULL_CUBE]);
@@ -469,31 +482,48 @@ mod tests {
     #[test]
     fn map_color_round_trips_as_hex() {
         let color: MapColor = serde_json::from_str(r##""#4040ff""##).unwrap();
-        assert_eq!(color, MapColor { r: 0x40, g: 0x40, b: 0xff });
+        assert_eq!(
+            color,
+            MapColor {
+                r: 0x40,
+                g: 0x40,
+                b: 0xff
+            }
+        );
         assert_eq!(serde_json::to_string(&color).unwrap(), r##""#4040ff""##);
     }
 
     #[test]
     fn unknown_component_is_an_error_naming_it() {
         let err = serde_json::from_str::<Components>(r#"{"mcrs:nonsense": 1}"#).unwrap_err();
-        assert!(err.to_string().contains("unknown component `mcrs:nonsense`"), "{err}");
+        assert!(
+            err.to_string()
+                .contains("unknown component `mcrs:nonsense`"),
+            "{err}"
+        );
     }
 
     #[test]
     fn component_of_the_wrong_shape_is_an_error_naming_it() {
-        let err =
-            serde_json::from_str::<Components>(r#"{"minecraft:light_emission": "bright"}"#)
-                .unwrap_err();
-        assert!(err.to_string().contains("component `minecraft:light_emission`"), "{err}");
+        let err = serde_json::from_str::<Components>(r#"{"minecraft:light_emission": "bright"}"#)
+            .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("component `minecraft:light_emission`"),
+            "{err}"
+        );
     }
 
     #[test]
     fn duplicate_component_is_an_error() {
-        let err = serde_json::from_str::<Components>(
-            r#"{"mcrs:is_air": true, "mcrs:is_air": false}"#,
-        )
-        .unwrap_err();
-        assert!(err.to_string().contains("duplicate component `mcrs:is_air`"), "{err}");
+        let err =
+            serde_json::from_str::<Components>(r#"{"mcrs:is_air": true, "mcrs:is_air": false}"#)
+                .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("duplicate component `mcrs:is_air`"),
+            "{err}"
+        );
     }
 
     #[test]

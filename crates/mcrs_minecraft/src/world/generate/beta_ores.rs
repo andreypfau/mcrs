@@ -3,8 +3,8 @@ use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::feature::OreFeature;
 use mcrs_minecraft_worldgen::feature::config::{OreConfig, OreYOffset, TargetBlockState};
 use mcrs_protocol::BlockStateId;
-use mcrs_random::legacy::LegacyRandom;
 use mcrs_random::Random;
+use mcrs_random::legacy::LegacyRandom;
 use mcrs_vanilla::block::minecraft;
 
 pub struct BetaOreBlockIds {
@@ -42,7 +42,10 @@ impl BetaOreBlockIds {
 
 fn ore_config(stone: BlockStateId, state: BlockStateId, size: i32) -> OreConfig {
     OreConfig {
-        targets: vec![TargetBlockState { target: stone, state }],
+        targets: vec![TargetBlockState {
+            target: stone,
+            state,
+        }],
         size,
         y_offset: OreYOffset::BetaPlus2,
     }
@@ -127,7 +130,9 @@ fn place_ore<R: Random>(
             set_block_in_sections(sl, y_sections, wx, wy, wz, cx, cz, state);
         };
 
-        feature.place(config, origin_x, origin_y, origin_z, get_block, set_block, rng);
+        feature.place(
+            config, origin_x, origin_y, origin_z, get_block, set_block, rng,
+        );
     }
 }
 
@@ -173,7 +178,9 @@ fn place_clay<R: Random>(
             set_block_in_sections(sl, y_sections, wx, wy, wz, cx, cz, state);
         };
 
-        feature.place(&config, origin_x, origin_y, origin_z, get_block, set_block, rng);
+        feature.place(
+            &config, origin_x, origin_y, origin_z, get_block, set_block, rng,
+        );
     }
 }
 
@@ -222,31 +229,69 @@ pub fn place_all_ores<R: Random>(
 
     // Dirt 20×32, Y<128
     let dirt_cfg = ore_config(stone, ids.dirt, 32);
-    place_ore(&feature, &dirt_cfg, 20, 128, chunk_x, chunk_z, sections, y_sections, rng);
+    place_ore(
+        &feature, &dirt_cfg, 20, 128, chunk_x, chunk_z, sections, y_sections, rng,
+    );
 
     // Gravel 10×32, Y<128
     let gravel_cfg = ore_config(stone, ids.gravel, 32);
-    place_ore(&feature, &gravel_cfg, 10, 128, chunk_x, chunk_z, sections, y_sections, rng);
+    place_ore(
+        &feature,
+        &gravel_cfg,
+        10,
+        128,
+        chunk_x,
+        chunk_z,
+        sections,
+        y_sections,
+        rng,
+    );
 
     // Coal 20×16, Y<128
     let coal_cfg = ore_config(stone, ids.coal, 16);
-    place_ore(&feature, &coal_cfg, 20, 128, chunk_x, chunk_z, sections, y_sections, rng);
+    place_ore(
+        &feature, &coal_cfg, 20, 128, chunk_x, chunk_z, sections, y_sections, rng,
+    );
 
     // Iron 20×8, Y<64
     let iron_cfg = ore_config(stone, ids.iron, 8);
-    place_ore(&feature, &iron_cfg, 20, 64, chunk_x, chunk_z, sections, y_sections, rng);
+    place_ore(
+        &feature, &iron_cfg, 20, 64, chunk_x, chunk_z, sections, y_sections, rng,
+    );
 
     // Gold 2×8, Y<32
     let gold_cfg = ore_config(stone, ids.gold, 8);
-    place_ore(&feature, &gold_cfg, 2, 32, chunk_x, chunk_z, sections, y_sections, rng);
+    place_ore(
+        &feature, &gold_cfg, 2, 32, chunk_x, chunk_z, sections, y_sections, rng,
+    );
 
     // Redstone 8×7, Y<16
     let redstone_cfg = ore_config(stone, ids.redstone, 7);
-    place_ore(&feature, &redstone_cfg, 8, 16, chunk_x, chunk_z, sections, y_sections, rng);
+    place_ore(
+        &feature,
+        &redstone_cfg,
+        8,
+        16,
+        chunk_x,
+        chunk_z,
+        sections,
+        y_sections,
+        rng,
+    );
 
     // Diamond 1×7, Y<16
     let diamond_cfg = ore_config(stone, ids.diamond, 7);
-    place_ore(&feature, &diamond_cfg, 1, 16, chunk_x, chunk_z, sections, y_sections, rng);
+    place_ore(
+        &feature,
+        &diamond_cfg,
+        1,
+        16,
+        chunk_x,
+        chunk_z,
+        sections,
+        y_sections,
+        rng,
+    );
 
     // Lapis 1×6, draw order x, then Y = nextInt(16) + nextInt(16), then z (Beta order)
     let lapis_origin_x = chunk_x * 16 + rng.next_i32_bound(16);
@@ -267,5 +312,13 @@ pub fn place_all_ores<R: Random>(
         let sl = unsafe { &mut *sections_ptr };
         set_block_in_sections(sl, ys, wx, wy, wz, cx, cz, state);
     };
-    feature.place(&lapis_cfg, lapis_origin_x, lapis_origin_y, lapis_origin_z, get_block, set_block, rng);
+    feature.place(
+        &lapis_cfg,
+        lapis_origin_x,
+        lapis_origin_y,
+        lapis_origin_z,
+        get_block,
+        set_block,
+        rng,
+    );
 }

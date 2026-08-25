@@ -1,4 +1,4 @@
-use mcrs_core::{rl, StaticRegistry};
+use mcrs_core::{StaticRegistry, rl};
 
 use super::EntityType;
 

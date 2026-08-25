@@ -14,9 +14,9 @@ use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::geometry::ColumnPos;
+use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
-use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, TrackedBy};
 use mcrs_minecraft::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
 use rustc_hash::FxHashMap;
@@ -36,12 +36,8 @@ fn mirror_invariant_holds_when_column_lacks_player_observers_at_first_pass() {
     // CRITICAL: columns are spawned AFTER the seeder (FixedPreUpdate) runs,
     // so they reach update_own_pov (FixedPostUpdate) WITHOUT a PlayerObservers
     // Component. This replicates the production race.
-    let columns = drive_aoi_tick_with_mid_tick_column_spawn(
-        &mut app,
-        dim,
-        ColumnPos::new(0, 0),
-        20,
-    );
+    let columns =
+        drive_aoi_tick_with_mid_tick_column_spawn(&mut app, dim, ColumnPos::new(0, 0), 20);
 
     // Tick 1 has run. The Err-arm fix in update_own_pov should have inserted
     // PlayerObservers via Commands for each bare column. Assert the mirror
@@ -87,10 +83,7 @@ fn seed_bare_column_grid(
             let pos = ColumnPos::new(centre.x + dx, centre.z + dz);
             // No PlayerObservers in the spawn bundle — the seeder OR
             // update_own_pov's Err-arm fallback is responsible for attaching it.
-            let column = app
-                .world_mut()
-                .spawn((Column, InDimension(dim)))
-                .id();
+            let column = app.world_mut().spawn((Column, InDimension(dim))).id();
             let mut col_idx = app
                 .world_mut()
                 .get_mut::<ColumnIndex>(dim)
@@ -108,11 +101,7 @@ fn seed_bare_column_grid(
     map
 }
 
-fn assert_mirror_invariant(
-    app: &App,
-    player: Entity,
-    columns: &FxHashMap<ColumnPos, Entity>,
-) {
+fn assert_mirror_invariant(app: &App, player: Entity, columns: &FxHashMap<ColumnPos, Entity>) {
     let world = app.world();
     let sub = world
         .get::<ChunkSubscriptionSet>(player)
@@ -122,15 +111,13 @@ fn assert_mirror_invariant(
             .get(pos)
             .copied()
             .unwrap_or_else(|| panic!("subscribed column {:?} not in seed grid", pos));
-        let obs = world
-            .get::<PlayerObservers>(column)
-            .unwrap_or_else(|| {
-                panic!(
-                    "column at {:?} is missing PlayerObservers Component entirely \
+        let obs = world.get::<PlayerObservers>(column).unwrap_or_else(|| {
+            panic!(
+                "column at {:?} is missing PlayerObservers Component entirely \
                      — the Err-arm fallback in update_own_pov did not fire",
-                    pos
-                )
-            });
+                pos
+            )
+        });
         assert!(
             obs.0.contains(&player),
             "column at {:?} missing player in PlayerObservers (sub.len={})",
@@ -201,12 +188,8 @@ fn mirror_invariant_holds_with_two_players_same_tick_bare_column() {
     // Spawn bare columns mid-tick (after FixedPreUpdate seeder, before
     // FixedPostUpdate AoI systems) so both players hit the Err arm for the
     // same column entity in the same system run.
-    let columns = drive_aoi_tick_with_mid_tick_column_spawn(
-        &mut app,
-        dim,
-        ColumnPos::new(0, 0),
-        20,
-    );
+    let columns =
+        drive_aoi_tick_with_mid_tick_column_spawn(&mut app, dim, ColumnPos::new(0, 0), 20);
 
     // Both players must appear in every shared column's PlayerObservers.
     // If Commands::insert were still used, the second insert at flush time
@@ -261,12 +244,8 @@ fn two_player_same_tick_bare_column_removal_evicts_correctly() {
     // Spawn bare columns mid-tick (after FixedPreUpdate seeder, before FixedPostUpdate
     // AoI systems) — this is the same-tick race that exercises the Err-arm path in
     // update_own_pov for both players on each bare column entity.
-    let columns = drive_aoi_tick_with_mid_tick_column_spawn(
-        &mut app,
-        dim,
-        ColumnPos::new(0, 0),
-        20,
-    );
+    let columns =
+        drive_aoi_tick_with_mid_tick_column_spawn(&mut app, dim, ColumnPos::new(0, 0), 20);
 
     // Verify the mirror invariant holds after the same-tick bare-column subscription.
     assert_mirror_invariant(&app, player1, &columns);
@@ -313,7 +292,10 @@ fn two_player_same_tick_bare_column_removal_evicts_correctly() {
     // and transfer-out paths push for the source dim.
     app.world_mut()
         .resource_mut::<Messages<InboundPlayerDespawn>>()
-        .write(InboundPlayerDespawn { host_anchor: ha1, session: PlayerSession(0) });
+        .write(InboundPlayerDespawn {
+            host_anchor: ha1,
+            session: PlayerSession(0),
+        });
 
     // Drive only FixedPreUpdate: the drain runs and applies the eviction.
     // FixedPostUpdate (update_own_pov, update_tracked_by) is NOT driven here
@@ -348,10 +330,7 @@ fn two_player_same_tick_bare_column_removal_evicts_correctly() {
         .get::<TrackedBy>(player1)
         .map(|tb| tb.0.is_empty())
         .unwrap_or(true);
-    assert!(
-        p1_tb_empty,
-        "P1's TrackedBy is non-empty after removal"
-    );
+    assert!(p1_tb_empty, "P1's TrackedBy is non-empty after removal");
 
     // Assertion 3: P1 is removed from every shared column's PlayerObservers.
     let p1_still_observing = columns.values().any(|&column_entity| {

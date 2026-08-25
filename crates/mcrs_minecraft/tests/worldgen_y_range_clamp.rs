@@ -32,10 +32,10 @@ fn load_beta_density_functions() -> BTreeMap<Ident<String>, ProtoDensityFunction
             continue;
         }
         let json = std::fs::read_to_string(&path).expect("density function must be readable");
-        let DensityFunctionHolder::Owned(pdf) = serde_json::from_str::<DensityFunctionHolder>(
-            &json,
-        )
-        .unwrap_or_else(|e| panic!("{} must deserialize: {}", path.display(), e)) else {
+        let DensityFunctionHolder::Owned(pdf) =
+            serde_json::from_str::<DensityFunctionHolder>(&json)
+                .unwrap_or_else(|e| panic!("{} must deserialize: {}", path.display(), e))
+        else {
             panic!("{} must be an owned density function", path.display());
         };
         let stem = path.file_stem().unwrap().to_string_lossy();
@@ -61,7 +61,14 @@ fn beta_sections_outside_noise_range_are_air() {
 
     let functions = load_beta_density_functions();
     let noises = BTreeMap::new();
-    let router = build_functions(&functions, &noises, &settings, 42, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86));
+    let router = build_functions(
+        &functions,
+        &noises,
+        &settings,
+        42,
+        mcrs_protocol::BlockStateId(1),
+        mcrs_protocol::BlockStateId(86),
+    );
 
     assert_eq!(router.noise_min_y(), 0);
     assert_eq!(router.noise_height(), 128);
@@ -85,7 +92,9 @@ fn beta_sections_outside_noise_range_are_air() {
                 blocks.non_air_block_count(),
                 0,
                 "section sy={} (Y {}..{}) is outside beta noise range [0,128) but contains {} non-air blocks",
-                sy, section_min_y, section_max_y,
+                sy,
+                section_min_y,
+                section_max_y,
                 blocks.non_air_block_count(),
             );
         }
@@ -113,7 +122,11 @@ fn modern_overworld_noise_range_covers_all_client_sections() {
         assert!(
             section_min_y < noise_max_y && section_max_y > noise_min_y,
             "section sy={} (Y {}..{}) should be inside modern noise range [{}, {})",
-            sy, section_min_y, section_max_y, noise_min_y, noise_max_y,
+            sy,
+            section_min_y,
+            section_max_y,
+            noise_min_y,
+            noise_max_y,
         );
     }
 }

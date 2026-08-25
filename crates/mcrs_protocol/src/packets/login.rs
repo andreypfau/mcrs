@@ -3,9 +3,9 @@ pub mod clientbound {
     use crate::profile::GameProfile;
     use crate::{Bounded, RawBytes, VarInt};
     use derive_more::{From, Into};
+    use mcrs_ident::Ident;
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
-    use mcrs_ident::Ident;
 
     #[derive(Copy, Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x00, state=Login)]

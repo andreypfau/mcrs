@@ -75,8 +75,8 @@ impl WorldPresetAsset {
             .dimensions
             .iter()
             .map(|(key, entry)| {
-                let dim_key = Ident::from_str(key)
-                    .unwrap_or_else(|_| panic!("Invalid dimension key: {key}"));
+                let dim_key =
+                    Ident::from_str(key).unwrap_or_else(|_| panic!("Invalid dimension key: {key}"));
                 let dim_type = Ident::from_str(&entry.dimension_type)
                     .unwrap_or_else(|_| panic!("Invalid dimension type: {}", entry.dimension_type));
                 (dim_key, dim_type)
@@ -171,11 +171,8 @@ impl AssetLoader for WorldPresetLoader {
 
             // Parse the dimension type reference to extract namespace and path
             if let Ok(ident) = Ident::<String>::from_str(type_ref) {
-                let asset_path = format!(
-                    "{}/dimension_type/{}.json",
-                    ident.namespace(),
-                    ident.path()
-                );
+                let asset_path =
+                    format!("{}/dimension_type/{}.json", ident.namespace(), ident.path());
 
                 debug!(
                     dimension_key = %dim_key,
@@ -246,10 +243,7 @@ impl AssetLoader for DimensionTypeLoader {
             "Loaded dimension type"
         );
 
-        Ok(DimensionTypeAsset {
-            dimension_type,
-            id,
-        })
+        Ok(DimensionTypeAsset { dimension_type, id })
     }
 }
 
@@ -270,9 +264,8 @@ fn extract_dimension_type_id(path: &std::path::Path) -> Ident<String> {
             .unwrap_or("overworld");
 
         let id_str = format!("{namespace}:{name}");
-        return Ident::from_str(&id_str).unwrap_or_else(|_| {
-            Ident::from_str("minecraft:overworld").unwrap()
-        });
+        return Ident::from_str(&id_str)
+            .unwrap_or_else(|_| Ident::from_str("minecraft:overworld").unwrap());
     }
 
     // Fallback: just use the file stem
@@ -281,9 +274,8 @@ fn extract_dimension_type_id(path: &std::path::Path) -> Ident<String> {
         .and_then(|s| s.to_str())
         .unwrap_or("overworld");
 
-    Ident::from_str(&format!("minecraft:{name}")).unwrap_or_else(|_| {
-        Ident::from_str("minecraft:overworld").unwrap()
-    })
+    Ident::from_str(&format!("minecraft:{name}"))
+        .unwrap_or_else(|_| Ident::from_str("minecraft:overworld").unwrap())
 }
 
 /// Resolve a preset name (e.g., "normal") to an asset path.

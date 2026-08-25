@@ -8,10 +8,10 @@ pub mod clientbound {
     use crate::packets::common::clientbound::{CustomPayload, Disconnect, KeepAlive, Ping};
     use crate::packets::cookie::clientbound::CookieRequest;
     use derive_more::From;
+    use mcrs_ident::Ident;
     use mcrs_nbt::compound::NbtCompound;
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
-    use mcrs_ident::Ident;
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x03, state=Configuration)]

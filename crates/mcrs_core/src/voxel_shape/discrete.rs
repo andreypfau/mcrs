@@ -29,9 +29,7 @@ impl DiscreteShape {
     /// resolution and bit pattern explicitly.
     pub fn empty_with_bounds(bounds: Aabb) -> Self {
         let resolution = (1u8, 1u8, 1u8);
-        let cell_count = resolution.0 as usize
-            * resolution.1 as usize
-            * resolution.2 as usize;
+        let cell_count = resolution.0 as usize * resolution.1 as usize * resolution.2 as usize;
         let word_count = cell_count.div_ceil(64).max(1);
         Self {
             bounds,
@@ -51,7 +49,9 @@ impl DiscreteShape {
     /// algorithm consumes it once the conditional-shape slow path lands.
     #[doc(hidden)]
     pub fn _unimpl_filled_cells(&self) -> u32 {
-        unimplemented!("discrete-shape filled-cell count lands with the conditional-shape slow path")
+        unimplemented!(
+            "discrete-shape filled-cell count lands with the conditional-shape slow path"
+        )
     }
 
     /// Project this shape onto the named axis-aligned face and merge with
@@ -62,7 +62,9 @@ impl DiscreteShape {
     /// discrete merge whenever the conditionally-opaque flag is false.
     #[doc(hidden)]
     pub fn _unimpl_face_occludes_merge(&self, _other: &DiscreteShape) -> bool {
-        unimplemented!("discrete-shape face-occludes merge lands with the conditional-shape slow path")
+        unimplemented!(
+            "discrete-shape face-occludes merge lands with the conditional-shape slow path"
+        )
     }
 }
 
@@ -89,7 +91,10 @@ mod tests {
     fn empty_with_bounds_allocates_nonzero_bit_storage() {
         let s = DiscreteShape::empty_with_bounds(unit_aabb());
         assert!(!s.bits.is_empty(), "bit storage must be at least one word");
-        assert!(s.bits.iter().all(|w| *w == 0), "empty shape has zero bits set");
+        assert!(
+            s.bits.iter().all(|w| *w == 0),
+            "empty shape has zero bits set"
+        );
     }
 
     #[test]

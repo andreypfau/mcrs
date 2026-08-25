@@ -10,15 +10,17 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use mcrs_minecraft::world::bridge::bridge_outbound;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
-use mcrs_minecraft::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
+use mcrs_minecraft::world::bus::{
+    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
+};
 use smallvec::SmallVec;
 
+use mcrs_engine::session::PlayerSession;
 use mock_connection::{
     build_bridge_world, build_bridge_world_with_sessions, drain_queue, register_player,
     register_session, run_system, spawn_connection, write_packet, write_packet_broadcast,
     write_packet_stamped,
 };
-use mcrs_engine::session::PlayerSession;
 
 // ---------------------------------------------------------------------------
 // bridge_outbound_drains
@@ -37,16 +39,33 @@ fn bridge_outbound_drains() {
     let socket = spawn_connection(&mut world);
     let session = register_player(&mut world, player, socket, dim);
 
-    write_packet(&mut world, PacketTarget::SinglePlayer(player), session, 0, PacketPriority::Normal, 42);
+    write_packet(
+        &mut world,
+        PacketTarget::SinglePlayer(player),
+        session,
+        0,
+        PacketPriority::Normal,
+        42,
+    );
 
     run_system(&mut world, bridge_outbound);
 
     // The queue on `socket` should have received the packet.
-    let queue = world.get::<OutboundQueue>(socket).expect("OutboundQueue present");
-    assert_eq!(queue.total_len(), 1, "packet was not pushed to OutboundQueue");
+    let queue = world
+        .get::<OutboundQueue>(socket)
+        .expect("OutboundQueue present");
+    assert_eq!(
+        queue.total_len(),
+        1,
+        "packet was not pushed to OutboundQueue"
+    );
 
     // No other side-effects: exactly one message produced exactly one push.
-    assert_eq!(queue.normal.len(), 1, "Normal-priority packet must land in normal sub-deque");
+    assert_eq!(
+        queue.normal.len(),
+        1,
+        "Normal-priority packet must land in normal sub-deque"
+    );
     assert_eq!(queue.critical.len(), 0);
     assert_eq!(queue.high.len(), 0);
     assert_eq!(queue.low.len(), 0);
@@ -112,12 +131,23 @@ fn packet_target_all_in_dim() {
     register_player(&mut world, player_a2, socket_a2, dim_a);
     register_player(&mut world, player_b, socket_b, dim_b);
 
-    write_packet_broadcast(&mut world, PacketTarget::AllInDim(dim_a), PacketPriority::Normal, 5);
+    write_packet_broadcast(
+        &mut world,
+        PacketTarget::AllInDim(dim_a),
+        PacketPriority::Normal,
+        5,
+    );
 
     run_system(&mut world, bridge_outbound);
 
-    assert_eq!(world.get::<OutboundQueue>(socket_a1).unwrap().total_len(), 1);
-    assert_eq!(world.get::<OutboundQueue>(socket_a2).unwrap().total_len(), 1);
+    assert_eq!(
+        world.get::<OutboundQueue>(socket_a1).unwrap().total_len(),
+        1
+    );
+    assert_eq!(
+        world.get::<OutboundQueue>(socket_a2).unwrap().total_len(),
+        1
+    );
     assert_eq!(world.get::<OutboundQueue>(socket_b).unwrap().total_len(), 0);
 }
 
@@ -144,7 +174,12 @@ fn packet_target_all_players() {
     register_player(&mut world, player_y, socket_y, dim);
     register_player(&mut world, player_z, socket_z, dim);
 
-    write_packet_broadcast(&mut world, PacketTarget::AllPlayers, PacketPriority::High, 7);
+    write_packet_broadcast(
+        &mut world,
+        PacketTarget::AllPlayers,
+        PacketPriority::High,
+        7,
+    );
 
     run_system(&mut world, bridge_outbound);
 
@@ -181,7 +216,12 @@ fn packet_target_player_set() {
     set.push(player_q);
     set.push(absent);
 
-    write_packet_broadcast(&mut world, PacketTarget::PlayerSet(set), PacketPriority::Normal, 9);
+    write_packet_broadcast(
+        &mut world,
+        PacketTarget::PlayerSet(set),
+        PacketPriority::Normal,
+        9,
+    );
 
     // Must not panic even though `absent` is not in PlayerIndex.
     run_system(&mut world, bridge_outbound);
@@ -228,7 +268,11 @@ fn packet_target_missing_queue_counted() {
     let after = mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
         .load(std::sync::atomic::Ordering::Relaxed);
 
-    assert_eq!(after - before, 1, "missing OutboundQueue should increment BRIDGE_OUTBOUND_NO_QUEUE_TOTAL");
+    assert_eq!(
+        after - before,
+        1,
+        "missing OutboundQueue should increment BRIDGE_OUTBOUND_NO_QUEUE_TOTAL"
+    );
 
     // Reset counter so parallel tests don't see stale increments.
     mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
@@ -251,10 +295,38 @@ fn priority_drain_order() {
     let session = register_player(&mut world, player, socket, dim);
 
     // Write in reverse-priority order.
-    write_packet(&mut world, PacketTarget::SinglePlayer(player), session, 0, PacketPriority::Low, 4);
-    write_packet(&mut world, PacketTarget::SinglePlayer(player), session, 0, PacketPriority::Normal, 3);
-    write_packet(&mut world, PacketTarget::SinglePlayer(player), session, 0, PacketPriority::High, 2);
-    write_packet(&mut world, PacketTarget::SinglePlayer(player), session, 0, PacketPriority::Critical, 1);
+    write_packet(
+        &mut world,
+        PacketTarget::SinglePlayer(player),
+        session,
+        0,
+        PacketPriority::Low,
+        4,
+    );
+    write_packet(
+        &mut world,
+        PacketTarget::SinglePlayer(player),
+        session,
+        0,
+        PacketPriority::Normal,
+        3,
+    );
+    write_packet(
+        &mut world,
+        PacketTarget::SinglePlayer(player),
+        session,
+        0,
+        PacketPriority::High,
+        2,
+    );
+    write_packet(
+        &mut world,
+        PacketTarget::SinglePlayer(player),
+        session,
+        0,
+        PacketPriority::Critical,
+        1,
+    );
 
     run_system(&mut world, bridge_outbound);
 
@@ -269,7 +341,11 @@ fn priority_drain_order() {
         })
         .collect();
 
-    assert_eq!(seqs, vec![1, 2, 3, 4], "drain order must be Critical(1) → High(2) → Normal(3) → Low(4)");
+    assert_eq!(
+        seqs,
+        vec![1, 2, 3, 4],
+        "drain order must be Critical(1) → High(2) → Normal(3) → Low(4)"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +366,9 @@ fn epoch_filter_drops_stale_packet() {
     write_packet_stamped(&mut world, session, 0, PacketPriority::Normal, 42);
     run_system(&mut world, bridge_outbound);
 
-    let queue = world.get::<OutboundQueue>(socket).expect("OutboundQueue present");
+    let queue = world
+        .get::<OutboundQueue>(socket)
+        .expect("OutboundQueue present");
     assert_eq!(queue.total_len(), 0, "stale-epoch packet must be dropped");
 }
 
@@ -310,8 +388,14 @@ fn epoch_filter_delivers_matching_epoch() {
     write_packet_stamped(&mut world, session, 1, PacketPriority::Normal, 7);
     run_system(&mut world, bridge_outbound);
 
-    let queue = world.get::<OutboundQueue>(socket).expect("OutboundQueue present");
-    assert_eq!(queue.total_len(), 1, "matching-epoch packet must be delivered");
+    let queue = world
+        .get::<OutboundQueue>(socket)
+        .expect("OutboundQueue present");
+    assert_eq!(
+        queue.total_len(),
+        1,
+        "matching-epoch packet must be delivered"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -332,8 +416,14 @@ fn unstamped_packet_dropped() {
     write_packet_stamped(&mut world, PlayerSession(0), 0, PacketPriority::Normal, 99);
     run_system(&mut world, bridge_outbound);
 
-    let queue = world.get::<OutboundQueue>(socket).expect("OutboundQueue present");
-    assert_eq!(queue.total_len(), 0, "PlayerSession(0) must always be dropped");
+    let queue = world
+        .get::<OutboundQueue>(socket)
+        .expect("OutboundQueue present");
+    assert_eq!(
+        queue.total_len(),
+        0,
+        "PlayerSession(0) must always be dropped"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -359,8 +449,18 @@ fn broadcast_delivered_to_post_transfer_session() {
     // bridge_outbound once (a single MessageReader pass) so each message is
     // read exactly once. Under the old per-recipient epoch filter both would be
     // dropped (0 != 2); both must now be delivered.
-    write_packet_broadcast(&mut world, PacketTarget::AllInDim(dim), PacketPriority::Normal, 1);
-    write_packet_broadcast(&mut world, PacketTarget::AllPlayers, PacketPriority::High, 2);
+    write_packet_broadcast(
+        &mut world,
+        PacketTarget::AllInDim(dim),
+        PacketPriority::Normal,
+        1,
+    );
+    write_packet_broadcast(
+        &mut world,
+        PacketTarget::AllPlayers,
+        PacketPriority::High,
+        2,
+    );
     run_system(&mut world, bridge_outbound);
     assert_eq!(
         world.get::<OutboundQueue>(socket).unwrap().total_len(),

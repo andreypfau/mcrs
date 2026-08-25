@@ -9,9 +9,7 @@
 ///
 /// `level(x,y,z) = max over emitters of max(0, emission - manhattan_distance)`
 /// where `manhattan_distance = |x-ex| + |y-ey| + |z-ez|`.
-pub const fn compute_l1_attenuated_field(
-    emitters: &[((usize, usize, usize), u8)],
-) -> [u8; 2048] {
+pub const fn compute_l1_attenuated_field(emitters: &[((usize, usize, usize), u8)]) -> [u8; 2048] {
     let mut out = [0u8; 2048];
     let mut y = 0;
     while y < 16 {
@@ -57,9 +55,7 @@ pub const fn compute_l1_attenuated_field(
 /// from `y = 15` downward, the cell stays at 15 only while the running
 /// level is still 15 and the cell's dampening is 0; any other cell
 /// attenuates by `max(1, dampening)`.
-pub const fn compute_sky_field(
-    obstacles: &[((usize, usize, usize), u8)],
-) -> [u8; 2048] {
+pub const fn compute_sky_field(obstacles: &[((usize, usize, usize), u8)]) -> [u8; 2048] {
     let mut field = [0u8; 4096];
 
     let mut z = 0;

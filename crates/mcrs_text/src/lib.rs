@@ -5,10 +5,10 @@ use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use std::{fmt, ops};
 
-use serde::de::Visitor;
-use serde::{de, Deserialize, Deserializer, Serialize};
-use uuid::Uuid;
 use mcrs_ident::Ident;
+use serde::de::Visitor;
+use serde::{Deserialize, Deserializer, Serialize, de};
+use uuid::Uuid;
 
 pub mod color;
 mod into_text;

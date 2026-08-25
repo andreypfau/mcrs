@@ -15,10 +15,10 @@ use bevy_ecs::prelude::*;
 use std::borrow::Cow;
 
 use mcrs_engine::world::column::ColumnPos as EngineColumnPos;
-use mcrs_minecraft_lighting::codec::ColumnLightUpdate;
 use mcrs_minecraft::world::entity::player::column_view::ColumnView;
-use mcrs_protocol::chunk::LightData;
+use mcrs_minecraft_lighting::codec::ColumnLightUpdate;
 use mcrs_protocol::ColumnPos;
+use mcrs_protocol::chunk::LightData;
 
 #[derive(Resource, Default)]
 struct TestLightUpdateLog(pub Vec<(ColumnPos, &'static str)>);

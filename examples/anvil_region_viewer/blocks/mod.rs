@@ -6,7 +6,7 @@ use bevy::math::Vec3;
 use crate::anvil::BlockStateKey;
 use crate::atlas::{Opacity, SpriteRef, SpriteRegistry};
 use crate::bake::{Dir, TinyWorld};
-use crate::pack::{MAX_SPRITES, MAX_SPRITE_ARRAYS};
+use crate::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 
 pub use build::Fluid;
 pub use tint::tint_square;
@@ -138,7 +138,9 @@ pub fn extend(catalog: &mut Catalog, states: &[BlockStateKey], biomes: &[String]
         match build_one(state, &neighbours, &mut catalog.sprites) {
             Ok(info) => catalog.blocks.push(info),
             Err(reason) => {
-                catalog.failures.push(format!("{}: {reason}", state.label()));
+                catalog
+                    .failures
+                    .push(format!("{}: {reason}", state.label()));
                 catalog.blocks.push(BlockInfo::default());
             }
         }

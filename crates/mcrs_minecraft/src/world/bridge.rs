@@ -1,12 +1,12 @@
 use std::sync::atomic::Ordering;
 
 use bevy_ecs::entity::Entity;
-use bevy_math::DVec3;
 use bevy_ecs::message::{MessageReader, MessageWriter, Messages};
 use bevy_ecs::prelude::Commands;
 use bevy_ecs::query::{With, Without};
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::system::{Query, Res, ResMut};
+use bevy_math::DVec3;
 
 /// FixedPostUpdate ordering for the three bridge stages.
 ///
@@ -23,6 +23,7 @@ pub enum BridgeSet {
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{EngineConnection, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::chunk::ChunkData;
+use mcrs_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_protocol::packets::game::clientbound::{
     ClientboundAddEntity, ClientboundBlockDestruction, ClientboundBlockUpdate,
     ClientboundChunkCacheRadius, ClientboundDisconnect, ClientboundEntityEvent,
@@ -31,22 +32,19 @@ use mcrs_protocol::packets::game::clientbound::{
     ClientboundPlayerInfoUpdate, ClientboundPlayerPosition, ClientboundRemoveEntities,
     ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket,
 };
-use mcrs_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
 use mcrs_protocol::{ByteAngle, GameEventKind, Ident, Look, PositionFlag, Text, VarInt};
 use tracing::{debug, trace, warn};
 
 use crate::world::bridge_queue::{
-    InboundRateBucket, OutboundQueue, DEPTH_DRAIN_TARGET, DEPTH_LIMIT, HIGH_OVERFLOW_LIMIT,
-    KICK_AFTER_OVERFLOW_TICKS,
+    DEPTH_DRAIN_TARGET, DEPTH_LIMIT, HIGH_OVERFLOW_LIMIT, InboundRateBucket,
+    KICK_AFTER_OVERFLOW_TICKS, OutboundQueue,
 };
-use mcrs_engine::session::{PlayerSession, SessionRegistry};
 use crate::world::bus::{PacketPayload, PacketTarget};
-use crate::world::channel_types::{
-    send_control_or_teardown, DimChannelsResource, FromDim, ToDim,
-};
+use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim, send_control_or_teardown};
 use crate::world::player_index::{HostAnchorRef, PendingInboundBuffer};
 use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
+use mcrs_engine::session::{PlayerSession, SessionRegistry};
 use mcrs_engine::world::sub_app::DimDespawnQueue;
 
 /// Attach `OutboundQueue` and `InboundRateBucket` to any connection entity that
@@ -202,12 +200,12 @@ pub fn dispatch_encode(
     mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
     mut commands: Commands,
 ) {
+    use mcrs_network::MAX_QUEUED_BYTES_PER_SOCKET;
     use mcrs_network::metrics::{
         BRIDGE_DROP_LOW_TOTAL, BRIDGE_DROP_NORMAL_TOTAL, BRIDGE_ENCODE_UNHANDLED_TOTAL,
         BRIDGE_KICK_OVERFLOW_TOTAL, BRIDGE_QUEUE_DEPTH_CRITICAL, BRIDGE_QUEUE_DEPTH_HIGH,
         BRIDGE_QUEUE_DEPTH_LOW, BRIDGE_QUEUE_DEPTH_NORMAL,
     };
-    use mcrs_network::MAX_QUEUED_BYTES_PER_SOCKET;
 
     for (entity, mut queue, mut conn) in players.iter_mut() {
         // --- (1) Disconnected writer check (AP-06 path) ---
@@ -357,9 +355,7 @@ pub fn dispatch_encode(
                             conn = ?entity,
                             "dispatch_encode: GameEvent"
                         );
-                        conn.raw
-                            .append(&ClientboundGameEvent { game_event })
-                            .ok();
+                        conn.raw.append(&ClientboundGameEvent { game_event }).ok();
                     }
                     PacketPayload::PlayerEnteredView {
                         entity_id,
@@ -450,9 +446,7 @@ pub fn dispatch_encode(
                         );
                         let dim_idents: Vec<Ident<std::borrow::Cow<str>>> = dimensions
                             .iter()
-                            .filter_map(|s| {
-                                Ident::<std::borrow::Cow<str>>::new(s.as_str()).ok()
-                            })
+                            .filter_map(|s| Ident::<std::borrow::Cow<str>>::new(s.as_str()).ok())
                             .collect();
                         conn.raw
                             .append(&ClientboundLogin {
@@ -671,7 +665,11 @@ pub fn bridge_inbound_to_channel(
                 Err(TrySendError::Disconnected(_)) => {}
             }
         } else {
-            inbound_buffer.buffers.entry(msg.player).or_default().push(msg);
+            inbound_buffer
+                .buffers
+                .entry(msg.player)
+                .or_default()
+                .push(msg);
         }
     }
 }
@@ -771,16 +769,14 @@ pub fn bridge_inbound(
                                         }
                                     }
                                 } else {
-                                    inbound_buffer
-                                        .buffers
-                                        .entry(anchor.0)
-                                        .or_default()
-                                        .push(crate::world::bus::InboundPlayerPacket {
+                                    inbound_buffer.buffers.entry(anchor.0).or_default().push(
+                                        crate::world::bus::InboundPlayerPacket {
                                             player: anchor.0,
                                             id: pkt.id,
                                             data: pkt.payload,
                                             timestamp: pkt.timestamp,
-                                        });
+                                        },
+                                    );
                                 }
                             }
                         }
@@ -805,13 +801,15 @@ mod tests {
     use bevy_ecs::world::World;
     use smallvec::SmallVec;
 
-    use bytes::Bytes;
-    use mcrs_engine::session::{PlayerSession, SessionEntry, SessionRegistry};
-    use mcrs_engine::world::channels::{DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY};
     use crate::world::bus::{InboundPlayerPacket, PlayerTransferSnapshot};
     use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim};
     use crate::world::player_index::PendingInboundBuffer;
     use bevy_math::{DVec3, Vec2};
+    use bytes::Bytes;
+    use mcrs_engine::session::{PlayerSession, SessionEntry, SessionRegistry};
+    use mcrs_engine::world::channels::{
+        DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    };
     use mcrs_protocol::uuid::Uuid;
 
     fn make_session_entry(
@@ -830,13 +828,23 @@ mod tests {
         }
     }
 
-    fn make_dim_channels(world: &mut World, dim: Entity) -> (flume::Receiver<ToDim>, flume::Receiver<ToDim>, flume::Sender<FromDim>) {
+    fn make_dim_channels(
+        world: &mut World,
+        dim: Entity,
+    ) -> (
+        flume::Receiver<ToDim>,
+        flume::Receiver<ToDim>,
+        flume::Sender<FromDim>,
+    ) {
         let (srv_tx, srv_rx) = flume::bounded::<ToDim>(TO_DIM_CAPACITY);
         let (ctl_tx, ctl_rx) = flume::bounded::<ToDim>(TO_DIM_CONTROL_CAPACITY);
         let (from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
-        world
-            .resource_mut::<DimChannelsResource>()
-            .insert(dim, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
+        world.resource_mut::<DimChannelsResource>().insert(
+            dim,
+            DimSender::new(srv_tx),
+            DimSender::new(ctl_tx),
+            from_rx,
+        );
         (srv_rx, ctl_rx, from_tx)
     }
 
@@ -884,7 +892,10 @@ mod tests {
                 timestamp: std::time::Instant::now(),
             });
         }
-        world.resource_mut::<PendingInboundBuffer>().buffers.insert(host_anchor, buffered);
+        world
+            .resource_mut::<PendingInboundBuffer>()
+            .buffers
+            .insert(host_anchor, buffered);
 
         world
             .resource_mut::<Messages<crate::world::bus::OutboundPlayerAttached>>()
@@ -900,10 +911,19 @@ mod tests {
         assert_eq!(entry.in_dim_entity, Some(new_in_dim));
 
         let buffer = world.resource::<PendingInboundBuffer>();
-        assert!(buffer.buffers.get(&host_anchor).map_or(true, |v| v.is_empty()));
+        assert!(
+            buffer
+                .buffers
+                .get(&host_anchor)
+                .map_or(true, |v| v.is_empty())
+        );
 
         let drained: Vec<_> = dest_srv_rx.try_iter().collect();
-        assert_eq!(drained.len(), 3, "3 buffered packets sent to serverbound channel");
+        assert_eq!(
+            drained.len(),
+            3,
+            "3 buffered packets sent to serverbound channel"
+        );
     }
 
     #[test]

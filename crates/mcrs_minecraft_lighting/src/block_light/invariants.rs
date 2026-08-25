@@ -11,12 +11,12 @@
 //!    support, the excess equals the cell's own emission — i.e. only
 //!    emitter cells may be brighter than the surrounding field supports.
 
-use mcrs_engine::world::block::BlockPos;
-use mcrs_minecraft_block::palette::BlockPalette;
 use crate::codec::LightStorage;
-use crate::invariants::{neighbour_contribution, CHUNK_DIM, DIRECTIONS};
+use crate::invariants::{CHUNK_DIM, DIRECTIONS, neighbour_contribution};
 pub use crate::invariants::{InvariantViolation, ViolationKind};
 use crate::table::BlockStateLightTable;
+use mcrs_engine::world::block::BlockPos;
+use mcrs_minecraft_block::palette::BlockPalette;
 
 pub fn check_block_light_invariants(
     table: &BlockStateLightTable,

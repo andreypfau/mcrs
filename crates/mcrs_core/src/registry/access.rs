@@ -127,14 +127,17 @@ impl ErasedRegistrySnapshot for RegistrySnapshotErased {
     }
 
     fn iter_entries(&self) -> Box<dyn Iterator<Item = ErasedEntry<'_>> + '_> {
-        Box::new(self.entries.iter().enumerate().map(|(i, entry)| {
-            ErasedEntry {
-                network_id: i as u32,
-                location: &entry.location,
-                data: entry.nbt.as_ref(),
-                pack_source: entry.pack_source.as_ref(),
-            }
-        }))
+        Box::new(
+            self.entries
+                .iter()
+                .enumerate()
+                .map(|(i, entry)| ErasedEntry {
+                    network_id: i as u32,
+                    location: &entry.location,
+                    data: entry.nbt.as_ref(),
+                    pack_source: entry.pack_source.as_ref(),
+                }),
+        )
     }
 }
 

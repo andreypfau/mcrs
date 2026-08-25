@@ -106,7 +106,7 @@ impl Shape {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mesh::{STREAMS, STREAM_NAMES};
+    use crate::mesh::{STREAM_NAMES, STREAMS};
 
     #[test]
     fn a_stream_is_named_after_the_layer_and_shape_it_stands_for() {

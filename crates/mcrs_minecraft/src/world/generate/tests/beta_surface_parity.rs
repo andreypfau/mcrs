@@ -10,7 +10,9 @@ use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_protocol::BlockStateId;
 use mcrs_vanilla::biome::Biome;
-use mcrs_vanilla::biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome, build_beta_lookup_table};
+use mcrs_vanilla::biome::source::{
+    BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome, build_beta_lookup_table,
+};
 use mcrs_vanilla::block::minecraft;
 
 use crate::world::chunk::CancellationToken;
@@ -69,34 +71,56 @@ fn load_corpus() -> BetaSurfaceCorpus {
 /// from above the surface) passes through with a fallback:
 ///   stone (ID 1) → 1, air (ID 0) → 0.
 fn beta_id_for(modern: BlockStateId) -> u8 {
-    let air      = minecraft::AIR.default_state_id;
-    let stone    = minecraft::STONE.default_state_id;
-    let grass    = minecraft::GRASS_BLOCK.default_state_id;
-    let dirt     = minecraft::DIRT.default_state_id;
-    let bedrock  = minecraft::BEDROCK.default_state_id;
-    let sand     = minecraft::SAND.default_state_id;
+    let air = minecraft::AIR.default_state_id;
+    let stone = minecraft::STONE.default_state_id;
+    let grass = minecraft::GRASS_BLOCK.default_state_id;
+    let dirt = minecraft::DIRT.default_state_id;
+    let bedrock = minecraft::BEDROCK.default_state_id;
+    let sand = minecraft::SAND.default_state_id;
     let sandstone = minecraft::SANDSTONE.default_state_id;
-    let gravel   = minecraft::GRAVEL.default_state_id;
+    let gravel = minecraft::GRAVEL.default_state_id;
 
     // Water: default_state_id = level 0 (base_state_id 86).
     let water_source = minecraft::WATER.default_state_id;
     // Lava: default_state_id = level 0 (base_state_id 102).
     let lava_source = minecraft::LAVA.default_state_id;
 
-    if modern == air       { return 0;  }
-    if modern == stone     { return 1;  }
-    if modern == grass     { return 2;  }
-    if modern == dirt      { return 3;  }
-    if modern == bedrock   { return 7;  }
+    if modern == air {
+        return 0;
+    }
+    if modern == stone {
+        return 1;
+    }
+    if modern == grass {
+        return 2;
+    }
+    if modern == dirt {
+        return 3;
+    }
+    if modern == bedrock {
+        return 7;
+    }
     // back2beta stores stationary-water (9) at sea-level fill positions.
-    if modern == water_source { return 9; }
+    if modern == water_source {
+        return 9;
+    }
     // back2beta stores stationary-lava (10); registered for future cave gate.
-    if modern == lava_source  { return 10; }
-    if modern == sand      { return 12; }
-    if modern == gravel    { return 13; }
-    if modern == sandstone { return 24; }
+    if modern == lava_source {
+        return 10;
+    }
+    if modern == sand {
+        return 12;
+    }
+    if modern == gravel {
+        return 13;
+    }
+    if modern == sandstone {
+        return 24;
+    }
     let ice = minecraft::ICE.default_state_id;
-    if modern == ice       { return 79; }
+    if modern == ice {
+        return 79;
+    }
 
     // Unknown state: treat as air for comparison purposes.
     0
@@ -116,17 +140,17 @@ fn beta_id_for(modern: BlockStateId) -> u8 {
 /// so that biome-parity failures are correctly attributed.
 fn beta_land_biome_to_back2beta_id(b: BetaLandBiome) -> u8 {
     match b {
-        BetaLandBiome::Rainforest     => 0,
-        BetaLandBiome::Swampland      => 1,
+        BetaLandBiome::Rainforest => 0,
+        BetaLandBiome::Swampland => 1,
         BetaLandBiome::SeasonalForest => 2,
-        BetaLandBiome::Forest         => 3,
-        BetaLandBiome::Savanna        => 4,
-        BetaLandBiome::Shrubland      => 5,
-        BetaLandBiome::Taiga          => 6,
-        BetaLandBiome::Desert         => 7,
-        BetaLandBiome::Plains         => 8,
-        BetaLandBiome::IceDesert      => 9,
-        BetaLandBiome::Tundra         => 10,
+        BetaLandBiome::Forest => 3,
+        BetaLandBiome::Savanna => 4,
+        BetaLandBiome::Shrubland => 5,
+        BetaLandBiome::Taiga => 6,
+        BetaLandBiome::Desert => 7,
+        BetaLandBiome::Plains => 8,
+        BetaLandBiome::IceDesert => 9,
+        BetaLandBiome::Tundra => 10,
     }
 }
 
@@ -298,7 +322,9 @@ fn load_density_functions_from_disk() -> BTreeMap<
             mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
         >,
     ) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
@@ -310,7 +336,9 @@ fn load_density_functions_from_disk() -> BTreeMap<
                 };
                 recurse(&path, &new_prefix, map);
             } else if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                let Ok(json) = std::fs::read_to_string(&path) else { continue };
+                let Ok(json) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
                 let Ok(DensityFunctionHolder::Owned(pdf)) =
                     serde_json::from_str::<DensityFunctionHolder>(&json)
                 else {
@@ -371,11 +399,9 @@ fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
             (rl, ocean_ids[i])
         }))
         .collect();
-    let snapshot = RegistrySnapshot::<Biome>::build(
-        all_pairs,
-        &assets,
-        |_| Ok(mcrs_nbt::compound::NbtCompound::new()),
-    );
+    let snapshot = RegistrySnapshot::<Biome>::build(all_pairs, &assets, |_| {
+        Ok(mcrs_nbt::compound::NbtCompound::new())
+    });
     let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = std::array::from_fn(|i| {
         ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap()
     });
@@ -507,34 +533,56 @@ fn beta_surface_parity_gate() {
         //     expected f32 accumulation error.  If they are systematic (e.g. whole
         //     biome regions wrong) they indicate a surface-pass logic bug.
 
-        let bedrock_count = all_mismatches.iter()
-            .filter(|m| m.block_mismatches.iter().any(|b| b.3 == MismatchBand::Bedrock))
+        let bedrock_count = all_mismatches
+            .iter()
+            .filter(|m| {
+                m.block_mismatches
+                    .iter()
+                    .any(|b| b.3 == MismatchBand::Bedrock)
+            })
             .count();
-        let biome_count = all_mismatches.iter()
+        let biome_count = all_mismatches
+            .iter()
             .filter(|m| m.biome_mismatch.is_some())
             .count();
-        let surface_only_count = all_mismatches.iter()
+        let surface_only_count = all_mismatches
+            .iter()
             .filter(|m| {
                 m.biome_mismatch.is_none()
-                    && m.block_mismatches.iter().all(|b| b.3 == MismatchBand::Surface)
+                    && m.block_mismatches
+                        .iter()
+                        .all(|b| b.3 == MismatchBand::Surface)
             })
             .count();
 
         // Worst offenders: columns with the most mismatched Y positions.
-        let mut sorted = all_mismatches
-            .iter()
-            .collect::<Vec<_>>();
+        let mut sorted = all_mismatches.iter().collect::<Vec<_>>();
         sorted.sort_by_key(|m| std::cmp::Reverse(m.block_mismatches.len()));
-        let worst: Vec<String> = sorted.iter().take(10).map(|m| {
-            let first_block = m.block_mismatches.first().map(|(y, gid, fid, band)| {
-                format!("Y={} band={} gen={} fix={}", y, band, gid, fid)
-            }).unwrap_or_default();
-            let biome_s = m.biome_mismatch.map(|(g, f)| {
-                format!(", biome gen={} fix={}", g, f)
-            }).unwrap_or_default();
-            format!("  ({:+5},{:+5}) {} block mismatches [{}{}]",
-                m.wx, m.wz, m.block_mismatches.len(), first_block, biome_s)
-        }).collect();
+        let worst: Vec<String> = sorted
+            .iter()
+            .take(10)
+            .map(|m| {
+                let first_block = m
+                    .block_mismatches
+                    .first()
+                    .map(|(y, gid, fid, band)| {
+                        format!("Y={} band={} gen={} fix={}", y, band, gid, fid)
+                    })
+                    .unwrap_or_default();
+                let biome_s = m
+                    .biome_mismatch
+                    .map(|(g, f)| format!(", biome gen={} fix={}", g, f))
+                    .unwrap_or_default();
+                format!(
+                    "  ({:+5},{:+5}) {} block mismatches [{}{}]",
+                    m.wx,
+                    m.wz,
+                    m.block_mismatches.len(),
+                    first_block,
+                    biome_s
+                )
+            })
+            .collect();
 
         let cause_note = if bedrock_count > 0 {
             format!(
@@ -596,7 +644,8 @@ fn beta_surface_parity_gate() {
     assert!(
         mismatched * 1280 <= total_columns,
         "parity gate: {} mismatches / {} columns exceeds 1-per-1280 threshold",
-        mismatched, total_columns
+        mismatched,
+        total_columns
     );
 }
 
@@ -618,10 +667,10 @@ fn beta_climate_matches_back2beta_oracle() {
     let router = build_beta_router();
 
     let oracle_cols: &[(i32, i32, u8)] = &[
-        (31, -9, 7),   // Desert
-        (30, -11, 7),  // Desert
-        (0, 0, 7),     // Desert
-        (16, 16, 4),   // Savanna
+        (31, -9, 7),  // Desert
+        (30, -11, 7), // Desert
+        (0, 0, 7),    // Desert
+        (16, 16, 4),  // Savanna
     ];
 
     let table = build_beta_lookup_table();

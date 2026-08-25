@@ -255,7 +255,10 @@ mod tests {
         }
         let stride = SLOTS as u32 * 2;
         for (writing, resolving) in seen {
-            assert_ne!(writing, resolving, "a frame must not read the entry it writes");
+            assert_ne!(
+                writing, resolving,
+                "a frame must not read the entry it writes"
+            );
             assert!(writing < stride * RING && resolving < stride * RING);
         }
     }

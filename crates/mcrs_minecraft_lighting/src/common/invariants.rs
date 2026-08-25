@@ -17,7 +17,7 @@
 //! production release builds compile it away entirely.
 
 use crate::storage::LightStorage;
-use crate::table::{flag_bits, BlockStateLightTable};
+use crate::table::{BlockStateLightTable, flag_bits};
 use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::geometry::chunk_pos::BLOCKS;
 use mcrs_engine::world::block::BlockPos;

@@ -17,9 +17,13 @@ use bevy_ecs::system::RunSystemOnce;
 use bevy_math::DVec3;
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::geometry::ColumnPos;
+use mcrs_engine::session::PlayerSession;
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_engine::world::channels::{
+    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+};
 use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
-use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick,
     filter_inflight_for_disconnect, process_disconnect,
@@ -29,10 +33,8 @@ use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
     OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
-use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
-use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_engine::world::channels::{DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY};
 use mcrs_minecraft::world::channel_types::FromDim;
+use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft::world::player_index::PlayerIndex;
 
 mod harness;
@@ -54,7 +56,6 @@ fn build_disconnect_app() -> App {
     app.add_plugins(DisconnectProtocolPlugin);
     app
 }
-
 
 /// Register a dim channel in the app's `DimChannelsResource` and return the
 /// control receiver so tests can assert on `ToDim::Despawn` messages.
@@ -154,7 +155,10 @@ fn disconnect_at_tick_n_e1_3_after_dest_spawn_pre_attach_emit() {
     );
 
     assert!(
-        app.world().resource::<SessionRegistry>().get_by_anchor(&host_anchor).is_none(),
+        app.world()
+            .resource::<SessionRegistry>()
+            .get_by_anchor(&host_anchor)
+            .is_none(),
         "SessionRegistry entry removed"
     );
 }
@@ -214,7 +218,12 @@ fn disconnect_at_tick_n_e1_5_steady_in_dim() {
         "single despawn (current_dim only) since previous_dim is None"
     );
 
-    assert!(app.world().resource::<SessionRegistry>().get_by_anchor(&host_anchor).is_none());
+    assert!(
+        app.world()
+            .resource::<SessionRegistry>()
+            .get_by_anchor(&host_anchor)
+            .is_none()
+    );
 }
 
 /// Regression: a transfer-out eviction (via `InboundPlayerDespawn`) has the
@@ -236,12 +245,8 @@ fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
     let player_o =
         spawn_player_in_dim_with_host_anchor(&mut aoi_app, dim, DVec3::new(0.0, 64.0, 0.0), ha_o);
 
-    let player_t = spawn_player_in_dim_with_host_anchor(
-        &mut aoi_app,
-        dim,
-        DVec3::new(0.0, 64.0, 0.0),
-        ha_t,
-    );
+    let player_t =
+        spawn_player_in_dim_with_host_anchor(&mut aoi_app, dim, DVec3::new(0.0, 64.0, 0.0), ha_t);
 
     let radius: i32 = 20;
     {
@@ -254,7 +259,13 @@ fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
                     .world_mut()
                     .spawn((Column, PlayerObservers::default(), InDimension(dim)))
                     .id();
-                col_map.insert(col_pos, ColumnSlot { entity: column, section_count: 1 });
+                col_map.insert(
+                    col_pos,
+                    ColumnSlot {
+                        entity: column,
+                        section_count: 1,
+                    },
+                );
             }
         }
         aoi_app
@@ -293,7 +304,10 @@ fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
     aoi_app
         .world_mut()
         .resource_mut::<Messages<InboundPlayerDespawn>>()
-        .write(InboundPlayerDespawn { host_anchor: ha_t, session: PlayerSession(0) });
+        .write(InboundPlayerDespawn {
+            host_anchor: ha_t,
+            session: PlayerSession(0),
+        });
 
     run_fixed_pre_update(&mut aoi_app);
 

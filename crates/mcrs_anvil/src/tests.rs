@@ -862,7 +862,10 @@ fn a_stale_data_version_is_a_loud_error() {
 #[test]
 fn a_key_this_decoder_does_not_know_is_ignored() {
     let fixture = Fixture::new("unknown_key");
-    let mut section = section(0, container(vec![NbtTag::Compound(block("minecraft:stone"))], None));
+    let mut section = section(
+        0,
+        container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
+    );
     section.put_int("starlight.skylight_state", 3);
     let mut root = chunk_nbt(0, 0, vec![NbtTag::Compound(section)]);
     root.put_int("SomeFutureField", 1);

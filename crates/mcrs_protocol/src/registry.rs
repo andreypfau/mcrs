@@ -1,8 +1,8 @@
 use crate::{Decode, Encode, VarInt, nbt};
+use mcrs_ident::Ident;
 use mcrs_nbt::compound::NbtCompound;
 use std::borrow::Cow;
 use std::io::Write;
-use mcrs_ident::Ident;
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Entry<'a> {

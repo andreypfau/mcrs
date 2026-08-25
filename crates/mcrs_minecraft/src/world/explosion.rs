@@ -1,5 +1,4 @@
 use crate::world::block::Block;
-use mcrs_minecraft_block::palette::BlockPalette;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::{ContainsEntity, Entity};
@@ -9,6 +8,7 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos};
 use mcrs_engine::world::dimension::InDimension;
+use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::hash_map::Entry;
@@ -110,7 +110,8 @@ impl<'a, 'b> BlockCache<'a, 'b> {
                     let b = chunk_index.get(chunk_pos)?;
                     let (chunk, palette) = chunks.get(b.entity()).ok()?;
                     let block_state = palette.get(pos);
-                    let resistance = (AsRef::<Block>::as_ref(&block_state).explosion_resistance() + 0.3) * 0.3;
+                    let resistance =
+                        (AsRef::<Block>::as_ref(&block_state).explosion_resistance() + 0.3) * 0.3;
                     Some(BlockCacheItem {
                         pos,
                         block: block_state,
@@ -156,7 +157,7 @@ fn tick_explode(
 ) {
     explosions.par_iter_mut().for_each_init(
         || queue.borrow_local_mut(),
-        |q , (e, transform, dim, radius, detonator)| {
+        |q, (e, transform, dim, radius, detonator)| {
             let center = transform.translation;
             let dim = dim.entity();
             let Some(dim_chunks) = dim_chunks.get(dim).ok() else {
@@ -278,13 +279,13 @@ fn deduplicate_blocks(
 }
 
 use crate::world::block::minecraft::AIR;
-use mcrs_minecraft_block::block_update::BlockSetRequest;
 use crate::world::entity::explosive::primed_tnt::Detonator;
 use bevy_ecs::event::Event;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::Commands;
 use bevy_math::DVec3;
 use bevy_utils::Parallel;
+use mcrs_minecraft_block::block_update::BlockSetRequest;
 use rand::{RngExt, rng};
 use std::sync::OnceLock;
 
@@ -310,11 +311,8 @@ pub fn cached_rays() -> &'static [DVec3; LEN] {
 
                         let mag = (xd * xd + yd * yd + zd * zd).sqrt();
 
-                        out[i] = DVec3::new(
-                            (xd / mag) * SCALE,
-                            (yd / mag) * SCALE,
-                            (zd / mag) * SCALE,
-                        );
+                        out[i] =
+                            DVec3::new((xd / mag) * SCALE, (yd / mag) * SCALE, (zd / mag) * SCALE);
                         i += 1;
                     }
                 }
@@ -409,6 +407,9 @@ mod tests {
         });
 
         let cfg = app.world().resource::<ExplosionConfig>();
-        assert!(!cfg.cascading_enabled, "runtime flip to disabled must stick");
+        assert!(
+            !cfg.cascading_enabled,
+            "runtime flip to disabled must stick"
+        );
     }
 }

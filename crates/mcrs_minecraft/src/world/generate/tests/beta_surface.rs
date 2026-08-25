@@ -46,7 +46,9 @@ fn load_density_functions_from_disk() -> BTreeMap<
             mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
         >,
     ) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
@@ -58,7 +60,9 @@ fn load_density_functions_from_disk() -> BTreeMap<
                 };
                 recurse(&path, &new_prefix, map);
             } else if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                let Ok(json) = std::fs::read_to_string(&path) else { continue };
+                let Ok(json) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
                 let Ok(DensityFunctionHolder::Owned(pdf)) =
                     serde_json::from_str::<DensityFunctionHolder>(&json)
                 else {
@@ -119,11 +123,9 @@ fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
             (rl, ocean_ids[i])
         }))
         .collect();
-    let snapshot = RegistrySnapshot::<Biome>::build(
-        all_pairs,
-        &assets,
-        |_| Ok(mcrs_nbt::compound::NbtCompound::new()),
-    );
+    let snapshot = RegistrySnapshot::<Biome>::build(all_pairs, &assets, |_| {
+        Ok(mcrs_nbt::compound::NbtCompound::new())
+    });
     let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = std::array::from_fn(|i| {
         ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap()
     });
@@ -192,9 +194,8 @@ fn apply_beta_surface_places_surface_and_bedrock() {
 
     // Y=0 (section 0, local y=0): always bedrock for all 256 columns
     let section0_blocks = &sections[0].as_ref().expect("section 0 must be Some").0;
-    let y0_all_bedrock = (0..16i32).all(|x| {
-        (0..16i32).all(|z| section0_blocks.get(BlockPos::new(x, 0, z)) == bedrock_id)
-    });
+    let y0_all_bedrock = (0..16i32)
+        .all(|x| (0..16i32).all(|z| section0_blocks.get(BlockPos::new(x, 0, z)) == bedrock_id));
     assert!(y0_all_bedrock, "world Y=0 must be all bedrock");
 
     // Surface zone: sections 3-5 (world Y 48-95) must contain surface blocks
@@ -281,16 +282,16 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
     // Oracle: expected [Y0,Y1,Y2,Y3,Y4] (7=bedrock, 1=stone) for x_local=0, z_local=0..15.
     // Captured from the geographic beta_surface_corpus.json at chunk (0,0), seed 12345.
     let oracle: &[(i32, [u8; 5])] = &[
-        ( 0, [7, 1, 7, 7, 1]),
-        ( 1, [7, 7, 1, 7, 1]),
-        ( 2, [7, 1, 1, 1, 1]),
-        ( 3, [7, 7, 1, 1, 1]),
-        ( 4, [7, 1, 1, 7, 7]),
-        ( 5, [7, 7, 1, 7, 1]),
-        ( 6, [7, 7, 1, 1, 1]),
-        ( 7, [7, 1, 1, 1, 1]),
-        ( 8, [7, 7, 1, 7, 7]),
-        ( 9, [7, 7, 1, 1, 7]),
+        (0, [7, 1, 7, 7, 1]),
+        (1, [7, 7, 1, 7, 1]),
+        (2, [7, 1, 1, 1, 1]),
+        (3, [7, 7, 1, 1, 1]),
+        (4, [7, 1, 1, 7, 7]),
+        (5, [7, 7, 1, 7, 1]),
+        (6, [7, 7, 1, 1, 1]),
+        (7, [7, 1, 1, 1, 1]),
+        (8, [7, 7, 1, 7, 7]),
+        (9, [7, 7, 1, 1, 7]),
         (10, [7, 7, 7, 1, 1]),
         (11, [7, 1, 1, 1, 1]),
         (12, [7, 7, 1, 1, 1]),
@@ -308,9 +309,19 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
             if got_bedrock != expect_bedrock {
                 failures.push(format!(
                     "  x={} z={} Y={}: expected {} got {}",
-                    x_local, z_local, y,
-                    if expect_bedrock { "bedrock(7)" } else { "stone(1)" },
-                    if got_bedrock { "bedrock(7)" } else { "stone(1)" },
+                    x_local,
+                    z_local,
+                    y,
+                    if expect_bedrock {
+                        "bedrock(7)"
+                    } else {
+                        "stone(1)"
+                    },
+                    if got_bedrock {
+                        "bedrock(7)"
+                    } else {
+                        "stone(1)"
+                    },
                 ));
             }
         }
@@ -343,24 +354,30 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
 #[test]
 fn beta_terrain_height_matches_back2beta_oracle() {
     #[derive(serde::Deserialize)]
-    struct CorpusRoot { columns: Vec<CorpusCol> }
+    struct CorpusRoot {
+        columns: Vec<CorpusCol>,
+    }
     #[derive(serde::Deserialize)]
     struct CorpusCol {
-        wx: i32, wz: i32,
-        #[serde(with = "serde_b64")] pre_cave: Vec<u8>,
+        wx: i32,
+        wz: i32,
+        #[serde(with = "serde_b64")]
+        pre_cave: Vec<u8>,
     }
     mod serde_b64 {
         use base64::Engine as _;
         use serde::{Deserialize, Deserializer};
         pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Vec<u8>, D::Error> {
             let s = String::deserialize(de)?;
-            base64::engine::general_purpose::STANDARD.decode(s).map_err(serde::de::Error::custom)
+            base64::engine::general_purpose::STANDARD
+                .decode(s)
+                .map_err(serde::de::Error::custom)
         }
     }
 
-    let corpus: CorpusRoot = serde_json::from_str(
-        include_str!("fixtures/beta_surface_corpus.json")
-    ).expect("valid corpus");
+    let corpus: CorpusRoot =
+        serde_json::from_str(include_str!("fixtures/beta_surface_corpus.json"))
+            .expect("valid corpus");
 
     // Corpus terrain top: topmost non-air (0) non-water (9) byte.
     // This is the density stone top — originally stone in generateTerrain, possibly
@@ -368,14 +385,22 @@ fn beta_terrain_height_matches_back2beta_oracle() {
     let corpus_terrain_top_y = |pre_cave: &[u8]| -> Option<i32> {
         (0..128i32).rev().find(|&y| {
             let b = pre_cave[y as usize];
-            b != 0 && b != 9  // not air, not stationary-water
+            b != 0 && b != 9 // not air, not stationary-water
         })
     };
 
     let stone_id = minecraft::STONE.default_state_id;
 
     // Rust stone top: scan generate_column sections top-down for highest Y with stone.
-    let rust_stone_top_y = |sections: &Vec<Option<(mcrs_minecraft_block::palette::BlockPalette, mcrs_minecraft_block::palette::BiomePalette)>>, lx: i32, lz: i32| -> Option<i32> {
+    let rust_stone_top_y = |sections: &Vec<
+        Option<(
+            mcrs_minecraft_block::palette::BlockPalette,
+            mcrs_minecraft_block::palette::BiomePalette,
+        )>,
+    >,
+                            lx: i32,
+                            lz: i32|
+     -> Option<i32> {
         let y_sections: Vec<i32> = (0..8).collect();
         for sy in (0..8i32).rev() {
             let si = sy as usize;
@@ -394,7 +419,12 @@ fn beta_terrain_height_matches_back2beta_oracle() {
 
     // Worst-offender columns from the verification report (seed 12345).
     let worst_offenders: &[(i32, i32)] = &[
-        (24, -16), (15, -16), (22, -16), (23, -16), (23, -15), (24, -13),
+        (24, -16),
+        (15, -16),
+        (22, -16),
+        (23, -16),
+        (23, -15),
+        (24, -13),
     ];
 
     let router = build_beta_router();
@@ -403,12 +433,22 @@ fn beta_terrain_height_matches_back2beta_oracle() {
     let y_sections: Vec<i32> = (0..8).collect();
 
     // Build a lookup: (wx, wz) → pre_cave bytes.
-    let corpus_map: std::collections::HashMap<(i32, i32), &[u8]> = corpus.columns.iter()
+    let corpus_map: std::collections::HashMap<(i32, i32), &[u8]> = corpus
+        .columns
+        .iter()
         .map(|c| ((c.wx, c.wz), c.pre_cave.as_slice()))
         .collect();
 
     // Cache generated sections by chunk to avoid re-generating.
-    let mut chunk_cache: std::collections::HashMap<(i32, i32), Vec<Option<(mcrs_minecraft_block::palette::BlockPalette, mcrs_minecraft_block::palette::BiomePalette)>>> = std::collections::HashMap::new();
+    let mut chunk_cache: std::collections::HashMap<
+        (i32, i32),
+        Vec<
+            Option<(
+                mcrs_minecraft_block::palette::BlockPalette,
+                mcrs_minecraft_block::palette::BiomePalette,
+            )>,
+        >,
+    > = std::collections::HashMap::new();
 
     let mut failures: Vec<String> = Vec::new();
     let mut table_rows: Vec<String> = Vec::new();
@@ -420,7 +460,14 @@ fn beta_terrain_height_matches_back2beta_oracle() {
         let lz = wz - cz * 16;
 
         let sections = chunk_cache.entry((cx, cz)).or_insert_with(|| {
-            generate_column(cx, cz, &y_sections, &router, Some((&biome_source, &snapshot)), &cancel)
+            generate_column(
+                cx,
+                cz,
+                &y_sections,
+                &router,
+                Some((&biome_source, &snapshot)),
+                &cancel,
+            )
         });
 
         let rust_top = rust_stone_top_y(sections, lx, lz);
@@ -459,7 +506,6 @@ fn beta_terrain_height_matches_back2beta_oracle() {
         failures.join("\n")
     );
 }
-
 
 /// Verify the bedrock probability distribution matches back2beta:
 /// Y=0: always bedrock (0 <= 0 + nextInt(5), always true)
@@ -501,15 +547,12 @@ fn apply_beta_surface_bedrock_probability_matches_back2beta() {
     let section0_blocks = &sections[0].as_ref().expect("section 0 must be present").0;
 
     // Y=0: all bedrock
-    let y0_all_bedrock = (0..16i32).all(|x| {
-        (0..16i32).all(|z| section0_blocks.get(BlockPos::new(x, 0, z)) == bedrock_id)
-    });
+    let y0_all_bedrock = (0..16i32)
+        .all(|x| (0..16i32).all(|z| section0_blocks.get(BlockPos::new(x, 0, z)) == bedrock_id));
     assert!(y0_all_bedrock, "all columns at world Y=0 must be bedrock");
 
     // Y=5: never bedrock (nextInt(5) max is 4, so 5 > 0+4 = condition never satisfied)
-    let y5_no_bedrock = (0..16i32).all(|x| {
-        (0..16i32).all(|z| section0_blocks.get(BlockPos::new(x, 5, z)) != bedrock_id)
-    });
+    let y5_no_bedrock = (0..16i32)
+        .all(|x| (0..16i32).all(|z| section0_blocks.get(BlockPos::new(x, 5, z)) != bedrock_id));
     assert!(y5_no_bedrock, "world Y=5 must never be bedrock");
 }
-

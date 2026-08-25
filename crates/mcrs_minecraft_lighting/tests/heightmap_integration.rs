@@ -26,11 +26,11 @@ use mcrs_engine::world::column::{ColumnPlugin, Heightmaps, InColumn};
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_lighting::LightingPlugin;
+use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_protocol::BlockStateId;
 
 // Single-pass scan contract: the heightmap reflects only XZ columns the
@@ -67,8 +67,7 @@ fn make_stub_block_light_table() -> BlockStateLightTable {
     flags[0] = flag_bits::PROPAGATES_SKYLIGHT_DOWN;
     emission[1] = 0;
     dampening[1] = 15;
-    flags[1] =
-        flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
+    flags[1] = flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
     BlockStateLightTable {
         emission,
         dampening,
@@ -159,7 +158,10 @@ fn eager_update_below_surface_early_out() {
         .expect("InColumn back-link missing after prime")
         .0;
     let (surface_before, motion_before) = surface_above_topmost(app.world(), col_entity, 0, 0);
-    assert_eq!(surface_before, 4, "primed surface must be 4 above topmost solid");
+    assert_eq!(
+        surface_before, 4,
+        "primed surface must be 4 above topmost solid"
+    );
     assert_eq!(motion_before, 4);
 
     send_block_placed(

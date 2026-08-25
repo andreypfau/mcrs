@@ -3,13 +3,16 @@
 //! surface so callers can land on `crate::block_light::propagate::*`
 //! as the canonical path. A future refactor will move the bodies here.
 
-use bevy_ecs::change_detection::Res;
-use bevy_ecs::prelude::{ParallelCommands, Query, With};
-use bevy_ecs::entity::Entity;
-use mcrs_minecraft_block::palette::BlockPalette;
-use crate::{propagate, BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockOutbox, BlockOutboxDirty};
 use crate::bfs::{propagate_decrease, propagate_increase};
 use crate::table::BlockStateLightTable;
+use crate::{
+    BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockOutbox, BlockOutboxDirty,
+    propagate,
+};
+use bevy_ecs::change_detection::Res;
+use bevy_ecs::entity::Entity;
+use bevy_ecs::prelude::{ParallelCommands, Query, With};
+use mcrs_minecraft_block::palette::BlockPalette;
 
 #[cfg_attr(
     feature = "telemetry-tracy",

@@ -8,7 +8,9 @@ impl Clone for LightNibbles {
 
 impl std::fmt::Debug for LightNibbles {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("LightNibbles").field(&"<2048 bytes>").finish()
+        f.debug_tuple("LightNibbles")
+            .field(&"<2048 bytes>")
+            .finish()
     }
 }
 

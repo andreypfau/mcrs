@@ -80,11 +80,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     for &chunk_pos in &chunk_positions {
         let chunk_entity = app
             .world_mut()
-            .spawn((
-                chunk_pos,
-                InDimension(dim_entity),
-                BlockPalette::default(),
-            ))
+            .spawn((chunk_pos, InDimension(dim_entity), BlockPalette::default()))
             .id();
         chunk_index.insert(chunk_pos, chunk_entity);
         column_index.0.insert(
@@ -109,9 +105,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
     // half of the cascade chain (tick_explode's actual emission is gated on
     // the full entity pipeline which is out of scope for this regression test).
     {
-        let mut writer = app
-            .world_mut()
-            .resource_mut::<Messages<BlockSetRequest>>();
+        let mut writer = app.world_mut().resource_mut::<Messages<BlockSetRequest>>();
         for &chunk_pos in &chunk_positions {
             let block_pos = BlockPos::new(
                 chunk_pos.x * 16 + 8,

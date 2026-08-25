@@ -19,18 +19,18 @@
 //! The `'static` lifetime on the returned `LightData` is required because
 //! downstream `Message<T>` types must be `Send + Sync + 'static`.
 
+use crate::storage::LightStorage;
+use crate::{BlockLight, SkyLight};
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Entity, Query, With};
 use bevy_ecs::system::{Local, SystemParam};
 use mcrs_engine::world::column::{
-    ColumnPos, ColumnPosComponent, InColumn, ColumnChunks, ChunkLookup,
+    ChunkLookup, ColumnChunks, ColumnPos, ColumnPosComponent, InColumn,
 };
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
-use mcrs_protocol::chunk::{LightData, LightChunk};
+use mcrs_protocol::chunk::{LightChunk, LightData};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;
-use crate::{BlockLight, SkyLight};
-use crate::storage::LightStorage;
 
 /// Which light layer a `pack_chunk` call is operating on.
 // Note: function name `pack_chunk` is kept as part of the public wire-codec
@@ -422,7 +422,10 @@ mod tests {
             &mut arrays,
         );
         assert!(!bit_is_set(&mask, 0), "block mask bit must NOT be set");
-        assert!(bit_is_set(&empty_mask, 0), "empty block mask bit must be set");
+        assert!(
+            bit_is_set(&empty_mask, 0),
+            "empty block mask bit must be set"
+        );
         assert!(arrays.is_empty(), "no block array appended");
 
         // Sky layer (independent of has_sky_light per the matrix).
@@ -465,7 +468,11 @@ mod tests {
         assert!(bit_is_set(&mask, 3));
         assert!(!bit_is_set(&empty_mask, 3));
         assert_eq!(arrays.len(), 1);
-        assert_eq!(arrays[0], mcrs_protocol::chunk::LightChunk(*nibble.0), "appended bytes must equal Mixed payload");
+        assert_eq!(
+            arrays[0],
+            mcrs_protocol::chunk::LightChunk(*nibble.0),
+            "appended bytes must equal Mixed payload"
+        );
     }
 
     #[test]
@@ -542,7 +549,10 @@ mod tests {
             &mut empty_mask,
             &mut arrays,
         );
-        assert!(!bit_is_set(&mask, 8), "sky mask must NOT be set in skyless dim");
+        assert!(
+            !bit_is_set(&mask, 8),
+            "sky mask must NOT be set in skyless dim"
+        );
         assert!(bit_is_set(&empty_mask, 8), "empty sky mask must be set");
         assert!(arrays.is_empty(), "no sky payload in skyless dim");
 
@@ -752,7 +762,11 @@ mod tests {
         for word_idx in 0..sky_mask.len().max(empty_sky_mask.len()) {
             let s = *sky_mask.get(word_idx).unwrap_or(&0);
             let e = *empty_sky_mask.get(word_idx).unwrap_or(&0);
-            assert_eq!(s & e, 0, "sky: mask and empty_mask overlap at word {word_idx}");
+            assert_eq!(
+                s & e,
+                0,
+                "sky: mask and empty_mask overlap at word {word_idx}"
+            );
         }
 
         // Verify the per-row expectations on the block layer.

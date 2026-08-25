@@ -14,6 +14,7 @@ use crate::world::entity::player::movement::MovementPlugin;
 use crate::world::entity::player::player_action::PlayerActionPlugin;
 use crate::world::entity::{EntityBundle, MinecraftEntityType};
 use crate::world::inventory::{ContainerSeqno, PlayerInventoryBundle};
+use crate::world::sub_app_builder::DimTypeIndex;
 use bevy_app::{FixedUpdate, Plugin, Update};
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
@@ -26,9 +27,8 @@ use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDistance};
 use mcrs_engine::entity::player::reposition::Reposition;
 use mcrs_engine::entity::{Despawned, EntityNetworkAddEvent, InTransit};
-use mcrs_engine::world::dimension::{Dimension, DimensionId, InDimension};
 use mcrs_engine::session::{DimPlayerIndex, Owner, PlayerSession};
-use crate::world::sub_app_builder::DimTypeIndex;
+use mcrs_engine::world::dimension::{Dimension, DimensionId, InDimension};
 use mcrs_protocol::GameMode;
 use movement::TeleportState;
 use tracing::{debug, info};
@@ -136,10 +136,7 @@ fn consume_inbound_player_spawn(
             .spawn((
                 EntityBundle::new(InDimension(dim))
                     .with_uuid(spawn.snapshot.uuid)
-                    .with_transform(
-                        Transform::default()
-                            .with_translation(spawn.snapshot.position),
-                    ),
+                    .with_transform(Transform::default().with_translation(spawn.snapshot.position)),
                 PlayerBundle {
                     game_mode: PlayerGameMode(default_game_mode()),
                     teleport_state: TeleportState::after_login(),
@@ -190,8 +187,8 @@ fn consume_inbound_player_spawn(
                 do_limited_crafting: false,
                 enforces_secure_chat: false,
             },
-        session: PlayerSession(0),
-        epoch: 0,
+            session: PlayerSession(0),
+            epoch: 0,
         });
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
@@ -211,8 +208,8 @@ fn consume_inbound_player_spawn(
                     listed: true,
                 }],
             },
-        session: PlayerSession(0),
-        epoch: 0,
+            session: PlayerSession(0),
+            epoch: 0,
         });
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
@@ -220,9 +217,12 @@ fn consume_inbound_player_spawn(
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(host),
             priority: PacketPriority::Critical,
-            data: PacketPayload::SetChunkCacheCenter { x: center_x, z: center_z },
-        session: PlayerSession(0),
-        epoch: 0,
+            data: PacketPayload::SetChunkCacheCenter {
+                x: center_x,
+                z: center_z,
+            },
+            session: PlayerSession(0),
+            epoch: 0,
         });
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
@@ -231,8 +231,8 @@ fn consume_inbound_player_spawn(
             target: PacketTarget::SinglePlayer(host),
             priority: PacketPriority::Critical,
             data: PacketPayload::SetChunkCacheRadius { radius: 12 },
-        session: PlayerSession(0),
-        epoch: 0,
+            session: PlayerSession(0),
+            epoch: 0,
         });
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
@@ -241,8 +241,8 @@ fn consume_inbound_player_spawn(
             target: PacketTarget::SinglePlayer(host),
             priority: PacketPriority::Critical,
             data: PacketPayload::LevelChunksLoadStart,
-        session: PlayerSession(0),
-        epoch: 0,
+            session: PlayerSession(0),
+            epoch: 0,
         });
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
@@ -254,8 +254,8 @@ fn consume_inbound_player_spawn(
                 entity_id: wire_id,
                 entity_status: 24,
             },
-        session: PlayerSession(0),
-        epoch: 0,
+            session: PlayerSession(0),
+            epoch: 0,
         });
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
@@ -267,8 +267,8 @@ fn consume_inbound_player_spawn(
                 teleport_id: TeleportState::LOGIN_TELEPORT_ID,
                 position: spawn_pos,
             },
-        session: PlayerSession(0),
-        epoch: 0,
+            session: PlayerSession(0),
+            epoch: 0,
         });
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
@@ -279,7 +279,6 @@ fn consume_inbound_player_spawn(
         });
     }
 }
-
 
 /// Per-dim consumer that despawns the in-dim player entity when an
 /// `InboundPlayerDespawn` arrives for its host anchor. Fires on both
@@ -334,16 +333,22 @@ fn network_add(
             yaw: transform.rotation.yaw(),
             pitch: transform.rotation.pitch(),
         },
-    session: PlayerSession(0),
-    epoch: 0,
+        session: PlayerSession(0),
+        epoch: 0,
     });
-    mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-        .fetch_add(1, Ordering::Relaxed);
+    mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.fetch_add(1, Ordering::Relaxed);
 }
 
 fn player_joined(
     event: On<PlayerJoinEvent>,
-    players: Query<(&GameProfile, &PlayerGameMode, &crate::world::player_index::HostAnchorRef), With<Player>>,
+    players: Query<
+        (
+            &GameProfile,
+            &PlayerGameMode,
+            &crate::world::player_index::HostAnchorRef,
+        ),
+        With<Player>,
+    >,
     positions: Query<&Transform, With<Player>>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
@@ -380,8 +385,8 @@ fn player_joined(
             data: PacketPayload::PlayerInfoUpdate {
                 entries: entries.clone(),
             },
-        session: PlayerSession(0),
-        epoch: 0,
+            session: PlayerSession(0),
+            epoch: 0,
         });
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
@@ -399,7 +404,10 @@ pub fn despawn_on_confirm(
     for msg in reader.read() {
         for (entity, transit) in in_transit.iter() {
             if transit.move_id == msg.move_id {
-                commands.entity(entity).remove::<InTransit>().insert(Despawned);
+                commands
+                    .entity(entity)
+                    .remove::<InTransit>()
+                    .insert(Despawned);
                 break;
             }
         }
@@ -422,4 +430,3 @@ pub fn unhide_on_rollback(
         }
     }
 }
-

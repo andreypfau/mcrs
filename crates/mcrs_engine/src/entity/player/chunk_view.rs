@@ -60,9 +60,8 @@ fn update_view(
     dimensions: Query<&DimensionTypeConfig>,
     commands: ParallelCommands,
 ) {
-    query
-        .par_iter_mut()
-        .for_each(|(player, mut observer, transform, client_view_distance, in_dim)| {
+    query.par_iter_mut().for_each(
+        |(player, mut observer, transform, client_view_distance, in_dim)| {
             let observer = &mut *observer;
             // A dimension transition leaves last_last_chunk_tracking_view
             // referencing the previous dim's coordinate frame; diffing
@@ -143,7 +142,8 @@ fn update_view(
             load_queue.sort_unstable_by_key(|pos| pos.distance_squared(*chunk_pos));
             observer.load_queue.extend(load_queue);
             observer.last_last_chunk_tracking_view = Some(new_view);
-        });
+        },
+    );
 }
 
 #[derive(Debug, Message)]

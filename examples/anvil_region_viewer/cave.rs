@@ -126,14 +126,22 @@ impl CaveCull {
     }
 
     pub fn set_region(&mut self, base: usize, entries: &[(u32, u64)]) {
-        debug_assert_eq!(base % SECTIONS_PER_RENDER_REGION, 0, "a region starts where a region starts");
+        debug_assert_eq!(
+            base % SECTIONS_PER_RENDER_REGION,
+            0,
+            "a region starts where a region starts"
+        );
         for &(local, mask) in entries {
             self.conn[base + local as usize] = mask;
         }
     }
 
     pub fn forget(&mut self, base: usize) {
-        debug_assert_eq!(base % SECTIONS_PER_RENDER_REGION, 0, "a region starts where a region starts");
+        debug_assert_eq!(
+            base % SECTIONS_PER_RENDER_REGION,
+            0,
+            "a region starts where a region starts"
+        );
         self.conn[base..base + SECTIONS_PER_RENDER_REGION].fill(crate::mesh::CONNECT_ALL);
     }
 
@@ -179,8 +187,10 @@ impl CaveCull {
                 if (0..3).any(|a| next[a] < lo[a] || next[a] > hi[a]) {
                     continue;
                 }
-                let neighbour =
-                    self.grid.slot(next[0] as usize, next[1] as usize, next[2] as usize) as u32;
+                let neighbour = self
+                    .grid
+                    .slot(next[0] as usize, next[1] as usize, next[2] as usize)
+                    as u32;
                 self.push(neighbour, exit ^ 1, dirs | 1 << exit, frustum);
             }
         }
@@ -207,7 +217,9 @@ impl CaveCull {
         }
 
         if outside == [0, 0, 0] {
-            let slot = self.grid.slot(cs[0] as usize, cs[1] as usize, cs[2] as usize) as u32;
+            let slot = self
+                .grid
+                .slot(cs[0] as usize, cs[1] as usize, cs[2] as usize) as u32;
             if self.conn[slot as usize] == 0 {
                 return false;
             }
@@ -227,8 +239,7 @@ impl CaveCull {
                     p[a] = fixed;
                     p[b] = u;
                     p[c] = v;
-                    let slot =
-                        self.grid.slot(p[0] as usize, p[1] as usize, p[2] as usize) as u32;
+                    let slot = self.grid.slot(p[0] as usize, p[1] as usize, p[2] as usize) as u32;
                     self.push(slot, ENTRY_ANY, dirs, frustum);
                 }
             }
@@ -312,8 +323,8 @@ pub fn toggle(keys: Res<ButtonInput<KeyCode>>, mut cave: ResMut<CaveCull>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mesh::CONNECT_ALL;
     use crate::anvil::REGION_CHUNKS;
+    use crate::mesh::CONNECT_ALL;
     use crate::pack::{RENDER_REGION_X, RENDER_REGION_Y};
     use bevy::camera::CameraProjection;
 
@@ -387,7 +398,10 @@ mod tests {
         let mut cave = walk(conn);
         let eye = Vec3::new(900.0, 32.0, 256.0);
         cave.run(eye, &wide(eye, Vec3::new(0.0, 32.0, 256.0)));
-        assert!(!visible(&cave, 10, 2, 16), "the walk really did cull something");
+        assert!(
+            !visible(&cave, 10, 2, 16),
+            "the walk really did cull something"
+        );
 
         let tail = cave.always_visible() as usize;
         for slot in tail..tail + SECTIONS_PER_RENDER_REGION {
@@ -420,7 +434,10 @@ mod tests {
         let mut cave = at(conn, corner);
         let eye = Vec3::new(-104.0, 40.0, -248.0);
         cave.run(eye, &wide(eye, Vec3::new(-900.0, 40.0, -248.0)));
-        assert!(visible(&cave, 25, 2, 16), "the section the camera stands in");
+        assert!(
+            visible(&cave, 25, 2, 16),
+            "the section the camera stands in"
+        );
         assert!(!visible(&cave, 10, 2, 16), "section behind the wall");
     }
 
@@ -462,8 +479,14 @@ mod tests {
         let eye = Vec3::new(900.0, 40.0, 264.0);
         cave.run(eye, &wide(eye, Vec3::new(0.0, 40.0, 264.0)));
         assert!(visible(&cave, 16, 2, 16), "the section both routes reach");
-        assert!(visible(&cave, 16, 2, 15), "north of it, which only the southbound route forbids");
-        assert!(visible(&cave, 16, 2, 17), "south of it, which only the northbound route forbids");
+        assert!(
+            visible(&cave, 16, 2, 15),
+            "north of it, which only the southbound route forbids"
+        );
+        assert!(
+            visible(&cave, 16, 2, 17),
+            "south of it, which only the northbound route forbids"
+        );
     }
 
     #[test]
@@ -476,7 +499,10 @@ mod tests {
         let mut cave = walk(conn);
         let eye = Vec3::new(900.0, 40.0, 900.0);
         cave.run(eye, &wide(eye, Vec3::new(0.0, 40.0, 0.0)));
-        assert!(visible(&cave, 16, 2, 16), "west of the turn, which the walk may still reach");
+        assert!(
+            visible(&cave, 16, 2, 16),
+            "west of the turn, which the walk may still reach"
+        );
         assert!(
             !visible(&cave, 17, 2, 17),
             "south of the turn: getting to the boundary already spent north"
@@ -495,7 +521,10 @@ mod tests {
         }
         let eye = Vec3::new(900.0, 40.0, 264.0);
         cave.run(eye, &wide(eye, Vec3::new(0.0, 40.0, 264.0)));
-        assert!(visible(&cave, 12, 2, 16), "section in front of the wall that was written back");
+        assert!(
+            visible(&cave, 12, 2, 16),
+            "section in front of the wall that was written back"
+        );
         assert!(!visible(&cave, 5, 2, 16), "section behind it");
     }
 
@@ -521,8 +550,14 @@ mod tests {
             let mut cave = two_ways_in(mx, mz);
             let eye = Vec3::new(-160.0, 40.0, -160.0);
             cave.run(eye, &wide(eye, Vec3::new(400.0, 40.0, 400.0)));
-            assert!(visible(&cave, mx, 3, mz), "{mx},{mz}: the way up, entered from the west");
-            assert!(visible(&cave, mx, 1, mz), "{mx},{mz}: the way down, entered from the north");
+            assert!(
+                visible(&cave, mx, 3, mz),
+                "{mx},{mz}: the way up, entered from the west"
+            );
+            assert!(
+                visible(&cave, mx, 1, mz),
+                "{mx},{mz}: the way down, entered from the north"
+            );
         }
     }
 

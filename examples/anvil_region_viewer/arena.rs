@@ -47,7 +47,10 @@ impl Arena {
         }
         let want = class_of(units);
         let mut class = (want..self.free.len()).find(|class| !self.free[*class].is_empty())?;
-        let offset = *self.free[class].iter().next().expect("the class is not empty");
+        let offset = *self.free[class]
+            .iter()
+            .next()
+            .expect("the class is not empty");
         self.free[class].remove(&offset);
         while class > want {
             class -= 1;
@@ -113,7 +116,11 @@ mod tests {
         let block = arena.alloc(33).unwrap();
         assert_eq!(block.size, 64, "33 units round up to a class of 64");
         assert_eq!(arena.asked(), 33);
-        assert_eq!(arena.held(), 64, "and the arena is charged for the rounding");
+        assert_eq!(
+            arena.held(),
+            64,
+            "and the arena is charged for the rounding"
+        );
     }
 
     #[test]
@@ -139,9 +146,16 @@ mod tests {
         assert!(!overlap(&first, &second));
 
         arena.free(first);
-        assert_eq!(arena.held(), second.size, "only the block still out is charged");
+        assert_eq!(
+            arena.held(),
+            second.size,
+            "only the block still out is charged"
+        );
         let third = arena.alloc(100).unwrap();
-        assert_eq!(third.offset, first.offset, "the freed block, not a fresh one");
+        assert_eq!(
+            third.offset, first.offset,
+            "the freed block, not a fresh one"
+        );
         assert_eq!(arena.held(), second.size + third.size);
     }
 
@@ -157,7 +171,11 @@ mod tests {
         }
         assert_eq!(arena.held(), 0);
         let whole = arena.alloc(1024).unwrap();
-        assert_eq!((whole.offset, whole.size), (0, 1024), "the arena came back in one piece");
+        assert_eq!(
+            (whole.offset, whole.size),
+            (0, 1024),
+            "the arena came back in one piece"
+        );
     }
 
     #[test]
@@ -185,7 +203,11 @@ mod tests {
         for block in live {
             arena.free(block);
         }
-        assert_eq!(arena.alloc(8).unwrap().size, 8, "the larger carve is whole again");
+        assert_eq!(
+            arena.alloc(8).unwrap().size,
+            8,
+            "the larger carve is whole again"
+        );
     }
 
     #[test]

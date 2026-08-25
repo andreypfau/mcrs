@@ -46,7 +46,10 @@ pub(super) fn extend_tints(catalog: &mut Catalog, biomes: &[String]) {
             .map(rgb)
             .or_else(|| sample_colormap(&foliage_map, temperature, downfall))
             .unwrap_or([0.29, 0.60, 0.21, 1.0]);
-        let water = effects.water_color.map(rgb).unwrap_or([0.25, 0.46, 0.89, 1.0]);
+        let water = effects
+            .water_color
+            .map(rgb)
+            .unwrap_or([0.25, 0.46, 0.89, 1.0]);
         catalog.tints.extend_from_slice(&[grass, foliage, water]);
     }
 }
@@ -62,11 +65,7 @@ fn load_colormap(name: &str) -> Option<Vec<u8>> {
     use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
     use bevy::prelude::Image;
 
-    let path = model::resource_path(
-        &format!("minecraft:colormap/{name}"),
-        "textures",
-        "png",
-    );
+    let path = model::resource_path(&format!("minecraft:colormap/{name}"), "textures", "png");
     let bytes = std::fs::read(path).ok()?;
     let image = Image::from_buffer(
         &bytes,

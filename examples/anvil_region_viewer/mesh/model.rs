@@ -8,8 +8,8 @@ use crate::pack::{
 };
 
 use super::Sink;
-use super::scratch::{FACE_GROUPS, Scratch, border_index};
 use super::face_normal;
+use super::scratch::{FACE_GROUPS, Scratch, border_index};
 
 pub const WORDS_PER_QUAD: usize = 3 * 4;
 
@@ -36,8 +36,14 @@ pub(super) fn push(out: &mut Vec<u32>, quad: &Quad, local_section: u32) {
         MODEL_X.set(&mut words, fixed(quad.positions[corner][0]) as u64);
         MODEL_Y.set(&mut words, fixed(quad.positions[corner][1]) as u64);
         MODEL_Z.set(&mut words, fixed(quad.positions[corner][2]) as u64);
-        MODEL_U.set(&mut words, (quad.uvs[corner][0].clamp(0.0, 1.0) * scale) as u64);
-        MODEL_V.set(&mut words, (quad.uvs[corner][1].clamp(0.0, 1.0) * scale) as u64);
+        MODEL_U.set(
+            &mut words,
+            (quad.uvs[corner][0].clamp(0.0, 1.0) * scale) as u64,
+        );
+        MODEL_V.set(
+            &mut words,
+            (quad.uvs[corner][1].clamp(0.0, 1.0) * scale) as u64,
+        );
         MODEL_TINT.set(&mut words, quad.tint as u64);
         MODEL_BLOCK_LIGHT.set(&mut words, quad.light.0 as u64);
         MODEL_SKY_LIGHT.set(&mut words, quad.light.1 as u64);
@@ -156,16 +162,24 @@ mod tests {
     fn the_model_mesher_names_blocks_in_the_worlds_numbering() {
         let mut palette = Palette::new();
         let mut world = World::new([0, 0], [1, 1]);
-        world.insert(&mut palette, [0, 0], one_section_region("minecraft:test_block"));
+        world.insert(
+            &mut palette,
+            [0, 0],
+            one_section_region("minecraft:test_block"),
+        );
         let id = palette
             .states
             .iter()
             .position(|state| state.name == "minecraft:test_block")
             .unwrap();
-        assert_ne!(id, 0, "the fixture only bites while the two numberings disagree");
+        assert_ne!(
+            id, 0,
+            "the fixture only bites while the two numberings disagree"
+        );
 
-        let mut blocks: Vec<BlockInfo> =
-            (0..palette.states.len()).map(|_| BlockInfo::default()).collect();
+        let mut blocks: Vec<BlockInfo> = (0..palette.states.len())
+            .map(|_| BlockInfo::default())
+            .collect();
         blocks[id].quads = vec![ModelQuad {
             positions: [Vec3::ZERO; 4],
             uvs: [[0.0; 2]; 4],
@@ -185,8 +199,7 @@ mod tests {
             })
             .sum();
         assert_eq!(
-            quads,
-            SECTION_VOLUME,
+            quads, SECTION_VOLUME,
             "one model quad per block of the one section the fixture fills"
         );
     }
@@ -228,6 +241,9 @@ mod tests {
                 rest.split_once(';')?.0.parse().ok()
             })
             .collect();
-        assert_eq!(arms, BUCKET_SHADES, "the shader expands the buckets differently");
+        assert_eq!(
+            arms, BUCKET_SHADES,
+            "the shader expands the buckets differently"
+        );
     }
 }

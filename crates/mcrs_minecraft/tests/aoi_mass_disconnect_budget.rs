@@ -5,6 +5,10 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_engine::world::channels::{
+    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+};
 use mcrs_minecraft::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, OverflowCounter,
     PendingDisconnectQueue, QUEUE_HARD_CAP, drain_pending_disconnects,
@@ -13,10 +17,8 @@ use mcrs_minecraft::disconnect::{
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
 };
-use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
-use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_engine::world::channels::{DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY};
 use mcrs_minecraft::world::channel_types::FromDim;
+use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft::world::player_index::PlayerIndex;
 
 fn build_app() -> App {
@@ -160,12 +162,14 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
 
     let processed = dim_despawn_count(&ctl_rx);
     assert_eq!(
-        processed,
-        32,
+        processed, 32,
         "exactly budget-count (32) processed in the first tick",
     );
     assert_eq!(
-        app.world().resource::<PendingDisconnectQueue>().entries.len(),
+        app.world()
+            .resource::<PendingDisconnectQueue>()
+            .entries
+            .len(),
         68,
         "remaining 68 anchors queued",
     );
@@ -176,7 +180,10 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     let processed_2 = processed + dim_despawn_count(&ctl_rx);
     assert_eq!(processed_2, 64, "32 + 32 processed");
     assert_eq!(
-        app.world().resource::<PendingDisconnectQueue>().entries.len(),
+        app.world()
+            .resource::<PendingDisconnectQueue>()
+            .entries
+            .len(),
         36,
     );
 
@@ -186,7 +193,10 @@ fn e4_1_100_simultaneous_disconnects_process_32_per_tick() {
     let processed_3 = processed_2 + dim_despawn_count(&ctl_rx);
     assert_eq!(processed_3, 96);
     assert_eq!(
-        app.world().resource::<PendingDisconnectQueue>().entries.len(),
+        app.world()
+            .resource::<PendingDisconnectQueue>()
+            .entries
+            .len(),
         4,
     );
 
@@ -240,7 +250,10 @@ fn e4_2_queue_hard_cap_drops_overflow_with_warn() {
     fire_disconnect(&mut app, &anchors);
 
     assert_eq!(
-        app.world().resource::<PendingDisconnectQueue>().entries.len(),
+        app.world()
+            .resource::<PendingDisconnectQueue>()
+            .entries
+            .len(),
         QUEUE_HARD_CAP,
         "queue saturated at hard cap",
     );
@@ -266,7 +279,10 @@ fn e4_3_reconnect_after_disconnect_no_state_overlap() {
     // At this point host_anchor_1 must be gone before any "reconnect"
     // takes effect.
     assert!(
-        app.world().resource::<SessionRegistry>().get_by_anchor(&host_anchor_1).is_none(),
+        app.world()
+            .resource::<SessionRegistry>()
+            .get_by_anchor(&host_anchor_1)
+            .is_none(),
         "anchor_1 evicted before reconnect insert",
     );
 
@@ -278,7 +294,11 @@ fn e4_3_reconnect_after_disconnect_no_state_overlap() {
     let registry = app.world().resource::<SessionRegistry>();
     assert!(registry.get_by_anchor(&host_anchor_2).is_some());
     assert!(registry.get_by_anchor(&host_anchor_1).is_none());
-    assert_eq!(registry.iter().count(), 1, "no state overlap between sessions");
+    assert_eq!(
+        registry.iter().count(),
+        1,
+        "no state overlap between sessions"
+    );
 }
 
 #[test]
@@ -336,13 +356,11 @@ fn e4_4_mass_disconnect_interleaved_with_mid_transit_player() {
     // (the dual-dim sub-case-1 path); this is the invariant the mass
     // disconnect must not corrupt.
     assert_eq!(
-        total_src,
-        1,
+        total_src, 1,
         "player A's previous_dim despawn routed regardless of budget contention",
     );
     assert_eq!(
-        total_dest,
-        51,
+        total_dest, 51,
         "all 51 disconnects emit a despawn in dest dim (50 bystanders + A current_dim)",
     );
 }

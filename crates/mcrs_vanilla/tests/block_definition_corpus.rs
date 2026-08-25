@@ -4,13 +4,13 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_math::Vec3;
 use mcrs_core::voxel_shape::Aabb;
+use mcrs_protocol::BlockStateId;
 use mcrs_vanilla::block::definition::schema::{Instrument, PropertyValue, RenderShape};
 use mcrs_vanilla::block::definition::{
-    load_block_definitions, BlockDefinitions, BlockStateData, BlockStateFlags, LoadReport,
+    BlockDefinitions, BlockStateData, BlockStateFlags, LoadReport, load_block_definitions,
 };
-use mcrs_vanilla::material::map::MapColor;
 use mcrs_vanilla::material::PushReaction;
-use mcrs_protocol::BlockStateId;
+use mcrs_vanilla::material::map::MapColor;
 
 fn corpus() -> &'static (BlockDefinitions, LoadReport) {
     static CORPUS: OnceLock<(BlockDefinitions, LoadReport)> = OnceLock::new();
@@ -31,7 +31,10 @@ fn string(value: &str) -> PropertyValue {
 }
 
 fn aabb(min: [f32; 3], max: [f32; 3]) -> Aabb {
-    Aabb { min: Vec3::from(min), max: Vec3::from(max) }
+    Aabb {
+        min: Vec3::from(min),
+        max: Vec3::from(max),
+    }
 }
 
 #[test]
@@ -123,12 +126,23 @@ fn stone_has_one_state_and_a_full_cube() {
     assert_eq!(state.light_dampening, 15);
     assert_eq!(state.light_emission, 0);
     assert_eq!(state.friction, 0.6);
-    assert_eq!(state.map_color, MapColor { r: 0x70, g: 0x70, b: 0x70 });
+    assert_eq!(
+        state.map_color,
+        MapColor {
+            r: 0x70,
+            g: 0x70,
+            b: 0x70
+        }
+    );
     assert_eq!(state.push_reaction, PushReaction::Normal);
     assert_eq!(state.instrument, Instrument::Basedrum);
     assert_eq!(state.render_shape, RenderShape::Model);
     assert_eq!(state.fluid, None);
-    assert!(state.flags.contains(BlockStateFlags::REQUIRES_CORRECT_TOOL_FOR_DROPS));
+    assert!(
+        state
+            .flags
+            .contains(BlockStateFlags::REQUIRES_CORRECT_TOOL_FOR_DROPS)
+    );
     assert!(state.flags.contains(BlockStateFlags::REDSTONE_CONDUCTOR));
     assert!(!state.flags.contains(BlockStateFlags::IS_AIR));
     assert_eq!(
@@ -152,11 +166,18 @@ fn water_carries_its_fluid_state_per_level() {
         .state(water.state_id(&[("level", PropertyValue::Int(1))]).unwrap())
         .fluid
         .unwrap();
-    assert_eq!(definitions.fluid(falling.fluid).as_str(), "minecraft:flowing_water");
+    assert_eq!(
+        definitions.fluid(falling.fluid).as_str(),
+        "minecraft:flowing_water"
+    );
     assert_eq!(falling.level, 7);
     assert!(!falling.source);
 
-    assert!(definitions.shape(definitions.state(water.default_state_id).collision_shape).is_empty());
+    assert!(
+        definitions
+            .shape(definitions.state(water.default_state_id).collision_shape)
+            .is_empty()
+    );
 }
 
 #[test]
@@ -184,9 +205,18 @@ fn oak_stairs_collision_follows_facing_and_half_but_not_waterlogging() {
             aabb([0.0, 0.5, 0.0], [1.0, 1.0, 0.5]),
         ]
     );
-    assert_eq!(shape_of("north", "bottom", true), shape_of("north", "bottom", false));
-    assert_ne!(shape_of("south", "bottom", false), shape_of("north", "bottom", false));
-    assert_ne!(shape_of("north", "top", false), shape_of("north", "bottom", false));
+    assert_eq!(
+        shape_of("north", "bottom", true),
+        shape_of("north", "bottom", false)
+    );
+    assert_ne!(
+        shape_of("south", "bottom", false),
+        shape_of("north", "bottom", false)
+    );
+    assert_ne!(
+        shape_of("north", "top", false),
+        shape_of("north", "bottom", false)
+    );
 
     let dry = stairs
         .state_id(&[
@@ -227,7 +257,10 @@ fn note_block_carries_a_large_integer_property() {
             ("powered", PropertyValue::Bool(false)),
         ])
         .unwrap();
-    assert_eq!(last.0, note_block.base_state_id.0 + note_block.state_count - 1);
+    assert_eq!(
+        last.0,
+        note_block.base_state_id.0 + note_block.state_count - 1
+    );
     assert_eq!(definitions.state(last).hardness, 0.8);
 }
 
@@ -243,7 +276,11 @@ fn torch_is_not_a_cube() {
         [aabb([0.375, 0.0, 0.375], [0.625, 0.625, 0.625])]
     );
     assert!(!state.flags.contains(BlockStateFlags::IS_SOLID_RENDER));
-    assert!(state.flags.contains(BlockStateFlags::PROPAGATES_SKYLIGHT_DOWN));
+    assert!(
+        state
+            .flags
+            .contains(BlockStateFlags::PROPAGATES_SKYLIGHT_DOWN)
+    );
 }
 
 #[test]
@@ -260,6 +297,12 @@ fn the_dense_escape_hatch_varies_a_button_selection_box_per_state() {
             .unwrap();
         definitions.state(id).selection_shape
     };
-    assert_ne!(shape_of("floor", "north", true), shape_of("floor", "north", false));
-    assert_ne!(shape_of("wall", "north", false), shape_of("floor", "north", false));
+    assert_ne!(
+        shape_of("floor", "north", true),
+        shape_of("floor", "north", false)
+    );
+    assert_ne!(
+        shape_of("wall", "north", false),
+        shape_of("floor", "north", false)
+    );
 }

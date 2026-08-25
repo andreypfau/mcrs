@@ -26,7 +26,10 @@ pub fn gaussian_sample<V>(
     let relative = position - integral;
     let axis = |step: i32, origin: f64, relative: f64| {
         let i = step as usize;
-        (lerp(relative, KERNEL[i + 1], KERNEL[i]), origin as i32 - RADIUS + step)
+        (
+            lerp(relative, KERNEL[i + 1], KERNEL[i]),
+            origin as i32 - RADIUS + step,
+        )
     };
 
     for z in 0..BREADTH {
@@ -35,7 +38,10 @@ pub fn gaussian_sample<V>(
             let (weight_x, sample_x) = axis(x, integral.x, relative.x);
             for y in 0..BREADTH {
                 let (weight_y, sample_y) = axis(y, integral.y, relative.y);
-                accumulate(weight_x * weight_y * weight_z, sampler(sample_x, sample_y, sample_z));
+                accumulate(
+                    weight_x * weight_y * weight_z,
+                    sampler(sample_x, sample_y, sample_z),
+                );
             }
         }
     }
@@ -57,7 +63,9 @@ pub struct BiomeAttributes {
 
 impl Default for BiomeAttributes {
     fn default() -> Self {
-        BiomeAttributes { entries: vec![None; ENVIRONMENT_ATTRIBUTES.len()] }
+        BiomeAttributes {
+            entries: vec![None; ENVIRONMENT_ATTRIBUTES.len()],
+        }
     }
 }
 
@@ -123,7 +131,11 @@ impl SpatialAttributeInterpolator {
     }
 
     pub fn accumulate(&mut self, weight: f64, attributes: &Arc<BiomeAttributes>) {
-        match self.weights.iter_mut().find(|(source, _)| Arc::ptr_eq(source, attributes)) {
+        match self
+            .weights
+            .iter_mut()
+            .find(|(source, _)| Arc::ptr_eq(source, attributes))
+        {
             Some((_, accumulated)) => *accumulated += weight,
             None => self.weights.push((attributes.clone(), weight)),
         }
@@ -146,8 +158,11 @@ impl SpatialAttributeInterpolator {
             |x, y, z| biomes.at_quart(x, y, z),
             |weight, attributes| self.accumulate(weight, attributes),
         );
-        self.exact =
-            Some(biomes.at_quart(quart.x as i32, quart.y as i32, quart.z as i32).clone());
+        self.exact = Some(
+            biomes
+                .at_quart(quart.x as i32, quart.y as i32, quart.z as i32)
+                .clone(),
+        );
     }
 
     /// Compose this layer onto `base`. `index` is the attribute's registry
@@ -195,15 +210,25 @@ mod tests {
     }
 
     fn index(id: &str) -> usize {
-        ENVIRONMENT_ATTRIBUTES.keys().position(|key| *key == id).unwrap()
+        ENVIRONMENT_ATTRIBUTES
+            .keys()
+            .position(|key| *key == id)
+            .unwrap()
     }
 
     #[test]
     fn the_kernel_weights_sum_to_the_same_total_wherever_it_lands() {
         for offset in [0.0, 0.25, 0.5, 0.9] {
             let mut total = 0.0;
-            gaussian_sample(DVec3::splat(offset), |_, _, _| (), |weight, ()| total += weight);
-            assert!((total - 16.0f64.powi(3)).abs() < 1e-9, "offset {offset} gave {total}");
+            gaussian_sample(
+                DVec3::splat(offset),
+                |_, _, _| (),
+                |weight, ()| total += weight,
+            );
+            assert!(
+                (total - 16.0f64.powi(3)).abs() < 1e-9,
+                "offset {offset} gave {total}"
+            );
         }
     }
 

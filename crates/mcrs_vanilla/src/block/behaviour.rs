@@ -1,7 +1,7 @@
-use crate::block::minecraft::note_block::NoteBlockInstrument;
 use crate::block::Block;
-use crate::material::map::MapColor;
+use crate::block::minecraft::note_block::NoteBlockInstrument;
 use crate::material::PushReaction;
+use crate::material::map::MapColor;
 use crate::sound::SoundType;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_protocol::BlockStateId;

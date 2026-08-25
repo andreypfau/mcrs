@@ -1,7 +1,7 @@
 pub mod connect;
 pub mod event;
-pub mod metrics;
 mod intent;
+pub mod metrics;
 mod packet_io;
 mod status;
 
@@ -10,7 +10,7 @@ use bevy_app::{App, FixedPreUpdate, Plugin, PostStartup};
 use bevy_ecs::prelude::Component;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy_ecs::system::{Res};
+use bevy_ecs::system::Res;
 use bevy_ecs::world::World;
 
 /// System sets for the network layer, usable for ordering constraints in
@@ -63,7 +63,10 @@ fn build_plugin(app: &mut App) -> anyhow::Result<()> {
                 Ok(session) => {
                     // OutboundQueue and InboundRateBucket components live in mcrs_minecraft
                     // and are attached via an observer in the bridge plugin, not here.
-                    world.spawn((ServerSideConnection { raw: session }, ConnectionState::Login))
+                    world.spawn((
+                        ServerSideConnection { raw: session },
+                        ConnectionState::Login,
+                    ))
                 }
                 Err(_) => break,
             };

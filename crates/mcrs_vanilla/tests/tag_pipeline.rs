@@ -4,8 +4,8 @@ use bevy_state::app::StatesPlugin;
 use bevy_state::state::State;
 use mcrs_core::tag::{TagLoader, TagRegistry};
 use mcrs_core::{AppState, StaticRegistry};
-use mcrs_vanilla::block::{Block, tags as block_tags};
 use mcrs_vanilla::MinecraftCorePlugin;
+use mcrs_vanilla::block::{Block, tags as block_tags};
 
 /// The vanilla registries read some files through paths relative to the
 /// working directory, so the whole test runs from the workspace root.
@@ -54,7 +54,9 @@ fn tags_load_resolve_and_freeze_on_the_way_to_playing() {
 
     let tags = app.world().resource::<TagRegistry<Block>>();
     let blocks = app.world().resource::<StaticRegistry<Block>>();
-    let stone = blocks.id_of("minecraft:stone").expect("stone is registered");
+    let stone = blocks
+        .id_of("minecraft:stone")
+        .expect("stone is registered");
     let dirt = blocks.id_of("minecraft:dirt").expect("dirt is registered");
 
     assert!(tags.contains(&block_tags::MINEABLE_PICKAXE, stone));

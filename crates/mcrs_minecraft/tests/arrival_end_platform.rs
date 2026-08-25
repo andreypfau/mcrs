@@ -1,33 +1,33 @@
 use bevy_app::{App, AppLabel, First, FixedPreUpdate, FixedUpdate, SubApp};
-use bevy_ecs::prelude::*;
 use bevy_ecs::message::Messages;
+use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
 use mcrs_engine::session::{DimPlayerIndex, MoveId, PlayerSessionCounter, SessionRegistry};
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::channels::{
-    DimSender, FromDimSender, ToDimReceiver, FROM_DIM_CAPACITY, TO_DIM_CAPACITY,
-    TO_DIM_CONTROL_CAPACITY,
+    DimSender, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    ToDimReceiver,
 };
 use mcrs_engine::world::chunk::{Chunk, ChunkIndex, ChunkPos};
 use mcrs_engine::world::dimension::Dimension;
 use mcrs_engine::world::in_flight::InFlightMoves;
 use mcrs_engine::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft::world::arrival::ArrivalPlugin;
-use mcrs_minecraft::world::sub_app_builder::DimInboxDrain;
 use mcrs_minecraft::world::bus::{
     ArrivalCause, InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn,
     InboundPlayerPacket, InboundPlayerSpawn, InboundRollbackMove, MovePayload,
     OutboundPlayerAttached, OutboundPlayerDisconnect, OutboundPlayerPacket,
 };
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, FromDim, ToDim};
+use mcrs_minecraft::world::sub_app_builder::DimInboxDrain;
 use mcrs_minecraft::world::sub_app_builder::DimSubAppHandle;
 use mcrs_minecraft_block::block_update::{
     BlockPlaced, BlockSetRequest, BlockUpdatePlugin, ChunkNetworkSyncBlockChangesSet,
 };
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_protocol::uuid::Uuid;
 use mcrs_protocol::BlockStateId;
+use mcrs_protocol::uuid::Uuid;
 
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
@@ -65,7 +65,12 @@ fn make_dim_channels(
     let (from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
     app.world_mut()
         .resource_mut::<DimChannelsResource>()
-        .insert(label_entity, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
+        .insert(
+            label_entity,
+            DimSender::new(srv_tx),
+            DimSender::new(ctl_tx),
+            from_rx,
+        );
     (srv_rx, ctl_rx, from_tx)
 }
 
@@ -77,8 +82,20 @@ fn drain_inbox(
 ) {
     for msg in rx.control.try_iter() {
         match msg {
-            ToDim::SpawnEntity { move_id, epoch, cause, payload, player } => {
-                entity_spawn_msgs.write(InboundEntitySpawn { move_id, epoch, cause, payload, player });
+            ToDim::SpawnEntity {
+                move_id,
+                epoch,
+                cause,
+                payload,
+                player,
+            } => {
+                entity_spawn_msgs.write(InboundEntitySpawn {
+                    move_id,
+                    epoch,
+                    cause,
+                    payload,
+                    player,
+                });
             }
             ToDim::ConfirmMove { move_id } => {
                 confirm_msgs.write(InboundConfirmMove { move_id });
@@ -176,11 +193,14 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         // Pre-insert a loaded chunk at the floor chunk position (y=63).
         // Include ChunkNetworkSyncBlockChangesSet so apply_set_block_request can write blocks
         // without waiting for add_changes_set deferred command to flush.
-        let chunk_entity = sub.world_mut().spawn((
-            Chunk,
-            BlockPalette::default(),
-            ChunkNetworkSyncBlockChangesSet::default(),
-        )).id();
+        let chunk_entity = sub
+            .world_mut()
+            .spawn((
+                Chunk,
+                BlockPalette::default(),
+                ChunkNetworkSyncBlockChangesSet::default(),
+            ))
+            .id();
         let dim_entity = sub.world_mut().spawn(Dimension).id();
         let mut chunk_index = ChunkIndex::default();
         chunk_index.insert(floor_chunk_pos, chunk_entity);
@@ -237,8 +257,11 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
     let mut obsidian_floor_ok = true;
     for dx in -2i32..=2 {
         for dz in -2i32..=2 {
-            let pos =
-                BlockPos::new(arrival_pos.x as i32 + dx, floor_y, arrival_pos.z as i32 + dz);
+            let pos = BlockPos::new(
+                arrival_pos.x as i32 + dx,
+                floor_y,
+                arrival_pos.z as i32 + dz,
+            );
             let state = app
                 .sub_app(TestDimLabel(1))
                 .world()
@@ -251,7 +274,10 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
             }
         }
     }
-    assert!(obsidian_floor_ok, "End platform 5x5 obsidian floor must be present");
+    assert!(
+        obsidian_floor_ok,
+        "End platform 5x5 obsidian floor must be present"
+    );
 
     // Assert: 3x3x3 air volume above center.
     for dy in 0..3i32 {

@@ -5,10 +5,17 @@ pub mod state;
 pub mod tag;
 pub mod voxel_shape;
 
-pub use registry::{PackSource, RegistryAccess, RegistrySnapshot, RegistrySnapshotErased, ResourceKey, SnapshotEntry, StaticId, StaticRegistry};
+pub use registry::{
+    PackSource, RegistryAccess, RegistrySnapshot, RegistrySnapshotErased, ResourceKey,
+    SnapshotEntry, StaticId, StaticRegistry,
+};
 pub use resource_location::ResourceLocation;
 pub use state::AppState;
-pub use tag::{DynRegistryIndex, DynTagLoader, DynTagRegistry, IdBitSet, RawBitSet, TagEntry, TagFile, TagFileLoader, TagFileSettings, TagKey, TagLoader, TagPhase, TagRef, TagRegistry, TagRegistryAppExt, TagSource, TaggedRegistry};
+pub use tag::{
+    DynRegistryIndex, DynTagLoader, DynTagRegistry, IdBitSet, RawBitSet, TagEntry, TagFile,
+    TagFileLoader, TagFileSettings, TagKey, TagLoader, TagPhase, TagRef, TagRegistry,
+    TagRegistryAppExt, TagSource, TaggedRegistry,
+};
 
 // Re-export the proc macro for the rl! declarative macro.
 #[doc(hidden)]

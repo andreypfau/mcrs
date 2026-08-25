@@ -43,10 +43,10 @@ use mcrs_engine::world::column::ColumnPlugin;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_minecraft_lighting::components::SkyLight;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
-use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_lighting::LightingPlugin;
+use mcrs_minecraft_lighting::components::SkyLight;
+use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_protocol::BlockStateId;
 
 const AIR: BlockStateId = BlockStateId(0);
@@ -78,8 +78,7 @@ fn make_stub_table() -> BlockStateLightTable {
     const SIZE: usize = 2;
     let mut emission = vec![0u8; SIZE].into_boxed_slice();
     let mut dampening = vec![0u8; SIZE].into_boxed_slice();
-    let occlusion: Box<[&'static VoxelShape]> =
-        vec![VoxelShape::empty(); SIZE].into_boxed_slice();
+    let occlusion: Box<[&'static VoxelShape]> = vec![VoxelShape::empty(); SIZE].into_boxed_slice();
     let mut flags = vec![0u8; SIZE].into_boxed_slice();
     emission[0] = 0;
     dampening[0] = 0;

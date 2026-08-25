@@ -322,12 +322,7 @@ fn build_noise_router_on_load(
                 let seed = world_gen_config.as_ref().map(|c| c.seed).unwrap_or(0);
                 let noise_settings_id = world_gen_config
                     .as_ref()
-                    .map(|c| {
-                        format!(
-                            "{}:{}",
-                            c.noise_settings_namespace, c.noise_settings_path
-                        )
-                    })
+                    .map(|c| format!("{}:{}", c.noise_settings_namespace, c.noise_settings_path))
                     .unwrap_or_else(|| "minecraft:overworld".to_string());
                 info!(
                     noise_settings = %noise_settings_id,

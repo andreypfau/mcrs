@@ -30,10 +30,10 @@ use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyBfsPending, SkyLight};
-use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
-use mcrs_minecraft_lighting::metrics::{snapshot, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_lighting::LightingPlugin;
+use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyBfsPending, SkyLight};
+use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
+use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_protocol::BlockStateId;
 
 const TEST_DIM_HEIGHT: u32 = 384;
@@ -62,8 +62,7 @@ fn make_stub_block_light_table() -> BlockStateLightTable {
     flags[0] = flag_bits::PROPAGATES_SKYLIGHT_DOWN;
     emission[1] = 0;
     dampening[1] = 15;
-    flags[1] =
-        flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
+    flags[1] = flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
     BlockStateLightTable {
         emission,
         dampening,
@@ -77,11 +76,7 @@ fn spawn_test_dimension(app: &mut App, sky: bool) -> Entity {
         .world_mut()
         .spawn(DimensionBundle {
             type_config: DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
-            dimension_id: DimensionId::new(if sky {
-                "test:sky"
-            } else {
-                "test:skyless"
-            }),
+            dimension_id: DimensionId::new(if sky { "test:sky" } else { "test:skyless" }),
             ..Default::default()
         })
         .id();

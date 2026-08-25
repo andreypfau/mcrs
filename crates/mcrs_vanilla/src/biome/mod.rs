@@ -35,7 +35,11 @@ pub struct Biome {
 
 impl Biome {
     pub fn load(ctx: &mut LoadContext<'_>, loc: &ResourceLocation<Arc<str>>) -> Handle<Biome> {
-        ctx.load(format!("{}/worldgen/biome/{}.json", loc.namespace(), loc.path()))
+        ctx.load(format!(
+            "{}/worldgen/biome/{}.json",
+            loc.namespace(),
+            loc.path()
+        ))
     }
 
     pub fn natural_mob_spawns(&self) -> serde_json::Result<Option<MobSpawnSettings>> {
@@ -252,8 +256,10 @@ mod tests {
             match serde_json::from_slice::<Biome>(&bytes) {
                 Ok(biome) => {
                     let raw: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-                    let attributes =
-                        raw.get("attributes").cloned().unwrap_or_else(|| serde_json::json!({}));
+                    let attributes = raw
+                        .get("attributes")
+                        .cloned()
+                        .unwrap_or_else(|| serde_json::json!({}));
                     assert_eq!(
                         serde_json::to_value(&biome.attributes).unwrap(),
                         attributes,
@@ -270,7 +276,11 @@ mod tests {
             for (path, err) in &failures {
                 eprintln!("FAIL {path}: {err}");
             }
-            panic!("{} of {} biomes failed to deserialize", failures.len(), count + failures.len());
+            panic!(
+                "{} of {} biomes failed to deserialize",
+                failures.len(),
+                count + failures.len()
+            );
         }
 
         assert!(count > 0, "no biome files found");
@@ -279,10 +289,8 @@ mod tests {
 
     #[test]
     fn network_biome_omits_server_fields() {
-        let bytes = std::fs::read(
-            assets_dir().join("minecraft/worldgen/biome/plains.json"),
-        )
-        .unwrap();
+        let bytes =
+            std::fs::read(assets_dir().join("minecraft/worldgen/biome/plains.json")).unwrap();
         let biome: Biome = serde_json::from_slice(&bytes).unwrap();
         let network = NetworkBiome::from(&biome);
 
@@ -295,8 +303,14 @@ mod tests {
         assert!(json.get("features").is_none());
 
         let attributes = json.get("attributes").expect("attributes are synced");
-        assert_eq!(attributes.get("minecraft:visual/sky_color").unwrap(), "#78a7ff");
-        assert!(attributes.get(NATURAL_MOB_SPAWNS).is_none(), "spawns are server-only");
+        assert_eq!(
+            attributes.get("minecraft:visual/sky_color").unwrap(),
+            "#78a7ff"
+        );
+        assert!(
+            attributes.get(NATURAL_MOB_SPAWNS).is_none(),
+            "spawns are server-only"
+        );
 
         let nbt = mcrs_nbt::to_nbt_compound(&network).expect("network biome must encode to NBT");
         let Some(mcrs_nbt::tag::NbtTag::Compound(attributes)) = nbt.get("attributes") else {
@@ -314,10 +328,8 @@ mod tests {
 
     #[test]
     fn deserialize_plains_biome() {
-        let bytes = std::fs::read(
-            assets_dir().join("minecraft/worldgen/biome/plains.json"),
-        )
-        .unwrap();
+        let bytes =
+            std::fs::read(assets_dir().join("minecraft/worldgen/biome/plains.json")).unwrap();
         let biome: Biome = serde_json::from_slice(&bytes).unwrap();
 
         assert!((biome.temperature - 0.8).abs() < f32::EPSILON);
@@ -325,14 +337,21 @@ mod tests {
         assert!(biome.has_precipitation);
         assert_eq!(biome.carvers.len(), 3);
         assert_eq!(biome.carvers[0].as_str(), "minecraft:cave");
-        let spawns = biome.natural_mob_spawns().unwrap().expect("plains has spawns");
+        let spawns = biome
+            .natural_mob_spawns()
+            .unwrap()
+            .expect("plains has spawns");
         assert!(!spawns.spawns_by_category[&MobCategory::Creature].is_empty());
         assert_eq!(
             biome.attributes.get(NATURAL_MOB_SPAWNS).unwrap().modifier,
             crate::attribute::Operation::Overlay
         );
         assert_eq!(
-            biome.attributes.get("minecraft:visual/sky_color").unwrap().argument,
+            biome
+                .attributes
+                .get("minecraft:visual/sky_color")
+                .unwrap()
+                .argument,
             serde_json::json!("#78a7ff")
         );
     }

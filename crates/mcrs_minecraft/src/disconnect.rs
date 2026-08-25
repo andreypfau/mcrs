@@ -30,11 +30,11 @@ use smallvec::SmallVec;
 use std::collections::VecDeque;
 use tracing::warn;
 
-use mcrs_engine::session::{PlayerSession, SessionRegistry};
 use crate::world::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
-use crate::world::channel_types::{send_control_or_teardown, DimChannelsResource, ToDim};
-use mcrs_engine::world::sub_app::DimDespawnQueue;
+use crate::world::channel_types::{DimChannelsResource, ToDim, send_control_or_teardown};
 use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
+use mcrs_engine::session::{PlayerSession, SessionRegistry};
+use mcrs_engine::world::sub_app::DimDespawnQueue;
 
 /// Per-tick cleanup budget. The initial 32 caps work at 640 disconnects/sec
 /// under a 20 TPS schedule, draining a 1000-player kick in ~1.5s without
@@ -200,7 +200,10 @@ pub fn process_disconnect(
         send_control_or_teardown(
             &chan.control_sender,
             current_dim,
-            ToDim::Despawn { host_anchor, session },
+            ToDim::Despawn {
+                host_anchor,
+                session,
+            },
             despawn_queue,
         );
     }
@@ -212,7 +215,10 @@ pub fn process_disconnect(
             send_control_or_teardown(
                 &chan.control_sender,
                 prev,
-                ToDim::Despawn { host_anchor, session },
+                ToDim::Despawn {
+                    host_anchor,
+                    session,
+                },
                 despawn_queue,
             );
         }
@@ -279,8 +285,11 @@ pub fn filter_inflight_for_disconnect(
     if disconnected_this_tick.host_anchors.is_empty() {
         return;
     }
-    let disconnected: rustc_hash::FxHashSet<Entity> =
-        disconnected_this_tick.host_anchors.iter().copied().collect();
+    let disconnected: rustc_hash::FxHashSet<Entity> = disconnected_this_tick
+        .host_anchors
+        .iter()
+        .copied()
+        .collect();
 
     let kept_attached: Vec<OutboundPlayerAttached> = attached_msgs
         .drain()
@@ -316,8 +325,7 @@ impl Plugin for DisconnectProtocolPlugin {
         app.add_systems(First, drain_pending_disconnects);
         app.add_systems(
             Update,
-            filter_inflight_for_disconnect
-                .after(crate::world::bridge::bridge_inbound_to_channel),
+            filter_inflight_for_disconnect.after(crate::world::bridge::bridge_inbound_to_channel),
         );
     }
 }

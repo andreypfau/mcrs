@@ -25,7 +25,10 @@ fn in_transit_marker_hides_then_un_hides_the_same_entity() {
     // the entity stays live (it is NOT despawned).
     let id = alloc_move_id();
     world.entity_mut(e).insert(InTransit { move_id: id });
-    assert!(!without_in_transit_contains(&mut world, e), "hidden in transit");
+    assert!(
+        !without_in_transit_contains(&mut world, e),
+        "hidden in transit"
+    );
 
     // Un-hide-on-rollback: removing the marker brings the same entity back into
     // view — never a despawn, so it reappears exactly where it was.

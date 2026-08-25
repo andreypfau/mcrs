@@ -321,12 +321,44 @@ mod tests {
         };
     }
 
-    deserialize_all_test!(deserialize_all_wolf_variants, WolfVariant, "minecraft/wolf_variant");
-    deserialize_all_test!(deserialize_all_wolf_sound_variants, WolfSoundVariant, "minecraft/wolf_sound_variant");
-    deserialize_all_test!(deserialize_all_pig_variants, PigVariant, "minecraft/pig_variant");
-    deserialize_all_test!(deserialize_all_frog_variants, FrogVariant, "minecraft/frog_variant");
-    deserialize_all_test!(deserialize_all_cat_variants, CatVariant, "minecraft/cat_variant");
-    deserialize_all_test!(deserialize_all_cow_variants, CowVariant, "minecraft/cow_variant");
-    deserialize_all_test!(deserialize_all_chicken_variants, ChickenVariant, "minecraft/chicken_variant");
-    deserialize_all_test!(deserialize_all_zombie_nautilus_variants, ZombieNautilusVariant, "minecraft/zombie_nautilus_variant");
+    deserialize_all_test!(
+        deserialize_all_wolf_variants,
+        WolfVariant,
+        "minecraft/wolf_variant"
+    );
+    deserialize_all_test!(
+        deserialize_all_wolf_sound_variants,
+        WolfSoundVariant,
+        "minecraft/wolf_sound_variant"
+    );
+    deserialize_all_test!(
+        deserialize_all_pig_variants,
+        PigVariant,
+        "minecraft/pig_variant"
+    );
+    deserialize_all_test!(
+        deserialize_all_frog_variants,
+        FrogVariant,
+        "minecraft/frog_variant"
+    );
+    deserialize_all_test!(
+        deserialize_all_cat_variants,
+        CatVariant,
+        "minecraft/cat_variant"
+    );
+    deserialize_all_test!(
+        deserialize_all_cow_variants,
+        CowVariant,
+        "minecraft/cow_variant"
+    );
+    deserialize_all_test!(
+        deserialize_all_chicken_variants,
+        ChickenVariant,
+        "minecraft/chicken_variant"
+    );
+    deserialize_all_test!(
+        deserialize_all_zombie_nautilus_variants,
+        ZombieNautilusVariant,
+        "minecraft/zombie_nautilus_variant"
+    );
 }

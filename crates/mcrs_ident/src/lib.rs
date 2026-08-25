@@ -6,12 +6,12 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::str::FromStr;
 
-use serde::de::Error as _;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use thiserror::Error;
 /// Used internally by the `ident` macro. Not public API.
 #[doc(hidden)]
 pub use mcrs_ident_macros::parse_ident_str;
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use thiserror::Error;
 
 /// Creates a new [`Ident`] at compile time from a string literal. A compile
 /// error is raised if the string is not a valid resource identifier.

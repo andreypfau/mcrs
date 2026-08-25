@@ -132,9 +132,7 @@ impl Decode<'_> for Text {
             if let NbtTag::String(s) = s {
                 Ok(Self::text(s))
             } else {
-                anyhow::bail!(
-                    "expected NBT String tag for Text deserialization, got {s:?}"
-                );
+                anyhow::bail!("expected NBT String tag for Text deserialization, got {s:?}");
             }
         } else {
             Ok(from_bytes_unnamed(&mut Cursor::new(&data.0))?)

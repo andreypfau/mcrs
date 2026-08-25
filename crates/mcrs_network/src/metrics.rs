@@ -71,7 +71,9 @@ mod tests {
 
     #[test]
     fn snapshot_reads_counters() {
-        let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _lock = TELEMETRY_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let before = snapshot();
         BRIDGE_DROP_NORMAL_TOTAL.fetch_add(3, Ordering::Relaxed);
         let after = snapshot();

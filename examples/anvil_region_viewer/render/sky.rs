@@ -5,11 +5,11 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderQueue;
 use bevy::render::view::ExtractedView;
 
+use super::Sky;
 use super::binds::Bindings;
 use super::pipeline;
 use super::shaders::Shaders;
 use super::terrain::Terrain;
-use super::Sky;
 
 const STAR_COUNT: u32 = 1500;
 

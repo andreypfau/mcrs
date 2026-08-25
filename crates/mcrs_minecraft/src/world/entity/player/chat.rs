@@ -7,15 +7,15 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::InTransit;
+use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::session::{Owner, PlayerSession};
 use mcrs_engine::world::in_flight::alloc_move_id;
 use mcrs_network::event::ReceivedPacketEvent;
+use mcrs_protocol::Text;
 use mcrs_protocol::packets::game::serverbound::{ServerboundChat, ServerboundChatCommand};
 use mcrs_protocol::setting::ChatMode;
 use mcrs_protocol::text::{Color, IntoText};
-use mcrs_protocol::Text;
 use tracing::info;
 
 pub struct ChatPlugin;
@@ -37,7 +37,9 @@ fn handle_command(
     event: On<ReceivedPacketEvent>,
     mut sender_query: Query<(&HostAnchor, &mut Transform, &GameProfile, &Owner)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-    move_sender: Res<mcrs_engine::world::channels::FromDimSender<crate::world::channel_types::FromDim>>,
+    move_sender: Res<
+        mcrs_engine::world::channels::FromDimSender<crate::world::channel_types::FromDim>,
+    >,
     mut commands: Commands,
 ) {
     let Some(pkt) = event.decode::<ServerboundChatCommand>() else {
@@ -65,22 +67,19 @@ fn handle_command(
                     teleport_id: 1,
                     position: pos,
                 },
-            session: PlayerSession(0),
-            epoch: 0,
+                session: PlayerSession(0),
+                epoch: 0,
             });
             packet_writer.write(OutboundPlayerPacket {
                 target: PacketTarget::SinglePlayer(host),
                 priority: PacketPriority::Normal,
                 data: PacketPayload::SystemChat {
-                    content: format!(
-                        "Teleported to {:.1}, {:.1}, {:.1}",
-                        pos.x, pos.y, pos.z
-                    )
-                    .into_text(),
+                    content: format!("Teleported to {:.1}, {:.1}, {:.1}", pos.x, pos.y, pos.z)
+                        .into_text(),
                     overlay: false,
                 },
-            session: PlayerSession(0),
-            epoch: 0,
+                session: PlayerSession(0),
+                epoch: 0,
             });
             info!("teleported {:?} to {:?}", event.entity, pos);
         }
@@ -95,7 +94,8 @@ fn handle_command(
                 other if other.contains(':') => other.to_string(),
                 other => format!("minecraft:{other}"),
             };
-            let Ok((_host_anchor, _transform, profile, owner)) = sender_query.get(event.entity) else {
+            let Ok((_host_anchor, _transform, profile, owner)) = sender_query.get(event.entity)
+            else {
                 return;
             };
             let session = owner.0;
@@ -111,15 +111,17 @@ fn handle_command(
             // source-dim system until the target confirms (despawn) or the move is
             // rolled back (un-hide). The entity is never despawned here.
             commands.entity(event.entity).insert(InTransit { move_id });
-            let _ = move_sender.0.try_send(crate::world::channel_types::FromDim::MoveEntity {
-                move_id,
-                target: dim_name,
-                cause: ArrivalCause::CommandTeleport {
-                    pos: DVec3::new(0.0, 100.0, 0.0),
-                },
-                payload,
-                player: Some(session),
-            });
+            let _ = move_sender
+                .0
+                .try_send(crate::world::channel_types::FromDim::MoveEntity {
+                    move_id,
+                    target: dim_name,
+                    cause: ArrivalCause::CommandTeleport {
+                        pos: DVec3::new(0.0, 100.0, 0.0),
+                    },
+                    payload,
+                    player: Some(session),
+                });
         }
         _ => {}
     }
@@ -156,8 +158,8 @@ fn handle_chat(
                 content: Text::translate("chat.disabled.options", vec![]).color(Color::RED),
                 overlay: false,
             },
-        session: PlayerSession(0),
-        epoch: 0,
+            session: PlayerSession(0),
+            epoch: 0,
         });
         return;
     }
@@ -178,8 +180,8 @@ fn handle_chat(
             content: text,
             overlay: false,
         },
-    session: PlayerSession(0),
-    epoch: 0,
+        session: PlayerSession(0),
+        epoch: 0,
     });
 }
 

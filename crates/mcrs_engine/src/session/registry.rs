@@ -82,7 +82,10 @@ impl SessionRegistry {
         self.entries.iter()
     }
 
-    pub fn iter_in_dim(&self, dim: Entity) -> impl Iterator<Item = (&PlayerSession, &SessionEntry)> {
+    pub fn iter_in_dim(
+        &self,
+        dim: Entity,
+    ) -> impl Iterator<Item = (&PlayerSession, &SessionEntry)> {
         self.entries.iter().filter(move |(_, e)| e.dim == dim)
     }
 }

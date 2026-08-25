@@ -7,8 +7,7 @@ use std::time::Instant;
 use tracing::warn;
 
 use crate::world::bus::{
-    ArrivalCause, MovePayload, PacketPayload, PacketPriority, PacketTarget,
-    PlayerTransferSnapshot,
+    ArrivalCause, MovePayload, PacketPayload, PacketPriority, PacketTarget, PlayerTransferSnapshot,
 };
 
 /// Host→dim message channel type.

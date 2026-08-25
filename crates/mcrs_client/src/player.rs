@@ -5,7 +5,9 @@ use bevy::prelude::*;
 use bevy::render::view::Msaa;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use mcrs_engine::entity::physics::{OldTransform, Rotation, Transform as PhysicsTransform, Velocity};
+use mcrs_engine::entity::physics::{
+    OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
+};
 use mcrs_vanilla::entity::player::{Flying, FlyingSpeed};
 
 use crate::camera::FovFilter;
@@ -119,7 +121,11 @@ fn apply_mouse_look(
 fn sync_look_transforms(
     player: Single<
         (&PhysicsTransform, &mut Transform),
-        (With<Player>, Without<PlayerCamera>, Changed<PhysicsTransform>),
+        (
+            With<Player>,
+            Without<PlayerCamera>,
+            Changed<PhysicsTransform>,
+        ),
     >,
     mut camera: Single<&mut Transform, (With<PlayerCamera>, Without<Player>)>,
 ) {

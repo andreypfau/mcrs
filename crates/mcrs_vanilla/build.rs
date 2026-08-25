@@ -25,7 +25,10 @@ const REGISTRY_FOLDERS: &[(&str, &str)] = &[
     ("CAT_VARIANT", "minecraft/cat_variant"),
     ("COW_VARIANT", "minecraft/cow_variant"),
     ("CHICKEN_VARIANT", "minecraft/chicken_variant"),
-    ("ZOMBIE_NAUTILUS_VARIANT", "minecraft/zombie_nautilus_variant"),
+    (
+        "ZOMBIE_NAUTILUS_VARIANT",
+        "minecraft/zombie_nautilus_variant",
+    ),
     ("PAINTING_VARIANT", "minecraft/painting_variant"),
     ("DAMAGE_TYPE", "minecraft/damage_type"),
     ("BANNER_PATTERN", "minecraft/banner_pattern"),
@@ -69,17 +72,12 @@ fn main() {
             Err(_) => Vec::new(),
         };
         files.sort();
-        println!(
-            "cargo:rerun-if-changed={}",
-            folder_abs.display()
-        );
+        println!("cargo:rerun-if-changed={}", folder_abs.display());
 
         code.push_str(&format!(
             "pub const FOLDER_{const_name}: &str = \"{folder}\";\n"
         ));
-        code.push_str(&format!(
-            "pub const FILES_{const_name}: &[&str] = &[\n"
-        ));
+        code.push_str(&format!("pub const FILES_{const_name}: &[&str] = &[\n"));
         for f in &files {
             code.push_str(&format!("    \"{f}\",\n"));
         }

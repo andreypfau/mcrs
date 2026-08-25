@@ -28,24 +28,17 @@ fn assert_span_emitted(captures: &[common::CapturedSpan], span_name: &str) {
     );
 }
 
-fn assert_span_has_field(
-    captures: &[common::CapturedSpan],
-    span_name: &str,
-    field_name: &str,
-) {
-    let matching: Vec<&common::CapturedSpan> = captures
-        .iter()
-        .filter(|s| s.name == span_name)
-        .collect();
+fn assert_span_has_field(captures: &[common::CapturedSpan], span_name: &str, field_name: &str) {
+    let matching: Vec<&common::CapturedSpan> =
+        captures.iter().filter(|s| s.name == span_name).collect();
 
     // Accept either a recorded field value or a declared (possibly Empty) field
     // in the span metadata. Fields declared as `tracing::field::Empty` appear in
     // `declared_fields` at span creation but have no recorded value until
     // `Span::current().record(...)` is called inside the function body.
     assert!(
-        matching
-            .iter()
-            .any(|s| s.fields.contains_key(field_name) || s.declared_fields.contains(&field_name.to_string())),
+        matching.iter().any(|s| s.fields.contains_key(field_name)
+            || s.declared_fields.contains(&field_name.to_string())),
         "span \"{span_name}\" was emitted but none of the {} \
          emission(s) declared or carried field \"{field_name}\"",
         matching.len()
@@ -100,7 +93,11 @@ fn instrument_naming_convention_lighting() {
     assert_span_has_field(&captured, "lighting::propagate_increase_sky", "chunk_count");
 
     assert_span_emitted(&captured, "lighting::distribute_block");
-    assert_span_has_field(&captured, "lighting::distribute_block", "block_egress_count");
+    assert_span_has_field(
+        &captured,
+        "lighting::distribute_block",
+        "block_egress_count",
+    );
 
     assert_span_emitted(&captured, "lighting::distribute_sky");
     assert_span_has_field(&captured, "lighting::distribute_sky", "sky_egress_count");

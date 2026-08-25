@@ -176,7 +176,12 @@ fn update_chunk_entities(
             &OldTransform,
             &OldInDimension,
         ),
-        (Without<Dimension>, Without<Chunk>, Without<Despawned>, Without<InTransit>),
+        (
+            Without<Dimension>,
+            Without<Chunk>,
+            Without<Despawned>,
+            Without<InTransit>,
+        ),
     >,
     mut commands: Commands,
 ) {
@@ -324,7 +329,15 @@ pub struct EntityNetworkRemoveEvent {
 #[allow(clippy::type_complexity)]
 fn add_player_synced_entities(
     mut commands: Commands,
-    new_players: Query<Entity, (With<Player>, Added<InDimension>, Without<Despawned>, Without<InTransit>)>,
+    new_players: Query<
+        Entity,
+        (
+            With<Player>,
+            Added<InDimension>,
+            Without<Despawned>,
+            Without<InTransit>,
+        ),
+    >,
 ) {
     new_players.iter().for_each(|entity| {
         commands

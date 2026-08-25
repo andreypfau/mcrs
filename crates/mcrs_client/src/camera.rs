@@ -88,7 +88,11 @@ mod tests {
         let mut modifier = FovFilter::default().current;
         for expected in [82.775, 85.6625, 87.10625, 87.828125, 88.18906] {
             modifier = next_fov_modifier(modifier, SPRINTING_FOV_MODIFIER);
-            assert!((FOV * modifier - expected).abs() < 1e-4, "{}", FOV * modifier);
+            assert!(
+                (FOV * modifier - expected).abs() < 1e-4,
+                "{}",
+                FOV * modifier
+            );
         }
     }
 }

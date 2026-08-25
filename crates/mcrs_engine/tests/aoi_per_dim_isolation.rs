@@ -34,7 +34,10 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
     // source of label_entity values.
     let label_entities: Vec<Entity> = app
         .world_mut()
-        .query::<(Entity, &mcrs_minecraft::world::sub_app_builder::DimSubAppHandle)>()
+        .query::<(
+            Entity,
+            &mcrs_minecraft::world::sub_app_builder::DimSubAppHandle,
+        )>()
         .iter(app.world())
         .map(|(e, _)| e)
         .collect();
@@ -78,8 +81,7 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
     );
 
     // Also assert dim B has zero TrackedBy entries on any entity.
-    let dim_b_tracked_by_nonempty =
-        nonempty_tracked_by(app.sub_app_mut(DimAppLabel(dim_b_label)));
+    let dim_b_tracked_by_nonempty = nonempty_tracked_by(app.sub_app_mut(DimAppLabel(dim_b_label)));
     assert!(
         !dim_b_tracked_by_nonempty,
         "dim B should not carry any non-empty TrackedBy Components"
@@ -89,13 +91,8 @@ fn aoi_state_does_not_leak_across_dim_boundary() {
 fn seed_player_and_columns(sub_app: &mut bevy_app::SubApp, player_pos: DVec3) {
     // Find the per-dim Dimension entity (the one carrying ColumnIndex).
     let dim_entity = {
-        let mut q = sub_app
-            .world_mut()
-            .query::<(Entity, &ColumnIndex)>();
-        let v: Vec<Entity> = q
-            .iter(sub_app.world())
-            .map(|(e, _)| e)
-            .collect();
+        let mut q = sub_app.world_mut().query::<(Entity, &ColumnIndex)>();
+        let v: Vec<Entity> = q.iter(sub_app.world()).map(|(e, _)| e).collect();
         v[0]
     };
 
@@ -111,11 +108,7 @@ fn seed_player_and_columns(sub_app: &mut bevy_app::SubApp, player_pos: DVec3) {
     for pos in positions {
         let column = sub_app
             .world_mut()
-            .spawn((
-                Column,
-                PlayerObservers::default(),
-                InDimension(dim_entity),
-            ))
+            .spawn((Column, PlayerObservers::default(), InDimension(dim_entity)))
             .id();
         let mut col_idx = sub_app
             .world_mut()
@@ -170,5 +163,3 @@ fn nonempty_tracked_by(sub_app: &mut bevy_app::SubApp) -> bool {
     let mut q = sub_app.world_mut().query::<&TrackedBy>();
     q.iter(sub_app.world()).any(|t| !t.0.is_empty())
 }
-
-

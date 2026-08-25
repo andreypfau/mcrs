@@ -7,16 +7,14 @@ use bevy_app::{AppLabel, FixedPostUpdate, FixedPreUpdate, FixedUpdate};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time};
+use mcrs_core::AppState;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::static_registry::StaticRegistry;
-use mcrs_core::AppState;
 use mcrs_engine::world::dimension::{Dimension, DimensionId, DimensionTypeConfig};
-use mcrs_engine::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
-};
+use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::sub_app_builder::{
-    drain_dim_despawn_queue, drain_dim_spawn_queue, gather_dim_registries, spawn_dim_subapp,
-    DimSubAppHandle,
+    DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue, gather_dim_registries,
+    spawn_dim_subapp,
 };
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_vanilla::block::Block;
@@ -45,10 +43,7 @@ fn dim_subapp_removed_on_despawn() {
     // The label-anchor entity in the host world is the same value the
     // sub-app was interned under.
     let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
-    let handles: Vec<Entity> = q
-        .iter(app.world())
-        .map(|(e, _)| e)
-        .collect();
+    let handles: Vec<Entity> = q.iter(app.world()).map(|(e, _)| e).collect();
     assert_eq!(handles.len(), 1, "one host-side handle entity per sub-app");
     let label_entity = handles[0];
 
@@ -151,11 +146,7 @@ fn sequential_pump_tick_count() {
     }
 
     for label in &labels {
-        let sub_app = app
-            .sub_apps()
-            .sub_apps
-            .get(label)
-            .expect("sub-app present");
+        let sub_app = app.sub_apps().sub_apps.get(label).expect("sub-app present");
         let counter = sub_app.world().resource::<TickCounter>();
         assert_eq!(
             counter.0, 3,
@@ -278,8 +269,7 @@ fn no_nonsend_resource() {
 
 #[test]
 fn no_shared_lock_to_dim() {
-    let builder_source: &str =
-        include_str!("../../mcrs_minecraft/src/world/sub_app_builder.rs");
+    let builder_source: &str = include_str!("../../mcrs_minecraft/src/world/sub_app_builder.rs");
     let world_source: &str = include_str!("../../mcrs_minecraft/src/world/mod.rs");
     assert!(
         !builder_source.contains("Arc<Mutex"),
@@ -304,11 +294,7 @@ fn registries_present_in_all_subapps() {
     let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
     assert_eq!(labels.len(), 2, "two sub-apps after two spawns");
     for label in &labels {
-        let sub_app = app
-            .sub_apps()
-            .sub_apps
-            .get(label)
-            .expect("sub-app present");
+        let sub_app = app.sub_apps().sub_apps.get(label).expect("sub-app present");
         let world = sub_app.world();
         let access = world
             .get_resource::<RegistryAccess>()
@@ -442,7 +428,11 @@ fn enqueue_dim_spawns_from_preset_is_idempotent() {
         }
         *guard = true;
         for i in 0..N {
-            let id = if i == 0 { "test:overworld" } else { "test:nether" };
+            let id = if i == 0 {
+                "test:overworld"
+            } else {
+                "test:nether"
+            };
             spawn_queue.0.push(DimSpawnRequest {
                 dimension_id: DimensionId::new(id),
                 type_config: DimensionTypeConfig::default(),
@@ -484,7 +474,6 @@ fn enqueue_dim_spawns_from_preset_is_idempotent() {
         "sub-app count must remain N after a second OnEnter(Playing) — the guard prevented re-enqueue"
     );
 }
-
 
 /// Regression test parallel to `enqueue_dim_spawns_from_preset_is_idempotent`,
 /// but exercises the synthetic-overworld fallback branch the production system
@@ -540,7 +529,6 @@ fn enqueue_dim_spawns_from_empty_preset_is_idempotent() {
     );
 }
 
-
 #[test]
 fn worldgen_chunk_plugin_present_in_each_subapp() {
     use mcrs_minecraft::world::chunk::ColumnScheduler;
@@ -554,18 +542,13 @@ fn worldgen_chunk_plugin_present_in_each_subapp() {
     assert_eq!(labels.len(), 2, "two sub-apps after two spawns");
 
     for label in &labels {
-        let sub_app = app
-            .sub_apps()
-            .sub_apps
-            .get(label)
-            .expect("sub-app present");
+        let sub_app = app.sub_apps().sub_apps.get(label).expect("sub-app present");
         assert!(
             sub_app.world().get_resource::<ColumnScheduler>().is_some(),
             "sub-app {label:?} must have ColumnScheduler — confirms worldgen ChunkPlugin is registered, not just the engine storage stub"
         );
     }
 }
-
 
 /// Regression test: the `DimTick` driver must run more than just `Fixed*`.
 /// The first iteration of the 01-08 plugin migration chained only Fixed*
@@ -595,7 +578,9 @@ fn dim_tick_runs_full_main_pipeline() {
         sub_app.init_resource::<ScheduleHits>();
         sub_app.add_systems(PreStartup, |mut h: ResMut<ScheduleHits>| h.pre_startup += 1);
         sub_app.add_systems(Startup, |mut h: ResMut<ScheduleHits>| h.startup += 1);
-        sub_app.add_systems(PostStartup, |mut h: ResMut<ScheduleHits>| h.post_startup += 1);
+        sub_app.add_systems(PostStartup, |mut h: ResMut<ScheduleHits>| {
+            h.post_startup += 1
+        });
         sub_app.add_systems(First, |mut h: ResMut<ScheduleHits>| h.first += 1);
         sub_app.add_systems(PreUpdate, |mut h: ResMut<ScheduleHits>| h.pre_update += 1);
         sub_app.add_systems(Update, |mut h: ResMut<ScheduleHits>| h.update += 1);
@@ -645,7 +630,10 @@ fn dim_tick_runs_full_main_pipeline() {
     assert_eq!(hits.post_startup, 1, "PostStartup must run exactly once");
     assert_eq!(hits.first, PUMPS, "First must run on every pump");
     assert_eq!(hits.pre_update, PUMPS, "PreUpdate must run on every pump");
-    assert_eq!(hits.update, PUMPS, "Update must run on every pump (covers spawn_player)");
+    assert_eq!(
+        hits.update, PUMPS,
+        "Update must run on every pump (covers spawn_player)"
+    );
     assert_eq!(
         hits.post_update, PUMPS,
         "PostUpdate must run on every pump (covers despawn_disconnected_clients)"

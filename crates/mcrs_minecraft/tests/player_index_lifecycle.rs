@@ -72,7 +72,11 @@ fn login_accepted_inserts_session_registry_entry_and_host_anchor_ref() {
     assert!(entry.in_dim_entity.is_none());
 
     let player_index = world.resource::<PlayerIndex>();
-    assert_eq!(player_index.len(), 1, "one PlayerIndex entry for the username");
+    assert_eq!(
+        player_index.len(),
+        1,
+        "one PlayerIndex entry for the username"
+    );
     let session_from_index = player_index.get_by_username("test_player");
     assert!(session_from_index.is_some(), "username maps to a session");
     assert_ne!(
@@ -100,14 +104,23 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
     // Pin a concrete dim so the assertion can target a specific channel.
     let current_dim = Entity::from_raw_u32(77).expect("nonzero");
     let ctl_rx = {
-        use mcrs_engine::world::channels::{DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY};
+        use mcrs_engine::world::channels::{
+            DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+        };
         use mcrs_minecraft::world::channel_types::FromDim;
-        let (srv_tx, _srv_rx) = flume::bounded::<mcrs_minecraft::world::channel_types::ToDim>(TO_DIM_CAPACITY);
-        let (ctl_tx, ctl_rx) = flume::bounded::<mcrs_minecraft::world::channel_types::ToDim>(TO_DIM_CONTROL_CAPACITY);
+        let (srv_tx, _srv_rx) =
+            flume::bounded::<mcrs_minecraft::world::channel_types::ToDim>(TO_DIM_CAPACITY);
+        let (ctl_tx, ctl_rx) =
+            flume::bounded::<mcrs_minecraft::world::channel_types::ToDim>(TO_DIM_CONTROL_CAPACITY);
         let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         app.world_mut()
             .resource_mut::<DimChannelsResource>()
-            .insert(current_dim, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
+            .insert(
+                current_dim,
+                DimSender::new(srv_tx),
+                DimSender::new(ctl_tx),
+                from_rx,
+            );
         ctl_rx
     };
     let session = app

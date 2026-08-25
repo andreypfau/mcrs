@@ -20,19 +20,18 @@ use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{
-    Column, ColumnPos, ColumnIndex, ColumnPlugin, InColumn, ColumnChunks,
-    ChunkLookup,
+    ChunkLookup, Column, ColumnChunks, ColumnIndex, ColumnPlugin, ColumnPos, InColumn,
 };
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_minecraft_lighting::components::{
-    BlockOutbox, BlockInbox, BlockLight, BlockBfsQueues, BlockNeedsInitialSeed, IsAllAir,
-    SkyOutbox, SkyInbox, SkyLight, SkyBfsQueues, SkyNeedsInitialSeed,
-};
-use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
-use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_lighting::LightingPlugin;
+use mcrs_minecraft_lighting::components::{
+    BlockBfsQueues, BlockInbox, BlockLight, BlockNeedsInitialSeed, BlockOutbox, IsAllAir,
+    SkyBfsQueues, SkyInbox, SkyLight, SkyNeedsInitialSeed, SkyOutbox,
+};
+use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_protocol::BlockStateId;
 
 const TEST_DIM_HEIGHT: u32 = 384;
@@ -61,8 +60,7 @@ fn make_stub_block_light_table() -> BlockStateLightTable {
     flags[0] = flag_bits::PROPAGATES_SKYLIGHT_DOWN;
     emission[1] = 0;
     dampening[1] = 15;
-    flags[1] =
-        flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
+    flags[1] = flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
     BlockStateLightTable {
         emission,
         dampening,
@@ -76,11 +74,7 @@ fn spawn_test_dimension(app: &mut App, sky: bool) -> Entity {
         .world_mut()
         .spawn(DimensionBundle {
             type_config: DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
-            dimension_id: DimensionId::new(if sky {
-                "test:sky"
-            } else {
-                "test:skyless"
-            }),
+            dimension_id: DimensionId::new(if sky { "test:sky" } else { "test:skyless" }),
             ..Default::default()
         })
         .id();
@@ -128,9 +122,7 @@ fn single_chunk_in_sky_dim_attaches_all_components() {
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    let mut q = app
-        .world_mut()
-        .query_filtered::<Entity, With<Column>>();
+    let mut q = app.world_mut().query_filtered::<Entity, With<Column>>();
     let column_count = q.iter(app.world()).count();
     let world = app.world();
     assert_eq!(column_count, 1, "exactly one Column entity expected");
@@ -140,8 +132,14 @@ fn single_chunk_in_sky_dim_attaches_all_components() {
         .expect("chunk must have InColumn back-link");
     let col_entity = in_col.0;
 
-    assert!(world.get::<BlockLight>(chunk).is_some(), "BlockLight missing");
-    assert!(world.get::<BlockOutbox>(chunk).is_some(), "BlockOutbox missing");
+    assert!(
+        world.get::<BlockLight>(chunk).is_some(),
+        "BlockLight missing"
+    );
+    assert!(
+        world.get::<BlockOutbox>(chunk).is_some(),
+        "BlockOutbox missing"
+    );
     assert!(
         world.get::<BlockInbox>(chunk).is_some(),
         "BlockInbox missing"
@@ -152,10 +150,7 @@ fn single_chunk_in_sky_dim_attaches_all_components() {
     );
     assert!(world.get::<SkyLight>(chunk).is_some(), "SkyLight missing");
     assert!(world.get::<SkyOutbox>(chunk).is_some(), "SkyOutbox missing");
-    assert!(
-        world.get::<SkyInbox>(chunk).is_some(),
-        "SkyInbox missing"
-    );
+    assert!(world.get::<SkyInbox>(chunk).is_some(), "SkyInbox missing");
     assert!(
         world.get::<SkyBfsQueues>(chunk).is_some(),
         "SkyBfsQueues missing"
@@ -192,10 +187,7 @@ fn single_chunk_in_sky_dim_attaches_all_components() {
     let chunk_index = world
         .get::<ColumnChunks>(col_entity)
         .expect("column entity must have ColumnChunks");
-    assert_eq!(
-        chunk_index.lookup(chunk_pos.y),
-        ChunkLookup::Loaded(chunk)
-    );
+    assert_eq!(chunk_index.lookup(chunk_pos.y), ChunkLookup::Loaded(chunk));
 }
 
 #[test]
@@ -206,9 +198,7 @@ fn multi_chunk_in_same_column_share_column() {
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    let mut q = app
-        .world_mut()
-        .query_filtered::<Entity, With<Column>>();
+    let mut q = app.world_mut().query_filtered::<Entity, With<Column>>();
     let column_count = q.iter(app.world()).count();
     let world = app.world();
     assert_eq!(column_count, 1, "two chunks at same XZ share one column");
@@ -237,9 +227,7 @@ fn unload_one_chunk_keeps_column_alive() {
     app.world_mut().entity_mut(s_low).insert(ChunkUnloading);
     app.world_mut().run_schedule(FixedUpdate);
 
-    let mut q = app
-        .world_mut()
-        .query_filtered::<Entity, With<Column>>();
+    let mut q = app.world_mut().query_filtered::<Entity, With<Column>>();
     let column_count = q.iter(app.world()).count();
     let world = app.world();
     assert_eq!(column_count, 1, "column entity must outlive partial unload");
@@ -263,9 +251,7 @@ fn unload_last_chunk_despawns_column() {
     app.world_mut().entity_mut(chunk).insert(ChunkUnloading);
     app.world_mut().run_schedule(FixedUpdate);
 
-    let mut q = app
-        .world_mut()
-        .query_filtered::<Entity, With<Column>>();
+    let mut q = app.world_mut().query_filtered::<Entity, With<Column>>();
     let column_count = q.iter(app.world()).count();
     let world = app.world();
     assert_eq!(
@@ -297,10 +283,7 @@ fn single_chunk_in_skyless_dim_has_no_sky_components() {
         "SkyLight must not exist in a skyless dimension"
     );
     assert!(world.get::<SkyOutbox>(chunk).is_none(), "SkyOutbox leaked");
-    assert!(
-        world.get::<SkyInbox>(chunk).is_none(),
-        "SkyInbox leaked"
-    );
+    assert!(world.get::<SkyInbox>(chunk).is_none(), "SkyInbox leaked");
     assert!(
         world.get::<SkyBfsQueues>(chunk).is_none(),
         "SkyBfsQueues leaked"

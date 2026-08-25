@@ -424,7 +424,8 @@ mod tests {
         loader.insert(rl_arc("minecraft:snow"), set([20]));
         let reg = loader.freeze(&IdSpace::new(64));
 
-        let mut tag_names: Vec<String> = reg.iter().map(|(rl, _)| rl.as_str().to_string()).collect();
+        let mut tag_names: Vec<String> =
+            reg.iter().map(|(rl, _)| rl.as_str().to_string()).collect();
         tag_names.sort();
         assert_eq!(tag_names, vec!["minecraft:snow", "minecraft:wool"]);
 

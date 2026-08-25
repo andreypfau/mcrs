@@ -1,16 +1,18 @@
 use crate::login::GameProfile;
-use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, PlayerInfoEntry};
+use crate::world::bus::{
+    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, PlayerInfoEntry,
+};
+use crate::world::entity::player::HostAnchor;
 use crate::world::entity::player::ability::{
     Flying, Invulnerable, MayBuild, MayFly, PlayerGameMode, PlayerOpLevel,
     update_abilities_for_game_mode,
 };
-use crate::world::entity::player::HostAnchor;
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_engine::session::PlayerSession;
 use mcrs_network::event::ReceivedPacketEvent;
-use mcrs_protocol::packets::game::serverbound::ServerboundChangeGameMode;
 use mcrs_protocol::GameEventKind;
+use mcrs_protocol::packets::game::serverbound::ServerboundChangeGameMode;
 
 const REQUIRED_OP_LEVEL: u8 = 2;
 

@@ -162,7 +162,11 @@ impl ShapeRegistry {
     }
 
     pub fn intern(&mut self, shape: VoxelShape) -> &'static VoxelShape {
-        if let Some(existing) = self.entries.iter().find(|entry| shapes_equal(entry, &shape)) {
+        if let Some(existing) = self
+            .entries
+            .iter()
+            .find(|entry| shapes_equal(entry, &shape))
+        {
             return *existing;
         }
         let leaked: &'static VoxelShape = Box::leak(Box::new(shape));
@@ -236,7 +240,11 @@ mod tests {
             Direction::West,
             Direction::East,
         ] {
-            assert!(std::ptr::eq(b.face_shape(dir), b), "face_shape({:?}) != block()", dir);
+            assert!(
+                std::ptr::eq(b.face_shape(dir), b),
+                "face_shape({:?}) != block()",
+                dir
+            );
         }
     }
 

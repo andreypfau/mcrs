@@ -10,8 +10,8 @@ pub mod sets;
 pub mod storage;
 
 pub use codec::{
-    build_full_light_data, emit_column_light_updates, pack_chunk, BlockLightDirty,
-    ColumnLightUpdate, LightCodecParams, SkyLightDirty,
+    BlockLightDirty, ColumnLightUpdate, LightCodecParams, SkyLightDirty, build_full_light_data,
+    emit_column_light_updates, pack_chunk,
 };
 pub use sets::LightingSet;
 pub use storage::LightStorage;

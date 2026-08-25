@@ -1,6 +1,6 @@
-use mcrs_protocol::Ident;
 use crate::world::item::component::Enchantments;
 use crate::world::loot::condition::LootCondition;
+use mcrs_protocol::Ident;
 
 pub struct BlockBreakContext<'a> {
     pub tool_enchantments: Option<&'a Enchantments>,

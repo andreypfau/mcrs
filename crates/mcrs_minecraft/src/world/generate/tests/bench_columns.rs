@@ -26,7 +26,9 @@ fn load_density_functions() -> BTreeMap<
             mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
         >,
     ) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
@@ -38,7 +40,9 @@ fn load_density_functions() -> BTreeMap<
                 };
                 recurse(&path, &new_prefix, map);
             } else if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                let Ok(json) = std::fs::read_to_string(&path) else { continue };
+                let Ok(json) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
                 let Ok(DensityFunctionHolder::Owned(pdf)) =
                     serde_json::from_str::<DensityFunctionHolder>(&json)
                 else {
@@ -67,13 +71,17 @@ fn load_noises() -> BTreeMap<
 > {
     let mut map = BTreeMap::new();
     let dir = assets_root().join("noise");
-    let Ok(entries) = std::fs::read_dir(&dir) else { return map };
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return map;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.extension().and_then(|s| s.to_str()) != Some("json") {
             continue;
         }
-        let Ok(json) = std::fs::read_to_string(&path) else { continue };
+        let Ok(json) = std::fs::read_to_string(&path) else {
+            continue;
+        };
         let Ok(param) = serde_json::from_str::<
             mcrs_minecraft_worldgen::density_function::proto::NoiseParam,
         >(&json) else {
@@ -94,7 +102,14 @@ fn build_router(settings_name: &str, seed: u64) -> NoiseRouter {
         serde_json::from_str(&json).expect("noise settings must deserialize");
     let functions = load_density_functions();
     let noises = load_noises();
-    build_functions(&functions, &noises, &settings, seed, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86))
+    build_functions(
+        &functions,
+        &noises,
+        &settings,
+        seed,
+        mcrs_protocol::BlockStateId(1),
+        mcrs_protocol::BlockStateId(86),
+    )
 }
 
 fn bench_columns(label: &str, router: &NoiseRouter, columns: i32) {
@@ -130,7 +145,9 @@ fn bench_columns(label: &str, router: &NoiseRouter, columns: i32) {
         for r in results.iter().flatten() {
             let (blocks, _) = r;
             let net = blocks.convert_network();
-            checksum = checksum.wrapping_mul(31).wrapping_add(net.bits_per_entry as u64);
+            checksum = checksum
+                .wrapping_mul(31)
+                .wrapping_add(net.bits_per_entry as u64);
             for w in &net.packed_data {
                 checksum = checksum.wrapping_mul(1099511628211).wrapping_add(*w as u64);
             }

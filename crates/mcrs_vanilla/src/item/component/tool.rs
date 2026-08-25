@@ -1,5 +1,5 @@
-use crate::block::tags as block_tags;
 use crate::block::Block;
+use crate::block::tags as block_tags;
 use crate::item::component::ItemComponents;
 use bevy_ecs::component::Component;
 use mcrs_core::tag::key::TagKey;

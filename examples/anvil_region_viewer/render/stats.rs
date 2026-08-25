@@ -70,7 +70,13 @@ pub(super) fn copy_args(
         return;
     }
     let size = terrain.frame.args_readback.size();
-    encoder.copy_buffer_to_buffer(&terrain.frame.args, 0, &terrain.frame.args_readback, 0, size);
+    encoder.copy_buffer_to_buffer(
+        &terrain.frame.args,
+        0,
+        &terrain.frame.args_readback,
+        0,
+        size,
+    );
 }
 
 pub(super) fn read_draw_args(terrain: Option<Res<Terrain>>, triangles: Res<DrawnTriangles>) {

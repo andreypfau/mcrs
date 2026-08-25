@@ -5,8 +5,8 @@ use serde::Deserialize;
 
 use super::flat::{FlatChunkGenerator, ProtoFlatChunkGenerator};
 use super::noise_settings::NoiseGeneratorSettings;
-use crate::biome::source::{BiomeSource, ProtoBiomeSource};
 use crate::ResourceLocation;
+use crate::biome::source::{BiomeSource, ProtoBiomeSource};
 
 // ===========================================================================
 // Runtime types

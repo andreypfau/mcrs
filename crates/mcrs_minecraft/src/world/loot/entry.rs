@@ -1,6 +1,6 @@
 use crate::world::loot::condition::LootConditionProto;
-use serde::Deserialize;
 use mcrs_protocol::Ident;
+use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type")]

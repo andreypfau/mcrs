@@ -52,8 +52,12 @@ const HORIZON: f32 = 63.0;
 
 const RAIN_BRIGHTNESS: f32 = 1.0;
 
-const SKY_LIGHT_FACTOR: [(f32, f32); 4] =
-    [(730.0, 1.0), (11270.0, 1.0), (13140.0, 0.24), (22860.0, 0.24)];
+const SKY_LIGHT_FACTOR: [(f32, f32); 4] = [
+    (730.0, 1.0),
+    (11270.0, 1.0),
+    (13140.0, 0.24),
+    (22860.0, 0.24),
+];
 
 const SKY_COLOR: [(f32, f32); 4] = [(133.0, 1.0), (11867.0, 1.0), (13670.0, 0.0), (22330.0, 0.0)];
 
@@ -322,7 +326,11 @@ fn apply(
     mut sky: ResMut<Sky>,
     mut clear: ResMut<ClearColor>,
 ) {
-    *sky = sky_at(day.ticks, camera.translation.y, time.elapsed_secs() * CLOUD_SPEED);
+    *sky = sky_at(
+        day.ticks,
+        camera.translation.y,
+        time.elapsed_secs() * CLOUD_SPEED,
+    );
     let haze = fog(day.ticks);
     clear.0 = Color::srgb(haze.x, haze.y, haze.z);
 }
@@ -333,37 +341,59 @@ mod tests {
 
     #[test]
     fn a_track_holds_its_plateaus_and_wraps_through_midnight() {
-        assert_eq!(track(&SKY_LIGHT_FACTOR, 6000.0), 1.0, "noon is full daylight");
+        assert_eq!(
+            track(&SKY_LIGHT_FACTOR, 6000.0),
+            1.0,
+            "noon is full daylight"
+        );
         assert_eq!(track(&SKY_LIGHT_FACTOR, 18000.0), 0.24, "midnight is not");
         let dawn = track(&SKY_LIGHT_FACTOR, 23000.0);
-        assert!(dawn > 0.24 && dawn < 1.0, "dawn is between the two, not {dawn}");
-        assert_eq!(track(&SKY_LIGHT_FACTOR, -1000.0), track(&SKY_LIGHT_FACTOR, 23000.0));
+        assert!(
+            dawn > 0.24 && dawn < 1.0,
+            "dawn is between the two, not {dawn}"
+        );
+        assert_eq!(
+            track(&SKY_LIGHT_FACTOR, -1000.0),
+            track(&SKY_LIGHT_FACTOR, 23000.0)
+        );
     }
 
     #[test]
     fn the_twilight_band_only_shows_around_the_two_twilights() {
         assert_eq!(track(&SUNRISE, 6000.0).w, 0.0, "no band at noon");
         assert_eq!(track(&SUNRISE, 18000.0).w, 0.0, "none at midnight either");
-        assert!(track(&SUNRISE, 12841.0).w > 0.9, "dusk is when it is strongest");
-        assert!(track(&SUNRISE, 23159.0).w > 0.9, "and dawn the other side of the night");
+        assert!(
+            track(&SUNRISE, 12841.0).w > 0.9,
+            "dusk is when it is strongest"
+        );
+        assert!(
+            track(&SUNRISE, 23159.0).w > 0.9,
+            "and dawn the other side of the night"
+        );
     }
 
     #[test]
     fn the_sun_is_overhead_at_noon_and_sets_in_the_west() {
-        let overhead = Quat::from_rotation_y(-PI / 2.0)
-            * Quat::from_rotation_x(sun_angle(6000.0))
-            * Vec3::Y;
-        assert!(overhead.abs_diff_eq(Vec3::Y, 1e-4), "noon puts the sun at {overhead}");
+        let overhead =
+            Quat::from_rotation_y(-PI / 2.0) * Quat::from_rotation_x(sun_angle(6000.0)) * Vec3::Y;
+        assert!(
+            overhead.abs_diff_eq(Vec3::Y, 1e-4),
+            "noon puts the sun at {overhead}"
+        );
 
-        let setting = Quat::from_rotation_y(-PI / 2.0)
-            * Quat::from_rotation_x(sun_angle(12000.0))
-            * Vec3::Y;
-        assert!(setting.x < -0.9 && setting.y > 0.0, "dusk puts the sun at {setting}");
+        let setting =
+            Quat::from_rotation_y(-PI / 2.0) * Quat::from_rotation_x(sun_angle(12000.0)) * Vec3::Y;
+        assert!(
+            setting.x < -0.9 && setting.y > 0.0,
+            "dusk puts the sun at {setting}"
+        );
 
-        let midnight = Quat::from_rotation_y(-PI / 2.0)
-            * Quat::from_rotation_x(sun_angle(18000.0))
-            * Vec3::Y;
-        assert!(midnight.abs_diff_eq(Vec3::NEG_Y, 1e-4), "midnight puts the sun at {midnight}");
+        let midnight =
+            Quat::from_rotation_y(-PI / 2.0) * Quat::from_rotation_x(sun_angle(18000.0)) * Vec3::Y;
+        assert!(
+            midnight.abs_diff_eq(Vec3::NEG_Y, 1e-4),
+            "midnight puts the sun at {midnight}"
+        );
     }
 
     #[test]

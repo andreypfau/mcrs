@@ -1,8 +1,8 @@
 pub mod combined;
 pub mod simplex_octave;
 
-pub use combined::PerlinOctaveNoiseCombined;
 pub use crate::noise::simplex::SimplexNoise;
+pub use combined::PerlinOctaveNoiseCombined;
 pub use simplex_octave::SimplexOctaveNoise;
 
 use crate::noise::improved_noise::ImprovedNoise;

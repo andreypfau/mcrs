@@ -1,7 +1,7 @@
 use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
-use mcrs_random::legacy::LegacyRandom;
 use mcrs_random::Random;
+use mcrs_random::legacy::LegacyRandom;
 
 /// Build Beta climate noise from three independent LegacyRandom instances.
 ///
@@ -16,7 +16,9 @@ use mcrs_random::Random;
 /// Returns (temperature, humidity, detail) raw simplex generators; post-processing
 /// (0.15/0.7 scaling, detail blend, folding, clamp) lives in the
 /// minecraft:beta/{temperature,vegetation,climate_detail} density function JSON.
-pub fn seed_beta_climate(seed: u64) -> (SimplexOctaveNoise, SimplexOctaveNoise, SimplexOctaveNoise) {
+pub fn seed_beta_climate(
+    seed: u64,
+) -> (SimplexOctaveNoise, SimplexOctaveNoise, SimplexOctaveNoise) {
     let temp_noise = SimplexOctaveNoise::new(&mut LegacyRandom::new(seed.wrapping_mul(9871)), 4);
     let rain_noise = SimplexOctaveNoise::new(&mut LegacyRandom::new(seed.wrapping_mul(39811)), 4);
     let detail_noise =
@@ -61,7 +63,6 @@ pub fn seed_beta_terrain(
     (low, high, selector, beach, surface, scale, depth)
 }
 
-
 /// Build the Beta 1.7.3 terrain noises as f64 for the exact-precision density path.
 ///
 /// Seeding order and octave counts are identical to `seed_beta_terrain` — both consume
@@ -83,15 +84,15 @@ pub fn seed_beta_terrain_f64(
 ) {
     let mut rng = LegacyRandom::new(seed);
 
-    let low    = OctavePerlinNoise::<f64>::new(&mut rng, -15, vec![1.0f64; 16], true);
-    let high   = OctavePerlinNoise::<f64>::new(&mut rng, -15, vec![1.0f64; 16], true);
-    let selector = OctavePerlinNoise::<f64>::new(&mut rng, -7,  vec![1.0f64; 8],  true);
-    let beach  = OctavePerlinNoise::<f64>::new(&mut rng, -3,  vec![1.0f64; 4],  true);
-    let surface = OctavePerlinNoise::<f64>::new(&mut rng, -3,  vec![1.0f64; 4],  true);
-    let scale  = OctavePerlinNoise::<f64>::new(&mut rng, -9,  vec![1.0f64; 10], true);
-    let depth  = OctavePerlinNoise::<f64>::new(&mut rng, -15, vec![1.0f64; 16], true);
+    let low = OctavePerlinNoise::<f64>::new(&mut rng, -15, vec![1.0f64; 16], true);
+    let high = OctavePerlinNoise::<f64>::new(&mut rng, -15, vec![1.0f64; 16], true);
+    let selector = OctavePerlinNoise::<f64>::new(&mut rng, -7, vec![1.0f64; 8], true);
+    let beach = OctavePerlinNoise::<f64>::new(&mut rng, -3, vec![1.0f64; 4], true);
+    let surface = OctavePerlinNoise::<f64>::new(&mut rng, -3, vec![1.0f64; 4], true);
+    let scale = OctavePerlinNoise::<f64>::new(&mut rng, -9, vec![1.0f64; 10], true);
+    let depth = OctavePerlinNoise::<f64>::new(&mut rng, -15, vec![1.0f64; 16], true);
     // forest (c): consume 8 octaves but not returned
-    let _forest  = OctavePerlinNoise::<f64>::new(&mut rng, -7,  vec![1.0f64; 8],  true);
+    let _forest = OctavePerlinNoise::<f64>::new(&mut rng, -7, vec![1.0f64; 8], true);
 
     (low, high, selector, beach, surface, scale, depth)
 }
@@ -128,8 +129,7 @@ mod tests {
         let _ = OctavePerlinNoise::<f32>::new(&mut rng, -7, vec![1.0f32; 8], true);
 
         assert_eq!(
-            rng.seed,
-            fixture.post_construction_rng_seed,
+            rng.seed, fixture.post_construction_rng_seed,
             "post-construction RNG seed mismatch: 82-octave stream order or discard may have changed"
         );
     }
@@ -158,7 +158,8 @@ mod tests {
         // Swapped: build selector(8) first, then low(16) — low now reads stream position 2+
         let mut rng_swapped = LegacyRandom::new(845);
         let _ = OctavePerlinNoise::<f32>::new(&mut rng_swapped, -7, vec![1.0f32; 8], true);
-        let low_swapped = OctavePerlinNoise::<f32>::new(&mut rng_swapped, -15, vec![1.0f32; 16], true);
+        let low_swapped =
+            OctavePerlinNoise::<f32>::new(&mut rng_swapped, -15, vec![1.0f32; 16], true);
 
         // Sample both at an arbitrary non-zero position
         let v_correct = low_correct.get(100.0, 200.0, 300.0);
@@ -190,8 +191,7 @@ mod tests {
         };
         let climate_temp_seed_start = LegacyRandom::new(12345u64.wrapping_mul(9871)).seed;
         assert_ne!(
-            terrain_climate_overlap,
-            climate_temp_seed_start,
+            terrain_climate_overlap, climate_temp_seed_start,
             "climate seeds must be independent from terrain stream"
         );
     }

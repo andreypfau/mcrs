@@ -38,7 +38,9 @@ fn push_active_dim(dim: String) {
 }
 
 fn pop_active_dim() {
-    ACTIVE_DIM_STACK.with(|s| { s.borrow_mut().pop(); });
+    ACTIVE_DIM_STACK.with(|s| {
+        s.borrow_mut().pop();
+    });
 }
 
 fn current_dim() -> Option<String> {
@@ -68,7 +70,8 @@ impl tracing::field::Visit for FieldVisitor<'_> {
     }
 
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
-        self.0.insert(field.name().to_string(), format!("{value:?}"));
+        self.0
+            .insert(field.name().to_string(), format!("{value:?}"));
     }
 
     fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
@@ -113,9 +116,9 @@ where
             .collect::<Vec<_>>();
 
         if let Some(span_ref) = ctx.span(id) {
-            span_ref
-                .extensions_mut()
-                .insert(RecordedFields { fields: fields.clone() });
+            span_ref.extensions_mut().insert(RecordedFields {
+                fields: fields.clone(),
+            });
         }
 
         // Use the thread-local dim stack rather than the registry parent chain.

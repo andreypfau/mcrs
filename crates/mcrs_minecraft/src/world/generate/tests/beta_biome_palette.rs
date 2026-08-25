@@ -45,7 +45,9 @@ fn load_density_functions_from_disk() -> BTreeMap<
             mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
         >,
     ) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
@@ -57,7 +59,9 @@ fn load_density_functions_from_disk() -> BTreeMap<
                 };
                 recurse(&path, &new_prefix, map);
             } else if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                let Ok(json) = std::fs::read_to_string(&path) else { continue };
+                let Ok(json) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
                 let Ok(DensityFunctionHolder::Owned(pdf)) =
                     serde_json::from_str::<DensityFunctionHolder>(&json)
                 else {
@@ -93,7 +97,14 @@ fn build_beta_router() -> mcrs_minecraft_worldgen::density_function::NoiseRouter
         serde_json::from_str(&json).expect("beta.json must deserialize");
     let functions = load_density_functions_from_disk();
     let noises = BTreeMap::new();
-    build_functions(&functions, &noises, &settings, 12345, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86))
+    build_functions(
+        &functions,
+        &noises,
+        &settings,
+        12345,
+        mcrs_protocol::BlockStateId(1),
+        mcrs_protocol::BlockStateId(86),
+    )
 }
 
 /// Verify that a Beta-router column produces non-default BiomePalette cells.
@@ -131,12 +142,14 @@ fn generate_column_beta_biome_not_default() {
         }))
         .collect();
 
-    let snapshot = RegistrySnapshot::<Biome>::build(
-        all_pairs,
-        &assets,
-        |_| Ok(mcrs_nbt::compound::NbtCompound::new()),
+    let snapshot = RegistrySnapshot::<Biome>::build(all_pairs, &assets, |_| {
+        Ok(mcrs_nbt::compound::NbtCompound::new())
+    });
+    assert_eq!(
+        snapshot.len(),
+        16,
+        "RegistrySnapshot must contain all 16 biomes"
     );
-    assert_eq!(snapshot.len(), 16, "RegistrySnapshot must contain all 16 biomes");
 
     let land_biome_ids: [ResourceLocation<Arc<str>>; 11] = std::array::from_fn(|i| {
         ResourceLocation::parse(&format!("minecraft:land_biome_{i}")).unwrap()
@@ -163,32 +176,43 @@ fn generate_column_beta_biome_not_default() {
     let ocean_asset_id = biome_source.beta_biome_id(temp_0, hum_0, true);
     let ocean_net_id = snapshot.by_asset_id(ocean_asset_id).unwrap() as u8;
     // land_biome_* sort before ocean_biome_*, so ocean ids ≥ 11.
-    assert!(ocean_net_id >= 11,
-        "ocean biome network id {} must be ≥ 11 (ocean names sort after land names)", ocean_net_id);
+    assert!(
+        ocean_net_id >= 11,
+        "ocean biome network id {} must be ≥ 11 (ocean names sort after land names)",
+        ocean_net_id
+    );
 
     // Land biome id for (temp_0, hum_0) at above-sea-level cell.
     let land_asset_id = biome_source.beta_biome_id(temp_0, hum_0, false);
     let land_net_id = snapshot.by_asset_id(land_asset_id).unwrap() as u8;
-    assert!(land_net_id <= 10,
-        "land biome network id {} must be ≤ 10 (land names sort before ocean names)", land_net_id);
+    assert!(
+        land_net_id <= 10,
+        "land biome network id {} must be ≤ 10 (land names sort before ocean names)",
+        land_net_id
+    );
 
     // Production path resolves by resource location (stable across AssetServers).
     // It must agree with the asset-id lookup in this single-AssetServer test.
     let land_loc = biome_source.beta_biome_location(temp_0, hum_0, false);
     let land_net_id_by_loc = snapshot.by_location(land_loc.as_str()).unwrap() as u8;
-    assert_eq!(land_net_id_by_loc, land_net_id,
-        "location-based biome resolution must match asset-based resolution");
+    assert_eq!(
+        land_net_id_by_loc, land_net_id,
+        "location-based biome resolution must match asset-based resolution"
+    );
 
     // Ocean and land must be different ids for the same XZ position.
-    assert_ne!(ocean_net_id, land_net_id,
-        "ocean and land biome ids must differ for same XZ position");
+    assert_ne!(
+        ocean_net_id, land_net_id,
+        "ocean and land biome ids must differ for same XZ position"
+    );
 
     // Generate a column straddling sea level and verify the results are Some.
     let y_sections: Vec<i32> = (-3..=7).collect();
     let cancel = CancellationToken::new();
 
     let results = generate_column(
-        0, 0,
+        0,
+        0,
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
@@ -197,24 +221,23 @@ fn generate_column_beta_biome_not_default() {
 
     assert_eq!(results.len(), y_sections.len());
     for (idx, result) in results.iter().enumerate() {
-        assert!(result.is_some(), "section at y={} must not be cancelled", y_sections[idx]);
+        assert!(
+            result.is_some(),
+            "section at y={} must not be cancelled",
+            y_sections[idx]
+        );
     }
 
     // Verify modern path: with no biome_context, all palette cells default to 0.
-    let results_modern = generate_column(
-        0, 0,
-        &[0, 1, 2, 3, 4, 5],
-        &router,
-        None,
-        &cancel,
-    );
+    let results_modern = generate_column(0, 0, &[0, 1, 2, 3, 4, 5], &router, None, &cancel);
     for (idx, r) in results_modern.iter().enumerate() {
         let (_, biomes) = r.as_ref().expect("modern section must not be cancelled");
         let net = biomes.convert_network();
         // Default BiomePalette is Homogeneous(0) which serializes as Single(0).
         assert!(
             matches!(net.palette, mcrs_protocol::chunk::Palette::Single(0)),
-            "modern path section y={} must produce default (all-zero) BiomePalette", idx
+            "modern path section y={} must produce default (all-zero) BiomePalette",
+            idx
         );
     }
 }

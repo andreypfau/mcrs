@@ -109,9 +109,17 @@ pub fn frame_stats(
         status.quads * 100.0,
         status.models * 100.0,
     );
-    let _ = write!(line, "   {}/{} regions", status.regions, status.regions_total);
+    let _ = write!(
+        line,
+        "   {}/{} regions",
+        status.regions, status.regions_total
+    );
     if status.files < status.files_total {
-        let _ = write!(line, "   loading {}/{} files", status.files, status.files_total);
+        let _ = write!(
+            line,
+            "   loading {}/{} files",
+            status.files, status.files_total
+        );
     }
     if status.evicted > 0 {
         let _ = write!(line, "   {} evicted", status.evicted);

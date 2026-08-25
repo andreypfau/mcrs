@@ -1,5 +1,6 @@
 use std::num::NonZeroU64;
 
+use crate::sky_state::{SkyEffects, SkyFrame, SkyKey};
 use bevy::asset::embedded_asset;
 use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d};
 use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
@@ -16,7 +17,6 @@ use bevy::render::view::{
 };
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
-use crate::sky_state::{SkyEffects, SkyFrame, SkyKey};
 use mcrs_vanilla::world_clock::WorldClocks;
 
 use crate::sky::{SkyEnvironment, SkyTextures, SkyUniform};
@@ -115,7 +115,9 @@ impl Plugin for SkyRenderPlugin {
             )
             .add_systems(
                 Core3d,
-                draw_sky.in_set(Core3dSystems::MainPass).after(main_opaque_pass_3d),
+                draw_sky
+                    .in_set(Core3dSystems::MainPass)
+                    .after(main_opaque_pass_3d),
             );
     }
 }
@@ -151,10 +153,7 @@ fn init_sky(mut commands: Commands, device: Res<RenderDevice>, asset_server: Res
                 ShaderStages::VERTEX_FRAGMENT,
                 (
                     uniform_buffer_sized(true, Some(ViewUniform::min_size())),
-                    uniform_buffer_sized(
-                        false,
-                        NonZeroU64::new(size_of::<SkyUniform>() as u64),
-                    ),
+                    uniform_buffer_sized(false, NonZeroU64::new(size_of::<SkyUniform>() as u64)),
                 ),
             ),
         ),
@@ -210,7 +209,11 @@ fn prepare_sky(
     };
     queue.write_buffer(&sky.buffer, 0, bytemuck::bytes_of(&extracted.uniform));
 
-    if sky.pipelines.as_ref().is_some_and(|(key, _)| *key == extracted.key) {
+    if sky
+        .pipelines
+        .as_ref()
+        .is_some_and(|(key, _)| *key == extracted.key)
+    {
         return;
     }
     let Some(view) = views.iter().next() else {
@@ -257,7 +260,10 @@ fn prepare_sky(
                     stencil: default(),
                     bias: default(),
                 }),
-                multisample: MultisampleState { count: 1, ..default() },
+                multisample: MultisampleState {
+                    count: 1,
+                    ..default()
+                },
                 ..default()
             });
             (index, pipeline)
@@ -290,10 +296,7 @@ fn prepare_sky_bind_groups(
         view: device.create_bind_group(
             "sky view",
             &pipeline_cache.get_bind_group_layout(&sky.view_layout),
-            &BindGroupEntries::sequential((
-                view_binding,
-                sky.buffer.as_entire_buffer_binding(),
-            )),
+            &BindGroupEntries::sequential((view_binding, sky.buffer.as_entire_buffer_binding())),
         ),
         textures: device.create_bind_group(
             "sky textures",
@@ -370,7 +373,10 @@ mod tests {
             ]
         );
         assert_eq!(
-            effects.iter().copied().fold(SkyEffects::empty(), |all, bit| all | bit),
+            effects
+                .iter()
+                .copied()
+                .fold(SkyEffects::empty(), |all, bit| all | bit),
             SkyEffects::all()
         );
     }

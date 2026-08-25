@@ -11,8 +11,8 @@ use mcrs_core::AppState;
 use mcrs_core::ResourceLocation;
 use mcrs_core::registry::snapshot::rl_from_asset_path;
 
-use mcrs_vanilla::dimension::dimension_type::DimensionType;
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
+use mcrs_vanilla::dimension::dimension_type::DimensionType;
 use mcrs_vanilla::environment::{
     DimensionEnvironments, EnvironmentAttributes, EnvironmentContext, SpatialAttributeInterpolator,
     Weather,
@@ -107,7 +107,9 @@ impl SkyEnvironment {
             self.clock
                 .as_ref()
                 .and_then(|clock| clocks.get(clock.as_str()))
-                .map_or(0.0, |state| state.total_ticks as f64 + f64::from(state.partial_tick)),
+                .map_or(0.0, |state| {
+                    state.total_ticks as f64 + f64::from(state.partial_tick)
+                }),
         )
     }
 
@@ -130,7 +132,10 @@ impl SkyEnvironment {
         let sunrise = color(SkyField::SunriseSunsetColor);
         let cloud = color(SkyField::CloudColor);
         SkyUniform {
-            disc: rgba(color(SkyField::SkyColor), f32::from(frame.camera[1] < HORIZON)),
+            disc: rgba(
+                color(SkyField::SkyColor),
+                f32::from(frame.camera[1] < HORIZON),
+            ),
             sunrise: rgba(sunrise, alpha(sunrise)),
             angles: [
                 self.scalar(frame, SkyField::SunAngle).to_radians(),
@@ -176,10 +181,17 @@ fn build_sky_environment(
     clocks: Res<WorldClocks>,
     weather: Res<Weather>,
 ) {
-    let found = environments.get(&dimension.0).map(|attributes| (dimension.0.as_str(), attributes));
+    let found = environments
+        .get(&dimension.0)
+        .map(|attributes| (dimension.0.as_str(), attributes));
     let fallback = || {
-        warn!(dimension = dimension.0, "no environment for this dimension; drawing the overworld");
-        environments.get(OVERWORLD).map(|attributes| (OVERWORLD, attributes))
+        warn!(
+            dimension = dimension.0,
+            "no environment for this dimension; drawing the overworld"
+        );
+        environments
+            .get(OVERWORLD)
+            .map(|attributes| (OVERWORLD, attributes))
     };
     let Some((id, attributes)) = found.or_else(fallback) else {
         error!(dimension = dimension.0, "no environment to draw a sky from");
@@ -212,7 +224,12 @@ fn build_sky_environment(
         clock = ?clock.as_ref().map(|clock| clock.to_string()),
         "built the sky environment"
     );
-    commands.insert_resource(SkyEnvironment { attributes, layout, statics, clock });
+    commands.insert_resource(SkyEnvironment {
+        attributes,
+        layout,
+        statics,
+        clock,
+    });
 }
 
 /// No chunk is loaded, so no biome speaks and every attribute falls through to
@@ -223,7 +240,12 @@ fn context<'a>(
     biomes: &'a SpatialAttributeInterpolator,
     weather: Weather,
 ) -> EnvironmentContext<'a> {
-    EnvironmentContext { position: camera.as_dvec3(), ticks, biomes, weather }
+    EnvironmentContext {
+        position: camera.as_dvec3(),
+        ticks,
+        biomes,
+        weather,
+    }
 }
 
 fn evaluate_sky(
@@ -238,7 +260,9 @@ fn evaluate_sky(
     environment.attributes.clock_ticks(&clocks, &mut ticks);
     let biomes = SpatialAttributeInterpolator::default();
     let ctx = context(camera.translation(), &ticks, &biomes, *weather);
-    environment.layout.evaluate(&environment.attributes, &ctx, &mut frame);
+    environment
+        .layout
+        .evaluate(&environment.attributes, &ctx, &mut frame);
     clear.0 = environment.fog_color(&frame);
 }
 
@@ -366,7 +390,9 @@ fn array(
     let mut pixels = Vec::new();
     for handle in handles {
         let path = handle.path().map(ToString::to_string).unwrap_or_default();
-        let image = images.get(handle).ok_or_else(|| format!("{path} is not loaded"))?;
+        let image = images
+            .get(handle)
+            .ok_or_else(|| format!("{path} is not loaded"))?;
         let (width, height) = (image.width(), image.height());
         if width != height {
             return Err(format!("{path} is {width}x{height}, not square"));
@@ -480,8 +506,12 @@ mod reference {
     pub const BLOCK_LIGHT_TINT: Vec3 = rgb(0xffd88c);
     pub const MOON_PHASE_COUNT: f32 = 8.0;
 
-    pub const SKY_LIGHT_FACTOR: [(f32, f32); 4] =
-        [(730.0, 1.0), (11270.0, 1.0), (13140.0, 0.24), (22860.0, 0.24)];
+    pub const SKY_LIGHT_FACTOR: [(f32, f32); 4] = [
+        (730.0, 1.0),
+        (11270.0, 1.0),
+        (13140.0, 0.24),
+        (22860.0, 0.24),
+    ];
 
     pub const SKY_LIGHT_COLOR: [(f32, Vec3); 4] = [
         (730.0, Vec3::ONE),
@@ -632,8 +662,10 @@ mod sky_regression {
     }
 
     fn tagged_timelines(tag: &str, out: &mut Vec<Timeline>) {
-        let file: serde_json::Value =
-            read(&format!("tags/timeline/{}.json", tag.trim_start_matches("minecraft:")));
+        let file: serde_json::Value = read(&format!(
+            "tags/timeline/{}.json",
+            tag.trim_start_matches("minecraft:")
+        ));
         for value in file["values"].as_array().unwrap() {
             let entry = value.as_str().unwrap();
             match entry.strip_prefix('#') {
@@ -663,9 +695,16 @@ mod sky_regression {
         .unwrap();
         let layout = SkyLayout::derive(&attributes);
         let biomes = SpatialAttributeInterpolator::default();
-        let statics =
-            layout.constants(&attributes, &context(Vec3::ZERO, &[], &biomes, Weather::default()));
-        SkyEnvironment { attributes, layout, statics, clock: None }
+        let statics = layout.constants(
+            &attributes,
+            &context(Vec3::ZERO, &[], &biomes, Weather::default()),
+        );
+        SkyEnvironment {
+            attributes,
+            layout,
+            statics,
+            clock: None,
+        }
     }
 
     /// The uniform the attribute system produces at `ticks`, from a camera
@@ -673,7 +712,13 @@ mod sky_regression {
     fn ticks_at(attributes: &EnvironmentAttributes, ticks: i64) -> Vec<f64> {
         let mut clocks = WorldClocks::default();
         for clock in attributes.clocks() {
-            clocks.insert(clock.clone(), ClockState { total_ticks: ticks, ..default() });
+            clocks.insert(
+                clock.clone(),
+                ClockState {
+                    total_ticks: ticks,
+                    ..default()
+                },
+            );
         }
         let mut resolved = Vec::new();
         attributes.clock_ticks(&clocks, &mut resolved);
@@ -695,21 +740,32 @@ mod sky_regression {
 
     #[track_caller]
     fn close(label: &str, got: [f32; 4], want: [f32; 4], epsilon: f32) {
-        let apart = (0..4).map(|i| (got[i] - want[i]).abs()).fold(0.0f32, f32::max);
-        assert!(apart <= epsilon, "{label}: {got:?} is {apart} away from {want:?}");
+        let apart = (0..4)
+            .map(|i| (got[i] - want[i]).abs())
+            .fold(0.0f32, f32::max);
+        assert!(
+            apart <= epsilon,
+            "{label}: {got:?} is {apart} away from {want:?}"
+        );
     }
 
     fn expected(ticks: i64, camera: Vec3) -> SkyUniform {
         let at = ticks as f32;
         let sunrise = track(&SUNRISE, at);
         let sun = sun_angle(at);
-        let linear3 = |color: Vec3, w: f32| {
-            [linear(color.x), linear(color.y), linear(color.z), w]
-        };
+        let linear3 = |color: Vec3, w: f32| [linear(color.x), linear(color.y), linear(color.z), w];
         SkyUniform {
-            disc: linear3(BASE_SKY * track(&SKY_COLOR, at), f32::from(camera.y < HORIZON)),
+            disc: linear3(
+                BASE_SKY * track(&SKY_COLOR, at),
+                f32::from(camera.y < HORIZON),
+            ),
             sunrise: linear3(sunrise.truncate(), sunrise.w),
-            angles: [sun, sun + std::f32::consts::PI, sun, linear(track(&STAR_BRIGHTNESS, at))],
+            angles: [
+                sun,
+                sun + std::f32::consts::PI,
+                sun,
+                linear(track(&STAR_BRIGHTNESS, at)),
+            ],
             moon: [
                 1.0 + (at / DAY).floor().rem_euclid(MOON_PHASE_COUNT),
                 RAIN_BRIGHTNESS,
@@ -717,7 +773,10 @@ mod sky_regression {
                 0.0,
             ],
             fog: linear3(BASE_FOG * track(&FOG_COLOR, at), SKY_FOG_END),
-            cloud_color: linear3(CLOUD_COLOR.truncate() * track(&CLOUD_TINT, at), CLOUD_COLOR.w),
+            cloud_color: linear3(
+                CLOUD_COLOR.truncate() * track(&CLOUD_TINT, at),
+                CLOUD_COLOR.w,
+            ),
             cloud: [CLOUD_HEIGHT, cloud_drift(ticks as f64), CLOUD_FADE, 0.0],
         }
     }
@@ -737,7 +796,12 @@ mod sky_regression {
             close(&label("disc"), got.disc, want.disc, CHANNEL);
             close(&label("sunrise"), got.sunrise, want.sunrise, CHANNEL);
             close(&label("fog"), got.fog, want.fog, CHANNEL);
-            close(&label("cloud_color"), got.cloud_color, want.cloud_color, CHANNEL);
+            close(
+                &label("cloud_color"),
+                got.cloud_color,
+                want.cloud_color,
+                CHANNEL,
+            );
             close(&label("cloud"), got.cloud, want.cloud, 0.0);
             close(&label("moon"), got.moon, want.moon, 0.0);
             // the keyframe easing is a cubic bezier where the reference solved
@@ -748,14 +812,24 @@ mod sky_regression {
 
     #[test]
     fn the_dark_disc_is_flagged_only_from_under_the_horizon() {
-        assert_eq!(packed(6000, Vec3::new(0.0, HORIZON + 1.0, 0.0)).disc[3], 0.0);
-        assert_eq!(packed(6000, Vec3::new(0.0, HORIZON - 1.0, 0.0)).disc[3], 1.0);
+        assert_eq!(
+            packed(6000, Vec3::new(0.0, HORIZON + 1.0, 0.0)).disc[3],
+            0.0
+        );
+        assert_eq!(
+            packed(6000, Vec3::new(0.0, HORIZON - 1.0, 0.0)).disc[3],
+            1.0
+        );
     }
 
     #[test]
     fn the_moon_walks_its_phases_and_returns_to_the_first() {
         let layer = |day: i64| packed(day * 24000 + 18000, Vec3::ZERO).moon[0];
-        assert_eq!(layer(0), 1.0, "the first night is the full moon, celestial layer 1");
+        assert_eq!(
+            layer(0),
+            1.0,
+            "the first night is the full moon, celestial layer 1"
+        );
         assert_eq!(layer(3), 4.0);
         assert_eq!(layer(8), 1.0);
     }
@@ -773,11 +847,18 @@ mod sky_regression {
     #[test]
     fn the_clouds_drift_with_the_clock_and_wrap_inside_the_widest_field() {
         assert_eq!(cloud_drift(0.0), 0.0);
-        assert!((cloud_drift(6000.0) - 180.0).abs() < 1e-3, "{}", cloud_drift(6000.0));
+        assert!(
+            (cloud_drift(6000.0) - 180.0).abs() < 1e-3,
+            "{}",
+            cloud_drift(6000.0)
+        );
         let span = 4096.0 * 12.0;
         let a_lot = 1_000_000_000.0;
         assert!(cloud_drift(a_lot) < span as f32);
-        assert_eq!(cloud_drift(a_lot), cloud_drift(a_lot + span / CLOUD_BLOCKS_PER_TICK));
+        assert_eq!(
+            cloud_drift(a_lot),
+            cloud_drift(a_lot + span / CLOUD_BLOCKS_PER_TICK)
+        );
     }
 
     /// Nothing draws with these yet — the client has no terrain to light — so
@@ -810,7 +891,10 @@ mod sky_regression {
                 "sky_light_factor at {ticks}: {factor}"
             );
             for (id, want) in [
-                ("minecraft:visual/sky_light_color", track(&SKY_LIGHT_COLOR, at)),
+                (
+                    "minecraft:visual/sky_light_color",
+                    track(&SKY_LIGHT_COLOR, at),
+                ),
                 ("minecraft:visual/ambient_light_color", AMBIENT),
                 ("minecraft:visual/block_light_tint", BLOCK_LIGHT_TINT),
             ] {

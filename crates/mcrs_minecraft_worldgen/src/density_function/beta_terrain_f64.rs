@@ -18,17 +18,23 @@ pub const CD_GRID: usize = CD_LL * CD_B2 * CD_LL; // 5 * 17 * 5 = 425
 ///   this.a           (scale, 10 octaves)             → g array
 ///   this.b           (depth, 16 octaves)             → h array
 pub struct BetaTerrainF64 {
-    low:      OctavePerlinNoise<f64>, // this.k (e)
-    high:     OctavePerlinNoise<f64>, // this.l (f)
+    low: OctavePerlinNoise<f64>,      // this.k (e)
+    high: OctavePerlinNoise<f64>,     // this.l (f)
     selector: OctavePerlinNoise<f64>, // this.m (d)
-    scale:    OctavePerlinNoise<f64>, // this.a (g)
-    depth:    OctavePerlinNoise<f64>, // this.b (h)
+    scale: OctavePerlinNoise<f64>,    // this.a (g)
+    depth: OctavePerlinNoise<f64>,    // this.b (h)
 }
 
 impl BetaTerrainF64 {
     pub fn new(seed: u64) -> Self {
         let (low, high, selector, _beach, _surface, scale, depth) = seed_beta_terrain_f64(seed);
-        Self { low, high, selector, scale, depth }
+        Self {
+            low,
+            high,
+            selector,
+            scale,
+            depth,
+        }
     }
 
     /// Port of Java `computeDensity(double[], i, j2=0, kk=chunkZ*4, ll=5, i1=17, j1=5)`.
@@ -46,11 +52,11 @@ impl BetaTerrainF64 {
         temp_grid: &[f32; 256],
         rain_grid: &[f32; 256],
     ) -> [f64; CD_GRID] {
-        let i  = chunk_x * CD_B0 as i32;  // x start in noise-cell coords
-        let kk = chunk_z * CD_B0 as i32;  // z start in noise-cell coords
-        let ll = CD_LL as i32;            // xSize = zSize = 5
+        let i = chunk_x * CD_B0 as i32; // x start in noise-cell coords
+        let kk = chunk_z * CD_B0 as i32; // z start in noise-cell coords
+        let ll = CD_LL as i32; // xSize = zSize = 5
         let j1 = CD_LL as i32;
-        let i1 = CD_B2 as i32;           // ySize = 17
+        let i1 = CD_B2 as i32; // ySize = 17
 
         let d0 = 684.412_f64;
         let d1 = 684.412_f64;
@@ -92,21 +98,39 @@ impl BetaTerrainF64 {
         let mut f_arr = [0.0_f64; CD_GRID]; // high
         self.selector.fill_3d_bulk(
             &mut d_arr,
-            i as f64, 0.0, kk as f64,
-            ll as usize, i1 as usize, j1 as usize,
-            d0 / 80.0, d1 / 160.0, d0 / 80.0,
+            i as f64,
+            0.0,
+            kk as f64,
+            ll as usize,
+            i1 as usize,
+            j1 as usize,
+            d0 / 80.0,
+            d1 / 160.0,
+            d0 / 80.0,
         );
         self.low.fill_3d_bulk(
             &mut e_arr,
-            i as f64, 0.0, kk as f64,
-            ll as usize, i1 as usize, j1 as usize,
-            d0, d1, d0,
+            i as f64,
+            0.0,
+            kk as f64,
+            ll as usize,
+            i1 as usize,
+            j1 as usize,
+            d0,
+            d1,
+            d0,
         );
         self.high.fill_3d_bulk(
             &mut f_arr,
-            i as f64, 0.0, kk as f64,
-            ll as usize, i1 as usize, j1 as usize,
-            d0, d1, d0,
+            i as f64,
+            0.0,
+            kk as f64,
+            ll as usize,
+            i1 as usize,
+            j1 as usize,
+            d0,
+            d1,
+            d0,
         );
 
         // Java's nested loop: k1=0..ll (x), l2=0..j1 (z), j3=0..i1 (y)
@@ -121,15 +145,15 @@ impl BetaTerrainF64 {
         //       i3 = l2 * i2 + i2/2 = iz*3+1
         // But back2beta uses ll=5, so i2=16/5=3 (integer division), i2/2=1
         let cell_size = 16 / (ll as usize); // = 3
-        let cell_half = cell_size / 2;      // = 1
+        let cell_half = cell_size / 2; // = 1
 
         for j2i in 0..(ll as usize) {
             let k2 = j2i * cell_size + cell_half; // x offset into 16x16 for climate
             for l2 in 0..(j1 as usize) {
                 let i3 = l2 * cell_size + cell_half; // z offset into 16x16 for climate
 
-                let temp  = temp_grid[k2 * 16 + i3] as f64;
-                let rain  = rain_grid[k2 * 16 + i3] as f64 * temp;
+                let temp = temp_grid[k2 * 16 + i3] as f64;
+                let rain = rain_grid[k2 * 16 + i3] as f64 * temp;
 
                 let mut d4 = 1.0 - rain;
                 d4 *= d4;
@@ -138,22 +162,32 @@ impl BetaTerrainF64 {
 
                 let mut d5 = (g[l1] + 256.0) / 512.0;
                 d5 *= d4;
-                if d5 > 1.0 { d5 = 1.0; }
+                if d5 > 1.0 {
+                    d5 = 1.0;
+                }
 
                 let mut d6 = h[l1] / 8000.0;
-                if d6 < 0.0 { d6 = -d6 * 0.3; }
+                if d6 < 0.0 {
+                    d6 = -d6 * 0.3;
+                }
                 d6 = d6 * 3.0 - 2.0;
                 if d6 < 0.0 {
                     d6 /= 2.0;
-                    if d6 < -1.0 { d6 = -1.0; }
+                    if d6 < -1.0 {
+                        d6 = -1.0;
+                    }
                     d6 /= 1.4;
                     d6 /= 2.0;
                     d5 = 0.0;
                 } else {
-                    if d6 > 1.0 { d6 = 1.0; }
+                    if d6 > 1.0 {
+                        d6 = 1.0;
+                    }
                     d6 /= 8.0;
                 }
-                if d5 < 0.0 { d5 = 0.0; }
+                if d5 < 0.0 {
+                    d5 = 0.0;
+                }
                 d5 += 0.5;
                 d6 = d6 * (i1 as f64) / 16.0;
 
@@ -216,10 +250,10 @@ impl BetaTerrainF64 {
     ) -> [u32; 16 * 128 * 16] {
         let mut out = [0u32; 16 * 128 * 16];
 
-        let b0 = CD_B0 as i32;  // 4
+        let b0 = CD_B0 as i32; // 4
         let b1 = sea_level as usize;
-        let b2 = CD_B2 as i32;  // 17
-        let ll = CD_LL as i32;  // 5
+        let b2 = CD_B2 as i32; // 17
+        let ll = CD_LL as i32; // 5
 
         for i1 in 0..b0 {
             for j1 in 0..b0 {
@@ -236,10 +270,22 @@ impl BetaTerrainF64 {
                     let mut dd3 = d3;
                     let mut dd4 = d4;
 
-                    let d5 = (density_grid[((i1 + 0) * ll + j1 + 0) as usize * CD_B2 + k1 as usize + 1] - d1) * d0;
-                    let d6 = (density_grid[((i1 + 0) * ll + j1 + 1) as usize * CD_B2 + k1 as usize + 1] - d2) * d0;
-                    let d7 = (density_grid[((i1 + 1) * ll + j1 + 0) as usize * CD_B2 + k1 as usize + 1] - d3) * d0;
-                    let d8 = (density_grid[((i1 + 1) * ll + j1 + 1) as usize * CD_B2 + k1 as usize + 1] - d4) * d0;
+                    let d5 = (density_grid
+                        [((i1 + 0) * ll + j1 + 0) as usize * CD_B2 + k1 as usize + 1]
+                        - d1)
+                        * d0;
+                    let d6 = (density_grid
+                        [((i1 + 0) * ll + j1 + 1) as usize * CD_B2 + k1 as usize + 1]
+                        - d2)
+                        * d0;
+                    let d7 = (density_grid
+                        [((i1 + 1) * ll + j1 + 0) as usize * CD_B2 + k1 as usize + 1]
+                        - d3)
+                        * d0;
+                    let d8 = (density_grid
+                        [((i1 + 1) * ll + j1 + 1) as usize * CD_B2 + k1 as usize + 1]
+                        - d4)
+                        * d0;
 
                     for l1 in 0..8i32 {
                         let d9 = 0.25_f64;
@@ -286,9 +332,8 @@ impl BetaTerrainF64 {
                                 // = (i2+i1*4)*2048 + (j1*4)*128 + (k1*8+l1) + k2*128
                                 // = (i2+i1*4)*16*128 + (j1*4+k2)*128 + (k1*8+l1)
                                 // Our layout: out[bx * 16 * 128 + bz * 128 + world_y]
-                                let flat_idx = (bx as usize) * 16 * 128
-                                    + (bz as usize) * 128
-                                    + world_y;
+                                let flat_idx =
+                                    (bx as usize) * 16 * 128 + (bz as usize) * 128 + world_y;
                                 if flat_idx < out.len() {
                                     out[flat_idx] = block;
                                 }

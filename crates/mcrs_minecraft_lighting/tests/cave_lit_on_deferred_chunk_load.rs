@@ -48,10 +48,10 @@ use mcrs_engine::world::column::ColumnPlugin;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_minecraft_lighting::components::SkyLight;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
-use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_lighting::LightingPlugin;
+use mcrs_minecraft_lighting::components::SkyLight;
+use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_protocol::BlockStateId;
 
 const AIR: BlockStateId = BlockStateId(0);

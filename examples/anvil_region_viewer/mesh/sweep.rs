@@ -199,14 +199,19 @@ mod tests {
     fn the_face_runs_of_a_batch_tile_it_exactly() {
         let mut palette = Palette::new();
         let mut world = World::new([0, 0], [1, 1]);
-        world.insert(&mut palette, [0, 0], one_section_region("minecraft:test_block"));
+        world.insert(
+            &mut palette,
+            [0, 0],
+            one_section_region("minecraft:test_block"),
+        );
         let id = palette
             .states
             .iter()
             .position(|state| state.name == "minecraft:test_block")
             .unwrap();
-        let mut blocks: Vec<BlockInfo> =
-            (0..palette.states.len()).map(|_| BlockInfo::default()).collect();
+        let mut blocks: Vec<BlockInfo> = (0..palette.states.len())
+            .map(|_| BlockInfo::default())
+            .collect();
         blocks[id].cube = Some(
             [CubeFace {
                 sprite: SpriteRef { array: 1, layer: 7 },
@@ -223,7 +228,10 @@ mod tests {
             let batch = mesh_render_region(&world, &blocks, grid, region, &mut scratch);
             quads += batch.simple.len();
             if batch.simple.is_empty() {
-                assert!(batch.faces.is_empty(), "a table describing nothing was written");
+                assert!(
+                    batch.faces.is_empty(),
+                    "a table describing nothing was written"
+                );
                 continue;
             }
             let mut runs: Vec<(u64, u64)> = batch
@@ -240,10 +248,17 @@ mod tests {
             runs.sort();
             let mut at = SECTION_FACE_TABLE as u64;
             for (base, len) in runs {
-                assert_eq!(base, at, "a face run does not start where the last one ended");
+                assert_eq!(
+                    base, at,
+                    "a face run does not start where the last one ended"
+                );
                 at += len;
             }
-            assert_eq!(at as usize, batch.faces.len(), "the runs leave the buffer uncovered");
+            assert_eq!(
+                at as usize,
+                batch.faces.len(),
+                "the runs leave the buffer uncovered"
+            );
             for attr in &batch.faces[SECTION_FACE_TABLE..] {
                 assert_eq!(FACE_LAYER.get(*attr as u64), 7, "sprite layer");
                 assert_eq!(FACE_ARRAY.get(*attr as u64), 1, "sprite array");

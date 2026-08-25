@@ -72,14 +72,18 @@ impl PacketIo {
 
     pub(crate) fn into_raw_connection(self, remote_addr: SocketAddr) -> RawConnection {
         let (incoming_sender, incoming_receiver) = mpsc::channel(256);
-        let (outgoing_sender, outgoing_receiver) = mpsc::channel::<Bytes>(OUTBOUND_CHANNEL_CAPACITY);
+        let (outgoing_sender, outgoing_receiver) =
+            mpsc::channel::<Bytes>(OUTBOUND_CHANNEL_CAPACITY);
         let disconnect_flag = Arc::new(AtomicBool::new(false));
 
         let (reader, writer) = self.stream.into_split();
 
         let reader_task = tokio::spawn(reader_loop(reader, self.dec, incoming_sender));
-        let writer_task =
-            tokio::spawn(writer_loop(outgoing_receiver, writer, disconnect_flag.clone()));
+        let writer_task = tokio::spawn(writer_loop(
+            outgoing_receiver,
+            writer,
+            disconnect_flag.clone(),
+        ));
 
         RawConnection {
             outgoing: outgoing_sender,
@@ -214,11 +218,7 @@ impl RawConnection {
     /// Returns `(RawConnection, outgoing_rx, inbound_tx)`.
     pub fn new_for_test_full(
         outgoing_capacity: usize,
-    ) -> (
-        Self,
-        mpsc::Receiver<Bytes>,
-        mpsc::Sender<ReceivedPacket>,
-    ) {
+    ) -> (Self, mpsc::Receiver<Bytes>, mpsc::Sender<ReceivedPacket>) {
         let (outgoing_tx, outgoing_rx) = mpsc::channel::<Bytes>(outgoing_capacity);
         let (inbound_tx, inbound_rx) = mpsc::channel::<ReceivedPacket>(128);
         let reader_task = tokio::spawn(async {

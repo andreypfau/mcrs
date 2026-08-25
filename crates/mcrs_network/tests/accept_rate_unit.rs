@@ -1,5 +1,5 @@
 use mcrs_network::connect::{
-    AcceptOutcome, ACCEPT_BUCKET_CAP, ACCEPT_REFILL_PER_SEC, GLOBAL_HANDSHAKE_CAP, TokenBucket,
+    ACCEPT_BUCKET_CAP, ACCEPT_REFILL_PER_SEC, AcceptOutcome, GLOBAL_HANDSHAKE_CAP, TokenBucket,
     accept_decision,
 };
 
@@ -15,7 +15,11 @@ fn accept_rate_limit() {
     // Next 5 calls must all reject (bucket exhausted, negligible elapsed time)
     for i in 0..5 {
         let result = bucket.consume(ACCEPT_BUCKET_CAP, ACCEPT_REFILL_PER_SEC);
-        assert!(!result, "expected reject on call {} after exhaustion, got accept", ACCEPT_BUCKET_CAP + i);
+        assert!(
+            !result,
+            "expected reject on call {} after exhaustion, got accept",
+            ACCEPT_BUCKET_CAP + i
+        );
     }
 }
 

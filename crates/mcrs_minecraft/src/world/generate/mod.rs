@@ -1,17 +1,18 @@
 use crate::world::chunk::CancellationToken;
-use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_core::RegistrySnapshot;
 use mcrs_engine::world::block::BlockPos;
+use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::density_function::{
-    ColumnCache, NoiseRouter, NoiseCellInterpolator,
-    beta_terrain_f64::BetaTerrainF64,
+    ColumnCache, NoiseCellInterpolator, NoiseRouter, beta_terrain_f64::BetaTerrainF64,
 };
 use mcrs_protocol::BlockStateId;
-use mcrs_random::legacy::LegacyRandom;
 use mcrs_random::Random;
+use mcrs_random::legacy::LegacyRandom;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::beta_surface::beta_surface_blocks;
-use mcrs_vanilla::biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome};
+use mcrs_vanilla::biome::source::{
+    BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
+};
 use mcrs_vanilla::block::minecraft;
 
 /// Generate a single section using a pre-populated column cache and interpolator.
@@ -220,18 +221,19 @@ fn fill_sections_beta_f64(
     let block_x = section_x * 16;
     let block_z = section_z * 16;
 
-    let sea_level   = noise_router.sea_level();
-    let stone_id    = noise_router.default_block_state().0 as u32;
-    let water_id    = noise_router.default_fluid_state().0 as u32;
-    let ice_id      = minecraft::ICE.default_state_id.0 as u32;
-    let air_id      = 0u32;
+    let sea_level = noise_router.sea_level();
+    let stone_id = noise_router.default_block_state().0 as u32;
+    let water_id = noise_router.default_fluid_state().0 as u32;
+    let ice_id = minecraft::ICE.default_state_id.0 as u32;
+    let air_id = 0u32;
 
     // Sample the 16×16 climate grids needed by computeDensity.
     let (temp_grid, rain_grid) = noise_router.sample_beta_climate_grids(block_x, block_z);
 
     // Run the f64 density computation and block fill.
     let density = terrain.compute_density(section_x, section_z, &temp_grid, &rain_grid);
-    let flat = BetaTerrainF64::fill_terrain(&density, &temp_grid, sea_level, stone_id, water_id, ice_id);
+    let flat =
+        BetaTerrainF64::fill_terrain(&density, &temp_grid, sea_level, stone_id, water_id, ice_id);
 
     // Build a column cache for biome sampling (used by fill_biome_palette_beta).
     let mut column_cache = noise_router.new_column_cache(block_x, block_z);
@@ -261,7 +263,9 @@ fn fill_sections_beta_f64(
             if section_min_y >= 0 && section_min_y < 128 {
                 for local_y in 0..16i32 {
                     let world_y = section_min_y + local_y;
-                    if world_y >= 128 { break; }
+                    if world_y >= 128 {
+                        break;
+                    }
                     for local_x in 0..16i32 {
                         for local_z in 0..16i32 {
                             let flat_idx = (local_x as usize) * 16 * 128
@@ -280,7 +284,16 @@ fn fill_sections_beta_f64(
             }
 
             if let Some((src, reg)) = beta_biome {
-                fill_biome_palette_beta(&mut biomes, sy, block_x, block_z, noise_router, &column_cache, src, reg);
+                fill_biome_palette_beta(
+                    &mut biomes,
+                    sy,
+                    block_x,
+                    block_z,
+                    noise_router,
+                    &column_cache,
+                    src,
+                    reg,
+                );
             }
 
             Some((blocks, biomes))
@@ -303,7 +316,10 @@ fn fill_sections_beta_f64(
 /// source, every section's `BiomePalette` is filled from climate data.  Non-Beta
 /// sources leave the palette as the default (id 0) — modern biome assignment is
 /// unchanged.
-#[cfg_attr(feature = "telemetry-tracy", tracing::instrument(name = "world::column_gen", skip_all))]
+#[cfg_attr(
+    feature = "telemetry-tracy",
+    tracing::instrument(name = "world::column_gen", skip_all)
+)]
 pub fn generate_column(
     section_x: i32,
     section_z: i32,
@@ -376,7 +392,16 @@ pub fn generate_column(
                 prev_sy = Some(sy);
                 let mut biomes = BiomePalette::default();
                 if let Some((src, reg)) = beta_biome {
-                    fill_biome_palette_beta(&mut biomes, sy, block_x, block_z, noise_router, &column_cache, src, reg);
+                    fill_biome_palette_beta(
+                        &mut biomes,
+                        sy,
+                        block_x,
+                        block_z,
+                        noise_router,
+                        &column_cache,
+                        src,
+                        reg,
+                    );
                 }
                 return Some((BlockPalette::default(), biomes));
             }
@@ -390,7 +415,16 @@ pub fn generate_column(
                     prev_sy = Some(sy);
                     let mut biomes = BiomePalette::default();
                     if let Some((src, reg)) = beta_biome {
-                        fill_biome_palette_beta(&mut biomes, sy, block_x, block_z, noise_router, &column_cache, src, reg);
+                        fill_biome_palette_beta(
+                            &mut biomes,
+                            sy,
+                            block_x,
+                            block_z,
+                            noise_router,
+                            &column_cache,
+                            src,
+                            reg,
+                        );
                     }
                     return Some((BlockPalette::default(), biomes));
                 }
@@ -414,7 +448,16 @@ pub fn generate_column(
                 &mut interp,
             );
             if let Some((src, reg)) = beta_biome {
-                fill_biome_palette_beta(&mut biomes, sy, block_x, block_z, noise_router, &column_cache, src, reg);
+                fill_biome_palette_beta(
+                    &mut biomes,
+                    sy,
+                    block_x,
+                    block_z,
+                    noise_router,
+                    &column_cache,
+                    src,
+                    reg,
+                );
             }
             Some((blocks, biomes))
         })
@@ -438,8 +481,12 @@ pub fn apply_beta_surface(
     biome_source: &BiomeSource,
     rng: &mut LegacyRandom,
 ) {
-    let Some(beach_noise) = noise_router.beta_beach_noise() else { return };
-    let Some(surf_noise) = noise_router.beta_surface_noise() else { return };
+    let Some(beach_noise) = noise_router.beta_beach_noise() else {
+        return;
+    };
+    let Some(surf_noise) = noise_router.beta_surface_noise() else {
+        return;
+    };
 
     // Extract the quantized biome lookup from the biome source.
     // back2beta's replaceBlocksForBiome reads biomes via getBiomeFromLookup (quantized).
@@ -469,9 +516,15 @@ pub fn apply_beta_surface(
     let mut r = [0.0f64; 256];
     beach_noise.fill_3d_bulk(
         &mut r,
-        block_x as f64, block_z as f64, 0.0,
-        16, 16, 1,
-        D0, D0, 1.0,
+        block_x as f64,
+        block_z as f64,
+        0.0,
+        16,
+        16,
+        1,
+        D0,
+        D0,
+        1.0,
     );
 
     // Java call: n.a(s, i*16, 109.0134, jj*16, 16, 1, 16, d0, 1.0, d0)
@@ -484,7 +537,9 @@ pub fn apply_beta_surface(
                 (block_x + x as i32) as f64,
                 109.0134,
                 (block_z + z as i32) as f64,
-                D0, 1.0, D0,
+                D0,
+                1.0,
+                D0,
             );
         }
     }
@@ -495,9 +550,15 @@ pub fn apply_beta_surface(
     let mut t = [0.0f64; 256];
     surf_noise.fill_3d_bulk(
         &mut t,
-        block_x as f64, block_z as f64, 0.0,
-        16, 16, 1,
-        D0 * 2.0, D0 * 2.0, D0 * 2.0,
+        block_x as f64,
+        block_z as f64,
+        0.0,
+        16,
+        16,
+        1,
+        D0 * 2.0,
+        D0 * 2.0,
+        D0 * 2.0,
     );
 
     // back2beta replaceBlocksForBiome: outer loop kk=0..16 is Z, inner ll=0..16 is X.
@@ -624,9 +685,9 @@ pub fn apply_beta_surface(
 }
 
 pub mod beta_caves;
-pub use beta_caves::{apply_beta_caves, BetaCaveBlockIds};
+pub use beta_caves::{BetaCaveBlockIds, apply_beta_caves};
 pub mod beta_ores;
-pub use beta_ores::{apply_beta_ores, place_all_ores, BetaOreBlockIds};
+pub use beta_ores::{BetaOreBlockIds, apply_beta_ores, place_all_ores};
 
 #[cfg(test)]
 mod tests;

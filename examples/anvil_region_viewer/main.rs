@@ -1,13 +1,13 @@
-#[allow(dead_code, reason = "the block viewer uses the parts this example does not")]
-#[path = "../block_viewer/model.rs"]
-mod model;
-#[allow(dead_code, reason = "the block viewer uses the parts this example does not")]
-#[path = "../block_viewer/bake.rs"]
-mod bake;
 mod anim;
 mod anvil;
 mod arena;
 mod atlas;
+#[allow(
+    dead_code,
+    reason = "the block viewer uses the parts this example does not"
+)]
+#[path = "../block_viewer/bake.rs"]
+mod bake;
 mod blocks;
 mod camera;
 #[cfg(target_os = "macos")]
@@ -16,6 +16,12 @@ mod cave;
 mod config;
 mod daylight;
 mod mesh;
+#[allow(
+    dead_code,
+    reason = "the block viewer uses the parts this example does not"
+)]
+#[path = "../block_viewer/model.rs"]
+mod model;
 mod overlay;
 mod pack;
 mod probe;
@@ -65,11 +71,7 @@ fn main() {
         .unwrap_or(DEFAULT_WINDOW)
         .max(1);
 
-    let window = match anvil::window(
-        std::path::Path::new(&path),
-        config::window_centre(),
-        size,
-    ) {
+    let window = match anvil::window(std::path::Path::new(&path), config::window_centre(), size) {
         Ok(window) => window,
         Err(error) => {
             eprintln!("cannot load {path}: {error}");

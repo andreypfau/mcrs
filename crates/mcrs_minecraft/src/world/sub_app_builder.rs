@@ -16,11 +16,11 @@ use crate::world::bus::{
     InboundRollbackMove, OutboundPlayerPacket,
 };
 use crate::world::channel_types::{FromDim, ToDim};
-use mcrs_engine::world::channels::{
-    DimChannels, FromDimSender, ToDimReceiver, FROM_DIM_CAPACITY, TO_DIM_CAPACITY,
-    TO_DIM_CONTROL_CAPACITY,
-};
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
+use mcrs_engine::world::channels::{
+    DimChannels, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    ToDimReceiver,
+};
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 
 /// System set for inbox drain systems, run early in `FixedPreUpdate`.
@@ -54,21 +54,17 @@ use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::explosion::ExplosionPlugin;
 use crate::world::loot::LootPlugin;
+use mcrs_core::RegistrySnapshot;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
-use mcrs_engine::world::dimension::{
-    DimensionBundle, DimensionPlugin, HasSkyLight,
-};
-use mcrs_engine::world::sub_app::{
-    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
-};
-use mcrs_minecraft_lighting::table::BlockStateLightTable;
+use mcrs_engine::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
+use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_vanilla::block::Block;
+use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_vanilla::biome::Biome;
+use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
-use mcrs_core::RegistrySnapshot;
 
 #[derive(Clone)]
 pub struct DimRegistryBundle {
@@ -393,14 +389,36 @@ fn drain_to_dim_inbox(
 ) {
     for msg in rx.control.try_iter() {
         match msg {
-            ToDim::Spawn { host_anchor, session, snapshot, dimensions } => {
-                spawn_msgs.write(InboundPlayerSpawn { host_anchor, session, snapshot, dimensions });
+            ToDim::Spawn {
+                host_anchor,
+                session,
+                snapshot,
+                dimensions,
+            } => {
+                spawn_msgs.write(InboundPlayerSpawn {
+                    host_anchor,
+                    session,
+                    snapshot,
+                    dimensions,
+                });
             }
-            ToDim::Despawn { host_anchor, session } => {
-                despawn_msgs.write(InboundPlayerDespawn { host_anchor, session });
+            ToDim::Despawn {
+                host_anchor,
+                session,
+            } => {
+                despawn_msgs.write(InboundPlayerDespawn {
+                    host_anchor,
+                    session,
+                });
             }
             ToDim::Serverbound { .. } => {}
-            ToDim::SpawnEntity { move_id, epoch, cause, payload, player } => {
+            ToDim::SpawnEntity {
+                move_id,
+                epoch,
+                cause,
+                payload,
+                player,
+            } => {
                 entity_spawn_msgs.write(InboundEntitySpawn {
                     move_id,
                     epoch,
@@ -418,7 +436,13 @@ fn drain_to_dim_inbox(
         }
     }
     for msg in rx.serverbound.try_iter() {
-        if let ToDim::Serverbound { player, id, data, timestamp } = msg {
+        if let ToDim::Serverbound {
+            player,
+            id,
+            data,
+            timestamp,
+        } = msg
+        {
             serverbound_msgs.write(crate::world::bus::InboundPlayerPacket {
                 player,
                 id,
@@ -460,7 +484,8 @@ fn flush_from_dim_outbox(
             mcrs_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL.fetch_add(1, Ordering::Relaxed);
             let total = mcrs_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL.load(Ordering::Relaxed);
             *dropped_since_log += 1;
-            if *dropped_since_log == 1 || dropped_since_log.is_multiple_of(FROM_DIM_DROP_LOG_INTERVAL)
+            if *dropped_since_log == 1
+                || dropped_since_log.is_multiple_of(FROM_DIM_DROP_LOG_INTERVAL)
             {
                 warn!(
                     target: "mcrs_minecraft::bridge",
@@ -496,9 +521,8 @@ pub struct DimLabel(pub String);
 /// sub-app for each request. Called from outside the ECS run loop because
 /// `App::insert_sub_app` requires `&mut App`.
 pub fn drain_dim_spawn_queue(app: &mut App) {
-    let requests: Vec<DimSpawnRequest> = std::mem::take(
-        &mut app.world_mut().resource_mut::<DimSpawnQueue>().0,
-    );
+    let requests: Vec<DimSpawnRequest> =
+        std::mem::take(&mut app.world_mut().resource_mut::<DimSpawnQueue>().0);
     if requests.is_empty() {
         return;
     }
@@ -512,9 +536,8 @@ pub fn drain_dim_spawn_queue(app: &mut App) {
 /// matching sub-apps. Called from outside the ECS run loop because
 /// `App::remove_sub_app` requires `&mut App`.
 pub fn drain_dim_despawn_queue(app: &mut App) {
-    let entities: Vec<Entity> = std::mem::take(
-        &mut app.world_mut().resource_mut::<DimDespawnQueue>().0,
-    );
+    let entities: Vec<Entity> =
+        std::mem::take(&mut app.world_mut().resource_mut::<DimDespawnQueue>().0);
     for entity in entities {
         if app.remove_sub_app(DimAppLabel(entity)).is_none() {
             warn!(
@@ -528,8 +551,9 @@ pub fn drain_dim_despawn_queue(app: &mut App) {
         // receiver would return Disconnected on any subsequent drain attempt.
         // Removing the entry here keeps DimChannels consistent with the live
         // sub-app population and avoids holding a stale receiver.
-        if let Some(mut channels) =
-            app.world_mut().get_resource_mut::<DimChannels<ToDim, FromDim>>()
+        if let Some(mut channels) = app
+            .world_mut()
+            .get_resource_mut::<DimChannels<ToDim, FromDim>>()
         {
             channels.remove(entity);
         }

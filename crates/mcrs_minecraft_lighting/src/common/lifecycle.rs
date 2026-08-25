@@ -6,19 +6,19 @@
 // "no surface found" sentinel to stay deterministic.
 
 use crate::bitset::BitSet256;
+use crate::block_light::bundle::BlockLightBundle;
 use crate::heightmap::{
-    record_topmost, record_unsurfaced_column, record_unsurfaced_motion_column, scan_top_down,
-    HeightmapVariant, ScanOutcome,
+    HeightmapVariant, ScanOutcome, record_topmost, record_unsurfaced_column,
+    record_unsurfaced_motion_column, scan_top_down,
 };
+use crate::sky_light::bundle::SkyLightBundle;
 use crate::table::BlockStateLightTable;
+use crate::{BlockNeedsInitialSeed, IsAllAir, SkyNeedsInitialSeed};
 use bevy_ecs::prelude::{Added, Changed, Commands, Component, Entity, Has, Query, Res, With};
 use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
 use mcrs_engine::world::column::{Column, ColumnChunks, Heightmaps};
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_minecraft_block::palette::BlockPalette;
-use crate::block_light::bundle::BlockLightBundle;
-use crate::{BlockNeedsInitialSeed, IsAllAir, SkyNeedsInitialSeed};
-use crate::sky_light::bundle::SkyLightBundle;
 
 const XZ_FULL: [(usize, usize); 256] = {
     let mut arr = [(0usize, 0usize); 256];
@@ -210,11 +210,7 @@ fn advance_scan(
 
     let palette_fn = |entity: Entity| -> Option<&BlockPalette> {
         let (palette, is_all_air) = chunks.get(entity).ok()?;
-        if is_all_air {
-            None
-        } else {
-            Some(palette)
-        }
+        if is_all_air { None } else { Some(palette) }
     };
 
     let outcome = {
@@ -364,14 +360,12 @@ mod tests {
     use crate::{BlockLight, LightingPlugin, SkyLight};
     use bevy_app::{App, FixedUpdate, Update};
     use bevy_state::app::{AppExtStates, StatesPlugin};
-    use mcrs_core::voxel_shape::VoxelShape;
     use mcrs_core::AppState;
+    use mcrs_core::voxel_shape::VoxelShape;
     use mcrs_engine::entity::ChunkEntities;
     use mcrs_engine::world::chunk::{Chunk, ChunkLoaded};
     use mcrs_engine::world::column::ColumnPlugin;
-    use mcrs_engine::world::dimension::{
-        DimensionBundle, DimensionId, DimensionTypeConfig,
-    };
+    use mcrs_engine::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
 
     const TEST_DIM_HEIGHT: u32 = 384;
     const TEST_DIM_MIN_Y: i32 = -64;

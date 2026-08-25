@@ -320,7 +320,14 @@ fn main() {
     );
 
     let t_build = Instant::now();
-    let router = build_functions(&functions, &noises, &settings, seed, mcrs_protocol::BlockStateId(1), mcrs_protocol::BlockStateId(86));
+    let router = build_functions(
+        &functions,
+        &noises,
+        &settings,
+        seed,
+        mcrs_protocol::BlockStateId(1),
+        mcrs_protocol::BlockStateId(86),
+    );
     let build_elapsed = t_build.elapsed();
     eprintln!("Built NoiseRouter in {}", fmt_duration(build_elapsed));
     router.print_zone_stats();
@@ -360,11 +367,13 @@ fn main() {
                             let y = section_block_y + (cy * 8) as i32;
                             let pos = IVec3::new(x, y, z);
 
-                            let lazy_val = router.final_density_from_column_cache(pos, &mut cache_lazy);
+                            let lazy_val =
+                                router.final_density_from_column_cache(pos, &mut cache_lazy);
 
                             // Full: evaluate all Zone B entries (no lazy skip)
                             for i in router.column_boundary()..=router.final_density_idx() {
-                                cache_full.scratch[i] = router.sample_entry(i, &cache_full.scratch, pos);
+                                cache_full.scratch[i] =
+                                    router.sample_entry(i, &cache_full.scratch, pos);
                             }
                             let full_val = cache_full.scratch[router.final_density_idx()];
 

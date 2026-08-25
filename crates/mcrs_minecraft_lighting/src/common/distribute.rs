@@ -29,18 +29,16 @@ use std::time::{Duration, Instant};
 
 use crate::converge::PENDING_EGRESS_CAP;
 use crate::metrics::{LIGHT_CROSS_DIM_VIOLATIONS_TOTAL, LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL};
-use mcrs_core::voxel_shape::Direction;
-use mcrs_engine::world::chunk::ChunkPos;
-use mcrs_engine::world::column::{
-    ColumnPos, ColumnIndex, InColumn, ColumnChunks, ChunkLookup,
-};
-use mcrs_engine::world::dimension::InDimension;
-use mcrs_engine::world::lighting::LightTicket;
 use crate::{
     BlockBfsPending, BlockInbox, BlockOutbox, BlockOutboxDirty, BlockParkedEgress,
     CrossChunkWavefront, NeedsFullReseed, SkyBfsPending, SkyInbox, SkyOutbox, SkyOutboxDirty,
     SkyParkedEgress,
 };
+use mcrs_core::voxel_shape::Direction;
+use mcrs_engine::world::chunk::ChunkPos;
+use mcrs_engine::world::column::{ChunkLookup, ColumnChunks, ColumnIndex, ColumnPos, InColumn};
+use mcrs_engine::world::dimension::InDimension;
+use mcrs_engine::world::lighting::LightTicket;
 
 /// Manhattan attenuation: face-adjacent (1), edge (2), corner (3). The
 /// `max(1)` floor guarantees at least one step of attenuation even if a
@@ -121,9 +119,7 @@ pub(crate) fn resolve_neighbor_chunk(
                     dst_column: src_in_col.0,
                     dst_chunk_pos,
                 },
-                ChunkLookup::BottomPadding | ChunkLookup::TopPadding => {
-                    ResolveOutcome::Padding
-                }
+                ChunkLookup::BottomPadding | ChunkLookup::TopPadding => ResolveOutcome::Padding,
                 ChunkLookup::OutOfRange => ResolveOutcome::OutOfRange,
             })
         }
@@ -135,8 +131,7 @@ pub(crate) fn resolve_neighbor_chunk(
                 Direction::North => (0, -1),
                 _ => unreachable!(),
             };
-            let neighbour_col_pos =
-                ColumnPos::new(src_chunk_pos.x + dx, src_chunk_pos.z + dz);
+            let neighbour_col_pos = ColumnPos::new(src_chunk_pos.x + dx, src_chunk_pos.z + dz);
             let column_index = column_indexes.get(src_in_dim.0).ok()?;
             let slot = column_index.0.get(&neighbour_col_pos)?;
             let dst_column = slot.entity;
@@ -154,9 +149,7 @@ pub(crate) fn resolve_neighbor_chunk(
                     dst_column,
                     dst_chunk_pos,
                 },
-                ChunkLookup::BottomPadding | ChunkLookup::TopPadding => {
-                    ResolveOutcome::Padding
-                }
+                ChunkLookup::BottomPadding | ChunkLookup::TopPadding => ResolveOutcome::Padding,
                 ChunkLookup::OutOfRange => ResolveOutcome::OutOfRange,
             })
         }
@@ -209,8 +202,12 @@ impl DrainChannel for BlockChannel {
     const DOWN_SKIPS_ATTENUATION: bool = false;
     const OVERFLOW_KIND: &'static str = "block_egress_overflow";
     const OVERFLOW_COUNTER_LABEL: &'static str = "block";
-    fn outbox_inner_mut(c: &mut BlockOutbox) -> &mut SmallVec<[CrossChunkWavefront; 16]> { &mut c.0 }
-    fn parked_inner_mut(c: &mut BlockParkedEgress) -> &mut SmallVec<[CrossChunkWavefront; 16]> { &mut c.0 }
+    fn outbox_inner_mut(c: &mut BlockOutbox) -> &mut SmallVec<[CrossChunkWavefront; 16]> {
+        &mut c.0
+    }
+    fn parked_inner_mut(c: &mut BlockParkedEgress) -> &mut SmallVec<[CrossChunkWavefront; 16]> {
+        &mut c.0
+    }
 }
 
 impl DrainChannel for SkyChannel {
@@ -220,8 +217,12 @@ impl DrainChannel for SkyChannel {
     const DOWN_SKIPS_ATTENUATION: bool = true;
     const OVERFLOW_KIND: &'static str = "sky_egress_overflow";
     const OVERFLOW_COUNTER_LABEL: &'static str = "sky";
-    fn outbox_inner_mut(c: &mut SkyOutbox) -> &mut SmallVec<[CrossChunkWavefront; 16]> { &mut c.0 }
-    fn parked_inner_mut(c: &mut SkyParkedEgress) -> &mut SmallVec<[CrossChunkWavefront; 16]> { &mut c.0 }
+    fn outbox_inner_mut(c: &mut SkyOutbox) -> &mut SmallVec<[CrossChunkWavefront; 16]> {
+        &mut c.0
+    }
+    fn parked_inner_mut(c: &mut SkyParkedEgress) -> &mut SmallVec<[CrossChunkWavefront; 16]> {
+        &mut c.0
+    }
 }
 
 /// Channel-generic cross-chunk wavefront drain. Runs per source-chunk in
@@ -343,8 +344,7 @@ fn drain_channel_outbox<C: DrainChannel>(
                     }
                     Some(ResolveOutcome::Unloaded { dst_column, .. }) => {
                         if C::parked_inner_mut(&mut parked).len() >= PENDING_EGRESS_CAP {
-                            LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL
-                                .fetch_add(1, Ordering::Relaxed);
+                            LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL.fetch_add(1, Ordering::Relaxed);
                             tracing::warn!(
                                 target: "mcrs_lighting::needs_full_reseed",
                                 src = ?src_entity,
@@ -363,9 +363,7 @@ fn drain_channel_outbox<C: DrainChannel>(
                             C::parked_inner_mut(&mut parked).push(wavefront);
                         }
                     }
-                    Some(ResolveOutcome::Padding)
-                    | Some(ResolveOutcome::OutOfRange)
-                    | None => {}
+                    Some(ResolveOutcome::Padding) | Some(ResolveOutcome::OutOfRange) | None => {}
                 }
             }
 
@@ -531,7 +529,10 @@ mod tests {
 
     fn build_app() -> App {
         let mut app = App::new();
-        app.add_systems(Update, (distribute_block_wavefronts, distribute_sky_wavefronts));
+        app.add_systems(
+            Update,
+            (distribute_block_wavefronts, distribute_sky_wavefronts),
+        );
         app
     }
 
@@ -608,8 +609,7 @@ mod tests {
         register_column(app, dim, ColumnPos::new(0, 0), col_a);
         register_column(app, dim, ColumnPos::new(1, 0), col_b);
         let chunk_a = spawn_block_chunk(app, ChunkPos::new(0, 0, 0), col_a, dim, egress_a);
-        let chunk_b =
-            spawn_block_chunk(app, ChunkPos::new(1, 0, 0), col_b, dim, SmallVec::new());
+        let chunk_b = spawn_block_chunk(app, ChunkPos::new(1, 0, 0), col_b, dim, SmallVec::new());
         (dim, col_a, col_b, chunk_a, chunk_b)
     }
 
@@ -642,10 +642,7 @@ mod tests {
         assert_eq!(w.cell_z(), 7);
         assert_eq!(w.level(), 7, "Manhattan-1 attenuated from 8 to 7");
 
-        let src_egress = app
-            .world()
-            .get::<BlockOutbox>(chunk_a)
-            .expect("chunk_a");
+        let src_egress = app.world().get::<BlockOutbox>(chunk_a).expect("chunk_a");
         assert!(src_egress.0.is_empty(), "source outbox drained");
 
         assert!(app.world().get::<BlockBfsPending>(chunk_b).is_some());
@@ -703,10 +700,11 @@ mod tests {
         egress_dec.push(CrossChunkWavefront::new(east, 4, 7, 8));
         let (_dim, _col_a, _col_b, chunk_a_dec, chunk_b_dec) =
             make_two_column_world(&mut app_dec, SmallVec::new());
-        app_dec
-            .world_mut()
-            .entity_mut(chunk_a_dec)
-            .insert((SkyOutbox(egress_dec), SkyOutboxDirty, SkyParkedEgress::default()));
+        app_dec.world_mut().entity_mut(chunk_a_dec).insert((
+            SkyOutbox(egress_dec),
+            SkyOutboxDirty,
+            SkyParkedEgress::default(),
+        ));
         app_dec
             .world_mut()
             .entity_mut(chunk_b_dec)
@@ -724,10 +722,11 @@ mod tests {
         egress_inc.push(CrossChunkWavefront::new(east, 4, 7, 8));
         let (_dim, _col_a, _col_b, chunk_a_inc, chunk_b_inc) =
             make_two_column_world(&mut app_inc, SmallVec::new());
-        app_inc
-            .world_mut()
-            .entity_mut(chunk_a_inc)
-            .insert((SkyOutbox(egress_inc), SkyOutboxDirty, SkyParkedEgress::default()));
+        app_inc.world_mut().entity_mut(chunk_a_inc).insert((
+            SkyOutbox(egress_inc),
+            SkyOutboxDirty,
+            SkyParkedEgress::default(),
+        ));
         app_inc
             .world_mut()
             .entity_mut(chunk_b_inc)
@@ -749,7 +748,11 @@ mod tests {
         assert_eq!(w.face(), Direction::West.index() as u8);
         assert_eq!(w.cell_x(), 4);
         assert_eq!(w.cell_z(), 7);
-        assert_eq!(w.level(), 7, "East-face wavefront: Manhattan-1 attenuation (sky Down-skip does not apply to East)");
+        assert_eq!(
+            w.level(),
+            7,
+            "East-face wavefront: Manhattan-1 attenuation (sky Down-skip does not apply to East)"
+        );
     }
 
     #[test]
@@ -767,7 +770,9 @@ mod tests {
 
     #[test]
     fn distribute_pending_egress_overflow_inserts_needs_full_reseed() {
-        let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _lock = TELEMETRY_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let mut app = build_app();
         let dim = spawn_dimension(&mut app);
         let col_a = spawn_column(&mut app, 0, 1);
@@ -781,7 +786,12 @@ mod tests {
         outbox.push(CrossChunkWavefront::new(east, 0, 0, 10));
         let mut prefill = SmallVec::new();
         for i in 0..PENDING_EGRESS_CAP {
-            prefill.push(CrossChunkWavefront::new(east, (i % 16) as u8, ((i / 16) % 16) as u8, 5));
+            prefill.push(CrossChunkWavefront::new(
+                east,
+                (i % 16) as u8,
+                ((i / 16) % 16) as u8,
+                5,
+            ));
         }
         let chunk_a = app
             .world_mut()
@@ -829,8 +839,7 @@ mod tests {
         let east = Direction::East.index() as u8;
         let mut outbox = SmallVec::new();
         outbox.push(CrossChunkWavefront::new(east, 0, 0, 10));
-        let (_dim, _col_a, _col_b, _chunk_a, chunk_b) =
-            make_two_column_world(&mut app, outbox);
+        let (_dim, _col_a, _col_b, _chunk_a, chunk_b) = make_two_column_world(&mut app, outbox);
 
         app.update();
 
@@ -911,7 +920,11 @@ mod tests {
         assert_eq!(w.face(), Direction::Up.index() as u8, "dest frame: Up");
         assert_eq!(w.cell_x(), 0);
         assert_eq!(w.cell_z(), 0);
-        assert_eq!(w.level(), 14, "block Down-face: manhattan_preattenuate(15, 1) = 14");
+        assert_eq!(
+            w.level(),
+            14,
+            "block Down-face: manhattan_preattenuate(15, 1) = 14"
+        );
     }
 
     #[test]
@@ -935,7 +948,11 @@ mod tests {
         assert_eq!(w.face(), Direction::Up.index() as u8, "dest frame: Up");
         assert_eq!(w.cell_x(), 0);
         assert_eq!(w.cell_z(), 0);
-        assert_eq!(w.level(), 15, "sky Down-face: no attenuation (column-walker free-fall)");
+        assert_eq!(
+            w.level(),
+            15,
+            "sky Down-face: no attenuation (column-walker free-fall)"
+        );
     }
 
     #[test]
@@ -962,13 +979,7 @@ mod tests {
             SmallVec::new(),
         );
 
-        let _chunk_a = spawn_block_chunk(
-            &mut app,
-            ChunkPos::new(0, 0, 0),
-            col_a,
-            dim_a,
-            outbox,
-        );
+        let _chunk_a = spawn_block_chunk(&mut app, ChunkPos::new(0, 0, 0), col_a, dim_a, outbox);
 
         app.update();
     }
@@ -976,7 +987,9 @@ mod tests {
     #[test]
     #[cfg(not(debug_assertions))]
     fn distribute_increments_cross_dim_counter_in_release() {
-        let _lock = TELEMETRY_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _lock = TELEMETRY_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let mut app = build_app();
         let dim_a = spawn_dimension(&mut app);
         let dim_b = spawn_dimension(&mut app);
@@ -997,13 +1010,7 @@ mod tests {
             SmallVec::new(),
         );
 
-        let _chunk_a = spawn_block_chunk(
-            &mut app,
-            ChunkPos::new(0, 0, 0),
-            col_a,
-            dim_a,
-            outbox,
-        );
+        let _chunk_a = spawn_block_chunk(&mut app, ChunkPos::new(0, 0, 0), col_a, dim_a, outbox);
 
         let before = crate::metrics::snapshot();
         app.update();
@@ -1026,8 +1033,7 @@ mod tests {
         let east = Direction::East.index() as u8;
         let mut outbox = SmallVec::new();
         outbox.push(CrossChunkWavefront::new(east, 0, 0, 8));
-        let (_dim, _col_a, _col_b, chunk_a, _chunk_b) =
-            make_two_column_world(&mut app, outbox);
+        let (_dim, _col_a, _col_b, chunk_a, _chunk_b) = make_two_column_world(&mut app, outbox);
 
         app.update();
 
@@ -1047,8 +1053,7 @@ mod tests {
         for cz in 0..8u8 {
             outbox.push(CrossChunkWavefront::new(east, 0, cz, 8));
         }
-        let (_dim, _col_a, _col_b, _chunk_a, chunk_b) =
-            make_two_column_world(&mut app, outbox);
+        let (_dim, _col_a, _col_b, _chunk_a, chunk_b) = make_two_column_world(&mut app, outbox);
 
         app.update();
 
@@ -1076,15 +1081,11 @@ mod tests {
         let mut outbox = SmallVec::new();
         outbox.push(CrossChunkWavefront::new(down, 5, 5, 8));
 
-        let chunk_a =
-            spawn_block_chunk(&mut app, ChunkPos::new(0, 0, 0), col_a, dim, outbox);
+        let chunk_a = spawn_block_chunk(&mut app, ChunkPos::new(0, 0, 0), col_a, dim, outbox);
 
         app.update();
 
-        let src_egress = app
-            .world()
-            .get::<BlockOutbox>(chunk_a)
-            .expect("chunk_a");
+        let src_egress = app.world().get::<BlockOutbox>(chunk_a).expect("chunk_a");
         assert!(src_egress.0.is_empty(), "source outbox drained");
         let pend = app
             .world()

@@ -4,10 +4,25 @@
 //! callers can land on `crate::sky_light::enqueue::*` as the canonical
 //! path. A future refactor will move the bodies here.
 
+use crate::bfs::{
+    ALL_DIRECTIONS_BITSET, FLAG_RECHECK_LEVEL, FLAG_WRITE_LEVEL, normal_of, pack_bfs_entry,
+};
+use crate::codec::LightStorage;
+use crate::distribute::{ResolveOutcome, resolve_neighbor_chunk};
+use crate::enqueue::CARDINAL_DIRECTIONS;
+use crate::geom::face_cell_to_chunk_xyz;
+use crate::heightmap::topmost_surface_world_y;
+use crate::nibble::LightNibbles;
+use crate::sky_light::components::NeedsRetop;
+use crate::table::{BlockStateLightTable, flag_bits};
+use crate::{
+    CrossChunkWavefront, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyNeedsInitialSeed,
+    SkyParkedEgress, WasTopmostAtSeed,
+};
 use bevy_ecs::change_detection::Res;
-use bevy_ecs::prelude::{Added, Commands, Local, Or, ParallelCommands, Query, With, Without};
 use bevy_ecs::entity::{Entity, EntityHashMap};
 use bevy_ecs::message::MessageReader;
+use bevy_ecs::prelude::{Added, Commands, Local, Or, ParallelCommands, Query, With, Without};
 use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::geometry::ChunkPos;
 use mcrs_engine::world::chunk::ChunkLoaded;
@@ -15,16 +30,6 @@ use mcrs_engine::world::column::{ColumnChunks, ColumnIndex, Heightmaps, InColumn
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
-use crate::{CrossChunkWavefront, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyNeedsInitialSeed, SkyParkedEgress, WasTopmostAtSeed};
-use crate::bfs::{normal_of, pack_bfs_entry, ALL_DIRECTIONS_BITSET, FLAG_RECHECK_LEVEL, FLAG_WRITE_LEVEL};
-use crate::codec::LightStorage;
-use crate::distribute::{resolve_neighbor_chunk, ResolveOutcome};
-use crate::enqueue::CARDINAL_DIRECTIONS;
-use crate::geom::face_cell_to_chunk_xyz;
-use crate::heightmap::topmost_surface_world_y;
-use crate::nibble::LightNibbles;
-use crate::sky_light::components::NeedsRetop;
-use crate::table::{flag_bits, BlockStateLightTable};
 
 /// Reacts to `BlockPlaced` by enqueuing sky-light decrease and increase seeds
 /// whenever the placed block changes either its dampening or its
@@ -164,8 +169,7 @@ pub fn enqueue_sky_light_on_block_placed(
                         {
                             continue;
                         }
-                        let neighbour_level =
-                            light.0.get(nx as usize, ny as usize, nz as usize);
+                        let neighbour_level = light.0.get(nx as usize, ny as usize, nz as usize);
                         queues.increase_queue.push(pack_bfs_entry(
                             nx as u8,
                             nz as u8,
@@ -332,8 +336,15 @@ pub fn seed_sky_initial(
                             let min_y = hm.min_y();
                             let mut sample = [0i32; 9];
                             let pts = [
-                                (0usize, 0usize), (15, 0), (0, 15), (15, 15),
-                                (7, 7), (0, 7), (15, 7), (7, 0), (7, 15),
+                                (0usize, 0usize),
+                                (15, 0),
+                                (0, 15),
+                                (15, 15),
+                                (7, 7),
+                                (0, 7),
+                                (15, 7),
+                                (7, 0),
+                                (7, 15),
                             ];
                             let mut sentinel_count = 0u16;
                             let mut min_read = i32::MAX;
@@ -343,7 +354,9 @@ pub fn seed_sky_initial(
                                     let s = hm.surface_get(x, z);
                                     min_read = min_read.min(s);
                                     max_read = max_read.max(s);
-                                    if s == min_y { sentinel_count += 1; }
+                                    if s == min_y {
+                                        sentinel_count += 1;
+                                    }
                                 }
                             }
                             for (i, (x, z)) in pts.iter().enumerate() {
@@ -388,13 +401,10 @@ pub fn seed_sky_initial(
                                 for y_local in 0..max_dark_local_y {
                                     arr.set(x, y_local, z, 0);
                                 }
-                                let lit_in_chunk =
-                                    s_opt.map_or(true, |s| s <= chunk_top_y);
+                                let lit_in_chunk = s_opt.map_or(true, |s| s <= chunk_top_y);
                                 if lit_in_chunk {
                                     let first_seed_y: u8 = match s_opt {
-                                        Some(s) if s >= chunk_base_y => {
-                                            (s - chunk_base_y) as u8
-                                        }
+                                        Some(s) if s >= chunk_base_y => (s - chunk_base_y) as u8,
                                         _ => 0,
                                     };
                                     for y_seed_local in first_seed_y..=15u8 {
@@ -415,9 +425,7 @@ pub fn seed_sky_initial(
                     }
 
                     if is_topmost {
-                        commands
-                            .entity(chunk_entity)
-                            .insert(WasTopmostAtSeed);
+                        commands.entity(chunk_entity).insert(WasTopmostAtSeed);
                         seeded_topmost = true;
                     }
                 }
@@ -439,9 +447,7 @@ pub fn seed_sky_initial(
                                 ));
                             }
                         }
-                        commands
-                            .entity(chunk_entity)
-                            .insert(WasTopmostAtSeed);
+                        commands.entity(chunk_entity).insert(WasTopmostAtSeed);
                         sky_seeded = true;
                         seeded_topmost = true;
                     }
@@ -459,8 +465,7 @@ pub fn seed_sky_initial(
             let Ok(chunk_index) = chunk_indexes.get(in_col.0) else {
                 continue;
             };
-            let top_chunk_y =
-                chunk_index.min_section_y + chunk_index.sections.len() as i32 - 1;
+            let top_chunk_y = chunk_index.min_section_y + chunk_index.sections.len() as i32 - 1;
             if chunk_pos.y != top_chunk_y {
                 continue;
             }
@@ -602,15 +607,17 @@ pub fn pull_sky_neighbor_edges(
             .unwrap_or(false);
 
         for face in CARDINAL_DIRECTIONS {
-            let Some(ResolveOutcome::Loaded { dst_entity: neighbour_entity, .. }) =
-                resolve_neighbor_chunk(
-                    *chunk_pos,
-                    *in_col,
-                    *in_dim,
-                    face,
-                    &column_indexes,
-                    &chunk_indexes,
-                )
+            let Some(ResolveOutcome::Loaded {
+                dst_entity: neighbour_entity,
+                ..
+            }) = resolve_neighbor_chunk(
+                *chunk_pos,
+                *in_col,
+                *in_dim,
+                face,
+                &column_indexes,
+                &chunk_indexes,
+            )
             else {
                 continue;
             };
@@ -634,8 +641,7 @@ pub fn pull_sky_neighbor_edges(
             if !new_sky_already_max {
                 for cell_a in 0..16u8 {
                     for cell_b in 0..16u8 {
-                        let (nx, ny, nz) =
-                            face_cell_to_chunk_xyz(from_face, cell_a, cell_b);
+                        let (nx, ny, nz) = face_cell_to_chunk_xyz(from_face, cell_a, cell_b);
 
                         if let Ok(sl) = sky_light_read.get(neighbour_entity) {
                             let level = sl.0.get(nx as usize, ny as usize, nz as usize);

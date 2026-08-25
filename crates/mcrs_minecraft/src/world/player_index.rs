@@ -4,8 +4,8 @@ use bevy_ecs::resource::Resource;
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
-use mcrs_engine::session::PlayerSession;
 use crate::world::bus::InboundPlayerPacket;
+use mcrs_engine::session::PlayerSession;
 
 /// Host-side pending inbound buffer, keyed by host_anchor entity.
 /// Holds packets received while the player's in-dim spawn is in flight

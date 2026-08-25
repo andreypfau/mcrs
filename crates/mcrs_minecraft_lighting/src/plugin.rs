@@ -1,30 +1,31 @@
 use crate::block_light::BlockLightPlugin;
-use crate::codec::{emit_column_light_updates, ColumnLightUpdate};
-use crate::sky_light::SkyLightPlugin;
-use crate::converge::{
-    light_converge_driver, LightConvergeSchedule, LightConvergeSet,
+use crate::block_light::emit_dirty::{clear_block_bfs_pending_safety_net, emit_block_light_dirty};
+use crate::block_light::enqueue::{
+    enqueue_block_light_on_block_placed, pull_block_neighbor_edges, seed_block_emitters,
 };
+use crate::block_light::propagate::{
+    propagate_decrease_block_system, propagate_increase_block_system,
+};
+use crate::codec::{ColumnLightUpdate, emit_column_light_updates};
+use crate::converge::{LightConvergeSchedule, LightConvergeSet, light_converge_driver};
 use crate::distribute::{distribute_block_wavefronts, distribute_sky_wavefronts};
-use crate::emit_dirty::{
-    clear_light_tickets,
-    downgrade_light_storage,
-};
+use crate::emit_dirty::{clear_light_tickets, downgrade_light_storage};
 use crate::enqueue::consume_needs_full_reseed;
-use crate::sky_light::enqueue::invalidate_previous_topmost;
 use crate::heightmap_update::update_heightmaps_on_block_placed;
 use crate::lifecycle::{attach_lighting_state, prime_heightmaps_on_column_spawn};
 use crate::sets::LightingSet;
+use crate::sky_light::SkyLightPlugin;
+use crate::sky_light::emit_dirty::{clear_sky_bfs_pending_safety_net, emit_sky_light_dirty};
+use crate::sky_light::enqueue::invalidate_previous_topmost;
+use crate::sky_light::enqueue::{
+    enqueue_sky_light_on_block_placed, pull_sky_neighbor_edges, seed_sky_initial,
+};
+use crate::sky_light::propagate::{propagate_decrease_sky_system, propagate_increase_sky_system};
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{ApplyDeferred, IntoScheduleConfigs};
 use bevy_ecs::schedule::{Schedule, SingleThreadedExecutor};
 use mcrs_engine::world::column::ColumnLifecycleSet;
-use mcrs_minecraft_block::block_update::{apply_set_block_request, BlockPlaced, BlockUpdateSet};
-use crate::block_light::emit_dirty::{clear_block_bfs_pending_safety_net, emit_block_light_dirty};
-use crate::block_light::enqueue::{enqueue_block_light_on_block_placed, pull_block_neighbor_edges, seed_block_emitters};
-use crate::block_light::propagate::{propagate_decrease_block_system, propagate_increase_block_system};
-use crate::sky_light::emit_dirty::{clear_sky_bfs_pending_safety_net, emit_sky_light_dirty};
-use crate::sky_light::enqueue::{enqueue_sky_light_on_block_placed, pull_sky_neighbor_edges, seed_sky_initial};
-use crate::sky_light::propagate::{propagate_decrease_sky_system, propagate_increase_sky_system};
+use mcrs_minecraft_block::block_update::{BlockPlaced, BlockUpdateSet, apply_set_block_request};
 
 pub struct LightingPlugin;
 
@@ -54,8 +55,7 @@ impl Plugin for LightingPlugin {
             FixedUpdate,
             (
                 ApplyDeferred,
-                prime_heightmaps_on_column_spawn
-                    .in_set(ColumnLifecycleSet::PrimeHeightmaps),
+                prime_heightmaps_on_column_spawn.in_set(ColumnLifecycleSet::PrimeHeightmaps),
                 ApplyDeferred,
                 attach_lighting_state.in_set(ColumnLifecycleSet::AttachState),
             )
@@ -184,8 +184,7 @@ impl Plugin for LightingPlugin {
                 consume_needs_full_reseed,
                 (seed_block_emitters, seed_sky_initial),
                 invalidate_previous_topmost.after(seed_sky_initial),
-                (pull_block_neighbor_edges, pull_sky_neighbor_edges)
-                    .after(seed_sky_initial),
+                (pull_block_neighbor_edges, pull_sky_neighbor_edges).after(seed_sky_initial),
             )
                 .in_set(LightingSet::Enqueue),
         );
@@ -217,7 +216,6 @@ impl Plugin for LightingPlugin {
             FixedPostUpdate,
             emit_column_light_updates.in_set(LightingSet::Codec),
         );
-
     }
 }
 

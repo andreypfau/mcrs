@@ -10,14 +10,15 @@ use bevy_math::{DVec3, Vec2};
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
+use mcrs_core::AppState;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
-use mcrs_core::AppState;
-use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_engine::session::PlayerSession;
+use mcrs_engine::session::{PlayerSessionCounter, SessionRegistry};
+use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::world::bridge::{bridge_inbound_to_channel, bridge_player_attach};
 use mcrs_minecraft::world::bus::{
@@ -25,9 +26,8 @@ use mcrs_minecraft::world::bus::{
     OutboundPlayerDisconnect, OutboundPlayerPacket, PlayerTransferSnapshot,
 };
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
-use mcrs_engine::session::{PlayerSessionCounter, SessionRegistry};
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PendingInboundBuffer, PlayerIndex};
-use mcrs_minecraft::world::sub_app_builder::{drain_dim_spawn_queue, DimSubAppHandle};
+use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_protocol::uuid::Uuid;
 use mcrs_vanilla::biome::Biome;
@@ -87,10 +87,7 @@ fn build_host_app() -> App {
     app.add_message::<OutboundPlayerAttached>();
     app.add_message::<OutboundPlayerDisconnect>();
     app.add_message::<InboundPlayerDespawn>();
-    app.add_systems(
-        Update,
-        (bridge_inbound_to_channel, bridge_player_attach),
-    );
+    app.add_systems(Update, (bridge_inbound_to_channel, bridge_player_attach));
 
     app.add_plugins(LoginPlugin);
     // System under test
@@ -144,7 +141,9 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
 /// `SessionEntry.dim` to that label (no longer Entity::PLACEHOLDER).
 #[test]
 fn game_transition_emits_initial_spawn() {
-    use mcrs_engine::world::channels::{DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY};
+    use mcrs_engine::world::channels::{
+        DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    };
     use mcrs_minecraft::world::channel_types::FromDim;
 
     let mut app = build_host_app();
@@ -160,7 +159,12 @@ fn game_transition_emits_initial_spawn() {
         let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         app.world_mut()
             .resource_mut::<DimChannelsResource>()
-            .insert(dim_label, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
+            .insert(
+                dim_label,
+                DimSender::new(srv_tx),
+                DimSender::new(ctl_tx),
+                from_rx,
+            );
         ctl_rx
     };
 
@@ -178,7 +182,9 @@ fn game_transition_emits_initial_spawn() {
         "exactly one ToDim::Spawn should be sent to the dim's control channel"
     );
     match &spawns[0] {
-        ToDim::Spawn { host_anchor: ha, .. } => {
+        ToDim::Spawn {
+            host_anchor: ha, ..
+        } => {
             assert_eq!(*ha, host_anchor, "spawn's host_anchor must match");
         }
         _ => unreachable!(),
@@ -230,7 +236,9 @@ fn no_live_dim_no_spawn() {
 /// already emitted) must not send a second ToDim::Spawn.
 #[test]
 fn idempotent_single_emit() {
-    use mcrs_engine::world::channels::{DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY};
+    use mcrs_engine::world::channels::{
+        DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+    };
     use mcrs_minecraft::world::channel_types::FromDim;
 
     let mut app = build_host_app();
@@ -246,7 +254,12 @@ fn idempotent_single_emit() {
         let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         app.world_mut()
             .resource_mut::<DimChannelsResource>()
-            .insert(dim_label, DimSender::new(srv_tx), DimSender::new(ctl_tx), from_rx);
+            .insert(
+                dim_label,
+                DimSender::new(srv_tx),
+                DimSender::new(ctl_tx),
+                from_rx,
+            );
         ctl_rx
     };
 
@@ -269,8 +282,7 @@ fn idempotent_single_emit() {
         .filter(|m| matches!(m, ToDim::Spawn { .. }))
         .count();
     assert_eq!(
-        second_spawns,
-        0,
+        second_spawns, 0,
         "no second ToDim::Spawn after current_dim is already set"
     );
 }
@@ -306,15 +318,17 @@ fn spawn_consumer_materializes_in_dim_entity() {
 
     let dim_label = {
         let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
-        q.iter(app.world()).map(|(e, _)| e).next().expect("one DimSubAppHandle")
+        q.iter(app.world())
+            .map(|(e, _)| e)
+            .next()
+            .expect("one DimSubAppHandle")
     };
 
     // Send a ToDim::Spawn on the dim's control channel so drain_to_dim_inbox
     // routes it to Messages<InboundPlayerSpawn> inside the sub-app.
     let host_anchor = app.world_mut().spawn_empty().id();
     {
-        app
-            .world()
+        app.world()
             .resource::<DimChannelsResource>()
             .get(dim_label)
             .expect("channel registered by spawn_dim_subapp")
@@ -329,7 +343,8 @@ fn spawn_consumer_materializes_in_dim_entity() {
                     rotation: Vec2::ZERO,
                 },
                 dimensions: Vec::new(),
-            }).expect("control channel not full");
+            })
+            .expect("control channel not full");
     }
 
     // Tick 1: drain_to_dim_inbox routes spawn to sub-app Messages<InboundPlayerSpawn>;
@@ -341,7 +356,10 @@ fn spawn_consumer_materializes_in_dim_entity() {
     let player_count = {
         let sub = app.sub_app_mut(DimAppLabel(dim_label));
         let world = sub.world_mut();
-        world.query_filtered::<Entity, With<Player>>().iter(world).count()
+        world
+            .query_filtered::<Entity, With<Player>>()
+            .iter(world)
+            .count()
     };
     assert_eq!(player_count, 1, "exactly one Player entity in the sub-app");
 }
@@ -427,13 +445,15 @@ fn no_duplicate_spawn_on_reread() {
 
     let dim_label = {
         let mut q = app.world_mut().query::<(Entity, &DimSubAppHandle)>();
-        q.iter(app.world()).map(|(e, _)| e).next().expect("one DimSubAppHandle")
+        q.iter(app.world())
+            .map(|(e, _)| e)
+            .next()
+            .expect("one DimSubAppHandle")
     };
 
     let host_anchor = app.world_mut().spawn_empty().id();
     {
-        app
-            .world()
+        app.world()
             .resource::<DimChannelsResource>()
             .get(dim_label)
             .expect("channel registered by spawn_dim_subapp")
@@ -448,7 +468,8 @@ fn no_duplicate_spawn_on_reread() {
                     rotation: Vec2::ZERO,
                 },
                 dimensions: Vec::new(),
-            }).expect("control channel not full");
+            })
+            .expect("control channel not full");
     }
 
     // Tick 1: consumer reads the spawn and materializes one entity
@@ -460,11 +481,13 @@ fn no_duplicate_spawn_on_reread() {
     let player_count = {
         let sub = app.sub_app_mut(DimAppLabel(dim_label));
         let world = sub.world_mut();
-        world.query_filtered::<Entity, With<Player>>().iter(world).count()
+        world
+            .query_filtered::<Entity, With<Player>>()
+            .iter(world)
+            .count()
     };
     assert_eq!(
-        player_count,
-        1,
+        player_count, 1,
         "cursor semantics: only one Player entity despite multiple pumps after a single spawn"
     );
 }

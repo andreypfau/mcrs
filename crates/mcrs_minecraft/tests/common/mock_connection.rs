@@ -11,7 +11,9 @@ use bevy_ecs::world::World;
 use bytes::Bytes;
 use mcrs_engine::session::{PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
-use mcrs_minecraft::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload};
+use mcrs_minecraft::world::bus::{
+    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
+};
 use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_network::RawConnection;
 use tokio::sync::mpsc;
@@ -103,17 +105,19 @@ pub fn write_packet_stamped(
     // Construct a dummy dim entity for the target (irrelevant — bridge_outbound
     // uses msg.session for SinglePlayer, not the entity inside PacketTarget).
     let dummy = Entity::from_raw_u32(9999).expect("nonzero");
-    write_packet(world, PacketTarget::SinglePlayer(dummy), session, epoch, priority, seq);
+    write_packet(
+        world,
+        PacketTarget::SinglePlayer(dummy),
+        session,
+        epoch,
+        priority,
+        seq,
+    );
 }
 
 /// Register a session directly (bypassing the PlayerSessionCounter).
 /// Used by epoch-filter tests that need precise control over session ids.
-pub fn register_session(
-    world: &mut World,
-    session: PlayerSession,
-    socket: Entity,
-    epoch: u32,
-) {
+pub fn register_session(world: &mut World, session: PlayerSession, socket: Entity, epoch: u32) {
     let anchor = Entity::from_raw_u32(9997).expect("nonzero");
     let dim = Entity::from_raw_u32(9998).expect("nonzero");
     world.resource_mut::<SessionRegistry>().insert(
@@ -149,7 +153,9 @@ where
 /// Collect all packets from a connection entity's `OutboundQueue` in priority
 /// drain order (Critical → High → Normal → Low) into a flat `Vec`.
 pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<OutboundPlayerPacket> {
-    let mut q = world.get_mut::<OutboundQueue>(socket).expect("OutboundQueue present");
+    let mut q = world
+        .get_mut::<OutboundQueue>(socket)
+        .expect("OutboundQueue present");
     let mut out = Vec::new();
     out.extend(q.critical.drain(..));
     out.extend(q.high.drain(..));

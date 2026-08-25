@@ -6,8 +6,8 @@
 
 pub mod codec;
 
-pub mod common;
 pub mod block_light;
+pub mod common;
 pub mod sky_light;
 
 pub mod plugin;
@@ -15,26 +15,26 @@ pub mod plugin;
 // Re-export the moved infrastructure modules so existing `crate::bfs::*` etc.
 // import paths inside this crate keep resolving without per-file rewrites.
 // The canonical path going forward is `crate::common::*`.
-pub use common::{
-    bfs, bitset, converge, distribute, emit_dirty, enqueue, geom, heightmap, heightmap_update,
-    lifecycle, propagate, table, metrics,
-};
 #[cfg(any(test, debug_assertions))]
 pub use common::invariants;
+pub use common::{
+    bfs, bitset, converge, distribute, emit_dirty, enqueue, geom, heightmap, heightmap_update,
+    lifecycle, metrics, propagate, table,
+};
 
 // Flat re-exports of the per-channel public types and the channel-composer
 // plugins so external callers can refer to them at the crate root in
 // addition to the canonical per-channel module paths.
 pub use block_light::BlockLightPlugin;
 pub use block_light::components::{
-    BlockBfsPending, BlockOutbox, BlockOutboxDirty, BlockInbox, BlockLight, BlockBfsQueues,
-    BlockNeedsInitialSeed, BlockParkedEgress,
+    BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockNeedsInitialSeed, BlockOutbox,
+    BlockOutboxDirty, BlockParkedEgress,
 };
-pub use common::components::{IsAllAir, NeedsFullReseed, CrossChunkWavefront};
+pub use common::components::{CrossChunkWavefront, IsAllAir, NeedsFullReseed};
 pub use sky_light::SkyLightPlugin;
 pub use sky_light::components::{
-    SkyBfsPending, SkyOutbox, SkyOutboxDirty, SkyInbox, SkyLight, WasTopmostAtSeed, SkyBfsQueues,
-    SkyNeedsInitialSeed, SkyParkedEgress,
+    SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyNeedsInitialSeed, SkyOutbox,
+    SkyOutboxDirty, SkyParkedEgress, WasTopmostAtSeed,
 };
 
 // Aggregate-style `components` module re-exporting all per-channel and
@@ -46,9 +46,9 @@ pub mod components {
     pub use crate::sky_light::components::*;
 }
 
-pub use codec::{nibble, sets, storage};
 pub use codec::codec::{BlockLightDirty, ColumnLightUpdate, SkyLightDirty};
 pub use codec::sets::LightingSet;
+pub use codec::{nibble, sets, storage};
 pub use lifecycle::ColumnHeightmapScan;
 pub use plugin::LightingPlugin;
 

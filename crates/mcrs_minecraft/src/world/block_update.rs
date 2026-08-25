@@ -18,10 +18,10 @@ use bevy_ecs::prelude::{Changed, Entity, IntoScheduleConfigs, Query, With};
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::geometry::ColumnPos;
+use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::chunk::ChunkPos;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::storage::column::ColumnIndex;
-use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft_block::block_update::{BlockUpdateSet, ChunkNetworkSyncBlockChangesSet};
 use mcrs_minecraft_block::palette::BlockPalette;
 use smallvec::SmallVec;
@@ -98,8 +98,8 @@ pub fn update_client_blocks_per_dim(
                     position,
                     new_state,
                 },
-            session: PlayerSession(0),
-            epoch: 0,
+                session: PlayerSession(0),
+                epoch: 0,
             });
             mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                 .fetch_add(1, Ordering::Relaxed);

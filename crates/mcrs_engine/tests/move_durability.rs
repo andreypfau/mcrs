@@ -5,7 +5,7 @@
 
 use bevy_ecs::entity::Entity;
 use mcrs_engine::session::PlayerSession;
-use mcrs_engine::world::in_flight::{alloc_move_id, InFlightEntry, InFlightMoves};
+use mcrs_engine::world::in_flight::{InFlightEntry, InFlightMoves, alloc_move_id};
 
 fn entry() -> InFlightEntry {
     InFlightEntry {
@@ -30,7 +30,10 @@ fn tick_all_times_out_exactly_at_threshold() {
     // tick_all reports but does not remove; the caller drives the rollback then removes.
     assert!(moves.remove(id).is_some(), "entry present until removed");
     assert!(moves.get(id).is_none());
-    assert!(moves.tick_all().is_empty(), "removed entry never fires again");
+    assert!(
+        moves.tick_all().is_empty(),
+        "removed entry never fires again"
+    );
 }
 
 #[test]
@@ -59,5 +62,9 @@ fn multiple_in_flight_moves_time_out_independently() {
     moves.tick_all(); // a: ticks=1
     moves.insert(b, entry()); // b: ticks=0
     let timed_out = moves.tick_all(); // a: ticks=2 (fires), b: ticks=1
-    assert_eq!(timed_out, vec![a], "only the older move has reached the threshold");
+    assert_eq!(
+        timed_out,
+        vec![a],
+        "only the older move has reached the threshold"
+    );
 }

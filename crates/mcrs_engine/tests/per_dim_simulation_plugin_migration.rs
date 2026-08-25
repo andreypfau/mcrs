@@ -30,11 +30,7 @@ fn minecraft_block_plugin_messages_present_in_each_subapp() {
     assert_eq!(labels.len(), 2, "two sub-apps expected");
 
     for label in &labels {
-        let sub_app = app
-            .sub_apps()
-            .sub_apps
-            .get(label)
-            .expect("sub-app present");
+        let sub_app = app.sub_apps().sub_apps.get(label).expect("sub-app present");
         let world = sub_app.world();
 
         // Invariant: per-sub-app registration for PlayerWillDestroyBlock
@@ -86,7 +82,6 @@ fn explosion_plugin_registered_per_dim_not_host() {
         "Messages<BlockPlaced> missing in per-dim world"
     );
 }
-
 
 #[test]
 fn host_side_no_longer_registers_per_dim_simulation_plugins() {
@@ -187,4 +182,3 @@ fn per_dim_simulation_plugins_now_in_sub_app() {
         "LootPlugin must install BlockLootTables in the per-dim sub-app"
     );
 }
-

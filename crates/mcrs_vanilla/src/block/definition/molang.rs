@@ -27,7 +27,11 @@ pub enum MolangError {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StateCondition {
-    Compares { property: u8, value: u8, equal: bool },
+    Compares {
+        property: u8,
+        value: u8,
+        equal: bool,
+    },
     Not(Box<StateCondition>),
     And(Box<(StateCondition, StateCondition)>),
     Or(Box<(StateCondition, StateCondition)>),
@@ -38,9 +42,11 @@ impl StateCondition {
     /// state under test holds.
     pub fn matches(&self, values: &[u8]) -> bool {
         match self {
-            StateCondition::Compares { property, value, equal } => {
-                (values[*property as usize] == *value) == *equal
-            }
+            StateCondition::Compares {
+                property,
+                value,
+                equal,
+            } => (values[*property as usize] == *value) == *equal,
             StateCondition::Not(inner) => !inner.matches(values),
             StateCondition::And(pair) => pair.0.matches(values) && pair.1.matches(values),
             StateCondition::Or(pair) => pair.0.matches(values) || pair.1.matches(values),
@@ -49,7 +55,11 @@ impl StateCondition {
 
     pub fn compile(source: &str, properties: &BlockProperties) -> Result<Self, MolangError> {
         let tokens = tokenize(source)?;
-        let mut parser = Parser { tokens: &tokens, at: 0, properties };
+        let mut parser = Parser {
+            tokens: &tokens,
+            at: 0,
+            properties,
+        };
         let condition = parser.expression()?;
         match parser.peek() {
             None => Ok(condition),
@@ -137,7 +147,9 @@ fn tokenize(source: &str) -> Result<Vec<Token>, MolangError> {
                 let end = source[at..]
                     .find('\'')
                     .ok_or_else(|| MolangError::UnterminatedString(source[start..].into()))?;
-                tokens.push(Token::Literal(PropertyValue::Str(source[at..at + end].into())));
+                tokens.push(Token::Literal(PropertyValue::Str(
+                    source[at..at + end].into(),
+                )));
                 at += end + 1;
             }
             b'0'..=b'9' | b'-' => {
@@ -168,7 +180,10 @@ fn tokenize(source: &str) -> Result<Vec<Token>, MolangError> {
                 }
             }
             _ => {
-                let end = source[at..].chars().next().map_or(at, |c| at + c.len_utf8());
+                let end = source[at..]
+                    .chars()
+                    .next()
+                    .map_or(at, |c| at + c.len_utf8());
                 return Err(MolangError::UnexpectedToken(source[at..end].into()));
             }
         }
@@ -273,7 +288,11 @@ impl Parser<'_> {
                 property: self.properties.0[property].name.to_string(),
                 value: value.to_string(),
             })?;
-        Ok(StateCondition::Compares { property: property as u8, value: index as u8, equal })
+        Ok(StateCondition::Compares {
+            property: property as u8,
+            value: index as u8,
+            equal,
+        })
     }
 
     fn operand(&mut self) -> Result<Operand, MolangError> {
@@ -316,8 +335,16 @@ mod tests {
         assert_eq!(
             condition,
             StateCondition::And(Box::new((
-                StateCondition::Compares { property: 0, value: 1, equal: true },
-                StateCondition::Compares { property: 1, value: 2, equal: false },
+                StateCondition::Compares {
+                    property: 0,
+                    value: 1,
+                    equal: true
+                },
+                StateCondition::Compares {
+                    property: 1,
+                    value: 2,
+                    equal: false
+                },
             )))
         );
         assert!(condition.matches(&[1, 0, 0]));
@@ -339,10 +366,9 @@ mod tests {
 
     #[test]
     fn parentheses_and_negation_apply() {
-        let condition = compile(
-            "!(q.block_state('facing') == 'north' || q.block_state('level') == 1)",
-        )
-        .unwrap();
+        let condition =
+            compile("!(q.block_state('facing') == 'north' || q.block_state('level') == 1)")
+                .unwrap();
         assert!(condition.matches(&[1, 0, 0]));
         assert!(!condition.matches(&[0, 0, 0]));
         assert!(!condition.matches(&[1, 1, 0]));
@@ -351,7 +377,14 @@ mod tests {
     #[test]
     fn a_literal_may_lead_the_comparison() {
         let condition = compile("'north' == q.block_state('facing')").unwrap();
-        assert_eq!(condition, StateCondition::Compares { property: 0, value: 0, equal: true });
+        assert_eq!(
+            condition,
+            StateCondition::Compares {
+                property: 0,
+                value: 0,
+                equal: true
+            }
+        );
     }
 
     #[test]
@@ -370,7 +403,10 @@ mod tests {
     #[test]
     fn the_long_query_spelling_is_rejected() {
         let err = compile("query.block_state('facing') == 'north'").unwrap_err();
-        assert_eq!(err, MolangError::UnexpectedToken("query.block_state".into()));
+        assert_eq!(
+            err,
+            MolangError::UnexpectedToken("query.block_state".into())
+        );
     }
 
     #[test]
@@ -438,7 +474,10 @@ mod tests {
         let err = compile("q.block_state('facing') == 0").unwrap_err();
         assert_eq!(
             err,
-            MolangError::UnknownValue { property: "facing".into(), value: "0".into() }
+            MolangError::UnknownValue {
+                property: "facing".into(),
+                value: "0".into()
+            }
         );
     }
 

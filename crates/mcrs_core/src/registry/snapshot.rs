@@ -117,10 +117,7 @@ impl<T: Asset> RegistrySnapshot<T> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (u32, &SnapshotEntry<T>)> {
-        self.entries
-            .iter()
-            .enumerate()
-            .map(|(i, e)| (i as u32, e))
+        self.entries.iter().enumerate().map(|(i, e)| (i as u32, e))
     }
 
     pub fn entries(&self) -> &[SnapshotEntry<T>] {

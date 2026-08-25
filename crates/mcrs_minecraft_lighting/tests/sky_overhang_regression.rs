@@ -28,14 +28,14 @@ use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
-use mcrs_engine::world::column::{ColumnPlugin};
+use mcrs_engine::world::column::ColumnPlugin;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_minecraft_lighting::components::SkyLight;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
-use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_lighting::LightingPlugin;
+use mcrs_minecraft_lighting::components::SkyLight;
+use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_protocol::BlockStateId;
 
 const AIR: BlockStateId = BlockStateId(0);
@@ -67,8 +67,7 @@ fn make_stub_table() -> BlockStateLightTable {
     const SIZE: usize = 2;
     let mut emission = vec![0u8; SIZE].into_boxed_slice();
     let mut dampening = vec![0u8; SIZE].into_boxed_slice();
-    let occlusion: Box<[&'static VoxelShape]> =
-        vec![VoxelShape::empty(); SIZE].into_boxed_slice();
+    let occlusion: Box<[&'static VoxelShape]> = vec![VoxelShape::empty(); SIZE].into_boxed_slice();
     let mut flags = vec![0u8; SIZE].into_boxed_slice();
     emission[0] = 0;
     dampening[0] = 0;
@@ -84,7 +83,12 @@ fn make_stub_table() -> BlockStateLightTable {
     }
 }
 
-fn spawn_chunk_with_palette(app: &mut App, dim: Entity, chunk_pos: ChunkPos, palette: BlockPalette) -> Entity {
+fn spawn_chunk_with_palette(
+    app: &mut App,
+    dim: Entity,
+    chunk_pos: ChunkPos,
+    palette: BlockPalette,
+) -> Entity {
     app.world_mut()
         .spawn((
             InDimension(dim),

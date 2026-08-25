@@ -2,6 +2,6 @@ pub mod data;
 pub mod registry;
 pub mod tags;
 
-pub use data::{EnchantmentCost, EnchantmentData, NetworkEnchantmentData};
 pub(crate) use data::ProtoEnchantmentData;
-pub use registry::{register_all_enchantments, VANILLA_ENCHANTMENTS};
+pub use data::{EnchantmentCost, EnchantmentData, NetworkEnchantmentData};
+pub use registry::{VANILLA_ENCHANTMENTS, register_all_enchantments};

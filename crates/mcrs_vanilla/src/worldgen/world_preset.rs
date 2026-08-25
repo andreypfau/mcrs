@@ -26,7 +26,10 @@ pub struct ActiveWorldPreset {
 /// the `WorldPresetLoader`.
 #[derive(Debug, Clone, TypePath)]
 pub struct WorldPreset {
-    pub dimensions: Vec<(ResourceKey<DimensionDefinition>, Handle<DimensionDefinition>)>,
+    pub dimensions: Vec<(
+        ResourceKey<DimensionDefinition>,
+        Handle<DimensionDefinition>,
+    )>,
 }
 
 impl Asset for WorldPreset {}
@@ -151,10 +154,8 @@ mod tests {
 
     #[test]
     fn deserialize_normal_preset() {
-        let bytes = std::fs::read(
-            assets_dir().join("minecraft/worldgen/world_preset/normal.json"),
-        )
-        .unwrap();
+        let bytes = std::fs::read(assets_dir().join("minecraft/worldgen/world_preset/normal.json"))
+            .unwrap();
         let proto: ProtoWorldPreset = serde_json::from_slice(&bytes).unwrap();
 
         assert!(proto.dimensions.contains_key("minecraft:overworld"));
@@ -165,10 +166,7 @@ mod tests {
                 assert_eq!(n.settings.as_str(), "minecraft:overworld");
                 match &n.biome_source {
                     ProtoBiomeSource::MultiNoise(src) => {
-                        assert_eq!(
-                            src.preset.as_ref().unwrap().as_str(),
-                            "minecraft:overworld"
-                        );
+                        assert_eq!(src.preset.as_ref().unwrap().as_str(), "minecraft:overworld");
                     }
                     _ => panic!("expected MultiNoise biome source"),
                 }
@@ -179,10 +177,8 @@ mod tests {
 
     #[test]
     fn deserialize_flat_preset() {
-        let bytes = std::fs::read(
-            assets_dir().join("minecraft/worldgen/world_preset/flat.json"),
-        )
-        .unwrap();
+        let bytes =
+            std::fs::read(assets_dir().join("minecraft/worldgen/world_preset/flat.json")).unwrap();
         let proto: ProtoWorldPreset = serde_json::from_slice(&bytes).unwrap();
 
         assert_eq!(proto.dimensions.len(), 3);

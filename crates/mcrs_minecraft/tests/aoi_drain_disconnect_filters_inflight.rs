@@ -12,16 +12,15 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::RunSystemOnce;
+use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, PendingDisconnectQueue,
     drain_pending_disconnects, filter_inflight_for_disconnect,
 };
 use mcrs_minecraft::world::bus::{
-    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerDisconnect,
+    InboundPlayerDespawn, InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerDisconnect,
 };
 use mcrs_minecraft::world::channel_types::DimChannelsResource;
-use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::player_index::PlayerIndex;
 
 fn build_app() -> App {

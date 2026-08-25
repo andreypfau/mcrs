@@ -132,7 +132,12 @@ impl Sink<'_> {
             return;
         }
         let base = self.partial.complex.len() / model::WORDS_PER_QUAD;
-        self.group(pass * 2 + 1, face, base, verts.len() / model::WORDS_PER_QUAD);
+        self.group(
+            pass * 2 + 1,
+            face,
+            base,
+            verts.len() / model::WORDS_PER_QUAD,
+        );
         self.partial.complex.extend_from_slice(verts);
     }
 }
@@ -244,7 +249,8 @@ fn mesh_section(
         partial.faces.extend_from_slice(&scratch.section_faces);
         partial.section_faces.push((local_section, faces_at));
     }
-    partial
-        .connectivity
-        .push((local_section, connectivity::connectivity(&mut scratch.occludes)));
+    partial.connectivity.push((
+        local_section,
+        connectivity::connectivity(&mut scratch.occludes),
+    ));
 }

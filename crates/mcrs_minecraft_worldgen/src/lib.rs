@@ -31,9 +31,9 @@
 )]
 
 pub mod carver;
-pub mod feature;
 mod climate;
 pub mod density_function;
+pub mod feature;
 mod noise;
 pub mod proto;
 mod spline;

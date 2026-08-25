@@ -177,7 +177,12 @@ pub(super) fn drop_unused_bins(
 }
 
 pub(super) fn draw_terrain(
-    view: ViewQuery<(&ViewTarget, &ViewDepthTexture, &ViewUniformOffset, &ExtractedView)>,
+    view: ViewQuery<(
+        &ViewTarget,
+        &ViewDepthTexture,
+        &ViewUniformOffset,
+        &ExtractedView,
+    )>,
     terrain: Option<Res<Terrain>>,
     view_bind_group: Option<Res<ViewBindGroup>>,
     clouds: Res<Clouds>,
@@ -217,7 +222,14 @@ pub(super) fn draw_terrain(
     }
 
     let view_offset = view_offset.offset;
-    sky::draw(&mut pass, &terrain, &view_bind_group.0, view_offset, &pipeline_cache, SkyPart::Dome);
+    sky::draw(
+        &mut pass,
+        &terrain,
+        &view_bind_group.0,
+        view_offset,
+        &pipeline_cache,
+        SkyPart::Dome,
+    );
     draw_layer_group(
         &mut pass,
         &terrain,

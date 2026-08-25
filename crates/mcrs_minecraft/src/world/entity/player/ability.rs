@@ -12,8 +12,7 @@ impl Default for PlayerGameMode {
     }
 }
 
-#[derive(Component, Debug, Clone, Copy, Deref, DerefMut)]
-#[derive(Default)]
+#[derive(Component, Debug, Clone, Copy, Deref, DerefMut, Default)]
 pub struct PlayerOpLevel(pub u8);
 
 impl PlayerOpLevel {
@@ -27,7 +26,6 @@ impl PlayerOpLevel {
         24i8 + self.clamped() as i8
     }
 }
-
 
 #[derive(Component, Default, Debug, Clone, Copy, Deref, DerefMut)]
 pub struct Invulnerable(pub bool);

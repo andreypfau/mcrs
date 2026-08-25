@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 
-use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
@@ -10,26 +9,25 @@ use bevy_ecs::prelude::{
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Commands;
 use mcrs_engine::entity::player::chunk_view::{
-    ChunkTrackingViewUpdateEvent, ChunkViewPlugin, PlayerChunkLoadRequest,
-    PlayerChunkObserver, PlayerChunkUnloadRequest,
+    ChunkTrackingViewUpdateEvent, ChunkViewPlugin, PlayerChunkLoadRequest, PlayerChunkObserver,
+    PlayerChunkUnloadRequest,
 };
 use mcrs_engine::entity::player::reposition::Reposition;
+use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::chunk::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
 use mcrs_engine::world::chunk::{ChunkIndex, ChunkLoaded, ChunkPos};
-use mcrs_engine::world::column::{
-    ColumnPos as EngineColumnPos, ColumnIndex,
-};
+use mcrs_engine::world::column::{ColumnIndex, ColumnPos as EngineColumnPos};
 use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
-use mcrs_engine::session::PlayerSession;
-use mcrs_minecraft_lighting::codec::{build_full_light_data, ColumnLightUpdate, LightCodecParams};
+use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_lighting::codec::{ColumnLightUpdate, LightCodecParams, build_full_light_data};
 use mcrs_minecraft_lighting::sets::LightingSet;
 use mcrs_protocol::{ColumnPos, Encode};
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
+use mcrs_minecraft_lighting::{BlockBfsPending, SkyBfsPending};
 use rustc_hash::FxHashSet;
 use tracing::trace;
-use mcrs_minecraft_lighting::{BlockBfsPending, SkyBfsPending};
 
 pub struct ColumnViewPlugin;
 
@@ -127,9 +125,16 @@ fn unload_chunk_request(
         chunk_view.desired_columns.remove(&column_pos);
         chunk_view.sent_columns.remove(&column_pos);
         if chunk_view.loaded_columns.remove(&column_pos)
-            && let Ok((mut cmds, type_config)) = dims.get_mut(in_dim.entity()) {
-                apply_forced_tickets(&mut cmds, column_pos, offset_sections(rep, type_config.min_y), type_config.section_count, false);
-            }
+            && let Ok((mut cmds, type_config)) = dims.get_mut(in_dim.entity())
+        {
+            apply_forced_tickets(
+                &mut cmds,
+                column_pos,
+                offset_sections(rep, type_config.min_y),
+                type_config.section_count,
+                false,
+            );
+        }
     });
 }
 
@@ -145,7 +150,13 @@ fn load_column_queue(
         while let Some(col) = chunk_view.load_queue.pop_front() {
             if chunk_view.desired_columns.contains(&col) {
                 if chunk_view.loaded_columns.insert(col) {
-                    apply_forced_tickets(&mut cmds, col, offset_sections(rep, type_config.min_y), section_count, true);
+                    apply_forced_tickets(
+                        &mut cmds,
+                        col,
+                        offset_sections(rep, type_config.min_y),
+                        section_count,
+                        true,
+                    );
                     trace!("Added tickets to col: {:?}", col);
                 }
                 chunk_view.loading_queue.push_back(col);
@@ -204,12 +215,7 @@ const MAX_COL_SENDS_PER_TICK: usize = 10;
 /// (`MAX_COL_SENDS_PER_TICK`) remains to throttle per-tick burst.
 /// Chunks are sent at Critical priority so they are never dropped by the bridge.
 fn send_column_queue(
-    mut players: Query<(
-        &mut ColumnView,
-        &Reposition,
-        &InDimension,
-        &HostAnchor,
-    )>,
+    mut players: Query<(&mut ColumnView, &Reposition, &InDimension, &HostAnchor)>,
     chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
     dim_column_indexes: Query<&ColumnIndex>,
     // Sections still cascading light through the bounded converge loop carry
@@ -321,8 +327,8 @@ fn send_column_queue(
                         chunk_bytes: data,
                         light_data,
                     },
-                session: PlayerSession(0),
-                epoch: 0,
+                    session: PlayerSession(0),
+                    epoch: 0,
                 });
                 mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                     .fetch_add(1, Ordering::Relaxed);
@@ -359,8 +365,8 @@ pub(crate) fn send_light_updates(
                     column: col_pos,
                     light_data: msg.light_data.clone(),
                 },
-            session: PlayerSession(0),
-            epoch: 0,
+                session: PlayerSession(0),
+                epoch: 0,
             });
             mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                 .fetch_add(1, Ordering::Relaxed);
@@ -471,8 +477,8 @@ fn on_view_update(
                 x: rep.convert_chunk_x(event.new_view.center.x),
                 z: rep.convert_chunk_z(event.new_view.center.z),
             },
-        session: PlayerSession(0),
-        epoch: 0,
+            session: PlayerSession(0),
+            epoch: 0,
         });
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
@@ -487,8 +493,8 @@ fn on_view_update(
             data: PacketPayload::SetChunkCacheRadius {
                 radius: event.new_view.distance as i32,
             },
-        session: PlayerSession(0),
-        epoch: 0,
+            session: PlayerSession(0),
+            epoch: 0,
         });
         mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
@@ -568,5 +574,3 @@ fn on_view_update(
 //         view.last_offset_sections = new_off;
 //     }
 // }
-
-

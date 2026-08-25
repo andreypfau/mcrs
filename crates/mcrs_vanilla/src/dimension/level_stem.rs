@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use bevy_asset::{Asset, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use mcrs_core::{rl, ResourceKey};
+use mcrs_core::{ResourceKey, rl};
 use serde::Deserialize;
 
 use super::dimension_type::DimensionType;
-use crate::worldgen::chunk_generator::{ChunkGenerator, ProtoChunkGenerator};
 use crate::ResourceLocation;
+use crate::worldgen::chunk_generator::{ChunkGenerator, ProtoChunkGenerator};
 
 // ===========================================================================
 // Well-known dimension keys

@@ -6,9 +6,9 @@ use bevy_asset::{AssetApp, AssetServer};
 use bevy_ecs::prelude::{Commands, Res, Resource};
 use bevy_reflect::TypePath;
 
+use crate::ResourceLocation;
 use crate::biome::source::{BiomeSource, ProtoBiomeSource, build_beta_lookup_table};
 use crate::biome::{Biome, BiomeLoader};
-use crate::ResourceLocation;
 
 /// Carries the active world preset's Beta biome source once it is built at startup.
 ///
@@ -78,7 +78,11 @@ fn build_beta_biome_source_on_start(mut commands: Commands, asset_server: Res<As
 
     // Only a `mcrs:beta` source activates the Beta biome fill path; any other
     // source type is handled elsewhere and is silently skipped here.
-    let ProtoBiomeSource::Beta { biomes, ocean_biomes } = proto else {
+    let ProtoBiomeSource::Beta {
+        biomes,
+        ocean_biomes,
+    } = proto
+    else {
         return;
     };
 
@@ -163,7 +167,10 @@ fn resolve_active_preset() -> (String, String) {
         Ok(raw) => {
             let trimmed = raw.trim().to_lowercase();
             if let Some(colon) = trimmed.find(':') {
-                (trimmed[..colon].to_string(), trimmed[colon + 1..].to_string())
+                (
+                    trimmed[..colon].to_string(),
+                    trimmed[colon + 1..].to_string(),
+                )
             } else if !trimmed.is_empty() {
                 ("minecraft".to_string(), trimmed)
             } else {

@@ -76,7 +76,11 @@ mod tests {
                 for cell_z in [0u8, 7, 15] {
                     for level in [0u8, 7, 15] {
                         let w = CrossChunkWavefront::new(face, cell_x, cell_z, level);
-                        assert_eq!(w.face(), face, "face mismatch for {face},{cell_x},{cell_z},{level}");
+                        assert_eq!(
+                            w.face(),
+                            face,
+                            "face mismatch for {face},{cell_x},{cell_z},{level}"
+                        );
                         assert_eq!(w.cell_x(), cell_x, "cell_x mismatch");
                         assert_eq!(w.cell_z(), cell_z, "cell_z mismatch");
                         assert_eq!(w.level(), level, "level mismatch");

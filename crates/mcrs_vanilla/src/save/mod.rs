@@ -175,14 +175,12 @@ fn fixed<T: Copy, const N: usize>(
     field: &'static str,
     path: &Path,
 ) -> Result<[T; N], SaveError> {
-    values
-        .try_into()
-        .map_err(|_| SaveError::WrongLength {
-            path: path.to_path_buf(),
-            field,
-            found: values.len(),
-            expected: N,
-        })
+    values.try_into().map_err(|_| SaveError::WrongLength {
+        path: path.to_path_buf(),
+        field,
+        found: values.len(),
+        expected: N,
+    })
 }
 
 fn in_range(

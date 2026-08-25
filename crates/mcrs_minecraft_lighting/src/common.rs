@@ -10,9 +10,9 @@ pub mod heightmap;
 pub mod heightmap_update;
 pub mod invariants;
 pub mod lifecycle;
+pub mod metrics;
 pub mod propagate;
 pub mod table;
-pub mod metrics;
 
 #[cfg(any(feature = "test-bench", feature = "bench-helpers"))]
 pub mod test_bench;

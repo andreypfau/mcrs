@@ -111,7 +111,11 @@ impl ImprovedNoise<f64> {
 
         let mut fade = 0.0_f64;
         if y_scale != 0.0 {
-            let t = if y_max >= 0.0 && y_max < ly { y_max } else { ly };
+            let t = if y_max >= 0.0 && y_max < ly {
+                y_max
+            } else {
+                ly
+            };
             fade = (t / y_scale + 1.0e-7).floor() * y_scale;
         }
         let fade_y = ly - fade;
@@ -144,14 +148,14 @@ impl ImprovedNoise<f64> {
         let ly1 = fade_y - 1.0;
         let lz1 = lz - 1.0;
 
-        let d000 = grad3_java(h000, lx,  fade_y, lz);
+        let d000 = grad3_java(h000, lx, fade_y, lz);
         let d100 = grad3_java(h100, lx1, fade_y, lz);
-        let d010 = grad3_java(h010, lx,  ly1,    lz);
-        let d110 = grad3_java(h110, lx1, ly1,    lz);
-        let d001 = grad3_java(h001, lx,  fade_y, lz1);
+        let d010 = grad3_java(h010, lx, ly1, lz);
+        let d110 = grad3_java(h110, lx1, ly1, lz);
+        let d001 = grad3_java(h001, lx, fade_y, lz1);
         let d101 = grad3_java(h101, lx1, fade_y, lz1);
-        let d011 = grad3_java(h011, lx,  ly1,    lz1);
-        let d111 = grad3_java(h111, lx1, ly1,    lz1);
+        let d011 = grad3_java(h011, lx, ly1, lz1);
+        let d111 = grad3_java(h111, lx1, ly1, lz1);
 
         let fx = fade_curve(lx);
         let fy = fade_curve(ly);
@@ -182,9 +186,15 @@ impl ImprovedNoise<f64> {
     pub fn fill_3d_bulk(
         &self,
         out: &mut [f64],
-        x_start: f64, y_start: f64, z_start: f64,
-        x_size: usize, y_size: usize, z_size: usize,
-        x_scale: f64, y_scale: f64, z_scale: f64,
+        x_start: f64,
+        y_start: f64,
+        z_start: f64,
+        x_size: usize,
+        y_size: usize,
+        z_size: usize,
+        x_scale: f64,
+        y_scale: f64,
+        z_scale: f64,
         inv_freq: f64,
     ) {
         let perm = &self.permutation;
@@ -229,18 +239,26 @@ impl ImprovedNoise<f64> {
                         let j2 = p(i6).wrapping_add(j4);
                         let j6 = p(i6.wrapping_add(1)).wrapping_add(j4);
 
-                        d16 = lerp(fade_x,
-                            grad3_java(p(k5),   lx,       ly,       lz),
-                            grad3_java(p(j2),   lx - 1.0, ly,       lz));
-                        d7c = lerp(fade_x,
-                            grad3_java(p(l5),   lx,       ly - 1.0, lz),
-                            grad3_java(p(j6),   lx - 1.0, ly - 1.0, lz));
-                        d17 = lerp(fade_x,
-                            grad3_java(p(k5.wrapping_add(1)), lx,       ly,       lz - 1.0),
-                            grad3_java(p(j2.wrapping_add(1)), lx - 1.0, ly,       lz - 1.0));
-                        d8c = lerp(fade_x,
-                            grad3_java(p(l5.wrapping_add(1)), lx,       ly - 1.0, lz - 1.0),
-                            grad3_java(p(j6.wrapping_add(1)), lx - 1.0, ly - 1.0, lz - 1.0));
+                        d16 = lerp(
+                            fade_x,
+                            grad3_java(p(k5), lx, ly, lz),
+                            grad3_java(p(j2), lx - 1.0, ly, lz),
+                        );
+                        d7c = lerp(
+                            fade_x,
+                            grad3_java(p(l5), lx, ly - 1.0, lz),
+                            grad3_java(p(j6), lx - 1.0, ly - 1.0, lz),
+                        );
+                        d17 = lerp(
+                            fade_x,
+                            grad3_java(p(k5.wrapping_add(1)), lx, ly, lz - 1.0),
+                            grad3_java(p(j2.wrapping_add(1)), lx - 1.0, ly, lz - 1.0),
+                        );
+                        d8c = lerp(
+                            fade_x,
+                            grad3_java(p(l5.wrapping_add(1)), lx, ly - 1.0, lz - 1.0),
+                            grad3_java(p(j6.wrapping_add(1)), lx - 1.0, ly - 1.0, lz - 1.0),
+                        );
                     }
 
                     let d22 = lerp(fade_y, d16, d7c);
@@ -289,10 +307,10 @@ impl ImprovedNoise<f64> {
         // Java ySize==1 branch uses a mixed gradient strategy:
         // corner (x0,z0) calls the 2D gradient a(hash, x_frac, z_frac);
         // the other three corners call the 3D gradient a(hash, x_frac, 0.0, z_frac).
-        let d00 = grad2_java(h00, lx,        lz);
-        let d10 = grad3_java(h10, lx - 1.0,  0.0, lz);
-        let d01 = grad3_java(h01, lx,         0.0, lz - 1.0);
-        let d11 = grad3_java(h11, lx - 1.0,  0.0, lz - 1.0);
+        let d00 = grad2_java(h00, lx, lz);
+        let d10 = grad3_java(h10, lx - 1.0, 0.0, lz);
+        let d01 = grad3_java(h01, lx, 0.0, lz - 1.0);
+        let d11 = grad3_java(h11, lx - 1.0, 0.0, lz - 1.0);
 
         let fx = fade_curve(lx);
         let fz = fade_curve(lz);
@@ -314,9 +332,24 @@ impl ImprovedNoise<f64> {
 
         let clamp_max = i32::MAX as f64;
         let clamp_min = i32::MIN as f64;
-        let section_x = shifted_x.max(clamp_min).min(clamp_max).floor().to_i32().unwrap_or(i32::MAX);
-        let section_y = shifted_y.max(clamp_min).min(clamp_max).floor().to_i32().unwrap_or(i32::MAX);
-        let section_z = shifted_z.max(clamp_min).min(clamp_max).floor().to_i32().unwrap_or(i32::MAX);
+        let section_x = shifted_x
+            .max(clamp_min)
+            .min(clamp_max)
+            .floor()
+            .to_i32()
+            .unwrap_or(i32::MAX);
+        let section_y = shifted_y
+            .max(clamp_min)
+            .min(clamp_max)
+            .floor()
+            .to_i32()
+            .unwrap_or(i32::MAX);
+        let section_z = shifted_z
+            .max(clamp_min)
+            .min(clamp_max)
+            .floor()
+            .to_i32()
+            .unwrap_or(i32::MAX);
 
         let local_x = shifted_x - section_x as f64;
         let local_y = shifted_y - section_y as f64;
@@ -324,7 +357,11 @@ impl ImprovedNoise<f64> {
 
         let mut fade = 0.0_f64;
         if y_scale != 0.0 {
-            let t = if y_max >= 0.0 && y_max < local_y { y_max } else { local_y };
+            let t = if y_max >= 0.0 && y_max < local_y {
+                y_max
+            } else {
+                local_y
+            };
             fade = (t / y_scale + 1.0E-7_f64).floor() * y_scale;
         }
 
@@ -359,13 +396,13 @@ impl ImprovedNoise<f64> {
         let lz1 = local_z - 1.0;
 
         let d000 = grad3(h000, local_x, fade_y, local_z);
-        let d100 = grad3(h100, lx1,     fade_y, local_z);
-        let d010 = grad3(h010, local_x, ly1,    local_z);
-        let d110 = grad3(h110, lx1,     ly1,    local_z);
+        let d100 = grad3(h100, lx1, fade_y, local_z);
+        let d010 = grad3(h010, local_x, ly1, local_z);
+        let d110 = grad3(h110, lx1, ly1, local_z);
         let d001 = grad3(h001, local_x, fade_y, lz1);
-        let d101 = grad3(h101, lx1,     fade_y, lz1);
-        let d011 = grad3(h011, local_x, ly1,    lz1);
-        let d111 = grad3(h111, lx1,     ly1,    lz1);
+        let d101 = grad3(h101, lx1, fade_y, lz1);
+        let d011 = grad3(h011, local_x, ly1, lz1);
+        let d111 = grad3(h111, lx1, ly1, lz1);
 
         let fx = fade_curve(local_x);
         let fy = fade_curve(local_y);
@@ -505,10 +542,18 @@ impl ImprovedNoise<f32> {
             let h100 = ((*perm.get_unchecked((p5.wrapping_add(sz)) & 0xFF) & 15) as usize) << 2;
             let h010 = ((*perm.get_unchecked((p6.wrapping_add(sz)) & 0xFF) & 15) as usize) << 2;
             let h110 = ((*perm.get_unchecked((p7.wrapping_add(sz)) & 0xFF) & 15) as usize) << 2;
-            let h001 = ((*perm.get_unchecked((p4.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15) as usize) << 2;
-            let h101 = ((*perm.get_unchecked((p5.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15) as usize) << 2;
-            let h011 = ((*perm.get_unchecked((p6.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15) as usize) << 2;
-            let h111 = ((*perm.get_unchecked((p7.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15) as usize) << 2;
+            let h001 = ((*perm.get_unchecked((p4.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15)
+                as usize)
+                << 2;
+            let h101 = ((*perm.get_unchecked((p5.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15)
+                as usize)
+                << 2;
+            let h011 = ((*perm.get_unchecked((p6.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15)
+                as usize)
+                << 2;
+            let h111 = ((*perm.get_unchecked((p7.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15)
+                as usize)
+                << 2;
 
             // Relative offsets for the far corner
             let x1 = local_x - 1.0;
@@ -517,19 +562,56 @@ impl ImprovedNoise<f32> {
 
             // Gradient dot products using FMA (grad · offset)
             let g = &FLAT_SIMPLEX_GRAD;
-            let d000 = g.get_unchecked(h000 + 2).mul_add(local_z, g.get_unchecked(h000 + 1).mul_add(local_y, *g.get_unchecked(h000) * local_x));
-            let d100 = g.get_unchecked(h100 + 2).mul_add(local_z, g.get_unchecked(h100 + 1).mul_add(local_y, *g.get_unchecked(h100) * x1));
-            let d010 = g.get_unchecked(h010 + 2).mul_add(local_z, g.get_unchecked(h010 + 1).mul_add(y1, *g.get_unchecked(h010) * local_x));
-            let d110 = g.get_unchecked(h110 + 2).mul_add(local_z, g.get_unchecked(h110 + 1).mul_add(y1, *g.get_unchecked(h110) * x1));
-            let d001 = g.get_unchecked(h001 + 2).mul_add(z1, g.get_unchecked(h001 + 1).mul_add(local_y, *g.get_unchecked(h001) * local_x));
-            let d101 = g.get_unchecked(h101 + 2).mul_add(z1, g.get_unchecked(h101 + 1).mul_add(local_y, *g.get_unchecked(h101) * x1));
-            let d011 = g.get_unchecked(h011 + 2).mul_add(z1, g.get_unchecked(h011 + 1).mul_add(y1, *g.get_unchecked(h011) * local_x));
-            let d111 = g.get_unchecked(h111 + 2).mul_add(z1, g.get_unchecked(h111 + 1).mul_add(y1, *g.get_unchecked(h111) * x1));
+            let d000 = g.get_unchecked(h000 + 2).mul_add(
+                local_z,
+                g.get_unchecked(h000 + 1)
+                    .mul_add(local_y, *g.get_unchecked(h000) * local_x),
+            );
+            let d100 = g.get_unchecked(h100 + 2).mul_add(
+                local_z,
+                g.get_unchecked(h100 + 1)
+                    .mul_add(local_y, *g.get_unchecked(h100) * x1),
+            );
+            let d010 = g.get_unchecked(h010 + 2).mul_add(
+                local_z,
+                g.get_unchecked(h010 + 1)
+                    .mul_add(y1, *g.get_unchecked(h010) * local_x),
+            );
+            let d110 = g.get_unchecked(h110 + 2).mul_add(
+                local_z,
+                g.get_unchecked(h110 + 1)
+                    .mul_add(y1, *g.get_unchecked(h110) * x1),
+            );
+            let d001 = g.get_unchecked(h001 + 2).mul_add(
+                z1,
+                g.get_unchecked(h001 + 1)
+                    .mul_add(local_y, *g.get_unchecked(h001) * local_x),
+            );
+            let d101 = g.get_unchecked(h101 + 2).mul_add(
+                z1,
+                g.get_unchecked(h101 + 1)
+                    .mul_add(local_y, *g.get_unchecked(h101) * x1),
+            );
+            let d011 = g.get_unchecked(h011 + 2).mul_add(
+                z1,
+                g.get_unchecked(h011 + 1)
+                    .mul_add(y1, *g.get_unchecked(h011) * local_x),
+            );
+            let d111 = g.get_unchecked(h111 + 2).mul_add(
+                z1,
+                g.get_unchecked(h111 + 1)
+                    .mul_add(y1, *g.get_unchecked(h111) * x1),
+            );
 
             // Fade curves: t³(6t² - 15t + 10)
-            let fade_x = local_x * local_x * local_x * local_x.mul_add(local_x.mul_add(6.0, -15.0), 10.0);
-            let fade_y = fade_local_x * fade_local_x * fade_local_x * fade_local_x.mul_add(fade_local_x.mul_add(6.0, -15.0), 10.0);
-            let fade_z = local_z * local_z * local_z * local_z.mul_add(local_z.mul_add(6.0, -15.0), 10.0);
+            let fade_x =
+                local_x * local_x * local_x * local_x.mul_add(local_x.mul_add(6.0, -15.0), 10.0);
+            let fade_y = fade_local_x
+                * fade_local_x
+                * fade_local_x
+                * fade_local_x.mul_add(fade_local_x.mul_add(6.0, -15.0), 10.0);
+            let fade_z =
+                local_z * local_z * local_z * local_z.mul_add(local_z.mul_add(6.0, -15.0), 10.0);
 
             // Trilinear interpolation using FMA
             let l00 = (d100 - d000).mul_add(fade_x, d000);
@@ -597,7 +679,10 @@ mod test {
     fn beta_improved_noise_permutation() {
         let fx = load_fixture().improved_noise_beta;
         let noise = ImprovedNoise::<f64>::from_random(&mut LegacyRandom::new(845));
-        assert_eq!(&noise.permutation[0..10], fx.permutation_first_10.as_slice());
+        assert_eq!(
+            &noise.permutation[0..10],
+            fx.permutation_first_10.as_slice()
+        );
     }
 
     #[test]
@@ -637,7 +722,10 @@ mod test {
         // Far coordinate beyond i32 range — must not panic
         let far = 3.0e10_f64;
         let v2 = noise.sample(far, far, far, 0.0, 0.0);
-        assert!(v2.is_finite(), "sample at far coordinate must not panic or produce NaN");
+        assert!(
+            v2.is_finite(),
+            "sample at far coordinate must not panic or produce NaN"
+        );
     }
 
     /// Smoke test: modern f32 origin is now vanilla nextDouble()*256 (re-baselined from next_f32).
@@ -650,9 +738,18 @@ mod test {
         let expected_x = (rng.next_f64() * 256.0) as f32;
         let expected_y = (rng.next_f64() * 256.0) as f32;
         let expected_z = (rng.next_f64() * 256.0) as f32;
-        assert_eq!(noise.origin_x, expected_x, "origin_x must equal vanilla next_f64()*256 cast to f32");
-        assert_eq!(noise.origin_y, expected_y, "origin_y must equal vanilla next_f64()*256 cast to f32");
-        assert_eq!(noise.origin_z, expected_z, "origin_z must equal vanilla next_f64()*256 cast to f32");
+        assert_eq!(
+            noise.origin_x, expected_x,
+            "origin_x must equal vanilla next_f64()*256 cast to f32"
+        );
+        assert_eq!(
+            noise.origin_y, expected_y,
+            "origin_y must equal vanilla next_f64()*256 cast to f32"
+        );
+        assert_eq!(
+            noise.origin_z, expected_z,
+            "origin_z must equal vanilla next_f64()*256 cast to f32"
+        );
     }
 
     #[test]
@@ -661,8 +758,16 @@ mod test {
         use crate::noise::improved_noise::FLAT_SIMPLEX_GRAD;
         for (i, grad) in GRADIENTS.iter().enumerate() {
             assert_eq!(FLAT_SIMPLEX_GRAD[i * 4] as f64, grad.x, "x mismatch at {i}");
-            assert_eq!(FLAT_SIMPLEX_GRAD[i * 4 + 1] as f64, grad.y, "y mismatch at {i}");
-            assert_eq!(FLAT_SIMPLEX_GRAD[i * 4 + 2] as f64, grad.z, "z mismatch at {i}");
+            assert_eq!(
+                FLAT_SIMPLEX_GRAD[i * 4 + 1] as f64,
+                grad.y,
+                "y mismatch at {i}"
+            );
+            assert_eq!(
+                FLAT_SIMPLEX_GRAD[i * 4 + 2] as f64,
+                grad.z,
+                "z mismatch at {i}"
+            );
             assert_eq!(FLAT_SIMPLEX_GRAD[i * 4 + 3], 0.0, "pad nonzero at {i}");
         }
     }

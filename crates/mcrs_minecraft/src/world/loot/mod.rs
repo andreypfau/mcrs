@@ -10,13 +10,17 @@ use crate::world::loot::entry::LootEntryProto;
 use crate::world::loot::function::LootFunctionProto;
 use bevy_app::{App, Plugin, PostStartup, Update};
 use bevy_asset::io::Reader;
-use bevy_asset::{Asset, AssetApp, AssetEvent, AssetLoader, AssetServer, Assets, Handle, LoadContext, VisitAssetDependencies};
+use bevy_asset::{
+    Asset, AssetApp, AssetEvent, AssetLoader, AssetServer, Assets, Handle, LoadContext,
+    VisitAssetDependencies,
+};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::ResMut;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use bevy_reflect::TypePath;
 use mcrs_core::StaticRegistry;
+use mcrs_protocol::Ident;
 use mcrs_vanilla::block::Block as VanillaBlock;
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
@@ -24,7 +28,6 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use thiserror::Error;
 use tracing::{debug, info, warn};
-use mcrs_protocol::Ident;
 
 // ============================================================================
 // Proto types (JSON deserialization)
@@ -121,7 +124,10 @@ impl LootPoolProto {
     }
 }
 
-fn resolve_entry(entry: &LootEntryProto, enchantment_registry: &StaticRegistry<EnchantmentData>) -> LootEntry {
+fn resolve_entry(
+    entry: &LootEntryProto,
+    enchantment_registry: &StaticRegistry<EnchantmentData>,
+) -> LootEntry {
     match entry {
         LootEntryProto::Item {
             name, conditions, ..
@@ -151,9 +157,7 @@ fn resolve_entry(entry: &LootEntryProto, enchantment_registry: &StaticRegistry<E
                 .map(|c| resolve_condition(c, enchantment_registry))
                 .collect(),
         },
-        LootEntryProto::Unknown => LootEntry::Empty {
-            conditions: vec![],
-        },
+        LootEntryProto::Unknown => LootEntry::Empty { conditions: vec![] },
     }
 }
 
@@ -165,24 +169,21 @@ fn resolve_condition(
         LootConditionProto::MatchTool { predicate } => {
             if let Some(predicates) = &predicate.predicates
                 && let Some(enchantments) = &predicates.enchantments
-                    && let Some(first) = enchantments.first() {
-                        let enchantment_id = &first.enchantments;
-                        if let Some(static_id) = enchantment_registry.id_of(enchantment_id.as_str()) {
-                            let min_level = first
-                                .levels
-                                .as_ref()
-                                .and_then(|l| l.min)
-                                .unwrap_or(1);
-                            return LootCondition::MatchToolEnchantment {
-                                enchantment_registry_index: static_id.raw() as u16,
-                                min_level,
-                            };
-                        }
-                        warn!(
-                            enchantment = %enchantment_id,
-                            "Enchantment not found in registry, condition will always be false"
-                        );
-                    }
+                && let Some(first) = enchantments.first()
+            {
+                let enchantment_id = &first.enchantments;
+                if let Some(static_id) = enchantment_registry.id_of(enchantment_id.as_str()) {
+                    let min_level = first.levels.as_ref().and_then(|l| l.min).unwrap_or(1);
+                    return LootCondition::MatchToolEnchantment {
+                        enchantment_registry_index: static_id.raw() as u16,
+                        min_level,
+                    };
+                }
+                warn!(
+                    enchantment = %enchantment_id,
+                    "Enchantment not found in registry, condition will always be false"
+                );
+            }
             LootCondition::AlwaysTrue
         }
         LootConditionProto::SurvivesExplosion {} => LootCondition::SurvivesExplosion,
@@ -398,18 +399,19 @@ fn process_loaded_loot_tables(
 ) {
     for event in events.read() {
         if let AssetEvent::LoadedWithDependencies { id } = event
-            && let Some(asset) = assets.get(*id) {
-                let resolved = asset.proto.resolve(&enchantment_registry);
-                info!(
-                    block = %asset.block_id,
-                    pools = resolved.pools.len(),
-                    "Resolved loot table"
-                );
-                block_loot_tables.pending.remove(&asset.block_id);
-                block_loot_tables
-                    .tables
-                    .insert(asset.block_id.clone(), resolved);
-            }
+            && let Some(asset) = assets.get(*id)
+        {
+            let resolved = asset.proto.resolve(&enchantment_registry);
+            info!(
+                block = %asset.block_id,
+                pools = resolved.pools.len(),
+                "Resolved loot table"
+            );
+            block_loot_tables.pending.remove(&asset.block_id);
+            block_loot_tables
+                .tables
+                .insert(asset.block_id.clone(), resolved);
+        }
     }
 }
 

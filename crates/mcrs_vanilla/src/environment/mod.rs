@@ -29,7 +29,7 @@ use crate::timeline::{AttributeTrackSampler, Timeline};
 use crate::world_clock::{ClockTimeMarkers, WorldClocks};
 
 pub use spatial::{
-    BiomeAttributes, BiomeAttributeSource, SpatialAttributeInterpolator, UniformBiomes,
+    BiomeAttributeSource, BiomeAttributes, SpatialAttributeInterpolator, UniformBiomes,
 };
 
 /// How much it is raining and thundering, in `[0; 1]`.
@@ -54,8 +54,14 @@ pub enum EnvironmentError {
 #[derive(Debug, Clone)]
 enum Layer {
     Biome,
-    Track { clock: usize, sampler: AttributeTrackSampler },
-    Weather { rain: Option<(Operation, AttributeValue)>, thunder: Option<(Operation, AttributeValue)> },
+    Track {
+        clock: usize,
+        sampler: AttributeTrackSampler,
+    },
+    Weather {
+        rain: Option<(Operation, AttributeValue)>,
+        thunder: Option<(Operation, AttributeValue)>,
+    },
 }
 
 /// One attribute's layers, with everything constant for the dimension already
@@ -110,11 +116,15 @@ impl AttributeStack {
         let lerp = self.spec.ty.state_change_lerp();
         let mut value = value;
         for (entry, level) in [(rain, rain_level), (thunder, thunder_level)] {
-            let Some((op, argument)) = entry else { continue };
+            let Some((op, argument)) = entry else {
+                continue;
+            };
             if level <= 0.0 {
                 continue;
             }
-            let Ok(modified) = apply(self.spec.ty, *op, &value, argument) else { continue };
+            let Ok(modified) = apply(self.spec.ty, *op, &value, argument) else {
+                continue;
+            };
             value = lerp.apply(level, &value, &modified);
         }
         value
@@ -198,17 +208,25 @@ impl EnvironmentAttributes {
                 }
             };
             for (id, sampler) in timeline.bake() {
-                stacks[index_of(id)?].layers.push(Layer::Track { clock, sampler });
+                stacks[index_of(id)?]
+                    .layers
+                    .push(Layer::Track { clock, sampler });
             }
         }
 
         if dimension.can_have_weather() {
             for (id, rain, thunder) in weather_layers()? {
-                stacks[index_of(id)?].layers.push(Layer::Weather { rain, thunder });
+                stacks[index_of(id)?]
+                    .layers
+                    .push(Layer::Weather { rain, thunder });
             }
         }
 
-        Ok(EnvironmentAttributes { skybox: dimension.skybox, clocks, stacks })
+        Ok(EnvironmentAttributes {
+            skybox: dimension.skybox,
+            clocks,
+            stacks,
+        })
     }
 
     /// The stack index of `id`. Resolved while building, never during a frame.
@@ -237,9 +255,9 @@ impl EnvironmentAttributes {
     pub fn clock_ticks(&self, clocks: &WorldClocks, out: &mut Vec<f64>) {
         out.clear();
         out.extend(self.clocks.iter().map(|id| {
-            clocks
-                .get(id.as_str())
-                .map_or(0.0, |state| state.total_ticks as f64 + f64::from(state.partial_tick))
+            clocks.get(id.as_str()).map_or(0.0, |state| {
+                state.total_ticks as f64 + f64::from(state.partial_tick)
+            })
         }));
     }
 
@@ -262,7 +280,9 @@ impl DimensionEnvironments {
         self.0.get(dimension_type)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&ResourceLocation<Arc<str>>, &EnvironmentAttributes)> {
+    pub fn iter(
+        &self,
+    ) -> impl Iterator<Item = (&ResourceLocation<Arc<str>>, &EnvironmentAttributes)> {
         self.0.iter()
     }
 
@@ -289,7 +309,10 @@ pub fn freeze_timelines(
     let mut loaded: Vec<(ResourceLocation<Arc<str>>, &Timeline)> = timelines
         .iter()
         .filter_map(|(id, timeline)| {
-            Some((rl_from_asset_path(asset_server.get_path(id)?.path())?, timeline))
+            Some((
+                rl_from_asset_path(asset_server.get_path(id)?.path())?,
+                timeline,
+            ))
         })
         .collect();
     loaded.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
@@ -362,7 +385,10 @@ fn index_of(id: &str) -> Result<usize, EnvironmentError> {
 /// The colours are the reference's float literals pushed through
 /// `ARGB.as8BitChannel`, which floors: 0.6 is `0x99`, not `0x9a`.
 static WEATHER: LazyLock<[EnvironmentAttributeMap; 2]> = LazyLock::new(|| {
-    let level = |sky_gray: serde_json::Value, cloud_gray: serde_json::Value, tint: &str, alpha: f32| {
+    let level = |sky_gray: serde_json::Value,
+                 cloud_gray: serde_json::Value,
+                 tint: &str,
+                 alpha: f32| {
         json!({
             "minecraft:visual/sky_color": {"argument": sky_gray, "modifier": "blend_to_gray"},
             "minecraft:visual/fog_color": {"argument": format!("#{tint}"), "modifier": "multiply"},
@@ -380,17 +406,34 @@ static WEATHER: LazyLock<[EnvironmentAttributeMap; 2]> = LazyLock::new(|| {
         })
     };
     [
-        level(json!({"brightness": 0.6, "factor": 0.75}), json!({"brightness": 0.24, "factor": 0.5}), "7f7f99", 0.3125),
-        level(json!({"brightness": 0.24, "factor": 0.94}), json!({"brightness": 0.095, "factor": 0.94}), "3f3f4c", 0.52734375),
+        level(
+            json!({"brightness": 0.6, "factor": 0.75}),
+            json!({"brightness": 0.24, "factor": 0.5}),
+            "7f7f99",
+            0.3125,
+        ),
+        level(
+            json!({"brightness": 0.24, "factor": 0.94}),
+            json!({"brightness": 0.095, "factor": 0.94}),
+            "3f3f4c",
+            0.52734375,
+        ),
     ]
-    .map(|value| serde_json::from_value(value).expect("the built-in weather layers are well formed"))
+    .map(|value| {
+        serde_json::from_value(value).expect("the built-in weather layers are well formed")
+    })
 });
 
 type WeatherEntry = Option<(Operation, AttributeValue)>;
 
 fn weather_layers() -> Result<Vec<(&'static str, WeatherEntry, WeatherEntry)>, EnvironmentError> {
     let [rain, thunder] = &*WEATHER;
-    let mut ids: Vec<&str> = rain.0.keys().chain(thunder.0.keys()).map(|id| id.as_str()).collect();
+    let mut ids: Vec<&str> = rain
+        .0
+        .keys()
+        .chain(thunder.0.keys())
+        .map(|id| id.as_str())
+        .collect();
     ids.sort_unstable();
     ids.dedup();
 

@@ -21,9 +21,11 @@ use mcrs_engine::session::{DimPlayerIndex, Owner, PlayerSession, SessionRegistry
 use mcrs_minecraft::world::bridge::bridge_outbound;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPriority};
-use mcrs_minecraft::world::entity::player::{despawn_inbound_player, HostAnchor};
+use mcrs_minecraft::world::entity::player::{HostAnchor, despawn_inbound_player};
 
-use mock_connection::{drain_queue, register_session, run_system, spawn_connection, write_packet_stamped};
+use mock_connection::{
+    drain_queue, register_session, run_system, spawn_connection, write_packet_stamped,
+};
 
 // ---------------------------------------------------------------------------
 // Scenario A — no cross-session delivery under id churn
@@ -64,7 +66,9 @@ fn cross_player_isolation() {
 
     // B's queue must be empty: A's session is gone from the registry so
     // bridge_outbound takes the registry-miss path and drops the packet.
-    let queue_b = world.get::<OutboundQueue>(socket_b).expect("OutboundQueue on socket_b");
+    let queue_b = world
+        .get::<OutboundQueue>(socket_b)
+        .expect("OutboundQueue on socket_b");
     assert_eq!(
         queue_b.total_len(),
         0,
@@ -98,11 +102,7 @@ fn stale_despawn_does_not_kill_fresh_player() {
     // --- Spawn an entity for player B in the dim world ---
     let host_anchor_b = Entity::from_raw_u32(200).expect("nonzero");
     let entity_b = world
-        .spawn((
-            Player,
-            Owner(PlayerSession(2)),
-            HostAnchor(host_anchor_b),
-        ))
+        .spawn((Player, Owner(PlayerSession(2)), HostAnchor(host_anchor_b)))
         .id();
 
     // Register B in DimPlayerIndex.

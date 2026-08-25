@@ -1,7 +1,7 @@
-use bevy_ecs::bundle::Bundle;
-use crate::{BlockBfsQueues, BlockInbox, BlockLight, BlockOutbox, BlockParkedEgress};
 use crate::codec::LightStorage;
 use crate::nibble::LightNibbles;
+use crate::{BlockBfsQueues, BlockInbox, BlockLight, BlockOutbox, BlockParkedEgress};
+use bevy_ecs::bundle::Bundle;
 
 #[derive(Bundle)]
 pub struct BlockLightBundle {

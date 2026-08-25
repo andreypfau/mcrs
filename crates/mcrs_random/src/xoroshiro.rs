@@ -112,7 +112,6 @@ impl TryRng for XoroshiroRandom {
     }
 }
 
-
 fn mix_starford_13(mut v: u64) -> u64 {
     v = (v ^ v >> 30).wrapping_mul(STAFFORD_1);
     v = (v ^ v >> 27).wrapping_mul(STAFFORD_2);

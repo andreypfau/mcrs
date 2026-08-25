@@ -3,11 +3,13 @@
 //! re-exports the sky-side surface so callers can land on
 //! `crate::sky_light::emit_dirty::*` as the canonical path.
 
-use bevy_ecs::prelude::{Changed, Commands, Query, With};
+use crate::{
+    SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyLightDirty, SkyOutbox, emit_dirty,
+};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
+use bevy_ecs::prelude::{Changed, Commands, Query, With};
 use mcrs_engine::world::column::{ColumnChunks, ColumnPosComponent, InColumn};
-use crate::{emit_dirty, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyLightDirty, SkyOutbox};
 
 /// Removes `SkyBfsPending` from chunks whose sky-channel outbox, inbox,
 /// and queues queues are all empty. Emits `tracing::debug!` each time
@@ -16,10 +18,7 @@ use crate::{emit_dirty, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyLigh
 /// missed. Scheduled in parallel with its block-channel mirror under
 /// disjoint component access.
 pub fn clear_sky_bfs_pending_safety_net(
-    chunks: Query<
-        (Entity, &SkyOutbox, &SkyInbox, &SkyBfsQueues),
-        With<SkyBfsPending>,
-    >,
+    chunks: Query<(Entity, &SkyOutbox, &SkyInbox, &SkyBfsQueues), With<SkyBfsPending>>,
     mut commands: Commands,
 ) {
     for (entity, se, si, sws) in chunks.iter() {

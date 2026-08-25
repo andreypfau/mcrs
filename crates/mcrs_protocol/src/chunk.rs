@@ -98,10 +98,7 @@ impl EncodeTrait for LightChunk {
 impl<'a> DecodeTrait<'a> for LightChunk {
     fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let len = VarInt::decode(r)?.0;
-        ensure!(
-            len == 2048,
-            "expected light section length 2048, got {len}"
-        );
+        ensure!(len == 2048, "expected light section length 2048, got {len}");
         ensure!(
             r.len() >= 2048,
             "not enough data to decode light section (need 2048, have {})",
@@ -240,13 +237,12 @@ mod tests {
             .expect("2048 contiguous 0xAB bytes present in encoded LightData");
 
         // Expect: [outer_len=0x01][inner_len_varint=0x80 0x10][0xAB ... ].
-        assert!(pos >= 3, "not enough preceding bytes for outer+inner prefix");
-        assert_eq!(buf[pos - 2], 0x80, "first VarInt(2048) byte must be 0x80");
-        assert_eq!(
-            buf[pos - 1],
-            0x10,
-            "second VarInt(2048) byte must be 0x10"
+        assert!(
+            pos >= 3,
+            "not enough preceding bytes for outer+inner prefix"
         );
+        assert_eq!(buf[pos - 2], 0x80, "first VarInt(2048) byte must be 0x80");
+        assert_eq!(buf[pos - 1], 0x10, "second VarInt(2048) byte must be 0x10");
         assert_eq!(
             buf[pos - 3],
             0x01,

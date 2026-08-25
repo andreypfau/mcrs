@@ -1,5 +1,5 @@
-use crate::world::sub_app_builder::{drain_dim_despawn_queue, drain_dim_spawn_queue};
 use crate::DEFAULT_TPS;
+use crate::world::sub_app_builder::{drain_dim_despawn_queue, drain_dim_spawn_queue};
 use bevy_app::App;
 use bevy_ecs::message::Messages;
 use std::time::{Duration, Instant};
@@ -85,14 +85,11 @@ pub fn pump_channels(app: &mut App) {
                     let (stamped_session, stamped_epoch) =
                         if let PacketTarget::SinglePlayer(entity) = &target {
                             let session_registry = world.resource::<SessionRegistry>();
-                            let session_opt = session_registry
-                                .get_by_anchor(entity)
-                                .map(|(s, _)| *s);
+                            let session_opt =
+                                session_registry.get_by_anchor(entity).map(|(s, _)| *s);
                             if let Some(session) = session_opt {
-                                let epoch = session_registry
-                                    .get(&session)
-                                    .map(|e| e.epoch)
-                                    .unwrap_or(0);
+                                let epoch =
+                                    session_registry.get(&session).map(|e| e.epoch).unwrap_or(0);
                                 (session, epoch)
                             } else {
                                 (mcrs_engine::session::PlayerSession(0), 0)
@@ -140,7 +137,10 @@ pub fn pump_channels(app: &mut App) {
                     if let Some(session) = player {
                         let mut reg = world.resource_mut::<SessionRegistry>();
                         let Some(entry) = reg.get_mut(&session) else {
-                            tracing::warn!(?session, "MoveEntity player session not found; dropping");
+                            tracing::warn!(
+                                ?session,
+                                "MoveEntity player session not found; dropping"
+                            );
                             continue;
                         };
                         if entry.dim != dest_dim {
@@ -198,8 +198,9 @@ pub fn pump_channels(app: &mut App) {
                                 move_id: move_id,
                                 source_dim: dim_entity,
                             });
-                            let mut despawn_queue =
-                                world.resource_mut::<mcrs_engine::world::sub_app::DimDespawnQueue>();
+                            let mut despawn_queue = world
+                                .resource_mut::<mcrs_engine::world::sub_app::DimDespawnQueue>(
+                            );
                             if !despawn_queue.0.contains(&dest_dim) {
                                 despawn_queue.0.push(dest_dim);
                             }
@@ -232,8 +233,9 @@ pub fn pump_channels(app: &mut App) {
         let send_result = {
             let channels = world.resource::<DimChannelsResource>();
             channels.get(rb.source_dim).map(|chan| {
-                chan.control_sender
-                    .try_send(ToDim::RollbackMove { move_id: rb.move_id })
+                chan.control_sender.try_send(ToDim::RollbackMove {
+                    move_id: rb.move_id,
+                })
             })
         };
         if let Some(Err(flume::TrySendError::Full(_))) = send_result {
@@ -250,8 +252,9 @@ pub fn pump_channels(app: &mut App) {
         let send_result = {
             let channels = world.resource::<DimChannelsResource>();
             channels.get(cf.source_dim).map(|chan| {
-                chan.control_sender
-                    .try_send(ToDim::ConfirmMove { move_id: cf.move_id })
+                chan.control_sender.try_send(ToDim::ConfirmMove {
+                    move_id: cf.move_id,
+                })
             })
         };
         if let Some(Err(flume::TrySendError::Full(_))) = send_result {

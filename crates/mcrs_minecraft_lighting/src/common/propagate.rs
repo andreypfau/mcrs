@@ -17,10 +17,10 @@
 //! at `x = 0` inside the destination, and the BFS picks it up as if it had
 //! been seeded at that cell from level `level`.
 
-use crate::bfs::{pack_bfs_entry, ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL};
+use crate::CrossChunkWavefront;
+use crate::bfs::{ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL, pack_bfs_entry};
 use crate::distribute::direction_from_index;
 use crate::geom::face_cell_to_chunk_xyz;
-use crate::CrossChunkWavefront;
 
 /// Drain a `*Incoming` buffer into a queues's `increase_queue` via
 /// `pack_bfs_entry(..., FLAG_WRITE_LEVEL)`. Each entry is packed at the
@@ -35,8 +35,7 @@ pub(crate) fn drain_incoming_into_queue(
     queue.reserve(inbox.len());
     for wavefront in inbox.drain(..) {
         let face = direction_from_index(wavefront.face());
-        let (x, y, z) =
-            face_cell_to_chunk_xyz(face, wavefront.cell_x(), wavefront.cell_z());
+        let (x, y, z) = face_cell_to_chunk_xyz(face, wavefront.cell_x(), wavefront.cell_z());
         queue.push(pack_bfs_entry(
             x,
             z,
@@ -51,7 +50,7 @@ pub(crate) fn drain_incoming_into_queue(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bfs::{pack_bfs_entry, ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL};
+    use crate::bfs::{ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL, pack_bfs_entry};
     use crate::block_light::enqueue::enqueue_block_light_on_block_placed;
     use crate::block_light::propagate::{
         propagate_decrease_block_system, propagate_increase_block_system,
@@ -59,8 +58,10 @@ mod tests {
     use crate::codec::LightStorage;
     use crate::nibble::LightNibbles;
     use crate::sky_light::enqueue::enqueue_sky_light_on_block_placed;
-    use crate::sky_light::propagate::{propagate_decrease_sky_system, propagate_increase_sky_system};
-    use crate::table::{flag_bits, BlockStateLightTable};
+    use crate::sky_light::propagate::{
+        propagate_decrease_sky_system, propagate_increase_sky_system,
+    };
+    use crate::table::{BlockStateLightTable, flag_bits};
     use crate::{
         BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockOutbox, IsAllAir,
         SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyOutbox,
@@ -195,10 +196,7 @@ mod tests {
 
         app.update();
 
-        let ws = app
-            .world()
-            .get::<BlockBfsQueues>(entity)
-            .expect("queues");
+        let ws = app.world().get::<BlockBfsQueues>(entity).expect("queues");
         assert!(
             ws.decrease_queue.is_empty(),
             "decrease_queue must drain to empty"
@@ -226,18 +224,12 @@ mod tests {
 
         app.update();
 
-        let ws = app
-            .world()
-            .get::<BlockBfsQueues>(entity)
-            .expect("queues");
+        let ws = app.world().get::<BlockBfsQueues>(entity).expect("queues");
         assert!(
             ws.increase_queue.is_empty(),
             "increase_queue must drain to empty"
         );
-        let light = app
-            .world()
-            .get::<BlockLight>(entity)
-            .expect("BlockLight");
+        let light = app.world().get::<BlockLight>(entity).expect("BlockLight");
         assert_eq!(light.0.get(8, 8, 8), 14, "source cell unchanged");
         assert!(
             light.0.get(7, 8, 8) > 0 || light.0.get(9, 8, 8) > 0,
@@ -285,14 +277,8 @@ mod tests {
 
         app.update();
 
-        let ws = app
-            .world()
-            .get::<BlockBfsQueues>(entity)
-            .expect("queues");
-        let outbox = app
-            .world()
-            .get::<BlockOutbox>(entity)
-            .expect("BlockOutbox");
+        let ws = app.world().get::<BlockBfsQueues>(entity).expect("queues");
+        let outbox = app.world().get::<BlockOutbox>(entity).expect("BlockOutbox");
         assert!(ws.increase_queue.is_empty(), "queues drained");
         assert!(ws.decrease_queue.is_empty(), "queues drained");
         assert!(
@@ -317,19 +303,13 @@ mod tests {
 
         app.update();
 
-        let ws = app
-            .world()
-            .get::<BlockBfsQueues>(entity)
-            .expect("queues");
+        let ws = app.world().get::<BlockBfsQueues>(entity).expect("queues");
         assert_eq!(
             ws.increase_queue.len(),
             1,
             "queue NOT drained — clean chunk is skipped by With<BlockBfsPending>"
         );
-        let light = app
-            .world()
-            .get::<BlockLight>(entity)
-            .expect("BlockLight");
+        let light = app.world().get::<BlockLight>(entity).expect("BlockLight");
         for y in 0..16 {
             for z in 0..16 {
                 for x in 0..16 {
@@ -377,14 +357,8 @@ mod tests {
 
         app.update();
 
-        let dirty_ws = app
-            .world()
-            .get::<BlockBfsQueues>(dirty)
-            .expect("queues");
-        let clean_ws = app
-            .world()
-            .get::<BlockBfsQueues>(clean)
-            .expect("queues");
+        let dirty_ws = app.world().get::<BlockBfsQueues>(dirty).expect("queues");
+        let clean_ws = app.world().get::<BlockBfsQueues>(clean).expect("queues");
         assert!(
             dirty_ws.increase_queue.is_empty(),
             "dirty chunk's queue drained"
@@ -481,10 +455,7 @@ mod tests {
 
         app.update();
 
-        let light = app
-            .world()
-            .get::<SkyLight>(entity)
-            .expect("SkyLight");
+        let light = app.world().get::<SkyLight>(entity).expect("SkyLight");
         assert!(
             matches!(light.0, LightStorage::Uniform(15)),
             "column-walker must collapse the all-air chunk to Uniform(15); got {:?}",
@@ -507,10 +478,7 @@ mod tests {
 
         app.update();
 
-        let outbox = app
-            .world()
-            .get::<SkyOutbox>(entity)
-            .expect("SkyOutbox");
+        let outbox = app.world().get::<SkyOutbox>(entity).expect("SkyOutbox");
         assert_eq!(
             outbox.0.len(),
             1280,
@@ -533,11 +501,12 @@ mod tests {
 
         app.update();
 
-        let outbox = app
-            .world()
-            .get::<SkyOutbox>(entity)
-            .expect("SkyOutbox");
-        assert_eq!(outbox.0.len(), 1280, "column-walker must push 1280 wavefronts");
+        let outbox = app.world().get::<SkyOutbox>(entity).expect("SkyOutbox");
+        assert_eq!(
+            outbox.0.len(),
+            1280,
+            "column-walker must push 1280 wavefronts"
+        );
 
         let west_face = Direction::West.index() as u8;
         let actual: Vec<(u8, u8)> = outbox
@@ -567,10 +536,7 @@ mod tests {
 
         app.update();
 
-        let outbox = app
-            .world()
-            .get::<SkyOutbox>(entity)
-            .expect("SkyOutbox");
+        let outbox = app.world().get::<SkyOutbox>(entity).expect("SkyOutbox");
         let up_face_count = outbox.0.iter().filter(|w| w.face() == 1).count();
         assert!(
             up_face_count > 0,
@@ -634,15 +600,9 @@ mod tests {
 
         app.update();
 
-        let inc = app
-            .world()
-            .get::<BlockInbox>(entity)
-            .expect("inbox");
+        let inc = app.world().get::<BlockInbox>(entity).expect("inbox");
         assert!(inc.0.is_empty(), "drain prelude must empty BlockInbox");
-        let ws = app
-            .world()
-            .get::<BlockBfsQueues>(entity)
-            .expect("queues");
+        let ws = app.world().get::<BlockBfsQueues>(entity).expect("queues");
         assert_eq!(
             ws.increase_queue.len(),
             1,
@@ -680,24 +640,15 @@ mod tests {
             ))
             .id();
         let south = Direction::South.index() as u8;
-        let mut inc = app
-            .world_mut()
-            .get_mut::<SkyInbox>(entity)
-            .expect("inbox");
+        let mut inc = app.world_mut().get_mut::<SkyInbox>(entity).expect("inbox");
         inc.0.push(CrossChunkWavefront::new(south, 4, 7, 12));
         drop(inc);
 
         app.update();
 
-        let inc = app
-            .world()
-            .get::<SkyInbox>(entity)
-            .expect("inbox");
+        let inc = app.world().get::<SkyInbox>(entity).expect("inbox");
         assert!(inc.0.is_empty(), "drain prelude must empty SkyInbox");
-        let ws = app
-            .world()
-            .get::<SkyBfsQueues>(entity)
-            .expect("queues");
+        let ws = app.world().get::<SkyBfsQueues>(entity).expect("queues");
         assert_eq!(
             ws.increase_queue.len(),
             1,
@@ -732,10 +683,7 @@ mod tests {
         app.update();
 
         for e in entities {
-            let ws = app
-                .world()
-                .get::<BlockBfsQueues>(e)
-                .expect("queues");
+            let ws = app.world().get::<BlockBfsQueues>(e).expect("queues");
             assert!(
                 ws.increase_queue.is_empty(),
                 "entity {e:?} queue drained under par_iter_mut"

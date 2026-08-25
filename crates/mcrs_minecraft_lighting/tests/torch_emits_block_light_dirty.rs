@@ -22,19 +22,17 @@ use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{Chunk, ChunkIndex, ChunkLoaded, ChunkPos};
-use mcrs_engine::world::column::{
-    ColumnPos, ColumnPosComponent, ColumnPlugin, InColumn,
-};
+use mcrs_engine::world::column::{ColumnPlugin, ColumnPos, ColumnPosComponent, InColumn};
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::{BlockSetRequest, BlockUpdatePlugin};
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_minecraft_lighting::codec::BlockLightDirty;
-use mcrs_minecraft_lighting::table::{flag_bits, BlockStateLightTable};
-use mcrs_minecraft_lighting::metrics::TELEMETRY_TEST_LOCK;
 use mcrs_minecraft_lighting::LightingPlugin;
+use mcrs_minecraft_lighting::codec::BlockLightDirty;
+use mcrs_minecraft_lighting::metrics::TELEMETRY_TEST_LOCK;
+use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_protocol::BlockStateId;
 
 const TEST_DIM_HEIGHT: u32 = 384;
@@ -72,8 +70,7 @@ fn make_stub_block_light_table_with_torch() -> BlockStateLightTable {
     // State 1: solid opaque block.
     emission[1] = 0;
     dampening[1] = 15;
-    flags[1] =
-        flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
+    flags[1] = flag_bits::IS_NOT_AIR | flag_bits::IS_SOLID_OPAQUE | flag_bits::IS_MOTION_BLOCKING;
     // State 2: torch-stub emitter. Level 14 matches vanilla torch.
     emission[2] = 14;
     dampening[2] = 0;
@@ -91,11 +88,7 @@ fn spawn_test_dimension(app: &mut App, sky: bool) -> Entity {
         .world_mut()
         .spawn(DimensionBundle {
             type_config: DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
-            dimension_id: DimensionId::new(if sky {
-                "test:sky"
-            } else {
-                "test:skyless"
-            }),
+            dimension_id: DimensionId::new(if sky { "test:sky" } else { "test:skyless" }),
             ..Default::default()
         })
         .id();
@@ -227,7 +220,8 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
         .map(|p| p.get(BlockPos::new(8, 8, 8)))
         .expect("chunk must still have BlockPalette");
     assert_eq!(
-        palette_state, BlockStateId(2),
+        palette_state,
+        BlockStateId(2),
         "apply_set_block_request must have replaced the cell with the torch state"
     );
 

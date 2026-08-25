@@ -14,6 +14,6 @@ pub use crate::world::lifecycle::markers::{
     ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkUnloaded, ChunkUnloading,
 };
 pub use crate::world::lifecycle::ticket;
-pub use crate::world::storage::chunk::{Chunk, ChunkBundle, ChunkIndex};
 pub(crate) use crate::world::storage::chunk::ChunkPlugin;
+pub use crate::world::storage::chunk::{Chunk, ChunkBundle, ChunkIndex};
 pub use crate::world::storage::palette;

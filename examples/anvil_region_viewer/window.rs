@@ -47,13 +47,19 @@ fn chosen_monitor(monitors: &Query<(Entity, &Monitor)>) -> MonitorSelection {
         return MonitorSelection::Index(index);
     }
     let wanted = spec.to_lowercase();
-    let known: Vec<String> = monitors.iter().map(|(_, monitor)| describe(monitor)).collect();
+    let known: Vec<String> = monitors
+        .iter()
+        .map(|(_, monitor)| describe(monitor))
+        .collect();
     let found = monitors
         .iter()
         .find(|(_, monitor)| describe(monitor).to_lowercase().contains(&wanted));
     match found {
         Some((entity, monitor)) => {
-            info!("ANVIL_MONITOR={spec} picked {} out of {known:?}", describe(monitor));
+            info!(
+                "ANVIL_MONITOR={spec} picked {} out of {known:?}",
+                describe(monitor)
+            );
             MonitorSelection::Entity(entity)
         }
         None => {
@@ -106,5 +112,7 @@ pub fn screenshot(
             return;
         }
     };
-    commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
+    commands
+        .spawn(Screenshot::primary_window())
+        .observe(save_to_disk(path));
 }

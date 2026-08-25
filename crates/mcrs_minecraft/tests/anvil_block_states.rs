@@ -19,7 +19,9 @@ fn corpus() -> &'static BlockDefinitions {
             ..Default::default()
         });
         let asset_server = app.world().resource::<AssetServer>().clone();
-        load_block_definitions(&asset_server).expect("the corpus loads").0
+        load_block_definitions(&asset_server)
+            .expect("the corpus loads")
+            .0
     })
 }
 
@@ -149,8 +151,9 @@ fn every_state_of_a_stair_and_a_note_block_round_trips() {
     let definitions = corpus();
     for name in ["minecraft:oak_stairs", "minecraft:note_block"] {
         let block = definitions.block(name).unwrap();
-        let states: Vec<u16> =
-            (0..block.state_count).map(|i| block.base_state_id.0 + i).collect();
+        let states: Vec<u16> = (0..block.state_count)
+            .map(|i| block.base_state_id.0 + i)
+            .collect();
         let palette: Vec<NbtTag> = states
             .iter()
             .map(|&state| {
@@ -162,7 +165,11 @@ fn every_state_of_a_stair_and_a_note_block_round_trips() {
             })
             .collect();
         let ids = resolve(vec![section(0, palette)]).unwrap();
-        assert_eq!(ids, states.iter().map(|&s| s as u32).collect::<Vec<_>>(), "{name}");
+        assert_eq!(
+            ids,
+            states.iter().map(|&s| s as u32).collect::<Vec<_>>(),
+            "{name}"
+        );
     }
 }
 
@@ -248,10 +255,34 @@ fn a_decoded_chunk_resolves_every_section_palette() {
     ];
     let ids = resolve(sections).unwrap();
     assert_eq!(ids.len(), 6);
-    assert_eq!(ids[0], definitions.block("minecraft:bedrock").unwrap().default_state_id.0 as u32);
-    assert_eq!(ids[2], definitions.block("minecraft:stone").unwrap().default_state_id.0 as u32);
-    assert_eq!(ids[3], definitions.block("minecraft:air").unwrap().default_state_id.0 as u32);
-    assert!(ids.iter().all(|&id| (id as usize) < definitions.state_count()));
+    assert_eq!(
+        ids[0],
+        definitions
+            .block("minecraft:bedrock")
+            .unwrap()
+            .default_state_id
+            .0 as u32
+    );
+    assert_eq!(
+        ids[2],
+        definitions
+            .block("minecraft:stone")
+            .unwrap()
+            .default_state_id
+            .0 as u32
+    );
+    assert_eq!(
+        ids[3],
+        definitions
+            .block("minecraft:air")
+            .unwrap()
+            .default_state_id
+            .0 as u32
+    );
+    assert!(
+        ids.iter()
+            .all(|&id| (id as usize) < definitions.state_count())
+    );
 }
 
 #[test]

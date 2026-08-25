@@ -3,16 +3,21 @@
 //! in parallel via `par_iter_mut`; per-worker `Commands` accumulation goes
 //! through `ParallelCommands`.
 
-use bevy_ecs::change_detection::Res;
-use bevy_ecs::prelude::{ParallelCommands, Query, With};
-use bevy_ecs::entity::Entity;
-use mcrs_core::voxel_shape::Direction;
-use mcrs_minecraft_block::palette::BlockPalette;
-use crate::bfs::{propagate_decrease_sky, propagate_increase_sky, unpack_bfs_entry_level, unpack_bfs_entry_y};
+use crate::bfs::{
+    propagate_decrease_sky, propagate_increase_sky, unpack_bfs_entry_level, unpack_bfs_entry_y,
+};
 use crate::codec::LightStorage;
 use crate::propagate::drain_incoming_into_queue;
 use crate::table::BlockStateLightTable;
-use crate::{CrossChunkWavefront, IsAllAir, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyOutbox, SkyOutboxDirty};
+use crate::{
+    CrossChunkWavefront, IsAllAir, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyOutbox,
+    SkyOutboxDirty,
+};
+use bevy_ecs::change_detection::Res;
+use bevy_ecs::entity::Entity;
+use bevy_ecs::prelude::{ParallelCommands, Query, With};
+use mcrs_core::voxel_shape::Direction;
+use mcrs_minecraft_block::palette::BlockPalette;
 
 /// Five non-Up faces used by the column-walker fast path to dump 256
 /// wavefronts per face onto `SkyOutbox` (1280 entries total) when an

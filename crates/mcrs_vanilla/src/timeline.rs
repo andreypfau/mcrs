@@ -45,7 +45,10 @@ impl<'de> Deserialize<'de> for Timeline {
         if let Some(period) = repr.period_ticks {
             for (id, track) in repr.tracks.iter() {
                 track.validate_period(period).map_err(|kind| {
-                    D::Error::custom(TimelineError { track: (*id).to_owned(), kind })
+                    D::Error::custom(TimelineError {
+                        track: (*id).to_owned(),
+                        kind,
+                    })
                 })?;
             }
         }
@@ -83,7 +86,10 @@ enum TimeMarkerRepr {
 impl<'de> Deserialize<'de> for TimeMarker {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         Ok(match TimeMarkerRepr::deserialize(d)? {
-            TimeMarkerRepr::Bare(ticks) => TimeMarker { ticks, show_in_commands: false },
+            TimeMarkerRepr::Bare(ticks) => TimeMarker {
+                ticks,
+                show_in_commands: false,
+            },
             TimeMarkerRepr::Full(full) => TimeMarker {
                 ticks: full.ticks,
                 show_in_commands: full.show_in_commands,
@@ -95,7 +101,11 @@ impl<'de> Deserialize<'de> for TimeMarker {
 impl Serialize for TimeMarker {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         if self.show_in_commands {
-            FullTimeMarker { ticks: self.ticks, show_in_commands: true }.serialize(s)
+            FullTimeMarker {
+                ticks: self.ticks,
+                show_in_commands: true,
+            }
+            .serialize(s)
         } else {
             s.serialize_u32(self.ticks)
         }
@@ -146,9 +156,9 @@ impl<'de> Visitor<'de> for TracksVisitor {
         while let Some(id) = map.next_key::<String>()? {
             let spec = attribute(&id)
                 .ok_or_else(|| A::Error::custom(TrackError::UnknownAttribute(id.clone())))?;
-            let track = map.next_value_seed(TrackSeed(spec)).map_err(|e| {
-                A::Error::custom(format!("timeline track `{id}`: {e}"))
-            })?;
+            let track = map
+                .next_value_seed(TrackSeed(spec))
+                .map_err(|e| A::Error::custom(format!("timeline track `{id}`: {e}")))?;
             tracks.insert(spec.id, track);
         }
         Ok(Tracks(tracks))
@@ -251,7 +261,10 @@ impl Serialize for Keyframes<'_> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let mut seq = s.serialize_seq(Some(self.0.keyframes.len()))?;
         for keyframe in &self.0.keyframes {
-            seq.serialize_element(&KeyframeEntry { track: self.0, keyframe })?;
+            seq.serialize_element(&KeyframeEntry {
+                track: self.0,
+                keyframe,
+            })?;
         }
         seq.end()
     }
@@ -697,7 +710,10 @@ impl Track {
     /// this is the one check the track's own seed cannot make.
     fn validate_period(&self, period: u32) -> Result<(), TrackError> {
         match self.keyframes.iter().find(|k| k.ticks > period) {
-            Some(keyframe) => Err(TrackError::OutsidePeriod { ticks: keyframe.ticks, period }),
+            Some(keyframe) => Err(TrackError::OutsidePeriod {
+                ticks: keyframe.ticks,
+                period,
+            }),
             None => Ok(()),
         }
     }
@@ -713,7 +729,11 @@ fn validate_keyframes(keyframes: &[Keyframe]) -> Result<(), TrackError> {
         if keyframe.ticks < previous {
             return Err(TrackError::OutOfOrder(keyframe.ticks));
         }
-        repeats = if keyframe.ticks == previous { repeats + 1 } else { 1 };
+        repeats = if keyframe.ticks == previous {
+            repeats + 1
+        } else {
+            1
+        };
         if repeats > 2 {
             return Err(TrackError::RepeatedTick(keyframe.ticks));
         }
@@ -758,7 +778,6 @@ fn bake_segments(keyframes: &[(i64, AttributeValue)], period_ticks: Option<u32>)
         .chain(std::iter::once(wrap(*last_ticks, first_ticks + period)))
         .collect()
 }
-
 
 impl Timeline {
     /// The tick this timeline stands at within its own period.
@@ -883,11 +902,17 @@ mod tests {
         assert_eq!(day.tracks["minecraft:visual/sky_color"].ease, None);
         assert_eq!(
             day.time_markers["minecraft:day"],
-            TimeMarker { ticks: 1000, show_in_commands: true }
+            TimeMarker {
+                ticks: 1000,
+                show_in_commands: true
+            }
         );
         assert_eq!(
             day.time_markers["minecraft:roll_village_siege"],
-            TimeMarker { ticks: 18000, show_in_commands: false }
+            TimeMarker {
+                ticks: 18000,
+                show_in_commands: false
+            }
         );
 
         let sent = sent(&day);
@@ -900,9 +925,17 @@ mod tests {
             sent["tracks"]["minecraft:gameplay/cat_waking_up_gift_chance"]["ease"],
             json!("constant")
         );
-        assert!(sent["tracks"]["minecraft:visual/sky_color"].get("ease").is_none());
+        assert!(
+            sent["tracks"]["minecraft:visual/sky_color"]
+                .get("ease")
+                .is_none()
+        );
         // an absent modifier stays absent rather than being written as `override`
-        assert!(sent["tracks"]["minecraft:visual/sun_angle"].get("modifier").is_none());
+        assert!(
+            sent["tracks"]["minecraft:visual/sun_angle"]
+                .get("modifier")
+                .is_none()
+        );
 
         assert_eq!(sent["time_markers"], raw("day.json")["time_markers"]);
         assert!(sent["time_markers"]["minecraft:roll_village_siege"].is_number());
@@ -950,7 +983,10 @@ mod tests {
             value("minecraft:visual/sunrise_sunset_color", 0),
             NbtTag::String("#5fefa333".to_owned())
         );
-        assert_eq!(value("minecraft:gameplay/monsters_burn", 0), NbtTag::Byte(0));
+        assert_eq!(
+            value("minecraft:gameplay/monsters_burn", 0),
+            NbtTag::Byte(0)
+        );
 
         assert_eq!(
             tracks
@@ -976,7 +1012,8 @@ mod tests {
         );
 
         // an opaque payload keeps whatever shape it had, here a string
-        let moon = mcrs_nbt::to_nbt_compound(&NetworkTimeline::from(&timeline("moon.json"))).unwrap();
+        let moon =
+            mcrs_nbt::to_nbt_compound(&NetworkTimeline::from(&timeline("moon.json"))).unwrap();
         assert_eq!(
             moon.get_compound("tracks")
                 .unwrap()
@@ -1159,7 +1196,10 @@ mod tests {
             )
         };
 
-        assert_eq!(bake(json!("linear")).unwrap().argument.easing(), Easing::Linear);
+        assert_eq!(
+            bake(json!("linear")).unwrap().argument.easing(),
+            Easing::Linear
+        );
         assert_eq!(
             bake(json!("constant")).unwrap().argument.easing(),
             Easing::Constant
@@ -1188,7 +1228,10 @@ mod tests {
             bake(json!({"cubic_bezier": [1.5, 0.0, 0.5, 1.0]})).is_err(),
             "x1 must be in [0; 1]"
         );
-        assert!(bake(json!({"in_out_bounce": []})).is_err(), "not a curve we have");
+        assert!(
+            bake(json!({"in_out_bounce": []})).is_err(),
+            "not a curve we have"
+        );
         assert!(bake(json!(7)).is_err(), "not a curve at all");
     }
 
@@ -1432,7 +1475,11 @@ mod tests {
             })
         };
         let bake = |keyframes, period| {
-            bake_one("minecraft:visual/sky_light_factor", period, track(keyframes))
+            bake_one(
+                "minecraft:visual/sky_light_factor",
+                period,
+                track(keyframes),
+            )
         };
 
         assert!(
@@ -1499,7 +1546,10 @@ mod tests {
             json!({"keyframes": [{"ticks": 0, "value": "noon"}], "modifier": "multiply"}),
         )
         .unwrap_err();
-        assert!(wrong_value.contains("is not a valid Float value"), "{wrong_value}");
+        assert!(
+            wrong_value.contains("is not a valid Float value"),
+            "{wrong_value}"
+        );
     }
 
     #[test]

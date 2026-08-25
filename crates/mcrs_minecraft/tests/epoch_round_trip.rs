@@ -24,7 +24,9 @@ use mcrs_minecraft::world::bridge::bridge_outbound;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{OutboundPlayerPacket, PacketPriority};
 
-use mock_connection::{drain_queue, register_session, run_system, spawn_connection, write_packet_stamped};
+use mock_connection::{
+    drain_queue, register_session, run_system, spawn_connection, write_packet_stamped,
+};
 
 /// Epoch-0 packets are dropped after the session epoch is bumped to 1, and
 /// epoch-1 packets are delivered. Models the A→B→A stale-drop invariant.
@@ -58,7 +60,9 @@ fn epoch_round_trip() {
     // and must be dropped by the strict-equality filter.
     run_system(&mut world, bridge_outbound);
 
-    let queue = world.get::<OutboundQueue>(socket).expect("OutboundQueue present");
+    let queue = world
+        .get::<OutboundQueue>(socket)
+        .expect("OutboundQueue present");
     assert_eq!(
         queue.total_len(),
         0,

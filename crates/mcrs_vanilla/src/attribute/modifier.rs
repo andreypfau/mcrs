@@ -9,8 +9,8 @@
 use serde::{Deserialize, Serialize};
 
 use super::registry::{AttributeType, AttributeValue};
-use crate::biome::{MobSpawnSettings, SpawnCost};
 use crate::ResourceLocation;
+use crate::biome::{MobSpawnSettings, SpawnCost};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -180,14 +180,25 @@ fn overlay_spawns(first: &MobSpawnSettings, second: &MobSpawnSettings) -> MobSpa
     }
     let mut spawns_by_category = first.spawns_by_category.clone();
     spawns_by_category.extend(
-        second.spawns_by_category.iter().map(|(category, data)| (*category, data.clone())),
+        second
+            .spawns_by_category
+            .iter()
+            .map(|(category, data)| (*category, data.clone())),
     );
 
     let mut spawn_costs: BTreeMap<ResourceLocation<Arc<str>>, SpawnCost> =
         first.spawn_costs.clone();
-    spawn_costs.extend(second.spawn_costs.iter().map(|(id, cost)| (id.clone(), cost.clone())));
+    spawn_costs.extend(
+        second
+            .spawn_costs
+            .iter()
+            .map(|(id, cost)| (id.clone(), cost.clone())),
+    );
 
-    MobSpawnSettings { spawn_costs, spawns_by_category }
+    MobSpawnSettings {
+        spawn_costs,
+        spawns_by_category,
+    }
 }
 
 #[cfg(test)]
@@ -217,7 +228,12 @@ mod tests {
     #[test]
     fn override_replaces() {
         assert_eq!(
-            compose("minecraft:visual/sky_color", json!("#000000"), Operation::Override, json!("#78a7ff")),
+            compose(
+                "minecraft:visual/sky_color",
+                json!("#000000"),
+                Operation::Override,
+                json!("#78a7ff")
+            ),
             AttributeValue::Color(0xFF78_A7FF)
         );
     }
@@ -265,7 +281,12 @@ mod tests {
     #[test]
     fn boolean_or_and_and() {
         assert_eq!(
-            compose("minecraft:gameplay/creaking_active", json!(false), Operation::Or, json!(true)),
+            compose(
+                "minecraft:gameplay/creaking_active",
+                json!(false),
+                Operation::Or,
+                json!(true)
+            ),
             AttributeValue::Bool(true)
         );
         assert_eq!(
@@ -283,9 +304,12 @@ mod tests {
     fn append_concatenates_particles() {
         let ash = json!([{"particle": {"type": "minecraft:ash"}, "probability": 0.00625}]);
         let white = json!([{"particle": {"type": "minecraft:white_ash"}, "probability": 0.118}]);
-        let AttributeValue::List(joined) =
-            compose("minecraft:visual/ambient_particles", ash, Operation::Append, white)
-        else {
+        let AttributeValue::List(joined) = compose(
+            "minecraft:visual/ambient_particles",
+            ash,
+            Operation::Append,
+            white,
+        ) else {
             panic!("append yields a list");
         };
         assert_eq!(joined.len(), 2);
@@ -315,8 +339,14 @@ mod tests {
         };
 
         // deep_dark defines `monster: []` precisely to suppress the layer below.
-        assert_eq!(result.spawns_by_category[&crate::biome::MobCategory::Monster].len(), 0);
-        assert_eq!(result.spawns_by_category[&crate::biome::MobCategory::Creature].len(), 1);
+        assert_eq!(
+            result.spawns_by_category[&crate::biome::MobCategory::Monster].len(),
+            0
+        );
+        assert_eq!(
+            result.spawns_by_category[&crate::biome::MobCategory::Creature].len(),
+            1
+        );
         assert_eq!(result.spawn_costs.len(), 2);
     }
 
@@ -386,12 +416,22 @@ mod tests {
         );
         // an opaque source replaces the destination outright
         assert_eq!(
-            compose(sky, json!("#102030"), Operation::AlphaBlend, json!("#ff405060")),
+            compose(
+                sky,
+                json!("#102030"),
+                Operation::AlphaBlend,
+                json!("#ff405060")
+            ),
             AttributeValue::Color(0xFF40_5060)
         );
         // a fully transparent source leaves it alone
         assert_eq!(
-            compose(sky, json!("#102030"), Operation::AlphaBlend, json!("#00405060")),
+            compose(
+                sky,
+                json!("#102030"),
+                Operation::AlphaBlend,
+                json!("#00405060")
+            ),
             AttributeValue::Color(0xFF10_2030)
         );
         // factor 1 lands on the scaled greyscale, factor 0 leaves the subject
@@ -441,29 +481,95 @@ mod tests {
         // below are the shape each one's codec produces.
         use AttributeValue as V;
         let cases: [(AttributeType, Operation, V, V); 16] = [
-            (AttributeType::Boolean, Operation::Override, V::Bool(false), V::Bool(true)),
-            (AttributeType::Boolean, Operation::And, V::Bool(true), V::Bool(true)),
-            (AttributeType::Boolean, Operation::Nand, V::Bool(true), V::Bool(true)),
-            (AttributeType::Boolean, Operation::Or, V::Bool(true), V::Bool(true)),
-            (AttributeType::Boolean, Operation::Nor, V::Bool(true), V::Bool(true)),
-            (AttributeType::Boolean, Operation::Xor, V::Bool(true), V::Bool(true)),
-            (AttributeType::Boolean, Operation::Xnor, V::Bool(true), V::Bool(true)),
-            (AttributeType::Float, Operation::Add, V::Float(1.0), V::Float(2.0)),
-            (AttributeType::Float, Operation::Subtract, V::Float(1.0), V::Float(2.0)),
-            (AttributeType::Float, Operation::Multiply, V::Float(1.0), V::Float(2.0)),
-            (AttributeType::Float, Operation::Minimum, V::Float(1.0), V::Float(2.0)),
-            (AttributeType::Float, Operation::Maximum, V::Float(1.0), V::Float(2.0)),
+            (
+                AttributeType::Boolean,
+                Operation::Override,
+                V::Bool(false),
+                V::Bool(true),
+            ),
+            (
+                AttributeType::Boolean,
+                Operation::And,
+                V::Bool(true),
+                V::Bool(true),
+            ),
+            (
+                AttributeType::Boolean,
+                Operation::Nand,
+                V::Bool(true),
+                V::Bool(true),
+            ),
+            (
+                AttributeType::Boolean,
+                Operation::Or,
+                V::Bool(true),
+                V::Bool(true),
+            ),
+            (
+                AttributeType::Boolean,
+                Operation::Nor,
+                V::Bool(true),
+                V::Bool(true),
+            ),
+            (
+                AttributeType::Boolean,
+                Operation::Xor,
+                V::Bool(true),
+                V::Bool(true),
+            ),
+            (
+                AttributeType::Boolean,
+                Operation::Xnor,
+                V::Bool(true),
+                V::Bool(true),
+            ),
+            (
+                AttributeType::Float,
+                Operation::Add,
+                V::Float(1.0),
+                V::Float(2.0),
+            ),
+            (
+                AttributeType::Float,
+                Operation::Subtract,
+                V::Float(1.0),
+                V::Float(2.0),
+            ),
+            (
+                AttributeType::Float,
+                Operation::Multiply,
+                V::Float(1.0),
+                V::Float(2.0),
+            ),
+            (
+                AttributeType::Float,
+                Operation::Minimum,
+                V::Float(1.0),
+                V::Float(2.0),
+            ),
+            (
+                AttributeType::Float,
+                Operation::Maximum,
+                V::Float(1.0),
+                V::Float(2.0),
+            ),
             (
                 AttributeType::Float,
                 Operation::AlphaBlend,
                 V::Float(1.0),
-                V::FloatWithAlpha { value: 2.0, alpha: 0.5 },
+                V::FloatWithAlpha {
+                    value: 2.0,
+                    alpha: 0.5,
+                },
             ),
             (
                 AttributeType::RgbColor,
                 Operation::BlendToGray,
                 V::Color(0xFF80_8080),
-                V::BlendToGray { brightness: 0.5, factor: 0.5 },
+                V::BlendToGray {
+                    brightness: 0.5,
+                    factor: 0.5,
+                },
             ),
             (
                 AttributeType::AmbientParticles,
@@ -485,7 +591,10 @@ mod tests {
 
     #[test]
     fn operation_ids_round_trip() {
-        assert_eq!(serde_json::to_value(Operation::BlendToGray).unwrap(), json!("blend_to_gray"));
+        assert_eq!(
+            serde_json::to_value(Operation::BlendToGray).unwrap(),
+            json!("blend_to_gray")
+        );
         assert_eq!(
             serde_json::from_value::<Operation>(json!("alpha_blend")).unwrap(),
             Operation::AlphaBlend

@@ -4,8 +4,8 @@ use bevy_app::{App, FixedUpdate};
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
-use mcrs_core::voxel_shape::Direction;
 use mcrs_core::AppState;
+use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
@@ -14,18 +14,16 @@ use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_engine::world::lighting::LightTicket;
-use mcrs_minecraft_lighting::components::{
-    BlockBfsPending, BlockLight, SkyBfsPending, SkyLight,
-};
-use mcrs_minecraft_lighting::invariants::check_block_light_invariants;
-use mcrs_minecraft_lighting::storage::LightStorage;
-use mcrs_minecraft_lighting::table::BlockStateLightTable;
-use mcrs_minecraft_lighting::test_bench::assert_nibbles_eq;
-use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_lighting::LightingPlugin;
+use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyBfsPending, SkyLight};
+use mcrs_minecraft_lighting::invariants::check_block_light_invariants;
 use mcrs_minecraft_lighting::sky_light::invariants::check_sky_light_invariants;
+use mcrs_minecraft_lighting::storage::LightStorage;
+use mcrs_minecraft_lighting::table::BlockStateLightTable;
+use mcrs_minecraft_lighting::test_bench::assert_nibbles_eq;
 use mcrs_protocol::BlockStateId;
 
 #[path = "golden/mod.rs"]
@@ -368,12 +366,7 @@ fn snapshot_two_torches_one_removed() {
     );
     assert_invariants_hold(&app, chunk, "two_torches_one_removed_after_place");
 
-    set_palette_cell(
-        &mut app,
-        chunk,
-        torch_b,
-        golden::light_table::SYNTH_AIR_ID,
-    );
+    set_palette_cell(&mut app, chunk, torch_b, golden::light_table::SYNTH_AIR_ID);
     emit_block_placed(
         &mut app,
         chunk,

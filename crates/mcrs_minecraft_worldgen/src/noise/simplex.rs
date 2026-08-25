@@ -48,7 +48,12 @@ impl SimplexNoise {
             let j = random.next_u32_bound(256 - i);
             permutation.swap(i as usize, (i + j) as usize);
         }
-        Self { permutation, origin_x, origin_y, origin_z }
+        Self {
+            permutation,
+            origin_x,
+            origin_y,
+            origin_z,
+        }
     }
 
     #[inline(always)]
@@ -76,8 +81,12 @@ impl SimplexNoise {
         let y2 = y0 - 1.0 + 2.0 * Self::UNSKEW_2D;
 
         let gi0 = (self.map(i.wrapping_add(self.map(j))) % 12) as usize;
-        let gi1 = (self.map(i.wrapping_add(i1).wrapping_add(self.map(j.wrapping_add(j1)))) % 12) as usize;
-        let gi2 = (self.map(i.wrapping_add(1).wrapping_add(self.map(j.wrapping_add(1)))) % 12) as usize;
+        let gi1 = (self.map(
+            i.wrapping_add(i1)
+                .wrapping_add(self.map(j.wrapping_add(j1))),
+        ) % 12) as usize;
+        let gi2 =
+            (self.map(i.wrapping_add(1).wrapping_add(self.map(j.wrapping_add(1)))) % 12) as usize;
 
         let n0 = corner(gi0, x0, y0, 0.0, 0.5);
         let n1 = corner(gi1, x1, y1, 0.0, 0.5);
@@ -135,18 +144,31 @@ impl SimplexNoise {
         let jj = j & 0xFF;
         let kk = k & 0xFF;
 
-        let gi0 = (self.map(ii.wrapping_add(self.map(jj.wrapping_add(self.map(kk))))) % 12) as usize;
+        let gi0 =
+            (self.map(ii.wrapping_add(self.map(jj.wrapping_add(self.map(kk))))) % 12) as usize;
         let gi1 = (self.map(
-            ii.wrapping_add(i1)
-                .wrapping_add(self.map(jj.wrapping_add(j1).wrapping_add(self.map(kk.wrapping_add(k1))))),
+            ii.wrapping_add(i1).wrapping_add(
+                self.map(
+                    jj.wrapping_add(j1)
+                        .wrapping_add(self.map(kk.wrapping_add(k1))),
+                ),
+            ),
         ) % 12) as usize;
         let gi2 = (self.map(
-            ii.wrapping_add(i2)
-                .wrapping_add(self.map(jj.wrapping_add(j2).wrapping_add(self.map(kk.wrapping_add(k2))))),
+            ii.wrapping_add(i2).wrapping_add(
+                self.map(
+                    jj.wrapping_add(j2)
+                        .wrapping_add(self.map(kk.wrapping_add(k2))),
+                ),
+            ),
         ) % 12) as usize;
         let gi3 = (self.map(
-            ii.wrapping_add(1)
-                .wrapping_add(self.map(jj.wrapping_add(1).wrapping_add(self.map(kk.wrapping_add(1))))),
+            ii.wrapping_add(1).wrapping_add(
+                self.map(
+                    jj.wrapping_add(1)
+                        .wrapping_add(self.map(kk.wrapping_add(1))),
+                ),
+            ),
         ) % 12) as usize;
 
         let n0 = corner(gi0, x0, y0, z0, 0.6);
@@ -194,10 +216,38 @@ mod test {
         assert_eq!(noise.origin_z, 65.26438852860176);
 
         let cases = [
-            ((-3.134738528791615E8, 5.676610095659718E7, 2.011711832498507E8), -0.07626353895981935),
-            ((6.439373693833767E8, -3.36218773041759E8, -3.265494249695775E8), -0.5919400355725402),
-            ((1.353820060118252E8, -3.204701624793043E8, -4.612474746056331E8), -0.5220477236433517),
-            ((1.0915760091641709E8, 1.932642099859593E7, -3.405060533753616E8), 0.37747828159811136),
+            (
+                (
+                    -3.134738528791615E8,
+                    5.676610095659718E7,
+                    2.011711832498507E8,
+                ),
+                -0.07626353895981935,
+            ),
+            (
+                (
+                    6.439373693833767E8,
+                    -3.36218773041759E8,
+                    -3.265494249695775E8,
+                ),
+                -0.5919400355725402,
+            ),
+            (
+                (
+                    1.353820060118252E8,
+                    -3.204701624793043E8,
+                    -4.612474746056331E8,
+                ),
+                -0.5220477236433517,
+            ),
+            (
+                (
+                    1.0915760091641709E8,
+                    1.932642099859593E7,
+                    -3.405060533753616E8,
+                ),
+                0.37747828159811136,
+            ),
         ];
         for ((x, y, z), expected) in cases {
             assert_eq!(noise.sample_3d(x, y, z), expected);

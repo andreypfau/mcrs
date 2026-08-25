@@ -1,8 +1,8 @@
 use crate::carver::config::BetaCaveCarverConfig;
-use crate::carver::{carve_ellipsoid, WorldCarver};
+use crate::carver::{WorldCarver, carve_ellipsoid};
 use mcrs_protocol::BlockStateId;
-use mcrs_random::legacy::LegacyRandom;
 use mcrs_random::Random;
+use mcrs_random::legacy::LegacyRandom;
 
 /// Java beta `MathHelper.sin(x)`: lookup-table approximation matching the 65536-entry table
 /// built at class-load time via `(float)Math.sin(i * PI * 2.0 / 65536.0)`.
@@ -277,8 +277,8 @@ mod tests {
     use super::*;
     use crate::carver::carve_ellipsoid;
     use crate::carver::config::BetaCaveCarverConfig;
-    use mcrs_random::legacy::LegacyRandom;
     use mcrs_random::Random;
+    use mcrs_random::legacy::LegacyRandom;
     use std::cell::Cell;
 
     fn beta_config() -> BetaCaveCarverConfig {
@@ -330,15 +330,22 @@ mod tests {
         const WIDTH: usize = 16;
         const HEIGHT: usize = 128;
 
-        let blocks: Vec<Cell<BlockStateId>> =
-            (0..WIDTH * WIDTH * HEIGHT).map(|_| Cell::new(stone)).collect();
+        let blocks: Vec<Cell<BlockStateId>> = (0..WIDTH * WIDTH * HEIGHT)
+            .map(|_| Cell::new(stone))
+            .collect();
 
         let idx = |lx: i32, wy: i32, lz: i32| -> usize {
             (lx as usize * WIDTH + lz as usize) * HEIGHT + wy as usize
         };
 
         let get_block = |lx: i32, wy: i32, lz: i32| -> BlockStateId {
-            if wy < 0 || wy >= HEIGHT as i32 || lx < 0 || lx >= WIDTH as i32 || lz < 0 || lz >= WIDTH as i32 {
+            if wy < 0
+                || wy >= HEIGHT as i32
+                || lx < 0
+                || lx >= WIDTH as i32
+                || lz < 0
+                || lz >= WIDTH as i32
+            {
                 return BlockStateId(0);
             }
             blocks[idx(lx, wy, lz)].get()
@@ -371,10 +378,17 @@ mod tests {
             }
         }
 
-        let blocks2: Vec<Cell<BlockStateId>> =
-            (0..WIDTH * WIDTH * HEIGHT).map(|_| Cell::new(stone)).collect();
+        let blocks2: Vec<Cell<BlockStateId>> = (0..WIDTH * WIDTH * HEIGHT)
+            .map(|_| Cell::new(stone))
+            .collect();
         let get_block2 = |lx: i32, wy: i32, lz: i32| -> BlockStateId {
-            if wy < 0 || wy >= HEIGHT as i32 || lx < 0 || lx >= WIDTH as i32 || lz < 0 || lz >= WIDTH as i32 {
+            if wy < 0
+                || wy >= HEIGHT as i32
+                || lx < 0
+                || lx >= WIDTH as i32
+                || lz < 0
+                || lz >= WIDTH as i32
+            {
                 return BlockStateId(0);
             }
             blocks2[idx(lx, wy, lz)].get()

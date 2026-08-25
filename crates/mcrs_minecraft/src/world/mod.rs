@@ -1,4 +1,5 @@
 use crate::configuration::{LoadedDimensionTypes, LoadedWorldPreset};
+use crate::world::sub_app_builder::DimSubAppHandle;
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
@@ -6,7 +7,6 @@ use bevy_state::prelude::OnEnter;
 use mcrs_core::AppState;
 use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
-use crate::world::sub_app_builder::DimSubAppHandle;
 use tracing::{debug, error, info, warn};
 
 pub mod aoi;
@@ -15,17 +15,17 @@ pub mod block;
 pub mod block_update;
 pub mod bridge;
 pub mod bridge_queue;
-pub mod channel_types;
 pub mod bus;
+pub mod channel_types;
 pub mod chunk;
 pub mod entity;
 pub mod explosion;
-pub mod player_index;
 pub mod format;
 pub mod generate;
 mod inventory;
 pub mod item;
 pub mod loot;
+pub mod player_index;
 pub mod sub_app_builder;
 
 pub struct WorldPlugin;
@@ -145,9 +145,7 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
     }
 
     if world_preset.dimensions.is_empty() {
-        warn!(
-            "LoadedWorldPreset has no dimensions, enqueueing default overworld spawn request"
-        );
+        warn!("LoadedWorldPreset has no dimensions, enqueueing default overworld spawn request");
         spawn_queue.0.push(DimSpawnRequest {
             dimension_id: DimensionId::new("minecraft:overworld"),
             type_config: DimensionTypeConfig::default(),

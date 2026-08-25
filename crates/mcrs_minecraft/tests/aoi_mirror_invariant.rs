@@ -138,11 +138,7 @@ fn seed_column_grid(
     map
 }
 
-fn assert_mirror_invariant(
-    app: &App,
-    player: Entity,
-    columns: &FxHashMap<ColumnPos, Entity>,
-) {
+fn assert_mirror_invariant(app: &App, player: Entity, columns: &FxHashMap<ColumnPos, Entity>) {
     let world = app.world();
     let sub = world
         .get::<ChunkSubscriptionSet>(player)

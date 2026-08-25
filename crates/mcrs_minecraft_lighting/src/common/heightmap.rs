@@ -20,7 +20,7 @@ use mcrs_engine::world::column::ColumnChunks;
 use mcrs_minecraft_block::palette::BlockPalette;
 
 use crate::bitset::BitSet256;
-use crate::table::{flag_bits, BlockStateLightTable};
+use crate::table::{BlockStateLightTable, flag_bits};
 use mcrs_engine::world::column::Heightmaps;
 
 const CHUNK_SIZE: i32 = 16;
@@ -180,11 +180,7 @@ where
 
         'outer: for cell_y in (0..CHUNK_SIZE).rev() {
             for (xz_idx, &(x, z)) in xz_range.iter().enumerate() {
-                let bit_idx = if total == 256 {
-                    (z << 4) | x
-                } else {
-                    xz_idx
-                };
+                let bit_idx = if total == 256 { (z << 4) | x } else { xz_idx };
                 let s_open = !surface_done.is_set(bit_idx);
                 let m_open = !motion_done.is_set(bit_idx);
                 if !s_open && !m_open {

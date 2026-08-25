@@ -13,8 +13,7 @@ use super::terrain::Terrain;
 use super::texture::write_tint_square;
 use super::{Animation, Atlas};
 
-static BUDGET: std::sync::LazyLock<usize> =
-    std::sync::LazyLock::new(crate::config::upload_budget);
+static BUDGET: std::sync::LazyLock<usize> = std::sync::LazyLock::new(crate::config::upload_budget);
 
 const COPY_ALIGN: usize = 4;
 
@@ -75,7 +74,11 @@ const ARENA_PARTS: usize = 4;
 impl Placement {
     fn part(&self, index: usize) -> (Arena, u64, &[u8]) {
         match index {
-            0 => (Arena::Quads, self.quads.0, bytemuck::cast_slice(&self.quads.1)),
+            0 => (
+                Arena::Quads,
+                self.quads.0,
+                bytemuck::cast_slice(&self.quads.1),
+            ),
             1 => (
                 Arena::Vertices,
                 self.vertices.0,
@@ -140,13 +143,10 @@ pub(super) fn apply_uploads(
                     animations,
                     animated_from,
                 }) => {
-                    let spent = terrain.sprites.swap(
-                        atlases,
-                        &animations,
-                        animated_from,
-                        &device,
-                        &queue,
-                    );
+                    let spent =
+                        terrain
+                            .sprites
+                            .swap(atlases, &animations, animated_from, &device, &queue);
                     terrain.binds.rebuild_draw(
                         &terrain.arenas,
                         &terrain.sprites,

@@ -168,7 +168,10 @@ struct DispatchedBlockState {
 impl<'de> serde::Deserialize<'de> for BlockState {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match Either::<Ident<String>, DispatchedBlockState>::deserialize(deserializer)? {
-            Either::Left(name) => Ok(BlockState { name, properties: None }),
+            Either::Left(name) => Ok(BlockState {
+                name,
+                properties: None,
+            }),
             Either::Right(state) => Ok(BlockState {
                 name: state.id,
                 properties: Some(state.properties),
@@ -190,7 +193,6 @@ impl serde::Serialize for BlockState {
         }
     }
 }
-
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(from = "Either<I, Either<[I; 2], InternalInterval<I>>>")]

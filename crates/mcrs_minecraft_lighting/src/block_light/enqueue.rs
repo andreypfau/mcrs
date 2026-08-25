@@ -3,23 +3,26 @@
 //! callers can land on `crate::block_light::enqueue::*` as the
 //! canonical path. A future refactor will move the bodies here.
 
+use crate::bfs::{ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL, pack_bfs_entry};
+use crate::distribute::{ResolveOutcome, resolve_neighbor_chunk};
+use crate::enqueue::CARDINAL_DIRECTIONS;
+use crate::geom::face_cell_to_chunk_xyz;
+use crate::storage::LightStorage;
+use crate::table::BlockStateLightTable;
+use crate::{
+    BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockNeedsInitialSeed,
+    BlockParkedEgress, CrossChunkWavefront,
+};
 use bevy_ecs::change_detection::Res;
-use bevy_ecs::prelude::{Added, Commands, Local, ParallelCommands, Query, With};
 use bevy_ecs::entity::{Entity, EntityHashMap};
 use bevy_ecs::message::MessageReader;
+use bevy_ecs::prelude::{Added, Commands, Local, ParallelCommands, Query, With};
 use mcrs_engine::geometry::{BlockPos, ChunkPos};
 use mcrs_engine::world::chunk::ChunkLoaded;
 use mcrs_engine::world::column::{ColumnChunks, ColumnIndex, InColumn};
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
-use crate::{BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockNeedsInitialSeed, BlockParkedEgress, CrossChunkWavefront};
-use crate::bfs::{pack_bfs_entry, ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL};
-use crate::distribute::{resolve_neighbor_chunk, ResolveOutcome};
-use crate::enqueue::CARDINAL_DIRECTIONS;
-use crate::geom::face_cell_to_chunk_xyz;
-use crate::storage::LightStorage;
-use crate::table::BlockStateLightTable;
 
 pub fn enqueue_block_light_on_block_placed(
     mut reader: MessageReader<BlockPlaced>,
@@ -157,10 +160,7 @@ pub fn enqueue_block_light_on_block_placed(
 /// across ticks.
 pub fn seed_block_emitters(
     table: Option<Res<BlockStateLightTable>>,
-    mut chunks: Query<
-        (Entity, &BlockPalette, &mut BlockBfsQueues),
-        With<BlockNeedsInitialSeed>,
-    >,
+    mut chunks: Query<(Entity, &BlockPalette, &mut BlockBfsQueues), With<BlockNeedsInitialSeed>>,
     mut commands: Commands,
 ) {
     let Some(table) = table else {
@@ -249,15 +249,17 @@ pub fn pull_block_neighbor_edges(
             .unwrap_or(false);
 
         for face in CARDINAL_DIRECTIONS {
-            let Some(ResolveOutcome::Loaded { dst_entity: neighbour_entity, .. }) =
-                resolve_neighbor_chunk(
-                    *chunk_pos,
-                    *in_col,
-                    *in_dim,
-                    face,
-                    &column_indexes,
-                    &chunk_indexes,
-                )
+            let Some(ResolveOutcome::Loaded {
+                dst_entity: neighbour_entity,
+                ..
+            }) = resolve_neighbor_chunk(
+                *chunk_pos,
+                *in_col,
+                *in_dim,
+                face,
+                &column_indexes,
+                &chunk_indexes,
+            )
             else {
                 continue;
             };
@@ -280,8 +282,7 @@ pub fn pull_block_neighbor_edges(
             if !new_block_already_max {
                 for cell_a in 0..16u8 {
                     for cell_b in 0..16u8 {
-                        let (nx, ny, nz) =
-                            face_cell_to_chunk_xyz(from_face, cell_a, cell_b);
+                        let (nx, ny, nz) = face_cell_to_chunk_xyz(from_face, cell_a, cell_b);
 
                         if let Ok(bl) = block_light_read.get(neighbour_entity) {
                             let level = bl.0.get(nx as usize, ny as usize, nz as usize);

@@ -44,10 +44,18 @@ impl NoiseSampler {
     where
         R: Random,
     {
-        let first =
-            OctavePerlinNoise::<f32>::new(random, first_octave, amplitudes.clone(), random.is_legacy());
-        let second =
-            OctavePerlinNoise::<f32>::new(random, first_octave, amplitudes.clone(), random.is_legacy());
+        let first = OctavePerlinNoise::<f32>::new(
+            random,
+            first_octave,
+            amplitudes.clone(),
+            random.is_legacy(),
+        );
+        let second = OctavePerlinNoise::<f32>::new(
+            random,
+            first_octave,
+            amplitudes.clone(),
+            random.is_legacy(),
+        );
         let mut min = f32::INFINITY;
         let mut max = f32::NEG_INFINITY;
         for (i, value) in amplitudes.iter().enumerate() {
@@ -91,8 +99,7 @@ impl NoiseSampler {
         );
 
         let count = octave_amplitudes.len() as i32;
-        let persistence =
-            2.0f64.powi(count - 1) / (2.0f64.powi(count) - 1.0);
+        let persistence = 2.0f64.powi(count - 1) / (2.0f64.powi(count) - 1.0);
         let mut amplitude = persistence;
         let mut target_amplitude = 0.0f64;
         let mut variance = 0.0f64;
@@ -163,12 +170,14 @@ impl NoiseSampler {
             Self::BetaOctave2d(n) => {
                 let noise_x = ((x as i32) >> 2) as f32;
                 let noise_z = ((z as i32) >> 2) as f32;
-                n.noise.sample_xz(noise_x, noise_z, n.frequency, n.frequency)
+                n.noise
+                    .sample_xz(noise_x, noise_z, n.frequency, n.frequency)
             }
-            Self::BetaSimplex2d(n) => n
-                .noise
-                .sample(x as f64, z as f64, n.scale, n.scale, n.lacunarity, 0.5)
-                as f32,
+            Self::BetaSimplex2d(n) => {
+                n.noise
+                    .sample(x as f64, z as f64, n.scale, n.scale, n.lacunarity, 0.5)
+                    as f32
+            }
         }
     }
 

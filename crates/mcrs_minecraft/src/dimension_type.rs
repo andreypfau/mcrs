@@ -113,9 +113,7 @@ fn json_to_nbt_tag(value: &Value) -> NbtTag {
             }
             NbtTag::Compound(compound)
         }
-        Value::Array(arr) => {
-            NbtTag::List(arr.iter().map(json_to_nbt_tag).collect())
-        }
+        Value::Array(arr) => NbtTag::List(arr.iter().map(json_to_nbt_tag).collect()),
     }
 }
 

@@ -82,7 +82,9 @@ pub(super) fn surfaces(scratch: &mut Scratch) {
                 let flow = flow_angle(scratch, [x, y, z], kind, own);
                 let level = exact_ninths(corners[0]).filter(|_| {
                     flow.is_none()
-                        && corners.iter().all(|&c| exact_ninths(c) == exact_ninths(corners[0]))
+                        && corners
+                            .iter()
+                            .all(|&c| exact_ninths(c) == exact_ninths(corners[0]))
                 });
                 match level {
                     Some(ninths) => mark_flat(scratch, [x, y, z], kind, drop_steps(ninths)),
@@ -254,7 +256,9 @@ fn face_attr(
     };
     let mine = scratch.light[here] as u32;
     let other = scratch.light[vertical] as u32;
-    let block_light = (mine >> 4).max(other >> 4).max(catalog[state].emission as u32);
+    let block_light = (mine >> 4)
+        .max(other >> 4)
+        .max(catalog[state].emission as u32);
     let sky_light = (mine & 0xf).max(other & 0xf);
 
     let sprite = if face < 2 {
@@ -276,7 +280,11 @@ fn face_attr(
         FACE_FLUID.set(&mut words, 1);
     }
 
-    let pass = if fluid.lava { Pass::Solid } else { Pass::Translucent };
+    let pass = if fluid.lava {
+        Pass::Solid
+    } else {
+        Pass::Translucent
+    };
     Some((pass as u8 | drop << PASS_KEY_BITS | FLUID_KEY, words[0]))
 }
 
@@ -299,8 +307,16 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, local_section
         };
         let kind = fluid_kind(scratch.fluid[here]);
         let emission = catalog[state].emission as u32;
-        let pass = if fluid.lava { Pass::Solid } else { Pass::Translucent } as usize;
-        let tint = if fluid.lava { 0 } else { TintKind::Water as u32 + 1 };
+        let pass = if fluid.lava {
+            Pass::Solid
+        } else {
+            Pass::Translucent
+        } as usize;
+        let tint = if fluid.lava {
+            0
+        } else {
+            TintKind::Water as u32 + 1
+        };
         let out = &mut scratch.complex_by_pass[pass][UNGROUPED];
 
         let mut corners = cell.corners;
@@ -333,7 +349,10 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, local_section
             corners = corners.map(|corner| corner - FLUID_INSET);
             let [nw, sw, se, ne] = corners;
             let (sprite, uvs) = match cell.flow {
-                None => (fluid.still, [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]]),
+                None => (
+                    fluid.still,
+                    [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]],
+                ),
                 Some(angle) => {
                     let (sin, cos) = (angle.sin() * 0.25, angle.cos() * 0.25);
                     (
@@ -392,7 +411,14 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, local_section
             }
             let [north_west, south_west, south_east, north_east] = corners;
             let (c0, c1, x0, z0, x1, z1) = match face {
-                2 => (north_west, north_east, fx, fz + FLUID_INSET, fx + 1.0, fz + FLUID_INSET),
+                2 => (
+                    north_west,
+                    north_east,
+                    fx,
+                    fz + FLUID_INSET,
+                    fx + 1.0,
+                    fz + FLUID_INSET,
+                ),
                 3 => (
                     south_east,
                     south_west,
@@ -401,7 +427,14 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, local_section
                     fx,
                     fz + 1.0 - FLUID_INSET,
                 ),
-                4 => (south_west, north_west, fx + FLUID_INSET, fz + 1.0, fx + FLUID_INSET, fz),
+                4 => (
+                    south_west,
+                    north_west,
+                    fx + FLUID_INSET,
+                    fz + 1.0,
+                    fx + FLUID_INSET,
+                    fz,
+                ),
                 _ => (
                     north_east,
                     south_east,
@@ -426,7 +459,11 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, local_section
                         [0.5, 0.5],
                         [0.0, 0.5],
                     ],
-                    shade: [if face < 4 { SHADE_NORTH_SOUTH } else { SHADE_EAST_WEST }; 4],
+                    shade: [if face < 4 {
+                        SHADE_NORTH_SOUTH
+                    } else {
+                        SHADE_EAST_WEST
+                    }; 4],
                     light: side_light,
                     tint,
                     sprite: side_sprite(fluid, scratch.cover[facing(face)]),
@@ -463,11 +500,17 @@ mod tests {
     }
 
     fn catalog(palette: &Palette) -> Vec<BlockInfo> {
-        (0..palette.states.len()).map(|_| BlockInfo::default()).collect()
+        (0..palette.states.len())
+            .map(|_| BlockInfo::default())
+            .collect()
     }
 
     fn state_id(palette: &Palette, name: &str) -> usize {
-        palette.states.iter().position(|state| state.name == name).unwrap()
+        palette
+            .states
+            .iter()
+            .position(|state| state.name == name)
+            .unwrap()
     }
 
     #[test]
@@ -475,7 +518,10 @@ mod tests {
         for ninths in 0..=FLUID_FULL {
             let merged = MODEL_STEPS - f32::from(drop_steps(ninths));
             let model = fixed(f32::from(ninths) / f32::from(FLUID_FULL)) as f32 - fixed(0.0) as f32;
-            assert_eq!(merged, model, "{ninths} ninths of a block lands in two places");
+            assert_eq!(
+                merged, model,
+                "{ninths} ninths of a block lands in two places"
+            );
         }
     }
 
@@ -511,7 +557,10 @@ mod tests {
             [(interior, interior, drop_steps(8) as u64)],
             "a flat sea did not come out as a single sunk quad"
         );
-        assert!(models > 0, "the rim of the sea slopes away and has to be modelled");
+        assert!(
+            models > 0,
+            "the rim of the sea slopes away and has to be modelled"
+        );
     }
 
     #[test]
@@ -519,7 +568,11 @@ mod tests {
         let upward = |sturdy: u8| {
             let mut palette = Palette::new();
             let mut world = World::new([0, 0], [1, 1]);
-            world.insert(&mut palette, [0, 0], one_section_region("minecraft:oak_slab"));
+            world.insert(
+                &mut palette,
+                [0, 0],
+                one_section_region("minecraft:oak_slab"),
+            );
             let id = state_id(&palette, "minecraft:oak_slab");
             let mut blocks = catalog(&palette);
             blocks[id].sturdy = sturdy;
@@ -565,11 +618,13 @@ mod tests {
             overlay: Some(sprite(4)),
             ..water(8)
         });
-        blocks[state_id(&palette, "minecraft:glass")].cube = Some([CubeFace {
-            sprite: sprite(1),
-            pass: Pass::Translucent as u8,
-            tinted: false,
-        }; 6]);
+        blocks[state_id(&palette, "minecraft:glass")].cube = Some(
+            [CubeFace {
+                sprite: sprite(1),
+                pass: Pass::Translucent as u8,
+                tinted: false,
+            }; 6],
+        );
 
         let grid = RegionGrid::covering(world.sections);
         let mut scratch = Scratch::new();
@@ -586,6 +641,9 @@ mod tests {
             (SECTION_SIZE - 1) * SECTION_SIZE,
             "the water did not meet the glass with its overlay"
         );
-        assert!(sprites[3] > 0, "water away from the glass keeps the flowing texture");
+        assert!(
+            sprites[3] > 0,
+            "water away from the glass keeps the flowing texture"
+        );
     }
 }

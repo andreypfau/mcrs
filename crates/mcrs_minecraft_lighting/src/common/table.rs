@@ -2,8 +2,8 @@ use bevy_ecs::prelude::{Commands, Res, Resource};
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_protocol::BlockStateId;
-use mcrs_vanilla::block::behaviour::Properties;
 use mcrs_vanilla::block::Block;
+use mcrs_vanilla::block::behaviour::Properties;
 
 #[derive(Resource, Debug, Default, Clone)]
 pub struct BlockStateLightTable {
@@ -76,10 +76,7 @@ fn compute_flags(props: &Properties, dampening: u8, occlusion: &'static VoxelSha
     f
 }
 
-pub fn build_block_light_table(
-    mut commands: Commands,
-    blocks: Res<StaticRegistry<Block>>,
-) {
+pub fn build_block_light_table(mut commands: Commands, blocks: Res<StaticRegistry<Block>>) {
     debug_assert!(
         blocks.frozen(),
         "BlockStateLightTable::build called before registry freeze"
@@ -198,8 +195,7 @@ mod tests {
 
     #[test]
     fn build_constant_emitter_block() {
-        static PROPS: Properties =
-            Properties::new().with_light_emission(LightSpec::Const(15));
+        static PROPS: Properties = Properties::new().with_light_emission(LightSpec::Const(15));
         let block = make_block("test:emitter", 1, 100, 4, &PROPS);
         let table = build_table(vec![block]);
         for i in 0..4u16 {
@@ -252,7 +248,11 @@ mod tests {
         let s = BlockStateId(50);
         assert_eq!(table.dampening_for(s), 15);
         let f = table.flags_for(s);
-        assert_ne!(f & flag_bits::IS_SOLID_OPAQUE, 0, "expected IS_SOLID_OPAQUE bit");
+        assert_ne!(
+            f & flag_bits::IS_SOLID_OPAQUE,
+            0,
+            "expected IS_SOLID_OPAQUE bit"
+        );
         assert_ne!(f & flag_bits::IS_NOT_AIR, 0);
         assert_ne!(f & flag_bits::IS_MOTION_BLOCKING, 0);
     }

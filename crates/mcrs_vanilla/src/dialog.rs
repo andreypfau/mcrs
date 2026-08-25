@@ -80,7 +80,10 @@ impl AssetLoader for DialogLoader {
         let dialogs = match raw.get("dialogs").and_then(|v| v.as_str()) {
             Some(s) if s.starts_with('#') => {
                 let tag_str = &s[1..];
-                Some(TagRef::<Dialog>::load(tag_str, load_context).map_err(DialogResolveError::from)?)
+                Some(
+                    TagRef::<Dialog>::load(tag_str, load_context)
+                        .map_err(DialogResolveError::from)?,
+                )
             }
             _ => None,
         };

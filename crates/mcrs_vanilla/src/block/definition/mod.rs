@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use bevy_asset::io::AssetSourceId;
 use bevy_asset::AssetServer;
+use bevy_asset::io::AssetSourceId;
 use bevy_ecs::resource::Resource;
 use bevy_math::Vec3;
 use bevy_tasks::block_on;
@@ -18,10 +18,10 @@ use self::schema::{
     BlockBox, BlockDefinitionFile, BlockProperties, Components, Instrument, PropertyValue,
     RenderShape,
 };
-use crate::material::map::MapColor;
 use crate::material::PushReaction;
-use mcrs_core::voxel_shape::Aabb;
+use crate::material::map::MapColor;
 use mcrs_core::ResourceLocation;
+use mcrs_core::voxel_shape::Aabb;
 use mcrs_protocol::BlockStateId;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
@@ -172,11 +172,20 @@ pub enum LoadError {
     #[error("the default asset source is missing")]
     NoAssetSource,
     #[error("failed to list `{directory}`: {source}")]
-    ListDirectory { directory: String, source: bevy_asset::io::AssetReaderError },
+    ListDirectory {
+        directory: String,
+        source: bevy_asset::io::AssetReaderError,
+    },
     #[error("failed to read `{path}`: {source}")]
-    Read { path: String, source: bevy_asset::io::AssetReaderError },
+    Read {
+        path: String,
+        source: bevy_asset::io::AssetReaderError,
+    },
     #[error("failed to parse `{path}`: {source}")]
-    Parse { path: String, source: serde_json::Error },
+    Parse {
+        path: String,
+        source: serde_json::Error,
+    },
     #[error("`{block}`: {source}")]
     Block { block: String, source: BlockError },
     #[error("block state {0} is claimed by no block")]
@@ -186,11 +195,18 @@ pub enum LoadError {
 #[derive(Debug, thiserror::Error)]
 pub enum BlockError {
     #[error("condition `{condition}`: {source}")]
-    Condition { condition: String, source: MolangError },
+    Condition {
+        condition: String,
+        source: MolangError,
+    },
     #[error("{states} states starting at {base} do not fit the state id space")]
     StateSpace { base: u16, states: usize },
     #[error("default state {default} is outside [{base}, {base} + {states})")]
-    DefaultOutOfRange { base: u16, default: u16, states: usize },
+    DefaultOutOfRange {
+        base: u16,
+        default: u16,
+        states: usize,
+    },
     #[error("state {state} is already claimed by `{owner}`")]
     OverlappingState { state: u16, owner: String },
     #[error("`mcrs:state_components` holds {found} entries for {states} states")]
@@ -211,9 +227,13 @@ pub fn load_block_definitions(
     let reader = source.reader();
 
     let mut paths = block_on(async {
-        let mut stream = reader.read_directory(Path::new(CORPUS_DIRECTORY)).await.map_err(
-            |source| LoadError::ListDirectory { directory: CORPUS_DIRECTORY.into(), source },
-        )?;
+        let mut stream = reader
+            .read_directory(Path::new(CORPUS_DIRECTORY))
+            .await
+            .map_err(|source| LoadError::ListDirectory {
+                directory: CORPUS_DIRECTORY.into(),
+                source,
+            })?;
         let mut paths = Vec::new();
         while let Some(path) = stream.next().await {
             if path.extension().is_some_and(|e| e == "json") {
@@ -228,18 +248,24 @@ pub fn load_block_definitions(
     for path in &paths {
         let display = path.display().to_string();
         let bytes = block_on(async {
-            let mut file = reader
-                .read(path)
-                .await
-                .map_err(|source| LoadError::Read { path: display.clone(), source })?;
+            let mut file = reader.read(path).await.map_err(|source| LoadError::Read {
+                path: display.clone(),
+                source,
+            })?;
             let mut bytes = Vec::new();
             file.read_to_end(&mut bytes)
                 .await
-                .map_err(|e| LoadError::Read { path: display.clone(), source: e.into() })?;
+                .map_err(|e| LoadError::Read {
+                    path: display.clone(),
+                    source: e.into(),
+                })?;
             Ok::<Vec<u8>, LoadError>(bytes)
         })?;
-        let file: BlockDefinitionFile = serde_json::from_slice(&bytes)
-            .map_err(|source| LoadError::Parse { path: display.clone(), source })?;
+        let file: BlockDefinitionFile =
+            serde_json::from_slice(&bytes).map_err(|source| LoadError::Parse {
+                path: display.clone(),
+                source,
+            })?;
         let block = file.block.description.identifier.as_str().to_owned();
         builder
             .add(file)
@@ -318,7 +344,11 @@ impl Builder {
     }
 
     fn intern_fluid(&mut self, fluid: &ResourceLocation<Arc<str>>) -> FluidId {
-        match self.fluids.iter().position(|f| f.as_str() == fluid.as_str()) {
+        match self
+            .fluids
+            .iter()
+            .position(|f| f.as_str() == fluid.as_str())
+        {
             Some(index) => FluidId(index as u16),
             None => {
                 self.fluids.push(fluid.clone());
@@ -333,11 +363,18 @@ impl Builder {
         let base = description.base_state_id;
         let state_count = properties.state_count();
         if state_count == 0 || base as usize + state_count > u16::MAX as usize + 1 {
-            return Err(BlockError::StateSpace { base, states: state_count });
+            return Err(BlockError::StateSpace {
+                base,
+                states: state_count,
+            });
         }
         let default = description.default_state_id;
         if default < base || (default - base) as usize >= state_count {
-            return Err(BlockError::DefaultOutOfRange { base, default, states: state_count });
+            return Err(BlockError::DefaultOutOfRange {
+                base,
+                default,
+                states: state_count,
+            });
         }
 
         let components = file.block.components;
@@ -353,10 +390,12 @@ impl Builder {
 
         let mut permutations = Vec::with_capacity(file.block.permutations.len());
         for permutation in &file.block.permutations {
-            let condition = StateCondition::compile(&permutation.condition, &properties)
-                .map_err(|source| BlockError::Condition {
-                    condition: permutation.condition.clone(),
-                    source,
+            let condition =
+                StateCondition::compile(&permutation.condition, &properties).map_err(|source| {
+                    BlockError::Condition {
+                        condition: permutation.condition.clone(),
+                        source,
+                    }
                 })?;
             permutations.push((condition, &permutation.components));
         }
@@ -405,12 +444,18 @@ impl Builder {
             if self.owners[state] != NO_OWNER {
                 return Err(BlockError::OverlappingState {
                     state: state as u16,
-                    owner: self.blocks[self.owners[state] as usize].identifier.as_str().to_owned(),
+                    owner: self.blocks[self.owners[state] as usize]
+                        .identifier
+                        .as_str()
+                        .to_owned(),
                 });
             }
             self.owners[state] = block_index;
             if let Some(component) = resolved.missing() {
-                return Err(BlockError::MissingComponent { state: state as u16, component });
+                return Err(BlockError::MissingComponent {
+                    state: state as u16,
+                    component,
+                });
             }
             let data = self.resolve(&resolved);
             self.states[state] = data;
@@ -438,20 +483,46 @@ impl Builder {
                 flags |= bit;
             }
         };
-        flag(components.requires_correct_tool_for_drops, BlockStateFlags::REQUIRES_CORRECT_TOOL_FOR_DROPS);
+        flag(
+            components.requires_correct_tool_for_drops,
+            BlockStateFlags::REQUIRES_CORRECT_TOOL_FOR_DROPS,
+        );
         flag(components.is_air, BlockStateFlags::IS_AIR);
         flag(components.replaceable, BlockStateFlags::REPLACEABLE);
         flag(components.ignited_by_lava, BlockStateFlags::IGNITED_BY_LAVA);
-        flag(components.use_shape_for_light_occlusion, BlockStateFlags::USE_SHAPE_FOR_LIGHT_OCCLUSION);
-        flag(components.propagates_skylight_down, BlockStateFlags::PROPAGATES_SKYLIGHT_DOWN);
-        flag(components.emissive_rendering, BlockStateFlags::EMISSIVE_RENDERING);
-        flag(components.is_solid_render, BlockStateFlags::IS_SOLID_RENDER);
-        flag(components.is_collision_shape_full_block, BlockStateFlags::IS_COLLISION_SHAPE_FULL_BLOCK);
-        flag(components.has_block_entity, BlockStateFlags::HAS_BLOCK_ENTITY);
-        flag(components.is_signal_source, BlockStateFlags::IS_SIGNAL_SOURCE);
-        flag(components.has_analog_output_signal, BlockStateFlags::HAS_ANALOG_OUTPUT_SIGNAL);
         flag(
-            components.redstone_conductivity.map(|c| c.redstone_conductor),
+            components.use_shape_for_light_occlusion,
+            BlockStateFlags::USE_SHAPE_FOR_LIGHT_OCCLUSION,
+        );
+        flag(
+            components.propagates_skylight_down,
+            BlockStateFlags::PROPAGATES_SKYLIGHT_DOWN,
+        );
+        flag(
+            components.emissive_rendering,
+            BlockStateFlags::EMISSIVE_RENDERING,
+        );
+        flag(components.is_solid_render, BlockStateFlags::IS_SOLID_RENDER);
+        flag(
+            components.is_collision_shape_full_block,
+            BlockStateFlags::IS_COLLISION_SHAPE_FULL_BLOCK,
+        );
+        flag(
+            components.has_block_entity,
+            BlockStateFlags::HAS_BLOCK_ENTITY,
+        );
+        flag(
+            components.is_signal_source,
+            BlockStateFlags::IS_SIGNAL_SOURCE,
+        );
+        flag(
+            components.has_analog_output_signal,
+            BlockStateFlags::HAS_ANALOG_OUTPUT_SIGNAL,
+        );
+        flag(
+            components
+                .redstone_conductivity
+                .map(|c| c.redstone_conductor),
             BlockStateFlags::REDSTONE_CONDUCTOR,
         );
 
@@ -469,7 +540,10 @@ impl Builder {
             light_dampening: components.light_dampening.unwrap(),
             friction: components.friction.unwrap(),
             hardness: components.hardness.unwrap(),
-            explosion_resistance: components.destructible_by_explosion.unwrap().explosion_resistance,
+            explosion_resistance: components
+                .destructible_by_explosion
+                .unwrap()
+                .explosion_resistance,
             map_color: components.map_color.unwrap(),
             collision_shape,
             selection_shape,
@@ -511,7 +585,10 @@ fn to_engine_aabb(value: &BlockBox) -> Aabb {
         value.origin[1] / 16.0,
         (value.origin[2] + 8.0) / 16.0,
     );
-    Aabb { min, max: min + Vec3::from(value.size) / 16.0 }
+    Aabb {
+        min,
+        max: min + Vec3::from(value.size) / 16.0,
+    }
 }
 
 #[cfg(test)]
@@ -566,7 +643,9 @@ mod tests {
         for source in files {
             let file: BlockDefinitionFile = serde_json::from_str(source).expect("valid json");
             let block = file.block.description.identifier.as_str().to_owned();
-            builder.add(file).map_err(|source| LoadError::Block { block, source })?;
+            builder
+                .add(file)
+                .map_err(|source| LoadError::Block { block, source })?;
         }
         builder.finish()
     }
@@ -580,7 +659,10 @@ mod tests {
         assert_eq!(block.base_state_id, block.default_state_id);
         assert_eq!(
             definitions.shape(definitions.state(BlockStateId(0)).collision_shape),
-            [Aabb { min: Vec3::ZERO, max: Vec3::ONE }]
+            [Aabb {
+                min: Vec3::ZERO,
+                max: Vec3::ONE
+            }]
         );
     }
 
@@ -589,7 +671,10 @@ mod tests {
         let mut source = file("minecraft:test", 0, "", "");
         source = source.replace(r#""mcrs:hardness": 1.5,"#, "");
         let error = build(&[source]).unwrap_err().to_string();
-        assert!(error.contains("state 0 states no `mcrs:hardness`"), "{error}");
+        assert!(
+            error.contains("state 0 states no `mcrs:hardness`"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -631,16 +716,27 @@ mod tests {
 
     #[test]
     fn overlapping_blocks_fail_at_load() {
-        let error = build(&[file("minecraft:first", 0, "", ""), file("minecraft:second", 0, "", "")])
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains("state 0 is already claimed by `minecraft:first`"), "{error}");
+        let error = build(&[
+            file("minecraft:first", 0, "", ""),
+            file("minecraft:second", 0, "", ""),
+        ])
+        .unwrap_err()
+        .to_string();
+        assert!(
+            error.contains("state 0 is already claimed by `minecraft:first`"),
+            "{error}"
+        );
     }
 
     #[test]
     fn a_hole_in_the_state_id_space_fails_at_load() {
-        let error = build(&[file("minecraft:test", 1, "", "")]).unwrap_err().to_string();
-        assert!(error.contains("block state 0 is claimed by no block"), "{error}");
+        let error = build(&[file("minecraft:test", 1, "", "")])
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("block state 0 is claimed by no block"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -661,14 +757,23 @@ mod tests {
 
     #[test]
     fn a_bedrock_box_becomes_a_block_local_box() {
-        let torch = BlockBox { origin: [-2.0, 0.0, -2.0], size: [4.0, 10.0, 4.0] };
+        let torch = BlockBox {
+            origin: [-2.0, 0.0, -2.0],
+            size: [4.0, 10.0, 4.0],
+        };
         assert_eq!(
             to_engine_aabb(&torch),
-            Aabb { min: Vec3::new(0.375, 0.0, 0.375), max: Vec3::new(0.625, 0.625, 0.625) }
+            Aabb {
+                min: Vec3::new(0.375, 0.0, 0.375),
+                max: Vec3::new(0.625, 0.625, 0.625)
+            }
         );
         assert_eq!(
             to_engine_aabb(&BlockBox::FULL_CUBE),
-            Aabb { min: Vec3::ZERO, max: Vec3::ONE }
+            Aabb {
+                min: Vec3::ZERO,
+                max: Vec3::ONE
+            }
         );
     }
 }

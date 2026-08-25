@@ -71,9 +71,15 @@ impl FromStr for TagOrElementLocation {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Some(rest) = s.strip_prefix('#') {
-            Ok(TagOrElementLocation { loc: ResourceLocation::from_str(rest)?, is_tag: true })
+            Ok(TagOrElementLocation {
+                loc: ResourceLocation::from_str(rest)?,
+                is_tag: true,
+            })
         } else {
-            Ok(TagOrElementLocation { loc: ResourceLocation::from_str(s)?, is_tag: false })
+            Ok(TagOrElementLocation {
+                loc: ResourceLocation::from_str(s)?,
+                is_tag: false,
+            })
         }
     }
 }
@@ -116,8 +122,14 @@ fn default_true() -> bool {
 impl<'de> Deserialize<'de> for SerializedTagEntry {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         match TagEntryRepr::deserialize(d)? {
-            TagEntryRepr::Short(loc) => Ok(SerializedTagEntry { id: loc, required: true }),
-            TagEntryRepr::Full(f) => Ok(SerializedTagEntry { id: f.id, required: f.required }),
+            TagEntryRepr::Short(loc) => Ok(SerializedTagEntry {
+                id: loc,
+                required: true,
+            }),
+            TagEntryRepr::Full(f) => Ok(SerializedTagEntry {
+                id: f.id,
+                required: f.required,
+            }),
         }
     }
 }
@@ -168,12 +180,7 @@ impl AssetLoader for TagFileLoader {
             .map(|entry| {
                 if entry.id.is_tag {
                     let loc = &entry.id.loc;
-                    let path = format!(
-                        "{}/tags/{}/{}.json",
-                        loc.namespace(),
-                        seg,
-                        loc.path()
-                    );
+                    let path = format!("{}/tags/{}/{}.json", loc.namespace(), seg, loc.path());
                     let s = settings.clone();
                     let handle = load_context
                         .load_builder()
@@ -192,7 +199,10 @@ impl AssetLoader for TagFileLoader {
             })
             .collect();
 
-        Ok(TagFile { replace: raw.replace, values })
+        Ok(TagFile {
+            replace: raw.replace,
+            values,
+        })
     }
 
     fn extensions(&self) -> &[&str] {
