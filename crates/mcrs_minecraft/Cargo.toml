@@ -17,6 +17,7 @@ mcrs_minecraft_block.workspace = true
 mcrs_minecraft_worldgen.workspace = true
 mcrs_random.workspace = true
 mcrs_nbt.workspace = true
+mcrs_anvil.workspace = true
 bevy_math.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
@@ -34,7 +35,6 @@ rustc-hash.workspace = true
 arrayvec.workspace = true
 num-integer.workspace = true
 derive_more.workspace = true
-rocksdb.workspace = true
 indexmap.workspace = true
 bytes.workspace = true
 flume.workspace = true
@@ -49,6 +49,7 @@ cfb8 = { version = "0.9.0-rc.1", optional = true }
 aes = { version = "0.9.0-rc.2", optional = true }
 
 [dev-dependencies]
+mcrs_palette = { workspace = true }
 tracing-subscriber = "0.3"
 tracing = { workspace = true }
 bevy_app = { workspace = true }

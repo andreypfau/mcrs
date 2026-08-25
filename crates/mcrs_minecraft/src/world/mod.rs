@@ -21,7 +21,7 @@ pub mod chunk;
 pub mod entity;
 pub mod explosion;
 pub mod player_index;
-mod format;
+pub mod format;
 pub mod generate;
 mod inventory;
 pub mod item;

@@ -224,6 +224,23 @@ impl Plugin for MinecraftCorePlugin {
 
     fn finish(&self, app: &mut App) {
         {
+            let asset_server = app.world().resource::<AssetServer>().clone();
+            let (definitions, report) = block::definition::load_block_definitions(&asset_server)
+                .expect("the block definition corpus loads");
+            tracing::info!(
+                blocks = definitions.blocks().len(),
+                states = report.states,
+                permutations = report.permutations,
+                shapes = report.shapes,
+                bytes = report.table_bytes,
+                elapsed = ?report.elapsed,
+                "loaded block definitions"
+            );
+            // The hand-written `StaticRegistry<Block>` below is the older, partial
+            // registry; the two coexist until it is retired.
+            app.insert_resource(definitions);
+        }
+        {
             let mut blocks = app
                 .world_mut()
                 .resource_mut::<StaticRegistry<block::Block>>();
