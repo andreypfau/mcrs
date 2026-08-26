@@ -18,13 +18,6 @@ use bevy_ecs::prelude::*;
 use bevy_state::app::AppExtStates;
 use bevy_state::app::StatesPlugin;
 use mcrs_core::AppState;
-use mcrs_voxel_world::entity::ChunkEntities;
-use mcrs_voxel_world::world::dimension::{
-    DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
-};
-use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
-use mcrs_voxel_world::world::storage::chunk::Chunk;
-use mcrs_voxel_world::world::storage::column::{ColumnPlugin, Heightmaps, InColumn};
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
@@ -35,6 +28,13 @@ use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_voxel_storage::VoxelId;
+use mcrs_voxel_world::entity::ChunkEntities;
+use mcrs_voxel_world::world::dimension::{
+    DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
+};
+use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
+use mcrs_voxel_world::world::storage::chunk::Chunk;
+use mcrs_voxel_world::world::storage::column::{ColumnPlugin, Heightmaps, InColumn};
 
 // Single-pass scan contract: the heightmap reflects only XZ columns the
 // scan has already closed. The tests below spawn a chunk at chunk_y=0,

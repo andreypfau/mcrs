@@ -12,7 +12,6 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::RunSystemOnce;
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, PendingDisconnectQueue,
     drain_pending_disconnects, filter_inflight_for_disconnect,
@@ -22,6 +21,7 @@ use mcrs_minecraft::world::bus::{
 };
 use mcrs_minecraft::world::channel_types::DimChannelsResource;
 use mcrs_minecraft::world::player_index::PlayerIndex;
+use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 
 fn build_app() -> App {
     let mut app = App::new();

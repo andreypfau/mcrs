@@ -16,9 +16,9 @@
 //! lifecycle-ordering hazard.
 
 use bevy_ecs::prelude::{Added, Commands, Entity, Query, With};
+use mcrs_voxel_math::Direction;
 use mcrs_voxel_world::world::dimension::{HasSkyLight, InDimension};
 use mcrs_voxel_world::world::storage::column::{Column, ColumnChunks};
-use mcrs_voxel_math::Direction;
 
 use crate::{BlockNeedsInitialSeed, NeedsFullReseed, SkyNeedsInitialSeed};
 
@@ -114,6 +114,12 @@ mod tests {
     use bevy_app::{App, Update};
     use bevy_ecs::message::Messages;
     use bevy_ecs::prelude::IntoScheduleConfigs;
+    use mcrs_lighting_table_helpers::*;
+    use mcrs_voxel_math::BlockPos;
+    use mcrs_voxel_math::ChunkPos;
+    use mcrs_voxel_math::Direction;
+    use mcrs_voxel_math::voxel_shape::VoxelShape;
+    use mcrs_voxel_storage::VoxelId;
     use mcrs_voxel_world::voxel_update::SectionVoxels;
     use mcrs_voxel_world::voxel_update::VoxelPlaced;
     use mcrs_voxel_world::world::dimension::{HasSkyLight, InDimension};
@@ -121,12 +127,6 @@ mod tests {
     use mcrs_voxel_world::world::storage::column::{
         Column, ColumnChunks, ColumnIndex, ColumnPos, ColumnSlot, InColumn,
     };
-    use mcrs_lighting_table_helpers::*;
-    use mcrs_voxel_math::BlockPos;
-    use mcrs_voxel_math::ChunkPos;
-    use mcrs_voxel_math::Direction;
-    use mcrs_voxel_math::voxel_shape::VoxelShape;
-    use mcrs_voxel_storage::VoxelId;
 
     mod mcrs_lighting_table_helpers {
         use super::*;

@@ -30,11 +30,6 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
-use mcrs_voxel_world::entity::ChunkEntities;
-use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig, InDimension};
-use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
-use mcrs_voxel_world::world::storage::chunk::Chunk;
-use mcrs_voxel_world::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::bridge::partition_main_inbound;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
@@ -45,6 +40,13 @@ use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 use mcrs_voxel_light::test_bench::bench_helpers;
 use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_world::entity::ChunkEntities;
+use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig, InDimension};
+use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
+use mcrs_voxel_world::world::storage::chunk::Chunk;
+use mcrs_voxel_world::world::sub_app::{
+    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+};
 use vanilla::biome::Biome;
 use vanilla::block::Block;
 use vanilla::enchantment::EnchantmentData;

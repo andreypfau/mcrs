@@ -1,7 +1,7 @@
+use crate::text::Text;
 use crate::{Bounded, Decode, Encode, GameMode};
 use base64::prelude::*;
 use bitfield_struct::bitfield;
-use mcrs_text::Text;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use url::Url;

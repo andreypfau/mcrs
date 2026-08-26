@@ -11,13 +11,13 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Query, Res, ResMut, With};
 use bevy_math::DVec3;
+use mcrs_minecraft_block::block_update::BlockSetRequest;
+use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::session::{DimPlayerIndex, Owner, PlayerSession};
 use mcrs_voxel_world::world::channels::FromDimSender;
 use mcrs_voxel_world::world::dimension::{Dimension, InDimension};
 use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
-use mcrs_minecraft_block::block_update::BlockSetRequest;
-use mcrs_minecraft_block::palette::BlockPalette;
 
 // Platform at x=8, z=8 ensures the 5×5 floor (6..=10 in each axis) stays
 // within a single 16-block chunk section at these default coordinates.

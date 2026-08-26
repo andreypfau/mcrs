@@ -11,11 +11,11 @@ use crate::geom::chunk_xyz_to_face_cell;
 use crate::storage::LightStorage;
 use crate::table::{BlockStateLightTable, flag_bits};
 use crate::{BlockBfsQueues, BlockOutbox, CrossChunkWavefront, SkyBfsQueues, SkyOutbox};
-use mcrs_voxel_world::voxel_update::SectionVoxels;
 use mcrs_voxel_math::Direction;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_voxel_storage::VoxelId;
+use mcrs_voxel_world::voxel_update::SectionVoxels;
 
 pub(crate) const FLAG_HAS_SIDED_TRANSPARENT_BLOCKS: u8 = 1 << 0;
 // Promoted from pub(crate) to pub so external snapshot / property

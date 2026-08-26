@@ -1,10 +1,10 @@
 use bevy_ecs::prelude::*;
 use criterion::{Criterion, criterion_group, criterion_main};
-use mcrs_voxel_world::voxel_update::SectionVoxels;
 use mcrs_voxel_light::components::BlockBfsPending;
 use mcrs_voxel_light::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_voxel_light::test_bench::bench_helpers;
 use mcrs_voxel_storage::VoxelId;
+use mcrs_voxel_world::voxel_update::SectionVoxels;
 use std::time::{Duration, Instant};
 
 fn bench_pit_dig(c: &mut Criterion) {

@@ -16,7 +16,6 @@ use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
-use mcrs_voxel_world::session::PlayerSession;
 use mcrs_minecraft::world::bridge::dispatch_encode;
 use mcrs_minecraft::world::bridge_queue::{
     DEPTH_DRAIN_TARGET, DEPTH_LIMIT, HIGH_OVERFLOW_LIMIT, KICK_AFTER_OVERFLOW_TICKS, OutboundQueue,
@@ -34,6 +33,7 @@ use mcrs_protocol::Look;
 use mcrs_protocol::chunk::LightData;
 use mcrs_protocol::uuid::Uuid;
 use mcrs_voxel_math::ColumnPos;
+use mcrs_voxel_world::session::PlayerSession;
 use smallvec::SmallVec;
 use tokio::sync::mpsc;
 

@@ -26,10 +26,10 @@ use crate::table::{BlockStateLightTable, flag_bits};
 use bevy_ecs::entity::EntityHashMap;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, Local, Query, Res};
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_world::voxel_update::SectionVoxels;
 use mcrs_voxel_world::voxel_update::{VoxelPlaced, VoxelUpdateFlags};
 use mcrs_voxel_world::world::storage::column::{ColumnChunks, Heightmaps, InColumn};
-use mcrs_voxel_math::chunk_pos::BLOCKS;
 
 /// HEIGHT-02 eager fused two-type heightmap update. Reads
 /// `MessageReader<VoxelPlaced>` and updates `Heightmaps` on the affected
@@ -207,13 +207,13 @@ mod tests {
     use crate::table::flag_bits;
     use bevy_app::{App, Update};
     use bevy_ecs::message::Messages;
-    use mcrs_voxel_world::voxel_update::SectionVoxels;
-    use mcrs_voxel_world::voxel_update::VoxelPlaced;
-    use mcrs_voxel_world::world::storage::column::{Column, ColumnChunks, Heightmaps, InColumn};
     use mcrs_voxel_math::BlockPos;
     use mcrs_voxel_math::ChunkPos;
     use mcrs_voxel_math::voxel_shape::VoxelShape;
     use mcrs_voxel_storage::VoxelId;
+    use mcrs_voxel_world::voxel_update::SectionVoxels;
+    use mcrs_voxel_world::voxel_update::VoxelPlaced;
+    use mcrs_voxel_world::world::storage::column::{Column, ColumnChunks, Heightmaps, InColumn};
 
     const AIR: VoxelId = VoxelId(0);
     const SOLID: VoxelId = VoxelId(1);

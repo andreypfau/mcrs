@@ -12,12 +12,12 @@
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use mcrs_voxel_world::voxel_update::VoxelUpdateSet;
-use mcrs_voxel_world::world::storage::column::ColumnLifecycleSet;
 use mcrs_voxel_light::components::{BlockBfsPending, SkyBfsPending};
 use mcrs_voxel_light::metrics::snapshot as lighting_snapshot;
 use mcrs_voxel_light::sets::LightingSet;
 use mcrs_voxel_light::test_bench::bench_helpers;
+use mcrs_voxel_world::voxel_update::VoxelUpdateSet;
+use mcrs_voxel_world::world::storage::column::ColumnLifecycleSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
@@ -279,8 +279,8 @@ struct PhaseSnapshot {
 fn build_instrumented_factory() -> Box<dyn Fn() -> App + Send + Sync> {
     use bevy_app::App as BApp;
     use bevy_state::app::StatesPlugin;
-    use mcrs_voxel_world::world::storage::column::ColumnPlugin;
     use mcrs_voxel_math::ChunkPos;
+    use mcrs_voxel_world::world::storage::column::ColumnPlugin;
     Box::new(|| {
         let mut app = BApp::new();
         app.add_plugins(StatesPlugin);

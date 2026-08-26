@@ -29,8 +29,6 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::World;
 use bevy_ecs::system::{IntoSystem, System};
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::bridge::bridge_outbound;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{
@@ -41,6 +39,8 @@ use mcrs_network::metrics::{
     BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL, BridgeTelemetrySnapshot, snapshot,
 };
 use mcrs_protocol::BlockStateId;
+use mcrs_voxel_world::session::PlayerSession;
+use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 
 /// Per-run report. Carries the functional invariants the smoke tests assert
 /// on (all local to this run's `World`, race-free under parallel test

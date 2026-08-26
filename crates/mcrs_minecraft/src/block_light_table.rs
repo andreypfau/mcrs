@@ -4,9 +4,9 @@ use bevy_math::Vec3;
 use bevy_state::prelude::OnEnter;
 use mcrs_core::AppState;
 use mcrs_core::tag::TagPhase;
-use mcrs_voxel_light::table::{BlockStateLightTable, flag_bits};
 use mcrs_vanilla::block::definition::{BlockStateData, BlockStateFlags, Blocks, ShapeId};
 use mcrs_vanilla::transition_to_playing;
+use mcrs_voxel_light::table::{BlockStateLightTable, flag_bits};
 use mcrs_voxel_math::voxel_shape::{
     Aabb, ShapeRegistry, ShapeRepr, VoxelShape, discrete::DiscreteShape,
 };

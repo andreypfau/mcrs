@@ -1,6 +1,6 @@
-use mcrs_voxel_world::voxel_update::SectionVoxels;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
+use mcrs_voxel_world::voxel_update::SectionVoxels;
 
 pub fn from_input(input: &[((i32, i32, i32), VoxelId)]) -> SectionVoxels {
     let mut palette = SectionVoxels::default();

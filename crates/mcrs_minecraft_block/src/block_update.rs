@@ -1,10 +1,10 @@
 use crate::block::BlockUpdateFlags;
 use bevy_ecs::entity::Entity;
+use mcrs_protocol::BlockStateId;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_world::voxel_update::{
     VoxelPlaced, VoxelSetRequest, VoxelUpdateFlags, VoxelUpdatePlugin,
 };
-use mcrs_protocol::BlockStateId;
-use mcrs_voxel_math::BlockPos;
 
 impl VoxelUpdateFlags for BlockUpdateFlags {
     fn notifies_clients(&self) -> bool {
@@ -30,8 +30,8 @@ pub fn remove_block<P: Into<BlockPos>>(dimension: Entity, pos: P) -> BlockSetReq
 mod tests {
     use super::*;
     use bevy_ecs::schedule::IntoScheduleConfigs;
-    use mcrs_voxel_world::voxel_update::{VoxelUpdateSet, apply_voxel_set_requests};
     use mcrs_voxel_math::ChunkPos;
+    use mcrs_voxel_world::voxel_update::{VoxelUpdateSet, apply_voxel_set_requests};
 
     #[test]
     fn set_configured_compile_test() {

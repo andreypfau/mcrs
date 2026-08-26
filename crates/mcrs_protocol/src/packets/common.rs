@@ -1,9 +1,9 @@
 pub mod clientbound {
+    use crate::text::Text;
     use crate::{Bounded, RawBytes};
     use derive_more::Into;
     use mcrs_core::ResourceLocation;
     use mcrs_protocol_macros::{Decode, Encode};
-    use mcrs_text::Text;
     use std::borrow::Cow;
     use uuid::Uuid;
 

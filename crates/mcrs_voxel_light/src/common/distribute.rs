@@ -34,13 +34,13 @@ use crate::{
     CrossChunkWavefront, NeedsFullReseed, SkyBfsPending, SkyInbox, SkyOutbox, SkyOutboxDirty,
     SkyParkedEgress,
 };
+use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::Direction;
 use mcrs_voxel_world::world::dimension::InDimension;
 use mcrs_voxel_world::world::lifecycle::ticket::LightTicket;
 use mcrs_voxel_world::world::storage::column::{
     ChunkLookup, ColumnChunks, ColumnIndex, ColumnPos, InColumn,
 };
-use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_math::Direction;
 
 /// Manhattan attenuation: face-adjacent (1), edge (2), corner (3). The
 /// `max(1)` floor guarantees at least one step of attenuation even if a

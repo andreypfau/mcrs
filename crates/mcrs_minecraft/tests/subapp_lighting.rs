@@ -14,17 +14,19 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
-use mcrs_voxel_world::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::channel_types::DimChannelsResource;
 use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_voxel_light::converge::LightConvergeSchedule;
-use mcrs_voxel_light::sets::LightingSet;
-use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
+use mcrs_voxel_light::converge::LightConvergeSchedule;
+use mcrs_voxel_light::sets::LightingSet;
+use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
+use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
+use mcrs_voxel_world::world::sub_app::{
+    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+};
 
 mod support;
 

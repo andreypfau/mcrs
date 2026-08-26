@@ -12,7 +12,7 @@ use super::{ClickEvent, Color, Font, HoverEvent, Text};
 /// # Usage
 ///
 /// ```
-/// # use mcrs_text::{IntoText, color::NamedColor};
+/// # use crate::text::{IntoText, color::NamedColor};
 /// let mut my_text = "".into_text();
 /// my_text = my_text.color(NamedColor::Red).bold();
 /// my_text = my_text.add_child("CRABBBBB".obfuscated());

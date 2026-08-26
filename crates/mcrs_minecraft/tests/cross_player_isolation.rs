@@ -16,12 +16,12 @@ mod mock_connection;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
-use mcrs_voxel_world::entity::player::Player;
-use mcrs_voxel_world::session::{DimPlayerIndex, Owner, PlayerSession, SessionRegistry};
 use mcrs_minecraft::world::bridge::bridge_outbound;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPriority};
 use mcrs_minecraft::world::entity::player::{HostAnchor, despawn_inbound_player};
+use mcrs_voxel_world::entity::player::Player;
+use mcrs_voxel_world::session::{DimPlayerIndex, Owner, PlayerSession, SessionRegistry};
 
 use mock_connection::{
     drain_queue, register_session, run_system, spawn_connection, write_packet_stamped,

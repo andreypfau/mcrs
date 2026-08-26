@@ -18,11 +18,11 @@
 
 use crate::storage::LightStorage;
 use crate::table::{BlockStateLightTable, flag_bits};
-use mcrs_voxel_world::voxel_update::SectionVoxels;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::Direction;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_storage::VoxelId;
+use mcrs_voxel_world::voxel_update::SectionVoxels;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViolationKind {

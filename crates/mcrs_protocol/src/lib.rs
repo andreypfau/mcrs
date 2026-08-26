@@ -64,6 +64,7 @@ mod serial;
 pub mod setting;
 pub mod sound;
 mod teleport_flags;
+pub mod text;
 pub mod var_int;
 mod var_long;
 mod velocity;
@@ -102,7 +103,7 @@ pub use text::Text;
 pub use var_int::VarInt;
 pub use var_long::VarLong;
 pub use velocity::Velocity;
-pub use {anyhow, bytes, mcrs_minecraft_nbt as nbt, mcrs_text as text, uuid};
+pub use {anyhow, bytes, mcrs_minecraft_nbt as nbt, uuid};
 
 /// The maximum number of bytes in a single Minecraft packet.
 pub const MAX_PACKET_SIZE: i32 = 2097152;

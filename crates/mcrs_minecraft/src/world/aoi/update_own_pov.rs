@@ -8,6 +8,7 @@ use std::sync::atomic::Ordering;
 
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Added, Changed, Commands, Entity, Or, Query, ResMut, With, Without};
+use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::aoi::PlayerObservers;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
@@ -15,7 +16,6 @@ use mcrs_voxel_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_voxel_world::session::PlayerSession;
 use mcrs_voxel_world::world::dimension::InDimension;
 use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex};
-use mcrs_voxel_math::ColumnPos;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 

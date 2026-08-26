@@ -15,9 +15,9 @@ use crate::invariants::{CHUNK_DIM, DIRECTIONS, neighbour_contribution};
 pub use crate::invariants::{InvariantViolation, ViolationKind};
 use crate::storage::LightStorage;
 use crate::table::BlockStateLightTable;
-use mcrs_voxel_world::voxel_update::SectionVoxels;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
+use mcrs_voxel_world::voxel_update::SectionVoxels;
 
 pub fn check_block_light_invariants(
     table: &BlockStateLightTable,

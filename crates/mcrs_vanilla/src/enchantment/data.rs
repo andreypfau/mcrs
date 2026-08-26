@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use mcrs_core::ResourceLocation;
 use mcrs_core::tag::key::{TagKey, TaggedRegistry};
-use mcrs_text::Text;
+use mcrs_protocol::text::Text;
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeMap};
 
 use crate::enchantment::effects::EnchantmentEffects;

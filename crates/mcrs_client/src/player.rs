@@ -5,10 +5,10 @@ use bevy::prelude::*;
 use bevy::render::view::Msaa;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
+use mcrs_vanilla::entity::player::{Flying, FlyingSpeed};
 use mcrs_voxel_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
-use mcrs_vanilla::entity::player::{Flying, FlyingSpeed};
 
 use crate::camera::FovFilter;
 use crate::local_player::Sprint;

@@ -2,13 +2,13 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
-use mcrs_voxel_world::session::{PlayerSession, SessionRegistry};
 use mcrs_minecraft::disconnect::process_disconnect;
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::world::bus::InboundPlayerDespawn;
 use mcrs_minecraft::world::channel_types::DimChannelsResource;
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
 use mcrs_protocol::uuid::Uuid;
+use mcrs_voxel_world::session::{PlayerSession, SessionRegistry};
 
 fn make_app() -> App {
     let mut app = App::new();
@@ -104,10 +104,10 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
     // Pin a concrete dim so the assertion can target a specific channel.
     let current_dim = Entity::from_raw_u32(77).expect("nonzero");
     let ctl_rx = {
+        use mcrs_minecraft::world::channel_types::FromDim;
         use mcrs_voxel_world::world::channels::{
             DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
         };
-        use mcrs_minecraft::world::channel_types::FromDim;
         let (srv_tx, _srv_rx) =
             flume::bounded::<mcrs_minecraft::world::channel_types::ToDim>(TO_DIM_CAPACITY);
         let (ctl_tx, ctl_rx) =

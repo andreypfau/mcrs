@@ -1,7 +1,7 @@
 use bevy_app::{App, AppExit};
 use bevy_ecs::message::Messages;
-use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue};
 use mcrs_minecraft::run_server_loop;
+use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;

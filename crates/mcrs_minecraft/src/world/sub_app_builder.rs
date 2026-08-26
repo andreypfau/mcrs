@@ -17,11 +17,11 @@ use crate::world::bus::{
 };
 use crate::world::channel_types::{FromDim, ToDim};
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
+use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_voxel_world::world::channels::{
     DimChannels, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     ToDimReceiver,
 };
-use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 
 /// System set for inbox drain systems, run early in `FixedPreUpdate`.
 /// Arrival and other systems that consume inbound messages run after this set.
@@ -58,17 +58,19 @@ use mcrs_core::RegistrySnapshot;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
-use mcrs_voxel_world::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_voxel_light::LightingPlugin;
-use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_protocol::light_codec::LightCodecPlugin;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::block::definition::Blocks;
 use mcrs_vanilla::enchantment::EnchantmentData;
 use mcrs_vanilla::worldgen::beta_biome::ActiveBiomeSource;
+use mcrs_voxel_light::LightingPlugin;
+use mcrs_voxel_light::table::BlockStateLightTable;
+use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
+use mcrs_voxel_world::world::sub_app::{
+    DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
+};
 
 #[derive(Clone)]
 pub struct DimRegistryBundle {

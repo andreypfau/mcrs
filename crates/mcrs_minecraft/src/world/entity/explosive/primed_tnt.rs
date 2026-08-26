@@ -11,13 +11,13 @@ use bevy_ecs::prelude::{Commands, ContainsEntity, MessageWriter, On, Query};
 use bevy_ecs::query::QueryData;
 use bevy_ecs::query::{With, Without};
 use derive_more::{Deref, DerefMut};
+use mcrs_protocol::uuid::Uuid;
 use mcrs_voxel_world::entity::EntityNetworkAddEvent;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::entity::player::reposition::Reposition;
 use mcrs_voxel_world::session::PlayerSession;
 use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_protocol::uuid::Uuid;
 
 pub struct PrimedTntPlugin;
 

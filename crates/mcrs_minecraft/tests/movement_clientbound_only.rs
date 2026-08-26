@@ -52,8 +52,8 @@ fn game_mode_does_not_query_server_side_connection() {
 /// message buffer.
 #[test]
 fn teleport_emits_outbound_player_packet() {
-    use mcrs_voxel_world::entity::physics::Transform;
     use mcrs_minecraft::world::entity::player::{HostAnchor, movement::TeleportState};
+    use mcrs_voxel_world::entity::physics::Transform;
 
     let mut app = host_app::make_host_app();
     host_app::enqueue_spawn(&mut app, "test:overworld", true);

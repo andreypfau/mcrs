@@ -5,12 +5,12 @@ pub mod clientbound {
     use crate::game_event::GameEventKind;
     use crate::packets::common::clientbound::KeepAlive;
     use crate::profile::{PlayerListActions, PlayerListEntry};
+    use crate::text::Text;
     use crate::{ColumnPos, Look, PositionFlag, Slot, VarInt};
     use bevy_math::DVec3;
     use mcrs_core::ResourceLocation;
     use mcrs_protocol::{BlockStateId, ByteAngle};
     use mcrs_protocol_macros::{Decode, Encode, Packet};
-    use mcrs_text::Text;
     use mcrs_voxel_math::BlockPos;
     use mcrs_voxel_math::ChunkPos;
     use std::borrow::Cow;

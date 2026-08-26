@@ -6,10 +6,10 @@
 use bevy_app::App;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_voxel_world::entity::EntityNetworkSyncEvent;
-use mcrs_voxel_world::entity::physics::{OldTransform, Rotation, Transform};
 use mcrs_minecraft::world::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft::world::entity::entity_pos_sync;
+use mcrs_voxel_world::entity::EntityNetworkSyncEvent;
+use mcrs_voxel_world::entity::physics::{OldTransform, Rotation, Transform};
 
 #[test]
 fn a_synced_entity_keeps_its_look_angles_on_the_wire() {

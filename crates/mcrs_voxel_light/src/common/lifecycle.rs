@@ -15,12 +15,12 @@ use crate::sky_light::bundle::SkyLightBundle;
 use crate::table::BlockStateLightTable;
 use crate::{BlockNeedsInitialSeed, IsAllAir, SkyNeedsInitialSeed};
 use bevy_ecs::prelude::{Added, Changed, Commands, Component, Entity, Has, Query, Res, With};
+use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_world::voxel_update::SectionVoxels;
 use mcrs_voxel_world::world::dimension::{HasSkyLight, InDimension};
 use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
 use mcrs_voxel_world::world::storage::column::{Column, ColumnChunks, Heightmaps};
-use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_math::chunk_pos::BLOCKS;
 
 const XZ_FULL: [(usize, usize); BLOCKS::AREA] = {
     let mut arr = [(0usize, 0usize); BLOCKS::AREA];
@@ -361,12 +361,12 @@ mod tests {
     use crate::table::flag_bits;
     use crate::{BlockLight, LightingPlugin, SkyLight};
     use bevy_app::{App, FixedUpdate, Update};
+    use mcrs_voxel_math::voxel_shape::VoxelShape;
     use mcrs_voxel_world::entity::ChunkEntities;
     use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
     use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
     use mcrs_voxel_world::world::storage::chunk::Chunk;
     use mcrs_voxel_world::world::storage::column::ColumnPlugin;
-    use mcrs_voxel_math::voxel_shape::VoxelShape;
 
     const TEST_DIM_HEIGHT: u32 = 384;
     const TEST_DIM_MIN_Y: i32 = -64;

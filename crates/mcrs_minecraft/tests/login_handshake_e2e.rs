@@ -37,9 +37,6 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::session::SessionRegistry;
-use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::configuration::emit_initial_player_spawn;
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::runner::pump_channels;
@@ -54,13 +51,16 @@ use mcrs_minecraft::world::bus::{
 };
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::uuid::Uuid;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
+use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
+use mcrs_voxel_world::session::PlayerSession;
+use mcrs_voxel_world::session::SessionRegistry;
+use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 
 mod support;
 
@@ -143,9 +143,9 @@ fn e2e_login_handshake_completes() {
 /// so the blob is non-empty.
 #[test]
 fn e2e_packet_round_trip() {
-    use mcrs_voxel_world::session::{SessionEntry, SessionRegistry};
     use mcrs_protocol::BlockStateId;
     use mcrs_voxel_math::BlockPos;
+    use mcrs_voxel_world::session::{SessionEntry, SessionRegistry};
 
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
@@ -229,8 +229,8 @@ fn e2e_packet_round_trip() {
 #[test]
 fn e2e_aoi_surrounding_update() {
     use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
-    use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
     use mcrs_voxel_math::ColumnPos;
+    use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
 
     let mut app = make_aoi_app();
     let dim = app
@@ -364,9 +364,9 @@ fn build_join_host_app() -> App {
 /// 2. A non-empty blob reaches the mock socket channel (play-login delivered).
 #[test]
 fn e2e_join_releases_joining_world() {
-    use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
     use mcrs_network::ConnectionState;
     use mcrs_network::InGameConnectionState;
+    use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
 
     let mut app = build_join_host_app();
 
@@ -494,10 +494,10 @@ where
 }
 
 fn seed_columns(app: &mut App, dim: Entity, centre: mcrs_voxel_math::ColumnPos, radius: i32) {
+    use mcrs_voxel_math::ColumnPos;
     use mcrs_voxel_world::aoi::PlayerObservers;
     use mcrs_voxel_world::world::dimension::InDimension;
     use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
-    use mcrs_voxel_math::ColumnPos;
 
     for dx in -radius..=radius {
         for dz in -radius..=radius {

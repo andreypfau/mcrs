@@ -1,5 +1,3 @@
-#![doc = include_str!("../README.md")]
-
 use std::borrow::Cow;
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
@@ -31,7 +29,7 @@ pub use into_text::IntoText;
 ///
 /// With [`IntoText`] in scope, you can write the following:
 /// ```
-/// use mcrs_text::{Color, IntoText, Text};
+/// use crate::text::{Color, IntoText, Text};
 ///
 /// let txt = "The text is ".into_text()
 ///     + "Red".color(Color::RED)

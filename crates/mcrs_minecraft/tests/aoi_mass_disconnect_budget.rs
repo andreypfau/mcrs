@@ -5,10 +5,6 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_voxel_world::world::channels::{
-    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
-};
 use mcrs_minecraft::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, OverflowCounter,
     PendingDisconnectQueue, QUEUE_HARD_CAP, drain_pending_disconnects,
@@ -20,6 +16,10 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::channel_types::FromDim;
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft::world::player_index::PlayerIndex;
+use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_voxel_world::world::channels::{
+    DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
+};
 
 fn build_app() -> App {
     let mut app = App::new();

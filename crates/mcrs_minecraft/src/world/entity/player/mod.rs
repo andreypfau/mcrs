@@ -22,6 +22,7 @@ use bevy_ecs::event::EntityEvent;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, Query, ResMut, With};
+use mcrs_protocol::GameMode;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDistance};
@@ -29,7 +30,6 @@ use mcrs_voxel_world::entity::player::reposition::Reposition;
 use mcrs_voxel_world::entity::{Despawned, EntityNetworkAddEvent, InTransit};
 use mcrs_voxel_world::session::{DimPlayerIndex, Owner, PlayerSession};
 use mcrs_voxel_world::world::dimension::{Dimension, DimensionId, InDimension};
-use mcrs_protocol::GameMode;
 use movement::TeleportState;
 use tracing::{debug, info};
 

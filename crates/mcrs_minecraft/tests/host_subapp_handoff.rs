@@ -14,9 +14,6 @@ use mcrs_core::AppState;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
-use mcrs_voxel_world::session::PlayerSession;
-use mcrs_voxel_world::session::{PlayerSessionCounter, SessionRegistry};
-use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::world::bridge::{bridge_inbound_to_channel, bridge_player_attach};
 use mcrs_minecraft::world::bus::{
@@ -26,12 +23,15 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_protocol::uuid::Uuid;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
+use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
+use mcrs_voxel_world::session::PlayerSession;
+use mcrs_voxel_world::session::{PlayerSessionCounter, SessionRegistry};
+use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 
 // System under test (Task 1) — must be pub in configuration.rs
 use mcrs_core::tag::registry::DynTagRegistry;
@@ -143,10 +143,10 @@ fn transition_to_game(app: &mut App, connection_entity: Entity) {
 /// `SessionEntry.dim` to that label (no longer Entity::PLACEHOLDER).
 #[test]
 fn game_transition_emits_initial_spawn() {
+    use mcrs_minecraft::world::channel_types::FromDim;
     use mcrs_voxel_world::world::channels::{
         DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
-    use mcrs_minecraft::world::channel_types::FromDim;
 
     let mut app = build_host_app();
 
@@ -238,10 +238,10 @@ fn no_live_dim_no_spawn() {
 /// already emitted) must not send a second ToDim::Spawn.
 #[test]
 fn idempotent_single_emit() {
+    use mcrs_minecraft::world::channel_types::FromDim;
     use mcrs_voxel_world::world::channels::{
         DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
-    use mcrs_minecraft::world::channel_types::FromDim;
 
     let mut app = build_host_app();
 

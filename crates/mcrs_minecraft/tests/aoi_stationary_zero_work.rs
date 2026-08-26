@@ -6,8 +6,8 @@
 //! flat.
 
 use bevy_math::DVec3;
-use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
 use mcrs_minecraft::world::aoi::AoiTickProbe;
+use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
 
 mod harness;
 use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
