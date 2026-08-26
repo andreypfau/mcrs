@@ -73,7 +73,7 @@ mcrs_voxel_world = { path = "crates/mcrs_voxel_world" }
 mcrs_minecraft_core_macros = { path = "crates/mcrs_minecraft_core_macros" }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core" }
 mcrs_minecraft_world = { path = "crates/mcrs_minecraft_world" }
-mcrs_minecraft = { path = "crates/mcrs_minecraft" }
+mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
 mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
@@ -89,12 +89,12 @@ bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_log.workspace = true
 tokio = { version = "1", features = ["full"] }
-mcrs_minecraft.workspace = true
+mcrs_minecraft_server.workspace = true
 mcrs_telemetry.workspace = true
 
 [features]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]
-telemetry-tracy = ["mcrs_telemetry/telemetry-tracy", "mcrs_minecraft/telemetry-tracy"]
+telemetry-tracy = ["mcrs_telemetry/telemetry-tracy", "mcrs_minecraft_server/telemetry-tracy"]
 # Diagnostics features stay confined to mcrs_telemetry because no other
 # crate currently registers diagnostic plugins. Add propagation lines
 # here when individual crates start exposing their own histograms.
@@ -121,7 +121,7 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_block"]
 opt-level = 3
 
-[profile.dev.package."mcrs_minecraft"]
+[profile.dev.package."mcrs_minecraft_server"]
 opt-level = 2
 
 [profile.dev.package."mcrs_voxel_world"]

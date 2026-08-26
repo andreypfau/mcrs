@@ -1,0 +1,152 @@
+//! Shared host-app fixtures for the per-dim sub-app integration tests.
+//!
+//! Each integration test file (`tests/*.rs`) compiles as its own binary, so
+//! a built `App` cannot be shared across tests — but the construction itself
+//! was copy-pasted across several files. This module is the single source of
+//! truth for that setup: the host `App` wired for the production sub-app
+//! builder path, plus the small enqueue/drain helpers the tests drive it with.
+//!
+//! `BEVY_ASSET_ROOT` is set process-wide in `.cargo/config.toml`, so no
+//! per-test env mutation is needed here.
+
+#![allow(dead_code)]
+
+use bevy_app::{App, TaskPoolPlugin};
+use bevy_asset::AssetPlugin;
+use bevy_state::app::{AppExtStates, StatesPlugin};
+use bevy_state::prelude::NextState;
+use bevy_time::{Fixed, Time, TimePlugin};
+use mcrs_minecraft_core::AppState;
+use mcrs_minecraft_core::registry::access::RegistryAccess;
+use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
+use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
+use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_server::world::bus::{
+    InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
+    OutboundPlayerPacket,
+};
+use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
+use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
+use mcrs_minecraft_world::biome::Biome;
+use mcrs_minecraft_world::block::Block;
+use mcrs_minecraft_world::block::definition::{Blocks, load_block_definitions};
+use mcrs_minecraft_world::enchantment::EnchantmentData;
+use mcrs_voxel_light::table::BlockStateLightTable;
+use mcrs_voxel_math::voxel_shape::VoxelShape;
+use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
+use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+
+/// A two-state stub light table sufficient for sub-app construction. The
+/// production table is data-loaded; tests only need the resource to exist.
+pub fn make_stub_block_light_table() -> BlockStateLightTable {
+    let state_count = 2usize;
+    let emission = vec![0u8; state_count].into_boxed_slice();
+    let dampening = vec![0u8; state_count].into_boxed_slice();
+    let occlusion: Box<[&'static VoxelShape]> =
+        vec![VoxelShape::empty(); state_count].into_boxed_slice();
+    let flags = vec![0u8; state_count].into_boxed_slice();
+    BlockStateLightTable {
+        emission,
+        dampening,
+        occlusion,
+        flags,
+    }
+}
+
+/// Build a host `App` wired for the production per-dim sub-app builder path.
+///
+/// Registers the host-side bus messages, channel resource, spawn/despawn
+/// queues, registries, and the stub light table that the sub-app extract
+/// closure and `pump_channels` read — without them the first `app.update()`
+/// after a spawn drain panics. The message set is the union required across
+/// the sub-app tests, so callers that need only a subset still get a valid
+/// host app.
+pub fn make_host_app() -> App {
+    let mut app = App::new();
+    // ChunkPlugin's worldgen startup uses AssetServer::load, which spawns
+    // onto IoTaskPool; TaskPoolPlugin must run first or sub-app Startup panics.
+    app.add_plugins(TaskPoolPlugin {
+        task_pool_options: bevy_app::TaskPoolOptions::with_num_threads(2),
+    });
+    app.add_plugins(AssetPlugin {
+        watch_for_changes_override: Some(false),
+        ..Default::default()
+    });
+    app.add_plugins(TimePlugin);
+    app.insert_resource(Time::<Fixed>::from_hz(20.0));
+    app.add_plugins(StatesPlugin);
+    app.init_state::<AppState>();
+
+    app.add_message::<OutboundPlayerPacket>();
+    app.add_message::<InboundPlayerPacket>();
+    app.add_message::<OutboundPlayerAttached>();
+    app.add_message::<OutboundPlayerDisconnect>();
+    app.add_message::<InboundPlayerDespawn>();
+
+    app.init_resource::<DimChannelsResource>();
+    app.init_resource::<DimSpawnQueue>();
+    app.init_resource::<DimDespawnQueue>();
+    app.insert_resource(RegistryAccess::default());
+    app.insert_resource(make_stub_block_light_table());
+    app.insert_resource(StaticRegistry::<EnchantmentData>::default());
+    app.insert_resource(DynTagRegistry::<Block>::default());
+    app.insert_resource(RegistrySnapshot::<Biome>::default());
+    app.insert_resource(shared_corpus(&app));
+
+    app
+}
+
+/// The real corpus, loaded once per test binary. A stub would let a sub-app
+/// reach worldgen with no block to place.
+fn shared_corpus(app: &App) -> Blocks {
+    static CORPUS: std::sync::OnceLock<Blocks> = std::sync::OnceLock::new();
+    CORPUS
+        .get_or_init(|| {
+            let asset_server = app.world().resource::<bevy_asset::AssetServer>().clone();
+            let (definitions, _) =
+                load_block_definitions(&asset_server).expect("the block definition corpus loads");
+            Blocks(std::sync::Arc::new(definitions))
+        })
+        .clone()
+}
+
+/// Transition the host app into `AppState::Playing` and run one update so the
+/// state change is applied.
+pub fn drive_to_playing(app: &mut App) {
+    app.world_mut()
+        .resource_mut::<NextState<AppState>>()
+        .set(AppState::Playing);
+    app.update();
+}
+
+/// Push a single dimension spawn request onto the host spawn queue.
+pub fn enqueue_spawn(app: &mut App, id: &str, sky: bool) {
+    app.world_mut()
+        .resource_mut::<DimSpawnQueue>()
+        .0
+        .push(DimSpawnRequest {
+            dimension_id: DimensionId::new(id),
+            type_config: DimensionTypeConfig::new(-64, 384),
+            has_sky: sky,
+        });
+}
+
+/// Enqueue every `(id, has_sky)` pair and drain the queue through the
+/// production builder, materialising one sub-app per request.
+pub fn materialise_sub_apps(app: &mut App, ids: &[(&str, bool)]) {
+    for (id, sky) in ids {
+        enqueue_spawn(app, id, *sky);
+    }
+    drain_dim_spawn_queue(app);
+}
+
+/// Return `source` only if `anchor` is still present in it. A grep-style gate
+/// over included source text passes vacuously once the thing it greps for has
+/// been renamed or moved, so every such gate must anchor first.
+pub fn anchored(source: &'static str, anchor: &str, target: &str) -> &'static str {
+    assert!(
+        source.contains(anchor),
+        "{target} must still contain {anchor:?}"
+    );
+    source
+}

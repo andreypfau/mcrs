@@ -61,7 +61,7 @@ fn build_plugin(app: &mut App) -> anyhow::Result<()> {
         for _ in 0..new_sessions_recv.len() {
             match new_sessions_recv.try_recv() {
                 Ok(session) => {
-                    // OutboundQueue and InboundRateBucket components live in mcrs_minecraft
+                    // OutboundQueue and InboundRateBucket components live in mcrs_minecraft_server
                     // and are attached via an observer in the bridge plugin, not here.
                     world.spawn((
                         ServerSideConnection { raw: session },
@@ -80,7 +80,7 @@ fn build_plugin(app: &mut App) -> anyhow::Result<()> {
         spawn_new_raw_connections.in_set(NetworkSet::SpawnConnections),
     );
     // flush_packets and check_congestion removed; the FixedPostUpdate bridge chain
-    // is registered by BridgePlugin in mcrs_minecraft.
+    // is registered by BridgePlugin in mcrs_minecraft_server.
     app.add_plugins(event::EventLoopPlugin);
 
     Ok(())
