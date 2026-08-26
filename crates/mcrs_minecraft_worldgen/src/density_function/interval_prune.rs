@@ -1,4 +1,5 @@
 use super::*;
+use crate::density_function::branch_schedule::reachable_backwards;
 use std::hint::black_box;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -265,12 +266,8 @@ impl<'a> Walker<'a> {
                         let g2 = grad_iv(&x2.grad2, y_lo as f32, y_hi as f32);
                         let inner = Iv::new(a.lo + x2.offset_a, a.hi + x2.offset_a);
                         let (p1lo, p1hi) = mul_range(g1.lo, g1.hi, inner.lo, inner.hi);
-                        let (p2lo, p2hi) = mul_range(
-                            p1lo + x2.offset_b,
-                            p1hi + x2.offset_b,
-                            g2.lo,
-                            g2.hi,
-                        );
+                        let (p2lo, p2hi) =
+                            mul_range(p1lo + x2.offset_b, p1hi + x2.offset_b, g2.lo, g2.hi);
                         Iv::new(p2lo + x2.offset_c, p2hi + x2.offset_c)
                     }
                     DependentDensityFunction::Unary(x2) => {
@@ -660,9 +657,7 @@ fn interval_prune_yield() {
 
         let mut per_col: Vec<f64> = columns
             .iter()
-            .map(|c| {
-                (c.air + c.stone) as f64 / (c.air + c.stone + c.undetermined) as f64 * 100.0
-            })
+            .map(|c| (c.air + c.stone) as f64 / (c.air + c.stone + c.undetermined) as f64 * 100.0)
             .collect();
         per_col.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let pct = |p: f64| per_col[((per_col.len() - 1) as f64 * p) as usize];
@@ -799,11 +794,100 @@ fn interval_prune_debug() {
         }
         let mut real = vec![0.0f32; 4];
         for (k, r) in real.iter_mut().enumerate() {
-            *r = router.final_density_from_column_cache(
-                IVec3::new(0, y_lo + k as i32 * 8, 0),
-                &mut cache,
-            );
+            *r = router
+                .final_density_from_column_cache(IVec3::new(0, y_lo + k as i32 * 8, 0), &mut cache);
         }
         println!("  actual values: {real:?}");
     }
+}
+
+/// Walk the branch schedule at real corner positions and report how much of the
+/// noise work the guards actually remove.
+#[test]
+#[ignore]
+fn branch_skip_octave_census() {
+    use crate::density_function::branch_schedule::Step;
+
+    let router = overworld_router(845);
+    let cb = router.column_boundary;
+    let fd = router.final_density_index;
+    let sched = &router.zone_b_schedule;
+    let per_pos_total: u64 = (cb..=fd).map(|i| node_octaves(&router.stack[i])).sum();
+
+    let guards = sched
+        .steps
+        .iter()
+        .filter(|s| matches!(s, Step::Guard { .. }))
+        .count();
+    let guarded_nodes = sched.guarded.iter().filter(|&&g| g).count();
+    println!(
+        "zone B {} nodes, {per_pos_total} octaves/position, {guards} guards over {guarded_nodes} guarded nodes",
+        fd + 1 - cb
+    );
+
+    let mut evaluated = 0u64;
+    let mut total = 0u64;
+    let mut positions = 0u64;
+    let mut sites = 0u64;
+    let mut taken = 0u64;
+
+    for chunk in 0..4i32 {
+        let (bx, bz) = (chunk * 16, chunk * 48);
+        let mut cache = router.new_column_cache(bx, bz);
+        router.populate_columns(&mut cache);
+        for gx in 0..5i32 {
+            for gz in 0..5i32 {
+                cache.load_column(gx * 4, gz * 4);
+                for row in 0..49i32 {
+                    let pos = IVec3::new(bx + gx * 4, -64 + row * 8, bz + gz * 4);
+                    positions += 1;
+                    total += per_pos_total;
+                    let mut s = 0usize;
+                    while s < sched.steps.len() {
+                        match sched.steps[s] {
+                            Step::Eval { start, end } => {
+                                for &i in &sched.order[start as usize..end as usize] {
+                                    evaluated += node_octaves(&router.stack[i]);
+                                    let v = router.stack[i].sample_cached(
+                                        &cache.scratch,
+                                        &router.stack,
+                                        pos,
+                                    );
+                                    cache.scratch[i] = v;
+                                }
+                                s += 1;
+                            }
+                            Step::Guard {
+                                input,
+                                min_inclusive,
+                                max_exclusive,
+                                want_in,
+                                unguard,
+                            } => {
+                                sites += 1;
+                                let v = cache.scratch[input as usize];
+                                let hit = (v >= min_inclusive && v < max_exclusive) == want_in;
+                                taken += hit as u64;
+                                s = if hit { s + 1 } else { unguard as usize };
+                            }
+                            Step::Unguard => s += 1,
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let skipped = total - evaluated;
+    println!(
+        "{positions} corner positions: {evaluated}/{total} octaves evaluated, {skipped} skipped ({:.1}%)",
+        skipped as f64 / total as f64 * 100.0
+    );
+    println!(
+        "guard visits {sites}, cone entered {taken} ({:.1}%), cone jumped {} ({:.1}%)",
+        taken as f64 / sites as f64 * 100.0,
+        sites - taken,
+        (sites - taken) as f64 / sites as f64 * 100.0
+    );
+    assert!(skipped * 5 > total, "branch skipping lost its effect");
 }

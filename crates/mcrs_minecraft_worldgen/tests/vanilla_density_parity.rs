@@ -459,15 +459,40 @@ fn climate_and_depth_roots_track_the_vanilla_oracle_within_f32_drift() {
     }
 }
 
-/// Bit-exact parity for all eight roots. Fails today on every root: the six
-/// above by f32 drift only, `chunk_surface_level` and `final_density` by more.
+/// Vanilla evaluates the noise tree in double and narrows to float only when
+/// storing into `DensityBuffer`; we evaluate in f32 throughout. Every root but
+/// `final_density` still lands bit-exact, so only that one carries a tolerance:
+/// 5.96e-8 observed, which is one f32 ulp at the magnitude where it occurs.
+/// A budget of two ulps there cannot mask a structural divergence — the 1e-3
+/// counter asserted alongside it stays at zero.
+const FINAL_DENSITY_DRIFT: f32 = 1.2e-7;
+
 #[test]
-#[ignore = "known divergence from vanilla; run to measure it"]
-fn all_roots_match_the_vanilla_oracle_bit_for_bit() {
+fn all_roots_match_the_vanilla_oracle() {
     let report = lattice_report();
     let total = LATTICE_FILES.len() * 1225;
     print_report(&report, total);
     for (name, d) in &report {
+        assert_eq!(
+            d.coarse, 0,
+            "{}: {} values differ by more than {:e} (worst@{:?} vanilla={} ours={})",
+            name, d.coarse, COARSE_TOLERANCE, d.worst, d.worst_pair.0, d.worst_pair.1
+        );
+        if name == "final_density" {
+            assert!(
+                d.max_abs < FINAL_DENSITY_DRIFT,
+                "final_density: max_abs={:e} exceeds {:e} ({} of {} differ, max_ulp={}, worst@{:?} vanilla={} ours={})",
+                d.max_abs,
+                FINAL_DENSITY_DRIFT,
+                d.mismatches,
+                total,
+                d.max_ulp,
+                d.worst,
+                d.worst_pair.0,
+                d.worst_pair.1
+            );
+            continue;
+        }
         assert_eq!(
             d.mismatches,
             0,
@@ -489,8 +514,11 @@ fn all_roots_match_the_vanilla_oracle_bit_for_bit() {
 /// scope: vanilla lerps only the `interpolated` sub-tree and applies squeeze,
 /// min-with-noodle and add-beardifier per block outside it, so a whole-root
 /// interpolation disagrees here even where the corner lattice agrees.
+/// The trilinear interpolation compounds the same f32-versus-f64 drift the
+/// corner lattice carries: 1.79e-7 observed, a few ulps at that magnitude.
+const DENSE_DRIFT: f32 = 4e-7;
+
 #[test]
-#[ignore = "known divergence from vanilla; run to measure it"]
 fn dense_final_density_matches_the_vanilla_oracle() {
     let dump = read_dump(&fixtures_dir().join("overworld_s42_c0_0_dense.bin"));
     let router = overworld_router(dump.seed as u64);
@@ -558,12 +586,17 @@ fn dense_final_density_matches_the_vanilla_oracle() {
 
     let d = compare(volume, &ours);
     assert_eq!(
-        d.mismatches,
-        0,
-        "dense final_density: {} of {} values differ (max_abs={:e}, max_ulp={}, worst@{:?} vanilla={} ours={})",
+        d.coarse, 0,
+        "dense final_density: {} values differ by more than {:e} (worst@{:?} vanilla={} ours={})",
+        d.coarse, COARSE_TOLERANCE, d.worst, d.worst_pair.0, d.worst_pair.1
+    );
+    assert!(
+        d.max_abs < DENSE_DRIFT,
+        "dense final_density: max_abs={:e} exceeds {:e} ({} of {} differ, max_ulp={}, worst@{:?} vanilla={} ours={})",
+        d.max_abs,
+        DENSE_DRIFT,
         d.mismatches,
         volume.values.len(),
-        d.max_abs,
         d.max_ulp,
         d.worst,
         d.worst_pair.0,
@@ -672,3 +705,37 @@ fn cell_bounds_contain_every_block_density() {
 /// Margin the fill fast path keeps away from zero, covering the rounding f32
 /// interval arithmetic accumulates over the outer terms.
 const CELL_BOUNDS_SLACK: f32 = 1e-5;
+
+/// Both Zone B evaluation paths carry a debug-only check that the branch
+/// schedule's skipped runs never move a value the caller reads back. Neither
+/// parity test above reaches the scalar path, and skips are position-dependent,
+/// so this sweeps whole columns block by block to drive the check.
+#[test]
+fn branch_skipping_preserves_every_zone_b_root() {
+    for seed in [1u64, 42] {
+        let router = overworld_router(seed);
+        for (cx, cz) in [(0i32, 0i32), (-33, 55), (7, 7), (100, -7)] {
+            let (bx, bz) = (cx * 16, cz * 16);
+            let mut cache = router.new_column_cache(bx, bz);
+            router.populate_columns(&mut cache);
+            let min_y = router.noise_min_y();
+            let height = router.noise_height() as i32;
+
+            for lx in (0..=16).step_by(4) {
+                for lz in (0..=16).step_by(4) {
+                    cache.load_column(lx, lz);
+                    for y in min_y..min_y + height {
+                        router.final_density_from_column_cache(
+                            IVec3::new(bx + lx, y, bz + lz),
+                            &mut cache,
+                        );
+                    }
+                }
+            }
+
+            let mut interp = router.new_noise_cell_interpolator();
+            let rows = height as usize / interp.v_cell_blocks() + 1;
+            interp.precompute_column_grid(&router, &mut cache, min_y, rows);
+        }
+    }
+}

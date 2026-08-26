@@ -79,6 +79,14 @@ impl<F: Float + Clone> OctavePerlinNoise<F> {
         self.octave_samplers.iter().filter(|o| o.is_some()).count()
     }
 
+    pub(crate) fn persistence(&self) -> F {
+        self.persistence
+    }
+
+    pub(crate) fn into_octave_samplers(self) -> Vec<Option<ImprovedNoise<F>>> {
+        self.octave_samplers
+    }
+
     pub fn edge_value(&self, scale: F) -> F {
         let mut value = F::zero();
         let mut factor = self.persistence;
@@ -564,4 +572,3 @@ impl OctavePerlinNoise<f64> {
             .and_then(|s| s.as_ref())
     }
 }
-

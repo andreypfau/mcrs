@@ -1,15 +1,50 @@
 use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
+use crate::noise::improved_noise::ImprovedNoise;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use mcrs_random::Random;
 
 const INPUT_FACTOR: f64 = 1.0181268882175227;
+const TARGET_DEVIATION: f64 = 0.3333333333333333;
+const PERLIN_STANDARD_DEVIATION: f64 = 0.2702247831245211;
+
+#[derive(Clone, Debug, PartialEq)]
+struct Layer {
+    noise: ImprovedNoise<f32>,
+    frequency: f64,
+    amplitude: f32,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct NormalNoise {
+    layers: Vec<Layer>,
+    max_value: f32,
+}
+
+fn build_layers(
     first: OctavePerlinNoise<f32>,
     second: OctavePerlinNoise<f32>,
-    value_factor: f32,
-    max_value: f32,
+    base_octave: i32,
+    amplitude_of: impl Fn(usize) -> f32,
+) -> Vec<Layer> {
+    let first = first.into_octave_samplers();
+    let second = second.into_octave_samplers();
+    let mut layers = Vec::with_capacity(first.len() * 2);
+    for (i, (a, b)) in first.into_iter().zip(second).enumerate() {
+        let (Some(a), Some(b)) = (a, b) else { continue };
+        let frequency = 2.0f64.powi(base_octave + i as i32);
+        let amplitude = amplitude_of(i);
+        layers.push(Layer {
+            noise: a,
+            frequency,
+            amplitude,
+        });
+        layers.push(Layer {
+            noise: b,
+            frequency: frequency * INPUT_FACTOR,
+            amplitude,
+        });
+    }
+    layers
 }
 
 /// Beta terrain 2D octave noise (scale/depth). Samples at noise-cell coordinates
@@ -67,70 +102,73 @@ impl NoiseSampler {
 
         let expected_deviation = 0.1 * (1.0 + 1.0 / (max - min + 1.0));
         let value_factor = (1.0 / 6.0) / expected_deviation;
-        let max_value = (first.max_value() + second.max_value()) * value_factor;
+        let base_persistence = first.persistence();
+        let layers = build_layers(first, second, first_octave, |i| {
+            let persistence = base_persistence * 0.5f32.powi(i as i32);
+            persistence * amplitudes[i] * value_factor
+        });
         Self::Normal(NormalNoise {
-            first,
-            second,
-            value_factor,
-            max_value,
+            max_value: stack_max_value(&layers),
+            layers,
         })
     }
 
     pub fn from_params<R>(
         random: &mut R,
         base_octave: i32,
-        octave_amplitudes: Vec<f32>,
+        octave_amplitudes: Vec<f64>,
         base_amplitude: f64,
     ) -> Self
     where
         R: Random,
     {
+        let modifiers: Vec<f32> = octave_amplitudes.iter().map(|a| *a as f32).collect();
         let first = OctavePerlinNoise::<f32>::new(
             random,
             base_octave,
-            octave_amplitudes.clone(),
+            modifiers.clone(),
             random.is_legacy(),
         );
-        let second = OctavePerlinNoise::<f32>::new(
-            random,
-            base_octave,
-            octave_amplitudes.clone(),
-            random.is_legacy(),
-        );
+        let second =
+            OctavePerlinNoise::<f32>::new(random, base_octave, modifiers, random.is_legacy());
 
         let count = octave_amplitudes.len() as i32;
-        let persistence = 2.0f64.powi(count - 1) / (2.0f64.powi(count) - 1.0);
-        let mut amplitude = persistence;
-        let mut target_amplitude = 0.0f64;
-        let mut variance = 0.0f64;
+        let mut amplitude = base_amplitude * (2.0f64.powi(count - 1) / (2.0f64.powi(count) - 1.0));
+        let mut octave_amplitude = Vec::with_capacity(octave_amplitudes.len());
         for modifier in &octave_amplitudes {
-            if *modifier != 0.0 {
-                let octave_amplitude = (amplitude * *modifier as f64).abs();
-                target_amplitude += octave_amplitude;
-                variance += (0.2702247831245211 * octave_amplitude).powi(2);
-            }
+            octave_amplitude.push(if *modifier != 0.0 {
+                Some(amplitude * *modifier)
+            } else {
+                None
+            });
             amplitude *= 0.5;
         }
-        let deviation = variance.sqrt();
-        let normalization = if deviation == 0.0 {
+
+        let target_amplitude = compensated_sum(octave_amplitude.iter().flatten().map(|a| a.abs()));
+        let mut variance = 0.0f64;
+        for a in octave_amplitude.iter().flatten() {
+            let layer_deviation = PERLIN_STANDARD_DEVIATION * a.abs();
+            variance += layer_deviation * layer_deviation;
+        }
+        let input_deviation = variance.sqrt();
+        let normalization_factor = if input_deviation == 0.0 {
             0.0
         } else {
-            (target_amplitude / 3.0) / (deviation * std::f64::consts::SQRT_2)
+            (target_amplitude * TARGET_DEVIATION) / (input_deviation * std::f64::consts::SQRT_2)
         };
-        let value_factor = (normalization * base_amplitude) as f32;
 
-        let max_value = (first.max_value() + second.max_value()) * value_factor;
+        let layers = build_layers(first, second, base_octave, |i| {
+            (normalization_factor * octave_amplitude[i].unwrap_or(0.0)) as f32
+        });
         Self::Normal(NormalNoise {
-            first,
-            second,
-            value_factor,
-            max_value,
+            max_value: stack_max_value(&layers),
+            layers,
         })
     }
 
     pub fn octave_count(&self) -> usize {
         match self {
-            NoiseSampler::Normal(n) => n.first.octave_count() + n.second.octave_count(),
+            NoiseSampler::Normal(n) => n.layers.len(),
             NoiseSampler::BetaOctave2d(n) => n.noise.octave_count(),
             NoiseSampler::BetaSimplex2d(_) => 1,
         }
@@ -170,10 +208,15 @@ impl NoiseSampler {
     pub fn get(&self, x: f64, y: f64, z: f64) -> f32 {
         match self {
             Self::Normal(n) => {
-                let x2 = x * INPUT_FACTOR;
-                let y2 = y * INPUT_FACTOR;
-                let z2 = z * INPUT_FACTOR;
-                (n.first.get(x, y, z) + n.second.get(x2, y2, z2)) * n.value_factor
+                let mut value = 0.0f32;
+                for layer in &n.layers {
+                    let f = layer.frequency;
+                    value += layer.amplitude
+                        * layer
+                            .noise
+                            .sample(wrap(x * f), wrap(y * f), wrap(z * f), 0.0, 0.0);
+                }
+                value
             }
             Self::BetaOctave2d(n) => {
                 let noise_x = ((x as i32) >> 2) as f32;
@@ -182,8 +225,7 @@ impl NoiseSampler {
                     .sample_xz(noise_x, noise_z, n.frequency, n.frequency)
             }
             Self::BetaSimplex2d(n) => {
-                n.noise
-                    .sample(x, z, n.scale, n.scale, n.lacunarity, 0.5) as f32
+                n.noise.sample(x, z, n.scale, n.scale, n.lacunarity, 0.5) as f32
             }
         }
     }
@@ -205,27 +247,53 @@ impl NoiseSampler {
         let len = positions.len();
         debug_assert_eq!(len, results.len());
         debug_assert!(len <= MAX_BATCH);
+        results[..len].iter_mut().for_each(|r| *r = 0.0);
 
-        // Build second-set positions (scaled by INPUT_FACTOR) on stack
-        let mut second_positions = [(0.0f64, 0.0f64, 0.0f64); MAX_BATCH];
-        for i in 0..len {
-            let (x, y, z) = positions[i];
-            second_positions[i] = (x * INPUT_FACTOR, y * INPUT_FACTOR, z * INPUT_FACTOR);
+        let mut scaled = [(0.0f64, 0.0f64, 0.0f64); MAX_BATCH];
+        let mut layer_results = [0.0f32; MAX_BATCH];
+        for layer in &n.layers {
+            let f = layer.frequency;
+            for i in 0..len {
+                let (x, y, z) = positions[i];
+                scaled[i] = (wrap(x * f), wrap(y * f), wrap(z * f));
+            }
+            layer
+                .noise
+                .sample_batch(&scaled[..len], 0.0, &[], &mut layer_results[..len]);
+            for i in 0..len {
+                results[i] += layer.amplitude * layer_results[i];
+            }
         }
+    }
+}
 
-        // Evaluate first OctavePerlinNoise in batch
-        let mut first_results = [0.0f32; MAX_BATCH];
-        n.first.get_batch(positions, &mut first_results[..len]);
+#[inline(always)]
+fn wrap(value: f64) -> f64 {
+    OctavePerlinNoise::<f32>::maintain_precission(value)
+}
 
-        // Evaluate second OctavePerlinNoise in batch
-        let mut second_results = [0.0f32; MAX_BATCH];
-        n.second
-            .get_batch(&second_positions[..len], &mut second_results[..len]);
+fn stack_max_value(layers: &[Layer]) -> f32 {
+    layers.iter().map(|l| l.amplitude.abs() * 2.0).sum()
+}
 
-        // Combine: (first + second) * value_factor
-        for i in 0..len {
-            results[i] = (first_results[i] + second_results[i]) * n.value_factor;
-        }
+// The reference totals the octave amplitudes with compensated summation, and that total
+// feeds every layer's folded float factor — a plain sum can land an ulp off and shift one.
+fn compensated_sum(values: impl Iterator<Item = f64>) -> f64 {
+    let mut sum = 0.0f64;
+    let mut compensation = 0.0f64;
+    let mut simple = 0.0f64;
+    for value in values {
+        let corrected = value - compensation;
+        let next = sum + corrected;
+        compensation = (next - sum) - corrected;
+        sum = next;
+        simple += value;
+    }
+    let total = sum - compensation;
+    if total.is_nan() && simple.is_infinite() {
+        simple
+    } else {
+        total
     }
 }
 

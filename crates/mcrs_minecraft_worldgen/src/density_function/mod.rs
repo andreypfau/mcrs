@@ -1,3 +1,4 @@
+use crate::density_function::branch_schedule::{BranchSchedule, Step};
 use crate::density_function::proto::{
     Axis, DensityFunctionHolder, DistanceMetric, HashableF64, NoiseHolder, NoiseParam,
     PowFunctionArguments, ProtoDensityFunction, RoundFunctionArguments, RoundingMode,
@@ -18,16 +19,20 @@ use std::mem::swap;
 use std::ops::Index;
 use tracing::info;
 
-#[cfg(test)]
-mod interval_prune;
 pub mod beta_seed;
 pub mod beta_terrain_f64;
+mod branch_schedule;
+#[cfg(test)]
+mod interval_prune;
 pub mod proto;
 
 /// Maximum number of positions that can be batched in a single plane fill.
 /// 5 Z-columns * 3 Y-positions = 15, rounded up to 16 for alignment.
 #[cfg(feature = "batch-noise")]
 pub(crate) const MAX_BATCH: usize = 128;
+
+#[cfg(feature = "batch-noise")]
+const _: () = assert!(MAX_BATCH <= u8::MAX as usize + 1);
 
 struct ChunkNoiseFunctionBuilderOptions {
     // Number of blocks per cell per axis
@@ -275,7 +280,6 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
     }
 
     let mut redirect: Vec<usize> = (0..n).collect();
-    let mut affine_fusions = 0usize;
     let mut piecewise_affine_fusions = 0usize;
     let mut constants_folded = 0usize;
     let mut identities_eliminated = 0usize;
@@ -409,237 +413,7 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
             continue;
         }
 
-        // 5. Affine fusion
-        let fused = match &stack[i] {
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(lin)) => {
-                let input = &stack[lin.input_index];
-                match (&lin.operation, input) {
-                    // Linear::Add(x, a) where x is Linear::Add(y, b) → Affine(y, 1.0, a+b)
-                    (
-                        LinearOperation::Add,
-                        DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(
-                            inner,
-                        )),
-                    ) if inner.operation == LinearOperation::Add => {
-                        let (min_value, max_value) = Affine::compute_range(
-                            stack[inner.input_index].min_value(),
-                            stack[inner.input_index].max_value(),
-                            1.0,
-                            lin.argument + inner.argument,
-                        );
-                        Some(DensityFunctionComponent::Dependent(
-                            DependentDensityFunction::Affine(Affine {
-                                input_index: inner.input_index,
-                                scale: 1.0,
-                                offset: lin.argument + inner.argument,
-                                min_value,
-                                max_value,
-                            }),
-                        ))
-                    }
-                    // Linear::Mul(x, a) where x is Linear::Mul(y, b) → Affine(y, a*b, 0.0)
-                    (
-                        LinearOperation::Multiply,
-                        DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(
-                            inner,
-                        )),
-                    ) if inner.operation == LinearOperation::Multiply => {
-                        let scale = lin.argument * inner.argument;
-                        let (min_value, max_value) = Affine::compute_range(
-                            stack[inner.input_index].min_value(),
-                            stack[inner.input_index].max_value(),
-                            scale,
-                            0.0,
-                        );
-                        Some(DensityFunctionComponent::Dependent(
-                            DependentDensityFunction::Affine(Affine {
-                                input_index: inner.input_index,
-                                scale,
-                                offset: 0.0,
-                                min_value,
-                                max_value,
-                            }),
-                        ))
-                    }
-                    // Linear::Mul(x, a) where x is Linear::Add(y, b) → Affine(y, a, b*a)
-                    (
-                        LinearOperation::Multiply,
-                        DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(
-                            inner,
-                        )),
-                    ) if inner.operation == LinearOperation::Add => {
-                        let offset = inner.argument * lin.argument;
-                        let (min_value, max_value) = Affine::compute_range(
-                            stack[inner.input_index].min_value(),
-                            stack[inner.input_index].max_value(),
-                            lin.argument,
-                            offset,
-                        );
-                        Some(DensityFunctionComponent::Dependent(
-                            DependentDensityFunction::Affine(Affine {
-                                input_index: inner.input_index,
-                                scale: lin.argument,
-                                offset,
-                                min_value,
-                                max_value,
-                            }),
-                        ))
-                    }
-                    // Linear::Add(x, a) where x is Linear::Mul(y, b) → Affine(y, b, a)
-                    (
-                        LinearOperation::Add,
-                        DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(
-                            inner,
-                        )),
-                    ) if inner.operation == LinearOperation::Multiply => {
-                        let (min_value, max_value) = Affine::compute_range(
-                            stack[inner.input_index].min_value(),
-                            stack[inner.input_index].max_value(),
-                            inner.argument,
-                            lin.argument,
-                        );
-                        Some(DensityFunctionComponent::Dependent(
-                            DependentDensityFunction::Affine(Affine {
-                                input_index: inner.input_index,
-                                scale: inner.argument,
-                                offset: lin.argument,
-                                min_value,
-                                max_value,
-                            }),
-                        ))
-                    }
-                    // Linear::Add(x, a) where x is Affine(y, s, o) → Affine(y, s, o+a)
-                    (
-                        LinearOperation::Add,
-                        DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(
-                            inner,
-                        )),
-                    ) => {
-                        let offset = inner.offset + lin.argument;
-                        let (min_value, max_value) = Affine::compute_range(
-                            stack[inner.input_index].min_value(),
-                            stack[inner.input_index].max_value(),
-                            inner.scale,
-                            offset,
-                        );
-                        Some(DensityFunctionComponent::Dependent(
-                            DependentDensityFunction::Affine(Affine {
-                                input_index: inner.input_index,
-                                scale: inner.scale,
-                                offset,
-                                min_value,
-                                max_value,
-                            }),
-                        ))
-                    }
-                    // Linear::Mul(x, a) where x is Affine(y, s, o) → Affine(y, s*a, o*a)
-                    (
-                        LinearOperation::Multiply,
-                        DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(
-                            inner,
-                        )),
-                    ) => {
-                        let scale = inner.scale * lin.argument;
-                        let offset = inner.offset * lin.argument;
-                        let (min_value, max_value) = Affine::compute_range(
-                            stack[inner.input_index].min_value(),
-                            stack[inner.input_index].max_value(),
-                            scale,
-                            offset,
-                        );
-                        Some(DensityFunctionComponent::Dependent(
-                            DependentDensityFunction::Affine(Affine {
-                                input_index: inner.input_index,
-                                scale,
-                                offset,
-                                min_value,
-                                max_value,
-                            }),
-                        ))
-                    }
-                    _ => None,
-                }
-            }
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(aff)) => {
-                let input = &stack[aff.input_index];
-                match input {
-                    // Affine(x, s2, o2) where x is Affine(y, s1, o1) → Affine(y, s1*s2, o1*s2+o2)
-                    DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(
-                        inner,
-                    )) => {
-                        let scale = inner.scale * aff.scale;
-                        let offset = inner.offset.mul_add(aff.scale, aff.offset);
-                        let (min_value, max_value) = Affine::compute_range(
-                            stack[inner.input_index].min_value(),
-                            stack[inner.input_index].max_value(),
-                            scale,
-                            offset,
-                        );
-                        Some(DensityFunctionComponent::Dependent(
-                            DependentDensityFunction::Affine(Affine {
-                                input_index: inner.input_index,
-                                scale,
-                                offset,
-                                min_value,
-                                max_value,
-                            }),
-                        ))
-                    }
-                    // Affine(x, s2, o2) where x is Linear::Add(y, b) → Affine(y, s2, b*s2+o2)
-                    DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(
-                        inner,
-                    )) if inner.operation == LinearOperation::Add => {
-                        let offset = inner.argument.mul_add(aff.scale, aff.offset);
-                        let (min_value, max_value) = Affine::compute_range(
-                            stack[inner.input_index].min_value(),
-                            stack[inner.input_index].max_value(),
-                            aff.scale,
-                            offset,
-                        );
-                        Some(DensityFunctionComponent::Dependent(
-                            DependentDensityFunction::Affine(Affine {
-                                input_index: inner.input_index,
-                                scale: aff.scale,
-                                offset,
-                                min_value,
-                                max_value,
-                            }),
-                        ))
-                    }
-                    // Affine(x, s2, o2) where x is Linear::Mul(y, b) → Affine(y, b*s2, o2)
-                    DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(
-                        inner,
-                    )) if inner.operation == LinearOperation::Multiply => {
-                        let scale = inner.argument * aff.scale;
-                        let (min_value, max_value) = Affine::compute_range(
-                            stack[inner.input_index].min_value(),
-                            stack[inner.input_index].max_value(),
-                            scale,
-                            aff.offset,
-                        );
-                        Some(DensityFunctionComponent::Dependent(
-                            DependentDensityFunction::Affine(Affine {
-                                input_index: inner.input_index,
-                                scale,
-                                offset: aff.offset,
-                                min_value,
-                                max_value,
-                            }),
-                        ))
-                    }
-                    _ => None,
-                }
-            }
-            _ => None,
-        };
-
-        if let Some(replacement) = fused {
-            stack[i] = replacement;
-            affine_fusions += 1;
-            // Don't continue — fall through to identity/zero check below
-        }
-
-        // 5b. Convert remaining standalone Linear to Affine (removes tracing span, uses FMA)
+        // 5. Convert standalone Linear to Affine
         if let DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(lin)) =
             &stack[i]
         {
@@ -866,7 +640,6 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
 
     info!(
         stack_size = n,
-        affine_fusions,
         piecewise_affine_fusions,
         constants_folded,
         identities_eliminated,
@@ -1207,126 +980,6 @@ impl ColumnCache {
     }
 }
 
-/// Compute lazy RangeChoice optimization for Zone B.
-///
-/// Finds the RangeChoice in Zone B with the most exclusive entries and creates
-/// two evaluation lists: one for when the condition is true (when_in branch)
-/// and one for when it's false (when_out branch). Entries exclusive to the
-/// inactive branch are omitted from the respective list.
-#[cfg(feature = "lazy-range-choice")]
-fn compute_lazy_range_choice(
-    stack: &[DensityFunctionComponent],
-    column_boundary: usize,
-    final_density_index: usize,
-) -> Option<LazyRangeChoice> {
-    // Find RangeChoice nodes in Zone B
-    let mut best: Option<LazyRangeChoice> = None;
-    let mut best_savings = 0usize;
-
-    for rc_idx in column_boundary..=final_density_index {
-        let rc = match &stack[rc_idx] {
-            DensityFunctionComponent::Dependent(DependentDensityFunction::RangeChoice(rc)) => rc,
-            _ => continue,
-        };
-
-        // Compute reachable sets from when_in and when_out branches
-        let extent = final_density_index + 1;
-        let reachable_from_wi = reachable_backwards(rc.when_in_index, stack, extent);
-        let reachable_from_wo = reachable_backwards(rc.when_out_index, stack, extent);
-
-        // Compute reachable set from final_density WITHOUT going through this RC's branches.
-        // We walk back from final_density but when we encounter this RC node, we only
-        // follow the input edge (not when_in or when_out).
-        let reachable_without_branches = {
-            let mut visited = vec![false; final_density_index + 1];
-            visited[final_density_index] = true;
-            for i in (column_boundary..=final_density_index).rev() {
-                if !visited[i] {
-                    continue;
-                }
-                if i == rc_idx {
-                    // Only follow the input edge, not the branch edges
-                    if rc.input_index <= final_density_index {
-                        visited[rc.input_index] = true;
-                    }
-                } else {
-                    stack[i].visit_input_indices(&mut |dep| {
-                        if dep <= final_density_index {
-                            visited[dep] = true;
-                        }
-                    });
-                }
-            }
-            visited
-        };
-
-        // Entries exclusive to when_out: reachable from WO, NOT from WI, NOT from other paths
-        let wo_exclusive: Vec<usize> = (column_boundary..rc_idx)
-            .filter(|&e| {
-                reachable_from_wo[e] && !reachable_from_wi[e] && !reachable_without_branches[e]
-            })
-            .collect();
-
-        // Entries exclusive to when_in: reachable from WI, NOT from WO, NOT from other paths
-        let wi_exclusive: Vec<usize> = (column_boundary..rc_idx)
-            .filter(|&e| {
-                reachable_from_wi[e] && !reachable_from_wo[e] && !reachable_without_branches[e]
-            })
-            .collect();
-
-        let savings = wo_exclusive.len().max(wi_exclusive.len());
-        if savings <= best_savings {
-            continue;
-        }
-
-        // Build branch-specific lists: Zone B entries AFTER input_index, minus exclusives.
-        // The common prefix [column_boundary..=input_index] is always evaluated.
-        let input_idx = rc.input_index;
-        let branch_when_in: Vec<usize> = ((input_idx + 1)..=final_density_index)
-            .filter(|e| !wo_exclusive.contains(e))
-            .collect();
-        let branch_when_out: Vec<usize> = ((input_idx + 1)..=final_density_index)
-            .filter(|e| !wi_exclusive.contains(e))
-            .collect();
-
-        best_savings = savings;
-        best = Some(LazyRangeChoice {
-            input_index: input_idx,
-            min_inclusion: rc.min_inclusion_value,
-            max_exclusion: rc.max_exclusion_value,
-            branch_when_in: branch_when_in.into_boxed_slice(),
-            branch_when_out: branch_when_out.into_boxed_slice(),
-        });
-    }
-
-    best
-}
-
-#[cfg(feature = "lazy-range-choice")]
-/// Walk backwards from `start` through input edges, returning a reachability bitmap
-/// of size `extent`. Entries beyond `start` are always false.
-fn reachable_backwards(
-    start: usize,
-    stack: &[DensityFunctionComponent],
-    extent: usize,
-) -> Vec<bool> {
-    let mut visited = vec![false; extent];
-    if start < extent {
-        visited[start] = true;
-    }
-    for i in (0..=start.min(extent - 1)).rev() {
-        if !visited[i] {
-            continue;
-        }
-        stack[i].visit_input_indices(&mut |dep| {
-            if dep < extent {
-                visited[dep] = true;
-            }
-        });
-    }
-    visited
-}
-
 pub fn build_functions(
     functions: &BTreeMap<ResourceLocation, ProtoDensityFunction>,
     noises: &BTreeMap<ResourceLocation, NoiseParam>,
@@ -1393,11 +1046,6 @@ pub fn build_functions(
 
     let final_density_index = roots[7];
 
-    // Compute lazy RangeChoice optimization for Zone B.
-    #[cfg(feature = "lazy-range-choice")]
-    let lazy_rc = compute_lazy_range_choice(&builder.stack, column_boundary, final_density_index);
-
-
     // Expose beach and surface octave noises for the Beta surface pass.
     // Only populated when using the Beta (legacy) random source; modern router gets None.
     let (beta_beach_noise, beta_surface_noise, beta_terrain_f64_opt) =
@@ -1423,6 +1071,16 @@ pub fn build_functions(
             _ => unreachable!(),
         })
         .collect();
+
+    // Every value a caller reads back out of Zone B. The schedule may skip any
+    // node outside this set, so it is also exactly what the debug verify checks.
+    let zone_b_roots: Vec<usize> = std::iter::once(final_density_index)
+        .chain(outer_wrapper_inputs.iter().copied())
+        .collect();
+    let zone_b_schedule = {
+        let members: Vec<usize> = (column_boundary..=final_density_index).collect();
+        branch_schedule::build(&builder.stack, &members, &zone_b_roots)
+    };
 
     // The lattice the chunk fill walks is the wrappers' own cell geometry, so a
     // datapack whose wrappers disagree would need one lattice per cell size.
@@ -1474,31 +1132,11 @@ pub fn build_functions(
         v_cell_blocks,
         stack: Box::from(builder.stack),
         node_labels: node_labels.into_boxed_slice(),
-        #[cfg(feature = "lazy-range-choice")]
-        lazy_rc,
+        zone_b_schedule,
+        zone_b_roots: zone_b_roots.into_boxed_slice(),
     };
 
     router
-}
-
-#[cfg(feature = "lazy-range-choice")]
-#[derive(Clone, Debug, PartialEq)]
-/// Lazy RangeChoice evaluation data.
-/// Zone B evaluation is split into a common prefix (up to and including the
-/// RangeChoice input) and branch-specific tails. The input is evaluated first,
-/// then based on the condition, only the needed branch entries are evaluated.
-struct LazyRangeChoice {
-    /// Stack index of the RangeChoice's input.
-    input_index: usize,
-    /// Range bounds for the condition.
-    min_inclusion: f32,
-    max_exclusion: f32,
-    /// Zone B entries AFTER input_index when condition is TRUE (input in range).
-    /// Excludes entries only needed by the when_out branch.
-    branch_when_in: Box<[usize]>,
-    /// Zone B entries AFTER input_index when condition is FALSE (input out of range).
-    /// Excludes entries only needed by the when_in branch.
-    branch_when_out: Box<[usize]>,
 }
 
 pub struct NoiseRouter {
@@ -1546,11 +1184,8 @@ pub struct NoiseRouter {
     v_cell_blocks: usize,
     stack: Box<[DensityFunctionComponent]>,
     node_labels: Box<[String]>,
-    /// Lazy RangeChoice optimization for Zone B evaluation.
-    /// If present, `final_density_from_column_cache` uses branch-specific
-    /// evaluation lists to skip entries exclusive to the inactive branch.
-    #[cfg(feature = "lazy-range-choice")]
-    lazy_rc: Option<LazyRangeChoice>,
+    zone_b_schedule: BranchSchedule,
+    zone_b_roots: Box<[usize]>,
 }
 
 impl NoiseRouter {
@@ -1563,10 +1198,7 @@ impl NoiseRouter {
             ("erosion", self.erosion_index),
             ("depth", self.depth_index),
             ("ridges", self.ridges_index),
-            (
-                "chunk_surface_level",
-                self.chunk_surface_level_index,
-            ),
+            ("chunk_surface_level", self.chunk_surface_level_index),
             ("final_density", self.final_density_index),
         ]
     }
@@ -1792,38 +1424,64 @@ impl NoiseRouter {
         (temperature, humidity)
     }
 
+    /// Evaluate Zone B at `pos` into `scratch`, jumping over every arm-exclusive
+    /// run whose selection cannot reach it.
+    fn run_zone_b(&self, pos: IVec3, scratch: &mut [f32]) {
+        let sched = &self.zone_b_schedule;
+        let mut s = 0usize;
+        while s < sched.steps.len() {
+            match sched.steps[s] {
+                Step::Eval { start, end } => {
+                    for &i in &sched.order[start as usize..end as usize] {
+                        let value = self.stack[i].sample_cached(scratch, &self.stack, pos);
+                        scratch[i] = value;
+                    }
+                    s += 1;
+                }
+                Step::Guard {
+                    input,
+                    min_inclusive,
+                    max_exclusive,
+                    want_in,
+                    unguard,
+                } => {
+                    let v = scratch[input as usize];
+                    let in_range = v >= min_inclusive && v < max_exclusive;
+                    s = if in_range == want_in {
+                        s + 1
+                    } else {
+                        unguard as usize
+                    };
+                }
+                Step::Unguard => s += 1,
+            }
+        }
+        #[cfg(debug_assertions)]
+        self.verify_zone_b(pos, scratch);
+    }
+
+    /// Re-evaluate the skipped runs and check nothing the caller reads moved.
+    #[cfg(debug_assertions)]
+    fn verify_zone_b(&self, pos: IVec3, scratch: &[f32]) {
+        let mut full = scratch.to_vec();
+        for i in self.column_boundary..=self.final_density_index {
+            let value = self.stack[i].sample_cached(&full, &self.stack, pos);
+            full[i] = value;
+        }
+        for &root in self.zone_b_roots.iter() {
+            assert_eq!(
+                full[root].to_bits(),
+                scratch[root].to_bits(),
+                "branch skip changed node {root} at {pos:?}"
+            );
+        }
+    }
+
     /// Evaluate final_density using a pre-populated column cache.
     /// Zone A values must already be loaded into `cache.scratch` via `load_column`.
-    /// Only evaluates Zone B entries (branchless, no column_changed check).
     #[inline]
     pub fn final_density_from_column_cache(&self, pos: IVec3, cache: &mut ColumnCache) -> f32 {
-        #[cfg(feature = "lazy-range-choice")]
-        if let Some(rc) = &self.lazy_rc {
-            // Phase 1: Evaluate the common prefix up to the RangeChoice input.
-            for i in self.column_boundary..=rc.input_index {
-                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
-            }
-
-            // Phase 2: Check the RangeChoice condition and select the branch.
-            let input_val = cache.scratch[rc.input_index];
-            let in_range = input_val >= rc.min_inclusion && input_val < rc.max_exclusion;
-            let branch = if in_range {
-                &rc.branch_when_in
-            } else {
-                &rc.branch_when_out
-            };
-
-            // Phase 3: Evaluate only the needed branch entries.
-            for &i in branch.iter() {
-                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
-            }
-
-            return cache.scratch[self.final_density_index];
-        }
-
-        for i in self.column_boundary..=self.final_density_index {
-            cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
-        }
+        self.run_zone_b(pos, &mut cache.scratch);
         cache.scratch[self.final_density_index]
     }
 
@@ -1930,10 +1588,7 @@ impl NoiseRouter {
         cache: &mut ColumnCache,
         out: &mut [f32],
     ) {
-        for i in self.column_boundary..=self.final_density_index {
-            let value = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
-            cache.scratch[i] = value;
-        }
+        self.run_zone_b(pos, &mut cache.scratch);
         for (k, &idx) in self.outer_wrapper_inputs.iter().enumerate() {
             out[k] = cache.scratch[idx];
         }
@@ -1958,205 +1613,63 @@ impl NoiseRouter {
         debug_assert_eq!(n * self.cell_value_count(), results.len());
         debug_assert!(n <= MAX_BATCH);
         let stack_len = self.final_density_index + 1;
+        let sched = &self.zone_b_schedule;
 
-        // Evaluate Zone B entries, entry by entry across all positions.
-        // Skips lazy RangeChoice for the batch path — the SIMD noise wins outweigh it.
-        for i in self.column_boundary..=self.final_density_index {
-            match &self.stack[i] {
-                DensityFunctionComponent::Independent(f) => match f {
-                    IndependentDensityFunction::OldBlendedNoise(noise) => {
-                        noise.sample_batch(positions, &mut cache.batch_noise_results[..n]);
-                        for p in 0..n {
-                            cache.batch_scratch[p * stack_len + i] = cache.batch_noise_results[p];
+        let mut active = [[0u8; MAX_BATCH]; branch_schedule::MAX_GUARD_DEPTH + 1];
+        let mut live = [0usize; branch_schedule::MAX_GUARD_DEPTH + 1];
+        for p in 0..n {
+            active[0][p] = p as u8;
+        }
+        live[0] = n;
+        let mut depth = 0usize;
+
+        let mut s = 0usize;
+        while s < sched.steps.len() {
+            match sched.steps[s] {
+                Step::Eval { start, end } => {
+                    let nodes = &sched.order[start as usize..end as usize];
+                    if live[depth] == n {
+                        for &i in nodes {
+                            self.eval_node_batch(i, positions, 0..n, stack_len, cache);
                         }
-                    }
-                    IndependentDensityFunction::Noise(noise) => {
-                        for p in 0..n {
-                            cache.batch_noise_positions[p] = (
-                                positions[p].x as f64 * noise.xz_scale,
-                                positions[p].y as f64 * noise.y_scale,
-                                positions[p].z as f64 * noise.xz_scale,
-                            );
-                        }
-                        noise.sampler.get_batch(
-                            &cache.batch_noise_positions[..n],
-                            &mut cache.batch_noise_results[..n],
-                        );
-                        for p in 0..n {
-                            cache.batch_scratch[p * stack_len + i] = cache.batch_noise_results[p];
-                        }
-                    }
-                    _ => {
-                        for p in 0..n {
-                            cache.batch_scratch[p * stack_len + i] = f.sample(&[], positions[p]);
-                        }
-                    }
-                },
-                DensityFunctionComponent::Dependent(f) => match f {
-                    DependentDensityFunction::Linear(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            let input = cache.batch_scratch[base + x.input_index];
-                            cache.batch_scratch[base + i] = match x.operation {
-                                LinearOperation::Add => input + x.argument,
-                                LinearOperation::Multiply => input * x.argument,
-                            };
-                        }
-                    }
-                    DependentDensityFunction::Affine(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            let input = cache.batch_scratch[base + x.input_index];
-                            cache.batch_scratch[base + i] = input.mul_add(x.scale, x.offset);
-                        }
-                    }
-                    DependentDensityFunction::PiecewiseAffine(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            let input = cache.batch_scratch[base + x.input_index];
-                            let scale = if input < 0.0 {
-                                x.neg_scale
-                            } else {
-                                x.pos_scale
-                            };
-                            cache.batch_scratch[base + i] = input.mul_add(scale, x.offset);
-                        }
-                    }
-                    DependentDensityFunction::Slide(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            let input = cache.batch_scratch[base + x.input_index];
-                            cache.batch_scratch[base + i] = x.compute(input, positions[p].y as f32);
-                        }
-                    }
-                    DependentDensityFunction::Unary(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            let input = cache.batch_scratch[base + x.input_index];
-                            cache.batch_scratch[base + i] = x.operation.apply(input);
-                        }
-                    }
-                    DependentDensityFunction::Binary(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            let a = cache.batch_scratch[base + x.input1_index];
-                            let b = cache.batch_scratch[base + x.input2_index];
-                            cache.batch_scratch[base + i] = x.operation.apply(a, b);
-                        }
-                    }
-                    DependentDensityFunction::ShiftedNoise(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            cache.batch_scratch[base + i] = x.sampler.get(
-                                positions[p].x as f64 * x.xz_scale
-                                    + cache.batch_scratch[base + x.input_x_index] as f64,
-                                positions[p].y as f64 * x.y_scale
-                                    + cache.batch_scratch[base + x.input_y_index] as f64,
-                                positions[p].z as f64 * x.xz_scale
-                                    + cache.batch_scratch[base + x.input_z_index] as f64,
+                    } else {
+                        let act = &active[depth][..live[depth]];
+                        for &i in nodes {
+                            self.eval_node_batch(
+                                i,
+                                positions,
+                                act.iter().map(|&p| p as usize),
+                                stack_len,
+                                cache,
                             );
                         }
                     }
-                    DependentDensityFunction::Clamp(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            let input = cache.batch_scratch[base + x.input_index];
-                            cache.batch_scratch[base + i] = input.clamp(x.min_value, x.max_value);
+                    s += 1;
+                }
+                Step::Guard {
+                    input,
+                    min_inclusive,
+                    max_exclusive,
+                    want_in,
+                    unguard,
+                } => {
+                    let mut kept = 0usize;
+                    for idx in 0..live[depth] {
+                        let p = active[depth][idx] as usize;
+                        let v = cache.batch_scratch[p * stack_len + input as usize];
+                        if ((v >= min_inclusive) & (v < max_exclusive)) == want_in {
+                            active[depth + 1][kept] = p as u8;
+                            kept += 1;
                         }
                     }
-                    DependentDensityFunction::RangeChoice(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            let input = cache.batch_scratch[base + x.input_index];
-                            cache.batch_scratch[base + i] = if input >= x.min_inclusion_value
-                                && input < x.max_exclusion_value
-                            {
-                                cache.batch_scratch[base + x.when_in_index]
-                            } else {
-                                cache.batch_scratch[base + x.when_out_index]
-                            };
-                        }
-                    }
-                    DependentDensityFunction::Spline(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            // Copy this position's scratch into temp for Spline's &[f32] API
-                            cache.spline_temp[..stack_len]
-                                .copy_from_slice(&cache.batch_scratch[base..base + stack_len]);
-                            cache.batch_scratch[base + i] =
-                                x.sample_cached(&cache.spline_temp, &self.stack, positions[p]);
-                        }
-                    }
-                    DependentDensityFunction::Lerp(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            let alpha = cache.batch_scratch[base + x.alpha_index];
-                            let first = cache.batch_scratch[base + x.first_index];
-                            let second = cache.batch_scratch[base + x.second_index];
-                            cache.batch_scratch[base + i] = if alpha == 0.0 {
-                                first
-                            } else if alpha == 1.0 {
-                                second
-                            } else {
-                                first + alpha * (second - first)
-                            };
-                        }
-                    }
-                    DependentDensityFunction::Slice(x) => {
-                        for p in 0..n {
-                            cache.batch_scratch[p * stack_len + i] =
-                                x.sample(&self.stack[..=i], positions[p]);
-                        }
-                    }
-                    DependentDensityFunction::FindTopSurface(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            let top_y = (cache.batch_scratch[base + x.upper_bound_index]
-                                / x.cell_height)
-                                .floor()
-                                * x.cell_height;
-                            cache.batch_scratch[base + i] = if top_y <= x.lower_bound {
-                                x.lower_bound
-                            } else {
-                                let mut current_y = top_y;
-                                loop {
-                                    let sample_pos = IVec3::new(
-                                        positions[p].x,
-                                        current_y as i32,
-                                        positions[p].z,
-                                    );
-                                    let density = DensityFunctionComponent::sample_from_stack(
-                                        &self.stack[..=x.density_index],
-                                        sample_pos,
-                                    );
-                                    if density > 0.0 || current_y <= x.lower_bound {
-                                        break current_y;
-                                    }
-                                    current_y -= x.cell_height;
-                                }
-                            };
-                        }
-                    }
-                },
-                DensityFunctionComponent::Wrapper(f) => match f {
-                    WrapperDensityFunction::Interpolated(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            cache.batch_scratch[base + i] = if x.is_cell_corner(positions[p]) {
-                                cache.batch_scratch[base + x.input_index]
-                            } else {
-                                x.sample(&self.stack, positions[p])
-                            };
-                        }
-                    }
-                    WrapperDensityFunction::Cache(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            cache.batch_scratch[base + i] =
-                                cache.batch_scratch[base + x.input_index];
-                        }
-                    }
-                },
+                    live[depth + 1] = kept;
+                    depth += 1;
+                    s = if kept == 0 { unguard as usize } else { s + 1 };
+                }
+                Step::Unguard => {
+                    depth -= 1;
+                    s += 1;
+                }
             }
         }
 
@@ -2166,6 +1679,254 @@ impl NoiseRouter {
             for (k, &idx) in self.outer_wrapper_inputs.iter().enumerate() {
                 results[p * w + k] = cache.batch_scratch[base + idx];
             }
+        }
+
+        // Zone A is untouched by the pass above, so re-running every node for
+        // every position reproduces what the guards jumped over.
+        #[cfg(debug_assertions)]
+        {
+            let mut guarded = Vec::with_capacity(n * self.zone_b_roots.len());
+            for p in 0..n {
+                for &idx in self.zone_b_roots.iter() {
+                    guarded.push(cache.batch_scratch[p * stack_len + idx]);
+                }
+            }
+            for i in self.column_boundary..=self.final_density_index {
+                self.eval_node_batch(i, positions, 0..n, stack_len, cache);
+            }
+            let r = self.zone_b_roots.len();
+            for p in 0..n {
+                let base = p * stack_len;
+                for (k, &idx) in self.zone_b_roots.iter().enumerate() {
+                    assert_eq!(
+                        guarded[p * r + k].to_bits(),
+                        cache.batch_scratch[base + idx].to_bits(),
+                        "branch skip changed node {idx} at {:?}",
+                        positions[p]
+                    );
+                }
+            }
+        }
+    }
+
+    /// Evaluate one Zone B node across the batch positions `ps` selects.
+    ///
+    /// Generic over the position iterator so an unguarded run keeps its dense
+    /// `0..n` loop: routing every node through a gathered index list costs more
+    /// than the guards save on a stack that barely branches.
+    #[cfg(feature = "batch-noise")]
+    #[inline]
+    fn eval_node_batch<I>(
+        &self,
+        i: usize,
+        positions: &[IVec3],
+        ps: I,
+        stack_len: usize,
+        cache: &mut ColumnCache,
+    ) where
+        I: ExactSizeIterator<Item = usize> + Clone,
+    {
+        match &self.stack[i] {
+            DensityFunctionComponent::Independent(f) => match f {
+                IndependentDensityFunction::OldBlendedNoise(noise) => {
+                    let k = ps.len();
+                    if k == positions.len() {
+                        noise.sample_batch(positions, &mut cache.batch_noise_results[..k]);
+                    } else {
+                        let mut gathered = [IVec3::ZERO; MAX_BATCH];
+                        for (j, p) in ps.clone().enumerate() {
+                            gathered[j] = positions[p];
+                        }
+                        noise.sample_batch(&gathered[..k], &mut cache.batch_noise_results[..k]);
+                    }
+                    for (j, p) in ps.clone().enumerate() {
+                        cache.batch_scratch[p * stack_len + i] = cache.batch_noise_results[j];
+                    }
+                }
+                IndependentDensityFunction::Noise(noise) => {
+                    let k = ps.len();
+                    for (j, p) in ps.clone().enumerate() {
+                        let pos = positions[p];
+                        cache.batch_noise_positions[j] = (
+                            pos.x as f64 * noise.xz_scale,
+                            pos.y as f64 * noise.y_scale,
+                            pos.z as f64 * noise.xz_scale,
+                        );
+                    }
+                    noise.sampler.get_batch(
+                        &cache.batch_noise_positions[..k],
+                        &mut cache.batch_noise_results[..k],
+                    );
+                    for (j, p) in ps.clone().enumerate() {
+                        cache.batch_scratch[p * stack_len + i] = cache.batch_noise_results[j];
+                    }
+                }
+                _ => {
+                    for p in ps.clone() {
+                        cache.batch_scratch[p * stack_len + i] = f.sample(&[], positions[p]);
+                    }
+                }
+            },
+            DensityFunctionComponent::Dependent(f) => match f {
+                DependentDensityFunction::Linear(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        let input = cache.batch_scratch[base + x.input_index];
+                        cache.batch_scratch[base + i] = match x.operation {
+                            LinearOperation::Add => input + x.argument,
+                            LinearOperation::Multiply => input * x.argument,
+                        };
+                    }
+                }
+                DependentDensityFunction::Affine(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        let input = cache.batch_scratch[base + x.input_index];
+                        cache.batch_scratch[base + i] = input.mul_add(x.scale, x.offset);
+                    }
+                }
+                DependentDensityFunction::PiecewiseAffine(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        let input = cache.batch_scratch[base + x.input_index];
+                        let scale = if input < 0.0 {
+                            x.neg_scale
+                        } else {
+                            x.pos_scale
+                        };
+                        cache.batch_scratch[base + i] = input.mul_add(scale, x.offset);
+                    }
+                }
+                DependentDensityFunction::Slide(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        let input = cache.batch_scratch[base + x.input_index];
+                        cache.batch_scratch[base + i] = x.compute(input, positions[p].y as f32);
+                    }
+                }
+                DependentDensityFunction::Unary(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        let input = cache.batch_scratch[base + x.input_index];
+                        cache.batch_scratch[base + i] = x.operation.apply(input);
+                    }
+                }
+                DependentDensityFunction::Binary(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        let a = cache.batch_scratch[base + x.input1_index];
+                        let b = cache.batch_scratch[base + x.input2_index];
+                        cache.batch_scratch[base + i] = x.operation.apply(a, b);
+                    }
+                }
+                DependentDensityFunction::ShiftedNoise(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        cache.batch_scratch[base + i] = x.sampler.get(
+                            positions[p].x as f64 * x.xz_scale
+                                + cache.batch_scratch[base + x.input_x_index] as f64,
+                            positions[p].y as f64 * x.y_scale
+                                + cache.batch_scratch[base + x.input_y_index] as f64,
+                            positions[p].z as f64 * x.xz_scale
+                                + cache.batch_scratch[base + x.input_z_index] as f64,
+                        );
+                    }
+                }
+                DependentDensityFunction::Clamp(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        let input = cache.batch_scratch[base + x.input_index];
+                        cache.batch_scratch[base + i] = input.clamp(x.min_value, x.max_value);
+                    }
+                }
+                DependentDensityFunction::RangeChoice(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        let input = cache.batch_scratch[base + x.input_index];
+                        cache.batch_scratch[base + i] =
+                            if input >= x.min_inclusion_value && input < x.max_exclusion_value {
+                                cache.batch_scratch[base + x.when_in_index]
+                            } else {
+                                cache.batch_scratch[base + x.when_out_index]
+                            };
+                    }
+                }
+                DependentDensityFunction::Spline(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        // Copy this position's scratch into temp for Spline's &[f32] API
+                        cache.spline_temp[..stack_len]
+                            .copy_from_slice(&cache.batch_scratch[base..base + stack_len]);
+                        cache.batch_scratch[base + i] =
+                            x.sample_cached(&cache.spline_temp, &self.stack, positions[p]);
+                    }
+                }
+                DependentDensityFunction::Lerp(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        let alpha = cache.batch_scratch[base + x.alpha_index];
+                        let first = cache.batch_scratch[base + x.first_index];
+                        let second = cache.batch_scratch[base + x.second_index];
+                        cache.batch_scratch[base + i] = if alpha == 0.0 {
+                            first
+                        } else if alpha == 1.0 {
+                            second
+                        } else {
+                            first + alpha * (second - first)
+                        };
+                    }
+                }
+                DependentDensityFunction::Slice(x) => {
+                    for p in ps.clone() {
+                        cache.batch_scratch[p * stack_len + i] =
+                            x.sample(&self.stack[..=i], positions[p]);
+                    }
+                }
+                DependentDensityFunction::FindTopSurface(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        let top_y = (cache.batch_scratch[base + x.upper_bound_index]
+                            / x.cell_height)
+                            .floor()
+                            * x.cell_height;
+                        cache.batch_scratch[base + i] = if top_y <= x.lower_bound {
+                            x.lower_bound
+                        } else {
+                            let mut current_y = top_y;
+                            loop {
+                                let sample_pos =
+                                    IVec3::new(positions[p].x, current_y as i32, positions[p].z);
+                                let density = DensityFunctionComponent::sample_from_stack(
+                                    &self.stack[..=x.density_index],
+                                    sample_pos,
+                                );
+                                if density > 0.0 || current_y <= x.lower_bound {
+                                    break current_y;
+                                }
+                                current_y -= x.cell_height;
+                            }
+                        };
+                    }
+                }
+            },
+            DensityFunctionComponent::Wrapper(f) => match f {
+                WrapperDensityFunction::Interpolated(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        cache.batch_scratch[base + i] = if x.is_cell_corner(positions[p]) {
+                            cache.batch_scratch[base + x.input_index]
+                        } else {
+                            x.sample(&self.stack, positions[p])
+                        };
+                    }
+                }
+                WrapperDensityFunction::Cache(x) => {
+                    for p in ps.clone() {
+                        let base = p * stack_len;
+                        cache.batch_scratch[base + i] = cache.batch_scratch[base + x.input_index];
+                    }
+                }
+            },
         }
     }
 
@@ -2282,7 +2043,11 @@ impl NoiseRouter {
 
     /// Create a new `NoiseCellInterpolator` matching this router's cell dimensions.
     pub fn new_noise_cell_interpolator(&self) -> NoiseCellInterpolator {
-        NoiseCellInterpolator::new(self.h_cell_blocks, self.v_cell_blocks, self.cell_value_count())
+        NoiseCellInterpolator::new(
+            self.h_cell_blocks,
+            self.v_cell_blocks,
+            self.cell_value_count(),
+        )
     }
 }
 
@@ -2438,9 +2203,8 @@ impl NoiseCellInterpolator {
                     );
                     for c in 0..batch_cols {
                         let g0 = col_grid_idx[c] * rows * w;
-                        self.grid[g0..g0 + rows * w].copy_from_slice(
-                            &self.batch_results[c * rows * w..(c + 1) * rows * w],
-                        );
+                        self.grid[g0..g0 + rows * w]
+                            .copy_from_slice(&self.batch_results[c * rows * w..(c + 1) * rows * w]);
                     }
                     batch_cols = 0;
                     idx = 0;
@@ -4178,7 +3942,7 @@ impl DensityFunction for SplineValue {
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Segment {
     left: f32,
-    inv_dist: f32,         // 1 / (x[i+1] - x[i])
+    dist: f32,             // x[i+1] - x[i]
     lower_deriv_dist: f32, // d[i]   * dist
     upper_deriv_dist: f32, // d[i+1] * dist
 }
@@ -4295,7 +4059,7 @@ impl Spline {
             debug_assert!(dist > 0.0, "locations must be strictly increasing");
             segs.push(Segment {
                 left,
-                inv_dist: 1.0 / dist,
+                dist,
                 lower_deriv_dist: derivatives[i] * dist,
                 upper_deriv_dist: derivatives[i + 1] * dist,
             });
@@ -4339,7 +4103,7 @@ impl Spline {
 
     #[inline(always)]
     fn lerp(a: f32, b: f32, t: f32) -> f32 {
-        (b - a).mul_add(t, a)
+        a + t * (b - a)
     }
 }
 
@@ -4370,7 +4134,7 @@ impl DensityFunction for Spline {
             return if d0 == 0.0 {
                 v0
             } else {
-                d0.mul_add(location - locs[0], v0)
+                v0 + d0 * (location - locs[0])
             };
         }
 
@@ -4381,7 +4145,7 @@ impl DensityFunction for Spline {
             return if d == 0.0 {
                 v
             } else {
-                d.mul_add(location - locs[i], v)
+                v + d * (location - locs[i])
             };
         }
 
@@ -4392,7 +4156,7 @@ impl DensityFunction for Spline {
         let v1 = self.values[i1].sample(stack, pos);
 
         let seg = self.segments[i0];
-        let x = (location - seg.left) * seg.inv_dist;
+        let x = (location - seg.left) / seg.dist;
 
         let delta = v1 - v0;
 
@@ -4430,7 +4194,7 @@ impl Spline {
             return if d0 == 0.0 {
                 v0
             } else {
-                d0.mul_add(location - locs[0], v0)
+                v0 + d0 * (location - locs[0])
             };
         }
 
@@ -4441,7 +4205,7 @@ impl Spline {
             return if d == 0.0 {
                 v
             } else {
-                d.mul_add(location - locs[i], v)
+                v + d * (location - locs[i])
             };
         }
 
@@ -4452,7 +4216,7 @@ impl Spline {
         let v1 = self.values[i1].sample_cached(cache, stack, pos);
 
         let seg = self.segments[i0];
-        let x = (location - seg.left) * seg.inv_dist;
+        let x = (location - seg.left) / seg.dist;
 
         let delta = v1 - v0;
 
@@ -5902,7 +5666,7 @@ impl<'a> FunctionStackBuilder<'a> {
             NoiseHolder::Owned(x) => NoiseSampler::from_params(
                 &mut self.random.clone(),
                 x.base_octave,
-                x.octave_amplitudes().iter().map(|a| *a as f32).collect(),
+                x.octave_amplitudes(),
                 x.base_amplitude.0,
             ),
         }
@@ -5971,11 +5735,7 @@ impl<'a> FunctionStackBuilder<'a> {
         NoiseSampler::from_params(
             &mut random,
             noise_param.base_octave,
-            noise_param
-                .octave_amplitudes()
-                .iter()
-                .map(|a| *a as f32)
-                .collect(),
+            noise_param.octave_amplitudes(),
             noise_param.base_amplitude.0,
         )
     }
@@ -6027,7 +5787,13 @@ mod tests {
         ] {
             let mut random = RandomSource::new(next() as i64 as u64, true);
             let noise = BlendedNoise::new(
-                &mut random, xz_scale, y_scale, xz_factor, y_factor, smear, divisor,
+                &mut random,
+                xz_scale,
+                y_scale,
+                xz_factor,
+                y_factor,
+                smear,
+                divisor,
             );
             let bound = noise.max_value();
             let mut peak = 0.0f32;
@@ -6918,7 +6684,7 @@ mod tests {
 
         assert_eq!(
             sample.to_bits(),
-            3168561609u32,
+            3168561611u32,
             "modern router sample must match baseline (seed=2, pos=(0,64,0))"
         );
     }
@@ -6983,8 +6749,8 @@ mod tests {
     /// the on-disk file count and the parsed count agree.
     #[test]
     fn whole_worldgen_corpus_parses() {
-        let assets =
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/minecraft/worldgen");
+        let assets = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/minecraft/worldgen");
 
         let functions = load_density_functions_from_disk();
         assert_eq!(
@@ -6995,7 +6761,10 @@ mod tests {
 
         for (ident, function) in &functions {
             // A bare constant ships as a naked number, never as a tagged object.
-            if matches!(function, crate::density_function::ProtoDensityFunction::Constant(_)) {
+            if matches!(
+                function,
+                crate::density_function::ProtoDensityFunction::Constant(_)
+            ) {
                 continue;
             }
             let reencoded = serde_json::to_string(function).unwrap();
@@ -7020,8 +6789,8 @@ mod tests {
                 continue;
             }
             let json = std::fs::read_to_string(&path).unwrap();
-            let settings: NoiseGeneratorSettings = serde_json::from_str(&json)
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            let settings: NoiseGeneratorSettings =
+                serde_json::from_str(&json).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             super::build_functions(
                 &functions,
                 &noises,
@@ -7073,15 +6842,27 @@ mod arithmetic_node_tests {
 
     #[test]
     fn abs_and_square_cover_both_sides_of_a_zero_crossing_input() {
-        let (_, min, max) = build(&format!(r#"{{"type":"abs","input":{}}}"#, moving(-5.0, 3.0)));
+        let (_, min, max) = build(&format!(
+            r#"{{"type":"abs","input":{}}}"#,
+            moving(-5.0, 3.0)
+        ));
         assert_eq!((min, max), (0.0, 5.0));
-        let (_, min, max) = build(&format!(r#"{{"type":"square","input":{}}}"#, moving(-5.0, 3.0)));
+        let (_, min, max) = build(&format!(
+            r#"{{"type":"square","input":{}}}"#,
+            moving(-5.0, 3.0)
+        ));
         assert_eq!((min, max), (0.0, 25.0));
-        let (_, min, max) = build(&format!(r#"{{"type":"square","input":{}}}"#, moving(-4.0, 4.0)));
+        let (_, min, max) = build(&format!(
+            r#"{{"type":"square","input":{}}}"#,
+            moving(-4.0, 4.0)
+        ));
         assert_eq!((min, max), (0.0, 16.0));
         let (_, min, max) = build(&format!(r#"{{"type":"abs","input":{}}}"#, moving(2.0, 6.0)));
         assert_eq!((min, max), (2.0, 6.0));
-        let (_, min, max) = build(&format!(r#"{{"type":"square","input":{}}}"#, moving(-6.0, -2.0)));
+        let (_, min, max) = build(&format!(
+            r#"{{"type":"square","input":{}}}"#,
+            moving(-6.0, -2.0)
+        ));
         assert_eq!((min, max), (4.0, 36.0));
     }
 
@@ -7130,7 +6911,11 @@ mod arithmetic_node_tests {
         assert_eq!(sample(r#"{"type":"sign","input":-3.0}"#), -1.0);
         assert_eq!(sample(r#"{"type":"minecraft:sign","input":0.0}"#), 0.0);
         assert_eq!(
-            build(&format!(r#"{{"type":"sign","input":{}}}"#, moving(-4.0, 4.0))).1,
+            build(&format!(
+                r#"{{"type":"sign","input":{}}}"#,
+                moving(-4.0, 4.0)
+            ))
+            .1,
             -1.0
         );
     }

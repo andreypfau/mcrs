@@ -583,7 +583,7 @@ impl ImprovedNoise<f32> {
             let fade_y = smoothstep(fade_local_x);
             let fade_z = smoothstep(local_z);
 
-            let lerp = |a: f32, p0: f32, p1: f32| (p1 - p0).mul_add(a, p0);
+            let lerp = |a: f32, p0: f32, p1: f32| p0 + a * (p1 - p0);
             let l00 = lerp(fade_x, d000, d100);
             let l10 = lerp(fade_x, d010, d110);
             let l01 = lerp(fade_x, d001, d101);

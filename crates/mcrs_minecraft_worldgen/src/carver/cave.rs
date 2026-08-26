@@ -1,8 +1,8 @@
 use crate::carver::config::BetaCaveCarverConfig;
 use crate::carver::{WorldCarver, carve_ellipsoid};
-use mcrs_voxel_storage::VoxelId;
 use mcrs_random::Random;
 use mcrs_random::legacy::LegacyRandom;
+use mcrs_voxel_storage::VoxelId;
 
 /// Java beta `MathHelper.sin(x)`: lookup-table approximation matching the 65536-entry table
 /// built at class-load time via `(float)Math.sin(i * PI * 2.0 / 65536.0)`.
