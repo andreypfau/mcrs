@@ -14,6 +14,7 @@ use crate::enqueue::consume_needs_full_reseed;
 use crate::heightmap_update::update_heightmaps_on_block_placed;
 use crate::lifecycle::{attach_lighting_state, prime_heightmaps_on_column_spawn};
 use crate::sets::LightingSet;
+use crate::table::{BlockStateLightTable, build_block_light_table};
 use crate::sky_light::SkyLightPlugin;
 use crate::sky_light::emit_dirty::{clear_sky_bfs_pending_safety_net, emit_sky_light_dirty};
 use crate::sky_light::enqueue::invalidate_previous_topmost;
@@ -24,8 +25,26 @@ use crate::sky_light::propagate::{propagate_decrease_sky_system, propagate_incre
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{ApplyDeferred, IntoScheduleConfigs};
 use bevy_ecs::schedule::{Schedule, SingleThreadedExecutor};
+use bevy_state::prelude::OnEnter;
+use mcrs_core::AppState;
+use mcrs_core::tag::TagPhase;
 use mcrs_engine::world::storage::column::ColumnLifecycleSet;
+use mcrs_vanilla::transition_to_playing;
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockUpdateSet, apply_set_block_request};
+
+pub struct BlockLightTablePlugin;
+
+impl Plugin for BlockLightTablePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<BlockStateLightTable>();
+        app.add_systems(
+            OnEnter(AppState::WorldgenFreeze),
+            build_block_light_table
+                .after(TagPhase::Freeze)
+                .before(transition_to_playing),
+        );
+    }
+}
 
 pub struct LightingPlugin;
 

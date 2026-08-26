@@ -1,27 +1,19 @@
-use crate::DEFAULT_TPS;
 use crate::world::sub_app_builder::{drain_dim_despawn_queue, drain_dim_spawn_queue};
 use bevy_app::App;
 use bevy_ecs::message::Messages;
-use std::time::{Duration, Instant};
+use std::num::NonZeroU32;
 
-pub fn run_server_loop(mut app: App) {
-    let tick = Duration::from_secs_f64(1.0 / DEFAULT_TPS.get() as f64);
-    app.finish();
-    app.cleanup();
-    loop {
-        let start = Instant::now();
-        app.update();
-        pump_channels(&mut app);
-        drain_dim_spawn_queue(&mut app);
-        drain_dim_despawn_queue(&mut app);
-        if app.should_exit().is_some() {
-            break;
-        }
-        let elapsed = start.elapsed();
-        if elapsed < tick {
-            std::thread::sleep(tick - elapsed);
-        }
-    }
+pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
+    Some(n) => n,
+    None => unreachable!(),
+};
+
+pub fn run_server_loop(app: App) {
+    mcrs_voxel_server::run_server_loop(app, DEFAULT_TPS, |app| {
+        pump_channels(app);
+        drain_dim_spawn_queue(app);
+        drain_dim_despawn_queue(app);
+    });
 }
 
 pub fn pump_channels(app: &mut App) {

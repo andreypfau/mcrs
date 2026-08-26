@@ -83,6 +83,7 @@ mcrs_telemetry = { path = "crates/mcrs_telemetry" }
 mcrs_anvil = { path = "crates/mcrs_anvil" }
 mcrs_voxel_storage = { path = "crates/mcrs_voxel_storage" }
 mcrs_voxel_math = { path = "crates/mcrs_voxel_math" }
+mcrs_voxel_server = { path = "crates/mcrs_voxel_server" }
 
 [dependencies]
 bevy_app.workspace = true

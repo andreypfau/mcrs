@@ -3283,6 +3283,7 @@ dependencies = [
  "mcrs_telemetry",
  "mcrs_vanilla",
  "mcrs_voxel_math",
+ "mcrs_voxel_server",
  "mcrs_voxel_storage",
  "num-integer",
  "paste",
@@ -3508,6 +3509,16 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "serde",
+]
+
+[[package]]
+name = "mcrs_voxel_server"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_time",
 ]
 
 [[package]]
