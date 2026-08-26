@@ -1138,7 +1138,7 @@ pub struct ColumnCache {
     batch_noise_results: [f32; MAX_BATCH],
     /// Fixed buffer for batch noise positions (scaled coordinates).
     #[cfg(feature = "batch-noise")]
-    batch_noise_positions: [(f32, f32, f32); MAX_BATCH],
+    batch_noise_positions: [(f64, f64, f64); MAX_BATCH],
 }
 
 impl ColumnCache {
@@ -1602,7 +1602,7 @@ impl NoiseRouter {
             #[cfg(feature = "batch-noise")]
             batch_noise_results: [0.0f32; MAX_BATCH],
             #[cfg(feature = "batch-noise")]
-            batch_noise_positions: [(0.0f32, 0.0f32, 0.0f32); MAX_BATCH],
+            batch_noise_positions: [(0.0f64, 0.0f64, 0.0f64); MAX_BATCH],
         }
     }
 
@@ -1772,9 +1772,9 @@ impl NoiseRouter {
                     IndependentDensityFunction::Noise(noise) => {
                         for p in 0..n {
                             cache.batch_noise_positions[p] = (
-                                positions[p].x as f32 * noise.xz_scale,
-                                positions[p].y as f32 * noise.y_scale,
-                                positions[p].z as f32 * noise.xz_scale,
+                                positions[p].x as f64 * noise.xz_scale,
+                                positions[p].y as f64 * noise.y_scale,
+                                positions[p].z as f64 * noise.xz_scale,
                             );
                         }
                         noise.sampler.get_batch(
@@ -1847,12 +1847,12 @@ impl NoiseRouter {
                         for p in 0..n {
                             let base = p * stack_len;
                             cache.batch_scratch[base + i] = x.sampler.get(
-                                positions[p].x as f32 * x.xz_scale
-                                    + cache.batch_scratch[base + x.input_x_index],
-                                positions[p].y as f32 * x.y_scale
-                                    + cache.batch_scratch[base + x.input_y_index],
-                                positions[p].z as f32 * x.xz_scale
-                                    + cache.batch_scratch[base + x.input_z_index],
+                                positions[p].x as f64 * x.xz_scale
+                                    + cache.batch_scratch[base + x.input_x_index] as f64,
+                                positions[p].y as f64 * x.y_scale
+                                    + cache.batch_scratch[base + x.input_y_index] as f64,
+                                positions[p].z as f64 * x.xz_scale
+                                    + cache.batch_scratch[base + x.input_z_index] as f64,
                             );
                         }
                     }
@@ -2522,16 +2522,16 @@ impl NoiseCellInterpolator {
 
 #[derive(Clone, PartialEq)]
 struct BlendedNoise {
-    xz_scale: f32,
-    y_scale: f32,
-    xz_factor: f32,
-    y_factor: f32,
+    xz_scale: f64,
+    y_scale: f64,
+    xz_factor: f64,
+    y_factor: f64,
     smear_scale_multiplier: f32,
-    xz_multiplier: f32,
-    y_multiplier: f32,
+    xz_multiplier: f64,
+    y_multiplier: f64,
     max_value: f32,
-    limit_smear: f32,
-    main_smear: f32,
+    limit_smear: f64,
+    main_smear: f64,
     /// Trailing divisor applied after the combine. Modern path passes 128.0; Beta path
     /// passes 1.0 (no division) — verified against ChunkProviderGenerate.java:280-297
     /// which has NO /128 vs BlendedNoise.java:159 which does.
@@ -2566,14 +2566,14 @@ impl BlendedNoise {
         random: &mut RandomSource,
         xz_scale: f32,
         y_scale: f32,
-        xz_factor: f32,
-        y_factor: f32,
+        xz_factor: f64,
+        y_factor: f64,
         smear_scale_multiplier: f32,
         final_divisor: f32,
     ) -> Self {
-        let xz_multiplier = 684.412 * xz_scale;
-        let y_multiplier = 684.412 * y_scale;
-        let limit_smear = y_multiplier * smear_scale_multiplier;
+        let xz_multiplier = 684.412 * xz_scale as f64;
+        let y_multiplier = 684.412 * y_scale as f64;
+        let limit_smear = y_multiplier * smear_scale_multiplier as f64;
         let main_smear = limit_smear / y_factor;
         let lower_interpolated_noise = OctavePerlinNoise::<f32>::new(
             random,
@@ -2586,8 +2586,8 @@ impl BlendedNoise {
         // [-2, 2]; the 2^i octave weights sum to 2^16 - 1 against the /512 combine.
         let max_value = 2.0 * ((1u32 << LIMIT_OCTAVES) - 1) as f32 / 512.0 / final_divisor;
         BlendedNoise {
-            xz_scale,
-            y_scale,
+            xz_scale: xz_scale as f64,
+            y_scale: y_scale as f64,
             xz_factor,
             y_factor,
             smear_scale_multiplier,
@@ -2619,24 +2619,24 @@ impl BlendedNoise {
         debug_assert!(n <= MAX_BATCH);
 
         // Pre-compute scaled coordinates on stack
-        let mut scaled = [(0.0f32, 0.0f32, 0.0f32); MAX_BATCH];
+        let mut scaled = [(0.0f64, 0.0f64, 0.0f64); MAX_BATCH];
         for j in 0..n {
             scaled[j] = (
-                positions[j].x as f32 * self.xz_multiplier,
-                positions[j].y as f32 * self.y_multiplier,
-                positions[j].z as f32 * self.xz_multiplier,
+                positions[j].x as f64 * self.xz_multiplier,
+                positions[j].y as f64 * self.y_multiplier,
+                positions[j].z as f64 * self.xz_multiplier,
             );
         }
 
         // Reusable stack buffers
         let mut octave_results = [0.0f32; MAX_BATCH];
-        let mut positions_buf = [(0.0f32, 0.0f32, 0.0f32); MAX_BATCH];
-        let mut y_maxes = [0.0f32; MAX_BATCH];
+        let mut positions_buf = [(0.0f64, 0.0f64, 0.0f64); MAX_BATCH];
+        let mut y_maxes = [0.0f64; MAX_BATCH];
 
         // ---- Interpolated noise: 8 octaves ----
-        let mut interp_fxs = [0.0f32; MAX_BATCH];
-        let mut interp_fys = [0.0f32; MAX_BATCH];
-        let mut interp_fzs = [0.0f32; MAX_BATCH];
+        let mut interp_fxs = [0.0f64; MAX_BATCH];
+        let mut interp_fys = [0.0f64; MAX_BATCH];
+        let mut interp_fzs = [0.0f64; MAX_BATCH];
         for j in 0..n {
             interp_fxs[j] = scaled[j].0 / self.xz_factor;
             interp_fys[j] = scaled[j].1 / self.y_factor;
@@ -2665,7 +2665,7 @@ impl BlendedNoise {
             );
 
             for j in 0..n {
-                interp_values[j] = octave_results[j].mul_add(amplitude, interp_values[j]);
+                interp_values[j] += octave_results[j] * amplitude;
                 interp_fxs[j] *= 0.5;
                 interp_fys[j] *= 0.5;
                 interp_fzs[j] *= 0.5;
@@ -2695,9 +2695,9 @@ impl BlendedNoise {
             }
         }
 
-        let mut sxs = [0.0f32; MAX_BATCH];
-        let mut sys = [0.0f32; MAX_BATCH];
-        let mut szs = [0.0f32; MAX_BATCH];
+        let mut sxs = [0.0f64; MAX_BATCH];
+        let mut sys = [0.0f64; MAX_BATCH];
+        let mut szs = [0.0f64; MAX_BATCH];
 
         // ---- Lower noise: 16 octaves (only positions with value < 1.0) ----
         for (k, &j) in lower_idx[..n_lower].iter().enumerate() {
@@ -2706,7 +2706,7 @@ impl BlendedNoise {
             szs[k] = scaled[j].2;
         }
         let mut lower_values = [0.0f32; MAX_BATCH];
-        let mut sm = self.limit_smear;
+        let mut sm: f64 = self.limit_smear;
         amplitude = 1.0;
 
         for i in 0..16 {
@@ -2728,7 +2728,7 @@ impl BlendedNoise {
             );
 
             for k in 0..n_lower {
-                lower_values[k] = octave_results[k].mul_add(amplitude, lower_values[k]);
+                lower_values[k] += octave_results[k] * amplitude;
                 sxs[k] *= 0.5;
                 sys[k] *= 0.5;
                 szs[k] *= 0.5;
@@ -2766,7 +2766,7 @@ impl BlendedNoise {
             );
 
             for k in 0..n_upper {
-                upper_values[k] = octave_results[k].mul_add(amplitude, upper_values[k]);
+                upper_values[k] += octave_results[k] * amplitude;
                 sxs[k] *= 0.5;
                 sys[k] *= 0.5;
                 szs[k] *= 0.5;
@@ -2813,9 +2813,9 @@ impl RangeFunction for BlendedNoise {
 
 impl DensityFunction for BlendedNoise {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let scaled_x = pos.x as f32 * self.xz_multiplier;
-        let scaled_y = pos.y as f32 * self.y_multiplier;
-        let scaled_z = pos.z as f32 * self.xz_multiplier;
+        let scaled_x = pos.x as f64 * self.xz_multiplier;
+        let scaled_y = pos.y as f64 * self.y_multiplier;
+        let scaled_z = pos.z as f64 * self.xz_multiplier;
 
         // Strength-reduce: halve coordinates each iteration instead of
         // multiplying by a separate factor variable.
@@ -2836,7 +2836,7 @@ impl DensityFunction for BlendedNoise {
                 main_smear,
                 fy,
             );
-            value = s.mul_add(amplitude, value);
+            value += s * amplitude;
             fx *= 0.5;
             fy *= 0.5;
             fz *= 0.5;
@@ -2856,7 +2856,7 @@ impl DensityFunction for BlendedNoise {
             let mut sx = scaled_x;
             let mut sy = scaled_y;
             let mut sz = scaled_z;
-            let mut sm = self.limit_smear;
+            let mut sm: f64 = self.limit_smear;
             let mut amplitude = 1.0f32;
             for i in 0..16 {
                 let s = self.lower_interpolated_noise.sample_octave(
@@ -2867,7 +2867,7 @@ impl DensityFunction for BlendedNoise {
                     sm,
                     sy,
                 );
-                min = s.mul_add(amplitude, min);
+                min += s * amplitude;
                 sx *= 0.5;
                 sy *= 0.5;
                 sz *= 0.5;
@@ -2879,7 +2879,7 @@ impl DensityFunction for BlendedNoise {
             let mut sx = scaled_x;
             let mut sy = scaled_y;
             let mut sz = scaled_z;
-            let mut sm = self.limit_smear;
+            let mut sm: f64 = self.limit_smear;
             let mut amplitude = 1.0f32;
             for i in 0..16 {
                 let s = self.upper_interpolated_noise.sample_octave(
@@ -2890,7 +2890,7 @@ impl DensityFunction for BlendedNoise {
                     sm,
                     sy,
                 );
-                max = s.mul_add(amplitude, max);
+                max += s * amplitude;
                 sx *= 0.5;
                 sy *= 0.5;
                 sz *= 0.5;
@@ -2916,8 +2916,8 @@ impl DensityFunction for BlendedNoise {
 struct Noise {
     noise_name: String,
     sampler: NoiseSampler,
-    xz_scale: f32,
-    y_scale: f32,
+    xz_scale: f64,
+    y_scale: f64,
 }
 
 impl Debug for Noise {
@@ -2949,9 +2949,9 @@ impl DensityFunction for Noise {
         let xz_scale = self.xz_scale;
         let y_scale = self.y_scale;
         self.sampler.get(
-            (pos.x as f32 * xz_scale),
-            (pos.y as f32 * y_scale),
-            (pos.z as f32 * xz_scale),
+            pos.x as f64 * xz_scale,
+            pos.y as f64 * y_scale,
+            pos.z as f64 * xz_scale,
         )
     }
 }
@@ -2987,7 +2987,7 @@ impl RangeFunction for ShiftA {
 impl DensityFunction for ShiftA {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         self.sampler
-            .get((pos.x as f32 * 0.25), 0.0, (pos.z as f32 * 0.25))
+            .get(pos.x as f64 * 0.25, 0.0, pos.z as f64 * 0.25)
             * 4.0
     }
 }
@@ -3023,7 +3023,7 @@ impl RangeFunction for ShiftB {
 impl DensityFunction for ShiftB {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         self.sampler
-            .get(pos.z as f32 * 0.25, pos.x as f32 * 0.25, 0.0)
+            .get(pos.z as f64 * 0.25, pos.x as f64 * 0.25, 0.0)
             * 4.0
     }
 }
@@ -3049,9 +3049,9 @@ impl RangeFunction for Shift {
 impl DensityFunction for Shift {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         self.sampler.get(
-            pos.z as f32 * 0.25,
-            pos.x as f32 * 0.25,
-            pos.z as f32 * 0.25,
+            pos.z as f64 * 0.25,
+            pos.x as f64 * 0.25,
+            pos.z as f64 * 0.25,
         ) * 4.0
     }
 }
@@ -3691,8 +3691,8 @@ struct ShiftedNoise {
     input_x_index: usize,
     input_y_index: usize,
     input_z_index: usize,
-    xz_scale: f32,
-    y_scale: f32,
+    xz_scale: f64,
+    y_scale: f64,
     sampler: NoiseSampler,
 }
 
@@ -3722,9 +3722,9 @@ impl DensityFunction for ShiftedNoise {
             DensityFunctionComponent::sample_from_stack(&stack[..=self.input_z_index], pos);
 
         self.sampler.get(
-            pos.x as f32 * self.xz_scale + shifted_x,
-            pos.y as f32 * self.y_scale + shifted_y,
-            pos.z as f32 * self.xz_scale + shifted_z,
+            pos.x as f64 * self.xz_scale + shifted_x as f64,
+            pos.y as f64 * self.y_scale + shifted_y as f64,
+            pos.z as f64 * self.xz_scale + shifted_z as f64,
         )
     }
 }
@@ -4660,9 +4660,9 @@ impl DensityFunctionComponent {
                     .operation
                     .apply(cache[x.input1_index], cache[x.input2_index]),
                 DependentDensityFunction::ShiftedNoise(x) => x.sampler.get(
-                    pos.x as f32 * x.xz_scale + cache[x.input_x_index],
-                    pos.y as f32 * x.y_scale + cache[x.input_y_index],
-                    pos.z as f32 * x.xz_scale + cache[x.input_z_index],
+                    pos.x as f64 * x.xz_scale + cache[x.input_x_index] as f64,
+                    pos.y as f64 * x.y_scale + cache[x.input_y_index] as f64,
+                    pos.z as f64 * x.xz_scale + cache[x.input_z_index] as f64,
                 ),
                 DependentDensityFunction::Clamp(x) => {
                     cache[x.input_index].clamp(x.min_value, x.max_value)
@@ -5044,8 +5044,8 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             &mut random,
             xz_scale as f32,
             y_scale as f32,
-            xz_factor as f32,
-            y_factor as f32,
+            xz_factor as f64,
+            y_factor as f64,
             smear_scale_multiplier as f32,
             final_divisor,
         );
@@ -5089,8 +5089,8 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                 DensityFunctionComponent::Independent(IndependentDensityFunction::Noise(Noise {
                     noise_name,
                     sampler,
-                    xz_scale: xz_scale as f32,
-                    y_scale: y_scale as f32,
+                    xz_scale: xz_scale as f64,
+                    y_scale: y_scale as f64,
                 })),
             );
             return;
@@ -5108,8 +5108,8 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                     input_x_index,
                     input_y_index,
                     input_z_index,
-                    xz_scale: xz_scale as f32,
-                    y_scale: y_scale as f32,
+                    xz_scale: xz_scale as f64,
+                    y_scale: y_scale as f64,
                     sampler,
                 },
             )),
@@ -5661,34 +5661,18 @@ mod tests {
     use crate::proto::NoiseGeneratorSettings;
     use mcrs_random::RandomSource;
 
-    /// REGRESSION: modern BlendedNoise (formerly OldBlendedNoise) must sample
-    /// to the same values as the post-07-01a baseline after the generalization.
-    /// Golden values are captured after 07-01a's origin re-baseline.
     #[test]
     fn modern_blended_noise_unchanged() {
         let mut random = RandomSource::new(0, true);
         let noise = OldBlendedNoise::new(&mut random, 1.0, 1.0, 80.0, 160.0, 8.0, 128.0);
-        // These goldens must be captured by running with dbg! first (bootstrap test below).
-        // Placeholder: actual values will be filled after bootstrap run.
-        let v0 = noise.sample(&[], bevy_math::IVec3::new(0, 0, 0));
-        let v1 = noise.sample(&[], bevy_math::IVec3::new(4, 8, 4));
-        let v2 = noise.sample(&[], bevy_math::IVec3::new(8, 16, 8));
-        // Post-07-01a golden values (captured after origin re-baseline; exact f32 bit equality).
-        assert_eq!(
-            v0.to_bits(),
-            1050715755u32,
-            "v0 must match post-07-01a golden"
-        );
-        assert_eq!(
-            v1.to_bits(),
-            1044906136u32,
-            "v1 must match post-07-01a golden"
-        );
-        assert_eq!(
-            v2.to_bits(),
-            1054301856u32,
-            "v2 must match post-07-01a golden"
-        );
+        for (pos, expected) in [
+            ((0, 0, 0), 1050715813u32),
+            ((4, 8, 4), 1044906416),
+            ((8, 16, 8), 1054301785),
+        ] {
+            let sample = noise.sample(&[], bevy_math::IVec3::new(pos.0, pos.1, pos.2));
+            assert_eq!(sample.to_bits(), expected, "blended noise moved at {pos:?}");
+        }
     }
 
     #[test]
@@ -6599,12 +6583,9 @@ mod tests {
             "modern router sample at (0,64,0) must be finite"
         );
 
-        // Pin the exact f32 bits to detect any unintended numeric drift in the
-        // modern path.  Captured with seed=2 to match the pre-refactor hardcoded
-        // seed so the old and new codepaths produce identical output for the same seed.
         assert_eq!(
             sample.to_bits(),
-            3168572673u32,
+            3168561609u32,
             "modern router sample must match baseline (seed=2, pos=(0,64,0))"
         );
     }

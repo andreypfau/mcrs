@@ -106,11 +106,11 @@ impl OctavePerlinNoise<f32> {
     pub fn sample_octave(
         &self,
         octave: usize,
-        x: f32,
-        y: f32,
-        z: f32,
-        y_scale: f32,
-        y_max: f32,
+        x: f64,
+        y: f64,
+        z: f64,
+        y_scale: f64,
+        y_max: f64,
     ) -> f32 {
         let idx = self.octave_samplers.len() - 1 - octave;
         // SAFETY: Caller guarantees octave is populated (all amplitudes non-zero).
@@ -122,22 +122,21 @@ impl OctavePerlinNoise<f32> {
     }
 
     #[inline(always)]
-    pub fn maintain_precission(value: f32) -> f32 {
+    pub fn maintain_precission(value: f64) -> f64 {
         #[cfg(feature = "far-lands")]
         return value;
         #[cfg(not(feature = "far-lands"))]
         {
-            const RECIP: f32 = 1.0 / 3.3554432E7;
-            const FACTOR: f32 = 3.3554432E7;
-            value - (value * RECIP + 0.5).floor() * FACTOR
+            const FACTOR: f64 = 3.3554432E7;
+            value - ((value / FACTOR + 0.5).floor() as i64) as f64 * FACTOR
         }
     }
 
     #[inline(always)]
-    pub fn get(&self, x: f32, y: f32, z: f32) -> f32 {
-        let mut lx = x * self.lacunarity;
-        let mut ly = y * self.lacunarity;
-        let mut lz = z * self.lacunarity;
+    pub fn get(&self, x: f64, y: f64, z: f64) -> f32 {
+        let mut lx = x * self.lacunarity as f64;
+        let mut ly = y * self.lacunarity as f64;
+        let mut lz = z * self.lacunarity as f64;
         let mut persistence = self.persistence;
         let mut acc = 0.0f32;
         let len = self.octave_samplers.len();
@@ -153,7 +152,7 @@ impl OctavePerlinNoise<f32> {
                     0.0,
                 );
                 let amp = unsafe { *self.amplitudes.get_unchecked(i) };
-                acc = sample.mul_add(persistence * amp, acc);
+                acc += sample * (persistence * amp);
             }
             lx *= 2.0;
             ly *= 2.0;
@@ -167,24 +166,21 @@ impl OctavePerlinNoise<f32> {
     /// Iterates octaves in the outer loop to keep each octave's permutation
     /// table L1-hot across all positions.
     #[cfg(feature = "batch-noise")]
-    pub fn get_batch(&self, positions: &[(f32, f32, f32)], results: &mut [f32]) {
+    pub fn get_batch(&self, positions: &[(f64, f64, f64)], results: &mut [f32]) {
         use crate::density_function::MAX_BATCH;
         let n = positions.len();
         debug_assert_eq!(n, results.len());
         debug_assert!(n <= MAX_BATCH);
         results[..n].iter_mut().for_each(|r| *r = 0.0);
 
-        let mut scaled = [(0.0f32, 0.0f32, 0.0f32); MAX_BATCH];
+        let mut scaled = [(0.0f64, 0.0f64, 0.0f64); MAX_BATCH];
         for j in 0..n {
             let (x, y, z) = positions[j];
-            scaled[j] = (
-                x * self.lacunarity,
-                y * self.lacunarity,
-                z * self.lacunarity,
-            );
+            let lac = self.lacunarity as f64;
+            scaled[j] = (x * lac, y * lac, z * lac);
         }
 
-        let mut maintained = [(0.0f32, 0.0f32, 0.0f32); MAX_BATCH];
+        let mut maintained = [(0.0f64, 0.0f64, 0.0f64); MAX_BATCH];
         let mut octave_results = [0.0f32; MAX_BATCH];
 
         let mut persistence = self.persistence;
@@ -207,7 +203,7 @@ impl OctavePerlinNoise<f32> {
                 sampler.sample_batch(&maintained[..n], 0.0, &[], &mut octave_results[..n]);
 
                 for j in 0..n {
-                    results[j] = octave_results[j].mul_add(factor, results[j]);
+                    results[j] += octave_results[j] * factor;
                 }
             }
 
@@ -226,9 +222,9 @@ impl OctavePerlinNoise<f32> {
     pub fn sample_octave_batch(
         &self,
         octave: usize,
-        positions: &[(f32, f32, f32)],
-        y_scale: f32,
-        y_maxes: &[f32],
+        positions: &[(f64, f64, f64)],
+        y_scale: f64,
+        y_maxes: &[f64],
         results: &mut [f32],
     ) {
         let idx = self.octave_samplers.len() - 1 - octave;
@@ -281,9 +277,9 @@ impl OctavePerlinNoise<f32> {
             let idx = len - 1 - k;
             if let Some(sampler) = &self.octave_samplers[idx] {
                 acc += sampler.sample(
-                    x * scale_x * freq,
-                    y * scale_y * freq,
-                    z * scale_z * freq,
+                    (x * scale_x * freq) as f64,
+                    (y * scale_y * freq) as f64,
+                    (z * scale_z * freq) as f64,
                     0.0,
                     0.0,
                 ) / freq;
@@ -439,18 +435,16 @@ mod test {
         let mut random = LegacyRandom::new(381);
         let noise = OctavePerlinNoise::<f32>::new(&mut random, -6, vec![1.0, 1.0], true);
 
-        assert_eq!(
-            format!("{:.4}", noise.get(0.0, 0.0, 0.0)),
-            format!("{:.4}", 0.0290500056)
-        );
-        assert_eq!(
-            format!("{:.4}", noise.get(0.5, 4.0, -2.0)),
-            format!("{:.4}", -0.0034976059)
-        );
-        assert_eq!(
-            format!("{:.4}", noise.get(-204.0, 28.0, 12.0)),
-            format!("{:.4}", 0.1940782815)
-        );
+        for (sample, expected) in [
+            (noise.get(0.0, 0.0, 0.0), 0.029049821),
+            (noise.get(0.5, 4.0, -2.0), -0.0034983754),
+            (noise.get(-204.0, 28.0, 12.0), 0.19407848),
+        ] {
+            assert!(
+                (sample - expected).abs() < 1e-6,
+                "{sample} deviates from {expected}"
+            );
+        }
     }
 
     /// Proves the legacy arm is stream-identical to the deleted Forward arm for Beta parameter
@@ -570,3 +564,4 @@ impl OctavePerlinNoise<f64> {
             .and_then(|s| s.as_ref())
     }
 }
+

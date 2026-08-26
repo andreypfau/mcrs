@@ -1,6 +1,7 @@
 use crate::noise::gradient::GRADIENTS;
 use mcrs_random::{Random, RandomSource};
 use num_traits::{Float, ToPrimitive};
+use std::marker::PhantomData;
 
 // SIMD-packed f32 mirror of `GRADIENTS` for the hot f32 path (`sample_and_lerp`):
 // 16 gradients × {x, y, z, pad} so each lookup is a contiguous slice. Kept in sync with
@@ -15,9 +16,10 @@ const FLAT_SIMPLEX_GRAD: [f32; 64] = [
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImprovedNoise<F: Float> {
     permutation: [u8; 256],
-    pub origin_x: F,
-    pub origin_y: F,
-    pub origin_z: F,
+    pub origin_x: f64,
+    pub origin_y: f64,
+    pub origin_z: f64,
+    marker: PhantomData<F>,
 }
 
 impl Default for ImprovedNoise<f32> {
@@ -31,10 +33,9 @@ impl<F: Float> ImprovedNoise<F> {
     where
         T: Random,
     {
-        let scale: F = F::from(256.0_f64).unwrap();
-        let origin_x = F::from(random.next_f64()).unwrap() * scale;
-        let origin_y = F::from(random.next_f64()).unwrap() * scale;
-        let origin_z = F::from(random.next_f64()).unwrap() * scale;
+        let origin_x = random.next_f64() * 256.0;
+        let origin_y = random.next_f64() * 256.0;
+        let origin_z = random.next_f64() * 256.0;
         let mut permutation = [0u8; 256];
         for i in 0..256 {
             permutation[i] = i as u8;
@@ -48,6 +49,7 @@ impl<F: Float> ImprovedNoise<F> {
             origin_x,
             origin_y,
             origin_z,
+            marker: PhantomData,
         }
     }
 }
@@ -442,8 +444,8 @@ impl ImprovedNoise<f32> {
     /// y origin and land in a different lattice cell — wrong for Beta scale/depth 2D nodes.
     #[inline(always)]
     pub fn sample_2d(&self, x: f32, z: f32) -> f32 {
-        let shifted_x = x + self.origin_x;
-        let shifted_z = z + self.origin_z;
+        let shifted_x = x + self.origin_x as f32;
+        let shifted_z = z + self.origin_z as f32;
         let section_x = shifted_x.floor() as i32;
         let section_z = shifted_z.floor() as i32;
         let local_x = shifted_x - section_x as f32;
@@ -453,33 +455,33 @@ impl ImprovedNoise<f32> {
     }
 
     #[inline(always)]
-    pub fn sample(&self, x: f32, y: f32, z: f32, y_scale: f32, y_max: f32) -> f32 {
+    pub fn sample(&self, x: f64, y: f64, z: f64, y_scale: f64, y_max: f64) -> f32 {
         let shifted_x = x + self.origin_x;
         let shifted_y = y + self.origin_y;
         let shifted_z = z + self.origin_z;
-        let section_x = shifted_x.floor() as i32;
-        let section_y = shifted_y.floor() as i32;
-        let section_z = shifted_z.floor() as i32;
-        let local_x = shifted_x - section_x as f32;
-        let local_y = shifted_y - section_y as f32;
-        let local_z = shifted_z - section_z as f32;
-        let mut fade = 0.0;
+        let floor_x = shifted_x.floor();
+        let floor_y = shifted_y.floor();
+        let floor_z = shifted_z.floor();
+        let local_x = (shifted_x - floor_x) as f32;
+        let local_y = shifted_y - floor_y;
+        let local_z = (shifted_z - floor_z) as f32;
+        let mut fade = 0.0_f64;
         if y_scale != 0.0 {
             let t = if y_max >= 0.0 && y_max < local_y {
                 y_max
             } else {
                 local_y
             };
-            fade = (t / y_scale + 1.0E-7f32).floor() * y_scale
+            fade = ((t / y_scale + 1.0E-7f32 as f64).floor() as i32) as f64 * y_scale;
         }
         self.sample_and_lerp(
-            section_x,
-            section_y,
-            section_z,
+            floor_x as i32,
+            floor_y as i32,
+            floor_z as i32,
             local_x,
-            local_y - fade,
+            (local_y - fade) as f32,
             local_z,
-            local_y,
+            local_y as f32,
         )
     }
 
@@ -489,9 +491,9 @@ impl ImprovedNoise<f32> {
     #[cfg(feature = "batch-noise")]
     pub fn sample_batch(
         &self,
-        positions: &[(f32, f32, f32)],
-        y_scale: f32,
-        y_maxes: &[f32],
+        positions: &[(f64, f64, f64)],
+        y_scale: f64,
+        y_maxes: &[f64],
         results: &mut [f32],
     ) {
         debug_assert_eq!(positions.len(), results.len());
@@ -560,67 +562,35 @@ impl ImprovedNoise<f32> {
             let y1 = local_y - 1.0;
             let z1 = local_z - 1.0;
 
-            // Gradient dot products using FMA (grad · offset)
+            // Vanilla evaluates these as plain float ops; fusing them into FMAs changes
+            // the rounding and breaks bit-parity with the oracle.
             let g = &FLAT_SIMPLEX_GRAD;
-            let d000 = g.get_unchecked(h000 + 2).mul_add(
-                local_z,
-                g.get_unchecked(h000 + 1)
-                    .mul_add(local_y, *g.get_unchecked(h000) * local_x),
-            );
-            let d100 = g.get_unchecked(h100 + 2).mul_add(
-                local_z,
-                g.get_unchecked(h100 + 1)
-                    .mul_add(local_y, *g.get_unchecked(h100) * x1),
-            );
-            let d010 = g.get_unchecked(h010 + 2).mul_add(
-                local_z,
-                g.get_unchecked(h010 + 1)
-                    .mul_add(y1, *g.get_unchecked(h010) * local_x),
-            );
-            let d110 = g.get_unchecked(h110 + 2).mul_add(
-                local_z,
-                g.get_unchecked(h110 + 1)
-                    .mul_add(y1, *g.get_unchecked(h110) * x1),
-            );
-            let d001 = g.get_unchecked(h001 + 2).mul_add(
-                z1,
-                g.get_unchecked(h001 + 1)
-                    .mul_add(local_y, *g.get_unchecked(h001) * local_x),
-            );
-            let d101 = g.get_unchecked(h101 + 2).mul_add(
-                z1,
-                g.get_unchecked(h101 + 1)
-                    .mul_add(local_y, *g.get_unchecked(h101) * x1),
-            );
-            let d011 = g.get_unchecked(h011 + 2).mul_add(
-                z1,
-                g.get_unchecked(h011 + 1)
-                    .mul_add(y1, *g.get_unchecked(h011) * local_x),
-            );
-            let d111 = g.get_unchecked(h111 + 2).mul_add(
-                z1,
-                g.get_unchecked(h111 + 1)
-                    .mul_add(y1, *g.get_unchecked(h111) * x1),
-            );
+            let dot = |h: usize, x: f32, y: f32, z: f32| {
+                g.get_unchecked(h + 2)
+                    .mul_add(z, g.get_unchecked(h + 1).mul_add(y, g.get_unchecked(h) * x))
+            };
+            let d000 = dot(h000, local_x, local_y, local_z);
+            let d100 = dot(h100, x1, local_y, local_z);
+            let d010 = dot(h010, local_x, y1, local_z);
+            let d110 = dot(h110, x1, y1, local_z);
+            let d001 = dot(h001, local_x, local_y, z1);
+            let d101 = dot(h101, x1, local_y, z1);
+            let d011 = dot(h011, local_x, y1, z1);
+            let d111 = dot(h111, x1, y1, z1);
 
-            // Fade curves: t³(6t² - 15t + 10)
-            let fade_x =
-                local_x * local_x * local_x * local_x.mul_add(local_x.mul_add(6.0, -15.0), 10.0);
-            let fade_y = fade_local_x
-                * fade_local_x
-                * fade_local_x
-                * fade_local_x.mul_add(fade_local_x.mul_add(6.0, -15.0), 10.0);
-            let fade_z =
-                local_z * local_z * local_z * local_z.mul_add(local_z.mul_add(6.0, -15.0), 10.0);
+            let smoothstep = |t: f32| t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+            let fade_x = smoothstep(local_x);
+            let fade_y = smoothstep(fade_local_x);
+            let fade_z = smoothstep(local_z);
 
-            // Trilinear interpolation using FMA
-            let l00 = (d100 - d000).mul_add(fade_x, d000);
-            let l10 = (d110 - d010).mul_add(fade_x, d010);
-            let l01 = (d101 - d001).mul_add(fade_x, d001);
-            let l11 = (d111 - d011).mul_add(fade_x, d011);
-            let ll0 = (l10 - l00).mul_add(fade_y, l00);
-            let ll1 = (l11 - l01).mul_add(fade_y, l01);
-            (ll1 - ll0).mul_add(fade_z, ll0)
+            let lerp = |a: f32, p0: f32, p1: f32| (p1 - p0).mul_add(a, p0);
+            let l00 = lerp(fade_x, d000, d100);
+            let l10 = lerp(fade_x, d010, d110);
+            let l01 = lerp(fade_x, d001, d101);
+            let l11 = lerp(fade_x, d011, d111);
+            let ll0 = lerp(fade_y, l00, l10);
+            let ll1 = lerp(fade_y, l01, l11);
+            lerp(fade_z, ll0, ll1)
         }
     }
 }
@@ -728,27 +698,27 @@ mod test {
         );
     }
 
-    /// Smoke test: modern f32 origin is now vanilla nextDouble()*256 (re-baselined from next_f32).
-    /// Pins the new vanilla-aligned origin: f32 cast of the same f64 draws LegacyRandom(845) uses.
+    /// Vanilla `GradientNoise` keeps its offsets in double regardless of the lattice
+    /// precision, so the modern sampler must hold the undegraded f64 draws.
     #[test]
     fn modern_origin_is_vanilla() {
         use mcrs_random::Random;
         let noise = ImprovedNoise::<f32>::from_random(&mut LegacyRandom::new(845));
         let mut rng = LegacyRandom::new(845);
-        let expected_x = (rng.next_f64() * 256.0) as f32;
-        let expected_y = (rng.next_f64() * 256.0) as f32;
-        let expected_z = (rng.next_f64() * 256.0) as f32;
+        let expected_x = rng.next_f64() * 256.0;
+        let expected_y = rng.next_f64() * 256.0;
+        let expected_z = rng.next_f64() * 256.0;
         assert_eq!(
             noise.origin_x, expected_x,
-            "origin_x must equal vanilla next_f64()*256 cast to f32"
+            "origin_x must equal vanilla next_f64()*256"
         );
         assert_eq!(
             noise.origin_y, expected_y,
-            "origin_y must equal vanilla next_f64()*256 cast to f32"
+            "origin_y must equal vanilla next_f64()*256"
         );
         assert_eq!(
             noise.origin_z, expected_z,
-            "origin_z must equal vanilla next_f64()*256 cast to f32"
+            "origin_z must equal vanilla next_f64()*256"
         );
     }
 

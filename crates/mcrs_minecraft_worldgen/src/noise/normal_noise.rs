@@ -2,7 +2,7 @@ use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use mcrs_random::Random;
 
-const INPUT_FACTOR: f32 = 1.0181268882175227;
+const INPUT_FACTOR: f64 = 1.0181268882175227;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct NormalNoise {
@@ -167,7 +167,7 @@ impl NoiseSampler {
         }
     }
 
-    pub fn get(&self, x: f32, y: f32, z: f32) -> f32 {
+    pub fn get(&self, x: f64, y: f64, z: f64) -> f32 {
         match self {
             Self::Normal(n) => {
                 let x2 = x * INPUT_FACTOR;
@@ -183,8 +183,7 @@ impl NoiseSampler {
             }
             Self::BetaSimplex2d(n) => {
                 n.noise
-                    .sample(x as f64, z as f64, n.scale, n.scale, n.lacunarity, 0.5)
-                    as f32
+                    .sample(x, z, n.scale, n.scale, n.lacunarity, 0.5) as f32
             }
         }
     }
@@ -192,7 +191,7 @@ impl NoiseSampler {
     /// Batch evaluate NoiseSampler at multiple positions (zero heap allocation).
     /// Evaluates both inner OctavePerlinNoise instances in batch, then combines.
     #[cfg(feature = "batch-noise")]
-    pub fn get_batch(&self, positions: &[(f32, f32, f32)], results: &mut [f32]) {
+    pub fn get_batch(&self, positions: &[(f64, f64, f64)], results: &mut [f32]) {
         let n = match self {
             Self::Normal(n) => n,
             _ => {
@@ -208,7 +207,7 @@ impl NoiseSampler {
         debug_assert!(len <= MAX_BATCH);
 
         // Build second-set positions (scaled by INPUT_FACTOR) on stack
-        let mut second_positions = [(0.0f32, 0.0f32, 0.0f32); MAX_BATCH];
+        let mut second_positions = [(0.0f64, 0.0f64, 0.0f64); MAX_BATCH];
         for i in 0..len {
             let (x, y, z) = positions[i];
             second_positions[i] = (x * INPUT_FACTOR, y * INPUT_FACTOR, z * INPUT_FACTOR);
