@@ -15,8 +15,8 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use self::molang::{MolangError, StateCondition};
 use self::schema::{
-    BlockBox, BlockDefinitionFile, BlockProperties, Components, Instrument, PropertyValue,
-    RenderShape,
+    BlockBox, BlockDefinitionFile, BlockProperties, Components, Instrument, LavaFlammable,
+    PropertyValue, Sticky,
 };
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
@@ -40,8 +40,8 @@ bitflags::bitflags! {
         const IS_COLLISION_SHAPE_FULL_BLOCK = 1 << 8;
         const HAS_BLOCK_ENTITY = 1 << 9;
         const IS_SIGNAL_SOURCE = 1 << 10;
-        const HAS_ANALOG_OUTPUT_SIGNAL = 1 << 11;
-        const REDSTONE_CONDUCTOR = 1 << 12;
+        const REDSTONE_CONDUCTOR = 1 << 11;
+        const STICKY = 1 << 12;
     }
 }
 
@@ -50,6 +50,9 @@ pub struct ShapeId(pub u32);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct FluidId(pub u16);
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct LootId(pub u16);
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct FluidState {
@@ -74,7 +77,8 @@ pub struct BlockStateData {
     pub occlusion_shape: ShapeId,
     pub push_reaction: PushReaction,
     pub instrument: Instrument,
-    pub render_shape: RenderShape,
+    pub redstone_power: u8,
+    pub loot: Option<LootId>,
     pub fluid: Option<FluidState>,
     pub flags: BlockStateFlags,
 }
@@ -82,6 +86,9 @@ pub struct BlockStateData {
 #[derive(Debug)]
 pub struct BlockEntry {
     pub identifier: ResourceLocation<Arc<str>>,
+    /// The block's index in the vanilla block registry, which is how the
+    /// protocol names a block. Unrelated to its position in this corpus.
+    pub protocol_id: u16,
     pub base_state_id: BlockStateId,
     pub default_state_id: BlockStateId,
     pub state_count: u16,
@@ -89,6 +96,45 @@ pub struct BlockEntry {
 }
 
 impl BlockEntry {
+    pub fn owns(&self, id: BlockStateId) -> bool {
+        id.0 >= self.base_state_id.0 && id.0 - self.base_state_id.0 < self.state_count
+    }
+
+    /// The state that differs from `id` in one property, the way vanilla's
+    /// `BlockState.setValue` does. One property is one digit of the state id,
+    /// so this is arithmetic over the layout rather than a search.
+    pub fn with(
+        &self,
+        id: BlockStateId,
+        property: &str,
+        value: &PropertyValue,
+    ) -> Option<BlockStateId> {
+        if !self.owns(id) {
+            return None;
+        }
+        let index = self.properties.index_of(property)?;
+        let property = &self.properties.0[index];
+        let target = property.values.iter().position(|v| v == value)? as u16;
+        let stride: u16 = self.properties.0[index + 1..]
+            .iter()
+            .map(|p| p.values.len() as u16)
+            .product();
+        let current = (id.0 - self.base_state_id.0) / stride % property.values.len() as u16;
+        Some(BlockStateId(id.0 - current * stride + target * stride))
+    }
+
+    /// [`BlockEntry::with`] against a value stated as text, as a datapack and a
+    /// save state it.
+    pub fn with_text(&self, id: BlockStateId, property: &str, text: &str) -> Option<BlockStateId> {
+        let index = self.properties.index_of(property)?;
+        let value = self.properties.0[index]
+            .values
+            .iter()
+            .find(|value| value.renders_to(text))?
+            .clone();
+        self.with(id, property, &value)
+    }
+
     /// The state id for a full set of property values, in any order. `None` if
     /// a property is not the block's, a value is not the property's, or the
     /// set does not name every property.
@@ -109,12 +155,14 @@ impl BlockEntry {
 /// The per-state table: the corpus is the truth, this is the materialization
 /// of it, and it is the only one. Building it costs one pass over the corpus at
 /// startup; reading it costs one array index.
-#[derive(Debug, Resource)]
+#[derive(Debug)]
 pub struct BlockDefinitions {
     states: Vec<BlockStateData>,
     shapes: Vec<Box<[Aabb]>>,
     fluids: Vec<ResourceLocation<Arc<str>>>,
+    loot: Vec<ResourceLocation<Arc<str>>>,
     blocks: Vec<BlockEntry>,
+    owners: Vec<u32>,
     by_identifier: FxHashMap<Arc<str>, usize>,
 }
 
@@ -134,6 +182,11 @@ impl BlockDefinitions {
         &self.fluids[id.0 as usize]
     }
 
+    #[inline]
+    pub fn loot_table(&self, id: LootId) -> &ResourceLocation<Arc<str>> {
+        &self.loot[id.0 as usize]
+    }
+
     pub fn state_count(&self) -> usize {
         self.states.len()
     }
@@ -146,14 +199,63 @@ impl BlockDefinitions {
         self.by_identifier.get(identifier).map(|&i| &self.blocks[i])
     }
 
+    /// The block a state belongs to. Every state in the table has one:
+    /// `Builder::finish` refuses a table with a state no block claimed.
+    #[inline]
+    pub fn owner(&self, id: BlockStateId) -> &BlockEntry {
+        &self.blocks[self.owners[id.0 as usize] as usize]
+    }
+
+    /// The block's position in the corpus. This is the id block tags are
+    /// resolved against, so a state's tag membership is two array reads.
+    #[inline]
+    pub fn block_index(&self, id: BlockStateId) -> u32 {
+        self.owners[id.0 as usize]
+    }
+
+    #[inline]
+    pub fn index_of(&self, identifier: &str) -> Option<u32> {
+        self.by_identifier
+            .get(identifier)
+            .map(|&index| index as u32)
+    }
+
     pub fn table_bytes(&self) -> usize {
-        let states = self.states.len() * size_of::<BlockStateData>();
+        let states =
+            self.states.len() * size_of::<BlockStateData>() + self.owners.len() * size_of::<u32>();
         let shapes: usize = self
             .shapes
             .iter()
             .map(|s| size_of::<Box<[Aabb]>>() + s.len() * size_of::<Aabb>())
             .sum();
         states + shapes
+    }
+}
+
+/// The corpus as every world sees it. A dimension sub-app is handed a clone at
+/// spawn, so the table is shared rather than rebuilt or copied per dimension.
+#[derive(Debug, Clone, Resource)]
+pub struct Blocks(pub Arc<BlockDefinitions>);
+
+/// Block tags are resolved against the corpus, so every block the game has can
+/// be in a tag — not only the ones a static registry happens to name.
+impl mcrs_core::tag::registry::TagSource for Blocks {
+    type Id = u32;
+
+    fn id_of(&self, loc: &str) -> Option<u32> {
+        self.index_of(loc)
+    }
+
+    fn capacity(&self) -> u32 {
+        self.blocks.len() as u32
+    }
+}
+
+impl std::ops::Deref for Blocks {
+    type Target = BlockDefinitions;
+
+    fn deref(&self) -> &BlockDefinitions {
+        &self.0
     }
 }
 
@@ -209,10 +311,6 @@ pub enum BlockError {
     },
     #[error("state {state} is already claimed by `{owner}`")]
     OverlappingState { state: u16, owner: String },
-    #[error("`mcrs:state_components` holds {found} entries for {states} states")]
-    StateComponentsLength { found: usize, states: usize },
-    #[error("`{0}` is stated by both a permutation and `mcrs:state_components`")]
-    StateComponentsCollision(&'static str),
     #[error("state {state} states no `{component}`")]
     MissingComponent { state: u16, component: &'static str },
 }
@@ -298,7 +396,8 @@ const UNCLAIMED: BlockStateData = BlockStateData {
     occlusion_shape: ShapeId(u32::MAX),
     push_reaction: PushReaction::Normal,
     instrument: Instrument::Harp,
-    render_shape: RenderShape::Model,
+    redstone_power: 0,
+    loot: None,
     fluid: None,
     flags: BlockStateFlags::empty(),
 };
@@ -309,6 +408,7 @@ struct Builder {
     shapes: Vec<Box<[Aabb]>>,
     shape_ids: FxHashMap<Vec<u32>, ShapeId>,
     fluids: Vec<ResourceLocation<Arc<str>>>,
+    loot: Vec<ResourceLocation<Arc<str>>>,
     blocks: Vec<BlockEntry>,
     permutations: usize,
 }
@@ -323,6 +423,7 @@ impl Builder {
             shapes: Vec::new(),
             shape_ids: FxHashMap::with_hasher(FxBuildHasher),
             fluids: Vec::new(),
+            loot: Vec::new(),
             blocks: Vec::new(),
             permutations: 0,
         }
@@ -344,17 +445,11 @@ impl Builder {
     }
 
     fn intern_fluid(&mut self, fluid: &ResourceLocation<Arc<str>>) -> FluidId {
-        match self
-            .fluids
-            .iter()
-            .position(|f| f.as_str() == fluid.as_str())
-        {
-            Some(index) => FluidId(index as u16),
-            None => {
-                self.fluids.push(fluid.clone());
-                FluidId(self.fluids.len() as u16 - 1)
-            }
-        }
+        FluidId(intern(&mut self.fluids, fluid))
+    }
+
+    fn intern_loot(&mut self, table: &ResourceLocation<Arc<str>>) -> LootId {
+        LootId(intern(&mut self.loot, table))
     }
 
     fn add(&mut self, file: BlockDefinitionFile) -> Result<(), BlockError> {
@@ -378,15 +473,6 @@ impl Builder {
         }
 
         let components = file.block.components;
-        let state_components = file.block.state_components;
-        if let Some(per_state) = &state_components
-            && per_state.len() != state_count
-        {
-            return Err(BlockError::StateComponentsLength {
-                found: per_state.len(),
-                states: state_count,
-            });
-        }
 
         let mut permutations = Vec::with_capacity(file.block.permutations.len());
         for permutation in &file.block.permutations {
@@ -401,20 +487,6 @@ impl Builder {
         }
         self.permutations += permutations.len();
 
-        if let Some(per_state) = &state_components {
-            let mut dense = Vec::new();
-            for entry in per_state {
-                entry.present(&mut dense);
-            }
-            let mut varying = Vec::new();
-            for (_, components) in &permutations {
-                components.present(&mut varying);
-            }
-            if let Some(name) = dense.iter().find(|name| varying.contains(name)) {
-                return Err(BlockError::StateComponentsCollision(name));
-            }
-        }
-
         let block_index = self.blocks.len() as u32;
         let end = base as usize + state_count;
         if self.states.len() < end {
@@ -422,6 +494,12 @@ impl Builder {
             self.owners.resize(end, NO_OWNER);
         }
 
+        // Bedrock knows its air block by identifier and states no component for
+        // it; Java's three air blocks are the same fact.
+        let air = matches!(
+            description.identifier.as_str(),
+            "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+        );
         let mut values = vec![0u8; properties.0.len()];
         for index in 0..state_count {
             let mut rest = index;
@@ -435,9 +513,6 @@ impl Builder {
                 if condition.matches(&values) {
                     resolved.overlay(overlay);
                 }
-            }
-            if let Some(per_state) = &state_components {
-                resolved.overlay(&per_state[index]);
             }
 
             let state = base as usize + index;
@@ -457,12 +532,14 @@ impl Builder {
                     component,
                 });
             }
-            let data = self.resolve(&resolved);
+            let mut data = self.resolve(&resolved);
+            data.flags.set(BlockStateFlags::IS_AIR, air);
             self.states[state] = data;
         }
 
         self.blocks.push(BlockEntry {
             identifier: description.identifier,
+            protocol_id: description.protocol_id,
             base_state_id: BlockStateId(base),
             default_state_id: BlockStateId(default),
             state_count: state_count as u16,
@@ -484,40 +561,63 @@ impl Builder {
             }
         };
         flag(
-            components.requires_correct_tool_for_drops,
+            Some(
+                !components
+                    .destructible_by_mining
+                    .as_ref()
+                    .unwrap()
+                    .harvested_by
+                    .is_empty(),
+            ),
             BlockStateFlags::REQUIRES_CORRECT_TOOL_FOR_DROPS,
         );
-        flag(components.is_air, BlockStateFlags::IS_AIR);
-        flag(components.replaceable, BlockStateFlags::REPLACEABLE);
-        flag(components.ignited_by_lava, BlockStateFlags::IGNITED_BY_LAVA);
+        flag(
+            Some(components.replaceable.is_some()),
+            BlockStateFlags::REPLACEABLE,
+        );
+        flag(
+            Some(
+                components
+                    .flammable
+                    .is_some_and(|f| f.lava_flammable == LavaFlammable::Always),
+            ),
+            BlockStateFlags::IGNITED_BY_LAVA,
+        );
         flag(
             components.use_shape_for_light_occlusion,
             BlockStateFlags::USE_SHAPE_FOR_LIGHT_OCCLUSION,
         );
         flag(
-            components.propagates_skylight_down,
+            Some(components.light_dampening.unwrap() == 0),
             BlockStateFlags::PROPAGATES_SKYLIGHT_DOWN,
         );
         flag(
             components.emissive_rendering,
             BlockStateFlags::EMISSIVE_RENDERING,
         );
-        flag(components.is_solid_render, BlockStateFlags::IS_SOLID_RENDER);
         flag(
-            components.is_collision_shape_full_block,
+            Some(fills_the_cube(
+                &components.occlusion_shape.as_ref().unwrap().0,
+            )),
+            BlockStateFlags::IS_SOLID_RENDER,
+        );
+        flag(
+            Some(fills_the_cube(
+                &components.collision_box.as_ref().unwrap().0,
+            )),
             BlockStateFlags::IS_COLLISION_SHAPE_FULL_BLOCK,
         );
         flag(
-            components.has_block_entity,
+            Some(components.block_entity.is_some()),
             BlockStateFlags::HAS_BLOCK_ENTITY,
         );
         flag(
-            components.is_signal_source,
+            Some(components.redstone_producer.is_some()),
             BlockStateFlags::IS_SIGNAL_SOURCE,
         );
         flag(
-            components.has_analog_output_signal,
-            BlockStateFlags::HAS_ANALOG_OUTPUT_SIGNAL,
+            Some(components.movable.unwrap().sticky == Sticky::Same),
+            BlockStateFlags::STICKY,
         );
         flag(
             components
@@ -529,6 +629,10 @@ impl Builder {
         let collision_shape = shape(self, &components.collision_box);
         let selection_shape = shape(self, &components.selection_box);
         let occlusion_shape = shape(self, &components.occlusion_shape);
+        let loot = components
+            .loot
+            .as_ref()
+            .map(|table| self.intern_loot(table));
         let fluid = components.fluid_state.as_ref().map(|fluid| FluidState {
             fluid: self.intern_fluid(&fluid.fluid),
             level: fluid.level,
@@ -539,7 +643,7 @@ impl Builder {
             light_emission: components.light_emission.unwrap(),
             light_dampening: components.light_dampening.unwrap(),
             friction: components.friction.unwrap(),
-            hardness: components.hardness.unwrap(),
+            hardness: components.destructible_by_mining.as_ref().unwrap().hardness,
             explosion_resistance: components
                 .destructible_by_explosion
                 .unwrap()
@@ -548,9 +652,10 @@ impl Builder {
             collision_shape,
             selection_shape,
             occlusion_shape,
-            push_reaction: components.push_reaction.unwrap(),
-            instrument: components.instrument.unwrap(),
-            render_shape: components.render_shape.unwrap(),
+            push_reaction: components.movable.unwrap().movement_type,
+            instrument: components.instrument_sound.unwrap().0,
+            redstone_power: components.redstone_producer.map_or(0, |p| p.power),
+            loot,
             fluid,
             flags,
         }
@@ -570,10 +675,48 @@ impl Builder {
             states: std::mem::take(&mut self.states),
             shapes: std::mem::take(&mut self.shapes),
             fluids: std::mem::take(&mut self.fluids),
+            loot: std::mem::take(&mut self.loot),
             blocks: std::mem::take(&mut self.blocks),
+            owners: std::mem::take(&mut self.owners),
             by_identifier,
         })
     }
+}
+
+fn intern(table: &mut Vec<ResourceLocation<Arc<str>>>, value: &ResourceLocation<Arc<str>>) -> u16 {
+    match table.iter().position(|v| v.as_str() == value.as_str()) {
+        Some(index) => index as u16,
+        None => {
+            table.push(value.clone());
+            table.len() as u16 - 1
+        }
+    }
+}
+
+/// Java's `Block.isShapeFullBlock`: the shape covers the whole block. The boxes
+/// of a `VoxelShape` never overlap, so covering the cube is the same as filling
+/// its volume without leaving it.
+fn fills_the_cube(boxes: &[BlockBox]) -> bool {
+    const EPSILON: f32 = 1.0 / 4096.0;
+    let mut volume = 0.0;
+    for b in boxes {
+        let max = [
+            b.origin[0] + b.size[0],
+            b.origin[1] + b.size[1],
+            b.origin[2] + b.size[2],
+        ];
+        if b.origin[0] < -8.0 - EPSILON || max[0] > 8.0 + EPSILON {
+            return false;
+        }
+        if b.origin[1] < -EPSILON || max[1] > 16.0 + EPSILON {
+            return false;
+        }
+        if b.origin[2] < -8.0 - EPSILON || max[2] > 8.0 + EPSILON {
+            return false;
+        }
+        volume += b.size[0] * b.size[1] * b.size[2];
+    }
+    (volume - 16.0 * 16.0 * 16.0).abs() < 0.5
 }
 
 /// Bedrock states a box in sixteenths, from the block centre on X and Z and
@@ -604,23 +747,12 @@ mod tests {
         "minecraft:selection_box": true,
         "minecraft:destructible_by_explosion": { "explosion_resistance": 6 },
         "minecraft:redstone_conductivity": { "redstone_conductor": true },
-        "mcrs:hardness": 1.5,
-        "mcrs:requires_correct_tool_for_drops": true,
-        "mcrs:is_air": false,
-        "mcrs:replaceable": false,
-        "mcrs:ignited_by_lava": false,
-        "mcrs:push_reaction": "push_pull",
-        "mcrs:instrument": "basedrum",
+        "minecraft:movable": { "movement_type": "push_pull" },
+        "minecraft:instrument_sound": { "down": "basedrum" },
+        "minecraft:destructible_by_mining": { "seconds_to_destroy": 1.5 },
         "mcrs:use_shape_for_light_occlusion": false,
-        "mcrs:render_shape": "model",
         "mcrs:occlusion_shape": true,
-        "mcrs:propagates_skylight_down": false,
-        "mcrs:emissive_rendering": false,
-        "mcrs:is_solid_render": true,
-        "mcrs:is_collision_shape_full_block": true,
-        "mcrs:has_block_entity": false,
-        "mcrs:is_signal_source": false,
-        "mcrs:has_analog_output_signal": false
+        "mcrs:emissive_rendering": false
     }"##;
 
     fn file(identifier: &str, base: u16, properties: &str, rest: &str) -> String {
@@ -628,6 +760,7 @@ mod tests {
             r#"{{"format_version": "1.21.130", "minecraft:block": {{
                 "description": {{
                     "identifier": "{identifier}",
+                    "protocol_id": 0,
                     "base_state_id": {base},
                     "default_state_id": {base}
                     {properties}
@@ -669,49 +802,47 @@ mod tests {
     #[test]
     fn an_unstated_component_fails_at_load_naming_it() {
         let mut source = file("minecraft:test", 0, "", "");
-        source = source.replace(r#""mcrs:hardness": 1.5,"#, "");
+        source = source.replace(r#""mcrs:use_shape_for_light_occlusion": false,"#, "");
         let error = build(&[source]).unwrap_err().to_string();
         assert!(
-            error.contains("state 0 states no `mcrs:hardness`"),
+            error.contains("state 0 states no `mcrs:use_shape_for_light_occlusion`"),
             "{error}"
         );
     }
 
     #[test]
-    fn a_short_dense_table_fails_at_load() {
-        let source = file(
-            "minecraft:test",
-            0,
-            r#", "properties": { "level": [0, 1, 2] }"#,
-            r#", "mcrs:state_components": [{}, {}]"#,
-        );
-        let error = build(&[source]).unwrap_err().to_string();
-        assert!(error.contains("holds 2 entries for 3 states"), "{error}");
-    }
-
-    #[test]
-    fn a_component_stated_twice_over_fails_at_load() {
+    fn a_component_map_outside_components_and_permutations_fails_at_load() {
         let source = file(
             "minecraft:test",
             0,
             r#", "properties": { "level": [0, 1] }"#,
-            r#", "permutations": [{
-                "condition": "q.block_state('level') == 0",
-                "components": { "minecraft:light_emission": 7 }
-            }],
-            "mcrs:state_components": [
-                { "minecraft:light_emission": 1 },
-                { "minecraft:light_emission": 2 }
+            r#", "mcrs:state_components": [{}, {}]"#,
+        );
+        let error = serde_json::from_str::<BlockDefinitionFile>(&source)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("mcrs:state_components"), "{error}");
+    }
+
+    #[test]
+    fn a_state_takes_the_last_matching_permutation() {
+        let source = file(
+            "minecraft:test",
+            0,
+            r#", "properties": { "level": [0, 1] }"#,
+            r#", "permutations": [
+                {
+                    "condition": "q.block_state('level') == 0",
+                    "components": { "minecraft:light_emission": 7 }
+                },
+                {
+                    "condition": "q.block_state('level') == 0",
+                    "components": { "minecraft:light_emission": 9 }
+                }
             ]"#,
         );
-        let error = build(&[source]).unwrap_err().to_string();
-        assert!(
-            error.contains(
-                "`minecraft:light_emission` is stated by both a permutation and \
-                 `mcrs:state_components`"
-            ),
-            "{error}"
-        );
+        let definitions = build(&[source]).unwrap();
+        assert_eq!(definitions.state(BlockStateId(0)).light_emission, 9);
     }
 
     #[test]

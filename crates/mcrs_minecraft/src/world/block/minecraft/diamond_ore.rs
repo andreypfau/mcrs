@@ -1,7 +1,7 @@
-use crate::world::block::behaviour::Properties;
 use crate::world::block::minecraft::note_block::NoteBlockInstrument;
-use crate::world::block::{Block, BlockState};
 use mcrs_minecraft_block::material::map::MapColor;
+use crate::world::block::behaviour::Properties;
+use crate::world::block::{Block, BlockState};
 use mcrs_protocol::{BlockStateId, ident};
 
 pub const BLOCK: Block = Block {
@@ -17,9 +17,4 @@ pub const DEFAULT_STATE: BlockState = BlockState {
 };
 
 pub const PROPERTIES: Properties = Properties::new()
-    .with_map_color(MapColor::STONE)
-    .with_note_block_instrument(NoteBlockInstrument::BASEDRUM)
-    .with_hardness(3.0)
-    .with_explosion_resistance(3.0)
-    .requires_correct_tool_for_drops()
     .with_xp_range(3, 7);

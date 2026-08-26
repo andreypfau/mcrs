@@ -1,8 +1,6 @@
+use crate::block::Block;
 use crate::block::behaviour;
 use crate::block::state_properties;
-use crate::block::Block;
-use crate::material::map::MapColor;
-use crate::sound::SoundType;
 use mcrs_core::block_state::{Property, PropertyValue};
 
 define_block! {
@@ -12,11 +10,6 @@ define_block! {
     properties: [&state_properties::INSTRUMENT, &state_properties::NOTE, &state_properties::POWERED],
     default: { instrument: harp, note: 0, powered: false },
     block_properties: behaviour::Properties::new()
-        .with_map_color(MapColor::WOOD)
-        .with_note_block_instrument(NoteBlockInstrument::Bass)
-        .with_sound(&SoundType::WOOD)
-        .with_strength(0.8)
-        .ignited_by_lava()
 }
 
 pub static INSTRUMENT_PROP: Property<NoteBlockInstrument> =

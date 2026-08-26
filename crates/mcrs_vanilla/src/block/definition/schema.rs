@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use serde::de::{self, MapAccess, SeqAccess, Visitor};
-use serde::ser::SerializeSeq;
+use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::material::PushReaction;
@@ -26,10 +26,6 @@ pub struct BlockDefinition {
     pub components: Components,
     #[serde(default)]
     pub permutations: Vec<Permutation>,
-    /// The dense escape hatch, indexed by `state_id - base_state_id`, for
-    /// components that vary with every property of the block.
-    #[serde(default, rename = "mcrs:state_components")]
-    pub state_components: Option<Vec<Components>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -38,6 +34,7 @@ pub struct Description {
     pub identifier: ResourceLocation<Arc<str>>,
     #[serde(default)]
     pub properties: BlockProperties,
+    pub protocol_id: u16,
     pub base_state_id: u16,
     pub default_state_id: u16,
 }
@@ -110,6 +107,20 @@ pub enum PropertyValue {
     Str(Box<str>),
     Int(i32),
     Bool(bool),
+}
+
+impl PropertyValue {
+    /// Whether the value renders as this text. A save and a datapack state
+    /// every property as text, and the type is never inferred back from it:
+    /// `"true"` and `"5"` are strings for any block that declares them as one,
+    /// so the declared value is rendered and compared instead.
+    pub fn renders_to(&self, text: &str) -> bool {
+        match self {
+            PropertyValue::Str(value) => &**value == text,
+            PropertyValue::Int(value) => text.parse::<i32>().is_ok_and(|parsed| parsed == *value),
+            PropertyValue::Bool(value) => text == if *value { "true" } else { "false" },
+        }
+    }
 }
 
 impl fmt::Display for PropertyValue {
@@ -256,6 +267,209 @@ pub struct FluidStateDef {
     pub source: bool,
 }
 
+/// `minecraft:destructible_by_mining`: `false` for a state mining can never
+/// break, `true` for one that breaks instantly, and otherwise the hardness —
+/// which is what Bedrock's `seconds_to_destroy` states, its name
+/// notwithstanding. The harvesting items are stated only when the state needs
+/// the right tool to drop anything.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DestructibleByMining {
+    pub hardness: f32,
+    pub harvested_by: Vec<ItemSpeed>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ItemSpeed {
+    pub item: ItemSelector,
+    pub destroy_speed: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(untagged, deny_unknown_fields)]
+pub enum ItemSelector {
+    Item(ResourceLocation<Arc<str>>),
+    Tags { tags: String },
+}
+
+impl DestructibleByMining {
+    pub const INDESTRUCTIBLE: f32 = -1.0;
+}
+
+impl<'de> Deserialize<'de> for DestructibleByMining {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Object {
+            seconds_to_destroy: f32,
+            #[serde(default)]
+            item_specific_speeds: Vec<ItemSpeed>,
+        }
+
+        struct V;
+
+        impl<'de> Visitor<'de> for V {
+            type Value = DestructibleByMining;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a boolean or a `seconds_to_destroy` object")
+            }
+
+            fn visit_bool<E: de::Error>(self, v: bool) -> Result<DestructibleByMining, E> {
+                Ok(DestructibleByMining {
+                    hardness: if v {
+                        0.0
+                    } else {
+                        DestructibleByMining::INDESTRUCTIBLE
+                    },
+                    harvested_by: Vec::new(),
+                })
+            }
+
+            fn visit_map<A: MapAccess<'de>>(
+                self,
+                map: A,
+            ) -> Result<DestructibleByMining, A::Error> {
+                let object = Object::deserialize(de::value::MapAccessDeserializer::new(map))?;
+                Ok(DestructibleByMining {
+                    hardness: object.seconds_to_destroy,
+                    harvested_by: object.item_specific_speeds,
+                })
+            }
+        }
+
+        d.deserialize_any(V)
+    }
+}
+
+impl Serialize for DestructibleByMining {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        if self.hardness < 0.0 {
+            return s.serialize_bool(false);
+        }
+        if self.hardness == 0.0 && self.harvested_by.is_empty() {
+            return s.serialize_bool(true);
+        }
+        let mut map = s.serialize_map(None)?;
+        if !self.harvested_by.is_empty() {
+            map.serialize_entry("item_specific_speeds", &self.harvested_by)?;
+        }
+        map.serialize_entry("seconds_to_destroy", &self.hardness)?;
+        map.end()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Replaceable {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BlockEntityDef {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub container: Option<ContainerDef>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContainerDef {
+    pub slot_count: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LavaFlammable {
+    Always,
+    Never,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Flammable {
+    pub lava_flammable: LavaFlammable,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Sticky {
+    #[default]
+    None,
+    Same,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Movable {
+    pub movement_type: PushReaction,
+    #[serde(default)]
+    pub sticky: Sticky,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RedstoneProducer {
+    pub power: u8,
+}
+
+/// Bedrock states the note block sound under `up` for a block that works above
+/// the note block and under `down` for one it stands on. Which key carries the
+/// instrument is the instrument's own property, so exactly one of the two is
+/// stated and the pair collapses to the instrument itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstrumentSound(pub Instrument);
+
+impl<'de> Deserialize<'de> for InstrumentSound {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct V;
+
+        impl<'de> Visitor<'de> for V {
+            type Value = InstrumentSound;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a note block sound with an `up` or a `down` instrument")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<InstrumentSound, A::Error> {
+                let mut sound = None;
+                while let Some(key) = map.next_key::<Box<str>>()? {
+                    let above = match &*key {
+                        "up" => true,
+                        "down" => false,
+                        other => return Err(de::Error::unknown_field(other, &["up", "down"])),
+                    };
+                    if sound.is_some() {
+                        return Err(de::Error::custom("`up` and `down` are both stated"));
+                    }
+                    let instrument: Instrument = map.next_value()?;
+                    if instrument.works_above_note_block() != above {
+                        return Err(de::Error::custom(format!(
+                            "`{key}` states `{}`, which works the other way round",
+                            instrument.serialized_name()
+                        )));
+                    }
+                    sound = Some(InstrumentSound(instrument));
+                }
+                sound.ok_or_else(|| de::Error::custom("neither `up` nor `down` is stated"))
+            }
+        }
+
+        d.deserialize_map(V)
+    }
+}
+
+impl Serialize for InstrumentSound {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut map = s.serialize_map(Some(1))?;
+        let key = if self.0.works_above_note_block() {
+            "up"
+        } else {
+            "down"
+        };
+        map.serialize_entry(key, &self.0)?;
+        map.end()
+    }
+}
+
 /// `BlockBehaviour.Properties.instrument` — the instrument a note block placed
 /// above the block plays. Unrelated to the note block's own `instrument`
 /// property, which is an ordinary block state property.
@@ -291,11 +505,28 @@ pub enum Instrument {
     CustomHead,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RenderShape {
-    Invisible,
-    Model,
+impl Instrument {
+    /// A mob head sounds from above the note block; every tunable instrument
+    /// sounds from the block the note block stands on.
+    pub const fn works_above_note_block(self) -> bool {
+        matches!(
+            self,
+            Instrument::Zombie
+                | Instrument::Skeleton
+                | Instrument::Creeper
+                | Instrument::Dragon
+                | Instrument::WitherSkeleton
+                | Instrument::Piglin
+                | Instrument::CustomHead
+        )
+    }
+
+    pub fn serialized_name(self) -> String {
+        serde_json::to_value(self)
+            .ok()
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .unwrap_or_default()
+    }
 }
 
 impl<'de> Deserialize<'de> for MapColor {
@@ -328,17 +559,9 @@ macro_rules! components {
         }
 
         impl Components {
-            pub const NAMES: &'static [&'static str] = &[$($name),+];
-
             pub fn overlay(&mut self, other: &Components) {
                 $(if other.$field.is_some() {
                     self.$field = other.$field.clone();
-                })+
-            }
-
-            pub fn present(&self, out: &mut Vec<&'static str>) {
-                $(if self.$field.is_some() {
-                    out.push($name);
                 })+
             }
 
@@ -403,29 +626,31 @@ components! {
     "minecraft:selection_box" => selection_box: BoxList,
     "minecraft:destructible_by_explosion" => destructible_by_explosion: DestructibleByExplosion,
     "minecraft:redstone_conductivity" => redstone_conductivity: RedstoneConductivity,
-    "mcrs:hardness" => hardness: f32,
-    "mcrs:requires_correct_tool_for_drops" => requires_correct_tool_for_drops: bool,
-    "mcrs:is_air" => is_air: bool,
-    "mcrs:replaceable" => replaceable: bool,
-    "mcrs:ignited_by_lava" => ignited_by_lava: bool,
-    "mcrs:push_reaction" => push_reaction: PushReaction,
-    "mcrs:instrument" => instrument: Instrument,
+    "minecraft:destructible_by_mining" => destructible_by_mining: DestructibleByMining,
+    "minecraft:movable" => movable: Movable,
+    "minecraft:instrument_sound" => instrument_sound: InstrumentSound,
+    "minecraft:replaceable" => replaceable: Replaceable,
+    "minecraft:flammable" => flammable: Flammable,
+    "minecraft:block_entity" => block_entity: BlockEntityDef,
+    "minecraft:redstone_producer" => redstone_producer: RedstoneProducer,
+    "minecraft:loot" => loot: ResourceLocation<Arc<str>>,
     "mcrs:use_shape_for_light_occlusion" => use_shape_for_light_occlusion: bool,
-    "mcrs:render_shape" => render_shape: RenderShape,
     "mcrs:fluid_state" => fluid_state: FluidStateDef,
     "mcrs:occlusion_shape" => occlusion_shape: BoxList,
-    "mcrs:propagates_skylight_down" => propagates_skylight_down: bool,
     "mcrs:emissive_rendering" => emissive_rendering: bool,
-    "mcrs:is_solid_render" => is_solid_render: bool,
-    "mcrs:is_collision_shape_full_block" => is_collision_shape_full_block: bool,
-    "mcrs:has_block_entity" => has_block_entity: bool,
-    "mcrs:is_signal_source" => is_signal_source: bool,
-    "mcrs:has_analog_output_signal" => has_analog_output_signal: bool,
 }
 
-/// The one component a state may leave unstated: a state that holds no fluid
-/// carries no fluid state.
-pub const OPTIONAL_COMPONENTS: &[&str] = &["mcrs:fluid_state"];
+/// The components a state may leave unstated. Each is a component whose
+/// absence is itself the statement: no fluid, not replaceable, lava cannot
+/// ignite it, no block entity, no redstone signal.
+pub const OPTIONAL_COMPONENTS: &[&str] = &[
+    "mcrs:fluid_state",
+    "minecraft:loot",
+    "minecraft:replaceable",
+    "minecraft:flammable",
+    "minecraft:block_entity",
+    "minecraft:redstone_producer",
+];
 
 #[cfg(test)]
 mod tests {
@@ -516,12 +741,13 @@ mod tests {
 
     #[test]
     fn duplicate_component_is_an_error() {
-        let err =
-            serde_json::from_str::<Components>(r#"{"mcrs:is_air": true, "mcrs:is_air": false}"#)
-                .unwrap_err();
+        let err = serde_json::from_str::<Components>(
+            r#"{"mcrs:emissive_rendering": true, "mcrs:emissive_rendering": false}"#,
+        )
+        .unwrap_err();
         assert!(
             err.to_string()
-                .contains("duplicate component `mcrs:is_air`"),
+                .contains("duplicate component `mcrs:emissive_rendering`"),
             "{err}"
         );
     }

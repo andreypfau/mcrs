@@ -1,3 +1,4 @@
+use mcrs_minecraft_block::material::map::MapColor;
 use crate::world::block::behaviour::Properties;
 use crate::world::block::{Block, BlockState};
 use crate::world::entity::EntityOwner;
@@ -7,7 +8,6 @@ use crate::world::entity::explosive::primed_tnt::{
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
 use crate::world::explosion::BlockExplodedEvent;
-use mcrs_minecraft_block::material::map::MapColor;
 use bevy_app::Plugin;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::On;
@@ -36,11 +36,7 @@ pub const DEFAULT_STATE: BlockState = BlockState {
     id: BlockStateId(2141),
 };
 
-pub const PROPERTIES: Properties = Properties::new()
-    .with_map_color(MapColor::FIRE)
-    .with_strength(0.0)
-    .ignited_by_lava()
-    .instant_break();
+pub const PROPERTIES: Properties = Properties::new();
 
 pub struct TntBlockPlugin;
 

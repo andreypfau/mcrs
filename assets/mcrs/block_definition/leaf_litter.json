@@ -17,6 +17,7 @@
           4
         ]
       },
+      "protocol_id": 1233,
       "base_state_id": 33696,
       "default_state_id": 33696
     },
@@ -32,105 +33,147 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": 0,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": true,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "popped",
-      "mcrs:instrument": "harp",
+      "minecraft:movable": {
+        "movement_type": "popped"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:replaceable": {},
+      "minecraft:destructible_by_mining": true,
+      "minecraft:loot": "minecraft:blocks/leaf_litter",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [],
-      "mcrs:propagates_skylight_down": true,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": false,
-      "mcrs:has_block_entity": false,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": false
+      "mcrs:emissive_rendering": false
     },
-    "permutations": [],
-    "mcrs:state_components": [
+    "permutations": [
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [8, 1, 8] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 1",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [8, 1, 8] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [8, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 2",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [8, 1, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 3",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 1, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 4",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 1, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [0, 0, 0], "size": [8, 1, 8] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 1",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [0, 0, 0], "size": [8, 1, 8] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [0, 0, -8], "size": [8, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 2",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [0, 0, -8], "size": [8, 1, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 3",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 1, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 4",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 1, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, 0], "size": [8, 1, 8] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 1",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, 0], "size": [8, 1, 8] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, 0], "size": [16, 1, 8] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 2",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, 0], "size": [16, 1, 8] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 3",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 1, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 4",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 1, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [0, 0, -8], "size": [8, 1, 8] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 1",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [0, 0, -8], "size": [8, 1, 8] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 1, 8] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 2",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 1, 8] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 3",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 1, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027segment_amount\u0027) \u003d\u003d 4",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 1, 16] }
+          ]
+        }
       }
     ]
   }

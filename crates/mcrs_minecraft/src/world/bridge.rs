@@ -1,7 +1,7 @@
 use std::sync::atomic::Ordering;
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::{MessageReader, MessageWriter, Messages};
+use bevy_ecs::message::{MessageReader, Messages};
 use bevy_ecs::prelude::Commands;
 use bevy_ecs::query::{With, Without};
 use bevy_ecs::schedule::SystemSet;
@@ -41,11 +41,9 @@ use crate::world::bridge_queue::{
     KICK_AFTER_OVERFLOW_TICKS, OutboundQueue,
 };
 use crate::world::bus::{PacketPayload, PacketTarget};
-use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim, send_control_or_teardown};
+use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::player_index::{HostAnchorRef, PendingInboundBuffer};
-use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
-use mcrs_engine::session::{PlayerSession, SessionRegistry};
-use mcrs_engine::world::sub_app::DimDespawnQueue;
+use mcrs_engine::session::SessionRegistry;
 
 /// Attach `OutboundQueue` and `InboundRateBucket` to any connection entity that
 /// carries `ServerSideConnection` but not yet an `OutboundQueue`.

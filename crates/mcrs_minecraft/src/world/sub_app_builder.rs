@@ -57,22 +57,24 @@ use crate::world::loot::LootPlugin;
 use mcrs_core::RegistrySnapshot;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::static_registry::StaticRegistry;
-use mcrs_core::tag::TagRegistry;
+use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_engine::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
 use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
+use mcrs_vanilla::block::definition::Blocks;
 use mcrs_vanilla::enchantment::EnchantmentData;
 
 #[derive(Clone)]
 pub struct DimRegistryBundle {
     pub registry_access: RegistryAccess,
     pub block_light_table: BlockStateLightTable,
+    pub blocks: Blocks,
     pub static_block_registry: StaticRegistry<Block>,
     pub static_enchantment_registry: StaticRegistry<EnchantmentData>,
-    pub block_tag_registry: TagRegistry<Block>,
+    pub block_tag_registry: DynTagRegistry<Block>,
     pub biome_registry: RegistrySnapshot<Biome>,
 }
 
@@ -80,9 +82,10 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
     DimRegistryBundle {
         registry_access: world.resource::<RegistryAccess>().clone(),
         block_light_table: world.resource::<BlockStateLightTable>().clone(),
+        blocks: world.resource::<Blocks>().clone(),
         static_block_registry: world.resource::<StaticRegistry<Block>>().clone(),
         static_enchantment_registry: world.resource::<StaticRegistry<EnchantmentData>>().clone(),
-        block_tag_registry: world.resource::<TagRegistry<Block>>().clone(),
+        block_tag_registry: world.resource::<DynTagRegistry<Block>>().clone(),
         biome_registry: world.resource::<RegistrySnapshot<Biome>>().clone(),
     }
 }
@@ -272,6 +275,7 @@ pub fn spawn_dim_subapp(
 
     sub_app.insert_resource(registries.registry_access.clone());
     sub_app.insert_resource(registries.block_light_table.clone());
+    sub_app.insert_resource(registries.blocks.clone());
     sub_app.insert_resource(registries.static_block_registry.clone());
     sub_app.insert_resource(registries.static_enchantment_registry.clone());
     sub_app.insert_resource(registries.block_tag_registry.clone());

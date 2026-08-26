@@ -1,6 +1,5 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
-use bevy_ecs::resource::Resource;
 use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
 use mcrs_engine::geometry::{BlockPos, ColumnPos};

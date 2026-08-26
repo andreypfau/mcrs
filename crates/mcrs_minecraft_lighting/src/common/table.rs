@@ -1,9 +1,9 @@
 use bevy_ecs::prelude::{Commands, Res, Resource};
-use mcrs_core::registry::static_registry::StaticRegistry;
-use mcrs_core::voxel_shape::VoxelShape;
+use bevy_math::Vec3;
+use mcrs_core::voxel_shape::{Aabb, ShapeRegistry, ShapeRepr, VoxelShape, discrete::DiscreteShape};
 use mcrs_protocol::BlockStateId;
-use mcrs_vanilla::block::Block;
-use mcrs_vanilla::block::behaviour::Properties;
+use mcrs_vanilla::block::definition::{BlockStateData, BlockStateFlags, Blocks, ShapeId};
+use rustc_hash::FxHashMap;
 
 #[derive(Resource, Debug, Default, Clone)]
 pub struct BlockStateLightTable {
@@ -56,65 +56,89 @@ pub mod flag_bits {
     pub const IS_NOT_AIR: u8 = 1 << 4;
 }
 
-fn compute_flags(props: &Properties, dampening: u8, occlusion: &'static VoxelShape) -> u8 {
+fn compute_flags(state: &BlockStateData, occlusion: &VoxelShape) -> u8 {
     let mut f = 0u8;
     if !occlusion.is_empty() && !occlusion.occludes_full_block() {
         f |= flag_bits::IS_CONDITIONALLY_OPAQUE;
     }
-    if dampening == 0 {
+    if state
+        .flags
+        .contains(BlockStateFlags::PROPAGATES_SKYLIGHT_DOWN)
+    {
         f |= flag_bits::PROPAGATES_SKYLIGHT_DOWN;
     }
-    if props.can_occlude && dampening == 15 {
+    if state.flags.contains(BlockStateFlags::IS_SOLID_RENDER) {
         f |= flag_bits::IS_SOLID_OPAQUE;
     }
-    if props.has_collision {
-        f |= flag_bits::IS_MOTION_BLOCKING;
-    }
-    if !props.is_air {
+    if !state.flags.contains(BlockStateFlags::IS_AIR) {
         f |= flag_bits::IS_NOT_AIR;
     }
     f
 }
 
-pub fn build_block_light_table(mut commands: Commands, blocks: Res<StaticRegistry<Block>>) {
-    debug_assert!(
-        blocks.frozen(),
-        "BlockStateLightTable::build called before registry freeze"
-    );
+const UNIT_CUBE: Aabb = Aabb {
+    min: Vec3::ZERO,
+    max: Vec3::ONE,
+};
 
-    let mut total_states = 0usize;
-    for (_id, _loc, block) in blocks.iter() {
-        let base = block.base_state_id().0 as usize;
-        let span = base + block.state_count as usize;
-        if span > total_states {
-            total_states = span;
-        }
+/// The light engine reads face occlusion, and a partial shape has no face
+/// projection yet, so anything short of the full cube interns as a shape whose
+/// faces occlude nothing. That is the conservative direction: light passes
+/// where vanilla might cull it, never the other way round.
+fn intern_occlusion(boxes: &[Aabb], shapes: &mut ShapeRegistry) -> &'static VoxelShape {
+    if boxes.is_empty() {
+        return VoxelShape::empty();
     }
+    if boxes.len() == 1 && boxes[0] == UNIT_CUBE {
+        return VoxelShape::block();
+    }
+    let bounds = boxes.iter().skip(1).fold(boxes[0], |acc, b| Aabb {
+        min: acc.min.min(b.min),
+        max: acc.max.max(b.max),
+    });
+    shapes.intern(VoxelShape {
+        repr: ShapeRepr::Discrete(DiscreteShape::empty_with_bounds(bounds)),
+        bounds,
+        occludes_full_block: false,
+        face_cache: [VoxelShape::empty(); 6],
+    })
+}
 
+/// One row per block state, straight off the corpus. Every state the game has
+/// is in the table: a state the light engine cannot find is a state it would
+/// treat as air.
+pub fn build_block_light_table(mut commands: Commands, blocks: Res<Blocks>) {
+    let total_states = blocks.state_count();
     let mut emission = vec![0u8; total_states].into_boxed_slice();
     let mut dampening = vec![0u8; total_states].into_boxed_slice();
     let mut occlusion: Box<[&'static VoxelShape]> =
         vec![VoxelShape::empty(); total_states].into_boxed_slice();
     let mut flags = vec![0u8; total_states].into_boxed_slice();
 
-    for (_id, _loc, block) in blocks.iter() {
-        let base = block.base_state_id().0 as usize;
-        for offset in 0..block.state_count {
-            let state_id = block
-                .base_state_id()
-                .0
-                .checked_add(offset)
-                .expect("block state ID overflow during BlockStateLightTable build");
-            let state = BlockStateId(state_id);
-            let idx = base + offset as usize;
-            emission[idx] = block.properties.light_emission.eval(block, state);
-            dampening[idx] = block.properties.light_dampening.eval(block, state);
-            occlusion[idx] = block.properties.occlusion.eval(block, state);
-            flags[idx] = compute_flags(&block.properties, dampening[idx], occlusion[idx]);
-        }
+    let mut shapes = ShapeRegistry::new();
+    let mut interned: FxHashMap<ShapeId, &'static VoxelShape> = FxHashMap::default();
+
+    for index in 0..total_states {
+        let state = blocks.state(BlockStateId(index as u16));
+        let shape = match interned.get(&state.occlusion_shape) {
+            Some(shape) => *shape,
+            None => {
+                let shape = intern_occlusion(blocks.shape(state.occlusion_shape), &mut shapes);
+                interned.insert(state.occlusion_shape, shape);
+                shape
+            }
+        };
+        emission[index] = state.light_emission;
+        dampening[index] = state.light_dampening;
+        occlusion[index] = shape;
+        flags[index] = compute_flags(state, shape);
     }
 
-    tracing::info!(state_count = total_states, "built BlockStateLightTable");
+    tracing::info!(
+        state_count = total_states,
+        shapes = shapes.len(),
+        "built BlockStateLightTable"
+    );
     commands.insert_resource(BlockStateLightTable {
         emission,
         dampening,
@@ -126,166 +150,99 @@ pub fn build_block_light_table(mut commands: Commands, blocks: Res<StaticRegistr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_core::resource_location::ResourceLocation;
-    use mcrs_vanilla::block::behaviour::LightSpec;
+    use bevy_app::{App, Startup, TaskPoolPlugin};
+    use bevy_asset::{AssetPlugin, AssetServer};
+    use mcrs_vanilla::block::definition::load_block_definitions;
+    use std::sync::{Arc, OnceLock};
 
-    fn make_block(
-        id: &'static str,
-        protocol_id: u16,
-        base_state_id: u16,
-        state_count: u16,
-        properties: &'static Properties,
-    ) -> &'static Block {
-        Box::leak(Box::new(Block {
-            identifier: ResourceLocation::new_static(id),
-            protocol_id,
-            properties,
-            default_state_id: BlockStateId(base_state_id),
-            layout: None,
-            state_count,
-        }))
+    fn corpus() -> &'static Blocks {
+        static CORPUS: OnceLock<Blocks> = OnceLock::new();
+        CORPUS.get_or_init(|| {
+            let mut app = App::new();
+            app.add_plugins(TaskPoolPlugin::default());
+            app.add_plugins(AssetPlugin {
+                watch_for_changes_override: Some(false),
+                ..Default::default()
+            });
+            let asset_server = app.world().resource::<AssetServer>().clone();
+            let (definitions, _) =
+                load_block_definitions(&asset_server).expect("the block definition corpus loads");
+            Blocks(Arc::new(definitions))
+        })
     }
 
-    fn build_table(blocks: Vec<&'static Block>) -> BlockStateLightTable {
-        let mut registry: StaticRegistry<Block> = StaticRegistry::new();
-        for block in blocks {
-            registry.register(block.identifier, block);
-        }
-        registry.freeze();
+    fn table() -> &'static BlockStateLightTable {
+        static TABLE: OnceLock<BlockStateLightTable> = OnceLock::new();
+        TABLE.get_or_init(|| {
+            let mut app = App::new();
+            app.insert_resource(corpus().clone());
+            app.add_systems(Startup, build_block_light_table);
+            app.update();
+            app.world().resource::<BlockStateLightTable>().clone()
+        })
+    }
 
-        let mut total_states = 0usize;
-        for (_id, _loc, block) in registry.iter() {
-            let base = block.base_state_id().0 as usize;
-            let span = base + block.state_count as usize;
-            if span > total_states {
-                total_states = span;
-            }
-        }
-
-        let mut emission = vec![0u8; total_states].into_boxed_slice();
-        let mut dampening = vec![0u8; total_states].into_boxed_slice();
-        let mut occlusion: Box<[&'static VoxelShape]> =
-            vec![VoxelShape::empty(); total_states].into_boxed_slice();
-        let mut flags = vec![0u8; total_states].into_boxed_slice();
-
-        for (_id, _loc, block) in registry.iter() {
-            let base = block.base_state_id().0 as usize;
-            for offset in 0..block.state_count {
-                let state_id = block
-                    .base_state_id()
-                    .0
-                    .checked_add(offset)
-                    .expect("block state ID overflow during BlockStateLightTable build");
-                let state = BlockStateId(state_id);
-                let idx = base + offset as usize;
-                emission[idx] = block.properties.light_emission.eval(block, state);
-                dampening[idx] = block.properties.light_dampening.eval(block, state);
-                occlusion[idx] = block.properties.occlusion.eval(block, state);
-                flags[idx] = compute_flags(&block.properties, dampening[idx], occlusion[idx]);
-            }
-        }
-
-        BlockStateLightTable {
-            emission,
-            dampening,
-            occlusion,
-            flags,
-        }
+    fn state_of(block: &str) -> BlockStateId {
+        corpus()
+            .block(block)
+            .expect("the block is declared")
+            .default_state_id
     }
 
     #[test]
-    fn build_constant_emitter_block() {
-        static PROPS: Properties = Properties::new().with_light_emission(LightSpec::Const(15));
-        let block = make_block("test:emitter", 1, 100, 4, &PROPS);
-        let table = build_table(vec![block]);
-        for i in 0..4u16 {
-            let state = BlockStateId(100 + i);
-            assert_eq!(table.emission_for(state), 15);
+    fn every_state_the_game_has_is_in_the_table() {
+        assert_eq!(table().len(), corpus().state_count());
+    }
+
+    #[test]
+    fn a_full_block_dampens_and_occludes() {
+        let stone = state_of("minecraft:stone");
+        assert_eq!(table().dampening_for(stone), 15);
+        assert_eq!(table().emission_for(stone), 0);
+        assert!(table().occlusion_for(stone).occludes_full_block());
+        let flags = table().flags_for(stone);
+        assert!(flags & flag_bits::IS_SOLID_OPAQUE != 0);
+        assert!(flags & flag_bits::IS_NOT_AIR != 0);
+        assert!(flags & flag_bits::IS_CONDITIONALLY_OPAQUE == 0);
+        assert!(flags & flag_bits::PROPAGATES_SKYLIGHT_DOWN == 0);
+    }
+
+    #[test]
+    fn an_emitter_carries_its_light_and_lets_the_sky_through() {
+        let torch = state_of("minecraft:torch");
+        assert_eq!(table().emission_for(torch), 14);
+        assert_eq!(table().dampening_for(torch), 0);
+        assert!(table().occlusion_for(torch).is_empty());
+        assert!(table().flags_for(torch) & flag_bits::PROPAGATES_SKYLIGHT_DOWN != 0);
+    }
+
+    #[test]
+    fn air_is_the_only_thing_flagged_as_air() {
+        for block in ["minecraft:air", "minecraft:cave_air", "minecraft:void_air"] {
+            let flags = table().flags_for(state_of(block));
+            assert!(flags & flag_bits::IS_NOT_AIR == 0, "{block}");
         }
+        assert!(table().flags_for(state_of("minecraft:barrier")) & flag_bits::IS_NOT_AIR != 0);
     }
 
     #[test]
-    fn build_per_state_emitter_block() {
-        // The fn pointer receives the OWNING `&Block` reference (Pitfall #9).
-        // We compute emission as (state.0 - base) so the test catches the wrong-block
-        // capture regression: a wrong reference would give wrong base subtraction.
-        fn per_state(_b: &Block, s: BlockStateId) -> u8 {
-            (s.0 - 200) as u8 & 0x0F
-        }
-        static PROPS: Properties = Properties::new()
-            .with_light_emission(LightSpec::PerState(per_state))
-            .with_light_dampening(LightSpec::Const(0));
-        let block = make_block("test:per_state", 2, 200, 16, &PROPS);
-        let table = build_table(vec![block]);
-        for i in 0..16u16 {
-            let state = BlockStateId(200 + i);
-            assert_eq!(
-                table.emission_for(state),
-                i as u8,
-                "state {state:?} expected emission {i}"
-            );
-        }
+    fn a_partial_occluder_is_conditionally_opaque() {
+        let slab = corpus().block("minecraft:oak_slab").unwrap();
+        let bottom = slab
+            .with_text(slab.default_state_id, "type", "bottom")
+            .expect("a bottom slab");
+        let flags = table().flags_for(bottom);
+        assert!(flags & flag_bits::IS_CONDITIONALLY_OPAQUE != 0);
+        assert!(flags & flag_bits::IS_SOLID_OPAQUE == 0);
+        assert!(!table().occlusion_for(bottom).is_empty());
     }
 
     #[test]
-    fn build_air_defaults() {
-        static PROPS: Properties = Properties::new().air();
-        let block = make_block("test:air", 0, 0, 1, &PROPS);
-        let table = build_table(vec![block]);
-        let s = BlockStateId(0);
-        assert_eq!(table.emission_for(s), 0);
-        assert_eq!(table.dampening_for(s), 0);
-        let f = table.flags_for(s);
-        assert_eq!(f & flag_bits::IS_NOT_AIR, 0);
-        assert_ne!(f & flag_bits::PROPAGATES_SKYLIGHT_DOWN, 0);
-    }
-
-    #[test]
-    fn build_solid_defaults() {
-        static PROPS: Properties = Properties::new();
-        let block = make_block("test:solid", 3, 50, 1, &PROPS);
-        let table = build_table(vec![block]);
-        let s = BlockStateId(50);
-        assert_eq!(table.dampening_for(s), 15);
-        let f = table.flags_for(s);
-        assert_ne!(
-            f & flag_bits::IS_SOLID_OPAQUE,
-            0,
-            "expected IS_SOLID_OPAQUE bit"
-        );
-        assert_ne!(f & flag_bits::IS_NOT_AIR, 0);
-        assert_ne!(f & flag_bits::IS_MOTION_BLOCKING, 0);
-    }
-
-    #[test]
-    fn build_partial_defaults_no_collision() {
-        static PROPS: Properties = Properties::new().no_collision();
-        let block = make_block("test:partial", 4, 75, 1, &PROPS);
-        let table = build_table(vec![block]);
-        let s = BlockStateId(75);
-        assert_eq!(table.dampening_for(s), 1);
-        let f = table.flags_for(s);
-        assert_eq!(f & flag_bits::IS_SOLID_OPAQUE, 0);
-        assert_eq!(f & flag_bits::IS_MOTION_BLOCKING, 0);
-    }
-
-    #[test]
-    fn flags_byte_layout() {
-        assert_eq!(flag_bits::IS_CONDITIONALLY_OPAQUE, 1);
-        assert_eq!(flag_bits::PROPAGATES_SKYLIGHT_DOWN, 2);
-        assert_eq!(flag_bits::IS_SOLID_OPAQUE, 4);
-        assert_eq!(flag_bits::IS_MOTION_BLOCKING, 8);
-        assert_eq!(flag_bits::IS_NOT_AIR, 16);
-    }
-
-    #[test]
-    fn table_len_reports_total_states() {
-        static AIR_PROPS: Properties = Properties::new().air();
-        static SOLID_PROPS: Properties = Properties::new();
-        let air = make_block("test:t_air", 0, 0, 1, &AIR_PROPS);
-        let solid = make_block("test:t_solid", 1, 1, 16, &SOLID_PROPS);
-        let table = build_table(vec![air, solid]);
-        assert_eq!(table.len(), 17);
-        assert!(!table.is_empty());
+    fn a_state_beyond_the_table_reads_as_nothing() {
+        let beyond = BlockStateId(u16::MAX);
+        assert_eq!(table().emission_for(beyond), 0);
+        assert_eq!(table().dampening_for(beyond), 0);
+        assert_eq!(table().flags_for(beyond), 0);
+        assert!(table().occlusion_for(beyond).is_empty());
     }
 }

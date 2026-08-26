@@ -21,6 +21,7 @@
           false
         ]
       },
+      "protocol_id": 1213,
       "base_state_id": 33341,
       "default_state_id": 33342
     },
@@ -40,29 +41,26 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": 3,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "popped",
-      "mcrs:instrument": "harp",
+      "minecraft:movable": {
+        "movement_type": "popped"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:block_entity": {},
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 3
+      },
+      "minecraft:loot": "minecraft:blocks/waxed_oxidized_copper_golem_statue",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": false,
-      "mcrs:has_block_entity": true,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": true
+      "mcrs:emissive_rendering": false
     },
     "permutations": [
       {
         "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
         "components": {
           "minecraft:light_dampening": 1,
-          "mcrs:propagates_skylight_down": false,
           "mcrs:fluid_state": {
             "fluid": "minecraft:water",
             "level": 8,
@@ -73,8 +71,7 @@
       {
         "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
         "components": {
-          "minecraft:light_dampening": 0,
-          "mcrs:propagates_skylight_down": true
+          "minecraft:light_dampening": 0
         }
       }
     ]

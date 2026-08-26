@@ -1,8 +1,10 @@
 use crate::block::Block;
+use crate::block::definition::BlockDefinitions;
 use crate::block::tags as block_tags;
 use crate::item::component::ItemComponents;
 use bevy_ecs::component::Component;
 use mcrs_core::tag::key::TagKey;
+use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_core::{StaticId, StaticRegistry, TagRegistry};
 
 #[derive(Clone, Copy, Debug, Default, Component)]
@@ -30,11 +32,11 @@ impl Tool {
 
     pub fn get_mining_speed(
         &self,
-        block: &Block,
-        block_registry: &StaticRegistry<Block>,
-        tags: &TagRegistry<Block>,
+        block: &str,
+        blocks: &BlockDefinitions,
+        tags: &DynTagRegistry<Block>,
     ) -> f32 {
-        let block_id = block_registry.id_of(block.identifier.as_str());
+        let block_id = blocks.index_of(block);
         for rule in self.rules {
             let Some(speed) = rule.speed else {
                 continue;
@@ -50,11 +52,11 @@ impl Tool {
 
     pub fn is_correct_block_for_drops(
         &self,
-        block: &Block,
-        block_registry: &StaticRegistry<Block>,
-        tags: &TagRegistry<Block>,
+        block: &str,
+        blocks: &BlockDefinitions,
+        tags: &DynTagRegistry<Block>,
     ) -> bool {
-        let block_id = block_registry.id_of(block.identifier.as_str());
+        let block_id = blocks.index_of(block);
         for (i, rule) in self.rules.iter().enumerate() {
             let Some(correct) = rule.correct_for_drops else {
                 continue;
@@ -66,7 +68,7 @@ impl Tool {
             };
             tracing::debug!(
                 rule_index = i,
-                block = %block.identifier,
+                block,
                 correct,
                 matched,
                 "is_correct_block_for_drops rule check"

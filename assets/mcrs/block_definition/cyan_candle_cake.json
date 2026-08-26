@@ -9,6 +9,7 @@
           false
         ]
       },
+      "protocol_id": 1061,
       "base_state_id": 26745,
       "default_state_id": 26746
     },
@@ -30,26 +31,22 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": 0.5,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "popped",
-      "mcrs:instrument": "harp",
+      "minecraft:movable": {
+        "movement_type": "popped"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 0.5
+      },
+      "minecraft:loot": "minecraft:blocks/cyan_candle_cake",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [
         { "origin": [-7, 0, -7], "size": [14, 8, 14] },
         { "origin": [-1, 8, -1], "size": [2, 6, 2] }
       ],
-      "mcrs:propagates_skylight_down": true,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": false,
-      "mcrs:has_block_entity": false,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": true
+      "mcrs:emissive_rendering": false
     },
     "permutations": [
       {

@@ -21,18 +21,68 @@ use mcrs_engine::world::chunk::{
 use mcrs_engine::world::lighting::LightTicket;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::bevy::{
-    NoiseGeneratorSettingsPlugin, OverworldNoiseRouter, WorldGenConfig,
+    BuildNoiseRouter, NoiseGeneratorSettingsAsset, NoiseGeneratorSettingsPlugin,
+    OverworldNoiseRouter, WorldGenConfig,
 };
+use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
 use mcrs_protocol::ColumnPos;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::BiomeSource;
+use mcrs_vanilla::block::definition::{BlockDefinitions, Blocks};
 use mcrs_vanilla::worldgen::beta_biome::{ActiveBiomeSource, BetaBiomeSourcePlugin};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use tracing::trace;
+
+/// The noise settings state which block fills the terrain and which fluid fills
+/// the sea (`minecraft:stone` and `minecraft:water` for the overworld), so the
+/// ids the generator writes come from that asset resolved against the corpus.
+fn resolve_worldgen_default_states(
+    mut messages: bevy_ecs::message::MessageReader<
+        bevy_asset::AssetEvent<NoiseGeneratorSettingsAsset>,
+    >,
+    settings: Res<bevy_asset::Assets<NoiseGeneratorSettingsAsset>>,
+    blocks: Res<Blocks>,
+    mut config: ResMut<WorldGenConfig>,
+) {
+    for message in messages.read() {
+        let bevy_asset::AssetEvent::LoadedWithDependencies { id } = message else {
+            continue;
+        };
+        let Some(asset) = settings.get(*id) else {
+            continue;
+        };
+        let default_block = resolve_state(&blocks, &asset.settings.default_block);
+        let default_fluid = resolve_state(&blocks, &asset.settings.default_fluid);
+        config.default_block_state_id = Some(default_block);
+        config.default_fluid_state_id = Some(default_fluid);
+        trace!(
+            default_block = default_block.0,
+            default_fluid = default_fluid.0,
+            "resolved the noise settings default states"
+        );
+    }
+}
+
+fn resolve_state(
+    blocks: &BlockDefinitions,
+    state: &ProtoBlockState,
+) -> mcrs_protocol::BlockStateId {
+    let name = state.name.as_str();
+    let block = blocks
+        .block(name)
+        .unwrap_or_else(|| panic!("the noise settings name `{name}`, which no block declares"));
+    let mut id = block.default_state_id;
+    for (property, value) in state.properties.iter().flatten() {
+        id = block
+            .with_text(id, property, value)
+            .unwrap_or_else(|| panic!("`{name}` declares no `{property}` that reads `{value}`"));
+    }
+    id
+}
 
 /// Ordering anchor for the worldgen ingest path. The lighting plugin chains
 /// its enqueue set after `WorldgenIngestSet::ProcessCompletedColumns` so the
@@ -50,11 +100,12 @@ impl Plugin for ChunkPlugin {
         app.add_plugins(NoiseGeneratorSettingsPlugin);
         app.add_plugins(BetaBiomeSourcePlugin);
         if !app.world().contains_resource::<WorldGenConfig>() {
-            let mut cfg = WorldGenConfig::from_env();
-            cfg.default_block_state_id = mcrs_vanilla::block::minecraft::STONE.default_state_id;
-            cfg.default_fluid_state_id = mcrs_vanilla::block::minecraft::WATER.default_state_id;
-            app.insert_resource(cfg);
+            app.insert_resource(WorldGenConfig::from_env());
         }
+        app.add_systems(
+            bevy_app::Update,
+            resolve_worldgen_default_states.before(BuildNoiseRouter),
+        );
         CHUNK_TASK_POOL.get_or_init(|| {
             TaskPoolBuilder::new()
                 .thread_name("ChunkGen".to_string())
@@ -824,6 +875,69 @@ mod tests {
     use super::*;
     use bevy_app::{App, Update};
     use mcrs_engine::entity::player::chunk_view::ChunkTrackingView;
+    use mcrs_vanilla::block::definition::schema::PropertyValue;
+
+    fn corpus() -> &'static Blocks {
+        static CORPUS: OnceLock<Blocks> = OnceLock::new();
+        CORPUS.get_or_init(|| {
+            let mut app = App::new();
+            app.add_plugins(bevy_app::TaskPoolPlugin::default());
+            app.add_plugins(bevy_asset::AssetPlugin {
+                watch_for_changes_override: Some(false),
+                ..Default::default()
+            });
+            let asset_server = app.world().resource::<bevy_asset::AssetServer>().clone();
+            let (definitions, _) =
+                mcrs_vanilla::block::definition::load_block_definitions(&asset_server)
+                    .expect("the block definition corpus loads");
+            Blocks(Arc::new(definitions))
+        })
+    }
+
+    fn noise_settings_state(field: &str) -> ProtoBlockState {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/minecraft/worldgen/noise_settings/overworld.json"
+        );
+        let settings: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(path).expect("the overworld noise settings ship"),
+        )
+        .expect("the noise settings parse");
+        serde_json::from_value(settings[field].clone()).expect("the state parses")
+    }
+
+    #[test]
+    fn the_terrain_block_and_the_sea_come_from_the_noise_settings() {
+        let blocks = corpus();
+
+        let stone = resolve_state(blocks, &noise_settings_state("default_block"));
+        assert_eq!(
+            stone,
+            blocks.block("minecraft:stone").unwrap().default_state_id
+        );
+
+        let water = resolve_state(blocks, &noise_settings_state("default_fluid"));
+        assert_eq!(
+            water,
+            blocks.block("minecraft:water").unwrap().default_state_id
+        );
+    }
+
+    #[test]
+    fn a_stated_property_moves_the_resolved_state() {
+        let blocks = corpus();
+        let water = blocks.block("minecraft:water").unwrap();
+        let state = serde_json::from_str::<ProtoBlockState>(
+            r#"{"id": "minecraft:water", "properties": {"level": "3"}}"#,
+        )
+        .expect("the state parses");
+        assert_eq!(
+            resolve_state(blocks, &state),
+            water
+                .with(water.default_state_id, "level", &PropertyValue::Int(3))
+                .unwrap()
+        );
+    }
 
     #[test]
     fn worldgen_ingest_set_variants_compile() {

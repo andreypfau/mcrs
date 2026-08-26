@@ -167,70 +167,24 @@ fn load_overworld_noise_router(assets_path: &std::path::Path) -> OverworldNoiseR
 // ---- BlockStateLightTable from block registry ------------------------------------
 
 fn build_production_block_light_table() -> BlockStateLightTable {
-    use mcrs_minecraft_lighting::table::flag_bits;
-
-    // Register and freeze the block registry in an isolated StaticRegistry
-    // so we can build the table without touching the global app state.
-    let mut registry: StaticRegistry<Block> = StaticRegistry::new();
-    mcrs_vanilla::block::minecraft::register_all_blocks(&mut registry);
-    registry.freeze();
-
-    let mut total_states = 0usize;
-    for (_id, _loc, block) in registry.iter() {
-        let base = block.base_state_id().0 as usize;
-        let span = base + block.state_count as usize;
-        if span > total_states {
-            total_states = span;
-        }
-    }
-
-    let mut emission = vec![0u8; total_states].into_boxed_slice();
-    let mut dampening = vec![0u8; total_states].into_boxed_slice();
-    let mut occlusion: Box<[&'static VoxelShape]> =
-        vec![VoxelShape::empty(); total_states].into_boxed_slice();
-    let mut flags = vec![0u8; total_states].into_boxed_slice();
-
-    for (_id, _loc, block) in registry.iter() {
-        let base = block.base_state_id().0 as usize;
-        for offset in 0..block.state_count {
-            let state_id = block
-                .base_state_id()
-                .0
-                .checked_add(offset)
-                .expect("state id overflow");
-            let state = mcrs_protocol::BlockStateId(state_id);
-            let idx = base + offset as usize;
-            emission[idx] = block.properties.light_emission.eval(block, state);
-            dampening[idx] = block.properties.light_dampening.eval(block, state);
-            let occ = block.properties.occlusion.eval(block, state);
-            occlusion[idx] = occ;
-
-            let mut f = 0u8;
-            if !occ.is_empty() && !occ.occludes_full_block() {
-                f |= flag_bits::IS_CONDITIONALLY_OPAQUE;
-            }
-            if dampening[idx] == 0 {
-                f |= flag_bits::PROPAGATES_SKYLIGHT_DOWN;
-            }
-            if block.properties.can_occlude && dampening[idx] == 15 {
-                f |= flag_bits::IS_SOLID_OPAQUE;
-            }
-            if block.properties.has_collision {
-                f |= flag_bits::IS_MOTION_BLOCKING;
-            }
-            if !block.properties.is_air {
-                f |= flag_bits::IS_NOT_AIR;
-            }
-            flags[idx] = f;
-        }
-    }
-
-    BlockStateLightTable {
-        emission,
-        dampening,
-        occlusion,
-        flags,
-    }
+    let mut app = App::new();
+    app.add_plugins(bevy_app::TaskPoolPlugin::default());
+    app.add_plugins(bevy_asset::AssetPlugin {
+        watch_for_changes_override: Some(false),
+        ..Default::default()
+    });
+    let asset_server = app.world().resource::<bevy_asset::AssetServer>().clone();
+    let (definitions, _) = mcrs_vanilla::block::definition::load_block_definitions(&asset_server)
+        .expect("the block definition corpus loads");
+    app.insert_resource(mcrs_vanilla::block::definition::Blocks(Arc::new(
+        definitions,
+    )));
+    app.add_systems(
+        bevy_app::Startup,
+        mcrs_minecraft_lighting::table::build_block_light_table,
+    );
+    app.update();
+    app.world().resource::<BlockStateLightTable>().clone()
 }
 
 // ---- Convergence helpers -----------------------------------------------------

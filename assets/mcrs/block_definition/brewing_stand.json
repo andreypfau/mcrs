@@ -17,6 +17,7 @@
           false
         ]
       },
+      "protocol_id": 436,
       "base_state_id": 11186,
       "default_state_id": 11193
     },
@@ -39,23 +40,24 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": 0.5,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "push_pull",
-      "mcrs:instrument": "harp",
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:block_entity": {
+        "container": {
+          "slot_count": 5
+        }
+      },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 0.5
+      },
+      "minecraft:loot": "minecraft:blocks/brewing_stand",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [],
-      "mcrs:propagates_skylight_down": true,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": false,
-      "mcrs:has_block_entity": true,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": true
+      "mcrs:emissive_rendering": false
     },
     "permutations": []
   }

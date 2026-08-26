@@ -1,7 +1,7 @@
-use crate::world::block::behaviour::Properties;
-use crate::world::block::{Block, BlockState};
 use mcrs_minecraft_block::material::PushReaction;
 use mcrs_minecraft_block::material::map::MapColor;
+use crate::world::block::behaviour::Properties;
+use crate::world::block::{Block, BlockState};
 use mcrs_protocol::{BlockStateId, ident};
 
 pub const BLOCK: Block = Block {
@@ -24,10 +24,4 @@ pub const DEFAULT_STATE: &BlockState = &STAGE_0_STATE;
 
 // Block type: SaplingBlock - not fully implemented yet
 // .sound(SoundType.CHERRY_SAPLING) - not implemented yet
-pub const PROPERTIES: Properties = Properties::new()
-    .with_map_color(MapColor::COLOR_PINK)
-    .with_strength(0.0)
-    .with_random_ticks()
-    .no_collision()
-    .instant_break()
-    .with_push_reaction(PushReaction::Destroy);
+pub const PROPERTIES: Properties = Properties::new();

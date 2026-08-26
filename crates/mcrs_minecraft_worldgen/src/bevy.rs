@@ -10,7 +10,7 @@ use bevy_asset::{
     LoadDirectError,
 };
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Commands, Res, Resource};
+use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_reflect::TypePath;
 use mcrs_protocol::Ident;
 use std::collections::BTreeMap;
@@ -38,12 +38,12 @@ pub struct WorldGenConfig {
     pub noise_settings_path: Arc<str>,
     /// World seed forwarded to `build_functions`.
     pub seed: u64,
-    /// Registry-resolved default block state ID (stone) for `build_functions`.
-    /// Populated by the mcrs_minecraft layer using minecraft::STONE.default_state_id.
-    pub default_block_state_id: mcrs_protocol::BlockStateId,
-    /// Registry-resolved default fluid state ID (water level 0) for `build_functions`.
-    /// Populated by the mcrs_minecraft layer using minecraft::WATER.default_state_id.
-    pub default_fluid_state_id: mcrs_protocol::BlockStateId,
+    /// The terrain block and the sea fluid the active noise settings state,
+    /// resolved against the block registry by whoever runs before
+    /// [`BuildNoiseRouter`]. Unset until then, and the router refuses to build
+    /// on a guess.
+    pub default_block_state_id: Option<mcrs_protocol::BlockStateId>,
+    pub default_fluid_state_id: Option<mcrs_protocol::BlockStateId>,
 }
 
 impl Default for WorldGenConfig {
@@ -54,8 +54,8 @@ impl Default for WorldGenConfig {
             noise_settings_namespace: Arc::from("minecraft"),
             noise_settings_path: Arc::from("overworld"),
             seed: 0,
-            default_block_state_id: mcrs_protocol::BlockStateId(1),
-            default_fluid_state_id: mcrs_protocol::BlockStateId(86),
+            default_block_state_id: None,
+            default_fluid_state_id: None,
         }
     }
 }
@@ -96,8 +96,8 @@ impl WorldGenConfig {
             noise_settings_namespace,
             noise_settings_path,
             seed,
-            default_block_state_id: mcrs_protocol::BlockStateId(1),
-            default_fluid_state_id: mcrs_protocol::BlockStateId(86),
+            default_block_state_id: None,
+            default_fluid_state_id: None,
         }
     }
 
@@ -177,9 +177,14 @@ impl Plugin for NoiseGeneratorSettingsPlugin {
             .register_asset_loader(NoiseGeneratorSettingsLoader)
             .register_asset_loader(NoiseParamLoader)
             .add_systems(Startup, request_overworld_noise_settings)
-            .add_systems(Update, build_noise_router_on_load);
+            .add_systems(Update, build_noise_router_on_load.in_set(BuildNoiseRouter));
     }
 }
+
+/// The router reads the block state ids out of [`WorldGenConfig`], so whoever
+/// resolves them against the block registry runs before this.
+#[derive(bevy_ecs::schedule::SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BuildNoiseRouter;
 
 /// Retains the `Handle<NoiseGeneratorSettingsAsset>` so the asset is not
 /// dropped before `build_noise_router_on_load` can react to its load event.
@@ -331,11 +336,11 @@ fn build_noise_router_on_load(
                 );
                 let (default_block, default_fluid) = world_gen_config
                     .as_ref()
-                    .map(|c| (c.default_block_state_id, c.default_fluid_state_id))
-                    .unwrap_or((
-                        mcrs_protocol::BlockStateId(1),
-                        mcrs_protocol::BlockStateId(86),
-                    ));
+                    .and_then(|c| Some((c.default_block_state_id?, c.default_fluid_state_id?)))
+                    .expect(
+                        "the noise settings default block and fluid were never resolved; \
+                         a system before BuildNoiseRouter has to state them",
+                    );
                 let overworld = OverworldNoiseRouter(Arc::new(build_functions(
                     &functions_proto,
                     &noises_proto,

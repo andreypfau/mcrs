@@ -11,6 +11,7 @@
           3
         ]
       },
+      "protocol_id": 728,
       "base_state_id": 16822,
       "default_state_id": 16822
     },
@@ -31,23 +32,19 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": 0.5,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "push_pull",
-      "mcrs:instrument": "harp",
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 0.5
+      },
+      "minecraft:loot": "minecraft:blocks/frosted_ice",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [],
-      "mcrs:propagates_skylight_down": false,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": true,
-      "mcrs:has_block_entity": false,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": false
+      "mcrs:emissive_rendering": false
     },
     "permutations": []
   }

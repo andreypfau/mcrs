@@ -1,4 +1,3 @@
-use crate::world::block::Block;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::{ContainsEntity, Entity};
@@ -89,6 +88,7 @@ struct BlockCache<'a, 'b> {
     map: &'a mut FxHashMap<BlockPos, BlockCacheItem>,
     chunk_index: &'a ChunkIndex,
     chunks: &'a Query<'a, 'a, (Entity, &'b BlockPalette)>,
+    blocks: &'a BlockDefinitions,
 }
 
 impl<'a, 'b> BlockCache<'a, 'b> {
@@ -101,6 +101,7 @@ impl<'a, 'b> BlockCache<'a, 'b> {
             map,
             chunk_index,
             chunks,
+            blocks,
         } = self;
         match map.entry(pos) {
             Entry::Occupied(o) => o.into_mut(),
@@ -110,8 +111,7 @@ impl<'a, 'b> BlockCache<'a, 'b> {
                     let b = chunk_index.get(chunk_pos)?;
                     let (chunk, palette) = chunks.get(b.entity()).ok()?;
                     let block_state = palette.get(pos);
-                    let resistance =
-                        (AsRef::<Block>::as_ref(&block_state).explosion_resistance() + 0.3) * 0.3;
+                    let resistance = (blocks.state(block_state).explosion_resistance + 0.3) * 0.3;
                     Some(BlockCacheItem {
                         pos,
                         block: block_state,
@@ -152,6 +152,7 @@ fn tick_explode(
     dim_chunks: Query<&ChunkIndex>,
     chunks: Query<(ChunkEntity, &BlockPalette)>,
     mut queue: Local<Parallel<Vec<(ExplosionEntity, Vec<BlockExplodedEvent>)>>>,
+    blocks: Res<Blocks>,
     mut commands: Commands,
     mut writer: MessageWriter<BlockSetRequest>,
 ) {
@@ -169,6 +170,7 @@ fn tick_explode(
                 map: &mut cache_map,
                 chunk_index: dim_chunks,
                 chunks: &chunks,
+                blocks: &blocks,
             };
 
             let blocks = calc_blocks(
@@ -286,6 +288,7 @@ use bevy_ecs::prelude::Commands;
 use bevy_math::DVec3;
 use bevy_utils::Parallel;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
+use mcrs_vanilla::block::definition::{BlockDefinitions, Blocks};
 use rand::{RngExt, rng};
 use std::sync::OnceLock;
 

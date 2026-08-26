@@ -1,11 +1,12 @@
 use crate::tag::block::{BlockTagSet, BlockTagSetExt};
-use crate::world::block::Block;
 use crate::world::item::component::ItemComponents;
 use bevy_ecs::component::Component;
 use mcrs_core::tag::key::TagKey;
+use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_core::tag::registry::TagRegistry;
 use mcrs_core::{ResourceLocation, StaticRegistry};
 use mcrs_vanilla::block::Block as VanillaBlock;
+use mcrs_vanilla::block::definition::BlockDefinitions;
 
 #[derive(Clone, Copy, Debug)]
 pub enum ToolTagRef {
@@ -28,27 +29,27 @@ impl ToolTagRef {
         ToolTagRef::DynamicIdent(ident)
     }
 
-    pub fn contains_block(&self, block: &Block) -> bool {
+    pub fn contains_name(&self, block: &str) -> bool {
         match self {
-            ToolTagRef::Static(tag_set) => tag_set.contains_block(block),
+            ToolTagRef::Static(tag_set) => tag_set.contains_name(block),
             ToolTagRef::DynamicIdent(_) => false,
         }
     }
 
     pub fn contains_block_with_registry(
         &self,
-        block: &Block,
-        tag_registry: &TagRegistry<VanillaBlock>,
-        block_registry: &StaticRegistry<VanillaBlock>,
+        block: &str,
+        tag_registry: &DynTagRegistry<VanillaBlock>,
+        blocks: &BlockDefinitions,
     ) -> bool {
         match self {
-            ToolTagRef::Static(tag_set) => tag_set.contains_block(block),
+            ToolTagRef::Static(tag_set) => tag_set.contains_name(block),
             ToolTagRef::DynamicIdent(ident_str) => {
                 let tag_key = TagKey::<VanillaBlock>::new(ResourceLocation::new_static(ident_str));
-                let Some(static_id) = block_registry.id_of(block.identifier.as_ref()) else {
+                let Some(index) = blocks.index_of(block) else {
                     return false;
                 };
-                tag_registry.contains(&tag_key, static_id)
+                tag_registry.contains(&tag_key, index)
             }
         }
     }
@@ -100,9 +101,9 @@ impl Tool {
 
     pub fn get_mining_speed(
         &self,
-        block: &Block,
-        tag_registry: &TagRegistry<VanillaBlock>,
-        block_registry: &StaticRegistry<VanillaBlock>,
+        block: &str,
+        tag_registry: &DynTagRegistry<VanillaBlock>,
+        blocks: &BlockDefinitions,
     ) -> f32 {
         for rule in self.rules {
             let Some(speed) = rule.speed else {
@@ -110,7 +111,7 @@ impl Tool {
             };
             if rule
                 .blocks
-                .contains_block_with_registry(block, tag_registry, block_registry)
+                .contains_block_with_registry(block, tag_registry, blocks)
             {
                 return speed;
             }
@@ -120,20 +121,20 @@ impl Tool {
 
     pub fn is_correct_block_for_drops(
         &self,
-        block: &Block,
-        tag_registry: &TagRegistry<VanillaBlock>,
-        block_registry: &StaticRegistry<VanillaBlock>,
+        block: &str,
+        tag_registry: &DynTagRegistry<VanillaBlock>,
+        blocks: &BlockDefinitions,
     ) -> bool {
         for (i, rule) in self.rules.iter().enumerate() {
             let Some(correct) = rule.correct_for_drops else {
                 continue;
             };
-            let matched =
-                rule.blocks
-                    .contains_block_with_registry(block, tag_registry, block_registry);
+            let matched = rule
+                .blocks
+                .contains_block_with_registry(block, tag_registry, blocks);
             tracing::debug!(
                 rule_index = i,
-                block = %block.identifier,
+                block,
                 tag = ?rule.blocks.as_dynamic_ident(),
                 correct,
                 matched,

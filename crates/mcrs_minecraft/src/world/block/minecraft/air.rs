@@ -1,6 +1,6 @@
+use mcrs_minecraft_block::material::map::MapColor;
 use crate::world::block::behaviour::Properties;
 use crate::world::block::{Block, BlockState};
-use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_protocol::{BlockStateId, ident};
 
 pub const BLOCK: Block = Block {
@@ -15,10 +15,4 @@ pub const DEFAULT_STATE: BlockState = BlockState {
     id: BlockStateId(0),
 };
 
-pub const PROPERTIES: Properties = Properties::new()
-    .with_map_color(MapColor::NONE)
-    .with_strength(0.0)
-    .no_collision()
-    .replacable()
-    .air()
-    .with_no_loot_table();
+pub const PROPERTIES: Properties = Properties::new();

@@ -1,7 +1,7 @@
-use crate::world::block::behaviour::Properties;
 use crate::world::block::minecraft::note_block::NoteBlockInstrument;
-use crate::world::block::{Block, BlockState};
 use mcrs_minecraft_block::material::map::MapColor;
+use crate::world::block::behaviour::Properties;
+use crate::world::block::{Block, BlockState};
 use mcrs_protocol::{BlockStateId, ident};
 
 pub const BLOCK: Block = Block {
@@ -17,9 +17,4 @@ pub const DEFAULT_STATE: BlockState = BlockState {
 };
 
 // .sound(SoundType.CHERRY_WOOD) - not implemented yet
-pub const PROPERTIES: Properties = Properties::new()
-    .with_map_color(MapColor::TERRACOTTA_WHITE)
-    .with_note_block_instrument(NoteBlockInstrument::BASS)
-    .with_hardness(2.0)
-    .with_explosion_resistance(3.0)
-    .ignited_by_lava();
+pub const PROPERTIES: Properties = Properties::new();

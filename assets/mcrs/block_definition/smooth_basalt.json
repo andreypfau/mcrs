@@ -3,6 +3,7 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:smooth_basalt",
+      "protocol_id": 1262,
       "base_state_id": 35426,
       "default_state_id": 35426
     },
@@ -23,25 +24,29 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": true
       },
-      "mcrs:hardness": 1.25,
-      "mcrs:requires_correct_tool_for_drops": true,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "push_pull",
-      "mcrs:instrument": "basedrum",
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "basedrum"
+      },
+      "minecraft:destructible_by_mining": {
+        "item_specific_speeds": [
+          {
+            "item": {
+              "tags": "q.any_tag(\u0027minecraft:pickaxes\u0027)"
+            },
+            "destroy_speed": 1.25
+          }
+        ],
+        "seconds_to_destroy": 1.25
+      },
+      "minecraft:loot": "minecraft:blocks/smooth_basalt",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:propagates_skylight_down": false,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": true,
-      "mcrs:is_collision_shape_full_block": true,
-      "mcrs:has_block_entity": false,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": false
+      "mcrs:emissive_rendering": false
     },
     "permutations": []
   }

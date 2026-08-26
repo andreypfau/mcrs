@@ -15,6 +15,7 @@
           "east"
         ]
       },
+      "protocol_id": 442,
       "base_state_id": 11203,
       "default_state_id": 11207
     },
@@ -29,22 +30,15 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": -1,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "push_pull",
-      "mcrs:instrument": "basedrum",
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "basedrum"
+      },
+      "minecraft:destructible_by_mining": false,
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:render_shape": "model",
-      "mcrs:propagates_skylight_down": true,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": false,
-      "mcrs:has_block_entity": false,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": true
+      "mcrs:emissive_rendering": false
     },
     "permutations": [
       {

@@ -47,8 +47,11 @@ use vanilla::biome::Biome;
 use vanilla::block::Block;
 use vanilla::enchantment::EnchantmentData;
 
+use mcrs_core::tag::registry::DynTagRegistry;
 #[allow(unused_imports)]
 use mcrs_vanilla as vanilla;
+
+mod support;
 
 fn make_stub_block_light_table() -> mcrs_minecraft_lighting::table::BlockStateLightTable {
     bench_helpers::make_stub_block_light_table_with_torch()
@@ -84,8 +87,9 @@ fn build_app() -> App {
     app.insert_resource(make_stub_block_light_table());
     app.insert_resource(StaticRegistry::<Block>::new());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
-    app.insert_resource(TagRegistry::<Block>::default());
+    app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
+    app.insert_resource(support::corpus(&app));
 
     app.init_resource::<PlayerIndex>();
     app.init_resource::<PendingInboundPartition>();

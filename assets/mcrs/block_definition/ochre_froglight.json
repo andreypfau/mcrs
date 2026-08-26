@@ -10,6 +10,7 @@
           "z"
         ]
       },
+      "protocol_id": 1268,
       "base_state_id": 35432,
       "default_state_id": 35433
     },
@@ -30,25 +31,21 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": true
       },
-      "mcrs:hardness": 0.3,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "push_pull",
-      "mcrs:instrument": "harp",
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 0.3
+      },
+      "minecraft:loot": "minecraft:blocks/ochre_froglight",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:propagates_skylight_down": false,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": true,
-      "mcrs:is_collision_shape_full_block": true,
-      "mcrs:has_block_entity": false,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": false
+      "mcrs:emissive_rendering": false
     },
     "permutations": []
   }

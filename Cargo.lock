@@ -3338,6 +3338,7 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
+ "bevy_math",
  "bevy_state",
  "bevy_time",
  "bevy_utils",

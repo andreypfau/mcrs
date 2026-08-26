@@ -1,9 +1,9 @@
-use crate::generate_block_states;
 use crate::sound::SoundType;
-use crate::world::block::behaviour::Properties;
-use crate::world::block::{Block, BlockState};
 use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_protocol::{BlockStateId, ident};
+use crate::world::block::{Block, BlockState};
+use crate::generate_block_states;
+use crate::world::block::behaviour::Properties;
 
 generate_block_states! {
     base_id: 581,
@@ -20,11 +20,6 @@ generate_block_states! {
     // },
     // default: { instrument:harp, note:0, powered:false },
     block_properties: Properties::new()
-        .with_map_color(MapColor::WOOD)
-        .with_note_block_instrument(NoteBlockInstrument::BASS)
-        .with_sound(&SoundType::WOOD)
-        .with_strength(0.8)
-        .ignited_by_lava()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

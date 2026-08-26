@@ -14,6 +14,7 @@
           false
         ]
       },
+      "protocol_id": 907,
       "base_state_id": 19809,
       "default_state_id": 19812
     },
@@ -24,20 +25,63 @@
       "minecraft:destructible_by_explosion": {
         "explosion_resistance": 6
       },
-      "mcrs:hardness": 2,
-      "mcrs:requires_correct_tool_for_drops": true,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "push_pull",
-      "mcrs:instrument": "basedrum",
-      "mcrs:render_shape": "model",
-      "mcrs:emissive_rendering": false,
-      "mcrs:has_block_entity": false,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": false
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "basedrum"
+      },
+      "minecraft:destructible_by_mining": {
+        "item_specific_speeds": [
+          {
+            "item": {
+              "tags": "q.any_tag(\u0027minecraft:pickaxes\u0027)"
+            },
+            "destroy_speed": 2
+          }
+        ],
+        "seconds_to_destroy": 2
+      },
+      "minecraft:loot": "minecraft:blocks/smooth_sandstone_slab",
+      "mcrs:emissive_rendering": false
     },
     "permutations": [
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027top\u0027 \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027top\u0027 \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027bottom\u0027 \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027bottom\u0027 \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027double\u0027 \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 15
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027double\u0027 \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 15
+        }
+      },
       {
         "condition": "q.block_state(\u0027type\u0027) \u003d\u003d \u0027top\u0027",
         "components": {
@@ -53,9 +97,7 @@
           "mcrs:use_shape_for_light_occlusion": true,
           "mcrs:occlusion_shape": [
             { "origin": [-8, 8, -8], "size": [16, 8, 16] }
-          ],
-          "mcrs:is_solid_render": false,
-          "mcrs:is_collision_shape_full_block": false
+          ]
         }
       },
       {
@@ -73,9 +115,7 @@
           "mcrs:use_shape_for_light_occlusion": true,
           "mcrs:occlusion_shape": [
             { "origin": [-8, 0, -8], "size": [16, 8, 16] }
-          ],
-          "mcrs:is_solid_render": false,
-          "mcrs:is_collision_shape_full_block": false
+          ]
         }
       },
       {
@@ -93,9 +133,7 @@
           "mcrs:use_shape_for_light_occlusion": false,
           "mcrs:occlusion_shape": [
             { "origin": [-8, 0, -8], "size": [16, 16, 16] }
-          ],
-          "mcrs:is_solid_render": true,
-          "mcrs:is_collision_shape_full_block": true
+          ]
         }
       },
       {
@@ -107,36 +145,6 @@
             "source": true
           }
         }
-      },
-      {
-        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
-        "components": {}
-      }
-    ],
-    "mcrs:state_components": [
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 15,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 15,
-        "mcrs:propagates_skylight_down": false
       }
     ]
   }

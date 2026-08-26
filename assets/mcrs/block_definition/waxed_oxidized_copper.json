@@ -3,6 +3,7 @@
   "minecraft:block": {
     "description": {
       "identifier": "minecraft:waxed_oxidized_copper",
+      "protocol_id": 1131,
       "base_state_id": 31146,
       "default_state_id": 31146
     },
@@ -23,25 +24,43 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": true
       },
-      "mcrs:hardness": 3,
-      "mcrs:requires_correct_tool_for_drops": true,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "push_pull",
-      "mcrs:instrument": "trumpet_oxidized",
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "trumpet_oxidized"
+      },
+      "minecraft:destructible_by_mining": {
+        "item_specific_speeds": [
+          {
+            "item": "minecraft:copper_pickaxe",
+            "destroy_speed": 3
+          },
+          {
+            "item": "minecraft:stone_pickaxe",
+            "destroy_speed": 3
+          },
+          {
+            "item": "minecraft:iron_pickaxe",
+            "destroy_speed": 3
+          },
+          {
+            "item": "minecraft:diamond_pickaxe",
+            "destroy_speed": 3
+          },
+          {
+            "item": "minecraft:netherite_pickaxe",
+            "destroy_speed": 3
+          }
+        ],
+        "seconds_to_destroy": 3
+      },
+      "minecraft:loot": "minecraft:blocks/waxed_oxidized_copper",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:propagates_skylight_down": false,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": true,
-      "mcrs:is_collision_shape_full_block": true,
-      "mcrs:has_block_entity": false,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": false
+      "mcrs:emissive_rendering": false
     },
     "permutations": []
   }

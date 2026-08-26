@@ -21,6 +21,7 @@
           "sticky"
         ]
       },
+      "protocol_id": 150,
       "base_state_id": 2385,
       "default_state_id": 2387
     },
@@ -35,22 +36,17 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": 1.5,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "immoveable",
-      "mcrs:instrument": "harp",
+      "minecraft:movable": {
+        "movement_type": "immovable"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 1.5
+      },
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:render_shape": "model",
-      "mcrs:propagates_skylight_down": true,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": false,
-      "mcrs:has_block_entity": false,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": false
+      "mcrs:emissive_rendering": false
     },
     "permutations": [
       {

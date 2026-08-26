@@ -11,6 +11,7 @@
           3
         ]
       },
+      "protocol_id": 40,
       "base_state_id": 122,
       "default_state_id": 122
     },
@@ -31,25 +32,22 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": true
       },
-      "mcrs:hardness": 0.25,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "popped",
-      "mcrs:instrument": "snare",
+      "minecraft:movable": {
+        "movement_type": "popped"
+      },
+      "minecraft:instrument_sound": {
+        "down": "snare"
+      },
+      "minecraft:block_entity": {},
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 0.25
+      },
+      "minecraft:loot": "minecraft:blocks/suspicious_sand",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:propagates_skylight_down": false,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": true,
-      "mcrs:is_collision_shape_full_block": true,
-      "mcrs:has_block_entity": true,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": false
+      "mcrs:emissive_rendering": false
     },
     "permutations": []
   }

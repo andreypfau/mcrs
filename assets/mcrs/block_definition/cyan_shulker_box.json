@@ -13,6 +13,7 @@
           "down"
         ]
       },
+      "protocol_id": 745,
       "base_state_id": 16905,
       "default_state_id": 16909
     },
@@ -33,23 +34,24 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": true
       },
-      "mcrs:hardness": 2,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "popped",
-      "mcrs:instrument": "harp",
+      "minecraft:movable": {
+        "movement_type": "popped"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:block_entity": {
+        "container": {
+          "slot_count": 27
+        }
+      },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 2
+      },
+      "minecraft:loot": "minecraft:blocks/cyan_shulker_box",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [],
-      "mcrs:propagates_skylight_down": false,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": true,
-      "mcrs:has_block_entity": true,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": true
+      "mcrs:emissive_rendering": false
     },
     "permutations": []
   }

@@ -35,7 +35,10 @@ use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
 
 // System under test (Task 1) — must be pub in configuration.rs
+use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_minecraft::configuration::emit_initial_player_spawn;
+
+mod support;
 
 fn make_stub_block_light_table() -> BlockStateLightTable {
     let state_count = 2usize;
@@ -73,8 +76,9 @@ fn build_host_app() -> App {
     app.insert_resource(make_stub_block_light_table());
     app.insert_resource(StaticRegistry::<Block>::new());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
-    app.insert_resource(TagRegistry::<Block>::default());
+    app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
+    app.insert_resource(support::corpus(&app));
 
     app.init_resource::<PlayerIndex>();
     app.init_resource::<SessionRegistry>();

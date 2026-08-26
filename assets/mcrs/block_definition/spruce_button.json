@@ -20,6 +20,7 @@
           false
         ]
       },
+      "protocol_id": 496,
       "base_state_id": 12442,
       "default_state_id": 12451
     },
@@ -35,145 +36,228 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": 0.5,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "popped",
-      "mcrs:instrument": "harp",
+      "minecraft:movable": {
+        "movement_type": "popped"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 0.5
+      },
+      "minecraft:loot": "minecraft:blocks/spruce_button",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [],
-      "mcrs:propagates_skylight_down": true,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": false,
-      "mcrs:has_block_entity": false,
-      "mcrs:is_signal_source": true,
-      "mcrs:has_analog_output_signal": false
+      "mcrs:emissive_rendering": false
     },
-    "permutations": [],
-    "mcrs:state_components": [
+    "permutations": [
       {
-        "minecraft:selection_box": [
-          { "origin": [-3, 0, -2], "size": [6, 1, 4] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027floor\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-3, 0, -2], "size": [6, 1, 4] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-3, 0, -2], "size": [6, 2, 4] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027floor\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-3, 0, -2], "size": [6, 2, 4] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-3, 0, -2], "size": [6, 1, 4] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027floor\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-3, 0, -2], "size": [6, 1, 4] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-3, 0, -2], "size": [6, 2, 4] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027floor\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-3, 0, -2], "size": [6, 2, 4] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-2, 0, -3], "size": [4, 1, 6] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027floor\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-2, 0, -3], "size": [4, 1, 6] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-2, 0, -3], "size": [4, 2, 6] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027floor\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-2, 0, -3], "size": [4, 2, 6] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-2, 0, -3], "size": [4, 1, 6] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027floor\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-2, 0, -3], "size": [4, 1, 6] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-2, 0, -3], "size": [4, 2, 6] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027floor\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-2, 0, -3], "size": [4, 2, 6] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-3, 6, 7], "size": [6, 4, 1] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027wall\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-3, 6, 7], "size": [6, 4, 1] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-3, 6, 6], "size": [6, 4, 2] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027wall\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-3, 6, 6], "size": [6, 4, 2] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-3, 6, -8], "size": [6, 4, 1] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027wall\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-3, 6, -8], "size": [6, 4, 1] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-3, 6, -8], "size": [6, 4, 2] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027wall\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-3, 6, -8], "size": [6, 4, 2] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [7, 6, -3], "size": [1, 4, 6] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027wall\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [7, 6, -3], "size": [1, 4, 6] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [6, 6, -3], "size": [2, 4, 6] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027wall\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [6, 6, -3], "size": [2, 4, 6] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 6, -3], "size": [1, 4, 6] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027wall\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 6, -3], "size": [1, 4, 6] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 6, -3], "size": [2, 4, 6] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027wall\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 6, -3], "size": [2, 4, 6] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-3, 15, -2], "size": [6, 1, 4] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027ceiling\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-3, 15, -2], "size": [6, 1, 4] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-3, 14, -2], "size": [6, 2, 4] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027ceiling\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027north\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-3, 14, -2], "size": [6, 2, 4] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-3, 15, -2], "size": [6, 1, 4] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027ceiling\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-3, 15, -2], "size": [6, 1, 4] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-3, 14, -2], "size": [6, 2, 4] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027ceiling\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027south\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-3, 14, -2], "size": [6, 2, 4] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-2, 15, -3], "size": [4, 1, 6] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027ceiling\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-2, 15, -3], "size": [4, 1, 6] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-2, 14, -3], "size": [4, 2, 6] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027ceiling\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027west\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-2, 14, -3], "size": [4, 2, 6] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-2, 15, -3], "size": [4, 1, 6] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027ceiling\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-2, 15, -3], "size": [4, 1, 6] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-2, 14, -3], "size": [4, 2, 6] }
-        ]
+        "condition": "q.block_state(\u0027face\u0027) \u003d\u003d \u0027ceiling\u0027 \u0026\u0026 q.block_state(\u0027facing\u0027) \u003d\u003d \u0027east\u0027 \u0026\u0026 q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-2, 14, -3], "size": [4, 2, 6] }
+          ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 15
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 0
+          }
+        }
       }
     ]
   }

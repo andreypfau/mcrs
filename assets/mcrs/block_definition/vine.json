@@ -25,6 +25,7 @@
           false
         ]
       },
+      "protocol_id": 416,
       "base_state_id": 10092,
       "default_state_id": 10123
     },
@@ -40,234 +41,329 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": 0.2,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": true,
-      "mcrs:ignited_by_lava": true,
-      "mcrs:push_reaction": "popped",
-      "mcrs:instrument": "harp",
+      "minecraft:movable": {
+        "movement_type": "popped"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:replaceable": {},
+      "minecraft:flammable": {
+        "lava_flammable": "always"
+      },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 0.2
+      },
+      "minecraft:loot": "minecraft:blocks/vine",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [],
-      "mcrs:propagates_skylight_down": true,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": false,
-      "mcrs:has_block_entity": false,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": false
+      "mcrs:emissive_rendering": false
     },
-    "permutations": [],
-    "mcrs:state_components": [
+    "permutations": [
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 0, -8], "size": [15, 16, 1] },
-          { "origin": [-7, 0, 7], "size": [15, 16, 1] },
-          { "origin": [7, 0, -7], "size": [1, 16, 14] },
-          { "origin": [-7, 15, -7], "size": [14, 1, 14] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 0, -8], "size": [15, 16, 1] },
+            { "origin": [-7, 0, 7], "size": [15, 16, 1] },
+            { "origin": [7, 0, -7], "size": [1, 16, 14] },
+            { "origin": [-7, 15, -7], "size": [14, 1, 14] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 16, 1] },
-          { "origin": [-8, 0, 7], "size": [16, 16, 1] },
-          { "origin": [7, 0, -7], "size": [1, 16, 14] },
-          { "origin": [-8, 15, -7], "size": [15, 1, 14] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 1] },
+            { "origin": [-8, 0, 7], "size": [16, 16, 1] },
+            { "origin": [7, 0, -7], "size": [1, 16, 14] },
+            { "origin": [-8, 15, -7], "size": [15, 1, 14] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 0, -8], "size": [15, 16, 1] },
-          { "origin": [-7, 0, 7], "size": [15, 16, 1] },
-          { "origin": [7, 0, -7], "size": [1, 16, 14] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 0, -8], "size": [15, 16, 1] },
+            { "origin": [-7, 0, 7], "size": [15, 16, 1] },
+            { "origin": [7, 0, -7], "size": [1, 16, 14] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 16, 1] },
-          { "origin": [-8, 0, 7], "size": [16, 16, 1] },
-          { "origin": [7, 0, -7], "size": [1, 16, 14] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 1] },
+            { "origin": [-8, 0, 7], "size": [16, 16, 1] },
+            { "origin": [7, 0, -7], "size": [1, 16, 14] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 0, -8], "size": [15, 16, 1] },
-          { "origin": [7, 0, -7], "size": [1, 16, 15] },
-          { "origin": [-7, 15, -7], "size": [14, 1, 15] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 0, -8], "size": [15, 16, 1] },
+            { "origin": [7, 0, -7], "size": [1, 16, 15] },
+            { "origin": [-7, 15, -7], "size": [14, 1, 15] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 16, 1] },
-          { "origin": [7, 0, -7], "size": [1, 16, 15] },
-          { "origin": [-8, 15, -7], "size": [15, 1, 15] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 1] },
+            { "origin": [7, 0, -7], "size": [1, 16, 15] },
+            { "origin": [-8, 15, -7], "size": [15, 1, 15] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 0, -8], "size": [15, 16, 1] },
-          { "origin": [7, 0, -7], "size": [1, 16, 15] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 0, -8], "size": [15, 16, 1] },
+            { "origin": [7, 0, -7], "size": [1, 16, 15] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 16, 1] },
-          { "origin": [7, 0, -7], "size": [1, 16, 15] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 1] },
+            { "origin": [7, 0, -7], "size": [1, 16, 15] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 0, 7], "size": [15, 16, 1] },
-          { "origin": [7, 0, -8], "size": [1, 16, 15] },
-          { "origin": [-7, 15, -8], "size": [14, 1, 15] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 0, 7], "size": [15, 16, 1] },
+            { "origin": [7, 0, -8], "size": [1, 16, 15] },
+            { "origin": [-7, 15, -8], "size": [14, 1, 15] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, 7], "size": [16, 16, 1] },
-          { "origin": [7, 0, -8], "size": [1, 16, 15] },
-          { "origin": [-8, 15, -8], "size": [15, 1, 15] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, 7], "size": [16, 16, 1] },
+            { "origin": [7, 0, -8], "size": [1, 16, 15] },
+            { "origin": [-8, 15, -8], "size": [15, 1, 15] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 0, 7], "size": [15, 16, 1] },
-          { "origin": [7, 0, -8], "size": [1, 16, 15] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 0, 7], "size": [15, 16, 1] },
+            { "origin": [7, 0, -8], "size": [1, 16, 15] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, 7], "size": [16, 16, 1] },
-          { "origin": [7, 0, -8], "size": [1, 16, 15] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, 7], "size": [16, 16, 1] },
+            { "origin": [7, 0, -8], "size": [1, 16, 15] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [7, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 15, -8], "size": [14, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [7, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 15, -8], "size": [14, 1, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [7, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-8, 15, -8], "size": [15, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [7, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-8, 15, -8], "size": [15, 1, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [7, 0, -8], "size": [1, 16, 16] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [7, 0, -8], "size": [1, 16, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [7, 0, -8], "size": [1, 16, 16] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [7, 0, -8], "size": [1, 16, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 0, -8], "size": [15, 16, 1] },
-          { "origin": [-7, 0, 7], "size": [15, 16, 1] },
-          { "origin": [-7, 15, -7], "size": [15, 1, 14] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 0, -8], "size": [15, 16, 1] },
+            { "origin": [-7, 0, 7], "size": [15, 16, 1] },
+            { "origin": [-7, 15, -7], "size": [15, 1, 14] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 16, 1] },
-          { "origin": [-8, 0, 7], "size": [16, 16, 1] },
-          { "origin": [-8, 15, -7], "size": [16, 1, 14] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 1] },
+            { "origin": [-8, 0, 7], "size": [16, 16, 1] },
+            { "origin": [-8, 15, -7], "size": [16, 1, 14] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 0, -8], "size": [15, 16, 1] },
-          { "origin": [-7, 0, 7], "size": [15, 16, 1] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 0, -8], "size": [15, 16, 1] },
+            { "origin": [-7, 0, 7], "size": [15, 16, 1] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 16, 1] },
-          { "origin": [-8, 0, 7], "size": [16, 16, 1] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 1] },
+            { "origin": [-8, 0, 7], "size": [16, 16, 1] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 0, -8], "size": [15, 16, 1] },
-          { "origin": [-7, 15, -7], "size": [15, 1, 15] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 0, -8], "size": [15, 16, 1] },
+            { "origin": [-7, 15, -7], "size": [15, 1, 15] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 16, 1] },
-          { "origin": [-8, 15, -7], "size": [16, 1, 15] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 1] },
+            { "origin": [-8, 15, -7], "size": [16, 1, 15] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 0, -8], "size": [15, 16, 1] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 0, -8], "size": [15, 16, 1] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 16, 1] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 1] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 0, 7], "size": [15, 16, 1] },
-          { "origin": [-7, 15, -8], "size": [15, 1, 15] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 0, 7], "size": [15, 16, 1] },
+            { "origin": [-7, 15, -8], "size": [15, 1, 15] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, 7], "size": [16, 16, 1] },
-          { "origin": [-8, 15, -8], "size": [16, 1, 15] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, 7], "size": [16, 16, 1] },
+            { "origin": [-8, 15, -8], "size": [16, 1, 15] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 0, 7], "size": [15, 16, 1] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 0, 7], "size": [15, 16, 1] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, 7], "size": [16, 16, 1] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, 7], "size": [16, 16, 1] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] },
-          { "origin": [-7, 15, -8], "size": [15, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] },
+            { "origin": [-7, 15, -8], "size": [15, 1, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 15, -8], "size": [16, 1, 16] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 15, -8], "size": [16, 1, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [1, 16, 16] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [1, 16, 16] }
+          ]
+        }
       },
       {
-        "minecraft:selection_box": [
-          { "origin": [-8, 0, -8], "size": [16, 16, 16] }
-        ]
+        "condition": "q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:selection_box": [
+            { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+          ]
+        }
       }
     ]
   }

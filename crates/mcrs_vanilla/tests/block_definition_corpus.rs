@@ -5,7 +5,7 @@ use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_math::Vec3;
 use mcrs_core::voxel_shape::Aabb;
 use mcrs_protocol::BlockStateId;
-use mcrs_vanilla::block::definition::schema::{Instrument, PropertyValue, RenderShape};
+use mcrs_vanilla::block::definition::schema::{Instrument, PropertyValue};
 use mcrs_vanilla::block::definition::{
     BlockDefinitions, BlockStateData, BlockStateFlags, LoadReport, load_block_definitions,
 };
@@ -136,7 +136,10 @@ fn stone_has_one_state_and_a_full_cube() {
     );
     assert_eq!(state.push_reaction, PushReaction::Normal);
     assert_eq!(state.instrument, Instrument::Basedrum);
-    assert_eq!(state.render_shape, RenderShape::Model);
+    assert_eq!(
+        definitions.loot_table(state.loot.unwrap()).as_str(),
+        "minecraft:blocks/stone"
+    );
     assert_eq!(state.fluid, None);
     assert!(
         state
@@ -284,7 +287,7 @@ fn torch_is_not_a_cube() {
 }
 
 #[test]
-fn the_dense_escape_hatch_varies_a_button_selection_box_per_state() {
+fn a_button_selection_box_varies_with_every_property() {
     let (definitions, _) = corpus();
     let button = definitions.block("minecraft:acacia_button").unwrap();
     let shape_of = |face: &str, facing: &str, powered: bool| {
@@ -305,4 +308,75 @@ fn the_dense_escape_hatch_varies_a_button_selection_box_per_state() {
         shape_of("wall", "north", false),
         shape_of("floor", "north", false)
     );
+}
+
+#[test]
+fn one_property_at_a_time_walks_the_same_states_as_naming_them_all() {
+    let (definitions, _) = corpus();
+    let note_block = definitions.block("minecraft:note_block").unwrap();
+
+    let named = note_block
+        .state_id(&[
+            ("instrument", string("bass")),
+            ("note", PropertyValue::Int(24)),
+            ("powered", PropertyValue::Bool(true)),
+        ])
+        .unwrap();
+    let walked = [
+        ("instrument", string("bass")),
+        ("note", PropertyValue::Int(24)),
+        ("powered", PropertyValue::Bool(true)),
+    ]
+    .iter()
+    .fold(note_block.default_state_id, |id, (property, value)| {
+        note_block.with(id, property, value).unwrap()
+    });
+    assert_eq!(walked, named);
+
+    assert_eq!(
+        note_block.with_text(note_block.default_state_id, "note", "24"),
+        note_block.with(note_block.default_state_id, "note", &PropertyValue::Int(24))
+    );
+    assert_eq!(
+        note_block.with(note_block.default_state_id, "note", &string("24")),
+        None,
+        "the corpus declares `note` as an integer, so the string is not its value"
+    );
+    assert_eq!(
+        note_block.with(note_block.default_state_id, "nonsense", &string("x")),
+        None
+    );
+
+    let water = definitions.block("minecraft:water").unwrap();
+    assert_eq!(
+        water.with(note_block.default_state_id, "level", &PropertyValue::Int(0)),
+        None,
+        "a state that is not the block's own is not moved"
+    );
+}
+
+#[test]
+fn every_state_is_reachable_one_property_at_a_time() {
+    let (definitions, _) = corpus();
+    for block in definitions.blocks() {
+        let mut id = block.default_state_id;
+        for property in &block.properties.0 {
+            id = block
+                .with(id, &property.name, property.values.last().unwrap())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{} has no state with {}={}",
+                        block.identifier.as_str(),
+                        property.name,
+                        property.values.last().unwrap()
+                    )
+                });
+        }
+        assert_eq!(
+            id.0,
+            block.base_state_id.0 + block.state_count - 1,
+            "{} did not land on its last state",
+            block.identifier.as_str()
+        );
+    }
 }

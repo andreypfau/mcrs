@@ -12,6 +12,7 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
+use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
@@ -27,6 +28,8 @@ use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
 use mcrs_vanilla::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
+
+mod support;
 
 const OVERWORLD: &str = "minecraft:overworld";
 
@@ -59,8 +62,9 @@ fn build_host_app() -> App {
     app.insert_resource(make_stub_block_light_table());
     app.insert_resource(StaticRegistry::<Block>::new());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
-    app.insert_resource(TagRegistry::<Block>::default());
+    app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
+    app.insert_resource(support::corpus(&app));
     app.init_resource::<PlayerIndex>();
     app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<DimChannelsResource>();

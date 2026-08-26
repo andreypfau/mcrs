@@ -56,19 +56,6 @@ impl Hash for Block {
 }
 
 impl Block {
-    #[inline]
-    pub fn hardness(&self) -> f32 {
-        self.properties.hardness
-    }
-
-    pub fn explosion_resistance(&self) -> f32 {
-        self.properties.explosion_resistance
-    }
-
-    pub fn requires_correct_tool_for_drops(&self) -> bool {
-        self.properties.requires_correct_tool_for_drops
-    }
-
     pub fn xp_range(&self) -> Option<(u32, u32)> {
         self.properties.xp_range
     }
@@ -224,13 +211,7 @@ impl From<&'static Block> for BlockStateId {
 /// Air-like properties used by every gap-filling placeholder. The placeholder
 /// occupies a `protocol_id` slot so the registry's `id.raw() == protocol_id`
 /// invariant holds when only a subset of vanilla blocks is implemented.
-pub static PLACEHOLDER_PROPERTIES: behaviour::Properties = behaviour::Properties::new()
-    .with_map_color(crate::material::map::MapColor::NONE)
-    .with_strength(0.0)
-    .no_collision()
-    .replacable()
-    .air()
-    .with_no_loot_table();
+pub static PLACEHOLDER_PROPERTIES: behaviour::Properties = behaviour::Properties::new();
 
 /// Build a placeholder `Block` whose `protocol_id` equals its registry index.
 /// The leaked allocation has program lifetime; this is a one-shot startup cost.

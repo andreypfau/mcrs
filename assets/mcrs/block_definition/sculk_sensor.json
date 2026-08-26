@@ -32,6 +32,7 @@
           false
         ]
       },
+      "protocol_id": 1118,
       "base_state_id": 30520,
       "default_state_id": 30521
     },
@@ -51,30 +52,27 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": 1.5,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "push_pull",
-      "mcrs:instrument": "harp",
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:block_entity": {},
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 1.5
+      },
+      "minecraft:loot": "minecraft:blocks/sculk_sensor",
       "mcrs:use_shape_for_light_occlusion": true,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 8, 16] }
-      ],
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": false,
-      "mcrs:has_block_entity": true,
-      "mcrs:is_signal_source": true,
-      "mcrs:has_analog_output_signal": true
+      ]
     },
     "permutations": [
       {
         "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
         "components": {
           "minecraft:light_dampening": 1,
-          "mcrs:propagates_skylight_down": false,
           "mcrs:fluid_state": {
             "fluid": "minecraft:water",
             "level": 8,
@@ -85,8 +83,135 @@
       {
         "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
         "components": {
-          "minecraft:light_dampening": 0,
-          "mcrs:propagates_skylight_down": true
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 0",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 0
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 1",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 1
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 2",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 2
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 3",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 3
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 4",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 4
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 5",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 5
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 6",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 6
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 7",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 7
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 8",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 8
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 9",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 9
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 10",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 10
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 11",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 11
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 12",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 12
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 13",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 13
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 14",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 14
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027power\u0027) \u003d\u003d 15",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 15
+          }
         }
       },
       {

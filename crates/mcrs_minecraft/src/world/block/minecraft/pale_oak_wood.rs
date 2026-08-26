@@ -1,7 +1,7 @@
-use crate::world::block::behaviour::Properties;
 use crate::world::block::minecraft::note_block::NoteBlockInstrument;
-use crate::world::block::{Block, BlockState};
 use mcrs_minecraft_block::material::map::MapColor;
+use crate::world::block::behaviour::Properties;
+use crate::world::block::{Block, BlockState};
 use mcrs_protocol::{BlockStateId, ident};
 
 pub const BLOCK: Block = Block {
@@ -27,8 +27,4 @@ pub const Z_STATE: BlockState = BlockState {
 pub const DEFAULT_STATE: &BlockState = &Y_STATE;
 
 // Block type: RotatedPillarBlock - not fully implemented yet
-pub const PROPERTIES: Properties = Properties::new()
-    .with_map_color(MapColor::STONE)
-    .with_note_block_instrument(NoteBlockInstrument::BASS)
-    .with_strength(2.0)
-    .ignited_by_lava();
+pub const PROPERTIES: Properties = Properties::new();

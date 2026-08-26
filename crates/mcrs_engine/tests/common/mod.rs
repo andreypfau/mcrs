@@ -21,6 +21,7 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
+use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
@@ -33,6 +34,7 @@ use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
+use mcrs_vanilla::block::definition::{Blocks, load_block_definitions};
 use mcrs_vanilla::enchantment::EnchantmentData;
 
 /// A two-state stub light table sufficient for sub-app construction. The
@@ -89,10 +91,25 @@ pub fn make_host_app() -> App {
     app.insert_resource(make_stub_block_light_table());
     app.insert_resource(StaticRegistry::<Block>::new());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
-    app.insert_resource(TagRegistry::<Block>::default());
+    app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
+    app.insert_resource(shared_corpus(&app));
 
     app
+}
+
+/// The real corpus, loaded once per test binary. A stub would let a sub-app
+/// reach worldgen with no block to place.
+fn shared_corpus(app: &App) -> Blocks {
+    static CORPUS: std::sync::OnceLock<Blocks> = std::sync::OnceLock::new();
+    CORPUS
+        .get_or_init(|| {
+            let asset_server = app.world().resource::<bevy_asset::AssetServer>().clone();
+            let (definitions, _) =
+                load_block_definitions(&asset_server).expect("the block definition corpus loads");
+            Blocks(std::sync::Arc::new(definitions))
+        })
+        .clone()
 }
 
 /// Transition the host app into `AppState::Playing` and run one update so the

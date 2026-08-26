@@ -1,7 +1,6 @@
-use crate::block::behaviour;
-use crate::block::behaviour::LightSpec;
-use crate::block::state_properties;
 use crate::block::Block;
+use crate::block::behaviour;
+use crate::block::state_properties;
 
 define_block! {
     name: "wall_torch",
@@ -10,7 +9,4 @@ define_block! {
     properties: [&state_properties::FACING_HORIZONTAL],
     default: { facing: north },
     block_properties: behaviour::Properties::new()
-        .no_collision()
-        .instant_break()
-        .with_light_emission(LightSpec::Const(14))
 }

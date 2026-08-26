@@ -45,11 +45,14 @@ use crate::item::tags as item_tags;
 use crate::timeline::Timeline;
 use crate::world_clock::seed_world_clocks;
 use bevy_app::{App, Plugin, PostStartup, Update};
+use bevy_asset::io::AssetSourceId;
 use bevy_asset::{Asset, AssetApp, AssetServer, Assets, UntypedHandle};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
+use futures_lite::StreamExt;
 use mcrs_core::registry::snapshot::rl_from_asset_path;
 use mcrs_core::tag::file::TagFile;
+use mcrs_core::tag::key::TagKey;
 use mcrs_core::tag::key::TaggedRegistry;
 use mcrs_core::tag::{
     DynRegistryIndex, DynTagLoader, TagLoader, TagLoadersSettled, TagPhase, TagRegistryAppExt,
@@ -141,7 +144,11 @@ impl Plugin for MinecraftCorePlugin {
             .init_resource::<StaticRegistry<EnchantmentData>>()
             .init_resource::<LoadedRegistryAssets>();
 
-        app.add_tagged_registry::<block::Block, StaticRegistry<block::Block>>(
+        app.add_systems(
+            OnEnter(AppState::LoadingDataPack),
+            request_every_block_tag.in_set(TagPhase::Request),
+        );
+        app.add_tagged_registry::<block::Block, block::definition::Blocks>(
             block_tags::ALL_BLOCK_TAGS,
         )
         .add_tagged_registry::<item::Item, StaticRegistry<item::Item>>(item_tags::ALL_ITEM_TAGS)
@@ -383,7 +390,7 @@ impl Plugin for MinecraftCorePlugin {
             );
             // The hand-written `StaticRegistry<Block>` below is the older, partial
             // registry; the two coexist until it is retired.
-            app.insert_resource(definitions);
+            app.insert_resource(block::definition::Blocks(std::sync::Arc::new(definitions)));
         }
         {
             let mut blocks = app
@@ -692,6 +699,67 @@ fn request_data_pack_assets(
     );
 }
 
+/// Request every block tag file the packs ship, not a list written in Rust.
+/// A pack that adds `tags/block/<name>.json` is picked up without a code
+/// change, and a tag no Rust constant names still reaches the client.
+#[allow(clippy::needless_pass_by_value)]
+fn request_every_block_tag(
+    mut loader: ResMut<TagLoader<block::Block, u32>>,
+    asset_server: Res<AssetServer>,
+) {
+    let Ok(source) = asset_server.get_source(AssetSourceId::Default) else {
+        return;
+    };
+    let reader = source.reader();
+    let mut requested = 0usize;
+
+    bevy_tasks::block_on(async {
+        let Ok(mut namespaces) = reader.read_directory(std::path::Path::new("")).await else {
+            return;
+        };
+        let mut roots = Vec::new();
+        while let Some(namespace) = namespaces.next().await {
+            roots.push(namespace.join("tags").join(block::Block::REGISTRY_PATH));
+        }
+        for root in roots {
+            let mut stack = vec![root.clone()];
+            while let Some(directory) = stack.pop() {
+                let Ok(mut entries) = reader.read_directory(&directory).await else {
+                    continue;
+                };
+                while let Some(path) = entries.next().await {
+                    if reader.is_directory(&path).await.unwrap_or(false) {
+                        stack.push(path);
+                        continue;
+                    }
+                    let Some(location) = tag_location(&root, &path) else {
+                        continue;
+                    };
+                    loader.request(
+                        &TagKey::<block::Block, _>::from_location(location),
+                        &asset_server,
+                    );
+                    requested += 1;
+                }
+            }
+        }
+    });
+
+    tracing::info!(count = requested, "requested every shipped block tag");
+}
+
+/// `minecraft/tags/block/mineable/pickaxe.json` under the root
+/// `minecraft/tags/block` is `minecraft:mineable/pickaxe`.
+fn tag_location(
+    root: &std::path::Path,
+    path: &std::path::Path,
+) -> Option<mcrs_core::resource_location::ResourceLocation<std::sync::Arc<str>>> {
+    let namespace = root.iter().next()?.to_str()?;
+    let relative = path.strip_prefix(root).ok()?.to_str()?;
+    let name = relative.strip_suffix(".json")?;
+    mcrs_core::resource_location::ResourceLocation::parse(&format!("{namespace}:{name}")).ok()
+}
+
 fn check_tags_ready(
     tags_settled: Res<TagLoadersSettled>,
     registry_assets: Res<LoadedRegistryAssets>,
@@ -708,9 +776,9 @@ fn check_tags_ready(
 /// the block `TagLoader`. The tag files were loaded as sub-assets by
 /// `DimensionTypeLoader`, so they're guaranteed to be available here.
 fn resolve_infiniburn_tags(
-    mut tags: ResMut<TagLoader<block::Block>>,
+    mut tags: ResMut<TagLoader<block::Block, u32>>,
     tag_files: Res<Assets<TagFile>>,
-    registry: Res<StaticRegistry<block::Block>>,
+    registry: Res<block::definition::Blocks>,
     dim_types: Res<Assets<DimensionType>>,
 ) {
     let mut resolved = 0usize;

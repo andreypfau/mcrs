@@ -20,9 +20,9 @@ use bevy_ecs::system::Res;
 use bevy_math::{DVec3, Vec2};
 use mcrs_core::RegistryAccess;
 use mcrs_core::registry::access::ErasedRegistrySnapshot;
+use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_core::tag::registry::TagRegistry;
 use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
-use mcrs_engine::session::PlayerSession;
 use mcrs_engine::session::SessionRegistry;
 use mcrs_engine::world::sub_app::DimDespawnQueue;
 use mcrs_network::event::ReceivedPacketEvent;
@@ -42,6 +42,7 @@ use mcrs_protocol::registry::Entry;
 use mcrs_protocol::resource_pack::KnownPack;
 use mcrs_protocol::{Ident, VarInt, WritePacket, ident};
 use mcrs_vanilla::block::Block as VanillaBlock;
+use mcrs_vanilla::block::definition::Blocks;
 use mcrs_vanilla::enchantment::EnchantmentData;
 use mcrs_vanilla::entity::EntityType as VanillaEntityType;
 use mcrs_vanilla::item::Item as VanillaItem;
@@ -449,7 +450,8 @@ fn on_known_packs_response(
     mut query: Query<(Entity, &mut ServerSideConnection), With<AwaitingKnownPacks>>,
     access: Res<RegistryAccess>,
     dimension_types: Res<LoadedDimensionTypes>,
-    block_tags: Option<Res<TagRegistry<VanillaBlock>>>,
+    block_tags: Option<Res<DynTagRegistry<VanillaBlock>>>,
+    blocks: Res<Blocks>,
     item_tags: Option<Res<TagRegistry<VanillaItem>>>,
     enchantment_tags: Option<Res<TagRegistry<EnchantmentData>>>,
     entity_type_tags: Option<Res<TagRegistry<VanillaEntityType>>>,
@@ -550,7 +552,11 @@ fn on_known_packs_response(
             .map(|(tag_loc, bitset)| TagGroup {
                 name: Ident::new(Cow::Owned(tag_loc.as_str().to_string()))
                     .unwrap_or_else(|_| Ident::new(Cow::Borrowed("minecraft:unknown")).unwrap()),
-                entries: bitset.iter().map(|id| VarInt(id.raw() as i32)).collect(),
+                entries: bitset
+                    .iter()
+                    .filter_map(|index| blocks.blocks().get(index as usize))
+                    .map(|block| VarInt(block.protocol_id as i32))
+                    .collect(),
             })
             .collect();
         tag_registries.push(RegistryTags {

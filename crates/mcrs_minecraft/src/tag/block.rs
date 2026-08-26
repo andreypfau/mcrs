@@ -1,5 +1,6 @@
 use crate::world::block::Block;
 use mcrs_core::tag::key::TagKey;
+use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_core::tag::registry::TagRegistry;
 use mcrs_core::{ResourceLocation, StaticId};
 use mcrs_vanilla::block::Block as VanillaBlock;
@@ -34,32 +35,28 @@ impl DynamicBlockTagSet {
         }
     }
 
-    pub fn contains_block(
-        &self,
-        tag_registry: &TagRegistry<VanillaBlock>,
-        id: StaticId<VanillaBlock>,
-    ) -> bool {
+    pub fn contains_block(&self, tag_registry: &DynTagRegistry<VanillaBlock>, id: u32) -> bool {
         tag_registry.contains(&self.tag_key, id)
     }
 }
 
 pub trait BlockTagSetExt {
-    fn contains_block(&self, block: &Block) -> bool;
+    fn contains_name(&self, block: &str) -> bool;
 }
 
 impl BlockTagSetExt for BlockTag {
-    fn contains_block(&self, block: &Block) -> bool {
+    fn contains_name(&self, block: &str) -> bool {
         match self {
-            BlockTag::Tag(b) => b == &block,
-            BlockTag::TagSet(tag_set) => tag_set.contains_block(block),
+            BlockTag::Tag(b) => b.identifier.as_str() == block,
+            BlockTag::TagSet(tag_set) => tag_set.contains_name(block),
         }
     }
 }
 
 impl BlockTagSetExt for BlockTagSet {
-    fn contains_block(&self, block: &Block) -> bool {
+    fn contains_name(&self, block: &str) -> bool {
         for tag in *self {
-            if tag.contains_block(block) {
+            if tag.contains_name(block) {
                 return true;
             }
         }

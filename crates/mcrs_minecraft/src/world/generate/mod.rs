@@ -225,7 +225,7 @@ fn fill_sections_beta_f64(
     let stone_id = noise_router.default_block_state().0 as u32;
     let water_id = noise_router.default_fluid_state().0 as u32;
     let ice_id = minecraft::ICE.default_state_id.0 as u32;
-    let air_id = 0u32;
+    let _air_id = 0u32;
 
     // Sample the 16×16 climate grids needed by computeDensity.
     let (temp_grid, rain_grid) = noise_router.sample_beta_climate_grids(block_x, block_z);
@@ -581,7 +581,7 @@ pub fn apply_beta_surface(
             } else {
                 beta_get_biome(temp, humidity)
             };
-            let (mut top_block, mut filler_block) = beta_surface_blocks(biome_land);
+            let (top_block, filler_block) = beta_surface_blocks(biome_land);
 
             // j1 in back2beta: depth counter, -1 means "not yet in surface layer".
             let mut j1: i32 = -1;

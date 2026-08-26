@@ -93,9 +93,9 @@ pub enum PushReaction {
     Normal,
     #[serde(rename = "popped")]
     Destroy,
-    #[serde(rename = "immoveable")]
+    #[serde(rename = "immovable")]
     Block,
-    #[serde(rename = "ignore")]
+    #[serde(rename = "ignore_entity")]
     Ignore,
     #[serde(rename = "push")]
     PushOnly,

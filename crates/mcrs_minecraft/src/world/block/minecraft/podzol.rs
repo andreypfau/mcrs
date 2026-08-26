@@ -1,6 +1,6 @@
+use mcrs_minecraft_block::material::map::MapColor;
 use crate::world::block::behaviour::Properties;
 use crate::world::block::{Block, BlockState};
-use mcrs_minecraft_block::material::map::MapColor;
 use mcrs_protocol::{BlockStateId, ident};
 
 pub const BLOCK: Block = Block {
@@ -20,6 +20,4 @@ pub const DEFAULT_STATE: BlockState = BlockState {
 };
 
 // Block type: SnowyDirtBlock - not fully implemented yet
-pub const PROPERTIES: Properties = Properties::new()
-    .with_map_color(MapColor::PODZOL)
-    .with_strength(0.5);
+pub const PROPERTIES: Properties = Properties::new();

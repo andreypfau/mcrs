@@ -2,9 +2,13 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
 use bevy_state::app::StatesPlugin;
 use bevy_state::state::State;
-use mcrs_core::tag::{TagLoader, TagRegistry};
+use mcrs_core::resource_location::ResourceLocation;
+use mcrs_core::tag::TagLoader;
+use mcrs_core::tag::key::TagKey;
+use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_core::{AppState, StaticRegistry};
 use mcrs_vanilla::MinecraftCorePlugin;
+use mcrs_vanilla::block::definition::Blocks;
 use mcrs_vanilla::block::{Block, tags as block_tags};
 
 /// The vanilla registries read some files through paths relative to the
@@ -48,24 +52,44 @@ fn tags_load_resolve_and_freeze_on_the_way_to_playing() {
     }
 
     assert!(
-        app.world().get_resource::<TagLoader<Block>>().is_none(),
+        app.world()
+            .get_resource::<TagLoader<Block, u32>>()
+            .is_none(),
         "the loader must be consumed by the freeze"
     );
 
-    let tags = app.world().resource::<TagRegistry<Block>>();
-    let blocks = app.world().resource::<StaticRegistry<Block>>();
-    let stone = blocks
-        .id_of("minecraft:stone")
-        .expect("stone is registered");
-    let dirt = blocks.id_of("minecraft:dirt").expect("dirt is registered");
+    let tags = app.world().resource::<DynTagRegistry<Block>>();
+    let blocks = app.world().resource::<Blocks>();
+    let index = |name: &str| blocks.index_of(name).expect("the corpus declares it");
 
-    assert!(tags.contains(&block_tags::MINEABLE_PICKAXE, stone));
-    assert!(!tags.contains(&block_tags::MINEABLE_PICKAXE, dirt));
+    assert!(tags.contains(&block_tags::MINEABLE_PICKAXE, index("minecraft:stone")));
+    assert!(!tags.contains(&block_tags::MINEABLE_PICKAXE, index("minecraft:dirt")));
 
     // `#minecraft:planks` is reached only through nested `#tag` entries of
     // `#minecraft:mineable/axe`.
-    let oak = blocks
-        .id_of("minecraft:oak_planks")
-        .expect("oak_planks is registered");
-    assert!(tags.contains(&block_tags::MINEABLE_AXE, oak));
+    assert!(tags.contains(&block_tags::MINEABLE_AXE, index("minecraft:oak_planks")));
+
+    // A block no static registry ever named still lands in its tags.
+    assert!(tags.contains(
+        &block_tags::MINEABLE_PICKAXE,
+        index("minecraft:polished_tuff_stairs")
+    ));
+    assert!(tags.contains(
+        &block_tags::MINEABLE_AXE,
+        index("minecraft:mangrove_trapdoor")
+    ));
+    assert!(tags.contains(&block_tags::WOOL, index("minecraft:magenta_wool")));
+
+    // And a tag no Rust constant names is there, because the pack ships it.
+    let stairs =
+        TagKey::<Block, _>::from_location(ResourceLocation::parse("minecraft:stairs").unwrap());
+    assert!(tags.contains(&stairs, index("minecraft:polished_tuff_stairs")));
+    assert!(!tags.contains(&stairs, index("minecraft:stone")));
+
+    let resolved = tags.iter().count();
+    println!("block tags resolved: {resolved}");
+    assert!(
+        resolved > block_tags::ALL_BLOCK_TAGS.len(),
+        "the loader must pick up more than the tags Rust names: {resolved}"
+    );
 }

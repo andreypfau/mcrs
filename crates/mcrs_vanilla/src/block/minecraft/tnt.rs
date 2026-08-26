@@ -1,7 +1,7 @@
+use rand::{Rng, RngExt, SeedableRng};
+use crate::block::Block;
 use crate::block::behaviour;
 use crate::block::state_properties;
-use crate::block::Block;
-use crate::material::map::MapColor;
 
 define_block! {
     name: "tnt",
@@ -10,10 +10,6 @@ define_block! {
     properties: [&state_properties::UNSTABLE],
     default: { unstable: false },
     block_properties: behaviour::Properties::new()
-        .with_map_color(MapColor::FIRE)
-        .with_strength(0.0)
-        .ignited_by_lava()
-        .instant_break()
 }
 
 use crate::block_state;
@@ -32,7 +28,6 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::world::dimension::InDimension;
 use rand::rngs::SmallRng;
-use rand::{Rng, RngExt, SeedableRng};
 
 pub struct TntBlockPlugin;
 

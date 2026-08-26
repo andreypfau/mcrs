@@ -37,6 +37,7 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
+use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::session::PlayerSession;
 use mcrs_engine::session::SessionRegistry;
@@ -61,6 +62,8 @@ use mcrs_protocol::uuid::Uuid;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
+
+mod support;
 
 // ---------------------------------------------------------------------------
 // e2e_login_handshake_completes
@@ -311,8 +314,9 @@ fn build_join_host_app() -> App {
     }
     app.insert_resource(StaticRegistry::<Block>::new());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
-    app.insert_resource(TagRegistry::<Block>::default());
+    app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());
+    app.insert_resource(support::corpus(&app));
 
     app.init_resource::<PlayerIndex>();
     app.init_resource::<SessionRegistry>();

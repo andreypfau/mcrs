@@ -20,17 +20,9 @@ impl BlockStateLookup for CorpusBlockStates<'_> {
         let mut values: SmallVec<[(&str, PropertyValue); 8]> = SmallVec::new();
         for property in &block.properties.0 {
             let text = properties.get(&property.name)?;
-            let value = property.values.iter().find(|v| renders_to(v, text))?;
+            let value = property.values.iter().find(|v| v.renders_to(text))?;
             values.push((&property.name, value.clone()));
         }
         block.state_id(&values).map(|id| id.0 as u32)
-    }
-}
-
-fn renders_to(value: &PropertyValue, text: &str) -> bool {
-    match value {
-        PropertyValue::Str(s) => &**s == text,
-        PropertyValue::Int(i) => text.parse::<i32>().is_ok_and(|v| v == *i),
-        PropertyValue::Bool(b) => text == if *b { "true" } else { "false" },
     }
 }

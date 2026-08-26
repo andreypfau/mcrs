@@ -33,6 +33,7 @@
           false
         ]
       },
+      "protocol_id": 1121,
       "base_state_id": 31001,
       "default_state_id": 31128
     },
@@ -47,24 +48,789 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": 0.2,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "popped",
-      "mcrs:instrument": "harp",
+      "minecraft:movable": {
+        "movement_type": "popped"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 0.2
+      },
+      "minecraft:loot": "minecraft:blocks/sculk_vein",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": false,
-      "mcrs:has_block_entity": false,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": false
+      "mcrs:emissive_rendering": false
     },
     "permutations": [
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:light_dampening": 0
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027down\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027waterlogged\u0027) \u003d\u003d false \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:light_dampening": 1
+        }
+      },
       {
         "condition": "q.block_state(\u0027down\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027east\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027north\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027south\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027up\u0027) \u003d\u003d true \u0026\u0026 q.block_state(\u0027west\u0027) \u003d\u003d true",
         "components": {
@@ -715,524 +1481,6 @@
             "source": true
           }
         }
-      },
-      {
-        "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
-        "components": {}
-      }
-    ],
-    "mcrs:state_components": [
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
-      },
-      {
-        "minecraft:light_dampening": 0,
-        "mcrs:propagates_skylight_down": true
-      },
-      {
-        "minecraft:light_dampening": 1,
-        "mcrs:propagates_skylight_down": false
       }
     ]
   }

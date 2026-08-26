@@ -15,6 +15,7 @@
           false
         ]
       },
+      "protocol_id": 271,
       "base_state_id": 7431,
       "default_state_id": 7432
     },
@@ -29,29 +30,29 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": 1,
-      "mcrs:requires_correct_tool_for_drops": false,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": true,
-      "mcrs:push_reaction": "push_pull",
-      "mcrs:instrument": "bass",
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "bass"
+      },
+      "minecraft:flammable": {
+        "lava_flammable": "always"
+      },
+      "minecraft:block_entity": {},
+      "minecraft:destructible_by_mining": {
+        "seconds_to_destroy": 1
+      },
+      "minecraft:loot": "minecraft:blocks/birch_sign",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [],
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": false,
-      "mcrs:has_block_entity": true,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": false
+      "mcrs:emissive_rendering": false
     },
     "permutations": [
       {
         "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d true",
         "components": {
           "minecraft:light_dampening": 1,
-          "mcrs:propagates_skylight_down": false,
           "mcrs:fluid_state": {
             "fluid": "minecraft:water",
             "level": 8,
@@ -62,8 +63,7 @@
       {
         "condition": "q.block_state(\u0027waterlogged\u0027) \u003d\u003d false",
         "components": {
-          "minecraft:light_dampening": 0,
-          "mcrs:propagates_skylight_down": true
+          "minecraft:light_dampening": 0
         }
       },
       {

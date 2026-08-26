@@ -16,6 +16,7 @@
           "east"
         ]
       },
+      "protocol_id": 530,
       "base_state_id": 13080,
       "default_state_id": 13080
     },
@@ -30,23 +31,32 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": 3,
-      "mcrs:requires_correct_tool_for_drops": true,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "push_pull",
-      "mcrs:instrument": "harp",
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "harp"
+      },
+      "minecraft:block_entity": {
+        "container": {
+          "slot_count": 5
+        }
+      },
+      "minecraft:destructible_by_mining": {
+        "item_specific_speeds": [
+          {
+            "item": {
+              "tags": "q.any_tag(\u0027minecraft:pickaxes\u0027)"
+            },
+            "destroy_speed": 3
+          }
+        ],
+        "seconds_to_destroy": 3
+      },
+      "minecraft:loot": "minecraft:blocks/hopper",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [],
-      "mcrs:propagates_skylight_down": true,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": false,
-      "mcrs:is_collision_shape_full_block": false,
-      "mcrs:has_block_entity": true,
-      "mcrs:is_signal_source": false,
-      "mcrs:has_analog_output_signal": true
+      "mcrs:emissive_rendering": false
     },
     "permutations": [
       {

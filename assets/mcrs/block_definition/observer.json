@@ -17,6 +17,7 @@
           false
         ]
       },
+      "protocol_id": 734,
       "base_state_id": 16833,
       "default_state_id": 16838
     },
@@ -37,26 +38,47 @@
       "minecraft:redstone_conductivity": {
         "redstone_conductor": false
       },
-      "mcrs:hardness": 3,
-      "mcrs:requires_correct_tool_for_drops": true,
-      "mcrs:is_air": false,
-      "mcrs:replaceable": false,
-      "mcrs:ignited_by_lava": false,
-      "mcrs:push_reaction": "push_pull",
-      "mcrs:instrument": "basedrum",
+      "minecraft:movable": {
+        "movement_type": "push_pull"
+      },
+      "minecraft:instrument_sound": {
+        "down": "basedrum"
+      },
+      "minecraft:destructible_by_mining": {
+        "item_specific_speeds": [
+          {
+            "item": {
+              "tags": "q.any_tag(\u0027minecraft:pickaxes\u0027)"
+            },
+            "destroy_speed": 3
+          }
+        ],
+        "seconds_to_destroy": 3
+      },
+      "minecraft:loot": "minecraft:blocks/observer",
       "mcrs:use_shape_for_light_occlusion": false,
-      "mcrs:render_shape": "model",
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }
       ],
-      "mcrs:propagates_skylight_down": false,
-      "mcrs:emissive_rendering": false,
-      "mcrs:is_solid_render": true,
-      "mcrs:is_collision_shape_full_block": true,
-      "mcrs:has_block_entity": false,
-      "mcrs:is_signal_source": true,
-      "mcrs:has_analog_output_signal": false
+      "mcrs:emissive_rendering": false
     },
-    "permutations": []
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027powered\u0027) \u003d\u003d true",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 15
+          }
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027powered\u0027) \u003d\u003d false",
+        "components": {
+          "minecraft:redstone_producer": {
+            "power": 0
+          }
+        }
+      }
+    ]
   }
 }

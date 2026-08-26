@@ -30,19 +30,6 @@ impl Hash for Block {
 }
 
 impl Block {
-    #[inline]
-    pub fn hardness(&self) -> f32 {
-        self.properties.hardness
-    }
-
-    pub fn explosion_resistance(&self) -> f32 {
-        self.properties.explosion_resistance
-    }
-
-    pub fn requires_correct_tool_for_drops(&self) -> bool {
-        self.properties.requires_correct_tool_for_drops
-    }
-
     pub fn xp_range(&self) -> Option<(u32, u32)> {
         self.properties.xp_range
     }
