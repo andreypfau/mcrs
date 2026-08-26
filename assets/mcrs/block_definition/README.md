@@ -87,6 +87,7 @@ What is left is Java data no Bedrock component can carry. Each row states why.
 | `mcrs:use_shape_for_light_occlusion` | `BlockState.useShapeForLightOcclusion` | `LightEngine.isEmptyShape` reads it to decide whether the occlusion shape counts at all, so it is behaviour and not a hint. Bedrock's light model is one integer per block and has no occlusion shape to switch on |
 | `mcrs:emissive_rendering` | `BlockState.emissiveRendering` | The nearest Bedrock field, `material_instances.face_dimming`, turns off directional shading rather than lighting, and lives in a component that must accompany `minecraft:geometry` |
 | `mcrs:fluid_state` | `BlockState.getFluidState` | `liquid_detection.can_contain_liquid` states that a block *can* be waterlogged. It carries no level, no source flag, and `liquid_type` accepts only water, so lava and flowing water have nowhere to go |
+| `mcrs:experience_drop` | `DropExperienceBlock.xpRange`, encoded by `IntProviders.CODEC` | Bedrock has no experience component at all; its ores drop experience from the loot table's `minecraft:furnace_smelt`-era behaviour rather than a declared range. The value is Java's `IntProvider`, so a constant is a bare integer and anything else is the dispatched object. Absent for a block that is not a `DropExperienceBlock`: `RedStoneOreBlock`, `SpawnerBlock`, `CreakingHeartBlock` and the sculk sensor, catalyst and shrieker compute their amount in `spawnAfterBreak` rather than holding a range |
 
 ## Java block properties this corpus does not write
 

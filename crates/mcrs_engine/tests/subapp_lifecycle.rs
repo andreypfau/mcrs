@@ -17,7 +17,7 @@ use mcrs_minecraft::world::sub_app_builder::{
     spawn_dim_subapp,
 };
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
-use mcrs_vanilla::block::Block;
+use mcrs_vanilla::block::definition::Blocks;
 
 mod common;
 
@@ -308,8 +308,8 @@ fn registries_present_in_all_subapps() {
             "BlockStateLightTable resource present in sub-app"
         );
         assert!(
-            world.get_resource::<StaticRegistry<Block>>().is_some(),
-            "StaticRegistry<Block> resource present in sub-app"
+            world.get_resource::<Blocks>().is_some(),
+            "the block definition corpus is present in the sub-app"
         );
     }
 }

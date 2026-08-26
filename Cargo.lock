@@ -3506,6 +3506,7 @@ dependencies = [
  "mcrs_minecraft_worldgen",
  "mcrs_nbt",
  "mcrs_protocol",
+ "mcrs_text",
  "paste",
  "rand 0.10.0",
  "rustc-hash 2.1.1",

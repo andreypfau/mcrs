@@ -1,3 +1,5 @@
+mod support;
+
 use mcrs_minecraft::world::chunk::CancellationToken;
 use mcrs_minecraft::world::generate::generate_column;
 use mcrs_minecraft_worldgen::density_function::build_functions;
@@ -77,7 +79,15 @@ fn beta_sections_outside_noise_range_are_air() {
     let y_sections: Vec<i32> = (-4..=19).collect();
     let cancel = CancellationToken::new();
 
-    let results = generate_column(0, 0, &y_sections, &router, None, &cancel);
+    let results = generate_column(
+        0,
+        0,
+        &y_sections,
+        &router,
+        None,
+        support::standalone_corpus(),
+        &cancel,
+    );
     assert_eq!(results.len(), y_sections.len());
 
     for (&sy, result) in y_sections.iter().zip(results.iter()) {

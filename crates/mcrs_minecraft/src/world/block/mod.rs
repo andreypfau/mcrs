@@ -1,59 +1,21 @@
-use crate::world::block::behaviour::Properties;
-use mcrs_protocol::{BlockStateId, Ident};
-use std::hash::{Hash, Hasher};
+use mcrs_core::tag::key::TaggedRegistry;
 
-pub mod behaviour;
-mod macros;
-pub mod minecraft;
+pub mod tnt;
 
-#[derive(Debug)]
-pub struct Block {
-    pub identifier: Ident<&'static str>,
-    /// Vanilla `minecraft:block` registry index (protocol ID).
-    /// Must match the client's built-in registry ordering.
-    pub protocol_id: u16,
-    pub properties: &'static Properties,
-    pub default_state: &'static BlockState,
-    pub states: &'static [BlockState],
+/// The block registry, as the tag system names it. Blocks themselves come from
+/// the definition corpus, so this type carries no value — it only says which
+/// registry a `TagKey` belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Block {}
+
+impl TaggedRegistry for Block {
+    const REGISTRY_PATH: &'static str = "block";
 }
 
-impl PartialEq for Block {
-    fn eq(&self, other: &Self) -> bool {
-        self.identifier == other.identifier
-    }
-}
+pub struct MinecraftBlockPlugin;
 
-impl Hash for Block {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.identifier.hash(state);
-    }
-}
-
-impl Block {
-    pub fn xp_range(&self) -> Option<(u32, u32)> {
-        self.properties.xp_range
-    }
-}
-
-impl From<&'static Block> for BlockStateId {
-    fn from(block: &'static Block) -> Self {
-        block.default_state.id
-    }
-}
-
-#[derive(Debug, Eq)]
-pub struct BlockState {
-    pub id: BlockStateId,
-}
-
-impl PartialEq for BlockState {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl From<BlockState> for BlockStateId {
-    fn from(state: BlockState) -> Self {
-        state.id
+impl bevy_app::Plugin for MinecraftBlockPlugin {
+    fn build(&self, app: &mut bevy_app::App) {
+        app.add_plugins(tnt::TntBlockPlugin);
     }
 }

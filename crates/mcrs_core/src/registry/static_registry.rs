@@ -111,6 +111,11 @@ impl<T: 'static> StaticRegistry<T> {
         self.entries.get(id.id as usize).map(|(_, v)| *v)
     }
 
+    /// Look up by the raw index a wire format or a saved stack carries.
+    pub fn get_by_raw(&self, id: u32) -> Option<&'static T> {
+        self.entries.get(id as usize).map(|(_, v)| *v)
+    }
+
     /// Look up by string key. Zero-alloc via `Borrow<str>`.
     pub fn get_by_loc(&self, loc: &str) -> Option<&'static T> {
         let id = *self.index.get(loc)?;

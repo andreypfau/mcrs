@@ -42,6 +42,11 @@
         "seconds_to_destroy": 3
       },
       "minecraft:loot": "minecraft:blocks/nether_quartz_ore",
+      "mcrs:experience_drop": {
+        "min_inclusive": 2,
+        "max_inclusive": 5,
+        "type": "minecraft:uniform"
+      },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }

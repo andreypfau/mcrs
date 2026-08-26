@@ -312,7 +312,6 @@ fn build_join_host_app() -> App {
             flags,
         });
     }
-    app.insert_resource(StaticRegistry::<Block>::new());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());

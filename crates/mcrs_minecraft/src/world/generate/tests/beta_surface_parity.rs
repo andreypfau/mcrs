@@ -13,7 +13,6 @@ use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome, build_beta_lookup_table,
 };
-use mcrs_vanilla::block::minecraft;
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::{apply_beta_surface, generate_column};
@@ -71,19 +70,19 @@ fn load_corpus() -> BetaSurfaceCorpus {
 /// from above the surface) passes through with a fallback:
 ///   stone (ID 1) → 1, air (ID 0) → 0.
 fn beta_id_for(modern: BlockStateId) -> u8 {
-    let air = minecraft::AIR.default_state_id;
-    let stone = minecraft::STONE.default_state_id;
-    let grass = minecraft::GRASS_BLOCK.default_state_id;
-    let dirt = minecraft::DIRT.default_state_id;
-    let bedrock = minecraft::BEDROCK.default_state_id;
-    let sand = minecraft::SAND.default_state_id;
-    let sandstone = minecraft::SANDSTONE.default_state_id;
-    let gravel = minecraft::GRAVEL.default_state_id;
+    let air = super::corpus().default_state("minecraft:air");
+    let stone = super::corpus().default_state("minecraft:stone");
+    let grass = super::corpus().default_state("minecraft:grass_block");
+    let dirt = super::corpus().default_state("minecraft:dirt");
+    let bedrock = super::corpus().default_state("minecraft:bedrock");
+    let sand = super::corpus().default_state("minecraft:sand");
+    let sandstone = super::corpus().default_state("minecraft:sandstone");
+    let gravel = super::corpus().default_state("minecraft:gravel");
 
     // Water: default_state_id = level 0 (base_state_id 86).
-    let water_source = minecraft::WATER.default_state_id;
+    let water_source = super::corpus().default_state("minecraft:water");
     // Lava: default_state_id = level 0 (base_state_id 102).
-    let lava_source = minecraft::LAVA.default_state_id;
+    let lava_source = super::corpus().default_state("minecraft:lava");
 
     if modern == air {
         return 0;
@@ -117,7 +116,7 @@ fn beta_id_for(modern: BlockStateId) -> u8 {
     if modern == sandstone {
         return 24;
     }
-    let ice = minecraft::ICE.default_state_id;
+    let ice = super::corpus().default_state("minecraft:ice");
     if modern == ice {
         return 79;
     }
@@ -219,7 +218,7 @@ fn column_matches(
     // Find the topmost non-air Y in the generated column (surface height).
     let surface_y: i32 = (0..128i32)
         .rev()
-        .find(|&y| generated_col[y as usize] != minecraft::AIR.default_state_id)
+        .find(|&y| generated_col[y as usize] != super::corpus().default_state("minecraft:air"))
         .unwrap_or(0);
 
     let surface_lo = (surface_y - SURFACE_BAND_HALF).max(0);
@@ -378,8 +377,8 @@ fn build_beta_router() -> mcrs_minecraft_worldgen::density_function::NoiseRouter
         &noises,
         &settings,
         12345,
-        mcrs_protocol::BlockStateId(1),
-        mcrs_protocol::BlockStateId(86),
+        super::corpus().default_state("minecraft:stone"),
+        super::corpus().default_state("minecraft:water"),
     )
 }
 
@@ -469,7 +468,8 @@ fn beta_surface_parity_gate() {
             &y_sections,
             &router,
             Some((&biome_source, &snapshot)),
-            &cancel,
+            super::corpus(),
+        &cancel,
         );
 
         // Apply the surface pass (also places bedrock).
@@ -481,7 +481,8 @@ fn beta_surface_parity_gate() {
             block_z,
             &router,
             &biome_source,
-            &mut rng,
+            super::corpus(),
+        &mut rng,
         );
 
         // For each fixture column in this chunk, build a flat [BlockStateId; 128] view.

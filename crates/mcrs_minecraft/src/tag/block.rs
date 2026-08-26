@@ -1,8 +1,6 @@
-use crate::world::block::Block;
 use mcrs_core::tag::key::TagKey;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_core::tag::registry::TagRegistry;
-use mcrs_core::{ResourceLocation, StaticId};
+use mcrs_core::ResourceLocation;
 use mcrs_vanilla::block::Block as VanillaBlock;
 use std::sync::Arc;
 
@@ -10,7 +8,6 @@ pub type BlockTagSet = &'static [&'static BlockTag];
 
 #[derive(Clone, Copy, Debug, PartialEq, Hash)]
 pub enum BlockTag {
-    Tag(&'static Block),
     TagSet(BlockTagSet),
 }
 
@@ -47,7 +44,6 @@ pub trait BlockTagSetExt {
 impl BlockTagSetExt for BlockTag {
     fn contains_name(&self, block: &str) -> bool {
         match self {
-            BlockTag::Tag(b) => b.identifier.as_str() == block,
             BlockTag::TagSet(tag_set) => tag_set.contains_name(block),
         }
     }

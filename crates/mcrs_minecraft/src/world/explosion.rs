@@ -79,6 +79,7 @@ const CHUNK_CACHE_WIDTH: usize = 1 << CHUNK_CACHE_SHIFT;
 struct BlockCacheItem {
     pos: BlockPos,
     block: BlockStateId,
+    is_air: bool,
     resistance: f32,
     chunk: Option<Entity>,
     should_explode: Option<bool>,
@@ -111,10 +112,12 @@ impl<'a, 'b> BlockCache<'a, 'b> {
                     let b = chunk_index.get(chunk_pos)?;
                     let (chunk, palette) = chunks.get(b.entity()).ok()?;
                     let block_state = palette.get(pos);
-                    let resistance = (blocks.state(block_state).explosion_resistance + 0.3) * 0.3;
+                    let data = blocks.state(block_state);
+                    let resistance = (data.explosion_resistance + 0.3) * 0.3;
                     Some(BlockCacheItem {
                         pos,
                         block: block_state,
+                        is_air: data.flags.contains(BlockStateFlags::IS_AIR),
                         resistance,
                         chunk: Some(chunk),
                         should_explode: None,
@@ -123,6 +126,7 @@ impl<'a, 'b> BlockCache<'a, 'b> {
                 .unwrap_or(BlockCacheItem {
                     pos,
                     block: BlockStateId(0),
+                    is_air: true,
                     resistance: 0.0,
                     chunk: None,
                     should_explode: None,
@@ -240,7 +244,7 @@ where
                 let should_explode = true;
                 cached_block.should_explode = Some(should_explode);
 
-                if should_explode && (fire || cached_block.block != AIR.default_state.id) {
+                if should_explode && (fire || !cached_block.is_air) {
                     ret.push(BlockExplodedEvent {
                         dimension,
                         chunk,
@@ -280,7 +284,6 @@ fn deduplicate_blocks(
     event_set
 }
 
-use crate::world::block::minecraft::AIR;
 use crate::world::entity::explosive::primed_tnt::Detonator;
 use bevy_ecs::event::Event;
 use bevy_ecs::message::MessageWriter;
@@ -288,7 +291,7 @@ use bevy_ecs::prelude::Commands;
 use bevy_math::DVec3;
 use bevy_utils::Parallel;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
-use mcrs_vanilla::block::definition::{BlockDefinitions, Blocks};
+use mcrs_vanilla::block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
 use rand::{RngExt, rng};
 use std::sync::OnceLock;
 

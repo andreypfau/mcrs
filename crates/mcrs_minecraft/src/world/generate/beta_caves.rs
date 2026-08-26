@@ -5,7 +5,7 @@ use mcrs_minecraft_worldgen::carver::cave::CaveWorldCarver;
 use mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig;
 use mcrs_protocol::BlockStateId;
 use mcrs_random::legacy::LegacyRandom;
-use mcrs_vanilla::block::minecraft;
+use mcrs_vanilla::block::definition::BlockDefinitions;
 
 pub struct BetaCaveBlockIds {
     pub air: BlockStateId,
@@ -18,18 +18,18 @@ pub struct BetaCaveBlockIds {
 }
 
 impl BetaCaveBlockIds {
-    pub fn resolve() -> Self {
+    pub fn resolve(blocks: &BlockDefinitions) -> Self {
         BetaCaveBlockIds {
-            air: minecraft::AIR.default_state_id,
-            lava: minecraft::LAVA.default_state_id,
-            stone: minecraft::STONE.default_state_id,
-            dirt: minecraft::DIRT.default_state_id,
-            grass: minecraft::GRASS_BLOCK.default_state_id,
+            air: blocks.default_state("minecraft:air"),
+            lava: blocks.default_state("minecraft:lava"),
+            stone: blocks.default_state("minecraft:stone"),
+            dirt: blocks.default_state("minecraft:dirt"),
+            grass: blocks.default_state("minecraft:grass_block"),
             // Both water and stationary_water map to the same modern water source state.
             // back2beta captures stationary water (ID 9) at sea-level fill positions;
             // the surface pass places water source state there, so we check the same ID.
-            water: minecraft::WATER.default_state_id,
-            stationary_water: minecraft::WATER.default_state_id,
+            water: blocks.default_state("minecraft:water"),
+            stationary_water: blocks.default_state("minecraft:water"),
         }
     }
 }

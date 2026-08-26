@@ -48,6 +48,11 @@
         "seconds_to_destroy": 3
       },
       "minecraft:loot": "minecraft:blocks/diamond_ore",
+      "mcrs:experience_drop": {
+        "min_inclusive": 3,
+        "max_inclusive": 7,
+        "type": "minecraft:uniform"
+      },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [
         { "origin": [-8, 0, -8], "size": [16, 16, 16] }

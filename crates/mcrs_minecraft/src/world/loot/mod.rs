@@ -21,11 +21,9 @@ use bevy_ecs::system::Res;
 use bevy_reflect::TypePath;
 use mcrs_core::StaticRegistry;
 use mcrs_protocol::Ident;
-use mcrs_vanilla::block::Block as VanillaBlock;
-use rustc_hash::FxHashSet;
+use mcrs_vanilla::block::definition::{BlockDefinitions, Blocks, LootId};
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::str::FromStr;
 use thiserror::Error;
 use tracing::{debug, info, warn};
 
@@ -268,7 +266,8 @@ fn evaluate_entry(entry: &LootEntry, ctx: &BlockBreakContext) -> Option<LootDrop
 
 #[derive(Debug, TypePath)]
 pub struct LootTableAsset {
-    pub block_id: Ident<String>,
+    pub loot: LootId,
+    pub table_id: String,
     pub proto: LootTableProto,
 }
 
@@ -283,7 +282,8 @@ pub struct LootTableLoader;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct LootTableLoaderSettings {
-    pub block_id: Option<String>,
+    pub loot: Option<u16>,
+    pub table_id: Option<String>,
 }
 
 #[derive(Debug, Error)]
@@ -292,10 +292,8 @@ pub enum LootTableLoaderError {
     Io(#[from] std::io::Error),
     #[error("JSON parse error: {0}")]
     Json(String),
-    #[error("Missing block_id in loader settings")]
-    MissingBlockId,
-    #[error("Invalid block identifier: {0}")]
-    InvalidIdent(String),
+    #[error("missing loot table identity in loader settings")]
+    MissingTableId,
 }
 
 impl AssetLoader for LootTableLoader {
@@ -309,12 +307,9 @@ impl AssetLoader for LootTableLoader {
         settings: &Self::Settings,
         _load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
-        let block_id_str = settings
-            .block_id
-            .as_deref()
-            .ok_or(LootTableLoaderError::MissingBlockId)?;
-        let block_id = Ident::from_str(block_id_str)
-            .map_err(|_| LootTableLoaderError::InvalidIdent(block_id_str.to_string()))?;
+        let (Some(loot), Some(table_id)) = (settings.loot, settings.table_id.clone()) else {
+            return Err(LootTableLoaderError::MissingTableId);
+        };
 
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;
@@ -322,13 +317,13 @@ impl AssetLoader for LootTableLoader {
         let proto: LootTableProto = serde_json::from_slice(&bytes)
             .map_err(|e| LootTableLoaderError::Json(e.to_string()))?;
 
-        debug!(
-            block = %block_id,
-            pools = proto.pools.len(),
-            "Loaded loot table"
-        );
+        debug!(table = %table_id, pools = proto.pools.len(), "loaded loot table");
 
-        Ok(LootTableAsset { block_id, proto })
+        Ok(LootTableAsset {
+            loot: LootId(loot),
+            table_id,
+            proto,
+        })
     }
 }
 
@@ -336,58 +331,64 @@ impl AssetLoader for LootTableLoader {
 // Resources & Plugin
 // ============================================================================
 
+/// Loot tables keyed by the table the corpus names, not by the block: a table
+/// shared by several blocks is loaded once, and a block that names none has no
+/// entry to miss.
 #[derive(Resource, Default)]
 pub struct BlockLootTables {
-    pub tables: HashMap<Ident<String>, LootTable>,
-    /// Tracks block names whose loot tables have been requested but not yet loaded.
-    pending: FxHashSet<Ident<String>>,
+    pub tables: FxHashMap<LootId, LootTable>,
+    pending: FxHashSet<LootId>,
     /// Keeps asset handles alive while loading.
     handles: Vec<Handle<LootTableAsset>>,
 }
 
 impl BlockLootTables {
-    /// Request loading a loot table for the given block identifier (e.g. "minecraft:stone").
-    /// Returns true if the table is already loaded, false if loading was triggered or is in progress.
-    pub fn request(&mut self, block_id: &Ident<String>, asset_server: &AssetServer) -> bool {
-        if self.tables.contains_key(block_id) {
+    /// Request the table the corpus interned as `loot`. Returns true if it is
+    /// already resolved.
+    pub fn request(
+        &mut self,
+        loot: LootId,
+        blocks: &BlockDefinitions,
+        asset_server: &AssetServer,
+    ) -> bool {
+        if self.tables.contains_key(&loot) {
             return true;
         }
-        if self.pending.contains(block_id) {
+        if !self.pending.insert(loot) {
             return false;
         }
-        // "minecraft:stone" -> asset path "minecraft/loot_table/blocks/stone.json"
+        let table_id = blocks.loot_table(loot);
+        // `minecraft:blocks/stone` names `minecraft/loot_table/blocks/stone.json`.
         let path = format!(
-            "{}/loot_table/blocks/{}.json",
-            block_id.namespace(),
-            block_id.path()
+            "{}/loot_table/{}.json",
+            table_id.namespace(),
+            table_id.path()
         );
         let settings = LootTableLoaderSettings {
-            block_id: Some(block_id.as_str().to_string()),
+            loot: Some(loot.0),
+            table_id: Some(table_id.as_str().to_owned()),
         };
-        debug!(block = %block_id, path = %path, "Requesting loot table load");
+        debug!(table = %table_id, path = %path, "requesting loot table load");
         let handle: Handle<LootTableAsset> =
             asset_server.load_with_settings(&path, move |s: &mut LootTableLoaderSettings| {
                 *s = settings.clone();
             });
         self.handles.push(handle);
-        self.pending.insert(block_id.clone());
         false
     }
 }
 
-fn request_loot_tables_for_registered_blocks(
-    block_registry: Res<StaticRegistry<VanillaBlock>>,
+fn request_loot_tables_for_corpus(
+    blocks: Res<Blocks>,
     asset_server: Res<AssetServer>,
     mut block_loot_tables: ResMut<BlockLootTables>,
 ) {
-    for (_static_id, loc, _block) in block_registry.iter() {
-        if let Ok(ident) = Ident::from_str(loc.as_str()) {
-            block_loot_tables.request(&ident, &asset_server);
-        }
+    for index in 0..blocks.loot_table_count() {
+        block_loot_tables.request(LootId(index as u16), &blocks, &asset_server);
     }
     info!(
         requested = block_loot_tables.pending.len(),
-        "Requested loot tables for registered blocks"
+        "requested block loot tables"
     );
 }
 
@@ -402,15 +403,13 @@ fn process_loaded_loot_tables(
             && let Some(asset) = assets.get(*id)
         {
             let resolved = asset.proto.resolve(&enchantment_registry);
-            info!(
-                block = %asset.block_id,
+            debug!(
+                table = %asset.table_id,
                 pools = resolved.pools.len(),
-                "Resolved loot table"
+                "resolved loot table"
             );
-            block_loot_tables.pending.remove(&asset.block_id);
-            block_loot_tables
-                .tables
-                .insert(asset.block_id.clone(), resolved);
+            block_loot_tables.pending.remove(&asset.loot);
+            block_loot_tables.tables.insert(asset.loot, resolved);
         }
     }
 }
@@ -422,7 +421,7 @@ impl Plugin for LootPlugin {
         app.init_asset::<LootTableAsset>()
             .register_asset_loader(LootTableLoader);
         app.init_resource::<BlockLootTables>();
-        app.add_systems(PostStartup, request_loot_tables_for_registered_blocks);
+        app.add_systems(PostStartup, request_loot_tables_for_corpus);
         app.add_systems(Update, process_loaded_loot_tables);
     }
 }

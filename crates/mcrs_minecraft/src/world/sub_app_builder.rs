@@ -49,7 +49,7 @@ pub struct DimInboxDrain;
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
 use crate::world::aoi::PlayerTrackerPlugin;
-use crate::world::block::minecraft::MinecraftBlockPlugin;
+use crate::world::block::MinecraftBlockPlugin;
 use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::explosion::ExplosionPlugin;
@@ -72,7 +72,6 @@ pub struct DimRegistryBundle {
     pub registry_access: RegistryAccess,
     pub block_light_table: BlockStateLightTable,
     pub blocks: Blocks,
-    pub static_block_registry: StaticRegistry<Block>,
     pub static_enchantment_registry: StaticRegistry<EnchantmentData>,
     pub block_tag_registry: DynTagRegistry<Block>,
     pub biome_registry: RegistrySnapshot<Biome>,
@@ -83,7 +82,6 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
         registry_access: world.resource::<RegistryAccess>().clone(),
         block_light_table: world.resource::<BlockStateLightTable>().clone(),
         blocks: world.resource::<Blocks>().clone(),
-        static_block_registry: world.resource::<StaticRegistry<Block>>().clone(),
         static_enchantment_registry: world.resource::<StaticRegistry<EnchantmentData>>().clone(),
         block_tag_registry: world.resource::<DynTagRegistry<Block>>().clone(),
         biome_registry: world.resource::<RegistrySnapshot<Biome>>().clone(),
@@ -271,12 +269,12 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(BlockUpdateWirePlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);
     sub_app.add_plugins(LootPlugin);
+    sub_app.add_plugins(crate::world::experience::ExperiencePlugin);
     sub_app.add_plugins(crate::world::arrival::ArrivalPlugin);
 
     sub_app.insert_resource(registries.registry_access.clone());
     sub_app.insert_resource(registries.block_light_table.clone());
     sub_app.insert_resource(registries.blocks.clone());
-    sub_app.insert_resource(registries.static_block_registry.clone());
     sub_app.insert_resource(registries.static_enchantment_registry.clone());
     sub_app.insert_resource(registries.block_tag_registry.clone());
     sub_app.insert_resource(registries.biome_registry.clone());

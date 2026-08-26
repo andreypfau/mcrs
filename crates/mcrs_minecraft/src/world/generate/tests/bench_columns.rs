@@ -107,8 +107,8 @@ fn build_router(settings_name: &str, seed: u64) -> NoiseRouter {
         &noises,
         &settings,
         seed,
-        mcrs_protocol::BlockStateId(1),
-        mcrs_protocol::BlockStateId(86),
+        super::corpus().default_state("minecraft:stone"),
+        super::corpus().default_state("minecraft:water"),
     )
 }
 
@@ -118,7 +118,8 @@ fn bench_columns(label: &str, router: &NoiseRouter, columns: i32) {
     let cancel = CancellationToken::new();
 
     // Warm-up
-    let _ = generate_column(1000, 1000, &y_sections, router, None, &cancel);
+    let _ = generate_column(1000, 1000, &y_sections, router, None, super::corpus(),
+        &cancel);
 
     // Phase timing: column cache population only
     let t = Instant::now();
@@ -132,7 +133,8 @@ fn bench_columns(label: &str, router: &NoiseRouter, columns: i32) {
     let t = Instant::now();
     for i in 0..columns {
         let (cx, cz) = (i % 8, i / 8);
-        let results = generate_column(cx, cz, &y_sections, router, None, &cancel);
+        let results = generate_column(cx, cz, &y_sections, router, None, super::corpus(),
+        &cancel);
         std::hint::black_box(&results);
     }
     let total = t.elapsed();
@@ -141,7 +143,8 @@ fn bench_columns(label: &str, router: &NoiseRouter, columns: i32) {
     // before/after runs can be compared for bit-identical block output.
     let mut checksum = 0u64;
     for i in 0..4 {
-        let results = generate_column(i, -i, &y_sections, router, None, &cancel);
+        let results = generate_column(i, -i, &y_sections, router, None, super::corpus(),
+        &cancel);
         for r in results.iter().flatten() {
             let (blocks, _) = r;
             let net = blocks.convert_network();

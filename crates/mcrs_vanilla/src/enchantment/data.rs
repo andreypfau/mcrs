@@ -2,67 +2,11 @@ use std::sync::Arc;
 
 use mcrs_core::ResourceLocation;
 use mcrs_core::tag::key::{TagKey, TaggedRegistry};
-use serde::{Deserialize, Serialize, Serializer, ser::SerializeMap, ser::SerializeSeq};
+use mcrs_text::Text;
+use serde::{Deserialize, Serialize, Serializer, ser::SerializeMap};
 
+use crate::enchantment::effects::EnchantmentEffects;
 use crate::item::Item;
-
-/// Wrapper around a borrowed JSON value that serializes floats as f32
-/// (mapping to NBT `Tag_Float`) when the source JSON used decimal notation.
-/// Vanilla 26.1 codecs in `EnchantmentEffectComponents` and `LevelBasedValue`
-/// expect `Tag_Float`, not the `Tag_Double` that a plain `serde_json::Value`
-/// would produce.
-struct EffectsValue<'a>(&'a serde_json::Value);
-
-impl<'a> Serialize for EffectsValue<'a> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self.0 {
-            serde_json::Value::Null => serializer.serialize_unit(),
-            serde_json::Value::Bool(b) => serializer.serialize_bool(*b),
-            serde_json::Value::Number(n) => {
-                if let Some(i) = n.as_i64() {
-                    if (i32::MIN as i64..=i32::MAX as i64).contains(&i) {
-                        serializer.serialize_i32(i as i32)
-                    } else {
-                        serializer.serialize_i64(i)
-                    }
-                } else if let Some(u) = n.as_u64() {
-                    if u <= i32::MAX as u64 {
-                        serializer.serialize_i32(u as i32)
-                    } else {
-                        serializer.serialize_i64(u as i64)
-                    }
-                } else if let Some(f) = n.as_f64() {
-                    serializer.serialize_f32(f as f32)
-                } else {
-                    serializer.serialize_unit()
-                }
-            }
-            serde_json::Value::String(s) => serializer.serialize_str(s),
-            serde_json::Value::Array(arr) => {
-                let mut seq = serializer.serialize_seq(Some(arr.len()))?;
-                for v in arr {
-                    seq.serialize_element(&EffectsValue(v))?;
-                }
-                seq.end()
-            }
-            serde_json::Value::Object(map) => {
-                let mut m = serializer.serialize_map(Some(map.len()))?;
-                for (k, v) in map {
-                    m.serialize_entry(k, &EffectsValue(v))?;
-                }
-                m.end()
-            }
-        }
-    }
-}
-
-struct EffectsField<'a>(&'a serde_json::Value);
-
-impl<'a> Serialize for EffectsField<'a> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        EffectsValue(self.0).serialize(serializer)
-    }
-}
 
 /// Raw enchantment data as deserialized from JSON.
 ///
@@ -71,7 +15,7 @@ impl<'a> Serialize for EffectsField<'a> {
 /// [`ProtoEnchantmentData::resolve`], which parses them into typed `TagKey`s.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct ProtoEnchantmentData {
-    pub description: serde_json::Value,
+    pub description: Text,
     pub min_cost: EnchantmentCost,
     pub max_cost: EnchantmentCost,
     pub anvil_cost: u32,
@@ -84,7 +28,7 @@ pub(crate) struct ProtoEnchantmentData {
     #[serde(default)]
     pub exclusive_set: Option<String>,
     #[serde(default)]
-    pub effects: Option<serde_json::Value>,
+    pub effects: Option<EnchantmentEffects>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -142,7 +86,7 @@ impl ProtoEnchantmentData {
 /// `TagRegistry<EnchantmentData>`.
 #[derive(Debug, Clone)]
 pub struct EnchantmentData {
-    pub description: serde_json::Value,
+    pub description: Text,
     pub min_cost: EnchantmentCost,
     pub max_cost: EnchantmentCost,
     pub anvil_cost: u32,
@@ -152,14 +96,14 @@ pub struct EnchantmentData {
     pub weight: u32,
     pub max_level: u32,
     pub exclusive_set: Option<TagKey<EnchantmentData, Arc<str>>>,
-    pub effects: Option<serde_json::Value>,
+    pub effects: Option<EnchantmentEffects>,
 }
 
 /// Enchantment data for NETWORK_CODEC — tag key fields serialized as
 /// `"#namespace:path"` strings matching the original JSON format.
 #[derive(Debug, Clone)]
 pub struct NetworkEnchantmentData {
-    pub description: serde_json::Value,
+    pub description: Text,
     pub min_cost: EnchantmentCost,
     pub max_cost: EnchantmentCost,
     pub anvil_cost: u32,
@@ -169,7 +113,7 @@ pub struct NetworkEnchantmentData {
     pub weight: u32,
     pub max_level: u32,
     pub exclusive_set: Option<String>,
-    pub effects: Option<serde_json::Value>,
+    pub effects: Option<EnchantmentEffects>,
 }
 
 impl Serialize for NetworkEnchantmentData {
@@ -185,7 +129,7 @@ impl Serialize for NetworkEnchantmentData {
             len += 1;
         }
         let mut m = serializer.serialize_map(Some(len))?;
-        m.serialize_entry("description", &EffectsField(&self.description))?;
+        m.serialize_entry("description", &self.description)?;
         m.serialize_entry("min_cost", &self.min_cost)?;
         m.serialize_entry("max_cost", &self.max_cost)?;
         m.serialize_entry("anvil_cost", &self.anvil_cost)?;
@@ -200,7 +144,7 @@ impl Serialize for NetworkEnchantmentData {
             m.serialize_entry("exclusive_set", es)?;
         }
         if let Some(ref effects) = self.effects {
-            m.serialize_entry("effects", &EffectsField(effects))?;
+            m.serialize_entry("effects", effects)?;
         }
         m.end()
     }

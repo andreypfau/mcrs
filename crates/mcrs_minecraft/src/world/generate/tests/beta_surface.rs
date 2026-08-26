@@ -9,7 +9,6 @@ use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::{BiomeSource, build_beta_lookup_table};
-use mcrs_vanilla::block::minecraft;
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::{apply_beta_surface, generate_column};
@@ -102,8 +101,8 @@ fn build_beta_router() -> mcrs_minecraft_worldgen::density_function::NoiseRouter
         &noises,
         &settings,
         12345,
-        mcrs_protocol::BlockStateId(1),
-        mcrs_protocol::BlockStateId(86),
+        super::corpus().default_state("minecraft:stone"),
+        super::corpus().default_state("minecraft:water"),
     )
 }
 
@@ -172,6 +171,7 @@ fn apply_beta_surface_places_surface_and_bedrock() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
+        super::corpus(),
         &cancel,
     );
 
@@ -184,13 +184,14 @@ fn apply_beta_surface_places_surface_and_bedrock() {
         block_z,
         &router,
         &biome_source,
+        super::corpus(),
         &mut rng,
     );
 
-    let bedrock_id = minecraft::BEDROCK.default_state_id;
-    let grass_id = minecraft::GRASS_BLOCK.default_state_id;
-    let dirt_id = minecraft::DIRT.default_state_id;
-    let sand_id = minecraft::SAND.default_state_id;
+    let bedrock_id = super::corpus().default_state("minecraft:bedrock");
+    let grass_id = super::corpus().default_state("minecraft:grass_block");
+    let dirt_id = super::corpus().default_state("minecraft:dirt");
+    let sand_id = super::corpus().default_state("minecraft:sand");
 
     // Y=0 (section 0, local y=0): always bedrock for all 256 columns
     let section0_blocks = &sections[0].as_ref().expect("section 0 must be Some").0;
@@ -261,6 +262,7 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
+        super::corpus(),
         &cancel,
     );
 
@@ -272,10 +274,11 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         block_z,
         &router,
         &biome_source,
+        super::corpus(),
         &mut rng,
     );
 
-    let bedrock_id = minecraft::BEDROCK.default_state_id;
+    let bedrock_id = super::corpus().default_state("minecraft:bedrock");
     let section0 = sections[0].as_ref().expect("section 0 must be present");
     let blocks = &section0.0;
 
@@ -389,7 +392,7 @@ fn beta_terrain_height_matches_back2beta_oracle() {
         })
     };
 
-    let stone_id = minecraft::STONE.default_state_id;
+    let stone_id = super::corpus().default_state("minecraft:stone");
 
     // Rust stone top: scan generate_column sections top-down for highest Y with stone.
     let rust_stone_top_y = |sections: &Vec<
@@ -466,7 +469,8 @@ fn beta_terrain_height_matches_back2beta_oracle() {
                 &y_sections,
                 &router,
                 Some((&biome_source, &snapshot)),
-                &cancel,
+                super::corpus(),
+        &cancel,
             )
         });
 
@@ -528,6 +532,7 @@ fn apply_beta_surface_bedrock_probability_matches_back2beta() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
+        super::corpus(),
         &cancel,
     );
 
@@ -540,10 +545,11 @@ fn apply_beta_surface_bedrock_probability_matches_back2beta() {
         block_z,
         &router,
         &biome_source,
+        super::corpus(),
         &mut rng,
     );
 
-    let bedrock_id = minecraft::BEDROCK.default_state_id;
+    let bedrock_id = super::corpus().default_state("minecraft:bedrock");
     let section0_blocks = &sections[0].as_ref().expect("section 0 must be present").0;
 
     // Y=0: all bedrock

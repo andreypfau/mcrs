@@ -166,7 +166,8 @@ fn load_overworld_noise_router(assets_path: &std::path::Path) -> OverworldNoiseR
 
 // ---- BlockStateLightTable from block registry ------------------------------------
 
-fn build_production_block_light_table() -> BlockStateLightTable {
+fn build_production_block_light_table()
+-> (BlockStateLightTable, mcrs_vanilla::block::definition::Blocks) {
     let mut app = App::new();
     app.add_plugins(bevy_app::TaskPoolPlugin::default());
     app.add_plugins(bevy_asset::AssetPlugin {
@@ -184,7 +185,12 @@ fn build_production_block_light_table() -> BlockStateLightTable {
         mcrs_minecraft_lighting::table::build_block_light_table,
     );
     app.update();
-    app.world().resource::<BlockStateLightTable>().clone()
+    (
+        app.world().resource::<BlockStateLightTable>().clone(),
+        app.world()
+            .resource::<mcrs_vanilla::block::definition::Blocks>()
+            .clone(),
+    )
 }
 
 // ---- Convergence helpers -----------------------------------------------------
@@ -226,7 +232,7 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
     }
 
     let router = load_overworld_noise_router(&assets_path);
-    let table = build_production_block_light_table();
+    let (table, blocks) = build_production_block_light_table();
 
     // Build the app. AssetPlugin must come first since NoiseGeneratorSettingsPlugin
     // (added by WorldgenChunkPlugin) calls init_asset / register_asset_loader.
@@ -257,6 +263,7 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
     // Pre-insert the synchronously-built router and block light table.
     app.insert_resource(router);
     app.insert_resource(table);
+    app.insert_resource(blocks);
 
     // Spawn the overworld dimension.
     let dim_entity = app

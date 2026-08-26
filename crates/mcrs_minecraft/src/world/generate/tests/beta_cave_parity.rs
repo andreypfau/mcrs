@@ -16,7 +16,6 @@ use mcrs_random::Random;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::{BiomeSource, build_beta_lookup_table};
-use mcrs_vanilla::block::minecraft;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use crate::world::chunk::CancellationToken;
@@ -64,32 +63,32 @@ fn load_corpus() -> BetaSurfaceCorpus {
 
 fn modern_id_for_beta(beta_id: u8) -> BlockStateId {
     match beta_id {
-        0 => minecraft::AIR.default_state_id,
-        1 => minecraft::STONE.default_state_id,
-        2 => minecraft::GRASS_BLOCK.default_state_id,
-        3 => minecraft::DIRT.default_state_id,
-        7 => minecraft::BEDROCK.default_state_id,
-        9 => minecraft::WATER.default_state_id,
-        12 => minecraft::SAND.default_state_id,
-        13 => minecraft::GRAVEL.default_state_id,
-        24 => minecraft::SANDSTONE.default_state_id,
-        79 => minecraft::ICE.default_state_id,
-        _ => minecraft::AIR.default_state_id,
+        0 => super::corpus().default_state("minecraft:air"),
+        1 => super::corpus().default_state("minecraft:stone"),
+        2 => super::corpus().default_state("minecraft:grass_block"),
+        3 => super::corpus().default_state("minecraft:dirt"),
+        7 => super::corpus().default_state("minecraft:bedrock"),
+        9 => super::corpus().default_state("minecraft:water"),
+        12 => super::corpus().default_state("minecraft:sand"),
+        13 => super::corpus().default_state("minecraft:gravel"),
+        24 => super::corpus().default_state("minecraft:sandstone"),
+        79 => super::corpus().default_state("minecraft:ice"),
+        _ => super::corpus().default_state("minecraft:air"),
     }
 }
 
 fn beta_id_for_modern(modern: BlockStateId) -> u8 {
-    let air = minecraft::AIR.default_state_id;
-    let stone = minecraft::STONE.default_state_id;
-    let grass = minecraft::GRASS_BLOCK.default_state_id;
-    let dirt = minecraft::DIRT.default_state_id;
-    let bedrock = minecraft::BEDROCK.default_state_id;
-    let sand = minecraft::SAND.default_state_id;
-    let gravel = minecraft::GRAVEL.default_state_id;
-    let sandstone = minecraft::SANDSTONE.default_state_id;
-    let water = minecraft::WATER.default_state_id;
-    let lava = minecraft::LAVA.default_state_id;
-    let ice = minecraft::ICE.default_state_id;
+    let air = super::corpus().default_state("minecraft:air");
+    let stone = super::corpus().default_state("minecraft:stone");
+    let grass = super::corpus().default_state("minecraft:grass_block");
+    let dirt = super::corpus().default_state("minecraft:dirt");
+    let bedrock = super::corpus().default_state("minecraft:bedrock");
+    let sand = super::corpus().default_state("minecraft:sand");
+    let gravel = super::corpus().default_state("minecraft:gravel");
+    let sandstone = super::corpus().default_state("minecraft:sandstone");
+    let water = super::corpus().default_state("minecraft:water");
+    let lava = super::corpus().default_state("minecraft:lava");
+    let ice = super::corpus().default_state("minecraft:ice");
 
     if modern == air {
         return 0;
@@ -130,7 +129,7 @@ fn beta_id_for_modern(modern: BlockStateId) -> u8 {
 // ── Cave config helper ────────────────────────────────────────────────────────
 
 fn make_cave_config() -> (BetaCaveCarverConfig, BetaCaveBlockIds) {
-    let ids = BetaCaveBlockIds::resolve();
+    let ids = BetaCaveBlockIds::resolve(super::corpus());
     let config = BetaCaveCarverConfig {
         air_state: ids.air,
         lava_state: ids.lava,
@@ -417,8 +416,8 @@ fn build_beta_router() -> mcrs_minecraft_worldgen::density_function::NoiseRouter
         &noises,
         &settings,
         12345,
-        mcrs_protocol::BlockStateId(1),
-        mcrs_protocol::BlockStateId(86),
+        super::corpus().default_state("minecraft:stone"),
+        super::corpus().default_state("minecraft:water"),
     )
 }
 
@@ -644,6 +643,7 @@ fn generate_column_beta_has_caves() {
         &y_sections,
         &router,
         Some((&biome_source, &snapshot)),
+        super::corpus(),
         &cancel,
     );
 
@@ -655,6 +655,7 @@ fn generate_column_beta_has_caves() {
         chunk_z * 16,
         &router,
         &biome_source,
+        super::corpus(),
         &mut rng,
     );
 
@@ -749,7 +750,8 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 &y_sections,
                 &router,
                 Some((&biome_source, &snapshot)),
-                &cancel,
+                super::corpus(),
+        &cancel,
             );
             let mut rng = make_chunk_rng(chunk_x, chunk_z);
             apply_beta_surface(
@@ -759,7 +761,8 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 chunk_z * 16,
                 &router,
                 &biome_source,
-                &mut rng,
+                super::corpus(),
+        &mut rng,
             );
             apply_beta_caves(
                 &mut sections,

@@ -1,5 +1,3 @@
-use crate::enchantment::EnchantmentData;
-use crate::world::block::Block;
 use crate::world::entity::attribute::Attribute;
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::attribute::{BlockBreakSpeed, MiningEfficiency};
@@ -11,6 +9,7 @@ use crate::world::item::component::Enchantments;
 use crate::world::item::component::Tool;
 use crate::world::item::{Item, ItemStack};
 use crate::world::loot::BlockLootTables;
+use crate::world::experience::BlockDestroyed;
 use crate::world::loot::context::BlockBreakContext;
 use bevy_app::{FixedUpdate, Plugin, Update};
 use bevy_asset::AssetServer;
@@ -29,14 +28,9 @@ use mcrs_protocol::BlockStateId;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
-use mcrs_core::StaticRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_core::tag::registry::TagRegistry;
-use mcrs_protocol::Ident;
 use mcrs_vanilla::block::Block as VanillaBlock;
 use mcrs_vanilla::block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
-use rand::RngExt;
-use std::str::FromStr;
 use std::time::Duration;
 use tracing::{debug, trace};
 
@@ -136,7 +130,6 @@ fn player_start_destroy_block(
     )>,
     items: Query<(&ItemStack, Option<&Tool>)>,
     tag_registry: Res<DynTagRegistry<VanillaBlock>>,
-    block_registry: Res<StaticRegistry<VanillaBlock>>,
     blocks: Res<Blocks>,
     time: Res<Time<Fixed>>,
     mut player_will_destroy_block: MessageWriter<PlayerWillDestroyBlock>,
@@ -187,7 +180,6 @@ fn player_start_destroy_block(
                 mining_efficiency,
                 block_break_speed,
                 &tag_registry,
-                &block_registry,
             );
         }
 
@@ -320,14 +312,13 @@ fn get_destroy_speed(
     mining_efficiency: &MiningEfficiency,
     block_break_speed: &BlockBreakSpeed,
     tag_registry: &DynTagRegistry<VanillaBlock>,
-    block_registry: &StaticRegistry<VanillaBlock>,
 ) -> f32 {
     let hardness = blocks.state(state).hardness;
     if hardness < 0.0 {
         return 0.0;
     }
     let (has_correct_tool, mut speed) =
-        extract_tool_data(state, blocks, hotbar, items, tag_registry, block_registry);
+        extract_tool_data(state, blocks, hotbar, items, tag_registry);
     if speed > 1.0 {
         speed += mining_efficiency.value();
     }
@@ -342,7 +333,6 @@ pub fn extract_tool_data(
     hotbar: &PlayerHotbarSlots,
     items: &Query<(&ItemStack, Option<&Tool>)>,
     tag_registry: &DynTagRegistry<VanillaBlock>,
-    block_registry: &StaticRegistry<VanillaBlock>,
 ) -> (bool, f32) {
     let block = blocks.owner(state).identifier.as_str();
     let requires_correct_tool = blocks
@@ -384,22 +374,14 @@ pub fn extract_tool_data(
 fn handle_player_will_destroy_block(
     mut reader: MessageReader<PlayerWillDestroyBlock>,
     mut writer: MessageWriter<BlockSetRequest>,
+    mut destroyed: MessageWriter<BlockDestroyed>,
     players: Query<(&InDimension, &PlayerHotbarSlots)>,
     items: Query<(&ItemStack, Option<&Enchantments>, Option<&Tool>)>,
     tag_registry: Res<DynTagRegistry<VanillaBlock>>,
-    block_registry: Res<StaticRegistry<VanillaBlock>>,
-    enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
     blocks: Res<Blocks>,
     mut loot_tables: ResMut<BlockLootTables>,
     asset_server: Res<AssetServer>,
-    mut silk_touch_id: Local<Option<u16>>,
 ) {
-    if silk_touch_id.is_none() {
-        *silk_touch_id = enchantment_registry
-            .id_of("minecraft:silk_touch")
-            .map(|id| id.raw() as u16);
-    }
-
     reader.read().for_each(|event| {
         // TODO: spawn destroy particles
         // TODO: anger piglin if block is guarded by piglins
@@ -409,75 +391,57 @@ fn handle_player_will_destroy_block(
 
         let state = blocks.state(event.block_state);
         let block_id = blocks.owner(event.block_state).identifier.as_str();
+        let held = hotbar.get_selected_slot();
 
-        // Check if the player has the correct tool for drops
         let has_correct_tool = if state
             .flags
             .contains(BlockStateFlags::REQUIRES_CORRECT_TOOL_FOR_DROPS)
         {
-            if let Some(slot) = hotbar.get_selected_slot() {
-                if let Ok((stack, _, tool)) = items.get(slot) {
-                    if let Some(tool) = tool.or_else(|| {
+            held.and_then(|slot| items.get(slot).ok())
+                .and_then(|(stack, _, tool)| {
+                    tool.or_else(|| {
                         AsRef::<Item>::as_ref(&stack.item_id())
                             .components
                             .tool
                             .as_ref()
-                    }) {
-                        tool.is_correct_block_for_drops(block_id, &tag_registry, &blocks)
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
+                    })
+                })
+                .is_some_and(|tool| tool.is_correct_block_for_drops(block_id, &tag_registry, &blocks))
         } else {
             true
         };
 
         if has_correct_tool {
-            let tool_enchantments = hotbar
-                .get_selected_slot()
+            let tool_enchantments = held
                 .and_then(|slot| items.get(slot).ok())
                 .and_then(|(_, enchantments, _)| enchantments);
 
-            if let Some(table) = loot_tables.tables.get(block_id) {
-                let ctx = BlockBreakContext { tool_enchantments };
-                let drops = table.evaluate(&ctx);
-                for drop in &drops {
-                    debug!(
-                        block = %block_id,
-                        item = %drop.item_name,
-                        count = drop.count,
-                        "Loot drop"
-                    );
-                }
-            } else {
-                // Trigger lazy load for blocks not yet loaded
-                if let Ok(ident) = Ident::from_str(block_id) {
-                    loot_tables.request(&ident, &asset_server);
+            if let Some(loot) = state.loot {
+                match loot_tables.tables.get(&loot) {
+                    Some(table) => {
+                        let ctx = BlockBreakContext { tool_enchantments };
+                        for drop in table.evaluate(&ctx) {
+                            debug!(
+                                block = %block_id,
+                                item = %drop.item_name,
+                                count = drop.count,
+                                "loot drop"
+                            );
+                        }
+                    }
+                    None => {
+                        loot_tables.request(loot, &blocks, &asset_server);
+                    }
                 }
             }
 
-            let has_silk_touch = silk_touch_id.is_some_and(|idx| {
-                tool_enchantments
-                    .map(|e| e.has_enchantment(idx))
-                    .unwrap_or(false)
+            destroyed.write(BlockDestroyed {
+                state: event.block_state,
+                pos: event.block_pos,
+                dim: dim.entity(),
+                tool: held,
+                drop_experience: true,
             });
-
-            if !has_silk_touch
-                && let Ok(block) = <&Block>::try_from(event.block_state)
-                && let Some((min, max)) = block.xp_range()
-            {
-                let xp = if min == max {
-                    min
-                } else {
-                    rand::rng().random_range(min..=max)
-                };
-                debug!(block = %block_id, xp = xp, "XP drop");
-            }
         }
 
         writer.write(BlockSetRequest::remove_block(**dim, event.block_pos));

@@ -1,7 +1,7 @@
 use mcrs_protocol::BlockStateId;
 
 use crate::biome::source::BetaLandBiome;
-use crate::block::minecraft;
+use crate::block::definition::BlockDefinitions;
 
 /// Return the (top_block, filler_block) BlockStateIds for a Beta land biome.
 ///
@@ -9,15 +9,18 @@ use crate::block::minecraft;
 /// (BiomeBase constructor lines 49-50). Special cases from the static block at lines 86-87:
 ///   Desert and IceDesert: sand/sand.
 /// All other biomes: grass/dirt.
-pub fn beta_surface_blocks(biome: BetaLandBiome) -> (BlockStateId, BlockStateId) {
+pub fn beta_surface_blocks(
+    biome: BetaLandBiome,
+    blocks: &BlockDefinitions,
+) -> (BlockStateId, BlockStateId) {
     match biome {
         BetaLandBiome::Desert | BetaLandBiome::IceDesert => {
-            let sand = minecraft::SAND.default_state_id;
+            let sand = blocks.default_state("minecraft:sand");
             (sand, sand)
         }
         _ => {
-            let grass = minecraft::GRASS_BLOCK.default_state_id;
-            let dirt = minecraft::DIRT.default_state_id;
+            let grass = blocks.default_state("minecraft:grass_block");
+            let dirt = blocks.default_state("minecraft:dirt");
             (grass, dirt)
         }
     }

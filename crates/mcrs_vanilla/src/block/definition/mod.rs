@@ -15,8 +15,8 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use self::molang::{MolangError, StateCondition};
 use self::schema::{
-    BlockBox, BlockDefinitionFile, BlockProperties, Components, Instrument, LavaFlammable,
-    PropertyValue, Sticky,
+    BlockBox, BlockDefinitionFile, BlockProperties, Components, Instrument, IntProvider,
+    LavaFlammable, PropertyValue, Sticky,
 };
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
@@ -54,6 +54,9 @@ pub struct FluidId(pub u16);
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LootId(pub u16);
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ExperienceId(pub u16);
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct FluidState {
     pub fluid: FluidId,
@@ -79,6 +82,7 @@ pub struct BlockStateData {
     pub instrument: Instrument,
     pub redstone_power: u8,
     pub loot: Option<LootId>,
+    pub experience: Option<ExperienceId>,
     pub fluid: Option<FluidState>,
     pub flags: BlockStateFlags,
 }
@@ -123,6 +127,22 @@ impl BlockEntry {
         Some(BlockStateId(id.0 - current * stride + target * stride))
     }
 
+    /// The state's value for one property, the way vanilla's
+    /// `BlockState.getValue` does.
+    pub fn value_of(&self, id: BlockStateId, property: &str) -> Option<&PropertyValue> {
+        if !self.owns(id) {
+            return None;
+        }
+        let index = self.properties.index_of(property)?;
+        let property = &self.properties.0[index];
+        let stride: u16 = self.properties.0[index + 1..]
+            .iter()
+            .map(|p| p.values.len() as u16)
+            .product();
+        let current = (id.0 - self.base_state_id.0) / stride % property.values.len() as u16;
+        property.values.get(current as usize)
+    }
+
     /// [`BlockEntry::with`] against a value stated as text, as a datapack and a
     /// save state it.
     pub fn with_text(&self, id: BlockStateId, property: &str, text: &str) -> Option<BlockStateId> {
@@ -161,6 +181,7 @@ pub struct BlockDefinitions {
     shapes: Vec<Box<[Aabb]>>,
     fluids: Vec<ResourceLocation<Arc<str>>>,
     loot: Vec<ResourceLocation<Arc<str>>>,
+    experience: Vec<IntProvider>,
     blocks: Vec<BlockEntry>,
     owners: Vec<u32>,
     by_identifier: FxHashMap<Arc<str>, usize>,
@@ -187,6 +208,15 @@ impl BlockDefinitions {
         &self.loot[id.0 as usize]
     }
 
+    pub fn loot_table_count(&self) -> usize {
+        self.loot.len()
+    }
+
+    #[inline]
+    pub fn experience_drop(&self, id: ExperienceId) -> IntProvider {
+        self.experience[id.0 as usize]
+    }
+
     pub fn state_count(&self) -> usize {
         self.states.len()
     }
@@ -197,6 +227,14 @@ impl BlockDefinitions {
 
     pub fn block(&self, identifier: &str) -> Option<&BlockEntry> {
         self.by_identifier.get(identifier).map(|&i| &self.blocks[i])
+    }
+
+    /// The block's default state. Panics if the corpus does not name it: the
+    /// corpus is every block the game has, so a miss is a typo and not input.
+    pub fn default_state(&self, identifier: &str) -> BlockStateId {
+        self.block(identifier)
+            .unwrap_or_else(|| panic!("the corpus has no block `{identifier}`"))
+            .default_state_id
     }
 
     /// The block a state belongs to. Every state in the table has one:
@@ -398,6 +436,7 @@ const UNCLAIMED: BlockStateData = BlockStateData {
     instrument: Instrument::Harp,
     redstone_power: 0,
     loot: None,
+    experience: None,
     fluid: None,
     flags: BlockStateFlags::empty(),
 };
@@ -409,6 +448,7 @@ struct Builder {
     shape_ids: FxHashMap<Vec<u32>, ShapeId>,
     fluids: Vec<ResourceLocation<Arc<str>>>,
     loot: Vec<ResourceLocation<Arc<str>>>,
+    experience: Vec<IntProvider>,
     blocks: Vec<BlockEntry>,
     permutations: usize,
 }
@@ -424,6 +464,7 @@ impl Builder {
             shape_ids: FxHashMap::with_hasher(FxBuildHasher),
             fluids: Vec::new(),
             loot: Vec::new(),
+            experience: Vec::new(),
             blocks: Vec::new(),
             permutations: 0,
         }
@@ -450,6 +491,16 @@ impl Builder {
 
     fn intern_loot(&mut self, table: &ResourceLocation<Arc<str>>) -> LootId {
         LootId(intern(&mut self.loot, table))
+    }
+
+    fn intern_experience(&mut self, drop: IntProvider) -> ExperienceId {
+        match self.experience.iter().position(|v| *v == drop) {
+            Some(index) => ExperienceId(index as u16),
+            None => {
+                self.experience.push(drop);
+                ExperienceId(self.experience.len() as u16 - 1)
+            }
+        }
     }
 
     fn add(&mut self, file: BlockDefinitionFile) -> Result<(), BlockError> {
@@ -633,6 +684,9 @@ impl Builder {
             .loot
             .as_ref()
             .map(|table| self.intern_loot(table));
+        let experience = components
+            .experience_drop
+            .map(|drop| self.intern_experience(drop));
         let fluid = components.fluid_state.as_ref().map(|fluid| FluidState {
             fluid: self.intern_fluid(&fluid.fluid),
             level: fluid.level,
@@ -656,6 +710,7 @@ impl Builder {
             instrument: components.instrument_sound.unwrap().0,
             redstone_power: components.redstone_producer.map_or(0, |p| p.power),
             loot,
+            experience,
             fluid,
             flags,
         }
@@ -676,6 +731,7 @@ impl Builder {
             shapes: std::mem::take(&mut self.shapes),
             fluids: std::mem::take(&mut self.fluids),
             loot: std::mem::take(&mut self.loot),
+            experience: std::mem::take(&mut self.experience),
             blocks: std::mem::take(&mut self.blocks),
             owners: std::mem::take(&mut self.owners),
             by_identifier,

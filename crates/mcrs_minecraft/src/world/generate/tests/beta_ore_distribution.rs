@@ -8,7 +8,6 @@ use mcrs_minecraft_worldgen::feature::config::{OreConfig, OreYOffset, TargetBloc
 use mcrs_protocol::BlockStateId;
 use mcrs_random::Random;
 use mcrs_random::legacy::LegacyRandom;
-use mcrs_vanilla::block::minecraft;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use crate::world::generate::{BetaOreBlockIds, place_all_ores};
@@ -99,7 +98,7 @@ impl Random for CountingRng {
 
 fn stone_sections() -> (Vec<Option<(BlockPalette, BiomePalette)>>, Vec<i32>) {
     let y_sections: Vec<i32> = (0..8).collect();
-    let stone = minecraft::STONE.default_state_id;
+    let stone = super::corpus().default_state("minecraft:stone");
     let sections = (0..8)
         .map(|_| {
             let mut p = BlockPalette::default();
@@ -283,7 +282,7 @@ fn write_block(
 
 #[test]
 fn beta_ore_distribution() {
-    let ids = BetaOreBlockIds::resolve();
+    let ids = BetaOreBlockIds::resolve(super::corpus());
     let seed = populate_seed(0, 0, 12345);
     let mut rng = LegacyRandom::new(seed as u64);
     let (counts, ys) = simulate(&mut rng, &ids);
@@ -324,7 +323,7 @@ const ORE_DRAW_COUNT_CHUNK_0_0_SEED_12345: u64 = 3737;
 
 #[test]
 fn beta_ore_draw_count_pin() {
-    let ids = BetaOreBlockIds::resolve();
+    let ids = BetaOreBlockIds::resolve(super::corpus());
     let seed = populate_seed(0, 0, 12345);
 
     // Real driver stream.

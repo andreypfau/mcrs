@@ -17,6 +17,14 @@ impl Enchantments {
         self.map.get(&id).copied().unwrap_or(0)
     }
 
+    pub fn insert(&mut self, id: u16, level: u8) {
+        self.map.insert(id, level);
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (u16, u8)> + '_ {
+        self.map.iter().map(|(&id, &level)| (id, level))
+    }
+
     pub fn has_enchantment(&self, id: u16) -> bool {
         self.map.contains_key(&id)
     }

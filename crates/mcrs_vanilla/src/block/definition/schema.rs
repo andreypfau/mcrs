@@ -247,6 +247,96 @@ impl Serialize for BoxList {
     }
 }
 
+/// Java's `IntProviders.CODEC`: a constant is a bare integer and anything else
+/// is the dispatched object. Only the two forms the corpus carries are named;
+/// a third would be an unknown variant and so a load error.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum IntProvider {
+    Constant(i32),
+    Uniform { min_inclusive: i32, max_inclusive: i32 },
+}
+
+impl IntProvider {
+    pub fn min_inclusive(self) -> i32 {
+        match self {
+            IntProvider::Constant(value) => value,
+            IntProvider::Uniform { min_inclusive, .. } => min_inclusive,
+        }
+    }
+
+    pub fn max_inclusive(self) -> i32 {
+        match self {
+            IntProvider::Constant(value) => value,
+            IntProvider::Uniform { max_inclusive, .. } => max_inclusive,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "type", deny_unknown_fields)]
+enum DispatchedIntProvider {
+    #[serde(rename = "minecraft:uniform")]
+    Uniform { min_inclusive: i32, max_inclusive: i32 },
+}
+
+impl<'de> Deserialize<'de> for IntProvider {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct V;
+
+        impl<'de> Visitor<'de> for V {
+            type Value = IntProvider;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("an integer or an int provider object")
+            }
+
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<IntProvider, E> {
+                i32::try_from(v)
+                    .map(IntProvider::Constant)
+                    .map_err(|_| E::custom(format!("int provider constant {v} is out of range")))
+            }
+
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<IntProvider, E> {
+                i32::try_from(v)
+                    .map(IntProvider::Constant)
+                    .map_err(|_| E::custom(format!("int provider constant {v} is out of range")))
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<IntProvider, A::Error> {
+                match DispatchedIntProvider::deserialize(de::value::MapAccessDeserializer::new(
+                    map,
+                ))? {
+                    DispatchedIntProvider::Uniform {
+                        min_inclusive,
+                        max_inclusive,
+                    } => Ok(IntProvider::Uniform {
+                        min_inclusive,
+                        max_inclusive,
+                    }),
+                }
+            }
+        }
+
+        d.deserialize_any(V)
+    }
+}
+
+impl Serialize for IntProvider {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match *self {
+            IntProvider::Constant(value) => s.serialize_i32(value),
+            IntProvider::Uniform {
+                min_inclusive,
+                max_inclusive,
+            } => DispatchedIntProvider::Uniform {
+                min_inclusive,
+                max_inclusive,
+            }
+            .serialize(s),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct DestructibleByExplosion {
@@ -634,6 +724,7 @@ components! {
     "minecraft:block_entity" => block_entity: BlockEntityDef,
     "minecraft:redstone_producer" => redstone_producer: RedstoneProducer,
     "minecraft:loot" => loot: ResourceLocation<Arc<str>>,
+    "mcrs:experience_drop" => experience_drop: IntProvider,
     "mcrs:use_shape_for_light_occlusion" => use_shape_for_light_occlusion: bool,
     "mcrs:fluid_state" => fluid_state: FluidStateDef,
     "mcrs:occlusion_shape" => occlusion_shape: BoxList,
@@ -645,6 +736,7 @@ components! {
 /// ignite it, no block entity, no redstone signal.
 pub const OPTIONAL_COMPONENTS: &[&str] = &[
     "mcrs:fluid_state",
+    "mcrs:experience_drop",
     "minecraft:loot",
     "minecraft:replaceable",
     "minecraft:flammable",

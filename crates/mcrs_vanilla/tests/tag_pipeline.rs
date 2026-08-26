@@ -6,7 +6,7 @@ use mcrs_core::resource_location::ResourceLocation;
 use mcrs_core::tag::TagLoader;
 use mcrs_core::tag::key::TagKey;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_core::{AppState, StaticRegistry};
+use mcrs_core::AppState;
 use mcrs_vanilla::MinecraftCorePlugin;
 use mcrs_vanilla::block::definition::Blocks;
 use mcrs_vanilla::block::{Block, tags as block_tags};

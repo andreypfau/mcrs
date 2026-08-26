@@ -689,6 +689,7 @@ fn reprioritize_columns(
 fn dispatch_column_generation(
     mut scheduler: ResMut<ColumnScheduler>,
     overworld_noise_router: Res<OverworldNoiseRouter>,
+    blocks: Res<Blocks>,
     active_biome_source: Option<Res<ActiveBiomeSource>>,
     biome_registry: Option<Res<RegistrySnapshot<Biome>>>,
     mut cached_biome_registry: Local<Option<Arc<RegistrySnapshot<Biome>>>>,
@@ -759,6 +760,7 @@ fn dispatch_column_generation(
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
         let biome_ctx = biome_context.clone();
+        let block_definitions = blocks.0.clone();
 
         // Extract section data for the task
         let sections_data: Vec<(Entity, ChunkPos)> = pending_column
@@ -785,6 +787,7 @@ fn dispatch_column_generation(
                 &y_sections,
                 router,
                 biome_context,
+                &block_definitions,
                 &cancel_clone,
             );
 
@@ -803,11 +806,12 @@ fn dispatch_column_generation(
                         col.z * 16,
                         router,
                         src,
+                        &block_definitions,
                         &mut rng,
                     );
 
                     let world_seed = router.world_seed() as i64;
-                    let cave_ids = BetaCaveBlockIds::resolve();
+                    let cave_ids = BetaCaveBlockIds::resolve(&block_definitions);
                     let cave_config =
                         mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig {
                             air_state: cave_ids.air,
@@ -832,7 +836,7 @@ fn dispatch_column_generation(
                         &cave_ids,
                     );
 
-                    let ore_ids = BetaOreBlockIds::resolve();
+                    let ore_ids = BetaOreBlockIds::resolve(&block_definitions);
                     apply_beta_ores(
                         &mut results,
                         &y_sections,

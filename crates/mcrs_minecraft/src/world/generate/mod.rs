@@ -13,7 +13,7 @@ use mcrs_vanilla::biome::beta_surface::beta_surface_blocks;
 use mcrs_vanilla::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
 };
-use mcrs_vanilla::block::minecraft;
+use mcrs_vanilla::block::definition::BlockDefinitions;
 
 /// Generate a single section using a pre-populated column cache and interpolator.
 /// The column cache and interpolator are passed in so they can be reused across
@@ -216,6 +216,7 @@ fn fill_sections_beta_f64(
     noise_router: &NoiseRouter,
     terrain: &BetaTerrainF64,
     biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
+    blocks: &BlockDefinitions,
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
     let block_x = section_x * 16;
@@ -224,7 +225,7 @@ fn fill_sections_beta_f64(
     let sea_level = noise_router.sea_level();
     let stone_id = noise_router.default_block_state().0 as u32;
     let water_id = noise_router.default_fluid_state().0 as u32;
-    let ice_id = minecraft::ICE.default_state_id.0 as u32;
+    let ice_id = blocks.default_state("minecraft:ice").0 as u32;
     let _air_id = 0u32;
 
     // Sample the 16×16 climate grids needed by computeDensity.
@@ -326,6 +327,7 @@ pub fn generate_column(
     y_sections: &[i32],
     noise_router: &NoiseRouter,
     biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
+    blocks: &BlockDefinitions,
     cancel: &CancellationToken,
 ) -> Vec<Option<(BlockPalette, BiomePalette)>> {
     // Beta path: use exact f64 density computation instead of the f32 density tree.
@@ -337,6 +339,7 @@ pub fn generate_column(
             noise_router,
             terrain,
             biome_context,
+            blocks,
             cancel,
         );
     }
@@ -479,6 +482,7 @@ pub fn apply_beta_surface(
     block_z: i32,
     noise_router: &NoiseRouter,
     biome_source: &BiomeSource,
+    blocks: &BlockDefinitions,
     rng: &mut LegacyRandom,
 ) {
     let Some(beach_noise) = noise_router.beta_beach_noise() else {
@@ -498,10 +502,11 @@ pub fn apply_beta_surface(
     let sea_level = noise_router.sea_level();
     let default_fluid = noise_router.default_fluid_state();
     let stone = noise_router.default_block_state();
-    let bedrock = minecraft::BEDROCK.default_state_id;
-    let sandstone = minecraft::SANDSTONE.default_state_id;
-    let gravel = minecraft::GRAVEL.default_state_id;
-    let ice = minecraft::ICE.default_state_id;
+    let bedrock = blocks.default_state("minecraft:bedrock");
+    let sandstone = blocks.default_state("minecraft:sandstone");
+    let gravel = blocks.default_state("minecraft:gravel");
+    let ice = blocks.default_state("minecraft:ice");
+    let sand = blocks.default_state("minecraft:sand");
 
     const D0: f64 = 0.03125;
 
@@ -581,7 +586,7 @@ pub fn apply_beta_surface(
             } else {
                 beta_get_biome(temp, humidity)
             };
-            let (top_block, filler_block) = beta_surface_blocks(biome_land);
+            let (top_block, filler_block) = beta_surface_blocks(biome_land, blocks);
 
             // j1 in back2beta: depth counter, -1 means "not yet in surface layer".
             let mut j1: i32 = -1;
@@ -631,10 +636,10 @@ pub fn apply_beta_surface(
                                     b2 = gravel;
                                 }
                                 if flag {
-                                    b1 = minecraft::SAND.default_state_id;
+                                    b1 = sand;
                                 }
                                 if flag {
-                                    b2 = minecraft::SAND.default_state_id;
+                                    b2 = sand;
                                 }
                             }
 
@@ -656,7 +661,7 @@ pub fn apply_beta_surface(
                                     blocks.set(BlockPos::new(x_local, local_y, z_local), b2);
                                 }
                             }
-                            if j1 == 0 && b2 == minecraft::SAND.default_state_id {
+                            if j1 == 0 && b2 == sand {
                                 j1 = rng.next_i32_bound(4);
                                 b2 = sandstone;
                             }

@@ -1,9 +1,11 @@
 use mcrs_vanilla::enchantment::data::{EnchantmentCost, NetworkEnchantmentData};
+use mcrs_vanilla::enchantment::effects::EnchantmentEffects;
+use mcrs_text::Text;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct ProtoEnch {
-    description: serde_json::Value,
+    description: Text,
     min_cost: EnchantmentCost,
     max_cost: EnchantmentCost,
     anvil_cost: u32,
@@ -16,7 +18,7 @@ struct ProtoEnch {
     #[serde(default)]
     exclusive_set: Option<String>,
     #[serde(default)]
-    effects: Option<serde_json::Value>,
+    effects: Option<EnchantmentEffects>,
 }
 
 fn main() {

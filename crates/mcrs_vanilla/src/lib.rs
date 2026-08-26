@@ -137,8 +137,7 @@ impl Plugin for MinecraftCorePlugin {
         app.init_asset::<test_types::TestInstance>();
         app.register_asset_loader(test_types::TestInstanceLoader);
         app.add_plugins(world_clock::WorldClockPlugin);
-        app.init_resource::<StaticRegistry<block::Block>>()
-            .init_resource::<StaticRegistry<item::Item>>()
+        app.init_resource::<StaticRegistry<item::Item>>()
             .init_resource::<StaticRegistry<sound::SoundEvent>>()
             .init_resource::<StaticRegistry<entity::EntityType>>()
             .init_resource::<StaticRegistry<EnchantmentData>>()
@@ -388,28 +387,7 @@ impl Plugin for MinecraftCorePlugin {
                 elapsed = ?report.elapsed,
                 "loaded block definitions"
             );
-            // The hand-written `StaticRegistry<Block>` below is the older, partial
-            // registry; the two coexist until it is retired.
             app.insert_resource(block::definition::Blocks(std::sync::Arc::new(definitions)));
-        }
-        {
-            let mut blocks = app
-                .world_mut()
-                .resource_mut::<StaticRegistry<block::Block>>();
-            block::minecraft::register_all_blocks(&mut blocks);
-            tracing::info!(count = blocks.len(), "registered StaticRegistry<Block>");
-            blocks.freeze();
-            for (id, _loc, block) in blocks.iter() {
-                assert_eq!(
-                    id.raw() as u16,
-                    block.protocol_id,
-                    "block {} registered at index {} but has protocol_id {}",
-                    block.identifier,
-                    id.raw(),
-                    block.protocol_id
-                );
-            }
-            tracing::info!("frozen and validated StaticRegistry<Block>");
         }
         {
             let mut items = app.world_mut().resource_mut::<StaticRegistry<item::Item>>();
@@ -838,19 +816,12 @@ fn resolve_timeline_tags(
 }
 
 fn register_static_registries_with_access(
-    block_registry: Res<StaticRegistry<block::Block>>,
     item_registry: Res<StaticRegistry<item::Item>>,
     sound_registry: Res<StaticRegistry<sound::SoundEvent>>,
     entity_registry: Res<StaticRegistry<entity::EntityType>>,
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
     mut access: ResMut<mcrs_core::RegistryAccess>,
 ) {
-    access.register(Box::new(mcrs_core::RegistrySnapshotErased::from_static(
-        "minecraft:block",
-        &block_registry,
-        |_, _| None,
-        Some(mcrs_core::PackSource::vanilla_core()),
-    )));
     access.register(Box::new(mcrs_core::RegistrySnapshotErased::from_static(
         "minecraft:item",
         &item_registry,

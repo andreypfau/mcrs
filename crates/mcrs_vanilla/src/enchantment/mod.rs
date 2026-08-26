@@ -1,4 +1,7 @@
 pub mod data;
+pub mod effects;
+pub mod predicate;
+pub mod value;
 pub mod registry;
 pub mod tags;
 

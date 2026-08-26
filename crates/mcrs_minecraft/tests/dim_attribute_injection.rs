@@ -85,7 +85,6 @@ fn build_app() -> App {
     app.init_resource::<DimDespawnQueue>();
     app.insert_resource(RegistryAccess::default());
     app.insert_resource(make_stub_block_light_table());
-    app.insert_resource(StaticRegistry::<Block>::new());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());

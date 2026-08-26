@@ -5,7 +5,7 @@ use mcrs_minecraft_worldgen::feature::config::{OreConfig, OreYOffset, TargetBloc
 use mcrs_protocol::BlockStateId;
 use mcrs_random::Random;
 use mcrs_random::legacy::LegacyRandom;
-use mcrs_vanilla::block::minecraft;
+use mcrs_vanilla::block::definition::BlockDefinitions;
 
 pub struct BetaOreBlockIds {
     pub stone: BlockStateId,
@@ -22,20 +22,20 @@ pub struct BetaOreBlockIds {
 }
 
 impl BetaOreBlockIds {
-    pub fn resolve() -> Self {
+    pub fn resolve(blocks: &BlockDefinitions) -> Self {
         BetaOreBlockIds {
-            stone: minecraft::STONE.default_state_id,
-            clay: minecraft::CLAY.default_state_id,
-            dirt: minecraft::DIRT.default_state_id,
-            gravel: minecraft::GRAVEL.default_state_id,
-            coal: minecraft::COAL_ORE.default_state_id,
-            iron: minecraft::IRON_ORE.default_state_id,
-            gold: minecraft::GOLD_ORE.default_state_id,
+            stone: blocks.default_state("minecraft:stone"),
+            clay: blocks.default_state("minecraft:clay"),
+            dirt: blocks.default_state("minecraft:dirt"),
+            gravel: blocks.default_state("minecraft:gravel"),
+            coal: blocks.default_state("minecraft:coal_ore"),
+            iron: blocks.default_state("minecraft:iron_ore"),
+            gold: blocks.default_state("minecraft:gold_ore"),
             // REDSTONE_ORE default state carries lit=false, matching Beta placement
-            redstone: minecraft::REDSTONE_ORE.default_state_id,
-            diamond: minecraft::DIAMOND_ORE.default_state_id,
-            lapis: minecraft::LAPIS_ORE.default_state_id,
-            water: minecraft::WATER.default_state_id,
+            redstone: blocks.default_state("minecraft:redstone_ore"),
+            diamond: blocks.default_state("minecraft:diamond_ore"),
+            lapis: blocks.default_state("minecraft:lapis_ore"),
+            water: blocks.default_state("minecraft:water"),
         }
     }
 }
