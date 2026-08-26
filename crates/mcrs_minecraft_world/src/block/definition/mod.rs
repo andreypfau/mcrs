@@ -380,10 +380,12 @@ pub fn load_block_definitions(
     })?;
     paths.sort();
 
-    let mut builder = Builder::new();
-    for path in &paths {
-        let display = path.display().to_string();
-        let bytes = block_on(async {
+    // One block_on for the whole corpus: entering the executor per file cost
+    // far more than reading or parsing the 1286 files put together.
+    let corpus: Vec<Vec<u8>> = block_on(async {
+        let mut corpus = Vec::with_capacity(paths.len());
+        for path in &paths {
+            let display = path.display().to_string();
             let mut file = reader.read(path).await.map_err(|source| LoadError::Read {
                 path: display.clone(),
                 source,
@@ -395,8 +397,14 @@ pub fn load_block_definitions(
                     path: display.clone(),
                     source: e.into(),
                 })?;
-            Ok::<Vec<u8>, LoadError>(bytes)
-        })?;
+            corpus.push(bytes);
+        }
+        Ok::<Vec<Vec<u8>>, LoadError>(corpus)
+    })?;
+
+    let mut builder = Builder::new();
+    for (path, bytes) in paths.iter().zip(corpus) {
+        let display = path.display().to_string();
         let file: BlockDefinitionFile =
             serde_json::from_slice(&bytes).map_err(|source| LoadError::Parse {
                 path: display.clone(),
