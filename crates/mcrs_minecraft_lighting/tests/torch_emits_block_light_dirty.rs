@@ -4,7 +4,7 @@
 // Boots `ColumnPlugin + BlockUpdatePlugin + LightingPlugin` (no network /
 // login / configuration plugins — those would require a live TCP session
 // without adding INT-05 coverage). The chain under test is
-// `BlockSetRequest → apply_set_block_request → BlockPlaced →
+// `BlockSetRequest → apply_voxel_set_requests → BlockPlaced →
 // enqueue_block_light_on_block_placed → propagate → emit_block_light_dirty
 // → BlockLightDirty`, all within one `FixedUpdate` run.
 //
@@ -52,7 +52,7 @@ fn make_test_app_with_block_update(sky: bool) -> (App, Entity) {
     // the same shape.
     app.add_message::<BlockSetRequest>();
     app.add_message::<mcrs_minecraft_block::block_update::BlockPlaced>();
-    app.add_plugins(BlockUpdatePlugin);
+    app.add_plugins(BlockUpdatePlugin::default());
     app.add_plugins(LightingPlugin);
     app.insert_resource(make_stub_block_light_table_with_torch());
     let dim_entity = spawn_test_dimension(&mut app, sky);
@@ -121,7 +121,7 @@ fn spawn_test_chunk(
     // Manually register the chunk in the dimension's `ChunkIndex`. The
     // production path runs this via the ticket / spawn_chunks pipeline; tests
     // bypass that surface and spawn chunks directly, so the index must be
-    // primed by hand. `apply_set_block_request` looks the chunk up through
+    // primed by hand. `apply_voxel_set_requests` looks the chunk up through
     // `ChunkIndex::get(chunk_pos)`, so without this mapping the request is
     // silently dropped.
     app.world_mut()
@@ -177,8 +177,8 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
     assert_eq!(column_pos, ColumnPos::new(0, 0));
 
     // Sanity check: warm-up must have populated the dimension's ChunkIndex
-    // mapping and added the ChunkNetworkSyncBlockChangesSet so that
-    // `apply_set_block_request` can locate the chunk and mutate its
+    // mapping and added the ChunkVoxelChanges so that
+    // `apply_voxel_set_requests` can locate the chunk and mutate its
     // BlockPalette in the same tick the request is read.
     {
         let world = app.world();
@@ -192,7 +192,7 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
         );
         assert!(
             world
-                .get::<mcrs_minecraft_block::block_update::ChunkNetworkSyncBlockChangesSet>(chunk)
+                .get::<mcrs_engine::voxel_update::ChunkVoxelChanges>(chunk)
                 .is_some(),
             "BlockUpdatePlugin::add_changes_set must have attached the changes set during warm-up"
         );
@@ -214,7 +214,7 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    // Confirm `apply_set_block_request` wrote the torch state into the
+    // Confirm `apply_voxel_set_requests` wrote the torch state into the
     // palette; without this the rest of the chain is moot and the
     // BlockLightDirty assertion would mis-diagnose the failure.
     let world = app.world();
@@ -225,7 +225,7 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
     assert_eq!(
         palette_state,
         VoxelId(2),
-        "apply_set_block_request must have replaced the cell with the torch state"
+        "apply_voxel_set_requests must have replaced the cell with the torch state"
     );
 
     let msgs = world.resource::<Messages<BlockLightDirty>>();

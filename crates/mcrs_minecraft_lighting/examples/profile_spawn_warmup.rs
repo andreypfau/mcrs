@@ -13,7 +13,7 @@ use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use mcrs_engine::world::storage::column::ColumnLifecycleSet;
-use mcrs_minecraft_block::block_update::BlockUpdateSet;
+use mcrs_engine::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_lighting::components::{BlockBfsPending, SkyBfsPending};
 use mcrs_minecraft_lighting::metrics::snapshot as lighting_snapshot;
 use mcrs_minecraft_lighting::sets::LightingSet;
@@ -183,17 +183,17 @@ impl Plugin for PhaseTimingPlugin {
                     .before(ColumnLifecycleSet::AttachState),
                 end_phase!(attach_state_start, attach_state_total)
                     .after(ColumnLifecycleSet::AttachState)
-                    .before(BlockUpdateSet::ApplyChanges),
+                    .before(VoxelUpdateSet::ApplyChanges),
             ),
         );
 
-        // LightingSet::Enqueue. Brackets after BlockUpdateSet so the
+        // LightingSet::Enqueue. Brackets after VoxelUpdateSet so the
         // BlockUpdate stage time is not folded in.
         app.add_systems(
             FixedUpdate,
             (
                 start_phase!(enqueue_start)
-                    .after(BlockUpdateSet::ApplyChanges)
+                    .after(VoxelUpdateSet::ApplyChanges)
                     .before(LightingSet::Enqueue),
                 end_phase!(enqueue_start, enqueue_total)
                     .after(LightingSet::Enqueue)

@@ -28,9 +28,11 @@ use bevy_ecs::schedule::{Schedule, SingleThreadedExecutor};
 use bevy_state::prelude::OnEnter;
 use mcrs_core::AppState;
 use mcrs_core::tag::TagPhase;
+use mcrs_engine::voxel_update::{VoxelUpdateSet, apply_voxel_set_requests};
 use mcrs_engine::world::storage::column::ColumnLifecycleSet;
+use mcrs_minecraft_block::block::BlockUpdateFlags;
+use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_vanilla::transition_to_playing;
-use mcrs_minecraft_block::block_update::{BlockPlaced, BlockUpdateSet, apply_set_block_request};
 
 pub struct BlockLightTablePlugin;
 
@@ -84,7 +86,7 @@ impl Plugin for LightingPlugin {
 
         app.add_systems(
             FixedUpdate,
-            update_heightmaps_on_block_placed.after(apply_set_block_request),
+            update_heightmaps_on_block_placed.after(apply_voxel_set_requests::<BlockUpdateFlags>),
         );
 
         // Sub-schedule registration. `add_schedule` takes a `Schedule` value,
@@ -114,7 +116,7 @@ impl Plugin for LightingPlugin {
                 ColumnLifecycleSet::ReconcileIndex,
                 ColumnLifecycleSet::PrimeHeightmaps,
                 ColumnLifecycleSet::AttachState,
-                BlockUpdateSet::ApplyChanges,
+                VoxelUpdateSet::ApplyChanges,
                 LightingSet::Enqueue,
                 LightingSet::Converge,
                 LightingSet::EmitDirty,
@@ -133,9 +135,9 @@ impl Plugin for LightingPlugin {
             (
                 ApplyDeferred
                     .after(ColumnLifecycleSet::AttachState)
-                    .before(BlockUpdateSet::ApplyChanges),
+                    .before(VoxelUpdateSet::ApplyChanges),
                 ApplyDeferred
-                    .after(BlockUpdateSet::ApplyChanges)
+                    .after(VoxelUpdateSet::ApplyChanges)
                     .before(LightingSet::Enqueue),
                 ApplyDeferred
                     .after(LightingSet::Enqueue)

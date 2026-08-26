@@ -35,7 +35,7 @@ use mcrs_minecraft_block::palette::BlockPalette;
 /// `Column`. Applies the `y + 2 <= current_height` early-out per type;
 /// falls back to a single top-down rescan when the early-out fails.
 ///
-/// Runs in `FixedUpdate` with `.after(apply_set_block_request)` so the
+/// Runs in `FixedUpdate` with `.after(apply_voxel_set_requests)` so the
 /// `MessageReader<BlockPlaced>` sees this tick's writes; the
 /// `FixedUpdate -> FixedPostUpdate` schedule boundary provides ordering
 /// against `update_client_blocks` so downstream codec reads in
@@ -417,7 +417,7 @@ mod tests {
                 .collect();
 
             // Mutate the palette per event before the system runs, mirroring
-            // what `apply_set_block_request` does in production. The rescan
+            // what `apply_voxel_set_requests` does in production. The rescan
             // reads the palette directly, so the post-pass state depends only
             // on the final palette state — not on event order — provided no
             // two events touch the same (x,y,z).

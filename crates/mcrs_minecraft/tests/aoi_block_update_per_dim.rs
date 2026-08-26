@@ -17,7 +17,7 @@ use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft::world::block_update::update_client_blocks_per_dim;
 use mcrs_minecraft::world::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
-use mcrs_minecraft_block::block_update::ChunkNetworkSyncBlockChangesSet;
+use mcrs_engine::voxel_update::ChunkVoxelChanges;
 use mcrs_minecraft_block::palette::BlockPalette;
 
 #[test]
@@ -51,9 +51,9 @@ fn block_update_resolves_observers_per_dim_emit_site() {
     let dim_entity = app.world_mut().spawn(column_index).id();
 
     // Chunk entity with a populated change set — simulates a block-change
-    // delta the way `apply_set_block_request` would have left it.
+    // delta the way `apply_voxel_set_requests` would have left it.
     let block_pos = BlockPos::new(2, 3, 4);
-    let mut change_set = ChunkNetworkSyncBlockChangesSet::default();
+    let mut change_set = ChunkVoxelChanges::default();
     change_set.changes.insert(block_pos);
     let _chunk_entity = app
         .world_mut()

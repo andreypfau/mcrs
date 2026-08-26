@@ -31,7 +31,7 @@ impl Plugin for ExplosionPlugin {
 /// Default: `true`. `ExplosionPlugin` and `BlockUpdatePlugin` both run in
 /// each `DimSubApp`, so the `MessageWriter<BlockSetRequest>` from
 /// `tick_explode` and the matching `MessageReader<BlockSetRequest>` in
-/// `apply_set_block_request` live in the same per-dim `World`. The
+/// `apply_voxel_set_requests` live in the same per-dim `World`. The
 /// cascade chain is a single message hop — no two-frame buffer rotation
 /// across a cross-`World` boundary — so emitted requests reach the reader
 /// in the same tick and the secondary TNT actually detonates.
@@ -199,7 +199,7 @@ fn tick_explode(
         let block_pos = event.block_pos;
         commands.trigger(event);
         if cascading_enabled {
-            Some(BlockSetRequest::remove_block(dim, block_pos))
+            Some(remove_block(dim, block_pos))
         } else {
             None
         }
@@ -291,7 +291,7 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::Commands;
 use bevy_math::DVec3;
 use bevy_utils::Parallel;
-use mcrs_minecraft_block::block_update::BlockSetRequest;
+use mcrs_minecraft_block::block_update::{BlockSetRequest, remove_block};
 use mcrs_vanilla::block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
 use rand::{RngExt, rng};
 use std::sync::OnceLock;
@@ -344,7 +344,7 @@ mod tests {
     use mcrs_minecraft_block::block_update::BlockSetRequest;
 
     /// `ExplosionConfig::default()` keeps cascading enabled now that the
-    /// `tick_explode` writer and the matching `apply_set_block_request`
+    /// `tick_explode` writer and the matching `apply_voxel_set_requests`
     /// reader share a per-dim `World`. The single message hop guarantees
     /// `BlockSetRequest` reaches the reader in the same tick.
     #[test]

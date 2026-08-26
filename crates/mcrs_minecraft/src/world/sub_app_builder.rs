@@ -174,7 +174,7 @@ pub fn spawn_dim_subapp(
     // reads it via MessageReader.
     sub_app.add_message::<PlayerWillDestroyBlock>();
     // `ExplosionPlugin::tick_explode` writes `MessageWriter<BlockSetRequest>`
-    // and `BlockUpdatePlugin::apply_set_block_request` reads the same buffer;
+    // and `apply_voxel_set_requests` reads the same buffer;
     // both plugins now live in this per-dim sub-app so the explosion ->
     // block-set chain runs as a single message hop. The sub-app builder is
     // the single source of truth for these registrations — `BlockUpdatePlugin`
@@ -254,7 +254,7 @@ pub fn spawn_dim_subapp(
     // `MinecraftEntityPlugin`, `LootPlugin`) run inside the per-dim
     // sub-app's `World`. `ExplosionPlugin::tick_explode` writes
     // `MessageWriter<BlockSetRequest>`; `BlockUpdatePlugin`'s
-    // `apply_set_block_request` reads the same per-dim buffer in the
+    // `apply_voxel_set_requests` reads the same per-dim buffer in the
     // same world, restoring the single-hop block-update path. The
     // additional `BlockUpdateWirePlugin` (defined in
     // `crate::world::block_update`) registers the per-dim wire-emit
@@ -268,7 +268,7 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(MinecraftBlockPlugin);
     sub_app.add_plugins(ExplosionPlugin);
     sub_app.add_plugins(PlayerTrackerPlugin);
-    sub_app.add_plugins(BlockUpdatePlugin);
+    sub_app.add_plugins(BlockUpdatePlugin::default());
     sub_app.add_plugins(BlockUpdateWirePlugin);
     sub_app.add_plugins(MinecraftEntityPlugin);
     sub_app.add_plugins(LootPlugin);

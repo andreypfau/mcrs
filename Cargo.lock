@@ -3152,6 +3152,7 @@ dependencies = [
  "flate2",
  "mcrs_minecraft",
  "mcrs_minecraft_nbt",
+ "mcrs_protocol",
  "mcrs_telemetry",
  "mcrs_voxel_storage",
  "objc2-foundation 0.3.2",
@@ -3170,6 +3171,7 @@ dependencies = [
  "flate2",
  "lz4-java-wrc",
  "mcrs_minecraft_nbt",
+ "mcrs_protocol",
  "mcrs_voxel_storage",
  "serde",
  "thiserror 2.0.18",
@@ -3239,6 +3241,7 @@ dependencies = [
  "mcrs_network",
  "mcrs_vanilla",
  "mcrs_voxel_math",
+ "mcrs_voxel_storage",
  "rustc-hash 2.1.1",
  "smallvec",
  "tracing",
@@ -3519,6 +3522,8 @@ dependencies = [
 name = "mcrs_voxel_storage"
 version = "0.1.0"
 dependencies = [
+ "bevy_ecs",
+ "mcrs_voxel_math",
  "rustc-hash 2.1.1",
 ]
 

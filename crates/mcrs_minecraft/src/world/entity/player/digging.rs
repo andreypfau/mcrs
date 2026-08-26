@@ -22,7 +22,7 @@ use mcrs_engine::session::PlayerSession;
 use mcrs_voxel_math::BlockPos;
 use mcrs_engine::world::dimension::{DimensionPlayers, InDimension};
 use mcrs_engine::world::storage::chunk::ChunkIndex;
-use mcrs_minecraft_block::block_update::BlockSetRequest;
+use mcrs_minecraft_block::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 
@@ -446,6 +446,6 @@ fn handle_player_will_destroy_block(
             });
         }
 
-        writer.write(BlockSetRequest::remove_block(**dim, event.block_pos));
+        writer.write(remove_block(**dim, event.block_pos));
     });
 }

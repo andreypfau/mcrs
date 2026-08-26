@@ -190,7 +190,7 @@ fn eager_update_below_surface_early_out() {
 #[test]
 fn eager_update_above_surface_rescan() {
     // Start with the solid-floor palette (surface=4). In production
-    // `apply_set_block_request` writes the palette before emitting BlockPlaced,
+    // `apply_voxel_set_requests` writes the palette before emitting BlockPlaced,
     // so the test mutates the palette directly then emits the message manually.
     // Placing a solid block at intra-chunk Y=10 (absolute Y=10) should
     // raise both heightmaps to 11.

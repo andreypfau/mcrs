@@ -408,7 +408,7 @@ fn snapshot_cross_chunk_horizontal() {
     );
 
     // One FixedUpdate tick drives the whole convergence loop end-to-end:
-    //   BlockUpdateSet::ApplyChanges -> LightingSet::Enqueue
+    //   VoxelUpdateSet::ApplyChanges -> LightingSet::Enqueue
     //   -> LightingSet::Converge (loops LightConvergeSchedule:
     //      PropagateDecrease -> DistributeDecrease
     //      -> PropagateIncrease -> DistributeIncrease)

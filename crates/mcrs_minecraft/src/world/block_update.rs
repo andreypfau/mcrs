@@ -22,7 +22,7 @@ use mcrs_voxel_math::ColumnPos;
 use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::storage::column::ColumnIndex;
-use mcrs_minecraft_block::block_update::{BlockUpdateSet, ChunkNetworkSyncBlockChangesSet};
+use mcrs_engine::voxel_update::{ChunkVoxelChanges, VoxelUpdateSet};
 use mcrs_minecraft_block::palette::BlockPalette;
 use smallvec::SmallVec;
 
@@ -33,7 +33,7 @@ use std::sync::atomic::Ordering;
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 
 /// Per-dim wire emitter. Iterates chunks whose
-/// `ChunkNetworkSyncBlockChangesSet` changed this tick, resolves the
+/// `ChunkVoxelChanges` changed this tick, resolves the
 /// observer set through the chunk's column (`ColumnPos::from(chunk_pos)`
 /// -> `ColumnIndex.0.get` -> column entity -> `PlayerObservers`), and
 /// emits one `OutboundPlayerPacket { target: PlayerSet, priority: Normal,
@@ -55,9 +55,9 @@ pub fn update_client_blocks_per_dim(
             &ChunkPos,
             &InDimension,
             &BlockPalette,
-            &mut ChunkNetworkSyncBlockChangesSet,
+            &mut ChunkVoxelChanges,
         ),
-        Changed<ChunkNetworkSyncBlockChangesSet>,
+        Changed<ChunkVoxelChanges>,
     >,
     column_indices: Query<&ColumnIndex>,
     observers: Query<&PlayerObservers>,
@@ -116,7 +116,7 @@ impl Plugin for BlockUpdateWirePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             FixedPostUpdate,
-            update_client_blocks_per_dim.in_set(BlockUpdateSet::NetworkSync),
+            update_client_blocks_per_dim.in_set(VoxelUpdateSet::NetworkSync),
         );
     }
 }

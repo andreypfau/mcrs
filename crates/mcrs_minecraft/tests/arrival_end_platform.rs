@@ -24,9 +24,8 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft::world::sub_app_builder::DimInboxDrain;
 use mcrs_minecraft::world::sub_app_builder::DimSubAppHandle;
-use mcrs_minecraft_block::block_update::{
-    BlockPlaced, BlockSetRequest, BlockUpdatePlugin, ChunkNetworkSyncBlockChangesSet,
-};
+use mcrs_engine::voxel_update::ChunkVoxelChanges;
+use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest, BlockUpdatePlugin};
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 use mcrs_protocol::uuid::Uuid;
@@ -193,14 +192,14 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         sub.init_resource::<DimPlayerIndex>();
 
         // Pre-insert a loaded chunk at the floor chunk position (y=63).
-        // Include ChunkNetworkSyncBlockChangesSet so apply_set_block_request can write blocks
+        // Include ChunkVoxelChanges so apply_voxel_set_requests can write blocks
         // without waiting for add_changes_set deferred command to flush.
         let chunk_entity = sub
             .world_mut()
             .spawn((
                 Chunk,
                 BlockPalette::default(),
-                ChunkNetworkSyncBlockChangesSet::default(),
+                ChunkVoxelChanges::default(),
             ))
             .id();
         let dim_entity = sub.world_mut().spawn(Dimension).id();
@@ -209,7 +208,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         sub.world_mut().entity_mut(dim_entity).insert(chunk_index);
 
         sub.add_schedule(Schedule::new(First));
-        sub.add_plugins(BlockUpdatePlugin);
+        sub.add_plugins(BlockUpdatePlugin::default());
         sub.add_plugins(ArrivalPlugin);
         sub.add_systems(FixedPreUpdate, drain_inbox.in_set(DimInboxDrain));
 
@@ -243,7 +242,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
     }
 
     // Drive several ticks so the arrival system processes SpawnEntity (FixedPreUpdate)
-    // and apply_set_block_request applies the writes (FixedUpdate).
+    // and apply_voxel_set_requests applies the writes (FixedUpdate).
     for _ in 0..4 {
         app.update();
     }
