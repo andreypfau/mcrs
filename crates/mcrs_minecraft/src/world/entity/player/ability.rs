@@ -3,6 +3,8 @@ use bevy_ecs::prelude::Component;
 use derive_more::{Deref, DerefMut};
 use mcrs_protocol::GameMode;
 
+pub use mcrs_vanilla::entity::player::InstantBuild;
+
 #[derive(Component, Debug, Clone, Copy, Deref, DerefMut)]
 pub struct PlayerGameMode(pub GameMode);
 
@@ -35,10 +37,6 @@ pub struct Flying(pub bool);
 
 #[derive(Component, Default, Debug, Clone, Copy, Deref, DerefMut)]
 pub struct MayFly(pub bool);
-
-#[derive(Component, Default, Debug, Clone, Copy)]
-#[component(storage = "SparseSet")]
-pub struct InstantBuild;
 
 #[derive(Component, Debug, Clone, Copy, Deref, DerefMut)]
 pub struct MayBuild(pub bool);

@@ -1,6 +1,6 @@
-use crate::value::IntValueProvider;
 use mcrs_nbt::compound::NbtCompound;
 use mcrs_nbt::tag::NbtTag;
+use mcrs_vanilla::value::IntValueProvider;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
@@ -64,7 +64,7 @@ fn overworld_dimension_type() -> DimensionType {
         ambient_light: 0.0,
         monster_spawn_block_light_limit: 0,
         monster_spawn_light_level: IntValueProvider::Tagged(
-            crate::value::TaggedIntValueProvider::Uniform {
+            mcrs_vanilla::value::TaggedIntValueProvider::Uniform {
                 min_inclusive: 0,
                 max_inclusive: 7,
             },

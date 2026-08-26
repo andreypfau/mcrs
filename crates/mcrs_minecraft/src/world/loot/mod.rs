@@ -3,7 +3,6 @@ pub mod context;
 pub mod entry;
 pub mod function;
 
-use crate::enchantment::EnchantmentData;
 use crate::world::loot::condition::{LootCondition, LootConditionProto};
 use crate::world::loot::context::{BlockBreakContext, LootDrop};
 use crate::world::loot::entry::LootEntryProto;
@@ -22,6 +21,7 @@ use bevy_reflect::TypePath;
 use mcrs_core::StaticRegistry;
 use mcrs_protocol::Ident;
 use mcrs_vanilla::block::definition::{BlockDefinitions, Blocks, LootId};
+use mcrs_vanilla::enchantment::EnchantmentData;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
