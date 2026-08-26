@@ -98,7 +98,7 @@ pub(crate) fn neighbour_contribution(
         return None;
     }
 
-    let neighbour_state = palette.get(BlockPos::new(nx, ny, nz));
+    let neighbour_state: VoxelId = palette.get(BlockPos::new(nx, ny, nz));
     let neighbour_level = light.get(nx as usize, ny as usize, nz as usize);
     let dampening = table.dampening_for(self_state).max(1);
 

@@ -70,7 +70,7 @@ fn read_block(
 ) -> Option<BlockStateId> {
     let chunk_entity = chunk_index.get(ChunkPos::from(pos))?;
     let palette = palette_query.get(chunk_entity).ok()?;
-    Some(palette.get(pos))
+    Some(palette.get(pos).into())
 }
 
 #[cfg(test)]

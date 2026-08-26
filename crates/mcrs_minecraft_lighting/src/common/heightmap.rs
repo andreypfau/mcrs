@@ -18,6 +18,7 @@
 use bevy_ecs::prelude::Entity;
 use mcrs_engine::world::storage::column::ColumnChunks;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_voxel_storage::VoxelId;
 
 use crate::bitset::BitSet256;
 use crate::table::{BlockStateLightTable, flag_bits};
@@ -250,7 +251,7 @@ where
                 if !s_open && !m_open {
                     continue;
                 }
-                let state = palette.get((x as i32, cell_y, z as i32));
+                let state: VoxelId = palette.get((x as i32, cell_y, z as i32));
                 let flags = table.flags_for(state);
                 let world_y = chunk_base_y + cell_y;
 

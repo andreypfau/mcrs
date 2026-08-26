@@ -59,7 +59,7 @@ where
         while !abort && z < z_max {
             let mut y = y_max + 1;
             while !abort && y >= y_min - 1 {
-                if y >= 0 && y < 128 {
+                if (0..128).contains(&y) {
                     let state = get_block(x, y, z);
                     if state == water_state || state == stationary_water_state {
                         abort = true;

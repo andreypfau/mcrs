@@ -118,7 +118,7 @@ impl ShapeRegistry {
             .iter()
             .find(|entry| shapes_equal(entry, &shape))
         {
-            return *existing;
+            return existing;
         }
         let leaked: &'static VoxelShape = Box::leak(Box::new(shape));
         self.entries.push(leaked);

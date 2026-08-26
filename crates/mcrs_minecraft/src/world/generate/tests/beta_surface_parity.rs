@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use base64::Engine as _;
 use bevy_asset::Assets;
 use mcrs_core::RegistrySnapshot;
 use mcrs_core::resource_location::ResourceLocation;
@@ -11,7 +10,7 @@ use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_protocol::BlockStateId;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::{
-    BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome, build_beta_lookup_table,
+    BetaLandBiome, BiomeSource, beta_biome_from_climate, build_beta_lookup_table,
 };
 
 use crate::world::chunk::CancellationToken;
@@ -377,8 +376,8 @@ fn build_beta_router() -> mcrs_minecraft_worldgen::density_function::NoiseRouter
         &noises,
         &settings,
         12345,
-        super::corpus().default_state("minecraft:stone"),
-        super::corpus().default_state("minecraft:water"),
+        super::corpus().default_state("minecraft:stone").into(),
+        super::corpus().default_state("minecraft:water").into(),
     )
 }
 
@@ -501,7 +500,7 @@ fn beta_surface_parity_gate() {
                         let world_y = base_y + local_y;
                         if world_y < 128 {
                             generated[world_y as usize] =
-                                blocks.get(BlockPos::new(local_x, local_y, local_z));
+                                blocks.get(BlockPos::new(local_x, local_y, local_z)).into();
                         }
                     }
                 }

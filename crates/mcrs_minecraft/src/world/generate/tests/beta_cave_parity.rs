@@ -12,6 +12,7 @@ use mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_protocol::BlockStateId;
+use mcrs_voxel_storage::VoxelId;
 use mcrs_random::Random;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_vanilla::biome::Biome;
@@ -131,13 +132,13 @@ fn beta_id_for_modern(modern: BlockStateId) -> u8 {
 fn make_cave_config() -> (BetaCaveCarverConfig, BetaCaveBlockIds) {
     let ids = BetaCaveBlockIds::resolve(super::corpus());
     let config = BetaCaveCarverConfig {
-        air_state: ids.air,
-        lava_state: ids.lava,
-        stone_state: ids.stone,
-        dirt_state: ids.dirt,
-        grass_state: ids.grass,
-        water_state: ids.water,
-        stationary_water_state: ids.stationary_water,
+        air_state: ids.air.into(),
+        lava_state: ids.lava.into(),
+        stone_state: ids.stone.into(),
+        dirt_state: ids.dirt.into(),
+        grass_state: ids.grass.into(),
+        water_state: ids.water.into(),
+        stationary_water_state: ids.stationary_water.into(),
         lava_level: 10,
         range: 8,
         horizontal_radius_multiplier: 1.0,
@@ -185,7 +186,7 @@ impl TryRng for CountingRng {
     }
 
     fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {
-        let n = (dst.len() + 7) / 8;
+        let n = dst.len().div_ceil(8);
         for _ in 0..n {
             self.inc();
         }
@@ -259,7 +260,7 @@ fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64
             for x in 0..16i32 {
                 for y in 0..16i32 {
                     for z in 0..16i32 {
-                        p.set(BlockPos::new(x, y, z), ids.stone);
+                        p.set(BlockPos::new(x, y, z), ids.stone.into());
                     }
                 }
             }
@@ -288,26 +289,24 @@ fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64
 
             let mut counting_rng = CountingRng::new(seed as u64, draws.clone());
 
-            let get_block = |local_x: i32, world_y: i32, local_z: i32| -> BlockStateId {
+            let get_block = |local_x: i32, world_y: i32, local_z: i32| -> VoxelId {
                 let sl = unsafe { &*sections_ptr };
                 let section_y = world_y >> 4;
                 let local_y = world_y & 0xF;
-                if let Some(si) = ys.iter().position(|&sy| sy == section_y) {
-                    if let Some(Some((blocks, _))) = sl.get(si) {
+                if let Some(si) = ys.iter().position(|&sy| sy == section_y)
+                    && let Some(Some((blocks, _))) = sl.get(si) {
                         return blocks.get(BlockPos::new(local_x, local_y, local_z));
                     }
-                }
-                air
+                air.into()
             };
-            let set_block = |local_x: i32, world_y: i32, local_z: i32, state: BlockStateId| {
+            let set_block = |local_x: i32, world_y: i32, local_z: i32, state: VoxelId| {
                 let sl = unsafe { &mut *sections_ptr };
                 let section_y = world_y >> 4;
                 let local_y = world_y & 0xF;
-                if let Some(si) = ys.iter().position(|&sy| sy == section_y) {
-                    if let Some(Some((blocks, _))) = sl.get_mut(si) {
+                if let Some(si) = ys.iter().position(|&sy| sy == section_y)
+                    && let Some(Some((blocks, _))) = sl.get_mut(si) {
                         blocks.set(BlockPos::new(local_x, local_y, local_z), state);
                     }
-                }
             };
 
             carver.carve(
@@ -416,8 +415,8 @@ fn build_beta_router() -> mcrs_minecraft_worldgen::density_function::NoiseRouter
         &noises,
         &settings,
         12345,
-        super::corpus().default_state("minecraft:stone"),
-        super::corpus().default_state("minecraft:water"),
+        super::corpus().default_state("minecraft:stone").into(),
+        super::corpus().default_state("minecraft:water").into(),
     )
 }
 
@@ -510,7 +509,7 @@ fn beta_cave_parity_gate() {
                             let beta_id = fix_col.pre_cave[world_y as usize];
                             palette.set(
                                 BlockPos::new(local_x, local_y, local_z),
-                                modern_id_for_beta(beta_id),
+                                modern_id_for_beta(beta_id).into(),
                             );
                         }
                     }
@@ -541,7 +540,7 @@ fn beta_cave_parity_gate() {
                         let world_y = base_y + local_y;
                         if world_y < 128 {
                             let state = palette.get(BlockPos::new(local_x, local_y, local_z));
-                            let got = beta_id_for_modern(state);
+                            let got = beta_id_for_modern(state.into());
                             let want = fix_col.post_cave[world_y as usize];
                             if got != want {
                                 col_mismatches.push((world_y, got, want));
@@ -669,8 +668,8 @@ fn generate_column_beta_has_caves() {
         &ids,
     );
 
-    let air = ids.air;
-    let lava = ids.lava;
+    let air = VoxelId::from(ids.air);
+    let lava = VoxelId::from(ids.lava);
 
     let mut found_cave_air = false;
     let mut found_lava_below_10 = false;
@@ -737,7 +736,7 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
     let (config, ids) = make_cave_config();
     let world_seed = router.world_seed() as i64;
     let y_sections: Vec<i32> = (0..8).collect();
-    let air = ids.air;
+    let air = VoxelId::from(ids.air);
 
     let mut chunks_with_air = 0usize;
     let mut total_air = 0usize;

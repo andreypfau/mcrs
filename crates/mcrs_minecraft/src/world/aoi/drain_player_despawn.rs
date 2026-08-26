@@ -83,8 +83,8 @@ pub fn drain_inbound_player_despawn(
             if observer_entity == target {
                 continue;
             }
-            if let Ok((tracked_by, _)) = player_caches.get(observer_entity) {
-                if tracked_by.0.contains(&target) {
+            if let Ok((tracked_by, _)) = player_caches.get(observer_entity)
+                && tracked_by.0.contains(&target) {
                     packet_writer.write(OutboundPlayerPacket {
                         target: PacketTarget::SinglePlayer(observer_entity),
                         priority: PacketPriority::Normal,
@@ -97,7 +97,6 @@ pub fn drain_inbound_player_despawn(
                     mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                         .fetch_add(1, Ordering::Relaxed);
                 }
-            }
         }
 
         // Single mutable pass over all in-dim player caches.

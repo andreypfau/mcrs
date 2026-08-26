@@ -7,11 +7,10 @@
 mod mock_connection;
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
 use mcrs_minecraft::world::bridge::bridge_outbound;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
 use mcrs_minecraft::world::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
+    PacketPriority, PacketTarget,
 };
 use smallvec::SmallVec;
 

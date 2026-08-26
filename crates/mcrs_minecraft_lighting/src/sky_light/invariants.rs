@@ -79,7 +79,7 @@ fn sky_neighbour_contribution(
         return None;
     }
 
-    let neighbour_state = palette.get(BlockPos::new(nx, ny, nz));
+    let neighbour_state: VoxelId = palette.get(BlockPos::new(nx, ny, nz));
     let neighbour_level = light.get(nx as usize, ny as usize, nz as usize);
 
     let combined_flags = table.flags_for(self_state) | table.flags_for(neighbour_state);
@@ -120,7 +120,7 @@ pub fn check_sky_light_invariants(
     for y in 0..CHUNK_DIM {
         for z in 0..CHUNK_DIM {
             for x in 0..CHUNK_DIM {
-                let state = palette.get(BlockPos::new(x, y, z));
+                let state: VoxelId = palette.get(BlockPos::new(x, y, z));
                 let stored = light.get(x as usize, y as usize, z as usize);
                 let cell = BlockPos::new(x, y, z);
 
@@ -211,7 +211,7 @@ mod tests {
         let mut p = BlockPalette::default();
         p.fill(AIR);
         for (x, y, z, state) in emitters {
-            p.set(BlockPos::new(*x, *y, *z), *state);
+            p.set(BlockPos::new(*x, *y, *z), (*state));
         }
         p
     }

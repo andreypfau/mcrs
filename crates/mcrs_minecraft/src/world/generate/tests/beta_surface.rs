@@ -9,6 +9,7 @@ use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::{BiomeSource, build_beta_lookup_table};
+use mcrs_voxel_storage::VoxelId;
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::{apply_beta_surface, generate_column};
@@ -101,8 +102,8 @@ fn build_beta_router() -> mcrs_minecraft_worldgen::density_function::NoiseRouter
         &noises,
         &settings,
         12345,
-        super::corpus().default_state("minecraft:stone"),
-        super::corpus().default_state("minecraft:water"),
+        super::corpus().default_state("minecraft:stone").into(),
+        super::corpus().default_state("minecraft:water").into(),
     )
 }
 
@@ -188,10 +189,10 @@ fn apply_beta_surface_places_surface_and_bedrock() {
         &mut rng,
     );
 
-    let bedrock_id = super::corpus().default_state("minecraft:bedrock");
-    let grass_id = super::corpus().default_state("minecraft:grass_block");
-    let dirt_id = super::corpus().default_state("minecraft:dirt");
-    let sand_id = super::corpus().default_state("minecraft:sand");
+    let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock"));
+    let grass_id = VoxelId::from(super::corpus().default_state("minecraft:grass_block"));
+    let dirt_id = VoxelId::from(super::corpus().default_state("minecraft:dirt"));
+    let sand_id = VoxelId::from(super::corpus().default_state("minecraft:sand"));
 
     // Y=0 (section 0, local y=0): always bedrock for all 256 columns
     let section0_blocks = &sections[0].as_ref().expect("section 0 must be Some").0;
@@ -278,7 +279,7 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         &mut rng,
     );
 
-    let bedrock_id = super::corpus().default_state("minecraft:bedrock");
+    let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock"));
     let section0 = sections[0].as_ref().expect("section 0 must be present");
     let blocks = &section0.0;
 
@@ -392,7 +393,7 @@ fn beta_terrain_height_matches_back2beta_oracle() {
         })
     };
 
-    let stone_id = super::corpus().default_state("minecraft:stone");
+    let stone_id = VoxelId::from(super::corpus().default_state("minecraft:stone"));
 
     // Rust stone top: scan generate_column sections top-down for highest Y with stone.
     let rust_stone_top_y = |sections: &Vec<
@@ -549,7 +550,7 @@ fn apply_beta_surface_bedrock_probability_matches_back2beta() {
         &mut rng,
     );
 
-    let bedrock_id = super::corpus().default_state("minecraft:bedrock");
+    let bedrock_id = VoxelId::from(super::corpus().default_state("minecraft:bedrock"));
     let section0_blocks = &sections[0].as_ref().expect("section 0 must be present").0;
 
     // Y=0: all bedrock

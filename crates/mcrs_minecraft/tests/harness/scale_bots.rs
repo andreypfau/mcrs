@@ -247,7 +247,7 @@ fn run_profile_bounded(
         // variant so it exercises the real fill path. The emitted counter is
         // bumped here so harness-generated load shows up in the soft
         // saturation telemetry.
-        if tick_count % 2 == 0 {
+        if tick_count.is_multiple_of(2) {
             for (player, _socket, session) in &bot_entities {
                 world
                     .resource_mut::<Messages<OutboundPlayerPacket>>()

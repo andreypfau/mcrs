@@ -6,6 +6,7 @@ use mcrs_protocol::BlockStateId;
 use mcrs_random::Random;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_vanilla::block::definition::BlockDefinitions;
+use mcrs_voxel_storage::VoxelId;
 
 pub struct BetaOreBlockIds {
     pub stone: BlockStateId,
@@ -43,8 +44,8 @@ impl BetaOreBlockIds {
 fn ore_config(stone: BlockStateId, state: BlockStateId, size: i32) -> OreConfig {
     OreConfig {
         targets: vec![TargetBlockState {
-            target: stone,
-            state,
+            target: stone.into(),
+            state: state.into(),
         }],
         size,
         y_offset: OreYOffset::BetaPlus2,
@@ -62,16 +63,15 @@ fn get_block_from_sections(
 ) -> BlockStateId {
     let local_x = world_x - chunk_x * 16;
     let local_z = world_z - chunk_z * 16;
-    if local_x < 0 || local_x >= 16 || local_z < 0 || local_z >= 16 || world_y < 0 {
+    if !(0..16).contains(&local_x) || !(0..16).contains(&local_z) || world_y < 0 {
         return BlockStateId(0);
     }
     let section_y = world_y >> 4;
     let local_y = world_y & 0xF;
-    if let Some(si) = y_sections.iter().position(|&sy| sy == section_y) {
-        if let Some(Some((blocks, _))) = sections.get(si) {
-            return blocks.get(BlockPos::new(local_x, local_y, local_z));
+    if let Some(si) = y_sections.iter().position(|&sy| sy == section_y)
+        && let Some(Some((blocks, _))) = sections.get(si) {
+            return blocks.get(BlockPos::new(local_x, local_y, local_z)).into();
         }
-    }
     BlockStateId(0)
 }
 
@@ -87,16 +87,15 @@ fn set_block_in_sections(
 ) {
     let local_x = world_x - chunk_x * 16;
     let local_z = world_z - chunk_z * 16;
-    if local_x < 0 || local_x >= 16 || local_z < 0 || local_z >= 16 || world_y < 0 {
+    if !(0..16).contains(&local_x) || !(0..16).contains(&local_z) || world_y < 0 {
         return;
     }
     let section_y = world_y >> 4;
     let local_y = world_y & 0xF;
-    if let Some(si) = y_sections.iter().position(|&sy| sy == section_y) {
-        if let Some(Some((blocks, _))) = sections.get_mut(si) {
-            blocks.set(BlockPos::new(local_x, local_y, local_z), state);
+    if let Some(si) = y_sections.iter().position(|&sy| sy == section_y)
+        && let Some(Some((blocks, _))) = sections.get_mut(si) {
+            blocks.set(BlockPos::new(local_x, local_y, local_z), state.into());
         }
-    }
 }
 
 fn place_ore<R: Random>(
@@ -121,13 +120,13 @@ fn place_ore<R: Random>(
         let cx = chunk_x;
         let cz = chunk_z;
 
-        let get_block = |wx: i32, wy: i32, wz: i32| -> BlockStateId {
+        let get_block = |wx: i32, wy: i32, wz: i32| -> VoxelId {
             let sl = unsafe { &*sections_ptr };
-            get_block_from_sections(sl, y_sections, wx, wy, wz, cx, cz)
+            get_block_from_sections(sl, y_sections, wx, wy, wz, cx, cz).into()
         };
-        let set_block = |wx: i32, wy: i32, wz: i32, state: BlockStateId| {
+        let set_block = |wx: i32, wy: i32, wz: i32, state: VoxelId| {
             let sl = unsafe { &mut *sections_ptr };
-            set_block_in_sections(sl, y_sections, wx, wy, wz, cx, cz, state);
+            set_block_in_sections(sl, y_sections, wx, wy, wz, cx, cz, state.into());
         };
 
         feature.place(
@@ -169,13 +168,13 @@ fn place_clay<R: Random>(
             continue;
         }
 
-        let get_block = |wx: i32, wy: i32, wz: i32| -> BlockStateId {
+        let get_block = |wx: i32, wy: i32, wz: i32| -> VoxelId {
             let sl = unsafe { &*sections_ptr };
-            get_block_from_sections(sl, y_sections, wx, wy, wz, cx, cz)
+            get_block_from_sections(sl, y_sections, wx, wy, wz, cx, cz).into()
         };
-        let set_block = |wx: i32, wy: i32, wz: i32, state: BlockStateId| {
+        let set_block = |wx: i32, wy: i32, wz: i32, state: VoxelId| {
             let sl = unsafe { &mut *sections_ptr };
-            set_block_in_sections(sl, y_sections, wx, wy, wz, cx, cz, state);
+            set_block_in_sections(sl, y_sections, wx, wy, wz, cx, cz, state.into());
         };
 
         feature.place(
@@ -304,13 +303,13 @@ pub fn place_all_ores<R: Random>(
     let cz = chunk_z;
     let ys = y_sections;
 
-    let get_block = |wx: i32, wy: i32, wz: i32| -> BlockStateId {
+    let get_block = |wx: i32, wy: i32, wz: i32| -> VoxelId {
         let sl = unsafe { &*sections_ptr };
-        get_block_from_sections(sl, ys, wx, wy, wz, cx, cz)
+        get_block_from_sections(sl, ys, wx, wy, wz, cx, cz).into()
     };
-    let set_block = |wx: i32, wy: i32, wz: i32, state: BlockStateId| {
+    let set_block = |wx: i32, wy: i32, wz: i32, state: VoxelId| {
         let sl = unsafe { &mut *sections_ptr };
-        set_block_in_sections(sl, ys, wx, wy, wz, cx, cz, state);
+        set_block_in_sections(sl, ys, wx, wy, wz, cx, cz, state.into());
     };
     feature.place(
         &lapis_cfg,

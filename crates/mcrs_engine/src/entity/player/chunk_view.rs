@@ -1,5 +1,4 @@
 use crate::entity::physics::Transform;
-use mcrs_voxel_math::ChunkPos;
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
 use crate::world::lifecycle::markers::ChunkLoaded;
 use crate::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketCommand, TicketKind};
@@ -10,6 +9,7 @@ use bevy_ecs::prelude::{
     MessageWriter, Or, ParallelCommands, Query, With,
 };
 use bevy_ecs_macros::Message;
+use mcrs_voxel_math::ChunkPos;
 use std::collections::VecDeque;
 
 const MAX_LOADS: usize = 256;

@@ -10,7 +10,6 @@
 //! valid shared anchor for the marker. `mcrs_engine` carries no other
 //! lighting knowledge.
 
-use mcrs_voxel_math::ChunkPos;
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::markers::ChunkLoaded;
 use crate::world::lifecycle::markers::ChunkUnloaded;
@@ -23,6 +22,7 @@ use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::With;
 use indexmap::IndexMap;
+use mcrs_voxel_math::ChunkPos;
 use rustc_hash::{FxBuildHasher, FxHashSet};
 
 #[derive(Component)]

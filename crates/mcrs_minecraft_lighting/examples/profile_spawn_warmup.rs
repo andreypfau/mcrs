@@ -77,20 +77,20 @@ fn anchor_nanos() -> u64 {
 
 macro_rules! start_phase {
     ($field:ident) => {
-        |t: Res<PhaseTimings>| {
+        (|t: Res<PhaseTimings>| {
             t.0.$field.store(anchor_nanos(), Ordering::Relaxed);
-        }
+        })
     };
 }
 
 macro_rules! end_phase {
     ($start_field:ident, $total_field:ident) => {
-        |t: Res<PhaseTimings>| {
+        (|t: Res<PhaseTimings>| {
             let start = t.0.$start_field.load(Ordering::Relaxed);
             let now = anchor_nanos();
             t.0.$total_field
                 .fetch_add(now.saturating_sub(start), Ordering::Relaxed);
-        }
+        })
     };
 }
 

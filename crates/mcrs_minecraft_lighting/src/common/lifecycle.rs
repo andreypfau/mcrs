@@ -158,11 +158,10 @@ pub fn prime_heightmaps_on_column_spawn(
                     let Some(chunk_entity) = slot else { continue };
                     let mut e = commands.entity(*chunk_entity);
                     e.insert(BlockNeedsInitialSeed);
-                    if let Ok(in_dim) = in_dimensions.get(*chunk_entity) {
-                        if sky_dims.get(in_dim.0).is_ok() {
+                    if let Ok(in_dim) = in_dimensions.get(*chunk_entity)
+                        && sky_dims.get(in_dim.0).is_ok() {
                             e.insert(SkyNeedsInitialSeed);
                         }
-                    }
                 }
                 continue;
             }
@@ -294,11 +293,10 @@ fn insert_initial_light_markers(
         let Some(chunk_entity) = slot else { continue };
         let mut e = commands.entity(*chunk_entity);
         e.insert(BlockNeedsInitialSeed);
-        if let Ok(in_dim) = in_dimensions.get(*chunk_entity) {
-            if sky_dims.get(in_dim.0).is_ok() {
+        if let Ok(in_dim) = in_dimensions.get(*chunk_entity)
+            && sky_dims.get(in_dim.0).is_ok() {
                 e.insert(SkyNeedsInitialSeed);
             }
-        }
     }
 }
 

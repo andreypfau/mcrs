@@ -6,6 +6,7 @@ use mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig;
 use mcrs_protocol::BlockStateId;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_vanilla::block::definition::BlockDefinitions;
+use mcrs_voxel_storage::VoxelId;
 
 pub struct BetaCaveBlockIds {
     pub air: BlockStateId,
@@ -44,11 +45,10 @@ fn get_block_from_sections(
 ) -> BlockStateId {
     let section_y = world_y >> 4;
     let local_y = world_y & 0xF;
-    if let Some(si) = y_sections.iter().position(|&sy| sy == section_y) {
-        if let Some(Some((blocks, _))) = sections.get(si) {
-            return blocks.get(BlockPos::new(local_x, local_y, local_z));
+    if let Some(si) = y_sections.iter().position(|&sy| sy == section_y)
+        && let Some(Some((blocks, _))) = sections.get(si) {
+            return blocks.get(BlockPos::new(local_x, local_y, local_z)).into();
         }
-    }
     air
 }
 
@@ -62,11 +62,10 @@ fn set_block_in_sections(
 ) {
     let section_y = world_y >> 4;
     let local_y = world_y & 0xF;
-    if let Some(si) = y_sections.iter().position(|&sy| sy == section_y) {
-        if let Some(Some((blocks, _))) = sections.get_mut(si) {
-            blocks.set(BlockPos::new(local_x, local_y, local_z), state);
+    if let Some(si) = y_sections.iter().position(|&sy| sy == section_y)
+        && let Some(Some((blocks, _))) = sections.get_mut(si) {
+            blocks.set(BlockPos::new(local_x, local_y, local_z), state.into());
         }
-    }
 }
 
 pub fn apply_beta_caves(
@@ -101,14 +100,21 @@ pub fn apply_beta_caves(
             let mut carve_rng = LegacyRandom::new(seed as u64);
 
             let air = ids.air;
-            let get_block = |local_x: i32, world_y: i32, local_z: i32| -> BlockStateId {
+            let get_block = |local_x: i32, world_y: i32, local_z: i32| -> VoxelId {
                 let slice = unsafe { &*sections_ptr };
-                get_block_from_sections(slice, y_sections, local_x, world_y, local_z, air)
+                get_block_from_sections(slice, y_sections, local_x, world_y, local_z, air).into()
             };
 
-            let set_block = |local_x: i32, world_y: i32, local_z: i32, state: BlockStateId| {
+            let set_block = |local_x: i32, world_y: i32, local_z: i32, state: VoxelId| {
                 let slice = unsafe { &mut *sections_ptr };
-                set_block_in_sections(slice, y_sections, local_x, world_y, local_z, state);
+                set_block_in_sections(
+                    slice,
+                    y_sections,
+                    local_x,
+                    world_y,
+                    local_z,
+                    state.into(),
+                );
             };
 
             carver.carve(

@@ -402,7 +402,7 @@ pub fn seed_sky_initial(
                                 for y_local in 0..max_dark_local_y {
                                     arr.set(x, y_local, z, 0);
                                 }
-                                let lit_in_chunk = s_opt.map_or(true, |s| s <= chunk_top_y);
+                                let lit_in_chunk = s_opt.is_none_or(|s| s <= chunk_top_y);
                                 if lit_in_chunk {
                                     let first_seed_y: u8 = match s_opt {
                                         Some(s) if s >= chunk_base_y => (s - chunk_base_y) as u8,
@@ -660,8 +660,8 @@ pub fn pull_sky_neighbor_edges(
                 }
             }
 
-            if let Ok(mut parked) = sky_parked.get_mut(neighbour_entity) {
-                if !parked.0.is_empty() {
+            if let Ok(mut parked) = sky_parked.get_mut(neighbour_entity)
+                && !parked.0.is_empty() {
                     parked.0.retain(|w| {
                         if w.face() == neighbour_expected_face {
                             if let Ok(mut inc) = sky_inbox.get_mut(new_chunk) {
@@ -680,7 +680,6 @@ pub fn pull_sky_neighbor_edges(
                         }
                     });
                 }
-            }
 
             if drained_pending_from_neighbour {
                 commands.entity(neighbour_entity).insert(SkyBfsPending);

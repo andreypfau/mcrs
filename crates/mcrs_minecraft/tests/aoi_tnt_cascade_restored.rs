@@ -120,7 +120,7 @@ fn tnt_cascade_propagates_through_block_update_per_dim() {
             writer.write(BlockSetRequest {
                 dimension: dim_entity,
                 pos: block_pos,
-                new_state: BlockStateId(1),
+                new_state: BlockStateId(1).into(),
                 flags: BlockUpdateFlags::all(),
                 recursion_left: 1,
             });

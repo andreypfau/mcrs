@@ -23,7 +23,7 @@ const QUEUE_SLOT_BITS: u32 = 20;
 const QUEUE_ENTRY_SHIFT: u32 = QUEUE_SLOT_BITS;
 const QUEUE_DIRS_SHIFT: u32 = QUEUE_ENTRY_SHIFT + 3;
 
-const _: () = assert!(SECTIONS_PER_RENDER_REGION % 32 == 0);
+const _: () = assert!(SECTIONS_PER_RENDER_REGION.is_multiple_of(32));
 
 const _: () = assert!(QUEUE_DIRS_SHIFT + 6 <= 32);
 

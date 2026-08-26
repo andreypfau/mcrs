@@ -200,7 +200,7 @@ impl From<&DimensionType> for NetworkDimensionType {
             ambient_light: dt.ambient_light,
             monster_spawn_block_light_limit: dt.monster_spawn_block_light_limit,
             monster_spawn_light_level: dt.monster_spawn_light_level.clone(),
-            skybox: dt.skybox.clone(),
+            skybox: dt.skybox,
             cardinal_light: dt.cardinal_light.clone(),
             has_fixed_time: dt.has_fixed_time,
             attributes: dt.attributes.clone(),

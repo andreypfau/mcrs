@@ -223,7 +223,7 @@ pub mod b64 {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     pub fn encode(bytes: &[u8]) -> String {
-        let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
+        let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
         let mut iter = bytes.chunks_exact(3);
         for chunk in iter.by_ref() {
             let b0 = chunk[0];
@@ -318,7 +318,7 @@ pub mod b64 {
 
         #[test]
         fn round_trip_2048_random() {
-            let bytes: Vec<u8> = (0..2048u32).map(|i| (i * 31 ^ 0x5A) as u8).collect();
+            let bytes: Vec<u8> = (0..2048u32).map(|i| ((i * 31) ^ 0x5A) as u8).collect();
             let encoded = encode(&bytes);
             let decoded = decode(&encoded);
             assert_eq!(decoded, bytes);

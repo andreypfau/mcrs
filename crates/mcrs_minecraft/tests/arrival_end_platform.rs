@@ -263,13 +263,14 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                 floor_y,
                 arrival_pos.z as i32 + dz,
             );
-            let state = app
+            let state: BlockStateId = app
                 .sub_app(TestDimLabel(1))
                 .world()
                 .entity(chunk_entity)
                 .get::<BlockPalette>()
                 .expect("BlockPalette")
-                .get(pos);
+                .get(pos)
+                .into();
             if state != OBSIDIAN_STATE {
                 obsidian_floor_ok = false;
             }
@@ -289,13 +290,14 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
                     floor_y + 1 + dy,
                     arrival_pos.z as i32 + dz,
                 );
-                let state = app
+                let state: BlockStateId = app
                     .sub_app(TestDimLabel(1))
                     .world()
                     .entity(chunk_entity)
                     .get::<BlockPalette>()
                     .expect("BlockPalette")
-                    .get(pos);
+                    .get(pos)
+                    .into();
                 assert_eq!(
                     state,
                     BlockStateId(0),

@@ -23,6 +23,7 @@ use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, InColumn};
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_voxel_math::{BlockPos, ChunkPos};
+use mcrs_voxel_storage::VoxelId;
 
 pub fn enqueue_block_light_on_block_placed(
     mut reader: MessageReader<BlockPlaced>,
@@ -177,7 +178,7 @@ pub fn seed_block_emitters(
             for y in 0..16i32 {
                 for z in 0..16i32 {
                     for x in 0..16i32 {
-                        let state = palette.get(BlockPos::new(x, y, z));
+                        let state: VoxelId = palette.get(BlockPos::new(x, y, z));
                         let emission = table.emission_for(state);
                         if emission > 0 {
                             block_ws.increase_queue.push(pack_bfs_entry(
@@ -300,8 +301,8 @@ pub fn pull_block_neighbor_edges(
                 }
             }
 
-            if let Ok(mut parked) = block_parked.get_mut(neighbour_entity) {
-                if !parked.0.is_empty() {
+            if let Ok(mut parked) = block_parked.get_mut(neighbour_entity)
+                && !parked.0.is_empty() {
                     parked.0.retain(|w| {
                         if w.face() == neighbour_expected_face {
                             if let Ok(mut inc) = block_inbox.get_mut(new_chunk) {
@@ -320,7 +321,6 @@ pub fn pull_block_neighbor_edges(
                         }
                     });
                 }
-            }
 
             if drained_pending_from_neighbour {
                 commands.entity(neighbour_entity).insert(BlockBfsPending);

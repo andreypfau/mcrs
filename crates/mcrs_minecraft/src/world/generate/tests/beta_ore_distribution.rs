@@ -6,6 +6,7 @@ use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::feature::OreFeature;
 use mcrs_minecraft_worldgen::feature::config::{OreConfig, OreYOffset, TargetBlockState};
 use mcrs_protocol::BlockStateId;
+use mcrs_voxel_storage::VoxelId;
 use mcrs_random::Random;
 use mcrs_random::legacy::LegacyRandom;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
@@ -43,7 +44,7 @@ impl TryRng for CountingRng {
         self.inner.try_next_u64()
     }
     fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {
-        for _ in 0..(dst.len() + 7) / 8 {
+        for _ in 0..dst.len().div_ceil(8) {
             self.inc();
         }
         self.inner.try_fill_bytes(dst)
@@ -105,7 +106,7 @@ fn stone_sections() -> (Vec<Option<(BlockPalette, BiomePalette)>>, Vec<i32>) {
             for x in 0..16 {
                 for y in 0..16 {
                     for z in 0..16 {
-                        p.set(BlockPos::new(x, y, z), stone);
+                        p.set(BlockPos::new(x, y, z), stone.into());
                     }
                 }
             }
@@ -158,21 +159,21 @@ fn simulate<R: Random>(
     let mut counts: std::collections::BTreeMap<String, i32> = Default::default();
     let mut ys: std::collections::BTreeMap<String, Vec<i32>> = Default::default();
 
-    let get = |wx: i32, wy: i32, wz: i32| -> BlockStateId {
+    let get = |wx: i32, wy: i32, wz: i32| -> VoxelId {
         let sl = unsafe { &*sections_ptr };
-        read_block(sl, &y_sections, wx, wy, wz)
+        read_block(sl, &y_sections, wx, wy, wz).into()
     };
-    let set = |wx: i32, wy: i32, wz: i32, st: BlockStateId| {
+    let set = |wx: i32, wy: i32, wz: i32, st: VoxelId| {
         let sl = unsafe { &mut *sections_ptr };
-        write_block(sl, &y_sections, wx, wy, wz, st);
+        write_block(sl, &y_sections, wx, wy, wz, st.into());
     };
 
     // Clay 10x32: coord draws happen every iteration; placement only when water is
     // below the origin. On a stone chunk no water exists, so 0 veins place.
     let clay_cfg = OreConfig {
         targets: vec![TargetBlockState {
-            target: stone,
-            state: ids.clay,
+            target: stone.into(),
+            state: ids.clay.into(),
         }],
         size: 32,
         y_offset: OreYOffset::BetaPlus2,
@@ -182,8 +183,8 @@ fn simulate<R: Random>(
         let ox = rng.next_i32_bound(16);
         let oy = rng.next_i32_bound(128);
         let oz = rng.next_i32_bound(16);
-        if get(ox, oy - 1, oz) == ids.water {
-            feature.place(&clay_cfg, ox, oy, oz, &get, &set, rng);
+        if get(ox, oy - 1, oz) == ids.water.into() {
+            feature.place(&clay_cfg, ox, oy, oz, get, &set, rng);
             clay_placed += 1;
             ys.entry("clay".into()).or_default().push(oy);
         }
@@ -203,8 +204,8 @@ fn simulate<R: Random>(
         };
         let cfg = OreConfig {
             targets: vec![TargetBlockState {
-                target: stone,
-                state,
+                target: stone.into(),
+                state: state.into(),
             }],
             size,
             y_offset: OreYOffset::BetaPlus2,
@@ -213,7 +214,7 @@ fn simulate<R: Random>(
             let ox = rng.next_i32_bound(16);
             let oy = rng.next_i32_bound(ybound);
             let oz = rng.next_i32_bound(16);
-            feature.place(&cfg, ox, oy, oz, &get, &set, rng);
+            feature.place(&cfg, ox, oy, oz, get, &set, rng);
             ys.entry(name.into()).or_default().push(oy);
         }
         counts.insert(name.into(), count);
@@ -222,8 +223,8 @@ fn simulate<R: Random>(
     // Lapis 1x6: x, then Y = nextInt(16)+nextInt(16), then z.
     let lapis_cfg = OreConfig {
         targets: vec![TargetBlockState {
-            target: stone,
-            state: ids.lapis,
+            target: stone.into(),
+            state: ids.lapis.into(),
         }],
         size: 6,
         y_offset: OreYOffset::BetaPlus2,
@@ -231,7 +232,7 @@ fn simulate<R: Random>(
     let lx = rng.next_i32_bound(16);
     let ly = rng.next_i32_bound(16) + rng.next_i32_bound(16);
     let lz = rng.next_i32_bound(16);
-    feature.place(&lapis_cfg, lx, ly, lz, &get, &set, rng);
+    feature.place(&lapis_cfg, lx, ly, lz, get, &set, rng);
     ys.entry("lapis".into()).or_default().push(ly);
     counts.insert("lapis".into(), 1);
 
@@ -245,16 +246,15 @@ fn read_block(
     wy: i32,
     wz: i32,
 ) -> BlockStateId {
-    if wx < 0 || wx >= 16 || wz < 0 || wz >= 16 || wy < 0 {
+    if !(0..16).contains(&wx) || !(0..16).contains(&wz) || wy < 0 {
         return BlockStateId(0);
     }
     let si = (wy >> 4) as usize;
     let ly = wy & 0xF;
-    if y_sections.get(si).copied() == Some(si as i32) {
-        if let Some(Some((b, _))) = sections.get(si) {
-            return b.get(BlockPos::new(wx, ly, wz));
+    if y_sections.get(si).copied() == Some(si as i32)
+        && let Some(Some((b, _))) = sections.get(si) {
+            return b.get(BlockPos::new(wx, ly, wz)).into();
         }
-    }
     BlockStateId(0)
 }
 
@@ -266,16 +266,15 @@ fn write_block(
     wz: i32,
     st: BlockStateId,
 ) {
-    if wx < 0 || wx >= 16 || wz < 0 || wz >= 16 || wy < 0 {
+    if !(0..16).contains(&wx) || !(0..16).contains(&wz) || wy < 0 {
         return;
     }
     let si = (wy >> 4) as usize;
     let ly = wy & 0xF;
-    if y_sections.get(si).copied() == Some(si as i32) {
-        if let Some(Some((b, _))) = sections.get_mut(si) {
-            b.set(BlockPos::new(wx, ly, wz), st);
+    if y_sections.get(si).copied() == Some(si as i32)
+        && let Some(Some((b, _))) = sections.get_mut(si) {
+            b.set(BlockPos::new(wx, ly, wz), st.into());
         }
-    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────

@@ -170,7 +170,7 @@ fn eager_update_below_surface_early_out() {
     send_block_placed(
         &mut app,
         BlockPlaced {
-            chunk: chunk,
+            chunk,
             chunk_pos,
             block_pos: BlockPos::new(0, -30, 0),
             old_state: AIR_STATE,
@@ -213,7 +213,7 @@ fn eager_update_above_surface_rescan() {
     send_block_placed(
         &mut app,
         BlockPlaced {
-            chunk: chunk,
+            chunk,
             chunk_pos,
             block_pos: BlockPos::new(0, 10, 0),
             old_state: AIR_STATE,
@@ -254,7 +254,7 @@ fn eager_update_break_above_surface_rescan() {
     send_block_placed(
         &mut app,
         BlockPlaced {
-            chunk: chunk,
+            chunk,
             chunk_pos,
             block_pos: BlockPos::new(0, 10, 0),
             old_state: AIR_STATE,
@@ -272,7 +272,7 @@ fn eager_update_break_above_surface_rescan() {
     send_block_placed(
         &mut app,
         BlockPlaced {
-            chunk: chunk,
+            chunk,
             chunk_pos,
             block_pos: BlockPos::new(0, 10, 0),
             old_state: SOLID_STATE,

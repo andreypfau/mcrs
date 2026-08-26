@@ -20,7 +20,7 @@ pub fn remove_block<P: Into<BlockPos>>(dimension: Entity, pos: P) -> BlockSetReq
     BlockSetRequest {
         dimension,
         pos: pos.into(),
-        new_state: BlockStateId(0),
+        new_state: BlockStateId(0).into(),
         flags: BlockUpdateFlags::all(),
         recursion_left: 512,
     }
@@ -44,8 +44,8 @@ mod tests {
             chunk: Entity::PLACEHOLDER,
             chunk_pos: ChunkPos::new(0, 0, 0),
             block_pos: BlockPos::new(0, 0, 0),
-            old_state: BlockStateId(0),
-            new_state: BlockStateId(0),
+            old_state: BlockStateId(0).into(),
+            new_state: BlockStateId(0).into(),
             flags: BlockUpdateFlags::all(),
         };
     }

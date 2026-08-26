@@ -9,11 +9,9 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::observer::On;
-use bevy_ecs::prelude::Commands;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
-use bytes::Bytes;
 use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::bridge::bridge_inbound;
 use mcrs_minecraft::world::bridge_queue::{
@@ -248,7 +246,7 @@ fn inbound_rate_kick() {
             break;
         }
         for seq in 0..INBOUND_BUCKET_CAP + 10 {
-            let _ = tx.try_send(make_received_packet(seq as u32));
+            let _ = tx.try_send(make_received_packet(seq));
         }
         run_inbound(&mut world);
     }

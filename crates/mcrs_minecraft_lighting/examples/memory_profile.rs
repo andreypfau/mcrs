@@ -597,7 +597,7 @@ fn write_allocation_discipline(snap: &MemorySnapshot) {
 
 fn write_json(snap: &MemorySnapshot, path: &str) -> std::io::Result<()> {
     let json = serde_json::to_string_pretty(snap)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        .map_err(|e| std::io::Error::other(e))?;
     std::fs::write(path, json)
 }
 

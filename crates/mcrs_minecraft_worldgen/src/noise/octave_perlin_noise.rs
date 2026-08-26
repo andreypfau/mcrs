@@ -407,6 +407,15 @@ impl OctavePerlinNoise<f64> {
     }
 }
 
+impl OctavePerlinNoise<f64> {
+    pub fn get_octave_f64(&self, k: usize) -> Option<&ImprovedNoise<f64>> {
+        let len = self.octave_samplers.len();
+        self.octave_samplers
+            .get(len - 1 - k)
+            .and_then(|s| s.as_ref())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::noise::octave_perlin_noise::OctavePerlinNoise;
@@ -555,14 +564,5 @@ mod test {
                 i, batch_results[i], scalar
             );
         }
-    }
-}
-
-impl OctavePerlinNoise<f64> {
-    pub fn get_octave_f64(&self, k: usize) -> Option<&ImprovedNoise<f64>> {
-        let len = self.octave_samplers.len();
-        self.octave_samplers
-            .get(len - 1 - k)
-            .and_then(|s| s.as_ref())
     }
 }

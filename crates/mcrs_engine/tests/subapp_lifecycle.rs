@@ -9,7 +9,6 @@ use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time};
 use mcrs_core::AppState;
 use mcrs_core::registry::access::RegistryAccess;
-use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_engine::world::dimension::{Dimension, DimensionId, DimensionTypeConfig};
 use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::sub_app_builder::{

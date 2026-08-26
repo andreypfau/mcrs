@@ -320,15 +320,14 @@ pub fn spawn_dim_subapp(
             .get_resource_mut::<Messages<OutboundPlayerAttached>>()
             .map(|mut m| m.drain().collect())
             .unwrap_or_default();
-        if !attached.is_empty() {
-            if let Some(mut host_msgs) =
+        if !attached.is_empty()
+            && let Some(mut host_msgs) =
                 main_world.get_resource_mut::<Messages<OutboundPlayerAttached>>()
             {
                 for msg in attached {
                     host_msgs.write(msg);
                 }
             }
-        }
     });
 
     // Resolve this dimension's index in the dimension_type registry that is

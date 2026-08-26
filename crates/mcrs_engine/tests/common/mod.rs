@@ -20,9 +20,7 @@ use mcrs_core::AppState;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
-use mcrs_core::tag::TagRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::bus::{
@@ -36,6 +34,7 @@ use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::block::definition::{Blocks, load_block_definitions};
 use mcrs_vanilla::enchantment::EnchantmentData;
+use mcrs_voxel_math::voxel_shape::VoxelShape;
 
 /// A two-state stub light table sufficient for sub-app construction. The
 /// production table is data-loaded; tests only need the resource to exist.

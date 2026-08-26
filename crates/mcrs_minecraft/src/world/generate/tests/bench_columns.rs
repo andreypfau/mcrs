@@ -108,8 +108,8 @@ fn build_router(settings_name: &str, seed: u64) -> NoiseRouter {
         &noises,
         &settings,
         seed,
-        super::corpus().default_state("minecraft:stone"),
-        super::corpus().default_state("minecraft:water"),
+        super::corpus().default_state("minecraft:stone").into(),
+        super::corpus().default_state("minecraft:water").into(),
     )
 }
 

@@ -375,10 +375,10 @@ mod test {
             .add_point(-0.44, -0.12, 0.0)
             .add_point(-0.18, -0.12, 0.0)
             .build();
-        assert_eq!(spline.apply(&mut -1.6), 0.044);
-        assert_eq!(spline.apply(&mut -0.7), -0.2222);
-        assert_eq!(spline.apply(&mut -0.2), -0.12);
-        assert!(close(spline.apply(&mut -0.5), -0.21653879));
+        assert_eq!(spline.apply(&-1.6), 0.044);
+        assert_eq!(spline.apply(&-0.7), -0.2222);
+        assert_eq!(spline.apply(&-0.2), -0.12);
+        assert!(close(spline.apply(&-0.5), -0.21653879));
     }
 
     #[test]
@@ -389,10 +389,10 @@ mod test {
             .add_point(0.46, 0.89, -0.03)
             .add_point(0.6, 0.4, 0.0)
             .build();
-        assert_eq!(spline.apply(&mut 0.0), 0.0178);
-        assert!(close(spline.apply(&mut -0.1), -0.0022000019));
-        assert!(close(spline.apply(&mut 0.31), 0.24358201));
-        assert!(close(spline.apply(&mut 0.4), 0.69171876));
+        assert_eq!(spline.apply(&0.0), 0.0178);
+        assert!(close(spline.apply(&-0.1), -0.0022000019));
+        assert!(close(spline.apply(&0.31), 0.24358201));
+        assert!(close(spline.apply(&0.4), 0.69171876));
     }
 
     #[test]
@@ -408,6 +408,6 @@ mod test {
             )
             .add_point(0.7, 0.7, 0.0)
             .build();
-        assert!(close(spline.apply(&mut 0.3), 0.09352946));
+        assert!(close(spline.apply(&0.3), 0.09352946));
     }
 }

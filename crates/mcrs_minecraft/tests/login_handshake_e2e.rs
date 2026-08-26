@@ -36,7 +36,6 @@ use mcrs_core::AppState;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
-use mcrs_core::tag::TagRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_engine::session::PlayerSession;
@@ -55,7 +54,7 @@ use mcrs_minecraft::world::bus::{
     OutboundPlayerDisconnect, OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
-use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
+use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::uuid::Uuid;
@@ -145,7 +144,7 @@ fn e2e_login_handshake_completes() {
 #[test]
 fn e2e_packet_round_trip() {
     use mcrs_voxel_math::BlockPos;
-    use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+    use mcrs_engine::session::{SessionEntry, SessionRegistry};
     use mcrs_protocol::BlockStateId;
 
     let mut world = World::new();

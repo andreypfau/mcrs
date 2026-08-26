@@ -164,7 +164,7 @@ pub fn pump_channels(app: &mut App) {
                         let channels = world.resource::<DimChannelsResource>();
                         channels.get(dest_dim).map(|chan| {
                             chan.control_sender.try_send(ToDim::SpawnEntity {
-                                move_id: move_id,
+                                move_id,
                                 epoch: post_bump_epoch,
                                 cause,
                                 payload,
@@ -179,7 +179,7 @@ pub fn pump_channels(app: &mut App) {
                             // Target dim channel is gone — immediate rollback.
                             world.resource_mut::<InFlightMoves>().remove(move_id);
                             pending_rollbacks.push(PendingRollback {
-                                move_id: move_id,
+                                move_id,
                                 source_dim: dim_entity,
                             });
                         }
@@ -187,7 +187,7 @@ pub fn pump_channels(app: &mut App) {
                             // Control channel full — treat as saturated, tear down target.
                             world.resource_mut::<InFlightMoves>().remove(move_id);
                             pending_rollbacks.push(PendingRollback {
-                                move_id: move_id,
+                                move_id,
                                 source_dim: dim_entity,
                             });
                             let mut despawn_queue = world
@@ -201,7 +201,7 @@ pub fn pump_channels(app: &mut App) {
                             // dest_dim has no channel entry — immediate rollback.
                             world.resource_mut::<InFlightMoves>().remove(move_id);
                             pending_rollbacks.push(PendingRollback {
-                                move_id: move_id,
+                                move_id,
                                 source_dim: dim_entity,
                             });
                         }

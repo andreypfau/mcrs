@@ -85,7 +85,7 @@ fn coal_ore_experience_stays_within_its_declared_range() {
         );
     }
     assert!(
-        awarded.iter().any(|&a| a == 2),
+        awarded.contains(&2),
         "the upper end of the range must be reachable: {awarded:?}"
     );
 }

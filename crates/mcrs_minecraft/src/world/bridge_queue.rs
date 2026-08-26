@@ -69,6 +69,12 @@ pub struct InboundRateBucket {
     overflow_ticks: u8,
 }
 
+impl Default for InboundRateBucket {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InboundRateBucket {
     pub fn new() -> Self {
         Self {

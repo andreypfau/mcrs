@@ -121,7 +121,7 @@ pub fn build_block_light_table(mut commands: Commands, blocks: Res<Blocks>) {
     let mut interned: FxHashMap<ShapeId, &'static VoxelShape> = FxHashMap::default();
 
     for index in 0..total_states {
-        let state = blocks.state(VoxelId(index as u16));
+        let state = blocks.state(VoxelId(index as u16).into());
         let shape = match interned.get(&state.occlusion_shape) {
             Some(shape) => *shape,
             None => {
@@ -189,6 +189,7 @@ mod tests {
             .block(block)
             .expect("the block is declared")
             .default_state_id
+            .into()
     }
 
     #[test]
@@ -230,9 +231,10 @@ mod tests {
     #[test]
     fn a_partial_occluder_is_conditionally_opaque() {
         let slab = corpus().block("minecraft:oak_slab").unwrap();
-        let bottom = slab
+        let bottom: VoxelId = slab
             .with_text(slab.default_state_id, "type", "bottom")
-            .expect("a bottom slab");
+            .expect("a bottom slab")
+            .into();
         let flags = table().flags_for(bottom);
         assert!(flags & flag_bits::IS_CONDITIONALLY_OPAQUE != 0);
         assert!(flags & flag_bits::IS_SOLID_OPAQUE == 0);

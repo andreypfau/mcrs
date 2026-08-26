@@ -14,6 +14,7 @@ use mcrs_vanilla::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
 };
 use mcrs_vanilla::block::definition::BlockDefinitions;
+use mcrs_voxel_storage::VoxelId;
 
 /// Generate a single section using a pre-populated column cache and interpolator.
 /// The column cache and interpolator are passed in so they can be reused across
@@ -261,7 +262,7 @@ fn fill_sections_beta_f64(
             let mut biomes = BiomePalette::default();
 
             // Only sections in [0, 128) contain Beta terrain blocks.
-            if section_min_y >= 0 && section_min_y < 128 {
+            if (0..128).contains(&section_min_y) {
                 for local_y in 0..16i32 {
                     let world_y = section_min_y + local_y;
                     if world_y >= 128 {
@@ -276,7 +277,7 @@ fn fill_sections_beta_f64(
                             if block_u32 != 0 {
                                 blocks.set(
                                     BlockPos::new(local_x, local_y, local_z),
-                                    BlockStateId(block_u32 as u16),
+                                    BlockStateId(block_u32 as u16).into(),
                                 );
                             }
                         }
@@ -502,11 +503,11 @@ pub fn apply_beta_surface(
     let sea_level = noise_router.sea_level();
     let default_fluid = noise_router.default_fluid_state();
     let stone = noise_router.default_block_state();
-    let bedrock = blocks.default_state("minecraft:bedrock");
-    let sandstone = blocks.default_state("minecraft:sandstone");
-    let gravel = blocks.default_state("minecraft:gravel");
-    let ice = blocks.default_state("minecraft:ice");
-    let sand = blocks.default_state("minecraft:sand");
+    let bedrock = VoxelId::from(blocks.default_state("minecraft:bedrock"));
+    let sandstone = VoxelId::from(blocks.default_state("minecraft:sandstone"));
+    let gravel = VoxelId::from(blocks.default_state("minecraft:gravel"));
+    let ice = VoxelId::from(blocks.default_state("minecraft:ice"));
+    let sand = VoxelId::from(blocks.default_state("minecraft:sand"));
 
     const D0: f64 = 0.03125;
 
@@ -587,13 +588,14 @@ pub fn apply_beta_surface(
                 beta_get_biome(temp, humidity)
             };
             let (top_block, filler_block) = beta_surface_blocks(biome_land, blocks);
+            let (top_block, filler_block) = (VoxelId::from(top_block), VoxelId::from(filler_block));
 
             // j1 in back2beta: depth counter, -1 means "not yet in surface layer".
             let mut j1: i32 = -1;
             // Mutable top/filler for current Y zone (back2beta: b1, b2).
             let mut b1 = top_block;
             let mut b2 = filler_block;
-            let air = mcrs_protocol::BlockStateId(0);
+            let air = VoxelId(0);
 
             // Sweep from world Y=127 down to 0 (back2beta: k1 = 127..=0).
             // Bedrock check is interleaved inside this loop.
@@ -604,11 +606,10 @@ pub fn apply_beta_surface(
 
                 // Bedrock check (back2beta: k1 <= 0 + this.j.nextInt(5)).
                 if k1 <= rng.next_i32_bound(5) {
-                    if let Some(si) = si {
-                        if let Some((blocks, _)) = sections[si].as_mut() {
+                    if let Some(si) = si
+                        && let Some((blocks, _)) = sections[si].as_mut() {
                             blocks.set(BlockPos::new(x_local, local_y, z_local), bedrock);
                         }
-                    }
                 } else {
                     let current_id = si
                         .and_then(|si| sections[si].as_ref())
@@ -648,19 +649,17 @@ pub fn apply_beta_surface(
                             }
 
                             j1 = i1;
-                            if let Some(si) = si {
-                                if let Some((blocks, _)) = sections[si].as_mut() {
+                            if let Some(si) = si
+                                && let Some((blocks, _)) = sections[si].as_mut() {
                                     let place = if k1 >= sea_level - 1 { b1 } else { b2 };
                                     blocks.set(BlockPos::new(x_local, local_y, z_local), place);
                                 }
-                            }
                         } else if j1 > 0 {
                             j1 -= 1;
-                            if let Some(si) = si {
-                                if let Some((blocks, _)) = sections[si].as_mut() {
+                            if let Some(si) = si
+                                && let Some((blocks, _)) = sections[si].as_mut() {
                                     blocks.set(BlockPos::new(x_local, local_y, z_local), b2);
                                 }
-                            }
                             if j1 == 0 && b2 == sand {
                                 j1 = rng.next_i32_bound(4);
                                 b2 = sandstone;
@@ -676,14 +675,13 @@ pub fn apply_beta_surface(
                 let ice_y = sea_level - 1;
                 let ice_section_y = ice_y >> 4;
                 let ice_local_y = ice_y & 0xF;
-                if let Some(si) = y_sections.iter().position(|&sy| sy == ice_section_y) {
-                    if let Some((blocks, _)) = sections[si].as_mut() {
+                if let Some(si) = y_sections.iter().position(|&sy| sy == ice_section_y)
+                    && let Some((blocks, _)) = sections[si].as_mut() {
                         let current = blocks.get(BlockPos::new(x_local, ice_local_y, z_local));
                         if current == default_fluid {
                             blocks.set(BlockPos::new(x_local, ice_local_y, z_local), ice);
                         }
                     }
-                }
             }
         }
     }

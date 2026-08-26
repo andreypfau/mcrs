@@ -45,7 +45,7 @@ fn walk_json_files(
             let ident_str = format!("{}:{}", namespace, name);
             if let Ok(ident) = ResourceLocation::parse(&ident_str) {
                 let data = std::fs::read(&path).unwrap();
-                out.push((ident.into(), data));
+                out.push((ident, data));
             }
         }
     }

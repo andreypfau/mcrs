@@ -17,6 +17,7 @@ pub use crate::invariants::{InvariantViolation, ViolationKind};
 use crate::table::BlockStateLightTable;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_storage::VoxelId;
 
 pub fn check_block_light_invariants(
     table: &BlockStateLightTable,
@@ -26,7 +27,7 @@ pub fn check_block_light_invariants(
     for y in 0..CHUNK_DIM {
         for z in 0..CHUNK_DIM {
             for x in 0..CHUNK_DIM {
-                let state = palette.get(BlockPos::new(x, y, z));
+                let state: VoxelId = palette.get(BlockPos::new(x, y, z));
                 let emitted = table.emission_for(state);
                 let stored = light.get(x as usize, y as usize, z as usize);
                 let cell = BlockPos::new(x, y, z);
@@ -116,7 +117,7 @@ mod tests {
         let mut p = BlockPalette::default();
         p.fill(AIR);
         for (x, y, z, state) in emitters {
-            p.set(BlockPos::new(*x, *y, *z), *state);
+            p.set(BlockPos::new(*x, *y, *z), (*state));
         }
         p
     }

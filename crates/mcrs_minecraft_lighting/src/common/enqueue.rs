@@ -60,7 +60,7 @@ pub fn consume_needs_full_reseed(
     for (column_entity, chunk_index, scan_opt) in newly_marked.iter() {
         let loaded = chunk_index.sections.iter().filter(|s| s.is_some()).count();
         let total = chunk_index.sections.len();
-        let scan_finalized = scan_opt.map_or(false, |s| s.is_finalized());
+        let scan_finalized = scan_opt.is_some_and(|s| s.is_finalized());
 
         if !scan_finalized {
             tracing::warn!(
@@ -77,16 +77,13 @@ pub fn consume_needs_full_reseed(
             continue;
         }
 
-        for slot in chunk_index.sections.iter() {
-            if let Some(chunk_entity) = slot {
-                let mut e = commands.entity(*chunk_entity);
-                e.insert(BlockNeedsInitialSeed);
-                if let Ok(in_dim) = in_dimensions.get(*chunk_entity) {
-                    if sky_dims.get(in_dim.0).is_ok() {
-                        e.insert(SkyNeedsInitialSeed);
-                    }
+        for chunk_entity in chunk_index.sections.iter().flatten() {
+            let mut e = commands.entity(*chunk_entity);
+            e.insert(BlockNeedsInitialSeed);
+            if let Ok(in_dim) = in_dimensions.get(*chunk_entity)
+                && sky_dims.get(in_dim.0).is_ok() {
+                    e.insert(SkyNeedsInitialSeed);
                 }
-            }
         }
         commands.entity(column_entity).remove::<NeedsFullReseed>();
     }

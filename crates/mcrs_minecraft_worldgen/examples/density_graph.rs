@@ -42,7 +42,7 @@ fn walk_json_files(
             let ident_str = format!("{}:{}", namespace, name);
             if let Ok(ident) = ResourceLocation::parse(&ident_str) {
                 let data = std::fs::read(&path).unwrap();
-                out.push((ident.into(), data));
+                out.push((ident, data));
             }
         }
     }
@@ -147,11 +147,10 @@ fn list_noise_settings(assets_path: &Path) -> Vec<String> {
     if let Ok(entries) = std::fs::read_dir(&dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().is_some_and(|e| e == "json") {
-                if let Some(stem) = path.file_stem() {
+            if path.extension().is_some_and(|e| e == "json")
+                && let Some(stem) = path.file_stem() {
                     names.push(stem.to_string_lossy().into_owned());
                 }
-            }
         }
     }
     names.sort();

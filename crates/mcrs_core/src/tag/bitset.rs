@@ -153,7 +153,7 @@ impl<I: TagId> Iterator for BitSetIter<'_, I> {
 
 #[inline]
 fn word_count(bits: u32) -> usize {
-    ((bits as usize) + 63) / 64
+    (bits as usize).div_ceil(64)
 }
 
 #[cfg(test)]

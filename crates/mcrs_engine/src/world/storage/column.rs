@@ -570,7 +570,7 @@ mod tests {
         pbs.set(0, 0x1FF);
         pbs.set(1, 0x000);
         pbs.set(2, 0x1FF);
-        let expected = (0x1FFu64 << 0) | (0x000u64 << 9) | (0x1FFu64 << 18);
+        let expected = 0x1FFu64 | (0x1FFu64 << 18);
         assert_eq!(
             pbs.raw_longs()[0],
             expected,
@@ -646,7 +646,7 @@ mod tests {
         h.set(ColumnScalarKey(0), 0, 0, 5); // value 5 at sub-position 0
         h.set(ColumnScalarKey(0), 1, 0, 10); // value 10 at sub-position 1
         h.set(ColumnScalarKey(0), 2, 0, 15); // value 15 at sub-position 2
-        let expected = (5u64 << 0) | (10u64 << 9) | (15u64 << 18);
+        let expected = 5u64 | (10u64 << 9) | (15u64 << 18);
         assert_eq!(
             h.raw_longs(ColumnScalarKey(0))[0],
             expected,

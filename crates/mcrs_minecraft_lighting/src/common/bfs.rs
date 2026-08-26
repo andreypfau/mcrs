@@ -14,6 +14,7 @@ use crate::{BlockBfsQueues, BlockOutbox, CrossChunkWavefront, SkyBfsQueues, SkyO
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_voxel_math::Direction;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
+use mcrs_voxel_storage::VoxelId;
 
 pub(crate) const FLAG_HAS_SIDED_TRANSPARENT_BLOCKS: u8 = 1 << 0;
 // Promoted from pub(crate) to pub so external snapshot / property
@@ -488,7 +489,7 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
             }
         }
 
-        let src_state = palette.get((x as i32, y_local as i32, z as i32));
+        let src_state: VoxelId = palette.get((x as i32, y_local as i32, z as i32));
         let src_flags = table.flags_for(src_state);
         let src_conditional = (src_flags & flag_bits::IS_CONDITIONALLY_OPAQUE) != 0;
         let from_shape: &'static VoxelShape = if src_conditional {
@@ -530,7 +531,8 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
                     continue;
                 }
 
-                let dst_state = palette.get((off_x as i32, off_y as i32, off_z as i32));
+                let dst_state: VoxelId =
+                    palette.get((off_x as i32, off_y as i32, off_z as i32));
                 let dst_flags = table.flags_for(dst_state);
                 let mut emit_flags: u8 = 0;
                 if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {
@@ -567,7 +569,8 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
                     continue;
                 }
 
-                let dst_state = palette.get((off_x as i32, off_y as i32, off_z as i32));
+                let dst_state: VoxelId =
+                    palette.get((off_x as i32, off_y as i32, off_z as i32));
                 let dst_flags = table.flags_for(dst_state);
                 let mut emit_flags: u8 = 0;
                 if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {

@@ -2,9 +2,9 @@ use mcrs_protocol::BlockStateId;
 use mcrs_protocol::section::{NetworkSectionKind, PaletteForm};
 use mcrs_voxel_math::chunk_pos;
 use mcrs_voxel_storage::PalettedContainer::{Heterogeneous, Homogeneous};
-use mcrs_voxel_storage::VoxelPalette;
+use mcrs_voxel_storage::{VoxelId, VoxelPalette};
 
-pub type BlockPalette = VoxelPalette<BlockStateId, 16>;
+pub type BlockPalette = VoxelPalette<VoxelId, 16>;
 pub type BiomePalette = VoxelPalette<u8, 4>;
 
 // According to the wiki, palette serialization for disk and network is different. Disk
@@ -60,9 +60,9 @@ impl NetworkPalette for BlockPalette {
 
     fn convert_network(&self) -> mcrs_protocol::chunk::PalettedContainer<BlockStateId> {
         match &self.0 {
-            Homogeneous(registry_id) => mcrs_protocol::chunk::PalettedContainer {
+            Homogeneous(voxel) => mcrs_protocol::chunk::PalettedContainer {
                 bits_per_entry: 0,
-                palette: mcrs_protocol::chunk::Palette::Single(*registry_id),
+                palette: mcrs_protocol::chunk::Palette::Single(BlockStateId::from(*voxel)),
                 packed_data: Box::new([]),
             },
             Heterogeneous(data) => {
@@ -72,6 +72,7 @@ impl NetworkPalette for BlockPalette {
                     }
                     PaletteForm::Indirect { bits } => {
                         let (palette, packed) = self.0.to_palette_and_packed_data(bits as u8);
+                        let palette = palette.iter().copied().map(BlockStateId::from).collect();
                         mcrs_protocol::chunk::PalettedContainer {
                             bits_per_entry: bits as u8,
                             palette: mcrs_protocol::chunk::Palette::Indirect(palette),
@@ -95,7 +96,7 @@ impl NetworkPalette for BlockPalette {
 }
 
 pub trait AirCount {
-    // Coupling: this method assumes `BlockStateId(0)` is the air state, which
+    // Coupling: this method assumes `VoxelId(0)` is the air state, which
     // is the current vanilla convention but is not enforced by `BlockPalette`
     // itself. Reordering the static block registry so air ends up at a
     // different ID would silently break this count. The principled fix is to
@@ -109,7 +110,7 @@ impl AirCount for BlockPalette {
     fn non_air_block_count(&self) -> u16 {
         match &self.0 {
             Homogeneous(registry_id) => {
-                if **registry_id != 0 {
+                if registry_id.0 != 0 {
                     chunk_pos::BLOCKS::VOLUME as u16
                 } else {
                     0
@@ -120,7 +121,7 @@ impl AirCount for BlockPalette {
                 .iter()
                 .zip(data.counts.iter())
                 .filter_map(|(registry_id, count)| {
-                    if **registry_id != 0 {
+                    if registry_id.0 != 0 {
                         Some(*count)
                     } else {
                         None

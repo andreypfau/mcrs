@@ -4,26 +4,41 @@ use derive_more::{From, Into};
 use mcrs_voxel_storage::VoxelId;
 use std::io::Write;
 
-pub use mcrs_voxel_storage::VoxelId as BlockStateId;
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug, From, Into)]
+pub struct BlockStateId(pub u16);
 
-impl From<VoxelId> for VarInt {
+impl From<BlockStateId> for VoxelId {
+    #[inline]
+    fn from(id: BlockStateId) -> Self {
+        VoxelId(id.0)
+    }
+}
+
+impl From<VoxelId> for BlockStateId {
+    #[inline]
     fn from(id: VoxelId) -> Self {
+        BlockStateId(id.0)
+    }
+}
+
+impl From<BlockStateId> for VarInt {
+    fn from(id: BlockStateId) -> Self {
         VarInt(id.0 as i32)
     }
 }
 
-impl Encode for VoxelId {
+impl Encode for BlockStateId {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
         VarInt(self.0 as i32).encode(w)
     }
 }
 
-impl Decode<'_> for VoxelId {
+impl Decode<'_> for BlockStateId {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
         let id = VarInt::decode(r)?.0;
         let errmsg = "invalid block state ID";
 
-        Ok(VoxelId(id.try_into().context(errmsg)?))
+        Ok(BlockStateId(id.try_into().context(errmsg)?))
     }
 }
 

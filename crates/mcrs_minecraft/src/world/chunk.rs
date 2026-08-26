@@ -59,8 +59,8 @@ fn resolve_worldgen_default_states(
         };
         let default_block = resolve_state(&blocks, &asset.settings.default_block);
         let default_fluid = resolve_state(&blocks, &asset.settings.default_fluid);
-        config.default_block_state_id = Some(default_block);
-        config.default_fluid_state_id = Some(default_fluid);
+        config.default_block_state_id = Some(default_block.into());
+        config.default_fluid_state_id = Some(default_fluid.into());
         trace!(
             default_block = default_block.0,
             default_fluid = default_fluid.0,
@@ -795,8 +795,8 @@ fn dispatch_column_generation(
 
             // Beta surface pass: place surface/filler/bedrock blocks with a
             // single per-chunk RNG seeded from the chunk coords.
-            if let Some((src, _)) = &biome_context {
-                if matches!(src, BiomeSource::Beta { .. }) {
+            if let Some((src, _)) = &biome_context
+                && matches!(src, BiomeSource::Beta { .. }) {
                     let seed = (col.x as i64)
                         .wrapping_mul(341873128712)
                         .wrapping_add((col.z as i64).wrapping_mul(132897987541));
@@ -816,13 +816,13 @@ fn dispatch_column_generation(
                     let cave_ids = BetaCaveBlockIds::resolve(&block_definitions);
                     let cave_config =
                         mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig {
-                            air_state: cave_ids.air,
-                            lava_state: cave_ids.lava,
-                            stone_state: cave_ids.stone,
-                            dirt_state: cave_ids.dirt,
-                            grass_state: cave_ids.grass,
-                            water_state: cave_ids.water,
-                            stationary_water_state: cave_ids.stationary_water,
+                            air_state: cave_ids.air.into(),
+                            lava_state: cave_ids.lava.into(),
+                            stone_state: cave_ids.stone.into(),
+                            dirt_state: cave_ids.dirt.into(),
+                            grass_state: cave_ids.grass.into(),
+                            water_state: cave_ids.water.into(),
+                            stationary_water_state: cave_ids.stationary_water.into(),
                             lava_level: 10,
                             range: 8,
                             horizontal_radius_multiplier: 1.0,
@@ -848,7 +848,6 @@ fn dispatch_column_generation(
                         &ore_ids,
                     );
                 }
-            }
 
             let column_sections = sections_data
                 .into_iter()

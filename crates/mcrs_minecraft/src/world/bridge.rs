@@ -685,8 +685,8 @@ pub fn bridge_player_attach(
         entry.previous_dim = None;
         let current_dim = entry.dim;
 
-        if let Some(buffered) = inbound_buffer.buffers.remove(&msg.host_anchor) {
-            if let Some(chan) = dim_channels.get(current_dim) {
+        if let Some(buffered) = inbound_buffer.buffers.remove(&msg.host_anchor)
+            && let Some(chan) = dim_channels.get(current_dim) {
                 for packet in buffered {
                     let _ = chan.serverbound_sender.try_send(ToDim::Serverbound {
                         player: packet.player,
@@ -696,7 +696,6 @@ pub fn bridge_player_attach(
                     });
                 }
             }
-        }
     }
 }
 
@@ -745,9 +744,9 @@ pub fn bridge_inbound(
                         timestamp: pkt.timestamp,
                     });
 
-                    if let Some(anchor) = anchor_ref {
-                        if let Some((_, entry)) = session_registry.get_by_anchor(&anchor.0) {
-                            if entry.dim != Entity::PLACEHOLDER {
+                    if let Some(anchor) = anchor_ref
+                        && let Some((_, entry)) = session_registry.get_by_anchor(&anchor.0)
+                            && entry.dim != Entity::PLACEHOLDER {
                                 if entry.in_dim_entity.is_some() {
                                     if let Some(chan) = dim_channels.get(entry.dim) {
                                         match chan.serverbound_sender.try_send(ToDim::Serverbound {
@@ -776,8 +775,6 @@ pub fn bridge_inbound(
                                     );
                                 }
                             }
-                        }
-                    }
                 }
                 Ok(None) => break,
                 Err(_) => {
@@ -798,16 +795,16 @@ mod tests {
     use bevy_ecs::world::World;
     use smallvec::SmallVec;
 
-    use crate::world::bus::{InboundPlayerPacket, PlayerTransferSnapshot};
+    use crate::world::bus::InboundPlayerPacket;
     use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim};
     use crate::world::player_index::PendingInboundBuffer;
-    use bevy_math::{DVec3, Vec2};
+    
     use bytes::Bytes;
     use mcrs_engine::session::{PlayerSession, SessionEntry, SessionRegistry};
     use mcrs_engine::world::channels::{
         DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
-    use mcrs_protocol::uuid::Uuid;
+    
 
     fn make_session_entry(
         connection_entity: Entity,
@@ -912,7 +909,7 @@ mod tests {
             buffer
                 .buffers
                 .get(&host_anchor)
-                .map_or(true, |v| v.is_empty())
+                .is_none_or(|v| v.is_empty())
         );
 
         let drained: Vec<_> = dest_srv_rx.try_iter().collect();

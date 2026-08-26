@@ -32,8 +32,8 @@ use tracing::warn;
 
 use crate::world::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
 use crate::world::channel_types::{DimChannelsResource, ToDim, send_control_or_teardown};
-use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
-use mcrs_engine::session::{PlayerSession, SessionRegistry};
+use crate::world::player_index::{HostAnchorRef, PlayerIndex};
+use mcrs_engine::session::SessionRegistry;
 use mcrs_engine::world::sub_app::DimDespawnQueue;
 
 /// Per-tick cleanup budget. The initial 32 caps work at 640 disconnects/sec
@@ -184,7 +184,7 @@ pub fn on_player_disconnect(
 /// emit is the chosen trade-off for sub-case-1 idempotency.
 pub fn process_disconnect(
     host_anchor: Entity,
-    player_index: &mut PlayerIndex,
+    _player_index: &mut PlayerIndex,
     session_registry: &mut SessionRegistry,
     dim_channels: &DimChannelsResource,
     despawn_queue: &mut DimDespawnQueue,
@@ -210,8 +210,7 @@ pub fn process_disconnect(
 
     if let Some(prev) = previous_dim
         && prev != current_dim
-    {
-        if let Some(chan) = dim_channels.get(prev) {
+        && let Some(chan) = dim_channels.get(prev) {
             send_control_or_teardown(
                 &chan.control_sender,
                 prev,
@@ -222,7 +221,6 @@ pub fn process_disconnect(
                 despawn_queue,
             );
         }
-    }
 
     session_registry.remove(&session);
 

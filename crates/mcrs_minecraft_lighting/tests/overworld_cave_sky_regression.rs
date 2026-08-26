@@ -24,7 +24,7 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::state::NextState;
 
 use mcrs_core::ResourceLocation;
-use mcrs_core::{AppState, StaticRegistry};
+use mcrs_core::AppState;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{
@@ -46,9 +46,7 @@ use mcrs_minecraft_worldgen::density_function::proto::{
     DensityFunctionHolder, NoiseParam, ProtoDensityFunction,
 };
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
-use mcrs_vanilla::block::Block;
 use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_math::voxel_shape::VoxelShape;
 
 const DIM_MIN_Y: i32 = -64;
 const DIM_HEIGHT: u32 = 384;
@@ -87,7 +85,7 @@ fn walk_json_files(
             let ident_str = format!("{}:{}", namespace, name);
             if let Ok(ident) = ResourceLocation::parse(&ident_str) {
                 let data = std::fs::read(&path).unwrap();
-                out.push((ident.into(), data));
+                out.push((ident, data));
             }
         }
     }
