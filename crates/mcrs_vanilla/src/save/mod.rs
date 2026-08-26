@@ -24,7 +24,7 @@ pub enum SaveError {
     #[error("{path}: {source}")]
     Nbt {
         path: PathBuf,
-        source: mcrs_nbt::Error,
+        source: mcrs_minecraft_nbt::Error,
     },
     #[error("{path}: DataVersion {found}, expected {expected}")]
     DataVersion {
@@ -153,7 +153,7 @@ fn read_bytes(path: &Path) -> Result<Vec<u8>, SaveError> {
 }
 
 fn decode<T: DeserializeOwned>(bytes: &[u8], path: &Path) -> Result<T, SaveError> {
-    mcrs_nbt::nbt_compress::from_gzip_bytes(bytes).map_err(|source| SaveError::Nbt {
+    mcrs_minecraft_nbt::nbt_compress::from_gzip_bytes(bytes).map_err(|source| SaveError::Nbt {
         path: path.to_path_buf(),
         source,
     })

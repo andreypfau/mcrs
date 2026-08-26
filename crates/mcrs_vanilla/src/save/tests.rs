@@ -1,9 +1,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use mcrs_nbt::compound::NbtCompound;
-use mcrs_nbt::nbt_compress::write_gzip_compound_tag_to_bytes;
-use mcrs_nbt::tag::NbtTag;
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::nbt_compress::write_gzip_compound_tag_to_bytes;
+use mcrs_minecraft_nbt::tag::NbtTag;
 
 use super::*;
 
@@ -228,14 +228,14 @@ fn a_zero_clock_rate_is_rejected() {
 
 #[test]
 fn a_clock_state_writes_back_only_what_the_save_held() {
-    let written = mcrs_nbt::to_nbt_compound(&ClockState {
+    let written = mcrs_minecraft_nbt::to_nbt_compound(&ClockState {
         total_ticks: 1757,
         ..ClockState::default()
     })
     .unwrap();
     assert_eq!(keys(&written), ["total_ticks"]);
 
-    let written = mcrs_nbt::to_nbt_compound(&ClockState {
+    let written = mcrs_minecraft_nbt::to_nbt_compound(&ClockState {
         total_ticks: 1757,
         partial_tick: 0.25,
         rate: 0.5,
@@ -255,7 +255,7 @@ fn a_clock_state_round_trips_through_the_save_shape() {
 
     let mut payload = NbtCompound::new();
     for (id, state) in &clocks {
-        payload.put_component(&id.to_string(), mcrs_nbt::to_nbt_compound(state).unwrap());
+        payload.put_component(&id.to_string(), mcrs_minecraft_nbt::to_nbt_compound(state).unwrap());
     }
     let reread = parse_world_clocks(&saved_data(WORLD_VERSION, payload), path()).unwrap();
 

@@ -3151,7 +3151,7 @@ dependencies = [
  "bytemuck",
  "flate2",
  "mcrs_minecraft",
- "mcrs_nbt",
+ "mcrs_minecraft_nbt",
  "mcrs_telemetry",
  "mcrs_voxel_storage",
  "objc2-foundation 0.3.2",
@@ -3169,7 +3169,7 @@ dependencies = [
  "criterion",
  "flate2",
  "lz4-java-wrc",
- "mcrs_nbt",
+ "mcrs_minecraft_nbt",
  "mcrs_voxel_storage",
  "serde",
  "thiserror 2.0.18",
@@ -3200,7 +3200,7 @@ dependencies = [
  "bevy_reflect",
  "bevy_state",
  "mcrs_core_macros",
- "mcrs_nbt",
+ "mcrs_minecraft_nbt",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -3275,8 +3275,8 @@ dependencies = [
  "mcrs_engine",
  "mcrs_minecraft_block",
  "mcrs_minecraft_lighting",
+ "mcrs_minecraft_nbt",
  "mcrs_minecraft_worldgen",
- "mcrs_nbt",
  "mcrs_network",
  "mcrs_protocol",
  "mcrs_random",
@@ -3349,6 +3349,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_nbt"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "cesu8",
+ "flate2",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "mcrs_minecraft_worldgen"
 version = "0.1.0"
 dependencies = [
@@ -3366,17 +3377,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tracing",
-]
-
-[[package]]
-name = "mcrs_nbt"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "cesu8",
- "flate2",
- "serde",
- "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -3412,7 +3412,7 @@ dependencies = [
  "derive_more",
  "flate2",
  "mcrs_core",
- "mcrs_nbt",
+ "mcrs_minecraft_nbt",
  "mcrs_protocol_macros",
  "mcrs_text",
  "mcrs_voxel_math",
@@ -3486,8 +3486,8 @@ dependencies = [
  "futures-lite",
  "mcrs_core",
  "mcrs_engine",
+ "mcrs_minecraft_nbt",
  "mcrs_minecraft_worldgen",
- "mcrs_nbt",
  "mcrs_protocol",
  "mcrs_text",
  "mcrs_voxel_math",

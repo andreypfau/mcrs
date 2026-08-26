@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::marker::PhantomData;
 
-use mcrs_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_voxel_storage::SectionKind;
 use serde::Deserialize;
 
@@ -237,7 +237,7 @@ struct RawChunkVersion {
 /// A chunk written by an older version fails on a field this layout never had,
 /// which says nothing useful. Re-read just the version so the error names it.
 fn wrong_version(nbt: &[u8]) -> Option<ErrorKind> {
-    let raw: RawChunkVersion = mcrs_nbt::from_bytes(Cursor::new(nbt)).ok()?;
+    let raw: RawChunkVersion = mcrs_minecraft_nbt::from_bytes(Cursor::new(nbt)).ok()?;
     match raw.data_version {
         None => Some(ErrorKind::MissingDataVersion {
             expected: DATA_VERSION,
@@ -251,7 +251,7 @@ fn wrong_version(nbt: &[u8]) -> Option<ErrorKind> {
 }
 
 pub fn parse(nbt: &[u8]) -> Result<Chunk, ErrorKind> {
-    let raw: RawChunk = match mcrs_nbt::from_bytes(Cursor::new(nbt)) {
+    let raw: RawChunk = match mcrs_minecraft_nbt::from_bytes(Cursor::new(nbt)) {
         Ok(raw) => raw,
         Err(err) => return Err(wrong_version(nbt).unwrap_or_else(|| err.into())),
     };

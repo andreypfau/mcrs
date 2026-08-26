@@ -1,6 +1,6 @@
 use crate::{Decode, Encode, VarInt, nbt};
 use mcrs_core::ResourceLocation;
-use mcrs_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use std::borrow::Cow;
 use std::io::Write;
 

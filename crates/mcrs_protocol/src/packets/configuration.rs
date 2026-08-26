@@ -9,7 +9,7 @@ pub mod clientbound {
     use crate::packets::cookie::clientbound::CookieRequest;
     use derive_more::From;
     use mcrs_core::ResourceLocation;
-    use mcrs_nbt::compound::NbtCompound;
+    use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
 

@@ -1,5 +1,5 @@
-use mcrs_nbt::compound::NbtCompound;
-use mcrs_nbt::tag::NbtTag;
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
 
 use crate::{DATA_VERSION, LIGHT_BYTES};
 
@@ -66,7 +66,7 @@ fn chunk(x: i32, z: i32, rng: &mut Rng) -> Vec<u8> {
     root.put_long("InhabitedTime", 0);
     root.put_long("LastUpdate", 0);
 
-    mcrs_nbt::Nbt::new(String::new(), root).write().to_vec()
+    mcrs_minecraft_nbt::Nbt::new(String::new(), root).write().to_vec()
 }
 
 fn section(y: i8, rng: &mut Rng) -> NbtCompound {

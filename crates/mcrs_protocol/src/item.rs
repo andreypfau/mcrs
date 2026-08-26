@@ -1,7 +1,7 @@
 use crate::{Decode, Encode, VarInt};
 use bevy_ecs::prelude::Component;
 use derive_more::{From, Into};
-use mcrs_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_text::Text;
 use std::io::Write;
 

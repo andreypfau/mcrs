@@ -100,7 +100,7 @@ pub use text::Text;
 pub use var_int::VarInt;
 pub use var_long::VarLong;
 pub use velocity::Velocity;
-pub use {anyhow, bytes, mcrs_nbt as nbt, mcrs_text as text, uuid};
+pub use {anyhow, bytes, mcrs_minecraft_nbt as nbt, mcrs_text as text, uuid};
 
 /// The maximum number of bytes in a single Minecraft packet.
 pub const MAX_PACKET_SIZE: i32 = 2097152;

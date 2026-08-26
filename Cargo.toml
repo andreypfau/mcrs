@@ -67,7 +67,7 @@ flume = { version = "0.12.0", default-features = false }
 
 mcrs_protocol_macros = { path = "crates/mcrs_protocol_macros" }
 mcrs_protocol = { path = "crates/mcrs_protocol" }
-mcrs_nbt = { path = "crates/mcrs_nbt" }
+mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
 mcrs_text = { path = "crates/mcrs_text" }
 mcrs_network = { path = "crates/mcrs_network" }
 mcrs_engine = { path = "crates/mcrs_engine" }
@@ -113,7 +113,7 @@ bevy = { version = "0.19.1", default-features = false, features = [
 ] }
 serde.workspace = true
 serde_json.workspace = true
-mcrs_nbt.workspace = true
+mcrs_minecraft_nbt.workspace = true
 mcrs_voxel_storage.workspace = true
 flate2.workspace = true
 bytemuck = { version = "1", features = ["derive"] }

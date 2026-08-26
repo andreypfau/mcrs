@@ -3,10 +3,10 @@ use std::io::{Cursor, Write};
 
 use anyhow::Context;
 use mcrs_core::ResourceLocation;
-use mcrs_nbt::Nbt;
-use mcrs_nbt::compound::NbtCompound;
-use mcrs_nbt::deserializer::NbtReadHelper;
-use mcrs_nbt::serializer::WriteAdaptor;
+use mcrs_minecraft_nbt::Nbt;
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
+use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 use uuid::Uuid;
 
 use crate::{Decode, Encode, ItemId, VarInt};
@@ -47,7 +47,7 @@ impl<'a> Decode<'a> for Uuid {
 impl Encode for NbtCompound {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         let mut writer = WriteAdaptor::new(&mut w);
-        writer.write_u8_be(mcrs_nbt::COMPOUND_ID)?;
+        writer.write_u8_be(mcrs_minecraft_nbt::COMPOUND_ID)?;
         self.serialize_content(&mut writer)?;
         Ok(())
     }

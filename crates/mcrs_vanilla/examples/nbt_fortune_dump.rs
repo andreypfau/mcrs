@@ -37,6 +37,6 @@ fn main() {
         exclusive_set: proto.exclusive_set,
         effects: proto.effects,
     };
-    let nbt = mcrs_nbt::to_nbt_compound(&net).unwrap();
+    let nbt = mcrs_minecraft_nbt::to_nbt_compound(&net).unwrap();
     println!("{:#?}", nbt);
 }

@@ -315,8 +315,8 @@ mod tests {
             // What the client actually receives must not drift from the raw
             // JSON the field used to be serialized from.
             assert_eq!(
-                mcrs_nbt::to_nbt_compound(&proto.attributes).unwrap(),
-                mcrs_nbt::to_nbt_compound(&raw["attributes"]).unwrap(),
+                mcrs_minecraft_nbt::to_nbt_compound(&proto.attributes).unwrap(),
+                mcrs_minecraft_nbt::to_nbt_compound(&raw["attributes"]).unwrap(),
                 "{} attributes must encode to the same NBT",
                 path.display()
             );

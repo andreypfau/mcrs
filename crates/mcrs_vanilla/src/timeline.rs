@@ -810,7 +810,7 @@ impl Timeline {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_nbt::tag::NbtTag;
+    use mcrs_minecraft_nbt::tag::NbtTag;
     use serde_json::{Value, json};
     use std::path::PathBuf;
 
@@ -945,7 +945,7 @@ mod tests {
     #[test]
     fn the_nbt_form_types_every_keyframe_the_way_the_client_reads_it() {
         let day = timeline("day.json");
-        let nbt = mcrs_nbt::to_nbt_compound(&NetworkTimeline::from(&day)).unwrap();
+        let nbt = mcrs_minecraft_nbt::to_nbt_compound(&NetworkTimeline::from(&day)).unwrap();
 
         assert_eq!(nbt.get_string("clock"), Some("minecraft:overworld"));
         assert_eq!(nbt.get("period_ticks"), Some(&NbtTag::Int(24000)));
@@ -1013,7 +1013,7 @@ mod tests {
 
         // an opaque payload keeps whatever shape it had, here a string
         let moon =
-            mcrs_nbt::to_nbt_compound(&NetworkTimeline::from(&timeline("moon.json"))).unwrap();
+            mcrs_minecraft_nbt::to_nbt_compound(&NetworkTimeline::from(&timeline("moon.json"))).unwrap();
         assert_eq!(
             moon.get_compound("tracks")
                 .unwrap()

@@ -8,7 +8,7 @@ by [Spout](https://github.com/spoutdev/Spout), with a Minecraft gameplay impleme
 - **mcrs_engine** - Voxel engine core
 - **mcrs_minecraft** - Minecraft gameplay implementation
 - **mcrs_protocol** - Minecraft protocol implementation
-- **mcrs_nbt** - Minecraft NBT serialization implementation
+- **mcrs_minecraft_nbt** - Minecraft NBT serialization implementation
 
 ## Status
 

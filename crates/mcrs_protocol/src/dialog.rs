@@ -1,4 +1,4 @@
-use mcrs_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 
 #[allow(dead_code)]
 enum DialogHolder {

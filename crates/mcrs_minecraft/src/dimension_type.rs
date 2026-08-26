@@ -1,5 +1,5 @@
-use mcrs_nbt::compound::NbtCompound;
-use mcrs_nbt::tag::NbtTag;
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_vanilla::value::IntValueProvider;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;

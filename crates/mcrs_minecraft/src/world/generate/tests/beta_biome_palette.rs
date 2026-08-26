@@ -143,7 +143,7 @@ fn generate_column_beta_biome_not_default() {
         .collect();
 
     let snapshot = RegistrySnapshot::<Biome>::build(all_pairs, &assets, |_| {
-        Ok(mcrs_nbt::compound::NbtCompound::new())
+        Ok(mcrs_minecraft_nbt::compound::NbtCompound::new())
     });
     assert_eq!(
         snapshot.len(),

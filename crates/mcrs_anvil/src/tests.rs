@@ -1,8 +1,8 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use mcrs_nbt::compound::NbtCompound;
-use mcrs_nbt::tag::NbtTag;
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
 
 use crate::chunk::LIGHT_BYTES;
 use crate::region::SECTOR_BYTES;
@@ -98,7 +98,7 @@ fn compress(version: u8, nbt: &[u8]) -> Vec<u8> {
 }
 
 fn nbt_bytes(compound: &NbtCompound) -> Vec<u8> {
-    mcrs_nbt::Nbt::new(String::new(), compound.clone())
+    mcrs_minecraft_nbt::Nbt::new(String::new(), compound.clone())
         .write()
         .to_vec()
 }

@@ -1,6 +1,6 @@
 use bevy_asset::{Asset, AssetId, Assets};
 use bevy_ecs::resource::Resource;
-use mcrs_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -47,7 +47,7 @@ impl<T: Asset> RegistrySnapshot<T> {
     pub fn build<I, F>(pairs: I, assets: &Assets<T>, mut serialize: F) -> Self
     where
         I: IntoIterator<Item = (ResourceLocation<Arc<str>>, AssetId<T>)>,
-        F: FnMut(&T) -> Result<NbtCompound, mcrs_nbt::Error>,
+        F: FnMut(&T) -> Result<NbtCompound, mcrs_minecraft_nbt::Error>,
     {
         let mut pairs: Vec<_> = pairs.into_iter().collect();
         pairs.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));

@@ -48,7 +48,7 @@ pub mod clientbound {
 pub mod serverbound {
     use crate::{Bounded, RawBytes};
     use mcrs_core::ResourceLocation;
-    use mcrs_nbt::compound::NbtCompound;
+    use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_protocol_macros::{Decode, Encode};
     use std::borrow::Cow;
     use uuid::Uuid;

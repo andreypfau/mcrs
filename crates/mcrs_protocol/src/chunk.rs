@@ -1,7 +1,7 @@
 use crate::{Decode as DecodeTrait, Encode as EncodeTrait, VarInt, VarLong};
 use anyhow::ensure;
 use bitfield_struct::bitfield;
-use mcrs_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_protocol_macros::{Decode, Encode};
 use std::borrow::Cow;
 use std::io::Write;

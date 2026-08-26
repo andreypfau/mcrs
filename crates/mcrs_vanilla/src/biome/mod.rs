@@ -312,13 +312,13 @@ mod tests {
             "spawns are server-only"
         );
 
-        let nbt = mcrs_nbt::to_nbt_compound(&network).expect("network biome must encode to NBT");
-        let Some(mcrs_nbt::tag::NbtTag::Compound(attributes)) = nbt.get("attributes") else {
+        let nbt = mcrs_minecraft_nbt::to_nbt_compound(&network).expect("network biome must encode to NBT");
+        let Some(mcrs_minecraft_nbt::tag::NbtTag::Compound(attributes)) = nbt.get("attributes") else {
             panic!("attributes must reach the client as a compound");
         };
         assert_eq!(
             attributes.get("minecraft:visual/sky_color"),
-            Some(&mcrs_nbt::tag::NbtTag::String("#78a7ff".to_string()))
+            Some(&mcrs_minecraft_nbt::tag::NbtTag::String("#78a7ff".to_string()))
         );
 
         assert!((network.temperature - biome.temperature).abs() < f32::EPSILON);

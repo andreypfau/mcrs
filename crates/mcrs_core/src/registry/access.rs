@@ -3,7 +3,7 @@ use crate::registry::static_registry::StaticRegistry;
 use crate::resource_location::ResourceLocation;
 use bevy_asset::Asset;
 use bevy_ecs::resource::Resource;
-use mcrs_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]

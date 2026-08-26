@@ -76,7 +76,7 @@ pub enum ErrorKind {
     #[error("chunk {x},{z}: external chunk file `{name}` is missing")]
     MissingExternal { x: i32, z: i32, name: String },
     #[error("{0}")]
-    Nbt(#[from] mcrs_nbt::Error),
+    Nbt(#[from] mcrs_minecraft_nbt::Error),
     #[error("DataVersion {found}, expected {expected}")]
     DataVersion { found: i32, expected: i32 },
     #[error("no DataVersion, so older than the tag itself; expected {expected}")]

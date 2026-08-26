@@ -43,7 +43,7 @@ fn snapshot_integration_biome_populated_with_in_memory_fixtures() {
         (desert_rl.clone(), desert_id),
     ];
     let snapshot = RegistrySnapshot::<Biome>::build(pairs, &assets, |b: &Biome| {
-        mcrs_nbt::to_nbt_compound(&NetworkBiome::from(b))
+        mcrs_minecraft_nbt::to_nbt_compound(&NetworkBiome::from(b))
     });
 
     // SNAP-01: all three entries present
@@ -77,7 +77,7 @@ fn snapshot_integration_biome_populated_with_in_memory_fixtures() {
         (ocean_rl, ocean_id),
     ];
     let snapshot2 = RegistrySnapshot::<Biome>::build(shuffled, &assets, |b: &Biome| {
-        mcrs_nbt::to_nbt_compound(&NetworkBiome::from(b))
+        mcrs_minecraft_nbt::to_nbt_compound(&NetworkBiome::from(b))
     });
     for i in 0..3u32 {
         assert_eq!(

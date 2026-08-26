@@ -4,8 +4,8 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use mcrs_anvil::{Chunk, ErrorKind, parse_chunk};
 use mcrs_minecraft::world::format::anvil::CorpusBlockStates;
-use mcrs_nbt::compound::NbtCompound;
-use mcrs_nbt::tag::NbtTag;
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_vanilla::block::definition::schema::PropertyValue;
 use mcrs_vanilla::block::definition::{BlockDefinitions, BlockEntry, load_block_definitions};
 
@@ -97,7 +97,7 @@ fn chunk(sections: Vec<NbtTag>) -> Chunk {
     root.put_long("InhabitedTime", 0);
     root.put_long("LastUpdate", 0);
     root.put_list("sections", sections);
-    let bytes = mcrs_nbt::Nbt::new(String::new(), root).write().to_vec();
+    let bytes = mcrs_minecraft_nbt::Nbt::new(String::new(), root).write().to_vec();
     parse_chunk(&bytes).expect("the chunk decodes")
 }
 

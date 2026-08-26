@@ -124,7 +124,7 @@ pub fn load(path: &Path) -> Result<Region, String> {
             other => return Err(format!("chunk {slot}: unsupported compression {other}")),
         };
 
-        let chunk: ChunkNbt = mcrs_nbt::from_bytes(Cursor::new(nbt))
+        let chunk: ChunkNbt = mcrs_minecraft_nbt::from_bytes(Cursor::new(nbt))
             .map_err(|e| format!("chunk {slot}: cannot deserialize: {e}"))?;
         for section in &chunk.sections {
             min_y = min_y.min(section.y as i32);

@@ -3,10 +3,10 @@ use std::io::{Cursor, Write};
 use crate::{Bounded, Decode, Encode, RawBytes, VarInt};
 use anyhow::ensure;
 use byteorder::WriteBytesExt;
-use mcrs_nbt::deserializer::NbtReadHelper;
-use mcrs_nbt::serializer::WriteAdaptor;
-use mcrs_nbt::tag::NbtTag;
-use mcrs_nbt::{STRING_ID, from_bytes_unnamed, to_bytes_unnamed};
+use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
+use mcrs_minecraft_nbt::serializer::WriteAdaptor;
+use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_nbt::{STRING_ID, from_bytes_unnamed, to_bytes_unnamed};
 use mcrs_text::{Text, TextContent};
 
 const DEFAULT_MAX_STRING_CHARS: usize = 32767;

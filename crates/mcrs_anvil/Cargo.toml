@@ -5,7 +5,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-mcrs_nbt.workspace = true
+mcrs_minecraft_nbt.workspace = true
 mcrs_voxel_storage.workspace = true
 serde.workspace = true
 thiserror.workspace = true
