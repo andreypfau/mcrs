@@ -934,7 +934,9 @@ pub trait RewriteRule {
     fn rewrite(&self, function: &DensityFunctionHolder) -> DensityFunctionHolder;
 }
 
-pub struct InlineReference<'a>(pub &'a std::collections::BTreeMap<ResourceLocation, ProtoDensityFunction>);
+pub struct InlineReference<'a>(
+    pub &'a std::collections::BTreeMap<ResourceLocation, ProtoDensityFunction>,
+);
 
 impl RewriteRule for InlineReference<'_> {
     fn rewrite(&self, function: &DensityFunctionHolder) -> DensityFunctionHolder {
@@ -947,5 +949,71 @@ impl RewriteRule for InlineReference<'_> {
             },
             _ => function.rewrite_children(self),
         }
+    }
+}
+
+/// Pin every axis a child cannot vary along but its parent can, so that the
+/// child's whole subtree is known to be constant along it without any consumer
+/// having to declare a cache.
+pub struct SliceUniformAxes {
+    parent_axes: u8,
+}
+
+impl SliceUniformAxes {
+    pub fn new(parent_axes: u8) -> Self {
+        Self { parent_axes }
+    }
+}
+
+pub fn is_uniform_axis_slice_leaf(function: &DensityFunctionHolder) -> bool {
+    match function {
+        DensityFunctionHolder::Value(_) => true,
+        DensityFunctionHolder::Owned(f) => matches!(
+            **f,
+            ProtoDensityFunction::Constant(_) | ProtoDensityFunction::Gradient { .. }
+        ),
+        DensityFunctionHolder::Reference(_) => false,
+    }
+}
+
+pub fn sliced_axes(function: &DensityFunctionHolder) -> u8 {
+    let mut axes = 0u8;
+    let mut current = function;
+    while let DensityFunctionHolder::Owned(f) = current {
+        let ProtoDensityFunction::Slice { axis, input, .. } = &**f else {
+            break;
+        };
+        axes |= axis.bit();
+        current = input;
+    }
+    axes
+}
+
+fn slice_at_origin(function: DensityFunctionHolder, axes: u8) -> DensityFunctionHolder {
+    let axes = axes & !sliced_axes(&function);
+    let mut function = function;
+    for axis in [Axis::X, Axis::Z, Axis::Y] {
+        if axes & axis.bit() != 0 {
+            function = DensityFunctionHolder::Owned(Box::new(ProtoDensityFunction::Slice {
+                axis,
+                coordinate: 0,
+                input: function,
+            }));
+        }
+    }
+    function
+}
+
+impl RewriteRule for SliceUniformAxes {
+    fn rewrite(&self, function: &DensityFunctionHolder) -> DensityFunctionHolder {
+        if is_uniform_axis_slice_leaf(function) {
+            return function.clone();
+        }
+        let axes = function.domain_axes();
+        if axes == self.parent_axes {
+            return function.rewrite_children(self);
+        }
+        let rewritten = function.rewrite_children(&SliceUniformAxes { parent_axes: axes });
+        slice_at_origin(rewritten, self.parent_axes & !axes)
     }
 }

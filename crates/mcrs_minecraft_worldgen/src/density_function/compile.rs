@@ -486,57 +486,28 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
     );
 }
 
-/// Compute which stack entries need recomputation per block (Y changes)
-/// vs once per column (X,Z changes only).
-///
-/// Forward propagation: a node is per_block if it intrinsically depends on Y
-/// OR if any of its inputs is per_block. A `Cache` over a column-only input is
-/// therefore column-only itself, and acts as the barrier `is_column_barrier`
-/// reports.
-pub(super) fn compute_per_block(stack: &[DensityFunctionComponent], _roots: &[usize]) -> Vec<bool> {
-    let mut per_block = vec![false; stack.len()];
+/// Which stack entries have to be recomputed as Y changes, and which hold for a
+/// whole column.
+pub(super) fn compute_per_block(stack: &[DensityFunctionComponent]) -> Vec<bool> {
+    compute_domain_axes(stack)
+        .into_iter()
+        .map(|axes| axes & AXIS_Y != 0)
+        .collect()
+}
 
+/// Whether the column pass can evaluate an entry: its own value holds for the
+/// whole column and so does every value it reads. `slice` and `find_top_surface`
+/// are the two nodes that drop an axis their input still varies along, so they
+/// are also the only ones that stay per-Y here despite a column-wide value.
+pub(super) fn compute_column_ready(stack: &[DensityFunctionComponent]) -> Vec<bool> {
+    let axes = compute_domain_axes(stack);
+    let mut ready = vec![false; stack.len()];
     for i in 0..stack.len() {
-        // Check if intrinsically per_block (uses pos.y directly)
-        let intrinsic = match &stack[i] {
-            DensityFunctionComponent::Independent(f) => match f {
-                IndependentDensityFunction::OldBlendedNoise(_)
-                | IndependentDensityFunction::ClampedYGradient(_)
-                | IndependentDensityFunction::DistanceToPoint(_) => true,
-                IndependentDensityFunction::Noise(n) => n.y_scale != 0.0,
-                IndependentDensityFunction::Gradient(g) => g.axis == Axis::Y,
-                _ => false,
-            },
-            DensityFunctionComponent::Dependent(f) => match f {
-                DependentDensityFunction::Slide(_)
-                | DependentDensityFunction::FindTopSurface(_)
-                | DependentDensityFunction::Slice(_) => true,
-                DependentDensityFunction::ShiftedNoise(n) => n.y_scale != 0.0,
-                _ => false,
-            },
-            DensityFunctionComponent::Wrapper(_) => false,
-        };
-
-        if intrinsic {
-            per_block[i] = true;
-        } else {
-            // per_block if any input is per_block
-            stack[i].visit_input_indices(&mut |idx| {
-                if per_block[idx] {
-                    per_block[i] = true;
-                }
-            });
-        }
+        let mut i_ready = axes[i] & AXIS_Y == 0;
+        stack[i].visit_input_indices(&mut |j| i_ready &= ready[j]);
+        ready[i] = i_ready;
     }
-
-    let column_only_count = per_block.iter().filter(|&&b| !b).count();
-    let per_block_count = per_block.iter().filter(|&&b| b).count();
-    info!(
-        column_only_count,
-        per_block_count, "Density function per_block analysis"
-    );
-
-    per_block
+    ready
 }
 
 /// The coordinate axes a stack entry's value can vary along. Every axis outside
@@ -626,16 +597,6 @@ pub(super) fn compute_outer_terms(
     (terms, wrappers)
 }
 
-/// A cache node whose value is constant down a column: everything it shields is
-/// evaluated once per column instead of once per block.
-pub(super) fn is_column_barrier(stack: &[DensityFunctionComponent], per_block: &[bool], index: usize) -> bool {
-    !per_block[index]
-        && matches!(
-            &stack[index],
-            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Cache(_))
-        )
-}
-
 /// Reorder the stack into three zones for optimal `evaluate_forward` performance:
 ///
 ///   Zone A `[0..column_boundary)`:  column-only entries reachable from final_density
@@ -654,7 +615,6 @@ pub(super) fn reorder_stack_for_evaluation(
     let n = stack.len();
     let fd_index = roots[final_density_root_idx];
 
-    // Step 1: Compute full reachability from final_density (backward walk)
     let mut fd_reachable = vec![false; n];
     {
         let mut worklist = vec![fd_index];
@@ -669,70 +629,28 @@ pub(super) fn reorder_stack_for_evaluation(
         }
     }
 
-    // Step 2: Compute per-Y reachability (backward walk, stopping at column barriers)
-    // These are entries whose per-Y values are actually consumed by final_density.
-    let mut per_y_reachable = vec![false; n];
-    {
-        let mut worklist = vec![fd_index];
-        per_y_reachable[fd_index] = true;
-        while let Some(idx) = worklist.pop() {
-            if !is_column_barrier(stack, per_block, idx) {
-                stack[idx].visit_input_indices(&mut |input| {
-                    if !per_y_reachable[input] {
-                        per_y_reachable[input] = true;
-                        worklist.push(input);
-                    }
-                });
-            }
-        }
-    }
-
-    // Step 3: Classify each entry into a zone
-    //   Zone A (0): fd_reachable AND NOT (per_y_reachable AND per_block)
-    //   Zone B (1): per_y_reachable AND per_block
+    // Classify each entry into a zone
+    //   Zone A (0): fd_reachable AND the column pass can evaluate it
+    //   Zone B (1): fd_reachable AND it has to be re-evaluated as Y moves
     //   Zone C (2): NOT fd_reachable
+    let column_ready = compute_column_ready(stack);
     let mut zone = vec![2u8; n];
     for i in 0..n {
         if fd_reachable[i] {
-            if per_y_reachable[i] && per_block[i] {
-                zone[i] = 1; // Zone B: per-Y evaluation needed
-            } else {
-                zone[i] = 0; // Zone A: column-only (or shielded by a column barrier)
-            }
+            zone[i] = !column_ready[i] as u8;
         }
     }
 
-    // Safety check: verify no Zone A entry depends on a Zone B entry.
-    // This would happen if a barrier input is shared with a direct per-Y consumer.
-    // In vanilla Minecraft, this never occurs; all barrier inputs are exclusive.
-    for i in 0..n {
-        if zone[i] == 0 {
-            stack[i].visit_input_indices(&mut |input| {
-                debug_assert!(
-                    zone[input] != 1,
-                    "Zone A entry {} depends on Zone B entry {} — \
-                     column barrier input is shared with a direct per-Y consumer. \
-                     This case requires special handling.",
-                    i,
-                    input
-                );
-            });
-        }
-    }
-
-    // Step 4: Create permutation sorted by (zone, original_index).
-    // Since the original stack is in topological order, sorting by original_index
-    // within each zone preserves topological order within that zone.
+    // The stack arrives topologically ordered, so sorting by original index
+    // within a zone keeps children ahead of parents inside that zone.
     let mut sorted_indices: Vec<usize> = (0..n).collect();
     sorted_indices.sort_by_key(|&i| (zone[i], i));
 
-    // Step 5: Build old→new index mapping
     let mut old_to_new = vec![0usize; n];
     for (new_idx, &old_idx) in sorted_indices.iter().enumerate() {
         old_to_new[old_idx] = new_idx;
     }
 
-    // Step 6: Apply permutation to stack, per_block, node_labels
     let old_stack: Vec<DensityFunctionComponent> = stack.drain(..).collect();
     let old_per_block: Vec<bool> = per_block.drain(..).collect();
     let old_labels: Vec<String> = node_labels.drain(..).collect();
@@ -743,17 +661,14 @@ pub(super) fn reorder_stack_for_evaluation(
         node_labels.push(old_labels[old_idx].clone());
     }
 
-    // Step 7: Rewrite all index references using old→new mapping
     for entry in stack.iter_mut() {
         entry.rewrite_indices(&old_to_new);
     }
 
-    // Step 8: Update root indices
     for root in roots.iter_mut() {
         *root = old_to_new[*root];
     }
 
-    // Step 9: Compute zone boundaries
     let zone_a_count = zone.iter().filter(|&&z| z == 0).count();
     let zone_b_count = zone.iter().filter(|&&z| z == 1).count();
     let zone_c_count = zone.iter().filter(|&&z| z == 2).count();
@@ -769,7 +684,6 @@ pub(super) fn reorder_stack_for_evaluation(
         "Stack reordered for evaluation zones"
     );
 
-    // Count per-zone noise evaluations (expensive operations)
     let count_noises = |range: std::ops::Range<usize>| -> usize {
         range
             .filter(|&i| {
@@ -817,18 +731,29 @@ pub fn build_functions(
     let inline = InlineReference(functions);
     let inlined: BTreeMap<ResourceLocation, ProtoDensityFunction> = functions
         .iter()
-        .map(|(id, function)| (id.clone(), function.rewrite_children(&inline)))
+        .map(|(id, function)| {
+            let function = function.rewrite_children(&inline);
+            let axes = function.domain_axes();
+            (
+                id.clone(),
+                function.rewrite_children(&SliceUniformAxes::new(axes)),
+            )
+        })
         .collect();
     let mut builder = FunctionStackBuilder::new(random, seed, &inlined, noises);
     let nr = &noise_settings.noise_router;
-    let temperature_index = builder.component(&inline.rewrite(&nr.temperature));
-    let vegetation_index = builder.component(&inline.rewrite(&nr.vegetation));
-    let continents_index = builder.component(&inline.rewrite(&nr.continents));
-    let erosion_index = builder.component(&inline.rewrite(&nr.erosion));
-    let depth_index = builder.component(&inline.rewrite(&nr.depth));
-    let ridges_index = builder.component(&inline.rewrite(&nr.ridges));
-    let chunk_surface_level_index = builder.component(&inline.rewrite(&nr.chunk_surface_level));
-    let final_density_index = builder.component(&inline.rewrite(&nr.final_density));
+    let slice = SliceUniformAxes::new(ALL_AXES);
+    let mut root = |builder: &mut FunctionStackBuilder<'_>, holder: &DensityFunctionHolder| {
+        builder.component(&slice.rewrite(&inline.rewrite(holder)))
+    };
+    let temperature_index = root(&mut builder, &nr.temperature);
+    let vegetation_index = root(&mut builder, &nr.vegetation);
+    let continents_index = root(&mut builder, &nr.continents);
+    let erosion_index = root(&mut builder, &nr.erosion);
+    let depth_index = root(&mut builder, &nr.depth);
+    let ridges_index = root(&mut builder, &nr.ridges);
+    let chunk_surface_level_index = root(&mut builder, &nr.chunk_surface_level);
+    let final_density_index = root(&mut builder, &nr.final_density);
 
     let mut roots = [
         temperature_index,
@@ -843,7 +768,7 @@ pub fn build_functions(
 
     optimize_stack(&mut builder.stack, &mut roots);
 
-    let mut per_block = compute_per_block(&builder.stack, &roots);
+    let mut per_block = compute_per_block(&builder.stack);
 
     // Build node labels: start with type labels, then overlay reference names
     let mut node_labels: Vec<String> = vec![String::new(); builder.stack.len()];
@@ -1533,14 +1458,20 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
 
     fn visit_slice(&mut self, axis: Axis, coordinate: i32, input: &DensityFunctionHolder) {
         let input_index = self.component(input);
+        let proto = ProtoDensityFunction::Slice {
+            axis,
+            coordinate,
+            input: input.clone(),
+        };
+        if input.domain_axes() & axis.bit() == 0 {
+            let component = self.stack[input_index].clone();
+            self.register_component(proto, component);
+            return;
+        }
         let min_value = self.stack[input_index].min_value();
         let max_value = self.stack[input_index].max_value();
         self.register_component(
-            ProtoDensityFunction::Slice {
-                axis,
-                coordinate,
-                input: input.clone(),
-            },
+            proto,
             DensityFunctionComponent::Dependent(DependentDensityFunction::Slice(Slice {
                 axis,
                 coordinate,

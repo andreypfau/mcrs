@@ -2,8 +2,8 @@ use crate::density_function::branch_schedule::{BranchSchedule, Step};
 use crate::density_function::proto::{
     ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axis, DensityFunctionHolder, DistanceMetric, HashableF64,
     InlineReference, NoiseHolder, NoiseParam, PowFunctionArguments, ProtoDensityFunction,
-    RewriteRule, RoundFunctionArguments, RoundingMode, SingleArgumentFunction, SplineHolder,
-    TilingMode, TwoArgumentFunction, Visitor, noise_scale_axes,
+    RewriteRule, RoundFunctionArguments, RoundingMode, SingleArgumentFunction, SliceUniformAxes,
+    SplineHolder, TilingMode, TwoArgumentFunction, Visitor, noise_scale_axes,
 };
 use crate::noise::normal_noise::NoiseSampler;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
@@ -167,7 +167,7 @@ fn reciprocal_range(min: f32, max: f32) -> (f32, f32) {
 
 /// Persistent cache for density function evaluation.
 /// Reuse across calls to `final_density` within the same chunk generation
-/// to cache column-only values (column barrier dependency cones).
+/// to cache column-only values.
 pub struct DensityCache {
     scratch: Vec<f32>,
     last_x: i32,
@@ -210,9 +210,16 @@ pub struct ColumnCache {
 impl ColumnCache {
     const GRID_SIDE: i32 = 17;
 
-    /// Read a single Zone A value for a given (local_x, local_z) without loading the full column.
+    /// One column-invariant value at (local_x, local_z) without loading the whole
+    /// column. Only entries below the column boundary are in the grid; screening
+    /// the index with `NoiseRouter::is_column_entry` is the caller's job, because
+    /// doing it here measured at 7% of the Beta chunk fill.
     #[inline]
     pub fn read_za_value(&self, local_x: i32, local_z: i32, za_index: usize) -> f32 {
+        debug_assert!(
+            za_index < self.zone_a_count,
+            "entry {za_index} is not in the column grid"
+        );
         let xz_idx = (local_x * Self::GRID_SIDE + local_z) as usize;
         self.column_data[xz_idx * self.zone_a_count + za_index]
     }
@@ -299,6 +306,13 @@ impl NoiseRouter {
 
     pub fn column_boundary(&self) -> usize {
         self.column_boundary
+    }
+
+    /// Whether an entry is one the column pass computes, and so one a
+    /// `ColumnCache` actually carries.
+    #[inline]
+    pub fn is_column_entry(&self, index: usize) -> bool {
+        index < self.column_boundary
     }
 
     pub fn world_seed(&self) -> u64 {
@@ -452,7 +466,9 @@ impl NoiseRouter {
 
     /// Read post-processed (temperature, humidity) for a column position from Zone A cache.
     ///
-    /// Returns (0.0, 0.0) when climate nodes are not wired into the router (e.g., modern path).
+    /// Returns (0.0, 0.0) outside the cached grid. Only a router whose climate
+    /// roots are column entries can answer at all — the modern router's are not,
+    /// and it reaches its climate through `evaluate_forward` instead.
     pub fn sample_climate_at(&self, cache: &ColumnCache, block_x: i32, block_z: i32) -> (f32, f32) {
         let base_x = cache.base_block_x;
         let base_z = cache.base_block_z;
@@ -465,6 +481,11 @@ impl NoiseRouter {
         {
             return (0.0, 0.0);
         }
+        debug_assert!(
+            self.is_column_entry(self.temperature_index)
+                && self.is_column_entry(self.vegetation_index),
+            "this router's climate roots are not in the column grid"
+        );
         let temperature = cache.read_za_value(local_x, local_z, self.temperature_index);
         let humidity = cache.read_za_value(local_x, local_z, self.vegetation_index);
         (temperature, humidity)
@@ -1076,7 +1097,7 @@ impl NoiseRouter {
     /// For Zone B roots (final_density and its per-Y dependencies):
     ///   Column pass evaluates Zone A at Y=0; per-Y pass sweeps Zone B branchlessly.
     ///
-    /// For Zone C roots (barrier, temperature, veins, etc.):
+    /// For Zone C roots (temperature, chunk_surface_level, veins, etc.):
     ///   Falls back to the general per_block-checking approach.
     fn evaluate_forward(&self, root: usize, pos: IVec3, cache: &mut DensityCache) -> f32 {
         let column_changed = pos.x != cache.last_x || pos.z != cache.last_z || !cache.column_valid;
@@ -1099,7 +1120,6 @@ impl NoiseRouter {
                 cache.last_x = pos.x;
                 cache.last_z = pos.z;
                 // Evaluate Zone A (column-only) entries at Y=0.
-                // This includes column barrier inputs evaluated at Y=0 (correct for column caching).
                 let y0_pos = IVec3::new(pos.x, 0, pos.z);
                 for i in 0..self.column_boundary {
                     cache.scratch[i] =
@@ -4836,6 +4856,69 @@ mod tests {
             mcrs_voxel_storage::VoxelId(1),
             mcrs_voxel_storage::VoxelId(86),
         )
+    }
+
+    /// The slicing rewrite has to leave every parent-to-child edge either uniform
+    /// in its axes or bridged by slices pinning exactly the axes the child drops,
+    /// because that is what lets a consumer read the child's invariance off the
+    /// child alone.
+    #[test]
+    fn slicing_pins_every_axis_a_child_drops() {
+        use super::ALL_AXES;
+        use super::proto::{
+            DensityFunctionHolder, InlineReference, ProtoDensityFunction, RewriteRule,
+            SliceUniformAxes, is_uniform_axis_slice_leaf, sliced_axes,
+        };
+
+        let functions = load_density_functions_from_disk();
+        let inline = InlineReference(&functions);
+        let mut inserted = 0usize;
+        for settings_file in ["overworld.json", "beta.json"] {
+            let settings = settings_for(settings_file);
+            let nr = &settings.noise_router;
+            for holder in [
+                &nr.temperature,
+                &nr.vegetation,
+                &nr.continents,
+                &nr.erosion,
+                &nr.depth,
+                &nr.ridges,
+                &nr.chunk_surface_level,
+                &nr.final_density,
+            ] {
+                let original = inline.rewrite(holder);
+                let rewritten = SliceUniformAxes::new(ALL_AXES).rewrite(&original);
+                assert_eq!(rewritten.domain_axes(), original.domain_axes());
+
+                let mut pending = vec![(ALL_AXES, rewritten.clone())];
+                while let Some((parent_axes, holder)) = pending.pop() {
+                    if is_uniform_axis_slice_leaf(&holder) {
+                        continue;
+                    }
+                    let axes = holder.domain_axes();
+                    let pinned = sliced_axes(&holder);
+                    inserted += pinned.count_ones() as usize;
+                    assert_eq!(
+                        pinned,
+                        parent_axes & !axes,
+                        "{settings_file}: a child with axes {axes:#05b} under a parent with \
+                         {parent_axes:#05b} pins {pinned:#05b}"
+                    );
+                    let mut inner = &holder;
+                    while let DensityFunctionHolder::Owned(f) = inner {
+                        let ProtoDensityFunction::Slice { input, .. } = &**f else {
+                            break;
+                        };
+                        inner = input;
+                    }
+                    if let DensityFunctionHolder::Owned(f) = inner {
+                        f.visit_children(&mut |child| pending.push((axes, child.clone())));
+                    }
+                }
+            }
+        }
+        assert!(inserted > 0, "the rewrite never fired");
+        println!("{inserted} axes pinned across both presets");
     }
 
     /// The rewrite rules run on the AST, so their axis masks have to be at least
