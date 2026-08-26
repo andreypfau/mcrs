@@ -21,7 +21,7 @@
 // Concurrency: `Query<&mut Heightmaps>` plus a separate `Query<&SectionVoxels>`
 // give the scheduler exclusive write access to heightmap state for the
 // duration of the system; no manual locking is needed.
-use crate::heightmap::{HeightmapVariant, MinecraftHeightmaps, scan_top_down};
+use crate::heightmap::{HeightmapAccess, HeightmapVariant, scan_top_down};
 use crate::table::{BlockStateLightTable, flag_bits};
 use bevy_ecs::entity::EntityHashMap;
 use bevy_ecs::message::MessageReader;
@@ -29,6 +29,7 @@ use bevy_ecs::prelude::{Entity, Local, Query, Res};
 use mcrs_engine::voxel_update::SectionVoxels;
 use mcrs_engine::voxel_update::{VoxelPlaced, VoxelUpdateFlags};
 use mcrs_engine::world::storage::column::{ColumnChunks, Heightmaps, InColumn};
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 
 /// HEIGHT-02 eager fused two-type heightmap update. Reads
 /// `MessageReader<VoxelPlaced>` and updates `Heightmaps` on the affected
@@ -96,8 +97,8 @@ pub fn update_heightmaps_on_block_placed<F: VoxelUpdateFlags>(
             let max_y = min_y + heightmaps.height() as i32 - 1;
 
             for placed in events {
-                let x = (placed.block_pos.x & 15) as usize;
-                let z = (placed.block_pos.z & 15) as usize;
+                let x = (placed.block_pos.x & BLOCKS::MASK as i32) as usize;
+                let z = (placed.block_pos.z & BLOCKS::MASK as i32) as usize;
                 let placed_y = placed.block_pos.y;
 
                 if placed_y < min_y || placed_y > max_y {
@@ -207,8 +208,8 @@ mod tests {
     use bevy_app::{App, Update};
     use bevy_ecs::message::Messages;
     use mcrs_engine::voxel_update::SectionVoxels;
-    use mcrs_engine::world::storage::column::{Column, ColumnChunks, Heightmaps, InColumn};
     use mcrs_engine::voxel_update::VoxelPlaced;
+    use mcrs_engine::world::storage::column::{Column, ColumnChunks, Heightmaps, InColumn};
     use mcrs_voxel_math::BlockPos;
     use mcrs_voxel_math::ChunkPos;
     use mcrs_voxel_math::voxel_shape::VoxelShape;
@@ -249,10 +250,7 @@ mod tests {
         let mut app = App::new();
         app.add_message::<VoxelPlaced<bool>>();
         app.insert_resource(make_test_table());
-        app.add_systems(
-            Update,
-            update_heightmaps_on_block_placed::<bool>,
-        );
+        app.add_systems(Update, update_heightmaps_on_block_placed::<bool>);
         app
     }
 

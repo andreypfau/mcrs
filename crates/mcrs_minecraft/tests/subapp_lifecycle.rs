@@ -384,7 +384,7 @@ fn eager_spawn_count_matches_dims() {
         for (id, has_sky) in EXPECTED_DIMS {
             spawn_queue.0.push(DimSpawnRequest {
                 dimension_id: DimensionId::new(*id),
-                type_config: DimensionTypeConfig::default(),
+                type_config: DimensionTypeConfig::new(-64, 384),
                 has_sky: *has_sky,
             });
         }
@@ -450,7 +450,7 @@ fn enqueue_dim_spawns_from_preset_is_idempotent() {
             };
             spawn_queue.0.push(DimSpawnRequest {
                 dimension_id: DimensionId::new(id),
-                type_config: DimensionTypeConfig::default(),
+                type_config: DimensionTypeConfig::new(-64, 384),
                 has_sky: i == 0,
             });
         }
@@ -509,7 +509,7 @@ fn enqueue_dim_spawns_from_empty_preset_is_idempotent() {
         }
         spawn_queue.0.push(DimSpawnRequest {
             dimension_id: DimensionId::new("test:fallback-overworld"),
-            type_config: DimensionTypeConfig::default(),
+            type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
         *guard = true;
@@ -607,7 +607,7 @@ fn dim_tick_runs_full_main_pipeline() {
     let registries = gather_dim_registries(app.world());
     let request = DimSpawnRequest {
         dimension_id: DimensionId::new("test:overworld"),
-        type_config: DimensionTypeConfig::default(),
+        type_config: DimensionTypeConfig::new(-64, 384),
         has_sky: true,
     };
     let label_entity = spawn_dim_subapp(&mut app, &request, &registries);

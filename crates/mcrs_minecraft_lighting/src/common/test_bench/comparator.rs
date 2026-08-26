@@ -1,7 +1,9 @@
+use mcrs_voxel_math::chunk_pos::BLOCKS;
+
 #[inline]
 pub const fn nibble_index(x: usize, y: usize, z: usize) -> usize {
-    debug_assert!(x < 16 && y < 16 && z < 16);
-    (y << 8) | (z << 4) | x
+    debug_assert!(x < BLOCKS::SIZE && y < BLOCKS::SIZE && z < BLOCKS::SIZE);
+    (y << BLOCKS::DOUBLE_BITS) | (z << BLOCKS::BITS) | x
 }
 
 #[inline]

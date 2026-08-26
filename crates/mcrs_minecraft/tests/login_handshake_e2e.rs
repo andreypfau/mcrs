@@ -229,11 +229,17 @@ fn e2e_packet_round_trip() {
 #[test]
 fn e2e_aoi_surrounding_update() {
     use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
-    use mcrs_engine::world::dimension::DimensionBundle;
+    use mcrs_engine::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
     use mcrs_voxel_math::ColumnPos;
 
     let mut app = make_aoi_app();
-    let dim = app.world_mut().spawn(DimensionBundle::default()).id();
+    let dim = app
+        .world_mut()
+        .spawn(DimensionBundle::new(
+            DimensionId::new("minecraft:overworld"),
+            DimensionTypeConfig::new(-64, 384),
+        ))
+        .id();
 
     let player_a = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
     let player_b = spawn_player_in_dim(&mut app, dim, DVec3::new(32.0, 64.0, 0.0));
@@ -416,7 +422,7 @@ fn e2e_join_releases_joining_world() {
         .0
         .push(DimSpawnRequest {
             dimension_id: DimensionId::new("test:overworld"),
-            type_config: DimensionTypeConfig::default(),
+            type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
     drain_dim_spawn_queue(&mut app);

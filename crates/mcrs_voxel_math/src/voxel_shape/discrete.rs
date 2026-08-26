@@ -10,8 +10,7 @@ use super::Aabb;
 /// Packed-bit representation of a sub-block-resolution voxel mask.
 ///
 /// `resolution` is the per-axis cell count and must be a power of two in
-/// `{1, 2, 4, 8}` to match the vanilla `findBits` resolution computation.
-/// `bits` is a flat `[u64]` packed YZX-major (the same ordering LightNibbles
+/// `{1, 2, 4, 8}`. `bits` is a flat `[u64]` packed YZX-major (the same ordering LightNibbles
 /// uses): linear index `y * (rx * rz) + z * rx + x` maps to bit
 /// `linear & 63` of word `linear >> 6`.
 #[derive(Debug)]

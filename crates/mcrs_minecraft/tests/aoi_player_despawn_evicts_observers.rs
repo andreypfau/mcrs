@@ -15,7 +15,9 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_engine::session::PlayerSession;
-use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
+use mcrs_engine::world::dimension::{
+    DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
+};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, PlayerTrackerPlugin, TrackedBy};
 use mcrs_minecraft::world::bus::{
@@ -66,7 +68,13 @@ fn production_topology_main_world_despawn_evicts_in_dim_observers() {
     sub_app.add_plugins(PlayerTrackerPlugin);
 
     // Spawn the Dimension entity in the sub-app world.
-    let dim = sub_app.world_mut().spawn(DimensionBundle::default()).id();
+    let dim = sub_app
+        .world_mut()
+        .spawn(DimensionBundle::new(
+            DimensionId::new("minecraft:overworld"),
+            DimensionTypeConfig::new(-64, 384),
+        ))
+        .id();
 
     // Spawn the in-dim Player entity inline against SubApp::world_mut().
     let pos = DVec3::new(0.0, 64.0, 0.0);
@@ -204,7 +212,13 @@ fn disconnect_path_evicts_stationary_observer_three_assertions() {
     });
     sub_app.add_plugins(PlayerTrackerPlugin);
 
-    let dim = sub_app.world_mut().spawn(DimensionBundle::default()).id();
+    let dim = sub_app
+        .world_mut()
+        .spawn(DimensionBundle::new(
+            DimensionId::new("minecraft:overworld"),
+            DimensionTypeConfig::new(-64, 384),
+        ))
+        .id();
 
     // Both players at the same position — within the 80-block tracking radius.
     // update_tracked_by will discover each player in the other's column

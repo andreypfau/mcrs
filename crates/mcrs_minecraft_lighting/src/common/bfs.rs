@@ -13,6 +13,7 @@ use crate::table::{BlockStateLightTable, flag_bits};
 use crate::{BlockBfsQueues, BlockOutbox, CrossChunkWavefront, SkyBfsQueues, SkyOutbox};
 use mcrs_engine::voxel_update::SectionVoxels;
 use mcrs_voxel_math::Direction;
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_voxel_storage::VoxelId;
 
@@ -40,9 +41,9 @@ pub const fn pack_bfs_entry(
     debug_assert!(level < 16);
     debug_assert!(direction_bitset < 64);
     debug_assert!(flags < 8);
-    (x as u64 & 0xF)
-        | ((z as u64 & 0xF) << 4)
-        | ((y as u64 & 0xFFF) << 8)
+    (x as u64 & BLOCKS::MASK as u64)
+        | ((z as u64 & BLOCKS::MASK as u64) << BLOCKS::BITS)
+        | ((y as u64 & 0xFFF) << BLOCKS::DOUBLE_BITS)
         | ((level as u64 & 0xF) << 20)
         | ((direction_bitset as u64 & 0x3F) << 24)
         | ((flags as u64 & 0x7) << 30)
@@ -50,17 +51,17 @@ pub const fn pack_bfs_entry(
 
 #[inline]
 pub(crate) const fn unpack_bfs_entry_x(entry: u64) -> u8 {
-    (entry & 0xF) as u8
+    (entry & BLOCKS::MASK as u64) as u8
 }
 
 #[inline]
 pub(crate) const fn unpack_bfs_entry_z(entry: u64) -> u8 {
-    ((entry >> 4) & 0xF) as u8
+    ((entry >> BLOCKS::BITS) & BLOCKS::MASK as u64) as u8
 }
 
 #[inline]
 pub(crate) const fn unpack_bfs_entry_y(entry: u64) -> u16 {
-    ((entry >> 8) & 0xFFF) as u16
+    ((entry >> BLOCKS::DOUBLE_BITS) & 0xFFF) as u16
 }
 
 #[inline]
@@ -462,7 +463,7 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
         let propagated_level = unpack_bfs_entry_level(entry);
         let check_dir_bitset = unpack_bfs_entry_dir_bitset(entry);
         let entry_flags = unpack_bfs_entry_flags(entry);
-        let y_local = (y_full as usize) & 0xF;
+        let y_local = (y_full as usize) & BLOCKS::MASK;
 
         debug_assert!(
             !(entry_flags & FLAG_RECHECK_LEVEL != 0 && entry_flags & FLAG_WRITE_LEVEL != 0),
@@ -846,7 +847,7 @@ mod tests {
     /// Construct an empty `LightStorage::Dense` directly. Seeding the source
     /// cell via `LightStorage::Empty::set` produces `Uniform(emission)`, which
     /// causes `light.get` to report `emission` for every cell and the BFS to
-    /// early-exit before propagating (see 03-RESEARCH.md Pitfall #6).
+    /// early-exit before propagating.
     fn zero_light_storage() -> LightStorage {
         LightStorage::Dense(Box::new(LightNibbles::zeros()))
     }

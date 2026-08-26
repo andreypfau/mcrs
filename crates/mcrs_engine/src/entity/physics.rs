@@ -2,9 +2,8 @@ use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::Component;
 use bevy_math::*;
 
-/// Minecraft yaw and pitch in degrees, with the invariants `Entity.turn`
-/// enforces: pitch is clamped to `[-90, 90]`. Yaw is additionally wrapped to
-/// `[-180, 180)`, which `Entity.turn` leaves to the wire encoder.
+/// Yaw and pitch in degrees. Pitch is clamped to `[-90, 90]` and yaw is
+/// wrapped to `[-180, 180)`, so no consumer has to normalise either.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Rotation {
     yaw: f32,
@@ -118,7 +117,7 @@ mod tests {
     use super::Rotation;
 
     #[test]
-    fn pitch_is_clamped_to_the_vanilla_range() {
+    fn pitch_is_clamped_to_a_quarter_turn_each_way() {
         assert_eq!(Rotation::new(0.0, 120.0).pitch(), 90.0);
         assert_eq!(Rotation::new(0.0, -120.0).pitch(), -90.0);
         assert_eq!(Rotation::new(0.0, 8.099984).pitch(), 8.099984);

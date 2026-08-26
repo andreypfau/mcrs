@@ -105,7 +105,7 @@ fn enqueue_overworld(app: &mut App) {
         .0
         .push(DimSpawnRequest {
             dimension_id: DimensionId::new("test:overworld"),
-            type_config: DimensionTypeConfig::default(),
+            type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
 }

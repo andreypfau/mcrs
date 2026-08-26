@@ -18,16 +18,16 @@
 use bevy_ecs::prelude::Entity;
 use mcrs_engine::voxel_update::SectionVoxels;
 use mcrs_engine::world::storage::column::ColumnChunks;
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::bitset::BitSet256;
 use crate::table::{BlockStateLightTable, flag_bits};
 use mcrs_engine::world::storage::column::{ColumnScalarKey, ColumnScalarRegistry, Heightmaps};
 
-const CHUNK_SIZE: i32 = 16;
-
-/// The per-column scalars Minecraft stores on every chunk column, in
-/// registration order. The strings are the vanilla NBT / registry names.
+/// Per-column scalar names in registration order; each name's position here is
+/// the [`ColumnScalarKey`] it is registered under, and the save format and the
+/// registry both address them by these strings.
 pub const HEIGHTMAP_NAMES: [&str; 2] = ["WORLD_SURFACE", "MOTION_BLOCKING"];
 
 pub const WORLD_SURFACE: ColumnScalarKey = ColumnScalarKey(0);
@@ -47,9 +47,8 @@ pub fn register_heightmaps(registry: &mut ColumnScalarRegistry) {
     }
 }
 
-/// The Minecraft-named accessors over the engine's generic per-column scalar
-/// store.
-pub trait MinecraftHeightmaps {
+/// Named accessors over the generic per-column scalar store.
+pub trait HeightmapAccess {
     fn surface_get(&self, x: usize, z: usize) -> i32;
     fn motion_blocking_get(&self, x: usize, z: usize) -> i32;
     fn surface_set(&mut self, x: usize, z: usize, y: i32);
@@ -58,7 +57,7 @@ pub trait MinecraftHeightmaps {
     fn to_long_array_motion_blocking(&self) -> &[u64];
 }
 
-impl MinecraftHeightmaps for Heightmaps {
+impl HeightmapAccess for Heightmaps {
     #[inline]
     fn surface_get(&self, x: usize, z: usize) -> i32 {
         self.get(WORLD_SURFACE, x, z)
@@ -174,7 +173,7 @@ pub enum ScanOutcome {
     /// The scan walked past the dimension floor with at least one `(x, z)`
     /// still open. The unsurfaced cells are the responsibility of the
     /// caller's wrapper (it writes the `min_y` sentinel for them).
-    ChimneyToBedrock,
+    ChimneyToFloor,
     /// A chunk slot inside the cursor range was not loaded yet. The scan
     /// returns immediately so the caller can wait for the next
     /// `Changed<ColumnChunks>` event before resuming.
@@ -216,7 +215,7 @@ where
 
     loop {
         if *cursor < chunks.min_section_y {
-            return ScanOutcome::ChimneyToBedrock;
+            return ScanOutcome::ChimneyToFloor;
         }
 
         let rel_y = (*cursor - chunks.min_section_y) as usize;
@@ -227,7 +226,7 @@ where
             return ScanOutcome::AbsentSection;
         };
 
-        let chunk_base_y = *cursor * CHUNK_SIZE;
+        let chunk_base_y = *cursor * BLOCKS::SIZE as i32;
         let palette = match palette_fn(*chunk_entity) {
             Some(p) => p,
             None => {
@@ -243,9 +242,13 @@ where
             }
         };
 
-        'outer: for cell_y in (0..CHUNK_SIZE).rev() {
+        'outer: for cell_y in (0..BLOCKS::SIZE as i32).rev() {
             for (xz_idx, &(x, z)) in xz_range.iter().enumerate() {
-                let bit_idx = if total == 256 { (z << 4) | x } else { xz_idx };
+                let bit_idx = if total == BLOCKS::AREA {
+                    (z << BLOCKS::BITS) | x
+                } else {
+                    xz_idx
+                };
                 let s_open = !surface_done.is_set(bit_idx);
                 let m_open = !motion_done.is_set(bit_idx);
                 if !s_open && !m_open {

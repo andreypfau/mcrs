@@ -1,7 +1,9 @@
 pub mod container;
+pub mod packed_bit_storage;
 pub mod voxel_palette;
 
 pub use container::{AbstractCube, HeterogeneousPaletteData, PalettedContainer};
+pub use packed_bit_storage::{PackedBitStorage, bits_needed_for};
 pub use voxel_palette::VoxelPalette;
 
 /// An opaque voxel identifier. The engine never interprets it: the game assigns

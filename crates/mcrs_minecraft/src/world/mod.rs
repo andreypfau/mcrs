@@ -151,7 +151,7 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
         warn!("LoadedWorldPreset has no dimensions, enqueueing default overworld spawn request");
         spawn_queue.0.push(DimSpawnRequest {
             dimension_id: DimensionId::new("minecraft:overworld"),
-            type_config: DimensionTypeConfig::default(),
+            type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
         *already_enqueued = true;
@@ -179,7 +179,7 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
                     dimension_key = %dimension_key,
                     "Dimension type not found, using default config + has_sky=true"
                 );
-                (DimensionTypeConfig::default(), true)
+                (DimensionTypeConfig::new(-64, 384), true)
             });
 
         debug!(

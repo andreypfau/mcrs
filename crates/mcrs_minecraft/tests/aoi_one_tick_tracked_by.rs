@@ -13,7 +13,9 @@ use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::physics::Transform;
-use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
+use mcrs_engine::world::dimension::{
+    DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
+};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft::world::aoi::TrackedBy;
 use mcrs_voxel_math::ColumnPos;
@@ -24,7 +26,13 @@ use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
 #[test]
 fn tracked_by_observes_position_change_with_one_tick_latency() {
     let mut app = make_aoi_app();
-    let dim = app.world_mut().spawn(DimensionBundle::default()).id();
+    let dim = app
+        .world_mut()
+        .spawn(DimensionBundle::new(
+            DimensionId::new("minecraft:overworld"),
+            DimensionTypeConfig::new(-64, 384),
+        ))
+        .id();
     let a = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
     let b = spawn_player_in_dim(&mut app, dim, DVec3::new(40.0, 64.0, 0.0));
     seed_column_grid(&mut app, dim, ColumnPos::new(0, 0), 20);

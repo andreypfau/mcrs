@@ -95,8 +95,8 @@ impl<F: VoxelUpdateFlags> Plugin for LightingPlugin<F> {
             schedule.set_executor(SingleThreadedExecutor::new());
         });
 
-        // WorldgenIngestSet::ProcessCompletedColumns runs in FixedPreUpdate per
-        // mcrs_minecraft's chunk plugin; Bevy executes FixedPreUpdate strictly
+        // WorldgenIngestSet::ProcessCompletedColumns runs in FixedPreUpdate, owned
+        // by the game's chunk plugin; Bevy executes FixedPreUpdate strictly
         // before FixedUpdate within FixedMain, so it is omitted from this chain.
         //
         // `configure_sets` only accepts `SystemSet` values; `ApplyDeferred` is a

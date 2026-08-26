@@ -18,6 +18,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ParallelCommands, Query, With};
 use mcrs_engine::voxel_update::SectionVoxels;
 use mcrs_voxel_math::Direction;
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 
 /// Five non-Up faces used by the column-walker fast path to dump 256
 /// wavefronts per face onto `SkyOutbox` (1280 entries total) when an
@@ -50,7 +51,7 @@ pub(crate) fn try_column_walker_fast_path(is_all_air: bool, queues: &SkyBfsQueue
         return false;
     }
     queues.increase_queue.iter().all(|&e| {
-        let y = (unpack_bfs_entry_y(e) as usize) & 0xF;
+        let y = (unpack_bfs_entry_y(e) as usize) & BLOCKS::MASK;
         let lvl = unpack_bfs_entry_level(e);
         y == 15 && lvl == 15
     })

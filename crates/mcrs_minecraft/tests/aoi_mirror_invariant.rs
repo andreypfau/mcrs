@@ -8,7 +8,9 @@ use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::physics::Transform;
-use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
+use mcrs_engine::world::dimension::{
+    DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
+};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft::world::aoi::ChunkSubscriptionSet;
 use mcrs_voxel_math::ColumnPos;
@@ -20,7 +22,13 @@ use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
 #[test]
 fn chunk_subscription_set_mirrors_chunk_player_observers() {
     let mut app = make_aoi_app();
-    let dim = app.world_mut().spawn(DimensionBundle::default()).id();
+    let dim = app
+        .world_mut()
+        .spawn(DimensionBundle::new(
+            DimensionId::new("minecraft:overworld"),
+            DimensionTypeConfig::new(-64, 384),
+        ))
+        .id();
     let player = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
 
     // Seed a column grid large enough to cover both the initial
@@ -67,7 +75,13 @@ fn chunk_subscription_set_covers_chebyshev_corner_at_max_view_distance() {
     // columns of the visible square would emit no ChunkLoad packets and
     // would not list the player in PlayerObservers.
     let mut app = make_aoi_app();
-    let dim = app.world_mut().spawn(DimensionBundle::default()).id();
+    let dim = app
+        .world_mut()
+        .spawn(DimensionBundle::new(
+            DimensionId::new("minecraft:overworld"),
+            DimensionTypeConfig::new(-64, 384),
+        ))
+        .id();
     let player = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
 
     // Default PlayerViewDistance::distance is 12. Seed enough columns to

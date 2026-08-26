@@ -29,7 +29,7 @@ use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_minecraft_lighting::heightmap::MinecraftHeightmaps;
+use mcrs_minecraft_lighting::heightmap::HeightmapAccess;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
@@ -82,11 +82,10 @@ fn make_stub_block_light_table() -> BlockStateLightTable {
 fn spawn_test_dimension(app: &mut App) -> Entity {
     let entity = app
         .world_mut()
-        .spawn(DimensionBundle {
-            type_config: DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
-            dimension_id: DimensionId::new("test:sky"),
-            ..Default::default()
-        })
+        .spawn(DimensionBundle::new(
+            DimensionId::new("test:sky"),
+            DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
+        ))
         .id();
     app.world_mut().entity_mut(entity).insert(HasSkyLight);
     entity

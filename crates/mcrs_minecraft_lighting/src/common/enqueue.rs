@@ -115,13 +115,13 @@ mod tests {
     use bevy_ecs::message::Messages;
     use bevy_ecs::prelude::IntoScheduleConfigs;
     use mcrs_engine::voxel_update::SectionVoxels;
+    use mcrs_engine::voxel_update::VoxelPlaced;
     use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
     use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
     use mcrs_engine::world::storage::column::{
         Column, ColumnChunks, ColumnIndex, ColumnPos, ColumnSlot, InColumn,
     };
     use mcrs_lighting_table_helpers::*;
-    use mcrs_engine::voxel_update::VoxelPlaced;
     use mcrs_voxel_math::BlockPos;
     use mcrs_voxel_math::ChunkPos;
     use mcrs_voxel_math::Direction;
@@ -179,10 +179,7 @@ mod tests {
         let mut app = App::new();
         app.add_message::<VoxelPlaced<bool>>();
         app.insert_resource(make_test_table());
-        app.add_systems(
-            Update,
-            enqueue_block_light_on_block_placed::<bool>,
-        );
+        app.add_systems(Update, enqueue_block_light_on_block_placed::<bool>);
         app
     }
 
@@ -521,10 +518,7 @@ mod tests {
         let mut app = App::new();
         app.add_message::<VoxelPlaced<bool>>();
         app.insert_resource(make_test_table());
-        app.add_systems(
-            Update,
-            enqueue_sky_light_on_block_placed::<bool>,
-        );
+        app.add_systems(Update, enqueue_sky_light_on_block_placed::<bool>);
         app
     }
 
@@ -906,10 +900,7 @@ mod tests {
         let mut app = App::new();
         app.add_message::<VoxelPlaced<bool>>();
         app.insert_resource(table);
-        app.add_systems(
-            Update,
-            enqueue_sky_light_on_block_placed::<bool>,
-        );
+        app.add_systems(Update, enqueue_sky_light_on_block_placed::<bool>);
         let entity = spawn_sky_chunk_topmost(&mut app);
         write_placed(
             &mut app,

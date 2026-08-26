@@ -91,7 +91,7 @@ fn spawn_dim(app: &mut App, id: &str) -> Entity {
         .0
         .push(DimSpawnRequest {
             dimension_id: DimensionId::new(id),
-            type_config: DimensionTypeConfig::default(),
+            type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
     drain_dim_spawn_queue(app);

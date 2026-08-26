@@ -1,7 +1,6 @@
-//! AoI tracker substrate. Concrete implementations (`PlayerTracker` in
-//! the minecraft tier, future `MobTracker` / `ItemTracker` /
-//! `ProjectileTracker` for content tiers) plug in via associated types;
-//! no `dyn` dispatch in the trait surface.
+//! AoI tracker substrate. Concrete implementations (`PlayerTracker`, future
+//! `MobTracker` / `ItemTracker` / `ProjectileTracker`) live in the game tier
+//! and plug in via associated types; no `dyn` dispatch in the trait surface.
 
 use bevy_ecs::component::Component;
 use bevy_ecs::resource::Resource;
@@ -48,9 +47,6 @@ pub trait EntityTracker: 'static + Send + Sync {
 /// "every zero calls" are undefined and naive `>= 0` arithmetic would
 /// fire on every call without resetting the counter, defeating the
 /// cost-amortising knob the cadence enum exists for.
-///
-/// Pattern source: `crates/mcrs_minecraft/src/world/sub_app_builder.rs:183`
-/// uses `Local<bool>` for closure state. Same shape with `Local<u32>`.
 pub fn every_n_ticks(n: u32) -> impl FnMut(Local<u32>) -> bool {
     let n = n.max(1);
     move |mut counter: Local<u32>| {

@@ -10,7 +10,9 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_math::DVec3;
 use mcrs_engine::aoi::PlayerObservers;
-use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
+use mcrs_engine::world::dimension::{
+    DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
+};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft::world::aoi::ChunkSubscriptionSet;
 use mcrs_voxel_math::ColumnPos;
@@ -21,7 +23,13 @@ use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
 #[test]
 fn own_pov_subscription_expands_synchronously_same_tick() {
     let mut app = make_aoi_app();
-    let dim = app.world_mut().spawn(DimensionBundle::default()).id();
+    let dim = app
+        .world_mut()
+        .spawn(DimensionBundle::new(
+            DimensionId::new("minecraft:overworld"),
+            DimensionTypeConfig::new(-64, 384),
+        ))
+        .id();
     let player = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
 
     // Subscriptions are only recorded for columns that exist in ColumnIndex;

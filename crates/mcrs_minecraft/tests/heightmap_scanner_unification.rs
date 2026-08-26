@@ -23,7 +23,7 @@ use mcrs_engine::world::storage::column::{ColumnPlugin, Heightmaps};
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_minecraft_lighting::heightmap::MinecraftHeightmaps;
+use mcrs_minecraft_lighting::heightmap::HeightmapAccess;
 use mcrs_minecraft_lighting::lifecycle::ColumnHeightmapScan;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_voxel_math::ChunkPos;
@@ -45,11 +45,10 @@ fn make_test_app() -> (App, Entity) {
     app.insert_resource(make_stub_table());
     let dim = app
         .world_mut()
-        .spawn(DimensionBundle {
-            type_config: DimensionTypeConfig::new(DIM_MIN_Y, DIM_HEIGHT),
-            dimension_id: DimensionId::new("test:scanner_unification"),
-            ..Default::default()
-        })
+        .spawn(DimensionBundle::new(
+            DimensionId::new("test:scanner_unification"),
+            DimensionTypeConfig::new(DIM_MIN_Y, DIM_HEIGHT),
+        ))
         .id();
     app.world_mut().entity_mut(dim).insert(HasSkyLight);
     (app, dim)

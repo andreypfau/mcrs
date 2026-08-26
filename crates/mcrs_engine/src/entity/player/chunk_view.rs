@@ -10,6 +10,7 @@ use bevy_ecs::prelude::{
 };
 use bevy_ecs_macros::Message;
 use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 use std::collections::VecDeque;
 
 const MAX_LOADS: usize = 256;
@@ -86,7 +87,7 @@ fn update_view(
                 .get(in_dim.entity())
                 .ok()
                 .map(|cfg| {
-                    let min_section_y = cfg.min_y >> 4;
+                    let min_section_y = cfg.min_y >> BLOCKS::BITS;
                     let max_section_y = min_section_y + cfg.section_count as i32 - 1;
                     (min_section_y, max_section_y)
                 })
@@ -267,7 +268,7 @@ fn update_load_queue(
 /// `ChunkSubscriptionSet` on the per-player AoI substrate is the source of
 /// truth for what a player observes. These queues are a second representation
 /// of the same fact, still read by worldgen ticketing, column-view bookkeeping
-/// and TNT view checks; until those read the subscription set instead, the two
+/// and explosion view checks; until those read the subscription set instead, the two
 /// must be kept in step.
 #[derive(Component, Debug, Default)]
 pub struct PlayerChunkObserver {

@@ -109,7 +109,7 @@ fn messages_buffered_before_dim_boots() {
         .0
         .push(DimSpawnRequest {
             dimension_id: DimensionId::new("test:readiness"),
-            type_config: DimensionTypeConfig::default(),
+            type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
     drain_dim_spawn_queue(&mut app);

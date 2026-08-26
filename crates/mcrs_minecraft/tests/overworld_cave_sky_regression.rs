@@ -269,11 +269,10 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
     // Spawn the overworld dimension.
     let dim_entity = app
         .world_mut()
-        .spawn(DimensionBundle {
-            type_config: DimensionTypeConfig::new(DIM_MIN_Y, DIM_HEIGHT),
-            dimension_id: DimensionId::new("test:overworld"),
-            ..Default::default()
-        })
+        .spawn(DimensionBundle::new(
+            DimensionId::new("test:overworld"),
+            DimensionTypeConfig::new(DIM_MIN_Y, DIM_HEIGHT),
+        ))
         .id();
     app.world_mut().entity_mut(dim_entity).insert(HasSkyLight);
 

@@ -1,7 +1,7 @@
-// IMPORTANT: this module MUST NOT depend on mcrs_minecraft_lighting. The four-stage
-// ColumnLifecycleSet splits into engine-side (Reconcile, ReconcileIndex) and
-// lighting-side (PrimeHeightmaps, AttachState) stages precisely because mcrs_engine
-// sits upstream of mcrs_minecraft_lighting in the workspace graph.
+// IMPORTANT: this module MUST NOT depend on the lighting crate. The four-stage
+// ColumnLifecycleSet splits into storage-side (Reconcile, ReconcileIndex) and
+// lighting-side (PrimeHeightmaps, AttachState) stages precisely because this
+// crate sits upstream of lighting in the workspace graph.
 //
 // Heightmaps zero-init convention: `Heightmaps::new` zero-initializes the backing
 // PackedBitStorage long arrays. `get(key, x, z) = min_y` for unprimed columns;
@@ -18,6 +18,8 @@ use bevy_ecs::prelude::{
     Resource, SystemSet,
 };
 use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::chunk_pos::BLOCKS;
+use mcrs_voxel_storage::{PackedBitStorage, bits_needed_for};
 use rustc_hash::FxHashMap;
 
 pub use mcrs_voxel_math::ColumnPos;
@@ -43,106 +45,6 @@ pub struct ColumnSlot {
 /// Lives on the Dimension entity (added as a `DimensionBundle` field).
 #[derive(Component, Debug, Default, Deref, DerefMut)]
 pub struct ColumnIndex(pub FxHashMap<ColumnPos, ColumnSlot>);
-
-/// Packed-bit storage backing for heightmaps. Each `u64` long holds
-/// `entries_per_long = 64 / bits_per_entry` entries; the lowest entry occupies
-/// the lowest bits of each long (matches the Minecraft `SimpleBitStorage` wire
-/// format).
-#[derive(Debug, Clone)]
-pub struct PackedBitStorage {
-    longs: Vec<u64>,
-    bits_per_entry: u8,
-    entries_per_long: u8,
-    entry_count: u32,
-    max_value: u32,
-}
-
-impl PackedBitStorage {
-    pub fn new(entry_count: usize, max_value: u32) -> Self {
-        let bits_per_entry = bits_needed_for(max_value);
-        Self::with_bits(entry_count, bits_per_entry, max_value)
-    }
-
-    fn with_bits(entry_count: usize, bits_per_entry: u8, max_value: u32) -> Self {
-        debug_assert!(
-            bits_per_entry > 0 && bits_per_entry <= 32,
-            "bits_per_entry must be in 1..=32 (got {bits_per_entry})"
-        );
-        let entries_per_long = (64 / bits_per_entry as u32) as u8;
-        let longs_needed = entry_count.div_ceil(entries_per_long as usize);
-        Self {
-            longs: vec![0u64; longs_needed],
-            bits_per_entry,
-            entries_per_long,
-            entry_count: entry_count as u32,
-            max_value,
-        }
-    }
-
-    #[inline]
-    pub fn get(&self, index: usize) -> u32 {
-        debug_assert!(
-            index < self.entry_count as usize,
-            "PackedBitStorage::get index {index} out of range (entry_count={})",
-            self.entry_count
-        );
-        let entries_per_long = self.entries_per_long as usize;
-        let long_index = index / entries_per_long;
-        let sub_index = index % entries_per_long;
-        let shift = sub_index as u32 * self.bits_per_entry as u32;
-        let mask: u64 = if self.bits_per_entry == 64 {
-            u64::MAX
-        } else {
-            (1u64 << self.bits_per_entry) - 1
-        };
-        ((self.longs[long_index] >> shift) & mask) as u32
-    }
-
-    #[inline]
-    pub fn set(&mut self, index: usize, value: u32) {
-        debug_assert!(
-            index < self.entry_count as usize,
-            "PackedBitStorage::set index {index} out of range (entry_count={})",
-            self.entry_count
-        );
-        debug_assert!(
-            value <= self.max_value,
-            "PackedBitStorage::set value {value} exceeds max_value {}",
-            self.max_value
-        );
-        let entries_per_long = self.entries_per_long as usize;
-        let long_index = index / entries_per_long;
-        let sub_index = index % entries_per_long;
-        let shift = sub_index as u32 * self.bits_per_entry as u32;
-        let mask: u64 = if self.bits_per_entry == 64 {
-            u64::MAX
-        } else {
-            (1u64 << self.bits_per_entry) - 1
-        };
-        let cleared = self.longs[long_index] & !(mask << shift);
-        self.longs[long_index] = cleared | ((value as u64 & mask) << shift);
-    }
-
-    pub fn raw_longs(&self) -> &[u64] {
-        &self.longs
-    }
-
-    pub fn bits_per_entry(&self) -> u8 {
-        self.bits_per_entry
-    }
-
-    pub fn entry_count(&self) -> u32 {
-        self.entry_count
-    }
-}
-
-/// `ceil(log2(max_value + 1))` clamped to a minimum of 1.
-fn bits_needed_for(max_value: u32) -> u8 {
-    if max_value == 0 {
-        return 1;
-    }
-    (32 - max_value.leading_zeros()) as u8
-}
 
 /// Key into [`Heightmaps`], handed out by [`ColumnScalarRegistry::register`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -177,9 +79,8 @@ impl ColumnScalarRegistry {
 }
 
 /// One packed Y scalar per registered [`ColumnScalarKey`] over the 16x16
-/// column footprint. Indexed by `(x, z)` in `0..16` each (entry layout
-/// matches vanilla `Heightmap.java`: `z * 16 + x`). Stored Y values are
-/// absolute world Y.
+/// column footprint. Indexed by `(x, z)` in `0..16` each; the entry index is
+/// `z * BLOCKS::SIZE + x`. Stored Y values are absolute world Y.
 #[derive(Component, Debug, Clone)]
 pub struct Heightmaps {
     stores: Box<[PackedBitStorage]>,
@@ -199,7 +100,7 @@ impl Heightmaps {
         let bits = bits_needed_for(max_value);
         Self {
             stores: (0..scalar_count)
-                .map(|_| PackedBitStorage::with_bits(256, bits, max_value))
+                .map(|_| PackedBitStorage::with_bits(BLOCKS::AREA, bits, max_value))
                 .collect(),
             height,
             min_y,
@@ -220,8 +121,11 @@ impl Heightmaps {
 
     #[inline]
     fn index(x: usize, z: usize) -> usize {
-        debug_assert!(x < 16 && z < 16, "Heightmaps index ({x}, {z}) out of 16x16");
-        (z & 15) * 16 + (x & 15)
+        debug_assert!(
+            x < BLOCKS::SIZE && z < BLOCKS::SIZE,
+            "Heightmaps index ({x}, {z}) out of range"
+        );
+        (z & BLOCKS::MASK) * BLOCKS::SIZE + (x & BLOCKS::MASK)
     }
 
     /// Panics rather than indexing blindly: a column sized before the scalar
@@ -270,9 +174,9 @@ impl Heightmaps {
 }
 
 // No `Default for Heightmaps`: every column ships with a dimension-shape
-// derived size via `Heightmaps::with_min_y`, and a 384-tall hardcoded default
-// would silently mis-size storage for the nether (height 256) or end (height
-// 256). Callers that need a fresh heightmap must go through
+// derived size via `Heightmaps::with_min_y`, and any hardcoded default height
+// would silently mis-size storage for every dimension of a different height.
+// Callers that need a fresh heightmap must go through
 // `DimensionTypeConfig` so the right shape is plumbed in.
 
 /// Result of looking up a chunk by `chunk_y` inside a column.
@@ -380,7 +284,7 @@ impl ColumnBundle {
         dim_config: &DimensionTypeConfig,
         scalars: &ColumnScalarRegistry,
     ) -> Self {
-        let min_section_y = dim_config.min_y.div_euclid(16);
+        let min_section_y = dim_config.min_y >> BLOCKS::BITS;
         Self {
             col_pos: ColumnPosComponent(col_pos),
             dim,
@@ -479,8 +383,8 @@ fn reconcile_column_existence(
 /// new column entities are visible. Insert the chunk into its column's
 /// `ColumnChunks` and attach the `InColumn` back-link.
 ///
-/// Pitfall #1 safety check: this function does NOT take a lighting-table
-/// resource. Heightmap priming (Stage 2.5) lives in `mcrs_minecraft_lighting`.
+/// Deliberately takes no lighting-table resource: heightmap priming
+/// (Stage 2.5) lives in the lighting crate.
 fn reconcile_column_chunks(
     newly_loaded: Query<(Entity, &ChunkPos, &InDimension), Added<ChunkLoaded>>,
     newly_unloading: Query<(&ChunkPos, &InDimension), Added<ChunkUnloading>>,
@@ -552,62 +456,6 @@ mod tests {
     }
 
     #[test]
-    fn pbs_8bit_set_get_round_trip() {
-        let mut pbs = PackedBitStorage::new(256, 0xFF);
-        assert_eq!(pbs.bits_per_entry(), 8);
-        for i in 0..256 {
-            pbs.set(i, (i as u32) & 0xFF);
-        }
-        for i in 0..256 {
-            assert_eq!(pbs.get(i), (i as u32) & 0xFF, "mismatch at {i}");
-        }
-    }
-
-    #[test]
-    fn pbs_9bit_specific_byte_layout() {
-        // 9 bits per entry; entries_per_long = 64 / 9 = 7.
-        let mut pbs = PackedBitStorage::with_bits(256, 9, 0x1FF);
-        pbs.set(0, 0x1FF);
-        pbs.set(1, 0x000);
-        pbs.set(2, 0x1FF);
-        let expected = 0x1FFu64 | (0x1FFu64 << 18);
-        assert_eq!(
-            pbs.raw_longs()[0],
-            expected,
-            "lowest entry must occupy lowest bits of long"
-        );
-        assert_eq!(pbs.get(0), 0x1FF);
-        assert_eq!(pbs.get(1), 0x000);
-        assert_eq!(pbs.get(2), 0x1FF);
-    }
-
-    #[test]
-    #[should_panic(expected = "exceeds max_value")]
-    fn pbs_value_clipping_debug_assert() {
-        let mut pbs = PackedBitStorage::new(64, 0xFF);
-        pbs.set(0, 0x100);
-    }
-
-    #[test]
-    fn pbs_long_count_matches_ceil() {
-        // 256 entries at 9 bits/entry: 7 entries per long -> ceil(256/7) = 37 longs.
-        let pbs = PackedBitStorage::with_bits(256, 9, 0x1FF);
-        assert_eq!(pbs.raw_longs().len(), 37);
-    }
-
-    #[test]
-    fn pbs_bits_needed_for_boundaries() {
-        assert_eq!(bits_needed_for(0), 1);
-        assert_eq!(bits_needed_for(1), 1);
-        assert_eq!(bits_needed_for(2), 2);
-        assert_eq!(bits_needed_for(255), 8);
-        assert_eq!(bits_needed_for(256), 9);
-        assert_eq!(bits_needed_for(384), 9);
-        assert_eq!(bits_needed_for(511), 9);
-        assert_eq!(bits_needed_for(512), 10);
-    }
-
-    #[test]
     fn heightmap_new_dimensions_sized_correctly() {
         let h = Heightmaps::new(2, 384);
         assert_eq!(h.storage(ColumnScalarKey(0)).bits_per_entry(), 9);
@@ -620,15 +468,15 @@ mod tests {
     #[test]
     fn heightmap_set_get_round_trip() {
         let mut h = Heightmaps::new(2, 384);
-        for z in 0..16 {
-            for x in 0..16 {
-                let y = (z * 16 + x) as i32;
+        for z in 0..BLOCKS::SIZE {
+            for x in 0..BLOCKS::SIZE {
+                let y = (z * BLOCKS::SIZE + x) as i32;
                 h.set(ColumnScalarKey(0), x, z, y);
             }
         }
-        for z in 0..16 {
-            for x in 0..16 {
-                let y = (z * 16 + x) as i32;
+        for z in 0..BLOCKS::SIZE {
+            for x in 0..BLOCKS::SIZE {
+                let y = (z * BLOCKS::SIZE + x) as i32;
                 assert_eq!(
                     h.get(ColumnScalarKey(0), x, z),
                     y,
@@ -639,7 +487,7 @@ mod tests {
     }
 
     #[test]
-    fn heightmap_to_long_array_vanilla_fixture() {
+    fn heightmap_packs_entries_lowest_index_in_lowest_bits() {
         // 9 bits per entry, lowest entry in lowest bits of long 0.
         let mut h = Heightmaps::new(2, 384);
         // Index 0 = (x=0, z=0); index 1 = (x=1, z=0); index 2 = (x=2, z=0).
@@ -650,7 +498,7 @@ mod tests {
         assert_eq!(
             h.raw_longs(ColumnScalarKey(0))[0],
             expected,
-            "heightmap wire layout must match vanilla SimpleBitStorage"
+            "entry n must occupy bits [n*bits, (n+1)*bits) of the long array"
         );
     }
 
@@ -658,7 +506,7 @@ mod tests {
     fn heightmap_zero_init_returns_min_y_for_unprimed_columns() {
         let h = Heightmaps::with_min_y(2, 384, -64);
         assert_eq!(h.get(ColumnScalarKey(0), 0, 0), -64);
-        assert_eq!(h.get(ColumnScalarKey(1), 15, 15), -64);
+        assert_eq!(h.get(ColumnScalarKey(1), BLOCKS::MASK, BLOCKS::MASK), -64);
     }
 
     #[test]
@@ -751,8 +599,7 @@ mod tests {
     }
 
     #[test]
-    fn column_bundle_nether_config() {
-        // Nether: min_y=0, height=256, section_count=16. min_section_y=0.
+    fn column_bundle_with_non_negative_min_y() {
         let dim_config = DimensionTypeConfig::new(0, 256);
         let in_dim = InDimension(fake_entity(0));
         let col_pos = ColumnPos::new(0, 0);

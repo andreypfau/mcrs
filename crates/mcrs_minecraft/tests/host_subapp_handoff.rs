@@ -313,7 +313,7 @@ fn spawn_consumer_materializes_in_dim_entity() {
         .0
         .push(DimSpawnRequest {
             dimension_id: DimensionId::new("test:overworld"),
-            type_config: DimensionTypeConfig::default(),
+            type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
     drain_dim_spawn_queue(&mut app);
@@ -387,7 +387,7 @@ fn attach_roundtrip_sets_in_dim_entity() {
         .0
         .push(DimSpawnRequest {
             dimension_id: DimensionId::new("test:overworld"),
-            type_config: DimensionTypeConfig::default(),
+            type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
     drain_dim_spawn_queue(&mut app);
@@ -440,7 +440,7 @@ fn no_duplicate_spawn_on_reread() {
         .0
         .push(DimSpawnRequest {
             dimension_id: DimensionId::new("test:overworld"),
-            type_config: DimensionTypeConfig::default(),
+            type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
     drain_dim_spawn_queue(&mut app);

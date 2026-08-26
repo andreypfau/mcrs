@@ -73,7 +73,7 @@ fn lighting_plugin_in_subapp() {
         .0
         .push(DimSpawnRequest {
             dimension_id: DimensionId::new("test:overworld"),
-            type_config: DimensionTypeConfig::default(),
+            type_config: DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
     drain_dim_spawn_queue(&mut app);

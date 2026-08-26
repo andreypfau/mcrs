@@ -21,7 +21,9 @@ use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_engine::world::channels::{
     DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
-use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
+use mcrs_engine::world::dimension::{
+    DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
+};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick,
@@ -237,7 +239,13 @@ fn disconnect_at_tick_n_e1_5_steady_in_dim() {
 #[test]
 fn transfer_out_eviction_matches_disconnect_via_shared_drain() {
     let mut aoi_app = make_aoi_app();
-    let dim = aoi_app.world_mut().spawn(DimensionBundle::default()).id();
+    let dim = aoi_app
+        .world_mut()
+        .spawn(DimensionBundle::new(
+            DimensionId::new("minecraft:overworld"),
+            DimensionTypeConfig::new(-64, 384),
+        ))
+        .id();
 
     let ha_o = aoi_app.world_mut().spawn_empty().id();
     let ha_t = aoi_app.world_mut().spawn_empty().id();

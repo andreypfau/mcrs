@@ -133,6 +133,6 @@ pub struct ToDimReceiver<T: Send + Sync + 'static> {
 pub struct FromDimSender<T: Send + Sync + 'static>(pub DimSender<T>);
 
 /// Returned by the engine when a sheddable send is rejected due to capacity.
-/// The caller (`mcrs_minecraft`) decides the reaction (e.g. disconnect session).
+/// The caller decides the reaction (e.g. disconnect the session).
 #[derive(Debug)]
 pub struct ChannelFull;

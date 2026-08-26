@@ -69,11 +69,10 @@ pub fn make_stub_block_light_table_with_torch() -> BlockStateLightTable {
 pub fn spawn_test_dimension(app: &mut App, sky: bool) -> Entity {
     let entity = app
         .world_mut()
-        .spawn(DimensionBundle {
-            type_config: DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
-            dimension_id: DimensionId::new(if sky { "test:sky" } else { "test:skyless" }),
-            ..Default::default()
-        })
+        .spawn(DimensionBundle::new(
+            DimensionId::new(if sky { "test:sky" } else { "test:skyless" }),
+            DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
+        ))
         .id();
     if sky {
         app.world_mut().entity_mut(entity).insert(HasSkyLight);
@@ -174,8 +173,8 @@ pub fn build_single_torch_app<F: VoxelUpdateFlags>() -> App {
 
 /// Like `build_single_torch_app` but uses a single-section dimension
 /// (`min_y=0, height=16`) so the heightmap scan can finalize in the first
-/// tick. `build_single_torch_app` uses the full overworld height (24
-/// sections); with only one chunk loaded the scan hits an absent top section
+/// tick. `build_single_torch_app` uses a 24-section dimension height; with
+/// only one chunk loaded the scan hits an absent top section
 /// and returns `AbsentSection` every tick, preventing `BlockBfsPending` from
 /// ever being inserted and leaving `run_until_converged` with nothing to
 /// converge. This variant sizes the dimension to exactly one section so the
@@ -192,11 +191,10 @@ pub fn build_single_torch_app_single_section<F: VoxelUpdateFlags>() -> App {
     app.insert_resource(make_stub_block_light_table_with_torch());
     let dim = app
         .world_mut()
-        .spawn(DimensionBundle {
-            type_config: DimensionTypeConfig::new(0, 16),
-            dimension_id: DimensionId::new("test:sky_single"),
-            ..Default::default()
-        })
+        .spawn(DimensionBundle::new(
+            DimensionId::new("test:sky_single"),
+            DimensionTypeConfig::new(0, 16),
+        ))
         .id();
     app.world_mut().entity_mut(dim).insert(HasSkyLight);
     spawn_test_chunk(

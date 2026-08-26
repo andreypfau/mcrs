@@ -10,6 +10,7 @@
 //! - X-normal (West/East): drop x, return `(cell_a = y, cell_b = z)`
 
 use mcrs_voxel_math::Direction;
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 
 /// Extract the two on-face coordinates from a `(off_x, off_y, off_z)` triple
 /// for the destination face named by `d`. Returns `(cell_x, cell_z)` matching
@@ -22,10 +23,11 @@ use mcrs_voxel_math::Direction;
 /// - East/West (X-normal): `(off_y, off_z)`
 #[inline]
 pub(crate) fn chunk_xyz_to_face_cell(d: Direction, off_x: i8, off_y: i8, off_z: i8) -> (u8, u8) {
+    const MASK: i8 = BLOCKS::MASK as i8;
     match d {
-        Direction::Down | Direction::Up => ((off_x & 0xF) as u8, (off_z & 0xF) as u8),
-        Direction::North | Direction::South => ((off_x & 0xF) as u8, (off_y & 0xF) as u8),
-        Direction::West | Direction::East => ((off_y & 0xF) as u8, (off_z & 0xF) as u8),
+        Direction::Down | Direction::Up => ((off_x & MASK) as u8, (off_z & MASK) as u8),
+        Direction::North | Direction::South => ((off_x & MASK) as u8, (off_y & MASK) as u8),
+        Direction::West | Direction::East => ((off_y & MASK) as u8, (off_z & MASK) as u8),
     }
 }
 

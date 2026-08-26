@@ -1,4 +1,6 @@
-pub struct LightNibbles(pub Box<[u8; 2048]>);
+use mcrs_voxel_math::chunk_pos::BLOCKS;
+
+pub struct LightNibbles(pub Box<[u8; BLOCKS::HALF_VOLUME]>);
 
 impl Clone for LightNibbles {
     fn clone(&self) -> Self {
@@ -17,20 +19,20 @@ impl std::fmt::Debug for LightNibbles {
 impl LightNibbles {
     #[inline]
     pub fn zeros() -> Self {
-        Self(Box::new([0u8; 2048]))
+        Self(Box::new([0u8; BLOCKS::HALF_VOLUME]))
     }
 
     #[inline]
     pub fn filled(val: u8) -> Self {
         debug_assert!(val < 16);
         let packed = val | (val << 4);
-        Self(Box::new([packed; 2048]))
+        Self(Box::new([packed; BLOCKS::HALF_VOLUME]))
     }
 
     #[inline]
     pub const fn index(x: usize, y: usize, z: usize) -> usize {
-        debug_assert!(x < 16 && y < 16 && z < 16);
-        (y << 8) | (z << 4) | x
+        debug_assert!(x < BLOCKS::SIZE && y < BLOCKS::SIZE && z < BLOCKS::SIZE);
+        (y << BLOCKS::DOUBLE_BITS) | (z << BLOCKS::BITS) | x
     }
 
     #[inline]
@@ -109,7 +111,7 @@ mod tests {
     #[test]
     fn nibble_filled_constructor() {
         let arr = LightNibbles::filled(0x07);
-        for i in 0..2048 {
+        for i in 0..BLOCKS::HALF_VOLUME {
             assert_eq!(arr.0[i], 0x77, "byte {i} should be 0x77");
         }
         assert_eq!(arr.get(0, 0, 0), 0x07);

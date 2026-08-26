@@ -11,6 +11,7 @@ pub struct VoxelPalette<V: Hash + Eq + Copy + Default + Send + Sync + 'static, c
 );
 
 impl<V: Hash + Eq + Copy + Default + Send + Sync + 'static, const DIM: usize> VoxelPalette<V, DIM> {
+    pub const SIZE: usize = DIM;
     const MASK: usize = DIM - 1;
 
     pub fn fill(&mut self, value: V) {

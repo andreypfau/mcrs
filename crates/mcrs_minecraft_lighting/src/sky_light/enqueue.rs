@@ -10,7 +10,7 @@ use crate::bfs::{
 use crate::distribute::{ResolveOutcome, resolve_neighbor_chunk};
 use crate::enqueue::CARDINAL_DIRECTIONS;
 use crate::geom::face_cell_to_chunk_xyz;
-use crate::heightmap::MinecraftHeightmaps;
+use crate::heightmap::HeightmapAccess;
 use crate::heightmap::topmost_surface_world_y;
 use crate::nibble::LightNibbles;
 use crate::sky_light::components::NeedsRetop;
@@ -31,6 +31,7 @@ use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, Heightmaps, InColumn};
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::Direction;
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 
 /// Reacts to `VoxelPlaced` by enqueuing sky-light decrease and increase seeds
 /// whenever the placed block changes either its dampening or its
@@ -297,7 +298,7 @@ pub fn seed_sky_initial(
 
         if marker_opt.is_some() {
             // Marker-present branch: Case A/B/C heightmap fast-path.
-            let chunk_base_y = chunk_pos.y * 16;
+            let chunk_base_y = chunk_pos.y << BLOCKS::BITS;
             let chunk_top_y = chunk_base_y + 15;
 
             match heightmaps.get(in_col.0) {
@@ -330,7 +331,7 @@ pub fn seed_sky_initial(
                         // converge.
                         if chunk_base_y <= 0 {
                             // Cave-or-deeper chunks must never reach Case A
-                            // on a real overworld. If they do, the column's
+                            // in a dimension with a real surface. If they do, the column's
                             // heightmap is at sentinel when this system
                             // fired — capture the offending column for
                             // diagnosis.

@@ -77,11 +77,10 @@ fn make_stub_block_light_table() -> BlockStateLightTable {
 fn spawn_test_dimension(app: &mut App, sky: bool) -> Entity {
     let entity = app
         .world_mut()
-        .spawn(DimensionBundle {
-            type_config: DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
-            dimension_id: DimensionId::new(if sky { "test:sky" } else { "test:skyless" }),
-            ..Default::default()
-        })
+        .spawn(DimensionBundle::new(
+            DimensionId::new(if sky { "test:sky" } else { "test:skyless" }),
+            DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
+        ))
         .id();
     if sky {
         app.world_mut().entity_mut(entity).insert(HasSkyLight);

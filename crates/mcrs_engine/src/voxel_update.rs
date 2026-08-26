@@ -7,6 +7,7 @@ use bevy_ecs::query::{With, Without};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_storage::{VoxelId, VoxelPalette};
 use rustc_hash::FxHashSet;
 use std::marker::PhantomData;
@@ -22,7 +23,7 @@ impl VoxelUpdateFlags for bool {
     }
 }
 
-pub type SectionVoxels = VoxelPalette<VoxelId, 16>;
+pub type SectionVoxels = VoxelPalette<VoxelId, { BLOCKS::SIZE }>;
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VoxelUpdateSet {

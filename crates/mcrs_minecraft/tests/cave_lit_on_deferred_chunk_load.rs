@@ -75,11 +75,10 @@ fn make_test_app() -> (App, Entity) {
     app.insert_resource(make_stub_table());
     let dim = app
         .world_mut()
-        .spawn(DimensionBundle {
-            type_config: DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
-            dimension_id: DimensionId::new("test:sky"),
-            ..Default::default()
-        })
+        .spawn(DimensionBundle::new(
+            DimensionId::new("test:sky"),
+            DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
+        ))
         .id();
     app.world_mut().entity_mut(dim).insert(HasSkyLight);
     (app, dim)

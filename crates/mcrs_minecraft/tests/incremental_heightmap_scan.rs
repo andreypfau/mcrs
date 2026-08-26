@@ -38,7 +38,7 @@ use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::components::IsAllAir;
-use mcrs_minecraft_lighting::heightmap::MinecraftHeightmaps;
+use mcrs_minecraft_lighting::heightmap::HeightmapAccess;
 use mcrs_minecraft_lighting::lifecycle::ColumnHeightmapScan;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_voxel_math::BlockPos;
@@ -67,11 +67,10 @@ fn make_test_app_with_dim(min_y: i32, height: u32) -> (App, Entity) {
     app.insert_resource(make_stub_table());
     let dim = app
         .world_mut()
-        .spawn(DimensionBundle {
-            type_config: DimensionTypeConfig::new(min_y, height),
-            dimension_id: DimensionId::new("test:incremental"),
-            ..Default::default()
-        })
+        .spawn(DimensionBundle::new(
+            DimensionId::new("test:incremental"),
+            DimensionTypeConfig::new(min_y, height),
+        ))
         .id();
     app.world_mut().entity_mut(dim).insert(HasSkyLight);
     (app, dim)

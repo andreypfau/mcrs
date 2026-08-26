@@ -11,6 +11,7 @@ use bevy_ecs::prelude::{
     Added, Bundle, Changed, Commands, Component, ContainsEntity, Entity, Has, IntoScheduleConfigs,
     Mut, Query, Ref, With,
 };
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 use std::collections::BTreeSet;
 
 pub struct DimensionPlugin;
@@ -19,8 +20,8 @@ impl Plugin for DimensionPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ChunkPlugin);
         app.add_plugins(crate::world::storage::column::ColumnPlugin);
-        // Note: Dimensions are spawned dynamically by mcrs_minecraft based on LoadedWorldPreset resource.
-        // See mcrs_minecraft::world::WorldPlugin for the spawn_dimensions_from_preset system.
+        // Dimension entities are spawned by the game layer; this plugin only
+        // maintains them once they exist.
         app.add_systems(
             FixedPostUpdate,
             (add_old_in_dimension, update_index, update_old_in_dimensions).chain(),
@@ -29,7 +30,7 @@ impl Plugin for DimensionPlugin {
     }
 }
 
-#[derive(Bundle, Default)]
+#[derive(Bundle)]
 pub struct DimensionBundle {
     pub dimension: Dimension,
     pub dimension_id: DimensionId,
@@ -38,6 +39,20 @@ pub struct DimensionBundle {
     pub chunk_tickets: ChunkTicketsCommands,
     pub players: DimensionPlayers,
     pub column_index: ColumnIndex,
+}
+
+impl DimensionBundle {
+    pub fn new(dimension_id: DimensionId, type_config: DimensionTypeConfig) -> Self {
+        Self {
+            dimension: Dimension,
+            dimension_id,
+            type_config,
+            chunk_index: ChunkIndex::default(),
+            chunk_tickets: ChunkTicketsCommands::default(),
+            players: DimensionPlayers::default(),
+            column_index: ColumnIndex::default(),
+        }
+    }
 }
 
 #[derive(Component, Default)]
@@ -71,7 +86,7 @@ impl ContainsEntity for OldInDimension {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Component, Deref, DerefMut)]
 pub struct DimensionTime(pub u64);
 
-/// Unique identifier for a dimension (e.g., "minecraft:overworld", "minecraft:the_nether")
+/// Unique identifier for a dimension, in the game's own namespace.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Component, Deref, DerefMut)]
 pub struct DimensionId(pub String);
 
@@ -81,46 +96,26 @@ impl DimensionId {
     }
 }
 
-impl Default for DimensionId {
-    fn default() -> Self {
-        // Default to overworld to match DimensionTypeConfig::default()
-        Self::new("minecraft:overworld")
-    }
-}
-
-/// Configuration derived from the dimension type, containing Y-level and section metadata.
-/// Used for chunk loading and column view calculations.
+/// The vertical extent of a dimension, supplied by the game.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Component)]
 pub struct DimensionTypeConfig {
-    /// Minimum Y coordinate for this dimension (e.g., -64 for overworld, 0 for nether)
     pub min_y: i32,
-    /// Total height in blocks (e.g., 384 for overworld, 256 for nether)
     pub height: u32,
-    /// Number of chunk sections (height / 16)
     pub section_count: u32,
 }
 
 impl DimensionTypeConfig {
-    /// Create a new DimensionTypeConfig from min_y and height.
-    /// Section count is automatically calculated as height / 16.
     pub fn new(min_y: i32, height: u32) -> Self {
         Self {
             min_y,
             height,
-            section_count: height / 16,
+            section_count: height >> BLOCKS::BITS,
         }
     }
 
     /// Returns the maximum Y coordinate (min_y + height - 1)
     pub fn max_y(&self) -> i32 {
         self.min_y + self.height as i32 - 1
-    }
-}
-
-impl Default for DimensionTypeConfig {
-    fn default() -> Self {
-        // Default to overworld values
-        Self::new(-64, 384)
     }
 }
 

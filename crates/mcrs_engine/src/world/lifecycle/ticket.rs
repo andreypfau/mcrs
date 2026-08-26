@@ -1,14 +1,10 @@
 //! Chunk tickets and the engine-wide `LightTicket` sparse marker.
 //!
-//! `LightTicket` lives here (rather than alongside the other lighting
-//! components in `mcrs_minecraft_lighting::components`) because both
-//! `mcrs_minecraft` and `mcrs_minecraft_lighting` need to reference it from
-//! upstream paths. Hosting the marker in `mcrs_minecraft_lighting` would force
-//! a `mcrs_minecraft -> mcrs_minecraft_lighting` dependency for the
-//! chunk-cancellation guard, which is exactly what the workspace split avoids.
-//! Both downstream crates depend on `mcrs_engine`, so this module is the only
-//! valid shared anchor for the marker. `mcrs_engine` carries no other
-//! lighting knowledge.
+//! `LightTicket` lives here rather than alongside the other lighting
+//! components because the chunk-cancellation guard sits in a crate that must
+//! not depend on the lighting crate. Both sides already depend on this one, so
+//! it is the only valid shared anchor for the marker; nothing else here knows
+//! anything about lighting.
 
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::markers::ChunkLoaded;

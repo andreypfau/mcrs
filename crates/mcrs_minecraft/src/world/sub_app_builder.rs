@@ -353,11 +353,7 @@ pub fn spawn_dim_subapp(
     let dim_entity = sub_app
         .world_mut()
         .spawn((
-            DimensionBundle {
-                dimension_id: request.dimension_id.clone(),
-                type_config: request.type_config,
-                ..Default::default()
-            },
+            DimensionBundle::new(request.dimension_id.clone(), request.type_config),
             DimTypeIndex(dim_type_index),
         ))
         .id();

@@ -154,7 +154,7 @@ fn spawn_subapp(app: &mut App) -> Entity {
         .0
         .push(DimSpawnRequest {
             dimension_id: mcrs_engine::world::dimension::DimensionId::new("test:overworld"),
-            type_config: mcrs_engine::world::dimension::DimensionTypeConfig::default(),
+            type_config: mcrs_engine::world::dimension::DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
     drain_dim_spawn_queue(app);

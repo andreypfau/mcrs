@@ -17,8 +17,8 @@ use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyBfsPending, SkyLight};
 use mcrs_minecraft_lighting::block_light::invariants::check_block_light_invariants;
+use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyBfsPending, SkyLight};
 use mcrs_minecraft_lighting::sky_light::invariants::check_sky_light_invariants;
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
@@ -43,11 +43,10 @@ fn make_test_app() -> (App, Entity) {
     app.insert_resource(golden::light_table::synthetic_block_light_table());
     let dim = app
         .world_mut()
-        .spawn(DimensionBundle {
-            type_config: DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
-            dimension_id: DimensionId::new("test:phase3"),
-            ..Default::default()
-        })
+        .spawn(DimensionBundle::new(
+            DimensionId::new("test:phase3"),
+            DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
+        ))
         .id();
     app.world_mut().entity_mut(dim).insert(HasSkyLight);
     (app, dim)

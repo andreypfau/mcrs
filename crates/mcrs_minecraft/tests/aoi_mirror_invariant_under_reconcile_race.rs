@@ -14,7 +14,9 @@ use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::session::PlayerSession;
-use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
+use mcrs_engine::world::dimension::{
+    DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
+};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, TrackedBy};
 use mcrs_minecraft::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
@@ -30,7 +32,13 @@ use harness::{
 #[test]
 fn mirror_invariant_holds_when_column_lacks_player_observers_at_first_pass() {
     let mut app = make_aoi_app();
-    let dim = app.world_mut().spawn(DimensionBundle::default()).id();
+    let dim = app
+        .world_mut()
+        .spawn(DimensionBundle::new(
+            DimensionId::new("minecraft:overworld"),
+            DimensionTypeConfig::new(-64, 384),
+        ))
+        .id();
     let player = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
 
     // CRITICAL: columns are spawned AFTER the seeder (FixedPreUpdate) runs,
@@ -147,7 +155,13 @@ fn update_own_pov_does_not_panic_when_column_despawns_before_flush() {
     // The fix guards the closure with get_entity_mut so this no-ops
     // instead of panicking.
     let mut app = make_aoi_app();
-    let dim = app.world_mut().spawn(DimensionBundle::default()).id();
+    let dim = app
+        .world_mut()
+        .spawn(DimensionBundle::new(
+            DimensionId::new("minecraft:overworld"),
+            DimensionTypeConfig::new(-64, 384),
+        ))
+        .id();
     let player = spawn_player_in_dim(&mut app, dim, DVec3::new(0.0, 64.0, 0.0));
 
     app.world_mut().run_schedule(FixedPreUpdate);
@@ -177,7 +191,13 @@ fn update_own_pov_does_not_panic_when_column_despawns_before_flush() {
 #[test]
 fn mirror_invariant_holds_with_two_players_same_tick_bare_column() {
     let mut app = make_aoi_app();
-    let dim = app.world_mut().spawn(DimensionBundle::default()).id();
+    let dim = app
+        .world_mut()
+        .spawn(DimensionBundle::new(
+            DimensionId::new("minecraft:overworld"),
+            DimensionTypeConfig::new(-64, 384),
+        ))
+        .id();
 
     // Both players at the same position — every column within view-distance-12
     // lands in both desired sets, exercising the multi-insert path on every
@@ -227,7 +247,13 @@ fn mirror_invariant_holds_with_two_players_same_tick_bare_column() {
 #[test]
 fn two_player_same_tick_bare_column_removal_evicts_correctly() {
     let mut app = make_aoi_app();
-    let dim = app.world_mut().spawn(DimensionBundle::default()).id();
+    let dim = app
+        .world_mut()
+        .spawn(DimensionBundle::new(
+            DimensionId::new("minecraft:overworld"),
+            DimensionTypeConfig::new(-64, 384),
+        ))
+        .id();
 
     // Host anchors live inside this app so the drain's HostAnchor lookup
     // resolves unambiguously.

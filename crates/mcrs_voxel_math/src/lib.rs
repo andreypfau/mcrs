@@ -8,7 +8,7 @@ pub mod voxel_shape;
 
 pub use bit_size::BitSize;
 pub use block_pos::BlockPos;
-pub use chunk_pos::ChunkPos;
+pub use chunk_pos::{BLOCKS, ChunkPos};
 pub use column_pos::ColumnPos;
 pub use direction::{Direction, DirectionSet};
 pub use region_pos::RegionPos;

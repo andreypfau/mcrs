@@ -1,11 +1,17 @@
 use mcrs_protocol::BlockStateId;
-use mcrs_protocol::section::{NetworkSectionKind, PaletteForm};
+use mcrs_protocol::section::{Biomes, Blocks, NetworkSectionKind, PaletteForm};
 use mcrs_voxel_math::chunk_pos;
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_storage::PalettedContainer::{Heterogeneous, Homogeneous};
-use mcrs_voxel_storage::{VoxelId, VoxelPalette};
+use mcrs_voxel_storage::{SectionKind, VoxelId, VoxelPalette};
 
-pub type BlockPalette = VoxelPalette<VoxelId, 16>;
+pub type BlockPalette = VoxelPalette<VoxelId, { BLOCKS::SIZE }>;
 pub type BiomePalette = VoxelPalette<u8, 4>;
+
+// A container whose edge length disagrees with its section kind's axis bits packs
+// to a wrong length at runtime instead of failing to compile.
+const _: () = assert!(BlockPalette::SIZE == 1 << Blocks::AXIS_BITS);
+const _: () = assert!(BiomePalette::SIZE == 1 << Biomes::AXIS_BITS);
 
 // According to the wiki, palette serialization for disk and network is different. Disk
 // serialization always uses a palette if greater than one entry. Network serialization packs ids

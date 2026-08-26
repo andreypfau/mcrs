@@ -68,9 +68,8 @@ impl VoxelShape {
         self.face_cache[dir.id()]
     }
 
-    /// Analog of vanilla `Shapes.faceShapeOccludes(a, b)`: returns true when
-    /// `self`'s face on `dir` merged with `other`'s face on the opposite
-    /// direction covers the entire unit face.
+    /// Returns true when `self`'s face on `dir` merged with `other`'s face on
+    /// the opposite direction covers the entire unit face.
     ///
     /// v1 coverage matrix (the only cases the lighting BFS exercises while
     /// the conditionally-opaque flag is false):
@@ -97,9 +96,9 @@ impl VoxelShape {
 /// Pool of `&'static VoxelShape` references produced by freeze-time interning.
 /// Indices 0 and 1 are reserved for the `Empty` and `Block` singletons.
 ///
-/// `intern` leaks owned shapes via `Box::leak`. The bound is ~30 unique shapes
-/// across the full vanilla retrofit (~6 KB total leak), all paid once at
-/// freeze time, so the leak is acceptable per RESEARCH "Don't Hand-Roll".
+/// `intern` leaks owned shapes via `Box::leak`. A full game corpus interns on
+/// the order of 30 unique shapes (~6 KB total leak), all paid once at freeze
+/// time.
 #[derive(Default)]
 pub struct ShapeRegistry {
     entries: Vec<&'static VoxelShape>,

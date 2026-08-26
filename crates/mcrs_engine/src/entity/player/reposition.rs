@@ -205,13 +205,3 @@ pub struct RepositionConfig {
     pub max_y: i32,
     pub step_y: i32,
 }
-
-impl Default for RepositionConfig {
-    fn default() -> Self {
-        Self {
-            min_y: 0,
-            max_y: 256,
-            step_y: 160,
-        }
-    }
-}

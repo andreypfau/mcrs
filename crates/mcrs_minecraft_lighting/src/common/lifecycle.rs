@@ -20,12 +20,13 @@ use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::storage::column::{Column, ColumnChunks, Heightmaps};
 use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::chunk_pos::BLOCKS;
 
-const XZ_FULL: [(usize, usize); 256] = {
-    let mut arr = [(0usize, 0usize); 256];
+const XZ_FULL: [(usize, usize); BLOCKS::AREA] = {
+    let mut arr = [(0usize, 0usize); BLOCKS::AREA];
     let mut i = 0;
-    while i < 256 {
-        arr[i] = (i & 15, i >> 4);
+    while i < BLOCKS::AREA {
+        arr[i] = (i & BLOCKS::MASK, i >> BLOCKS::BITS);
         i += 1;
     }
     arr
@@ -33,14 +34,14 @@ const XZ_FULL: [(usize, usize); 256] = {
 
 #[inline]
 const fn xz_idx(x: usize, z: usize) -> usize {
-    debug_assert!(x < 16 && z < 16);
-    (z << 4) | x
+    debug_assert!(x < BLOCKS::SIZE && z < BLOCKS::SIZE);
+    (z << BLOCKS::BITS) | x
 }
 
 #[inline]
 const fn idx_to_xz(idx: usize) -> (usize, usize) {
-    debug_assert!(idx < 256);
-    (idx & 15, idx >> 4)
+    debug_assert!(idx < BLOCKS::AREA);
+    (idx & BLOCKS::MASK, idx >> BLOCKS::BITS)
 }
 
 /// Per-column state for the incremental top-down heightmap scan.
@@ -50,11 +51,11 @@ const fn idx_to_xz(idx: usize) -> (usize, usize) {
 /// `Heightmaps::motion_blocking_set` the moment it closes each XZ column
 /// for that variant, and records closure in a per-variant 256-bit bitset.
 /// Finalization is fully derived (`is_finalized()`); the predicate fires
-/// either when the cursor drops below `min_chunk_y` (chimney-to-bedrock)
+/// either when the cursor drops below `min_chunk_y` (chimney-to-floor)
 /// or both variants have closed every XZ column.
 ///
 /// Why the bitset and not "compare `hm.surface_get` against `min_y`"?
-/// At chimney-to-bedrock finalization the heightmap legitimately holds
+/// At chimney-to-floor finalization the heightmap legitimately holds
 /// `min_y` for the all-air columns, indistinguishable from "not yet
 /// closed". The bitset is the unambiguous source of truth for closure.
 ///
@@ -94,7 +95,7 @@ impl ColumnHeightmapScan {
     }
 
     /// Finalization predicate. True once the cursor has dropped below the
-    /// floor (chimney-to-bedrock path completed) or both heightmap variants
+    /// floor (chimney-to-floor path completed) or both heightmap variants
     /// have closed every XZ column.
     #[inline]
     pub fn is_finalized(&self) -> bool {
@@ -112,7 +113,7 @@ impl ColumnHeightmapScan {
 /// The scan writes `Heightmaps::{surface,motion_blocking}_set` the moment
 /// it closes each XZ column for that variant. When both variants have
 /// closed every XZ column — or the cursor drops below `min_chunk_y`
-/// (chimney-to-bedrock) — `is_finalized()` flips to true and
+/// (chimney-to-floor) — `is_finalized()` flips to true and
 /// `BlockNeedsInitialSeed` is inserted on every currently-loaded chunk;
 /// `SkyNeedsInitialSeed` is also inserted on chunks whose parent dimension
 /// carries `HasSkyLight`.
@@ -125,9 +126,9 @@ impl ColumnHeightmapScan {
 /// cannot contribute a qualifying block. The cursor advances past such
 /// chunks without per-block work.
 ///
-/// Pitfall #1 safety: this system lives in `mcrs_minecraft_lighting`
-/// because it consumes `BlockStateLightTable`. The engine crate stays free of
-/// any lighting-side imports. Runs after `ColumnLifecycleSet::ReconcileIndex`
+/// This system lives in the lighting crate because it consumes
+/// `BlockStateLightTable`; the storage crate stays free of any lighting-side
+/// imports. Runs after `ColumnLifecycleSet::ReconcileIndex`
 /// (Stage 2) so the column's `ColumnChunks` is fully populated for the
 /// chunks that triggered the column spawn.
 pub fn prime_heightmaps_on_column_spawn(
@@ -238,7 +239,7 @@ fn advance_scan(
         ScanOutcome::AllClosed => {
             insert_initial_light_markers(chunk_index, commands, in_dimensions, sky_dims);
         }
-        ScanOutcome::ChimneyToBedrock => {
+        ScanOutcome::ChimneyToFloor => {
             let mut unclosed_ws = 0usize;
             let mut unclosed_mb = 0usize;
             for idx in 0..256 {
@@ -250,16 +251,16 @@ fn advance_scan(
                 }
             }
             tracing::warn!(
-                target: "mcrs_lighting::chimney_to_bedrock",
+                target: "mcrs_lighting::chimney_to_floor",
                 min_chunk_y,
                 final_cursor = scan.scan_cursor,
                 unclosed_world_surface = unclosed_ws,
                 unclosed_motion_blocking = unclosed_mb,
                 chunks_present = chunk_index.sections.iter().filter(|s| s.is_some()).count(),
                 chunk_count = chunk_index.sections.len(),
-                "Heightmap scan reached chimney-to-bedrock: every unclosed XZ column gets sentinel min_y. \
+                "Heightmap scan reached chimney-to-floor: every unclosed XZ column gets sentinel min_y. \
                  This is correct ONLY if the column is genuinely all-air top-to-bottom. \
-                 For a normal overworld column with a real surface, this path firing means \
+                 For any column with a real surface, this path firing means \
                  the surface chunk was never observed by the scan (race or all-air mis-classification)."
             );
             for idx in 0..256 {
@@ -399,11 +400,10 @@ mod tests {
         app.insert_resource(stub_block_light_table());
         let dim = app
             .world_mut()
-            .spawn(DimensionBundle {
-                type_config: DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
-                dimension_id: DimensionId::new(if sky { "test:sky" } else { "test:skyless" }),
-                ..Default::default()
-            })
+            .spawn(DimensionBundle::new(
+                DimensionId::new(if sky { "test:sky" } else { "test:skyless" }),
+                DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
+            ))
             .id();
         if sky {
             app.world_mut().entity_mut(dim).insert(HasSkyLight);
@@ -441,11 +441,10 @@ mod tests {
 
         let dim = app
             .world_mut()
-            .spawn(DimensionBundle {
-                type_config: DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
-                dimension_id: DimensionId::new("test:sky"),
-                ..Default::default()
-            })
+            .spawn(DimensionBundle::new(
+                DimensionId::new("test:sky"),
+                DimensionTypeConfig::new(TEST_DIM_MIN_Y, TEST_DIM_HEIGHT),
+            ))
             .id();
         app.world_mut().entity_mut(dim).insert(HasSkyLight);
 
