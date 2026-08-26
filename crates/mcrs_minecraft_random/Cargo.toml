@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_random"
+name = "mcrs_minecraft_random"
 version.workspace = true
 edition.workspace = true
 

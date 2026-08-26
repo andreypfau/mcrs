@@ -76,7 +76,7 @@ mcrs_vanilla = { path = "crates/mcrs_vanilla" }
 mcrs_minecraft = { path = "crates/mcrs_minecraft" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
-mcrs_random = { path = "crates/mcrs_random" }
+mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
 mcrs_voxel_light = { path = "crates/mcrs_voxel_light" }
 mcrs_telemetry = { path = "crates/mcrs_telemetry" }
 mcrs_anvil = { path = "crates/mcrs_anvil" }
@@ -115,7 +115,7 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_worldgen"]
 opt-level = 3
 
-[profile.dev.package."mcrs_random"]
+[profile.dev.package."mcrs_minecraft_random"]
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_block"]

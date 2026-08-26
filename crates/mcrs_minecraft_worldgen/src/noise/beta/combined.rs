@@ -19,7 +19,7 @@ impl PerlinOctaveNoiseCombined {
 mod test {
     use super::PerlinOctaveNoiseCombined;
     use crate::noise::octave_perlin_noise::OctavePerlinNoise;
-    use mcrs_random::legacy::LegacyRandom;
+    use mcrs_minecraft_random::legacy::LegacyRandom;
 
     #[test]
     fn combined_reachable() {

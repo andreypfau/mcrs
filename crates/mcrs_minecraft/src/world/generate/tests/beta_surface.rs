@@ -142,11 +142,11 @@ fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
     (biome_source, snapshot)
 }
 
-fn make_chunk_rng(chunk_x: i32, chunk_z: i32) -> mcrs_random::legacy::LegacyRandom {
+fn make_chunk_rng(chunk_x: i32, chunk_z: i32) -> mcrs_minecraft_random::legacy::LegacyRandom {
     let seed: i64 = (chunk_x as i64)
         .wrapping_mul(341873128712)
         .wrapping_add((chunk_z as i64).wrapping_mul(132897987541));
-    mcrs_random::legacy::LegacyRandom::new(seed as u64)
+    mcrs_minecraft_random::legacy::LegacyRandom::new(seed as u64)
 }
 
 /// Verify that apply_beta_surface places surface and bedrock blocks.

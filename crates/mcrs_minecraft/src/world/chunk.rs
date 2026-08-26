@@ -19,7 +19,7 @@ use mcrs_minecraft_worldgen::bevy::{
 };
 use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
 use mcrs_protocol::ColumnPos;
-use mcrs_random::legacy::LegacyRandom;
+use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::BiomeSource;
 use mcrs_vanilla::block::definition::{BlockDefinitions, Blocks};

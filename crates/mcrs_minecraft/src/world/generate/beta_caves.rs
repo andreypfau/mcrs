@@ -3,7 +3,7 @@ use mcrs_minecraft_worldgen::carver::WorldCarver;
 use mcrs_minecraft_worldgen::carver::cave::CaveWorldCarver;
 use mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig;
 use mcrs_protocol::BlockStateId;
-use mcrs_random::legacy::LegacyRandom;
+use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_vanilla::block::definition::BlockDefinitions;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;

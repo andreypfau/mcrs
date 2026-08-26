@@ -7,7 +7,7 @@ edition.workspace = true
 [dependencies]
 mcrs_core.workspace = true
 mcrs_voxel_storage.workspace = true
-mcrs_random.workspace = true
+mcrs_minecraft_random.workspace = true
 bevy_math.workspace = true
 bevy_app = { workspace = true, optional = true }
 bevy_asset = { workspace = true, optional = true }

@@ -2,7 +2,7 @@ pub mod cave;
 pub mod config;
 
 use crate::carver::config::BetaCaveCarverConfig;
-use mcrs_random::Random;
+use mcrs_minecraft_random::Random;
 use mcrs_voxel_storage::VoxelId;
 
 pub trait WorldCarver {

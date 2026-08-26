@@ -3240,10 +3240,10 @@ dependencies = [
  "mcrs_core",
  "mcrs_minecraft_block",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_random",
  "mcrs_minecraft_worldgen",
  "mcrs_network",
  "mcrs_protocol",
- "mcrs_random",
  "mcrs_vanilla",
  "mcrs_voxel_light",
  "mcrs_voxel_math",
@@ -3294,6 +3294,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_random"
+version = "0.1.0"
+dependencies = [
+ "bevy_math",
+ "md-5",
+ "rand_xoshiro",
+]
+
+[[package]]
 name = "mcrs_minecraft_worldgen"
 version = "0.1.0"
 dependencies = [
@@ -3303,7 +3312,7 @@ dependencies = [
  "bevy_math",
  "bevy_reflect",
  "mcrs_core",
- "mcrs_random",
+ "mcrs_minecraft_random",
  "mcrs_voxel_storage",
  "num-traits",
  "serde",
@@ -3369,15 +3378,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.115",
-]
-
-[[package]]
-name = "mcrs_random"
-version = "0.1.0"
-dependencies = [
- "bevy_math",
- "md-5",
- "rand_xoshiro",
 ]
 
 [[package]]

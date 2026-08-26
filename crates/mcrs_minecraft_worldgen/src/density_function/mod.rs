@@ -9,8 +9,8 @@ use crate::proto::NoiseGeneratorSettings;
 use crate::spline::{RangeFunction, SplineFunction};
 use bevy_math::{Curve, FloatExt, IVec3};
 use mcrs_core::ResourceLocation;
-use mcrs_random::legacy::LegacyRandom;
-use mcrs_random::{Random, RandomSource};
+use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_random::{Random, RandomSource};
 use mcrs_voxel_storage::VoxelId;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
@@ -7116,7 +7116,7 @@ mod tests {
     use crate::density_function::DensityFunction;
     use crate::density_function::beta_seed::seed_beta_terrain;
     use crate::proto::NoiseGeneratorSettings;
-    use mcrs_random::RandomSource;
+    use mcrs_minecraft_random::RandomSource;
 
     /// REGRESSION: modern BlendedNoise (formerly OldBlendedNoise) must sample
     /// to the same values as the post-07-01a baseline after the generalization.

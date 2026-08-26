@@ -1,5 +1,5 @@
 use crate::noise::gradient::GRADIENTS;
-use mcrs_random::{Random, RandomSource};
+use mcrs_minecraft_random::{Random, RandomSource};
 use num_traits::{Float, ToPrimitive};
 
 // SIMD-packed f32 mirror of `GRADIENTS` for the hot f32 path (`sample_and_lerp`):
@@ -628,7 +628,7 @@ impl ImprovedNoise<f32> {
 #[cfg(test)]
 mod test {
     use crate::noise::improved_noise::ImprovedNoise;
-    use mcrs_random::legacy::LegacyRandom;
+    use mcrs_minecraft_random::legacy::LegacyRandom;
     use serde::Deserialize;
 
     #[derive(Deserialize)]
@@ -732,7 +732,7 @@ mod test {
     /// Pins the new vanilla-aligned origin: f32 cast of the same f64 draws LegacyRandom(845) uses.
     #[test]
     fn modern_origin_is_vanilla() {
-        use mcrs_random::Random;
+        use mcrs_minecraft_random::Random;
         let noise = ImprovedNoise::<f32>::from_random(&mut LegacyRandom::new(845));
         let mut rng = LegacyRandom::new(845);
         let expected_x = (rng.next_f64() * 256.0) as f32;

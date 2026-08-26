@@ -5,8 +5,8 @@ use mcrs_minecraft_worldgen::density_function::{
     ColumnCache, NoiseCellInterpolator, NoiseRouter, beta_terrain_f64::BetaTerrainF64,
 };
 use mcrs_protocol::BlockStateId;
-use mcrs_random::Random;
-use mcrs_random::legacy::LegacyRandom;
+use mcrs_minecraft_random::Random;
+use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::beta_surface::beta_surface_blocks;
 use mcrs_vanilla::biome::source::{

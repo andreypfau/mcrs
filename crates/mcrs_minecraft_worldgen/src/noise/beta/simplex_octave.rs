@@ -1,5 +1,5 @@
 use crate::noise::simplex::SimplexNoise;
-use mcrs_random::Random;
+use mcrs_minecraft_random::Random;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct SimplexOctaveNoise {
@@ -45,7 +45,7 @@ impl SimplexOctaveNoise {
 #[cfg(test)]
 mod test {
     use super::SimplexOctaveNoise;
-    use mcrs_random::legacy::LegacyRandom;
+    use mcrs_minecraft_random::legacy::LegacyRandom;
 
     #[test]
     fn simplex_octave_reachable() {

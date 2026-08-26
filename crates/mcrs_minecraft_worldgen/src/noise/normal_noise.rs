@@ -1,6 +1,6 @@
 use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
-use mcrs_random::Random;
+use mcrs_minecraft_random::Random;
 
 const INPUT_FACTOR: f32 = 1.0181268882175227;
 
@@ -225,7 +225,7 @@ impl NoiseSampler {
 // #[cfg(test)]
 // mod test {
 //     use crate::noise::normal_noise::NoiseSampler;
-//     use mcrs_random::legacy::LegacyRandom;
+//     use mcrs_minecraft_random::legacy::LegacyRandom;
 //
 //     #[test]
 //     fn sample() {
