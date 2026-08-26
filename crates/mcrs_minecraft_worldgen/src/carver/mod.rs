@@ -2,7 +2,7 @@ pub mod cave;
 pub mod config;
 
 use crate::carver::config::BetaCaveCarverConfig;
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 use mcrs_random::Random;
 
 pub trait WorldCarver {
@@ -17,15 +17,15 @@ pub trait WorldCarver {
         set_block: S,
         rng: &mut R,
     ) where
-        G: Fn(i32, i32, i32) -> BlockStateId,
-        S: FnMut(i32, i32, i32, BlockStateId);
+        G: Fn(i32, i32, i32) -> VoxelId,
+        S: FnMut(i32, i32, i32, VoxelId);
 }
 
-pub fn can_replace_block(config: &BetaCaveCarverConfig, state: BlockStateId) -> bool {
+pub fn can_replace_block(config: &BetaCaveCarverConfig, state: VoxelId) -> bool {
     state == config.stone_state || state == config.dirt_state || state == config.grass_state
 }
 
-pub fn get_carve_state(config: &BetaCaveCarverConfig, world_y: i32) -> BlockStateId {
+pub fn get_carve_state(config: &BetaCaveCarverConfig, world_y: i32) -> VoxelId {
     if world_y < config.lava_level {
         config.lava_state
     } else {
@@ -45,12 +45,12 @@ pub fn water_abort_scan<G>(
     y_max: i32,
     z_min: i32,
     z_max: i32,
-    water_state: BlockStateId,
-    stationary_water_state: BlockStateId,
+    water_state: VoxelId,
+    stationary_water_state: VoxelId,
     get_block: &G,
 ) -> bool
 where
-    G: Fn(i32, i32, i32) -> BlockStateId,
+    G: Fn(i32, i32, i32) -> VoxelId,
 {
     let mut abort = false;
     let mut x = x_min;
@@ -95,14 +95,14 @@ pub fn carve_ellipsoid<G, S>(
     d2: f64,
     d6: f64,
     d7: f64,
-    water_state: BlockStateId,
-    stationary_water_state: BlockStateId,
+    water_state: VoxelId,
+    stationary_water_state: VoxelId,
     get_block: &G,
     set_block: &mut S,
 ) -> bool
 where
-    G: Fn(i32, i32, i32) -> BlockStateId,
-    S: FnMut(i32, i32, i32, BlockStateId),
+    G: Fn(i32, i32, i32) -> VoxelId,
+    S: FnMut(i32, i32, i32, VoxelId),
 {
     let k1 = (d0 - d6).floor() as i32 - chunk_x * 16 - 1;
     let l1 = (d0 + d6).floor() as i32 - chunk_x * 16 + 1;

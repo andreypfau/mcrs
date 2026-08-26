@@ -1,6 +1,5 @@
 use crate::density_function::proto::{DensityFunctionHolder, HashableF64, ProtoDensityFunction};
 use mcrs_core::ResourceLocation;
-use mcrs_protocol::BlockStateId;
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

@@ -1,15 +1,15 @@
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
 pub struct BetaCaveCarverConfig {
-    pub air_state: BlockStateId,
-    pub lava_state: BlockStateId,
-    pub stone_state: BlockStateId,
-    pub dirt_state: BlockStateId,
-    pub grass_state: BlockStateId,
+    pub air_state: VoxelId,
+    pub lava_state: VoxelId,
+    pub stone_state: VoxelId,
+    pub dirt_state: VoxelId,
+    pub grass_state: VoxelId,
     /// Water block state IDs for the water-abort scan.
     /// Both flowing (water) and stationary forms should be provided.
-    pub water_state: BlockStateId,
-    pub stationary_water_state: BlockStateId,
+    pub water_state: VoxelId,
+    pub stationary_water_state: VoxelId,
     pub lava_level: i32,
     pub range: i32,
     pub horizontal_radius_multiplier: f32,
@@ -19,13 +19,13 @@ pub struct BetaCaveCarverConfig {
 impl BetaCaveCarverConfig {
     pub fn beta() -> Self {
         BetaCaveCarverConfig {
-            air_state: BlockStateId(0),
-            lava_state: BlockStateId(0),
-            stone_state: BlockStateId(0),
-            dirt_state: BlockStateId(0),
-            grass_state: BlockStateId(0),
-            water_state: BlockStateId(0),
-            stationary_water_state: BlockStateId(0),
+            air_state: VoxelId(0),
+            lava_state: VoxelId(0),
+            stone_state: VoxelId(0),
+            dirt_state: VoxelId(0),
+            grass_state: VoxelId(0),
+            water_state: VoxelId(0),
+            stationary_water_state: VoxelId(0),
             lava_level: 10,
             range: 8,
             horizontal_radius_multiplier: 1.0,

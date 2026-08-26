@@ -1,6 +1,6 @@
 use crate::carver::config::BetaCaveCarverConfig;
 use crate::carver::{WorldCarver, carve_ellipsoid};
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 use mcrs_random::Random;
 use mcrs_random::legacy::LegacyRandom;
 
@@ -36,8 +36,8 @@ impl WorldCarver for CaveWorldCarver {
         set_block: S,
         rng: &mut R,
     ) where
-        G: Fn(i32, i32, i32) -> BlockStateId,
-        S: FnMut(i32, i32, i32, BlockStateId),
+        G: Fn(i32, i32, i32) -> VoxelId,
+        S: FnMut(i32, i32, i32, VoxelId),
     {
         let mut set_block = set_block;
         let cave_count = {
@@ -138,8 +138,8 @@ fn create_tunnel<R: Random, G, S>(
     parent_rng: &mut R,
 ) where
     R: Random,
-    G: Fn(i32, i32, i32) -> BlockStateId,
-    S: FnMut(i32, i32, i32, BlockStateId),
+    G: Fn(i32, i32, i32) -> VoxelId,
+    S: FnMut(i32, i32, i32, VoxelId),
 {
     let range = config.range;
     let mut total_steps = total_steps;
@@ -283,13 +283,13 @@ mod tests {
 
     fn beta_config() -> BetaCaveCarverConfig {
         BetaCaveCarverConfig {
-            air_state: BlockStateId(0),
-            lava_state: BlockStateId(11),
-            stone_state: BlockStateId(1),
-            dirt_state: BlockStateId(2),
-            grass_state: BlockStateId(3),
-            water_state: BlockStateId(0),
-            stationary_water_state: BlockStateId(0),
+            air_state: VoxelId(0),
+            lava_state: VoxelId(11),
+            stone_state: VoxelId(1),
+            dirt_state: VoxelId(2),
+            grass_state: VoxelId(3),
+            water_state: VoxelId(0),
+            stationary_water_state: VoxelId(0),
             lava_level: 10,
             range: 8,
             horizontal_radius_multiplier: 1.0,
@@ -330,7 +330,7 @@ mod tests {
         const WIDTH: usize = 16;
         const HEIGHT: usize = 128;
 
-        let blocks: Vec<Cell<BlockStateId>> = (0..WIDTH * WIDTH * HEIGHT)
+        let blocks: Vec<Cell<VoxelId>> = (0..WIDTH * WIDTH * HEIGHT)
             .map(|_| Cell::new(stone))
             .collect();
 
@@ -338,7 +338,7 @@ mod tests {
             (lx as usize * WIDTH + lz as usize) * HEIGHT + wy as usize
         };
 
-        let get_block = |lx: i32, wy: i32, lz: i32| -> BlockStateId {
+        let get_block = |lx: i32, wy: i32, lz: i32| -> VoxelId {
             if wy < 0
                 || wy >= HEIGHT as i32
                 || lx < 0
@@ -346,12 +346,12 @@ mod tests {
                 || lz < 0
                 || lz >= WIDTH as i32
             {
-                return BlockStateId(0);
+                return VoxelId(0);
             }
             blocks[idx(lx, wy, lz)].get()
         };
 
-        let mut carved_above: Vec<(i32, i32, i32, BlockStateId)> = Vec::new();
+        let mut carved_above: Vec<(i32, i32, i32, VoxelId)> = Vec::new();
         carve_ellipsoid(
             &config,
             0,
@@ -361,8 +361,8 @@ mod tests {
             8.0,
             3.0,
             2.0,
-            BlockStateId(0),
-            BlockStateId(0),
+            VoxelId(0),
+            VoxelId(0),
             &get_block,
             &mut |lx, wy, lz, state| {
                 carved_above.push((lx, wy, lz, state));
@@ -378,10 +378,10 @@ mod tests {
             }
         }
 
-        let blocks2: Vec<Cell<BlockStateId>> = (0..WIDTH * WIDTH * HEIGHT)
+        let blocks2: Vec<Cell<VoxelId>> = (0..WIDTH * WIDTH * HEIGHT)
             .map(|_| Cell::new(stone))
             .collect();
-        let get_block2 = |lx: i32, wy: i32, lz: i32| -> BlockStateId {
+        let get_block2 = |lx: i32, wy: i32, lz: i32| -> VoxelId {
             if wy < 0
                 || wy >= HEIGHT as i32
                 || lx < 0
@@ -389,7 +389,7 @@ mod tests {
                 || lz < 0
                 || lz >= WIDTH as i32
             {
-                return BlockStateId(0);
+                return VoxelId(0);
             }
             blocks2[idx(lx, wy, lz)].get()
         };
@@ -402,8 +402,8 @@ mod tests {
             8.0,
             3.0,
             2.0,
-            BlockStateId(0),
-            BlockStateId(0),
+            VoxelId(0),
+            VoxelId(0),
             &get_block2,
             &mut |lx, wy, lz, state| {
                 if wy < config.lava_level {

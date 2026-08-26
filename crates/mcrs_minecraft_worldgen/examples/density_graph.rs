@@ -172,8 +172,8 @@ fn generate_graph(
         &noises,
         &settings,
         seed,
-        mcrs_protocol::BlockStateId(1),
-        mcrs_protocol::BlockStateId(86),
+        mcrs_palette::VoxelId(1),
+        mcrs_palette::VoxelId(86),
     );
 
     // Cross-validate column cache against reference forward sweep

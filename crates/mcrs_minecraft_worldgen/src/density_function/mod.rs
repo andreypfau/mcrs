@@ -9,7 +9,7 @@ use crate::proto::NoiseGeneratorSettings;
 use crate::spline::{RangeFunction, SplineFunction};
 use bevy_math::{Curve, FloatExt, IVec3};
 use mcrs_core::ResourceLocation;
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_random::{Random, RandomSource};
 use std::collections::{BTreeMap, HashMap};
@@ -1490,8 +1490,8 @@ pub fn build_functions(
     noises: &BTreeMap<ResourceLocation, NoiseParam>,
     noise_settings: &NoiseGeneratorSettings,
     seed: u64,
-    default_block_state: BlockStateId,
-    default_fluid_state: BlockStateId,
+    default_block_state: VoxelId,
+    default_fluid_state: VoxelId,
 ) -> NoiseRouter {
     let random = RandomSource::new(seed, noise_settings.legacy_random_source);
     let builder_options = ChunkNoiseFunctionBuilderOptions {
@@ -1686,8 +1686,8 @@ pub struct NoiseRouter {
     noise_min_y: i32,
     noise_height: u32,
     sea_level: i32,
-    default_block_state: BlockStateId,
-    default_fluid_state: BlockStateId,
+    default_block_state: VoxelId,
+    default_fluid_state: VoxelId,
     world_seed: u64,
     /// Beta beach octave noise (4 octaves, stream position 4 in seed_beta_terrain).
     /// None for the modern router. Used by apply_beta_surface to determine beach columns.
@@ -1994,11 +1994,11 @@ impl NoiseRouter {
         self.sea_level
     }
 
-    pub fn default_block_state(&self) -> BlockStateId {
+    pub fn default_block_state(&self) -> VoxelId {
         self.default_block_state
     }
 
-    pub fn default_fluid_state(&self) -> BlockStateId {
+    pub fn default_fluid_state(&self) -> VoxelId {
         self.default_fluid_state
     }
 
@@ -7234,8 +7234,8 @@ mod tests {
             &noises,
             &settings,
             12345,
-            mcrs_protocol::BlockStateId(1),
-            mcrs_protocol::BlockStateId(86),
+            mcrs_palette::VoxelId(1),
+            mcrs_palette::VoxelId(86),
         );
 
         // Sample a column at multiple Y values to find a sign flip
@@ -7273,8 +7273,8 @@ mod tests {
             &noises,
             &settings,
             12345,
-            mcrs_protocol::BlockStateId(1),
-            mcrs_protocol::BlockStateId(86),
+            mcrs_palette::VoxelId(1),
+            mcrs_palette::VoxelId(86),
         );
         // Zone A must contain the two FlatCache'd 2D nodes (scale/depth).
         assert!(
@@ -7736,8 +7736,8 @@ mod tests {
             &noises,
             &settings,
             845,
-            mcrs_protocol::BlockStateId(1),
-            mcrs_protocol::BlockStateId(86),
+            mcrs_palette::VoxelId(1),
+            mcrs_palette::VoxelId(86),
         );
         let mut i = 0;
         let mut max_diff = 0.0_f32;
@@ -7799,8 +7799,8 @@ mod tests {
             &noises,
             &settings,
             845,
-            mcrs_protocol::BlockStateId(1),
-            mcrs_protocol::BlockStateId(86),
+            mcrs_palette::VoxelId(1),
+            mcrs_palette::VoxelId(86),
         );
         for cx in 0..5i32 {
             for cz in 0..5i32 {
@@ -7952,8 +7952,8 @@ mod tests {
             &noises,
             &settings,
             2,
-            mcrs_protocol::BlockStateId(1),
-            mcrs_protocol::BlockStateId(86),
+            mcrs_palette::VoxelId(1),
+            mcrs_palette::VoxelId(86),
         );
 
         assert!(
@@ -8011,16 +8011,16 @@ mod tests {
             &noises,
             &overworld_settings,
             2,
-            mcrs_protocol::BlockStateId(1),
-            mcrs_protocol::BlockStateId(86),
+            mcrs_palette::VoxelId(1),
+            mcrs_palette::VoxelId(86),
         );
         let beta_router = super::build_functions(
             &functions,
             &noises,
             &beta_settings,
             2,
-            mcrs_protocol::BlockStateId(1),
-            mcrs_protocol::BlockStateId(86),
+            mcrs_palette::VoxelId(1),
+            mcrs_palette::VoxelId(86),
         );
 
         let pos = bevy_math::IVec3::new(0, 64, 0);

@@ -1,8 +1,8 @@
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
 pub struct TargetBlockState {
-    pub target: BlockStateId,
-    pub state: BlockStateId,
+    pub target: VoxelId,
+    pub state: VoxelId,
 }
 
 pub enum OreYOffset {

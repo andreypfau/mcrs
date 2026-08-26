@@ -1,7 +1,7 @@
 pub mod config;
 
 use crate::feature::config::{OreConfig, OreYOffset};
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 use mcrs_random::Random;
 
 pub struct OreFeature;
@@ -25,8 +25,8 @@ impl OreFeature {
         set_block: S,
         rng: &mut R,
     ) where
-        G: Fn(i32, i32, i32) -> BlockStateId,
-        S: FnMut(i32, i32, i32, BlockStateId),
+        G: Fn(i32, i32, i32) -> VoxelId,
+        S: FnMut(i32, i32, i32, VoxelId),
     {
         do_place(
             config, origin_x, origin_y, origin_z, get_block, set_block, rng,
@@ -43,8 +43,8 @@ fn do_place<R: Random, G, S>(
     mut set_block: S,
     rng: &mut R,
 ) where
-    G: Fn(i32, i32, i32) -> BlockStateId,
-    S: FnMut(i32, i32, i32, BlockStateId),
+    G: Fn(i32, i32, i32) -> VoxelId,
+    S: FnMut(i32, i32, i32, VoxelId),
 {
     let size = config.size;
 
@@ -115,13 +115,13 @@ fn do_place<R: Random, G, S>(
 mod tests {
     use super::*;
     use crate::feature::config::{OreConfig, OreYOffset, TargetBlockState};
-    use mcrs_protocol::BlockStateId;
+    use mcrs_palette::VoxelId;
     use mcrs_random::legacy::LegacyRandom;
     use std::cell::Cell;
 
-    const STONE: BlockStateId = BlockStateId(1);
-    const COAL_ORE: BlockStateId = BlockStateId(16);
-    const NON_STONE: BlockStateId = BlockStateId(2);
+    const STONE: VoxelId = VoxelId(1);
+    const COAL_ORE: VoxelId = VoxelId(16);
+    const NON_STONE: VoxelId = VoxelId(2);
 
     fn beta_coal_config() -> OreConfig {
         OreConfig {
@@ -136,7 +136,7 @@ mod tests {
 
     /// Minimal block store for unit tests: flat world-coord array.
     struct FlatBlocks {
-        data: Vec<Cell<BlockStateId>>,
+        data: Vec<Cell<VoxelId>>,
         width: usize,
         height: usize,
     }
@@ -161,12 +161,12 @@ mod tests {
             Some((wx as usize * self.width + wz as usize) * self.height + wy as usize)
         }
 
-        fn get(&self, wx: i32, wy: i32, wz: i32) -> BlockStateId {
+        fn get(&self, wx: i32, wy: i32, wz: i32) -> VoxelId {
             self.idx(wx, wy, wz)
-                .map_or(BlockStateId(0), |i| self.data[i].get())
+                .map_or(VoxelId(0), |i| self.data[i].get())
         }
 
-        fn set(&self, wx: i32, wy: i32, wz: i32, state: BlockStateId) {
+        fn set(&self, wx: i32, wy: i32, wz: i32, state: VoxelId) {
             if let Some(i) = self.idx(wx, wy, wz) {
                 self.data[i].set(state);
             }
@@ -186,7 +186,7 @@ mod tests {
         let non_z = 12i32;
         world.set(non_x, non_y, non_z, NON_STONE);
 
-        let mut replacements: Vec<(i32, i32, i32, BlockStateId)> = Vec::new();
+        let mut replacements: Vec<(i32, i32, i32, VoxelId)> = Vec::new();
 
         feature.place(
             &config,
