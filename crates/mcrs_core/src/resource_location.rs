@@ -1,5 +1,5 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::borrow::Borrow;
+use std::borrow::{Borrow, Cow};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -9,6 +9,7 @@ use std::sync::Arc;
 /// Generic over the string storage type `S`:
 /// - `ResourceLocation<Arc<str>>` (the default) — heap-allocated, cheap to clone.
 /// - `ResourceLocation<&'static str>` — zero-alloc, `Copy`, const-constructible.
+/// - `ResourceLocation<Cow<'a, str>>` — borrowed or owned, used by the wire codecs.
 ///
 /// Both variants hash and compare identically, and `ResourceLocation<&'static str>`
 /// can be used for zero-allocation lookups into `HashMap<ResourceLocation, …>` via
@@ -147,6 +148,22 @@ impl ResourceLocation<Arc<str>> {
     }
 }
 
+// ─── Cow<str> constructors ───────────────────────────────────────────────────
+
+impl<'a> ResourceLocation<Cow<'a, str>> {
+    /// Parse a `namespace:path` string. Returns an error if `:` is missing.
+    pub fn parse_cow(s: impl Into<Cow<'a, str>>) -> Result<Self, ResourceLocationError> {
+        let string = s.into();
+        match string.find(':') {
+            Some(pos) => Ok(ResourceLocation {
+                string,
+                colon_pos: pos as u16,
+            }),
+            None => Err(ResourceLocationError(string.into_owned())),
+        }
+    }
+}
+
 // ─── Conversions ─────────────────────────────────────────────────────────────
 
 impl From<ResourceLocation<&'static str>> for ResourceLocation<Arc<str>> {
@@ -154,6 +171,36 @@ impl From<ResourceLocation<&'static str>> for ResourceLocation<Arc<str>> {
     fn from(rl: ResourceLocation<&'static str>) -> Self {
         ResourceLocation {
             string: Arc::from(rl.string),
+            colon_pos: rl.colon_pos,
+        }
+    }
+}
+
+impl From<ResourceLocation<&'static str>> for ResourceLocation<Cow<'static, str>> {
+    #[inline]
+    fn from(rl: ResourceLocation<&'static str>) -> Self {
+        ResourceLocation {
+            string: Cow::Borrowed(rl.string),
+            colon_pos: rl.colon_pos,
+        }
+    }
+}
+
+impl<'a> From<ResourceLocation<Cow<'a, str>>> for ResourceLocation<Arc<str>> {
+    #[inline]
+    fn from(rl: ResourceLocation<Cow<'a, str>>) -> Self {
+        ResourceLocation {
+            string: Arc::from(rl.string.as_ref()),
+            colon_pos: rl.colon_pos,
+        }
+    }
+}
+
+impl From<ResourceLocation<Arc<str>>> for ResourceLocation<Cow<'static, str>> {
+    #[inline]
+    fn from(rl: ResourceLocation<Arc<str>>) -> Self {
+        ResourceLocation {
+            string: Cow::Owned(rl.string.to_string()),
             colon_pos: rl.colon_pos,
         }
     }
@@ -235,6 +282,13 @@ impl<'de> Deserialize<'de> for ResourceLocation<Arc<str>> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let s = String::deserialize(d)?;
         ResourceLocation::parse(&s).map_err(serde::de::Error::custom)
+    }
+}
+
+impl<'de> Deserialize<'de> for ResourceLocation<Cow<'static, str>> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        ResourceLocation::parse_cow(Cow::Owned(s)).map_err(serde::de::Error::custom)
     }
 }
 
