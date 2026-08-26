@@ -10,7 +10,7 @@ use mcrs_minecraft::world::bridge::bridge_inbound_to_channel;
 use mcrs_minecraft::world::bus::InboundPlayerPacket;
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft::world::player_index::PendingInboundBuffer;
-use mcrs_network::ServerSideConnection;
+use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_voxel_world::session::{
     PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry,
 };

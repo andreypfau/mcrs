@@ -19,9 +19,9 @@ use mcrs_minecraft::world::bridge_queue::{
 use mcrs_minecraft::world::bus::{InboundPlayerPacket, OutboundPlayerPacket};
 use mcrs_minecraft::world::channel_types::DimChannelsResource;
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PendingInboundBuffer, PlayerIndex};
-use mcrs_network::event::ReceivedPacketEvent;
-use mcrs_network::metrics::{BRIDGE_KICK_FLOOD_TOTAL, TELEMETRY_TEST_LOCK};
-use mcrs_network::{InGameConnectionState, ReceivedPacket, ServerSideConnection};
+use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::metrics::{BRIDGE_KICK_FLOOD_TOTAL, TELEMETRY_TEST_LOCK};
+use mcrs_minecraft_network::{InGameConnectionState, ReceivedPacket, ServerSideConnection};
 use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 
 use std::sync::atomic::Ordering;

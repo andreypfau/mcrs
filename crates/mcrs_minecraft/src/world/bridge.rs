@@ -21,8 +21,8 @@ pub enum BridgeSet {
     Inbound,
 }
 use mcrs_minecraft_core::ResourceLocation;
-use mcrs_network::event::ReceivedPacketEvent;
-use mcrs_network::{EngineConnection, InGameConnectionState, ServerSideConnection};
+use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::{EngineConnection, InGameConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::chunk::ChunkData;
 use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
 use mcrs_minecraft_protocol::packets::game::clientbound::{
@@ -57,7 +57,7 @@ use mcrs_voxel_world::session::SessionRegistry;
 ///
 /// Even with this ordering, `bridge_outbound` still treats a resolved target
 /// that lacks `OutboundQueue` as a counted event
-/// (`mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL`) rather than a
+/// (`mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL`) rather than a
 /// silent miss. The counter makes any residual race observable so no join
 /// packet is dropped silently.
 pub fn attach_outbound_queue(
@@ -90,7 +90,7 @@ pub fn bridge_outbound(
     mut queues: Query<&mut OutboundQueue>,
 ) {
     for msg in reader.read() {
-        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_CONSUMED_TOTAL
+        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_CONSUMED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
 
         match &msg.target {
@@ -108,7 +108,7 @@ pub fn bridge_outbound(
                 match queues.get_mut(target_socket) {
                     Ok(mut q) => q.push(msg.clone()),
                     Err(_) => {
-                        mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
+                        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
                             .fetch_add(1, Ordering::Relaxed);
                     }
                 }
@@ -130,7 +130,7 @@ pub fn bridge_outbound(
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {
-                            mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
+                            mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
                                 .fetch_add(1, Ordering::Relaxed);
                         }
                     }
@@ -148,7 +148,7 @@ pub fn bridge_outbound(
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {
-                            mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
+                            mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
                                 .fetch_add(1, Ordering::Relaxed);
                         }
                     }
@@ -170,7 +170,7 @@ pub fn bridge_outbound(
                     match queues.get_mut(socket) {
                         Ok(mut q) => q.push(msg.clone()),
                         Err(_) => {
-                            mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
+                            mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
                                 .fetch_add(1, Ordering::Relaxed);
                         }
                     }
@@ -199,8 +199,8 @@ pub fn dispatch_encode(
     mut players: Query<(Entity, &mut OutboundQueue, &mut ServerSideConnection)>,
     mut commands: Commands,
 ) {
-    use mcrs_network::MAX_QUEUED_BYTES_PER_SOCKET;
-    use mcrs_network::metrics::{
+    use mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
+    use mcrs_minecraft_network::metrics::{
         BRIDGE_DROP_LOW_TOTAL, BRIDGE_DROP_NORMAL_TOTAL, BRIDGE_ENCODE_UNHANDLED_TOTAL,
         BRIDGE_KICK_OVERFLOW_TOTAL, BRIDGE_QUEUE_DEPTH_CRITICAL, BRIDGE_QUEUE_DEPTH_HIGH,
         BRIDGE_QUEUE_DEPTH_LOW, BRIDGE_QUEUE_DEPTH_NORMAL,
@@ -656,7 +656,7 @@ pub fn bridge_inbound_to_channel(
                     if let Some((_, sess_entry)) = session_registry.get_by_anchor(&msg.player) {
                         commands
                             .entity(sess_entry.connection_entity)
-                            .remove::<mcrs_network::ServerSideConnection>();
+                            .remove::<mcrs_minecraft_network::ServerSideConnection>();
                     }
                 }
                 Err(TrySendError::Disconnected(_)) => {}
@@ -716,7 +716,7 @@ pub fn bridge_inbound(
     mut inbound_buffer: ResMut<PendingInboundBuffer>,
 ) {
     use flume::TrySendError;
-    use mcrs_network::metrics::BRIDGE_KICK_FLOOD_TOTAL;
+    use mcrs_minecraft_network::metrics::BRIDGE_KICK_FLOOD_TOTAL;
     use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 
     for (entity, mut conn, mut bucket, anchor_ref) in conns.iter_mut() {

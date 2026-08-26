@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_network"
+name = "mcrs_minecraft_network"
 description = "Protocol library for Minecraft: Java Edition"
 readme = "README.md"
 version.workspace = true

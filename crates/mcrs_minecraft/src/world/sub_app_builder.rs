@@ -489,8 +489,8 @@ fn flush_from_dim_outbox(
             epoch: 0,
         };
         if sender.0.try_send(outbound).is_err() {
-            mcrs_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL.fetch_add(1, Ordering::Relaxed);
-            let total = mcrs_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL.load(Ordering::Relaxed);
+            mcrs_minecraft_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL.fetch_add(1, Ordering::Relaxed);
+            let total = mcrs_minecraft_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL.load(Ordering::Relaxed);
             *dropped_since_log += 1;
             if *dropped_since_log == 1
                 || dropped_since_log.is_multiple_of(FROM_DIM_DROP_LOG_INTERVAL)

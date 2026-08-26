@@ -11,7 +11,7 @@ mcrs_voxel_server.workspace = true
 bevy_ecs_macros.workspace = true
 mcrs_voxel_world.workspace = true
 mcrs_voxel_light.workspace = true
-mcrs_network.workspace = true
+mcrs_minecraft_network.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_vanilla.workspace = true
@@ -63,5 +63,5 @@ test-bench = ["mcrs_voxel_light/test-bench"]
 long-prop-tests = ["mcrs_voxel_light/long-prop-tests"]
 telemetry-tracy = [
   "mcrs_voxel_light/telemetry-tracy",
-  "mcrs_network/telemetry-tracy",
+  "mcrs_minecraft_network/telemetry-tracy",
 ]

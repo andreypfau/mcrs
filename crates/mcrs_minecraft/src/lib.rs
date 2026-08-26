@@ -28,7 +28,7 @@ use crate::keep_alive::KeepAlivePlugin;
 use crate::login::LoginPlugin;
 use crate::world::WorldPlugin;
 use bevy_app::{App, Plugin};
-use mcrs_network::NetworkPlugin;
+use mcrs_minecraft_network::NetworkPlugin;
 use mcrs_voxel_server::VoxelServerPlugin;
 
 pub struct MinecraftServerPlugin;

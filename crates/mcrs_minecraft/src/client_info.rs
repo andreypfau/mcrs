@@ -1,8 +1,8 @@
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::{Commands, Component, On, Query};
 use derive_more::Deref;
-use mcrs_network::ConnectionState;
-use mcrs_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::ConnectionState;
+use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundClientInformation as ConfigurationPacket;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundClientInformation as GamePacket;
 

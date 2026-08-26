@@ -235,7 +235,7 @@ fn packet_target_player_set() {
 /// `BRIDGE_OUTBOUND_NO_QUEUE_TOTAL` and is NOT silently dropped.
 #[test]
 fn packet_target_missing_queue_counted() {
-    let _lock = mcrs_network::metrics::TELEMETRY_TEST_LOCK
+    let _lock = mcrs_minecraft_network::metrics::TELEMETRY_TEST_LOCK
         .lock()
         .unwrap_or_else(|e| e.into_inner());
 
@@ -248,7 +248,7 @@ fn packet_target_missing_queue_counted() {
     let socket_no_queue = world.spawn_empty().id();
     let session = register_player(&mut world, player, socket_no_queue, dim);
 
-    let before = mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
+    let before = mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
         .load(std::sync::atomic::Ordering::Relaxed);
 
     write_packet(
@@ -262,7 +262,7 @@ fn packet_target_missing_queue_counted() {
 
     run_system(&mut world, bridge_outbound);
 
-    let after = mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
+    let after = mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
         .load(std::sync::atomic::Ordering::Relaxed);
 
     assert_eq!(
@@ -272,7 +272,7 @@ fn packet_target_missing_queue_counted() {
     );
 
     // Reset counter so parallel tests don't see stale increments.
-    mcrs_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
+    mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_NO_QUEUE_TOTAL
         .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
 }
 

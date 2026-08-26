@@ -332,7 +332,7 @@ fn send_column_queue(
                     session: PlayerSession(0),
                     epoch: 0,
                 });
-                mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+                mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                     .fetch_add(1, Ordering::Relaxed);
 
                 sends += 1;
@@ -370,7 +370,7 @@ pub(crate) fn send_light_updates(
                 session: PlayerSession(0),
                 epoch: 0,
             });
-            mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+            mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                 .fetch_add(1, Ordering::Relaxed);
         }
     }
@@ -482,7 +482,7 @@ fn on_view_update(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
     }
     if match event.old_view {
@@ -498,7 +498,7 @@ fn on_view_update(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
     }
 

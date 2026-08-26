@@ -51,7 +51,7 @@ use mcrs_minecraft::world::bus::{
 };
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_network::ServerSideConnection;
+use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
@@ -364,8 +364,8 @@ fn build_join_host_app() -> App {
 /// 2. A non-empty blob reaches the mock socket channel (play-login delivered).
 #[test]
 fn e2e_join_releases_joining_world() {
-    use mcrs_network::ConnectionState;
-    use mcrs_network::InGameConnectionState;
+    use mcrs_minecraft_network::ConnectionState;
+    use mcrs_minecraft_network::InGameConnectionState;
     use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
 
     let mut app = build_join_host_app();

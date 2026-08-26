@@ -190,7 +190,7 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
 
         // The client derives the local player's game mode (and therefore
@@ -211,7 +211,7 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
@@ -224,7 +224,7 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
@@ -234,7 +234,7 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
@@ -244,7 +244,7 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
@@ -257,7 +257,7 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
 
         packet_writer.write(OutboundPlayerPacket {
@@ -270,7 +270,7 @@ fn consume_inbound_player_spawn(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
 
         attached.write(OutboundPlayerAttached {
@@ -336,7 +336,7 @@ fn network_add(
         session: PlayerSession(0),
         epoch: 0,
     });
-    mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.fetch_add(1, Ordering::Relaxed);
+    mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.fetch_add(1, Ordering::Relaxed);
 }
 
 fn player_joined(
@@ -388,7 +388,7 @@ fn player_joined(
             session: PlayerSession(0),
             epoch: 0,
         });
-        mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+        mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
             .fetch_add(1, Ordering::Relaxed);
     }
 }

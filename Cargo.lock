@@ -3199,10 +3199,10 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_random",
  "mcrs_minecraft_worldgen",
- "mcrs_network",
  "mcrs_vanilla",
  "mcrs_voxel_light",
  "mcrs_voxel_math",
@@ -3294,6 +3294,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_network"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bevy_app",
+ "bevy_ecs",
+ "bytes",
+ "log",
+ "mcrs_minecraft_protocol",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_protocol"
 version = "0.1.0"
 dependencies = [
@@ -3361,22 +3377,6 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "mcrs_network"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bevy_app",
- "bevy_ecs",
- "bytes",
- "log",
- "mcrs_minecraft_protocol",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
  "tracing",
 ]
 

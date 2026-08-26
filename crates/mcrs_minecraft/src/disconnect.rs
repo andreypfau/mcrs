@@ -25,7 +25,7 @@ use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Query, ResMut};
-use mcrs_network::ServerSideConnection;
+use mcrs_minecraft_network::ServerSideConnection;
 use smallvec::SmallVec;
 use std::collections::VecDeque;
 use tracing::warn;

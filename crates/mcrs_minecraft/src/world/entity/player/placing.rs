@@ -9,7 +9,7 @@ use bevy_ecs::prelude::{On, Query};
 use mcrs_voxel_world::entity::player::reposition::Reposition;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_world::world::dimension::InDimension;
-use mcrs_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundUseItemOn;
 use mcrs_minecraft_protocol::{BlockStateId, Direction};
 

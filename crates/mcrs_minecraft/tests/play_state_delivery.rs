@@ -35,8 +35,8 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::entity::player::HostAnchor;
 use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_network::ServerSideConnection;
-use mcrs_network::metrics::{BRIDGE_ENCODE_UNHANDLED_TOTAL, TELEMETRY_TEST_LOCK};
+use mcrs_minecraft_network::ServerSideConnection;
+use mcrs_minecraft_network::metrics::{BRIDGE_ENCODE_UNHANDLED_TOTAL, TELEMETRY_TEST_LOCK};
 use mcrs_minecraft_protocol::GameMode;
 use mcrs_minecraft_protocol::chunk::LightData;
 use mcrs_minecraft_protocol::uuid::Uuid;

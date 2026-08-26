@@ -13,7 +13,7 @@ use bevy_ecs::query::With;
 use bevy_ecs::system::Query;
 use bevy_math::DVec3;
 use derive_more::{Deref, DerefMut};
-use mcrs_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Look, VarInt};
 use mcrs_voxel_world::entity::physics::{OldTransform, Transform};
@@ -185,5 +185,5 @@ pub fn entity_pos_sync(
         session: PlayerSession(0),
         epoch: 0,
     });
-    mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.fetch_add(1, Relaxed);
+    mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.fetch_add(1, Relaxed);
 }

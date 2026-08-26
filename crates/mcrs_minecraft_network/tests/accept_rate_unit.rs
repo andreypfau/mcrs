@@ -1,4 +1,4 @@
-use mcrs_network::connect::{
+use mcrs_minecraft_network::connect::{
     ACCEPT_BUCKET_CAP, ACCEPT_REFILL_PER_SEC, AcceptOutcome, GLOBAL_HANDSHAKE_CAP, TokenBucket,
     accept_decision,
 };

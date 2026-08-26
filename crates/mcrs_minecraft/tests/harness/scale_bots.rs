@@ -35,7 +35,7 @@ use mcrs_minecraft::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
 use mcrs_minecraft::world::player_index::PlayerIndex;
-use mcrs_network::metrics::{
+use mcrs_minecraft_network::metrics::{
     BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL, BridgeTelemetrySnapshot, snapshot,
 };
 use mcrs_minecraft_protocol::BlockStateId;

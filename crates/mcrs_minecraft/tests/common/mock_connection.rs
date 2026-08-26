@@ -14,7 +14,7 @@ use mcrs_minecraft::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
 use mcrs_minecraft::world::player_index::PlayerIndex;
-use mcrs_network::RawConnection;
+use mcrs_minecraft_network::RawConnection;
 use mcrs_voxel_world::session::{
     PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry,
 };
@@ -200,7 +200,7 @@ pub fn make_mock_raw_connection() -> (RawConnection, mpsc::Receiver<Bytes>) {
 pub fn make_mock_raw_connection_full() -> (
     RawConnection,
     mpsc::Receiver<Bytes>,
-    mpsc::Sender<mcrs_network::ReceivedPacket>,
+    mpsc::Sender<mcrs_minecraft_network::ReceivedPacket>,
 ) {
     use std::sync::OnceLock;
     use tokio::runtime::Runtime;

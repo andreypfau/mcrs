@@ -59,7 +59,7 @@ impl Plugin for WorldPlugin {
         app.add_systems(
             FixedPreUpdate,
             crate::world::bridge::attach_outbound_queue
-                .after(mcrs_network::NetworkSet::SpawnConnections),
+                .after(mcrs_minecraft_network::NetworkSet::SpawnConnections),
         );
 
         // BridgeSet ordering: Outbound fills queues from the bus, Dispatch

@@ -24,8 +24,8 @@ use mcrs_minecraft::world::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
 };
 use mcrs_minecraft::world::player_index::PlayerIndex;
-use mcrs_network::ServerSideConnection;
-use mcrs_network::metrics::{
+use mcrs_minecraft_network::ServerSideConnection;
+use mcrs_minecraft_network::metrics::{
     BRIDGE_DROP_LOW_TOTAL, BRIDGE_DROP_NORMAL_TOTAL, BRIDGE_ENCODE_UNHANDLED_TOTAL,
     BRIDGE_KICK_OVERFLOW_TOTAL, TELEMETRY_TEST_LOCK,
 };
@@ -326,9 +326,9 @@ fn metrics_delta_on_drop() {
     // Overflow with Normal packets to force drops.
     enqueue_normal(&mut world, socket, DEPTH_LIMIT + 10);
 
-    let snap_before = mcrs_network::metrics::snapshot();
+    let snap_before = mcrs_minecraft_network::metrics::snapshot();
     run_dispatch(&mut world);
-    let snap_after = mcrs_network::metrics::snapshot();
+    let snap_after = mcrs_minecraft_network::metrics::snapshot();
 
     let expected = ((DEPTH_LIMIT + 10) - DEPTH_DRAIN_TARGET) as u64;
     assert_eq!(

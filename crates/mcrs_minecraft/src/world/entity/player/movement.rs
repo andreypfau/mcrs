@@ -4,7 +4,7 @@ use bevy_ecs::prelude::{
     Changed, DetectChangesMut, Entity, Message, MessageReader, MessageWriter, Mut, On, Query, With,
 };
 use bevy_math::DVec3;
-use mcrs_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::MoveFlags;
 use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,

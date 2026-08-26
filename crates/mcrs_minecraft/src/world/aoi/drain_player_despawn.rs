@@ -95,7 +95,7 @@ pub fn drain_inbound_player_despawn(
                     session: PlayerSession(0),
                     epoch: 0,
                 });
-                mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+                mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
                     .fetch_add(1, Ordering::Relaxed);
             }
         }

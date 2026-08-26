@@ -19,8 +19,8 @@ use mcrs_minecraft_core::registry::access::ErasedRegistrySnapshot;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
 use mcrs_minecraft_core::tag::registry::TagRegistry;
 use mcrs_minecraft_core::{AppState, RegistryAccess, ResourceLocation, rl};
-use mcrs_network::event::ReceivedPacketEvent;
-use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
+use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags, TagGroup,
 };

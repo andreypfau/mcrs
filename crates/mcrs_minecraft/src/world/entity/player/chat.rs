@@ -7,7 +7,7 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::Text;
 use mcrs_minecraft_protocol::packets::game::serverbound::{ServerboundChat, ServerboundChatCommand};
 use mcrs_minecraft_protocol::setting::ChatMode;
