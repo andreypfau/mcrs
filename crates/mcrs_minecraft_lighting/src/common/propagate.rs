@@ -68,7 +68,8 @@ mod tests {
     };
     use bevy_app::{App, Update};
     use bevy_ecs::prelude::{Entity, IntoScheduleConfigs};
-    use mcrs_core::voxel_shape::{Direction, VoxelShape};
+    use mcrs_voxel_math::Direction;
+    use mcrs_voxel_math::voxel_shape::VoxelShape;
     use mcrs_minecraft_block::palette::BlockPalette;
     use mcrs_voxel_storage::VoxelId;
 
@@ -508,7 +509,7 @@ mod tests {
             "column-walker must push 1280 wavefronts"
         );
 
-        let west_face = Direction::West.index() as u8;
+        let west_face = Direction::West.id() as u8;
         let actual: Vec<(u8, u8)> = outbox
             .0
             .iter()
@@ -590,7 +591,7 @@ mod tests {
     fn propagate_decrease_drains_block_incoming_at_top_of_body() {
         let mut app = build_app_with_decrease();
         let entity = spawn_chunk_dirty(&mut app);
-        let east = Direction::East.index() as u8;
+        let east = Direction::East.id() as u8;
         let mut inbox = app
             .world_mut()
             .get_mut::<BlockInbox>(entity)
@@ -639,7 +640,7 @@ mod tests {
                 SkyBfsPending,
             ))
             .id();
-        let south = Direction::South.index() as u8;
+        let south = Direction::South.id() as u8;
         let mut inc = app.world_mut().get_mut::<SkyInbox>(entity).expect("inbox");
         inc.0.push(CrossChunkWavefront::new(south, 4, 7, 12));
         drop(inc);

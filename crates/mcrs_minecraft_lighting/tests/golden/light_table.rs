@@ -5,7 +5,7 @@
 //! `0x1000` (torch) — the only state ids the golden-snapshot fixtures
 //! reference.
 
-use mcrs_core::voxel_shape::VoxelShape;
+use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_voxel_storage::VoxelId;
 

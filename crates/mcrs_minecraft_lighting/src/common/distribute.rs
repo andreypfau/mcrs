@@ -34,7 +34,7 @@ use crate::{
     CrossChunkWavefront, NeedsFullReseed, SkyBfsPending, SkyInbox, SkyOutbox, SkyOutboxDirty,
     SkyParkedEgress,
 };
-use mcrs_core::voxel_shape::Direction;
+use mcrs_voxel_math::Direction;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::lifecycle::ticket::LightTicket;
@@ -52,7 +52,7 @@ pub(crate) fn manhattan_preattenuate(level: u8, adjacency: u8) -> u8 {
 }
 
 /// Decode a packed face byte back into a `Direction`. Byte ordering matches
-/// `Direction::index()` in `mcrs_core::voxel_shape`.
+/// `Direction::index()` in `mcrs_voxel_math::voxel_shape`.
 #[inline]
 pub(crate) fn direction_from_index(byte: u8) -> Direction {
     match byte {
@@ -297,7 +297,7 @@ fn drain_channel_outbox<C: DrainChannel>(
                     manhattan_preattenuate(wavefront.level(), 1)
                 };
 
-                let face_idx = face.index();
+                let face_idx = face.id();
                 let outcome = match resolved_faces[face_idx] {
                     Some(cached) => cached,
                     None => {
@@ -333,7 +333,7 @@ fn drain_channel_outbox<C: DrainChannel>(
                             );
                             continue;
                         }
-                        let dest_face = face.opposite().index() as u8;
+                        let dest_face = face.opposite().id() as u8;
                         local_stage
                             .entry(dst_entity)
                             .or_default()
@@ -626,7 +626,7 @@ mod tests {
     #[test]
     fn distribute_decrease_routes_face_adjacent() {
         let mut app = build_app();
-        let east = Direction::East.index() as u8;
+        let east = Direction::East.id() as u8;
         let mut outbox = SmallVec::new();
         outbox.push(CrossChunkWavefront::new(east, 4, 7, 8));
         let (_dim, _col_a, _col_b, chunk_a, chunk_b) = make_two_column_world(&mut app, outbox);
@@ -639,7 +639,7 @@ mod tests {
             .expect("chunk_b has BlockInbox");
         assert_eq!(inbox.0.len(), 1, "exactly one wavefront delivered");
         let w = inbox.0[0];
-        assert_eq!(w.face(), Direction::West.index() as u8);
+        assert_eq!(w.face(), Direction::West.id() as u8);
         assert_eq!(w.cell_x(), 4);
         assert_eq!(w.cell_z(), 7);
         assert_eq!(w.level(), 7, "Manhattan-1 attenuated from 8 to 7");
@@ -653,7 +653,7 @@ mod tests {
 
     #[test]
     fn dual_stage_routing_is_identical_block() {
-        let east = Direction::East.index() as u8;
+        let east = Direction::East.id() as u8;
 
         let mut app_dec = build_single_stage_app(LightConvergeSet::DistributeDecrease);
         let mut egress_dec = SmallVec::new();
@@ -687,7 +687,7 @@ mod tests {
         );
         assert_eq!(snap_decrease.len(), 1, "exactly one wavefront delivered");
         let w = snap_decrease[0];
-        assert_eq!(w.face(), Direction::West.index() as u8);
+        assert_eq!(w.face(), Direction::West.id() as u8);
         assert_eq!(w.cell_x(), 4);
         assert_eq!(w.cell_z(), 7);
         assert_eq!(w.level(), 7, "Manhattan-1 attenuated from 8 to 7");
@@ -695,7 +695,7 @@ mod tests {
 
     #[test]
     fn dual_stage_routing_is_identical_sky() {
-        let east = Direction::East.index() as u8;
+        let east = Direction::East.id() as u8;
 
         let mut app_dec = build_single_stage_app(LightConvergeSet::DistributeDecrease);
         let mut egress_dec: SmallVec<[CrossChunkWavefront; 16]> = SmallVec::new();
@@ -747,7 +747,7 @@ mod tests {
         );
         assert_eq!(snap_decrease.len(), 1, "exactly one wavefront delivered");
         let w = snap_decrease[0];
-        assert_eq!(w.face(), Direction::West.index() as u8);
+        assert_eq!(w.face(), Direction::West.id() as u8);
         assert_eq!(w.cell_x(), 4);
         assert_eq!(w.cell_z(), 7);
         assert_eq!(
@@ -783,7 +783,7 @@ mod tests {
         register_column(&mut app, dim, ColumnPos::new(1, 0), col_b);
         // col_b's chunk slot stays None — destination resolves to Unloaded.
 
-        let east = Direction::East.index() as u8;
+        let east = Direction::East.id() as u8;
         let mut outbox = SmallVec::new();
         outbox.push(CrossChunkWavefront::new(east, 0, 0, 10));
         let mut prefill = SmallVec::new();
@@ -838,7 +838,7 @@ mod tests {
     #[test]
     fn distribute_pre_attenuates_face_adjacent() {
         let mut app = build_app();
-        let east = Direction::East.index() as u8;
+        let east = Direction::East.id() as u8;
         let mut outbox = SmallVec::new();
         outbox.push(CrossChunkWavefront::new(east, 0, 0, 10));
         let (_dim, _col_a, _col_b, _chunk_a, chunk_b) = make_two_column_world(&mut app, outbox);
@@ -904,7 +904,7 @@ mod tests {
     #[test]
     fn block_down_face_egress_attenuates() {
         let mut app = build_app();
-        let down = Direction::Down.index() as u8;
+        let down = Direction::Down.id() as u8;
         let mut block_outbox: SmallVec<[CrossChunkWavefront; 16]> = SmallVec::new();
         block_outbox.push(CrossChunkWavefront::new(down, 0, 0, 15));
         let sky_outbox: SmallVec<[CrossChunkWavefront; 16]> = SmallVec::new();
@@ -919,7 +919,7 @@ mod tests {
             .expect("chunk_below has BlockInbox");
         assert_eq!(inbox.0.len(), 1, "exactly one wavefront delivered");
         let w = inbox.0[0];
-        assert_eq!(w.face(), Direction::Up.index() as u8, "dest frame: Up");
+        assert_eq!(w.face(), Direction::Up.id() as u8, "dest frame: Up");
         assert_eq!(w.cell_x(), 0);
         assert_eq!(w.cell_z(), 0);
         assert_eq!(
@@ -932,7 +932,7 @@ mod tests {
     #[test]
     fn sky_down_face_egress_keeps_full_level() {
         let mut app = build_app();
-        let down = Direction::Down.index() as u8;
+        let down = Direction::Down.id() as u8;
         let block_outbox: SmallVec<[CrossChunkWavefront; 16]> = SmallVec::new();
         let mut sky_outbox: SmallVec<[CrossChunkWavefront; 16]> = SmallVec::new();
         sky_outbox.push(CrossChunkWavefront::new(down, 0, 0, 15));
@@ -947,7 +947,7 @@ mod tests {
             .expect("chunk_below has SkyInbox");
         assert_eq!(inbox.0.len(), 1, "exactly one wavefront delivered");
         let w = inbox.0[0];
-        assert_eq!(w.face(), Direction::Up.index() as u8, "dest frame: Up");
+        assert_eq!(w.face(), Direction::Up.id() as u8, "dest frame: Up");
         assert_eq!(w.cell_x(), 0);
         assert_eq!(w.cell_z(), 0);
         assert_eq!(
@@ -969,7 +969,7 @@ mod tests {
         register_column(&mut app, dim_a, ColumnPos::new(0, 0), col_a);
         register_column(&mut app, dim_a, ColumnPos::new(1, 0), col_b);
 
-        let east = Direction::East.index() as u8;
+        let east = Direction::East.id() as u8;
         let mut outbox = SmallVec::new();
         outbox.push(CrossChunkWavefront::new(east, 0, 0, 10));
 
@@ -1000,7 +1000,7 @@ mod tests {
         register_column(&mut app, dim_a, ColumnPos::new(0, 0), col_a);
         register_column(&mut app, dim_a, ColumnPos::new(1, 0), col_b);
 
-        let east = Direction::East.index() as u8;
+        let east = Direction::East.id() as u8;
         let mut outbox = SmallVec::new();
         outbox.push(CrossChunkWavefront::new(east, 0, 0, 10));
 
@@ -1032,7 +1032,7 @@ mod tests {
     #[test]
     fn distribute_inserts_light_ticket_on_source_with_egress() {
         let mut app = build_app();
-        let east = Direction::East.index() as u8;
+        let east = Direction::East.id() as u8;
         let mut outbox = SmallVec::new();
         outbox.push(CrossChunkWavefront::new(east, 0, 0, 8));
         let (_dim, _col_a, _col_b, chunk_a, _chunk_b) = make_two_column_world(&mut app, outbox);
@@ -1048,7 +1048,7 @@ mod tests {
     #[test]
     fn distribute_inserts_light_ticket_on_destination_once() {
         let mut app = build_app();
-        let east = Direction::East.index() as u8;
+        let east = Direction::East.id() as u8;
         // 8 wavefronts all targeting the same destination — dedup must
         // collapse to one BlockBfsPending + LightTicket insert.
         let mut outbox = SmallVec::new();
@@ -1079,7 +1079,7 @@ mod tests {
         let col_a = spawn_column(&mut app, 0, 1);
         register_column(&mut app, dim, ColumnPos::new(0, 0), col_a);
 
-        let down = Direction::Down.index() as u8;
+        let down = Direction::Down.id() as u8;
         let mut outbox = SmallVec::new();
         outbox.push(CrossChunkWavefront::new(down, 5, 5, 8));
 

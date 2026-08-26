@@ -205,7 +205,7 @@ mod tests {
     use crate::table::flag_bits;
     use bevy_app::{App, Update};
     use bevy_ecs::message::Messages;
-    use mcrs_core::voxel_shape::VoxelShape;
+    use mcrs_voxel_math::voxel_shape::VoxelShape;
     use mcrs_voxel_math::ChunkPos;
     use mcrs_voxel_math::BlockPos;
     use mcrs_engine::world::storage::column::{Column, ColumnChunks, Heightmaps, InColumn};

@@ -5,7 +5,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use mcrs_core::AppState;
-use mcrs_core::voxel_shape::Direction;
+use mcrs_voxel_math::Direction;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::BlockPos;

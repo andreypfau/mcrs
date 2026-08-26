@@ -274,8 +274,8 @@ pub fn pull_block_neighbor_edges(
             }
 
             let from_face = face.opposite();
-            let dest_face = face.index() as u8;
-            let neighbour_expected_face = from_face.index() as u8;
+            let dest_face = face.id() as u8;
+            let neighbour_expected_face = from_face.id() as u8;
 
             let mut drained_pending_from_neighbour = false;
 

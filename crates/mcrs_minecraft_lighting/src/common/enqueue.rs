@@ -16,7 +16,7 @@
 //! lifecycle-ordering hazard.
 
 use bevy_ecs::prelude::{Added, Commands, Entity, Query, With};
-use mcrs_core::voxel_shape::Direction;
+use mcrs_voxel_math::Direction;
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_engine::world::storage::column::{Column, ColumnChunks};
 
@@ -116,7 +116,8 @@ mod tests {
     use bevy_app::{App, Update};
     use bevy_ecs::message::Messages;
     use bevy_ecs::prelude::IntoScheduleConfigs;
-    use mcrs_core::voxel_shape::{Direction, VoxelShape};
+    use mcrs_voxel_math::Direction;
+    use mcrs_voxel_math::voxel_shape::VoxelShape;
     use mcrs_voxel_math::ChunkPos;
     use mcrs_voxel_math::BlockPos;
     use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
@@ -1400,7 +1401,7 @@ mod tests {
             256,
             "B pulls 16x16 face cells from A (block-light)"
         );
-        let west_index = Direction::West.index() as u8;
+        let west_index = Direction::West.id() as u8;
         for w in inbox.0.iter() {
             assert_eq!(w.face(), west_index, "face index is West (entry from A)");
             assert_eq!(w.level(), 7, "level = 8 - 1 manhattan attenuation");
@@ -1461,7 +1462,7 @@ mod tests {
             256,
             "B pulls 16x16 face cells from A (sky-light)"
         );
-        let west_index = Direction::West.index() as u8;
+        let west_index = Direction::West.id() as u8;
         for w in inbox.0.iter() {
             assert_eq!(w.face(), west_index, "face index is West (entry from A)");
             assert_eq!(w.level(), 7, "level = 8 - 1 manhattan attenuation");
@@ -1488,7 +1489,7 @@ mod tests {
         // A is West of B. From A's frame, the East face (index 5) points
         // toward B. So A's BlockParkedEgress entry with face=East addresses
         // B; the pull system should drain it.
-        let east_index = Direction::East.index() as u8;
+        let east_index = Direction::East.id() as u8;
         let mut parked = BlockParkedEgress::default();
         parked.0.push(CrossChunkWavefront::new(east_index, 3, 5, 9));
 
@@ -1537,7 +1538,7 @@ mod tests {
         );
 
         let b_incoming = app.world().get::<BlockInbox>(chunk_b).expect("inbox on B");
-        let west_index = Direction::West.index() as u8;
+        let west_index = Direction::West.id() as u8;
         let drained = b_incoming
             .0
             .iter()
@@ -1802,7 +1803,7 @@ mod tests {
             256,
             "B must receive 256 sky-light face-cell entries from A (16x16 at level 14)"
         );
-        let west_index = Direction::West.index() as u8;
+        let west_index = Direction::West.id() as u8;
         for w in inbox.0.iter() {
             assert_eq!(
                 w.face(),

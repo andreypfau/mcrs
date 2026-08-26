@@ -3,7 +3,6 @@ pub mod registry;
 pub mod resource_location;
 pub mod state;
 pub mod tag;
-pub mod voxel_shape;
 
 pub use registry::{
     PackSource, RegistryAccess, RegistrySnapshot, RegistrySnapshotErased, ResourceKey,

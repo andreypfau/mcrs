@@ -82,7 +82,7 @@ mod tests {
     use super::*;
     use crate::nibble::LightNibbles;
     use crate::table::flag_bits;
-    use mcrs_core::voxel_shape::VoxelShape;
+    use mcrs_voxel_math::voxel_shape::VoxelShape;
     use mcrs_voxel_storage::VoxelId;
 
     const AIR: VoxelId = VoxelId(0);

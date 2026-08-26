@@ -23,7 +23,7 @@ use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::state::NextState;
 
-use mcrs_core::voxel_shape::VoxelShape;
+use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_core::{AppState, StaticRegistry};
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;

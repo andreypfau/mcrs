@@ -11,7 +11,8 @@ use crate::geom::chunk_xyz_to_face_cell;
 use crate::storage::LightStorage;
 use crate::table::{BlockStateLightTable, flag_bits};
 use crate::{BlockBfsQueues, BlockOutbox, CrossChunkWavefront, SkyBfsQueues, SkyOutbox};
-use mcrs_core::voxel_shape::{Direction, VoxelShape};
+use mcrs_voxel_math::Direction;
+    use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_minecraft_block::palette::BlockPalette;
 
 pub(crate) const FLAG_HAS_SIDED_TRANSPARENT_BLOCKS: u8 = 1 << 0;
@@ -509,7 +510,7 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
                 let (cx, cz) = chunk_xyz_to_face_cell(d, off_x, off_y, off_z);
                 C::push_outbox(
                     outbox,
-                    CrossChunkWavefront::new(d.index() as u8, cx, cz, propagated_level),
+                    CrossChunkWavefront::new(d.id() as u8, cx, cz, propagated_level),
                 );
                 continue;
             }
@@ -555,7 +556,7 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
                         off_z as u8,
                         off_y as u8,
                         target_level,
-                        DIRECTIONS_EXCEPT_OPPOSITE[d.index()],
+                        DIRECTIONS_EXCEPT_OPPOSITE[d.id()],
                         emit_flags,
                     ));
                 }
@@ -611,7 +612,7 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
                         off_z as u8,
                         off_y as u8,
                         target_level,
-                        DIRECTIONS_EXCEPT_OPPOSITE[d.index()],
+                        DIRECTIONS_EXCEPT_OPPOSITE[d.id()],
                         emit_flags,
                     ));
                 }
@@ -781,7 +782,7 @@ mod tests {
     #[test]
     fn bfs_directions_from_bitset_single() {
         for d in ALL_DIRECTIONS {
-            let bit = 1u8 << d.index();
+            let bit = 1u8 << d.id();
             let slice = DIRECTIONS_FROM_BITSET[bit as usize];
             assert_eq!(slice.len(), 1, "len mismatch for {:?}", d);
             assert_eq!(slice[0], d);
@@ -791,8 +792,8 @@ mod tests {
     #[test]
     fn bfs_directions_except_opposite_clears_back_bit() {
         for d in ALL_DIRECTIONS {
-            let bitset = DIRECTIONS_EXCEPT_OPPOSITE[d.index()];
-            let opp_bit = 1u8 << d.opposite().index();
+            let bitset = DIRECTIONS_EXCEPT_OPPOSITE[d.id()];
+            let opp_bit = 1u8 << d.opposite().id();
             assert_eq!(bitset & opp_bit, 0, "opposite bit not cleared for {:?}", d);
             assert_eq!(
                 bitset.count_ones(),
@@ -1003,7 +1004,7 @@ mod tests {
         // the pre-step level. Other cells on the x=15 plane that get reached
         // by the BFS also push East outbox entries at lower levels — those
         // are not checked here.
-        let expected_face = Direction::East.index() as u8;
+        let expected_face = Direction::East.id() as u8;
         let found = outbox.0.iter().any(|w| {
             w.face() == expected_face && w.cell_x() == 8 && w.cell_z() == 8 && w.level() == 14
         });
@@ -1153,8 +1154,8 @@ mod tests {
         let mut queues = BlockBfsQueues::default();
         let mut outbox = BlockOutbox::default();
         // Only walk in the +Z (South) direction so the test isolates the
-        // src→dst face check; the bitset is 1 << South.index().
-        let south_only_bitset = 1u8 << Direction::South.index();
+        // src→dst face check; the bitset is 1 << South.id().
+        let south_only_bitset = 1u8 << Direction::South.id();
         queues
             .increase_queue
             .push(pack_bfs_entry(5, 5, 5, 14, south_only_bitset, 0));
@@ -1492,7 +1493,7 @@ mod tests {
         let mut queues = SkyBfsQueues::default();
         let mut outbox = SkyOutbox::default();
 
-        let east_only_bitset = 1u8 << Direction::East.index();
+        let east_only_bitset = 1u8 << Direction::East.id();
         light.set(5, 5, 5, 14);
         queues
             .increase_queue
@@ -1538,7 +1539,7 @@ mod tests {
         let mut outbox = SkyOutbox::default();
 
         light.set(5, 5, 5, 14);
-        let south_only_bitset = 1u8 << Direction::South.index();
+        let south_only_bitset = 1u8 << Direction::South.id();
         queues
             .increase_queue
             .push(pack_bfs_entry(5, 5, 5, 14, south_only_bitset, 0));
@@ -1566,7 +1567,7 @@ mod tests {
         let mut queues = SkyBfsQueues::default();
         let mut outbox = SkyOutbox::default();
         // Push a decrease entry from (4, 8, 8) at level 6 only walking east.
-        let east_only_bitset = 1u8 << Direction::East.index();
+        let east_only_bitset = 1u8 << Direction::East.id();
         queues
             .decrease_queue
             .push(pack_bfs_entry(4, 8, 8, 6, east_only_bitset, 0));
@@ -1620,7 +1621,7 @@ mod tests {
 
         let mut queues = SkyBfsQueues::default();
         let mut outbox = SkyOutbox::default();
-        let east_only_bitset = 1u8 << Direction::East.index();
+        let east_only_bitset = 1u8 << Direction::East.id();
         queues
             .decrease_queue
             .push(pack_bfs_entry(5, 8, 8, 14, east_only_bitset, 0));

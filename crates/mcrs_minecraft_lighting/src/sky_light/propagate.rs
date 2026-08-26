@@ -16,7 +16,7 @@ use crate::{
 use bevy_ecs::change_detection::Res;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ParallelCommands, Query, With};
-use mcrs_core::voxel_shape::Direction;
+use mcrs_voxel_math::Direction;
 use mcrs_minecraft_block::palette::BlockPalette;
 
 /// Five non-Up faces used by the column-walker fast path to dump 256
@@ -128,7 +128,7 @@ pub fn propagate_increase_sky_system(
                 // axis contract: Y-normal faces drop y, Z-normal faces drop z and
                 // pack (x, y), X-normal faces drop x and pack (y, z).
                 for face in COLUMN_WALKER_FACES {
-                    let face_idx = face.index() as u8;
+                    let face_idx = face.id() as u8;
                     for a in 0..16u8 {
                         for b in 0..16u8 {
                             let (cx, cz) = match face {

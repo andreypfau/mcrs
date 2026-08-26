@@ -1,13 +1,9 @@
 use bevy_math::IVec3;
-use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::BitAndAssign;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Direction {
-    // https://bugs.mojang.com/browse/MC-274772
-    #[serde(alias = "bottom")]
     Down,
     Up,
     North,
@@ -17,7 +13,7 @@ pub enum Direction {
 }
 
 impl Direction {
-    pub fn normal(&self) -> IVec3 {
+    pub const fn normal(&self) -> IVec3 {
         match self {
             Direction::Down => IVec3::NEG_Y,
             Direction::Up => IVec3::Y,
@@ -28,7 +24,7 @@ impl Direction {
         }
     }
 
-    pub fn id(&self) -> usize {
+    pub const fn id(&self) -> usize {
         match self {
             Direction::Down => 0,
             Direction::Up => 1,
@@ -39,7 +35,7 @@ impl Direction {
         }
     }
 
-    pub fn opposite(&self) -> Direction {
+    pub const fn opposite(&self) -> Direction {
         match self {
             Direction::Down => Direction::Up,
             Direction::Up => Direction::Down,
@@ -50,7 +46,7 @@ impl Direction {
         }
     }
 
-    pub fn all() -> [Direction; 6] {
+    pub const fn all() -> [Direction; 6] {
         [
             Direction::Down,
             Direction::Up,

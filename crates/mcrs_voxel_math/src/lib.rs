@@ -4,6 +4,7 @@ pub mod chunk_pos;
 pub mod column_pos;
 pub mod direction;
 pub mod region_pos;
+pub mod voxel_shape;
 
 pub use bit_size::BitSize;
 pub use block_pos::BlockPos;

@@ -1,14 +1,6 @@
-//! `VoxelShape` and `ShapeRegistry` — the v1 geometric primitive consumed by
-//! the block light table and by vanilla block retrofits.
-//!
-//! Why this lives in `mcrs_core` rather than `mcrs_minecraft_lighting` or `mcrs_vanilla`:
-//! both downstream crates need to reference `&'static VoxelShape`, so the type
-//! must live in the upstream-most crate to preserve the workspace dep arrow.
-//!
-//! v1 exposes only the surface the lighting BFS needs:
-//! `empty`, `block`, `is_empty`, `occludes_full_block`, `face_shape`,
-//! `face_occludes`. v2 operations (collision sweep, raycast/clip, mesh iter)
-//! are out of scope.
+//! v1 exposes only the surface the lighting BFS needs: `empty`, `block`,
+//! `is_empty`, `occludes_full_block`, `face_shape`, `face_occludes`. v2
+//! operations (collision sweep, raycast/clip, mesh iter) are out of scope.
 
 pub mod block;
 pub mod discrete;
@@ -19,48 +11,7 @@ use bevy_math::Vec3;
 use self::block::block_shape;
 use self::discrete::DiscreteShape;
 use self::empty::empty_shape;
-
-/// Six cardinal axis-directions used for face projection.
-///
-/// A separate `Direction` lives in `mcrs_minecraft::direction` for game-axis
-/// semantics; pulling that into `mcrs_core` would invert the workspace dep
-/// arrow, so the lighting/shape geometry uses this independent copy. A `From`
-/// impl bridging the two can land later if needed.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum Direction {
-    Down,
-    Up,
-    North,
-    South,
-    West,
-    East,
-}
-
-impl Direction {
-    #[inline]
-    pub const fn opposite(self) -> Direction {
-        match self {
-            Direction::Down => Direction::Up,
-            Direction::Up => Direction::Down,
-            Direction::North => Direction::South,
-            Direction::South => Direction::North,
-            Direction::West => Direction::East,
-            Direction::East => Direction::West,
-        }
-    }
-
-    #[inline]
-    pub const fn index(self) -> usize {
-        match self {
-            Direction::Down => 0,
-            Direction::Up => 1,
-            Direction::North => 2,
-            Direction::South => 3,
-            Direction::West => 4,
-            Direction::East => 5,
-        }
-    }
-}
+use crate::Direction;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Aabb {
@@ -114,7 +65,7 @@ impl VoxelShape {
 
     #[inline]
     pub fn face_shape(&self, dir: Direction) -> &'static VoxelShape {
-        self.face_cache[dir.index()]
+        self.face_cache[dir.id()]
     }
 
     /// Analog of vanilla `Shapes.faceShapeOccludes(a, b)`: returns true when

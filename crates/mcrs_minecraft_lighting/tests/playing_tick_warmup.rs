@@ -22,7 +22,7 @@ use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::state::NextState;
 use mcrs_core::AppState;
-use mcrs_core::voxel_shape::VoxelShape;
+use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::dimension::{

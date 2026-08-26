@@ -362,7 +362,7 @@ mod tests {
     use bevy_app::{App, FixedUpdate, Update};
     use bevy_state::app::{AppExtStates, StatesPlugin};
     use mcrs_core::AppState;
-    use mcrs_core::voxel_shape::VoxelShape;
+    use mcrs_voxel_math::voxel_shape::VoxelShape;
     use mcrs_engine::entity::ChunkEntities;
     use mcrs_engine::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
     use mcrs_engine::world::lifecycle::markers::ChunkLoaded;

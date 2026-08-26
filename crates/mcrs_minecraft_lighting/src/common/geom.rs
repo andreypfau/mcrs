@@ -9,7 +9,7 @@
 //! - Z-normal (North/South): drop z, return `(cell_a = x, cell_b = y)`
 //! - X-normal (West/East): drop x, return `(cell_a = y, cell_b = z)`
 
-use mcrs_core::voxel_shape::Direction;
+use mcrs_voxel_math::Direction;
 
 /// Extract the two on-face coordinates from a `(off_x, off_y, off_z)` triple
 /// for the destination face named by `d`. Returns `(cell_x, cell_z)` matching

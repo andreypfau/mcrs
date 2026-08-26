@@ -23,7 +23,7 @@ use bevy_ecs::change_detection::Res;
 use bevy_ecs::entity::{Entity, EntityHashMap};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Added, Commands, Local, Or, ParallelCommands, Query, With, Without};
-use mcrs_core::voxel_shape::Direction;
+use mcrs_voxel_math::Direction;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
@@ -633,8 +633,8 @@ pub fn pull_sky_neighbor_edges(
             }
 
             let from_face = face.opposite();
-            let dest_face = face.index() as u8;
-            let neighbour_expected_face = from_face.index() as u8;
+            let dest_face = face.id() as u8;
+            let neighbour_expected_face = from_face.id() as u8;
 
             let mut drained_pending_from_neighbour = false;
 

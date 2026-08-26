@@ -21,7 +21,7 @@ use self::schema::{
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
 use mcrs_core::ResourceLocation;
-use mcrs_core::voxel_shape::Aabb;
+use mcrs_voxel_math::voxel_shape::Aabb;
 use mcrs_protocol::BlockStateId;
 
 pub const CORPUS_DIRECTORY: &str = "mcrs/block_definition";
