@@ -60,6 +60,10 @@ pub struct LoadedRegistryAssets {
 }
 
 impl LoadedRegistryAssets {
+    pub fn push(&mut self, handle: UntypedHandle) {
+        self.handles.push(handle);
+    }
+
     /// True once every handle has either finished loading successfully or
     /// failed to load. Missing or malformed files do not stall the gate;
     /// they are logged once `WorldgenFreeze` proceeds.
@@ -80,6 +84,9 @@ impl Plugin for MinecraftWorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<dimension::dimension_type::DimensionType>();
         app.register_asset_loader(dimension::dimension_type::DimensionTypeLoader);
+        app.init_asset::<worldgen::world_preset::WorldPreset>();
+        app.init_asset::<dimension::level_stem::DimensionDefinition>();
+        app.register_asset_loader(worldgen::world_preset::WorldPresetLoader);
         app.init_asset::<biome::Biome>();
         app.register_asset_loader(biome::BiomeLoader);
         app.init_asset::<worldgen::structure_set::StructureSet>();

@@ -1,4 +1,3 @@
-use crate::dimension_type::DimensionType;
 use crate::login::GameProfile;
 use crate::version::VERSION_ID;
 use crate::world::bus::PlayerTransferSnapshot;
@@ -6,19 +5,26 @@ use crate::world::channel_types::{DimChannelsResource, ToDim, send_control_or_te
 use crate::world::entity::player::column_view::ColumnView;
 use crate::world::player_index::HostAnchorRef;
 use crate::world::sub_app_builder::DimSubAppHandle;
-use crate::world_preset_loader::{
-    DimensionTypeAsset, DimensionTypeLoader, WorldPresetAsset, WorldPresetLoader,
-    resolve_preset_asset_path,
-};
-use bevy_app::{App, Plugin, Startup, Update};
-use bevy_asset::{AssetApp, AssetEvent, AssetServer, Assets, Handle};
+use mcrs_vanilla::LoadedRegistryAssets;
+use mcrs_vanilla::biome::source::BiomeSource;
+use mcrs_vanilla::dimension::dimension_type::DimensionType;
+use mcrs_vanilla::dimension::level_stem::DimensionDefinition;
+use mcrs_vanilla::worldgen::beta_biome::ActiveBiomeSource;
+use mcrs_vanilla::worldgen::chunk_generator::ChunkGenerator;
+use mcrs_vanilla::worldgen::world_preset::{ActiveWorldPreset, WorldPreset};
+use bevy_app::{App, Plugin, Update};
+use bevy_asset::{AssetEvent, AssetServer, Assets, Handle};
 use bevy_ecs::component::Component;
+use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut, With, Without};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use bevy_math::{DVec3, Vec2};
-use mcrs_core::{RegistryAccess, ResourceLocation, rl};
+use bevy_state::prelude::OnEnter;
+use std::collections::BTreeSet;
+use std::sync::Arc;
+use mcrs_core::{AppState, RegistryAccess, ResourceLocation, rl};
 use mcrs_core::registry::access::ErasedRegistrySnapshot;
 use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_core::tag::registry::TagRegistry;
@@ -229,15 +235,12 @@ pub struct ConfigurationStatePlugin;
 
 impl Plugin for ConfigurationStatePlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<WorldPresetAsset>()
-            .init_asset::<DimensionTypeAsset>()
-            .register_asset_loader(WorldPresetLoader)
-            .register_asset_loader(DimensionTypeLoader);
-
         app.init_resource::<LoadedWorldPreset>();
-        app.init_resource::<LoadedDimensionTypes>();
 
-        app.add_systems(Startup, start_loading_world_preset);
+        app.add_systems(
+            OnEnter(AppState::LoadingDataPack),
+            start_loading_world_preset,
+        );
         app.add_systems(
             Update,
             (process_loaded_world_preset, sync_dimension_type_changes),
@@ -252,12 +255,18 @@ impl Plugin for ConfigurationStatePlugin {
     }
 }
 
-#[derive(Resource, Default)]
-struct WorldPresetHandle(Option<Handle<WorldPresetAsset>>);
-
-fn start_loading_world_preset(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn start_loading_world_preset(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut registry_assets: ResMut<LoadedRegistryAssets>,
+    mut loaded_preset: ResMut<LoadedWorldPreset>,
+) {
     let preset_name = get_world_preset_name();
-    let asset_path = resolve_preset_asset_path(&preset_name);
+    let (namespace, path) = match preset_name.split_once(':') {
+        Some((ns, p)) => (ns, p),
+        None => ("minecraft", preset_name.as_str()),
+    };
+    let asset_path = format!("{namespace}/worldgen/world_preset/{path}.json");
 
     info!(
         preset = %preset_name,
@@ -265,137 +274,90 @@ fn start_loading_world_preset(mut commands: Commands, asset_server: Res<AssetSer
         "Starting to load world preset via Bevy asset system"
     );
 
-    let handle: Handle<WorldPresetAsset> = asset_server.load(asset_path);
-    commands.insert_resource(WorldPresetHandle(Some(handle)));
+    let handle: Handle<WorldPreset> = asset_server.load(asset_path);
+    registry_assets.push(handle.clone().untyped());
+    loaded_preset.preset_name = preset_name;
+    commands.insert_resource(ActiveWorldPreset { handle });
 }
 
 fn process_loaded_world_preset(
-    preset_handle: Res<WorldPresetHandle>,
-    mut preset_events: MessageReader<AssetEvent<WorldPresetAsset>>,
-    preset_assets: Res<Assets<WorldPresetAsset>>,
-    dim_type_assets: Res<Assets<DimensionTypeAsset>>,
+    active: Option<Res<ActiveWorldPreset>>,
+    presets: Res<Assets<WorldPreset>>,
+    dim_defs: Res<Assets<DimensionDefinition>>,
     mut loaded_preset: ResMut<LoadedWorldPreset>,
-    mut loaded_dim_types: ResMut<LoadedDimensionTypes>,
+    mut commands: Commands,
 ) {
-    let Some(handle) = &preset_handle.0 else {
+    if !presets.is_changed() {
+        return;
+    }
+    let Some(active) = active else {
+        return;
+    };
+    let Some(preset) = presets.get(&active.handle) else {
         return;
     };
 
-    for event in preset_events.read() {
-        if let AssetEvent::LoadedWithDependencies { id } = event {
-            if *id != handle.id() {
-                continue;
-            }
+    let mut dimensions: Vec<(ResourceLocation, Handle<DimensionDefinition>)> = preset
+        .dimensions
+        .iter()
+        .map(|(key, handle)| (key.location().clone(), handle.clone()))
+        .collect();
+    dimensions.sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
 
-            let Some(preset_asset) = preset_assets.get(handle) else {
-                warn!("World preset asset not found after LoadedWithDependencies event");
-                continue;
-            };
+    loaded_preset.dimensions = dimensions;
+    loaded_preset.is_loaded = true;
 
-            debug!(
-                preset = %preset_asset.preset_name,
-                dimension_count = preset_asset.dimensions.len(),
-                "World preset loaded with all dimension type dependencies"
-            );
-
-            loaded_preset.preset_name = preset_asset.preset_name.clone();
-            loaded_preset.dimensions = preset_asset.ordered_dimensions();
-            loaded_preset.is_loaded = true;
-
-            let mut dim_types = Vec::new();
-            for (type_ref, type_handle) in &preset_asset.dimension_type_handles {
-                if let Some(dim_type_asset) = dim_type_assets.get(type_handle) {
-                    info!(
-                        dimension_type = %dim_type_asset.id,
-                        min_y = dim_type_asset.dimension_type.min_y,
-                        height = dim_type_asset.dimension_type.height,
-                        "  Loaded dimension type"
-                    );
-                    dim_types.push((
-                        dim_type_asset.id.clone(),
-                        dim_type_asset.dimension_type.clone(),
-                    ));
-                } else {
-                    warn!(
-                        dimension_type = %type_ref,
-                        "Dimension type asset not available"
-                    );
-                }
-            }
-
-            loaded_dim_types.0 = dim_types;
-
-            debug!(
-                preset = %preset_asset.preset_name,
-                dimensions = loaded_preset.dimensions.len(),
-                dimension_types = loaded_dim_types.0.len(),
-                "World preset configuration complete"
-            );
-
-            for (dim_key, dim_type) in &loaded_preset.dimensions {
-                debug!(
-                    dimension_key = %dim_key,
-                    dimension_type = %dim_type,
-                    "  Ready to spawn dimension"
-                );
-            }
-        }
+    if let Some(source) = overworld_beta_biome_source(&loaded_preset, &dim_defs) {
+        commands.insert_resource(ActiveBiomeSource(Arc::new(source)));
     }
+
+    debug!(
+        preset = %loaded_preset.preset_name,
+        dimensions = loaded_preset.dimensions.len(),
+        "World preset loaded"
+    );
 }
 
-/// Watches for hot-reloaded dimension type assets and updates `LoadedDimensionTypes`.
-/// When a player reconnects after a reload, they will receive the updated dimension types.
+fn overworld_beta_biome_source(
+    preset: &LoadedWorldPreset,
+    dim_defs: &Assets<DimensionDefinition>,
+) -> Option<BiomeSource> {
+    let (_, handle) = preset
+        .dimensions
+        .iter()
+        .find(|(key, _)| key.as_str() == "minecraft:overworld")?;
+    let Some(definition) = dim_defs.get(handle) else {
+        warn!("overworld dimension definition missing while the world preset loaded");
+        return None;
+    };
+    let ChunkGenerator::Noise(generator) = &definition.generator else {
+        return None;
+    };
+    matches!(generator.biome_source, BiomeSource::Beta { .. })
+        .then(|| generator.biome_source.clone())
+}
+
+/// Kicks connected players back into Configuration when a dimension type asset
+/// is hot-reloaded, so they re-receive the registry data on reconnect.
 fn sync_dimension_type_changes(
-    mut dim_type_events: MessageReader<AssetEvent<DimensionTypeAsset>>,
-    dim_type_assets: Res<Assets<DimensionTypeAsset>>,
-    mut loaded_dim_types: ResMut<LoadedDimensionTypes>,
+    mut dim_type_events: MessageReader<AssetEvent<DimensionType>>,
     mut players: Query<(Entity, &mut ServerSideConnection), With<InGameConnectionState>>,
     mut commands: Commands,
 ) {
-    let mut changed = false;
-
-    for event in dim_type_events.read() {
-        let id = match event {
-            AssetEvent::Modified { id } => *id,
-            _ => continue,
-        };
-
-        let Some(asset) = dim_type_assets.get(id) else {
-            continue;
-        };
-
-        if let Some(entry) = loaded_dim_types
-            .0
-            .iter_mut()
-            .find(|(existing_id, _)| existing_id.as_str() == asset.id.as_str())
-        {
-            entry.1 = asset.dimension_type.clone();
-            info!(
-                dimension_type = %asset.id,
-                "Hot-reloaded dimension type"
-            );
-        } else {
-            loaded_dim_types
-                .0
-                .push((asset.id.clone(), asset.dimension_type.clone()));
-            info!(
-                dimension_type = %asset.id,
-                "Hot-loaded new dimension type"
-            );
-        }
-
-        changed = true;
+    if !dim_type_events
+        .read()
+        .any(|event| matches!(event, AssetEvent::Modified { .. }))
+    {
+        return;
     }
 
-    if changed {
-        for (entity, mut con) in players.iter_mut() {
-            info!("Sending reconfiguration to connected player");
-            con.write_packet(&ClientboundStartConfiguration);
-            commands
-                .entity(entity)
-                .remove::<ColumnView>()
-                .remove::<PlayerChunkObserver>();
-        }
+    for (entity, mut con) in players.iter_mut() {
+        info!("Sending reconfiguration to connected player");
+        con.write_packet(&ClientboundStartConfiguration);
+        commands
+            .entity(entity)
+            .remove::<ColumnView>()
+            .remove::<PlayerChunkObserver>();
     }
 }
 
@@ -449,7 +411,7 @@ fn on_known_packs_response(
     event: On<ReceivedPacketEvent>,
     mut query: Query<(Entity, &mut ServerSideConnection), With<AwaitingKnownPacks>>,
     access: Res<RegistryAccess>,
-    dimension_types: Res<LoadedDimensionTypes>,
+    dimension_types: Res<Assets<DimensionType>>,
     block_tags: Option<Res<DynTagRegistry<VanillaBlock>>>,
     blocks: Res<Blocks>,
     item_tags: Option<Res<TagRegistry<VanillaItem>>>,
@@ -513,21 +475,15 @@ fn on_known_packs_response(
     // synthetic registry built from referenced attribute keys in the
     // dimension types. The vanilla protocol still expects it to be sent.
     {
-        let mut attr_keys = Vec::new();
-        for (_, dim_type) in &dimension_types.0 {
-            if let Some(attrs) = &dim_type.attributes {
-                for (key, _) in &attrs.child_tags {
-                    if !attr_keys.contains(key) {
-                        attr_keys.push(key.clone());
-                    }
-                }
-            }
-        }
+        let attr_keys: BTreeSet<&str> = dimension_types
+            .iter()
+            .flat_map(|(_, dim_type)| dim_type.attributes.0.keys().map(|key| key.as_str()))
+            .collect();
         if !attr_keys.is_empty() {
             let entries: Vec<Entry> = attr_keys
                 .iter()
                 .map(|key| Entry {
-                    id: ResourceLocation::parse_cow(key.as_str()).unwrap(),
+                    id: ResourceLocation::parse_cow(*key).unwrap(),
                     data: None,
                 })
                 .collect();
@@ -793,15 +749,12 @@ pub fn emit_initial_player_spawn(
     }
 }
 
-#[derive(Default, Resource)]
-pub(crate) struct LoadedDimensionTypes(pub Vec<(ResourceLocation, DimensionType)>);
-
 /// Resource containing the loaded world preset with ordered dimensions.
 /// The dimensions are sorted alphabetically by dimension key for deterministic ordering.
 #[derive(Resource)]
 pub struct LoadedWorldPreset {
     pub preset_name: String,
-    pub dimensions: Vec<(ResourceLocation, ResourceLocation)>,
+    pub dimensions: Vec<(ResourceLocation, Handle<DimensionDefinition>)>,
     pub is_loaded: bool,
 }
 

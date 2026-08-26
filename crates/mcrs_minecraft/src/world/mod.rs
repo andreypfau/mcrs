@@ -1,4 +1,4 @@
-use crate::configuration::{LoadedDimensionTypes, LoadedWorldPreset};
+use crate::configuration::LoadedWorldPreset;
 use crate::world::sub_app_builder::DimSubAppHandle;
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
 use bevy_ecs::prelude::*;
@@ -124,7 +124,8 @@ impl Plugin for WorldPlugin {
 /// per-dim sub-app per request.
 pub(crate) fn enqueue_dim_spawns_from_preset(
     world_preset: Res<LoadedWorldPreset>,
-    dimension_types: Res<LoadedDimensionTypes>,
+    dim_defs: Res<bevy_asset::Assets<mcrs_vanilla::dimension::level_stem::DimensionDefinition>>,
+    dimension_types: Res<bevy_asset::Assets<mcrs_vanilla::dimension::dimension_type::DimensionType>>,
     mut spawn_queue: ResMut<DimSpawnQueue>,
     mut already_enqueued: Local<bool>,
 ) {
@@ -161,12 +162,11 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
         "Enqueueing dimension spawn requests from loaded world preset"
     );
 
-    for (dimension_key, dimension_type_ref) in &world_preset.dimensions {
-        let resolved = dimension_types
-            .0
-            .iter()
-            .find(|(id, _)| id.as_str() == dimension_type_ref.as_str())
-            .map(|(_, dim_type)| {
+    for (dimension_key, dim_def_handle) in &world_preset.dimensions {
+        let resolved = dim_defs
+            .get(dim_def_handle)
+            .and_then(|def| dimension_types.get(&def.dimension_type))
+            .map(|dim_type| {
                 (
                     DimensionTypeConfig::new(dim_type.min_y, dim_type.height),
                     dim_type.has_skylight,
@@ -174,7 +174,6 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
             })
             .unwrap_or_else(|| {
                 warn!(
-                    dimension_type = %dimension_type_ref,
                     dimension_key = %dimension_key,
                     "Dimension type not found, using default config + has_sky=true"
                 );
@@ -183,7 +182,6 @@ pub(crate) fn enqueue_dim_spawns_from_preset(
 
         debug!(
             dimension_key = %dimension_key,
-            dimension_type = %dimension_type_ref,
             min_y = resolved.0.min_y,
             height = resolved.0.height,
             sections = resolved.0.section_count,
