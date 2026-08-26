@@ -1,6 +1,6 @@
+use mcrs_text::Text;
 use mcrs_vanilla::enchantment::data::{EnchantmentCost, NetworkEnchantmentData};
 use mcrs_vanilla::enchantment::effects::EnchantmentEffects;
-use mcrs_text::Text;
 use serde::Deserialize;
 
 #[derive(Deserialize)]

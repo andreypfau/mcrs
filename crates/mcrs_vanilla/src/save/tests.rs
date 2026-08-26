@@ -255,7 +255,10 @@ fn a_clock_state_round_trips_through_the_save_shape() {
 
     let mut payload = NbtCompound::new();
     for (id, state) in &clocks {
-        payload.put_component(&id.to_string(), mcrs_minecraft_nbt::to_nbt_compound(state).unwrap());
+        payload.put_component(
+            &id.to_string(),
+            mcrs_minecraft_nbt::to_nbt_compound(state).unwrap(),
+        );
     }
     let reread = parse_world_clocks(&saved_data(WORLD_VERSION, payload), path()).unwrap();
 

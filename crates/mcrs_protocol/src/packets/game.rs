@@ -7,12 +7,12 @@ pub mod clientbound {
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::{ColumnPos, Look, PositionFlag, Slot, VarInt};
     use bevy_math::DVec3;
-    use mcrs_voxel_math::ChunkPos;
-    use mcrs_voxel_math::BlockPos;
     use mcrs_core::ResourceLocation;
     use mcrs_protocol::{BlockStateId, ByteAngle};
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use mcrs_text::Text;
+    use mcrs_voxel_math::BlockPos;
+    use mcrs_voxel_math::ChunkPos;
     use std::borrow::Cow;
     use std::io::Write;
     use uuid::Uuid;
@@ -328,8 +328,8 @@ pub mod serverbound {
     use crate::pos::MoveFlags;
     use crate::{Bounded, Difficulty, Direction, GameMode, Look, Position, VarInt};
     use derive_more::From;
-    use mcrs_voxel_math::BlockPos;
     use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_voxel_math::BlockPos;
     use uuid::Uuid;
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]

@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use crate::{Decode, Encode};
-use mcrs_voxel_math::BlockPos;
 use mcrs_core::ResourceLocation;
+use mcrs_voxel_math::BlockPos;
 
 #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode)]
 pub struct GlobalPos<'a> {

@@ -1,6 +1,6 @@
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::chunk_pos;
-use mcrs_voxel_math::BlockPos;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CellPos {

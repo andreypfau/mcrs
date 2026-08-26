@@ -66,7 +66,9 @@ fn chunk(x: i32, z: i32, rng: &mut Rng) -> Vec<u8> {
     root.put_long("InhabitedTime", 0);
     root.put_long("LastUpdate", 0);
 
-    mcrs_minecraft_nbt::Nbt::new(String::new(), root).write().to_vec()
+    mcrs_minecraft_nbt::Nbt::new(String::new(), root)
+        .write()
+        .to_vec()
 }
 
 fn section(y: i8, rng: &mut Rng) -> NbtCompound {
@@ -107,7 +109,9 @@ fn container(
         let indices: Vec<u16> = (0..cells).map(|_| rng.below(len) as u16).collect();
         c.put(
             "data",
-            NbtTag::LongArray(mcrs_voxel_storage::pack_from(bits, &indices, |&i| i as u32).into_vec()),
+            NbtTag::LongArray(
+                mcrs_voxel_storage::pack_from(bits, &indices, |&i| i as u32).into_vec(),
+            ),
         );
     }
     c

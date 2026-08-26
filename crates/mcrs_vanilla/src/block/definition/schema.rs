@@ -253,7 +253,10 @@ impl Serialize for BoxList {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum IntProvider {
     Constant(i32),
-    Uniform { min_inclusive: i32, max_inclusive: i32 },
+    Uniform {
+        min_inclusive: i32,
+        max_inclusive: i32,
+    },
 }
 
 impl IntProvider {
@@ -276,7 +279,10 @@ impl IntProvider {
 #[serde(tag = "type", deny_unknown_fields)]
 enum DispatchedIntProvider {
     #[serde(rename = "minecraft:uniform")]
-    Uniform { min_inclusive: i32, max_inclusive: i32 },
+    Uniform {
+        min_inclusive: i32,
+        max_inclusive: i32,
+    },
 }
 
 impl<'de> Deserialize<'de> for IntProvider {

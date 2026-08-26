@@ -1013,7 +1013,8 @@ mod tests {
 
         // an opaque payload keeps whatever shape it had, here a string
         let moon =
-            mcrs_minecraft_nbt::to_nbt_compound(&NetworkTimeline::from(&timeline("moon.json"))).unwrap();
+            mcrs_minecraft_nbt::to_nbt_compound(&NetworkTimeline::from(&timeline("moon.json")))
+                .unwrap();
         assert_eq!(
             moon.get_compound("tracks")
                 .unwrap()

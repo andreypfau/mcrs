@@ -76,11 +76,9 @@ fn every_shipped_enchantment_effect_round_trips() {
 
 #[test]
 fn unknown_effect_key_is_an_error_naming_it() {
-    let err = serde_json::from_str::<EnchantmentEffects>(r#"{"minecraft:nonsense": []}"#).unwrap_err();
-    assert!(
-        err.to_string().contains("`minecraft:nonsense`"),
-        "{err}"
-    );
+    let err =
+        serde_json::from_str::<EnchantmentEffects>(r#"{"minecraft:nonsense": []}"#).unwrap_err();
+    assert!(err.to_string().contains("`minecraft:nonsense`"), "{err}");
 }
 
 #[test]

@@ -38,7 +38,9 @@ impl LevelBasedValue {
     pub fn calculate(&self, level: i32) -> f32 {
         match self {
             LevelBasedValue::Constant(value) => *value,
-            LevelBasedValue::Clamped { value, min, max } => value.calculate(level).clamp(*min, *max),
+            LevelBasedValue::Clamped { value, min, max } => {
+                value.calculate(level).clamp(*min, *max)
+            }
             LevelBasedValue::Fraction {
                 numerator,
                 denominator,
