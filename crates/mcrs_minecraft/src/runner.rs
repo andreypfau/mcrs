@@ -1,6 +1,15 @@
-use crate::world::sub_app_builder::{drain_dim_despawn_queue, drain_dim_spawn_queue};
+use crate::world::bus::{ArrivalCause, MovePayload, OutboundPlayerPacket, PacketTarget};
+use crate::world::channel_types::{FromDim, ToDim};
+use crate::world::sub_app_builder::{
+    DimLabel, DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue,
+};
 use bevy_app::App;
+use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
+use bevy_ecs::query::With;
+use bevy_ecs::world::World;
+use mcrs_voxel_server::dim::{DimProtocol, DimRequest};
+use mcrs_voxel_world::session::{MoveId, PlayerSession, SessionRegistry};
 use std::num::NonZeroU32;
 
 pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
@@ -17,266 +26,105 @@ pub fn run_server_loop(app: App) {
 }
 
 pub fn pump_channels(app: &mut App) {
-    use crate::world::bus::{OutboundPlayerPacket, PacketTarget};
-    use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim};
-    use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
-    use mcrs_voxel_world::session::SessionRegistry;
-    use mcrs_voxel_world::world::in_flight::{InFlightEntry, InFlightMoves};
+    mcrs_voxel_server::dim::pump_dim_channels::<MinecraftDims>(app);
+}
 
-    let world = app.world_mut();
+pub struct MinecraftDims;
 
-    // Collect (label_entity, messages) for all dims.
-    let dim_entries: Vec<(bevy_ecs::entity::Entity, Vec<FromDim>)> = {
-        let Some(channels) = world.get_resource::<DimChannelsResource>() else {
+impl DimProtocol for MinecraftDims {
+    type ToDim = ToDim;
+    type FromDim = FromDim;
+    type Departure = (ArrivalCause, MovePayload);
+
+    fn classify(world: &World, message: FromDim) -> Option<DimRequest<Self>> {
+        match message {
+            FromDim::Spawned { move_id } => Some(DimRequest::Arrived { move_id }),
+            FromDim::Clientbound { .. } => Some(DimRequest::Other(message)),
+            FromDim::MoveEntity {
+                move_id,
+                target,
+                cause,
+                payload,
+                player,
+            } => {
+                let destination = world
+                    .try_query_filtered::<(Entity, &DimLabel), With<DimSubAppHandle>>()
+                    .and_then(|mut dims| {
+                        dims.iter(world)
+                            .find(|(_, label)| label.0 == target)
+                            .map(|(entity, _)| entity)
+                    });
+                let Some(destination) = destination else {
+                    tracing::warn!(
+                        target_dim = %target,
+                        "MoveEntity names an unknown dim; dropping (no rollback entry)"
+                    );
+                    return None;
+                };
+                Some(DimRequest::Move {
+                    move_id,
+                    destination,
+                    session: player,
+                    departure: (cause, payload),
+                })
+            }
+        }
+    }
+
+    fn depart(
+        move_id: MoveId,
+        session: Option<PlayerSession>,
+        epoch: u32,
+        (cause, payload): Self::Departure,
+    ) -> ToDim {
+        ToDim::SpawnEntity {
+            move_id,
+            epoch,
+            cause,
+            payload,
+            player: session,
+        }
+    }
+
+    fn confirm(move_id: MoveId) -> ToDim {
+        ToDim::ConfirmMove { move_id }
+    }
+
+    fn roll_back(move_id: MoveId) -> ToDim {
+        ToDim::RollbackMove { move_id }
+    }
+
+    fn deliver(world: &mut World, _source_dim: Entity, message: FromDim) {
+        let FromDim::Clientbound {
+            target,
+            priority,
+            data,
+            ..
+        } = message
+        else {
+            tracing::warn!("deliver reached a message the move protocol does not route; dropping");
             return;
         };
-        channels
-            .iter()
-            .map(|(entity, entry)| {
-                let msgs: Vec<FromDim> = entry.from_dim_receiver.try_iter().collect();
-                (*entity, msgs)
-            })
-            .collect()
-    };
 
-    // Collect dim-name → label-entity map for MoveEntity target resolution.
-    let dim_name_to_entity: Vec<(String, bevy_ecs::entity::Entity)> = {
-        let mut q = world.query_filtered::<
-            (bevy_ecs::entity::Entity, &DimLabel),
-            bevy_ecs::query::With<DimSubAppHandle>,
-        >();
-        q.iter(world)
-            .map(|(e, label)| (label.0.clone(), e))
-            .collect()
-    };
-
-    // Accumulate rollback requests from the MoveEntity → Disconnected path so
-    // we can send them after the dispatch loop (avoids borrow conflict).
-    struct PendingRollback {
-        move_id: mcrs_voxel_world::session::MoveId,
-        source_dim: bevy_ecs::entity::Entity,
-    }
-    let mut pending_rollbacks: Vec<PendingRollback> = Vec::new();
-    // Accumulate confirm relays from the Spawned path.
-    struct PendingConfirm {
-        move_id: mcrs_voxel_world::session::MoveId,
-        source_dim: bevy_ecs::entity::Entity,
-    }
-    let mut pending_confirms: Vec<PendingConfirm> = Vec::new();
-
-    for (dim_entity, msgs) in dim_entries {
-        for msg in msgs {
-            match msg {
-                FromDim::Clientbound {
-                    target,
-                    priority,
-                    data,
-                    session: _,
-                    epoch: _,
-                } => {
-                    let (stamped_session, stamped_epoch) =
-                        if let PacketTarget::SinglePlayer(entity) = &target {
-                            let session_registry = world.resource::<SessionRegistry>();
-                            let session_opt =
-                                session_registry.get_by_anchor(entity).map(|(s, _)| *s);
-                            if let Some(session) = session_opt {
-                                let epoch =
-                                    session_registry.get(&session).map(|e| e.epoch).unwrap_or(0);
-                                (session, epoch)
-                            } else {
-                                (mcrs_voxel_world::session::PlayerSession(0), 0)
-                            }
-                        } else {
-                            (mcrs_voxel_world::session::PlayerSession(0), 0)
-                        };
-
-                    let pkt = OutboundPlayerPacket {
-                        target,
-                        priority,
-                        data,
-                        session: stamped_session,
-                        epoch: stamped_epoch,
-                    };
-                    world
-                        .resource_mut::<Messages<OutboundPlayerPacket>>()
-                        .write(pkt);
-                }
-                FromDim::MoveEntity {
-                    move_id,
-                    target,
-                    cause,
-                    payload,
-                    player,
-                } => {
-                    // Resolve target dim name to a label entity.
-                    let Some(dest_dim) = dim_name_to_entity
-                        .iter()
-                        .find(|(name, _)| *name == target)
-                        .map(|(_, e)| *e)
-                    else {
-                        // Unknown target — immediate rollback (no entity to send to).
-                        // We don't have a hidden entity in InFlightMoves yet, so no
-                        // InFlightEntry to clean up.
-                        tracing::warn!(
-                            target_dim = %target,
-                            "MoveEntity names an unknown dim; dropping (no rollback entry)"
-                        );
-                        continue;
-                    };
-
-                    // Epoch bump for player moves (must precede SpawnEntity forward).
-                    let post_bump_epoch: u32;
-                    if let Some(session) = player {
-                        let mut reg = world.resource_mut::<SessionRegistry>();
-                        let Some(entry) = reg.get_mut(&session) else {
-                            tracing::warn!(
-                                ?session,
-                                "MoveEntity player session not found; dropping"
-                            );
-                            continue;
-                        };
-                        if entry.dim != dest_dim {
-                            entry.epoch = entry.epoch.wrapping_add(1);
-                        }
-                        post_bump_epoch = entry.epoch;
-                        entry.dim = dest_dim;
-                        entry.in_dim_entity = None;
-                    } else {
-                        post_bump_epoch = 0;
-                    }
-
-                    // Key the in-flight entry on the source-allocated move id so it
-                    // matches the in-transit marker the source stamped on its entity.
-                    // hidden_entity is Entity::PLACEHOLDER because the source sub-app
-                    // owns the entity and resolves confirm/rollback by move id itself.
-                    world.resource_mut::<InFlightMoves>().insert(
-                        move_id,
-                        InFlightEntry {
-                            source_dim: dim_entity,
-                            hidden_entity: bevy_ecs::entity::Entity::PLACEHOLDER,
-                            session: player,
-                            ticks_elapsed: 0,
-                        },
-                    );
-
-                    // Forward SpawnEntity to the destination dim's control channel.
-                    let send_result = {
-                        let channels = world.resource::<DimChannelsResource>();
-                        channels.get(dest_dim).map(|chan| {
-                            chan.control_sender.try_send(ToDim::SpawnEntity {
-                                move_id,
-                                epoch: post_bump_epoch,
-                                cause,
-                                payload,
-                                player,
-                            })
-                        })
-                    };
-
-                    match send_result {
-                        Some(Ok(())) => {}
-                        Some(Err(flume::TrySendError::Disconnected(_))) => {
-                            // Target dim channel is gone — immediate rollback.
-                            world.resource_mut::<InFlightMoves>().remove(move_id);
-                            pending_rollbacks.push(PendingRollback {
-                                move_id,
-                                source_dim: dim_entity,
-                            });
-                        }
-                        Some(Err(flume::TrySendError::Full(_))) => {
-                            // Control channel full — treat as saturated, tear down target.
-                            world.resource_mut::<InFlightMoves>().remove(move_id);
-                            pending_rollbacks.push(PendingRollback {
-                                move_id,
-                                source_dim: dim_entity,
-                            });
-                            let mut despawn_queue = world
-                                .resource_mut::<mcrs_voxel_world::world::sub_app::DimDespawnQueue>(
-                            );
-                            if !despawn_queue.0.contains(&dest_dim) {
-                                despawn_queue.0.push(dest_dim);
-                            }
-                        }
-                        None => {
-                            // dest_dim has no channel entry — immediate rollback.
-                            world.resource_mut::<InFlightMoves>().remove(move_id);
-                            pending_rollbacks.push(PendingRollback {
-                                move_id,
-                                source_dim: dim_entity,
-                            });
-                        }
-                    }
-                }
-                FromDim::Spawned { move_id } => {
-                    let entry = world.resource_mut::<InFlightMoves>().remove(move_id);
-                    if let Some(entry) = entry {
-                        pending_confirms.push(PendingConfirm {
-                            move_id,
-                            source_dim: entry.source_dim,
-                        });
-                    }
-                }
+        let (session, epoch) = match &target {
+            PacketTarget::SinglePlayer(anchor) => {
+                let registry = world.resource::<SessionRegistry>();
+                registry
+                    .get_by_anchor(anchor)
+                    .map(|(session, entry)| (*session, entry.epoch))
+                    .unwrap_or((PlayerSession(0), 0))
             }
-        }
-    }
-
-    // Send deferred rollbacks (from Disconnected / Full sends in the dispatch loop).
-    for rb in pending_rollbacks {
-        let send_result = {
-            let channels = world.resource::<DimChannelsResource>();
-            channels.get(rb.source_dim).map(|chan| {
-                chan.control_sender.try_send(ToDim::RollbackMove {
-                    move_id: rb.move_id,
-                })
-            })
+            _ => (PlayerSession(0), 0),
         };
-        if let Some(Err(flume::TrySendError::Full(_))) = send_result {
-            let mut despawn_queue =
-                world.resource_mut::<mcrs_voxel_world::world::sub_app::DimDespawnQueue>();
-            if !despawn_queue.0.contains(&rb.source_dim) {
-                despawn_queue.0.push(rb.source_dim);
-            }
-        }
-    }
 
-    // Send deferred confirms.
-    for cf in pending_confirms {
-        let send_result = {
-            let channels = world.resource::<DimChannelsResource>();
-            channels.get(cf.source_dim).map(|chan| {
-                chan.control_sender.try_send(ToDim::ConfirmMove {
-                    move_id: cf.move_id,
-                })
-            })
-        };
-        if let Some(Err(flume::TrySendError::Full(_))) = send_result {
-            let mut despawn_queue =
-                world.resource_mut::<mcrs_voxel_world::world::sub_app::DimDespawnQueue>();
-            if !despawn_queue.0.contains(&cf.source_dim) {
-                despawn_queue.0.push(cf.source_dim);
-            }
-        }
-    }
-
-    // Advance tick counters on all in-flight entries; send RollbackMove to any
-    // that have reached the timeout threshold.
-    let timed_out = world.resource_mut::<InFlightMoves>().tick_all();
-    for move_id in timed_out {
-        let entry = world.resource_mut::<InFlightMoves>().remove(move_id);
-        let Some(entry) = entry else { continue };
-        let send_result = {
-            let channels = world.resource::<DimChannelsResource>();
-            channels.get(entry.source_dim).map(|chan| {
-                chan.control_sender
-                    .try_send(ToDim::RollbackMove { move_id })
-            })
-        };
-        if let Some(Err(flume::TrySendError::Full(_))) = send_result {
-            let mut despawn_queue =
-                world.resource_mut::<mcrs_voxel_world::world::sub_app::DimDespawnQueue>();
-            if !despawn_queue.0.contains(&entry.source_dim) {
-                despawn_queue.0.push(entry.source_dim);
-            }
-        }
+        world
+            .resource_mut::<Messages<OutboundPlayerPacket>>()
+            .write(OutboundPlayerPacket {
+                target,
+                priority,
+                data,
+                session,
+                epoch,
+            });
     }
 }

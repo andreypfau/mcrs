@@ -274,10 +274,8 @@ mod tests {
 
     #[test]
     fn the_generated_field_header_matches_the_field_table() {
-        let path = std::path::Path::new(file!())
-            .parent()
-            .unwrap()
-            .join("render/shaders/include/fields.wgsl");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("examples/anvil_region_viewer/render/shaders/include/fields.wgsl");
         let generated = wgsl_fields();
         if std::env::var("ANVIL_BLESS").is_ok() {
             std::fs::write(&path, &generated).expect("cannot rewrite the generated header");

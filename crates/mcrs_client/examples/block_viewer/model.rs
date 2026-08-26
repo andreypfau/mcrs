@@ -8,7 +8,12 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 pub fn assets_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("assets")
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("assets")
 }
 
 /// `block/cube` and `minecraft:block/cube` are the same resource; the vanilla pack mixes both

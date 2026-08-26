@@ -1,10 +1,8 @@
 use bevy_ecs::prelude::Entity;
 use bytes::Bytes;
 use mcrs_voxel_world::session::{MoveId, PlayerSession};
-use mcrs_voxel_world::world::channels::{DimChannels, DimSender};
-use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
+use mcrs_voxel_world::world::channels::DimChannels;
 use std::time::Instant;
-use tracing::warn;
 
 use crate::world::bus::{
     ArrivalCause, MovePayload, PacketPayload, PacketPriority, PacketTarget, PlayerTransferSnapshot,
@@ -102,34 +100,3 @@ pub enum FromDim {
 /// Convenience alias for the concrete channel registry parameterized by this
 /// crate's message types.
 pub type DimChannelsResource = DimChannels<ToDim, FromDim>;
-
-/// Send a non-sheddable control message, escalating a saturated control channel
-/// to whole-dim teardown.
-///
-/// The control channel holds the lifecycle reserve (`Spawn`/`Despawn`/`Attach`)
-/// that the structural two-channel split guarantees is always available under
-/// normal load. A `Full` here therefore means the dim has stopped draining its
-/// inbox — hard overload — so its label `Entity` is enqueued into
-/// `DimDespawnQueue` for the host runner to tear down rather than silently
-/// dropping the lifecycle message. A `Disconnected` channel means the dim is
-/// already gone, so there is nothing to tear down.
-pub fn send_control_or_teardown(
-    sender: &DimSender<ToDim>,
-    dim_entity: Entity,
-    msg: ToDim,
-    despawn_queue: &mut DimDespawnQueue,
-) {
-    match sender.try_send(msg) {
-        Ok(()) => {}
-        Err(flume::TrySendError::Full(_)) => {
-            warn!(
-                dim = ?dim_entity,
-                "control channel saturated (hard overload); enqueueing dim teardown"
-            );
-            if !despawn_queue.0.contains(&dim_entity) {
-                despawn_queue.0.push(dim_entity);
-            }
-        }
-        Err(flume::TrySendError::Disconnected(_)) => {}
-    }
-}

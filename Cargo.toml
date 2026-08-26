@@ -92,44 +92,6 @@ tokio = { version = "1", features = ["full"] }
 mcrs_minecraft.workspace = true
 mcrs_telemetry.workspace = true
 
-[dev-dependencies]
-bevy = { version = "0.19.1", default-features = false, features = [
-    "std",
-    "async_executor",
-    "bevy_asset",
-    "bevy_log",
-    "bevy_window",
-    "bevy_winit",
-    "bevy_render",
-    "bevy_core_pipeline",
-    "bevy_pbr",
-    "bevy_image",
-    "bevy_text",
-    "bevy_ui",
-    "bevy_ui_render",
-    "default_font",
-    "png",
-] }
-serde.workspace = true
-serde_json.workspace = true
-mcrs_minecraft_nbt.workspace = true
-mcrs_voxel_storage.workspace = true
-mcrs_protocol.workspace = true
-flate2.workspace = true
-bytemuck = { version = "1", features = ["derive"] }
-# Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.
-wgpu = { version = "29", default-features = false }
-
-[[example]]
-name = "block_viewer"
-path = "examples/block_viewer/main.rs"
-test = true
-
-[[example]]
-name = "anvil_region_viewer"
-path = "examples/anvil_region_viewer/main.rs"
-test = true
-
 [features]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]
 telemetry-tracy = ["mcrs_telemetry/telemetry-tracy", "mcrs_minecraft/telemetry-tracy"]
@@ -179,7 +141,3 @@ opt-level = 3
 
 [profile.dev.package."bevy_math"]
 opt-level = 3
-
-[target.'cfg(target_os = "macos")'.dev-dependencies]
-objc2-metal = { version = "0.3", default-features = false, features = ["std", "MTLCaptureManager", "MTLDevice"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL", "NSError"] }

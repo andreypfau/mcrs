@@ -312,7 +312,7 @@ fn transfer_snapshot() -> mcrs_minecraft::world::bus::PlayerTransferSnapshot {
 
 #[test]
 fn control_full_enqueues_dim_teardown() {
-    use mcrs_minecraft::world::channel_types::send_control_or_teardown;
+    use mcrs_voxel_server::dim::send_control_or_teardown;
     use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
 
     let mut world = World::new();

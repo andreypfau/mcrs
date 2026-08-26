@@ -30,3 +30,31 @@ mcrs_vanilla.workspace = true
 [dev-dependencies]
 serde.workspace = true
 serde_json.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_voxel_storage.workspace = true
+mcrs_protocol.workspace = true
+flate2.workspace = true
+bevy = { version = "0.19.1", default-features = false, features = [
+    "bevy_pbr",
+    "bevy_image",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_ui_render",
+    "default_font",
+] }
+# Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.
+wgpu = { version = "29", default-features = false }
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+objc2-metal = { version = "0.3", default-features = false, features = ["std", "MTLCaptureManager", "MTLDevice"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL", "NSError"] }
+
+[[example]]
+name = "block_viewer"
+path = "examples/block_viewer/main.rs"
+test = true
+
+[[example]]
+name = "anvil_region_viewer"
+path = "examples/anvil_region_viewer/main.rs"
+test = true

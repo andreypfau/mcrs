@@ -31,8 +31,9 @@ use std::collections::VecDeque;
 use tracing::warn;
 
 use crate::world::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
-use crate::world::channel_types::{DimChannelsResource, ToDim, send_control_or_teardown};
+use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::player_index::{HostAnchorRef, PlayerIndex};
+use mcrs_voxel_server::dim::send_control_or_teardown;
 use mcrs_voxel_world::session::SessionRegistry;
 use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
 

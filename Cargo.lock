@@ -3141,23 +3141,12 @@ dependencies = [
 name = "mcrs"
 version = "0.1.0"
 dependencies = [
- "bevy",
  "bevy_app",
  "bevy_ecs",
  "bevy_log",
- "bytemuck",
- "flate2",
  "mcrs_minecraft",
- "mcrs_minecraft_nbt",
- "mcrs_protocol",
  "mcrs_telemetry",
- "mcrs_voxel_storage",
- "objc2-foundation 0.3.2",
- "objc2-metal 0.3.2",
- "serde",
- "serde_json",
  "tokio",
- "wgpu",
 ]
 
 [[package]]
@@ -3181,11 +3170,18 @@ dependencies = [
  "bevy",
  "bitflags 2.10.0",
  "bytemuck",
+ "flate2",
  "mcrs_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_protocol",
  "mcrs_vanilla",
+ "mcrs_voxel_storage",
  "mcrs_voxel_world",
+ "objc2-foundation 0.3.2",
+ "objc2-metal 0.3.2",
  "serde",
  "serde_json",
+ "wgpu",
 ]
 
 [[package]]
@@ -3466,6 +3462,9 @@ dependencies = [
  "bevy_asset",
  "bevy_ecs",
  "bevy_time",
+ "flume",
+ "mcrs_voxel_world",
+ "tracing",
 ]
 
 [[package]]

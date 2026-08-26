@@ -1,7 +1,7 @@
 use crate::login::GameProfile;
 use crate::version::VERSION_ID;
 use crate::world::bus::PlayerTransferSnapshot;
-use crate::world::channel_types::{DimChannelsResource, ToDim, send_control_or_teardown};
+use crate::world::channel_types::{DimChannelsResource, ToDim};
 use crate::world::entity::player::column_view::ColumnView;
 use crate::world::player_index::HostAnchorRef;
 use crate::world::sub_app_builder::DimSubAppHandle;
@@ -47,6 +47,7 @@ use mcrs_vanilla::item::Item as VanillaItem;
 use mcrs_vanilla::worldgen::beta_biome::ActiveBiomeSource;
 use mcrs_vanilla::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_vanilla::worldgen::world_preset::{ActiveWorldPreset, WorldPreset};
+use mcrs_voxel_server::dim::send_control_or_teardown;
 use mcrs_voxel_world::entity::player::chunk_view::PlayerChunkObserver;
 use mcrs_voxel_world::session::SessionRegistry;
 use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
