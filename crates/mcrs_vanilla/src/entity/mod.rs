@@ -1,5 +1,4 @@
 pub mod entity_type;
-pub mod explosive;
 pub mod minecraft;
 pub mod movement;
 pub mod player;

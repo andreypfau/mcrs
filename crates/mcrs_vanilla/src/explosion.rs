@@ -8,7 +8,7 @@ use mcrs_protocol::BlockStateId;
 #[component(storage = "SparseSet")]
 pub struct Explosion;
 
-/// The radius of the [Explosion] to be created by detonating an [Explosive](crate::entity::explosive::Explosive).
+/// The radius of the [Explosion] to be created by detonating an explosive entity.
 #[derive(Component, Default, Debug)]
 pub struct ExplosionRadius(pub f32);
 
