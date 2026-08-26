@@ -18,3 +18,4 @@ tracing.workspace = true
 log = "0.4.29"
 
 [features]
+telemetry-tracy = []

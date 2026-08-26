@@ -132,7 +132,7 @@ test = true
 
 [features]
 telemetry = ["telemetry-tracy", "telemetry-diagnostics"]
-telemetry-tracy = ["mcrs_telemetry/telemetry-tracy"]
+telemetry-tracy = ["mcrs_telemetry/telemetry-tracy", "mcrs_minecraft/telemetry-tracy"]
 # Diagnostics features stay confined to mcrs_telemetry because no other
 # crate currently registers diagnostic plugins. Add propagation lines
 # here when individual crates start exposing their own histograms.
