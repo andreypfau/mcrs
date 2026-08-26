@@ -325,4 +325,4 @@ macro_rules! rl {
 
 // Re-export the proc macro under a hidden name for use by the rl! declarative macro.
 #[doc(hidden)]
-pub use mcrs_core_macros::rl_impl as __rl_impl;
+pub use mcrs_minecraft_core_macros::rl_impl as __rl_impl;

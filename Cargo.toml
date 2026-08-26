@@ -70,7 +70,7 @@ mcrs_protocol = { path = "crates/mcrs_protocol" }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
 mcrs_network = { path = "crates/mcrs_network" }
 mcrs_voxel_world = { path = "crates/mcrs_voxel_world" }
-mcrs_core_macros = { path = "crates/mcrs_core_macros" }
+mcrs_minecraft_core_macros = { path = "crates/mcrs_minecraft_core_macros" }
 mcrs_core = { path = "crates/mcrs_core" }
 mcrs_vanilla = { path = "crates/mcrs_vanilla" }
 mcrs_minecraft = { path = "crates/mcrs_minecraft" }

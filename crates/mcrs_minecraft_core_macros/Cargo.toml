@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_core_macros"
+name = "mcrs_minecraft_core_macros"
 description = "Proc macros for mcrs_core (rl! resource location macro)"
 version.workspace = true
 edition.workspace = true

@@ -18,7 +18,7 @@ pub use tag::{
 
 // Re-export the proc macro for the rl! declarative macro.
 #[doc(hidden)]
-pub use mcrs_core_macros::rl_impl as __rl_impl;
+pub use mcrs_minecraft_core_macros::rl_impl as __rl_impl;
 
 use bevy_app::{App, Plugin};
 use bevy_asset::AssetApp;

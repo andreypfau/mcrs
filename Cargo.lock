@@ -3180,21 +3180,12 @@ dependencies = [
  "bevy_math",
  "bevy_reflect",
  "bevy_state",
- "mcrs_core_macros",
+ "mcrs_minecraft_core_macros",
  "mcrs_minecraft_nbt",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "tracing",
-]
-
-[[package]]
-name = "mcrs_core_macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.115",
 ]
 
 [[package]]
@@ -3280,6 +3271,15 @@ dependencies = [
  "mcrs_voxel_world",
  "rustc-hash 2.1.1",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_core_macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.115",
 ]
 
 [[package]]
