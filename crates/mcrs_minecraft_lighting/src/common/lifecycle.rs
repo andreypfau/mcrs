@@ -338,11 +338,11 @@ pub fn attach_lighting_state(
 }
 
 /// `true` if every cell in the chunk's palette has `emission == 0` and
-/// `dampening == 0`. Uses `BlockPalette::for_each_distinct_state` to avoid
+/// `dampening == 0`. Uses `BlockPalette::for_each_distinct` to avoid
 /// scanning all 4096 cells when the palette holds only a handful of states.
 fn is_chunk_all_air(palette: &BlockPalette, table: &BlockStateLightTable) -> bool {
     let mut all_air = true;
-    palette.for_each_distinct_state(|state| {
+    palette.for_each_distinct(|state| {
         if !all_air {
             return;
         }

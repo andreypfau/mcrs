@@ -168,7 +168,7 @@ pub fn seed_block_emitters(
     };
     for (chunk_entity, palette, mut block_ws) in chunks.iter_mut() {
         let mut has_emitter = false;
-        palette.for_each_distinct_state(|state| {
+        palette.for_each_distinct(|state| {
             if table.emission_for(state) > 0 {
                 has_emitter = true;
             }

@@ -6,3 +6,5 @@ edition.workspace = true
 
 [dependencies]
 rustc-hash.workspace = true
+bevy_ecs.workspace = true
+mcrs_voxel_math.workspace = true

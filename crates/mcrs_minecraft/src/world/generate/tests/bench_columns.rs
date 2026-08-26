@@ -1,5 +1,6 @@
 //! Wall-clock benchmarks for column generation. Run with:
 //!   cargo test -p mcrs_minecraft --release bench_ -- --ignored --nocapture
+use mcrs_minecraft_block::palette::NetworkPalette;
 use std::collections::BTreeMap;
 use std::time::Instant;
 

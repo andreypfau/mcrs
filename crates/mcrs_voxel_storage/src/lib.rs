@@ -1,6 +1,8 @@
 pub mod container;
+pub mod voxel_palette;
 
 pub use container::{AbstractCube, HeterogeneousPaletteData, PalettedContainer};
+pub use voxel_palette::VoxelPalette;
 
 /// An opaque voxel identifier. The engine never interprets it: the game assigns
 /// ids when its asset corpus loads, and they are not stable across runs, which

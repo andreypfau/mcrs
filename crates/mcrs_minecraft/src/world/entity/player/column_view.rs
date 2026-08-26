@@ -20,7 +20,7 @@ use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
 use mcrs_engine::world::storage::chunk::ChunkIndex;
 use mcrs_engine::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
-use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
+use mcrs_minecraft_block::palette::{AirCount, BiomePalette, BlockPalette, NetworkPalette};
 use mcrs_minecraft_lighting::codec::{ColumnLightUpdate, LightCodecParams, build_full_light_data};
 use mcrs_minecraft_lighting::sets::LightingSet;
 use mcrs_protocol::{ColumnPos, Encode};

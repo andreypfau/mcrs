@@ -1,3 +1,4 @@
+use mcrs_minecraft_block::palette::NetworkPalette;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 

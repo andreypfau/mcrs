@@ -1,3 +1,4 @@
+use mcrs_minecraft_block::palette::AirCount;
 mod support;
 
 use mcrs_minecraft::world::chunk::CancellationToken;
