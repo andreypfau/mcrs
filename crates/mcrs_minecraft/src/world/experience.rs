@@ -10,7 +10,7 @@ use mcrs_vanilla::block::definition::schema::IntProvider;
 use mcrs_vanilla::enchantment::EnchantmentData;
 use tracing::{debug, warn};
 
-use crate::world::item::component::Enchantments;
+use mcrs_vanilla::item::component::Enchantments;
 
 /// The dimension's own random stream, as Java's `ServerLevel.getRandom()`. One
 /// world, one writer: every sub-app carries its own.

@@ -1,4 +1,4 @@
-use crate::world::item::Item;
+use mcrs_vanilla::item::Item;
 use mcrs_core::tag::key::TagKey;
 
 pub const SWORDS: TagKey<Item> = TagKey::of("minecraft", "swords");

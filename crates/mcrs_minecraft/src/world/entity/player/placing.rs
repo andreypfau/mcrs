@@ -1,5 +1,5 @@
 use crate::world::inventory::PlayerHotbarSlots;
-use crate::world::item::ItemStack;
+use mcrs_vanilla::item::ItemStack;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
 use bevy_app::{App, Plugin};

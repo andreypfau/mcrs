@@ -8,7 +8,7 @@ use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft::world::experience::{
     AwardExperience, BlockDestroyed, DimensionRandom, ExperiencePlugin,
 };
-use mcrs_minecraft::world::item::component::Enchantments;
+use mcrs_vanilla::item::component::Enchantments;
 use mcrs_vanilla::block::definition::Blocks;
 use mcrs_vanilla::enchantment::{EnchantmentData, register_all_enchantments};
 

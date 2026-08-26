@@ -6,9 +6,9 @@ use crate::world::entity::player::player_action::{
 };
 use crate::world::experience::BlockDestroyed;
 use crate::world::inventory::PlayerHotbarSlots;
-use crate::world::item::component::Enchantments;
-use crate::world::item::component::Tool;
-use crate::world::item::{Item, ItemStack};
+use mcrs_vanilla::item::component::Enchantments;
+use mcrs_vanilla::item::component::Tool;
+use mcrs_vanilla::item::{Item, ItemStack};
 use crate::world::loot::BlockLootTables;
 use crate::world::loot::context::BlockBreakContext;
 use bevy_app::{FixedUpdate, Plugin, Update};
@@ -354,11 +354,11 @@ pub fn extract_tool_data(
         return (!requires_correct_tool, 1.0);
     };
     let has_correct_tool = if requires_correct_tool {
-        tool.is_correct_block_for_drops(block, tag_registry, blocks)
+        tool.is_correct_block_for_drops(block, blocks, tag_registry)
     } else {
         true
     };
-    let speed = tool.get_mining_speed(block, tag_registry, blocks);
+    let speed = tool.get_mining_speed(block, blocks, tag_registry);
     debug!(
         block,
         item = %item.identifier,
@@ -407,7 +407,7 @@ fn handle_player_will_destroy_block(
                     })
                 })
                 .is_some_and(|tool| {
-                    tool.is_correct_block_for_drops(block_id, &tag_registry, &blocks)
+                    tool.is_correct_block_for_drops(block_id, &blocks, &tag_registry)
                 })
         } else {
             true

@@ -1,4 +1,4 @@
-use crate::world::item::component::Enchantments;
+use mcrs_vanilla::item::component::Enchantments;
 use crate::world::loot::condition::LootCondition;
 use mcrs_core::ResourceLocation;
 
