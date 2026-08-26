@@ -75,6 +75,10 @@ impl<F: Float + Clone> OctavePerlinNoise<F> {
         self.max_value
     }
 
+    pub fn octave_count(&self) -> usize {
+        self.octave_samplers.iter().filter(|o| o.is_some()).count()
+    }
+
     pub fn edge_value(&self, scale: F) -> F {
         let mut value = F::zero();
         let mut factor = self.persistence;

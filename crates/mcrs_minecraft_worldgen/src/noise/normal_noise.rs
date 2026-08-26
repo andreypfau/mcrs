@@ -128,6 +128,14 @@ impl NoiseSampler {
         })
     }
 
+    pub fn octave_count(&self) -> usize {
+        match self {
+            NoiseSampler::Normal(n) => n.first.octave_count() + n.second.octave_count(),
+            NoiseSampler::BetaOctave2d(n) => n.noise.octave_count(),
+            NoiseSampler::BetaSimplex2d(_) => 1,
+        }
+    }
+
     pub fn beta_octave_2d(noise: OctavePerlinNoise<f32>, frequency: f32, max_value: f32) -> Self {
         Self::BetaOctave2d(BetaOctave2dNoise {
             noise,

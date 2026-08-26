@@ -18,6 +18,8 @@ use std::mem::swap;
 use std::ops::Index;
 use tracing::info;
 
+#[cfg(test)]
+mod interval_prune;
 pub mod beta_seed;
 pub mod beta_terrain_f64;
 pub mod proto;
@@ -86,6 +88,71 @@ fn pow_range(base: (f32, f32), exponent: (f32, f32)) -> (f32, f32) {
         .fold((f32::INFINITY, f32::NEG_INFINITY), |(min, max), &value| {
             (min.min(value), max.max(value))
         })
+}
+
+fn binary_range(
+    operation: BinaryOperation,
+    (min1, max1): (f32, f32),
+    (min2, max2): (f32, f32),
+) -> (f32, f32) {
+    match operation {
+        BinaryOperation::Add => (min1 + min2, max1 + max2),
+        BinaryOperation::Multiply => mul_range(min1, max1, min2, max2),
+        BinaryOperation::Subtract => (min1 - max2, max1 - min2),
+        BinaryOperation::Divide => {
+            let (rmin, rmax) = reciprocal_range(min2, max2);
+            mul_range(min1, max1, rmin, rmax)
+        }
+        BinaryOperation::Min => (min1.min(min2), max1.min(max2)),
+        BinaryOperation::Max => (min1.max(min2), max1.max(max2)),
+        BinaryOperation::Pow => pow_range((min1, max1), (min2, max2)),
+        BinaryOperation::Round(mode) => {
+            let (rmin, rmax) = reciprocal_range(min2, max2);
+            let (dmin, dmax) = mul_range(min1, max1, rmin, rmax);
+            let lo = round_to_integer(dmin, mode);
+            let hi = round_to_integer(dmax, mode);
+            mul_range(lo.min(hi), lo.max(hi), min2, max2)
+        }
+    }
+}
+
+fn unary_range(operation: UnaryOperation, min: f32, max: f32) -> (f32, f32) {
+    let min_image = operation.apply(min);
+    let max_image = operation.apply(max);
+    match operation {
+        UnaryOperation::Reciprocal => {
+            if min < 0.0 && max > 0.0 {
+                (f32::NEG_INFINITY, f32::INFINITY)
+            } else {
+                (max_image, min_image)
+            }
+        }
+        UnaryOperation::Abs | UnaryOperation::Square => {
+            if min >= 0.0 {
+                (min_image, max_image)
+            } else if max <= 0.0 {
+                (max_image, min_image)
+            } else {
+                (0.0, min_image.max(max_image))
+            }
+        }
+        UnaryOperation::Sqrt | UnaryOperation::Log => {
+            (operation.apply(min.max(0.0)), operation.apply(max.max(0.0)))
+        }
+        UnaryOperation::Sign => {
+            if min > 0.0 {
+                (1.0, 1.0)
+            } else if max < 0.0 {
+                (-1.0, -1.0)
+            } else {
+                (
+                    if min == 0.0 { 0.0 } else { -1.0 },
+                    if max == 0.0 { 0.0 } else { 1.0 },
+                )
+            }
+        }
+        _ => (min_image, max_image),
+    }
 }
 
 fn reciprocal_range(min: f32, max: f32) -> (f32, f32) {
@@ -3371,20 +3438,23 @@ impl PiecewiseAffine {
         pos_scale: f32,
         offset: f32,
     ) -> (f32, f32) {
-        // Negative side: input_min * neg_scale + offset (input_min <= 0)
-        // Positive side: input_max * pos_scale + offset (input_max >= 0)
-        // At zero: offset
-        let mut lo = offset;
-        let mut hi = offset;
-        if input_min < 0.0 {
-            let v = input_min * neg_scale + offset;
-            lo = lo.min(v);
-            hi = hi.max(v);
-        }
-        if input_max > 0.0 {
-            let v = input_max * pos_scale + offset;
-            lo = lo.min(v);
-            hi = hi.max(v);
+        // Two monotone pieces meeting at zero: the extremes can only sit at an
+        // endpoint or at the breakpoint, and the breakpoint only counts when the
+        // input interval actually straddles it.
+        let apply = |x: f32| {
+            if x < 0.0 {
+                x * neg_scale + offset
+            } else {
+                x * pos_scale + offset
+            }
+        };
+        let a = apply(input_min);
+        let b = apply(input_max);
+        let mut lo = a.min(b);
+        let mut hi = a.max(b);
+        if input_min < 0.0 && input_max >= 0.0 {
+            lo = lo.min(offset);
+            hi = hi.max(offset);
         }
         (lo, hi)
     }
@@ -5414,25 +5484,7 @@ impl<'a> FunctionStackBuilder<'a> {
         let max2 = arg2.max_value();
         let arg2_constant = arg2.as_constant();
 
-        let (min_value, max_value) = match operation {
-            BinaryOperation::Add => (min1 + min2, max1 + max2),
-            BinaryOperation::Multiply => mul_range(min1, max1, min2, max2),
-            BinaryOperation::Subtract => (min1 - max2, max1 - min2),
-            BinaryOperation::Divide => {
-                let (rmin, rmax) = reciprocal_range(min2, max2);
-                mul_range(min1, max1, rmin, rmax)
-            }
-            BinaryOperation::Min => (min1.min(min2), max1.min(max2)),
-            BinaryOperation::Max => (min1.max(min2), max1.max(max2)),
-            BinaryOperation::Pow => pow_range((min1, max1), (min2, max2)),
-            BinaryOperation::Round(mode) => {
-                let (rmin, rmax) = reciprocal_range(min2, max2);
-                let (dmin, dmax) = mul_range(min1, max1, rmin, rmax);
-                let lo = round_to_integer(dmin, mode);
-                let hi = round_to_integer(dmax, mode);
-                mul_range(lo.min(hi), lo.max(hi), min2, max2)
-            }
-        };
+        let (min_value, max_value) = binary_range(operation, (min1, max1), (min2, max2));
 
         if let BinaryOperation::Add | BinaryOperation::Multiply = operation {
             if let Some((input_index, argument)) = match (arg1_constant, arg2_constant) {
@@ -5474,8 +5526,6 @@ impl<'a> FunctionStackBuilder<'a> {
         let input = &self.stack[input_index];
         let min = input.min_value();
         let max = input.max_value();
-        let min_image = operation.apply(min);
-        let max_image = operation.apply(max);
         let proto = match operation {
             UnaryOperation::Abs => ProtoDensityFunction::Abs(arg.clone()),
             UnaryOperation::Square => ProtoDensityFunction::Square(arg.clone()),
@@ -5489,40 +5539,7 @@ impl<'a> FunctionStackBuilder<'a> {
             UnaryOperation::Sign => ProtoDensityFunction::Sign(arg.clone()),
         };
 
-        let (min_value, max_value) = match operation {
-            UnaryOperation::Reciprocal => {
-                if min < 0.0 && max > 0.0 {
-                    (f32::NEG_INFINITY, f32::INFINITY)
-                } else {
-                    (max_image, min_image)
-                }
-            }
-            UnaryOperation::Abs | UnaryOperation::Square => {
-                if min >= 0.0 {
-                    (min_image, max_image)
-                } else if max <= 0.0 {
-                    (max_image, min_image)
-                } else {
-                    (0.0, min_image.max(max_image))
-                }
-            }
-            UnaryOperation::Sqrt | UnaryOperation::Log => {
-                (operation.apply(min.max(0.0)), operation.apply(max.max(0.0)))
-            }
-            UnaryOperation::Sign => {
-                if min > 0.0 {
-                    (1.0, 1.0)
-                } else if max < 0.0 {
-                    (-1.0, -1.0)
-                } else {
-                    (
-                        if min == 0.0 { 0.0 } else { -1.0 },
-                        if max == 0.0 { 0.0 } else { 1.0 },
-                    )
-                }
-            }
-            _ => (min_image, max_image),
-        };
+        let (min_value, max_value) = unary_range(operation, min, max);
 
         self.register_component(
             proto,
