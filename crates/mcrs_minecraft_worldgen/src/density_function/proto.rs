@@ -675,3 +675,277 @@ pub trait Visitor {
         self.visit_density_function_holder(upper_bound);
     }
 }
+
+pub const AXIS_X: u8 = 1;
+pub const AXIS_Y: u8 = 2;
+pub const AXIS_Z: u8 = 4;
+pub const ALL_AXES: u8 = AXIS_X | AXIS_Y | AXIS_Z;
+
+impl Axis {
+    pub fn bit(self) -> u8 {
+        match self {
+            Axis::X => AXIS_X,
+            Axis::Y => AXIS_Y,
+            Axis::Z => AXIS_Z,
+        }
+    }
+}
+
+pub fn noise_scale_axes(xz_scale: f64, y_scale: f64) -> u8 {
+    let mut axes = ALL_AXES;
+    if y_scale == 0.0 {
+        axes &= !AXIS_Y;
+    }
+    if xz_scale == 0.0 {
+        axes &= !(AXIS_X | AXIS_Z);
+    }
+    axes
+}
+
+impl SplineHolder {
+    pub fn visit_children(&self, f: &mut impl FnMut(&DensityFunctionHolder)) {
+        if let SplineHolder::Spline(spline) = self {
+            f(&spline.coordinate);
+            for point in &spline.points {
+                point.value.visit_children(f);
+            }
+        }
+    }
+
+    pub fn visit_children_mut(&mut self, f: &mut impl FnMut(&mut DensityFunctionHolder)) {
+        if let SplineHolder::Spline(spline) = self {
+            f(&mut spline.coordinate);
+            for point in &mut spline.points {
+                point.value.visit_children_mut(f);
+            }
+        }
+    }
+}
+
+impl ProtoDensityFunction {
+    pub fn visit_children(&self, f: &mut impl FnMut(&DensityFunctionHolder)) {
+        use ProtoDensityFunction::*;
+        match self {
+            BlendAlpha
+            | BlendOffset
+            | Beardifier
+            | OldBlendedNoise { .. }
+            | EndOuterIslands
+            | ShiftA { .. }
+            | ShiftB { .. }
+            | Shift { .. }
+            | Constant(_)
+            | Gradient { .. }
+            | DistanceToPoint { .. } => {}
+            Interpolated { input, .. } | Clamp { input, .. } | Slice { input, .. } => f(input),
+            Cache(x) | BlendDensity(x) | Abs(x) | Square(x) | Cube(x) | HalfNegative(x)
+            | QuarterNegative(x) | Reciprocal(x) | Negate(x) | Squeeze(x) | Sqrt(x) | Log(x)
+            | Sign(x) => f(&x.input),
+            Noise {
+                shift_x,
+                shift_y,
+                shift_z,
+                ..
+            } => {
+                for shift in [shift_x, shift_y, shift_z].into_iter().flatten() {
+                    f(shift);
+                }
+            }
+            RangeChoice {
+                input,
+                when_in_range,
+                when_out_of_range,
+                ..
+            } => {
+                f(input);
+                f(when_in_range);
+                f(when_out_of_range);
+            }
+            Pow(x) => {
+                f(&x.base);
+                f(&x.exponent);
+            }
+            Floor(x) | Round(x) | Ceil(x) | Truncate(x) => {
+                f(&x.input);
+                f(&x.multiple);
+            }
+            Add(x) | Mul(x) | Sub(x) | Div(x) | Min(x) | Max(x) => {
+                f(&x.left);
+                f(&x.right);
+            }
+            Spline { spline } => spline.visit_children(f),
+            Lerp {
+                alpha,
+                first,
+                second,
+            } => {
+                f(alpha);
+                f(first);
+                f(second);
+            }
+            IntervalSelect {
+                input, functions, ..
+            } => {
+                f(input);
+                for function in functions {
+                    f(function);
+                }
+            }
+            FindTopSurface {
+                density,
+                upper_bound,
+                ..
+            } => {
+                f(density);
+                f(upper_bound);
+            }
+        }
+    }
+
+    pub fn visit_children_mut(&mut self, f: &mut impl FnMut(&mut DensityFunctionHolder)) {
+        use ProtoDensityFunction::*;
+        match self {
+            BlendAlpha
+            | BlendOffset
+            | Beardifier
+            | OldBlendedNoise { .. }
+            | EndOuterIslands
+            | ShiftA { .. }
+            | ShiftB { .. }
+            | Shift { .. }
+            | Constant(_)
+            | Gradient { .. }
+            | DistanceToPoint { .. } => {}
+            Interpolated { input, .. } | Clamp { input, .. } | Slice { input, .. } => f(input),
+            Cache(x) | BlendDensity(x) | Abs(x) | Square(x) | Cube(x) | HalfNegative(x)
+            | QuarterNegative(x) | Reciprocal(x) | Negate(x) | Squeeze(x) | Sqrt(x) | Log(x)
+            | Sign(x) => f(&mut x.input),
+            Noise {
+                shift_x,
+                shift_y,
+                shift_z,
+                ..
+            } => {
+                for shift in [shift_x, shift_y, shift_z].into_iter().flatten() {
+                    f(shift);
+                }
+            }
+            RangeChoice {
+                input,
+                when_in_range,
+                when_out_of_range,
+                ..
+            } => {
+                f(input);
+                f(when_in_range);
+                f(when_out_of_range);
+            }
+            Pow(x) => {
+                f(&mut x.base);
+                f(&mut x.exponent);
+            }
+            Floor(x) | Round(x) | Ceil(x) | Truncate(x) => {
+                f(&mut x.input);
+                f(&mut x.multiple);
+            }
+            Add(x) | Mul(x) | Sub(x) | Div(x) | Min(x) | Max(x) => {
+                f(&mut x.left);
+                f(&mut x.right);
+            }
+            Spline { spline } => spline.visit_children_mut(f),
+            Lerp {
+                alpha,
+                first,
+                second,
+            } => {
+                f(alpha);
+                f(first);
+                f(second);
+            }
+            IntervalSelect {
+                input, functions, ..
+            } => {
+                f(input);
+                for function in functions {
+                    f(function);
+                }
+            }
+            FindTopSurface {
+                density,
+                upper_bound,
+                ..
+            } => {
+                f(density);
+                f(upper_bound);
+            }
+        }
+    }
+
+    pub fn domain_axes(&self) -> u8 {
+        use ProtoDensityFunction::*;
+        let children = || {
+            let mut axes = 0u8;
+            self.visit_children(&mut |child| axes |= child.domain_axes());
+            axes
+        };
+        match self {
+            BlendAlpha | BlendOffset | Beardifier | Constant(_) => 0,
+            OldBlendedNoise { .. } | Shift { .. } | DistanceToPoint { .. } => ALL_AXES,
+            ShiftA { .. } | ShiftB { .. } | EndOuterIslands => AXIS_X | AXIS_Z,
+            Gradient { axis, .. } => axis.bit(),
+            Noise {
+                xz_scale, y_scale, ..
+            } => children() | noise_scale_axes(xz_scale.0, y_scale.0),
+            Slice { axis, .. } => children() & !axis.bit(),
+            FindTopSurface { .. } => children() & !AXIS_Y,
+            _ => children(),
+        }
+    }
+
+    pub fn rewrite_children(&self, rule: &dyn RewriteRule) -> ProtoDensityFunction {
+        let mut rewritten = self.clone();
+        rewritten.visit_children_mut(&mut |child| *child = rule.rewrite(child));
+        rewritten
+    }
+}
+
+impl DensityFunctionHolder {
+    pub fn domain_axes(&self) -> u8 {
+        match self {
+            DensityFunctionHolder::Value(_) => 0,
+            // Inlining resolves every reference, so one that reaches here is opaque.
+            // The mask is a may-vary over-approximation, so all axes stays sound.
+            DensityFunctionHolder::Reference(_) => ALL_AXES,
+            DensityFunctionHolder::Owned(function) => function.domain_axes(),
+        }
+    }
+
+    pub fn rewrite_children(&self, rule: &dyn RewriteRule) -> DensityFunctionHolder {
+        match self {
+            DensityFunctionHolder::Value(_) | DensityFunctionHolder::Reference(_) => self.clone(),
+            DensityFunctionHolder::Owned(function) => {
+                DensityFunctionHolder::Owned(Box::new(function.rewrite_children(rule)))
+            }
+        }
+    }
+}
+
+pub trait RewriteRule {
+    fn rewrite(&self, function: &DensityFunctionHolder) -> DensityFunctionHolder;
+}
+
+pub struct InlineReference<'a>(pub &'a std::collections::BTreeMap<ResourceLocation, ProtoDensityFunction>);
+
+impl RewriteRule for InlineReference<'_> {
+    fn rewrite(&self, function: &DensityFunctionHolder) -> DensityFunctionHolder {
+        match function {
+            DensityFunctionHolder::Reference(id) => match self.0.get(id) {
+                Some(resolved) => {
+                    DensityFunctionHolder::Owned(Box::new(resolved.rewrite_children(self)))
+                }
+                None => function.clone(),
+            },
+            _ => function.rewrite_children(self),
+        }
+    }
+}
