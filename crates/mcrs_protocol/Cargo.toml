@@ -11,6 +11,7 @@ encryption = ["dep:aes", "dep:cfb8"]
 compression = ["dep:flate2"]
 
 [dependencies]
+mcrs_palette.workspace = true
 mcrs_core.workspace = true
 mcrs_engine.workspace = true
 mcrs_text.workspace = true

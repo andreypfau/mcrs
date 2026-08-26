@@ -1,3 +1,32 @@
+/// An opaque voxel identifier. The engine never interprets it: the game assigns
+/// ids when its asset corpus loads, and they are not stable across runs, which
+/// is why this type has no serialized form.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash, Debug)]
+pub struct VoxelId(pub u16);
+
+impl From<u16> for VoxelId {
+    #[inline]
+    fn from(id: u16) -> Self {
+        VoxelId(id)
+    }
+}
+
+impl From<VoxelId> for u16 {
+    #[inline]
+    fn from(id: VoxelId) -> Self {
+        id.0
+    }
+}
+
+impl std::ops::Deref for VoxelId {
+    type Target = u16;
+
+    #[inline]
+    fn deref(&self) -> &u16 {
+        &self.0
+    }
+}
+
 /// `Mth.ceillog2`: the width an index into `count` distinct values must have.
 /// Answers 0 for a count of 0 or 1, which is what a single-value palette needs.
 #[inline]
