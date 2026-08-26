@@ -13,7 +13,6 @@ pub mod runner;
 pub use runner::run_server_loop;
 pub mod configuration;
 mod dimension_type;
-mod direction;
 pub mod disconnect;
 mod keep_alive;
 pub mod login;

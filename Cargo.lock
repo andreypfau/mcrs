@@ -3512,6 +3512,7 @@ dependencies = [
  "bevy_derive",
  "bevy_ecs",
  "bevy_math",
+ "serde",
 ]
 
 [[package]]
