@@ -79,9 +79,9 @@ impl LoadedRegistryAssets {
     }
 }
 
-pub struct MinecraftCorePlugin;
+pub struct MinecraftWorldPlugin;
 
-impl Plugin for MinecraftCorePlugin {
+impl Plugin for MinecraftWorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<dimension::dimension_type::DimensionType>();
         app.register_asset_loader(dimension::dimension_type::DimensionTypeLoader);

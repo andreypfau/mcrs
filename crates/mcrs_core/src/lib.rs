@@ -29,9 +29,9 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 /// asset type, and the `TagFileLoader`.
 ///
 /// All other `mc_*` plugins depend on this one.
-pub struct MinecraftEnginePlugin;
+pub struct MinecraftCorePlugin;
 
-impl Plugin for MinecraftEnginePlugin {
+impl Plugin for MinecraftCorePlugin {
     fn build(&self, app: &mut App) {
         if !app.is_plugin_added::<StatesPlugin>() {
             app.add_plugins(StatesPlugin);

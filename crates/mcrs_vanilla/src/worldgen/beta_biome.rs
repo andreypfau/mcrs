@@ -22,7 +22,7 @@ pub struct BetaBiomeSourcePlugin;
 impl Plugin for BetaBiomeSourcePlugin {
     fn build(&self, app: &mut App) {
         // The per-dim sub-app has its own AssetServer that never sees
-        // MinecraftCorePlugin's registrations, so Biome must be registered here.
+        // MinecraftWorldPlugin's registrations, so Biome must be registered here.
         app.init_asset::<Biome>();
         app.register_asset_loader(BiomeLoader);
         app.add_systems(Startup, build_beta_biome_source_on_start);

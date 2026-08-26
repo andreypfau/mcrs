@@ -7,7 +7,7 @@ use mcrs_core::tag::TagLoader;
 use mcrs_core::tag::key::TagKey;
 use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_core::AppState;
-use mcrs_vanilla::MinecraftCorePlugin;
+use mcrs_vanilla::MinecraftWorldPlugin;
 use mcrs_vanilla::block::definition::Blocks;
 use mcrs_vanilla::block::{Block, tags as block_tags};
 
@@ -33,8 +33,8 @@ fn tags_load_resolve_and_freeze_on_the_way_to_playing() {
         watch_for_changes_override: Some(false),
         ..Default::default()
     });
-    app.add_plugins(mcrs_core::MinecraftEnginePlugin);
-    app.add_plugins(MinecraftCorePlugin);
+    app.add_plugins(mcrs_core::MinecraftCorePlugin);
+    app.add_plugins(MinecraftWorldPlugin);
     app.finish();
     app.cleanup();
 

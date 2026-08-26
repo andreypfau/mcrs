@@ -32,15 +32,15 @@ use mcrs_minecraft_lighting::plugin::BlockLightTablePlugin;
 use mcrs_network::NetworkPlugin;
 use mcrs_voxel_server::VoxelServerPlugin;
 
-pub struct ServerPlugin;
+pub struct MinecraftServerPlugin;
 
-impl Plugin for ServerPlugin {
+impl Plugin for MinecraftServerPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(VoxelServerPlugin {
             tick_rate: DEFAULT_TPS,
         });
-        app.add_plugins(mcrs_core::MinecraftEnginePlugin);
-        app.add_plugins(mcrs_vanilla::MinecraftCorePlugin);
+        app.add_plugins(mcrs_core::MinecraftCorePlugin);
+        app.add_plugins(mcrs_vanilla::MinecraftWorldPlugin);
         app.add_plugins(NetworkPlugin);
         app.add_plugins(LoginPlugin);
         app.add_plugins(ConfigurationStatePlugin);

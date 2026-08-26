@@ -1,6 +1,6 @@
 use bevy_app::App;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
-use mcrs_minecraft::ServerPlugin;
+use mcrs_minecraft::MinecraftServerPlugin;
 use mcrs_telemetry::TelemetryPlugin;
 
 mod chunk_render_debug;
@@ -23,6 +23,6 @@ async fn main() {
         ..Default::default()
     });
     app.add_plugins(TelemetryPlugin);
-    app.add_plugins(ServerPlugin);
+    app.add_plugins(MinecraftServerPlugin);
     mcrs_minecraft::run_server_loop(app);
 }

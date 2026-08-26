@@ -43,8 +43,8 @@ fn main() {
                 ..default()
             }),
     )
-    .add_plugins(mcrs_core::MinecraftEnginePlugin)
-    .add_plugins(mcrs_vanilla::MinecraftCorePlugin)
+    .add_plugins(mcrs_core::MinecraftCorePlugin)
+    .add_plugins(mcrs_vanilla::MinecraftWorldPlugin)
     .add_plugins(player::PlayerPlugin)
     .add_plugins(input::ClientInputPlugin)
     .add_plugins(local_player::LocalPlayerPlugin)

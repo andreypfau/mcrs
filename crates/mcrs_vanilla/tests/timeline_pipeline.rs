@@ -7,7 +7,7 @@ use mcrs_core::AppState;
 use mcrs_core::registry::snapshot::rl_from_asset_path;
 use mcrs_core::resource_location::ResourceLocation;
 use mcrs_core::tag::{DynRegistryIndex, DynTagRegistry, TagKey};
-use mcrs_vanilla::MinecraftCorePlugin;
+use mcrs_vanilla::MinecraftWorldPlugin;
 use mcrs_vanilla::dimension::dimension_type::{DimensionType, NetworkDimensionType};
 use mcrs_vanilla::environment::DimensionEnvironments;
 use mcrs_vanilla::timeline::Timeline;
@@ -34,8 +34,8 @@ fn run_to_playing() -> App {
         watch_for_changes_override: Some(false),
         ..Default::default()
     });
-    app.add_plugins(mcrs_core::MinecraftEnginePlugin);
-    app.add_plugins(MinecraftCorePlugin);
+    app.add_plugins(mcrs_core::MinecraftCorePlugin);
+    app.add_plugins(MinecraftWorldPlugin);
     app.finish();
     app.cleanup();
 
