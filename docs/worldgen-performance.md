@@ -192,3 +192,49 @@ Verified against the code, not inferred:
 - There is no `surface-skip` feature and no `estimate_max_surface_y`. Any table
   contrasting "with" and "without" it describes a build that cannot be produced.
 - `FlattenedSpline` does not exist.
+
+## Where the column ended up
+
+The measurements above were taken before parity with the reference was closed.
+Four changes landed after them, and the last one more than paid for the rest.
+
+| change | overworld ms/col |
+|---|---|
+| starting point | 1.18 |
+| noise coordinates in double | 1.43 |
+| interpolation moved inside the wrapper | 1.46 |
+| accumulation order matched to the reference | 1.46 |
+| arm-exclusive branches skipped | **1.01** |
+
+Beta went 0.60 to 0.53 over the same span and is unaffected by the branch
+schedule: its zone B is thirteen nodes with nothing to skip.
+
+Three of the four are corrections that cost time, and one of them is not visible
+as a line in the table: fixing the abs/square interval rule restored the noodle
+subtree and the spaghetti_3d_2 branch, which is 74% more octave work per column
+than the engine was doing when the 1.18 was measured. So the column is doing far
+more work than it was and still finishes 15% sooner.
+
+The branch schedule is where all of the speed came from, and it is worth being
+precise about why it beat its own prediction. The pruning experiment bounded a
+selector over a range of Y and resolved 26.5% of sites, which forecast an 18.8%
+saving. Evaluating the selector exactly at each position resolves every site,
+and keeping that resolution per position through the batch rather than requiring
+a whole batch to agree is what turned 18.8% into 37% of zone B octaves and 31%
+of column time.
+
+Two things measured and not taken:
+
+The octave kernel does not want hand vectorising on this target. The compiler
+already pairs the gradient products two lanes wide of its own accord, and
+reshaping the source into explicit arrays emits a byte-identical instruction
+histogram. Going wider needs eight gradients from a sixteen-entry table at
+data-dependent indices, and aarch64 has no gather; a byte-table lookup was tried
+and lost 13%, and its fused multiply-add changed 884790 of 2097152 results,
+confirming that the blend tree cannot tolerate fusion.
+
+Interval pruning of whole Y runs is not worth building. It proves 48-51% of
+lattice rows air, but those are the cheap rows, the walk costs 19% of what it
+saves, and stone is unprovable at any depth because the density ends in a
+minimum against a cave term that reaches -2.2 everywhere in the column. Net 21
+to 23%, against 31% already taken by branch skipping for far less machinery.
