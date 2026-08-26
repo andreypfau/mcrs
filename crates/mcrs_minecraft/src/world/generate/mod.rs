@@ -352,9 +352,6 @@ pub fn generate_column(
     let mut column_cache = noise_router.new_column_cache(block_x, block_z);
     noise_router.populate_columns(&mut column_cache);
 
-    #[cfg(feature = "surface-skip")]
-    let skip_above_y = noise_router.estimate_max_surface_y(&column_cache);
-
     let noise_min_y = noise_router.noise_min_y();
     let noise_max_y = noise_min_y + noise_router.noise_height() as i32;
 
@@ -407,30 +404,6 @@ pub fn generate_column(
                     );
                 }
                 return Some((BlockPalette::default(), biomes));
-            }
-
-            // Surface skip: sections above estimated max surface are guaranteed all-air
-            #[cfg(feature = "surface-skip")]
-            if let Some(max_y) = skip_above_y {
-                if sy * 16 >= max_y {
-                    // Skipped section breaks Y-adjacency, treated as a gap
-                    interp.reset_section_boundary();
-                    prev_sy = Some(sy);
-                    let mut biomes = BiomePalette::default();
-                    if let Some((src, reg)) = beta_biome {
-                        fill_biome_palette_beta(
-                            &mut biomes,
-                            sy,
-                            block_x,
-                            block_z,
-                            noise_router,
-                            &column_cache,
-                            src,
-                            reg,
-                        );
-                    }
-                    return Some((BlockPalette::default(), biomes));
-                }
             }
 
             // Invalidate Y-boundary cache when sections are not adjacent

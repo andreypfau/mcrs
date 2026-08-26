@@ -114,6 +114,22 @@ pub enum ProtoDensityFunction {
     Negate(SingleArgumentFunction),
     #[serde(alias = "minecraft:squeeze")]
     Squeeze(SingleArgumentFunction),
+    #[serde(alias = "minecraft:sqrt")]
+    Sqrt(SingleArgumentFunction),
+    #[serde(alias = "minecraft:log")]
+    Log(SingleArgumentFunction),
+    #[serde(alias = "minecraft:sign")]
+    Sign(SingleArgumentFunction),
+    #[serde(alias = "minecraft:pow")]
+    Pow(PowFunctionArguments),
+    #[serde(alias = "minecraft:floor")]
+    Floor(RoundFunctionArguments),
+    #[serde(alias = "minecraft:round")]
+    Round(RoundFunctionArguments),
+    #[serde(alias = "minecraft:ceil")]
+    Ceil(RoundFunctionArguments),
+    #[serde(alias = "minecraft:truncate")]
+    Truncate(RoundFunctionArguments),
     #[serde(alias = "minecraft:add")]
     Add(TwoArgumentFunction),
     #[serde(alias = "minecraft:mul")]
@@ -248,6 +264,40 @@ pub struct SingleArgumentFunction {
     pub input: DensityFunctionHolder,
 }
 
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
+pub enum RoundingMode {
+    Floor,
+    Round,
+    Ceil,
+    Truncate,
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct PowFunctionArguments {
+    pub base: DensityFunctionHolder,
+    pub exponent: DensityFunctionHolder,
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct RoundFunctionArguments {
+    pub input: DensityFunctionHolder,
+    #[cfg_attr(
+        feature = "serde",
+        serde(default = "RoundFunctionArguments::default_multiple")
+    )]
+    pub multiple: DensityFunctionHolder,
+}
+
+impl RoundFunctionArguments {
+    fn default_multiple() -> DensityFunctionHolder {
+        DensityFunctionHolder::Value(HashableF64(1.0))
+    }
+}
+
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -364,6 +414,14 @@ pub trait Visitor {
             ProtoDensityFunction::Reciprocal(x) => self.visit_reciprocal(x),
             ProtoDensityFunction::Negate(x) => self.visit_negate(x),
             ProtoDensityFunction::Squeeze(x) => self.visit_squeeze(x),
+            ProtoDensityFunction::Sqrt(x) => self.visit_sqrt(x),
+            ProtoDensityFunction::Log(x) => self.visit_log(x),
+            ProtoDensityFunction::Sign(x) => self.visit_sign(x),
+            ProtoDensityFunction::Pow(x) => self.visit_pow(x),
+            ProtoDensityFunction::Floor(x) => self.visit_round(RoundingMode::Floor, x),
+            ProtoDensityFunction::Round(x) => self.visit_round(RoundingMode::Round, x),
+            ProtoDensityFunction::Ceil(x) => self.visit_round(RoundingMode::Ceil, x),
+            ProtoDensityFunction::Truncate(x) => self.visit_round(RoundingMode::Truncate, x),
             ProtoDensityFunction::Add(x) => self.visit_add(x),
             ProtoDensityFunction::Mul(x) => self.visit_mul(x),
             ProtoDensityFunction::Sub(x) => self.visit_sub(x),
@@ -518,6 +576,23 @@ pub trait Visitor {
     }
     fn visit_squeeze(&mut self, function: &SingleArgumentFunction) {
         self.visit_single_argument_function(function)
+    }
+    fn visit_sqrt(&mut self, function: &SingleArgumentFunction) {
+        self.visit_single_argument_function(function)
+    }
+    fn visit_log(&mut self, function: &SingleArgumentFunction) {
+        self.visit_single_argument_function(function)
+    }
+    fn visit_sign(&mut self, function: &SingleArgumentFunction) {
+        self.visit_single_argument_function(function)
+    }
+    fn visit_pow(&mut self, function: &PowFunctionArguments) {
+        self.visit_density_function_holder(&function.base);
+        self.visit_density_function_holder(&function.exponent)
+    }
+    fn visit_round(&mut self, mode: RoundingMode, function: &RoundFunctionArguments) {
+        self.visit_density_function_holder(&function.input);
+        self.visit_density_function_holder(&function.multiple)
     }
     fn visit_add(&mut self, function: &TwoArgumentFunction) {
         self.visit_two_argument_function(function)

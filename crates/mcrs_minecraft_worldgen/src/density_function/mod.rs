@@ -1,7 +1,7 @@
 use crate::density_function::proto::{
     Axis, DensityFunctionHolder, DistanceMetric, HashableF64, NoiseHolder, NoiseParam,
-    ProtoDensityFunction, SingleArgumentFunction, SplineHolder, TilingMode, TwoArgumentFunction,
-    Visitor,
+    PowFunctionArguments, ProtoDensityFunction, RoundFunctionArguments, RoundingMode,
+    SingleArgumentFunction, SplineHolder, TilingMode, TwoArgumentFunction, Visitor,
 };
 use crate::noise::normal_noise::NoiseSampler;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
@@ -9,9 +9,9 @@ use crate::proto::NoiseGeneratorSettings;
 use crate::spline::{RangeFunction, SplineFunction};
 use bevy_math::{Curve, FloatExt, IVec3};
 use mcrs_core::ResourceLocation;
-use mcrs_voxel_storage::VoxelId;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_random::{Random, RandomSource};
+use mcrs_voxel_storage::VoxelId;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
 use std::mem::swap;
@@ -22,7 +22,7 @@ pub mod beta_seed;
 pub mod beta_terrain_f64;
 pub mod proto;
 
-/// Maximum number of positions that can be batched in a single fill_plane call.
+/// Maximum number of positions that can be batched in a single plane fill.
 /// 5 Z-columns * 3 Y-positions = 15, rounded up to 16 for alignment.
 #[cfg(feature = "batch-noise")]
 pub(crate) const MAX_BATCH: usize = 128;
@@ -62,6 +62,30 @@ fn mul_range(min1: f32, max1: f32, min2: f32, max2: f32) -> (f32, f32) {
     };
 
     (min, max)
+}
+
+// A negative base with a non-constant exponent falls back to the trivial
+// interval rather than analysing sign alternation. Ranges are only ever used to
+// prove work redundant, so a wider interval costs speed, never parity.
+fn pow_range(base: (f32, f32), exponent: (f32, f32)) -> (f32, f32) {
+    let is_constant = base.0 == base.1 && exponent.0 == exponent.1;
+    if base.0 < 0.0 && !is_constant {
+        return (f32::NEG_INFINITY, f32::INFINITY);
+    }
+    let corners = [
+        base.0.powf(exponent.0),
+        base.0.powf(exponent.1),
+        base.1.powf(exponent.0),
+        base.1.powf(exponent.1),
+    ];
+    if corners.iter().any(|v| v.is_nan()) {
+        return (f32::NEG_INFINITY, f32::INFINITY);
+    }
+    corners
+        .iter()
+        .fold((f32::INFINITY, f32::NEG_INFINITY), |(min, max), &value| {
+            (min.min(value), max.max(value))
+        })
 }
 
 fn reciprocal_range(min: f32, max: f32) -> (f32, f32) {
@@ -177,232 +201,6 @@ fn try_build_slide(idx: usize, stack: &[DensityFunctionComponent]) -> Option<Sli
     })
 }
 
-fn try_flatten_spline(
-    spline_idx: usize,
-    stack: &[DensityFunctionComponent],
-    grid_size: usize,
-) -> Option<FlattenedSpline> {
-    // 1. Collect all unique coordinate indices referenced by this spline
-    let spline = match &stack[spline_idx] {
-        DensityFunctionComponent::Dependent(DependentDensityFunction::Spline(s)) => s,
-        _ => return None,
-    };
-
-    let mut all_coords = Vec::new();
-    spline.visit_input_indices(&mut |idx| {
-        if !all_coords.contains(&idx) {
-            all_coords.push(idx);
-        }
-    });
-    all_coords.sort_unstable();
-
-    if all_coords.is_empty() {
-        return None;
-    }
-
-    // 2. Determine independent coordinates: those whose dependency cones
-    //    don't contain any other collected coordinate.
-    let mut independent = Vec::new();
-    for &coord_idx in &all_coords {
-        let mut is_derived = false;
-        // Walk backward from coord_idx through its dependency cone
-        let mut visited = vec![false; coord_idx + 1];
-        let mut queue = vec![coord_idx];
-        visited[coord_idx] = true;
-        while let Some(current) = queue.pop() {
-            stack[current].visit_input_indices(&mut |dep_idx| {
-                if dep_idx < visited.len() && !visited[dep_idx] {
-                    visited[dep_idx] = true;
-                    queue.push(dep_idx);
-                }
-            });
-        }
-        // Check if any OTHER collected coordinate is reachable from this one
-        for &other in &all_coords {
-            if other != coord_idx && other < visited.len() && visited[other] {
-                is_derived = true;
-                break;
-            }
-        }
-        if !is_derived {
-            independent.push(coord_idx);
-        }
-    }
-
-    if independent.len() != 3 {
-        return None;
-    }
-
-    let coord_indices = [independent[0], independent[1], independent[2]];
-
-    // 3. Get ranges of the 3 independent coordinates.
-    //    Use static ranges, but also extract location ranges from the spline tree itself
-    //    to handle cases where static range analysis is degenerate (e.g., Abs range bug).
-    let mut coord_min = [f32::INFINITY; 3];
-    let mut coord_max = [f32::NEG_INFINITY; 3];
-    // Seed from static ranges
-    for i in 0..3 {
-        let smin = stack[coord_indices[i]].min_value();
-        let smax = stack[coord_indices[i]].max_value();
-        coord_min[i] = coord_min[i].min(smin);
-        coord_max[i] = coord_max[i].max(smax);
-    }
-    // Also extract ranges from spline location arrays
-    fn collect_spline_ranges(
-        spline: &Spline,
-        coord_indices: &[usize; 3],
-        coord_min: &mut [f32; 3],
-        coord_max: &mut [f32; 3],
-    ) {
-        for (i, &idx) in coord_indices.iter().enumerate() {
-            if spline.input_index == idx {
-                if let (Some(&first), Some(&last)) =
-                    (spline.locations.first(), spline.locations.last())
-                {
-                    coord_min[i] = coord_min[i].min(first);
-                    coord_max[i] = coord_max[i].max(last);
-                }
-            }
-        }
-        for val in spline.values.iter() {
-            if let SplineValue::Spline(nested) = val {
-                collect_spline_ranges(nested, coord_indices, coord_min, coord_max);
-            }
-        }
-    }
-    collect_spline_ranges(spline, &coord_indices, &mut coord_min, &mut coord_max);
-
-    for i in 0..3 {
-        // Ensure non-degenerate range
-        if (coord_max[i] - coord_min[i]).abs() < 1e-10 {
-            return None;
-        }
-    }
-
-    let coord_inv_range = [
-        1.0 / (coord_max[0] - coord_min[0]),
-        1.0 / (coord_max[1] - coord_min[1]),
-        1.0 / (coord_max[2] - coord_min[2]),
-    ];
-
-    // 3b. Count unique knot positions per axis to determine per-axis grid sizes.
-    //     More knots = more features = need higher resolution.
-    let mut knot_counts = [0usize; 3];
-    fn count_knots_per_axis(
-        spline: &Spline,
-        coord_indices: &[usize; 3],
-        knot_counts: &mut [usize; 3],
-    ) {
-        for (i, &idx) in coord_indices.iter().enumerate() {
-            if spline.input_index == idx {
-                knot_counts[i] = knot_counts[i].max(spline.locations.len());
-            }
-        }
-        for val in spline.values.iter() {
-            if let SplineValue::Spline(nested) = val {
-                count_knots_per_axis(nested, coord_indices, knot_counts);
-            }
-        }
-    }
-    count_knots_per_axis(spline, &coord_indices, &mut knot_counts);
-
-    // Per-axis grid: at least base_grid, but scale up for axes with many knots.
-    // Use ~8 grid points per knot interval for good cubic interpolation.
-    let mut grid_sizes = [0usize; 3];
-    for i in 0..3 {
-        let knot_based = if knot_counts[i] > 1 {
-            (knot_counts[i] - 1) * 8
-        } else {
-            grid_size
-        };
-        grid_sizes[i] = grid_size.max(knot_based);
-    }
-
-    let strides = [grid_sizes[1] * grid_sizes[2], grid_sizes[2], 1];
-
-    // 4. Determine which stack entries need forward evaluation
-    //    (entries between min(independent) and spline_idx that are in the dependency cone)
-    let min_coord = coord_indices[0]; // already sorted
-
-    // Collect the set of entries we need to evaluate: everything in the dependency cone
-    // of each all_coords entry, from min_coord..=max_coord (excluding the independent coords,
-    // which we set directly)
-    let mut needs_eval: Vec<usize> = Vec::new();
-    for &c in &all_coords {
-        if !coord_indices.contains(&c) {
-            needs_eval.push(c);
-        }
-    }
-    // Also find intermediate entries between min_coord and max_coord that feed into derived coords
-    for &derived in &needs_eval.clone() {
-        let mut queue = vec![derived];
-        let mut visited_set = vec![false; stack.len()];
-        visited_set[derived] = true;
-        while let Some(current) = queue.pop() {
-            stack[current].visit_input_indices(&mut |dep_idx| {
-                if dep_idx >= min_coord && !visited_set[dep_idx] {
-                    visited_set[dep_idx] = true;
-                    if !coord_indices.contains(&dep_idx) && !needs_eval.contains(&dep_idx) {
-                        needs_eval.push(dep_idx);
-                    }
-                    queue.push(dep_idx);
-                }
-            });
-        }
-    }
-    needs_eval.sort_unstable();
-    needs_eval.dedup();
-
-    // 5. Build the LUT
-    let total = grid_sizes[0] * grid_sizes[1] * grid_sizes[2];
-    let mut lut = vec![0.0f32; total];
-    let mut lut_min = f32::INFINITY;
-    let mut lut_max = f32::NEG_INFINITY;
-
-    let mut cache = vec![0.0f32; stack.len()];
-
-    for i in 0..grid_sizes[0] {
-        let c0 =
-            coord_min[0] + (i as f32 / (grid_sizes[0] - 1) as f32) * (coord_max[0] - coord_min[0]);
-        cache[coord_indices[0]] = c0;
-
-        for j in 0..grid_sizes[1] {
-            let c1 = coord_min[1]
-                + (j as f32 / (grid_sizes[1] - 1) as f32) * (coord_max[1] - coord_min[1]);
-            cache[coord_indices[1]] = c1;
-
-            for k in 0..grid_sizes[2] {
-                let c2 = coord_min[2]
-                    + (k as f32 / (grid_sizes[2] - 1) as f32) * (coord_max[2] - coord_min[2]);
-                cache[coord_indices[2]] = c2;
-
-                // Forward-evaluate derived entries
-                for &entry_idx in &needs_eval {
-                    cache[entry_idx] = stack[entry_idx].sample_cached(&cache, stack, IVec3::ZERO);
-                }
-
-                // Evaluate the spline
-                let value = spline.sample_cached(&cache, stack, IVec3::ZERO);
-                let lut_idx = i * strides[0] + j * strides[1] + k;
-                lut[lut_idx] = value;
-                lut_min = lut_min.min(value);
-                lut_max = lut_max.max(value);
-            }
-        }
-    }
-
-    Some(FlattenedSpline {
-        coord_indices,
-        coord_min,
-        coord_inv_range,
-        grid_sizes,
-        strides,
-        lut: lut.into_boxed_slice(),
-        min_value: lut_min,
-        max_value: lut_max,
-    })
-}
-
 fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]) {
     let n = stack.len();
     if n == 0 {
@@ -431,20 +229,7 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
             let replacement = match (c1, c2, bin.operation) {
                 // Both constant → fold for all operations
                 (Some(a), Some(b), op) => {
-                    let result = match op {
-                        BinaryOperation::Add => a + b,
-                        BinaryOperation::Subtract => a - b,
-                        BinaryOperation::Multiply => a * b,
-                        BinaryOperation::Divide => {
-                            if a == 0.0 {
-                                0.0
-                            } else {
-                                a / b
-                            }
-                        }
-                        BinaryOperation::Min => a.min(b),
-                        BinaryOperation::Max => a.max(b),
-                    };
+                    let result = op.apply(a, b);
                     Some(DensityFunctionComponent::Independent(
                         IndependentDensityFunction::Constant(result),
                     ))
@@ -979,7 +764,10 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
                         );
                         binary_demotions += 1;
                     }
-                    BinaryOperation::Subtract | BinaryOperation::Divide => {}
+                    BinaryOperation::Subtract
+                    | BinaryOperation::Divide
+                    | BinaryOperation::Pow
+                    | BinaryOperation::Round(_) => {}
                 }
             }
         }
@@ -1009,21 +797,6 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
         *root = redirect[*root];
     }
 
-    // Phase 3: Flatten splines to lookup tables
-    let mut splines_flattened = 0usize;
-    // let grid_size = 128;
-    // for i in 0..stack.len() {
-    //     if let DensityFunctionComponent::Dependent(DependentDensityFunction::Spline(_)) = &stack[i]
-    //     {
-    //         if let Some(flat) = try_flatten_spline(i, stack, grid_size) {
-    //             stack[i] = DensityFunctionComponent::Dependent(
-    //                 DependentDensityFunction::FlattenedSpline(flat),
-    //             );
-    //             splines_flattened += 1;
-    //         }
-    //     }
-    // }
-
     info!(
         stack_size = n,
         affine_fusions,
@@ -1032,7 +805,6 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
         identities_eliminated,
         binary_demotions,
         slide_fusions,
-        splines_flattened,
         "Density function stack optimized"
     );
 }
@@ -1277,7 +1049,7 @@ pub struct DensityCache {
 /// the per-block hot path when evaluating `final_density`.
 ///
 /// The 17x17 grid covers local coordinates 0..=16 in both X and Z, which is needed because
-/// `fill_plane` samples corner positions at block_x+0, block_x+4, ..., block_x+16.
+/// plane fills sample corner positions at block_x+0, block_x+4, ..., block_x+16.
 pub struct ColumnCache {
     /// `column_data[xz_idx * zone_a_count + entry_idx]`
     /// where `xz_idx = local_x * GRID_SIDE + local_z` (row-major).
@@ -1404,13 +1176,6 @@ fn compute_lazy_range_choice(
             .filter(|e| !wi_exclusive.contains(e))
             .collect();
 
-        eprintln!(
-            "  Lazy RangeChoice at [{}]: when_in skips {}, when_out skips {}",
-            rc_idx,
-            wo_exclusive.len(),
-            wi_exclusive.len(),
-        );
-
         best_savings = savings;
         best = Some(LazyRangeChoice {
             input_index: input_idx,
@@ -1519,31 +1284,6 @@ pub fn build_functions(
     #[cfg(feature = "lazy-range-choice")]
     let lazy_rc = compute_lazy_range_choice(&builder.stack, column_boundary, final_density_index);
 
-    // Surface-skip: find Zone A indices for offset/factor, and max of OldBlendedNoise.
-    #[cfg(feature = "surface-skip")]
-    let offset_za_index = node_labels[..column_boundary]
-        .iter()
-        .position(|l| l == "minecraft:overworld/offset");
-    #[cfg(feature = "surface-skip")]
-    let factor_za_index = node_labels[..column_boundary]
-        .iter()
-        .position(|l| l == "minecraft:overworld/factor");
-    // OldBlendedNoise::max_value() returns edge_value(y_multiplier + 2.0) ≈ 87.5,
-    // which is an extremely conservative Java-style bound. The actual sample() output
-    // is bounded by ~2.0: ImprovedNoise gradients have max dot product 2.0 (from the
-    // FLAT_SIMPLEX_GRAD table), and the 2^i octave weighting cancels with the /512/128
-    // output divisions. We use 2.0 as the proven bound (0 if no OldBlendedNoise found).
-    #[cfg(feature = "surface-skip")]
-    let base_3d_noise_max = if builder.stack.iter().any(|c| {
-        matches!(
-            c,
-            DensityFunctionComponent::Independent(IndependentDensityFunction::OldBlendedNoise(_))
-        )
-    }) {
-        2.0f32
-    } else {
-        0.0f32
-    };
 
     // Expose beach and surface octave noises for the Beta surface pass.
     // Only populated when using the Beta (legacy) random source; modern router gets None.
@@ -1587,30 +1327,6 @@ pub fn build_functions(
         node_labels: node_labels.into_boxed_slice(),
         #[cfg(feature = "lazy-range-choice")]
         lazy_rc,
-        #[cfg(feature = "surface-skip")]
-        offset_za_index,
-        #[cfg(feature = "surface-skip")]
-        factor_za_index,
-        #[cfg(feature = "surface-skip")]
-        base_3d_noise_max,
-        #[cfg(feature = "batch-noise")]
-        obn_zone_b_index: None, // computed below
-    };
-
-    #[cfg(feature = "batch-noise")]
-    let router = {
-        let mut router = router;
-        // Find OldBlendedNoise index in Zone B for batch prefetching
-        for i in router.column_boundary..=router.final_density_index {
-            if let DensityFunctionComponent::Independent(
-                IndependentDensityFunction::OldBlendedNoise(_),
-            ) = &router.stack[i]
-            {
-                router.obn_zone_b_index = Some(i);
-                break;
-            }
-        }
-        router
     };
 
     router
@@ -1680,18 +1396,6 @@ pub struct NoiseRouter {
     /// evaluation lists to skip entries exclusive to the inactive branch.
     #[cfg(feature = "lazy-range-choice")]
     lazy_rc: Option<LazyRangeChoice>,
-    /// Zone A index of `"minecraft:overworld/offset"` for surface estimation.
-    #[cfg(feature = "surface-skip")]
-    offset_za_index: Option<usize>,
-    /// Zone A index of `"minecraft:overworld/factor"` for surface estimation.
-    #[cfg(feature = "surface-skip")]
-    factor_za_index: Option<usize>,
-    /// Maximum value of the OldBlendedNoise function (base 3D noise ceiling).
-    #[cfg(feature = "surface-skip")]
-    base_3d_noise_max: f32,
-    /// Index of OldBlendedNoise in Zone B, used for batch prefetching.
-    #[cfg(feature = "batch-noise")]
-    obn_zone_b_index: Option<usize>,
 }
 
 impl NoiseRouter {
@@ -1728,177 +1432,6 @@ impl NoiseRouter {
     #[inline]
     pub fn sample_entry(&self, index: usize, cache: &[f32], pos: IVec3) -> f32 {
         self.stack[index].sample_cached(cache, &self.stack, pos)
-    }
-
-    /// Print Zone B composition to stderr for profiling purposes.
-    pub fn print_zone_stats(&self) {
-        let zone_a = self.column_boundary;
-        let zone_b = self.final_density_index + 1 - self.column_boundary;
-        let zone_c = self.stack.len() - self.fd_boundary;
-        eprintln!(
-            "  Zone A (column-only):  {} entries [0..{})",
-            zone_a, self.column_boundary
-        );
-        eprintln!(
-            "  Zone B (per-Y final):  {} entries [{}..={}]",
-            zone_b, self.column_boundary, self.final_density_index
-        );
-        eprintln!(
-            "  Zone C (other roots):  {} entries [{}..{})",
-            zone_c,
-            self.fd_boundary,
-            self.stack.len()
-        );
-        eprintln!("  Total stack: {} entries", self.stack.len());
-
-        // Count Zone B by type
-        let mut constants = 0usize;
-        let mut old_blended = 0;
-        let mut noise = 0;
-        let mut shift = 0;
-        let mut clamped_y = 0;
-        let mut linear = 0;
-        let mut affine = 0;
-        let mut piecewise = 0;
-        let mut slide = 0;
-        let mut unary = 0;
-        let mut binary = 0;
-        let mut shifted_noise = 0;
-        let mut clamp = 0;
-        let mut range_choice = 0;
-        let mut spline = 0;
-        let mut flat_spline = 0;
-        let mut find_top = 0;
-        for i in self.column_boundary..=self.final_density_index {
-            match &self.stack[i] {
-                DensityFunctionComponent::Independent(f) => match f {
-                    IndependentDensityFunction::Constant(_) => constants += 1,
-                    IndependentDensityFunction::OldBlendedNoise(_) => old_blended += 1,
-                    IndependentDensityFunction::Noise(_) => noise += 1,
-                    IndependentDensityFunction::ShiftA(_)
-                    | IndependentDensityFunction::ShiftB(_)
-                    | IndependentDensityFunction::Shift(_) => shift += 1,
-                    IndependentDensityFunction::ClampedYGradient(_) => clamped_y += 1,
-                    IndependentDensityFunction::Gradient(_) => clamped_y += 1,
-                    IndependentDensityFunction::DistanceToPoint(_) => {}
-                    IndependentDensityFunction::EndOuterIslands => {}
-                },
-                DensityFunctionComponent::Wrapper(_) => {}
-                DensityFunctionComponent::Dependent(f) => match f {
-                    DependentDensityFunction::Linear(_) => linear += 1,
-                    DependentDensityFunction::Affine(_) => affine += 1,
-                    DependentDensityFunction::PiecewiseAffine(_) => piecewise += 1,
-                    DependentDensityFunction::Slide(_) => slide += 1,
-                    DependentDensityFunction::Unary(_) => unary += 1,
-                    DependentDensityFunction::Binary(_) => binary += 1,
-                    DependentDensityFunction::ShiftedNoise(_) => shifted_noise += 1,
-                    DependentDensityFunction::Clamp(_) => clamp += 1,
-                    DependentDensityFunction::RangeChoice(_) => range_choice += 1,
-                    DependentDensityFunction::Spline(_) => spline += 1,
-                    DependentDensityFunction::FlattenedSpline(_) => flat_spline += 1,
-                    DependentDensityFunction::FindTopSurface(_) => find_top += 1,
-                    DependentDensityFunction::Lerp(_) | DependentDensityFunction::Slice(_) => {}
-                },
-            }
-        }
-        eprintln!("\n  Zone B breakdown:");
-        if constants > 0 {
-            eprintln!("    Constant:        {}", constants);
-        }
-        if old_blended > 0 {
-            eprintln!("    OldBlendedNoise: {}", old_blended);
-        }
-        if noise > 0 {
-            eprintln!("    Noise:           {}", noise);
-        }
-        if shift > 0 {
-            eprintln!("    Shift:           {}", shift);
-        }
-        if clamped_y > 0 {
-            eprintln!("    ClampedYGrad:    {}", clamped_y);
-        }
-        if linear > 0 {
-            eprintln!("    Linear:          {}", linear);
-        }
-        if affine > 0 {
-            eprintln!("    Affine:          {}", affine);
-        }
-        if piecewise > 0 {
-            eprintln!("    PiecewiseAffine: {}", piecewise);
-        }
-        if slide > 0 {
-            eprintln!("    Slide:           {}", slide);
-        }
-        if unary > 0 {
-            eprintln!("    Unary:           {}", unary);
-        }
-        if binary > 0 {
-            eprintln!("    Binary:          {}", binary);
-        }
-        if shifted_noise > 0 {
-            eprintln!("    ShiftedNoise:    {}", shifted_noise);
-        }
-        if clamp > 0 {
-            eprintln!("    Clamp:           {}", clamp);
-        }
-        if range_choice > 0 {
-            eprintln!("    RangeChoice:     {}", range_choice);
-        }
-        if spline > 0 {
-            eprintln!("    Spline:          {}", spline);
-        }
-        if flat_spline > 0 {
-            eprintln!("    FlattenedSpline: {}", flat_spline);
-        }
-        if find_top > 0 {
-            eprintln!("    FindTopSurface:  {}", find_top);
-        }
-    }
-
-    /// Estimate the maximum Y coordinate that could contain solid blocks in
-    /// this chunk column. Returns `None` if the required Zone A entries
-    /// (overworld/offset and overworld/factor) are not available.
-    ///
-    /// The estimate is conservative (always >= actual surface) with a +1 section
-    /// safety margin. Sections at or above the returned Y can be skipped entirely.
-    ///
-    /// Math: density > 0 (solid) when `depth * factor + noise > 0`.
-    /// Above surface: `depth = y_gradient(y) + offset`.
-    /// Solving `(y_gradient + offset) * factor + noise_max = 0`:
-    ///   `y = (1.5 + offset + noise_max/factor) * 128 - 64`
-    #[cfg(feature = "surface-skip")]
-    pub fn estimate_max_surface_y(&self, cache: &ColumnCache) -> Option<i32> {
-        let offset_idx = self.offset_za_index?;
-        let factor_idx = self.factor_za_index?;
-        let step = self.h_cell_blocks as i32;
-        let corners = 16 / step + 1; // 5 for step=4
-        let mut max_y = f32::NEG_INFINITY;
-        for cx in 0..corners {
-            let local_x = cx * step;
-            for cz in 0..corners {
-                let local_z = cz * step;
-                let offset = cache.read_za_value(local_x, local_z, offset_idx);
-                let factor = cache.read_za_value(local_x, local_z, factor_idx);
-                // Factor must be positive for the formula to be valid.
-                // Negative/zero factor inverts the depth contribution, making
-                // surface prediction unreliable. NaN also fails this check.
-                // These values are data-driven (from JSON), so bail out.
-                if !(factor > 0.0) {
-                    return None;
-                }
-                // y = (1.5 + offset + noise_max/factor) * 128 - 64
-                let surface_y =
-                    (1.5 + offset as f64 + self.base_3d_noise_max as f64 / factor as f64) * 128.0
-                        - 64.0;
-                max_y = max_y.max(surface_y as f32);
-            }
-        }
-        // Guard against NaN from offset (NaN comparisons propagate through max)
-        if !max_y.is_finite() {
-            return None;
-        }
-        // Round up to section boundary + 1 section safety margin
-        Some(((max_y / 16.0).ceil() as i32 + 1) * 16)
     }
 
     /// Create a new DensityCache for use with `final_density`.
@@ -1976,64 +1509,13 @@ impl NoiseRouter {
         self.beta_surface_noise.as_deref()
     }
 
-    pub fn final_density(&self, pos: IVec3, cache: &mut DensityCache) -> f32 {
-        self.evaluate_forward(self.final_density_index, pos, cache)
+    pub fn sample_root(&self, root: usize, pos: IVec3, cache: &mut DensityCache) -> f32 {
+        self.evaluate_forward(root, pos, cache)
     }
 
     /// Evaluate final_density without caching (recursive, for validation/comparison).
     pub fn final_density_uncached(&self, pos: IVec3) -> f32 {
         DensityFunctionComponent::sample_from_stack(&self.stack[..=self.final_density_index], pos)
-    }
-
-    /// Verify that evaluate_forward (zone-based cached) matches the simple forward sweep
-    /// at multiple positions. Tests both fresh-cache and column-reuse paths.
-    /// Returns true if all checks pass.
-    pub fn verify_evaluation(&self, positions: &[IVec3]) -> bool {
-        let mut ok = true;
-
-        // Test 1: Each position with a fresh cache
-        for &pos in positions {
-            let mut values = vec![0.0f32; self.final_density_index + 1];
-            for i in 0..=self.final_density_index {
-                values[i] = self.stack[i].sample_cached(&values, &self.stack, pos);
-            }
-            let expected = values[self.final_density_index];
-
-            let mut cache = self.new_cache();
-            let actual = self.final_density(pos, &mut cache);
-
-            if (expected - actual).abs() > 1e-6 {
-                eprintln!(
-                    "MISMATCH (fresh) at ({},{},{}): expected={}, actual={}",
-                    pos.x, pos.y, pos.z, expected, actual
-                );
-                ok = false;
-            }
-        }
-
-        // Test 2: Column-reuse — same XZ, iterate Y with shared cache
-        let mut cache = self.new_cache();
-        for &base in positions.iter().take(4) {
-            for y in (-64..=320).step_by(8) {
-                let pos = IVec3::new(base.x, y, base.z);
-                let mut values = vec![0.0f32; self.final_density_index + 1];
-                for i in 0..=self.final_density_index {
-                    values[i] = self.stack[i].sample_cached(&values, &self.stack, pos);
-                }
-                let expected = values[self.final_density_index];
-                let actual = self.final_density(pos, &mut cache);
-
-                if (expected - actual).abs() > 1e-6 {
-                    eprintln!(
-                        "MISMATCH (column) at ({},{},{}): expected={}, actual={}",
-                        pos.x, pos.y, pos.z, expected, actual
-                    );
-                    ok = false;
-                }
-            }
-        }
-
-        ok
     }
 
     /// Create a new `ColumnCache` for a 17x17 chunk column grid starting at block (base_block_x, base_block_z).
@@ -2059,7 +1541,7 @@ impl NoiseRouter {
 
     /// Pre-populate Zone A values at cell corner positions in the chunk column grid.
     /// Only evaluates the (h_cells+1)^2 = 25 corner positions (step by h_cell_blocks),
-    /// not every block position. This matches exactly the positions sampled by `fill_plane`.
+    /// not every block position. This matches exactly the positions sampled by the plane fills.
     pub fn populate_columns(&self, cache: &mut ColumnCache) {
         let zone_a_count = cache.zone_a_count;
         let grid_side = ColumnCache::GRID_SIDE;
@@ -2189,84 +1671,6 @@ impl NoiseRouter {
         cache.scratch[self.final_density_index]
     }
 
-    /// Batch-evaluate OldBlendedNoise for multiple positions.
-    /// Used by `fill_plane_cached_reuse` to prefetch the dominant noise cost
-    /// before running per-position density stack evaluation.
-    /// If no OldBlendedNoise exists in Zone B, `results` is zeroed.
-    #[cfg(feature = "batch-noise")]
-    pub fn prefetch_obn_batch(&self, positions: &[IVec3], results: &mut [f32]) {
-        if let Some(idx) = self.obn_zone_b_index {
-            if let DensityFunctionComponent::Independent(
-                IndependentDensityFunction::OldBlendedNoise(noise),
-            ) = &self.stack[idx]
-            {
-                // Use individual evaluations to avoid sample_batch Vec allocations.
-                // The benefit comes from separating OBN evaluation from the
-                // density stack, so the per-position stack eval skips it.
-                for (i, pos) in positions.iter().enumerate() {
-                    results[i] = noise.sample(&[], *pos);
-                }
-                return;
-            }
-        }
-        results.iter_mut().for_each(|r| *r = 0.0);
-    }
-
-    /// Evaluate final_density using a pre-populated column cache, with a
-    /// pre-computed OldBlendedNoise value injected. Skips the OBN entry
-    /// in the stack since its value is already known.
-    #[cfg(feature = "batch-noise")]
-    #[inline(always)]
-    pub fn final_density_from_column_cache_prefetched(
-        &self,
-        pos: IVec3,
-        cache: &mut ColumnCache,
-        obn_value: f32,
-    ) -> f32 {
-        // usize::MAX sentinel means "no OBN to skip"
-        let obn_skip = self.obn_zone_b_index.unwrap_or(usize::MAX);
-
-        // Pre-populate the OBN slot so downstream entries can read it
-        if obn_skip != usize::MAX {
-            cache.scratch[obn_skip] = obn_value;
-        }
-
-        #[cfg(feature = "lazy-range-choice")]
-        if let Some(rc) = &self.lazy_rc {
-            for i in self.column_boundary..=rc.input_index {
-                if i == obn_skip {
-                    continue;
-                }
-                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
-            }
-
-            let input_val = cache.scratch[rc.input_index];
-            let in_range = input_val >= rc.min_inclusion && input_val < rc.max_exclusion;
-            let branch = if in_range {
-                &rc.branch_when_in
-            } else {
-                &rc.branch_when_out
-            };
-
-            for &i in branch.iter() {
-                if i == obn_skip {
-                    continue;
-                }
-                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
-            }
-
-            return cache.scratch[self.final_density_index];
-        }
-
-        for i in self.column_boundary..=self.final_density_index {
-            if i == obn_skip {
-                continue;
-            }
-            cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
-        }
-        cache.scratch[self.final_density_index]
-    }
-
     /// Batch-evaluate Zone B of final_density across multiple positions.
     ///
     /// **Preconditions**: `cache.batch_scratch` must be pre-populated with Zone A data for
@@ -2369,20 +1773,7 @@ impl NoiseRouter {
                             let base = p * stack_len;
                             let a = cache.batch_scratch[base + x.input1_index];
                             let b = cache.batch_scratch[base + x.input2_index];
-                            cache.batch_scratch[base + i] = match x.operation {
-                                BinaryOperation::Add => a + b,
-                                BinaryOperation::Subtract => a - b,
-                                BinaryOperation::Multiply => a * b,
-                                BinaryOperation::Divide => {
-                                    if a == 0.0 {
-                                        0.0
-                                    } else {
-                                        a / b
-                                    }
-                                }
-                                BinaryOperation::Min => a.min(b),
-                                BinaryOperation::Max => a.max(b),
-                            };
+                            cache.batch_scratch[base + i] = x.operation.apply(a, b);
                         }
                     }
                     DependentDensityFunction::ShiftedNoise(x) => {
@@ -2426,16 +1817,6 @@ impl NoiseRouter {
                                 .copy_from_slice(&cache.batch_scratch[base..base + stack_len]);
                             cache.batch_scratch[base + i] =
                                 x.sample_cached(&cache.spline_temp, &self.stack, positions[p]);
-                        }
-                    }
-                    DependentDensityFunction::FlattenedSpline(x) => {
-                        for p in 0..n {
-                            let base = p * stack_len;
-                            cache.batch_scratch[base + i] = x.evaluate(
-                                cache.batch_scratch[base + x.coord_indices[0]],
-                                cache.batch_scratch[base + x.coord_indices[1]],
-                                cache.batch_scratch[base + x.coord_indices[2]],
-                            );
                         }
                     }
                     DependentDensityFunction::Lerp(x) => {
@@ -2491,7 +1872,6 @@ impl NoiseRouter {
                 },
                 DensityFunctionComponent::Wrapper(f) => {
                     let input_index = match f {
-                        WrapperDensityFunction::BlendDensity(x) => x.input_index,
                         WrapperDensityFunction::Interpolated(x) => x.input_index,
                         WrapperDensityFunction::Cache(x) => x.input_index,
                     };
@@ -2507,40 +1887,6 @@ impl NoiseRouter {
         for p in 0..n {
             results[p] = cache.batch_scratch[p * stack_len + self.final_density_index];
         }
-    }
-
-    /// Batch-evaluate final_density at multiple positions sharing the same Zone A column.
-    /// Zone A values must already be loaded into `cache.scratch` via `load_column`.
-    #[cfg(feature = "batch-noise")]
-    pub fn final_density_from_column_cache_batch(
-        &self,
-        positions: &[IVec3],
-        cache: &mut ColumnCache,
-        results: &mut [f32],
-    ) {
-        let n = positions.len();
-        debug_assert_eq!(n, results.len());
-
-        if n == 0 {
-            return;
-        }
-        if n == 1 {
-            results[0] = self.final_density_from_column_cache(positions[0], cache);
-            return;
-        }
-
-        let stack_len = self.final_density_index + 1;
-        let za = self.column_boundary;
-        debug_assert!(n <= MAX_BATCH);
-        debug_assert!(cache.batch_scratch.len() >= n * stack_len);
-
-        // Initialize Zone A for each position from the current loaded column
-        for p in 0..n {
-            let off = p * stack_len;
-            cache.batch_scratch[off..off + za].copy_from_slice(&cache.scratch[..za]);
-        }
-
-        self.evaluate_zone_b_batch(positions, cache, results);
     }
 
     /// Batch-evaluate final_density across multiple Z columns in one call.
@@ -2580,335 +1926,6 @@ impl NoiseRouter {
         }
 
         self.evaluate_zone_b_batch(positions, cache, results);
-    }
-
-    /// Verify that `final_density_from_column_cache` matches `final_density` for
-    /// all cell corner XZ positions at the given Y values. Returns true if all checks pass.
-    pub fn verify_column_cache(&self, base_x: i32, base_z: i32, y_values: &[i32]) -> bool {
-        let mut ok = true;
-        let mut column_cache = self.new_column_cache(base_x, base_z);
-        self.populate_columns(&mut column_cache);
-
-        let step = self.h_cell_blocks as i32;
-        let corners = (16 / step) + 1;
-        for cx in 0..corners {
-            let local_x = cx * step;
-            for cz in 0..corners {
-                let local_z = cz * step;
-                column_cache.load_column(local_x, local_z);
-                for &y in y_values {
-                    let pos = IVec3::new(base_x + local_x, y, base_z + local_z);
-
-                    let actual = self.final_density_from_column_cache(pos, &mut column_cache);
-
-                    // Reference: simple forward sweep
-                    let mut values = vec![0.0f32; self.final_density_index + 1];
-                    for i in 0..=self.final_density_index {
-                        values[i] = self.stack[i].sample_cached(&values, &self.stack, pos);
-                    }
-                    let expected = values[self.final_density_index];
-
-                    if (expected - actual).abs() > 1e-6 {
-                        eprintln!(
-                            "COLUMN CACHE MISMATCH at ({},{},{}): expected={}, actual={}",
-                            pos.x, pos.y, pos.z, expected, actual
-                        );
-                        ok = false;
-                    }
-                }
-                // Reload column since final_density_from_column_cache mutated scratch
-                column_cache.load_column(local_x, local_z);
-            }
-        }
-        ok
-    }
-
-    /// Generate a DOT graph of the density function computation tree
-    /// rooted at `root`, evaluated at `pos`. Each node shows its type,
-    /// optional reference name, and computed value.
-    pub fn dump_dot_graph(&self, root_name: &str, root: usize, pos: IVec3) -> String {
-        // Forward evaluate all entries up to root
-        let mut values = vec![0.0f32; root + 1];
-        for i in 0..=root {
-            values[i] = self.stack[i].sample_cached(&values, &self.stack, pos);
-        }
-
-        // Find reachable nodes from root
-        let mut reachable = vec![false; root + 1];
-        reachable[root] = true;
-        for i in (0..=root).rev() {
-            if !reachable[i] {
-                continue;
-            }
-            self.stack[i].visit_input_indices(&mut |idx| {
-                if idx <= root {
-                    reachable[idx] = true;
-                }
-            });
-        }
-
-        let mut dot = String::new();
-        dot.push_str(&format!(
-            "digraph \"{}\" {{\n",
-            root_name.replace('"', "\\\"")
-        ));
-        dot.push_str("  rankdir=BT;\n");
-        dot.push_str("  node [shape=box, style=filled, fontname=\"Helvetica\", fontsize=10];\n");
-        dot.push_str(&format!(
-            "  label=\"{} at ({}, {}, {})\";\n",
-            root_name, pos.x, pos.y, pos.z
-        ));
-        dot.push_str("  labelloc=t;\n");
-
-        // Add nodes
-        for i in 0..=root {
-            if !reachable[i] {
-                continue;
-            }
-            let type_label = self.stack[i].type_label();
-            let value = values[i];
-            let ref_name = &self.node_labels[i];
-
-            let color = if value > 0.5 {
-                "#81c784"
-            } else if value > 0.0 {
-                "#c8e6c9"
-            } else if value > -0.5 {
-                "#ffcdd2"
-            } else {
-                "#ef9a9a"
-            };
-
-            let full_label = if ref_name.is_empty() {
-                format!("[{}] {}\\nval={:.6}", i, type_label, value)
-            } else {
-                let short_name = ref_name.strip_prefix("minecraft:").unwrap_or(ref_name);
-                format!("[{}] {}\\n{}\\nval={:.6}", i, short_name, type_label, value)
-            };
-
-            let shape = match &self.stack[i] {
-                DensityFunctionComponent::Independent(_) => "ellipse",
-                _ => "box",
-            };
-
-            let penwidth = if i == root { "3.0" } else { "1.0" };
-
-            dot.push_str(&format!(
-                "  n{} [label=\"{}\", fillcolor=\"{}\", shape={}, penwidth={}];\n",
-                i, full_label, color, shape, penwidth
-            ));
-        }
-
-        // Add edges
-        for i in 0..=root {
-            if !reachable[i] {
-                continue;
-            }
-            self.stack[i].visit_input_indices(&mut |idx| {
-                if idx <= root && reachable[idx] {
-                    dot.push_str(&format!("  n{} -> n{};\n", idx, i));
-                }
-            });
-        }
-
-        dot.push_str("}\n");
-        dot
-    }
-
-    /// Dump DOT graphs for all noise router entries.
-    pub fn dump_all_roots_dot_graph(&self, pos: IVec3) -> Vec<(String, String)> {
-        self.roots()
-            .iter()
-            .map(|(name, idx)| (name.to_string(), self.dump_dot_graph(name, *idx, pos)))
-            .collect()
-    }
-
-    /// Colors for each noise router entry (cycled if more than palette size).
-    const ROOT_COLORS: &[&str] = &[
-        "#ef5350", // barrier - red
-        "#42a5f5", // fluid_level_floodedness - blue
-        "#66bb6a", // fluid_level_spread - green
-        "#ffa726", // lava - orange
-        "#ff7043", // temperature - deep orange
-        "#9ccc65", // vegetation - light green
-        "#ab47bc", // continents - purple
-        "#ffca28", // erosion - amber
-        "#26c6da", // depth - cyan
-        "#ec407a", // ridges - pink
-        "#8d6e63", // chunk_surface_level - brown
-        "#29b6f6", // final_density - light blue
-        "#78909c", // vein_toggle - blue-grey
-        "#7e57c2", // vein_ridged - deep purple
-        "#26a69a", // vein_gap - teal
-    ];
-
-    /// Generate a single combined DOT graph showing all noise router entries,
-    /// how they share nodes, and which entry functions feed into the router.
-    pub fn dump_combined_dot_graph(&self, pos: IVec3) -> String {
-        let all_roots = self.roots();
-        let roots: Vec<(&str, usize, &str)> = all_roots
-            .iter()
-            .enumerate()
-            .map(|(i, (name, idx))| (*name, *idx, Self::ROOT_COLORS[i % Self::ROOT_COLORS.len()]))
-            .collect();
-
-        // Find the maximum index needed
-        let max_root = roots.iter().map(|(_, idx, _)| *idx).max().unwrap_or(0);
-
-        // Forward evaluate all entries up to max root
-        let mut values = vec![0.0f32; max_root + 1];
-        for i in 0..=max_root {
-            values[i] = self.stack[i].sample_cached(&values, &self.stack, pos);
-        }
-
-        // For each node, track which roots reach it
-        let mut root_membership: Vec<Vec<usize>> = vec![Vec::new(); max_root + 1];
-        for (root_idx, (_, root, _)) in roots.iter().enumerate() {
-            let mut reachable = vec![false; *root + 1];
-            reachable[*root] = true;
-            for i in (0..=*root).rev() {
-                if !reachable[i] {
-                    continue;
-                }
-                self.stack[i].visit_input_indices(&mut |idx| {
-                    if idx <= *root {
-                        reachable[idx] = true;
-                    }
-                });
-            }
-            for i in 0..=*root {
-                if reachable[i] {
-                    root_membership[i].push(root_idx);
-                }
-            }
-        }
-
-        // Any reachable node (belongs to at least one root)
-        let any_reachable: Vec<bool> = root_membership
-            .iter()
-            .map(|members| !members.is_empty())
-            .collect();
-
-        let mut dot = String::new();
-        dot.push_str("digraph noise_router {\n");
-        dot.push_str("  rankdir=BT;\n");
-        dot.push_str("  compound=true;\n");
-        dot.push_str("  node [shape=box, style=filled, fontname=\"Helvetica\", fontsize=10];\n");
-        dot.push_str(&format!(
-            "  label=\"Noise Router at ({}, {}, {})\";\n",
-            pos.x, pos.y, pos.z
-        ));
-        dot.push_str("  labelloc=t;\n");
-        dot.push_str("  fontsize=14;\n\n");
-
-        // Add router entry nodes at the top
-        dot.push_str("  // Router entry points\n");
-        dot.push_str("  subgraph cluster_router {\n");
-        dot.push_str("    label=\"Noise Router\";\n");
-        dot.push_str("    style=dashed;\n");
-        dot.push_str("    color=\"#666666\";\n");
-        dot.push_str("    fontsize=12;\n");
-        for &(name, idx, color) in &roots {
-            dot.push_str(&format!(
-                "    router_{} [label=\"{}\\nval={:.6}\", fillcolor=\"{}\", shape=doubleoctagon, penwidth=2.0, fontsize=11];\n",
-                name, name, values[idx], color
-            ));
-        }
-        dot.push_str("  }\n\n");
-
-        // Connect router entry nodes to their root stack nodes
-        for &(name, idx, color) in &roots {
-            dot.push_str(&format!(
-                "  n{} -> router_{} [color=\"{}\", penwidth=2.0];\n",
-                idx, name, color
-            ));
-        }
-        dot.push_str("\n");
-
-        // Add computation nodes
-        for i in 0..=max_root {
-            if !any_reachable[i] {
-                continue;
-            }
-            let type_label = self.stack[i].type_label();
-            let value = values[i];
-            let ref_name = &self.node_labels[i];
-            let members = &root_membership[i];
-
-            // Color: shared nodes get a special color, others get value-based color
-            let is_shared = members.len() > 1;
-            let is_root_node = roots.iter().any(|(_, idx, _)| *idx == i);
-
-            let color = if is_root_node {
-                // Root node gets its root color
-                roots
-                    .iter()
-                    .find(|(_, idx, _)| *idx == i)
-                    .map(|(_, _, c)| *c)
-                    .unwrap_or("#ffffff")
-                    .to_string()
-            } else if is_shared {
-                "#fff9c4".to_string() // Light yellow for shared nodes
-            } else if value > 0.5 {
-                "#81c784".to_string()
-            } else if value > 0.0 {
-                "#c8e6c9".to_string()
-            } else if value > -0.5 {
-                "#ffcdd2".to_string()
-            } else {
-                "#ef9a9a".to_string()
-            };
-
-            let full_label = if ref_name.is_empty() {
-                format!("[{}] {}\\nval={:.6}", i, type_label, value)
-            } else {
-                let short_name = ref_name.strip_prefix("minecraft:").unwrap_or(ref_name);
-                format!("[{}] {}\\n{}\\nval={:.6}", i, short_name, type_label, value)
-            };
-
-            // Append sharing info for shared nodes
-            let full_label = if is_shared {
-                let shared_with: Vec<&str> = members.iter().map(|&ri| roots[ri].0).collect();
-                format!("{}\\nshared: {}", full_label, shared_with.join(", "))
-            } else {
-                full_label
-            };
-
-            let shape = match &self.stack[i] {
-                DensityFunctionComponent::Independent(_) => "ellipse",
-                _ => "box",
-            };
-
-            let penwidth = if is_root_node {
-                "3.0"
-            } else if is_shared {
-                "2.0"
-            } else {
-                "1.0"
-            };
-
-            dot.push_str(&format!(
-                "  n{} [label=\"{}\", fillcolor=\"{}\", shape={}, penwidth={}];\n",
-                i, full_label, color, shape, penwidth
-            ));
-        }
-
-        dot.push_str("\n");
-
-        // Add edges
-        for i in 0..=max_root {
-            if !any_reachable[i] {
-                continue;
-            }
-            self.stack[i].visit_input_indices(&mut |idx| {
-                if idx <= max_root && any_reachable[idx] {
-                    dot.push_str(&format!("  n{} -> n{};\n", idx, i));
-                }
-            });
-        }
-
-        dot.push_str("}\n");
-        dot
     }
 
     /// Forward evaluation with column caching and zone-based dispatch.
@@ -3021,7 +2038,7 @@ pub struct NoiseCellInterpolator {
     /// those values to avoid recomputing them.
     ///
     /// Indexed by `[plane_seq * z_count + z_corner]` where plane_seq is the
-    /// sequential fill_plane call index within a section (0..=h_cells) and
+    /// sequential plane fill index within a section (0..=h_cells) and
     /// z_count = h_cells + 1.
     saved_top_y: Vec<f32>,
     /// True after the first section has been fully processed, meaning
@@ -3185,74 +2202,12 @@ impl NoiseCellInterpolator {
     ) {
     }
 
-    /// Evaluate `final_density` at all corner positions on a Y-Z plane for a given X,
-    /// storing results into `start_buf` or `end_buf`.
+    /// Evaluate `final_density` at every cell corner on a Y-Z plane for a given X,
+    /// storing results into `start_buf` or `end_buf`. Zone A comes from the
+    /// pre-populated `ColumnCache`, so only Zone B is evaluated per corner.
     ///
-    /// Uses `DensityCache` which handles Zone A column caching internally via
-    /// the `column_changed` check. Corner positions can be at +16 (outside the
-    /// 16x16 chunk), so `ColumnCache` cannot be used here.
-    pub fn fill_plane(
-        &mut self,
-        is_start: bool,
-        x: i32,
-        base_y: i32,
-        base_z: i32,
-        router: &NoiseRouter,
-        cache: &mut DensityCache,
-    ) {
-        let buf = if is_start {
-            &mut self.start_buf
-        } else {
-            &mut self.end_buf
-        };
-        let v_stride = self.v_cells + 1;
-        for cz in 0..=self.h_cells {
-            let z = base_z + (cz * self.h_cell_blocks) as i32;
-            for cy in 0..=self.v_cells {
-                let y = base_y + (cy * self.v_cell_blocks) as i32;
-                let pos = IVec3::new(x, y, z);
-                let density = router.final_density(pos, cache);
-                buf[cz * v_stride + cy] = density;
-            }
-        }
-    }
-
-    /// Evaluate `final_density` at all corner positions on a Y-Z plane for a given X,
-    /// using a pre-populated `ColumnCache` instead of `DensityCache`.
-    ///
-    /// This eliminates the `column_changed` branch entirely — Zone A values are loaded
-    /// from the cache, and only Zone B is evaluated per corner.
-    pub fn fill_plane_cached(
-        &mut self,
-        is_start: bool,
-        x: i32,
-        base_y: i32,
-        base_z: i32,
-        router: &NoiseRouter,
-        column_cache: &mut ColumnCache,
-    ) {
-        let buf = if is_start {
-            &mut self.start_buf
-        } else {
-            &mut self.end_buf
-        };
-        let v_stride = self.v_cells + 1;
-        let local_x = x - column_cache.base_block_x;
-        for cz in 0..=self.h_cells {
-            let z = base_z + (cz * self.h_cell_blocks) as i32;
-            let local_z = z - column_cache.base_block_z;
-            column_cache.load_column(local_x, local_z);
-            for cy in 0..=self.v_cells {
-                let y = base_y + (cy * self.v_cell_blocks) as i32;
-                let pos = IVec3::new(x, y, z);
-                let density = router.final_density_from_column_cache(pos, column_cache);
-                buf[cz * v_stride + cy] = density;
-            }
-        }
-    }
-
-    /// Like `fill_plane_cached`, but reuses the top-Y row from the previous section
-    /// as the bottom-Y row of this section when `section_boundary_valid` is true.
+    /// The top-Y row from the previous section is reused as this section's
+    /// bottom-Y row when `section_boundary_valid` is true.
     ///
     /// `plane_seq` identifies which X-plane is being filled (0 = start plane,
     /// 1..=h_cells = successive end planes). This index is used to look up the
@@ -3384,7 +2339,7 @@ impl NoiseCellInterpolator {
     }
 
     /// Mark the current section as complete, enabling Y-boundary reuse for the
-    /// next section. Call this after all fill_plane calls and interpolation for
+    /// next section. Call this after all plane fills and interpolation for
     /// a section are done.
     #[inline]
     pub fn end_section(&mut self) {
@@ -3422,6 +2377,11 @@ impl NoiseCellInterpolator {
         self.corners[5] = self.end_buf[z0 + cell_y + 1];
         self.corners[6] = self.end_buf[z1 + cell_y];
         self.corners[7] = self.end_buf[z1 + cell_y + 1];
+    }
+
+    #[inline]
+    pub fn corners(&self) -> &[f32; 8] {
+        &self.corners
     }
 
     /// Check if all 8 corner densities agree on sign.
@@ -3532,6 +2492,8 @@ impl Debug for BlendedNoise {
     }
 }
 
+const LIMIT_OCTAVES: u32 = 16;
+
 impl BlendedNoise {
     pub fn new(
         random: &mut RandomSource,
@@ -3546,9 +2508,16 @@ impl BlendedNoise {
         let y_multiplier = 684.412 * y_scale;
         let limit_smear = y_multiplier * smear_scale_multiplier;
         let main_smear = limit_smear / y_factor;
-        let lower_interpolated_noise =
-            OctavePerlinNoise::<f32>::new(random, -15, vec![1.0; 16], true);
-        let max_value = lower_interpolated_noise.edge_value(y_multiplier + 2.0);
+        let lower_interpolated_noise = OctavePerlinNoise::<f32>::new(
+            random,
+            1 - LIMIT_OCTAVES as i32,
+            vec![1.0; LIMIT_OCTAVES as usize],
+            true,
+        );
+        // Every FLAT_SIMPLEX_GRAD entry has two unit components and one zero, and each
+        // lattice offset it dots against stays within [-1, 1], so one octave never leaves
+        // [-2, 2]; the 2^i octave weights sum to 2^16 - 1 against the /512 combine.
+        let max_value = 2.0 * ((1u32 << LIMIT_OCTAVES) - 1) as f32 / 512.0 / final_divisor;
         BlendedNoise {
             xz_scale,
             y_scale,
@@ -3564,8 +2533,8 @@ impl BlendedNoise {
             lower_interpolated_noise,
             upper_interpolated_noise: OctavePerlinNoise::<f32>::new(
                 random,
-                -15,
-                vec![1.0; 16],
+                1 - LIMIT_OCTAVES as i32,
+                vec![1.0; LIMIT_OCTAVES as usize],
                 true,
             ),
             interpolated_noise: OctavePerlinNoise::<f32>::new(random, -7, vec![1.0; 8], true),
@@ -4021,32 +2990,6 @@ impl DensityFunction for Shift {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct BlendDensity {
-    input_index: usize,
-    min_value: f32,
-    max_value: f32,
-}
-
-impl RangeFunction for BlendDensity {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        f32::NEG_INFINITY
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        f32::INFINITY
-    }
-}
-
-impl DensityFunction for BlendDensity {
-    #[inline]
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
 struct Interpolated {
     input_index: usize,
     cell_size_xz: u32,
@@ -4248,7 +3191,6 @@ enum DependentDensityFunction {
     Clamp(Clamp),
     RangeChoice(RangeChoice),
     Spline(Spline),
-    FlattenedSpline(FlattenedSpline),
     FindTopSurface(FindTopSurface),
     Lerp(Lerp),
     Slice(Slice),
@@ -4256,7 +3198,6 @@ enum DependentDensityFunction {
 
 #[derive(Clone, Debug, PartialEq)]
 enum WrapperDensityFunction {
-    BlendDensity(BlendDensity),
     Interpolated(Interpolated),
     Cache(Cache),
 }
@@ -4264,7 +3205,6 @@ enum WrapperDensityFunction {
 impl RangeFunction for WrapperDensityFunction {
     fn min_value(&self) -> f32 {
         match self {
-            WrapperDensityFunction::BlendDensity(x) => x.min_value(),
             WrapperDensityFunction::Interpolated(x) => x.min_value(),
             WrapperDensityFunction::Cache(x) => x.min_value(),
         }
@@ -4272,7 +3212,6 @@ impl RangeFunction for WrapperDensityFunction {
 
     fn max_value(&self) -> f32 {
         match self {
-            WrapperDensityFunction::BlendDensity(x) => x.max_value(),
             WrapperDensityFunction::Interpolated(x) => x.max_value(),
             WrapperDensityFunction::Cache(x) => x.max_value(),
         }
@@ -4282,7 +3221,6 @@ impl RangeFunction for WrapperDensityFunction {
 impl DensityFunction for WrapperDensityFunction {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         match self {
-            WrapperDensityFunction::BlendDensity(x) => x.sample(stack, pos),
             WrapperDensityFunction::Interpolated(x) => {
                 DensityFunctionComponent::sample_from_stack(&stack[..=x.input_index], pos)
             }
@@ -4304,7 +3242,6 @@ impl DensityFunction for DependentDensityFunction {
             DependentDensityFunction::Clamp(x) => x.sample(stack, pos),
             DependentDensityFunction::RangeChoice(x) => x.sample(stack, pos),
             DependentDensityFunction::Spline(x) => x.sample(stack, pos),
-            DependentDensityFunction::FlattenedSpline(x) => x.sample(stack, pos),
             DependentDensityFunction::FindTopSurface(x) => x.sample(stack, pos),
             DependentDensityFunction::Lerp(x) => x.sample(stack, pos),
             DependentDensityFunction::Slice(x) => x.sample(stack, pos),
@@ -4325,7 +3262,6 @@ impl RangeFunction for DependentDensityFunction {
             DependentDensityFunction::Clamp(x) => x.min_value(),
             DependentDensityFunction::RangeChoice(x) => x.min_value(),
             DependentDensityFunction::Spline(x) => x.min_value(),
-            DependentDensityFunction::FlattenedSpline(x) => x.min_value(),
             DependentDensityFunction::FindTopSurface(x) => x.min_value(),
             DependentDensityFunction::Lerp(x) => x.min_value(),
             DependentDensityFunction::Slice(x) => x.min_value(),
@@ -4344,7 +3280,6 @@ impl RangeFunction for DependentDensityFunction {
             DependentDensityFunction::Clamp(x) => x.max_value(),
             DependentDensityFunction::RangeChoice(x) => x.max_value(),
             DependentDensityFunction::Spline(x) => x.max_value(),
-            DependentDensityFunction::FlattenedSpline(x) => x.max_value(),
             DependentDensityFunction::FindTopSurface(x) => x.max_value(),
             DependentDensityFunction::Lerp(x) => x.max_value(),
             DependentDensityFunction::Slice(x) => x.max_value(),
@@ -4613,6 +3548,9 @@ enum UnaryOperation {
     QuarterNegative,
     Reciprocal,
     Squeeze,
+    Sqrt,
+    Log,
+    Sign,
 }
 
 impl UnaryOperation {
@@ -4640,6 +3578,18 @@ impl UnaryOperation {
             UnaryOperation::Squeeze => {
                 let clamped = value.clamp(-1.0, 1.0);
                 clamped / 2.0 - clamped.powi(3) / 24.0
+            }
+            UnaryOperation::Sqrt => value.sqrt(),
+            UnaryOperation::Log => value.ln(),
+            // Unlike f32::signum, zero and NaN come back unchanged.
+            UnaryOperation::Sign => {
+                if value == 0.0 || value.is_nan() {
+                    value
+                } else if value > 0.0 {
+                    1.0
+                } else {
+                    -1.0
+                }
             }
         }
     }
@@ -4724,6 +3674,9 @@ impl RangeFunction for ShiftedNoise {
 #[derive(Clone, Debug, PartialEq)]
 struct Clamp {
     input_index: usize,
+    /// The datapack bounds already narrowed to the input's own range. Sampling clamps
+    /// to these rather than the raw bounds: for any value the input can produce the two
+    /// agree, so the narrower pair serves as both the operation and the declared range.
     min_value: f32,
     max_value: f32,
 }
@@ -5110,142 +4063,6 @@ impl Spline {
     }
 }
 
-#[derive(Clone, Debug)]
-struct FlattenedSpline {
-    coord_indices: [usize; 3],
-    coord_min: [f32; 3],
-    coord_inv_range: [f32; 3],
-    grid_sizes: [usize; 3],
-    strides: [usize; 3],
-    lut: Box<[f32]>,
-    min_value: f32,
-    max_value: f32,
-}
-
-impl PartialEq for FlattenedSpline {
-    fn eq(&self, other: &Self) -> bool {
-        self.coord_indices == other.coord_indices
-            && self.coord_min == other.coord_min
-            && self.coord_inv_range == other.coord_inv_range
-            && self.grid_sizes == other.grid_sizes
-            && self.min_value == other.min_value
-            && self.max_value == other.max_value
-    }
-}
-
-impl FlattenedSpline {
-    /// Monotone cubic Hermite interpolation between p1 and p2.
-    /// Uses p0 and p3 as neighbors for derivative estimation with
-    /// Fritsch-Carlson monotonicity correction to prevent overshoot.
-    #[inline(always)]
-    fn monotone_cubic(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
-        let delta = p2 - p1;
-
-        // Estimate derivatives via central differences
-        let mut d1 = (p2 - p0) * 0.5;
-        let mut d2 = (p3 - p1) * 0.5;
-
-        // Fritsch-Carlson monotonicity: if delta is ~0, zero both derivatives
-        if delta.abs() < 1e-10 {
-            d1 = 0.0;
-            d2 = 0.0;
-        } else {
-            // Clamp derivatives to prevent overshoot
-            let alpha = d1 / delta;
-            let beta = d2 / delta;
-            // If derivatives point the wrong way, zero them
-            if alpha < 0.0 {
-                d1 = 0.0;
-            }
-            if beta < 0.0 {
-                d2 = 0.0;
-            }
-            // Fritsch-Carlson: constrain to circle of radius 3
-            let r2 = alpha * alpha + beta * beta;
-            if r2 > 9.0 {
-                let s = 3.0 / r2.sqrt();
-                d1 = s * alpha * delta;
-                d2 = s * beta * delta;
-            }
-        }
-
-        // Hermite basis evaluation
-        let t2 = t * t;
-        let t3 = t2 * t;
-        let h00 = 2.0 * t3 - 3.0 * t2 + 1.0;
-        let h10 = t3 - 2.0 * t2 + t;
-        let h01 = -2.0 * t3 + 3.0 * t2;
-        let h11 = t3 - t2;
-
-        h00 * p1 + h10 * d1 + h01 * p2 + h11 * d2
-    }
-
-    /// Tricubic monotone Hermite interpolation with per-axis grid sizes.
-    #[inline]
-    fn evaluate(&self, c0: f32, c1: f32, c2: f32) -> f32 {
-        let coords = [c0, c1, c2];
-        let mut f = [0.0f32; 3];
-        let mut idx = [0usize; 3];
-        let mut t = [0.0f32; 3];
-        let mut neighbors = [[0usize; 4]; 3]; // [i-1, i, i+1, i+2] per axis
-
-        for d in 0..3 {
-            let gs = self.grid_sizes[d];
-            let max_idx = (gs - 1) as f32;
-            f[d] = ((coords[d] - self.coord_min[d]) * self.coord_inv_range[d]).clamp(0.0, 1.0)
-                * max_idx;
-            idx[d] = (f[d] as usize).min(gs - 2);
-            t[d] = f[d] - idx[d] as f32;
-            let last = gs - 1;
-            neighbors[d] = [
-                idx[d].saturating_sub(1),
-                idx[d],
-                (idx[d] + 1).min(last),
-                (idx[d] + 2).min(last),
-            ];
-        }
-
-        // Tricubic: interpolate along axis 2, then 1, then 0
-        let mut x_vals = [0.0f32; 4];
-        for (a, &xi) in neighbors[0].iter().enumerate() {
-            let mut y_vals = [0.0f32; 4];
-            for (b, &yi) in neighbors[1].iter().enumerate() {
-                let base = xi * self.strides[0] + yi * self.strides[1];
-                y_vals[b] = Self::monotone_cubic(
-                    self.lut[base + neighbors[2][0]],
-                    self.lut[base + neighbors[2][1]],
-                    self.lut[base + neighbors[2][2]],
-                    self.lut[base + neighbors[2][3]],
-                    t[2],
-                );
-            }
-            x_vals[a] = Self::monotone_cubic(y_vals[0], y_vals[1], y_vals[2], y_vals[3], t[1]);
-        }
-        Self::monotone_cubic(x_vals[0], x_vals[1], x_vals[2], x_vals[3], t[0])
-    }
-}
-
-impl RangeFunction for FlattenedSpline {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
-}
-
-impl DensityFunction for FlattenedSpline {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let c0 = DensityFunctionComponent::sample_from_stack(&stack[..=self.coord_indices[0]], pos);
-        let c1 = DensityFunctionComponent::sample_from_stack(&stack[..=self.coord_indices[1]], pos);
-        let c2 = DensityFunctionComponent::sample_from_stack(&stack[..=self.coord_indices[2]], pos);
-        self.evaluate(c0, c1, c2)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 struct FindTopSurface {
     density_index: usize,
@@ -5472,6 +4289,11 @@ impl DensityFunction for Binary {
                     input1_density.max(input2_density)
                 }
             }
+            BinaryOperation::Pow | BinaryOperation::Round(_) => {
+                let input2_density =
+                    DensityFunctionComponent::sample_from_stack(&stack[..=self.input2_index], pos);
+                self.operation.apply(input1_density, input2_density)
+            }
         }
     }
 }
@@ -5496,6 +4318,53 @@ enum BinaryOperation {
     Divide,
     Min,
     Max,
+    Pow,
+    Round(RoundingMode),
+}
+
+impl BinaryOperation {
+    #[inline]
+    fn apply(self, a: f32, b: f32) -> f32 {
+        match self {
+            BinaryOperation::Add => a + b,
+            BinaryOperation::Subtract => a - b,
+            BinaryOperation::Multiply => a * b,
+            BinaryOperation::Divide => {
+                if a == 0.0 {
+                    0.0
+                } else {
+                    a / b
+                }
+            }
+            BinaryOperation::Min => a.min(b),
+            BinaryOperation::Max => a.max(b),
+            BinaryOperation::Pow => a.powf(b),
+            BinaryOperation::Round(mode) => {
+                if b == 0.0 {
+                    a
+                } else {
+                    round_to_integer(a / b, mode) * b
+                }
+            }
+        }
+    }
+}
+
+#[inline]
+fn round_to_integer(value: f32, mode: RoundingMode) -> f32 {
+    match mode {
+        RoundingMode::Floor => value.floor(),
+        // Java rounds halves up, not away from zero: round(-2.5) is -2.
+        RoundingMode::Round => (value + 0.5).floor(),
+        RoundingMode::Ceil => value.ceil(),
+        RoundingMode::Truncate => {
+            if value > 0.0 {
+                value.floor()
+            } else {
+                value.ceil()
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -5506,110 +4375,6 @@ enum DensityFunctionComponent {
 }
 
 impl DensityFunctionComponent {
-    fn type_label(&self) -> String {
-        match self {
-            DensityFunctionComponent::Independent(f) => match f {
-                IndependentDensityFunction::Constant(v) => format!("const({v:.6})"),
-                IndependentDensityFunction::OldBlendedNoise(_) => "old_blended_noise".into(),
-                IndependentDensityFunction::Noise(n) => {
-                    format!(
-                        "noise({})\\nxz={:.3} y={:.3}",
-                        n.noise_name, n.xz_scale, n.y_scale
-                    )
-                }
-                IndependentDensityFunction::ShiftA(s) => {
-                    format!("shift_a({})", s.noise_name)
-                }
-                IndependentDensityFunction::ShiftB(s) => {
-                    format!("shift_b({})", s.noise_name)
-                }
-                IndependentDensityFunction::Shift(s) => {
-                    format!("shift({})", s.noise_name)
-                }
-                IndependentDensityFunction::ClampedYGradient(g) => {
-                    format!(
-                        "y_gradient\\n{:.0}..{:.0} -> {:.2}..{:.2}",
-                        g.from_y, g.to_y, g.from_value, g.to_value
-                    )
-                }
-                IndependentDensityFunction::Gradient(g) => {
-                    format!(
-                        "gradient({:?})\\n{}..{} -> {:.2}..{:.2}",
-                        g.axis, g.from_coordinate, g.to_coordinate, g.from_value, g.to_value
-                    )
-                }
-                IndependentDensityFunction::DistanceToPoint(d) => {
-                    format!("distance_to_point({:?})", d.metric)
-                }
-                IndependentDensityFunction::EndOuterIslands => "end_outer_islands".into(),
-            },
-            DensityFunctionComponent::Dependent(f) => match f {
-                DependentDensityFunction::Linear(l) => match l.operation {
-                    LinearOperation::Add => format!("add({:.6})", l.argument),
-                    LinearOperation::Multiply => format!("mul({:.6})", l.argument),
-                },
-                DependentDensityFunction::Affine(a) => {
-                    format!("affine\\ns={:.6} o={:.6}", a.scale, a.offset)
-                }
-                DependentDensityFunction::PiecewiseAffine(a) => {
-                    format!(
-                        "piecewise_affine\\nneg={:.6} pos={:.6} o={:.6}",
-                        a.neg_scale, a.pos_scale, a.offset
-                    )
-                }
-                DependentDensityFunction::Slide(s) => {
-                    format!(
-                        "slide\\noffsets={:.6},{:.6},{:.6}\\nfast_y={:.0}..{:.0}",
-                        s.offset_a, s.offset_b, s.offset_c, s.fast_path_min_y, s.fast_path_max_y
-                    )
-                }
-                DependentDensityFunction::Unary(u) => format!("{:?}", u.operation),
-                DependentDensityFunction::Binary(b) => match b.operation {
-                    BinaryOperation::Add => "Add".into(),
-                    BinaryOperation::Subtract => "Sub".into(),
-                    BinaryOperation::Multiply => "Mul".into(),
-                    BinaryOperation::Divide => "Div".into(),
-                    BinaryOperation::Min => "Min".into(),
-                    BinaryOperation::Max => "Max".into(),
-                },
-                DependentDensityFunction::ShiftedNoise(s) => {
-                    format!(
-                        "shifted_noise({})\\nxz={:.3} y={:.3}",
-                        s.noise_name, s.xz_scale, s.y_scale
-                    )
-                }
-                DependentDensityFunction::Clamp(c) => {
-                    format!("clamp\\n{:.4}..{:.4}", c.min_value, c.max_value)
-                }
-                DependentDensityFunction::RangeChoice(r) => {
-                    format!(
-                        "range_choice\\n{:.4}..{:.4}",
-                        r.min_inclusion_value, r.max_exclusion_value
-                    )
-                }
-                DependentDensityFunction::Spline(_) => "spline".into(),
-                DependentDensityFunction::FlattenedSpline(f) => {
-                    format!(
-                        "flattened_spline\\ngrid={}x{}x{}",
-                        f.grid_sizes[0], f.grid_sizes[1], f.grid_sizes[2]
-                    )
-                }
-                DependentDensityFunction::FindTopSurface(_) => "find_top_surface".into(),
-                DependentDensityFunction::Lerp(_) => "lerp".into(),
-                DependentDensityFunction::Slice(s) => {
-                    format!("slice({:?}={})", s.axis, s.coordinate)
-                }
-            },
-            DensityFunctionComponent::Wrapper(f) => match f {
-                WrapperDensityFunction::BlendDensity(_) => "blend_density".into(),
-                WrapperDensityFunction::Interpolated(x) => {
-                    format!("interpolated\\n{}x{}", x.cell_size_xz, x.cell_size_y)
-                }
-                WrapperDensityFunction::Cache(_) => "cache".into(),
-            },
-        }
-    }
-
     fn as_constant(&self) -> Option<f32> {
         match self {
             DensityFunctionComponent::Independent(x) => match x {
@@ -5699,11 +4464,6 @@ impl DensityFunctionComponent {
                 DependentDensityFunction::Spline(x) => {
                     x.rewrite_indices(redirect);
                 }
-                DependentDensityFunction::FlattenedSpline(x) => {
-                    for idx in x.coord_indices.iter_mut() {
-                        *idx = redirect[*idx];
-                    }
-                }
                 DependentDensityFunction::FindTopSurface(x) => {
                     x.density_index = redirect[x.density_index];
                     x.upper_bound_index = redirect[x.upper_bound_index];
@@ -5718,9 +4478,6 @@ impl DensityFunctionComponent {
                 }
             },
             DensityFunctionComponent::Wrapper(wrapper) => match wrapper {
-                WrapperDensityFunction::BlendDensity(x) => {
-                    x.input_index = redirect[x.input_index];
-                }
                 WrapperDensityFunction::Interpolated(x) => {
                     x.input_index = redirect[x.input_index];
                 }
@@ -5756,11 +4513,6 @@ impl DensityFunctionComponent {
                     f(x.when_out_index);
                 }
                 DependentDensityFunction::Spline(x) => x.visit_input_indices(f),
-                DependentDensityFunction::FlattenedSpline(x) => {
-                    for &idx in &x.coord_indices {
-                        f(idx);
-                    }
-                }
                 DependentDensityFunction::FindTopSurface(x) => {
                     f(x.density_index);
                     f(x.upper_bound_index);
@@ -5773,7 +4525,6 @@ impl DensityFunctionComponent {
                 DependentDensityFunction::Slice(x) => f(x.input_index),
             },
             DensityFunctionComponent::Wrapper(wrapper) => match wrapper {
-                WrapperDensityFunction::BlendDensity(x) => f(x.input_index),
                 WrapperDensityFunction::Interpolated(x) => f(x.input_index),
                 WrapperDensityFunction::Cache(x) => f(x.input_index),
             },
@@ -5793,10 +4544,6 @@ impl DensityFunctionComponent {
     fn sample_from_stack(stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         let (top_component, component_stack) = stack.split_last().unwrap();
         top_component.sample(component_stack, pos)
-    }
-
-    fn debug(stack: &[DensityFunctionComponent], index: usize, pos: IVec3) -> f32 {
-        Self::sample_from_stack(&stack[..=index], pos)
     }
 
     /// Evaluate using pre-computed cache (forward evaluation).
@@ -5839,24 +4586,9 @@ impl DensityFunctionComponent {
                 }
                 DependentDensityFunction::Slide(x) => x.compute(cache[x.input_index], pos.y as f32),
                 DependentDensityFunction::Unary(x) => x.operation.apply(cache[x.input_index]),
-                DependentDensityFunction::Binary(x) => {
-                    let a = cache[x.input1_index];
-                    let b = cache[x.input2_index];
-                    match x.operation {
-                        BinaryOperation::Add => a + b,
-                        BinaryOperation::Subtract => a - b,
-                        BinaryOperation::Multiply => a * b,
-                        BinaryOperation::Divide => {
-                            if a == 0.0 {
-                                0.0
-                            } else {
-                                a / b
-                            }
-                        }
-                        BinaryOperation::Min => a.min(b),
-                        BinaryOperation::Max => a.max(b),
-                    }
-                }
+                DependentDensityFunction::Binary(x) => x
+                    .operation
+                    .apply(cache[x.input1_index], cache[x.input2_index]),
                 DependentDensityFunction::ShiftedNoise(x) => x.sampler.get(
                     pos.x as f32 * x.xz_scale + cache[x.input_x_index],
                     pos.y as f32 * x.y_scale + cache[x.input_y_index],
@@ -5874,11 +4606,6 @@ impl DensityFunctionComponent {
                     }
                 }
                 DependentDensityFunction::Spline(x) => x.sample_cached(cache, stack, pos),
-                DependentDensityFunction::FlattenedSpline(x) => x.evaluate(
-                    cache[x.coord_indices[0]],
-                    cache[x.coord_indices[1]],
-                    cache[x.coord_indices[2]],
-                ),
                 DependentDensityFunction::Lerp(x) => {
                     let alpha = cache[x.alpha_index];
                     if alpha == 0.0 {
@@ -5914,7 +4641,6 @@ impl DensityFunctionComponent {
                 }
             },
             DensityFunctionComponent::Wrapper(f) => match f {
-                WrapperDensityFunction::BlendDensity(x) => cache[x.input_index],
                 WrapperDensityFunction::Interpolated(x) => cache[x.input_index],
                 WrapperDensityFunction::Cache(x) => cache[x.input_index],
             },
@@ -6138,28 +4864,94 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         self.unary(function, UnaryOperation::Squeeze);
     }
 
+    fn visit_sqrt(&mut self, function: &SingleArgumentFunction) {
+        self.unary(function, UnaryOperation::Sqrt);
+    }
+
+    fn visit_log(&mut self, function: &SingleArgumentFunction) {
+        self.unary(function, UnaryOperation::Log);
+    }
+
+    fn visit_sign(&mut self, function: &SingleArgumentFunction) {
+        self.unary(function, UnaryOperation::Sign);
+    }
+
+    fn visit_pow(&mut self, function: &PowFunctionArguments) {
+        self.binary(
+            &function.base,
+            &function.exponent,
+            ProtoDensityFunction::Pow(function.clone()),
+            BinaryOperation::Pow,
+        );
+    }
+
+    fn visit_round(&mut self, mode: RoundingMode, function: &RoundFunctionArguments) {
+        let proto = match mode {
+            RoundingMode::Floor => ProtoDensityFunction::Floor(function.clone()),
+            RoundingMode::Round => ProtoDensityFunction::Round(function.clone()),
+            RoundingMode::Ceil => ProtoDensityFunction::Ceil(function.clone()),
+            RoundingMode::Truncate => ProtoDensityFunction::Truncate(function.clone()),
+        };
+        self.binary(
+            &function.input,
+            &function.multiple,
+            proto,
+            BinaryOperation::Round(mode),
+        );
+    }
+
     fn visit_add(&mut self, arg: &TwoArgumentFunction) {
-        self.binary(arg, BinaryOperation::Add);
+        self.binary(
+            &arg.left,
+            &arg.right,
+            ProtoDensityFunction::Add(arg.clone()),
+            BinaryOperation::Add,
+        );
     }
 
     fn visit_sub(&mut self, function: &TwoArgumentFunction) {
-        self.binary(function, BinaryOperation::Subtract);
+        self.binary(
+            &function.left,
+            &function.right,
+            ProtoDensityFunction::Sub(function.clone()),
+            BinaryOperation::Subtract,
+        );
     }
 
     fn visit_div(&mut self, function: &TwoArgumentFunction) {
-        self.binary(function, BinaryOperation::Divide);
+        self.binary(
+            &function.left,
+            &function.right,
+            ProtoDensityFunction::Div(function.clone()),
+            BinaryOperation::Divide,
+        );
     }
 
     fn visit_mul(&mut self, function: &TwoArgumentFunction) {
-        self.binary(function, BinaryOperation::Multiply);
+        self.binary(
+            &function.left,
+            &function.right,
+            ProtoDensityFunction::Mul(function.clone()),
+            BinaryOperation::Multiply,
+        );
     }
 
     fn visit_min(&mut self, function: &TwoArgumentFunction) {
-        self.binary(function, BinaryOperation::Min);
+        self.binary(
+            &function.left,
+            &function.right,
+            ProtoDensityFunction::Min(function.clone()),
+            BinaryOperation::Min,
+        );
     }
 
     fn visit_max(&mut self, function: &TwoArgumentFunction) {
-        self.binary(function, BinaryOperation::Max);
+        self.binary(
+            &function.left,
+            &function.right,
+            ProtoDensityFunction::Max(function.clone()),
+            BinaryOperation::Max,
+        );
     }
 
     fn visit_old_blended_noise(
@@ -6345,6 +5137,8 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
 
     fn visit_clamp(&mut self, input: &DensityFunctionHolder, min: f64, max: f64) {
         let (input_index) = self.component(input);
+        let input_min = self.stack[input_index].min_value();
+        let input_max = self.stack[input_index].max_value();
         let proto = ProtoDensityFunction::Clamp {
             input: input.clone(),
             min: min.into(),
@@ -6354,8 +5148,8 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             proto,
             DensityFunctionComponent::Dependent(DependentDensityFunction::Clamp(Clamp {
                 input_index,
-                min_value: min as f32,
-                max_value: max as f32,
+                min_value: input_min.clamp(min as f32, max as f32),
+                max_value: input_max.clamp(min as f32, max as f32),
             })),
         );
     }
@@ -6601,14 +5395,20 @@ impl<'a> FunctionStackBuilder<'a> {
         )
     }
 
-    fn binary(&mut self, arg: &TwoArgumentFunction, operation: BinaryOperation) {
-        let (input1_index) = self.component(&arg.left);
+    fn binary(
+        &mut self,
+        left: &DensityFunctionHolder,
+        right: &DensityFunctionHolder,
+        proto: ProtoDensityFunction,
+        operation: BinaryOperation,
+    ) {
+        let (input1_index) = self.component(left);
         let arg1 = &self.stack[input1_index];
         let min1 = arg1.min_value();
         let max1 = arg1.max_value();
         let arg1_constant = arg1.as_constant();
 
-        let (input2_index) = self.component(&arg.right);
+        let (input2_index) = self.component(right);
         let arg2 = &self.stack[input2_index];
         let min2 = arg2.min_value();
         let max2 = arg2.max_value();
@@ -6624,14 +5424,14 @@ impl<'a> FunctionStackBuilder<'a> {
             }
             BinaryOperation::Min => (min1.min(min2), max1.min(max2)),
             BinaryOperation::Max => (min1.max(min2), max1.max(max2)),
-        };
-        let proto = match operation {
-            BinaryOperation::Add => ProtoDensityFunction::Add(arg.clone()),
-            BinaryOperation::Subtract => ProtoDensityFunction::Sub(arg.clone()),
-            BinaryOperation::Multiply => ProtoDensityFunction::Mul(arg.clone()),
-            BinaryOperation::Divide => ProtoDensityFunction::Div(arg.clone()),
-            BinaryOperation::Min => ProtoDensityFunction::Min(arg.clone()),
-            BinaryOperation::Max => ProtoDensityFunction::Max(arg.clone()),
+            BinaryOperation::Pow => pow_range((min1, max1), (min2, max2)),
+            BinaryOperation::Round(mode) => {
+                let (rmin, rmax) = reciprocal_range(min2, max2);
+                let (dmin, dmax) = mul_range(min1, max1, rmin, rmax);
+                let lo = round_to_integer(dmin, mode);
+                let hi = round_to_integer(dmax, mode);
+                mul_range(lo.min(hi), lo.max(hi), min2, max2)
+            }
         };
 
         if let BinaryOperation::Add | BinaryOperation::Multiply = operation {
@@ -6684,6 +5484,9 @@ impl<'a> FunctionStackBuilder<'a> {
             UnaryOperation::QuarterNegative => ProtoDensityFunction::QuarterNegative(arg.clone()),
             UnaryOperation::Reciprocal => ProtoDensityFunction::Reciprocal(arg.clone()),
             UnaryOperation::Squeeze => ProtoDensityFunction::Squeeze(arg.clone()),
+            UnaryOperation::Sqrt => ProtoDensityFunction::Sqrt(arg.clone()),
+            UnaryOperation::Log => ProtoDensityFunction::Log(arg.clone()),
+            UnaryOperation::Sign => ProtoDensityFunction::Sign(arg.clone()),
         };
 
         let (min_value, max_value) = match operation {
@@ -6695,7 +5498,28 @@ impl<'a> FunctionStackBuilder<'a> {
                 }
             }
             UnaryOperation::Abs | UnaryOperation::Square => {
-                (min_image.max(0.0), min_image.max(max_image))
+                if min >= 0.0 {
+                    (min_image, max_image)
+                } else if max <= 0.0 {
+                    (max_image, min_image)
+                } else {
+                    (0.0, min_image.max(max_image))
+                }
+            }
+            UnaryOperation::Sqrt | UnaryOperation::Log => {
+                (operation.apply(min.max(0.0)), operation.apply(max.max(0.0)))
+            }
+            UnaryOperation::Sign => {
+                if min > 0.0 {
+                    (1.0, 1.0)
+                } else if max < 0.0 {
+                    (-1.0, -1.0)
+                } else {
+                    (
+                        if min == 0.0 { 0.0 } else { -1.0 },
+                        if max == 0.0 { 0.0 } else { 1.0 },
+                    )
+                }
             }
             _ => (min_image, max_image),
         };
@@ -6814,7 +5638,7 @@ pub fn lerp(delta: f32, start: f32, end: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{BlendedNoise, OldBlendedNoise};
+    use super::{BlendedNoise, OldBlendedNoise, RangeFunction};
     use crate::density_function::DensityFunction;
     use crate::density_function::beta_seed::seed_beta_terrain;
     use crate::proto::NoiseGeneratorSettings;
@@ -6848,6 +5672,50 @@ mod tests {
             1054301856u32,
             "v2 must match post-07-01a golden"
         );
+    }
+
+    #[test]
+    fn blended_noise_never_leaves_its_declared_range() {
+        let mut rng = 0x9e3779b97f4a7c15u64;
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+        for (xz_scale, y_scale, xz_factor, y_factor, smear, divisor) in [
+            (1.0, 1.0, 80.0, 160.0, 8.0, 128.0),
+            (1.0, 1.0, 80.0, 160.0, 8.0, 1.0),
+            (0.25, 0.125, 80.0, 160.0, 8.0, 128.0),
+            (0.25, 0.125, 80.0, 160.0, 8.0, 1.0),
+            (0.25, 0.125, 20.0, 40.0, 1.0, 128.0),
+            (1000.0, 0.001, 0.5, 1000.0, 8.0, 128.0),
+        ] {
+            let mut random = RandomSource::new(next() as i64 as u64, true);
+            let noise = BlendedNoise::new(
+                &mut random, xz_scale, y_scale, xz_factor, y_factor, smear, divisor,
+            );
+            let bound = noise.max_value();
+            let mut peak = 0.0f32;
+            assert_eq!(bound, -noise.min_value());
+            for _ in 0..200_000 {
+                let pos = bevy_math::IVec3::new(
+                    (next() % 4_000_001) as i32 - 2_000_000,
+                    (next() % 2049) as i32 - 1024,
+                    (next() % 4_000_001) as i32 - 2_000_000,
+                );
+                let value = noise.sample(&[], pos);
+                peak = peak.max(value.abs());
+                assert!(
+                    value.abs() <= bound,
+                    "{pos:?} sampled {value} outside +/-{bound} (divisor {divisor})"
+                );
+            }
+            assert!(
+                peak > bound * 0.25,
+                "peak {peak} is so far under {bound} that the bound proves nothing"
+            );
+        }
     }
 
     /// Verify that disabling the /128 divisor yields exactly 128x the enabled-divisor output.
@@ -7834,5 +6702,129 @@ mod tests {
             settings_count += 1;
         }
         assert_eq!(settings_count, count_json_files(&settings_dir));
+    }
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod arithmetic_node_tests {
+    use super::{DensityFunctionComponent, FunctionStackBuilder};
+    use crate::density_function::proto::{DensityFunctionHolder, ProtoDensityFunction};
+    use crate::spline::RangeFunction;
+    use bevy_math::IVec3;
+    use mcrs_random::RandomSource;
+    use std::collections::BTreeMap;
+
+    fn build(json: &str) -> (f32, f32, f32) {
+        let proto: ProtoDensityFunction =
+            serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
+        let functions = BTreeMap::new();
+        let noises = BTreeMap::new();
+        let mut builder =
+            FunctionStackBuilder::new(RandomSource::new(0, false), 0, &functions, &noises);
+        let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
+        let value =
+            DensityFunctionComponent::sample_from_stack(&builder.stack[..=index], IVec3::ZERO);
+        let component = &builder.stack[index];
+        (value, component.min_value(), component.max_value())
+    }
+
+    fn sample(json: &str) -> f32 {
+        build(json).0
+    }
+
+    /// A y-gradient standing in for any input with a genuinely moving range;
+    /// at y = 0 it evaluates to `from`.
+    fn moving(from: f32, to: f32) -> String {
+        format!(
+            r#"{{"type":"gradient","axis":"y","from_coordinate":0,"to_coordinate":16,"from_value":{from},"to_value":{to}}}"#
+        )
+    }
+
+    #[test]
+    fn abs_and_square_cover_both_sides_of_a_zero_crossing_input() {
+        let (_, min, max) = build(&format!(r#"{{"type":"abs","input":{}}}"#, moving(-5.0, 3.0)));
+        assert_eq!((min, max), (0.0, 5.0));
+        let (_, min, max) = build(&format!(r#"{{"type":"square","input":{}}}"#, moving(-5.0, 3.0)));
+        assert_eq!((min, max), (0.0, 25.0));
+        let (_, min, max) = build(&format!(r#"{{"type":"square","input":{}}}"#, moving(-4.0, 4.0)));
+        assert_eq!((min, max), (0.0, 16.0));
+        let (_, min, max) = build(&format!(r#"{{"type":"abs","input":{}}}"#, moving(2.0, 6.0)));
+        assert_eq!((min, max), (2.0, 6.0));
+        let (_, min, max) = build(&format!(r#"{{"type":"square","input":{}}}"#, moving(-6.0, -2.0)));
+        assert_eq!((min, max), (4.0, 36.0));
+    }
+
+    #[test]
+    fn clamp_range_is_the_image_of_its_input() {
+        let (_, min, max) = build(&format!(
+            r#"{{"type":"clamp","input":{},"min":-1.0,"max":1.0}}"#,
+            moving(-0.5, 0.5)
+        ));
+        assert_eq!((min, max), (-0.5, 0.5));
+        let (_, min, max) = build(&format!(
+            r#"{{"type":"clamp","input":{},"min":-1.0,"max":1.0}}"#,
+            moving(-8.0, 0.25)
+        ));
+        assert_eq!((min, max), (-1.0, 0.25));
+    }
+
+    #[test]
+    fn pow_raises_base_to_exponent() {
+        assert_eq!(
+            sample(r#"{"type":"pow","base":2.0,"exponent":10.0}"#),
+            1024.0
+        );
+        assert_eq!(
+            sample(r#"{"type":"minecraft:pow","base":9.0,"exponent":0.5}"#),
+            3.0
+        );
+        let (_, min, max) = build(r#"{"type":"pow","base":2.0,"exponent":10.0}"#);
+        assert_eq!((min, max), (1024.0, 1024.0));
+    }
+
+    #[test]
+    fn pow_range_covers_a_moving_base_and_exponent() {
+        let (_, min, max) = build(&format!(
+            r#"{{"type":"pow","base":{},"exponent":{}}}"#,
+            moving(0.5, 2.0),
+            moving(-2.0, 2.0)
+        ));
+        assert_eq!((min, max), (0.25, 4.0));
+    }
+
+    #[test]
+    fn sqrt_log_and_sign() {
+        assert_eq!(sample(r#"{"type":"sqrt","input":16.0}"#), 4.0);
+        assert_eq!(sample(r#"{"type":"log","input":1.0}"#), 0.0);
+        assert_eq!(sample(r#"{"type":"sign","input":-3.0}"#), -1.0);
+        assert_eq!(sample(r#"{"type":"minecraft:sign","input":0.0}"#), 0.0);
+        assert_eq!(
+            build(&format!(r#"{{"type":"sign","input":{}}}"#, moving(-4.0, 4.0))).1,
+            -1.0
+        );
+    }
+
+    #[test]
+    fn rounding_defaults_to_whole_numbers() {
+        assert_eq!(sample(r#"{"type":"floor","input":2.7}"#), 2.0);
+        assert_eq!(sample(r#"{"type":"ceil","input":2.1}"#), 3.0);
+        assert_eq!(sample(r#"{"type":"truncate","input":-2.7}"#), -2.0);
+        // Java's Math.round is half-up, so -2.5 rounds towards zero.
+        assert_eq!(sample(r#"{"type":"round","input":-2.5}"#), -2.0);
+        assert_eq!(sample(r#"{"type":"round","input":2.5}"#), 3.0);
+    }
+
+    #[test]
+    fn rounding_snaps_to_a_multiple() {
+        assert_eq!(
+            sample(r#"{"type":"floor","input":7.0,"multiple":3.0}"#),
+            6.0
+        );
+        let (value, min, max) = build(&format!(
+            r#"{{"type":"ceil","input":{},"multiple":4.0}}"#,
+            moving(0.0, 10.0)
+        ));
+        assert_eq!(value, 0.0);
+        assert_eq!((min, max), (0.0, 12.0));
     }
 }

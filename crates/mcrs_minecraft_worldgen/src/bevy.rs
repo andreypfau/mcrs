@@ -122,9 +122,27 @@ impl WorldGenConfig {
     }
 }
 
+#[derive(serde::Deserialize)]
+struct WorldPreset {
+    dimensions: BTreeMap<String, LevelStem>,
+}
+
+#[derive(serde::Deserialize)]
+struct LevelStem {
+    generator: ChunkGenerator,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(tag = "type")]
+enum ChunkGenerator {
+    #[serde(rename = "minecraft:noise", alias = "noise")]
+    Noise { settings: String },
+    #[serde(other)]
+    Unsupported,
+}
+
 /// Read the world preset JSON from disk and extract the `generator.settings`
-/// id for the `minecraft:overworld` dimension.  Falls back to using the preset
-/// namespace/path unchanged when the file cannot be read or parsed.
+/// id for the `minecraft:overworld` dimension.
 pub(crate) fn resolve_overworld_noise_settings(
     preset_ns: &str,
     preset_path: &str,
@@ -135,34 +153,28 @@ pub(crate) fn resolve_overworld_noise_settings(
         asset_root, preset_ns, preset_path
     );
 
-    let fallback = || (Arc::from(preset_ns), Arc::from(preset_path));
+    let data = std::fs::read_to_string(&json_path)
+        .unwrap_or_else(|e| panic!("cannot read world preset {json_path}: {e}"));
+    let preset: WorldPreset = serde_json::from_str(&data)
+        .unwrap_or_else(|e| panic!("cannot parse world preset {json_path}: {e}"));
 
-    let data = match std::fs::read_to_string(&json_path) {
-        Ok(d) => d,
-        Err(_) => return fallback(),
+    let overworld = preset
+        .dimensions
+        .get("minecraft:overworld")
+        .or_else(|| preset.dimensions.get("overworld"))
+        .unwrap_or_else(|| panic!("world preset {json_path} has no minecraft:overworld dimension"));
+
+    let settings = match &overworld.generator {
+        ChunkGenerator::Noise { settings } => settings.as_str(),
+        ChunkGenerator::Unsupported => panic!(
+            "world preset {json_path}: the overworld generator is not minecraft:noise, \
+             which is the only generator this worldgen supports"
+        ),
     };
 
-    let json: serde_json::Value = match serde_json::from_str(&data) {
-        Ok(v) => v,
-        Err(_) => return fallback(),
-    };
-
-    let settings_str = json
-        .get("dimensions")
-        .and_then(|d| d.get("minecraft:overworld"))
-        .and_then(|ow| ow.get("generator"))
-        .and_then(|g| g.get("settings"))
-        .and_then(|s| s.as_str());
-
-    match settings_str {
-        Some(s) => {
-            if let Some(colon) = s.find(':') {
-                (Arc::from(&s[..colon]), Arc::from(&s[colon + 1..]))
-            } else {
-                (Arc::from("minecraft"), Arc::from(s))
-            }
-        }
-        None => fallback(),
+    match settings.split_once(':') {
+        Some((namespace, path)) => (Arc::from(namespace), Arc::from(path)),
+        None => (Arc::from("minecraft"), Arc::from(settings)),
     }
 }
 
