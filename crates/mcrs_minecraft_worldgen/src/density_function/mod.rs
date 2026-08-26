@@ -32,10 +32,6 @@ struct ChunkNoiseFunctionBuilderOptions {
     horizontal_cell_block_count: usize,
     vertical_cell_block_count: usize,
 
-    // Number of cells per chunk per axis
-    vertical_cell_count: usize,
-    horizontal_cell_count: usize,
-
     // The biome coords of this chunk
     pub start_biome_x: i32,
     pub start_biome_z: i32,
@@ -417,37 +413,12 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
     let mut affine_fusions = 0usize;
     let mut piecewise_affine_fusions = 0usize;
     let mut constants_folded = 0usize;
-    let mut caches_eliminated = 0usize;
     let mut identities_eliminated = 0usize;
     let mut binary_demotions = 0usize;
     let mut slide_fusions = 0usize;
 
     // Phase 1: Forward pass — peephole optimize
     for i in 0..n {
-        // 1. Resolve cache wrapper redirects (only CacheOnce and CacheAllInCell;
-        //    FlatCache and Cache2d are kept alive for column caching)
-        let is_eliminated_cache = matches!(
-            &stack[i],
-            DensityFunctionComponent::Wrapper(
-                WrapperDensityFunction::CacheOnce(_) | WrapperDensityFunction::CacheAllInCell(_)
-            )
-        );
-
-        if is_eliminated_cache {
-            let input_index = match &stack[i] {
-                DensityFunctionComponent::Wrapper(WrapperDensityFunction::CacheOnce(x)) => {
-                    x.input_index
-                }
-                DensityFunctionComponent::Wrapper(WrapperDensityFunction::CacheAllInCell(x)) => {
-                    x.input_index
-                }
-                _ => unreachable!(),
-            };
-            redirect[i] = redirect[input_index];
-            caches_eliminated += 1;
-            continue;
-        }
-
         // 2. Apply redirects to current entry's inputs
         stack[i].rewrite_indices(&redirect);
 
@@ -1058,7 +1029,6 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
         affine_fusions,
         piecewise_affine_fusions,
         constants_folded,
-        caches_eliminated,
         identities_eliminated,
         binary_demotions,
         slide_fusions,
@@ -1071,8 +1041,9 @@ fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]
 /// vs once per column (X,Z changes only).
 ///
 /// Forward propagation: a node is per_block if it intrinsically depends on Y
-/// OR if any of its inputs is per_block. FlatCache and Cache2d force their
-/// output to column-only regardless of inputs.
+/// OR if any of its inputs is per_block. A `Cache` over a column-only input is
+/// therefore column-only itself, and acts as the barrier `is_column_barrier`
+/// reports.
 fn compute_per_block(stack: &[DensityFunctionComponent], _roots: &[usize]) -> Vec<bool> {
     let mut per_block = vec![false; stack.len()];
 
@@ -1081,19 +1052,19 @@ fn compute_per_block(stack: &[DensityFunctionComponent], _roots: &[usize]) -> Ve
         let intrinsic = match &stack[i] {
             DensityFunctionComponent::Independent(f) => match f {
                 IndependentDensityFunction::OldBlendedNoise(_)
-                | IndependentDensityFunction::Noise(_)
                 | IndependentDensityFunction::ClampedYGradient(_)
                 | IndependentDensityFunction::DistanceToPoint(_) => true,
+                IndependentDensityFunction::Noise(n) => n.y_scale != 0.0,
                 IndependentDensityFunction::Gradient(g) => g.axis == Axis::Y,
                 _ => false,
             },
-            DensityFunctionComponent::Dependent(f) => matches!(
-                f,
+            DensityFunctionComponent::Dependent(f) => match f {
                 DependentDensityFunction::Slide(_)
-                    | DependentDensityFunction::ShiftedNoise(_)
-                    | DependentDensityFunction::FindTopSurface(_)
-                    | DependentDensityFunction::Slice(_)
-            ),
+                | DependentDensityFunction::FindTopSurface(_)
+                | DependentDensityFunction::Slice(_) => true,
+                DependentDensityFunction::ShiftedNoise(n) => n.y_scale != 0.0,
+                _ => false,
+            },
             DensityFunctionComponent::Wrapper(_) => false,
         };
 
@@ -1107,16 +1078,6 @@ fn compute_per_block(stack: &[DensityFunctionComponent], _roots: &[usize]) -> Ve
                 }
             });
         }
-
-        // FlatCache/Cache2d override: force column-only
-        if matches!(
-            &stack[i],
-            DensityFunctionComponent::Wrapper(
-                WrapperDensityFunction::FlatCache(_) | WrapperDensityFunction::Cache2d(_)
-            )
-        ) {
-            per_block[i] = false;
-        }
     }
 
     let column_only_count = per_block.iter().filter(|&&b| !b).count();
@@ -1127,6 +1088,16 @@ fn compute_per_block(stack: &[DensityFunctionComponent], _roots: &[usize]) -> Ve
     );
 
     per_block
+}
+
+/// A cache node whose value is constant down a column: everything it shields is
+/// evaluated once per column instead of once per block.
+fn is_column_barrier(stack: &[DensityFunctionComponent], per_block: &[bool], index: usize) -> bool {
+    !per_block[index]
+        && matches!(
+            &stack[index],
+            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Cache(_))
+        )
 }
 
 /// Reorder the stack into three zones for optimal `evaluate_forward` performance:
@@ -1162,21 +1133,14 @@ fn reorder_stack_for_evaluation(
         }
     }
 
-    // Step 2: Compute per-Y reachability (backward walk, stopping at FlatCache/Cache2d)
+    // Step 2: Compute per-Y reachability (backward walk, stopping at column barriers)
     // These are entries whose per-Y values are actually consumed by final_density.
     let mut per_y_reachable = vec![false; n];
     {
         let mut worklist = vec![fd_index];
         per_y_reachable[fd_index] = true;
         while let Some(idx) = worklist.pop() {
-            // Stop at FlatCache/Cache2d: their inputs' per-Y values are never used
-            let is_cache_boundary = matches!(
-                &stack[idx],
-                DensityFunctionComponent::Wrapper(
-                    WrapperDensityFunction::FlatCache(_) | WrapperDensityFunction::Cache2d(_)
-                )
-            );
-            if !is_cache_boundary {
+            if !is_column_barrier(stack, per_block, idx) {
                 stack[idx].visit_input_indices(&mut |input| {
                     if !per_y_reachable[input] {
                         per_y_reachable[input] = true;
@@ -1197,21 +1161,21 @@ fn reorder_stack_for_evaluation(
             if per_y_reachable[i] && per_block[i] {
                 zone[i] = 1; // Zone B: per-Y evaluation needed
             } else {
-                zone[i] = 0; // Zone A: column-only (or shielded by FlatCache)
+                zone[i] = 0; // Zone A: column-only (or shielded by a column barrier)
             }
         }
     }
 
     // Safety check: verify no Zone A entry depends on a Zone B entry.
-    // This would happen if a FlatCache input is shared with a direct per-Y consumer.
-    // In vanilla Minecraft, this never occurs; all FlatCache inputs are exclusive.
+    // This would happen if a barrier input is shared with a direct per-Y consumer.
+    // In vanilla Minecraft, this never occurs; all barrier inputs are exclusive.
     for i in 0..n {
         if zone[i] == 0 {
             stack[i].visit_input_indices(&mut |input| {
                 debug_assert!(
                     zone[input] != 1,
                     "Zone A entry {} depends on Zone B entry {} — \
-                     FlatCache/Cache2d input is shared with a direct per-Y consumer. \
+                     column barrier input is shared with a direct per-Y consumer. \
                      This case requires special handling.",
                     i,
                     input
@@ -1300,7 +1264,7 @@ fn reorder_stack_for_evaluation(
 
 /// Persistent cache for density function evaluation.
 /// Reuse across calls to `final_density` within the same chunk generation
-/// to cache column-only values (FlatCache/Cache2d dependency cones).
+/// to cache column-only values (column barrier dependency cones).
 pub struct DensityCache {
     scratch: Vec<f32>,
     last_x: i32,
@@ -1497,13 +1461,11 @@ pub fn build_functions(
     let builder_options = ChunkNoiseFunctionBuilderOptions {
         horizontal_cell_block_count: 4,
         vertical_cell_block_count: 8,
-        vertical_cell_count: 16,
-        horizontal_cell_count: 16,
         start_biome_x: 0,
         start_biome_z: 0,
         horizontal_biome_end: 4,
     };
-    let mut builder = FunctionStackBuilder::new(random, seed, functions, noises, &builder_options);
+    let mut builder = FunctionStackBuilder::new(random, seed, functions, noises);
     let nr = &noise_settings.noise_router;
     let temperature_index = builder.component(&nr.temperature);
     let vegetation_index = builder.component(&nr.vegetation);
@@ -1511,7 +1473,7 @@ pub fn build_functions(
     let erosion_index = builder.component(&nr.erosion);
     let depth_index = builder.component(&nr.depth);
     let ridges_index = builder.component(&nr.ridges);
-    let preliminary_surface_level_index = builder.component(&nr.preliminary_surface_level);
+    let chunk_surface_level_index = builder.component(&nr.chunk_surface_level);
     let final_density_index = builder.component(&nr.final_density);
 
     let mut roots = [
@@ -1521,7 +1483,7 @@ pub fn build_functions(
         erosion_index,
         depth_index,
         ridges_index,
-        preliminary_surface_level_index,
+        chunk_surface_level_index,
         final_density_index,
     ];
 
@@ -1605,7 +1567,7 @@ pub fn build_functions(
         erosion_index: roots[3],
         depth_index: roots[4],
         ridges_index: roots[5],
-        preliminary_surface_level_index: roots[6],
+        chunk_surface_level_index: roots[6],
         final_density_index,
         noise_min_y: noise_settings.noise.min_y,
         noise_height: noise_settings.noise.height,
@@ -1681,7 +1643,7 @@ pub struct NoiseRouter {
     erosion_index: usize,
     depth_index: usize,
     ridges_index: usize,
-    preliminary_surface_level_index: usize,
+    chunk_surface_level_index: usize,
     final_density_index: usize,
     noise_min_y: i32,
     noise_height: u32,
@@ -1743,8 +1705,8 @@ impl NoiseRouter {
             ("depth", self.depth_index),
             ("ridges", self.ridges_index),
             (
-                "preliminary_surface_level",
-                self.preliminary_surface_level_index,
+                "chunk_surface_level",
+                self.chunk_surface_level_index,
             ),
             ("final_density", self.final_density_index),
         ]
@@ -1974,8 +1936,8 @@ impl NoiseRouter {
         self.ridges_index
     }
 
-    pub fn preliminary_surface_level_index(&self) -> usize {
-        self.preliminary_surface_level_index
+    pub fn chunk_surface_level_index(&self) -> usize {
+        self.chunk_surface_level_index
     }
 
     pub fn final_density_index(&self) -> usize {
@@ -2531,10 +2493,7 @@ impl NoiseRouter {
                     let input_index = match f {
                         WrapperDensityFunction::BlendDensity(x) => x.input_index,
                         WrapperDensityFunction::Interpolated(x) => x.input_index,
-                        WrapperDensityFunction::FlatCache(x) => x.input_index,
-                        WrapperDensityFunction::Cache2d(x) => x.input_index,
-                        WrapperDensityFunction::CacheOnce(x) => x.input_index,
-                        WrapperDensityFunction::CacheAllInCell(x) => x.input_index,
+                        WrapperDensityFunction::Cache(x) => x.input_index,
                     };
                     for p in 0..n {
                         let base = p * stack_len;
@@ -2776,7 +2735,7 @@ impl NoiseRouter {
         "#ffca28", // erosion - amber
         "#26c6da", // depth - cyan
         "#ec407a", // ridges - pink
-        "#8d6e63", // preliminary_surface_level - brown
+        "#8d6e63", // chunk_surface_level - brown
         "#29b6f6", // final_density - light blue
         "#78909c", // vein_toggle - blue-grey
         "#7e57c2", // vein_ridged - deep purple
@@ -2988,7 +2947,7 @@ impl NoiseRouter {
                 cache.last_x = pos.x;
                 cache.last_z = pos.z;
                 // Evaluate Zone A (column-only) entries at Y=0.
-                // This includes FlatCache inputs evaluated at Y=0 (correct for column caching).
+                // This includes column barrier inputs evaluated at Y=0 (correct for column caching).
                 let y0_pos = IVec3::new(pos.x, 0, pos.z);
                 for i in 0..self.column_boundary {
                     cache.scratch[i] =
@@ -4087,31 +4046,13 @@ impl DensityFunction for BlendDensity {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct Interpolated {
     input_index: usize,
-
-    pub(crate) start_buffer: Box<[f32]>,
-    pub(crate) end_buffer: Box<[f32]>,
-
-    first_pass: [f32; 8],
-    second_pass: [f32; 4],
-    third_pass: [f32; 2],
-    result: f32,
-
-    pub(crate) vertical_cell_count: usize,
+    cell_size_xz: u32,
+    cell_size_y: u32,
     min_value: f32,
     max_value: f32,
-}
-
-impl Debug for Interpolated {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Interpolated")
-            .field("input_index", &self.input_index)
-            .field("min_value", &self.min_value)
-            .field("max_value", &self.max_value)
-            .finish()
-    }
 }
 
 impl RangeFunction for Interpolated {
@@ -4126,101 +4067,14 @@ impl RangeFunction for Interpolated {
     }
 }
 
-impl Interpolated {
-    pub fn new(
-        input_index: usize,
-        min_value: f32,
-        max_value: f32,
-        builder_options: &ChunkNoiseFunctionBuilderOptions,
-    ) -> Self {
-        Self {
-            input_index,
-            start_buffer: vec![
-                0.0;
-                (builder_options.vertical_cell_count + 1)
-                    * (builder_options.horizontal_cell_count + 1)
-            ]
-            .into_boxed_slice(),
-            end_buffer: vec![
-                0.0;
-                (builder_options.vertical_cell_count + 1)
-                    * (builder_options.horizontal_cell_count + 1)
-            ]
-            .into_boxed_slice(),
-            first_pass: Default::default(),
-            second_pass: Default::default(),
-            third_pass: Default::default(),
-            result: Default::default(),
-            vertical_cell_count: builder_options.vertical_cell_count,
-            min_value,
-            max_value,
-        }
-    }
-
-    #[inline]
-    pub(crate) fn yz_to_buf_index(&self, cell_y_position: usize, cell_z_position: usize) -> usize {
-        cell_z_position * (self.vertical_cell_count + 1) + cell_y_position
-    }
-
-    pub(crate) fn on_sampled_cell_corners(
-        &mut self,
-        cell_y_position: usize,
-        cell_z_position: usize,
-    ) {
-        self.first_pass[0] =
-            self.start_buffer[self.yz_to_buf_index(cell_y_position, cell_z_position)];
-        self.first_pass[1] =
-            self.start_buffer[self.yz_to_buf_index(cell_y_position, cell_z_position + 1)];
-        self.first_pass[4] =
-            self.end_buffer[self.yz_to_buf_index(cell_y_position, cell_z_position)];
-        self.first_pass[5] =
-            self.end_buffer[self.yz_to_buf_index(cell_y_position, cell_z_position + 1)];
-        self.first_pass[2] =
-            self.start_buffer[self.yz_to_buf_index(cell_y_position + 1, cell_z_position)];
-        self.first_pass[3] =
-            self.start_buffer[self.yz_to_buf_index(cell_y_position + 1, cell_z_position + 1)];
-        self.first_pass[6] =
-            self.end_buffer[self.yz_to_buf_index(cell_y_position + 1, cell_z_position)];
-        self.first_pass[7] =
-            self.end_buffer[self.yz_to_buf_index(cell_y_position + 1, cell_z_position + 1)];
-    }
-
-    pub(crate) fn interpolate_y(&mut self, delta: f32) {
-        self.second_pass[0] = lerp(delta, self.first_pass[0], self.first_pass[2]);
-        self.second_pass[2] = lerp(delta, self.first_pass[4], self.first_pass[6]);
-        self.second_pass[1] = lerp(delta, self.first_pass[1], self.first_pass[3]);
-        self.second_pass[3] = lerp(delta, self.first_pass[5], self.first_pass[7]);
-    }
-
-    #[inline]
-    pub(crate) fn interpolate_x(&mut self, delta: f32) {
-        self.third_pass[0] = lerp(delta, self.second_pass[0], self.second_pass[2]);
-        self.third_pass[1] = lerp(delta, self.second_pass[1], self.second_pass[3]);
-    }
-
-    #[inline]
-    pub(crate) fn interpolate_z(&mut self, delta: f32) {
-        self.result = lerp(delta, self.third_pass[0], self.third_pass[1]);
-    }
-
-    #[inline]
-    pub(crate) fn swap_buffers(&mut self) {
-        #[cfg(debug_assertions)]
-        let test = self.start_buffer[0];
-        swap(&mut self.start_buffer, &mut self.end_buffer);
-        #[cfg(debug_assertions)]
-        assert_eq!(test, self.end_buffer[0]);
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
-struct FlatCache {
+struct Cache {
     input_index: usize,
     min_value: f32,
     max_value: f32,
 }
 
-impl RangeFunction for FlatCache {
+impl RangeFunction for Cache {
     #[inline]
     fn min_value(&self) -> f32 {
         self.min_value
@@ -4232,82 +4086,7 @@ impl RangeFunction for FlatCache {
     }
 }
 
-impl DensityFunction for FlatCache {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct Cache2d {
-    input_index: usize,
-    min_value: f32,
-    max_value: f32,
-}
-
-impl RangeFunction for Cache2d {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
-}
-
-impl DensityFunction for Cache2d {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct CacheOnce {
-    input_index: usize,
-    min_value: f32,
-    max_value: f32,
-}
-
-impl RangeFunction for CacheOnce {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
-}
-
-impl DensityFunction for CacheOnce {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct CacheAllInCell {
-    input_index: usize,
-    min_value: f32,
-    max_value: f32,
-}
-
-impl RangeFunction for CacheAllInCell {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
-}
-
-impl DensityFunction for CacheAllInCell {
+impl DensityFunction for Cache {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos)
     }
@@ -4479,10 +4258,7 @@ enum DependentDensityFunction {
 enum WrapperDensityFunction {
     BlendDensity(BlendDensity),
     Interpolated(Interpolated),
-    FlatCache(FlatCache),
-    Cache2d(Cache2d),
-    CacheOnce(CacheOnce),
-    CacheAllInCell(CacheAllInCell),
+    Cache(Cache),
 }
 
 impl RangeFunction for WrapperDensityFunction {
@@ -4490,10 +4266,7 @@ impl RangeFunction for WrapperDensityFunction {
         match self {
             WrapperDensityFunction::BlendDensity(x) => x.min_value(),
             WrapperDensityFunction::Interpolated(x) => x.min_value(),
-            WrapperDensityFunction::FlatCache(x) => x.min_value(),
-            WrapperDensityFunction::Cache2d(x) => x.min_value(),
-            WrapperDensityFunction::CacheOnce(x) => x.min_value(),
-            WrapperDensityFunction::CacheAllInCell(x) => x.min_value(),
+            WrapperDensityFunction::Cache(x) => x.min_value(),
         }
     }
 
@@ -4501,10 +4274,7 @@ impl RangeFunction for WrapperDensityFunction {
         match self {
             WrapperDensityFunction::BlendDensity(x) => x.max_value(),
             WrapperDensityFunction::Interpolated(x) => x.max_value(),
-            WrapperDensityFunction::FlatCache(x) => x.max_value(),
-            WrapperDensityFunction::Cache2d(x) => x.max_value(),
-            WrapperDensityFunction::CacheOnce(x) => x.max_value(),
-            WrapperDensityFunction::CacheAllInCell(x) => x.max_value(),
+            WrapperDensityFunction::Cache(x) => x.max_value(),
         }
     }
 }
@@ -4516,10 +4286,7 @@ impl DensityFunction for WrapperDensityFunction {
             WrapperDensityFunction::Interpolated(x) => {
                 DensityFunctionComponent::sample_from_stack(&stack[..=x.input_index], pos)
             }
-            WrapperDensityFunction::FlatCache(x) => x.sample(stack, pos),
-            WrapperDensityFunction::Cache2d(x) => x.sample(stack, pos),
-            WrapperDensityFunction::CacheOnce(x) => x.sample(stack, pos),
-            WrapperDensityFunction::CacheAllInCell(x) => x.sample(stack, pos),
+            WrapperDensityFunction::Cache(x) => x.sample(stack, pos),
         }
     }
 }
@@ -5835,11 +5602,10 @@ impl DensityFunctionComponent {
             },
             DensityFunctionComponent::Wrapper(f) => match f {
                 WrapperDensityFunction::BlendDensity(_) => "blend_density".into(),
-                WrapperDensityFunction::Interpolated(_) => "interpolated".into(),
-                WrapperDensityFunction::FlatCache(_) => "flat_cache".into(),
-                WrapperDensityFunction::Cache2d(_) => "cache_2d".into(),
-                WrapperDensityFunction::CacheOnce(_) => "cache_once".into(),
-                WrapperDensityFunction::CacheAllInCell(_) => "cache_all_in_cell".into(),
+                WrapperDensityFunction::Interpolated(x) => {
+                    format!("interpolated\\n{}x{}", x.cell_size_xz, x.cell_size_y)
+                }
+                WrapperDensityFunction::Cache(_) => "cache".into(),
             },
         }
     }
@@ -5958,16 +5724,7 @@ impl DensityFunctionComponent {
                 WrapperDensityFunction::Interpolated(x) => {
                     x.input_index = redirect[x.input_index];
                 }
-                WrapperDensityFunction::FlatCache(x) => {
-                    x.input_index = redirect[x.input_index];
-                }
-                WrapperDensityFunction::Cache2d(x) => {
-                    x.input_index = redirect[x.input_index];
-                }
-                WrapperDensityFunction::CacheOnce(x) => {
-                    x.input_index = redirect[x.input_index];
-                }
-                WrapperDensityFunction::CacheAllInCell(x) => {
+                WrapperDensityFunction::Cache(x) => {
                     x.input_index = redirect[x.input_index];
                 }
             },
@@ -6018,10 +5775,7 @@ impl DensityFunctionComponent {
             DensityFunctionComponent::Wrapper(wrapper) => match wrapper {
                 WrapperDensityFunction::BlendDensity(x) => f(x.input_index),
                 WrapperDensityFunction::Interpolated(x) => f(x.input_index),
-                WrapperDensityFunction::FlatCache(x) => f(x.input_index),
-                WrapperDensityFunction::Cache2d(x) => f(x.input_index),
-                WrapperDensityFunction::CacheOnce(x) => f(x.input_index),
-                WrapperDensityFunction::CacheAllInCell(x) => f(x.input_index),
+                WrapperDensityFunction::Cache(x) => f(x.input_index),
             },
         }
     }
@@ -6162,10 +5916,7 @@ impl DensityFunctionComponent {
             DensityFunctionComponent::Wrapper(f) => match f {
                 WrapperDensityFunction::BlendDensity(x) => cache[x.input_index],
                 WrapperDensityFunction::Interpolated(x) => cache[x.input_index],
-                WrapperDensityFunction::FlatCache(x) => cache[x.input_index],
-                WrapperDensityFunction::Cache2d(x) => cache[x.input_index],
-                WrapperDensityFunction::CacheOnce(x) => cache[x.input_index],
-                WrapperDensityFunction::CacheAllInCell(x) => cache[x.input_index],
+                WrapperDensityFunction::Cache(x) => cache[x.input_index],
             },
         }
     }
@@ -6196,7 +5947,6 @@ struct FunctionStackBuilder<'a> {
     noises: &'a BTreeMap<ResourceLocation, NoiseParam>,
     stack: Vec<DensityFunctionComponent>,
     built: HashMap<ProtoDensityFunction, usize>,
-    builder_options: &'a ChunkNoiseFunctionBuilderOptions,
 }
 
 impl<'a> FunctionStackBuilder<'a> {
@@ -6205,7 +5955,6 @@ impl<'a> FunctionStackBuilder<'a> {
         world_seed: u64,
         functions: &'a BTreeMap<ResourceLocation, ProtoDensityFunction>,
         noises: &'a BTreeMap<ResourceLocation, NoiseParam>,
-        builder_options: &'a ChunkNoiseFunctionBuilderOptions,
     ) -> Self {
         Self {
             random,
@@ -6214,7 +5963,6 @@ impl<'a> FunctionStackBuilder<'a> {
             noises,
             stack: Vec::new(),
             built: HashMap::new(),
-            builder_options,
         }
     }
 }
@@ -6316,44 +6064,10 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         );
     }
 
-    fn visit_flat_cache(&mut self, function: &SingleArgumentFunction) {
-        let (input_index) = self.component(&function.input);
+    fn visit_cache(&mut self, function: &SingleArgumentFunction) {
+        let input_index = self.component(&function.input);
         let input = &self.stack[input_index];
-        let min_value = input.min_value();
-        let max_value = input.max_value();
-        self.register_component(
-            ProtoDensityFunction::FlatCache(SingleArgumentFunction {
-                input: function.input.clone(),
-            }),
-            DensityFunctionComponent::Wrapper(WrapperDensityFunction::FlatCache(FlatCache {
-                input_index,
-                min_value,
-                max_value,
-            })),
-        );
-    }
-
-    fn visit_cache2d(&mut self, function: &SingleArgumentFunction) {
-        let (input_index) = self.component(&function.input);
-        let input = &self.stack[input_index];
-        let min_value = input.min_value();
-        let max_value = input.max_value();
-        self.register_component(
-            ProtoDensityFunction::Cache2d(SingleArgumentFunction {
-                input: function.input.clone(),
-            }),
-            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Cache2d(Cache2d {
-                input_index,
-                min_value,
-                max_value,
-            })),
-        );
-    }
-
-    fn visit_cache_once(&mut self, function: &SingleArgumentFunction) {
-        let (input_index) = self.component(&function.input);
-        let input = &self.stack[input_index];
-        let proto = ProtoDensityFunction::CacheOnce(SingleArgumentFunction {
+        let proto = ProtoDensityFunction::Cache(SingleArgumentFunction {
             input: function.input.clone(),
         });
         if let Some(constant) = input.as_constant() {
@@ -6369,30 +6083,11 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         let max_value = input.max_value();
         self.register_component(
             proto,
-            DensityFunctionComponent::Wrapper(WrapperDensityFunction::CacheOnce(CacheOnce {
+            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Cache(Cache {
                 input_index,
                 min_value,
                 max_value,
             })),
-        );
-    }
-
-    fn visit_cache_all_in_cell(&mut self, function: &SingleArgumentFunction) {
-        let (input_index) = self.component(&function.input);
-        let input = &self.stack[input_index];
-        let min_value = input.min_value();
-        let max_value = input.max_value();
-        self.register_component(
-            ProtoDensityFunction::CacheAllInCell(SingleArgumentFunction {
-                input: function.input.clone(),
-            }),
-            DensityFunctionComponent::Wrapper(WrapperDensityFunction::CacheAllInCell(
-                CacheAllInCell {
-                    input_index,
-                    min_value,
-                    max_value,
-                },
-            )),
         );
     }
 
@@ -6506,47 +6201,43 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         );
     }
 
-    fn visit_noise(&mut self, noise_holder: &NoiseHolder, xz_scale: f64, y_scale: f64) {
+    fn visit_noise(
+        &mut self,
+        noise_holder: &NoiseHolder,
+        xz_scale: f64,
+        y_scale: f64,
+        shift_x: Option<&DensityFunctionHolder>,
+        shift_y: Option<&DensityFunctionHolder>,
+        shift_z: Option<&DensityFunctionHolder>,
+    ) {
         let noise_name = Self::noise_name(noise_holder);
         let sampler = self.noise_sampler(noise_holder);
         let proto = ProtoDensityFunction::Noise {
             noise: noise_holder.clone(),
             xz_scale: xz_scale.into(),
             y_scale: y_scale.into(),
+            shift_x: shift_x.cloned(),
+            shift_y: shift_y.cloned(),
+            shift_z: shift_z.cloned(),
         };
-        self.register_component(
-            proto,
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Noise(Noise {
-                noise_name,
-                sampler,
-                xz_scale: xz_scale as f32,
-                y_scale: y_scale as f32,
-            })),
-        );
-    }
 
-    fn visit_shifted_noise(
-        &mut self,
-        shift_x: &DensityFunctionHolder,
-        shift_y: &DensityFunctionHolder,
-        shift_z: &DensityFunctionHolder,
-        xz_scale: f64,
-        y_scale: f64,
-        noise: &NoiseHolder,
-    ) {
-        let (input_x_index) = self.component(shift_x);
-        let (input_y_index) = self.component(shift_y);
-        let (input_z_index) = self.component(shift_z);
-        let noise_name = Self::noise_name(noise);
-        let sampler = self.noise_sampler(noise);
-        let proto = ProtoDensityFunction::ShiftedNoise {
-            shift_x: shift_x.clone(),
-            shift_y: shift_y.clone(),
-            shift_z: shift_z.clone(),
-            xz_scale: xz_scale.into(),
-            y_scale: y_scale.into(),
-            noise: noise.clone(),
-        };
+        if shift_x.is_none() && shift_y.is_none() && shift_z.is_none() {
+            self.register_component(
+                proto,
+                DensityFunctionComponent::Independent(IndependentDensityFunction::Noise(Noise {
+                    noise_name,
+                    sampler,
+                    xz_scale: xz_scale as f32,
+                    y_scale: y_scale as f32,
+                })),
+            );
+            return;
+        }
+
+        let zero = DensityFunctionHolder::Value(0.0.into());
+        let input_x_index = self.component(shift_x.unwrap_or(&zero));
+        let input_y_index = self.component(shift_y.unwrap_or(&zero));
+        let input_z_index = self.component(shift_z.unwrap_or(&zero));
         self.register_component(
             proto,
             DensityFunctionComponent::Dependent(DependentDensityFunction::ShiftedNoise(
@@ -6851,19 +6542,30 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         );
     }
 
-    fn visit_interpolated(&mut self, function: &SingleArgumentFunction) {
-        let input_index = self.component(&function.input);
-        let input = &self.stack[input_index];
-        let min_value = input.min_value();
-        let max_value = input.max_value();
+    fn visit_interpolated(
+        &mut self,
+        input: &DensityFunctionHolder,
+        cell_size_xz: u32,
+        cell_size_y: u32,
+    ) {
+        let input_index = self.component(input);
+        let component = &self.stack[input_index];
+        let min_value = component.min_value();
+        let max_value = component.max_value();
 
         self.register_component(
-            ProtoDensityFunction::Interpolated(SingleArgumentFunction {
-                input: function.input.clone(),
-            }),
-            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(
-                Interpolated::new(input_index, min_value, max_value, self.builder_options),
-            )),
+            ProtoDensityFunction::Interpolated {
+                input: input.clone(),
+                cell_size_xz,
+                cell_size_y,
+            },
+            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(Interpolated {
+                input_index,
+                cell_size_xz,
+                cell_size_y,
+                min_value,
+                max_value,
+            })),
         );
     }
 }
@@ -7276,10 +6978,10 @@ mod tests {
             mcrs_voxel_storage::VoxelId(1),
             mcrs_voxel_storage::VoxelId(86),
         );
-        // Zone A must contain the two FlatCache'd 2D nodes (scale/depth).
+        // Zone A must contain the two cached 2D nodes (scale/depth).
         assert!(
             router.column_boundary() > 0,
-            "Zone A must be non-empty (FlatCache 2D scale/depth nodes)"
+            "Zone A must be non-empty (cached 2D scale/depth nodes)"
         );
         // final_density must be wired into Zone B.
         assert!(
@@ -7824,8 +7526,6 @@ mod tests {
             serde_json::from_str(&json).expect("beta.json should deserialize without error");
         assert_eq!(settings.sea_level, 64);
         assert_eq!(settings.noise.height, 128);
-        assert_eq!(settings.noise.size_horizontal, 1);
-        assert_eq!(settings.noise.size_vertical, 2);
         assert!(settings.legacy_random_source);
     }
 
@@ -7902,25 +7602,68 @@ mod tests {
         let base = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../assets/minecraft/worldgen/noise");
         let mut map = std::collections::BTreeMap::new();
-        if let Ok(entries) = std::fs::read_dir(&base) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.extension().and_then(|s| s.to_str()) != Some("json") {
-                    continue;
-                }
-                let json = std::fs::read_to_string(&path)
-                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-                let noise =
-                    serde_json::from_str::<crate::density_function::proto::NoiseParam>(&json)
-                        .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-                let stem = path.file_stem().unwrap().to_string_lossy();
-                let ident = format!("minecraft:{}", stem)
-                    .parse::<mcrs_core::ResourceLocation>()
-                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-                map.insert(ident, noise);
-            }
-        }
+        recurse_noises(&base, "", &mut map);
         map
+    }
+
+    fn recurse_noises(
+        dir: &std::path::Path,
+        prefix: &str,
+        map: &mut std::collections::BTreeMap<
+            mcrs_core::ResourceLocation,
+            crate::density_function::proto::NoiseParam,
+        >,
+    ) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let subdir = entry.file_name().to_string_lossy().to_string();
+                let new_prefix = if prefix.is_empty() {
+                    subdir
+                } else {
+                    format!("{}/{}", prefix, subdir)
+                };
+                recurse_noises(&path, &new_prefix, map);
+                continue;
+            }
+            if path.extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+            let json = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            let noise = serde_json::from_str::<crate::density_function::proto::NoiseParam>(&json)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            let stem = path.file_stem().unwrap().to_string_lossy();
+            let key = if prefix.is_empty() {
+                format!("minecraft:{}", stem)
+            } else {
+                format!("minecraft:{}/{}", prefix, stem)
+            };
+            let ident = key
+                .parse::<mcrs_core::ResourceLocation>()
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            map.insert(ident, noise);
+        }
+    }
+
+    fn count_json_files(dir: &std::path::Path) -> usize {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            panic!("{} must exist", dir.display());
+        };
+        entries
+            .flatten()
+            .map(|entry| {
+                let path = entry.path();
+                if path.is_dir() {
+                    count_json_files(&path)
+                } else {
+                    usize::from(path.extension().and_then(|s| s.to_str()) == Some("json"))
+                }
+            })
+            .sum()
     }
 
     /// Regression gate: the modern NoiseRouter built from overworld.json via
@@ -8034,5 +7777,62 @@ mod tests {
             beta_sample.to_bits(),
             "beta router must produce a different final_density than the modern router at (0,64,0)"
         );
+    }
+
+    /// Every shipped worldgen asset must deserialize. A loader that swallowed
+    /// errors once hid 42 of 62 unparseable density functions, so this asserts
+    /// the on-disk file count and the parsed count agree.
+    #[test]
+    fn whole_worldgen_corpus_parses() {
+        let assets =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/minecraft/worldgen");
+
+        let functions = load_density_functions_from_disk();
+        assert_eq!(
+            functions.len(),
+            count_json_files(&assets.join("density_function")),
+            "every density_function asset must parse"
+        );
+
+        for (ident, function) in &functions {
+            // A bare constant ships as a naked number, never as a tagged object.
+            if matches!(function, crate::density_function::ProtoDensityFunction::Constant(_)) {
+                continue;
+            }
+            let reencoded = serde_json::to_string(function).unwrap();
+            let roundtripped =
+                serde_json::from_str::<crate::density_function::ProtoDensityFunction>(&reencoded)
+                    .unwrap_or_else(|e| panic!("{ident}: {e}\n{reencoded}"));
+            assert_eq!(&roundtripped, function, "{ident} must round-trip");
+        }
+
+        let noises = load_noises_from_disk();
+        assert_eq!(
+            noises.len(),
+            count_json_files(&assets.join("noise")),
+            "every noise asset must parse"
+        );
+
+        let settings_dir = assets.join("noise_settings");
+        let mut settings_count = 0;
+        for entry in std::fs::read_dir(&settings_dir).unwrap().flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+            let json = std::fs::read_to_string(&path).unwrap();
+            let settings: NoiseGeneratorSettings = serde_json::from_str(&json)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            super::build_functions(
+                &functions,
+                &noises,
+                &settings,
+                2,
+                mcrs_voxel_storage::VoxelId(1),
+                mcrs_voxel_storage::VoxelId(86),
+            );
+            settings_count += 1;
+        }
+        assert_eq!(settings_count, count_json_files(&settings_dir));
     }
 }

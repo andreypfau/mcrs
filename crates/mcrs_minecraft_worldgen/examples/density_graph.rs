@@ -275,12 +275,8 @@ fn main() {
                     "Usage: density_graph [--seed SEED] [--pos X:Y:Z] [--assets PATH] [--root ROOT] [--settings NAME] [--output FILE|DIR]"
                 );
                 eprintln!();
-                eprintln!("Roots: barrier, fluid_level_floodedness, fluid_level_spread, lava,");
-                eprintln!("       temperature, vegetation, continents, erosion, depth, ridges,");
-                eprintln!(
-                    "       preliminary_surface_level, final_density, vein_toggle, vein_ridged,"
-                );
-                eprintln!("       vein_gap, all");
+                eprintln!("Roots: temperature, vegetation, continents, erosion, depth, ridges,");
+                eprintln!("       chunk_surface_level, final_density, all");
                 eprintln!();
                 eprintln!(
                     "Settings: overworld, nether, end, caves, amplified, large_biomes, floating_islands, all"

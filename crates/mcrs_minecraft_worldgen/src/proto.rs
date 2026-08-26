@@ -3,6 +3,7 @@ use mcrs_core::ResourceLocation;
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 #[cfg_attr(feature = "bevy", derive(bevy_asset::Asset, bevy_reflect::TypePath))]
 pub struct NoiseGeneratorSettings {
     pub noise: NoiseSettings,
@@ -15,15 +16,16 @@ pub struct NoiseGeneratorSettings {
     pub disable_mob_generation: bool,
     #[cfg_attr(feature = "serde", serde(default))]
     pub aquifers: Option<Aquifers>,
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub ore_veins: Vec<OreVein>,
     pub legacy_random_source: bool,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub debug_functions: Vec<DebugFunction>,
 }
 
 pub type SpawnTargetPoint = std::collections::BTreeMap<ResourceLocation, Interval<HashableF64>>;
 
 #[derive(Hash, PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Aquifers {
     pub barrier: DensityFunctionHolder,
     pub exclusion: DensityFunctionHolder,
@@ -33,29 +35,25 @@ pub struct Aquifers {
     pub surface_level: DensityFunctionHolder,
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(Hash, PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct OreVein {
-    pub density: DensityFunctionHolder,
-    pub richness: DensityFunctionHolder,
-    pub filler_gap: DensityFunctionHolder,
-    pub filler_block: BlockState,
-    pub ore_block: BlockState,
-    pub raw_ore_block: BlockState,
-    pub raw_ore_chance: f64,
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct DebugFunction {
+    pub label: String,
+    pub function: DensityFunctionHolder,
 }
 
 #[derive(Hash, PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct NoiseSettings {
     pub min_y: i32,
     pub height: u32,
-    pub size_horizontal: u8,
-    pub size_vertical: u8,
 }
 
 #[derive(Hash, PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct NoiseRouter {
     pub temperature: DensityFunctionHolder,
     pub vegetation: DensityFunctionHolder,
@@ -63,91 +61,8 @@ pub struct NoiseRouter {
     pub erosion: DensityFunctionHolder,
     pub depth: DensityFunctionHolder,
     pub ridges: DensityFunctionHolder,
-    pub preliminary_surface_level: DensityFunctionHolder,
+    pub chunk_surface_level: DensityFunctionHolder,
     pub final_density: DensityFunctionHolder,
-}
-
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[serde(tag = "type")]
-pub enum SurfaceRule {
-    #[serde(rename = "minecraft:bandlands")]
-    Bandlands,
-    #[serde(rename = "minecraft:block")]
-    Block { result_state: BlockState },
-    #[serde(rename = "minecraft:sequence")]
-    Sequence { sequence: Vec<SurfaceRule> },
-    #[serde(rename = "minecraft:condition")]
-    Condition {
-        if_true: Box<ConditionSource>,
-        then_run: Box<SurfaceRule>,
-    },
-}
-
-#[derive(PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[serde(tag = "type")]
-pub enum ConditionSource {
-    #[serde(rename = "minecraft:biome")]
-    Biome { biome_is: Vec<ResourceLocation> },
-    #[serde(rename = "minecraft:noise_threshold")]
-    NoiseThreshold {
-        noise: ResourceLocation,
-        min_threshold: f64,
-        max_threshold: f64,
-    },
-    #[serde(rename = "minecraft:vertical_gradient")]
-    VerticalGradient {
-        random_name: ResourceLocation,
-        true_at_and_below: VerticalAnchor,
-        false_at_and_above: VerticalAnchor,
-    },
-    #[serde(rename = "minecraft:y_above")]
-    YAbove {
-        anchor: VerticalAnchor,
-        surface_depth_multiplier: i8,
-        add_stone_depth: bool,
-    },
-    #[serde(rename = "minecraft:water")]
-    Water {
-        offset: i32,
-        surface_depth_multiplier: i8,
-        add_stone_depth: bool,
-    },
-    #[serde(rename = "minecraft:temperature")]
-    Temperature,
-    #[serde(rename = "minecraft:steep")]
-    Steep,
-    #[serde(rename = "minecraft:not")]
-    Not { invert: Box<ConditionSource> },
-    #[serde(rename = "minecraft:hole")]
-    Hole,
-    #[serde(rename = "minecraft:above_preliminary_surface")]
-    AbovePreliminarySurface,
-    #[serde(rename = "minecraft:stone_depth")]
-    StoneDepth {
-        offset: i32,
-        add_surface_depth: bool,
-        secondary_depth_range: i32,
-        surface_type: CaveSurface,
-    },
-}
-
-#[derive(Hash, PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[serde(untagged)]
-pub enum VerticalAnchor {
-    Absolute { absolute: i32 },
-    AboveBottom { above_bottom: i32 },
-    BelowTop { below_top: i32 },
-}
-
-#[derive(Hash, PartialEq, Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[serde(rename_all = "lowercase")]
-pub enum CaveSurface {
-    Ceiling,
-    Floor,
 }
 
 #[derive(Hash, PartialEq, Debug, Clone)]
@@ -158,6 +73,7 @@ pub struct BlockState {
 
 #[cfg(feature = "serde")]
 #[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct DispatchedBlockState {
     id: ResourceLocation,
     #[serde(default)]

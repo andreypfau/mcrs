@@ -434,7 +434,7 @@ impl AssetLoader for NoiseGeneratorSettingsLoader {
         visitor.visit_density_function_holder(&noise.noise_router.erosion);
         visitor.visit_density_function_holder(&noise.noise_router.depth);
         visitor.visit_density_function_holder(&noise.noise_router.ridges);
-        visitor.visit_density_function_holder(&noise.noise_router.preliminary_surface_level);
+        visitor.visit_density_function_holder(&noise.noise_router.chunk_surface_level);
         visitor.visit_density_function_holder(&noise.noise_router.final_density);
 
         Ok(NoiseGeneratorSettingsAsset {

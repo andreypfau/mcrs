@@ -11,47 +11,45 @@
   "material_rule": "minecraft:overworld",
   "noise": {
     "height": 128,
-    "min_y": 0,
-    "size_horizontal": 1,
-    "size_vertical": 2
+    "min_y": 0
   },
   "noise_router": {
+    "chunk_surface_level": 0.0,
     "continents": 0.0,
     "depth": 0.0,
     "erosion": 0.0,
     "final_density": {
-      "type": "minecraft:add",
       "left": {
-        "type": "minecraft:mul",
         "left": {
-          "type": "minecraft:add",
           "left": {
+            "smear_scale_multiplier": 8.0,
             "type": "minecraft:old_blended_noise",
-            "xz_scale": 0.25,
-            "y_scale": 0.125,
             "xz_factor": 80.0,
+            "xz_scale": 0.25,
             "y_factor": 160.0,
-            "smear_scale_multiplier": 8.0
+            "y_scale": 0.125
           },
-          "right": "minecraft:beta/falloff"
+          "right": "minecraft:beta/falloff",
+          "type": "minecraft:add"
         },
         "right": {
-          "type": "minecraft:add",
           "left": 1.0,
           "right": {
-            "type": "minecraft:mul",
             "left": "minecraft:beta/top_slide",
-            "right": -1.0
-          }
-        }
+            "right": -1.0,
+            "type": "minecraft:mul"
+          },
+          "type": "minecraft:add"
+        },
+        "type": "minecraft:mul"
       },
       "right": {
-        "type": "minecraft:mul",
         "left": "minecraft:beta/top_slide",
-        "right": -10.0
-      }
+        "right": -10.0,
+        "type": "minecraft:mul"
+      },
+      "type": "minecraft:add"
     },
-    "preliminary_surface_level": 0.0,
     "ridges": 0.0,
     "temperature": "minecraft:beta/temperature",
     "vegetation": "minecraft:beta/vegetation"

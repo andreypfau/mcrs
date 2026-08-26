@@ -38,6 +38,7 @@ impl From<SingleArgumentFunction> for DensityFunctionHolder {
 #[derive(Hash, Eq, PartialEq, Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum ProtoDensityFunction {
     #[serde(alias = "minecraft:blend_alpha")]
     BlendAlpha,
@@ -54,32 +55,27 @@ pub enum ProtoDensityFunction {
         smear_scale_multiplier: HashableF64,
     },
     #[serde(alias = "interpolated", rename = "minecraft:interpolated")]
-    Interpolated(SingleArgumentFunction),
-    #[serde(alias = "minecraft:flat_cache")]
-    FlatCache(SingleArgumentFunction),
-    #[serde(alias = "minecraft:cache_2d")]
-    Cache2d(SingleArgumentFunction),
-    #[serde(alias = "minecraft:cache_once")]
-    CacheOnce(SingleArgumentFunction),
-    #[serde(alias = "minecraft:cache_all_in_cell")]
-    CacheAllInCell(SingleArgumentFunction),
+    Interpolated {
+        input: DensityFunctionHolder,
+        cell_size_xz: u32,
+        cell_size_y: u32,
+    },
+    #[serde(alias = "minecraft:cache")]
+    Cache(SingleArgumentFunction),
     #[serde(alias = "noise", rename = "minecraft:noise")]
     Noise {
         noise: NoiseHolder,
         xz_scale: HashableF64,
         y_scale: HashableF64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shift_x: Option<DensityFunctionHolder>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shift_y: Option<DensityFunctionHolder>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        shift_z: Option<DensityFunctionHolder>,
     },
     #[serde(alias = "minecraft:end_outer_islands")]
     EndOuterIslands,
-    #[serde(alias = "minecraft:shifted_noise")]
-    ShiftedNoise {
-        shift_x: DensityFunctionHolder,
-        shift_y: DensityFunctionHolder,
-        shift_z: DensityFunctionHolder,
-        xz_scale: HashableF64,
-        y_scale: HashableF64,
-        noise: NoiseHolder,
-    },
     #[serde(rename = "minecraft:range_choice")]
     RangeChoice {
         input: DensityFunctionHolder,
@@ -186,6 +182,7 @@ pub enum NoiseHolder {
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct NoiseParam {
     pub base_octave: i32,
     #[cfg_attr(
@@ -246,12 +243,14 @@ pub enum DistanceMetric {
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SingleArgumentFunction {
     pub input: DensityFunctionHolder,
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct TwoArgumentFunction {
     pub left: DensityFunctionHolder,
     pub right: DensityFunctionHolder,
@@ -267,6 +266,7 @@ pub enum SplineHolder {
 
 #[derive(Hash, Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Spline {
     pub coordinate: DensityFunctionHolder,
     pub points: Vec<SplinePoint>,
@@ -274,6 +274,7 @@ pub struct Spline {
 
 #[derive(Hash, Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SplinePoint {
     pub location: HashableF64,
     pub value: SplineHolder,
@@ -313,25 +314,28 @@ pub trait Visitor {
                 y_factor.0,
                 smear_scale_multiplier.0,
             ),
-            ProtoDensityFunction::Interpolated(arg) => self.visit_interpolated(arg),
-            ProtoDensityFunction::FlatCache(arg) => self.visit_flat_cache(arg),
-            ProtoDensityFunction::Cache2d(arg) => self.visit_cache2d(arg),
-            ProtoDensityFunction::CacheOnce(arg) => self.visit_cache_once(arg),
-            ProtoDensityFunction::CacheAllInCell(arg) => self.visit_cache_all_in_cell(arg),
+            ProtoDensityFunction::Interpolated {
+                input,
+                cell_size_xz,
+                cell_size_y,
+            } => self.visit_interpolated(input, *cell_size_xz, *cell_size_y),
+            ProtoDensityFunction::Cache(arg) => self.visit_cache(arg),
             ProtoDensityFunction::Noise {
                 noise,
                 xz_scale,
                 y_scale,
-            } => self.visit_noise(noise, xz_scale.0, y_scale.0),
-            ProtoDensityFunction::EndOuterIslands => self.visit_end_outer_islands(),
-            ProtoDensityFunction::ShiftedNoise {
                 shift_x,
                 shift_y,
                 shift_z,
-                xz_scale,
-                y_scale,
+            } => self.visit_noise(
                 noise,
-            } => self.visit_shifted_noise(shift_x, shift_y, shift_z, xz_scale.0, y_scale.0, noise),
+                xz_scale.0,
+                y_scale.0,
+                shift_x.as_ref(),
+                shift_y.as_ref(),
+                shift_z.as_ref(),
+            ),
+            ProtoDensityFunction::EndOuterIslands => self.visit_end_outer_islands(),
             ProtoDensityFunction::RangeChoice {
                 input,
                 min_inclusive,
@@ -433,46 +437,35 @@ pub trait Visitor {
         self.visit_density_function_holder(&function.right)
     }
 
-    fn visit_interpolated(&mut self, function: &SingleArgumentFunction) {
+    fn visit_interpolated(
+        &mut self,
+        input: &DensityFunctionHolder,
+        cell_size_xz: u32,
+        cell_size_y: u32,
+    ) {
+        self.visit_density_function_holder(input)
+    }
+
+    fn visit_cache(&mut self, function: &SingleArgumentFunction) {
         self.visit_single_argument_function(function)
     }
 
-    fn visit_flat_cache(&mut self, function: &SingleArgumentFunction) {
-        self.visit_single_argument_function(function)
-    }
-
-    fn visit_cache2d(&mut self, function: &SingleArgumentFunction) {
-        self.visit_single_argument_function(function)
-    }
-
-    fn visit_cache_once(&mut self, function: &SingleArgumentFunction) {
-        self.visit_single_argument_function(function)
-    }
-
-    fn visit_cache_all_in_cell(&mut self, function: &SingleArgumentFunction) {
-        self.visit_single_argument_function(function)
-    }
-
-    fn visit_noise(&mut self, noise: &NoiseHolder, xz_scale: f64, y_scale: f64) {
+    fn visit_noise(
+        &mut self,
+        noise: &NoiseHolder,
+        xz_scale: f64,
+        y_scale: f64,
+        shift_x: Option<&DensityFunctionHolder>,
+        shift_y: Option<&DensityFunctionHolder>,
+        shift_z: Option<&DensityFunctionHolder>,
+    ) {
+        for shift in [shift_x, shift_y, shift_z].into_iter().flatten() {
+            self.visit_density_function_holder(shift);
+        }
         self.visit_noise_holder(noise)
     }
 
     fn visit_end_outer_islands(&mut self) {}
-
-    fn visit_shifted_noise(
-        &mut self,
-        shift_x: &DensityFunctionHolder,
-        shift_y: &DensityFunctionHolder,
-        shift_z: &DensityFunctionHolder,
-        xz_scale: f64,
-        y_scale: f64,
-        noise: &NoiseHolder,
-    ) {
-        self.visit_density_function_holder(shift_x);
-        self.visit_density_function_holder(shift_y);
-        self.visit_density_function_holder(shift_z);
-        self.visit_noise_holder(noise)
-    }
 
     fn visit_range_choice(
         &mut self,
