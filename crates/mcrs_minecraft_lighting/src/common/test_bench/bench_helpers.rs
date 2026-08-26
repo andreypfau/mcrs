@@ -12,7 +12,7 @@ use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::storage::chunk::Chunk;
 use mcrs_engine::world::storage::column::ColumnPlugin;
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
 use crate::LightingPlugin;
 use crate::components::{BlockBfsPending, SkyBfsPending};
@@ -101,30 +101,30 @@ pub fn spawn_test_chunk(
 
 pub fn air_palette() -> BlockPalette {
     let mut p = BlockPalette::default();
-    p.fill(BlockStateId(0));
+    p.fill(VoxelId(0));
     p
 }
 
 pub fn solid_palette() -> BlockPalette {
     let mut p = BlockPalette::default();
-    p.fill(BlockStateId(1));
+    p.fill(VoxelId(1));
     p
 }
 
 pub fn torch_palette_with_one_emitter() -> BlockPalette {
     let mut p = BlockPalette::default();
-    p.fill(BlockStateId(0));
-    p.set((8i32, 8i32, 8i32), BlockStateId(2));
+    p.fill(VoxelId(0));
+    p.set((8i32, 8i32, 8i32), VoxelId(2));
     p
 }
 
 pub fn tnt_3x3x3_palette() -> BlockPalette {
     let mut p = BlockPalette::default();
-    p.fill(BlockStateId(0));
+    p.fill(VoxelId(0));
     for x in 7i32..=9 {
         for y in 7i32..=9 {
             for z in 7i32..=9 {
-                p.set((x, y, z), BlockStateId(1));
+                p.set((x, y, z), VoxelId(1));
             }
         }
     }
@@ -133,10 +133,10 @@ pub fn tnt_3x3x3_palette() -> BlockPalette {
 
 pub fn stone_cap_then_air_palette() -> BlockPalette {
     let mut p = BlockPalette::default();
-    p.fill(BlockStateId(0));
+    p.fill(VoxelId(0));
     for x in 0i32..16 {
         for z in 0i32..16 {
-            p.set((x, 15i32, z), BlockStateId(1));
+            p.set((x, 15i32, z), VoxelId(1));
         }
     }
     p
@@ -144,7 +144,7 @@ pub fn stone_cap_then_air_palette() -> BlockPalette {
 
 pub fn solid_column_palette() -> BlockPalette {
     let mut p = BlockPalette::default();
-    p.fill(BlockStateId(1));
+    p.fill(VoxelId(1));
     p
 }
 

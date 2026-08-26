@@ -159,8 +159,8 @@ fn load_overworld_noise_router(assets_path: &std::path::Path) -> OverworldNoiseR
         &noises,
         &settings,
         2,
-        mcrs_protocol::BlockStateId(1),
-        mcrs_protocol::BlockStateId(86),
+        mcrs_palette::VoxelId(1),
+        mcrs_palette::VoxelId(86),
     );
     OverworldNoiseRouter(Arc::new(router))
 }

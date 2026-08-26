@@ -24,7 +24,7 @@ use crate::table::{BlockStateLightTable, flag_bits};
 use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkyViolationKind {
@@ -63,7 +63,7 @@ fn sky_neighbour_contribution(
     x: i32,
     y: i32,
     z: i32,
-    self_state: BlockStateId,
+    self_state: VoxelId,
     table: &BlockStateLightTable,
     palette: &BlockPalette,
     light: &LightStorage,
@@ -181,7 +181,7 @@ mod tests {
     use crate::table::flag_bits;
     use mcrs_core::voxel_shape::VoxelShape;
 
-    const AIR: BlockStateId = BlockStateId(0);
+    const AIR: VoxelId = VoxelId(0);
 
     fn make_test_table() -> BlockStateLightTable {
         let state_count: usize = 0x1001;
@@ -207,7 +207,7 @@ mod tests {
         }
     }
 
-    fn make_palette(emitters: &[(i32, i32, i32, BlockStateId)]) -> BlockPalette {
+    fn make_palette(emitters: &[(i32, i32, i32, VoxelId)]) -> BlockPalette {
         let mut p = BlockPalette::default();
         p.fill(AIR);
         for (x, y, z, state) in emitters {
@@ -277,7 +277,7 @@ mod tests {
         // `0.saturating_sub(15) = 0`, and every y=15 cell skips TopRowFloor
         // because the propagates flag is cleared. A single bright stored
         // level at an interior cell then trips SourceExcess.
-        const STONE: BlockStateId = BlockStateId(1);
+        const STONE: VoxelId = VoxelId(1);
         let state_count: usize = 2;
         let emission = vec![0u8; state_count].into_boxed_slice();
         let mut dampening = vec![0u8; state_count].into_boxed_slice();

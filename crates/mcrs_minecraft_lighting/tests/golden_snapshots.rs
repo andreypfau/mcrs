@@ -26,7 +26,7 @@ use mcrs_minecraft_lighting::sky_light::invariants::check_sky_light_invariants;
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_minecraft_lighting::test_bench::assert_nibbles_eq;
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
 #[path = "golden/mod.rs"]
 mod golden;
@@ -68,7 +68,7 @@ fn spawn_air_chunk(app: &mut App, dim: Entity, chunk_pos: ChunkPos) -> Entity {
         .id()
 }
 
-fn set_palette_cell(app: &mut App, chunk: Entity, world_pos: BlockPos, state: BlockStateId) {
+fn set_palette_cell(app: &mut App, chunk: Entity, world_pos: BlockPos, state: VoxelId) {
     app.world_mut()
         .get_mut::<BlockPalette>(chunk)
         .expect("BlockPalette missing on chunk")
@@ -80,8 +80,8 @@ fn emit_block_placed(
     chunk: Entity,
     chunk_pos: ChunkPos,
     world_pos: BlockPos,
-    old_state: BlockStateId,
-    new_state: BlockStateId,
+    old_state: VoxelId,
+    new_state: VoxelId,
 ) {
     app.world_mut()
         .resource_mut::<Messages<BlockPlaced>>()
@@ -224,7 +224,7 @@ fn spawn_lit_torch_in_chunk(
     chunk: Entity,
     chunk_pos: ChunkPos,
     block_pos: BlockPos,
-    emission_state: BlockStateId,
+    emission_state: VoxelId,
 ) {
     let old_state = app
         .world()

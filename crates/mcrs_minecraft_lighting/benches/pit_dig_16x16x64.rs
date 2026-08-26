@@ -4,7 +4,7 @@ use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::components::BlockBfsPending;
 use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 use std::time::{Duration, Instant};
 
 fn bench_pit_dig(c: &mut Criterion) {
@@ -34,7 +34,7 @@ fn bench_pit_dig(c: &mut Criterion) {
                         for x in 0i32..16 {
                             for y in 0i32..16 {
                                 for z in 0i32..16 {
-                                    palette.set((x, y, z), BlockStateId(0));
+                                    palette.set((x, y, z), VoxelId(0));
                                 }
                             }
                         }

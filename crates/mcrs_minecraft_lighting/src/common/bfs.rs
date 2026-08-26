@@ -333,7 +333,7 @@ pub(crate) trait BfsChannel {
     /// channel returns `None` unconditionally (no per-cell emission).
     fn emission_for(
         table: &BlockStateLightTable,
-        dst_state: mcrs_protocol::BlockStateId,
+        dst_state: mcrs_palette::VoxelId,
     ) -> Option<u8>;
 }
 
@@ -372,7 +372,7 @@ impl BfsChannel for BlockBfs {
     #[inline(always)]
     fn emission_for(
         table: &BlockStateLightTable,
-        dst_state: mcrs_protocol::BlockStateId,
+        dst_state: mcrs_palette::VoxelId,
     ) -> Option<u8> {
         let emitted = table.emission_for(dst_state);
         if emitted != 0 { Some(emitted) } else { None }
@@ -413,7 +413,7 @@ impl BfsChannel for SkyBfs {
     #[inline(always)]
     fn emission_for(
         _table: &BlockStateLightTable,
-        _dst_state: mcrs_protocol::BlockStateId,
+        _dst_state: mcrs_palette::VoxelId,
     ) -> Option<u8> {
         None
     }
@@ -715,7 +715,7 @@ pub fn propagate_decrease_sky(
 mod tests {
     use super::*;
     use crate::nibble::LightNibbles;
-    use mcrs_protocol::BlockStateId;
+    use mcrs_palette::VoxelId;
 
     const ALL_DIRECTIONS: [Direction; 6] = [
         Direction::Down,
@@ -838,7 +838,7 @@ mod tests {
     }
 
     fn fill_palette_with_air(palette: &mut BlockPalette) {
-        palette.fill(BlockStateId(0));
+        palette.fill(VoxelId(0));
     }
 
     /// Construct an empty `LightStorage::Dense` directly. Seeding the source
@@ -872,7 +872,7 @@ mod tests {
         let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
         let mut palette = BlockPalette::default();
         fill_palette_with_air(&mut palette);
-        palette.set((8, 8, 8), BlockStateId(0x1000));
+        palette.set((8, 8, 8), VoxelId(0x1000));
 
         let mut light = zero_light_storage();
         light.set(8, 8, 8, 14);
@@ -933,8 +933,8 @@ mod tests {
             ]);
             let mut palette = BlockPalette::default();
             fill_palette_with_air(&mut palette);
-            palette.set((8, 8, 8), BlockStateId(0x1000));
-            palette.set((8, 8, 9), BlockStateId(SLAB_HIGH));
+            palette.set((8, 8, 8), VoxelId(0x1000));
+            palette.set((8, 8, 9), VoxelId(SLAB_HIGH));
 
             let mut light = zero_light_storage();
             light.set(8, 8, 8, 14);
@@ -962,8 +962,8 @@ mod tests {
             ]);
             let mut palette = BlockPalette::default();
             fill_palette_with_air(&mut palette);
-            palette.set((8, 8, 8), BlockStateId(0x1000));
-            palette.set((8, 8, 9), BlockStateId(SLAB_ZERO));
+            palette.set((8, 8, 8), VoxelId(0x1000));
+            palette.set((8, 8, 9), VoxelId(SLAB_ZERO));
 
             let mut light = zero_light_storage();
             light.set(8, 8, 8, 14);
@@ -984,7 +984,7 @@ mod tests {
         let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
         let mut palette = BlockPalette::default();
         fill_palette_with_air(&mut palette);
-        palette.set((15, 8, 8), BlockStateId(0x1000));
+        palette.set((15, 8, 8), VoxelId(0x1000));
 
         let mut light = zero_light_storage();
         light.set(15, 8, 8, 14);
@@ -1020,7 +1020,7 @@ mod tests {
         let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
         let mut palette = BlockPalette::default();
         fill_palette_with_air(&mut palette);
-        palette.set((8, 8, 8), BlockStateId(0x1000));
+        palette.set((8, 8, 8), VoxelId(0x1000));
 
         let mut light_one = zero_light_storage();
         light_one.set(8, 8, 8, 14);
@@ -1145,8 +1145,8 @@ mod tests {
         ]);
         let mut palette = BlockPalette::default();
         fill_palette_with_air(&mut palette);
-        palette.set((5, 5, 5), BlockStateId(5));
-        palette.set((5, 5, 6), BlockStateId(6));
+        palette.set((5, 5, 5), VoxelId(5));
+        palette.set((5, 5, 6), VoxelId(6));
 
         let mut light = zero_light_storage();
         light.set(5, 5, 5, 14);
@@ -1189,7 +1189,7 @@ mod tests {
         let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
         let mut palette = BlockPalette::default();
         fill_palette_with_air(&mut palette);
-        palette.set((8, 8, 8), BlockStateId(0x1000));
+        palette.set((8, 8, 8), VoxelId(0x1000));
 
         // Pre-seed the L1-attenuated field as if the torch had been lit.
         let mut light = zero_light_storage();
@@ -1238,7 +1238,7 @@ mod tests {
         let mut palette = BlockPalette::default();
         fill_palette_with_air(&mut palette);
         // Surviving emitter at (12, 8, 8); the removed one was at (4, 8, 8).
-        palette.set((12, 8, 8), BlockStateId(0x1000));
+        palette.set((12, 8, 8), VoxelId(0x1000));
 
         // Pre-seed the cells along (x, 8, 8) for x in 4..=12 with the
         // max-of-both-emitters L1 field. Outside this line the field is
@@ -1306,8 +1306,8 @@ mod tests {
         ]);
         let mut palette = BlockPalette::default();
         fill_palette_with_air(&mut palette);
-        palette.set((5, 8, 8), BlockStateId(TORCH_HI));
-        palette.set((6, 8, 8), BlockStateId(TORCH_LO));
+        palette.set((5, 8, 8), VoxelId(TORCH_HI));
+        palette.set((6, 8, 8), VoxelId(TORCH_LO));
 
         let mut light = zero_light_storage();
         // (5, 8, 8) is the removed source — post-removal we treat it as 0.
@@ -1379,7 +1379,7 @@ mod tests {
     fn bfs_sky_increase_vertical_drop_through_air() {
         let table = build_sky_air_table();
         let mut palette = BlockPalette::default();
-        palette.fill(BlockStateId(SYNTH_AIR_ID));
+        palette.fill(VoxelId(SYNTH_AIR_ID));
 
         let mut light = zero_light_storage();
         let mut queues = SkyBfsQueues::default();
@@ -1416,7 +1416,7 @@ mod tests {
         // SKYLIGHT_DOWN flag preserves level 15 unattenuated through air.
         let table = build_sky_air_table();
         let mut palette = BlockPalette::default();
-        palette.fill(BlockStateId(SYNTH_AIR_ID));
+        palette.fill(VoxelId(SYNTH_AIR_ID));
 
         let mut light = zero_light_storage();
         for y in 0..15usize {
@@ -1454,8 +1454,8 @@ mod tests {
             (SYNTH_WATER_ID, water_sky_spec()),
         ]);
         let mut palette = BlockPalette::default();
-        palette.fill(BlockStateId(SYNTH_AIR_ID));
-        palette.set((8, 10, 8), BlockStateId(SYNTH_WATER_ID));
+        palette.fill(VoxelId(SYNTH_AIR_ID));
+        palette.set((8, 10, 8), VoxelId(SYNTH_WATER_ID));
 
         let mut light = zero_light_storage();
         let mut queues = SkyBfsQueues::default();
@@ -1486,7 +1486,7 @@ mod tests {
         // on the horizontal step.
         let table = build_sky_air_table();
         let mut palette = BlockPalette::default();
-        palette.fill(BlockStateId(SYNTH_AIR_ID));
+        palette.fill(VoxelId(SYNTH_AIR_ID));
 
         let mut light = zero_light_storage();
         let mut queues = SkyBfsQueues::default();
@@ -1529,9 +1529,9 @@ mod tests {
             (SYNTH_OPAQUE_DST_ID, dst_spec),
         ]);
         let mut palette = BlockPalette::default();
-        palette.fill(BlockStateId(SYNTH_AIR_ID));
-        palette.set((5, 5, 5), BlockStateId(SYNTH_OPAQUE_SRC_ID));
-        palette.set((5, 5, 6), BlockStateId(SYNTH_OPAQUE_DST_ID));
+        palette.fill(VoxelId(SYNTH_AIR_ID));
+        palette.set((5, 5, 5), VoxelId(SYNTH_OPAQUE_SRC_ID));
+        palette.set((5, 5, 6), VoxelId(SYNTH_OPAQUE_DST_ID));
 
         let mut light = zero_light_storage();
         let mut queues = SkyBfsQueues::default();
@@ -1556,7 +1556,7 @@ mod tests {
     fn bfs_sky_decrease_requeues_higher_stored() {
         let table = build_sky_air_table();
         let mut palette = BlockPalette::default();
-        palette.fill(BlockStateId(SYNTH_AIR_ID));
+        palette.fill(VoxelId(SYNTH_AIR_ID));
 
         let mut light = zero_light_storage();
         // Neighbour cell holds a higher level than the decrease propagation —
@@ -1607,10 +1607,10 @@ mod tests {
             (SYNTH_OPAQUE_SRC_ID, pseudo_emitter_spec),
         ]);
         let mut palette = BlockPalette::default();
-        palette.fill(BlockStateId(SYNTH_AIR_ID));
+        palette.fill(VoxelId(SYNTH_AIR_ID));
         // Place the pseudo-emitter at (6, 8, 8) — the cell visited by the
         // east-walking decrease pass.
-        palette.set((6, 8, 8), BlockStateId(SYNTH_OPAQUE_SRC_ID));
+        palette.set((6, 8, 8), VoxelId(SYNTH_OPAQUE_SRC_ID));
 
         let mut light = zero_light_storage();
         // (6, 8, 8) holds level 6 — equal to the target (14 - 1 - dampening),

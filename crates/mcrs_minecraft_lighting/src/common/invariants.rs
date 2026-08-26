@@ -22,7 +22,7 @@ use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::geometry::chunk_pos::BLOCKS;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViolationKind {
@@ -82,7 +82,7 @@ pub(crate) fn neighbour_contribution(
     x: i32,
     y: i32,
     z: i32,
-    self_state: BlockStateId,
+    self_state: VoxelId,
     table: &BlockStateLightTable,
     palette: &BlockPalette,
     light: &LightStorage,

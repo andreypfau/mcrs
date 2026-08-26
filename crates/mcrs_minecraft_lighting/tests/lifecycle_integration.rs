@@ -2,7 +2,7 @@
 //
 // Each test builds a minimal Bevy `App` registering `ColumnPlugin` +
 // `LightingPlugin`, inserts a stub `BlockStateLightTable` resource keyed by
-// `BlockStateId`, spawns dimensions and chunks directly, runs a single
+// `VoxelId`, spawns dimensions and chunks directly, runs a single
 // `FixedUpdate` tick, and asserts on the resulting component graph.
 //
 // The stub table replaces the production `build_block_light_table` path:
@@ -34,7 +34,7 @@ use mcrs_minecraft_lighting::components::{
     SkyBfsQueues, SkyInbox, SkyLight, SkyNeedsInitialSeed, SkyOutbox,
 };
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
 const TEST_DIM_HEIGHT: u32 = 384;
 const TEST_DIM_MIN_Y: i32 = -64;
@@ -106,13 +106,13 @@ fn spawn_test_chunk(
 
 fn solid_palette() -> BlockPalette {
     let mut p = BlockPalette::default();
-    p.fill(BlockStateId(1));
+    p.fill(VoxelId(1));
     p
 }
 
 fn air_palette() -> BlockPalette {
     let mut p = BlockPalette::default();
-    p.fill(BlockStateId(0));
+    p.fill(VoxelId(0));
     p
 }
 

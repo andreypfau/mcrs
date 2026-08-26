@@ -1,11 +1,11 @@
 // A single lit torch placed at the centre of an otherwise empty chunk;
 // the block-light engine should produce a radial decay field around it.
 
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
-const TORCH_LIT: BlockStateId = BlockStateId(0x1000);
+const TORCH_LIT: VoxelId = VoxelId(0x1000);
 
-pub static INPUT: &[((i32, i32, i32), BlockStateId)] = &[((8, 8, 8), TORCH_LIT)];
+pub static INPUT: &[((i32, i32, i32), VoxelId)] = &[((8, 8, 8), TORCH_LIT)];
 
 pub const EXPECTED_BLOCK_LIGHT: [u8; 2048] =
     super::expected::compute_l1_attenuated_field(&[((8, 8, 8), 14)]);

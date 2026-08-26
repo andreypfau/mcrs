@@ -36,7 +36,7 @@ use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyBfsPending, SkyLight};
 use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
 const TEST_DIM_HEIGHT: u32 = 384;
 const TEST_DIM_MIN_Y: i32 = -64;
@@ -108,7 +108,7 @@ fn spawn_test_chunk(
 
 fn air_palette() -> BlockPalette {
     let mut p = BlockPalette::default();
-    p.fill(BlockStateId(0));
+    p.fill(VoxelId(0));
     p
 }
 

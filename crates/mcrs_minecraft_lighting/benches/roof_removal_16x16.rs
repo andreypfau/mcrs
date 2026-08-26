@@ -4,7 +4,7 @@ use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::components::SkyBfsPending;
 use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 use std::time::{Duration, Instant};
 
 fn bench_roof_removal(c: &mut Criterion) {
@@ -34,7 +34,7 @@ fn bench_roof_removal(c: &mut Criterion) {
                         let mut palette = app.world_mut().get_mut::<BlockPalette>(entity).unwrap();
                         for x in 0i32..16 {
                             for z in 0i32..16 {
-                                palette.set((x, 15i32, z), BlockStateId(0));
+                                palette.set((x, 15i32, z), VoxelId(0));
                             }
                         }
                         app.world_mut().entity_mut(entity).insert(SkyBfsPending);

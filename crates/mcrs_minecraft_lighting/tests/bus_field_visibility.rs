@@ -7,7 +7,7 @@ use mcrs_engine::geometry::ChunkPos;
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
 #[test]
 fn block_placed_all_fields_pub() {
@@ -15,8 +15,8 @@ fn block_placed_all_fields_pub() {
         chunk: Entity::PLACEHOLDER,
         chunk_pos: ChunkPos::new(0, 0, 0),
         block_pos: BlockPos::new(0, 0, 0),
-        old_state: BlockStateId(0),
-        new_state: BlockStateId(1),
+        old_state: VoxelId(0),
+        new_state: VoxelId(1),
         flags: BlockUpdateFlags::all(),
     };
     let _chunk = placed.chunk;

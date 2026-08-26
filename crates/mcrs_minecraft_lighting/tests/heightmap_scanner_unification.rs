@@ -26,11 +26,11 @@ use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::lifecycle::ColumnHeightmapScan;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
-const AIR: BlockStateId = BlockStateId(0);
-const STONE: BlockStateId = BlockStateId(1);
-const LEAVES: BlockStateId = BlockStateId(2);
+const AIR: VoxelId = VoxelId(0);
+const STONE: VoxelId = VoxelId(1);
+const LEAVES: VoxelId = VoxelId(2);
 
 const DIM_MIN_Y: i32 = 0;
 const DIM_HEIGHT: u32 = 48;

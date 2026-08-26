@@ -1,8 +1,8 @@
 use mcrs_engine::world::block::BlockPos;
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
-pub fn from_input(input: &[((i32, i32, i32), BlockStateId)]) -> BlockPalette {
+pub fn from_input(input: &[((i32, i32, i32), VoxelId)]) -> BlockPalette {
     let mut palette = BlockPalette::default();
     for &((x, y, z), id) in input {
         palette.set(BlockPos::new(x, y, z), id);
@@ -26,16 +26,16 @@ mod tests {
 
     #[test]
     fn single_entry_round_trips_through_get() {
-        let palette = from_input(&[((1, 2, 3), BlockStateId(0x1000))]);
-        assert_eq!(palette.get(BlockPos::new(1, 2, 3)), BlockStateId(0x1000));
+        let palette = from_input(&[((1, 2, 3), VoxelId(0x1000))]);
+        assert_eq!(palette.get(BlockPos::new(1, 2, 3)), VoxelId(0x1000));
     }
 
     #[test]
     fn duplicate_coordinates_last_write_wins() {
         let palette = from_input(&[
-            ((5, 5, 5), BlockStateId(0x1000)),
-            ((5, 5, 5), BlockStateId(0x1001)),
+            ((5, 5, 5), VoxelId(0x1000)),
+            ((5, 5, 5), VoxelId(0x1001)),
         ]);
-        assert_eq!(palette.get(BlockPos::new(5, 5, 5)), BlockStateId(0x1001));
+        assert_eq!(palette.get(BlockPos::new(5, 5, 5)), VoxelId(0x1001));
     }
 }

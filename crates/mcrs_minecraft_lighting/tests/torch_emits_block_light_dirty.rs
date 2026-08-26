@@ -8,7 +8,7 @@
 // enqueue_block_light_on_block_placed → propagate → emit_block_light_dirty
 // → BlockLightDirty`, all within one `FixedUpdate` run.
 //
-// The stub `BlockStateLightTable` is extended to a third state (BlockStateId(2))
+// The stub `BlockStateLightTable` is extended to a third state (VoxelId(2))
 // with emission = 14 (vanilla torch level) so the placement actually seeds
 // a block-light source and the dirty marker fires.
 
@@ -36,7 +36,7 @@ use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::codec::BlockLightDirty;
 use mcrs_minecraft_lighting::metrics::TELEMETRY_TEST_LOCK;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
 const TEST_DIM_HEIGHT: u32 = 384;
 const TEST_DIM_MIN_Y: i32 = -64;
@@ -134,7 +134,7 @@ fn spawn_test_chunk(
 
 fn air_palette() -> BlockPalette {
     let mut p = BlockPalette::default();
-    p.fill(BlockStateId(0));
+    p.fill(VoxelId(0));
     p
 }
 
@@ -207,7 +207,7 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
         .write(BlockSetRequest {
             dimension: dim,
             pos: BlockPos::new(8, 8, 8),
-            new_state: BlockStateId(2),
+            new_state: VoxelId(2),
             flags: BlockUpdateFlags::ALL_IMMEDIATE,
             recursion_left: 512,
         });
@@ -224,7 +224,7 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
         .expect("chunk must still have BlockPalette");
     assert_eq!(
         palette_state,
-        BlockStateId(2),
+        VoxelId(2),
         "apply_set_block_request must have replaced the cell with the torch state"
     );
 

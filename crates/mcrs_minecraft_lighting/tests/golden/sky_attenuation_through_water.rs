@@ -6,11 +6,11 @@
 // are at 15 and one lateral step attenuates by 1. Above the water and in
 // every other column the engine reports the all-air maximum of 15.
 
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
-const WATER_FLOWING: BlockStateId = BlockStateId(0x1002);
+const WATER_FLOWING: VoxelId = VoxelId(0x1002);
 
-pub static INPUT: &[((i32, i32, i32), BlockStateId)] = &[((8, 10, 8), WATER_FLOWING)];
+pub static INPUT: &[((i32, i32, i32), VoxelId)] = &[((8, 10, 8), WATER_FLOWING)];
 
 pub const EXPECTED_SKY_LIGHT: [u8; 2048] = build_expected();
 

@@ -211,10 +211,10 @@ mod tests {
     use mcrs_engine::world::storage::column::{Column, ColumnChunks, Heightmaps, InColumn};
     use mcrs_minecraft_block::block::BlockUpdateFlags;
     use mcrs_minecraft_block::palette::BlockPalette;
-    use mcrs_protocol::BlockStateId;
+    use mcrs_palette::VoxelId;
 
-    const AIR: BlockStateId = BlockStateId(0);
-    const SOLID: BlockStateId = BlockStateId(1);
+    const AIR: VoxelId = VoxelId(0);
+    const SOLID: VoxelId = VoxelId(1);
 
     // Dimension shape: one section (chunk_y = 0), min_y = 0, height = 16. Keeps
     // the fixture small while still exercising the full rescan path: solid

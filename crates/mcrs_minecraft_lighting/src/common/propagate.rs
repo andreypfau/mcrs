@@ -70,10 +70,10 @@ mod tests {
     use bevy_ecs::prelude::{Entity, IntoScheduleConfigs};
     use mcrs_core::voxel_shape::{Direction, VoxelShape};
     use mcrs_minecraft_block::palette::BlockPalette;
-    use mcrs_protocol::BlockStateId;
+    use mcrs_palette::VoxelId;
 
-    const AIR: BlockStateId = BlockStateId(0);
-    const TORCH: BlockStateId = BlockStateId(1);
+    const AIR: VoxelId = VoxelId(0);
+    const TORCH: VoxelId = VoxelId(1);
 
     fn make_test_table() -> BlockStateLightTable {
         let state_count = 2usize;
@@ -705,7 +705,7 @@ mod tests {
         use mcrs_minecraft_block::block::BlockUpdateFlags;
         use mcrs_minecraft_block::block_update::BlockPlaced;
 
-        const TORCH: BlockStateId = BlockStateId(1);
+        const TORCH: VoxelId = VoxelId(1);
 
         let mut app = App::new();
         app.add_message::<BlockPlaced>();
@@ -755,7 +755,7 @@ mod tests {
         use mcrs_minecraft_block::block::BlockUpdateFlags;
         use mcrs_minecraft_block::block_update::BlockPlaced;
 
-        const LEAVES: BlockStateId = BlockStateId(4);
+        const LEAVES: VoxelId = VoxelId(4);
 
         let state_count = 5usize;
         let mut emission = vec![0u8; state_count].into_boxed_slice();

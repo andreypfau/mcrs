@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::{Commands, Res, Resource};
 use bevy_math::Vec3;
 use mcrs_core::voxel_shape::{Aabb, ShapeRegistry, ShapeRepr, VoxelShape, discrete::DiscreteShape};
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 use mcrs_vanilla::block::definition::{BlockStateData, BlockStateFlags, Blocks, ShapeId};
 use rustc_hash::FxHashMap;
 
@@ -25,17 +25,17 @@ impl BlockStateLightTable {
     }
 
     #[inline]
-    pub fn emission_for(&self, state: BlockStateId) -> u8 {
+    pub fn emission_for(&self, state: VoxelId) -> u8 {
         self.emission.get(state.0 as usize).copied().unwrap_or(0)
     }
 
     #[inline]
-    pub fn dampening_for(&self, state: BlockStateId) -> u8 {
+    pub fn dampening_for(&self, state: VoxelId) -> u8 {
         self.dampening.get(state.0 as usize).copied().unwrap_or(0)
     }
 
     #[inline]
-    pub fn occlusion_for(&self, state: BlockStateId) -> &'static VoxelShape {
+    pub fn occlusion_for(&self, state: VoxelId) -> &'static VoxelShape {
         self.occlusion
             .get(state.0 as usize)
             .copied()
@@ -43,7 +43,7 @@ impl BlockStateLightTable {
     }
 
     #[inline]
-    pub fn flags_for(&self, state: BlockStateId) -> u8 {
+    pub fn flags_for(&self, state: VoxelId) -> u8 {
         self.flags.get(state.0 as usize).copied().unwrap_or(0)
     }
 }
@@ -119,7 +119,7 @@ pub fn build_block_light_table(mut commands: Commands, blocks: Res<Blocks>) {
     let mut interned: FxHashMap<ShapeId, &'static VoxelShape> = FxHashMap::default();
 
     for index in 0..total_states {
-        let state = blocks.state(BlockStateId(index as u16));
+        let state = blocks.state(VoxelId(index as u16));
         let shape = match interned.get(&state.occlusion_shape) {
             Some(shape) => *shape,
             None => {
@@ -182,7 +182,7 @@ mod tests {
         })
     }
 
-    fn state_of(block: &str) -> BlockStateId {
+    fn state_of(block: &str) -> VoxelId {
         corpus()
             .block(block)
             .expect("the block is declared")
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn a_state_beyond_the_table_reads_as_nothing() {
-        let beyond = BlockStateId(u16::MAX);
+        let beyond = VoxelId(u16::MAX);
         assert_eq!(table().emission_for(beyond), 0);
         assert_eq!(table().dampening_for(beyond), 0);
         assert_eq!(table().flags_for(beyond), 0);

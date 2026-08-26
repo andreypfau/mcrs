@@ -53,12 +53,12 @@ use mcrs_minecraft_lighting::components::{BlockLight, SkyLight};
 use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
 const TEST_DIM_HEIGHT: u32 = 384;
 const TEST_DIM_MIN_Y: i32 = -64;
 
-const TORCH_STATE: BlockStateId = BlockStateId(2);
+const TORCH_STATE: VoxelId = VoxelId(2);
 
 fn make_stub_block_light_table_with_torch() -> BlockStateLightTable {
     let state_count = 3usize;
@@ -126,7 +126,7 @@ fn spawn_test_chunk(
 
 fn air_palette() -> BlockPalette {
     let mut p = BlockPalette::default();
-    p.fill(BlockStateId(0));
+    p.fill(VoxelId(0));
     p
 }
 
@@ -235,7 +235,7 @@ fn torch_in_dim_a_leaves_dim_b_byte_identical_and_no_cross_dim_violation() {
             chunk: sec_a0,
             chunk_pos: ChunkPos::new(0, 0, 0),
             block_pos: torch_pos,
-            old_state: BlockStateId(0),
+            old_state: VoxelId(0),
             new_state: TORCH_STATE,
             flags: BlockUpdateFlags::all(),
         });

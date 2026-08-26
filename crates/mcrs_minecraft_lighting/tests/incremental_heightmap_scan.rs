@@ -43,11 +43,11 @@ use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::components::IsAllAir;
 use mcrs_minecraft_lighting::lifecycle::ColumnHeightmapScan;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
-const AIR: BlockStateId = BlockStateId(0);
-const STONE: BlockStateId = BlockStateId(1);
-const LEAVES: BlockStateId = BlockStateId(2);
+const AIR: VoxelId = VoxelId(0);
+const STONE: VoxelId = VoxelId(1);
+const LEAVES: VoxelId = VoxelId(2);
 
 // Three-chunk dimension: chunks at chunk_y ∈ {0, 1, 2}, max_chunk_y = 2.
 const DIM_MIN_Y: i32 = 0;

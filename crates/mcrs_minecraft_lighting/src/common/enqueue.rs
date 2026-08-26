@@ -128,17 +128,17 @@ mod tests {
     use mcrs_minecraft_block::block::BlockUpdateFlags;
     use mcrs_minecraft_block::block_update::BlockPlaced;
     use mcrs_minecraft_block::palette::BlockPalette;
-    use mcrs_protocol::BlockStateId;
+    use mcrs_palette::VoxelId;
 
     mod mcrs_lighting_table_helpers {
         use super::*;
         use crate::table::{BlockStateLightTable, flag_bits};
 
-        pub const AIR: BlockStateId = BlockStateId(0);
-        pub const STONE: BlockStateId = BlockStateId(1);
-        pub const TORCH_HI: BlockStateId = BlockStateId(2);
-        pub const TORCH_LO: BlockStateId = BlockStateId(3);
-        pub const LEAVES: BlockStateId = BlockStateId(4);
+        pub const AIR: VoxelId = VoxelId(0);
+        pub const STONE: VoxelId = VoxelId(1);
+        pub const TORCH_HI: VoxelId = VoxelId(2);
+        pub const TORCH_LO: VoxelId = VoxelId(3);
+        pub const LEAVES: VoxelId = VoxelId(4);
 
         pub fn make_test_table() -> BlockStateLightTable {
             let state_count = 5usize;
@@ -200,8 +200,8 @@ mod tests {
     fn block_placed(
         chunk: bevy_ecs::entity::Entity,
         block_pos: BlockPos,
-        old_state: BlockStateId,
-        new_state: BlockStateId,
+        old_state: VoxelId,
+        new_state: VoxelId,
     ) -> BlockPlaced {
         BlockPlaced {
             chunk,
@@ -853,8 +853,8 @@ mod tests {
 
     #[test]
     fn enqueue_sky_on_block_placed_trips_on_occlusion_only_change() {
-        const SHAPE_A: BlockStateId = BlockStateId(10);
-        const SHAPE_B: BlockStateId = BlockStateId(11);
+        const SHAPE_A: VoxelId = VoxelId(10);
+        const SHAPE_B: VoxelId = VoxelId(11);
 
         let state_count = 12usize;
         let mut emission = vec![0u8; state_count].into_boxed_slice();

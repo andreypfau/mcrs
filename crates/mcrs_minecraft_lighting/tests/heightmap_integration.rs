@@ -33,7 +33,7 @@ use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
 // Single-pass scan contract: the heightmap reflects only XZ columns the
 // scan has already closed. The tests below spawn a chunk at chunk_y=0,
@@ -43,8 +43,8 @@ use mcrs_protocol::BlockStateId;
 // inside the dimension's Y bounds.
 const TEST_DIM_HEIGHT: u32 = 48;
 const TEST_DIM_MIN_Y: i32 = -32;
-const AIR_STATE: BlockStateId = BlockStateId(0);
-const SOLID_STATE: BlockStateId = BlockStateId(1);
+const AIR_STATE: VoxelId = VoxelId(0);
+const SOLID_STATE: VoxelId = VoxelId(1);
 
 fn make_heightmap_test_app() -> (App, Entity) {
     let mut app = App::new();

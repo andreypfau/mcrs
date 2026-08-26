@@ -18,7 +18,7 @@ use mcrs_minecraft_lighting::components::{BlockBfsQueues, BlockOutbox, SkyBfsQue
 use mcrs_minecraft_lighting::nibble::LightNibbles;
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
@@ -26,9 +26,9 @@ use rand::{Rng, SeedableRng};
 pub const N_FIXTURES: u64 = 32;
 pub const OPAQUE_PROBABILITY: f64 = 0.40;
 
-const AIR_ID: BlockStateId = BlockStateId(0);
-const STONE_ID: BlockStateId = BlockStateId(1);
-const TORCH_ID: BlockStateId = BlockStateId(0x1000);
+const AIR_ID: VoxelId = VoxelId(0);
+const STONE_ID: VoxelId = VoxelId(1);
+const TORCH_ID: VoxelId = VoxelId(0x1000);
 
 pub fn build_table() -> BlockStateLightTable {
     const SIZE: usize = 0x1001;

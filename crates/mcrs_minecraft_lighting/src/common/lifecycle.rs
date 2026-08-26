@@ -417,7 +417,7 @@ mod tests {
 
     fn air_palette() -> BlockPalette {
         let mut p = BlockPalette::default();
-        p.fill(mcrs_protocol::BlockStateId(0));
+        p.fill(mcrs_palette::VoxelId(0));
         p
     }
 

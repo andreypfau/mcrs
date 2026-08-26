@@ -7,12 +7,12 @@
 
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
-use mcrs_protocol::BlockStateId;
+use mcrs_palette::VoxelId;
 
-pub const SYNTH_AIR_ID: BlockStateId = BlockStateId(0);
-pub const SYNTH_STONE_ID: BlockStateId = BlockStateId(1);
-pub const SYNTH_TORCH_ID: BlockStateId = BlockStateId(0x1000);
-pub const SYNTH_WATER_ID: BlockStateId = BlockStateId(0x1002);
+pub const SYNTH_AIR_ID: VoxelId = VoxelId(0);
+pub const SYNTH_STONE_ID: VoxelId = VoxelId(1);
+pub const SYNTH_TORCH_ID: VoxelId = VoxelId(0x1000);
+pub const SYNTH_WATER_ID: VoxelId = VoxelId(0x1002);
 
 pub fn synthetic_block_light_table() -> BlockStateLightTable {
     const SIZE: usize = 0x1003;

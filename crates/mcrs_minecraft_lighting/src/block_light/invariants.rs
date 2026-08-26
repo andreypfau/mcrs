@@ -83,10 +83,10 @@ mod tests {
     use crate::nibble::LightNibbles;
     use crate::table::flag_bits;
     use mcrs_core::voxel_shape::VoxelShape;
-    use mcrs_protocol::BlockStateId;
+    use mcrs_palette::VoxelId;
 
-    const AIR: BlockStateId = BlockStateId(0);
-    const TORCH: BlockStateId = BlockStateId(0x1000);
+    const AIR: VoxelId = VoxelId(0);
+    const TORCH: VoxelId = VoxelId(0x1000);
 
     fn make_test_table() -> BlockStateLightTable {
         let state_count: usize = 0x1001;
@@ -112,7 +112,7 @@ mod tests {
         }
     }
 
-    fn make_palette(emitters: &[(i32, i32, i32, BlockStateId)]) -> BlockPalette {
+    fn make_palette(emitters: &[(i32, i32, i32, VoxelId)]) -> BlockPalette {
         let mut p = BlockPalette::default();
         p.fill(AIR);
         for (x, y, z, state) in emitters {
