@@ -68,7 +68,9 @@ impl NetworkPalette for BlockPalette {
         match &self.0 {
             Homogeneous(voxel) => mcrs_minecraft_protocol::chunk::PalettedContainer {
                 bits_per_entry: 0,
-                palette: mcrs_minecraft_protocol::chunk::Palette::Single(BlockStateId::from(*voxel)),
+                palette: mcrs_minecraft_protocol::chunk::Palette::Single(BlockStateId::from(
+                    *voxel,
+                )),
                 packed_data: Box::new([]),
             },
             Heterogeneous(data) => {

@@ -16,14 +16,6 @@ use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
-use mcrs_minecraft_server::world::bridge::dispatch_encode;
-use mcrs_minecraft_server::world::bridge_queue::{
-    DEPTH_DRAIN_TARGET, DEPTH_LIMIT, HIGH_OVERFLOW_LIMIT, KICK_AFTER_OVERFLOW_TICKS, OutboundQueue,
-};
-use mcrs_minecraft_server::world::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
-};
-use mcrs_minecraft_server::world::player_index::PlayerIndex;
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_network::metrics::{
     BRIDGE_DROP_LOW_TOTAL, BRIDGE_DROP_NORMAL_TOTAL, BRIDGE_ENCODE_UNHANDLED_TOTAL,
@@ -32,6 +24,14 @@ use mcrs_minecraft_network::metrics::{
 use mcrs_minecraft_protocol::Look;
 use mcrs_minecraft_protocol::chunk::LightData;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_server::world::bridge::dispatch_encode;
+use mcrs_minecraft_server::world::bridge_queue::{
+    DEPTH_DRAIN_TARGET, DEPTH_LIMIT, HIGH_OVERFLOW_LIMIT, KICK_AFTER_OVERFLOW_TICKS, OutboundQueue,
+};
+use mcrs_minecraft_server::world::bus::{
+    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget, TestPayload,
+};
+use mcrs_minecraft_server::world::player_index::PlayerIndex;
 use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::session::PlayerSession;
 use smallvec::SmallVec;

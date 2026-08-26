@@ -176,8 +176,9 @@ fn build_production_block_light_table() -> (
         ..Default::default()
     });
     let asset_server = app.world().resource::<bevy_asset::AssetServer>().clone();
-    let (definitions, _) = mcrs_minecraft_world::block::definition::load_block_definitions(&asset_server)
-        .expect("the block definition corpus loads");
+    let (definitions, _) =
+        mcrs_minecraft_world::block::definition::load_block_definitions(&asset_server)
+            .expect("the block definition corpus loads");
     app.insert_resource(mcrs_minecraft_world::block::definition::Blocks(Arc::new(
         definitions,
     )));

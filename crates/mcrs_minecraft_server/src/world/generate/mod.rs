@@ -1,9 +1,6 @@
 use crate::world::chunk::CancellationToken;
-use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_worldgen::density_function::{
-    ColumnCache, NoiseCellInterpolator, NoiseRouter, beta_terrain_f64::BetaTerrainF64,
-};
+use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -13,6 +10,9 @@ use mcrs_minecraft_world::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
 };
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
+use mcrs_minecraft_worldgen::density_function::{
+    ColumnCache, NoiseCellInterpolator, NoiseRouter, beta_terrain_f64::BetaTerrainF64,
+};
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 

@@ -12,16 +12,18 @@ use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
+use mcrs_minecraft_network::event::ReceivedPacketEvent;
+use mcrs_minecraft_network::metrics::{BRIDGE_KICK_FLOOD_TOTAL, TELEMETRY_TEST_LOCK};
+use mcrs_minecraft_network::{InGameConnectionState, ReceivedPacket, ServerSideConnection};
 use mcrs_minecraft_server::world::bridge::bridge_inbound;
 use mcrs_minecraft_server::world::bridge_queue::{
     INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_TICKS, InboundRateBucket, OutboundQueue,
 };
 use mcrs_minecraft_server::world::bus::{InboundPlayerPacket, OutboundPlayerPacket};
 use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
-use mcrs_minecraft_server::world::player_index::{HostAnchorRef, PendingInboundBuffer, PlayerIndex};
-use mcrs_minecraft_network::event::ReceivedPacketEvent;
-use mcrs_minecraft_network::metrics::{BRIDGE_KICK_FLOOD_TOTAL, TELEMETRY_TEST_LOCK};
-use mcrs_minecraft_network::{InGameConnectionState, ReceivedPacket, ServerSideConnection};
+use mcrs_minecraft_server::world::player_index::{
+    HostAnchorRef, PendingInboundBuffer, PlayerIndex,
+};
 use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 
 use std::sync::atomic::Ordering;

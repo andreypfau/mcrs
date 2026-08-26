@@ -7,7 +7,9 @@ use bevy_ecs::system::{Commands, ResMut};
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginFinished;
-use mcrs_minecraft_protocol::packets::login::serverbound::{ServerboundHello, ServerboundLoginAcknowledged};
+use mcrs_minecraft_protocol::packets::login::serverbound::{
+    ServerboundHello, ServerboundLoginAcknowledged,
+};
 use mcrs_minecraft_protocol::profile::Property;
 use mcrs_minecraft_protocol::{Bounded, WritePacket, uuid};
 use std::borrow::Cow;

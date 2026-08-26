@@ -9,7 +9,9 @@ use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_network::event::ReceivedPacketEvent;
 use mcrs_minecraft_protocol::Text;
-use mcrs_minecraft_protocol::packets::game::serverbound::{ServerboundChat, ServerboundChatCommand};
+use mcrs_minecraft_protocol::packets::game::serverbound::{
+    ServerboundChat, ServerboundChatCommand,
+};
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol::text::{Color, IntoText};
 use mcrs_voxel_world::entity::InTransit;

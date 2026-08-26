@@ -89,7 +89,9 @@ fn load_noises() -> BTreeMap<
             continue;
         };
         let stem = path.file_stem().unwrap().to_string_lossy();
-        if let Ok(ident) = format!("minecraft:{}", stem).parse::<mcrs_minecraft_core::ResourceLocation>() {
+        if let Ok(ident) =
+            format!("minecraft:{}", stem).parse::<mcrs_minecraft_core::ResourceLocation>()
+        {
             map.insert(ident, param);
         }
     }

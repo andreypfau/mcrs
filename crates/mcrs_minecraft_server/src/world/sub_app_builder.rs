@@ -54,11 +54,11 @@ use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::explosion::ExplosionPlugin;
 use crate::world::loot::LootPlugin;
+use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_core::registry::access::RegistryAccess;
 use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
-use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_protocol::light_codec::LightCodecPlugin;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::Block;
@@ -489,8 +489,10 @@ fn flush_from_dim_outbox(
             epoch: 0,
         };
         if sender.0.try_send(outbound).is_err() {
-            mcrs_minecraft_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL.fetch_add(1, Ordering::Relaxed);
-            let total = mcrs_minecraft_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL.load(Ordering::Relaxed);
+            mcrs_minecraft_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL
+                .fetch_add(1, Ordering::Relaxed);
+            let total = mcrs_minecraft_network::metrics::FROM_DIM_CHANNEL_DROP_TOTAL
+                .load(Ordering::Relaxed);
             *dropped_since_log += 1;
             if *dropped_since_log == 1
                 || dropped_since_log.is_multiple_of(FROM_DIM_DROP_LOG_INTERVAL)

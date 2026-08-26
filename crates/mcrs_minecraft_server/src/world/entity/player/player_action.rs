@@ -63,7 +63,9 @@ impl From<ServerboundPlayerAction> for PlayerActionKind {
                     direction: value.direction,
                 }
             }
-            mcrs_minecraft_protocol::entity::player::PlayerAction::DropItem => PlayerActionKind::DropItem,
+            mcrs_minecraft_protocol::entity::player::PlayerAction::DropItem => {
+                PlayerActionKind::DropItem
+            }
             mcrs_minecraft_protocol::entity::player::PlayerAction::DropAllItems => {
                 PlayerActionKind::DropAllItems
             }

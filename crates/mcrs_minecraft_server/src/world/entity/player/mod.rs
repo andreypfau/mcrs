@@ -336,7 +336,8 @@ fn network_add(
         session: PlayerSession(0),
         epoch: 0,
     });
-    mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL.fetch_add(1, Ordering::Relaxed);
+    mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+        .fetch_add(1, Ordering::Relaxed);
 }
 
 fn player_joined(

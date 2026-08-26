@@ -5,10 +5,10 @@ use std::sync::Arc;
 use bevy_asset::Assets;
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_worldgen::density_function::build_functions;
-use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::source::{BiomeSource, build_beta_lookup_table};
+use mcrs_minecraft_worldgen::density_function::build_functions;
+use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::generate_column;
@@ -245,7 +245,10 @@ fn generate_column_beta_biome_not_default() {
         let net = biomes.convert_network();
         // Default BiomePalette is Homogeneous(0) which serializes as Single(0).
         assert!(
-            matches!(net.palette, mcrs_minecraft_protocol::chunk::Palette::Single(0)),
+            matches!(
+                net.palette,
+                mcrs_minecraft_protocol::chunk::Palette::Single(0)
+            ),
             "modern path section y={} must produce default (all-zero) BiomePalette",
             idx
         );

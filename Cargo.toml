@@ -83,6 +83,8 @@ mcrs_minecraft_anvil = { path = "crates/mcrs_minecraft_anvil" }
 mcrs_voxel_storage = { path = "crates/mcrs_voxel_storage" }
 mcrs_voxel_math = { path = "crates/mcrs_voxel_math" }
 mcrs_voxel_server = { path = "crates/mcrs_voxel_server" }
+mcrs_voxel_worldgen = { path = "crates/mcrs_voxel_worldgen" }
+mcrs_voxel_persist = { path = "crates/mcrs_voxel_persist" }
 
 [dependencies]
 bevy_app.workspace = true

@@ -4,10 +4,10 @@ use std::sync::Arc;
 use bevy_asset::Assets;
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
-use mcrs_minecraft_worldgen::density_function::build_functions;
-use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::source::{BiomeSource, build_beta_lookup_table};
+use mcrs_minecraft_worldgen::density_function::build_functions;
+use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 

@@ -37,6 +37,8 @@ use mcrs_minecraft_core::registry::access::RegistryAccess;
 use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
 use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_network::ServerSideConnection;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::configuration::emit_initial_player_spawn;
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft_server::runner::pump_channels;
@@ -51,8 +53,6 @@ use mcrs_minecraft_server::world::bus::{
 };
 use mcrs_minecraft_server::world::player_index::{HostAnchorRef, PlayerIndex};
 use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_network::ServerSideConnection;
-use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::enchantment::EnchantmentData;

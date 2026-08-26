@@ -315,7 +315,8 @@ fn unpack_biomes(
         out.fill(palette[0]);
         return out;
     };
-    let bits = mcrs_minecraft_protocol::section::Biomes::storage_bits(source.palette.len()) as usize;
+    let bits =
+        mcrs_minecraft_protocol::section::Biomes::storage_bits(source.palette.len()) as usize;
     if bits == 0 {
         out.fill(palette[0]);
         return out;

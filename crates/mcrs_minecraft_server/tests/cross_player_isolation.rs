@@ -18,7 +18,9 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
 use mcrs_minecraft_server::world::bridge::bridge_outbound;
 use mcrs_minecraft_server::world::bridge_queue::OutboundQueue;
-use mcrs_minecraft_server::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPriority};
+use mcrs_minecraft_server::world::bus::{
+    InboundPlayerDespawn, OutboundPlayerPacket, PacketPriority,
+};
 use mcrs_minecraft_server::world::entity::player::{HostAnchor, despawn_inbound_player};
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::session::{DimPlayerIndex, Owner, PlayerSession, SessionRegistry};

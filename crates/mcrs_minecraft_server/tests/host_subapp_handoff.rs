@@ -14,6 +14,7 @@ use mcrs_minecraft_core::AppState;
 use mcrs_minecraft_core::registry::access::RegistryAccess;
 use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
 use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft_server::world::bridge::{bridge_inbound_to_channel, bridge_player_attach};
 use mcrs_minecraft_server::world::bus::{
@@ -21,9 +22,10 @@ use mcrs_minecraft_server::world::bus::{
     OutboundPlayerDisconnect, OutboundPlayerPacket, PlayerTransferSnapshot,
 };
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, ToDim};
-use mcrs_minecraft_server::world::player_index::{HostAnchorRef, PendingInboundBuffer, PlayerIndex};
+use mcrs_minecraft_server::world::player_index::{
+    HostAnchorRef, PendingInboundBuffer, PlayerIndex,
+};
 use mcrs_minecraft_server::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::enchantment::EnchantmentData;

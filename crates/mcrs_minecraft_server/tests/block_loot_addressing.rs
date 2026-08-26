@@ -79,7 +79,9 @@ fn every_interned_table_names_an_asset_that_exists() {
         .join("assets");
     let mut missing = Vec::new();
     for index in 0..blocks.loot_table_count() {
-        let table = blocks.loot_table(mcrs_minecraft_world::block::definition::LootId(index as u16));
+        let table = blocks.loot_table(mcrs_minecraft_world::block::definition::LootId(
+            index as u16,
+        ));
         let path = root.join(format!(
             "{}/loot_table/{}.json",
             table.namespace(),

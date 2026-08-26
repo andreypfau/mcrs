@@ -77,7 +77,9 @@ fn build_host_app() -> App {
 
     app.add_plugins(WorldClockPlugin);
     let mut clocks = WorldClocks::default();
-    clocks.reconcile_with_registry([mcrs_minecraft_core::ResourceLocation::parse(OVERWORLD).unwrap()]);
+    clocks.reconcile_with_registry([
+        mcrs_minecraft_core::ResourceLocation::parse(OVERWORLD).unwrap()
+    ]);
     app.insert_resource(clocks);
 
     app

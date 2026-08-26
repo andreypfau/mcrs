@@ -10,17 +10,20 @@ pub const HOES: TagKey<Item> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:h
 // enchantable/* — referenced by Enchantment `supported_items` / `primary_items`.
 pub const ENCHANTABLE_ARMOR: TagKey<Item> =
     TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/armor"));
-pub const ENCHANTABLE_BOW: TagKey<Item> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/bow"));
-pub const ENCHANTABLE_CHEST_ARMOR: TagKey<Item> =
-    TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/chest_armor"));
+pub const ENCHANTABLE_BOW: TagKey<Item> =
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/bow"));
+pub const ENCHANTABLE_CHEST_ARMOR: TagKey<Item> = TagKey::new(mcrs_minecraft_core::rl!(
+    "minecraft:enchantable/chest_armor"
+));
 pub const ENCHANTABLE_CROSSBOW: TagKey<Item> =
     TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/crossbow"));
 pub const ENCHANTABLE_DURABILITY: TagKey<Item> =
     TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/durability"));
 pub const ENCHANTABLE_EQUIPPABLE: TagKey<Item> =
     TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/equippable"));
-pub const ENCHANTABLE_FIRE_ASPECT: TagKey<Item> =
-    TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/fire_aspect"));
+pub const ENCHANTABLE_FIRE_ASPECT: TagKey<Item> = TagKey::new(mcrs_minecraft_core::rl!(
+    "minecraft:enchantable/fire_aspect"
+));
 pub const ENCHANTABLE_FISHING: TagKey<Item> =
     TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/fishing"));
 pub const ENCHANTABLE_FOOT_ARMOR: TagKey<Item> =
@@ -33,14 +36,17 @@ pub const ENCHANTABLE_LUNGE: TagKey<Item> =
     TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/lunge"));
 pub const ENCHANTABLE_MACE: TagKey<Item> =
     TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/mace"));
-pub const ENCHANTABLE_MELEE_WEAPON: TagKey<Item> =
-    TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/melee_weapon"));
+pub const ENCHANTABLE_MELEE_WEAPON: TagKey<Item> = TagKey::new(mcrs_minecraft_core::rl!(
+    "minecraft:enchantable/melee_weapon"
+));
 pub const ENCHANTABLE_MINING: TagKey<Item> =
     TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/mining"));
-pub const ENCHANTABLE_MINING_LOOT: TagKey<Item> =
-    TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/mining_loot"));
-pub const ENCHANTABLE_SHARP_WEAPON: TagKey<Item> =
-    TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/sharp_weapon"));
+pub const ENCHANTABLE_MINING_LOOT: TagKey<Item> = TagKey::new(mcrs_minecraft_core::rl!(
+    "minecraft:enchantable/mining_loot"
+));
+pub const ENCHANTABLE_SHARP_WEAPON: TagKey<Item> = TagKey::new(mcrs_minecraft_core::rl!(
+    "minecraft:enchantable/sharp_weapon"
+));
 pub const ENCHANTABLE_SWEEPING: TagKey<Item> =
     TagKey::new(mcrs_minecraft_core::rl!("minecraft:enchantable/sweeping"));
 pub const ENCHANTABLE_TRIDENT: TagKey<Item> =

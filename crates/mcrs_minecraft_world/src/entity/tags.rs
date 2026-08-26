@@ -3,8 +3,9 @@ use mcrs_minecraft_core::tag::key::TagKey;
 
 // Tags referenced by enchantments via `requirements.predicate.type`.
 pub const ARROWS: TagKey<EntityType> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:arrows"));
-pub const SENSITIVE_TO_BANE_OF_ARTHROPODS: TagKey<EntityType> =
-    TagKey::new(mcrs_minecraft_core::rl!("minecraft:sensitive_to_bane_of_arthropods"));
+pub const SENSITIVE_TO_BANE_OF_ARTHROPODS: TagKey<EntityType> = TagKey::new(
+    mcrs_minecraft_core::rl!("minecraft:sensitive_to_bane_of_arthropods"),
+);
 pub const SENSITIVE_TO_IMPALING: TagKey<EntityType> =
     TagKey::new(mcrs_minecraft_core::rl!("minecraft:sensitive_to_impaling"));
 pub const SENSITIVE_TO_SMITE: TagKey<EntityType> =

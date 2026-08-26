@@ -2,12 +2,12 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_server::disconnect::process_disconnect;
 use mcrs_minecraft_server::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft_server::world::bus::InboundPlayerDespawn;
 use mcrs_minecraft_server::world::channel_types::DimChannelsResource;
 use mcrs_minecraft_server::world::player_index::{HostAnchorRef, PlayerIndex};
-use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_voxel_world::session::{PlayerSession, SessionRegistry};
 
 fn make_app() -> App {
@@ -110,8 +110,9 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
         };
         let (srv_tx, _srv_rx) =
             flume::bounded::<mcrs_minecraft_server::world::channel_types::ToDim>(TO_DIM_CAPACITY);
-        let (ctl_tx, ctl_rx) =
-            flume::bounded::<mcrs_minecraft_server::world::channel_types::ToDim>(TO_DIM_CONTROL_CAPACITY);
+        let (ctl_tx, ctl_rx) = flume::bounded::<mcrs_minecraft_server::world::channel_types::ToDim>(
+            TO_DIM_CONTROL_CAPACITY,
+        );
         let (_from_tx, from_rx) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         app.world_mut()
             .resource_mut::<DimChannelsResource>()

@@ -15,9 +15,9 @@
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
-use mcrs_minecraft_core::AppState;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_minecraft_core::AppState;
 use mcrs_voxel_light::LightingPlugin;
 use mcrs_voxel_light::components::{
     BlockBfsQueues, BlockInbox, BlockLight, BlockNeedsInitialSeed, BlockOutbox, IsAllAir,

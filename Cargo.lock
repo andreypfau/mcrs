@@ -3455,6 +3455,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_voxel_persist"
+version = "0.1.0"
+dependencies = [
+ "mcrs_voxel_math",
+ "mcrs_voxel_worldgen",
+]
+
+[[package]]
 name = "mcrs_voxel_server"
 version = "0.1.0"
 dependencies = [
@@ -3493,6 +3501,16 @@ dependencies = [
  "rustc-hash 2.1.1",
  "smallvec",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_voxel_worldgen"
+version = "0.1.0"
+dependencies = [
+ "bevy_ecs",
+ "mcrs_voxel_math",
+ "mcrs_voxel_storage",
+ "rustc-hash 2.1.1",
 ]
 
 [[package]]

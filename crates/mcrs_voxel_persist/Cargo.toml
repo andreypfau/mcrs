@@ -1,0 +1,9 @@
+[package]
+name = "mcrs_voxel_persist"
+description = "mcrs_voxel_persist"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+mcrs_voxel_math.workspace = true
+mcrs_voxel_worldgen.workspace = true

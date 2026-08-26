@@ -741,7 +741,8 @@ fn tag_location(
     let namespace = root.iter().next()?.to_str()?;
     let relative = path.strip_prefix(root).ok()?.to_str()?;
     let name = relative.strip_suffix(".json")?;
-    mcrs_minecraft_core::resource_location::ResourceLocation::parse(&format!("{namespace}:{name}")).ok()
+    mcrs_minecraft_core::resource_location::ResourceLocation::parse(&format!("{namespace}:{name}"))
+        .ok()
 }
 
 fn check_tags_ready(
@@ -828,34 +829,42 @@ fn register_static_registries_with_access(
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
     mut access: ResMut<mcrs_minecraft_core::RegistryAccess>,
 ) {
-    access.register(Box::new(mcrs_minecraft_core::RegistrySnapshotErased::from_static(
-        "minecraft:item",
-        &item_registry,
-        |_, _| None,
-        Some(mcrs_minecraft_core::PackSource::vanilla_core()),
-    )));
-    access.register(Box::new(mcrs_minecraft_core::RegistrySnapshotErased::from_static(
-        "minecraft:sound_event",
-        &sound_registry,
-        |_, _| None,
-        Some(mcrs_minecraft_core::PackSource::vanilla_core()),
-    )));
-    access.register(Box::new(mcrs_minecraft_core::RegistrySnapshotErased::from_static(
-        "minecraft:entity_type",
-        &entity_registry,
-        |_, _| None,
-        Some(mcrs_minecraft_core::PackSource::vanilla_core()),
-    )));
-    access.register(Box::new(mcrs_minecraft_core::RegistrySnapshotErased::from_static(
-        "minecraft:enchantment",
-        &enchantment_registry,
-        |_, data| {
-            use crate::enchantment::data::NetworkEnchantmentData;
-            let network = NetworkEnchantmentData::from(data);
-            mcrs_minecraft_nbt::to_nbt_compound(&network).ok()
-        },
-        Some(mcrs_minecraft_core::PackSource::vanilla_core()),
-    )));
+    access.register(Box::new(
+        mcrs_minecraft_core::RegistrySnapshotErased::from_static(
+            "minecraft:item",
+            &item_registry,
+            |_, _| None,
+            Some(mcrs_minecraft_core::PackSource::vanilla_core()),
+        ),
+    ));
+    access.register(Box::new(
+        mcrs_minecraft_core::RegistrySnapshotErased::from_static(
+            "minecraft:sound_event",
+            &sound_registry,
+            |_, _| None,
+            Some(mcrs_minecraft_core::PackSource::vanilla_core()),
+        ),
+    ));
+    access.register(Box::new(
+        mcrs_minecraft_core::RegistrySnapshotErased::from_static(
+            "minecraft:entity_type",
+            &entity_registry,
+            |_, _| None,
+            Some(mcrs_minecraft_core::PackSource::vanilla_core()),
+        ),
+    ));
+    access.register(Box::new(
+        mcrs_minecraft_core::RegistrySnapshotErased::from_static(
+            "minecraft:enchantment",
+            &enchantment_registry,
+            |_, data| {
+                use crate::enchantment::data::NetworkEnchantmentData;
+                let network = NetworkEnchantmentData::from(data);
+                mcrs_minecraft_nbt::to_nbt_compound(&network).ok()
+            },
+            Some(mcrs_minecraft_core::PackSource::vanilla_core()),
+        ),
+    ));
     tracing::info!(count = access.len(), "populated RegistryAccess");
 }
 

@@ -11,10 +11,10 @@
 
 use bevy_app::App;
 use bevy_ecs::message::Messages;
+use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_server::world::WorldPlugin;
 use mcrs_minecraft_server::world::bus::OutboundPlayerPacket;
 use mcrs_minecraft_server::world::entity::player::player_action::PlayerWillDestroyBlock;
-use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 
 mod host_app;
 

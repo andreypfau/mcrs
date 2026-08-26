@@ -728,7 +728,9 @@ pub fn bridge_inbound(
                     if !bucket.consume_or_flag() {
                         conn.raw
                             .append(&ClientboundDisconnect {
-                                reason: mcrs_minecraft_protocol::Text::from("Connection flood detected"),
+                                reason: mcrs_minecraft_protocol::Text::from(
+                                    "Connection flood detected",
+                                ),
                             })
                             .ok();
                         let blob = conn.raw.take_encoded();

@@ -6,11 +6,11 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bytes::Bytes;
+use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_server::world::bridge::bridge_inbound_to_channel;
 use mcrs_minecraft_server::world::bus::InboundPlayerPacket;
 use mcrs_minecraft_server::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft_server::world::player_index::PendingInboundBuffer;
-use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_voxel_world::session::{
     PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry,
 };
