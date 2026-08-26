@@ -4,7 +4,7 @@
 
 This fixture was self-bootstrapped from the Rust `LegacyRandom` implementation whose
 `next_f64` semantics have already been verified against Java's `java.util.Random.nextDouble()`
-(see the `next_f64` parity test in `crates/mcrs_random/src/legacy.rs`). The Rust output is
+(see the `next_f64` parity test in `crates/mcrs_minecraft_random/src/legacy.rs`). The Rust output is
 therefore numerically identical to what the Java reference implementation would produce.
 
 ---

@@ -1,0 +1,31 @@
+[package]
+name = "mcrs_minecraft_world"
+description = "Vanilla Minecraft block/item type vocabulary and static registries"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+mcrs_voxel_math.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_protocol.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_asset.workspace = true
+bevy_state.workspace = true
+bevy_tasks.workspace = true
+futures-lite = "2"
+paste = "1"
+bitflags = "2"
+tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+bevy_reflect.workspace = true
+bevy_ecs_macros.workspace = true
+rustc-hash.workspace = true
+thiserror.workspace = true
+mcrs_minecraft_worldgen.workspace = true
+bevy_math.workspace = true
+rand.workspace = true
+derive_more.workspace = true
+uuid.workspace = true

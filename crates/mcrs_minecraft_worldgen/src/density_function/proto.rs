@@ -1,4 +1,4 @@
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]

@@ -1,7 +1,7 @@
 use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
 use crate::noise::improved_noise::ImprovedNoise;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
-use mcrs_random::Random;
+use mcrs_minecraft_random::Random;
 
 const INPUT_FACTOR: f64 = 1.0181268882175227;
 const TARGET_DEVIATION: f64 = 0.3333333333333333;
@@ -300,7 +300,7 @@ fn compensated_sum(values: impl Iterator<Item = f64>) -> f64 {
 // #[cfg(test)]
 // mod test {
 //     use crate::noise::normal_noise::NoiseSampler;
-//     use mcrs_random::legacy::LegacyRandom;
+//     use mcrs_minecraft_random::legacy::LegacyRandom;
 //
 //     #[test]
 //     fn sample() {

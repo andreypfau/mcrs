@@ -1,0 +1,11 @@
+[package]
+name = "mcrs_voxel_worldgen"
+description = "mcrs_voxel_worldgen"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+mcrs_voxel_math.workspace = true
+mcrs_voxel_storage.workspace = true
+bevy_ecs.workspace = true
+rustc-hash.workspace = true

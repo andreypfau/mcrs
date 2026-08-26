@@ -24,21 +24,13 @@ impl BlockPos {
     pub fn new(x: i32, y: i32, z: i32) -> Self {
         Self(IVec3::new(x, y, z))
     }
-
-    const PACKED_X_LENGTH: usize = 26;
-    const PACKED_Z_LENGTH: usize = 26;
-    const PACKED_Y_LENGTH: usize = 12;
-    const PACKED_X_MASK: u64 = (1 << Self::PACKED_X_LENGTH) - 1;
-    const PACKED_Y_MASK: u64 = (1 << Self::PACKED_Y_LENGTH) - 1;
-    const PACKED_Z_MASK: u64 = (1 << Self::PACKED_Z_LENGTH) - 1;
 }
 
 impl Hash for BlockPos {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let packed = (self.x as u64 & Self::PACKED_X_MASK) << 38
-            | (self.y as u64 & Self::PACKED_Y_MASK)
-            | (self.z as u64 & Self::PACKED_Z_MASK) << 12;
-        packed.hash(state);
+        self.x.hash(state);
+        self.y.hash(state);
+        self.z.hash(state);
     }
 }
 

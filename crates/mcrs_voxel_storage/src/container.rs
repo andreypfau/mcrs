@@ -125,9 +125,8 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
                 debug_assert!(bits_per_entry <= 15);
 
                 let cells = data.cube.as_flattened().as_flattened();
-                let packed = crate::pack_from(bits_per_entry as u32, cells, |key| {
-                    data.index[key] as u32
-                });
+                let packed =
+                    crate::pack_from(bits_per_entry as u32, cells, |key| data.index[key] as u32);
 
                 (data.palette.clone().into_boxed_slice(), packed)
             }

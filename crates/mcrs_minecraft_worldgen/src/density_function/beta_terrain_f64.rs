@@ -260,9 +260,9 @@ impl BetaTerrainF64 {
                 for k1 in 0..16i32 {
                     let d0 = 0.125_f64;
 
-                    let d1 = density_grid[((i1 + 0) * ll + j1 + 0) as usize * CD_B2 + k1 as usize];
-                    let d2 = density_grid[((i1 + 0) * ll + j1 + 1) as usize * CD_B2 + k1 as usize];
-                    let d3 = density_grid[((i1 + 1) * ll + j1 + 0) as usize * CD_B2 + k1 as usize];
+                    let d1 = density_grid[(i1 * ll + j1) as usize * CD_B2 + k1 as usize];
+                    let d2 = density_grid[(i1 * ll + j1 + 1) as usize * CD_B2 + k1 as usize];
+                    let d3 = density_grid[((i1 + 1) * ll + j1) as usize * CD_B2 + k1 as usize];
                     let d4 = density_grid[((i1 + 1) * ll + j1 + 1) as usize * CD_B2 + k1 as usize];
 
                     let mut dd1 = d1;
@@ -270,16 +270,13 @@ impl BetaTerrainF64 {
                     let mut dd3 = d3;
                     let mut dd4 = d4;
 
-                    let d5 = (density_grid
-                        [((i1 + 0) * ll + j1 + 0) as usize * CD_B2 + k1 as usize + 1]
-                        - d1)
-                        * d0;
-                    let d6 = (density_grid
-                        [((i1 + 0) * ll + j1 + 1) as usize * CD_B2 + k1 as usize + 1]
+                    let d5 =
+                        (density_grid[(i1 * ll + j1) as usize * CD_B2 + k1 as usize + 1] - d1) * d0;
+                    let d6 = (density_grid[(i1 * ll + j1 + 1) as usize * CD_B2 + k1 as usize + 1]
                         - d2)
                         * d0;
                     let d7 = (density_grid
-                        [((i1 + 1) * ll + j1 + 0) as usize * CD_B2 + k1 as usize + 1]
+                        [((i1 + 1) * ll + j1) as usize * CD_B2 + k1 as usize + 1]
                         - d3)
                         * d0;
                     let d8 = (density_grid

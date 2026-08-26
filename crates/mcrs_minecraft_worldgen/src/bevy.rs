@@ -12,7 +12,7 @@ use bevy_asset::{
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_reflect::TypePath;
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 use std::collections::BTreeMap;
 use std::env;
 use std::sync::Arc;

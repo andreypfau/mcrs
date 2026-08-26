@@ -1,0 +1,70 @@
+[package]
+name = "mcrs_voxel_light"
+description = "mcrs_voxel_light"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+mcrs_voxel_math.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_state.workspace = true
+bevy_utils.workspace = true
+mcrs_voxel_storage.workspace = true
+mcrs_voxel_world.workspace = true
+rustc-hash.workspace = true
+smallvec.workspace = true
+tracing.workspace = true
+dhat = { version = "0.3", optional = true }
+
+[features]
+test-bench = []
+telemetry-tracy = []
+bench-helpers = []
+long-prop-tests = []
+profile-memory = ["dep:dhat"]
+
+[dev-dependencies]
+tracing-subscriber = "0.3"
+criterion = { version = "0.7", features = ["html_reports"] }
+rand = "0.9"
+serde.workspace = true
+serde_json.workspace = true
+
+[[bench]]
+name = "single_torch"
+harness = false
+required-features = ["bench-helpers"]
+
+[[bench]]
+name = "tnt_chain"
+harness = false
+required-features = ["bench-helpers"]
+
+[[bench]]
+name = "spawn_warmup_vd12_one_column_at_edge"
+harness = false
+required-features = ["bench-helpers"]
+
+[[bench]]
+name = "roof_removal_16x16"
+harness = false
+required-features = ["bench-helpers"]
+
+[[bench]]
+name = "pit_dig_16x16x64"
+harness = false
+required-features = ["bench-helpers"]
+
+[[bench]]
+name = "parallel_scaling"
+harness = false
+required-features = ["bench-helpers"]
+
+[[example]]
+name = "memory_profile"
+required-features = ["bench-helpers"]
+
+[[example]]
+name = "profile_spawn_warmup"
+required-features = ["bench-helpers"]

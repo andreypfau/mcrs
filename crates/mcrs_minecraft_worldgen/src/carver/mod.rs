@@ -2,7 +2,7 @@ pub mod cave;
 pub mod config;
 
 use crate::carver::config::BetaCaveCarverConfig;
-use mcrs_random::Random;
+use mcrs_minecraft_random::Random;
 use mcrs_voxel_storage::VoxelId;
 
 pub trait WorldCarver {
@@ -59,7 +59,7 @@ where
         while !abort && z < z_max {
             let mut y = y_max + 1;
             while !abort && y >= y_min - 1 {
-                if y >= 0 && y < 128 {
+                if (0..128).contains(&y) {
                     let state = get_block(x, y, z);
                     if state == water_state || state == stationary_water_state {
                         abort = true;

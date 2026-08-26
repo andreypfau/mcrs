@@ -1,0 +1,21 @@
+[package]
+name = "mcrs_minecraft_network"
+description = "Protocol library for Minecraft: Java Edition"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bytes.workspace = true
+thiserror.workspace = true
+mcrs_minecraft_protocol.workspace = true
+tokio.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+log = "0.4.29"
+
+[features]
+telemetry-tracy = []

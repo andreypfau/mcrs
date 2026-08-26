@@ -1,5 +1,5 @@
 use crate::noise::improved_noise::ImprovedNoise;
-use mcrs_random::Random;
+use mcrs_minecraft_random::Random;
 use num_traits::Float;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -13,7 +13,7 @@ pub struct OctavePerlinNoise<F: Float> {
 
 impl Default for OctavePerlinNoise<f32> {
     fn default() -> Self {
-        use mcrs_random::RandomSource;
+        use mcrs_minecraft_random::RandomSource;
         Self::new(&mut RandomSource::new(0, true), -1, vec![1.0], false)
     }
 }
@@ -415,10 +415,19 @@ impl OctavePerlinNoise<f64> {
     }
 }
 
+impl OctavePerlinNoise<f64> {
+    pub fn get_octave_f64(&self, k: usize) -> Option<&ImprovedNoise<f64>> {
+        let len = self.octave_samplers.len();
+        self.octave_samplers
+            .get(len - 1 - k)
+            .and_then(|s| s.as_ref())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::noise::octave_perlin_noise::OctavePerlinNoise;
-    use mcrs_random::legacy::LegacyRandom;
+    use mcrs_minecraft_random::legacy::LegacyRandom;
     use serde::Deserialize;
 
     #[derive(Deserialize)]
@@ -561,14 +570,5 @@ mod test {
                 i, batch_results[i], scalar
             );
         }
-    }
-}
-
-impl OctavePerlinNoise<f64> {
-    pub fn get_octave_f64(&self, k: usize) -> Option<&ImprovedNoise<f64>> {
-        let len = self.octave_samplers.len();
-        self.octave_samplers
-            .get(len - 1 - k)
-            .and_then(|s| s.as_ref())
     }
 }

@@ -4,9 +4,9 @@
 // use bevy_ecs::query::Added;
 // use bevy_inspector_egui::bevy_egui::EguiPlugin;
 // use bevy_inspector_egui::quick::WorldInspectorPlugin;
-// use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
-// use mcrs_engine::world::chunk::{ChunkPos, ChunkStatus};
-// use mcrs_protocol::Position;
+// use mcrs_voxel_world::entity::player::chunk_view::PlayerChunkObserver;
+// use mcrs_voxel_world::world::chunk::{ChunkPos, ChunkStatus};
+// use mcrs_minecraft_protocol::Position;
 //
 // pub struct ChunkRenderDebug;
 //

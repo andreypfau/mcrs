@@ -1800,7 +1800,7 @@ mod arithmetic_node_tests {
     use crate::density_function::proto::{DensityFunctionHolder, ProtoDensityFunction};
     use crate::spline::RangeFunction;
     use bevy_math::IVec3;
-    use mcrs_random::RandomSource;
+    use mcrs_minecraft_random::RandomSource;
     use std::collections::BTreeMap;
 
     fn build(json: &str) -> (f32, f32, f32) {

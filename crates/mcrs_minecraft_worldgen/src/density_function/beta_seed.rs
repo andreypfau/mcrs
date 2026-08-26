@@ -1,7 +1,7 @@
 use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
-use mcrs_random::Random;
-use mcrs_random::legacy::LegacyRandom;
+use mcrs_minecraft_random::Random;
+use mcrs_minecraft_random::legacy::LegacyRandom;
 
 /// Build Beta climate noise from three independent LegacyRandom instances.
 ///
@@ -100,7 +100,7 @@ pub fn seed_beta_terrain_f64(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_random::legacy::LegacyRandom;
+    use mcrs_minecraft_random::legacy::LegacyRandom;
 
     #[derive(serde::Deserialize)]
     struct DrawCountFixture {

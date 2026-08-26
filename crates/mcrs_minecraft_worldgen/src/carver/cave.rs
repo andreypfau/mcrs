@@ -1,7 +1,7 @@
 use crate::carver::config::BetaCaveCarverConfig;
 use crate::carver::{WorldCarver, carve_ellipsoid};
-use mcrs_random::Random;
-use mcrs_random::legacy::LegacyRandom;
+use mcrs_minecraft_random::Random;
+use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_voxel_storage::VoxelId;
 
 /// Java beta `MathHelper.sin(x)`: lookup-table approximation matching the 65536-entry table
@@ -277,8 +277,8 @@ mod tests {
     use super::*;
     use crate::carver::carve_ellipsoid;
     use crate::carver::config::BetaCaveCarverConfig;
-    use mcrs_random::Random;
-    use mcrs_random::legacy::LegacyRandom;
+    use mcrs_minecraft_random::Random;
+    use mcrs_minecraft_random::legacy::LegacyRandom;
     use std::cell::Cell;
 
     fn beta_config() -> BetaCaveCarverConfig {

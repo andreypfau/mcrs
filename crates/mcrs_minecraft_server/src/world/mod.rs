@@ -1,0 +1,208 @@
+use crate::configuration::LoadedWorldPreset;
+use crate::world::sub_app_builder::DimSubAppHandle;
+use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
+use bevy_ecs::prelude::*;
+use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_state::prelude::OnEnter;
+use mcrs_minecraft_core::AppState;
+use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
+use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use tracing::{debug, error, info, warn};
+
+pub mod aoi;
+pub mod arrival;
+pub mod block;
+pub mod block_update;
+pub mod bridge;
+pub mod bridge_queue;
+pub mod bus;
+pub mod channel_types;
+pub mod chunk;
+pub mod entity;
+pub mod experience;
+pub mod explosion;
+pub mod format;
+pub mod generate;
+mod inventory;
+pub mod loot;
+pub mod player_index;
+pub mod sub_app_builder;
+
+pub struct WorldPlugin;
+
+impl Plugin for WorldPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<DimSpawnQueue>();
+        app.init_resource::<DimDespawnQueue>();
+
+        // Bus + PlayerIndex substrate. Both resources live in the host world.
+        // `add_message::<T>()` must run BEFORE any sub-app extract reads
+        // `Messages<T>` (the closure panics on `resource_mut` if the
+        // double-buffer was never initialised). Pairing with the per-sub-app
+        // registrations in `spawn_dim_subapp` is what keeps the contract.
+        app.init_resource::<crate::world::player_index::PlayerIndex>();
+        app.init_resource::<crate::world::player_index::PendingInboundBuffer>();
+        app.init_resource::<mcrs_voxel_world::session::SessionRegistry>();
+        app.init_resource::<mcrs_voxel_world::session::PlayerSessionCounter>();
+        app.init_resource::<crate::world::channel_types::DimChannelsResource>();
+        app.init_resource::<mcrs_voxel_world::world::in_flight::InFlightMoves>();
+        app.add_message::<crate::world::bus::OutboundPlayerPacket>();
+        app.add_message::<crate::world::bus::InboundPlayerPacket>();
+        app.add_message::<crate::world::bus::OutboundPlayerAttached>();
+        app.add_message::<crate::world::bus::OutboundPlayerDisconnect>();
+        // `attach_outbound_queue` runs in FixedPreUpdate after the network
+        // crate's `spawn_new_raw_connections` system (in NetworkSet::SpawnConnections)
+        // has populated the world with new `ServerSideConnection` entities.
+        // Commands from `attach_outbound_queue` are flushed at the FixedPreUpdate
+        // command-application point, guaranteeing that by FixedPostUpdate
+        // every connection entity carries `OutboundQueue` + `InboundRateBucket`.
+        app.add_systems(
+            FixedPreUpdate,
+            crate::world::bridge::attach_outbound_queue
+                .after(mcrs_minecraft_network::NetworkSet::SpawnConnections),
+        );
+
+        // BridgeSet ordering: Outbound fills queues from the bus, Dispatch
+        // encodes + sends, Inbound reads sockets and routes to partitions.
+        // All three run in FixedPostUpdate (after DimSubApp extracts).
+        app.configure_sets(
+            FixedPostUpdate,
+            (
+                crate::world::bridge::BridgeSet::Outbound,
+                crate::world::bridge::BridgeSet::Dispatch,
+                crate::world::bridge::BridgeSet::Inbound,
+            )
+                .chain(),
+        );
+        app.add_systems(
+            FixedPostUpdate,
+            (
+                crate::world::bridge::bridge_outbound
+                    .in_set(crate::world::bridge::BridgeSet::Outbound),
+                crate::world::bridge::dispatch_encode
+                    .in_set(crate::world::bridge::BridgeSet::Dispatch),
+                crate::world::bridge::bridge_inbound
+                    .in_set(crate::world::bridge::BridgeSet::Inbound),
+            ),
+        );
+
+        app.add_systems(
+            bevy_app::Update,
+            (
+                crate::world::bridge::bridge_inbound_to_channel,
+                crate::world::bridge::bridge_player_attach,
+            )
+                .chain(),
+        );
+
+        // Per-dim plugins are composed inside each sub-app via
+        // `spawn_dim_subapp`: `DimensionPlugin`, `LightingPlugin`,
+        // `ChunkPlugin` (worldgen), `MinecraftBlockPlugin`,
+        // `ExplosionPlugin`, `PlayerTrackerPlugin`, `BlockUpdatePlugin`
+        // (+ `BlockUpdateWirePlugin`), `MinecraftEntityPlugin`, and
+        // `LootPlugin`. Each is self-contained: it reads only the
+        // registries the sub-app receives in `DimRegistryBundle` and
+        // works against the sub-app World's `Dimension`/`Chunk`/`Column`
+        // entities. The per-sub-app `Messages<PlayerWillDestroyBlock>`
+        // buffer is fed by the host-side `digging.rs` writers via
+        // `PendingInboundLifecycle.block_events`.
+        app.add_observer(
+            |trigger: On<Remove, DimSubAppHandle>, mut queue: ResMut<DimDespawnQueue>| {
+                queue.0.push(trigger.event().entity);
+            },
+        );
+        app.add_plugins(crate::disconnect::DisconnectProtocolPlugin);
+        app.add_systems(OnEnter(AppState::Playing), enqueue_dim_spawns_from_preset);
+    }
+}
+
+/// Enqueue one `DimSpawnRequest` per dimension in the loaded world preset.
+///
+/// Runs at `OnEnter(AppState::Playing)`, after `WorldgenFreeze` has finished
+/// loading registries and the world preset. The outer runner loop drains
+/// `DimSpawnQueue` immediately after `app.update()` returns, materialising one
+/// per-dim sub-app per request.
+pub(crate) fn enqueue_dim_spawns_from_preset(
+    world_preset: Res<LoadedWorldPreset>,
+    dim_defs: Res<
+        bevy_asset::Assets<mcrs_minecraft_world::dimension::level_stem::DimensionDefinition>,
+    >,
+    dimension_types: Res<
+        bevy_asset::Assets<mcrs_minecraft_world::dimension::dimension_type::DimensionType>,
+    >,
+    mut spawn_queue: ResMut<DimSpawnQueue>,
+    mut already_enqueued: Local<bool>,
+) {
+    if *already_enqueued {
+        return;
+    }
+
+    if !world_preset.is_loaded {
+        // OnEnter(Playing) fires after the WorldgenFreeze → Playing transition;
+        // by then the preset must be loaded. Treat the unloaded case as an
+        // invariant violation and bail without enqueueing — the server will
+        // come up with zero dimensions, which makes the failure mode visible.
+        error!(
+            "LoadedWorldPreset not loaded when OnEnter(AppState::Playing) fired — \
+             expected the WorldgenFreeze chain to ensure preset load completion"
+        );
+        return;
+    }
+
+    if world_preset.dimensions.is_empty() {
+        warn!("LoadedWorldPreset has no dimensions, enqueueing default overworld spawn request");
+        spawn_queue.0.push(DimSpawnRequest {
+            dimension_id: DimensionId::new("minecraft:overworld"),
+            type_config: DimensionTypeConfig::new(-64, 384),
+            has_sky: true,
+        });
+        *already_enqueued = true;
+        return;
+    }
+
+    debug!(
+        preset = %world_preset.preset_name,
+        dimension_count = world_preset.dimensions.len(),
+        "Enqueueing dimension spawn requests from loaded world preset"
+    );
+
+    for (dimension_key, dim_def_handle) in &world_preset.dimensions {
+        let resolved = dim_defs
+            .get(dim_def_handle)
+            .and_then(|def| dimension_types.get(&def.dimension_type))
+            .map(|dim_type| {
+                (
+                    DimensionTypeConfig::new(dim_type.min_y, dim_type.height),
+                    dim_type.has_skylight,
+                )
+            })
+            .unwrap_or_else(|| {
+                warn!(
+                    dimension_key = %dimension_key,
+                    "Dimension type not found, using default config + has_sky=true"
+                );
+                (DimensionTypeConfig::new(-64, 384), true)
+            });
+
+        debug!(
+            dimension_key = %dimension_key,
+            min_y = resolved.0.min_y,
+            height = resolved.0.height,
+            sections = resolved.0.section_count,
+            has_skylight = resolved.1,
+            "Enqueueing dimension spawn request"
+        );
+
+        spawn_queue.0.push(DimSpawnRequest {
+            dimension_id: DimensionId::new(dimension_key.as_str()),
+            type_config: resolved.0,
+            has_sky: resolved.1,
+        });
+    }
+
+    *already_enqueued = true;
+    info!(
+        dimension_count = world_preset.dimensions.len(),
+        "All dimensions enqueued from world preset"
+    );
+}

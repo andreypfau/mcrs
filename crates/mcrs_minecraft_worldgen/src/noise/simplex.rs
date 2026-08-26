@@ -1,5 +1,5 @@
 use crate::noise::gradient::GRADIENTS;
-use mcrs_random::Random;
+use mcrs_minecraft_random::Random;
 
 /// Simplex noise shared by Beta worldgen (`NoiseGenerator2`) and modern vanilla
 /// (`SimplexNoise`). The generator is parameterized over the RNG, so the same struct
@@ -183,7 +183,7 @@ impl SimplexNoise {
 #[cfg(test)]
 mod test {
     use super::SimplexNoise;
-    use mcrs_random::legacy::LegacyRandom;
+    use mcrs_minecraft_random::legacy::LegacyRandom;
 
     #[test]
     fn simplex_reachable() {
@@ -204,8 +204,8 @@ mod test {
     // construction reproduces vanilla's sampler state exactly.
     #[test]
     fn sample_3d_matches_vanilla() {
-        use mcrs_random::Random;
-        use mcrs_random::xoroshiro::XoroshiroRandom;
+        use mcrs_minecraft_random::Random;
+        use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 
         let mut rng = XoroshiroRandom::new(111);
         assert_eq!(rng.next_i32(), -1467508761);

@@ -65,75 +65,42 @@ md-5 = "0.11.0-rc.3"
 rand_xoshiro = "0.8.0-rc.0"
 flume = { version = "0.12.0", default-features = false }
 
-mcrs_protocol_macros = { path = "crates/mcrs_protocol_macros" }
-mcrs_protocol = { path = "crates/mcrs_protocol" }
+mcrs_minecraft_protocol_macros = { path = "crates/mcrs_minecraft_protocol_macros" }
+mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol" }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
-mcrs_text = { path = "crates/mcrs_text" }
-mcrs_network = { path = "crates/mcrs_network" }
-mcrs_engine = { path = "crates/mcrs_engine" }
-mcrs_core_macros = { path = "crates/mcrs_core_macros" }
-mcrs_core = { path = "crates/mcrs_core" }
-mcrs_vanilla = { path = "crates/mcrs_vanilla" }
-mcrs_minecraft = { path = "crates/mcrs_minecraft" }
+mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network" }
+mcrs_voxel_world = { path = "crates/mcrs_voxel_world" }
+mcrs_minecraft_core_macros = { path = "crates/mcrs_minecraft_core_macros" }
+mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core" }
+mcrs_minecraft_world = { path = "crates/mcrs_minecraft_world" }
+mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
-mcrs_random = { path = "crates/mcrs_random" }
-mcrs_minecraft_lighting = { path = "crates/mcrs_minecraft_lighting" }
+mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
+mcrs_voxel_light = { path = "crates/mcrs_voxel_light" }
 mcrs_telemetry = { path = "crates/mcrs_telemetry" }
-mcrs_anvil = { path = "crates/mcrs_anvil" }
+mcrs_minecraft_anvil = { path = "crates/mcrs_minecraft_anvil" }
 mcrs_voxel_storage = { path = "crates/mcrs_voxel_storage" }
 mcrs_voxel_math = { path = "crates/mcrs_voxel_math" }
 mcrs_voxel_server = { path = "crates/mcrs_voxel_server" }
+mcrs_voxel_worldgen = { path = "crates/mcrs_voxel_worldgen" }
+mcrs_voxel_persist = { path = "crates/mcrs_voxel_persist" }
 
 [dependencies]
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_log.workspace = true
 tokio = { version = "1", features = ["full"] }
-mcrs_minecraft.workspace = true
+mcrs_minecraft_server.workspace = true
 mcrs_telemetry.workspace = true
 
-[dev-dependencies]
-bevy = { version = "0.19.1", default-features = false, features = [
-    "std",
-    "async_executor",
-    "bevy_asset",
-    "bevy_log",
-    "bevy_window",
-    "bevy_winit",
-    "bevy_render",
-    "bevy_core_pipeline",
-    "bevy_pbr",
-    "bevy_image",
-    "bevy_text",
-    "bevy_ui",
-    "bevy_ui_render",
-    "default_font",
-    "png",
-] }
-serde.workspace = true
-serde_json.workspace = true
-mcrs_minecraft_nbt.workspace = true
-mcrs_voxel_storage.workspace = true
-flate2.workspace = true
-bytemuck = { version = "1", features = ["derive"] }
-# Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.
-wgpu = { version = "29", default-features = false }
-
-[[example]]
-name = "block_viewer"
-path = "examples/block_viewer/main.rs"
-test = true
-
-[[example]]
-name = "anvil_region_viewer"
-path = "examples/anvil_region_viewer/main.rs"
-test = true
-
 [features]
-telemetry = ["mcrs_minecraft/telemetry"]
-telemetry-tracy = ["mcrs_minecraft/telemetry-tracy"]
-telemetry-diagnostics = ["mcrs_minecraft/telemetry-diagnostics"]
+telemetry = ["telemetry-tracy", "telemetry-diagnostics"]
+telemetry-tracy = ["mcrs_telemetry/telemetry-tracy", "mcrs_minecraft_server/telemetry-tracy"]
+# Diagnostics features stay confined to mcrs_telemetry because no other
+# crate currently registers diagnostic plugins. Add propagation lines
+# here when individual crates start exposing their own histograms.
+telemetry-diagnostics = ["mcrs_telemetry/telemetry-diagnostics"]
 
 [profile.dev]
 opt-level = 0
@@ -150,16 +117,16 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft_worldgen"]
 opt-level = 3
 
-[profile.dev.package."mcrs_random"]
+[profile.dev.package."mcrs_minecraft_random"]
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_block"]
 opt-level = 3
 
-[profile.dev.package."mcrs_minecraft"]
+[profile.dev.package."mcrs_minecraft_server"]
 opt-level = 2
 
-[profile.dev.package."mcrs_engine"]
+[profile.dev.package."mcrs_voxel_world"]
 opt-level = 1
 
 [profile.dev.package."bevy_ecs"]
@@ -176,7 +143,3 @@ opt-level = 3
 
 [profile.dev.package."bevy_math"]
 opt-level = 3
-
-[target.'cfg(target_os = "macos")'.dev-dependencies]
-objc2-metal = { version = "0.3", default-features = false, features = ["std", "MTLCaptureManager", "MTLDevice"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL", "NSError"] }

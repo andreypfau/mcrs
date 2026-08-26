@@ -1,3 +1,4 @@
+use crate::chunk_pos::BLOCKS;
 use crate::{BlockPos, ChunkPos};
 use bevy_math::{DVec3, IVec2};
 use std::fmt::Debug;
@@ -41,8 +42,8 @@ impl From<ChunkPos> for ColumnPos {
 impl From<BlockPos> for ColumnPos {
     fn from(pos: BlockPos) -> Self {
         Self {
-            x: pos.x.div_euclid(16),
-            z: pos.z.div_euclid(16),
+            x: pos.x >> BLOCKS::BITS,
+            z: pos.z >> BLOCKS::BITS,
         }
     }
 }
@@ -56,8 +57,8 @@ impl From<IVec2> for ColumnPos {
 impl From<DVec3> for ColumnPos {
     fn from(pos: DVec3) -> Self {
         Self {
-            x: (pos.x / 16.0).floor() as i32,
-            z: (pos.z / 16.0).floor() as i32,
+            x: (pos.x.floor() as i32) >> BLOCKS::BITS,
+            z: (pos.z.floor() as i32) >> BLOCKS::BITS,
         }
     }
 }

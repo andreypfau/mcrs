@@ -1,5 +1,5 @@
-use crate::BlockPos;
 use crate::BitSize;
+use crate::BlockPos;
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::Component;
 use bevy_math::DVec3;
@@ -17,13 +17,6 @@ impl Display for ChunkPos {
 }
 
 impl ChunkPos {
-    const PACKED_X_LENGTH: usize = 22;
-    const PACKED_Z_LENGTH: usize = 22;
-    const PACKED_Y_LENGTH: usize = 20;
-    const PACKED_X_MASK: u64 = (1 << Self::PACKED_X_LENGTH) - 1;
-    const PACKED_Y_MASK: u64 = (1 << Self::PACKED_Y_LENGTH) - 1;
-    const PACKED_Z_MASK: u64 = (1 << Self::PACKED_Z_LENGTH) - 1;
-
     pub fn new(x: i32, y: i32, z: i32) -> Self {
         Self(IVec3::new(x, y, z))
     }
@@ -31,10 +24,9 @@ impl ChunkPos {
 
 impl Hash for ChunkPos {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let packed = (self.x as u64 & Self::PACKED_X_MASK) << 42
-            | (self.z as u64 & Self::PACKED_Z_MASK) << 20
-            | (self.y as u64 & Self::PACKED_Y_MASK);
-        packed.hash(state);
+        self.x.hash(state);
+        self.y.hash(state);
+        self.z.hash(state);
     }
 }
 
