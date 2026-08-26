@@ -1,4 +1,4 @@
-use mcrs_voxel_storage::ceillog2;
+use crate::ceillog2;
 use rustc_hash::FxHashMap;
 use std::hash::Hash;
 
@@ -125,7 +125,7 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
                 debug_assert!(bits_per_entry <= 15);
 
                 let cells = data.cube.as_flattened().as_flattened();
-                let packed = mcrs_voxel_storage::pack_from(bits_per_entry as u32, cells, |key| {
+                let packed = crate::pack_from(bits_per_entry as u32, cells, |key| {
                     data.index[key] as u32
                 });
 
@@ -149,7 +149,7 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
 
         let bits_per_key = (ceillog2(palette_slice.len()) as u8).max(minimum_bits_per_entry);
         let mut indices = vec![0u16; Self::VOLUME];
-        if mcrs_voxel_storage::unpack_into(bits_per_key as u32, packed_data, &mut indices).is_err() {
+        if crate::unpack_into(bits_per_key as u32, packed_data, &mut indices).is_err() {
             return Self::Homogeneous(V::default());
         }
 

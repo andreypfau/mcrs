@@ -31,8 +31,7 @@ world/
 │   └── ticket.rs     chunk-ticket plumbing and the engine-wide LightTicket marker
 └── storage/
     ├── chunk.rs      Chunk, ChunkBundle, ChunkIndex, ChunkPlugin
-    ├── column.rs     Column, ColumnBundle, ColumnChunks, ChunkLookup, Heightmaps, PackedBitStorage, ColumnIndex, ColumnSlot, InColumn, ColumnLifecycleSet, ColumnPlugin
-    └── palette.rs    PalettedContainer, AbstractCube, HeterogeneousPaletteData
+    └── column.rs     Column, ColumnBundle, ColumnChunks, ChunkLookup, Heightmaps, PackedBitStorage, ColumnIndex, ColumnSlot, InColumn, ColumnLifecycleSet, ColumnPlugin
 ```
 
 ## Position types

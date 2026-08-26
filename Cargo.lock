@@ -3240,7 +3240,6 @@ dependencies = [
  "mcrs_protocol",
  "mcrs_vanilla",
  "mcrs_voxel_math",
- "mcrs_voxel_storage",
  "rustc-hash 2.1.1",
  "smallvec",
  "tracing",
@@ -3514,6 +3513,9 @@ dependencies = [
 [[package]]
 name = "mcrs_voxel_storage"
 version = "0.1.0"
+dependencies = [
+ "rustc-hash 2.1.1",
+]
 
 [[package]]
 name = "md-5"

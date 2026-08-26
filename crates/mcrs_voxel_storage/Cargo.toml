@@ -5,3 +5,4 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+rustc-hash.workspace = true

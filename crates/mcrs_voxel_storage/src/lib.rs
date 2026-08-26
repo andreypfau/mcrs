@@ -1,3 +1,7 @@
+pub mod container;
+
+pub use container::{AbstractCube, HeterogeneousPaletteData, PalettedContainer};
+
 /// An opaque voxel identifier. The engine never interprets it: the game assigns
 /// ids when its asset corpus loads, and they are not stable across runs, which
 /// is why this type has no serialized form.

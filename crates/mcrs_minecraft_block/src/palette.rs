@@ -1,8 +1,8 @@
 use bevy_ecs::component::Component;
 use mcrs_voxel_math::chunk_pos;
 use mcrs_voxel_math::BlockPos;
-use mcrs_engine::world::storage::palette::PalettedContainer;
-use mcrs_engine::world::storage::palette::PalettedContainer::{Heterogeneous, Homogeneous};
+use mcrs_voxel_storage::PalettedContainer;
+use mcrs_voxel_storage::PalettedContainer::{Heterogeneous, Homogeneous};
 use mcrs_voxel_storage::{PaletteForm, SectionKind};
 use mcrs_protocol::BlockStateId;
 
