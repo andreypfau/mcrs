@@ -8,7 +8,7 @@ pub mod tool;
 pub use attribute::AttributeModifiers;
 use bevy_ecs::component::Component;
 pub use enchantments::Enchantments;
-use mcrs_protocol::item::{CustomData, ItemComponentKind, Lore, MaxStackSize};
+use mcrs_minecraft_protocol::item::{CustomData, ItemComponentKind, Lore, MaxStackSize};
 use rarity::Rarity;
 use swing::SwingAnimation;
 pub use tool::Tool;

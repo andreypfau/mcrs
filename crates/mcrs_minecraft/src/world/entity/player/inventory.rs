@@ -3,7 +3,7 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::On;
 use bevy_ecs::system::Query;
 use mcrs_network::event::ReceivedPacketEvent;
-use mcrs_protocol::packets::game::serverbound::ServerboundSetCarriedItem;
+use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundSetCarriedItem;
 use tracing::warn;
 
 pub struct PlayerInventoryPlugin;

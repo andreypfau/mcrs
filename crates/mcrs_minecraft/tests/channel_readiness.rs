@@ -150,7 +150,7 @@ fn messages_buffered_before_dim_boots() {
             host_anchor: anchor,
             session: PlayerSession(1),
             snapshot: mcrs_minecraft::world::bus::PlayerTransferSnapshot {
-                uuid: mcrs_protocol::uuid::Uuid::nil(),
+                uuid: mcrs_minecraft_protocol::uuid::Uuid::nil(),
                 username: "readiness_player".into(),
                 position: bevy_math::DVec3::ZERO,
                 rotation: bevy_math::Vec2::ZERO,

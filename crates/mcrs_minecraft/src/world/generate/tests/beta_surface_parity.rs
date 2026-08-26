@@ -6,7 +6,7 @@ use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
-use mcrs_protocol::BlockStateId;
+use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, build_beta_lookup_table,

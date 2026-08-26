@@ -22,7 +22,7 @@ use mcrs_minecraft::world::explosion::ExplosionConfig;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_protocol::BlockStateId;
+use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::ColumnPos;

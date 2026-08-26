@@ -22,7 +22,7 @@ pub enum NetworkSet {
     SpawnConnections,
 }
 use bytes::Bytes;
-use mcrs_protocol::{Encode, Packet, WritePacket};
+use mcrs_minecraft_protocol::{Encode, Packet, WritePacket};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use std::time::Instant;

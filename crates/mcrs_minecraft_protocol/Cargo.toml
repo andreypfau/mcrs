@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_protocol"
+name = "mcrs_minecraft_protocol"
 description = "Protocol library for Minecraft: Java Edition"
 readme = "README.md"
 version.workspace = true

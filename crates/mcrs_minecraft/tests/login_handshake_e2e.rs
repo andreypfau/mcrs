@@ -52,7 +52,7 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_network::ServerSideConnection;
-use mcrs_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
@@ -143,7 +143,7 @@ fn e2e_login_handshake_completes() {
 /// so the blob is non-empty.
 #[test]
 fn e2e_packet_round_trip() {
-    use mcrs_protocol::BlockStateId;
+    use mcrs_minecraft_protocol::BlockStateId;
     use mcrs_voxel_math::BlockPos;
     use mcrs_voxel_world::session::{SessionEntry, SessionRegistry};
 

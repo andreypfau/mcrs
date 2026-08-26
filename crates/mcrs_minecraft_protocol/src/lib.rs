@@ -18,7 +18,7 @@
 )]
 
 extern crate core; // This allows us to use our own proc macros internally.
-extern crate self as mcrs_protocol;
+extern crate self as mcrs_minecraft_protocol;
 /// Used only by macros. Not public API.
 #[doc(hidden)]
 pub mod __private {
@@ -152,7 +152,7 @@ impl Default for CompressionThreshold {
 /// discriminants.
 ///
 /// ```
-/// use mcrs_protocol::Encode;
+/// use mcrs_minecraft_protocol::Encode;
 ///
 /// #[derive(Encode)]
 /// struct MyStruct<'a> {
@@ -240,7 +240,7 @@ pub trait Encode {
 /// discriminants.
 ///
 /// ```
-/// use mcrs_protocol::Decode;
+/// use mcrs_minecraft_protocol::Decode;
 ///
 /// #[derive(PartialEq, Debug, Decode)]
 /// struct MyStruct {

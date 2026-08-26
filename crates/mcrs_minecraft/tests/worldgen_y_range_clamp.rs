@@ -69,8 +69,8 @@ fn beta_sections_outside_noise_range_are_air() {
         &noises,
         &settings,
         42,
-        mcrs_protocol::BlockStateId(1).into(),
-        mcrs_protocol::BlockStateId(86).into(),
+        mcrs_minecraft_protocol::BlockStateId(1).into(),
+        mcrs_minecraft_protocol::BlockStateId(86).into(),
     );
 
     assert_eq!(router.noise_min_y(), 0);

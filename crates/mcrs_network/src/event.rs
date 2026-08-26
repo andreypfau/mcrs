@@ -8,7 +8,7 @@ use bevy_ecs::schedule::ScheduleLabel;
 use bevy_ecs::system::Query;
 use bytes::Bytes;
 use log::warn;
-use mcrs_protocol::{Decode, Packet};
+use mcrs_minecraft_protocol::{Decode, Packet};
 use std::time::Instant;
 
 #[derive(Debug, Clone, EntityEvent)]

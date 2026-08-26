@@ -22,7 +22,7 @@ use bevy_ecs::event::EntityEvent;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, Query, ResMut, With};
-use mcrs_protocol::GameMode;
+use mcrs_minecraft_protocol::GameMode;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
 use mcrs_voxel_world::entity::player::chunk_view::{PlayerChunkObserver, PlayerViewDistance};

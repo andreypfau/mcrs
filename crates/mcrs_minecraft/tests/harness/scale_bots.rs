@@ -38,7 +38,7 @@ use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_network::metrics::{
     BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL, BridgeTelemetrySnapshot, snapshot,
 };
-use mcrs_protocol::BlockStateId;
+use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_world::session::PlayerSession;
 use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 

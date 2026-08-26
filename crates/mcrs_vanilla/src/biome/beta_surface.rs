@@ -1,4 +1,4 @@
-use mcrs_protocol::BlockStateId;
+use mcrs_minecraft_protocol::BlockStateId;
 
 use crate::biome::source::BetaLandBiome;
 use crate::block::definition::BlockDefinitions;

@@ -20,8 +20,8 @@ pub struct PalettedContainer<K> {
     kind: PhantomData<K>,
 }
 
-pub type BlockStates = PalettedContainer<mcrs_protocol::section::Blocks>;
-pub type Biomes = PalettedContainer<mcrs_protocol::section::Biomes>;
+pub type BlockStates = PalettedContainer<mcrs_minecraft_protocol::section::Blocks>;
+pub type Biomes = PalettedContainer<mcrs_minecraft_protocol::section::Biomes>;
 
 impl<K: SectionKind> PalettedContainer<K> {
     pub const ENTRY_COUNT: usize = K::ENTRY_COUNT;

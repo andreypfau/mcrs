@@ -32,7 +32,7 @@ serde.workspace = true
 serde_json.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_voxel_storage.workspace = true
-mcrs_protocol.workspace = true
+mcrs_minecraft_protocol.workspace = true
 flate2.workspace = true
 bevy = { version = "0.19.1", default-features = false, features = [
     "bevy_pbr",

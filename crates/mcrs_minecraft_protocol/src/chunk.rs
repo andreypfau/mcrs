@@ -180,7 +180,7 @@ pub struct PalettedContainer<V> {
     pub packed_data: Box<[i64]>,
 }
 
-impl<V: Into<VarInt> + Copy> mcrs_protocol::Encode for PalettedContainer<V> {
+impl<V: Into<VarInt> + Copy> mcrs_minecraft_protocol::Encode for PalettedContainer<V> {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
         self.bits_per_entry.encode(&mut w)?;
 

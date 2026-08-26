@@ -1,7 +1,7 @@
 use crate::{EngineConnection, ReceivedPacket};
 use bytes::{Bytes, BytesMut};
 use log::{error, warn};
-use mcrs_protocol::{Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket};
+use mcrs_minecraft_protocol::{Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket};
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;

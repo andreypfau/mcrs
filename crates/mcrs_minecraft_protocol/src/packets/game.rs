@@ -9,7 +9,7 @@ pub mod clientbound {
     use crate::{ColumnPos, Look, PositionFlag, Slot, VarInt};
     use bevy_math::DVec3;
     use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_protocol::{BlockStateId, ByteAngle};
+    use mcrs_minecraft_protocol::{BlockStateId, ByteAngle};
     use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
     use mcrs_voxel_math::BlockPos;
     use mcrs_voxel_math::ChunkPos;
@@ -181,7 +181,7 @@ pub mod clientbound {
     /// Removes a list of entities from the client world.
     ///
     /// Wire id 0x4D in play/clientbound for Minecraft 26.1.2 / protocol 775,
-    /// sourced from `crates/mcrs_protocol/packets.json` (`protocol_id: 77`).
+    /// sourced from `crates/mcrs_minecraft_protocol/packets.json` (`protocol_id: 77`).
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x4D, state=Game)]
     pub struct ClientboundRemoveEntities {

@@ -1,12 +1,12 @@
 use crate::SharedNetworkState;
 use crate::packet_io::PacketIo;
 use log::debug;
-use mcrs_protocol::PROTOCOL_VERSION;
-use mcrs_protocol::handshake::Intent;
-use mcrs_protocol::packets::intent::serverbound::ServerboundHandshake;
-use mcrs_protocol::packets::ping::clientbound::PongResponse;
-use mcrs_protocol::packets::ping::serverbound::PingRequest;
-use mcrs_protocol::packets::status::clientbound::StatusResponse;
+use mcrs_minecraft_protocol::PROTOCOL_VERSION;
+use mcrs_minecraft_protocol::handshake::Intent;
+use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
+use mcrs_minecraft_protocol::packets::ping::clientbound::PongResponse;
+use mcrs_minecraft_protocol::packets::ping::serverbound::PingRequest;
+use mcrs_minecraft_protocol::packets::status::clientbound::StatusResponse;
 use serde_json::json;
 
 pub(crate) async fn handle_intent(
@@ -21,7 +21,7 @@ pub(crate) async fn handle_intent(
     match intent {
         Intent::Status => {
             let _request = io
-                .recv_packet::<mcrs_protocol::packets::status::serverbound::StatusRequest>()
+                .recv_packet::<mcrs_minecraft_protocol::packets::status::serverbound::StatusRequest>()
                 .await?;
             let json = json!({
                 "version": {

@@ -18,7 +18,7 @@ use mcrs_minecraft_worldgen::bevy::{
     OverworldNoiseRouter, WorldGenConfig,
 };
 use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
-use mcrs_protocol::ColumnPos;
+use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::BiomeSource;
@@ -72,7 +72,7 @@ fn resolve_worldgen_default_states(
 fn resolve_state(
     blocks: &BlockDefinitions,
     state: &ProtoBlockState,
-) -> mcrs_protocol::BlockStateId {
+) -> mcrs_minecraft_protocol::BlockStateId {
     let name = state.name.as_str();
     let block = blocks
         .block(name)

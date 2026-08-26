@@ -15,7 +15,7 @@ use bevy_ecs::system::SystemParam;
 use bevy_time::{Fixed, Time};
 use mcrs_minecraft_block::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_protocol::BlockStateId;
+use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_vanilla::item::component::Enchantments;
 use mcrs_vanilla::item::component::Tool;
 use mcrs_vanilla::item::{Item, ItemStack};

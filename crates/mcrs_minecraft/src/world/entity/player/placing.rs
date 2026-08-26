@@ -10,8 +10,8 @@ use mcrs_voxel_world::entity::player::reposition::Reposition;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_world::world::dimension::InDimension;
 use mcrs_network::event::ReceivedPacketEvent;
-use mcrs_protocol::packets::game::serverbound::ServerboundUseItemOn;
-use mcrs_protocol::{BlockStateId, Direction};
+use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundUseItemOn;
+use mcrs_minecraft_protocol::{BlockStateId, Direction};
 
 const TORCH_ITEM_ID: u16 = 323;
 const TORCH_STATE: u16 = 3370;

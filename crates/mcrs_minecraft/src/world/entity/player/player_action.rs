@@ -3,8 +3,8 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_ecs::prelude::{MessageWriter, On};
 use mcrs_network::event::ReceivedPacketEvent;
-use mcrs_protocol::packets::game::serverbound::ServerboundPlayerAction;
-use mcrs_protocol::{BlockStateId, Direction};
+use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundPlayerAction;
+use mcrs_minecraft_protocol::{BlockStateId, Direction};
 use mcrs_voxel_math::BlockPos;
 
 pub struct PlayerActionPlugin;
@@ -46,34 +46,34 @@ pub enum PlayerActionKind {
 impl From<ServerboundPlayerAction> for PlayerActionKind {
     fn from(value: ServerboundPlayerAction) -> Self {
         match value.action {
-            mcrs_protocol::entity::player::PlayerAction::StartDestroyBlock => {
+            mcrs_minecraft_protocol::entity::player::PlayerAction::StartDestroyBlock => {
                 PlayerActionKind::StartDestroyBlock {
                     block_pos: value.pos,
                     direction: value.direction,
                 }
             }
-            mcrs_protocol::entity::player::PlayerAction::AbortDestroyBlock => {
+            mcrs_minecraft_protocol::entity::player::PlayerAction::AbortDestroyBlock => {
                 PlayerActionKind::AbortDestroyBlock {
                     block_pos: value.pos,
                 }
             }
-            mcrs_protocol::entity::player::PlayerAction::StopDestroyBlock => {
+            mcrs_minecraft_protocol::entity::player::PlayerAction::StopDestroyBlock => {
                 PlayerActionKind::StopDestroyBlock {
                     block_pos: value.pos,
                     direction: value.direction,
                 }
             }
-            mcrs_protocol::entity::player::PlayerAction::DropItem => PlayerActionKind::DropItem,
-            mcrs_protocol::entity::player::PlayerAction::DropAllItems => {
+            mcrs_minecraft_protocol::entity::player::PlayerAction::DropItem => PlayerActionKind::DropItem,
+            mcrs_minecraft_protocol::entity::player::PlayerAction::DropAllItems => {
                 PlayerActionKind::DropAllItems
             }
-            mcrs_protocol::entity::player::PlayerAction::ReleaseUseItem => {
+            mcrs_minecraft_protocol::entity::player::PlayerAction::ReleaseUseItem => {
                 PlayerActionKind::ReleaseUseItem
             }
-            mcrs_protocol::entity::player::PlayerAction::SwapItemWithOffhand => {
+            mcrs_minecraft_protocol::entity::player::PlayerAction::SwapItemWithOffhand => {
                 PlayerActionKind::SwapItemWithOffhand
             }
-            mcrs_protocol::entity::player::PlayerAction::Stab => PlayerActionKind::Stab,
+            mcrs_minecraft_protocol::entity::player::PlayerAction::Stab => PlayerActionKind::Stab,
         }
     }
 }

@@ -12,7 +12,7 @@ pub(super) fn derive_encode(item: TokenStream) -> Result<TokenStream> {
 
     add_trait_bounds(
         &mut input.generics,
-        quote!(::mcrs_protocol::__private::Encode),
+        quote!(::mcrs_minecraft_protocol::__private::Encode),
     );
 
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
@@ -45,11 +45,11 @@ pub(super) fn derive_encode(item: TokenStream) -> Result<TokenStream> {
 
             Ok(quote! {
                 #[allow(unused_imports)]
-                impl #impl_generics ::mcrs_protocol::__private::Encode for #input_name #ty_generics
+                impl #impl_generics ::mcrs_minecraft_protocol::__private::Encode for #input_name #ty_generics
                 #where_clause
                 {
-                    fn encode(&self, mut _w: impl ::std::io::Write) -> ::mcrs_protocol::__private::Result<()> {
-                        use ::mcrs_protocol::__private::{Encode, Context};
+                    fn encode(&self, mut _w: impl ::std::io::Write) -> ::mcrs_minecraft_protocol::__private::Result<()> {
+                        use ::mcrs_minecraft_protocol::__private::{Encode, Context};
 
                         #encode_fields
 
@@ -143,11 +143,11 @@ pub(super) fn derive_encode(item: TokenStream) -> Result<TokenStream> {
 
             Ok(quote! {
                 #[allow(unused_imports, unreachable_code)]
-                impl #impl_generics ::mcrs_protocol::__private::Encode for #input_name #ty_generics
+                impl #impl_generics ::mcrs_minecraft_protocol::__private::Encode for #input_name #ty_generics
                 #where_clause
                 {
-                    fn encode(&self, mut _w: impl ::std::io::Write) -> ::mcrs_protocol::__private::Result<()> {
-                        use ::mcrs_protocol::__private::{Encode, VarInt, Context};
+                    fn encode(&self, mut _w: impl ::std::io::Write) -> ::mcrs_minecraft_protocol::__private::Result<()> {
+                        use ::mcrs_minecraft_protocol::__private::{Encode, VarInt, Context};
 
                         match self {
                             #encode_arms

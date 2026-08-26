@@ -245,7 +245,7 @@ fn generate_column_beta_biome_not_default() {
         let net = biomes.convert_network();
         // Default BiomePalette is Homogeneous(0) which serializes as Single(0).
         assert!(
-            matches!(net.palette, mcrs_protocol::chunk::Palette::Single(0)),
+            matches!(net.palette, mcrs_minecraft_protocol::chunk::Palette::Single(0)),
             "modern path section y={} must produce default (all-zero) BiomePalette",
             idx
         );

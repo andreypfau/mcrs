@@ -2,9 +2,9 @@
 //! (no leading VarInt(packet_id) prefix). Tests that need framed-wire round-trips prepend
 //! the packet-id themselves.
 
-use mcrs_protocol::chunk::LightChunk;
-use mcrs_protocol::packets::game::clientbound::ClientboundLightUpdate;
-use mcrs_protocol::{Decode, Encode, LightData, Packet, VarInt};
+use mcrs_minecraft_protocol::chunk::LightChunk;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundLightUpdate;
+use mcrs_minecraft_protocol::{Decode, Encode, LightData, Packet, VarInt};
 use std::borrow::Cow;
 
 const EMPTY_FIXTURE: &[u8] = include_bytes!("fixtures/clientbound_light_update_empty.bin");

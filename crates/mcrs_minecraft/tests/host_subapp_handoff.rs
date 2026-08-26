@@ -23,7 +23,7 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;

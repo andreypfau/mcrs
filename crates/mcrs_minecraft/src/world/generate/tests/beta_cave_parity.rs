@@ -10,7 +10,7 @@ use mcrs_minecraft_worldgen::carver::cave::CaveWorldCarver;
 use mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
-use mcrs_protocol::BlockStateId;
+use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_vanilla::biome::Biome;

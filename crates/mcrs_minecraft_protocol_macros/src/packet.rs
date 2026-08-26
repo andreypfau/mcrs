@@ -22,7 +22,7 @@ pub(super) fn derive_packet(item: TokenStream) -> Result<TokenStream> {
     let packet_id: Expr = match packet_attr.id {
         Some(expr) => expr,
         None => match syn::parse_str::<Ident>(&name_str.to_shouty_snake_case()) {
-            Ok(ident) => parse_quote!(::mcrs_protocol::packet_id::#ident),
+            Ok(ident) => parse_quote!(::mcrs_minecraft_protocol::packet_id::#ident),
             Err(_) => {
                 return Err(Error::new(
                     packet_attr.span,
@@ -39,9 +39,9 @@ pub(super) fn derive_packet(item: TokenStream) -> Result<TokenStream> {
     let side = if let Some(side_attr) = packet_attr.side {
         side_attr
     } else if name_str.to_lowercase().starts_with("clientbound") {
-        parse_quote!(::mcrs_protocol::PacketSide::Clientbound)
+        parse_quote!(::mcrs_minecraft_protocol::PacketSide::Clientbound)
     } else if name_str.to_lowercase().starts_with("serverbound") {
-        parse_quote!(::mcrs_protocol::PacketSide::Serverbound)
+        parse_quote!(::mcrs_minecraft_protocol::PacketSide::Serverbound)
     } else {
         return Err(Error::new(
             packet_attr.span,
@@ -62,13 +62,13 @@ pub(super) fn derive_packet(item: TokenStream) -> Result<TokenStream> {
     );
 
     Ok(quote! {
-        impl #impl_generics ::mcrs_protocol::__private::Packet for #name #ty_generics
+        impl #impl_generics ::mcrs_minecraft_protocol::__private::Packet for #name #ty_generics
         #where_clause
         {
             const ID: i32 = #packet_id;
             const NAME: &'static str = #string_id;
-            const SIDE: ::mcrs_protocol::PacketSide = #side;
-            const STATE: ::mcrs_protocol::ConnectionState = ::mcrs_protocol::ConnectionState::#state;
+            const SIDE: ::mcrs_minecraft_protocol::PacketSide = #side;
+            const STATE: ::mcrs_minecraft_protocol::ConnectionState = ::mcrs_minecraft_protocol::ConnectionState::#state;
         }
     })
 }

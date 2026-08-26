@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_math::Vec3;
-use mcrs_protocol::BlockStateId;
+use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_vanilla::block::definition::schema::{Instrument, PropertyValue};
 use mcrs_vanilla::block::definition::{
     BlockDefinitions, BlockStateData, BlockStateFlags, LoadReport, load_block_definitions,

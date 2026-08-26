@@ -1,4 +1,4 @@
-use mcrs_protocol::{ColumnPos, Decode, Encode};
+use mcrs_minecraft_protocol::{ColumnPos, Decode, Encode};
 
 #[test]
 fn column_pos_encode_byte_layout() {

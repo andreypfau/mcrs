@@ -23,9 +23,9 @@ pub enum BridgeSet {
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{EngineConnection, InGameConnectionState, ServerSideConnection};
-use mcrs_protocol::chunk::ChunkData;
-use mcrs_protocol::entity::player::PlayerSpawnInfo;
-use mcrs_protocol::packets::game::clientbound::{
+use mcrs_minecraft_protocol::chunk::ChunkData;
+use mcrs_minecraft_protocol::entity::player::PlayerSpawnInfo;
+use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundAddEntity, ClientboundBlockDestruction, ClientboundBlockUpdate,
     ClientboundChunkCacheRadius, ClientboundDisconnect, ClientboundEntityEvent,
     ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
@@ -33,8 +33,8 @@ use mcrs_protocol::packets::game::clientbound::{
     ClientboundPlayerInfoUpdate, ClientboundPlayerPosition, ClientboundRemoveEntities,
     ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket,
 };
-use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
-use mcrs_protocol::{ByteAngle, GameEventKind, Look, PositionFlag, Text, VarInt};
+use mcrs_minecraft_protocol::profile::{PlayerListActions, PlayerListEntry};
+use mcrs_minecraft_protocol::{ByteAngle, GameEventKind, Look, PositionFlag, Text, VarInt};
 use tracing::{debug, trace, warn};
 
 use crate::world::bridge_queue::{
@@ -717,7 +717,7 @@ pub fn bridge_inbound(
 ) {
     use flume::TrySendError;
     use mcrs_network::metrics::BRIDGE_KICK_FLOOD_TOTAL;
-    use mcrs_protocol::packets::game::clientbound::ClientboundDisconnect;
+    use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 
     for (entity, mut conn, mut bucket, anchor_ref) in conns.iter_mut() {
         bucket.refill();
@@ -728,7 +728,7 @@ pub fn bridge_inbound(
                     if !bucket.consume_or_flag() {
                         conn.raw
                             .append(&ClientboundDisconnect {
-                                reason: mcrs_protocol::Text::from("Connection flood detected"),
+                                reason: mcrs_minecraft_protocol::Text::from("Connection flood detected"),
                             })
                             .ok();
                         let blob = conn.raw.take_encoded();

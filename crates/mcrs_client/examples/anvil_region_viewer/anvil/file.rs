@@ -235,7 +235,7 @@ fn build_section(
         }));
     };
 
-    let bits = mcrs_protocol::section::Blocks::storage_bits(palette.len()) as usize;
+    let bits = mcrs_minecraft_protocol::section::Blocks::storage_bits(palette.len()) as usize;
     if bits == 0 {
         if palette[0] == air_state {
             return Ok(None);
@@ -315,7 +315,7 @@ fn unpack_biomes(
         out.fill(palette[0]);
         return out;
     };
-    let bits = mcrs_protocol::section::Biomes::storage_bits(source.palette.len()) as usize;
+    let bits = mcrs_minecraft_protocol::section::Biomes::storage_bits(source.palette.len()) as usize;
     if bits == 0 {
         out.fill(palette[0]);
         return out;

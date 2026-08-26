@@ -29,9 +29,9 @@ use mcrs_network::metrics::{
     BRIDGE_DROP_LOW_TOTAL, BRIDGE_DROP_NORMAL_TOTAL, BRIDGE_ENCODE_UNHANDLED_TOTAL,
     BRIDGE_KICK_OVERFLOW_TOTAL, TELEMETRY_TEST_LOCK,
 };
-use mcrs_protocol::Look;
-use mcrs_protocol::chunk::LightData;
-use mcrs_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol::Look;
+use mcrs_minecraft_protocol::chunk::LightData;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::session::PlayerSession;
 use smallvec::SmallVec;
@@ -272,7 +272,7 @@ fn kick_on_critical_high_overflow() {
 /// socket per tick. The receiver side sees exactly one blob arrive.
 #[test]
 fn coalesce_single_write_per_tick() {
-    use mcrs_protocol::BlockStateId;
+    use mcrs_minecraft_protocol::BlockStateId;
     use mcrs_voxel_math::BlockPos;
 
     let mut world = build_dispatch_world();

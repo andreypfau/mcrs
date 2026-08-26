@@ -45,4 +45,4 @@ All position types live one level up, in `mcrs_voxel_world::geometry`:
 
 They are pure coordinate-arithmetic types with `From` conversions
 between adjacent levels; they carry no ECS state. Both `mcrs_voxel_world`
-and `mcrs_protocol` import `ColumnPos` from the same source.
+and `mcrs_minecraft_protocol` import `ColumnPos` from the same source.

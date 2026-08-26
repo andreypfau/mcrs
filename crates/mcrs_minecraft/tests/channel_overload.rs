@@ -193,7 +193,7 @@ fn spawn_succeeds_when_serverbound_full() {
             host_anchor: anchor,
             session: PlayerSession(1),
             snapshot: mcrs_minecraft::world::bus::PlayerTransferSnapshot {
-                uuid: mcrs_protocol::uuid::Uuid::nil(),
+                uuid: mcrs_minecraft_protocol::uuid::Uuid::nil(),
                 username: "test".into(),
                 position: bevy_math::DVec3::ZERO,
                 rotation: bevy_math::Vec2::ZERO,
@@ -257,7 +257,7 @@ fn dim_teardown_only_on_control_reserve_exhausted() {
         let channels = world.resource::<DimChannelsResource>();
         let entry = channels.get(dim).expect("channel present");
         let snapshot = mcrs_minecraft::world::bus::PlayerTransferSnapshot {
-            uuid: mcrs_protocol::uuid::Uuid::nil(),
+            uuid: mcrs_minecraft_protocol::uuid::Uuid::nil(),
             username: "test".into(),
             position: bevy_math::DVec3::ZERO,
             rotation: bevy_math::Vec2::ZERO,
@@ -303,7 +303,7 @@ fn dim_teardown_only_on_control_reserve_exhausted() {
 
 fn transfer_snapshot() -> mcrs_minecraft::world::bus::PlayerTransferSnapshot {
     mcrs_minecraft::world::bus::PlayerTransferSnapshot {
-        uuid: mcrs_protocol::uuid::Uuid::nil(),
+        uuid: mcrs_minecraft_protocol::uuid::Uuid::nil(),
         username: "test".into(),
         position: bevy_math::DVec3::ZERO,
         rotation: bevy_math::Vec2::ZERO,

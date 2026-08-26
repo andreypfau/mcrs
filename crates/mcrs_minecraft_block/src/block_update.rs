@@ -1,6 +1,6 @@
 use crate::block::BlockUpdateFlags;
 use bevy_ecs::entity::Entity;
-use mcrs_protocol::BlockStateId;
+use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_world::voxel_update::{
     VoxelPlaced, VoxelSetRequest, VoxelUpdateFlags, VoxelUpdatePlugin,

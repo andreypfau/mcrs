@@ -1,7 +1,7 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::prelude::Component;
 use derive_more::{Deref, DerefMut};
-use mcrs_protocol::GameMode;
+use mcrs_minecraft_protocol::GameMode;
 
 pub use mcrs_vanilla::entity::player::{Flying, FlyingSpeed, InstantBuild};
 

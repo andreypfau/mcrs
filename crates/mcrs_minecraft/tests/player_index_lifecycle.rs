@@ -7,7 +7,7 @@ use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::world::bus::InboundPlayerDespawn;
 use mcrs_minecraft::world::channel_types::DimChannelsResource;
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
-use mcrs_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_voxel_world::session::{PlayerSession, SessionRegistry};
 
 fn make_app() -> App {

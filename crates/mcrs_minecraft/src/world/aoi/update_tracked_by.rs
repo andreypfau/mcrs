@@ -8,7 +8,7 @@ use std::sync::atomic::Ordering;
 
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Entity, Query, ResMut, With, Without};
-use mcrs_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_voxel_math::ColumnPos;
 use mcrs_voxel_world::aoi::PlayerObservers;
 use mcrs_voxel_world::entity::physics::Transform;

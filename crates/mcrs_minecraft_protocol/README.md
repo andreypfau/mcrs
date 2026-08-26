@@ -1,12 +1,12 @@
-# mcrs_protocol
+# mcrs_minecraft_protocol
 
 A protocol library for _Minecraft: Java Edition_. Use this to build clients, servers, proxies, or something novel!
 
-`mcrs_protocol` is primarily concerned with defining all of Minecraft's [network packets](packets) and the process for encoding and decoding them. To encode and decode packets, use the [`PacketEncoder`] and [`PacketDecoder`] types.
+`mcrs_minecraft_protocol` is primarily concerned with defining all of Minecraft's [network packets](packets) and the process for encoding and decoding them. To encode and decode packets, use the [`PacketEncoder`] and [`PacketDecoder`] types.
 
 ```rust,ignore
-use mcrs_protocol::{PacketEncoder, PacketDecoder, Difficulty};
-use mcrs_protocol::packets::play::DifficultyS2c;
+use mcrs_minecraft_protocol::{PacketEncoder, PacketDecoder, Difficulty};
+use mcrs_minecraft_protocol::packets::play::DifficultyS2c;
 
 let mut encoder = PacketEncoder::new();
 
@@ -37,7 +37,7 @@ assert_eq!(&packet, &decoded_packet);
 
 ## Supported Minecraft Versions
 
-Currently, `mcrs_protocol` only intends to support the most recent stable version of Minecraft. New Minecraft versions often entail A major version bump, since breaking changes to packet definitions are frequent.
+Currently, `mcrs_minecraft_protocol` only intends to support the most recent stable version of Minecraft. New Minecraft versions often entail A major version bump, since breaking changes to packet definitions are frequent.
 
 The currently targeted Minecraft version and protocol version can be checked using the [`MINECRAFT_VERSION`] and [`PROTOCOL_VERSION`] constants.
 

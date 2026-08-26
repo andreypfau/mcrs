@@ -10,7 +10,7 @@
 use bevy_app::{App, FixedPostUpdate, FixedUpdate};
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
-use mcrs_protocol::light_codec::{ColumnLightUpdate, LightCodecPlugin};
+use mcrs_minecraft_protocol::light_codec::{ColumnLightUpdate, LightCodecPlugin};
 use mcrs_voxel_light::components::{BlockBfsPending, BlockLight, SkyLight};
 use mcrs_voxel_light::nibble::LightNibbles;
 use mcrs_voxel_light::storage::LightStorage;

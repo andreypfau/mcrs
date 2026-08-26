@@ -10,8 +10,8 @@ use crate::world::entity::player::ability::{
 use bevy_app::{App, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_network::event::ReceivedPacketEvent;
-use mcrs_protocol::GameEventKind;
-use mcrs_protocol::packets::game::serverbound::ServerboundChangeGameMode;
+use mcrs_minecraft_protocol::GameEventKind;
+use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundChangeGameMode;
 use mcrs_voxel_world::session::PlayerSession;
 
 const REQUIRED_OP_LEVEL: u8 = 2;

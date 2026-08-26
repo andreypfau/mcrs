@@ -54,11 +54,11 @@ fn player_will_destroy_tnt(
     });
 }
 
-fn is_tnt(blocks: &Blocks, state: mcrs_protocol::BlockStateId) -> bool {
+fn is_tnt(blocks: &Blocks, state: mcrs_minecraft_protocol::BlockStateId) -> bool {
     blocks.owner(state).identifier.as_str() == "minecraft:tnt"
 }
 
-fn is_unstable_tnt(blocks: &Blocks, state: mcrs_protocol::BlockStateId) -> bool {
+fn is_unstable_tnt(blocks: &Blocks, state: mcrs_minecraft_protocol::BlockStateId) -> bool {
     is_tnt(blocks, state)
         && blocks.owner(state).value_of(state, "unstable") == Some(&PropertyValue::Bool(true))
 }

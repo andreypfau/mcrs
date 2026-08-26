@@ -4,7 +4,7 @@ use bevy_ecs::entity::{ContainsEntity, Entity};
 use bevy_ecs::query::With;
 use bevy_ecs::system::{Local, Query, Res};
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_protocol::BlockStateId;
+use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_world::entity::physics::Transform;

@@ -6,10 +6,10 @@ use bevy_ecs::query::Without;
 use bevy_ecs::system::{Commands, ResMut};
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, ServerSideConnection};
-use mcrs_protocol::packets::login::clientbound::ClientboundLoginFinished;
-use mcrs_protocol::packets::login::serverbound::{ServerboundHello, ServerboundLoginAcknowledged};
-use mcrs_protocol::profile::Property;
-use mcrs_protocol::{Bounded, WritePacket, uuid};
+use mcrs_minecraft_protocol::packets::login::clientbound::ClientboundLoginFinished;
+use mcrs_minecraft_protocol::packets::login::serverbound::{ServerboundHello, ServerboundLoginAcknowledged};
+use mcrs_minecraft_protocol::profile::Property;
+use mcrs_minecraft_protocol::{Bounded, WritePacket, uuid};
 use std::borrow::Cow;
 
 use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
@@ -45,7 +45,7 @@ pub struct GameProfile {
     pub properties: Vec<Property<String>>,
 }
 
-impl<'a> From<&'a GameProfile> for mcrs_protocol::profile::GameProfile<'a> {
+impl<'a> From<&'a GameProfile> for mcrs_minecraft_protocol::profile::GameProfile<'a> {
     fn from(profile: &'a GameProfile) -> Self {
         let props: Vec<Property<&'a str>> = profile
             .properties

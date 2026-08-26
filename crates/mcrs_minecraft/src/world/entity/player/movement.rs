@@ -5,8 +5,8 @@ use bevy_ecs::prelude::{
 };
 use bevy_math::DVec3;
 use mcrs_network::event::ReceivedPacketEvent;
-use mcrs_protocol::MoveFlags;
-use mcrs_protocol::packets::game::serverbound::{
+use mcrs_minecraft_protocol::MoveFlags;
+use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,
     ServerboundMovePlayerRot, ServerboundMovePlayerStatusOnly,
 };

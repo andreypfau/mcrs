@@ -59,7 +59,7 @@ use mcrs_minecraft_core::registry::access::RegistryAccess;
 use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_protocol::light_codec::LightCodecPlugin;
+use mcrs_minecraft_protocol::light_codec::LightCodecPlugin;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::block::definition::Blocks;

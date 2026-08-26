@@ -6,11 +6,11 @@ use bevy_ecs::prelude::{Commands, Query};
 use bevy_ecs::query::Changed;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, ServerSideConnection};
-use mcrs_protocol::WritePacket;
-use mcrs_protocol::packets::configuration::clientbound::ClientboundKeepAlive as ConfigurationRequest;
-use mcrs_protocol::packets::configuration::serverbound::ServerboundKeepAlive as ConfigurationResponse;
-use mcrs_protocol::packets::game::clientbound::ClientboundKeepAlive as GameRequest;
-use mcrs_protocol::packets::game::serverbound::{
+use mcrs_minecraft_protocol::WritePacket;
+use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundKeepAlive as ConfigurationRequest;
+use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundKeepAlive as ConfigurationResponse;
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundKeepAlive as GameRequest;
+use mcrs_minecraft_protocol::packets::game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundKeepAlive as GameResponse,
 };
 use std::time::Instant;
@@ -83,7 +83,7 @@ pub fn handle_keepalive(
                 con.remote_addr(),
                 state.challenge
             );
-            let request = mcrs_protocol::packets::common::clientbound::KeepAlive {
+            let request = mcrs_minecraft_protocol::packets::common::clientbound::KeepAlive {
                 payload: state.challenge,
             };
 

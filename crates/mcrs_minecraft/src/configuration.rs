@@ -21,20 +21,20 @@ use mcrs_minecraft_core::tag::registry::TagRegistry;
 use mcrs_minecraft_core::{AppState, RegistryAccess, ResourceLocation, rl};
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
-use mcrs_protocol::packets::configuration::clientbound::{
+use mcrs_minecraft_protocol::packets::configuration::clientbound::{
     ClientboundSelectKnownPacks, ClientboundUpdateTags, RegistryTags, TagGroup,
 };
-use mcrs_protocol::packets::configuration::serverbound::{
+use mcrs_minecraft_protocol::packets::configuration::serverbound::{
     ServerboundFinishConfiguration, ServerboundSelectKnownPacks,
 };
-use mcrs_protocol::packets::configuration::{
+use mcrs_minecraft_protocol::packets::configuration::{
     ClientboundFinishConfiguration, ClientboundRegistryData,
 };
-use mcrs_protocol::packets::game::clientbound::ClientboundStartConfiguration;
-use mcrs_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
-use mcrs_protocol::registry::Entry;
-use mcrs_protocol::resource_pack::KnownPack;
-use mcrs_protocol::{VarInt, WritePacket};
+use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundStartConfiguration;
+use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
+use mcrs_minecraft_protocol::registry::Entry;
+use mcrs_minecraft_protocol::resource_pack::KnownPack;
+use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_vanilla::LoadedRegistryAssets;
 use mcrs_vanilla::biome::source::BiomeSource;
 use mcrs_vanilla::block::Block as VanillaBlock;

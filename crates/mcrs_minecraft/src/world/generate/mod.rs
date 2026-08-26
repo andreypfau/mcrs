@@ -4,7 +4,7 @@ use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::density_function::{
     ColumnCache, NoiseCellInterpolator, NoiseRouter, beta_terrain_f64::BetaTerrainF64,
 };
-use mcrs_protocol::BlockStateId;
+use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_vanilla::biome::Biome;

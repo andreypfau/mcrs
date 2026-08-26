@@ -3,7 +3,7 @@ use bevy_ecs::message::MessageWriter;
 use bevy_math::DVec3;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::{BlockSetRequest, remove_block};
-use mcrs_protocol::BlockStateId;
+use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_math::BlockPos;
 
 const OBSIDIAN: BlockStateId = BlockStateId(1126);

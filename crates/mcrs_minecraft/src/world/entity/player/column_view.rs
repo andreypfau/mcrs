@@ -9,8 +9,8 @@ use bevy_ecs::prelude::{
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Commands;
 use mcrs_minecraft_block::palette::{AirCount, BiomePalette, BlockPalette, NetworkPalette};
-use mcrs_protocol::light_codec::{ColumnLightUpdate, LightCodecParams, build_full_light_data};
-use mcrs_protocol::{ColumnPos, Encode};
+use mcrs_minecraft_protocol::light_codec::{ColumnLightUpdate, LightCodecParams, build_full_light_data};
+use mcrs_minecraft_protocol::{ColumnPos, Encode};
 use mcrs_voxel_light::sets::LightingSet;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_world::entity::player::chunk_view::{

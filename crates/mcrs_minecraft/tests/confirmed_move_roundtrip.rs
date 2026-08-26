@@ -24,7 +24,7 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft::world::entity::player::{despawn_on_confirm, unhide_on_rollback};
 use mcrs_minecraft::world::sub_app_builder::{DimLabel, DimSubAppHandle};
-use mcrs_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::{Despawned, InTransit};
 use mcrs_voxel_world::session::{MoveId, PlayerSession, SessionEntry, SessionRegistry};
