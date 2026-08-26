@@ -12,7 +12,7 @@ compression = ["dep:flate2"]
 
 [dependencies]
 mcrs_voxel_math.workspace = true
-mcrs_palette.workspace = true
+mcrs_voxel_storage.workspace = true
 mcrs_core.workspace = true
 mcrs_text.workspace = true
 bevy_ecs.workspace = true

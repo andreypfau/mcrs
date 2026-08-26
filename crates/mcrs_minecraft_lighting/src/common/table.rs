@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::{Commands, Res, Resource};
 use bevy_math::Vec3;
 use mcrs_core::voxel_shape::{Aabb, ShapeRegistry, ShapeRepr, VoxelShape, discrete::DiscreteShape};
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 use mcrs_vanilla::block::definition::{BlockStateData, BlockStateFlags, Blocks, ShapeId};
 use rustc_hash::FxHashMap;
 

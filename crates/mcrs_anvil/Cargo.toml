@@ -6,7 +6,7 @@ edition.workspace = true
 
 [dependencies]
 mcrs_nbt.workspace = true
-mcrs_palette.workspace = true
+mcrs_voxel_storage.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 flate2.workspace = true

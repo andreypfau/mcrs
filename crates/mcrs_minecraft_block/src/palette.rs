@@ -3,7 +3,7 @@ use mcrs_voxel_math::chunk_pos;
 use mcrs_voxel_math::BlockPos;
 use mcrs_engine::world::storage::palette::PalettedContainer;
 use mcrs_engine::world::storage::palette::PalettedContainer::{Heterogeneous, Homogeneous};
-use mcrs_palette::{PaletteForm, SectionKind};
+use mcrs_voxel_storage::{PaletteForm, SectionKind};
 use mcrs_protocol::BlockStateId;
 
 impl BiomePalette {
@@ -21,7 +21,7 @@ impl BiomePalette {
                 palette: mcrs_protocol::chunk::Palette::Single(*registry_id),
                 packed_data: Box::new([]),
             },
-            Heterogeneous(data) => match mcrs_palette::Biomes::network_form(data.counts.len()) {
+            Heterogeneous(data) => match mcrs_voxel_storage::Biomes::network_form(data.counts.len()) {
                 PaletteForm::Single => unreachable!("a heterogeneous container has two entries"),
                 PaletteForm::Indirect { bits } => {
                     let (palette, packed) = self.0.to_palette_and_packed_data(bits as u8);
@@ -36,7 +36,7 @@ impl BiomePalette {
                     mcrs_protocol::chunk::PalettedContainer {
                         bits_per_entry: bits as u8,
                         palette: mcrs_protocol::chunk::Palette::Direct,
-                        packed_data: mcrs_palette::pack_from(bits, cells, |&id| id as u32),
+                        packed_data: mcrs_voxel_storage::pack_from(bits, cells, |&id| id as u32),
                     }
                 }
             },
@@ -52,7 +52,7 @@ impl BlockPalette {
                 palette: mcrs_protocol::chunk::Palette::Single(*registry_id),
                 packed_data: Box::new([]),
             },
-            Heterogeneous(data) => match mcrs_palette::Blocks::network_form(data.counts.len()) {
+            Heterogeneous(data) => match mcrs_voxel_storage::Blocks::network_form(data.counts.len()) {
                 PaletteForm::Single => unreachable!("a heterogeneous container has two entries"),
                 PaletteForm::Indirect { bits } => {
                     let (palette, packed) = self.0.to_palette_and_packed_data(bits as u8);
@@ -67,7 +67,7 @@ impl BlockPalette {
                     mcrs_protocol::chunk::PalettedContainer {
                         bits_per_entry: bits as u8,
                         palette: mcrs_protocol::chunk::Palette::Direct,
-                        packed_data: mcrs_palette::pack_from(bits, cells, |id| id.0 as u32),
+                        packed_data: mcrs_voxel_storage::pack_from(bits, cells, |id| id.0 as u32),
                     }
                 }
             },

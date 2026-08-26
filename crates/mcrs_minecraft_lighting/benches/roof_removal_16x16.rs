@@ -4,7 +4,7 @@ use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::components::SkyBfsPending;
 use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 use std::time::{Duration, Instant};
 
 fn bench_roof_removal(c: &mut Criterion) {

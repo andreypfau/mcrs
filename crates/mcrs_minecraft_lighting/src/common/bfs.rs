@@ -333,7 +333,7 @@ pub(crate) trait BfsChannel {
     /// channel returns `None` unconditionally (no per-cell emission).
     fn emission_for(
         table: &BlockStateLightTable,
-        dst_state: mcrs_palette::VoxelId,
+        dst_state: mcrs_voxel_storage::VoxelId,
     ) -> Option<u8>;
 }
 
@@ -372,7 +372,7 @@ impl BfsChannel for BlockBfs {
     #[inline(always)]
     fn emission_for(
         table: &BlockStateLightTable,
-        dst_state: mcrs_palette::VoxelId,
+        dst_state: mcrs_voxel_storage::VoxelId,
     ) -> Option<u8> {
         let emitted = table.emission_for(dst_state);
         if emitted != 0 { Some(emitted) } else { None }
@@ -413,7 +413,7 @@ impl BfsChannel for SkyBfs {
     #[inline(always)]
     fn emission_for(
         _table: &BlockStateLightTable,
-        _dst_state: mcrs_palette::VoxelId,
+        _dst_state: mcrs_voxel_storage::VoxelId,
     ) -> Option<u8> {
         None
     }
@@ -715,7 +715,7 @@ pub fn propagate_decrease_sky(
 mod tests {
     use super::*;
     use crate::nibble::LightNibbles;
-    use mcrs_palette::VoxelId;
+    use mcrs_voxel_storage::VoxelId;
 
     const ALL_DIRECTIONS: [Direction; 6] = [
         Direction::Down,

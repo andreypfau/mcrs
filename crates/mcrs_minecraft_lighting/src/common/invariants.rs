@@ -22,7 +22,7 @@ use mcrs_core::voxel_shape::Direction;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
 use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViolationKind {

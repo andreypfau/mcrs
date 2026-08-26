@@ -33,7 +33,7 @@ use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 
 // Single-pass scan contract: the heightmap reflects only XZ columns the
 // scan has already closed. The tests below spawn a chunk at chunk_y=0,

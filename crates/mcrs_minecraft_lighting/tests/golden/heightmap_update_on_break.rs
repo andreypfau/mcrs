@@ -2,7 +2,7 @@
 // post-break world state where the column is empty again and the sky-light
 // values below the old heightmap should have been restored.
 
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 
 pub static INPUT: &[((i32, i32, i32), VoxelId)] = &[];
 

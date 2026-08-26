@@ -1,10 +1,10 @@
 use crate::{Decode, Encode, VarInt};
 use anyhow::Context;
 use derive_more::{From, Into};
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 use std::io::Write;
 
-pub use mcrs_palette::VoxelId as BlockStateId;
+pub use mcrs_voxel_storage::VoxelId as BlockStateId;
 
 impl From<VoxelId> for VarInt {
     fn from(id: VoxelId) -> Self {

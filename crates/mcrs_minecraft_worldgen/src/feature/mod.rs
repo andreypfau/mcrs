@@ -1,7 +1,7 @@
 pub mod config;
 
 use crate::feature::config::{OreConfig, OreYOffset};
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 use mcrs_random::Random;
 
 pub struct OreFeature;
@@ -115,7 +115,7 @@ fn do_place<R: Random, G, S>(
 mod tests {
     use super::*;
     use crate::feature::config::{OreConfig, OreYOffset, TargetBlockState};
-    use mcrs_palette::VoxelId;
+    use mcrs_voxel_storage::VoxelId;
     use mcrs_random::legacy::LegacyRandom;
     use std::cell::Cell;
 

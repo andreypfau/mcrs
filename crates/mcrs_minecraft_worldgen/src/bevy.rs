@@ -42,8 +42,8 @@ pub struct WorldGenConfig {
     /// resolved against the block registry by whoever runs before
     /// [`BuildNoiseRouter`]. Unset until then, and the router refuses to build
     /// on a guess.
-    pub default_block_state_id: Option<mcrs_palette::VoxelId>,
-    pub default_fluid_state_id: Option<mcrs_palette::VoxelId>,
+    pub default_block_state_id: Option<mcrs_voxel_storage::VoxelId>,
+    pub default_fluid_state_id: Option<mcrs_voxel_storage::VoxelId>,
 }
 
 impl Default for WorldGenConfig {

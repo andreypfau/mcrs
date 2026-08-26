@@ -1,7 +1,7 @@
 // A single lit torch placed at the centre of an otherwise empty chunk;
 // the block-light engine should produce a radial decay field around it.
 
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 
 const TORCH_LIT: VoxelId = VoxelId(0x1000);
 

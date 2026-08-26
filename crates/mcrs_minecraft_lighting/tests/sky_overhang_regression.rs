@@ -38,7 +38,7 @@ use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::components::SkyLight;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 
 const AIR: VoxelId = VoxelId(0);
 const STONE: VoxelId = VoxelId(1);

@@ -211,7 +211,7 @@ mod tests {
     use mcrs_engine::world::storage::column::{Column, ColumnChunks, Heightmaps, InColumn};
     use mcrs_minecraft_block::block::BlockUpdateFlags;
     use mcrs_minecraft_block::palette::BlockPalette;
-    use mcrs_palette::VoxelId;
+    use mcrs_voxel_storage::VoxelId;
 
     const AIR: VoxelId = VoxelId(0);
     const SOLID: VoxelId = VoxelId(1);

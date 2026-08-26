@@ -325,8 +325,8 @@ fn main() {
         &noises,
         &settings,
         seed,
-        mcrs_palette::VoxelId(1),
-        mcrs_palette::VoxelId(86),
+        mcrs_voxel_storage::VoxelId(1),
+        mcrs_voxel_storage::VoxelId(86),
     );
     let build_elapsed = t_build.elapsed();
     eprintln!("Built NoiseRouter in {}", fmt_duration(build_elapsed));

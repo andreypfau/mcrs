@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::{Cursor, Read};
 use std::path::Path;
 
-use mcrs_palette::SectionKind;
+use mcrs_voxel_storage::SectionKind;
 use serde::Deserialize;
 
 use super::{BlockStateKey, REGION_CHUNKS, Region, SECTION_VOLUME, Section, intern_state};
@@ -235,7 +235,7 @@ fn build_section(
         }));
     };
 
-    let bits = mcrs_palette::Blocks::storage_bits(palette.len()) as usize;
+    let bits = mcrs_voxel_storage::Blocks::storage_bits(palette.len()) as usize;
     if bits == 0 {
         if palette[0] == air_state {
             return Ok(None);
@@ -315,7 +315,7 @@ fn unpack_biomes(
         out.fill(palette[0]);
         return out;
     };
-    let bits = mcrs_palette::Biomes::storage_bits(source.palette.len()) as usize;
+    let bits = mcrs_voxel_storage::Biomes::storage_bits(source.palette.len()) as usize;
     if bits == 0 {
         out.fill(palette[0]);
         return out;

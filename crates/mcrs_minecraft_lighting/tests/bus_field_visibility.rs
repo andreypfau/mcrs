@@ -7,7 +7,7 @@ use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 
 #[test]
 fn block_placed_all_fields_pub() {

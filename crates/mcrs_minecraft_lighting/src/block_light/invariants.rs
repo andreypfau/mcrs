@@ -83,7 +83,7 @@ mod tests {
     use crate::nibble::LightNibbles;
     use crate::table::flag_bits;
     use mcrs_core::voxel_shape::VoxelShape;
-    use mcrs_palette::VoxelId;
+    use mcrs_voxel_storage::VoxelId;
 
     const AIR: VoxelId = VoxelId(0);
     const TORCH: VoxelId = VoxelId(0x1000);

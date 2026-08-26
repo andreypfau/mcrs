@@ -2,7 +2,7 @@
 // propagation should carry light into the neighbouring chunk along the +X
 // axis. This fixture only captures the source chunk.
 
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 
 const TORCH_LIT: VoxelId = VoxelId(0x1000);
 

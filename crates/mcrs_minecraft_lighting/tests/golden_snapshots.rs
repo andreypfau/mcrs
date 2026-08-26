@@ -26,7 +26,7 @@ use mcrs_minecraft_lighting::sky_light::invariants::check_sky_light_invariants;
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_minecraft_lighting::test_bench::assert_nibbles_eq;
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 
 #[path = "golden/mod.rs"]
 mod golden;

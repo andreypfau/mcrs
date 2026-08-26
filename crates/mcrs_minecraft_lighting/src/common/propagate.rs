@@ -70,7 +70,7 @@ mod tests {
     use bevy_ecs::prelude::{Entity, IntoScheduleConfigs};
     use mcrs_core::voxel_shape::{Direction, VoxelShape};
     use mcrs_minecraft_block::palette::BlockPalette;
-    use mcrs_palette::VoxelId;
+    use mcrs_voxel_storage::VoxelId;
 
     const AIR: VoxelId = VoxelId(0);
     const TORCH: VoxelId = VoxelId(1);

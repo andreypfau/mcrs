@@ -9,7 +9,7 @@ use crate::proto::NoiseGeneratorSettings;
 use crate::spline::{RangeFunction, SplineFunction};
 use bevy_math::{Curve, FloatExt, IVec3};
 use mcrs_core::ResourceLocation;
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_random::{Random, RandomSource};
 use std::collections::{BTreeMap, HashMap};
@@ -7234,8 +7234,8 @@ mod tests {
             &noises,
             &settings,
             12345,
-            mcrs_palette::VoxelId(1),
-            mcrs_palette::VoxelId(86),
+            mcrs_voxel_storage::VoxelId(1),
+            mcrs_voxel_storage::VoxelId(86),
         );
 
         // Sample a column at multiple Y values to find a sign flip
@@ -7273,8 +7273,8 @@ mod tests {
             &noises,
             &settings,
             12345,
-            mcrs_palette::VoxelId(1),
-            mcrs_palette::VoxelId(86),
+            mcrs_voxel_storage::VoxelId(1),
+            mcrs_voxel_storage::VoxelId(86),
         );
         // Zone A must contain the two FlatCache'd 2D nodes (scale/depth).
         assert!(
@@ -7736,8 +7736,8 @@ mod tests {
             &noises,
             &settings,
             845,
-            mcrs_palette::VoxelId(1),
-            mcrs_palette::VoxelId(86),
+            mcrs_voxel_storage::VoxelId(1),
+            mcrs_voxel_storage::VoxelId(86),
         );
         let mut i = 0;
         let mut max_diff = 0.0_f32;
@@ -7799,8 +7799,8 @@ mod tests {
             &noises,
             &settings,
             845,
-            mcrs_palette::VoxelId(1),
-            mcrs_palette::VoxelId(86),
+            mcrs_voxel_storage::VoxelId(1),
+            mcrs_voxel_storage::VoxelId(86),
         );
         for cx in 0..5i32 {
             for cz in 0..5i32 {
@@ -7952,8 +7952,8 @@ mod tests {
             &noises,
             &settings,
             2,
-            mcrs_palette::VoxelId(1),
-            mcrs_palette::VoxelId(86),
+            mcrs_voxel_storage::VoxelId(1),
+            mcrs_voxel_storage::VoxelId(86),
         );
 
         assert!(
@@ -8011,16 +8011,16 @@ mod tests {
             &noises,
             &overworld_settings,
             2,
-            mcrs_palette::VoxelId(1),
-            mcrs_palette::VoxelId(86),
+            mcrs_voxel_storage::VoxelId(1),
+            mcrs_voxel_storage::VoxelId(86),
         );
         let beta_router = super::build_functions(
             &functions,
             &noises,
             &beta_settings,
             2,
-            mcrs_palette::VoxelId(1),
-            mcrs_palette::VoxelId(86),
+            mcrs_voxel_storage::VoxelId(1),
+            mcrs_voxel_storage::VoxelId(86),
         );
 
         let pos = bevy_math::IVec3::new(0, 64, 0);

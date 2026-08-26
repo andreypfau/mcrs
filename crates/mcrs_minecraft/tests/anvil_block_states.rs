@@ -73,11 +73,11 @@ fn section(y: i8, palette: Vec<NbtTag>) -> NbtTag {
     let mut states = NbtCompound::new();
     states.put_list("palette", palette);
     if len > 1 {
-        let bits = mcrs_palette::ceillog2(len).max(4);
+        let bits = mcrs_voxel_storage::ceillog2(len).max(4);
         let indices: Vec<u16> = (0..4096).map(|i| (i % len) as u16).collect();
         states.put(
             "data",
-            NbtTag::LongArray(mcrs_palette::pack_from(bits, &indices, |&i| i as u32).into_vec()),
+            NbtTag::LongArray(mcrs_voxel_storage::pack_from(bits, &indices, |&i| i as u32).into_vec()),
         );
     }
     let mut section = NbtCompound::new();

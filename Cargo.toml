@@ -81,7 +81,7 @@ mcrs_random = { path = "crates/mcrs_random" }
 mcrs_minecraft_lighting = { path = "crates/mcrs_minecraft_lighting" }
 mcrs_telemetry = { path = "crates/mcrs_telemetry" }
 mcrs_anvil = { path = "crates/mcrs_anvil" }
-mcrs_palette = { path = "crates/mcrs_palette" }
+mcrs_voxel_storage = { path = "crates/mcrs_voxel_storage" }
 mcrs_voxel_math = { path = "crates/mcrs_voxel_math" }
 
 [dependencies]
@@ -113,7 +113,7 @@ bevy = { version = "0.19.1", default-features = false, features = [
 serde.workspace = true
 serde_json.workspace = true
 mcrs_nbt.workspace = true
-mcrs_palette.workspace = true
+mcrs_voxel_storage.workspace = true
 flate2.workspace = true
 bytemuck = { version = "1", features = ["derive"] }
 # Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.

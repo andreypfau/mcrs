@@ -1,6 +1,6 @@
 [package]
-name = "mcrs_palette"
-description = "mcrs_palette"
+name = "mcrs_voxel_storage"
+description = "mcrs_voxel_storage"
 version.workspace = true
 edition.workspace = true
 

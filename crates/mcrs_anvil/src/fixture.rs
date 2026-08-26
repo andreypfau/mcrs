@@ -103,11 +103,11 @@ fn container(
     let mut c = NbtCompound::new();
     c.put_list("palette", (0..len).map(entry).collect());
     if len > 1 {
-        let bits = mcrs_palette::ceillog2(len).max(min_bits);
+        let bits = mcrs_voxel_storage::ceillog2(len).max(min_bits);
         let indices: Vec<u16> = (0..cells).map(|_| rng.below(len) as u16).collect();
         c.put(
             "data",
-            NbtTag::LongArray(mcrs_palette::pack_from(bits, &indices, |&i| i as u32).into_vec()),
+            NbtTag::LongArray(mcrs_voxel_storage::pack_from(bits, &indices, |&i| i as u32).into_vec()),
         );
     }
     c

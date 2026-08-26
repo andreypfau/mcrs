@@ -2,7 +2,7 @@
 // chunk boundary on the +Y axis; light should propagate upward into the
 // chunk above once the engine runs.
 
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 
 const TORCH_LIT: VoxelId = VoxelId(0x1000);
 

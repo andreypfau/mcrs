@@ -2,7 +2,7 @@
 // for that column should rise to the new block and the sky-light values below
 // the block should be re-occluded.
 
-use mcrs_palette::VoxelId;
+use mcrs_voxel_storage::VoxelId;
 
 const STONE: VoxelId = VoxelId(0x1001);
 

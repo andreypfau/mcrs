@@ -3,7 +3,7 @@ use std::io::Cursor;
 use std::marker::PhantomData;
 
 use mcrs_nbt::compound::NbtCompound;
-use mcrs_palette::SectionKind;
+use mcrs_voxel_storage::SectionKind;
 use serde::Deserialize;
 
 use crate::palette::{BlockStateLookup, Palette, Properties};
@@ -20,8 +20,8 @@ pub struct PalettedContainer<K> {
     kind: PhantomData<K>,
 }
 
-pub type BlockStates = PalettedContainer<mcrs_palette::Blocks>;
-pub type Biomes = PalettedContainer<mcrs_palette::Biomes>;
+pub type BlockStates = PalettedContainer<mcrs_voxel_storage::Blocks>;
+pub type Biomes = PalettedContainer<mcrs_voxel_storage::Biomes>;
 
 impl<K: SectionKind> PalettedContainer<K> {
     pub const ENTRY_COUNT: usize = K::ENTRY_COUNT;
@@ -35,7 +35,7 @@ impl<K: SectionKind> PalettedContainer<K> {
         match &self.cells {
             Cells::Uniform => 0,
             Cells::Packed { bits, data } => {
-                mcrs_palette::entry_at(*bits, data, Self::index(x, y, z)) as usize
+                mcrs_voxel_storage::entry_at(*bits, data, Self::index(x, y, z)) as usize
             }
         }
     }
@@ -69,7 +69,7 @@ impl<K: SectionKind> PalettedContainer<K> {
         assert_eq!(out.len(), Self::ENTRY_COUNT);
         match &self.cells {
             Cells::Uniform => out.fill(0),
-            Cells::Packed { bits, data } => mcrs_palette::unpack_into(*bits, data, out)
+            Cells::Packed { bits, data } => mcrs_voxel_storage::unpack_into(*bits, data, out)
                 .expect("the data length was checked at load"),
         }
     }
@@ -79,7 +79,7 @@ impl<K: SectionKind> PalettedContainer<K> {
         assert_eq!(entries.len(), self.palette.len());
         match &self.cells {
             Cells::Uniform => out.fill(entries[0]),
-            Cells::Packed { bits, data } => mcrs_palette::remap_into(*bits, data, entries, out)
+            Cells::Packed { bits, data } => mcrs_voxel_storage::remap_into(*bits, data, entries, out)
                 .expect("the data length was checked at load"),
         }
     }
@@ -113,7 +113,7 @@ impl<K: SectionKind> PalettedContainer<K> {
             return Err(ErrorKind::MissingData { y, field, bits });
         };
         let data = data.0;
-        mcrs_palette::check_len(bits, &data, Self::ENTRY_COUNT).map_err(|e| {
+        mcrs_voxel_storage::check_len(bits, &data, Self::ENTRY_COUNT).map_err(|e| {
             ErrorKind::DataLength {
                 y,
                 field,
@@ -123,8 +123,8 @@ impl<K: SectionKind> PalettedContainer<K> {
             }
         })?;
 
-        if mcrs_palette::any_entry_past(bits, &data, Self::ENTRY_COUNT, len) {
-            let index = mcrs_palette::first_entry_past(bits, &data, Self::ENTRY_COUNT, len)
+        if mcrs_voxel_storage::any_entry_past(bits, &data, Self::ENTRY_COUNT, len) {
+            let index = mcrs_voxel_storage::first_entry_past(bits, &data, Self::ENTRY_COUNT, len)
                 .expect("the maximum is already past the palette");
             return Err(ErrorKind::PaletteIndex {
                 y,
