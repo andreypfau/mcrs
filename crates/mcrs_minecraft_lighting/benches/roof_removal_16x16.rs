@@ -1,7 +1,6 @@
 use bevy_ecs::prelude::*;
 use criterion::{Criterion, criterion_group, criterion_main};
-use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_engine::voxel_update::SectionVoxels;
 use mcrs_minecraft_lighting::components::SkyBfsPending;
 use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
@@ -22,17 +21,17 @@ fn bench_roof_removal(c: &mut Criterion) {
         b.iter_custom(|iters| {
             let mut total = Duration::ZERO;
             for _ in 0..iters {
-                let mut app = bench_helpers::build_roof_removal_app::<BlockUpdateFlags>();
+                let mut app = bench_helpers::build_roof_removal_app::<bool>();
                 // The palette-mutation + SkyBfsPending insertion is the
                 // setup-equivalent for this scenario — it lives outside
                 // the timing window like the App build itself.
                 {
                     let mut q = app
                         .world_mut()
-                        .query_filtered::<Entity, With<BlockPalette>>();
+                        .query_filtered::<Entity, With<SectionVoxels>>();
                     let chunks: Vec<Entity> = q.iter(app.world()).collect();
                     for entity in chunks {
-                        let mut palette = app.world_mut().get_mut::<BlockPalette>(entity).unwrap();
+                        let mut palette = app.world_mut().get_mut::<SectionVoxels>(entity).unwrap();
                         for x in 0i32..16 {
                             for z in 0i32..16 {
                                 palette.set((x, 15i32, z), VoxelId(0));

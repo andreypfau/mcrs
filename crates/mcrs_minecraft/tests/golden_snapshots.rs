@@ -18,7 +18,7 @@ use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyBfsPending, SkyLight};
-use mcrs_minecraft_lighting::invariants::check_block_light_invariants;
+use mcrs_minecraft_lighting::block_light::invariants::check_block_light_invariants;
 use mcrs_minecraft_lighting::sky_light::invariants::check_sky_light_invariants;
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
@@ -121,7 +121,7 @@ fn assert_invariants_hold(app: &App, chunk: Entity, label: &str) {
         .get::<BlockLight>(chunk)
         .expect("BlockLight missing on chunk");
     if let Err(v) = check_block_light_invariants(table, palette, &light.0) {
-        panic!("BLK-06 invariants violated in '{label}': {v}");
+        panic!("block light invariants violated in '{label}': {v}");
     }
 }
 

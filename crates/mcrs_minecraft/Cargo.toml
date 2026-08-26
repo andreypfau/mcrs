@@ -55,8 +55,12 @@ tracing-subscriber = "0.3"
 mcrs_minecraft_lighting = { workspace = true, features = ["bench-helpers"] }
 rand_xoshiro = { workspace = true }
 base64 = { workspace = true }
+proptest = "1.11.0"
+rand09 = { package = "rand", version = "0.9" }
 
 [features]
+test-bench = ["mcrs_minecraft_lighting/test-bench"]
+long-prop-tests = ["mcrs_minecraft_lighting/long-prop-tests"]
 telemetry-tracy = [
   "mcrs_minecraft_lighting/telemetry-tracy",
   "mcrs_network/telemetry-tracy",

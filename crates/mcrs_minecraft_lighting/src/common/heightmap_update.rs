@@ -208,8 +208,7 @@ mod tests {
     use bevy_ecs::message::Messages;
     use mcrs_engine::voxel_update::SectionVoxels;
     use mcrs_engine::world::storage::column::{Column, ColumnChunks, Heightmaps, InColumn};
-    use mcrs_minecraft_block::block::BlockUpdateFlags;
-    use mcrs_minecraft_block::block_update::BlockPlaced;
+    use mcrs_engine::voxel_update::VoxelPlaced;
     use mcrs_voxel_math::BlockPos;
     use mcrs_voxel_math::ChunkPos;
     use mcrs_voxel_math::voxel_shape::VoxelShape;
@@ -248,11 +247,11 @@ mod tests {
 
     fn build_app() -> App {
         let mut app = App::new();
-        app.add_message::<BlockPlaced>();
+        app.add_message::<VoxelPlaced<bool>>();
         app.insert_resource(make_test_table());
         app.add_systems(
             Update,
-            update_heightmaps_on_block_placed::<BlockUpdateFlags>,
+            update_heightmaps_on_block_placed::<bool>,
         );
         app
     }
@@ -302,9 +301,9 @@ mod tests {
         (column, chunk)
     }
 
-    fn write_placed(app: &mut App, placed: BlockPlaced) {
+    fn write_placed(app: &mut App, placed: VoxelPlaced<bool>) {
         app.world_mut()
-            .resource_mut::<Messages<BlockPlaced>>()
+            .resource_mut::<Messages<VoxelPlaced<bool>>>()
             .write(placed);
     }
 
@@ -394,19 +393,19 @@ mod tests {
         // Prototype event list: the `.chunk` field holds the proto chunk
         // entity; per-run code below rewrites it to the real chunk entity via
         // a stable proto -> real mapping.
-        let baseline_events: Vec<BlockPlaced> = placements
+        let baseline_events: Vec<VoxelPlaced<bool>> = placements
             .iter()
-            .map(|p| BlockPlaced {
+            .map(|p| VoxelPlaced::<bool> {
                 chunk: proto_chunks[p.col_index],
                 chunk_pos: ChunkPos::new(0, 0, 0),
                 block_pos: BlockPos::new(p.x, p.y, p.z),
                 old_state: AIR,
                 new_state: SOLID,
-                flags: BlockUpdateFlags::all(),
+                flags: true,
             })
             .collect();
 
-        let run_with_events = |events: &[BlockPlaced]| -> Vec<(usize, Vec<i32>, Vec<i32>)> {
+        let run_with_events = |events: &[VoxelPlaced<bool>]| -> Vec<(usize, Vec<i32>, Vec<i32>)> {
             let mut app = build_app();
             let mut real_columns: Vec<Entity> = Vec::with_capacity(N_COLUMNS);
             let mut real_chunks: Vec<Entity> = Vec::with_capacity(N_COLUMNS);

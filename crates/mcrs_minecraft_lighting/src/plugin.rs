@@ -235,12 +235,11 @@ mod tests {
     use bevy_ecs::prelude::SystemSet;
     use bevy_ecs::schedule::Schedules;
     use mcrs_engine::world::storage::column::ColumnPlugin;
-    use mcrs_minecraft_block::block::BlockUpdateFlags;
 
     fn build_test_app() -> App {
         let mut app = App::new();
         app.add_plugins(ColumnPlugin);
-        app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
+        app.add_plugins(LightingPlugin::<bool>::default());
         app
     }
 

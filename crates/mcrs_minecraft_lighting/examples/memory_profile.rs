@@ -2,13 +2,10 @@
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
-use bevy_state::app::{AppExtStates, StatesPlugin};
-use bevy_state::prelude::NextState;
-use mcrs_core::AppState;
+use bevy_state::app::StatesPlugin;
 use mcrs_engine::world::dimension::HasSkyLight;
 use mcrs_engine::world::lifecycle::ticket::LightTicket;
 use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, ColumnScalarKey, Heightmaps};
-use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_lighting::components::{
     BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockNeedsInitialSeed, BlockOutbox,
     BlockParkedEgress, IsAllAir, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight,
@@ -138,12 +135,7 @@ fn main() {
 
     let mut app = bevy_app::App::new();
     app.add_plugins(StatesPlugin);
-    app.init_state::<AppState>();
-    let _stub_dim = install_lighting_plugins::<BlockUpdateFlags>(&mut app);
-
-    app.world_mut()
-        .resource_mut::<NextState<AppState>>()
-        .set(AppState::Playing);
+    let _stub_dim = install_lighting_plugins::<bool>(&mut app);
 
     build_warmed_vd12_app_in_place(&mut app);
 

@@ -1,10 +1,14 @@
 use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
 
-mod common;
+mod host_app;
 
 #[test]
 fn teleport_does_not_query_server_side_connection() {
-    let source: &str = include_str!("../../mcrs_minecraft/src/world/entity/player/movement.rs");
+    let source: &str = host_app::anchored(
+        include_str!("../src/world/entity/player/movement.rs"),
+        "fn teleport(",
+        "movement.rs",
+    );
     assert!(
         !source.contains("ServerSideConnection"),
         "movement.rs must not query ServerSideConnection; \
@@ -14,7 +18,11 @@ fn teleport_does_not_query_server_side_connection() {
 
 #[test]
 fn digging_does_not_query_server_side_connection() {
-    let source: &str = include_str!("../../mcrs_minecraft/src/world/entity/player/digging.rs");
+    let source: &str = host_app::anchored(
+        include_str!("../src/world/entity/player/digging.rs"),
+        "fn player_start_destroy_block(",
+        "digging.rs",
+    );
     assert!(
         !source.contains("ServerSideConnection"),
         "digging.rs must not query ServerSideConnection; \
@@ -24,7 +32,11 @@ fn digging_does_not_query_server_side_connection() {
 
 #[test]
 fn game_mode_does_not_query_server_side_connection() {
-    let source: &str = include_str!("../../mcrs_minecraft/src/world/entity/player/game_mode.rs");
+    let source: &str = host_app::anchored(
+        include_str!("../src/world/entity/player/game_mode.rs"),
+        "fn handle_change_game_mode(",
+        "game_mode.rs",
+    );
     assert!(
         !source.contains("ServerSideConnection"),
         "game_mode.rs must not query ServerSideConnection; \
@@ -43,8 +55,8 @@ fn teleport_emits_outbound_player_packet() {
     use mcrs_engine::entity::physics::Transform;
     use mcrs_minecraft::world::entity::player::{HostAnchor, movement::TeleportState};
 
-    let mut app = common::make_host_app();
-    common::enqueue_spawn(&mut app, "test:overworld", true);
+    let mut app = host_app::make_host_app();
+    host_app::enqueue_spawn(&mut app, "test:overworld", true);
     drain_dim_spawn_queue(&mut app);
 
     let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();

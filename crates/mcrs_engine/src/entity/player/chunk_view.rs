@@ -264,11 +264,11 @@ fn update_load_queue(
     });
 }
 
-#[deprecated(
-    note = "Replaced by ChunkSubscriptionSet on the per-player AoI substrate. \
-            Remaining consumers (worldgen tickets, column-view bookkeeping, \
-            TNT view checks) are scheduled for migration in a follow-on cleanup."
-)]
+/// `ChunkSubscriptionSet` on the per-player AoI substrate is the source of
+/// truth for what a player observes. These queues are a second representation
+/// of the same fact, still read by worldgen ticketing, column-view bookkeeping
+/// and TNT view checks; until those read the subscription set instead, the two
+/// must be kept in step.
 #[derive(Component, Debug, Default)]
 pub struct PlayerChunkObserver {
     pub last_last_chunk_tracking_view: Option<ChunkTrackingView>,

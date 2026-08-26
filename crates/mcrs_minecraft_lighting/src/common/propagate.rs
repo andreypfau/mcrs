@@ -701,21 +701,20 @@ mod tests {
     #[test]
     fn block_only_event_inserts_only_block_bfs_pending() {
         use bevy_ecs::message::Messages;
-        use mcrs_minecraft_block::block::BlockUpdateFlags;
-        use mcrs_minecraft_block::block_update::BlockPlaced;
+            use mcrs_engine::voxel_update::VoxelPlaced;
         use mcrs_voxel_math::BlockPos;
         use mcrs_voxel_math::ChunkPos;
 
         const TORCH: VoxelId = VoxelId(1);
 
         let mut app = App::new();
-        app.add_message::<BlockPlaced>();
+        app.add_message::<VoxelPlaced<bool>>();
         app.insert_resource(make_test_table());
         app.add_systems(
             Update,
             (
-                enqueue_block_light_on_block_placed::<BlockUpdateFlags>,
-                enqueue_sky_light_on_block_placed::<BlockUpdateFlags>,
+                enqueue_block_light_on_block_placed::<bool>,
+                enqueue_sky_light_on_block_placed::<bool>,
             ),
         );
 
@@ -725,14 +724,14 @@ mod tests {
             .id();
 
         app.world_mut()
-            .resource_mut::<Messages<BlockPlaced>>()
-            .write(BlockPlaced {
+            .resource_mut::<Messages<VoxelPlaced<bool>>>()
+            .write(VoxelPlaced::<bool> {
                 chunk,
                 chunk_pos: ChunkPos::new(0, 0, 0),
                 block_pos: BlockPos::new(3, 5, 9),
                 old_state: AIR,
                 new_state: TORCH,
-                flags: BlockUpdateFlags::empty(),
+                flags: false,
             });
 
         app.update();
@@ -751,8 +750,7 @@ mod tests {
     fn sky_only_opacity_change_inserts_only_sky_bfs_pending() {
         use bevy_ecs::message::Messages;
         use mcrs_engine::world::storage::column::{ColumnChunks, InColumn};
-        use mcrs_minecraft_block::block::BlockUpdateFlags;
-        use mcrs_minecraft_block::block_update::BlockPlaced;
+            use mcrs_engine::voxel_update::VoxelPlaced;
         use mcrs_voxel_math::BlockPos;
         use mcrs_voxel_math::ChunkPos;
 
@@ -772,7 +770,7 @@ mod tests {
         flags[LEAVES.0 as usize] = 0;
 
         let mut app = App::new();
-        app.add_message::<BlockPlaced>();
+        app.add_message::<VoxelPlaced<bool>>();
         app.insert_resource(BlockStateLightTable {
             emission,
             dampening,
@@ -782,8 +780,8 @@ mod tests {
         app.add_systems(
             Update,
             (
-                enqueue_block_light_on_block_placed::<BlockUpdateFlags>,
-                enqueue_sky_light_on_block_placed::<BlockUpdateFlags>,
+                enqueue_block_light_on_block_placed::<bool>,
+                enqueue_sky_light_on_block_placed::<bool>,
             ),
         );
 
@@ -805,14 +803,14 @@ mod tests {
         ));
 
         app.world_mut()
-            .resource_mut::<Messages<BlockPlaced>>()
-            .write(BlockPlaced {
+            .resource_mut::<Messages<VoxelPlaced<bool>>>()
+            .write(VoxelPlaced::<bool> {
                 chunk,
                 chunk_pos: ChunkPos::new(0, 0, 0),
                 block_pos: BlockPos::new(8, 10, 8),
                 old_state: AIR,
                 new_state: LEAVES,
-                flags: BlockUpdateFlags::empty(),
+                flags: false,
             });
 
         app.update();

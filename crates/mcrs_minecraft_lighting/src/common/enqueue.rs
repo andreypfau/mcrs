@@ -121,8 +121,7 @@ mod tests {
         Column, ColumnChunks, ColumnIndex, ColumnPos, ColumnSlot, InColumn,
     };
     use mcrs_lighting_table_helpers::*;
-    use mcrs_minecraft_block::block::BlockUpdateFlags;
-    use mcrs_minecraft_block::block_update::BlockPlaced;
+    use mcrs_engine::voxel_update::VoxelPlaced;
     use mcrs_voxel_math::BlockPos;
     use mcrs_voxel_math::ChunkPos;
     use mcrs_voxel_math::Direction;
@@ -178,11 +177,11 @@ mod tests {
 
     fn build_app() -> App {
         let mut app = App::new();
-        app.add_message::<BlockPlaced>();
+        app.add_message::<VoxelPlaced<bool>>();
         app.insert_resource(make_test_table());
         app.add_systems(
             Update,
-            enqueue_block_light_on_block_placed::<BlockUpdateFlags>,
+            enqueue_block_light_on_block_placed::<bool>,
         );
         app
     }
@@ -193,9 +192,9 @@ mod tests {
             .id()
     }
 
-    fn write_placed(app: &mut App, placed: BlockPlaced) {
+    fn write_placed(app: &mut App, placed: VoxelPlaced<bool>) {
         app.world_mut()
-            .resource_mut::<Messages<BlockPlaced>>()
+            .resource_mut::<Messages<VoxelPlaced<bool>>>()
             .write(placed);
     }
 
@@ -204,14 +203,14 @@ mod tests {
         block_pos: BlockPos,
         old_state: VoxelId,
         new_state: VoxelId,
-    ) -> BlockPlaced {
-        BlockPlaced {
+    ) -> VoxelPlaced<bool> {
+        VoxelPlaced::<bool> {
             chunk,
             chunk_pos: ChunkPos::new(0, 0, 0),
             block_pos,
             old_state,
             new_state,
-            flags: BlockUpdateFlags::empty(),
+            flags: false,
         }
     }
 
@@ -520,11 +519,11 @@ mod tests {
 
     fn build_sky_on_placed_app() -> App {
         let mut app = App::new();
-        app.add_message::<BlockPlaced>();
+        app.add_message::<VoxelPlaced<bool>>();
         app.insert_resource(make_test_table());
         app.add_systems(
             Update,
-            enqueue_sky_light_on_block_placed::<BlockUpdateFlags>,
+            enqueue_sky_light_on_block_placed::<bool>,
         );
         app
     }
@@ -905,11 +904,11 @@ mod tests {
         );
 
         let mut app = App::new();
-        app.add_message::<BlockPlaced>();
+        app.add_message::<VoxelPlaced<bool>>();
         app.insert_resource(table);
         app.add_systems(
             Update,
-            enqueue_sky_light_on_block_placed::<BlockUpdateFlags>,
+            enqueue_sky_light_on_block_placed::<bool>,
         );
         let entity = spawn_sky_chunk_topmost(&mut app);
         write_placed(
@@ -1864,7 +1863,7 @@ mod tests {
         const N_CHUNKS: usize = 8;
         const EVENTS_PER_CHUNK: usize = 4;
 
-        let build_events = |chunks: &[bevy_ecs::entity::Entity]| -> Vec<BlockPlaced> {
+        let build_events = |chunks: &[bevy_ecs::entity::Entity]| -> Vec<VoxelPlaced<bool>> {
             let mut events = Vec::with_capacity(N_CHUNKS * EVENTS_PER_CHUNK);
             for (ci, chunk) in chunks.iter().enumerate() {
                 for ei in 0..EVENTS_PER_CHUNK {
@@ -1902,7 +1901,7 @@ mod tests {
         // captured by reference so every run uses the same proto -> real
         // mapping regardless of event order. (collecting unique chunks from
         // the shuffled stream would re-index per shuffle and defeat the test.)
-        let run_with_events = |events: &[BlockPlaced]| -> (
+        let run_with_events = |events: &[VoxelPlaced<bool>]| -> (
             Vec<(usize, Vec<u64>, Vec<u64>)>,
             std::collections::BTreeSet<usize>,
         ) {
@@ -1971,7 +1970,7 @@ mod tests {
         const N_CHUNKS: usize = 8;
         const EVENTS_PER_CHUNK: usize = 4;
 
-        let build_events = |chunks: &[bevy_ecs::entity::Entity]| -> Vec<BlockPlaced> {
+        let build_events = |chunks: &[bevy_ecs::entity::Entity]| -> Vec<VoxelPlaced<bool>> {
             let mut events = Vec::with_capacity(N_CHUNKS * EVENTS_PER_CHUNK);
             for (ci, chunk) in chunks.iter().enumerate() {
                 for ei in 0..EVENTS_PER_CHUNK {
@@ -2012,7 +2011,7 @@ mod tests {
         // Same fix as the block-side test: capture proto_chunks by reference
         // so each run uses an identical proto -> real mapping regardless of
         // event order.
-        let run_with_events = |events: &[BlockPlaced]| -> (
+        let run_with_events = |events: &[VoxelPlaced<bool>]| -> (
             Vec<(usize, Vec<u64>, Vec<u64>)>,
             std::collections::BTreeSet<usize>,
         ) {

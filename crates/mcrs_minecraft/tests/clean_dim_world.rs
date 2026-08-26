@@ -5,12 +5,12 @@ use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_network::ServerSideConnection;
 
-mod common;
+mod host_app;
 
 #[test]
 fn dim_world_contains_no_host_only_resources() {
-    let mut app = common::make_host_app();
-    common::enqueue_spawn(&mut app, "test:overworld", true);
+    let mut app = host_app::make_host_app();
+    host_app::enqueue_spawn(&mut app, "test:overworld", true);
     drain_dim_spawn_queue(&mut app);
 
     let labels: Vec<_> = app.sub_apps().sub_apps.keys().copied().collect();
@@ -65,7 +65,7 @@ fn dim_world_contains_no_host_only_resources() {
 /// other plugins or host-side code may legitimately reference the name.
 #[test]
 fn spawn_player_not_in_dim_plugin() {
-    let source: &str = include_str!("../../mcrs_minecraft/src/world/entity/player/mod.rs");
+    let source: &str = include_str!("../src/world/entity/player/mod.rs");
 
     let build_body = dim_player_plugin_build_body(source);
     assert!(

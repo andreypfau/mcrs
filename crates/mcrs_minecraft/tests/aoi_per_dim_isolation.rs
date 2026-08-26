@@ -18,12 +18,12 @@ use mcrs_engine::world::sub_app::DimAppLabel;
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, TrackedBy};
 use mcrs_voxel_math::ColumnPos;
 
-mod common;
+mod host_app;
 
 #[test]
 fn aoi_state_does_not_leak_across_dim_boundary() {
-    let mut app = common::make_host_app();
-    common::materialise_sub_apps(
+    let mut app = host_app::make_host_app();
+    host_app::materialise_sub_apps(
         &mut app,
         &[("test:overworld", true), ("test:nether", false)],
     );

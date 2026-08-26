@@ -55,8 +55,7 @@ const DIM_HEIGHT: u32 = 384;
 // ---- Asset path resolution --------------------------------------------------
 
 fn workspace_assets_path() -> PathBuf {
-    // CARGO_MANIFEST_DIR points to crates/mcrs_minecraft_lighting/ at test time.
-    // The queues assets/ directory is two levels up.
+    // The workspace assets/ directory is two levels above any crate manifest.
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     manifest_dir
         .parent()

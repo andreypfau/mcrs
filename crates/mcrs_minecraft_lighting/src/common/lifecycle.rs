@@ -365,7 +365,6 @@ mod tests {
     use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
     use mcrs_engine::world::storage::chunk::Chunk;
     use mcrs_engine::world::storage::column::ColumnPlugin;
-    use mcrs_minecraft_block::block::BlockUpdateFlags;
     use mcrs_voxel_math::voxel_shape::VoxelShape;
 
     const TEST_DIM_HEIGHT: u32 = 384;
@@ -396,7 +395,7 @@ mod tests {
     fn build_lifecycle_app(sky: bool) -> (App, Entity) {
         let mut app = App::new();
         app.add_plugins(ColumnPlugin);
-        app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
+        app.add_plugins(LightingPlugin::<bool>::default());
         app.insert_resource(stub_block_light_table());
         let dim = app
             .world_mut()

@@ -19,8 +19,8 @@ use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_voxel_storage::VoxelId;
-use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand09::rngs::StdRng;
+use rand09::{Rng, SeedableRng};
 
 #[allow(dead_code)]
 pub const N_FIXTURES: u64 = 32;

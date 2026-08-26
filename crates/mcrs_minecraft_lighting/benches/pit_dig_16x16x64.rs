@@ -1,7 +1,6 @@
 use bevy_ecs::prelude::*;
 use criterion::{Criterion, criterion_group, criterion_main};
-use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_engine::voxel_update::SectionVoxels;
 use mcrs_minecraft_lighting::components::BlockBfsPending;
 use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
@@ -22,16 +21,16 @@ fn bench_pit_dig(c: &mut Criterion) {
         b.iter_custom(|iters| {
             let mut total = Duration::ZERO;
             for _ in 0..iters {
-                let mut app = bench_helpers::build_pit_dig_app::<BlockUpdateFlags>();
+                let mut app = bench_helpers::build_pit_dig_app::<bool>();
                 // The palette-mutation + BlockBfsPending insertion is the
                 // setup-equivalent for this scenario — outside timing.
                 {
                     let mut q = app
                         .world_mut()
-                        .query_filtered::<Entity, With<BlockPalette>>();
+                        .query_filtered::<Entity, With<SectionVoxels>>();
                     let chunks: Vec<Entity> = q.iter(app.world()).collect();
                     for entity in chunks {
-                        let mut palette = app.world_mut().get_mut::<BlockPalette>(entity).unwrap();
+                        let mut palette = app.world_mut().get_mut::<SectionVoxels>(entity).unwrap();
                         for x in 0i32..16 {
                             for y in 0i32..16 {
                                 for z in 0i32..16 {

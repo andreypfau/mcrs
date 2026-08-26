@@ -16,12 +16,12 @@ use mcrs_minecraft::world::bus::OutboundPlayerPacket;
 use mcrs_minecraft::world::entity::player::player_action::PlayerWillDestroyBlock;
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest};
 
-mod common;
+mod host_app;
 
 #[test]
 fn minecraft_block_plugin_messages_present_in_each_subapp() {
-    let mut app = common::make_host_app();
-    common::materialise_sub_apps(
+    let mut app = host_app::make_host_app();
+    host_app::materialise_sub_apps(
         &mut app,
         &[("test:overworld", true), ("test:nether", false)],
     );
@@ -53,8 +53,8 @@ fn minecraft_block_plugin_messages_present_in_each_subapp() {
 
 #[test]
 fn explosion_plugin_registered_per_dim_not_host() {
-    let mut app = common::make_host_app();
-    common::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
+    let mut app = host_app::make_host_app();
+    host_app::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
 
     let label = *app
         .sub_apps()
@@ -140,8 +140,8 @@ fn host_side_no_longer_registers_per_dim_simulation_plugins() {
 
 #[test]
 fn per_dim_simulation_plugins_now_in_sub_app() {
-    let mut app = common::make_host_app();
-    common::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
+    let mut app = host_app::make_host_app();
+    host_app::materialise_sub_apps(&mut app, &[("test:overworld", true)]);
 
     let label = *app
         .sub_apps()
