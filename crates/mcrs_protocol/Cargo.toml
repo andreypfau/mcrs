@@ -20,7 +20,7 @@ bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true
 mcrs_minecraft_nbt.workspace = true
-mcrs_protocol_macros.workspace = true
+mcrs_minecraft_protocol_macros.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }

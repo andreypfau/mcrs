@@ -2,7 +2,7 @@ pub mod serverbound {
     use crate::handshake::Intent;
     use crate::{Bounded, VarInt};
     use derive_more::From;
-    use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x00, state=Handshaking)]

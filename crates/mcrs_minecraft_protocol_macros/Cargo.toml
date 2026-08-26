@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_protocol_macros"
+name = "mcrs_minecraft_protocol_macros"
 description = "Procedural macros for mcrs_protocol"
 version.workspace = true
 edition.workspace = true

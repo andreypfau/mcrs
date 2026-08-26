@@ -1,4 +1,4 @@
-use mcrs_protocol_macros::{Decode, Encode};
+use mcrs_minecraft_protocol_macros::{Decode, Encode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
 pub enum Status {

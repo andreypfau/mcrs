@@ -10,7 +10,7 @@ pub mod clientbound {
     use derive_more::From;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_nbt::compound::NbtCompound;
-    use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
@@ -87,7 +87,7 @@ pub mod serverbound {
     };
     use crate::resource_pack::KnownPack;
     use derive_more::From;
-    use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
 
     #[derive(Clone, Debug, Encode, Decode, From, Packet)]
     #[packet(id=0x00, side=PacketSide::Serverbound, state=Configuration)]

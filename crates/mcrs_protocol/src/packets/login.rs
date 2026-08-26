@@ -4,7 +4,7 @@ pub mod clientbound {
     use crate::{Bounded, RawBytes, VarInt};
     use derive_more::{From, Into};
     use mcrs_minecraft_core::ResourceLocation;
-    use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
 
     #[derive(Copy, Clone, Debug, Encode, Decode, Packet)]
@@ -54,7 +54,7 @@ pub mod serverbound {
     use crate::packets::cookie::serverbound::CookieResponse;
     use crate::{Bounded, RawBytes, VarInt};
     use derive_more::From;
-    use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
     use uuid::Uuid;
 
     #[derive(Copy, Clone, Debug, Encode, Decode, Packet)]

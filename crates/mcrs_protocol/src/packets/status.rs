@@ -2,7 +2,7 @@ pub mod clientbound {
     use crate::PacketSide;
     use crate::packets::ping::clientbound::PongResponse;
     use derive_more::{From, Into};
-    use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
 
     #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode, Into, Packet)]
     #[packet(id = 0x00, state = Status, side = PacketSide::Clientbound)]
@@ -21,7 +21,7 @@ pub mod serverbound {
     use crate::PacketSide;
     use crate::packets::ping::serverbound::PingRequest;
     use derive_more::From;
-    use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
 
     #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode, Packet)]
     #[packet(id = 0x00, state = Status, side = PacketSide::Serverbound)]

@@ -92,7 +92,7 @@ pub use game_mode::GameMode;
 pub use global_pos::GlobalPos;
 pub use hand::Hand;
 pub use item::{ItemId, Slot};
-pub use mcrs_protocol_macros::{Decode, Encode, Packet};
+pub use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
 pub use pos::Look;
 pub use pos::MoveFlags;
 pub use pos::Position;
@@ -182,7 +182,7 @@ impl Default for CompressionThreshold {
 /// println!("{buf:?}");
 /// ```
 ///
-/// [macro]: mcrs_protocol_macros::Encode
+/// [macro]: mcrs_minecraft_protocol_macros::Encode
 /// [`VarInt`]: var_int::VarInt
 pub trait Encode {
     /// Writes this object to the provided writer.
@@ -269,7 +269,7 @@ pub trait Encode {
 /// assert!(r.is_empty());
 /// ```
 ///
-/// [macro]: mcrs_protocol_macros::Decode
+/// [macro]: mcrs_minecraft_protocol_macros::Decode
 /// [`VarInt`]: var_int::VarInt
 pub trait Decode<'a>: Sized {
     /// Reads this object from the provided byte slice.

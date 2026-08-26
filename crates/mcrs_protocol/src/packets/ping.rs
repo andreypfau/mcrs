@@ -1,7 +1,7 @@
 pub mod clientbound {
     use crate::PacketSide;
     use derive_more::Into;
-    use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
 
     #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode, Into, Packet)]
     #[packet(id = 0x01, state = Status, side = PacketSide::Clientbound)]
@@ -13,7 +13,7 @@ pub mod clientbound {
 pub mod serverbound {
     use crate::PacketSide;
     use derive_more::Into;
-    use mcrs_protocol_macros::{Decode, Encode, Packet};
+    use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
 
     #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode, Into, Packet)]
     #[packet(id = 0x01, state = Status, side = PacketSide::Serverbound)]

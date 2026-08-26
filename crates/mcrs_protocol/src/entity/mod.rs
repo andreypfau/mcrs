@@ -2,7 +2,7 @@ use crate::text::Text;
 use crate::{BlockStateId, Direction, GlobalPos, Slot, VarInt, VarLong};
 use bevy_math::{Vec3, Vec4};
 use mcrs_protocol::entity::player::HumanoidArm;
-use mcrs_protocol_macros::{Decode, Encode};
+use mcrs_minecraft_protocol_macros::{Decode, Encode};
 use mcrs_voxel_math::BlockPos;
 use uuid::Uuid;
 

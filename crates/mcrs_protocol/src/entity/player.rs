@@ -1,7 +1,7 @@
 use crate::game_mode::OptGameMode;
 use crate::{Bounded, FixedBitSet, GameMode, GlobalPos, VarInt};
 use mcrs_minecraft_core::{ResourceLocation, rl};
-use mcrs_protocol_macros::{Decode, Encode};
+use mcrs_minecraft_protocol_macros::{Decode, Encode};
 use std::borrow::Cow;
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]

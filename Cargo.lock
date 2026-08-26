@@ -3294,6 +3294,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_protocol_macros"
+version = "0.1.0"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.115",
+]
+
+[[package]]
 name = "mcrs_minecraft_random"
 version = "0.1.0"
 dependencies = [
@@ -3355,7 +3365,7 @@ dependencies = [
  "flate2",
  "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
- "mcrs_protocol_macros",
+ "mcrs_minecraft_protocol_macros",
  "mcrs_voxel_light",
  "mcrs_voxel_math",
  "mcrs_voxel_storage",
@@ -3368,16 +3378,6 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
-]
-
-[[package]]
-name = "mcrs_protocol_macros"
-version = "0.1.0"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn 2.0.115",
 ]
 
 [[package]]
