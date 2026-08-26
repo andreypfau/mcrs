@@ -131,9 +131,12 @@ path = "examples/anvil_region_viewer/main.rs"
 test = true
 
 [features]
-telemetry = ["mcrs_minecraft/telemetry"]
-telemetry-tracy = ["mcrs_minecraft/telemetry-tracy"]
-telemetry-diagnostics = ["mcrs_minecraft/telemetry-diagnostics"]
+telemetry = ["telemetry-tracy", "telemetry-diagnostics"]
+telemetry-tracy = ["mcrs_telemetry/telemetry-tracy"]
+# Diagnostics features stay confined to mcrs_telemetry because no other
+# crate currently registers diagnostic plugins. Add propagation lines
+# here when individual crates start exposing their own histograms.
+telemetry-diagnostics = ["mcrs_telemetry/telemetry-diagnostics"]
 
 [profile.dev]
 opt-level = 0
