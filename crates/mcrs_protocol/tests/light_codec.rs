@@ -10,9 +10,7 @@
 use bevy_app::{App, FixedPostUpdate, FixedUpdate};
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
-use bevy_state::app::AppExtStates;
-use bevy_state::app::StatesPlugin;
-use mcrs_core::AppState;
+use mcrs_engine::voxel_update::VoxelUpdateFlags;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
@@ -23,8 +21,18 @@ use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyLight}
 use mcrs_minecraft_lighting::nibble::LightNibbles;
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
-use mcrs_minecraft_lighting::{BlockLightDirty, ColumnLightUpdate, LightingPlugin, SkyLightDirty};
+use mcrs_minecraft_lighting::{BlockLightDirty, LightingPlugin, SkyLightDirty};
+use mcrs_protocol::light_codec::{ColumnLightUpdate, LightCodecPlugin};
 use mcrs_voxel_math::voxel_shape::VoxelShape;
+
+#[derive(Clone, Copy)]
+struct TestFlags;
+
+impl VoxelUpdateFlags for TestFlags {
+    fn notifies_clients(&self) -> bool {
+        true
+    }
+}
 
 const TEST_DIM_HEIGHT: u32 = 384;
 const TEST_DIM_MIN_Y: i32 = -64;
@@ -33,10 +41,9 @@ const CHUNK_COUNT: usize = (TEST_DIM_HEIGHT / 16) as usize; // 24
 
 fn make_codec_test_app() -> (App, Entity) {
     let mut app = App::new();
-    app.add_plugins(StatesPlugin);
-    app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<TestFlags>::default());
+    app.add_plugins(LightCodecPlugin);
     app.insert_resource(make_stub_block_light_table());
     let dim_entity = spawn_test_dimension(&mut app);
     (app, dim_entity)

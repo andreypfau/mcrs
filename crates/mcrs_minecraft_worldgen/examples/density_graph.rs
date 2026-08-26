@@ -14,12 +14,12 @@
 //!   cargo run --release --example density_graph -p mcrs_minecraft_worldgen -- --settings all --root all --output graphs/
 
 use bevy_math::IVec3;
+use mcrs_core::ResourceLocation;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::density_function::proto::{
     DensityFunctionHolder, NoiseParam, ProtoDensityFunction,
 };
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
-use mcrs_core::ResourceLocation;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -148,9 +148,10 @@ fn list_noise_settings(assets_path: &Path) -> Vec<String> {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.extension().is_some_and(|e| e == "json")
-                && let Some(stem) = path.file_stem() {
-                    names.push(stem.to_string_lossy().into_owned());
-                }
+                && let Some(stem) = path.file_stem()
+            {
+                names.push(stem.to_string_lossy().into_owned());
+            }
         }
     }
     names.sort();

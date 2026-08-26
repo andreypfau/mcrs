@@ -5,7 +5,7 @@
 //! channel-shared files (enqueue/propagate/emit_dirty) split into their
 //! per-channel siblings, the registrations migrate here.
 
-use crate::codec::SkyLightDirty;
+use crate::emit_dirty::SkyLightDirty;
 use bevy_app::{App, Plugin};
 
 pub struct SkyLightPlugin;

@@ -1,5 +1,6 @@
 use bevy_app::{App, TaskPoolOptions, TaskPoolPlugin};
 use criterion::{Criterion, criterion_group, criterion_main};
+use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
 use std::time::{Duration, Instant};
@@ -35,7 +36,7 @@ fn bench_parallel_scaling(c: &mut Criterion) {
                 app.add_plugins(TaskPoolPlugin {
                     task_pool_options: TaskPoolOptions::with_num_threads(threads),
                 });
-                bench_helpers::install_lighting_plugins(&mut app);
+                bench_helpers::install_lighting_plugins::<BlockUpdateFlags>(&mut app);
                 bench_helpers::build_warmed_vd12_app_in_place(&mut app);
                 let start = Instant::now();
                 bench_helpers::spawn_edge_column(&mut app);

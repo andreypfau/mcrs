@@ -11,7 +11,7 @@ use crate::geom::chunk_xyz_to_face_cell;
 use crate::storage::LightStorage;
 use crate::table::{BlockStateLightTable, flag_bits};
 use crate::{BlockBfsQueues, BlockOutbox, CrossChunkWavefront, SkyBfsQueues, SkyOutbox};
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_engine::voxel_update::SectionVoxels;
 use mcrs_voxel_math::Direction;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_voxel_storage::VoxelId;
@@ -435,7 +435,7 @@ impl BfsChannel for SkyBfs {
 #[inline]
 pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
     table: &BlockStateLightTable,
-    palette: &BlockPalette,
+    palette: &SectionVoxels,
     light: &mut LightStorage,
     queues: &mut C::Queues,
     outbox: &mut C::Outbox,
@@ -531,8 +531,7 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
                     continue;
                 }
 
-                let dst_state: VoxelId =
-                    palette.get((off_x as i32, off_y as i32, off_z as i32));
+                let dst_state: VoxelId = palette.get((off_x as i32, off_y as i32, off_z as i32));
                 let dst_flags = table.flags_for(dst_state);
                 let mut emit_flags: u8 = 0;
                 if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {
@@ -569,8 +568,7 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
                     continue;
                 }
 
-                let dst_state: VoxelId =
-                    palette.get((off_x as i32, off_y as i32, off_z as i32));
+                let dst_state: VoxelId = palette.get((off_x as i32, off_y as i32, off_z as i32));
                 let dst_flags = table.flags_for(dst_state);
                 let mut emit_flags: u8 = 0;
                 if (src_flags | dst_flags) & flag_bits::IS_CONDITIONALLY_OPAQUE != 0 {
@@ -644,7 +642,7 @@ pub(crate) fn propagate_core<C: BfsChannel, const FLAGS: u8>(
 /// source shape, which never occludes.
 pub fn propagate_increase(
     table: &BlockStateLightTable,
-    palette: &BlockPalette,
+    palette: &SectionVoxels,
     light: &mut LightStorage,
     queues: &mut BlockBfsQueues,
     outbox: &mut BlockOutbox,
@@ -672,7 +670,7 @@ pub fn propagate_increase(
 /// them, allowing other systems to observe the intermediate state.
 pub fn propagate_decrease(
     table: &BlockStateLightTable,
-    palette: &BlockPalette,
+    palette: &SectionVoxels,
     light: &mut LightStorage,
     queues: &mut BlockBfsQueues,
     outbox: &mut BlockOutbox,
@@ -690,7 +688,7 @@ pub fn propagate_decrease(
 /// unified `parent - max(1, dampening)` attenuation shared with block-light.
 pub fn propagate_increase_sky(
     table: &BlockStateLightTable,
-    palette: &BlockPalette,
+    palette: &SectionVoxels,
     light: &mut LightStorage,
     queues: &mut SkyBfsQueues,
     outbox: &mut SkyOutbox,
@@ -707,7 +705,7 @@ pub fn propagate_increase_sky(
 /// neighbour's stored level exceeds the propagated target.
 pub fn propagate_decrease_sky(
     table: &BlockStateLightTable,
-    palette: &BlockPalette,
+    palette: &SectionVoxels,
     light: &mut LightStorage,
     queues: &mut SkyBfsQueues,
     outbox: &mut SkyOutbox,
@@ -841,7 +839,7 @@ mod tests {
         ((a.0 - b.0).abs() + (a.1 - b.1).abs() + (a.2 - b.2).abs()) as u8
     }
 
-    fn fill_palette_with_air(palette: &mut BlockPalette) {
+    fn fill_palette_with_air(palette: &mut SectionVoxels) {
         palette.fill(VoxelId(0));
     }
 
@@ -874,7 +872,7 @@ mod tests {
     #[test]
     fn bfs_increase_single_emitter_all_air() {
         let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         fill_palette_with_air(&mut palette);
         palette.set((8, 8, 8), VoxelId(0x1000));
 
@@ -935,7 +933,7 @@ mod tests {
                 (0x1000, torch_spec()),
                 (SLAB_HIGH, slab_high_spec),
             ]);
-            let mut palette = BlockPalette::default();
+            let mut palette = SectionVoxels::default();
             fill_palette_with_air(&mut palette);
             palette.set((8, 8, 8), VoxelId(0x1000));
             palette.set((8, 8, 9), VoxelId(SLAB_HIGH));
@@ -964,7 +962,7 @@ mod tests {
                 (0x1000, torch_spec()),
                 (SLAB_ZERO, slab_zero_spec),
             ]);
-            let mut palette = BlockPalette::default();
+            let mut palette = SectionVoxels::default();
             fill_palette_with_air(&mut palette);
             palette.set((8, 8, 8), VoxelId(0x1000));
             palette.set((8, 8, 9), VoxelId(SLAB_ZERO));
@@ -986,7 +984,7 @@ mod tests {
     #[test]
     fn bfs_increase_pushes_face_egress() {
         let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         fill_palette_with_air(&mut palette);
         palette.set((15, 8, 8), VoxelId(0x1000));
 
@@ -1022,7 +1020,7 @@ mod tests {
     fn bfs_increase_early_exit_dedup() {
         // One-seed reference run.
         let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         fill_palette_with_air(&mut palette);
         palette.set((8, 8, 8), VoxelId(0x1000));
 
@@ -1080,7 +1078,7 @@ mod tests {
     #[test]
     fn bfs_recheck_level_stale_skip_discards() {
         let table = build_table(&[(0, air_spec())]);
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         fill_palette_with_air(&mut palette);
 
         let mut light = zero_light_storage();
@@ -1147,7 +1145,7 @@ mod tests {
             (6, dst_spec),
             (0x1000, torch_spec()),
         ]);
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         fill_palette_with_air(&mut palette);
         palette.set((5, 5, 5), VoxelId(5));
         palette.set((5, 5, 6), VoxelId(6));
@@ -1191,7 +1189,7 @@ mod tests {
     #[test]
     fn bfs_decrease_clears_emitter_field() {
         let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         fill_palette_with_air(&mut palette);
         palette.set((8, 8, 8), VoxelId(0x1000));
 
@@ -1239,7 +1237,7 @@ mod tests {
     #[test]
     fn bfs_decrease_requeues_higher_stored() {
         let table = build_table(&[(0, air_spec()), (0x1000, torch_spec())]);
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         fill_palette_with_air(&mut palette);
         // Surviving emitter at (12, 8, 8); the removed one was at (4, 8, 8).
         palette.set((12, 8, 8), VoxelId(0x1000));
@@ -1308,7 +1306,7 @@ mod tests {
             (TORCH_HI, torch_spec()),
             (TORCH_LO, torch_lo_spec),
         ]);
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         fill_palette_with_air(&mut palette);
         palette.set((5, 8, 8), VoxelId(TORCH_HI));
         palette.set((6, 8, 8), VoxelId(TORCH_LO));
@@ -1382,7 +1380,7 @@ mod tests {
     #[test]
     fn bfs_sky_increase_vertical_drop_through_air() {
         let table = build_sky_air_table();
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         palette.fill(VoxelId(SYNTH_AIR_ID));
 
         let mut light = zero_light_storage();
@@ -1419,7 +1417,7 @@ mod tests {
         // upgrade the cells underneath to 15, not skip them. The PROPAGATES_
         // SKYLIGHT_DOWN flag preserves level 15 unattenuated through air.
         let table = build_sky_air_table();
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         palette.fill(VoxelId(SYNTH_AIR_ID));
 
         let mut light = zero_light_storage();
@@ -1457,7 +1455,7 @@ mod tests {
             (SYNTH_AIR_ID, air_sky_spec()),
             (SYNTH_WATER_ID, water_sky_spec()),
         ]);
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         palette.fill(VoxelId(SYNTH_AIR_ID));
         palette.set((8, 10, 8), VoxelId(SYNTH_WATER_ID));
 
@@ -1489,7 +1487,7 @@ mod tests {
         // bitset so the BFS must use the unified parent - max(1, dampening) rule
         // on the horizontal step.
         let table = build_sky_air_table();
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         palette.fill(VoxelId(SYNTH_AIR_ID));
 
         let mut light = zero_light_storage();
@@ -1532,7 +1530,7 @@ mod tests {
             (SYNTH_OPAQUE_SRC_ID, src_spec),
             (SYNTH_OPAQUE_DST_ID, dst_spec),
         ]);
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         palette.fill(VoxelId(SYNTH_AIR_ID));
         palette.set((5, 5, 5), VoxelId(SYNTH_OPAQUE_SRC_ID));
         palette.set((5, 5, 6), VoxelId(SYNTH_OPAQUE_DST_ID));
@@ -1559,7 +1557,7 @@ mod tests {
     #[test]
     fn bfs_sky_decrease_requeues_higher_stored() {
         let table = build_sky_air_table();
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         palette.fill(VoxelId(SYNTH_AIR_ID));
 
         let mut light = zero_light_storage();
@@ -1610,7 +1608,7 @@ mod tests {
             (SYNTH_AIR_ID, air_sky_spec()),
             (SYNTH_OPAQUE_SRC_ID, pseudo_emitter_spec),
         ]);
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         palette.fill(VoxelId(SYNTH_AIR_ID));
         // Place the pseudo-emitter at (6, 8, 8) — the cell visited by the
         // east-walking decrease pass.

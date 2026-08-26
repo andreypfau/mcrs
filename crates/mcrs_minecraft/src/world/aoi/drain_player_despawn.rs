@@ -84,19 +84,20 @@ pub fn drain_inbound_player_despawn(
                 continue;
             }
             if let Ok((tracked_by, _)) = player_caches.get(observer_entity)
-                && tracked_by.0.contains(&target) {
-                    packet_writer.write(OutboundPlayerPacket {
-                        target: PacketTarget::SinglePlayer(observer_entity),
-                        priority: PacketPriority::Normal,
-                        data: PacketPayload::PlayerLeftView {
-                            entity_ids: entity_ids.clone(),
-                        },
-                        session: PlayerSession(0),
-                        epoch: 0,
-                    });
-                    mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-                        .fetch_add(1, Ordering::Relaxed);
-                }
+                && tracked_by.0.contains(&target)
+            {
+                packet_writer.write(OutboundPlayerPacket {
+                    target: PacketTarget::SinglePlayer(observer_entity),
+                    priority: PacketPriority::Normal,
+                    data: PacketPayload::PlayerLeftView {
+                        entity_ids: entity_ids.clone(),
+                    },
+                    session: PlayerSession(0),
+                    epoch: 0,
+                });
+                mcrs_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
+                    .fetch_add(1, Ordering::Relaxed);
+            }
         }
 
         // Single mutable pass over all in-dim player caches.

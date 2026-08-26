@@ -1,4 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
+use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
 use std::time::{Duration, Instant};
@@ -17,7 +18,7 @@ fn bench_single_torch(c: &mut Criterion) {
         b.iter_custom(|iters| {
             let mut total = Duration::ZERO;
             for _ in 0..iters {
-                let mut app = bench_helpers::build_single_torch_app();
+                let mut app = bench_helpers::build_single_torch_app::<BlockUpdateFlags>();
                 let start = Instant::now();
                 bench_helpers::run_until_converged(&mut app);
                 total += start.elapsed();

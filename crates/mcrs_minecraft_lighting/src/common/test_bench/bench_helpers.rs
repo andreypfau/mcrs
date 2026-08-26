@@ -1,15 +1,15 @@
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::*;
-use bevy_state::app::{AppExtStates, StatesPlugin};
-use mcrs_core::AppState;
+use bevy_state::app::StatesPlugin;
 use mcrs_engine::entity::ChunkEntities;
+use mcrs_engine::voxel_update::SectionVoxels;
+use mcrs_engine::voxel_update::VoxelUpdateFlags;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::storage::chunk::Chunk;
 use mcrs_engine::world::storage::column::ColumnPlugin;
-use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_voxel_storage::VoxelId;
@@ -85,7 +85,7 @@ pub fn spawn_test_chunk(
     app: &mut App,
     dim: Entity,
     chunk_pos: ChunkPos,
-    palette: BlockPalette,
+    palette: SectionVoxels,
 ) -> Entity {
     app.world_mut()
         .spawn((
@@ -99,27 +99,27 @@ pub fn spawn_test_chunk(
         .id()
 }
 
-pub fn air_palette() -> BlockPalette {
-    let mut p = BlockPalette::default();
+pub fn air_palette() -> SectionVoxels {
+    let mut p = SectionVoxels::default();
     p.fill(VoxelId(0));
     p
 }
 
-pub fn solid_palette() -> BlockPalette {
-    let mut p = BlockPalette::default();
+pub fn solid_palette() -> SectionVoxels {
+    let mut p = SectionVoxels::default();
     p.fill(VoxelId(1));
     p
 }
 
-pub fn torch_palette_with_one_emitter() -> BlockPalette {
-    let mut p = BlockPalette::default();
+pub fn torch_palette_with_one_emitter() -> SectionVoxels {
+    let mut p = SectionVoxels::default();
     p.fill(VoxelId(0));
     p.set((8i32, 8i32, 8i32), VoxelId(2));
     p
 }
 
-pub fn tnt_3x3x3_palette() -> BlockPalette {
-    let mut p = BlockPalette::default();
+pub fn tnt_3x3x3_palette() -> SectionVoxels {
+    let mut p = SectionVoxels::default();
     p.fill(VoxelId(0));
     for x in 7i32..=9 {
         for y in 7i32..=9 {
@@ -131,8 +131,8 @@ pub fn tnt_3x3x3_palette() -> BlockPalette {
     p
 }
 
-pub fn stone_cap_then_air_palette() -> BlockPalette {
-    let mut p = BlockPalette::default();
+pub fn stone_cap_then_air_palette() -> SectionVoxels {
+    let mut p = SectionVoxels::default();
     p.fill(VoxelId(0));
     for x in 0i32..16 {
         for z in 0i32..16 {
@@ -142,27 +142,25 @@ pub fn stone_cap_then_air_palette() -> BlockPalette {
     p
 }
 
-pub fn solid_column_palette() -> BlockPalette {
-    let mut p = BlockPalette::default();
+pub fn solid_column_palette() -> SectionVoxels {
+    let mut p = SectionVoxels::default();
     p.fill(VoxelId(1));
     p
 }
 
-pub fn install_lighting_plugins(app: &mut App) -> Entity {
+pub fn install_lighting_plugins<F: VoxelUpdateFlags>(app: &mut App) -> Entity {
     app.add_plugins(StatesPlugin);
-    app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<F>::default());
     app.insert_resource(make_stub_block_light_table());
     spawn_test_dimension(app, true)
 }
 
-pub fn build_single_torch_app() -> App {
+pub fn build_single_torch_app<F: VoxelUpdateFlags>() -> App {
     let mut app = App::new();
     app.add_plugins(StatesPlugin);
-    app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<F>::default());
     app.insert_resource(make_stub_block_light_table_with_torch());
     let dim = spawn_test_dimension(&mut app, true);
     spawn_test_chunk(
@@ -182,16 +180,15 @@ pub fn build_single_torch_app() -> App {
 /// ever being inserted and leaving `run_until_converged` with nothing to
 /// converge. This variant sizes the dimension to exactly one section so the
 /// single loaded chunk is both the top and bottom of the column.
-pub fn build_single_torch_app_single_section() -> App {
+pub fn build_single_torch_app_single_section<F: VoxelUpdateFlags>() -> App {
     use mcrs_engine::world::dimension::{
         DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight,
     };
 
     let mut app = App::new();
     app.add_plugins(StatesPlugin);
-    app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<F>::default());
     app.insert_resource(make_stub_block_light_table_with_torch());
     let dim = app
         .world_mut()
@@ -211,24 +208,22 @@ pub fn build_single_torch_app_single_section() -> App {
     app
 }
 
-pub fn build_tnt_chain_app() -> App {
+pub fn build_tnt_chain_app<F: VoxelUpdateFlags>() -> App {
     let mut app = App::new();
     app.add_plugins(StatesPlugin);
-    app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<F>::default());
     app.insert_resource(make_stub_block_light_table());
     let dim = spawn_test_dimension(&mut app, true);
     spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), tnt_3x3x3_palette());
     app
 }
 
-pub fn build_roof_removal_app() -> App {
+pub fn build_roof_removal_app<F: VoxelUpdateFlags>() -> App {
     let mut app = App::new();
     app.add_plugins(StatesPlugin);
-    app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<F>::default());
     app.insert_resource(make_stub_block_light_table());
     let dim = spawn_test_dimension(&mut app, true);
     spawn_test_chunk(
@@ -240,12 +235,11 @@ pub fn build_roof_removal_app() -> App {
     app
 }
 
-pub fn build_pit_dig_app() -> App {
+pub fn build_pit_dig_app<F: VoxelUpdateFlags>() -> App {
     let mut app = App::new();
     app.add_plugins(StatesPlugin);
-    app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<F>::default());
     app.insert_resource(make_stub_block_light_table());
     let dim = spawn_test_dimension(&mut app, true);
     for chunk_y in 0..4i32 {
@@ -259,13 +253,12 @@ pub fn build_pit_dig_app() -> App {
     app
 }
 
-pub fn build_warmed_vd12_app_factory() -> Box<dyn Fn() -> App + Send + Sync> {
+pub fn build_warmed_vd12_app_factory<F: VoxelUpdateFlags>() -> Box<dyn Fn() -> App + Send + Sync> {
     Box::new(|| {
         let mut app = App::new();
         app.add_plugins(StatesPlugin);
-        app.init_state::<AppState>();
         app.add_plugins(ColumnPlugin);
-        app.add_plugins(LightingPlugin);
+        app.add_plugins(LightingPlugin::<F>::default());
         app.insert_resource(make_stub_block_light_table());
         let dim = spawn_test_dimension(&mut app, true);
         for chunk_x in -12i32..=12 {

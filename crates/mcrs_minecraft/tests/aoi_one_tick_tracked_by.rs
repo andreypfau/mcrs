@@ -13,10 +13,10 @@ use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::physics::Transform;
-use mcrs_voxel_math::ColumnPos;
 use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft::world::aoi::TrackedBy;
+use mcrs_voxel_math::ColumnPos;
 
 mod harness;
 use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};

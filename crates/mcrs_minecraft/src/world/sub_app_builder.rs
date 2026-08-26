@@ -60,8 +60,10 @@ use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_engine::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
 use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
+use mcrs_protocol::light_codec::LightCodecPlugin;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::block::definition::Blocks;
@@ -234,7 +236,8 @@ pub fn spawn_dim_subapp(
     sub_app.add_systems(FixedLast, flush_from_dim_outbox);
 
     sub_app.add_plugins(DimensionPlugin);
-    sub_app.add_plugins(LightingPlugin);
+    sub_app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
+    sub_app.add_plugins(LightCodecPlugin);
     // AssetPlugin and AppTypeRegistry must precede any plugin that calls
     // `init_asset` / `register_asset_loader`. `ChunkPlugin` (via its nested
     // `NoiseGeneratorSettingsPlugin`) registers assets, so it must come after
@@ -323,11 +326,11 @@ pub fn spawn_dim_subapp(
         if !attached.is_empty()
             && let Some(mut host_msgs) =
                 main_world.get_resource_mut::<Messages<OutboundPlayerAttached>>()
-            {
-                for msg in attached {
-                    host_msgs.write(msg);
-                }
+        {
+            for msg in attached {
+                host_msgs.write(msg);
             }
+        }
     });
 
     // Resolve this dimension's index in the dimension_type registry that is

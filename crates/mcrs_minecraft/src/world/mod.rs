@@ -125,7 +125,9 @@ impl Plugin for WorldPlugin {
 pub(crate) fn enqueue_dim_spawns_from_preset(
     world_preset: Res<LoadedWorldPreset>,
     dim_defs: Res<bevy_asset::Assets<mcrs_vanilla::dimension::level_stem::DimensionDefinition>>,
-    dimension_types: Res<bevy_asset::Assets<mcrs_vanilla::dimension::dimension_type::DimensionType>>,
+    dimension_types: Res<
+        bevy_asset::Assets<mcrs_vanilla::dimension::dimension_type::DimensionType>,
+    >,
     mut spawn_queue: ResMut<DimSpawnQueue>,
     mut already_enqueued: Local<bool>,
 ) {

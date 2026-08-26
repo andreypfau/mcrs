@@ -4,11 +4,11 @@ use std::sync::Arc;
 use bevy_asset::Assets;
 use mcrs_core::RegistrySnapshot;
 use mcrs_core::resource_location::ResourceLocation;
-use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::{BiomeSource, build_beta_lookup_table};
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::world::chunk::CancellationToken;
@@ -471,7 +471,7 @@ fn beta_terrain_height_matches_back2beta_oracle() {
                 &router,
                 Some((&biome_source, &snapshot)),
                 super::corpus(),
-        &cancel,
+                &cancel,
             )
         });
 

@@ -1,6 +1,6 @@
-use mcrs_vanilla::item::component::Enchantments;
 use crate::world::loot::condition::LootCondition;
 use mcrs_core::ResourceLocation;
+use mcrs_vanilla::item::component::Enchantments;
 
 pub struct BlockBreakContext<'a> {
     pub tool_enchantments: Option<&'a Enchantments>,

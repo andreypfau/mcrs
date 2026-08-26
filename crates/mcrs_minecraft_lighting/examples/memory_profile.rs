@@ -2,11 +2,13 @@
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
+use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use mcrs_core::AppState;
 use mcrs_engine::world::dimension::HasSkyLight;
 use mcrs_engine::world::lifecycle::ticket::LightTicket;
 use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, ColumnScalarKey, Heightmaps};
+use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_lighting::components::{
     BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockNeedsInitialSeed, BlockOutbox,
     BlockParkedEgress, IsAllAir, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight,
@@ -135,7 +137,9 @@ fn main() {
     let _ = FIXTURE_SEED;
 
     let mut app = bevy_app::App::new();
-    let _stub_dim = install_lighting_plugins(&mut app);
+    app.add_plugins(StatesPlugin);
+    app.init_state::<AppState>();
+    let _stub_dim = install_lighting_plugins::<BlockUpdateFlags>(&mut app);
 
     app.world_mut()
         .resource_mut::<NextState<AppState>>()
@@ -596,8 +600,7 @@ fn write_allocation_discipline(snap: &MemorySnapshot) {
 }
 
 fn write_json(snap: &MemorySnapshot, path: &str) -> std::io::Result<()> {
-    let json = serde_json::to_string_pretty(snap)
-        .map_err(|e| std::io::Error::other(e))?;
+    let json = serde_json::to_string_pretty(snap).map_err(|e| std::io::Error::other(e))?;
     std::fs::write(path, json)
 }
 

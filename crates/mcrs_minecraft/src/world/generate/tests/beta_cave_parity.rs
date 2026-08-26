@@ -4,7 +4,6 @@ use std::sync::Arc;
 use bevy_asset::Assets;
 use mcrs_core::RegistrySnapshot;
 use mcrs_core::resource_location::ResourceLocation;
-use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::carver::WorldCarver;
 use mcrs_minecraft_worldgen::carver::cave::CaveWorldCarver;
@@ -12,11 +11,12 @@ use mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_protocol::BlockStateId;
-use mcrs_voxel_storage::VoxelId;
 use mcrs_random::Random;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::{BiomeSource, build_beta_lookup_table};
+use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_storage::VoxelId;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use crate::world::chunk::CancellationToken;
@@ -294,9 +294,10 @@ fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64
                 let section_y = world_y >> 4;
                 let local_y = world_y & 0xF;
                 if let Some(si) = ys.iter().position(|&sy| sy == section_y)
-                    && let Some(Some((blocks, _))) = sl.get(si) {
-                        return blocks.get(BlockPos::new(local_x, local_y, local_z));
-                    }
+                    && let Some(Some((blocks, _))) = sl.get(si)
+                {
+                    return blocks.get(BlockPos::new(local_x, local_y, local_z));
+                }
                 air.into()
             };
             let set_block = |local_x: i32, world_y: i32, local_z: i32, state: VoxelId| {
@@ -304,9 +305,10 @@ fn count_rng_draws_for_chunk(chunk_x: i32, chunk_z: i32, world_seed: i64) -> u64
                 let section_y = world_y >> 4;
                 let local_y = world_y & 0xF;
                 if let Some(si) = ys.iter().position(|&sy| sy == section_y)
-                    && let Some(Some((blocks, _))) = sl.get_mut(si) {
-                        blocks.set(BlockPos::new(local_x, local_y, local_z), state);
-                    }
+                    && let Some(Some((blocks, _))) = sl.get_mut(si)
+                {
+                    blocks.set(BlockPos::new(local_x, local_y, local_z), state);
+                }
             };
 
             carver.carve(
@@ -750,7 +752,7 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 &router,
                 Some((&biome_source, &snapshot)),
                 super::corpus(),
-        &cancel,
+                &cancel,
             );
             let mut rng = make_chunk_rng(chunk_x, chunk_z);
             apply_beta_surface(
@@ -761,7 +763,7 @@ fn beta_real_pipeline_has_cave_air_below_y32() {
                 &router,
                 &biome_source,
                 super::corpus(),
-        &mut rng,
+                &mut rng,
             );
             apply_beta_caves(
                 &mut sections,

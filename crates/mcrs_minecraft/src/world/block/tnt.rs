@@ -1,9 +1,9 @@
+use crate::world::entity::EntityOwner;
 use crate::world::entity::explosive::primed_tnt::{
-    Detonator, PrimedTntBundle, DEFAULT_FUSE_DURATION,
+    DEFAULT_FUSE_DURATION, Detonator, PrimedTntBundle,
 };
 use crate::world::entity::player::ability::InstantBuild;
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
-use crate::world::entity::EntityOwner;
 use crate::world::explosion::BlockExplodedEvent;
 use bevy_app::Plugin;
 use bevy_ecs::message::MessageReader;
@@ -63,11 +63,7 @@ fn is_unstable_tnt(blocks: &Blocks, state: mcrs_protocol::BlockStateId) -> bool 
         && blocks.owner(state).value_of(state, "unstable") == Some(&PropertyValue::Bool(true))
 }
 
-fn tnt_block_exploded(
-    event: On<BlockExplodedEvent>,
-    blocks: Res<Blocks>,
-    mut commands: Commands,
-) {
+fn tnt_block_exploded(event: On<BlockExplodedEvent>, blocks: Res<Blocks>, mut commands: Commands) {
     if !is_tnt(&blocks, event.block_state_id) {
         return;
     }

@@ -17,20 +17,20 @@ use bevy_ecs::change_detection::Res;
 use bevy_ecs::entity::{Entity, EntityHashMap};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Added, Commands, Local, ParallelCommands, Query, With};
+use mcrs_engine::voxel_update::SectionVoxels;
+use mcrs_engine::voxel_update::{VoxelPlaced, VoxelUpdateFlags};
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, InColumn};
-use mcrs_minecraft_block::block_update::BlockPlaced;
-use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_voxel_math::{BlockPos, ChunkPos};
 use mcrs_voxel_storage::VoxelId;
 
-pub fn enqueue_block_light_on_block_placed(
-    mut reader: MessageReader<BlockPlaced>,
+pub fn enqueue_block_light_on_block_placed<F: VoxelUpdateFlags>(
+    mut reader: MessageReader<VoxelPlaced<F>>,
     table: Res<BlockStateLightTable>,
     mut chunks: Query<(Entity, &mut BlockLight, &mut BlockBfsQueues)>,
     chunks_lookup: Query<(), (With<BlockLight>, With<BlockBfsQueues>)>,
-    mut partitions: Local<EntityHashMap<Vec<BlockPlaced>>>,
+    mut partitions: Local<EntityHashMap<Vec<VoxelPlaced<F>>>>,
     par_commands: ParallelCommands,
 ) {
     // Drop empty buckets to bound memory under long-running sessions where the
@@ -144,7 +144,7 @@ pub fn enqueue_block_light_on_block_placed(
             tracing::warn!(
                 chunk = ?entity,
                 block_pos = ?first.block_pos,
-                "BlockPlaced.chunk missing BlockLight/BlockBfsQueues; lifecycle ordering hazard"
+                "VoxelPlaced.chunk missing BlockLight/BlockBfsQueues; lifecycle ordering hazard"
             );
         }
     }
@@ -161,7 +161,7 @@ pub fn enqueue_block_light_on_block_placed(
 /// across ticks.
 pub fn seed_block_emitters(
     table: Option<Res<BlockStateLightTable>>,
-    mut chunks: Query<(Entity, &BlockPalette, &mut BlockBfsQueues), With<BlockNeedsInitialSeed>>,
+    mut chunks: Query<(Entity, &SectionVoxels, &mut BlockBfsQueues), With<BlockNeedsInitialSeed>>,
     mut commands: Commands,
 ) {
     let Some(table) = table else {
@@ -302,25 +302,26 @@ pub fn pull_block_neighbor_edges(
             }
 
             if let Ok(mut parked) = block_parked.get_mut(neighbour_entity)
-                && !parked.0.is_empty() {
-                    parked.0.retain(|w| {
-                        if w.face() == neighbour_expected_face {
-                            if let Ok(mut inc) = block_inbox.get_mut(new_chunk) {
-                                inc.0.push(CrossChunkWavefront::new(
-                                    dest_face,
-                                    w.cell_x(),
-                                    w.cell_z(),
-                                    w.level(),
-                                ));
-                                new_chunk_has_incoming = true;
-                                drained_pending_from_neighbour = true;
-                            }
-                            false
-                        } else {
-                            true
+                && !parked.0.is_empty()
+            {
+                parked.0.retain(|w| {
+                    if w.face() == neighbour_expected_face {
+                        if let Ok(mut inc) = block_inbox.get_mut(new_chunk) {
+                            inc.0.push(CrossChunkWavefront::new(
+                                dest_face,
+                                w.cell_x(),
+                                w.cell_z(),
+                                w.level(),
+                            ));
+                            new_chunk_has_incoming = true;
+                            drained_pending_from_neighbour = true;
                         }
-                    });
-                }
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
 
             if drained_pending_from_neighbour {
                 commands.entity(neighbour_entity).insert(BlockBfsPending);

@@ -12,7 +12,6 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::bus::{
@@ -27,6 +26,7 @@ use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
 use mcrs_vanilla::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
+use mcrs_voxel_math::voxel_shape::VoxelShape;
 
 mod support;
 

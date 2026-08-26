@@ -25,6 +25,7 @@ use mcrs_engine::world::storage::chunk::Chunk;
 use mcrs_engine::world::storage::column::{
     ChunkLookup, Column, ColumnChunks, ColumnIndex, ColumnPlugin, ColumnPos, InColumn,
 };
+use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::components::{
@@ -44,7 +45,7 @@ fn make_test_app(sky: bool) -> (App, Entity) {
     app.add_plugins(StatesPlugin);
     app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
     app.insert_resource(make_stub_block_light_table());
     let dim_entity = spawn_test_dimension(&mut app, sky);
     (app, dim_entity)
@@ -325,7 +326,7 @@ fn cross_dim_partitioning_smoke() {
     app.add_plugins(StatesPlugin);
     app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
     app.insert_resource(make_stub_block_light_table());
 
     let dim_a = spawn_test_dimension(&mut app, true);

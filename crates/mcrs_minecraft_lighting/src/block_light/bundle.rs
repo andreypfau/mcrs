@@ -1,5 +1,5 @@
-use crate::codec::LightStorage;
 use crate::nibble::LightNibbles;
+use crate::storage::LightStorage;
 use crate::{BlockBfsQueues, BlockInbox, BlockLight, BlockOutbox, BlockParkedEgress};
 use bevy_ecs::bundle::Bundle;
 

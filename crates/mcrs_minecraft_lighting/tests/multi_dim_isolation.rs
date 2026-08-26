@@ -45,8 +45,8 @@ use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_minecraft_lighting::codec::{BlockLightDirty, SkyLightDirty};
 use mcrs_minecraft_lighting::components::{BlockLight, SkyLight};
+use mcrs_minecraft_lighting::emit_dirty::{BlockLightDirty, SkyLightDirty};
 use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
@@ -171,7 +171,7 @@ fn torch_in_dim_a_leaves_dim_b_byte_identical_and_no_cross_dim_violation() {
     app.add_plugins(StatesPlugin);
     app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
     app.insert_resource(make_stub_block_light_table_with_torch());
     app.world_mut()
         .resource_mut::<NextState<AppState>>()

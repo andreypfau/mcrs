@@ -1,4 +1,4 @@
-//! Consumes `MessageReader<BlockPlaced>`, derives the chunk's intra-cell
+//! Consumes `MessageReader<VoxelPlaced>`, derives the chunk's intra-cell
 //! coord via `rem_euclid(16)` on i32, looks up old/new emission via
 //! `Res<BlockStateLightTable>`, and pushes a decrease and/or increase seed into
 //! the chunk's `BlockBfsQueues` queues per the emission-diff rule:
@@ -81,9 +81,10 @@ pub fn consume_needs_full_reseed(
             let mut e = commands.entity(*chunk_entity);
             e.insert(BlockNeedsInitialSeed);
             if let Ok(in_dim) = in_dimensions.get(*chunk_entity)
-                && sky_dims.get(in_dim.0).is_ok() {
-                    e.insert(SkyNeedsInitialSeed);
-                }
+                && sky_dims.get(in_dim.0).is_ok()
+            {
+                e.insert(SkyNeedsInitialSeed);
+            }
         }
         commands.entity(column_entity).remove::<NeedsFullReseed>();
     }
@@ -113,6 +114,7 @@ mod tests {
     use bevy_app::{App, Update};
     use bevy_ecs::message::Messages;
     use bevy_ecs::prelude::IntoScheduleConfigs;
+    use mcrs_engine::voxel_update::SectionVoxels;
     use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
     use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
     use mcrs_engine::world::storage::column::{
@@ -121,7 +123,6 @@ mod tests {
     use mcrs_lighting_table_helpers::*;
     use mcrs_minecraft_block::block::BlockUpdateFlags;
     use mcrs_minecraft_block::block_update::BlockPlaced;
-    use mcrs_minecraft_block::palette::BlockPalette;
     use mcrs_voxel_math::BlockPos;
     use mcrs_voxel_math::ChunkPos;
     use mcrs_voxel_math::Direction;
@@ -179,7 +180,10 @@ mod tests {
         let mut app = App::new();
         app.add_message::<BlockPlaced>();
         app.insert_resource(make_test_table());
-        app.add_systems(Update, enqueue_block_light_on_block_placed);
+        app.add_systems(
+            Update,
+            enqueue_block_light_on_block_placed::<BlockUpdateFlags>,
+        );
         app
     }
 
@@ -399,8 +403,8 @@ mod tests {
         e.id()
     }
 
-    fn air_palette_local() -> BlockPalette {
-        let mut p = BlockPalette::default();
+    fn air_palette_local() -> SectionVoxels {
+        let mut p = SectionVoxels::default();
         p.fill(AIR);
         p
     }
@@ -518,7 +522,10 @@ mod tests {
         let mut app = App::new();
         app.add_message::<BlockPlaced>();
         app.insert_resource(make_test_table());
-        app.add_systems(Update, enqueue_sky_light_on_block_placed);
+        app.add_systems(
+            Update,
+            enqueue_sky_light_on_block_placed::<BlockUpdateFlags>,
+        );
         app
     }
 
@@ -719,7 +726,7 @@ mod tests {
         let bytes = captured.lock().unwrap();
         let output = String::from_utf8_lossy(&bytes);
         assert!(
-            output.contains("BlockPlaced.chunk missing SkyLight/SkyBfsQueues"),
+            output.contains("VoxelPlaced.chunk missing SkyLight/SkyBfsQueues"),
             "expected warn substring in captured tracing output, got: {output}"
         );
     }
@@ -900,7 +907,10 @@ mod tests {
         let mut app = App::new();
         app.add_message::<BlockPlaced>();
         app.insert_resource(table);
-        app.add_systems(Update, enqueue_sky_light_on_block_placed);
+        app.add_systems(
+            Update,
+            enqueue_sky_light_on_block_placed::<BlockUpdateFlags>,
+        );
         let entity = spawn_sky_chunk_topmost(&mut app);
         write_placed(
             &mut app,
@@ -943,8 +953,8 @@ mod tests {
         app
     }
 
-    fn spawn_palette_with_torches(positions: &[(i32, i32, i32)]) -> BlockPalette {
-        let mut palette = BlockPalette::default();
+    fn spawn_palette_with_torches(positions: &[(i32, i32, i32)]) -> SectionVoxels {
+        let mut palette = SectionVoxels::default();
         palette.fill(AIR);
         for &(x, y, z) in positions {
             palette.set(BlockPos::new(x, y, z), TORCH_HI);
@@ -963,7 +973,7 @@ mod tests {
     fn spawn_topmost_chunk_for_seed(
         app: &mut App,
         dim: bevy_ecs::entity::Entity,
-        palette: BlockPalette,
+        palette: SectionVoxels,
         sky: bool,
     ) -> (bevy_ecs::entity::Entity, bevy_ecs::entity::Entity) {
         let chunk = app.world_mut().spawn_empty().id();
@@ -1072,7 +1082,7 @@ mod tests {
             ))
             .id();
 
-        let mut palette_a = BlockPalette::default();
+        let mut palette_a = SectionVoxels::default();
         palette_a.fill(AIR);
         let mut a_sky_light = SkyLight::default();
         for z in 0..16usize {
@@ -1095,7 +1105,7 @@ mod tests {
         // Chunk B at chunk-Y 1 (the new topmost) needs initial light. Both
         // per-channel markers are present to trigger seed_block_emitters and
         // seed_sky_initial.
-        let mut palette_b = BlockPalette::default();
+        let mut palette_b = SectionVoxels::default();
         palette_b.fill(AIR);
         app.world_mut().entity_mut(chunk_b).insert((
             palette_b,
@@ -1213,7 +1223,7 @@ mod tests {
                 InDimension(dim),
             ))
             .id();
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         palette.fill(AIR);
         app.world_mut().entity_mut(chunk).insert((
             palette,

@@ -11,17 +11,17 @@
 //!    support, the excess equals the cell's own emission — i.e. only
 //!    emitter cells may be brighter than the surrounding field supports.
 
-use crate::codec::LightStorage;
 use crate::invariants::{CHUNK_DIM, DIRECTIONS, neighbour_contribution};
 pub use crate::invariants::{InvariantViolation, ViolationKind};
+use crate::storage::LightStorage;
 use crate::table::BlockStateLightTable;
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_engine::voxel_update::SectionVoxels;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 pub fn check_block_light_invariants(
     table: &BlockStateLightTable,
-    palette: &BlockPalette,
+    palette: &SectionVoxels,
     light: &LightStorage,
 ) -> Result<(), InvariantViolation> {
     for y in 0..CHUNK_DIM {
@@ -113,8 +113,8 @@ mod tests {
         }
     }
 
-    fn make_palette(emitters: &[(i32, i32, i32, VoxelId)]) -> BlockPalette {
-        let mut p = BlockPalette::default();
+    fn make_palette(emitters: &[(i32, i32, i32, VoxelId)]) -> SectionVoxels {
+        let mut p = SectionVoxels::default();
         p.fill(AIR);
         for (x, y, z, state) in emitters {
             p.set(BlockPos::new(*x, *y, *z), (*state));
@@ -197,7 +197,7 @@ mod tests {
         // The boundary cells on the -X, -Y, -Z faces have their outward
         // neighbours in a sibling chunk, so the support-floor check must
         // skip those directions; otherwise (0, 0, 0)'s missing neighbours
-        // would read garbage from `BlockPalette::get`'s `& 15` wrap-around.
+        // would read garbage from `SectionVoxels::get`'s `& 15` wrap-around.
         let table = make_test_table();
         let palette = make_palette(&[(0, 0, 0, TORCH)]);
         let mut light = air_storage();

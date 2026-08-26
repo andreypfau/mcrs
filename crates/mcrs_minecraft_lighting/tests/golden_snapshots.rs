@@ -39,7 +39,7 @@ fn make_test_app() -> (App, Entity) {
     app.add_plugins(StatesPlugin);
     app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
     app.insert_resource(golden::light_table::synthetic_block_light_table());
     let dim = app
         .world_mut()

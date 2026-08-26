@@ -14,6 +14,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use mcrs_engine::voxel_update::VoxelUpdateSet;
 use mcrs_engine::world::storage::column::ColumnLifecycleSet;
+use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_lighting::components::{BlockBfsPending, SkyBfsPending};
 use mcrs_minecraft_lighting::metrics::snapshot as lighting_snapshot;
 use mcrs_minecraft_lighting::sets::LightingSet;
@@ -287,7 +288,7 @@ fn build_instrumented_factory() -> Box<dyn Fn() -> App + Send + Sync> {
         app.add_plugins(StatesPlugin);
         app.init_state::<AppState>();
         app.add_plugins(ColumnPlugin);
-        app.add_plugins(mcrs_minecraft_lighting::LightingPlugin);
+        app.add_plugins(mcrs_minecraft_lighting::LightingPlugin::<BlockUpdateFlags>::default());
         app.add_plugins(PhaseTimingPlugin);
         app.insert_resource(bench_helpers::make_stub_block_light_table());
         let dim = bench_helpers::spawn_test_dimension(&mut app, true);

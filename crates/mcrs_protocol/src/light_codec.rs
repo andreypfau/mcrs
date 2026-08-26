@@ -18,18 +18,34 @@
 //! The `'static` lifetime on the returned `LightData` is required because
 //! downstream `Message<T>` types must be `Send + Sync + 'static`.
 
-use crate::storage::LightStorage;
-use crate::{BlockLight, SkyLight};
+use crate::chunk::{LightChunk, LightData};
+use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
-use bevy_ecs::prelude::{Entity, Query, With};
+use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, Query, With};
 use bevy_ecs::system::{Local, SystemParam};
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_engine::world::storage::column::{
     ChunkLookup, ColumnChunks, ColumnPos, ColumnPosComponent, InColumn,
 };
-use mcrs_protocol::chunk::{LightChunk, LightData};
+use mcrs_minecraft_lighting::emit_dirty::{BlockLightDirty, SkyLightDirty};
+use mcrs_minecraft_lighting::sets::LightingSet;
+use mcrs_minecraft_lighting::storage::LightStorage;
+use mcrs_minecraft_lighting::{BlockLight, SkyLight};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;
+
+pub struct LightCodecPlugin;
+
+impl Plugin for LightCodecPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_message::<ColumnLightUpdate>();
+        app.configure_sets(FixedPostUpdate, LightingSet::Codec);
+        app.add_systems(
+            FixedPostUpdate,
+            emit_column_light_updates.in_set(LightingSet::Codec),
+        );
+    }
+}
 
 /// One row of the light packet's section sequence. The packet carries a
 /// section below and a section above the dimension's real Y range, so the
@@ -53,8 +69,6 @@ pub fn wire_rows(chunks: &ColumnChunks) -> impl Iterator<Item = WireRow> + '_ {
 }
 
 /// Which light layer a `pack_chunk` call is operating on.
-// Note: function name `pack_chunk` is kept as part of the public wire-codec
-// surface (re-exported via `pub use codec::codec::pack_chunk`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Layer {
     Block,
@@ -215,25 +229,6 @@ pub fn build_full_light_data(
         sky_light_arrays: Cow::Owned(sky_arrays),
         block_light_arrays: Cow::Owned(block_arrays),
     }
-}
-
-/// Per-chunk block-light dirty signal emitted by the propagation engine and
-/// consumed by the codec. Disjoint from `SkyLightDirty` so the block- and sky-
-/// engines can write to independent `MessageWriter`s without contention.
-#[derive(Message)]
-pub struct BlockLightDirty {
-    pub chunk: Entity,
-    pub column_pos: ColumnPos,
-    pub chunk_y: i32,
-}
-
-/// Per-chunk sky-light dirty signal. Mirror of `BlockLightDirty` for the
-/// sky-light engine; emitted on a disjoint `MessageWriter<SkyLightDirty>`.
-#[derive(Message)]
-pub struct SkyLightDirty {
-    pub chunk: Entity,
-    pub column_pos: ColumnPos,
-    pub chunk_y: i32,
 }
 
 /// Per-column delta packet emitted by `emit_column_light_updates`. Carries
@@ -398,8 +393,8 @@ pub fn emit_column_light_updates(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nibble::LightNibbles;
     use bevy_ecs::entity::Entity;
+    use mcrs_minecraft_lighting::nibble::LightNibbles;
 
     fn fake_entity(index: u32) -> Entity {
         Entity::from_raw_u32(index + 1).expect("valid entity index")
@@ -515,7 +510,7 @@ mod tests {
         assert_eq!(arrays.len(), 1);
         assert_eq!(
             arrays[0],
-            mcrs_protocol::chunk::LightChunk(*nibble.0),
+            LightChunk(*nibble.0),
             "appended bytes must equal Mixed payload"
         );
     }
@@ -557,7 +552,7 @@ mod tests {
         assert!(!bit_is_set(&empty_mask, 65));
         assert_eq!(arrays.len(), 1);
         let expected = [0x77u8; 2048];
-        assert_eq!(arrays[0], mcrs_protocol::chunk::LightChunk(expected));
+        assert_eq!(arrays[0], LightChunk(expected));
         assert!(mask.len() >= 2, "mask must grow to cover bit 65");
     }
 
@@ -660,7 +655,7 @@ mod tests {
         assert!(bit_is_set(&mask, 25), "sky mask bit must be set");
         assert!(!bit_is_set(&empty_mask, 25));
         assert_eq!(arrays.len(), 1);
-        assert_eq!(arrays[0], mcrs_protocol::chunk::LightChunk([0xFFu8; 2048]));
+        assert_eq!(arrays[0], LightChunk([0xFFu8; 2048]));
 
         // Block layer at TopPadding in a sky-having dim still goes to the
         // empty mask — only the sky layer synthesizes the 0xFF payload.
@@ -859,6 +854,6 @@ mod tests {
 
         // Spot-check that the topmost sky array (TopPadding synth) is 0xFF.
         let top_array = &sky_arrays[sky_arrays.len() - 1];
-        assert_eq!(*top_array, mcrs_protocol::chunk::LightChunk([0xFFu8; 2048]));
+        assert_eq!(*top_array, LightChunk([0xFFu8; 2048]));
     }
 }

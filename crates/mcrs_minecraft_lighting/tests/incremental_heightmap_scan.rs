@@ -63,7 +63,7 @@ fn make_test_app_with_dim(min_y: i32, height: u32) -> (App, Entity) {
     app.add_plugins(StatesPlugin);
     app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
     app.insert_resource(make_stub_table());
     let dim = app
         .world_mut()

@@ -14,7 +14,10 @@ compression = ["dep:flate2"]
 mcrs_voxel_math.workspace = true
 mcrs_voxel_storage.workspace = true
 mcrs_core.workspace = true
+mcrs_engine.workspace = true
+mcrs_minecraft_lighting.workspace = true
 mcrs_text.workspace = true
+bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true
 mcrs_minecraft_nbt.workspace = true
@@ -29,6 +32,7 @@ url.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 bytes.workspace = true
+rustc-hash.workspace = true
 bitfield-struct.workspace = true
 derive_more = { workspace = true, features = ["from", "into", "deref", "deref_mut", "as_ref"] }
 cfb8 = { workspace = true, optional = true }

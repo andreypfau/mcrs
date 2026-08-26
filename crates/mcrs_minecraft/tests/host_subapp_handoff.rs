@@ -14,7 +14,6 @@ use mcrs_core::AppState;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
-use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_engine::session::PlayerSession;
 use mcrs_engine::session::{PlayerSessionCounter, SessionRegistry};
 use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
@@ -32,6 +31,7 @@ use mcrs_protocol::uuid::Uuid;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
+use mcrs_voxel_math::voxel_shape::VoxelShape;
 
 // System under test (Task 1) — must be pub in configuration.rs
 use mcrs_core::tag::registry::DynTagRegistry;

@@ -6,8 +6,8 @@
 use crate::bfs::{
     propagate_decrease_sky, propagate_increase_sky, unpack_bfs_entry_level, unpack_bfs_entry_y,
 };
-use crate::codec::LightStorage;
 use crate::propagate::drain_incoming_into_queue;
+use crate::storage::LightStorage;
 use crate::table::BlockStateLightTable;
 use crate::{
     CrossChunkWavefront, IsAllAir, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyOutbox,
@@ -16,7 +16,7 @@ use crate::{
 use bevy_ecs::change_detection::Res;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ParallelCommands, Query, With};
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_engine::voxel_update::SectionVoxels;
 use mcrs_voxel_math::Direction;
 
 /// Five non-Up faces used by the column-walker fast path to dump 256
@@ -65,7 +65,7 @@ pub fn propagate_decrease_sky_system(
     mut chunks: Query<
         (
             Entity,
-            &BlockPalette,
+            &SectionVoxels,
             &mut SkyLight,
             &mut SkyBfsQueues,
             &mut SkyOutbox,
@@ -101,7 +101,7 @@ pub fn propagate_increase_sky_system(
     mut chunks: Query<
         (
             Entity,
-            &BlockPalette,
+            &SectionVoxels,
             &mut SkyLight,
             &mut SkyBfsQueues,
             &mut SkyOutbox,

@@ -1,13 +1,13 @@
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::prelude::*;
 use mcrs_core::StaticRegistry;
-use mcrs_voxel_math::BlockPos;
 use mcrs_protocol::BlockStateId;
 use mcrs_random::Random;
 use mcrs_random::xoroshiro::XoroshiroRandom;
 use mcrs_vanilla::block::definition::Blocks;
 use mcrs_vanilla::block::definition::schema::IntProvider;
 use mcrs_vanilla::enchantment::EnchantmentData;
+use mcrs_voxel_math::BlockPos;
 use tracing::{debug, warn};
 
 use mcrs_vanilla::item::component::Enchantments;
@@ -113,7 +113,9 @@ fn process_block_experience(
                 continue;
             }
             let mut binomial = |n: f32, p: f32| remove_binomial(random, n, p);
-            value = conditional.effect.process(level as i32, value, &mut binomial);
+            value = conditional
+                .effect
+                .process(level as i32, value, &mut binomial);
         }
     }
     value as i32

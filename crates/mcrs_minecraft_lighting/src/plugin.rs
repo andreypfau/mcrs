@@ -6,7 +6,6 @@ use crate::block_light::enqueue::{
 use crate::block_light::propagate::{
     propagate_decrease_block_system, propagate_increase_block_system,
 };
-use crate::codec::{ColumnLightUpdate, emit_column_light_updates};
 use crate::converge::{LightConvergeSchedule, LightConvergeSet, light_converge_driver};
 use crate::distribute::{distribute_block_wavefronts, distribute_sky_wavefronts};
 use crate::emit_dirty::{clear_light_tickets, downgrade_light_storage};
@@ -22,54 +21,44 @@ use crate::sky_light::enqueue::{
     enqueue_sky_light_on_block_placed, pull_sky_neighbor_edges, seed_sky_initial,
 };
 use crate::sky_light::propagate::{propagate_decrease_sky_system, propagate_increase_sky_system};
-use crate::table::{BlockStateLightTable, build_block_light_table};
-use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
+use crate::table::BlockStateLightTable;
+use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{ApplyDeferred, IntoScheduleConfigs};
 use bevy_ecs::schedule::{Schedule, SingleThreadedExecutor};
-use bevy_state::prelude::OnEnter;
-use mcrs_core::AppState;
-use mcrs_core::tag::TagPhase;
-use mcrs_engine::voxel_update::{VoxelUpdateSet, apply_voxel_set_requests};
+use mcrs_engine::voxel_update::{
+    VoxelPlaced, VoxelUpdateFlags, VoxelUpdateSet, apply_voxel_set_requests,
+};
 use mcrs_engine::world::storage::column::{ColumnLifecycleSet, ColumnScalarRegistry};
-use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_minecraft_block::block_update::BlockPlaced;
-use mcrs_vanilla::transition_to_playing;
+use std::marker::PhantomData;
 
-pub struct BlockLightTablePlugin;
+pub struct LightingPlugin<F: VoxelUpdateFlags>(PhantomData<fn() -> F>);
 
-impl Plugin for BlockLightTablePlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<BlockStateLightTable>();
-        app.add_systems(
-            OnEnter(AppState::WorldgenFreeze),
-            build_block_light_table
-                .after(TagPhase::Freeze)
-                .before(transition_to_playing),
-        );
+impl<F: VoxelUpdateFlags> Default for LightingPlugin<F> {
+    fn default() -> Self {
+        Self(PhantomData)
     }
 }
 
-pub struct LightingPlugin;
-
-impl Plugin for LightingPlugin {
+impl<F: VoxelUpdateFlags> Plugin for LightingPlugin<F> {
     fn build(&self, app: &mut App) {
+        app.init_resource::<BlockStateLightTable>();
         // Must precede the first column spawn: `ColumnBundle` sizes its scalar
         // store from the registry at construction time.
         app.init_resource::<ColumnScalarRegistry>();
         register_heightmaps(&mut app.world_mut().resource_mut::<ColumnScalarRegistry>());
 
-        // `update_heightmaps_on_block_placed` reads `MessageReader<BlockPlaced>`.
-        // The production binary also registers `BlockUpdatePlugin`, which calls
-        // `add_message::<BlockPlaced>()`. Registering twice would re-initialize
+        // `update_heightmaps_on_block_placed` reads `MessageReader<VoxelPlaced>`.
+        // The production binary also registers `VoxelUpdatePlugin`, which calls
+        // `add_message::<VoxelPlaced>()`. Registering twice would re-initialize
         // the message buffer and drop parked messages, so guard against the
         // duplicate so the lighting plugin stays self-contained for integration
-        // tests but no-ops when `BlockUpdatePlugin` has already initialized the
+        // tests but no-ops when `VoxelUpdatePlugin` has already initialized the
         // buffer.
         if !app
             .world()
-            .contains_resource::<bevy_ecs::message::Messages<BlockPlaced>>()
+            .contains_resource::<bevy_ecs::message::Messages<VoxelPlaced<F>>>()
         {
-            app.add_message::<BlockPlaced>();
+            app.add_message::<VoxelPlaced<F>>();
         }
 
         // Cross-plugin barrier: the chain begins with a leading `ApplyDeferred`
@@ -92,7 +81,7 @@ impl Plugin for LightingPlugin {
 
         app.add_systems(
             FixedUpdate,
-            update_heightmaps_on_block_placed.after(apply_voxel_set_requests::<BlockUpdateFlags>),
+            update_heightmaps_on_block_placed::<F>.after(apply_voxel_set_requests::<F>),
         );
 
         // Sub-schedule registration. `add_schedule` takes a `Schedule` value,
@@ -206,8 +195,8 @@ impl Plugin for LightingPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                enqueue_block_light_on_block_placed,
-                enqueue_sky_light_on_block_placed,
+                enqueue_block_light_on_block_placed::<F>,
+                enqueue_sky_light_on_block_placed::<F>,
                 consume_needs_full_reseed,
                 (seed_block_emitters, seed_sky_initial),
                 invalidate_previous_topmost.after(seed_sky_initial),
@@ -237,12 +226,6 @@ impl Plugin for LightingPlugin {
         );
 
         app.add_plugins((BlockLightPlugin, SkyLightPlugin));
-        app.add_message::<ColumnLightUpdate>();
-        app.configure_sets(FixedPostUpdate, LightingSet::Codec);
-        app.add_systems(
-            FixedPostUpdate,
-            emit_column_light_updates.in_set(LightingSet::Codec),
-        );
     }
 }
 
@@ -251,16 +234,13 @@ mod tests {
     use super::*;
     use bevy_ecs::prelude::SystemSet;
     use bevy_ecs::schedule::Schedules;
-    use bevy_state::app::{AppExtStates, StatesPlugin};
-    use mcrs_core::AppState;
     use mcrs_engine::world::storage::column::ColumnPlugin;
+    use mcrs_minecraft_block::block::BlockUpdateFlags;
 
     fn build_test_app() -> App {
         let mut app = App::new();
-        app.add_plugins(StatesPlugin);
-        app.init_state::<AppState>();
         app.add_plugins(ColumnPlugin);
-        app.add_plugins(LightingPlugin);
+        app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
         app
     }
 

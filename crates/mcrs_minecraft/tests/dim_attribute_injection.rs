@@ -31,7 +31,6 @@ use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
 use mcrs_engine::entity::ChunkEntities;
-use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig, InDimension};
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::storage::chunk::Chunk;
@@ -45,6 +44,7 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
+use mcrs_voxel_math::ChunkPos;
 use vanilla::biome::Biome;
 use vanilla::block::Block;
 use vanilla::enchantment::EnchantmentData;

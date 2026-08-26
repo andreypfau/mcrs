@@ -15,10 +15,10 @@ use crate::sky_light::bundle::SkyLightBundle;
 use crate::table::BlockStateLightTable;
 use crate::{BlockNeedsInitialSeed, IsAllAir, SkyNeedsInitialSeed};
 use bevy_ecs::prelude::{Added, Changed, Commands, Component, Entity, Has, Query, Res, With};
+use mcrs_engine::voxel_update::SectionVoxels;
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::storage::column::{Column, ColumnChunks, Heightmaps};
-use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_voxel_math::ChunkPos;
 
 const XZ_FULL: [(usize, usize); 256] = {
@@ -132,7 +132,7 @@ impl ColumnHeightmapScan {
 /// chunks that triggered the column spawn.
 pub fn prime_heightmaps_on_column_spawn(
     changed_columns: Query<(Entity, &ColumnChunks), (With<Column>, Changed<ColumnChunks>)>,
-    chunks: Query<(&BlockPalette, Has<IsAllAir>)>,
+    chunks: Query<(&SectionVoxels, Has<IsAllAir>)>,
     mut col_state: Query<(&mut Heightmaps, Option<&mut ColumnHeightmapScan>)>,
     in_dimensions: Query<&InDimension>,
     sky_dims: Query<(), With<HasSkyLight>>,
@@ -159,9 +159,10 @@ pub fn prime_heightmaps_on_column_spawn(
                     let mut e = commands.entity(*chunk_entity);
                     e.insert(BlockNeedsInitialSeed);
                     if let Ok(in_dim) = in_dimensions.get(*chunk_entity)
-                        && sky_dims.get(in_dim.0).is_ok() {
-                            e.insert(SkyNeedsInitialSeed);
-                        }
+                        && sky_dims.get(in_dim.0).is_ok()
+                    {
+                        e.insert(SkyNeedsInitialSeed);
+                    }
                 }
                 continue;
             }
@@ -199,7 +200,7 @@ fn advance_scan(
     scan: &mut ColumnHeightmapScan,
     hm: &mut Heightmaps,
     chunk_index: &ColumnChunks,
-    chunks: &Query<(&BlockPalette, Has<IsAllAir>)>,
+    chunks: &Query<(&SectionVoxels, Has<IsAllAir>)>,
     in_dimensions: &Query<&InDimension>,
     sky_dims: &Query<(), With<HasSkyLight>>,
     table: &BlockStateLightTable,
@@ -208,7 +209,7 @@ fn advance_scan(
     debug_assert!(!scan.is_finalized());
     let min_chunk_y = scan.min_chunk_y;
 
-    let palette_fn = |entity: Entity| -> Option<&BlockPalette> {
+    let palette_fn = |entity: Entity| -> Option<&SectionVoxels> {
         let (palette, is_all_air) = chunks.get(entity).ok()?;
         if is_all_air { None } else { Some(palette) }
     };
@@ -294,9 +295,10 @@ fn insert_initial_light_markers(
         let mut e = commands.entity(*chunk_entity);
         e.insert(BlockNeedsInitialSeed);
         if let Ok(in_dim) = in_dimensions.get(*chunk_entity)
-            && sky_dims.get(in_dim.0).is_ok() {
-                e.insert(SkyNeedsInitialSeed);
-            }
+            && sky_dims.get(in_dim.0).is_ok()
+        {
+            e.insert(SkyNeedsInitialSeed);
+        }
     }
 }
 
@@ -306,7 +308,7 @@ fn insert_initial_light_markers(
 ///
 /// `BlockLightBundle` is inserted unconditionally. `SkyLightBundle` is
 /// inserted only when the parent `Dimension` carries `HasSkyLight`.
-/// `IsAllAir` is inserted when the chunk's `BlockPalette` contains only
+/// `IsAllAir` is inserted when the chunk's `SectionVoxels` contains only
 /// air-equivalent states (`emission == 0 && dampening == 0`).
 ///
 /// The per-channel `BlockNeedsInitialSeed` and `SkyNeedsInitialSeed` markers
@@ -317,7 +319,7 @@ fn insert_initial_light_markers(
 /// (before the scan finalizes) would cause cave-air chunks to be seeded with
 /// stale heightmap data.
 pub fn attach_lighting_state(
-    newly_loaded: Query<(Entity, &BlockPalette, &InDimension, &ChunkPos), Added<ChunkLoaded>>,
+    newly_loaded: Query<(Entity, &SectionVoxels, &InDimension, &ChunkPos), Added<ChunkLoaded>>,
     sky_dims: Query<(), With<HasSkyLight>>,
     table: Res<BlockStateLightTable>,
     mut commands: Commands,
@@ -336,9 +338,9 @@ pub fn attach_lighting_state(
 }
 
 /// `true` if every cell in the chunk's palette has `emission == 0` and
-/// `dampening == 0`. Uses `BlockPalette::for_each_distinct` to avoid
+/// `dampening == 0`. Uses `SectionVoxels::for_each_distinct` to avoid
 /// scanning all 4096 cells when the palette holds only a handful of states.
-fn is_chunk_all_air(palette: &BlockPalette, table: &BlockStateLightTable) -> bool {
+fn is_chunk_all_air(palette: &SectionVoxels, table: &BlockStateLightTable) -> bool {
     let mut all_air = true;
     palette.for_each_distinct(|state| {
         if !all_air {
@@ -358,13 +360,12 @@ mod tests {
     use crate::table::flag_bits;
     use crate::{BlockLight, LightingPlugin, SkyLight};
     use bevy_app::{App, FixedUpdate, Update};
-    use bevy_state::app::{AppExtStates, StatesPlugin};
-    use mcrs_core::AppState;
     use mcrs_engine::entity::ChunkEntities;
     use mcrs_engine::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
     use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
     use mcrs_engine::world::storage::chunk::Chunk;
     use mcrs_engine::world::storage::column::ColumnPlugin;
+    use mcrs_minecraft_block::block::BlockUpdateFlags;
     use mcrs_voxel_math::voxel_shape::VoxelShape;
 
     const TEST_DIM_HEIGHT: u32 = 384;
@@ -394,10 +395,8 @@ mod tests {
 
     fn build_lifecycle_app(sky: bool) -> (App, Entity) {
         let mut app = App::new();
-        app.add_plugins(StatesPlugin);
-        app.init_state::<AppState>();
         app.add_plugins(ColumnPlugin);
-        app.add_plugins(LightingPlugin);
+        app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
         app.insert_resource(stub_block_light_table());
         let dim = app
             .world_mut()
@@ -413,8 +412,8 @@ mod tests {
         (app, dim)
     }
 
-    fn air_palette() -> BlockPalette {
-        let mut p = BlockPalette::default();
+    fn air_palette() -> SectionVoxels {
+        let mut p = SectionVoxels::default();
         p.fill(mcrs_voxel_storage::VoxelId(0));
         p
     }

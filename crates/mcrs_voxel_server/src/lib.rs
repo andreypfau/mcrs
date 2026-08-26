@@ -33,7 +33,11 @@ impl Plugin for VoxelServerPlugin {
     }
 }
 
-pub fn run_server_loop(mut app: App, tick_rate: NonZeroU32, mut between_ticks: impl FnMut(&mut App)) {
+pub fn run_server_loop(
+    mut app: App,
+    tick_rate: NonZeroU32,
+    mut between_ticks: impl FnMut(&mut App),
+) {
     let tick = Duration::from_secs_f64(1.0 / tick_rate.get() as f64);
     app.finish();
     app.cleanup();

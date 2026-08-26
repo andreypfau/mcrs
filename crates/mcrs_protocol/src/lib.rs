@@ -51,6 +51,7 @@ mod hand;
 pub mod handshake;
 mod impls;
 pub mod item;
+pub mod light_codec;
 pub mod packed_chunk_pos;
 pub mod packets;
 mod pos;

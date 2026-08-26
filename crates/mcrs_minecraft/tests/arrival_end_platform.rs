@@ -3,9 +3,8 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
-use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::session::{DimPlayerIndex, MoveId, PlayerSessionCounter, SessionRegistry};
-use mcrs_voxel_math::BlockPos;
+use mcrs_engine::voxel_update::ChunkVoxelChanges;
 use mcrs_engine::world::channels::{
     DimSender, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     ToDimReceiver,
@@ -24,11 +23,12 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, FromDim, ToDim};
 use mcrs_minecraft::world::sub_app_builder::DimInboxDrain;
 use mcrs_minecraft::world::sub_app_builder::DimSubAppHandle;
-use mcrs_engine::voxel_update::ChunkVoxelChanges;
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockSetRequest, BlockUpdatePlugin};
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 use mcrs_protocol::uuid::Uuid;
+use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_math::ChunkPos;
 
 #[derive(ScheduleLabel, Debug, Clone, PartialEq, Eq, Hash)]
 struct DimTick;
@@ -196,11 +196,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         // without waiting for add_changes_set deferred command to flush.
         let chunk_entity = sub
             .world_mut()
-            .spawn((
-                Chunk,
-                BlockPalette::default(),
-                ChunkVoxelChanges::default(),
-            ))
+            .spawn((Chunk, BlockPalette::default(), ChunkVoxelChanges::default()))
             .id();
         let dim_entity = sub.world_mut().spawn(Dimension).id();
         let mut chunk_index = ChunkIndex::default();

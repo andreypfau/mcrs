@@ -18,10 +18,10 @@
 //! than derived from ECS state so the checker stays a pure function reachable
 //! from both unit tests and a debug-only verification system.
 
-use crate::codec::LightStorage;
 use crate::invariants::{CHUNK_DIM, DIRECTIONS, direction_offset};
+use crate::storage::LightStorage;
 use crate::table::{BlockStateLightTable, flag_bits};
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_engine::voxel_update::SectionVoxels;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::Direction;
 use mcrs_voxel_storage::VoxelId;
@@ -65,7 +65,7 @@ fn sky_neighbour_contribution(
     z: i32,
     self_state: VoxelId,
     table: &BlockStateLightTable,
-    palette: &BlockPalette,
+    palette: &SectionVoxels,
     light: &LightStorage,
 ) -> Option<u8> {
     let (dx, dy, dz) = direction_offset(d);
@@ -113,7 +113,7 @@ fn sky_neighbour_contribution(
 
 pub fn check_sky_light_invariants(
     table: &BlockStateLightTable,
-    palette: &BlockPalette,
+    palette: &SectionVoxels,
     light: &LightStorage,
     is_topmost_in_skyhaving_column: bool,
 ) -> Result<(), SkyInvariantViolation> {
@@ -207,8 +207,8 @@ mod tests {
         }
     }
 
-    fn make_palette(emitters: &[(i32, i32, i32, VoxelId)]) -> BlockPalette {
-        let mut p = BlockPalette::default();
+    fn make_palette(emitters: &[(i32, i32, i32, VoxelId)]) -> SectionVoxels {
+        let mut p = SectionVoxels::default();
         p.fill(AIR);
         for (x, y, z, state) in emitters {
             p.set(BlockPos::new(*x, *y, *z), (*state));
@@ -293,7 +293,7 @@ mod tests {
             flags,
         };
 
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         palette.fill(STONE);
 
         let mut light = air_storage();

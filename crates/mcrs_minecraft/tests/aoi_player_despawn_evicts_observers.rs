@@ -14,7 +14,6 @@ use mcrs_engine::aoi::PlayerObservers;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::PlayerViewDistance;
-use mcrs_voxel_math::ColumnPos;
 use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::dimension::{DimensionBundle, InDimension};
 use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
@@ -23,6 +22,7 @@ use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
 use mcrs_minecraft::world::entity::player::HostAnchor;
+use mcrs_voxel_math::ColumnPos;
 
 /// Ad-hoc sub-app label for this test.
 #[derive(AppLabel, Clone, Copy, Debug, Hash, PartialEq, Eq)]

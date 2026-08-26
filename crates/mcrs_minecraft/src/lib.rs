@@ -8,6 +8,7 @@
 
 extern crate core;
 
+pub mod block_light_table;
 mod client_info;
 pub mod runner;
 pub use runner::{DEFAULT_TPS, run_server_loop};
@@ -20,13 +21,13 @@ mod version;
 mod weight;
 pub mod world;
 
+use crate::block_light_table::BlockLightTablePlugin;
 use crate::client_info::ClientInfoPlugin;
 use crate::configuration::ConfigurationStatePlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::LoginPlugin;
 use crate::world::WorldPlugin;
 use bevy_app::{App, Plugin};
-use mcrs_minecraft_lighting::plugin::BlockLightTablePlugin;
 use mcrs_network::NetworkPlugin;
 use mcrs_voxel_server::VoxelServerPlugin;
 

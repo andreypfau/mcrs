@@ -19,6 +19,7 @@
 
 mod common;
 
+use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
 
 fn assert_span_emitted(captures: &[common::CapturedSpan], span_name: &str) {
@@ -63,7 +64,7 @@ fn instrument_naming_convention_lighting() {
     // subscriber. Callsites are static; after this pass their interest is
     // permanently cached as Interest::always() for the lifetime of the process.
     {
-        let mut warmup = bench_helpers::build_single_torch_app_single_section();
+        let mut warmup = bench_helpers::build_single_torch_app_single_section::<BlockUpdateFlags>();
         bench_helpers::run_until_converged(&mut warmup);
     }
     tracing::callsite::rebuild_interest_cache();
@@ -71,7 +72,7 @@ fn instrument_naming_convention_lighting() {
     // Clear the buffer so warm-up spans do not pollute assertions.
     buffer.lock().unwrap().clear();
 
-    let mut app = bench_helpers::build_single_torch_app_single_section();
+    let mut app = bench_helpers::build_single_torch_app_single_section::<BlockUpdateFlags>();
     bench_helpers::run_until_converged(&mut app);
 
     let captured = buffer.lock().unwrap();

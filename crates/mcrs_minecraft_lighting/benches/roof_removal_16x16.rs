@@ -1,5 +1,6 @@
 use bevy_ecs::prelude::*;
 use criterion::{Criterion, criterion_group, criterion_main};
+use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::components::SkyBfsPending;
 use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
@@ -21,7 +22,7 @@ fn bench_roof_removal(c: &mut Criterion) {
         b.iter_custom(|iters| {
             let mut total = Duration::ZERO;
             for _ in 0..iters {
-                let mut app = bench_helpers::build_roof_removal_app();
+                let mut app = bench_helpers::build_roof_removal_app::<BlockUpdateFlags>();
                 // The palette-mutation + SkyBfsPending insertion is the
                 // setup-equivalent for this scenario — it lives outside
                 // the timing window like the App build itself.

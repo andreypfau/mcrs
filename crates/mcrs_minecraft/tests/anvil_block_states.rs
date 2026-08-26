@@ -77,7 +77,9 @@ fn section(y: i8, palette: Vec<NbtTag>) -> NbtTag {
         let indices: Vec<u16> = (0..4096).map(|i| (i % len) as u16).collect();
         states.put(
             "data",
-            NbtTag::LongArray(mcrs_voxel_storage::pack_from(bits, &indices, |&i| i as u32).into_vec()),
+            NbtTag::LongArray(
+                mcrs_voxel_storage::pack_from(bits, &indices, |&i| i as u32).into_vec(),
+            ),
         );
     }
     let mut section = NbtCompound::new();
@@ -97,7 +99,9 @@ fn chunk(sections: Vec<NbtTag>) -> Chunk {
     root.put_long("InhabitedTime", 0);
     root.put_long("LastUpdate", 0);
     root.put_list("sections", sections);
-    let bytes = mcrs_minecraft_nbt::Nbt::new(String::new(), root).write().to_vec();
+    let bytes = mcrs_minecraft_nbt::Nbt::new(String::new(), root)
+        .write()
+        .to_vec();
     parse_chunk(&bytes).expect("the chunk decodes")
 }
 

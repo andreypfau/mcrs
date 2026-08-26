@@ -55,12 +55,12 @@ mod tests {
     use crate::block_light::propagate::{
         propagate_decrease_block_system, propagate_increase_block_system,
     };
-    use crate::codec::LightStorage;
     use crate::nibble::LightNibbles;
     use crate::sky_light::enqueue::enqueue_sky_light_on_block_placed;
     use crate::sky_light::propagate::{
         propagate_decrease_sky_system, propagate_increase_sky_system,
     };
+    use crate::storage::LightStorage;
     use crate::table::{BlockStateLightTable, flag_bits};
     use crate::{
         BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockOutbox, IsAllAir,
@@ -68,7 +68,7 @@ mod tests {
     };
     use bevy_app::{App, Update};
     use bevy_ecs::prelude::{Entity, IntoScheduleConfigs};
-    use mcrs_minecraft_block::palette::BlockPalette;
+    use mcrs_engine::voxel_update::SectionVoxels;
     use mcrs_voxel_math::Direction;
     use mcrs_voxel_math::voxel_shape::VoxelShape;
     use mcrs_voxel_storage::VoxelId;
@@ -97,8 +97,8 @@ mod tests {
         }
     }
 
-    fn air_palette() -> BlockPalette {
-        let mut p = BlockPalette::default();
+    fn air_palette() -> SectionVoxels {
+        let mut p = SectionVoxels::default();
         p.fill(AIR);
         p
     }
@@ -714,8 +714,8 @@ mod tests {
         app.add_systems(
             Update,
             (
-                enqueue_block_light_on_block_placed,
-                enqueue_sky_light_on_block_placed,
+                enqueue_block_light_on_block_placed::<BlockUpdateFlags>,
+                enqueue_sky_light_on_block_placed::<BlockUpdateFlags>,
             ),
         );
 
@@ -782,8 +782,8 @@ mod tests {
         app.add_systems(
             Update,
             (
-                enqueue_block_light_on_block_placed,
-                enqueue_sky_light_on_block_placed,
+                enqueue_block_light_on_block_placed::<BlockUpdateFlags>,
+                enqueue_sky_light_on_block_placed::<BlockUpdateFlags>,
             ),
         );
 

@@ -13,7 +13,6 @@ use mcrs_engine::entity::player::chunk_view::{
     PlayerChunkUnloadRequest,
 };
 use mcrs_engine::entity::player::reposition::Reposition;
-use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
@@ -21,9 +20,10 @@ use mcrs_engine::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, Ticket
 use mcrs_engine::world::storage::chunk::ChunkIndex;
 use mcrs_engine::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
 use mcrs_minecraft_block::palette::{AirCount, BiomePalette, BlockPalette, NetworkPalette};
-use mcrs_minecraft_lighting::codec::{ColumnLightUpdate, LightCodecParams, build_full_light_data};
 use mcrs_minecraft_lighting::sets::LightingSet;
+use mcrs_protocol::light_codec::{ColumnLightUpdate, LightCodecParams, build_full_light_data};
 use mcrs_protocol::{ColumnPos, Encode};
+use mcrs_voxel_math::ChunkPos;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;

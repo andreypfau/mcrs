@@ -37,7 +37,6 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_engine::session::PlayerSession;
 use mcrs_engine::session::SessionRegistry;
 use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
@@ -61,6 +60,7 @@ use mcrs_protocol::uuid::Uuid;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
+use mcrs_voxel_math::voxel_shape::VoxelShape;
 
 mod support;
 
@@ -143,9 +143,9 @@ fn e2e_login_handshake_completes() {
 /// so the blob is non-empty.
 #[test]
 fn e2e_packet_round_trip() {
-    use mcrs_voxel_math::BlockPos;
     use mcrs_engine::session::{SessionEntry, SessionRegistry};
     use mcrs_protocol::BlockStateId;
+    use mcrs_voxel_math::BlockPos;
 
     let mut world = World::new();
     world.init_resource::<Messages<OutboundPlayerPacket>>();
@@ -229,8 +229,8 @@ fn e2e_packet_round_trip() {
 #[test]
 fn e2e_aoi_surrounding_update() {
     use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
-    use mcrs_voxel_math::ColumnPos;
     use mcrs_engine::world::dimension::DimensionBundle;
+    use mcrs_voxel_math::ColumnPos;
 
     let mut app = make_aoi_app();
     let dim = app.world_mut().spawn(DimensionBundle::default()).id();
@@ -489,9 +489,9 @@ where
 
 fn seed_columns(app: &mut App, dim: Entity, centre: mcrs_voxel_math::ColumnPos, radius: i32) {
     use mcrs_engine::aoi::PlayerObservers;
-    use mcrs_voxel_math::ColumnPos;
     use mcrs_engine::world::dimension::InDimension;
     use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+    use mcrs_voxel_math::ColumnPos;
 
     for dx in -radius..=radius {
         for dz in -radius..=radius {

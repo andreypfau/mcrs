@@ -4,13 +4,13 @@ use bevy_app::{App, TaskPoolPlugin, Update};
 use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_ecs::prelude::*;
 use mcrs_core::StaticRegistry;
-use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft::world::experience::{
     AwardExperience, BlockDestroyed, DimensionRandom, ExperiencePlugin,
 };
-use mcrs_vanilla::item::component::Enchantments;
 use mcrs_vanilla::block::definition::Blocks;
 use mcrs_vanilla::enchantment::{EnchantmentData, register_all_enchantments};
+use mcrs_vanilla::item::component::Enchantments;
+use mcrs_voxel_math::BlockPos;
 
 fn harness() -> App {
     let mut app = App::new();

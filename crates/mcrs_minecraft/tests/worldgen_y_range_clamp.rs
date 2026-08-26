@@ -1,6 +1,7 @@
 use mcrs_minecraft_block::palette::AirCount;
 mod support;
 
+use mcrs_core::ResourceLocation;
 use mcrs_minecraft::world::chunk::CancellationToken;
 use mcrs_minecraft::world::generate::generate_column;
 use mcrs_minecraft_worldgen::density_function::build_functions;
@@ -8,7 +9,6 @@ use mcrs_minecraft_worldgen::density_function::proto::{
     DensityFunctionHolder, ProtoDensityFunction,
 };
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
-use mcrs_core::ResourceLocation;
 use std::collections::BTreeMap;
 
 fn load_noise_settings(name: &str) -> NoiseGeneratorSettings {

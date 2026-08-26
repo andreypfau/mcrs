@@ -210,17 +210,18 @@ pub fn process_disconnect(
 
     if let Some(prev) = previous_dim
         && prev != current_dim
-        && let Some(chan) = dim_channels.get(prev) {
-            send_control_or_teardown(
-                &chan.control_sender,
-                prev,
-                ToDim::Despawn {
-                    host_anchor,
-                    session,
-                },
-                despawn_queue,
-            );
-        }
+        && let Some(chan) = dim_channels.get(prev)
+    {
+        send_control_or_teardown(
+            &chan.control_sender,
+            prev,
+            ToDim::Despawn {
+                host_anchor,
+                session,
+            },
+            despawn_queue,
+        );
+    }
 
     session_registry.remove(&session);
 

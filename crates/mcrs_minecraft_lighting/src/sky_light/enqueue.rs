@@ -7,7 +7,6 @@
 use crate::bfs::{
     ALL_DIRECTIONS_BITSET, FLAG_RECHECK_LEVEL, FLAG_WRITE_LEVEL, normal_of, pack_bfs_entry,
 };
-use crate::codec::LightStorage;
 use crate::distribute::{ResolveOutcome, resolve_neighbor_chunk};
 use crate::enqueue::CARDINAL_DIRECTIONS;
 use crate::geom::face_cell_to_chunk_xyz;
@@ -15,6 +14,7 @@ use crate::heightmap::MinecraftHeightmaps;
 use crate::heightmap::topmost_surface_world_y;
 use crate::nibble::LightNibbles;
 use crate::sky_light::components::NeedsRetop;
+use crate::storage::LightStorage;
 use crate::table::{BlockStateLightTable, flag_bits};
 use crate::{
     CrossChunkWavefront, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight, SkyNeedsInitialSeed,
@@ -24,24 +24,24 @@ use bevy_ecs::change_detection::Res;
 use bevy_ecs::entity::{Entity, EntityHashMap};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Added, Commands, Local, Or, ParallelCommands, Query, With, Without};
+use mcrs_engine::voxel_update::SectionVoxels;
+use mcrs_engine::voxel_update::{VoxelPlaced, VoxelUpdateFlags};
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, Heightmaps, InColumn};
-use mcrs_minecraft_block::block_update::BlockPlaced;
-use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::Direction;
 
-/// Reacts to `BlockPlaced` by enqueuing sky-light decrease and increase seeds
+/// Reacts to `VoxelPlaced` by enqueuing sky-light decrease and increase seeds
 /// whenever the placed block changes either its dampening or its
 /// `PROPAGATES_SKYLIGHT_DOWN` flag.
 ///
 /// Missing `SkyLight`/`SkyBfsQueues` components on the target chunk
 /// emit a `tracing::warn!` and skip without panic; this defends against
-/// `BlockPlaced` reaching a skyless-dim chunk (where the bundle is never
+/// `VoxelPlaced` reaching a skyless-dim chunk (where the bundle is never
 /// attached) or arriving before the lighting bundle insertion has flushed.
-pub fn enqueue_sky_light_on_block_placed(
-    mut reader: MessageReader<BlockPlaced>,
+pub fn enqueue_sky_light_on_block_placed<F: VoxelUpdateFlags>(
+    mut reader: MessageReader<VoxelPlaced<F>>,
     table: Res<BlockStateLightTable>,
     mut chunks: Query<(
         Entity,
@@ -52,7 +52,7 @@ pub fn enqueue_sky_light_on_block_placed(
     )>,
     chunks_lookup: Query<(), (With<SkyLight>, With<SkyBfsQueues>)>,
     columns: Query<&ColumnChunks>,
-    mut partitions: Local<EntityHashMap<Vec<BlockPlaced>>>,
+    mut partitions: Local<EntityHashMap<Vec<VoxelPlaced<F>>>>,
     par_commands: ParallelCommands,
 ) {
     partitions.retain(|_, bucket| {
@@ -86,7 +86,7 @@ pub fn enqueue_sky_light_on_block_placed(
             // Resolve topmost-of-column once per task; the column's section
             // count does not change within a tick, so caching here avoids N
             // redundant ColumnChunks reads on a section that receives multiple
-            // BlockPlaced events.
+            // VoxelPlaced events.
             let is_topmost = match columns_ref.get(in_column.0) {
                 Ok(chunk_index) => {
                     let top_chunk_y =
@@ -201,7 +201,7 @@ pub fn enqueue_sky_light_on_block_placed(
             tracing::warn!(
                 chunk = ?entity,
                 block_pos = ?first.block_pos,
-                "BlockPlaced.chunk missing SkyLight/SkyBfsQueues; skipping sky enqueue"
+                "VoxelPlaced.chunk missing SkyLight/SkyBfsQueues; skipping sky enqueue"
             );
         }
     }
@@ -234,7 +234,7 @@ pub fn seed_sky_initial(
     mut chunks: Query<
         (
             Entity,
-            &BlockPalette,
+            &SectionVoxels,
             &InColumn,
             &InDimension,
             &ChunkPos,
@@ -661,25 +661,26 @@ pub fn pull_sky_neighbor_edges(
             }
 
             if let Ok(mut parked) = sky_parked.get_mut(neighbour_entity)
-                && !parked.0.is_empty() {
-                    parked.0.retain(|w| {
-                        if w.face() == neighbour_expected_face {
-                            if let Ok(mut inc) = sky_inbox.get_mut(new_chunk) {
-                                inc.0.push(CrossChunkWavefront::new(
-                                    dest_face,
-                                    w.cell_x(),
-                                    w.cell_z(),
-                                    w.level(),
-                                ));
-                                new_chunk_has_incoming = true;
-                                drained_pending_from_neighbour = true;
-                            }
-                            false
-                        } else {
-                            true
+                && !parked.0.is_empty()
+            {
+                parked.0.retain(|w| {
+                    if w.face() == neighbour_expected_face {
+                        if let Ok(mut inc) = sky_inbox.get_mut(new_chunk) {
+                            inc.0.push(CrossChunkWavefront::new(
+                                dest_face,
+                                w.cell_x(),
+                                w.cell_z(),
+                                w.level(),
+                            ));
+                            new_chunk_has_incoming = true;
+                            drained_pending_from_neighbour = true;
                         }
-                    });
-                }
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
 
             if drained_pending_from_neighbour {
                 commands.entity(neighbour_entity).insert(SkyBfsPending);

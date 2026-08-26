@@ -12,7 +12,7 @@ use crate::{
 use bevy_ecs::change_detection::Res;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ParallelCommands, Query, With};
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_engine::voxel_update::SectionVoxels;
 
 #[cfg_attr(
     feature = "telemetry-tracy",
@@ -23,7 +23,7 @@ pub fn propagate_decrease_block_system(
     mut chunks: Query<
         (
             Entity,
-            &BlockPalette,
+            &SectionVoxels,
             &mut BlockLight,
             &mut BlockBfsQueues,
             &mut BlockOutbox,
@@ -59,7 +59,7 @@ pub fn propagate_increase_block_system(
     mut chunks: Query<
         (
             Entity,
-            &BlockPalette,
+            &SectionVoxels,
             &mut BlockLight,
             &mut BlockBfsQueues,
             &mut BlockOutbox,

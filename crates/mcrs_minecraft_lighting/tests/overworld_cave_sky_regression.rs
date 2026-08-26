@@ -12,6 +12,7 @@
 // The specific cell (-59, -32, -60) (chunk_x=-4, chunk_z=-4, chunk_y=-2, local
 // (5, 0, 4)) is checked explicitly as the user-reported reproduction case.
 
+use mcrs_minecraft_block::block::BlockUpdateFlags;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -23,8 +24,8 @@ use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::state::NextState;
 
-use mcrs_core::ResourceLocation;
 use mcrs_core::AppState;
+use mcrs_core::ResourceLocation;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{
@@ -183,7 +184,7 @@ fn build_production_block_light_table() -> (
     )));
     app.add_systems(
         bevy_app::Startup,
-        mcrs_minecraft_lighting::table::build_block_light_table,
+        mcrs_minecraft::block_light_table::build_block_light_table,
     );
     app.update();
     (
@@ -259,7 +260,7 @@ fn cave_cells_below_y0_have_zero_sky_light_after_real_worldgen() {
     app.add_plugins(ChunkViewPlugin);
 
     // LightingPlugin: PrimeHeightmaps → AttachState → Enqueue → Converge.
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
 
     // Pre-insert the synchronously-built router and block light table.
     app.insert_resource(router);

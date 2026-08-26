@@ -20,6 +20,7 @@ pub enum BridgeSet {
     Dispatch,
     Inbound,
 }
+use mcrs_core::ResourceLocation;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{EngineConnection, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::chunk::ChunkData;
@@ -33,7 +34,6 @@ use mcrs_protocol::packets::game::clientbound::{
     ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket,
 };
 use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
-use mcrs_core::ResourceLocation;
 use mcrs_protocol::{ByteAngle, GameEventKind, Look, PositionFlag, Text, VarInt};
 use tracing::{debug, trace, warn};
 
@@ -686,16 +686,17 @@ pub fn bridge_player_attach(
         let current_dim = entry.dim;
 
         if let Some(buffered) = inbound_buffer.buffers.remove(&msg.host_anchor)
-            && let Some(chan) = dim_channels.get(current_dim) {
-                for packet in buffered {
-                    let _ = chan.serverbound_sender.try_send(ToDim::Serverbound {
-                        player: packet.player,
-                        id: packet.id,
-                        data: packet.data,
-                        timestamp: packet.timestamp,
-                    });
-                }
+            && let Some(chan) = dim_channels.get(current_dim)
+        {
+            for packet in buffered {
+                let _ = chan.serverbound_sender.try_send(ToDim::Serverbound {
+                    player: packet.player,
+                    id: packet.id,
+                    data: packet.data,
+                    timestamp: packet.timestamp,
+                });
             }
+        }
     }
 }
 
@@ -746,35 +747,34 @@ pub fn bridge_inbound(
 
                     if let Some(anchor) = anchor_ref
                         && let Some((_, entry)) = session_registry.get_by_anchor(&anchor.0)
-                            && entry.dim != Entity::PLACEHOLDER {
-                                if entry.in_dim_entity.is_some() {
-                                    if let Some(chan) = dim_channels.get(entry.dim) {
-                                        match chan.serverbound_sender.try_send(ToDim::Serverbound {
-                                            player: anchor.0,
-                                            id: pkt.id,
-                                            data: pkt.payload,
-                                            timestamp: pkt.timestamp,
-                                        }) {
-                                            Ok(()) => {}
-                                            Err(TrySendError::Full(_)) => {
-                                                commands
-                                                    .entity(entity)
-                                                    .remove::<ServerSideConnection>();
-                                            }
-                                            Err(TrySendError::Disconnected(_)) => {}
-                                        }
+                        && entry.dim != Entity::PLACEHOLDER
+                    {
+                        if entry.in_dim_entity.is_some() {
+                            if let Some(chan) = dim_channels.get(entry.dim) {
+                                match chan.serverbound_sender.try_send(ToDim::Serverbound {
+                                    player: anchor.0,
+                                    id: pkt.id,
+                                    data: pkt.payload,
+                                    timestamp: pkt.timestamp,
+                                }) {
+                                    Ok(()) => {}
+                                    Err(TrySendError::Full(_)) => {
+                                        commands.entity(entity).remove::<ServerSideConnection>();
                                     }
-                                } else {
-                                    inbound_buffer.buffers.entry(anchor.0).or_default().push(
-                                        crate::world::bus::InboundPlayerPacket {
-                                            player: anchor.0,
-                                            id: pkt.id,
-                                            data: pkt.payload,
-                                            timestamp: pkt.timestamp,
-                                        },
-                                    );
+                                    Err(TrySendError::Disconnected(_)) => {}
                                 }
                             }
+                        } else {
+                            inbound_buffer.buffers.entry(anchor.0).or_default().push(
+                                crate::world::bus::InboundPlayerPacket {
+                                    player: anchor.0,
+                                    id: pkt.id,
+                                    data: pkt.payload,
+                                    timestamp: pkt.timestamp,
+                                },
+                            );
+                        }
+                    }
                 }
                 Ok(None) => break,
                 Err(_) => {
@@ -798,13 +798,12 @@ mod tests {
     use crate::world::bus::InboundPlayerPacket;
     use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim};
     use crate::world::player_index::PendingInboundBuffer;
-    
+
     use bytes::Bytes;
     use mcrs_engine::session::{PlayerSession, SessionEntry, SessionRegistry};
     use mcrs_engine::world::channels::{
         DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     };
-    
 
     fn make_session_entry(
         connection_entity: Entity,

@@ -30,7 +30,7 @@ use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::{BlockSetRequest, BlockUpdatePlugin};
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_minecraft_lighting::codec::BlockLightDirty;
+use mcrs_minecraft_lighting::emit_dirty::BlockLightDirty;
 use mcrs_minecraft_lighting::metrics::TELEMETRY_TEST_LOCK;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_voxel_math::BlockPos;
@@ -53,7 +53,7 @@ fn make_test_app_with_block_update(sky: bool) -> (App, Entity) {
     app.add_message::<BlockSetRequest>();
     app.add_message::<mcrs_minecraft_block::block_update::BlockPlaced>();
     app.add_plugins(BlockUpdatePlugin::default());
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
     app.insert_resource(make_stub_block_light_table_with_torch());
     let dim_entity = spawn_test_dimension(&mut app, sky);
     (app, dim_entity)

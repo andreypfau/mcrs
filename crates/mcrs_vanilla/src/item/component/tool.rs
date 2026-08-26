@@ -41,9 +41,10 @@ impl Tool {
                 continue;
             };
             if let Some(id) = block_id
-                && tags.contains(&rule.blocks, id) {
-                    return speed;
-                }
+                && tags.contains(&rule.blocks, id)
+            {
+                return speed;
+            }
         }
         self.default_mining_speed()
     }

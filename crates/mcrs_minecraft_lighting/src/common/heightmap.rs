@@ -16,8 +16,8 @@
 //! exactly one place.
 
 use bevy_ecs::prelude::Entity;
+use mcrs_engine::voxel_update::SectionVoxels;
 use mcrs_engine::world::storage::column::ColumnChunks;
-use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::bitset::BitSet256;
@@ -205,7 +205,7 @@ pub fn scan_top_down<'a, P, F>(
     mut on_closed: F,
 ) -> ScanOutcome
 where
-    P: Fn(Entity) -> Option<&'a BlockPalette>,
+    P: Fn(Entity) -> Option<&'a SectionVoxels>,
     F: FnMut(usize, usize, HeightmapVariant, i32),
 {
     let mut surface_done = BitSet256::default();

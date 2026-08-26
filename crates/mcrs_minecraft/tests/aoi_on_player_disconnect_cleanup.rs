@@ -16,7 +16,6 @@ use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
 use bevy_math::DVec3;
 use mcrs_engine::aoi::PlayerObservers;
-use mcrs_voxel_math::ColumnPos;
 use mcrs_engine::session::PlayerSession;
 use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_engine::world::channels::{
@@ -36,6 +35,7 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::channel_types::FromDim;
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft::world::player_index::PlayerIndex;
+use mcrs_voxel_math::ColumnPos;
 
 mod harness;
 use harness::{

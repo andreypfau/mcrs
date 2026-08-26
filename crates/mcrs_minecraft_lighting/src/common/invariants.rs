@@ -18,7 +18,7 @@
 
 use crate::storage::LightStorage;
 use crate::table::{BlockStateLightTable, flag_bits};
-use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_engine::voxel_update::SectionVoxels;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::Direction;
 use mcrs_voxel_math::chunk_pos::BLOCKS;
@@ -84,7 +84,7 @@ pub(crate) fn neighbour_contribution(
     z: i32,
     self_state: VoxelId,
     table: &BlockStateLightTable,
-    palette: &BlockPalette,
+    palette: &SectionVoxels,
     light: &LightStorage,
 ) -> Option<u8> {
     let (dx, dy, dz) = direction_offset(d);

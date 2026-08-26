@@ -30,9 +30,29 @@ use crate::{
     BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockOutbox, SkyBfsPending,
     SkyBfsQueues, SkyInbox, SkyLight, SkyOutbox,
 };
+use bevy_ecs::message::Message;
 use bevy_ecs::prelude::{Commands, Entity, Or, Query, With, Without};
 use mcrs_engine::world::lifecycle::ticket::LightTicket;
-use mcrs_engine::world::storage::column::{ChunkLookup, ColumnChunks};
+use mcrs_engine::world::storage::column::{ChunkLookup, ColumnChunks, ColumnPos};
+
+/// Per-chunk block-light dirty signal emitted by the propagation engine and
+/// consumed by the codec. Disjoint from `SkyLightDirty` so the block- and sky-
+/// engines can write to independent `MessageWriter`s without contention.
+#[derive(Message)]
+pub struct BlockLightDirty {
+    pub chunk: Entity,
+    pub column_pos: ColumnPos,
+    pub chunk_y: i32,
+}
+
+/// Per-chunk sky-light dirty signal. Mirror of `BlockLightDirty` for the
+/// sky-light engine; emitted on a disjoint `MessageWriter<SkyLightDirty>`.
+#[derive(Message)]
+pub struct SkyLightDirty {
+    pub chunk: Entity,
+    pub column_pos: ColumnPos,
+    pub chunk_y: i32,
+}
 
 /// Downgrades `LightStorage::Dense` to `Empty` (all-zero) or `Uniform(15)`
 /// (all-fifteen) on every chunk parked on either channel. The check
@@ -118,9 +138,10 @@ pub(crate) fn chunk_y_for_chunk(index: &ColumnChunks, target: Entity) -> Option<
     let min_y = index.min_section_y;
     index.iter().enumerate().find_map(|(idx, lookup)| {
         if let ChunkLookup::Loaded(e) = lookup
-            && e == target {
-                return Some(min_y + idx as i32);
-            }
+            && e == target
+        {
+            return Some(min_y + idx as i32);
+        }
         None
     })
 }

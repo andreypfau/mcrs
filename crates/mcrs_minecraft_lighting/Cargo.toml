@@ -7,16 +7,11 @@ edition.workspace = true
 [dependencies]
 mcrs_voxel_math.workspace = true
 bevy_app.workspace = true
-bevy_math.workspace = true
 bevy_ecs.workspace = true
 bevy_state.workspace = true
 bevy_utils.workspace = true
-mcrs_core.workspace = true
 mcrs_voxel_storage.workspace = true
-mcrs_protocol.workspace = true
 mcrs_engine.workspace = true
-mcrs_minecraft_block.workspace = true
-mcrs_vanilla.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
@@ -31,6 +26,10 @@ profile-memory = ["dep:dhat"]
 
 [dev-dependencies]
 bevy_asset.workspace = true
+mcrs_protocol.workspace = true
+mcrs_core.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_vanilla.workspace = true
 bevy_time.workspace = true
 mcrs_minecraft.workspace = true
 mcrs_minecraft_worldgen.workspace = true

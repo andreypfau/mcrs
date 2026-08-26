@@ -16,9 +16,9 @@ use std::borrow::Cow;
 
 use mcrs_engine::world::storage::column::ColumnPos as EngineColumnPos;
 use mcrs_minecraft::world::entity::player::column_view::ColumnView;
-use mcrs_minecraft_lighting::codec::ColumnLightUpdate;
 use mcrs_protocol::ColumnPos;
 use mcrs_protocol::chunk::LightData;
+use mcrs_protocol::light_codec::ColumnLightUpdate;
 
 #[derive(Resource, Default)]
 struct TestLightUpdateLog(pub Vec<(ColumnPos, &'static str)>);

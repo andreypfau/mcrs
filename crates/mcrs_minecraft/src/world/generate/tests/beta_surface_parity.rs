@@ -4,7 +4,6 @@ use std::sync::Arc;
 use bevy_asset::Assets;
 use mcrs_core::RegistrySnapshot;
 use mcrs_core::resource_location::ResourceLocation;
-use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_protocol::BlockStateId;
@@ -12,6 +11,7 @@ use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, build_beta_lookup_table,
 };
+use mcrs_voxel_math::BlockPos;
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::{apply_beta_surface, generate_column};
@@ -468,7 +468,7 @@ fn beta_surface_parity_gate() {
             &router,
             Some((&biome_source, &snapshot)),
             super::corpus(),
-        &cancel,
+            &cancel,
         );
 
         // Apply the surface pass (also places bedrock).
@@ -481,7 +481,7 @@ fn beta_surface_parity_gate() {
             &router,
             &biome_source,
             super::corpus(),
-        &mut rng,
+            &mut rng,
         );
 
         // For each fixture column in this chunk, build a flat [BlockStateId; 128] view.

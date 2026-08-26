@@ -1,4 +1,3 @@
-use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::feature::OreFeature;
 use mcrs_minecraft_worldgen::feature::config::{OreConfig, OreYOffset, TargetBlockState};
@@ -6,6 +5,7 @@ use mcrs_protocol::BlockStateId;
 use mcrs_random::Random;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_vanilla::block::definition::BlockDefinitions;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 pub struct BetaOreBlockIds {
@@ -69,9 +69,10 @@ fn get_block_from_sections(
     let section_y = world_y >> 4;
     let local_y = world_y & 0xF;
     if let Some(si) = y_sections.iter().position(|&sy| sy == section_y)
-        && let Some(Some((blocks, _))) = sections.get(si) {
-            return blocks.get(BlockPos::new(local_x, local_y, local_z)).into();
-        }
+        && let Some(Some((blocks, _))) = sections.get(si)
+    {
+        return blocks.get(BlockPos::new(local_x, local_y, local_z)).into();
+    }
     BlockStateId(0)
 }
 
@@ -93,9 +94,10 @@ fn set_block_in_sections(
     let section_y = world_y >> 4;
     let local_y = world_y & 0xF;
     if let Some(si) = y_sections.iter().position(|&sy| sy == section_y)
-        && let Some(Some((blocks, _))) = sections.get_mut(si) {
-            blocks.set(BlockPos::new(local_x, local_y, local_z), state.into());
-        }
+        && let Some(Some((blocks, _))) = sections.get_mut(si)
+    {
+        blocks.set(BlockPos::new(local_x, local_y, local_z), state.into());
+    }
 }
 
 fn place_ore<R: Random>(

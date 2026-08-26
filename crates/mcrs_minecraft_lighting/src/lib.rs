@@ -4,11 +4,12 @@
     clippy::too_many_arguments
 )]
 
-pub mod codec;
-
 pub mod block_light;
 pub mod common;
+pub mod nibble;
+pub mod sets;
 pub mod sky_light;
+pub mod storage;
 
 pub mod plugin;
 
@@ -46,11 +47,10 @@ pub mod components {
     pub use crate::sky_light::components::*;
 }
 
-pub use codec::codec::{BlockLightDirty, ColumnLightUpdate, SkyLightDirty};
-pub use codec::sets::LightingSet;
-pub use codec::{nibble, sets, storage};
+pub use common::emit_dirty::{BlockLightDirty, SkyLightDirty};
 pub use lifecycle::ColumnHeightmapScan;
 pub use plugin::LightingPlugin;
+pub use sets::LightingSet;
 
 #[cfg(any(feature = "test-bench", feature = "bench-helpers"))]
 pub use common::test_bench;

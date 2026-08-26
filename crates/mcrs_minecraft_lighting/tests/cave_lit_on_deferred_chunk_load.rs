@@ -48,6 +48,7 @@ use mcrs_engine::world::dimension::{
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::storage::chunk::Chunk;
 use mcrs_engine::world::storage::column::ColumnPlugin;
+use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::components::SkyLight;
@@ -70,7 +71,7 @@ fn make_test_app() -> (App, Entity) {
     app.add_plugins(StatesPlugin);
     app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
     app.insert_resource(make_stub_table());
     let dim = app
         .world_mut()

@@ -270,12 +270,9 @@ impl BetaTerrainF64 {
                     let mut dd3 = d3;
                     let mut dd4 = d4;
 
-                    let d5 = (density_grid
-                        [(i1 * ll + j1) as usize * CD_B2 + k1 as usize + 1]
-                        - d1)
-                        * d0;
-                    let d6 = (density_grid
-                        [(i1 * ll + j1 + 1) as usize * CD_B2 + k1 as usize + 1]
+                    let d5 =
+                        (density_grid[(i1 * ll + j1) as usize * CD_B2 + k1 as usize + 1] - d1) * d0;
+                    let d6 = (density_grid[(i1 * ll + j1 + 1) as usize * CD_B2 + k1 as usize + 1]
                         - d2)
                         * d0;
                     let d7 = (density_grid

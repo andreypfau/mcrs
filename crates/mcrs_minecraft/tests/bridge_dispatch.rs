@@ -16,7 +16,6 @@ use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use bytes::Bytes;
-use mcrs_voxel_math::ColumnPos;
 use mcrs_engine::session::PlayerSession;
 use mcrs_minecraft::world::bridge::dispatch_encode;
 use mcrs_minecraft::world::bridge_queue::{
@@ -34,6 +33,7 @@ use mcrs_network::metrics::{
 use mcrs_protocol::Look;
 use mcrs_protocol::chunk::LightData;
 use mcrs_protocol::uuid::Uuid;
+use mcrs_voxel_math::ColumnPos;
 use smallvec::SmallVec;
 use tokio::sync::mpsc;
 
@@ -272,8 +272,8 @@ fn kick_on_critical_high_overflow() {
 /// socket per tick. The receiver side sees exactly one blob arrive.
 #[test]
 fn coalesce_single_write_per_tick() {
-    use mcrs_voxel_math::BlockPos;
     use mcrs_protocol::BlockStateId;
+    use mcrs_voxel_math::BlockPos;
 
     let mut world = build_dispatch_world();
     let (socket, mut rx) = spawn_mock_connection(&mut world);

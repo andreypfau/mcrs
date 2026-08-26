@@ -15,7 +15,6 @@ use mcrs_core::RegistrySnapshot;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
-use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::lifecycle::markers::ChunkGenerating;
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::lifecycle::markers::ChunkLoading;
@@ -33,6 +32,7 @@ use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::biome::source::BiomeSource;
 use mcrs_vanilla::block::definition::{BlockDefinitions, Blocks};
 use mcrs_vanilla::worldgen::beta_biome::{ActiveBiomeSource, BetaBiomeSourcePlugin};
+use mcrs_voxel_math::ChunkPos;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -796,58 +796,58 @@ fn dispatch_column_generation(
             // Beta surface pass: place surface/filler/bedrock blocks with a
             // single per-chunk RNG seeded from the chunk coords.
             if let Some((src, _)) = &biome_context
-                && matches!(src, BiomeSource::Beta { .. }) {
-                    let seed = (col.x as i64)
-                        .wrapping_mul(341873128712)
-                        .wrapping_add((col.z as i64).wrapping_mul(132897987541));
-                    let mut rng = LegacyRandom::new(seed as u64);
-                    apply_beta_surface(
-                        &mut results,
-                        &y_sections,
-                        col.x * 16,
-                        col.z * 16,
-                        router,
-                        src,
-                        &block_definitions,
-                        &mut rng,
-                    );
+                && matches!(src, BiomeSource::Beta { .. })
+            {
+                let seed = (col.x as i64)
+                    .wrapping_mul(341873128712)
+                    .wrapping_add((col.z as i64).wrapping_mul(132897987541));
+                let mut rng = LegacyRandom::new(seed as u64);
+                apply_beta_surface(
+                    &mut results,
+                    &y_sections,
+                    col.x * 16,
+                    col.z * 16,
+                    router,
+                    src,
+                    &block_definitions,
+                    &mut rng,
+                );
 
-                    let world_seed = router.world_seed() as i64;
-                    let cave_ids = BetaCaveBlockIds::resolve(&block_definitions);
-                    let cave_config =
-                        mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig {
-                            air_state: cave_ids.air.into(),
-                            lava_state: cave_ids.lava.into(),
-                            stone_state: cave_ids.stone.into(),
-                            dirt_state: cave_ids.dirt.into(),
-                            grass_state: cave_ids.grass.into(),
-                            water_state: cave_ids.water.into(),
-                            stationary_water_state: cave_ids.stationary_water.into(),
-                            lava_level: 10,
-                            range: 8,
-                            horizontal_radius_multiplier: 1.0,
-                            vertical_radius_multiplier: 1.0,
-                        };
-                    apply_beta_caves(
-                        &mut results,
-                        &y_sections,
-                        col.x,
-                        col.z,
-                        world_seed,
-                        &cave_config,
-                        &cave_ids,
-                    );
+                let world_seed = router.world_seed() as i64;
+                let cave_ids = BetaCaveBlockIds::resolve(&block_definitions);
+                let cave_config = mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig {
+                    air_state: cave_ids.air.into(),
+                    lava_state: cave_ids.lava.into(),
+                    stone_state: cave_ids.stone.into(),
+                    dirt_state: cave_ids.dirt.into(),
+                    grass_state: cave_ids.grass.into(),
+                    water_state: cave_ids.water.into(),
+                    stationary_water_state: cave_ids.stationary_water.into(),
+                    lava_level: 10,
+                    range: 8,
+                    horizontal_radius_multiplier: 1.0,
+                    vertical_radius_multiplier: 1.0,
+                };
+                apply_beta_caves(
+                    &mut results,
+                    &y_sections,
+                    col.x,
+                    col.z,
+                    world_seed,
+                    &cave_config,
+                    &cave_ids,
+                );
 
-                    let ore_ids = BetaOreBlockIds::resolve(&block_definitions);
-                    apply_beta_ores(
-                        &mut results,
-                        &y_sections,
-                        col.x,
-                        col.z,
-                        world_seed,
-                        &ore_ids,
-                    );
-                }
+                let ore_ids = BetaOreBlockIds::resolve(&block_definitions);
+                apply_beta_ores(
+                    &mut results,
+                    &y_sections,
+                    col.x,
+                    col.z,
+                    world_seed,
+                    &ore_ids,
+                );
+            }
 
             let column_sections = sections_data
                 .into_iter()

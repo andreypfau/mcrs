@@ -16,7 +16,7 @@ pub trait VoxelUpdateFlags: Copy + Send + Sync + 'static {
     fn notifies_clients(&self) -> bool;
 }
 
-type SectionVoxels = VoxelPalette<VoxelId, 16>;
+pub type SectionVoxels = VoxelPalette<VoxelId, 16>;
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VoxelUpdateSet {

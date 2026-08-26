@@ -52,7 +52,7 @@ fn make_heightmap_test_app() -> (App, Entity) {
     app.add_plugins(StatesPlugin);
     app.init_state::<AppState>();
     app.add_plugins(ColumnPlugin);
-    app.add_plugins(LightingPlugin);
+    app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
     app.insert_resource(make_stub_block_light_table());
     let dim_entity = spawn_test_dimension(&mut app);
     (app, dim_entity)

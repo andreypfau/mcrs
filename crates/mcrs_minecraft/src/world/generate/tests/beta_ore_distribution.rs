@@ -1,14 +1,14 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::feature::OreFeature;
 use mcrs_minecraft_worldgen::feature::config::{OreConfig, OreYOffset, TargetBlockState};
 use mcrs_protocol::BlockStateId;
-use mcrs_voxel_storage::VoxelId;
 use mcrs_random::Random;
 use mcrs_random::legacy::LegacyRandom;
+use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_storage::VoxelId;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
 
 use crate::world::generate::{BetaOreBlockIds, place_all_ores};
@@ -252,9 +252,10 @@ fn read_block(
     let si = (wy >> 4) as usize;
     let ly = wy & 0xF;
     if y_sections.get(si).copied() == Some(si as i32)
-        && let Some(Some((b, _))) = sections.get(si) {
-            return b.get(BlockPos::new(wx, ly, wz)).into();
-        }
+        && let Some(Some((b, _))) = sections.get(si)
+    {
+        return b.get(BlockPos::new(wx, ly, wz)).into();
+    }
     BlockStateId(0)
 }
 
@@ -272,9 +273,10 @@ fn write_block(
     let si = (wy >> 4) as usize;
     let ly = wy & 0xF;
     if y_sections.get(si).copied() == Some(si as i32)
-        && let Some(Some((b, _))) = sections.get_mut(si) {
-            b.set(BlockPos::new(wx, ly, wz), st.into());
-        }
+        && let Some(Some((b, _))) = sections.get_mut(si)
+    {
+        b.set(BlockPos::new(wx, ly, wz), st.into());
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────

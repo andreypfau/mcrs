@@ -3,7 +3,6 @@ use std::sync::OnceLock;
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_math::Vec3;
-use mcrs_voxel_math::voxel_shape::Aabb;
 use mcrs_protocol::BlockStateId;
 use mcrs_vanilla::block::definition::schema::{Instrument, PropertyValue};
 use mcrs_vanilla::block::definition::{
@@ -11,6 +10,7 @@ use mcrs_vanilla::block::definition::{
 };
 use mcrs_vanilla::material::PushReaction;
 use mcrs_vanilla::material::map::MapColor;
+use mcrs_voxel_math::voxel_shape::Aabb;
 
 fn corpus() -> &'static (BlockDefinitions, LoadReport) {
     static CORPUS: OnceLock<(BlockDefinitions, LoadReport)> = OnceLock::new();

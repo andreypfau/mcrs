@@ -1,4 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
+use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
 use mcrs_minecraft_lighting::test_bench::bench_helpers;
 use std::time::{Duration, Instant};
@@ -12,7 +13,7 @@ fn bench_spawn_warmup(c: &mut Criterion) {
     let mut group = c.benchmark_group("spawn_warmup_vd12");
     group.sample_size(20);
 
-    let factory = bench_helpers::build_warmed_vd12_app_factory();
+    let factory = bench_helpers::build_warmed_vd12_app_factory::<BlockUpdateFlags>();
 
     // `iter_custom` gives us explicit control over what lands inside the
     // measurement window. `iter_batched(SmallInput)` previously folded the

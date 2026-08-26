@@ -62,7 +62,6 @@ pub struct PlayerAbilitiesBundle {
     pub walk_speed: WalkSpeed,
 }
 
-
 /// Returns whether the player should carry the `Flying` marker afterwards;
 /// membership is the caller's to apply, since a marker cannot be assigned.
 #[must_use]

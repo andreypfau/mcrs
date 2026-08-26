@@ -18,7 +18,7 @@
 // both heightmaps, the rescan is skipped. The earlier `y + 2 <= current_height`
 // form ignored old/new states and mishandled breaks of the topmost cell.
 //
-// Concurrency: `Query<&mut Heightmaps>` plus a separate `Query<&BlockPalette>`
+// Concurrency: `Query<&mut Heightmaps>` plus a separate `Query<&SectionVoxels>`
 // give the scheduler exclusive write access to heightmap state for the
 // duration of the system; no manual locking is needed.
 use crate::heightmap::{HeightmapVariant, MinecraftHeightmaps, scan_top_down};
@@ -26,17 +26,17 @@ use crate::table::{BlockStateLightTable, flag_bits};
 use bevy_ecs::entity::EntityHashMap;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, Local, Query, Res};
+use mcrs_engine::voxel_update::SectionVoxels;
+use mcrs_engine::voxel_update::{VoxelPlaced, VoxelUpdateFlags};
 use mcrs_engine::world::storage::column::{ColumnChunks, Heightmaps, InColumn};
-use mcrs_minecraft_block::block_update::BlockPlaced;
-use mcrs_minecraft_block::palette::BlockPalette;
 
 /// HEIGHT-02 eager fused two-type heightmap update. Reads
-/// `MessageReader<BlockPlaced>` and updates `Heightmaps` on the affected
+/// `MessageReader<VoxelPlaced>` and updates `Heightmaps` on the affected
 /// `Column`. Applies the `y + 2 <= current_height` early-out per type;
 /// falls back to a single top-down rescan when the early-out fails.
 ///
 /// Runs in `FixedUpdate` with `.after(apply_voxel_set_requests)` so the
-/// `MessageReader<BlockPlaced>` sees this tick's writes; the
+/// `MessageReader<VoxelPlaced>` sees this tick's writes; the
 /// `FixedUpdate -> FixedPostUpdate` schedule boundary provides ordering
 /// against `update_client_blocks` so downstream codec reads in
 /// `FixedPostUpdate` observe up-to-date heightmap state.
@@ -48,13 +48,13 @@ use mcrs_minecraft_block::palette::BlockPalette;
 /// `Heightmaps` storage; the column-level scheduler grant from
 /// `Query<&mut Heightmaps>` plus per-entity-disjoint task assignment makes
 /// this safe without manual locking.
-pub fn update_heightmaps_on_block_placed(
-    mut reader: MessageReader<BlockPlaced>,
+pub fn update_heightmaps_on_block_placed<F: VoxelUpdateFlags>(
+    mut reader: MessageReader<VoxelPlaced<F>>,
     chunks: Query<&InColumn>,
     mut columns: Query<(Entity, &mut Heightmaps, &ColumnChunks)>,
-    palettes: Query<&BlockPalette>,
+    palettes: Query<&SectionVoxels>,
     table: Res<BlockStateLightTable>,
-    mut partitions: Local<EntityHashMap<Vec<BlockPlaced>>>,
+    mut partitions: Local<EntityHashMap<Vec<VoxelPlaced<F>>>>,
 ) {
     // Drop empty buckets to bound memory under long-running sessions where the
     // touched-columns set could grow unboundedly; clear non-empty ones in
@@ -158,7 +158,7 @@ pub fn update_heightmaps_on_block_placed(
                     block_pos = ?placed.block_pos,
                     min_y,
                     max_y,
-                    "BlockPlaced outside dimension Y; ignored by heightmap"
+                    "VoxelPlaced outside dimension Y; ignored by heightmap"
                 );
             }
         }
@@ -167,7 +167,7 @@ pub fn update_heightmaps_on_block_placed(
 
 fn rescan_column_xz(
     chunk_index: &ColumnChunks,
-    palettes: &Query<&BlockPalette>,
+    palettes: &Query<&SectionVoxels>,
     table: &BlockStateLightTable,
     x: usize,
     z: usize,
@@ -176,7 +176,7 @@ fn rescan_column_xz(
     let mut world_surface_raw: Option<i32> = None;
     let mut motion_blocking_raw: Option<i32> = None;
 
-    let palette_fn = |entity: Entity| -> Option<&BlockPalette> { palettes.get(entity).ok() };
+    let palette_fn = |entity: Entity| -> Option<&SectionVoxels> { palettes.get(entity).ok() };
 
     let xz = [(x, z)];
     let mut cursor = chunk_index.min_section_y + chunk_index.sections.len() as i32 - 1;
@@ -206,9 +206,10 @@ mod tests {
     use crate::table::flag_bits;
     use bevy_app::{App, Update};
     use bevy_ecs::message::Messages;
+    use mcrs_engine::voxel_update::SectionVoxels;
     use mcrs_engine::world::storage::column::{Column, ColumnChunks, Heightmaps, InColumn};
     use mcrs_minecraft_block::block::BlockUpdateFlags;
-    use mcrs_minecraft_block::palette::BlockPalette;
+    use mcrs_minecraft_block::block_update::BlockPlaced;
     use mcrs_voxel_math::BlockPos;
     use mcrs_voxel_math::ChunkPos;
     use mcrs_voxel_math::voxel_shape::VoxelShape;
@@ -249,7 +250,10 @@ mod tests {
         let mut app = App::new();
         app.add_message::<BlockPlaced>();
         app.insert_resource(make_test_table());
-        app.add_systems(Update, update_heightmaps_on_block_placed);
+        app.add_systems(
+            Update,
+            update_heightmaps_on_block_placed::<BlockUpdateFlags>,
+        );
         app
     }
 
@@ -266,7 +270,7 @@ mod tests {
             ))
             .id();
 
-        let mut palette = BlockPalette::default();
+        let mut palette = SectionVoxels::default();
         palette.fill(AIR);
         for y in 0..=3i32 {
             for z in 0..16i32 {
@@ -426,7 +430,7 @@ mod tests {
                 let mut remapped = *placed;
                 remapped.chunk = *proto_to_real.get(&placed.chunk).unwrap();
                 app.world_mut()
-                    .get_mut::<BlockPalette>(remapped.chunk)
+                    .get_mut::<SectionVoxels>(remapped.chunk)
                     .unwrap()
                     .set(remapped.block_pos, remapped.new_state);
                 write_placed(&mut app, remapped);
