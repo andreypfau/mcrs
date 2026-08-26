@@ -30,7 +30,7 @@ use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{
     ChunkViewPlugin, PlayerChunkObserver, PlayerViewDistance,
 };
-use mcrs_engine::geometry::ChunkPos;
+use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig, HasSkyLight, InDimension,
 };

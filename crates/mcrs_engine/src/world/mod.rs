@@ -1,4 +1,3 @@
-pub mod block;
 pub mod channels;
 pub mod dimension;
 pub mod in_flight;

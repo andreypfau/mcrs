@@ -255,7 +255,7 @@ fn run_profile_bounded(
                         target: PacketTarget::SinglePlayer(*player),
                         priority: PacketPriority::Normal,
                         data: PacketPayload::BlockUpdate {
-                            position: mcrs_engine::geometry::BlockPos::new(0, 64, 0),
+                            position: mcrs_voxel_math::BlockPos::new(0, 64, 0),
                             new_state: BlockStateId(1),
                         },
                         session: *session,

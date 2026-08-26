@@ -1,5 +1,5 @@
 use crate::entity::physics::Transform;
-use crate::geometry::ChunkPos;
+use mcrs_voxel_math::ChunkPos;
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
 use crate::world::lifecycle::markers::ChunkLoaded;
 use crate::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketCommand, TicketKind};

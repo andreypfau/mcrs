@@ -2,7 +2,7 @@ use std::io::Write;
 
 use crate::{BiomePos, Decode, Encode, Position};
 
-pub use mcrs_engine::geometry::ColumnPos;
+pub use mcrs_voxel_math::ColumnPos;
 
 impl Encode for ColumnPos {
     fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {

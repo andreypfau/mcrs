@@ -111,7 +111,7 @@ impl Plugin for PhaseTimingPlugin {
         app.add_systems(
             FixedUpdate,
             (|q: Query<
-                &mcrs_engine::geometry::ChunkPos,
+                &mcrs_voxel_math::ChunkPos,
                 Or<(With<BlockBfsPending>, With<SkyBfsPending>)>,
             >| {
                 let positions: Vec<_> = q.iter().copied().collect();
@@ -280,7 +280,7 @@ fn build_instrumented_factory() -> Box<dyn Fn() -> App + Send + Sync> {
     use bevy_app::App as BApp;
     use bevy_state::app::{AppExtStates, StatesPlugin};
     use mcrs_core::AppState;
-    use mcrs_engine::geometry::ChunkPos;
+    use mcrs_voxel_math::ChunkPos;
     use mcrs_engine::world::storage::column::ColumnPlugin;
     Box::new(|| {
         let mut app = BApp::new();
@@ -338,7 +338,7 @@ fn main() {
     // Probe one sample to see how many chunks are dirty AT THE MOMENT
     // light_converge_driver starts (after Enqueue, before Converge).
     {
-        use mcrs_engine::geometry::ChunkPos as CPos;
+        use mcrs_voxel_math::ChunkPos as CPos;
 
         let mut probe_app = factory();
         // Check if factory left anything dirty.

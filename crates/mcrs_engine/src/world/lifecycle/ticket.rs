@@ -10,7 +10,7 @@
 //! valid shared anchor for the marker. `mcrs_engine` carries no other
 //! lighting knowledge.
 
-use crate::geometry::ChunkPos;
+use mcrs_voxel_math::ChunkPos;
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::markers::ChunkLoaded;
 use crate::world::lifecycle::markers::ChunkUnloaded;

@@ -1,4 +1,4 @@
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_palette::VoxelId;
 

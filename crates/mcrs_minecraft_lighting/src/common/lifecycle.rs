@@ -15,7 +15,7 @@ use crate::sky_light::bundle::SkyLightBundle;
 use crate::table::BlockStateLightTable;
 use crate::{BlockNeedsInitialSeed, IsAllAir, SkyNeedsInitialSeed};
 use bevy_ecs::prelude::{Added, Changed, Commands, Component, Entity, Has, Query, Res, With};
-use mcrs_engine::geometry::ChunkPos;
+use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::storage::column::{Column, ColumnChunks, Heightmaps};

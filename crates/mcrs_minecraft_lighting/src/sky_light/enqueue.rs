@@ -24,7 +24,7 @@ use bevy_ecs::entity::{Entity, EntityHashMap};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Added, Commands, Local, Or, ParallelCommands, Query, With, Without};
 use mcrs_core::voxel_shape::Direction;
-use mcrs_engine::geometry::ChunkPos;
+use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, Heightmaps, InColumn};

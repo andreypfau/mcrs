@@ -1,0 +1,10 @@
+[package]
+name = "mcrs_voxel_math"
+description = "mcrs_voxel_math"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bevy_ecs.workspace = true
+bevy_derive.workspace = true
+bevy_math.workspace = true

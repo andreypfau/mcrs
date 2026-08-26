@@ -1,7 +1,7 @@
 use crate::{Decode, Encode};
 use bitfield_struct::bitfield;
 use derive_more::From;
-use mcrs_engine::geometry::ChunkPos;
+use mcrs_voxel_math::ChunkPos;
 use std::io::Write;
 use thiserror::Error;
 

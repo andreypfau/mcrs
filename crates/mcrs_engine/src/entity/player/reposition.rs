@@ -1,8 +1,8 @@
 use bevy_ecs::prelude::{Component, Resource};
 use bevy_math::*;
 
-use crate::geometry::chunk_pos;
-use crate::world::block::BlockPos;
+use mcrs_voxel_math::chunk_pos;
+use mcrs_voxel_math::BlockPos;
 
 /// Client-coordinate repositioning (Spout-style).
 ///

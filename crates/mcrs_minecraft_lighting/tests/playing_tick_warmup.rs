@@ -24,7 +24,7 @@ use bevy_state::state::NextState;
 use mcrs_core::AppState;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
-use mcrs_engine::geometry::ChunkPos;
+use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };

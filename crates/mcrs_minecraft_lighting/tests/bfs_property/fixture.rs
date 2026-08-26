@@ -8,7 +8,7 @@
 //! committed `snapshot.json` and the generator must be re-run.
 
 use mcrs_core::voxel_shape::VoxelShape;
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::bfs::{
     ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL, pack_bfs_entry, propagate_decrease,

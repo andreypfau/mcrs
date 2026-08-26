@@ -7,7 +7,7 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::entity::ContainsEntity;
 use bevy_ecs::prelude::{On, Query};
 use mcrs_engine::entity::player::reposition::Reposition;
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_protocol::packets::game::serverbound::ServerboundUseItemOn;

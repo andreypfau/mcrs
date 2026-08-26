@@ -8,7 +8,7 @@
 // columns; downstream lighting code overwrites with real values before any consumer
 // reads, and uses `min_y` as the "no surface found" sentinel.
 
-use crate::geometry::ChunkPos;
+use mcrs_voxel_math::ChunkPos;
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
 use crate::world::lifecycle::markers::ChunkLoaded;
 use crate::world::lifecycle::markers::ChunkUnloading;
@@ -20,7 +20,7 @@ use bevy_ecs::prelude::{
 };
 use rustc_hash::FxHashMap;
 
-pub use crate::geometry::ColumnPos;
+pub use mcrs_voxel_math::ColumnPos;
 
 /// Sparse marker component placed on chunk-column entities.
 #[derive(Component, Debug, Default)]
@@ -508,7 +508,7 @@ impl Plugin for ColumnPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geometry::BlockPos;
+    use mcrs_voxel_math::BlockPos;
     use bevy_ecs::entity::Entity;
 
     fn fake_entity(index: u32) -> Entity {

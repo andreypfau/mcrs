@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_math::DVec3;
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
 use mcrs_protocol::BlockStateId;

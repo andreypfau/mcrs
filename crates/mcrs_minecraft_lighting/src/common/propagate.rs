@@ -700,8 +700,8 @@ mod tests {
     #[test]
     fn block_only_event_inserts_only_block_bfs_pending() {
         use bevy_ecs::message::Messages;
-        use mcrs_engine::geometry::ChunkPos;
-        use mcrs_engine::world::block::BlockPos;
+        use mcrs_voxel_math::ChunkPos;
+        use mcrs_voxel_math::BlockPos;
         use mcrs_minecraft_block::block::BlockUpdateFlags;
         use mcrs_minecraft_block::block_update::BlockPlaced;
 
@@ -749,8 +749,8 @@ mod tests {
     #[test]
     fn sky_only_opacity_change_inserts_only_sky_bfs_pending() {
         use bevy_ecs::message::Messages;
-        use mcrs_engine::geometry::ChunkPos;
-        use mcrs_engine::world::block::BlockPos;
+        use mcrs_voxel_math::ChunkPos;
+        use mcrs_voxel_math::BlockPos;
         use mcrs_engine::world::storage::column::{ColumnChunks, InColumn};
         use mcrs_minecraft_block::block::BlockUpdateFlags;
         use mcrs_minecraft_block::block_update::BlockPlaced;

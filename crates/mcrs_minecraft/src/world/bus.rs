@@ -2,7 +2,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
-use mcrs_engine::geometry::{BlockPos, ColumnPos};
+use mcrs_voxel_math::{BlockPos, ColumnPos};
 use mcrs_engine::session::PlayerSession;
 use mcrs_protocol::BlockStateId;
 use mcrs_protocol::chunk::LightData;

@@ -5,7 +5,7 @@ use base64::Engine as _;
 use bevy_asset::Assets;
 use mcrs_core::RegistrySnapshot;
 use mcrs_core::resource_location::ResourceLocation;
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_protocol::BlockStateId;

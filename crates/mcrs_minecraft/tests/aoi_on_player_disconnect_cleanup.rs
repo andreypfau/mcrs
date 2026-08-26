@@ -16,7 +16,7 @@ use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
 use bevy_math::DVec3;
 use mcrs_engine::aoi::PlayerObservers;
-use mcrs_engine::geometry::ColumnPos;
+use mcrs_voxel_math::ColumnPos;
 use mcrs_engine::session::PlayerSession;
 use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_engine::world::channels::{

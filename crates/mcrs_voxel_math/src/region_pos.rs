@@ -1,6 +1,6 @@
-use crate::geometry::chunk_pos;
-use crate::geometry::{BlockPos, ChunkPos};
-use crate::math::BitSize;
+use crate::chunk_pos;
+use crate::{BlockPos, ChunkPos};
+use crate::BitSize;
 use bevy_math::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Hash)]

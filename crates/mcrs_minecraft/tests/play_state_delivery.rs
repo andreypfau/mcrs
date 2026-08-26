@@ -626,7 +626,7 @@ fn chunk_delivery_emits_chunkload() {
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
 
-    use mcrs_engine::geometry::ColumnPos;
+    use mcrs_voxel_math::ColumnPos;
     push_critical(
         &mut world,
         entity,
@@ -660,7 +660,7 @@ fn light_delivery_emits_lightupdate() {
 
     let before = BRIDGE_ENCODE_UNHANDLED_TOTAL.load(Ordering::Relaxed);
 
-    use mcrs_engine::geometry::ColumnPos;
+    use mcrs_voxel_math::ColumnPos;
     push_critical(
         &mut world,
         entity,

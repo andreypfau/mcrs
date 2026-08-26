@@ -15,7 +15,7 @@ use mcrs_core::RegistrySnapshot;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
-use mcrs_engine::geometry::ChunkPos;
+use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::lifecycle::markers::ChunkGenerating;
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::lifecycle::markers::ChunkLoading;

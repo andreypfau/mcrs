@@ -4,7 +4,7 @@ use bevy_app::{App, TaskPoolPlugin, Update};
 use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_ecs::prelude::*;
 use mcrs_core::StaticRegistry;
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft::world::experience::{
     AwardExperience, BlockDestroyed, DimensionRandom, ExperiencePlugin,
 };

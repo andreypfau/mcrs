@@ -1,2 +1,2 @@
-pub use crate::geometry::RegionPos;
-pub use crate::geometry::region_pos::{BLOCKS, CHUNKS};
+pub use mcrs_voxel_math::RegionPos;
+pub use mcrs_voxel_math::region_pos::{BLOCKS, CHUNKS};

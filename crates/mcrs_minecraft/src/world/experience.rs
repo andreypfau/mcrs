@@ -1,7 +1,7 @@
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::prelude::*;
 use mcrs_core::StaticRegistry;
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_protocol::BlockStateId;
 use mcrs_random::Random;
 use mcrs_random::xoroshiro::XoroshiroRandom;

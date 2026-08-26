@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use crate::{Decode, Encode};
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_core::ResourceLocation;
 
 #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode)]

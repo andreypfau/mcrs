@@ -35,7 +35,7 @@ use crate::{
     SkyParkedEgress,
 };
 use mcrs_core::voxel_shape::Direction;
-use mcrs_engine::geometry::ChunkPos;
+use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::lifecycle::ticket::LightTicket;
 use mcrs_engine::world::storage::column::{

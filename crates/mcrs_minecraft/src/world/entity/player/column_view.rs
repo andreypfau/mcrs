@@ -13,7 +13,7 @@ use mcrs_engine::entity::player::chunk_view::{
     PlayerChunkUnloadRequest,
 };
 use mcrs_engine::entity::player::reposition::Reposition;
-use mcrs_engine::geometry::ChunkPos;
+use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
@@ -425,7 +425,7 @@ fn add_player_column_view(
 
 #[inline]
 fn offset_sections(rep: &Reposition, min_y: i32) -> i32 {
-    let bits = mcrs_engine::geometry::chunk_pos::BLOCKS::BITS as i32;
+    let bits = mcrs_voxel_math::chunk_pos::BLOCKS::BITS as i32;
     (rep.offset_y_blocks() >> bits) - (min_y >> bits)
 }
 

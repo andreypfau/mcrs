@@ -1,5 +1,5 @@
-use crate::geometry::BlockPos;
-use crate::math::BitSize;
+use crate::BlockPos;
+use crate::BitSize;
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::Component;
 use bevy_math::DVec3;

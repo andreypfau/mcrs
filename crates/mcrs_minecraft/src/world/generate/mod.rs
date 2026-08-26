@@ -1,6 +1,6 @@
 use crate::world::chunk::CancellationToken;
 use mcrs_core::RegistrySnapshot;
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::density_function::{
     ColumnCache, NoiseCellInterpolator, NoiseRouter, beta_terrain_f64::BetaTerrainF64,

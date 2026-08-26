@@ -1,6 +1,6 @@
 use crate::entity::physics::{OldTransform, Transform};
 use crate::entity::player::Player;
-use crate::geometry::ChunkPos;
+use mcrs_voxel_math::ChunkPos;
 use crate::session::MoveId;
 use crate::world::dimension::{Dimension, DimensionPlayers, InDimension, OldInDimension};
 use crate::world::storage::chunk::Chunk;

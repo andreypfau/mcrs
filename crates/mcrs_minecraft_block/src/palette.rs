@@ -1,6 +1,6 @@
 use bevy_ecs::component::Component;
-use mcrs_engine::geometry::chunk_pos;
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::chunk_pos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_engine::world::storage::palette::PalettedContainer;
 use mcrs_engine::world::storage::palette::PalettedContainer::{Heterogeneous, Homogeneous};
 use mcrs_palette::{PaletteForm, SectionKind};

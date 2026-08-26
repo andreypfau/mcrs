@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+mcrs_voxel_math.workspace = true
 mcrs_palette.workspace = true
 bevy_ecs.workspace = true
 bevy_ecs_macros.workspace = true

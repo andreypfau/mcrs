@@ -1,4 +1,4 @@
-use crate::geometry::{BlockPos, ChunkPos};
+use crate::{BlockPos, ChunkPos};
 use bevy_math::{DVec3, IVec2};
 use std::fmt::Debug;
 

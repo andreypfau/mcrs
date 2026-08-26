@@ -117,8 +117,8 @@ mod tests {
     use bevy_ecs::message::Messages;
     use bevy_ecs::prelude::IntoScheduleConfigs;
     use mcrs_core::voxel_shape::{Direction, VoxelShape};
-    use mcrs_engine::geometry::ChunkPos;
-    use mcrs_engine::world::block::BlockPos;
+    use mcrs_voxel_math::ChunkPos;
+    use mcrs_voxel_math::BlockPos;
     use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
     use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
     use mcrs_engine::world::storage::column::{

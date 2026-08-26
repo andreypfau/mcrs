@@ -22,7 +22,7 @@ use crate::codec::LightStorage;
 use crate::invariants::{CHUNK_DIM, DIRECTIONS, direction_offset};
 use crate::table::{BlockStateLightTable, flag_bits};
 use mcrs_core::voxel_shape::Direction;
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_palette::VoxelId;
 

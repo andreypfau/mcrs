@@ -4,7 +4,7 @@ use std::sync::Arc;
 use bevy_asset::Assets;
 use mcrs_core::RegistrySnapshot;
 use mcrs_core::resource_location::ResourceLocation;
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::carver::WorldCarver;
 use mcrs_minecraft_worldgen::carver::cave::CaveWorldCarver;

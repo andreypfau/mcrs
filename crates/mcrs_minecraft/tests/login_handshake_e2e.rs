@@ -144,7 +144,7 @@ fn e2e_login_handshake_completes() {
 /// so the blob is non-empty.
 #[test]
 fn e2e_packet_round_trip() {
-    use mcrs_engine::geometry::BlockPos;
+    use mcrs_voxel_math::BlockPos;
     use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
     use mcrs_protocol::BlockStateId;
 
@@ -230,7 +230,7 @@ fn e2e_packet_round_trip() {
 #[test]
 fn e2e_aoi_surrounding_update() {
     use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
-    use mcrs_engine::geometry::ColumnPos;
+    use mcrs_voxel_math::ColumnPos;
     use mcrs_engine::world::dimension::DimensionBundle;
 
     let mut app = make_aoi_app();
@@ -488,9 +488,9 @@ where
     sys.apply_deferred(world);
 }
 
-fn seed_columns(app: &mut App, dim: Entity, centre: mcrs_engine::geometry::ColumnPos, radius: i32) {
+fn seed_columns(app: &mut App, dim: Entity, centre: mcrs_voxel_math::ColumnPos, radius: i32) {
     use mcrs_engine::aoi::PlayerObservers;
-    use mcrs_engine::geometry::ColumnPos;
+    use mcrs_voxel_math::ColumnPos;
     use mcrs_engine::world::dimension::InDimension;
     use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 

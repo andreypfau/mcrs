@@ -17,7 +17,7 @@ use bevy_ecs::change_detection::Res;
 use bevy_ecs::entity::{Entity, EntityHashMap};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Added, Commands, Local, ParallelCommands, Query, With};
-use mcrs_engine::geometry::{BlockPos, ChunkPos};
+use mcrs_voxel_math::{BlockPos, ChunkPos};
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, InColumn};

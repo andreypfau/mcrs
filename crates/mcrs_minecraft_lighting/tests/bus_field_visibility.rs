@@ -3,8 +3,8 @@
 // from this external integration test crate.
 
 use bevy_ecs::entity::Entity;
-use mcrs_engine::geometry::ChunkPos;
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_palette::VoxelId;

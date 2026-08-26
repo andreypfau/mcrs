@@ -1,5 +1,5 @@
-pub use crate::geometry::ChunkPos;
-pub use crate::geometry::chunk_pos::BLOCKS;
+pub use mcrs_voxel_math::ChunkPos;
+pub use mcrs_voxel_math::chunk_pos::BLOCKS;
 
 use crate::entity::ChunkEntities;
 use crate::world::dimension::InDimension;

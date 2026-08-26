@@ -1,4 +1,4 @@
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::feature::OreFeature;
 use mcrs_minecraft_worldgen::feature::config::{OreConfig, OreYOffset, TargetBlockState};

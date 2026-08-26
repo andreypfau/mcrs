@@ -19,7 +19,7 @@ use bevy_time::{Fixed, Time};
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::reposition::Reposition;
 use mcrs_engine::session::PlayerSession;
-use mcrs_engine::world::block::BlockPos;
+use mcrs_voxel_math::BlockPos;
 use mcrs_engine::world::dimension::{DimensionPlayers, InDimension};
 use mcrs_engine::world::storage::chunk::ChunkIndex;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
