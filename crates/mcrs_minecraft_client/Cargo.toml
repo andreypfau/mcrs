@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_client"
+name = "mcrs_minecraft_client"
 description = "Minecraft client: window, asset corpus and environment registries"
 version.workspace = true
 edition.workspace = true

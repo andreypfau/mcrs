@@ -3150,27 +3150,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_client"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bitflags 2.10.0",
- "bytemuck",
- "flate2",
- "mcrs_minecraft_core",
- "mcrs_minecraft_nbt",
- "mcrs_minecraft_protocol",
- "mcrs_minecraft_world",
- "mcrs_voxel_storage",
- "mcrs_voxel_world",
- "objc2-foundation 0.3.2",
- "objc2-metal 0.3.2",
- "serde",
- "serde_json",
- "wgpu",
-]
-
-[[package]]
 name = "mcrs_minecraft"
 version = "0.1.0"
 dependencies = [
@@ -3253,6 +3232,27 @@ dependencies = [
  "mcrs_voxel_world",
  "rustc-hash 2.1.1",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_client"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bitflags 2.10.0",
+ "bytemuck",
+ "flate2",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_protocol",
+ "mcrs_minecraft_world",
+ "mcrs_voxel_storage",
+ "mcrs_voxel_world",
+ "objc2-foundation 0.3.2",
+ "objc2-metal 0.3.2",
+ "serde",
+ "serde_json",
+ "wgpu",
 ]
 
 [[package]]

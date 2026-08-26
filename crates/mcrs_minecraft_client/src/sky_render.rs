@@ -168,7 +168,7 @@ fn init_sky(mut commands: Commands, device: Res<RenderDevice>, asset_server: Res
                 ),
             ),
         ),
-        shader: asset_server.load("embedded://mcrs_client/shaders/sky.wgsl"),
+        shader: asset_server.load("embedded://mcrs_minecraft_client/shaders/sky.wgsl"),
         buffer: device.create_buffer(&BufferDescriptor {
             label: Some("sky"),
             size: size_of::<SkyUniform>() as u64,

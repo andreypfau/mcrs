@@ -85,7 +85,7 @@ fn main() {
 
 fn world_folder() -> PathBuf {
     let Some(path) = std::env::args_os().nth(1).map(PathBuf::from) else {
-        eprintln!("usage: mcrs_client <world folder>");
+        eprintln!("usage: mcrs_minecraft_client <world folder>");
         std::process::exit(1);
     };
     if !path.is_dir() {
