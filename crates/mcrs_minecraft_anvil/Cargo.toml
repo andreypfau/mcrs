@@ -1,6 +1,6 @@
 [package]
-name = "mcrs_anvil"
-description = "mcrs_anvil"
+name = "mcrs_minecraft_anvil"
+description = "mcrs_minecraft_anvil"
 version.workspace = true
 edition.workspace = true
 

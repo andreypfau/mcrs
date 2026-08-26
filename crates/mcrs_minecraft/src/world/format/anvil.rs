@@ -1,4 +1,4 @@
-use mcrs_anvil::{BlockStateLookup, Properties};
+use mcrs_minecraft_anvil::{BlockStateLookup, Properties};
 use mcrs_vanilla::block::definition::BlockDefinitions;
 use mcrs_vanilla::block::definition::schema::PropertyValue;
 use smallvec::SmallVec;

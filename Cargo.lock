@@ -3150,20 +3150,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_anvil"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "flate2",
- "lz4-java-wrc",
- "mcrs_minecraft_nbt",
- "mcrs_protocol",
- "mcrs_voxel_storage",
- "serde",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "mcrs_client"
 version = "0.1.0"
 dependencies = [
@@ -3236,8 +3222,8 @@ dependencies = [
  "derive_more",
  "flume",
  "indexmap",
- "mcrs_anvil",
  "mcrs_core",
+ "mcrs_minecraft_anvil",
  "mcrs_minecraft_block",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_random",
@@ -3264,6 +3250,20 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "mcrs_minecraft_anvil"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "flate2",
+ "lz4-java-wrc",
+ "mcrs_minecraft_nbt",
+ "mcrs_protocol",
+ "mcrs_voxel_storage",
+ "serde",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

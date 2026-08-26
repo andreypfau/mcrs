@@ -2,7 +2,7 @@ use std::sync::OnceLock;
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
-use mcrs_anvil::{Chunk, ErrorKind, parse_chunk};
+use mcrs_minecraft_anvil::{Chunk, ErrorKind, parse_chunk};
 use mcrs_minecraft::world::format::anvil::CorpusBlockStates;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -90,7 +90,7 @@ fn section(y: i8, palette: Vec<NbtTag>) -> NbtTag {
 
 fn chunk(sections: Vec<NbtTag>) -> Chunk {
     let mut root = NbtCompound::new();
-    root.put_int("DataVersion", mcrs_anvil::DATA_VERSION);
+    root.put_int("DataVersion", mcrs_minecraft_anvil::DATA_VERSION);
     root.put_int("xPos", 0);
     root.put_int("zPos", 0);
     root.put_int("yPos", -4);
