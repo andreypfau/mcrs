@@ -70,7 +70,7 @@ mcrs_protocol = { path = "crates/mcrs_protocol" }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
 mcrs_text = { path = "crates/mcrs_text" }
 mcrs_network = { path = "crates/mcrs_network" }
-mcrs_engine = { path = "crates/mcrs_engine" }
+mcrs_voxel_world = { path = "crates/mcrs_voxel_world" }
 mcrs_core_macros = { path = "crates/mcrs_core_macros" }
 mcrs_core = { path = "crates/mcrs_core" }
 mcrs_vanilla = { path = "crates/mcrs_vanilla" }
@@ -78,7 +78,7 @@ mcrs_minecraft = { path = "crates/mcrs_minecraft" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
 mcrs_random = { path = "crates/mcrs_random" }
-mcrs_minecraft_lighting = { path = "crates/mcrs_minecraft_lighting" }
+mcrs_voxel_light = { path = "crates/mcrs_voxel_light" }
 mcrs_telemetry = { path = "crates/mcrs_telemetry" }
 mcrs_anvil = { path = "crates/mcrs_anvil" }
 mcrs_voxel_storage = { path = "crates/mcrs_voxel_storage" }
@@ -163,7 +163,7 @@ opt-level = 3
 [profile.dev.package."mcrs_minecraft"]
 opt-level = 2
 
-[profile.dev.package."mcrs_engine"]
+[profile.dev.package."mcrs_voxel_world"]
 opt-level = 1
 
 [profile.dev.package."bevy_ecs"]

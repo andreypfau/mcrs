@@ -5,7 +5,7 @@ use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
 use crate::world::bus::InboundPlayerPacket;
-use mcrs_engine::session::PlayerSession;
+use mcrs_voxel_world::session::PlayerSession;
 
 /// Host-side pending inbound buffer, keyed by host_anchor entity.
 /// Holds packets received while the player's in-dim spawn is in flight

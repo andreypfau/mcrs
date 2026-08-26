@@ -20,8 +20,8 @@ pub fn pump_channels(app: &mut App) {
     use crate::world::bus::{OutboundPlayerPacket, PacketTarget};
     use crate::world::channel_types::{DimChannelsResource, FromDim, ToDim};
     use crate::world::sub_app_builder::{DimLabel, DimSubAppHandle};
-    use mcrs_engine::session::SessionRegistry;
-    use mcrs_engine::world::in_flight::{InFlightEntry, InFlightMoves};
+    use mcrs_voxel_world::session::SessionRegistry;
+    use mcrs_voxel_world::world::in_flight::{InFlightEntry, InFlightMoves};
 
     let world = app.world_mut();
 
@@ -53,13 +53,13 @@ pub fn pump_channels(app: &mut App) {
     // Accumulate rollback requests from the MoveEntity → Disconnected path so
     // we can send them after the dispatch loop (avoids borrow conflict).
     struct PendingRollback {
-        move_id: mcrs_engine::session::MoveId,
+        move_id: mcrs_voxel_world::session::MoveId,
         source_dim: bevy_ecs::entity::Entity,
     }
     let mut pending_rollbacks: Vec<PendingRollback> = Vec::new();
     // Accumulate confirm relays from the Spawned path.
     struct PendingConfirm {
-        move_id: mcrs_engine::session::MoveId,
+        move_id: mcrs_voxel_world::session::MoveId,
         source_dim: bevy_ecs::entity::Entity,
     }
     let mut pending_confirms: Vec<PendingConfirm> = Vec::new();
@@ -84,10 +84,10 @@ pub fn pump_channels(app: &mut App) {
                                     session_registry.get(&session).map(|e| e.epoch).unwrap_or(0);
                                 (session, epoch)
                             } else {
-                                (mcrs_engine::session::PlayerSession(0), 0)
+                                (mcrs_voxel_world::session::PlayerSession(0), 0)
                             }
                         } else {
-                            (mcrs_engine::session::PlayerSession(0), 0)
+                            (mcrs_voxel_world::session::PlayerSession(0), 0)
                         };
 
                     let pkt = OutboundPlayerPacket {
@@ -191,7 +191,7 @@ pub fn pump_channels(app: &mut App) {
                                 source_dim: dim_entity,
                             });
                             let mut despawn_queue = world
-                                .resource_mut::<mcrs_engine::world::sub_app::DimDespawnQueue>(
+                                .resource_mut::<mcrs_voxel_world::world::sub_app::DimDespawnQueue>(
                             );
                             if !despawn_queue.0.contains(&dest_dim) {
                                 despawn_queue.0.push(dest_dim);
@@ -232,7 +232,7 @@ pub fn pump_channels(app: &mut App) {
         };
         if let Some(Err(flume::TrySendError::Full(_))) = send_result {
             let mut despawn_queue =
-                world.resource_mut::<mcrs_engine::world::sub_app::DimDespawnQueue>();
+                world.resource_mut::<mcrs_voxel_world::world::sub_app::DimDespawnQueue>();
             if !despawn_queue.0.contains(&rb.source_dim) {
                 despawn_queue.0.push(rb.source_dim);
             }
@@ -251,7 +251,7 @@ pub fn pump_channels(app: &mut App) {
         };
         if let Some(Err(flume::TrySendError::Full(_))) = send_result {
             let mut despawn_queue =
-                world.resource_mut::<mcrs_engine::world::sub_app::DimDespawnQueue>();
+                world.resource_mut::<mcrs_voxel_world::world::sub_app::DimDespawnQueue>();
             if !despawn_queue.0.contains(&cf.source_dim) {
                 despawn_queue.0.push(cf.source_dim);
             }
@@ -273,7 +273,7 @@ pub fn pump_channels(app: &mut App) {
         };
         if let Some(Err(flume::TrySendError::Full(_))) = send_result {
             let mut despawn_queue =
-                world.resource_mut::<mcrs_engine::world::sub_app::DimDespawnQueue>();
+                world.resource_mut::<mcrs_voxel_world::world::sub_app::DimDespawnQueue>();
             if !despawn_queue.0.contains(&entry.source_dim) {
                 despawn_queue.0.push(entry.source_dim);
             }

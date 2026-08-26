@@ -18,21 +18,21 @@ use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::state::NextState;
 use mcrs_core::AppState;
-use mcrs_engine::entity::ChunkEntities;
-use mcrs_engine::world::dimension::{
+use mcrs_voxel_world::entity::ChunkEntities;
+use mcrs_voxel_world::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
-use mcrs_engine::world::storage::chunk::Chunk;
-use mcrs_engine::world::storage::chunk::ChunkIndex;
-use mcrs_engine::world::storage::column::{ColumnPlugin, ColumnPos, ColumnPosComponent, InColumn};
+use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
+use mcrs_voxel_world::world::storage::chunk::Chunk;
+use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
+use mcrs_voxel_world::world::storage::column::{ColumnPlugin, ColumnPos, ColumnPosComponent, InColumn};
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::{BlockSetRequest, BlockUpdatePlugin};
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_minecraft_lighting::emit_dirty::BlockLightDirty;
-use mcrs_minecraft_lighting::metrics::TELEMETRY_TEST_LOCK;
-use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
+use mcrs_voxel_light::LightingPlugin;
+use mcrs_voxel_light::emit_dirty::BlockLightDirty;
+use mcrs_voxel_light::metrics::TELEMETRY_TEST_LOCK;
+use mcrs_voxel_light::table::{BlockStateLightTable, flag_bits};
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
@@ -191,7 +191,7 @@ fn torch_placement_emits_exactly_one_block_light_dirty_message() {
         );
         assert!(
             world
-                .get::<mcrs_engine::voxel_update::ChunkVoxelChanges>(chunk)
+                .get::<mcrs_voxel_world::voxel_update::ChunkVoxelChanges>(chunk)
                 .is_some(),
             "BlockUpdatePlugin::add_changes_set must have attached the changes set during warm-up"
         );

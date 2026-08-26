@@ -11,9 +11,9 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_engine::session::PlayerSession;
-use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_voxel_world::session::PlayerSession;
+use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_voxel_world::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::runner::pump_channels;
 use mcrs_minecraft::world::bridge::bridge_inbound_to_channel;
 use mcrs_minecraft::world::bus::{
@@ -23,7 +23,7 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_minecraft_lighting::table::BlockStateLightTable;
+use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
@@ -79,7 +79,7 @@ fn build_app() -> App {
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<DimChannelsResource>();
-    app.init_resource::<mcrs_engine::world::in_flight::InFlightMoves>();
+    app.init_resource::<mcrs_voxel_world::world::in_flight::InFlightMoves>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<OutboundPlayerAttached>();
@@ -99,7 +99,7 @@ fn drive_to_playing_and_spawn_subapps(app: &mut App) {
 }
 
 fn enqueue_overworld(app: &mut App) {
-    use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
+    use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
     app.world_mut()
         .resource_mut::<DimSpawnQueue>()
         .0

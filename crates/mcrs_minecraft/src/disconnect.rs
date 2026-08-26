@@ -33,8 +33,8 @@ use tracing::warn;
 use crate::world::bus::{OutboundPlayerAttached, OutboundPlayerDisconnect};
 use crate::world::channel_types::{DimChannelsResource, ToDim, send_control_or_teardown};
 use crate::world::player_index::{HostAnchorRef, PlayerIndex};
-use mcrs_engine::session::SessionRegistry;
-use mcrs_engine::world::sub_app::DimDespawnQueue;
+use mcrs_voxel_world::session::SessionRegistry;
+use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
 
 /// Per-tick cleanup budget. The initial 32 caps work at 640 disconnects/sec
 /// under a 20 TPS schedule, draining a 1000-player kick in ~1.5s without

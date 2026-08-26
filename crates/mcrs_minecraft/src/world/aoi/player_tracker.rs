@@ -10,9 +10,9 @@ use bevy_ecs::prelude::{IntoScheduleConfigs, Query};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::{ScheduleConfigs, SystemSet};
 use bevy_ecs::system::ScheduleSystem;
-use mcrs_engine::aoi::{EntityTracker, TickInterval};
-use mcrs_engine::entity::physics::Transform;
-use mcrs_engine::entity::player::Player;
+use mcrs_voxel_world::aoi::{EntityTracker, TickInterval};
+use mcrs_voxel_world::entity::physics::Transform;
+use mcrs_voxel_world::entity::player::Player;
 
 use crate::world::aoi::insert_player_observers::insert_player_observers_on_new_columns;
 use crate::world::aoi::probe::AoiTickProbe;

@@ -23,14 +23,14 @@ use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Entity, IntoScheduleConfigs, Query, With};
 use bevy_ecs::system::{Local, SystemParam};
-use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
-use mcrs_engine::world::storage::column::{
+use mcrs_voxel_world::world::dimension::{HasSkyLight, InDimension};
+use mcrs_voxel_world::world::storage::column::{
     ChunkLookup, ColumnChunks, ColumnPos, ColumnPosComponent, InColumn,
 };
-use mcrs_minecraft_lighting::emit_dirty::{BlockLightDirty, SkyLightDirty};
-use mcrs_minecraft_lighting::sets::LightingSet;
-use mcrs_minecraft_lighting::storage::LightStorage;
-use mcrs_minecraft_lighting::{BlockLight, SkyLight};
+use mcrs_voxel_light::emit_dirty::{BlockLightDirty, SkyLightDirty};
+use mcrs_voxel_light::sets::LightingSet;
+use mcrs_voxel_light::storage::LightStorage;
+use mcrs_voxel_light::{BlockLight, SkyLight};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;
 
@@ -394,7 +394,7 @@ pub fn emit_column_light_updates(
 mod tests {
     use super::*;
     use bevy_ecs::entity::Entity;
-    use mcrs_minecraft_lighting::nibble::LightNibbles;
+    use mcrs_voxel_light::nibble::LightNibbles;
 
     fn fake_entity(index: u32) -> Entity {
         Entity::from_raw_u32(index + 1).expect("valid entity index")

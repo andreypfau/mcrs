@@ -26,21 +26,21 @@ use bevy_state::state::NextState;
 
 use mcrs_core::AppState;
 use mcrs_core::ResourceLocation;
-use mcrs_engine::entity::physics::Transform;
-use mcrs_engine::entity::player::Player;
-use mcrs_engine::entity::player::chunk_view::{
+use mcrs_voxel_world::entity::physics::Transform;
+use mcrs_voxel_world::entity::player::Player;
+use mcrs_voxel_world::entity::player::chunk_view::{
     ChunkViewPlugin, PlayerChunkObserver, PlayerViewDistance,
 };
-use mcrs_engine::world::dimension::{
+use mcrs_voxel_world::world::dimension::{
     DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_engine::world::lifecycle::markers::ChunkLoading;
+use mcrs_voxel_world::world::lifecycle::markers::ChunkLoading;
 use mcrs_minecraft::world::chunk::{ChunkPlugin as WorldgenChunkPlugin, ColumnScheduler};
-use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_minecraft_lighting::components::{
+use mcrs_voxel_light::LightingPlugin;
+use mcrs_voxel_light::components::{
     BlockBfsPending, BlockNeedsInitialSeed, SkyBfsPending, SkyLight, SkyNeedsInitialSeed,
 };
-use mcrs_minecraft_lighting::table::BlockStateLightTable;
+use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_minecraft_worldgen::bevy::OverworldNoiseRouter;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::density_function::proto::{

@@ -5,8 +5,8 @@
 //! column it tries to mirror-write into.
 
 use bevy_ecs::prelude::{Commands, Entity, Query, With, Without};
-use mcrs_engine::aoi::PlayerObservers;
-use mcrs_engine::world::storage::column::Column;
+use mcrs_voxel_world::aoi::PlayerObservers;
+use mcrs_voxel_world::world::storage::column::Column;
 
 #[cfg_attr(
     feature = "telemetry-tracy",

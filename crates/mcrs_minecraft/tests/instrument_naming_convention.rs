@@ -20,7 +20,7 @@
 mod common;
 
 use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_minecraft_lighting::test_bench::bench_helpers;
+use mcrs_voxel_light::test_bench::bench_helpers;
 
 fn assert_span_emitted(captures: &[common::CapturedSpan], span_name: &str) {
     assert!(

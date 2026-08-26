@@ -5,8 +5,8 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::OnEnter;
 use mcrs_core::AppState;
-use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
-use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
+use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use tracing::{debug, error, info, warn};
 
 pub mod aoi;
@@ -42,10 +42,10 @@ impl Plugin for WorldPlugin {
         // registrations in `spawn_dim_subapp` is what keeps the contract.
         app.init_resource::<crate::world::player_index::PlayerIndex>();
         app.init_resource::<crate::world::player_index::PendingInboundBuffer>();
-        app.init_resource::<mcrs_engine::session::SessionRegistry>();
-        app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
+        app.init_resource::<mcrs_voxel_world::session::SessionRegistry>();
+        app.init_resource::<mcrs_voxel_world::session::PlayerSessionCounter>();
         app.init_resource::<crate::world::channel_types::DimChannelsResource>();
-        app.init_resource::<mcrs_engine::world::in_flight::InFlightMoves>();
+        app.init_resource::<mcrs_voxel_world::world::in_flight::InFlightMoves>();
         app.add_message::<crate::world::bus::OutboundPlayerPacket>();
         app.add_message::<crate::world::bus::InboundPlayerPacket>();
         app.add_message::<crate::world::bus::OutboundPlayerAttached>();

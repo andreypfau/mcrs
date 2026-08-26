@@ -16,11 +16,11 @@
 
 use bevy_app::{App, FixedPostUpdate, FixedUpdate};
 use bevy_ecs::message::Messages;
-use mcrs_engine::aoi::PlayerObservers;
-use mcrs_engine::entity::player::Player;
-use mcrs_engine::world::dimension::InDimension;
-use mcrs_engine::world::storage::chunk::ChunkIndex;
-use mcrs_engine::world::storage::column::{ColumnIndex, ColumnSlot};
+use mcrs_voxel_world::aoi::PlayerObservers;
+use mcrs_voxel_world::entity::player::Player;
+use mcrs_voxel_world::world::dimension::InDimension;
+use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
+use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnSlot};
 use mcrs_minecraft::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use mcrs_minecraft::world::bus::{OutboundPlayerPacket, PacketPayload};
 use mcrs_minecraft::world::explosion::ExplosionConfig;

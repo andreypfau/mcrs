@@ -6,7 +6,7 @@
 //! flat.
 
 use bevy_math::DVec3;
-use mcrs_engine::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
+use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
 use mcrs_minecraft::world::aoi::AoiTickProbe;
 
 mod harness;

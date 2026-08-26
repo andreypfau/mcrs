@@ -37,9 +37,9 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_engine::session::PlayerSession;
-use mcrs_engine::session::SessionRegistry;
-use mcrs_engine::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_voxel_world::session::PlayerSession;
+use mcrs_voxel_world::session::SessionRegistry;
+use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::configuration::emit_initial_player_spawn;
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::runner::pump_channels;
@@ -54,7 +54,7 @@ use mcrs_minecraft::world::bus::{
 };
 use mcrs_minecraft::world::player_index::{HostAnchorRef, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;
-use mcrs_minecraft_lighting::table::BlockStateLightTable;
+use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_network::ServerSideConnection;
 use mcrs_protocol::uuid::Uuid;
 use mcrs_vanilla::biome::Biome;
@@ -80,7 +80,7 @@ fn e2e_login_handshake_completes() {
     app.add_plugins(LoginPlugin);
     app.init_resource::<PlayerIndex>();
     app.init_resource::<SessionRegistry>();
-    app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
+    app.init_resource::<mcrs_voxel_world::session::PlayerSessionCounter>();
     app.add_message::<InboundPlayerDespawn>();
 
     let connection_entity = app.world_mut().spawn_empty().id();
@@ -143,7 +143,7 @@ fn e2e_login_handshake_completes() {
 /// so the blob is non-empty.
 #[test]
 fn e2e_packet_round_trip() {
-    use mcrs_engine::session::{SessionEntry, SessionRegistry};
+    use mcrs_voxel_world::session::{SessionEntry, SessionRegistry};
     use mcrs_protocol::BlockStateId;
     use mcrs_voxel_math::BlockPos;
 
@@ -229,7 +229,7 @@ fn e2e_packet_round_trip() {
 #[test]
 fn e2e_aoi_surrounding_update() {
     use harness::{drive_aoi_tick, make_aoi_app, spawn_player_in_dim};
-    use mcrs_engine::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
+    use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
     use mcrs_voxel_math::ColumnPos;
 
     let mut app = make_aoi_app();
@@ -324,10 +324,10 @@ fn build_join_host_app() -> App {
 
     app.init_resource::<PlayerIndex>();
     app.init_resource::<SessionRegistry>();
-    app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
+    app.init_resource::<mcrs_voxel_world::session::PlayerSessionCounter>();
     app.init_resource::<mcrs_minecraft::world::player_index::PendingInboundBuffer>();
     app.init_resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>();
-    app.init_resource::<mcrs_engine::world::in_flight::InFlightMoves>();
+    app.init_resource::<mcrs_voxel_world::world::in_flight::InFlightMoves>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<InboundPlayerSpawn>();
@@ -364,7 +364,7 @@ fn build_join_host_app() -> App {
 /// 2. A non-empty blob reaches the mock socket channel (play-login delivered).
 #[test]
 fn e2e_join_releases_joining_world() {
-    use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
+    use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
     use mcrs_network::ConnectionState;
     use mcrs_network::InGameConnectionState;
 
@@ -494,9 +494,9 @@ where
 }
 
 fn seed_columns(app: &mut App, dim: Entity, centre: mcrs_voxel_math::ColumnPos, radius: i32) {
-    use mcrs_engine::aoi::PlayerObservers;
-    use mcrs_engine::world::dimension::InDimension;
-    use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+    use mcrs_voxel_world::aoi::PlayerObservers;
+    use mcrs_voxel_world::world::dimension::InDimension;
+    use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
     use mcrs_voxel_math::ColumnPos;
 
     for dx in -radius..=radius {
@@ -530,7 +530,7 @@ fn seed_columns(app: &mut App, dim: Entity, centre: mcrs_voxel_math::ColumnPos, 
 }
 
 fn nudge(app: &mut App, entity: Entity) {
-    use mcrs_engine::entity::physics::Transform;
+    use mcrs_voxel_world::entity::physics::Transform;
     app.world_mut()
         .get_mut::<Transform>(entity)
         .expect("entity has Transform")

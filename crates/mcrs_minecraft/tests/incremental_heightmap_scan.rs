@@ -26,21 +26,21 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use mcrs_core::AppState;
-use mcrs_engine::entity::ChunkEntities;
-use mcrs_engine::world::dimension::{
+use mcrs_voxel_world::entity::ChunkEntities;
+use mcrs_voxel_world::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
-use mcrs_engine::world::storage::chunk::Chunk;
-use mcrs_engine::world::storage::column::{ColumnChunks, ColumnPlugin, Heightmaps, InColumn};
+use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
+use mcrs_voxel_world::world::storage::chunk::Chunk;
+use mcrs_voxel_world::world::storage::column::{ColumnChunks, ColumnPlugin, Heightmaps, InColumn};
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_minecraft_lighting::components::IsAllAir;
-use mcrs_minecraft_lighting::heightmap::HeightmapAccess;
-use mcrs_minecraft_lighting::lifecycle::ColumnHeightmapScan;
-use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
+use mcrs_voxel_light::LightingPlugin;
+use mcrs_voxel_light::components::IsAllAir;
+use mcrs_voxel_light::heightmap::HeightmapAccess;
+use mcrs_voxel_light::lifecycle::ColumnHeightmapScan;
+use mcrs_voxel_light::table::{BlockStateLightTable, flag_bits};
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
@@ -380,7 +380,7 @@ fn late_arriving_chunk_gets_initial_light_immediately() {
         scan_state(&app, col).is_finalized(),
         "finalized state must remain after late chunk arrival"
     );
-    use mcrs_minecraft_lighting::components::SkyLight;
+    use mcrs_voxel_light::components::SkyLight;
     assert!(
         app.world().get::<SkyLight>(mid_chunk).is_some(),
         "late-arriving chunk must have SkyLight component attached"
@@ -654,7 +654,7 @@ fn single_chunk_dimension_finalizes_immediately() {
         "single-chunk dim must finalize on the first event"
     );
 
-    use mcrs_minecraft_lighting::components::SkyLight;
+    use mcrs_voxel_light::components::SkyLight;
     assert!(
         app.world().get::<SkyLight>(only_chunk).is_some(),
         "the only chunk must have SkyLight attached"

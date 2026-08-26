@@ -6,8 +6,8 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bytes::Bytes;
-use mcrs_engine::session::{PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_engine::world::channels::{
+use mcrs_voxel_world::session::{PlayerSession, PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_voxel_world::world::channels::{
     DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
 use mcrs_minecraft::world::bridge::bridge_inbound_to_channel;
@@ -310,7 +310,7 @@ fn transfer_snapshot() -> mcrs_minecraft::world::bus::PlayerTransferSnapshot {
 
 #[test]
 fn control_full_enqueues_dim_teardown() {
-    use mcrs_engine::world::sub_app::DimDespawnQueue;
+    use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
     use mcrs_minecraft::world::channel_types::send_control_or_teardown;
 
     let mut world = World::new();

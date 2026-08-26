@@ -4,8 +4,8 @@
 //! here we pin the engine mechanism the rollback depends on.
 
 use bevy_ecs::entity::Entity;
-use mcrs_engine::session::PlayerSession;
-use mcrs_engine::world::in_flight::{InFlightEntry, InFlightMoves, alloc_move_id};
+use mcrs_voxel_world::session::PlayerSession;
+use mcrs_voxel_world::world::in_flight::{InFlightEntry, InFlightMoves, alloc_move_id};
 
 fn entry() -> InFlightEntry {
     InFlightEntry {

@@ -30,11 +30,11 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
-use mcrs_engine::entity::ChunkEntities;
-use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig, InDimension};
-use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
-use mcrs_engine::world::storage::chunk::Chunk;
-use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_voxel_world::entity::ChunkEntities;
+use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig, InDimension};
+use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
+use mcrs_voxel_world::world::storage::chunk::Chunk;
+use mcrs_voxel_world::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::bridge::partition_main_inbound;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
@@ -43,7 +43,7 @@ use mcrs_minecraft::world::bus::{
 };
 use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_minecraft_lighting::test_bench::bench_helpers;
+use mcrs_voxel_light::test_bench::bench_helpers;
 use mcrs_voxel_math::ChunkPos;
 use vanilla::biome::Biome;
 use vanilla::block::Block;
@@ -55,7 +55,7 @@ use mcrs_vanilla as vanilla;
 
 mod support;
 
-fn make_stub_block_light_table() -> mcrs_minecraft_lighting::table::BlockStateLightTable {
+fn make_stub_block_light_table() -> mcrs_voxel_light::table::BlockStateLightTable {
     bench_helpers::make_stub_block_light_table_with_torch()
 }
 
@@ -161,7 +161,7 @@ fn seed_chunk_in_subapp(app: &mut App, label: bevy_ecs::entity::Entity) {
 
     // Find the dimension entity in the SubApp world.
     let dim_entity = sub_world
-        .query_filtered::<bevy_ecs::entity::Entity, bevy_ecs::prelude::With<mcrs_engine::world::dimension::DimensionTypeConfig>>()
+        .query_filtered::<bevy_ecs::entity::Entity, bevy_ecs::prelude::With<mcrs_voxel_world::world::dimension::DimensionTypeConfig>>()
         .iter(sub_world)
         .next()
         .expect("SubApp world must have a Dimension entity with DimensionTypeConfig");

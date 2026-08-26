@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Query;
 use bevy_math::DVec3;
-use mcrs_engine::world::storage::chunk::ChunkIndex;
+use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
 use mcrs_voxel_math::BlockPos;

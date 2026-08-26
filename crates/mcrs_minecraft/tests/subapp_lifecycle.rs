@@ -9,13 +9,13 @@ use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time};
 use mcrs_core::AppState;
 use mcrs_core::registry::access::RegistryAccess;
-use mcrs_engine::world::dimension::{Dimension, DimensionId, DimensionTypeConfig};
-use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_voxel_world::world::dimension::{Dimension, DimensionId, DimensionTypeConfig};
+use mcrs_voxel_world::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::sub_app_builder::{
     DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue, gather_dim_registries,
     spawn_dim_subapp,
 };
-use mcrs_minecraft_lighting::table::BlockStateLightTable;
+use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_vanilla::block::definition::Blocks;
 
 mod host_app;

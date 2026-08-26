@@ -26,7 +26,7 @@
 // would also require manually populating each dimension's `ChunkIndex` with
 // the spawned chunk entities — work that `ColumnPlugin` does not perform
 // in this test-app shape — and `BlockPlaced` is exactly what the lighting
-// engine observes (`crates/mcrs_minecraft_lighting/src/enqueue.rs:39-115`).
+// engine observes (`crates/mcrs_voxel_light/src/enqueue.rs:39-115`).
 
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::message::Messages;
@@ -34,22 +34,22 @@ use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::state::NextState;
 use mcrs_core::AppState;
-use mcrs_engine::entity::ChunkEntities;
-use mcrs_engine::world::dimension::{
+use mcrs_voxel_world::entity::ChunkEntities;
+use mcrs_voxel_world::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
-use mcrs_engine::world::storage::chunk::Chunk;
-use mcrs_engine::world::storage::column::ColumnPlugin;
+use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
+use mcrs_voxel_world::world::storage::chunk::Chunk;
+use mcrs_voxel_world::world::storage::column::ColumnPlugin;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_minecraft_lighting::components::{BlockLight, SkyLight};
-use mcrs_minecraft_lighting::emit_dirty::{BlockLightDirty, SkyLightDirty};
-use mcrs_minecraft_lighting::metrics::{TELEMETRY_TEST_LOCK, snapshot};
-use mcrs_minecraft_lighting::storage::LightStorage;
-use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
+use mcrs_voxel_light::LightingPlugin;
+use mcrs_voxel_light::components::{BlockLight, SkyLight};
+use mcrs_voxel_light::emit_dirty::{BlockLightDirty, SkyLightDirty};
+use mcrs_voxel_light::metrics::{TELEMETRY_TEST_LOCK, snapshot};
+use mcrs_voxel_light::storage::LightStorage;
+use mcrs_voxel_light::table::{BlockStateLightTable, flag_bits};
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::voxel_shape::VoxelShape;

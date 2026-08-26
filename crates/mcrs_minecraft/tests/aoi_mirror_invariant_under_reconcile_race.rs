@@ -12,12 +12,12 @@ use bevy_app::{App, FixedPostUpdate, FixedPreUpdate};
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_engine::aoi::PlayerObservers;
-use mcrs_engine::session::PlayerSession;
-use mcrs_engine::world::dimension::{
+use mcrs_voxel_world::aoi::PlayerObservers;
+use mcrs_voxel_world::session::PlayerSession;
+use mcrs_voxel_world::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
 };
-use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft::world::aoi::{ChunkSubscriptionSet, TrackedBy};
 use mcrs_minecraft::world::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
 use mcrs_voxel_math::ColumnPos;

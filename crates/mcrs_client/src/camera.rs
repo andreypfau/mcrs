@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use mcrs_engine::entity::physics::{OldTransform, Transform as PhysicsTransform};
+use mcrs_voxel_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
 
 use crate::local_player::{LocalPlayerTick, Sprint};
 use crate::options::FOV;

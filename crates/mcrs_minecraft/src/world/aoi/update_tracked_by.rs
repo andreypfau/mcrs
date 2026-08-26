@@ -8,12 +8,12 @@ use std::sync::atomic::Ordering;
 
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Entity, Query, ResMut, With, Without};
-use mcrs_engine::aoi::PlayerObservers;
-use mcrs_engine::entity::physics::Transform;
-use mcrs_engine::entity::player::Player;
-use mcrs_engine::session::PlayerSession;
-use mcrs_engine::world::dimension::InDimension;
-use mcrs_engine::world::storage::column::{Column, ColumnIndex};
+use mcrs_voxel_world::aoi::PlayerObservers;
+use mcrs_voxel_world::entity::physics::Transform;
+use mcrs_voxel_world::entity::player::Player;
+use mcrs_voxel_world::session::PlayerSession;
+use mcrs_voxel_world::world::dimension::InDimension;
+use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex};
 use mcrs_protocol::uuid::Uuid;
 use mcrs_voxel_math::ColumnPos;
 use smallvec::SmallVec;

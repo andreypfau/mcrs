@@ -4,8 +4,8 @@
 //! an integration test in mcrs_minecraft (`confirmed_move_roundtrip`).
 
 use bevy_ecs::prelude::*;
-use mcrs_engine::entity::InTransit;
-use mcrs_engine::world::in_flight::alloc_move_id;
+use mcrs_voxel_world::entity::InTransit;
+use mcrs_voxel_world::world::in_flight::alloc_move_id;
 
 fn without_in_transit_contains(world: &mut World, target: Entity) -> bool {
     let mut q = world.query_filtered::<Entity, Without<InTransit>>();

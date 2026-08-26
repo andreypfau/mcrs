@@ -7,10 +7,10 @@ use bevy_app::{App, Plugin};
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
-use mcrs_engine::entity::InTransit;
-use mcrs_engine::entity::physics::Transform;
-use mcrs_engine::session::{Owner, PlayerSession};
-use mcrs_engine::world::in_flight::alloc_move_id;
+use mcrs_voxel_world::entity::InTransit;
+use mcrs_voxel_world::entity::physics::Transform;
+use mcrs_voxel_world::session::{Owner, PlayerSession};
+use mcrs_voxel_world::world::in_flight::alloc_move_id;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_protocol::Text;
 use mcrs_protocol::packets::game::serverbound::{ServerboundChat, ServerboundChatCommand};
@@ -38,7 +38,7 @@ fn handle_command(
     mut sender_query: Query<(&HostAnchor, &mut Transform, &GameProfile, &Owner)>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
     move_sender: Res<
-        mcrs_engine::world::channels::FromDimSender<crate::world::channel_types::FromDim>,
+        mcrs_voxel_world::world::channels::FromDimSender<crate::world::channel_types::FromDim>,
     >,
     mut commands: Commands,
 ) {

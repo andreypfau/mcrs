@@ -16,7 +16,7 @@
 #[path = "bfs_property/fixture.rs"]
 mod fixture;
 
-use mcrs_minecraft_lighting::bfs::{ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL, pack_bfs_entry};
+use mcrs_voxel_light::bfs::{ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL, pack_bfs_entry};
 use serde::Deserialize;
 
 const SNAPSHOT_JSON: &str = include_str!("bfs_property/snapshot.json");

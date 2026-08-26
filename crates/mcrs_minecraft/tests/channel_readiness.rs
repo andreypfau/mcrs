@@ -11,8 +11,8 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_engine::session::PlayerSession;
-use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_voxel_world::session::PlayerSession;
+use mcrs_voxel_world::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerDisconnect,
     OutboundPlayerPacket,
@@ -20,7 +20,7 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::channel_types::{DimChannelsResource, ToDim};
 use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_minecraft_lighting::table::BlockStateLightTable;
+use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
 use mcrs_vanilla::enchantment::EnchantmentData;
@@ -69,8 +69,8 @@ fn build_app() -> App {
     app.insert_resource(support::corpus(&app));
 
     app.init_resource::<PlayerIndex>();
-    app.init_resource::<mcrs_engine::session::SessionRegistry>();
-    app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
+    app.init_resource::<mcrs_voxel_world::session::SessionRegistry>();
+    app.init_resource::<mcrs_voxel_world::session::PlayerSessionCounter>();
     app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<DimChannelsResource>();
     app.add_message::<OutboundPlayerPacket>();
@@ -103,7 +103,7 @@ fn messages_buffered_before_dim_boots() {
 
     // Enqueue and spawn the dim. spawn_dim_subapp creates the channel pair
     // before the sub-app's schedule first runs.
-    use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig};
+    use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
     app.world_mut()
         .resource_mut::<DimSpawnQueue>()
         .0

@@ -12,7 +12,7 @@ use bevy_ecs::observer::On;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::{IntoSystem, RunSystemOnce, System};
 use bevy_ecs::world::World;
-use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::world::bridge::bridge_inbound;
 use mcrs_minecraft::world::bridge_queue::{
     INBOUND_BUCKET_CAP, INBOUND_KICK_OVERFLOW_TICKS, InboundRateBucket, OutboundQueue,
@@ -379,7 +379,7 @@ fn disconnect_clears_pending() {
                     &mut player_index,
                     &mut session_registry,
                     &dim_channels,
-                    &mut mcrs_engine::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_voxel_world::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
             },

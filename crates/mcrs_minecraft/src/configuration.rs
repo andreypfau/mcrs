@@ -19,9 +19,9 @@ use mcrs_core::registry::access::ErasedRegistrySnapshot;
 use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_core::tag::registry::TagRegistry;
 use mcrs_core::{AppState, RegistryAccess, ResourceLocation, rl};
-use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
-use mcrs_engine::session::SessionRegistry;
-use mcrs_engine::world::sub_app::DimDespawnQueue;
+use mcrs_voxel_world::entity::player::chunk_view::PlayerChunkObserver;
+use mcrs_voxel_world::session::SessionRegistry;
+use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::packets::configuration::clientbound::{

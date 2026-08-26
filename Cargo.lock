@@ -3185,8 +3185,8 @@ dependencies = [
  "bitflags 2.10.0",
  "bytemuck",
  "mcrs_core",
- "mcrs_engine",
  "mcrs_vanilla",
+ "mcrs_voxel_world",
  "serde",
  "serde_json",
 ]
@@ -3219,25 +3219,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_engine"
-version = "0.1.0"
-dependencies = [
- "bevy_app",
- "bevy_derive",
- "bevy_ecs",
- "bevy_ecs_macros",
- "bevy_math",
- "flume",
- "indexmap",
- "log",
- "mcrs_voxel_math",
- "mcrs_voxel_storage",
- "rustc-hash 2.1.1",
- "smallvec",
- "tracing",
-]
-
-[[package]]
 name = "mcrs_minecraft"
 version = "0.1.0"
 dependencies = [
@@ -3264,18 +3245,18 @@ dependencies = [
  "indexmap",
  "mcrs_anvil",
  "mcrs_core",
- "mcrs_engine",
  "mcrs_minecraft_block",
- "mcrs_minecraft_lighting",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_worldgen",
  "mcrs_network",
  "mcrs_protocol",
  "mcrs_random",
  "mcrs_vanilla",
+ "mcrs_voxel_light",
  "mcrs_voxel_math",
  "mcrs_voxel_server",
  "mcrs_voxel_storage",
+ "mcrs_voxel_world",
  "num-integer",
  "paste",
  "proptest",
@@ -3300,34 +3281,12 @@ dependencies = [
  "bevy_ecs",
  "bevy_ecs_macros",
  "bitflags 2.10.0",
- "mcrs_engine",
  "mcrs_protocol",
  "mcrs_voxel_math",
  "mcrs_voxel_storage",
+ "mcrs_voxel_world",
  "rustc-hash 2.1.1",
  "tracing",
-]
-
-[[package]]
-name = "mcrs_minecraft_lighting"
-version = "0.1.0"
-dependencies = [
- "bevy_app",
- "bevy_ecs",
- "bevy_state",
- "bevy_utils",
- "criterion",
- "dhat",
- "mcrs_engine",
- "mcrs_voxel_math",
- "mcrs_voxel_storage",
- "rand 0.9.2",
- "rustc-hash 2.1.1",
- "serde",
- "serde_json",
- "smallvec",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -3393,13 +3352,13 @@ dependencies = [
  "derive_more",
  "flate2",
  "mcrs_core",
- "mcrs_engine",
- "mcrs_minecraft_lighting",
  "mcrs_minecraft_nbt",
  "mcrs_protocol_macros",
  "mcrs_text",
+ "mcrs_voxel_light",
  "mcrs_voxel_math",
  "mcrs_voxel_storage",
+ "mcrs_voxel_world",
  "rand 0.10.0",
  "rustc-hash 2.1.1",
  "serde",
@@ -3485,6 +3444,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_voxel_light"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_state",
+ "bevy_utils",
+ "criterion",
+ "dhat",
+ "mcrs_voxel_math",
+ "mcrs_voxel_storage",
+ "mcrs_voxel_world",
+ "rand 0.9.2",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "mcrs_voxel_math"
 version = "0.1.0"
 dependencies = [
@@ -3511,6 +3492,25 @@ dependencies = [
  "bevy_ecs",
  "mcrs_voxel_math",
  "rustc-hash 2.1.1",
+]
+
+[[package]]
+name = "mcrs_voxel_world"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_derive",
+ "bevy_ecs",
+ "bevy_ecs_macros",
+ "bevy_math",
+ "flume",
+ "indexmap",
+ "log",
+ "mcrs_voxel_math",
+ "mcrs_voxel_storage",
+ "rustc-hash 2.1.1",
+ "smallvec",
+ "tracing",
 ]
 
 [[package]]

@@ -12,14 +12,14 @@ use bevy_math::IVec3;
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
 use mcrs_core::RegistrySnapshot;
-use mcrs_engine::entity::physics::Transform;
-use mcrs_engine::entity::player::Player;
-use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
-use mcrs_engine::world::lifecycle::markers::ChunkGenerating;
-use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
-use mcrs_engine::world::lifecycle::markers::ChunkLoading;
-use mcrs_engine::world::lifecycle::markers::ChunkUnloading;
-use mcrs_engine::world::lifecycle::ticket::LightTicket;
+use mcrs_voxel_world::entity::physics::Transform;
+use mcrs_voxel_world::entity::player::Player;
+use mcrs_voxel_world::entity::player::chunk_view::PlayerChunkObserver;
+use mcrs_voxel_world::world::lifecycle::markers::ChunkGenerating;
+use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
+use mcrs_voxel_world::world::lifecycle::markers::ChunkLoading;
+use mcrs_voxel_world::world::lifecycle::markers::ChunkUnloading;
+use mcrs_voxel_world::world::lifecycle::ticket::LightTicket;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::bevy::{
     BuildNoiseRouter, NoiseGeneratorSettingsAsset, NoiseGeneratorSettingsPlugin,
@@ -879,7 +879,7 @@ fn dispatch_column_generation(
 mod tests {
     use super::*;
     use bevy_app::{App, Update};
-    use mcrs_engine::entity::player::chunk_view::ChunkTrackingView;
+    use mcrs_voxel_world::entity::player::chunk_view::ChunkTrackingView;
     use mcrs_vanilla::block::definition::schema::PropertyValue;
 
     fn corpus() -> &'static Blocks {

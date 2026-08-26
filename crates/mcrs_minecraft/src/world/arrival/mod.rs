@@ -11,11 +11,11 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Query, Res, ResMut, With};
 use bevy_math::DVec3;
-use mcrs_engine::entity::physics::Transform;
-use mcrs_engine::session::{DimPlayerIndex, Owner, PlayerSession};
-use mcrs_engine::world::channels::FromDimSender;
-use mcrs_engine::world::dimension::{Dimension, InDimension};
-use mcrs_engine::world::storage::chunk::ChunkIndex;
+use mcrs_voxel_world::entity::physics::Transform;
+use mcrs_voxel_world::session::{DimPlayerIndex, Owner, PlayerSession};
+use mcrs_voxel_world::world::channels::FromDimSender;
+use mcrs_voxel_world::world::dimension::{Dimension, InDimension};
+use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
 use mcrs_minecraft_block::palette::BlockPalette;
 

@@ -2,7 +2,7 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
-use mcrs_engine::session::{PlayerSession, SessionRegistry};
+use mcrs_voxel_world::session::{PlayerSession, SessionRegistry};
 use mcrs_minecraft::disconnect::process_disconnect;
 use mcrs_minecraft::login::{GameProfile, LoginPlugin, LoginState};
 use mcrs_minecraft::world::bus::InboundPlayerDespawn;
@@ -15,7 +15,7 @@ fn make_app() -> App {
     app.add_plugins(LoginPlugin);
     app.init_resource::<PlayerIndex>();
     app.init_resource::<SessionRegistry>();
-    app.init_resource::<mcrs_engine::session::PlayerSessionCounter>();
+    app.init_resource::<mcrs_voxel_world::session::PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
     app.add_message::<InboundPlayerDespawn>();
     app
@@ -104,7 +104,7 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
     // Pin a concrete dim so the assertion can target a specific channel.
     let current_dim = Entity::from_raw_u32(77).expect("nonzero");
     let ctl_rx = {
-        use mcrs_engine::world::channels::{
+        use mcrs_voxel_world::world::channels::{
             DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
         };
         use mcrs_minecraft::world::channel_types::FromDim;
@@ -146,7 +146,7 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
                     &mut player_index,
                     &mut session_registry,
                     &dim_channels,
-                    &mut mcrs_engine::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_voxel_world::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
 
@@ -156,7 +156,7 @@ fn connection_removal_removes_session_entry_and_routes_despawn_via_lifecycle() {
                     &mut player_index,
                     &mut session_registry,
                     &dim_channels,
-                    &mut mcrs_engine::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_voxel_world::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
             },

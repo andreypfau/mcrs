@@ -24,9 +24,9 @@ use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_engine::session::PlayerSession;
-use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_voxel_world::session::PlayerSession;
+use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_voxel_world::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::runner::pump_channels;
 use mcrs_minecraft::world::bridge::dispatch_encode;
 use mcrs_minecraft::world::bridge_queue::OutboundQueue;
@@ -38,7 +38,7 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::entity::player::HostAnchor;
 use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_minecraft_lighting::table::BlockStateLightTable;
+use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_network::ServerSideConnection;
 use mcrs_network::metrics::{BRIDGE_ENCODE_UNHANDLED_TOTAL, TELEMETRY_TEST_LOCK};
 use mcrs_protocol::GameMode;
@@ -133,7 +133,7 @@ fn build_host_app() -> App {
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<PendingInboundBuffer>();
     app.init_resource::<mcrs_minecraft::world::channel_types::DimChannelsResource>();
-    app.init_resource::<mcrs_engine::world::in_flight::InFlightMoves>();
+    app.init_resource::<mcrs_voxel_world::world::in_flight::InFlightMoves>();
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<InboundPlayerPacket>();
     app.add_message::<InboundPlayerSpawn>();
@@ -153,8 +153,8 @@ fn spawn_subapp(app: &mut App) -> Entity {
         .resource_mut::<DimSpawnQueue>()
         .0
         .push(DimSpawnRequest {
-            dimension_id: mcrs_engine::world::dimension::DimensionId::new("test:overworld"),
-            type_config: mcrs_engine::world::dimension::DimensionTypeConfig::new(-64, 384),
+            dimension_id: mcrs_voxel_world::world::dimension::DimensionId::new("test:overworld"),
+            type_config: mcrs_voxel_world::world::dimension::DimensionTypeConfig::new(-64, 384),
             has_sky: true,
         });
     drain_dim_spawn_queue(app);

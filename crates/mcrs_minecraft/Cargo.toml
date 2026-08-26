@@ -9,8 +9,8 @@ mcrs_voxel_math.workspace = true
 mcrs_voxel_storage.workspace = true
 mcrs_voxel_server.workspace = true
 bevy_ecs_macros.workspace = true
-mcrs_engine.workspace = true
-mcrs_minecraft_lighting.workspace = true
+mcrs_voxel_world.workspace = true
+mcrs_voxel_light.workspace = true
 mcrs_network.workspace = true
 mcrs_protocol.workspace = true
 mcrs_core.workspace = true
@@ -52,16 +52,16 @@ aes = { version = "0.9.0-rc.2", optional = true }
 
 [dev-dependencies]
 tracing-subscriber = "0.3"
-mcrs_minecraft_lighting = { workspace = true, features = ["bench-helpers"] }
+mcrs_voxel_light = { workspace = true, features = ["bench-helpers"] }
 rand_xoshiro = { workspace = true }
 base64 = { workspace = true }
 proptest = "1.11.0"
 rand09 = { package = "rand", version = "0.9" }
 
 [features]
-test-bench = ["mcrs_minecraft_lighting/test-bench"]
-long-prop-tests = ["mcrs_minecraft_lighting/long-prop-tests"]
+test-bench = ["mcrs_voxel_light/test-bench"]
+long-prop-tests = ["mcrs_voxel_light/long-prop-tests"]
 telemetry-tracy = [
-  "mcrs_minecraft_lighting/telemetry-tracy",
+  "mcrs_voxel_light/telemetry-tracy",
   "mcrs_network/telemetry-tracy",
 ]

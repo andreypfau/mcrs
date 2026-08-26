@@ -1,8 +1,8 @@
 use bevy_ecs::prelude::Entity;
 use bytes::Bytes;
-use mcrs_engine::session::{MoveId, PlayerSession};
-use mcrs_engine::world::channels::{DimChannels, DimSender};
-use mcrs_engine::world::sub_app::DimDespawnQueue;
+use mcrs_voxel_world::session::{MoveId, PlayerSession};
+use mcrs_voxel_world::world::channels::{DimChannels, DimSender};
+use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
 use std::time::Instant;
 use tracing::warn;
 

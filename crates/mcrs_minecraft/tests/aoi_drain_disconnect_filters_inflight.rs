@@ -12,7 +12,7 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::RunSystemOnce;
-use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 use mcrs_minecraft::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick, PendingDisconnectQueue,
     drain_pending_disconnects, filter_inflight_for_disconnect,
@@ -33,7 +33,7 @@ fn build_app() -> App {
     app.init_resource::<SessionRegistry>();
     app.init_resource::<PlayerSessionCounter>();
     app.init_resource::<DimChannelsResource>();
-    app.init_resource::<mcrs_engine::world::sub_app::DimDespawnQueue>();
+    app.init_resource::<mcrs_voxel_world::world::sub_app::DimDespawnQueue>();
     app.add_plugins(DisconnectProtocolPlugin);
     app
 }

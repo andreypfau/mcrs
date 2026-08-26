@@ -15,10 +15,10 @@ use std::sync::atomic::Ordering;
 
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Entity, Query, With, Without};
-use mcrs_engine::aoi::PlayerObservers;
-use mcrs_engine::entity::player::Player;
-use mcrs_engine::session::PlayerSession;
-use mcrs_engine::world::storage::column::Column;
+use mcrs_voxel_world::aoi::PlayerObservers;
+use mcrs_voxel_world::entity::player::Player;
+use mcrs_voxel_world::session::PlayerSession;
+use mcrs_voxel_world::world::storage::column::Column;
 use smallvec::SmallVec;
 
 use crate::world::aoi::components::{ChunkSubscriptionSet, TrackedBy};

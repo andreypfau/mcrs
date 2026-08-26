@@ -5,24 +5,24 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use mcrs_core::AppState;
-use mcrs_engine::entity::ChunkEntities;
-use mcrs_engine::world::dimension::{
+use mcrs_voxel_world::entity::ChunkEntities;
+use mcrs_voxel_world::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
-use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
-use mcrs_engine::world::lifecycle::ticket::LightTicket;
-use mcrs_engine::world::storage::chunk::Chunk;
-use mcrs_engine::world::storage::column::{ColumnIndex, ColumnPlugin, ColumnPos};
+use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
+use mcrs_voxel_world::world::lifecycle::ticket::LightTicket;
+use mcrs_voxel_world::world::storage::chunk::Chunk;
+use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnPlugin, ColumnPos};
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_minecraft_lighting::block_light::invariants::check_block_light_invariants;
-use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyBfsPending, SkyLight};
-use mcrs_minecraft_lighting::sky_light::invariants::check_sky_light_invariants;
-use mcrs_minecraft_lighting::storage::LightStorage;
-use mcrs_minecraft_lighting::table::BlockStateLightTable;
-use mcrs_minecraft_lighting::test_bench::assert_nibbles_eq;
+use mcrs_voxel_light::LightingPlugin;
+use mcrs_voxel_light::block_light::invariants::check_block_light_invariants;
+use mcrs_voxel_light::components::{BlockBfsPending, BlockLight, SkyBfsPending, SkyLight};
+use mcrs_voxel_light::sky_light::invariants::check_sky_light_invariants;
+use mcrs_voxel_light::storage::LightStorage;
+use mcrs_voxel_light::table::BlockStateLightTable;
+use mcrs_voxel_light::test_bench::assert_nibbles_eq;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::Direction;

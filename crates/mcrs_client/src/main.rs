@@ -5,7 +5,7 @@ use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::transform::TransformSystems;
 use mcrs_core::AppState;
-use mcrs_engine::entity::physics::Transform as PhysicsTransform;
+use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::dimension::dimension_type::DimensionType;
 use mcrs_vanilla::environment::Weather;

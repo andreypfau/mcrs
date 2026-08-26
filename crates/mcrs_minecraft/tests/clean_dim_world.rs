@@ -1,5 +1,5 @@
 use bevy_ecs::prelude::With;
-use mcrs_engine::session::{PlayerSessionCounter, SessionRegistry};
+use mcrs_voxel_world::session::{PlayerSessionCounter, SessionRegistry};
 use mcrs_minecraft::configuration::LoadedWorldPreset;
 use mcrs_minecraft::world::player_index::PlayerIndex;
 use mcrs_minecraft::world::sub_app_builder::drain_dim_spawn_queue;

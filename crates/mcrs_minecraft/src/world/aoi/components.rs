@@ -1,6 +1,6 @@
 //! Minecraft-tier AoI Components. The per-player source of truth for
 //! chunk subscription (mirrored into each subscribed chunk's
-//! `mcrs_engine::aoi::PlayerObservers`) and the derived per-player
+//! `mcrs_voxel_world::aoi::PlayerObservers`) and the derived per-player
 //! cache of other in-radius players.
 
 use bevy_ecs::component::Component;
@@ -11,7 +11,7 @@ use smallvec::SmallVec;
 
 /// Per-player chunk subscription set. Source of truth that
 /// `aoi::update_own_pov` mirrors into each subscribed chunk's
-/// `mcrs_engine::aoi::PlayerObservers` Component. Adding a `ColumnPos`
+/// `mcrs_voxel_world::aoi::PlayerObservers` Component. Adding a `ColumnPos`
 /// here adds this player to that chunk's observer set; removal mirrors
 /// the same way.
 #[derive(Component, Default, Debug)]

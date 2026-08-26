@@ -17,7 +17,7 @@ use crate::world::bus::{
 };
 use crate::world::channel_types::{FromDim, ToDim};
 use crate::world::entity::player::player_action::PlayerWillDestroyBlock;
-use mcrs_engine::world::channels::{
+use mcrs_voxel_world::world::channels::{
     DimChannels, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     ToDimReceiver,
 };
@@ -58,11 +58,11 @@ use mcrs_core::RegistrySnapshot;
 use mcrs_core::registry::access::RegistryAccess;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_engine::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
-use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
+use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
+use mcrs_voxel_world::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft_block::block::BlockUpdateFlags;
-use mcrs_minecraft_lighting::LightingPlugin;
-use mcrs_minecraft_lighting::table::BlockStateLightTable;
+use mcrs_voxel_light::LightingPlugin;
+use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_protocol::light_codec::LightCodecPlugin;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::block::Block;
@@ -132,8 +132,8 @@ pub fn spawn_dim_subapp(
         .resource_mut::<DimChannels<ToDim, FromDim>>()
         .insert(
             label_entity,
-            mcrs_engine::world::channels::DimSender::new(to_dim_srv_tx),
-            mcrs_engine::world::channels::DimSender::new(to_dim_ctl_tx),
+            mcrs_voxel_world::world::channels::DimSender::new(to_dim_srv_tx),
+            mcrs_voxel_world::world::channels::DimSender::new(to_dim_ctl_tx),
             from_dim_rx,
         );
 
@@ -144,7 +144,7 @@ pub fn spawn_dim_subapp(
         control: to_dim_ctl_rx,
     });
     sub_app.insert_resource(FromDimSender::<FromDim>(
-        mcrs_engine::world::channels::DimSender::new(from_dim_tx),
+        mcrs_voxel_world::world::channels::DimSender::new(from_dim_tx),
     ));
 
     // Per-sub-app message registrations. Only types that still flow through
@@ -187,7 +187,7 @@ pub fn spawn_dim_subapp(
     sub_app.add_message::<BlockSetRequest>();
     sub_app.add_message::<BlockPlaced>();
 
-    sub_app.init_resource::<mcrs_engine::session::DimPlayerIndex>();
+    sub_app.init_resource::<mcrs_voxel_world::session::DimPlayerIndex>();
 
     sub_app.update_schedule = Some(DimTick.intern());
     sub_app.add_schedule(Schedule::new(DimTick));
@@ -476,7 +476,7 @@ fn flush_from_dim_outbox(
     sender: Res<FromDimSender<FromDim>>,
     mut dropped_since_log: Local<u64>,
 ) {
-    use mcrs_engine::session::PlayerSession;
+    use mcrs_voxel_world::session::PlayerSession;
     use std::sync::atomic::Ordering;
     for msg in msgs.drain() {
         let outbound = FromDim::Clientbound {

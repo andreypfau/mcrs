@@ -15,16 +15,16 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
 use bevy_math::DVec3;
-use mcrs_engine::aoi::PlayerObservers;
-use mcrs_engine::session::PlayerSession;
-use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_engine::world::channels::{
+use mcrs_voxel_world::aoi::PlayerObservers;
+use mcrs_voxel_world::session::PlayerSession;
+use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_voxel_world::world::channels::{
     DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
-use mcrs_engine::world::dimension::{
+use mcrs_voxel_world::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, InDimension,
 };
-use mcrs_engine::world::storage::column::{Column, ColumnIndex, ColumnSlot};
+use mcrs_voxel_world::world::storage::column::{Column, ColumnIndex, ColumnSlot};
 use mcrs_minecraft::disconnect::{
     DisconnectBudget, DisconnectProtocolPlugin, DisconnectedThisTick,
     filter_inflight_for_disconnect, process_disconnect,
@@ -117,7 +117,7 @@ fn synthetic_disconnect(app: &mut App, host_anchor: Entity) {
                     &mut player_index,
                     &mut session_registry,
                     &dim_channels,
-                    &mut mcrs_engine::world::sub_app::DimDespawnQueue::default(),
+                    &mut mcrs_voxel_world::world::sub_app::DimDespawnQueue::default(),
                     &mut commands,
                 );
             },

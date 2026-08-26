@@ -8,26 +8,26 @@ use bevy_ecs::prelude::{
 };
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Commands;
-use mcrs_engine::entity::player::chunk_view::{
+use mcrs_voxel_world::entity::player::chunk_view::{
     ChunkTrackingViewUpdateEvent, ChunkViewPlugin, PlayerChunkLoadRequest, PlayerChunkObserver,
     PlayerChunkUnloadRequest,
 };
-use mcrs_engine::entity::player::reposition::Reposition;
-use mcrs_engine::session::PlayerSession;
-use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
-use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
-use mcrs_engine::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
-use mcrs_engine::world::storage::chunk::ChunkIndex;
-use mcrs_engine::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
+use mcrs_voxel_world::entity::player::reposition::Reposition;
+use mcrs_voxel_world::session::PlayerSession;
+use mcrs_voxel_world::world::dimension::{DimensionTypeConfig, InDimension};
+use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
+use mcrs_voxel_world::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
+use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
+use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
 use mcrs_minecraft_block::palette::{AirCount, BiomePalette, BlockPalette, NetworkPalette};
-use mcrs_minecraft_lighting::sets::LightingSet;
+use mcrs_voxel_light::sets::LightingSet;
 use mcrs_protocol::light_codec::{ColumnLightUpdate, LightCodecParams, build_full_light_data};
 use mcrs_protocol::{ColumnPos, Encode};
 use mcrs_voxel_math::ChunkPos;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
-use mcrs_minecraft_lighting::{BlockBfsPending, SkyBfsPending};
+use mcrs_voxel_light::{BlockBfsPending, SkyBfsPending};
 use rustc_hash::FxHashSet;
 use tracing::trace;
 

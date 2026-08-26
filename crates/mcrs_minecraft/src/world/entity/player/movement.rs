@@ -4,8 +4,8 @@ use bevy_ecs::prelude::{
     Changed, DetectChangesMut, Entity, Message, MessageReader, MessageWriter, Mut, On, Query, With,
 };
 use bevy_math::DVec3;
-use mcrs_engine::entity::physics::{Rotation, Transform};
-use mcrs_engine::session::PlayerSession;
+use mcrs_voxel_world::entity::physics::{Rotation, Transform};
+use mcrs_voxel_world::session::PlayerSession;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_protocol::MoveFlags;
 use mcrs_protocol::packets::game::serverbound::{

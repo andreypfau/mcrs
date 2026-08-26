@@ -3,17 +3,17 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
-use mcrs_engine::session::{DimPlayerIndex, MoveId, PlayerSessionCounter, SessionRegistry};
-use mcrs_engine::voxel_update::ChunkVoxelChanges;
-use mcrs_engine::world::channels::{
+use mcrs_voxel_world::session::{DimPlayerIndex, MoveId, PlayerSessionCounter, SessionRegistry};
+use mcrs_voxel_world::voxel_update::ChunkVoxelChanges;
+use mcrs_voxel_world::world::channels::{
     DimSender, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     ToDimReceiver,
 };
-use mcrs_engine::world::dimension::Dimension;
-use mcrs_engine::world::in_flight::InFlightMoves;
-use mcrs_engine::world::storage::chunk::Chunk;
-use mcrs_engine::world::storage::chunk::ChunkIndex;
-use mcrs_engine::world::sub_app::DimDespawnQueue;
+use mcrs_voxel_world::world::dimension::Dimension;
+use mcrs_voxel_world::world::in_flight::InFlightMoves;
+use mcrs_voxel_world::world::storage::chunk::Chunk;
+use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
+use mcrs_voxel_world::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft::world::arrival::ArrivalPlugin;
 use mcrs_minecraft::world::bus::{
     ArrivalCause, InboundConfirmMove, InboundEntitySpawn, InboundPlayerDespawn,
@@ -187,7 +187,7 @@ fn end_platform_creates_obsidian_floor_and_clears_above() {
         // FromDimSender so ArrivalPlugin can send Spawned ack.
         let (from_tx2, _from_rx2) = flume::bounded::<FromDim>(FROM_DIM_CAPACITY);
         sub.insert_resource(FromDimSender::<FromDim>(
-            mcrs_engine::world::channels::DimSender::new(from_tx2),
+            mcrs_voxel_world::world::channels::DimSender::new(from_tx2),
         ));
         sub.init_resource::<DimPlayerIndex>();
 

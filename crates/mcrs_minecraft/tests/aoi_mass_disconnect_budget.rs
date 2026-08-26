@@ -5,8 +5,8 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, ResMut};
 use bevy_ecs::system::RunSystemOnce;
-use mcrs_engine::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
-use mcrs_engine::world::channels::{
+use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
+use mcrs_voxel_world::world::channels::{
     DimSender, FROM_DIM_CAPACITY, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
 };
 use mcrs_minecraft::disconnect::{
@@ -119,7 +119,7 @@ fn fire_disconnect(app: &mut App, anchors: &[Entity]) {
                             &mut player_index,
                             &mut session_registry,
                             &dim_channels,
-                            &mut mcrs_engine::world::sub_app::DimDespawnQueue::default(),
+                            &mut mcrs_voxel_world::world::sub_app::DimDespawnQueue::default(),
                             &mut commands,
                         );
                     } else if !pending_queue.push_back(host_anchor) {

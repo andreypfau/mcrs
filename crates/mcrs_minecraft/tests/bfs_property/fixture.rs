@@ -8,14 +8,14 @@
 //! committed `snapshot.json` and the generator must be re-run.
 
 use mcrs_minecraft_block::palette::BlockPalette;
-use mcrs_minecraft_lighting::bfs::{
+use mcrs_voxel_light::bfs::{
     ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL, pack_bfs_entry, propagate_decrease,
     propagate_decrease_sky, propagate_increase, propagate_increase_sky,
 };
-use mcrs_minecraft_lighting::components::{BlockBfsQueues, BlockOutbox, SkyBfsQueues, SkyOutbox};
-use mcrs_minecraft_lighting::nibble::LightNibbles;
-use mcrs_minecraft_lighting::storage::LightStorage;
-use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
+use mcrs_voxel_light::components::{BlockBfsQueues, BlockOutbox, SkyBfsQueues, SkyOutbox};
+use mcrs_voxel_light::nibble::LightNibbles;
+use mcrs_voxel_light::storage::LightStorage;
+use mcrs_voxel_light::table::{BlockStateLightTable, flag_bits};
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_voxel_storage::VoxelId;
