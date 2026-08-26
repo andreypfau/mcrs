@@ -53,7 +53,7 @@ use vanilla::enchantment::EnchantmentData;
 
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
 #[allow(unused_imports)]
-use mcrs_vanilla as vanilla;
+use mcrs_minecraft_world as vanilla;
 
 mod support;
 

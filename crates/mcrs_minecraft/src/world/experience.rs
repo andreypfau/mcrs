@@ -4,13 +4,13 @@ use mcrs_minecraft_core::StaticRegistry;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-use mcrs_vanilla::block::definition::Blocks;
-use mcrs_vanilla::block::definition::schema::IntProvider;
-use mcrs_vanilla::enchantment::EnchantmentData;
+use mcrs_minecraft_world::block::definition::Blocks;
+use mcrs_minecraft_world::block::definition::schema::IntProvider;
+use mcrs_minecraft_world::enchantment::EnchantmentData;
 use mcrs_voxel_math::BlockPos;
 use tracing::{debug, warn};
 
-use mcrs_vanilla::item::component::Enchantments;
+use mcrs_minecraft_world::item::component::Enchantments;
 
 /// The dimension's own random stream, as Java's `ServerLevel.getRandom()`. One
 /// world, one writer: every sub-app carries its own.

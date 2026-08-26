@@ -20,10 +20,10 @@ use mcrs_minecraft_worldgen::bevy::{
 use mcrs_minecraft_worldgen::proto::BlockState as ProtoBlockState;
 use mcrs_minecraft_protocol::ColumnPos;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_vanilla::biome::Biome;
-use mcrs_vanilla::biome::source::BiomeSource;
-use mcrs_vanilla::block::definition::{BlockDefinitions, Blocks};
-use mcrs_vanilla::worldgen::beta_biome::{ActiveBiomeSource, BetaBiomeSourcePlugin};
+use mcrs_minecraft_world::biome::Biome;
+use mcrs_minecraft_world::biome::source::BiomeSource;
+use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks};
+use mcrs_minecraft_world::worldgen::beta_biome::{ActiveBiomeSource, BetaBiomeSourcePlugin};
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_world::entity::physics::Transform;
 use mcrs_voxel_world::entity::player::Player;
@@ -879,7 +879,7 @@ fn dispatch_column_generation(
 mod tests {
     use super::*;
     use bevy_app::{App, Update};
-    use mcrs_vanilla::block::definition::schema::PropertyValue;
+    use mcrs_minecraft_world::block::definition::schema::PropertyValue;
     use mcrs_voxel_world::entity::player::chunk_view::ChunkTrackingView;
 
     fn corpus() -> &'static Blocks {
@@ -893,7 +893,7 @@ mod tests {
             });
             let asset_server = app.world().resource::<bevy_asset::AssetServer>().clone();
             let (definitions, _) =
-                mcrs_vanilla::block::definition::load_block_definitions(&asset_server)
+                mcrs_minecraft_world::block::definition::load_block_definitions(&asset_server)
                     .expect("the block definition corpus loads");
             Blocks(Arc::new(definitions))
         })

@@ -254,7 +254,7 @@ impl PropertyValue for u8 {
 /// for type-safe property access.
 ///
 /// ```rust,ignore
-/// use mcrs_vanilla::block::state_properties::{SNOWY_PROP, POWERED_PROP};
+/// use mcrs_minecraft_world::block::state_properties::{SNOWY_PROP, POWERED_PROP};
 ///
 /// let snowy: bool = block.get(state_id, &SNOWY_PROP).unwrap();
 /// let new_state = block.set(state_id, &POWERED_PROP, true).unwrap();

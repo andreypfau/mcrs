@@ -25,7 +25,7 @@ bitflags = "2"
 serde_json.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_voxel_world.workspace = true
-mcrs_vanilla.workspace = true
+mcrs_minecraft_world.workspace = true
 
 [dev-dependencies]
 serde.workspace = true

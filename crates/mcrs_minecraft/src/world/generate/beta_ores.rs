@@ -4,7 +4,7 @@ use mcrs_minecraft_worldgen::feature::config::{OreConfig, OreYOffset, TargetBloc
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_vanilla::block::definition::BlockDefinitions;
+use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 

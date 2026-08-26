@@ -2,7 +2,7 @@ mod support;
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
-use mcrs_vanilla::block::definition::BlockDefinitions;
+use mcrs_minecraft_world::block::definition::BlockDefinitions;
 
 fn corpus() -> &'static BlockDefinitions {
     support::standalone_corpus()
@@ -79,7 +79,7 @@ fn every_interned_table_names_an_asset_that_exists() {
         .join("assets");
     let mut missing = Vec::new();
     for index in 0..blocks.loot_table_count() {
-        let table = blocks.loot_table(mcrs_vanilla::block::definition::LootId(index as u16));
+        let table = blocks.loot_table(mcrs_minecraft_world::block::definition::LootId(index as u16));
         let path = root.join(format!(
             "{}/loot_table/{}.json",
             table.namespace(),
@@ -107,7 +107,7 @@ fn block_loot_tables_is_keyed_by_loot_id() {
 
     let blocks = app
         .world()
-        .resource::<mcrs_vanilla::block::definition::Blocks>()
+        .resource::<mcrs_minecraft_world::block::definition::Blocks>()
         .clone();
     let stone = blocks.state(blocks.default_state("minecraft:stone")).loot;
     let tables = app

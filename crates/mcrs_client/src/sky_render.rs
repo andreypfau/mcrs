@@ -17,7 +17,7 @@ use bevy::render::view::{
 };
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
-use mcrs_vanilla::world_clock::WorldClocks;
+use mcrs_minecraft_world::world_clock::WorldClocks;
 
 use crate::sky::{SkyEnvironment, SkyTextures, SkyUniform};
 

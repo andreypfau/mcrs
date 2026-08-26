@@ -1,8 +1,8 @@
 use bevy::math::{DVec2, DVec3};
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
-use mcrs_vanilla::entity::movement;
-use mcrs_vanilla::entity::player::{Flying, FlyingSpeed, Input};
+use mcrs_minecraft_world::entity::movement;
+use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed, Input};
 use mcrs_voxel_world::entity::physics::{OldTransform, Transform as PhysicsTransform, Velocity};
 
 use crate::input;

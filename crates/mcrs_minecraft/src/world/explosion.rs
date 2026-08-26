@@ -292,7 +292,7 @@ use bevy_ecs::prelude::Commands;
 use bevy_math::DVec3;
 use bevy_utils::Parallel;
 use mcrs_minecraft_block::block_update::{BlockSetRequest, remove_block};
-use mcrs_vanilla::block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
+use mcrs_minecraft_world::block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
 use rand::{RngExt, rng};
 use std::sync::OnceLock;
 

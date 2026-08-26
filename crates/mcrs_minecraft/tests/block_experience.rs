@@ -7,9 +7,9 @@ use mcrs_minecraft_core::StaticRegistry;
 use mcrs_minecraft::world::experience::{
     AwardExperience, BlockDestroyed, DimensionRandom, ExperiencePlugin,
 };
-use mcrs_vanilla::block::definition::Blocks;
-use mcrs_vanilla::enchantment::{EnchantmentData, register_all_enchantments};
-use mcrs_vanilla::item::component::Enchantments;
+use mcrs_minecraft_world::block::definition::Blocks;
+use mcrs_minecraft_world::enchantment::{EnchantmentData, register_all_enchantments};
+use mcrs_minecraft_world::item::component::Enchantments;
 use mcrs_voxel_math::BlockPos;
 
 fn harness() -> App {

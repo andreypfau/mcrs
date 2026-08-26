@@ -167,7 +167,7 @@ fn load_overworld_noise_router(assets_path: &std::path::Path) -> OverworldNoiseR
 
 fn build_production_block_light_table() -> (
     BlockStateLightTable,
-    mcrs_vanilla::block::definition::Blocks,
+    mcrs_minecraft_world::block::definition::Blocks,
 ) {
     let mut app = App::new();
     app.add_plugins(bevy_app::TaskPoolPlugin::default());
@@ -176,9 +176,9 @@ fn build_production_block_light_table() -> (
         ..Default::default()
     });
     let asset_server = app.world().resource::<bevy_asset::AssetServer>().clone();
-    let (definitions, _) = mcrs_vanilla::block::definition::load_block_definitions(&asset_server)
+    let (definitions, _) = mcrs_minecraft_world::block::definition::load_block_definitions(&asset_server)
         .expect("the block definition corpus loads");
-    app.insert_resource(mcrs_vanilla::block::definition::Blocks(Arc::new(
+    app.insert_resource(mcrs_minecraft_world::block::definition::Blocks(Arc::new(
         definitions,
     )));
     app.add_systems(
@@ -189,7 +189,7 @@ fn build_production_block_light_table() -> (
     (
         app.world().resource::<BlockStateLightTable>().clone(),
         app.world()
-            .resource::<mcrs_vanilla::block::definition::Blocks>()
+            .resource::<mcrs_minecraft_world::block::definition::Blocks>()
             .clone(),
     )
 }

@@ -9,7 +9,7 @@ use std::sync::OnceLock;
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
-use mcrs_vanilla::block::definition::{BlockDefinitions, load_block_definitions};
+use mcrs_minecraft_world::block::definition::{BlockDefinitions, load_block_definitions};
 
 /// The corpus, loaded once per test binary. Worldgen resolves every block it
 /// places against it, so a stub would fail at the first lookup.

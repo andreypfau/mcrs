@@ -2,7 +2,7 @@ use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::math::DVec2;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
-use mcrs_vanilla::entity::player::{FlyingSpeed, Input};
+use mcrs_minecraft_world::entity::player::{FlyingSpeed, Input};
 
 use crate::player::Player;
 

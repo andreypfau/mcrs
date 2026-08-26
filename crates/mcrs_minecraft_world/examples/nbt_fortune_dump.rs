@@ -1,6 +1,6 @@
 use mcrs_minecraft_protocol::text::Text;
-use mcrs_vanilla::enchantment::data::{EnchantmentCost, NetworkEnchantmentData};
-use mcrs_vanilla::enchantment::effects::EnchantmentEffects;
+use mcrs_minecraft_world::enchantment::data::{EnchantmentCost, NetworkEnchantmentData};
+use mcrs_minecraft_world::enchantment::effects::EnchantmentEffects;
 use serde::Deserialize;
 
 #[derive(Deserialize)]

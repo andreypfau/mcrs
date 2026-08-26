@@ -1,6 +1,6 @@
 use mcrs_minecraft_anvil::{BlockStateLookup, Properties};
-use mcrs_vanilla::block::definition::BlockDefinitions;
-use mcrs_vanilla::block::definition::schema::PropertyValue;
+use mcrs_minecraft_world::block::definition::BlockDefinitions;
+use mcrs_minecraft_world::block::definition::schema::PropertyValue;
 use smallvec::SmallVec;
 
 /// Resolves a saved palette entry against the corpus.

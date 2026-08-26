@@ -7,9 +7,9 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_core::tag::TagLoader;
 use mcrs_minecraft_core::tag::key::TagKey;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
-use mcrs_vanilla::MinecraftWorldPlugin;
-use mcrs_vanilla::block::definition::Blocks;
-use mcrs_vanilla::block::{Block, tags as block_tags};
+use mcrs_minecraft_world::MinecraftWorldPlugin;
+use mcrs_minecraft_world::block::definition::Blocks;
+use mcrs_minecraft_world::block::{Block, tags as block_tags};
 
 /// The vanilla registries read some files through paths relative to the
 /// working directory, so the whole test runs from the workspace root.

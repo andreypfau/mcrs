@@ -60,11 +60,11 @@ use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_protocol::light_codec::LightCodecPlugin;
-use mcrs_vanilla::biome::Biome;
-use mcrs_vanilla::block::Block;
-use mcrs_vanilla::block::definition::Blocks;
-use mcrs_vanilla::enchantment::EnchantmentData;
-use mcrs_vanilla::worldgen::beta_biome::ActiveBiomeSource;
+use mcrs_minecraft_world::biome::Biome;
+use mcrs_minecraft_world::block::Block;
+use mcrs_minecraft_world::block::definition::Blocks;
+use mcrs_minecraft_world::enchantment::EnchantmentData;
+use mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource;
 use mcrs_voxel_light::LightingPlugin;
 use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
@@ -296,7 +296,7 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(Time::<Fixed>::default());
     sub_app.insert_resource(Time::<Virtual>::default());
     sub_app.insert_resource(Time::<Real>::default());
-    sub_app.init_resource::<mcrs_vanilla::world_clock::WorldClocks>();
+    sub_app.init_resource::<mcrs_minecraft_world::world_clock::WorldClocks>();
 
     sub_app.set_extract(move |main_world, sub_world| {
         use crate::world::bus::OutboundPlayerAttached;
@@ -315,7 +315,7 @@ pub fn spawn_dim_subapp(
         if let Some(time) = main_world.get_resource::<Time<()>>() {
             sub_world.insert_resource(*time);
         }
-        mcrs_vanilla::world_clock::extract_world_clocks(main_world, sub_world);
+        mcrs_minecraft_world::world_clock::extract_world_clocks(main_world, sub_world);
 
         // Also extract OutboundPlayerAttached written directly to the sub-app Messages
         // (i.e., before flush_from_dim_outbox drains it). This covers the case where

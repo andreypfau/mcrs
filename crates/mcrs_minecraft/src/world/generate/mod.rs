@@ -7,12 +7,12 @@ use mcrs_minecraft_worldgen::density_function::{
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_vanilla::biome::Biome;
-use mcrs_vanilla::biome::beta_surface::beta_surface_blocks;
-use mcrs_vanilla::biome::source::{
+use mcrs_minecraft_world::biome::Biome;
+use mcrs_minecraft_world::biome::beta_surface::beta_surface_blocks;
+use mcrs_minecraft_world::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
 };
-use mcrs_vanilla::block::definition::BlockDefinitions;
+use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 

@@ -39,7 +39,7 @@ impl Plugin for MinecraftServerPlugin {
             tick_rate: DEFAULT_TPS,
         });
         app.add_plugins(mcrs_minecraft_core::MinecraftCorePlugin);
-        app.add_plugins(mcrs_vanilla::MinecraftWorldPlugin);
+        app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
         app.add_plugins(NetworkPlugin);
         app.add_plugins(LoginPlugin);
         app.add_plugins(ConfigurationStatePlugin);

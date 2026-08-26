@@ -11,9 +11,9 @@ use bevy::prelude::*;
 use bitflags::bitflags;
 use serde_json::Value;
 
-use mcrs_vanilla::attribute::AttributeValue;
-use mcrs_vanilla::dimension::dimension_type::Skybox;
-use mcrs_vanilla::environment::{EnvironmentAttributes, EnvironmentContext};
+use mcrs_minecraft_world::attribute::AttributeValue;
+use mcrs_minecraft_world::dimension::dimension_type::Skybox;
+use mcrs_minecraft_world::environment::{EnvironmentAttributes, EnvironmentContext};
 
 /// A visual attribute the renderer carries as GPU state.
 ///
@@ -333,20 +333,20 @@ mod tests {
     use bevy::math::DVec3;
     use serde_json::json;
 
-    use mcrs_vanilla::attribute::{AttributeValue, EnvironmentAttributeMap};
-    use mcrs_vanilla::environment::{
+    use mcrs_minecraft_world::attribute::{AttributeValue, EnvironmentAttributeMap};
+    use mcrs_minecraft_world::environment::{
         DimensionEnvironment, EnvironmentAttributes, EnvironmentContext,
         SpatialAttributeInterpolator, Weather,
     };
-    use mcrs_vanilla::timeline::Timeline;
-    use mcrs_vanilla::world_clock::{ClockState, WorldClocks};
+    use mcrs_minecraft_world::timeline::Timeline;
+    use mcrs_minecraft_world::world_clock::{ClockState, WorldClocks};
 
     use super::*;
 
     const NOON: i64 = 6000;
 
     /// The dimension fields an environment needs, read straight from the asset.
-    /// `ProtoDimensionType` is private to `mcrs_vanilla`, and widening its API for
+    /// `ProtoDimensionType` is private to `mcrs_minecraft_world`, and widening its API for
     /// a test would be the wrong trade.
     #[derive(serde::Deserialize)]
     struct Dimension {

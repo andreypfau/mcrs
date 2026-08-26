@@ -13,8 +13,8 @@ use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_vanilla::biome::Biome;
-use mcrs_vanilla::biome::source::{BiomeSource, build_beta_lookup_table};
+use mcrs_minecraft_world::biome::Biome;
+use mcrs_minecraft_world::biome::source::{BiomeSource, build_beta_lookup_table};
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 use rand_xoshiro::rand_core::{Infallible, TryRng};
@@ -335,7 +335,7 @@ fn make_beta_biome() -> Biome {
         downfall: 0.5,
         has_precipitation: true,
         temperature_modifier: None,
-        effects: mcrs_vanilla::biome::BiomeEffects {
+        effects: mcrs_minecraft_world::biome::BiomeEffects {
             water_color: None,
             foliage_color: None,
             grass_color: None,

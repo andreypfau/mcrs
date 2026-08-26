@@ -4,8 +4,8 @@ use bevy_math::Vec3;
 use bevy_state::prelude::OnEnter;
 use mcrs_minecraft_core::AppState;
 use mcrs_minecraft_core::tag::TagPhase;
-use mcrs_vanilla::block::definition::{BlockStateData, BlockStateFlags, Blocks, ShapeId};
-use mcrs_vanilla::transition_to_playing;
+use mcrs_minecraft_world::block::definition::{BlockStateData, BlockStateFlags, Blocks, ShapeId};
+use mcrs_minecraft_world::transition_to_playing;
 use mcrs_voxel_light::table::{BlockStateLightTable, flag_bits};
 use mcrs_voxel_math::voxel_shape::{
     Aabb, ShapeRegistry, ShapeRepr, VoxelShape, discrete::DiscreteShape,
@@ -123,7 +123,7 @@ mod tests {
     use super::*;
     use bevy_app::{App, Startup, TaskPoolPlugin};
     use bevy_asset::{AssetPlugin, AssetServer};
-    use mcrs_vanilla::block::definition::load_block_definitions;
+    use mcrs_minecraft_world::block::definition::load_block_definitions;
     use std::sync::{Arc, OnceLock};
 
     fn corpus() -> &'static Blocks {

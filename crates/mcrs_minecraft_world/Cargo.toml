@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_vanilla"
+name = "mcrs_minecraft_world"
 description = "Vanilla Minecraft block/item type vocabulary and static registries"
 version.workspace = true
 edition.workspace = true

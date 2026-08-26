@@ -12,12 +12,12 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
 
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
-use mcrs_vanilla::dimension::dimension_type::DimensionType;
-use mcrs_vanilla::environment::{
+use mcrs_minecraft_world::dimension::dimension_type::DimensionType;
+use mcrs_minecraft_world::environment::{
     DimensionEnvironments, EnvironmentAttributes, EnvironmentContext, SpatialAttributeInterpolator,
     Weather,
 };
-use mcrs_vanilla::world_clock::WorldClocks;
+use mcrs_minecraft_world::world_clock::WorldClocks;
 
 use crate::player::PlayerCamera;
 
@@ -636,11 +636,11 @@ mod reference {
 #[cfg(test)]
 mod sky_regression {
     use bevy::prelude::*;
-    use mcrs_vanilla::attribute::EnvironmentAttributeMap;
-    use mcrs_vanilla::dimension::dimension_type::Skybox;
-    use mcrs_vanilla::environment::{DimensionEnvironment, EnvironmentAttributes};
-    use mcrs_vanilla::timeline::Timeline;
-    use mcrs_vanilla::world_clock::ClockState;
+    use mcrs_minecraft_world::attribute::EnvironmentAttributeMap;
+    use mcrs_minecraft_world::dimension::dimension_type::Skybox;
+    use mcrs_minecraft_world::environment::{DimensionEnvironment, EnvironmentAttributes};
+    use mcrs_minecraft_world::timeline::Timeline;
+    use mcrs_minecraft_world::world_clock::ClockState;
 
     use super::reference::*;
     use super::*;
@@ -873,11 +873,11 @@ mod sky_regression {
             let ctx = context(Vec3::ZERO, &resolved, &biomes, Weather::default());
 
             let float = |id: &str| match attributes.value(id, &ctx).unwrap() {
-                mcrs_vanilla::attribute::AttributeValue::Float(value) => value,
+                mcrs_minecraft_world::attribute::AttributeValue::Float(value) => value,
                 other => panic!("{id} is not a float: {other:?}"),
             };
             let color = |id: &str| match attributes.value(id, &ctx).unwrap() {
-                mcrs_vanilla::attribute::AttributeValue::Color(packed) => Vec3::new(
+                mcrs_minecraft_world::attribute::AttributeValue::Color(packed) => Vec3::new(
                     ((packed >> 16) & 0xff) as f32 / 255.0,
                     ((packed >> 8) & 0xff) as f32 / 255.0,
                     (packed & 0xff) as f32 / 255.0,

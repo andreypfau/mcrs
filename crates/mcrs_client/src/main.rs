@@ -5,12 +5,12 @@ use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::transform::TransformSystems;
 use mcrs_minecraft_core::AppState;
-use mcrs_vanilla::biome::Biome;
-use mcrs_vanilla::dimension::dimension_type::DimensionType;
-use mcrs_vanilla::environment::Weather;
-use mcrs_vanilla::save::{self, SaveError};
-use mcrs_vanilla::timeline::Timeline;
-use mcrs_vanilla::world_clock::{AdvanceTime, WorldClock, WorldClocks};
+use mcrs_minecraft_world::biome::Biome;
+use mcrs_minecraft_world::dimension::dimension_type::DimensionType;
+use mcrs_minecraft_world::environment::Weather;
+use mcrs_minecraft_world::save::{self, SaveError};
+use mcrs_minecraft_world::timeline::Timeline;
+use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClock, WorldClocks};
 use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 
 mod camera;
@@ -44,7 +44,7 @@ fn main() {
             }),
     )
     .add_plugins(mcrs_minecraft_core::MinecraftCorePlugin)
-    .add_plugins(mcrs_vanilla::MinecraftWorldPlugin)
+    .add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin)
     .add_plugins(player::PlayerPlugin)
     .add_plugins(input::ClientInputPlugin)
     .add_plugins(local_player::LocalPlayerPlugin)

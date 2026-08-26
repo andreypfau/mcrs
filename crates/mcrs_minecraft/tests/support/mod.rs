@@ -4,7 +4,7 @@ use std::sync::{Arc, OnceLock};
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
-use mcrs_vanilla::block::definition::{BlockDefinitions, Blocks, load_block_definitions};
+use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks, load_block_definitions};
 
 /// The real corpus, read once per test binary. A dimension sub-app is handed
 /// this at spawn, and worldgen resolves the block it fills terrain with against

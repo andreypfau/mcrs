@@ -7,8 +7,8 @@ use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_worldgen::density_function::build_functions;
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
-use mcrs_vanilla::biome::Biome;
-use mcrs_vanilla::biome::source::{BiomeSource, build_beta_lookup_table};
+use mcrs_minecraft_world::biome::Biome;
+use mcrs_minecraft_world::biome::source::{BiomeSource, build_beta_lookup_table};
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::generate_column;
@@ -19,7 +19,7 @@ fn make_beta_biome() -> Biome {
         downfall: 0.5,
         has_precipitation: true,
         temperature_modifier: None,
-        effects: mcrs_vanilla::biome::BiomeEffects {
+        effects: mcrs_minecraft_world::biome::BiomeEffects {
             water_color: None,
             foliage_color: None,
             grass_color: None,

@@ -19,10 +19,10 @@ use mcrs_minecraft::world::bus::{
 use mcrs_minecraft::world::channel_types::DimChannelsResource;
 use mcrs_minecraft::world::player_index::{PendingInboundBuffer, PlayerIndex};
 use mcrs_minecraft::world::sub_app_builder::{DimSubAppHandle, drain_dim_spawn_queue};
-use mcrs_vanilla::biome::Biome;
-use mcrs_vanilla::block::Block;
-use mcrs_vanilla::enchantment::EnchantmentData;
-use mcrs_vanilla::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
+use mcrs_minecraft_world::biome::Biome;
+use mcrs_minecraft_world::block::Block;
+use mcrs_minecraft_world::enchantment::EnchantmentData;
+use mcrs_minecraft_world::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
 use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
