@@ -34,13 +34,13 @@ use crate::{
     CrossChunkWavefront, NeedsFullReseed, SkyBfsPending, SkyInbox, SkyOutbox, SkyOutboxDirty,
     SkyParkedEgress,
 };
-use mcrs_voxel_math::Direction;
-use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::dimension::InDimension;
 use mcrs_engine::world::lifecycle::ticket::LightTicket;
 use mcrs_engine::world::storage::column::{
     ChunkLookup, ColumnChunks, ColumnIndex, ColumnPos, InColumn,
 };
+use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::Direction;
 
 /// Manhattan attenuation: face-adjacent (1), edge (2), corner (3). The
 /// `max(1)` floor guarantees at least one step of attenuation even if a
@@ -81,8 +81,6 @@ pub(crate) enum ResolveOutcome {
         dst_column: Entity,
         dst_chunk_pos: ChunkPos,
     },
-    /// Destination is the per-column top/bottom padding row — drop silently.
-    Padding,
     /// Destination Y is outside the column's range — drop silently.
     OutOfRange,
 }
@@ -121,7 +119,6 @@ pub(crate) fn resolve_neighbor_chunk(
                     dst_column: src_in_col.0,
                     dst_chunk_pos,
                 },
-                ChunkLookup::BottomPadding | ChunkLookup::TopPadding => ResolveOutcome::Padding,
                 ChunkLookup::OutOfRange => ResolveOutcome::OutOfRange,
             })
         }
@@ -151,7 +148,6 @@ pub(crate) fn resolve_neighbor_chunk(
                     dst_column,
                     dst_chunk_pos,
                 },
-                ChunkLookup::BottomPadding | ChunkLookup::TopPadding => ResolveOutcome::Padding,
                 ChunkLookup::OutOfRange => ResolveOutcome::OutOfRange,
             })
         }
@@ -365,7 +361,7 @@ fn drain_channel_outbox<C: DrainChannel>(
                             C::parked_inner_mut(&mut parked).push(wavefront);
                         }
                     }
-                    Some(ResolveOutcome::Padding) | Some(ResolveOutcome::OutOfRange) | None => {}
+                    Some(ResolveOutcome::OutOfRange) | None => {}
                 }
             }
 
@@ -1069,9 +1065,9 @@ mod tests {
     }
 
     #[test]
-    fn distribute_drops_wavefronts_to_padding() {
+    fn distribute_drops_wavefronts_below_column() {
         // Source at chunk-Y 0 in a column whose ColumnChunks only covers y=0.
-        // A Down-face wavefront lands on BottomPadding (relative y=-1) which
+        // A Down-face wavefront lands below the column (relative y=-1) which
         // must be dropped silently — no per-channel BfsPending/LightTicket on the source,
         // no parked outbox, no inbox written anywhere.
         let mut app = build_app();
@@ -1093,11 +1089,11 @@ mod tests {
             .world()
             .get::<BlockParkedEgress>(chunk_a)
             .expect("chunk_a parked");
-        assert!(pend.0.is_empty(), "padding drop does not enter parked");
+        assert!(pend.0.is_empty(), "out-of-range drop does not enter parked");
         // No NeedsFullReseed insertion (which the overflow path would emit).
         assert!(
             app.world().get::<NeedsFullReseed>(col_a).is_none(),
-            "padding drop must not insert NeedsFullReseed"
+            "out-of-range drop must not insert NeedsFullReseed"
         );
     }
 }

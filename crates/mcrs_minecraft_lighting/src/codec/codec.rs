@@ -4,15 +4,14 @@
 //! state into the protocol's `LightData` payload. Two public entry points:
 //!
 //! 1. `pack_chunk` — the per-chunk, per-layer wire-mapping decision matrix.
-//!    Given a `ChunkLookup` row (Loaded / Unloaded / BottomPadding /
-//!    TopPadding / OutOfRange) and the optional `LightStorage` for the
-//!    requested `Layer`, it updates the four wire masks (`*_light_mask` and
-//!    `empty_*_light_mask`) and may append a 2048-byte payload to the matching
-//!    arrays builder.
+//!    Given a `WireRow` (Loaded / Unloaded / BottomPadding / TopPadding) and
+//!    the optional `LightStorage` for the requested `Layer`, it updates the
+//!    four wire masks (`*_light_mask` and `empty_*_light_mask`) and may append
+//!    a 2048-byte payload to the matching arrays builder.
 //!
-//! 2. `build_full_light_data` — iterates `ColumnChunks::iter_wire()` for a
-//!    column entity, dispatches `pack_chunk` per row per layer, and returns
-//!    a wire-ready `LightData<'static>` with `Cow::Owned` payloads.
+//! 2. `build_full_light_data` — iterates `wire_rows` for a column entity,
+//!    dispatches `pack_chunk` per row per layer, and returns a wire-ready
+//!    `LightData<'static>` with `Cow::Owned` payloads.
 //!
 //! The codec is read-only against ECS state and allocates only the output
 //! buffers (worst case 24 chunks × 2 layers × 2048 bytes = 96 KB per column).
@@ -31,6 +30,27 @@ use mcrs_engine::world::storage::column::{
 use mcrs_protocol::chunk::{LightChunk, LightData};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;
+
+/// One row of the light packet's section sequence. The packet carries a
+/// section below and a section above the dimension's real Y range, so the
+/// sequence is one padding row, every real section, then one padding row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WireRow {
+    BottomPadding,
+    Loaded(Entity),
+    Unloaded,
+    TopPadding,
+}
+
+/// The padded row sequence for a column, in wire order.
+pub fn wire_rows(chunks: &ColumnChunks) -> impl Iterator<Item = WireRow> + '_ {
+    std::iter::once(WireRow::BottomPadding)
+        .chain(chunks.iter().map(|lookup| match lookup {
+            ChunkLookup::Loaded(e) => WireRow::Loaded(e),
+            _ => WireRow::Unloaded,
+        }))
+        .chain(std::iter::once(WireRow::TopPadding))
+}
 
 /// Which light layer a `pack_chunk` call is operating on.
 // Note: function name `pack_chunk` is kept as part of the public wire-codec
@@ -54,7 +74,7 @@ pub enum Layer {
 /// the Loaded+sky-missing-in-skyless-dim row.
 #[allow(clippy::too_many_arguments)]
 pub fn pack_chunk(
-    chunk: ChunkLookup,
+    chunk: WireRow,
     storage: Option<&LightStorage>,
     layer: Layer,
     has_sky_light: bool,
@@ -64,10 +84,10 @@ pub fn pack_chunk(
     arrays: &mut Vec<LightChunk>,
 ) {
     match chunk {
-        ChunkLookup::BottomPadding => {
+        WireRow::BottomPadding => {
             set_bit(empty_mask, bit_idx);
         }
-        ChunkLookup::TopPadding => match layer {
+        WireRow::TopPadding => match layer {
             Layer::Sky => {
                 if has_sky_light {
                     set_bit(mask, bit_idx);
@@ -80,7 +100,7 @@ pub fn pack_chunk(
                 set_bit(empty_mask, bit_idx);
             }
         },
-        ChunkLookup::Loaded(_) => {
+        WireRow::Loaded(_) => {
             if matches!(layer, Layer::Sky) && !has_sky_light {
                 set_bit(empty_mask, bit_idx);
                 return;
@@ -100,17 +120,11 @@ pub fn pack_chunk(
                 }
             }
         }
-        ChunkLookup::Unloaded => {
+        WireRow::Unloaded => {
             // Neither mask bit is set — vanilla treats unloaded chunks as
             // "absent from the column" rather than "present but empty". The
             // bit index still advances in the outer iterator so wire ordering
-            // stays aligned with `ColumnChunks::iter_wire()` indices.
-        }
-        ChunkLookup::OutOfRange => {
-            debug_assert!(
-                false,
-                "ColumnChunks::iter_wire never yields OutOfRange; codec invariant violated"
-            );
+            // stays aligned with the padded row indices.
         }
     }
 }
@@ -159,9 +173,9 @@ pub fn build_full_light_data(
     let mut sky_arrays: Vec<LightChunk> = Vec::new();
     let mut block_arrays: Vec<LightChunk> = Vec::new();
 
-    for (bit_idx, lookup) in chunk_index.iter_wire().enumerate() {
+    for (bit_idx, lookup) in wire_rows(chunk_index).enumerate() {
         let chunk_entity = match lookup {
-            ChunkLookup::Loaded(e) => Some(e),
+            WireRow::Loaded(e) => Some(e),
             _ => None,
         };
         let block_storage = chunk_entity
@@ -316,14 +330,14 @@ pub fn emit_column_light_updates(
 
         let min_chunk_y = chunk_index.min_section_y;
 
-        for (bit_idx, lookup) in chunk_index.iter_wire().enumerate() {
+        for (bit_idx, lookup) in wire_rows(chunk_index).enumerate() {
             let chunk_y = min_chunk_y + (bit_idx as i32) - 1;
             let block_is_dirty = accumulator.dirty_block.contains(&chunk_y);
             let sky_is_dirty = accumulator.dirty_sky.contains(&chunk_y);
 
             if block_is_dirty {
                 let chunk_entity = match lookup {
-                    ChunkLookup::Loaded(e) => Some(e),
+                    WireRow::Loaded(e) => Some(e),
                     _ => None,
                 };
                 let block_storage = chunk_entity
@@ -342,7 +356,7 @@ pub fn emit_column_light_updates(
             }
             if sky_is_dirty {
                 let chunk_entity = match lookup {
-                    ChunkLookup::Loaded(e) => Some(e),
+                    WireRow::Loaded(e) => Some(e),
                     _ => None,
                 };
                 let sky_storage = chunk_entity
@@ -408,11 +422,42 @@ mod tests {
     }
 
     #[test]
+    fn wire_rows_length_equals_real_plus_two() {
+        let si = ColumnChunks::new(-4, 24);
+        assert_eq!(wire_rows(&si).count(), 26);
+    }
+
+    #[test]
+    fn wire_rows_first_is_bottom_padding_last_is_top_padding() {
+        let si = ColumnChunks::new(-4, 24);
+        assert_eq!(wire_rows(&si).next().unwrap(), WireRow::BottomPadding);
+        assert_eq!(wire_rows(&si).last().unwrap(), WireRow::TopPadding);
+    }
+
+    #[test]
+    fn wire_rows_pads_loaded_and_unloaded() {
+        let mut si = ColumnChunks::new(0, 3);
+        let e = fake_entity(11);
+        si.set_loaded(1, e);
+        let collected: Vec<_> = wire_rows(&si).collect();
+        assert_eq!(
+            collected,
+            vec![
+                WireRow::BottomPadding,
+                WireRow::Unloaded,
+                WireRow::Loaded(e),
+                WireRow::Unloaded,
+                WireRow::TopPadding,
+            ]
+        );
+    }
+
+    #[test]
     fn pack_chunk_bottom_padding_sets_both_empty_masks() {
         // Block layer.
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
-            ChunkLookup::BottomPadding,
+            WireRow::BottomPadding,
             None,
             Layer::Block,
             true,
@@ -432,7 +477,7 @@ mod tests {
         for sky in [false, true] {
             let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
             pack_chunk(
-                ChunkLookup::BottomPadding,
+                WireRow::BottomPadding,
                 None,
                 Layer::Sky,
                 sky,
@@ -455,7 +500,7 @@ mod tests {
 
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
-            ChunkLookup::Loaded(fake_entity(1)),
+            WireRow::Loaded(fake_entity(1)),
             Some(&storage),
             Layer::Block,
             false, // has_sky_light irrelevant for block layer
@@ -480,7 +525,7 @@ mod tests {
         let storage = LightStorage::Uniform(0);
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
-            ChunkLookup::Loaded(fake_entity(2)),
+            WireRow::Loaded(fake_entity(2)),
             Some(&storage),
             Layer::Block,
             true,
@@ -499,7 +544,7 @@ mod tests {
         let storage = LightStorage::Uniform(0x7);
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
-            ChunkLookup::Loaded(fake_entity(3)),
+            WireRow::Loaded(fake_entity(3)),
             Some(&storage),
             Layer::Block,
             true,
@@ -521,7 +566,7 @@ mod tests {
         let storage = LightStorage::Empty;
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
-            ChunkLookup::Loaded(fake_entity(4)),
+            WireRow::Loaded(fake_entity(4)),
             Some(&storage),
             Layer::Block,
             true,
@@ -540,7 +585,7 @@ mod tests {
         let storage = LightStorage::Uniform(0xF);
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
-            ChunkLookup::Loaded(fake_entity(5)),
+            WireRow::Loaded(fake_entity(5)),
             Some(&storage),
             Layer::Sky,
             false, // skyless dimension
@@ -560,7 +605,7 @@ mod tests {
         // must reach the same result.
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
-            ChunkLookup::Loaded(fake_entity(5)),
+            WireRow::Loaded(fake_entity(5)),
             None,
             Layer::Sky,
             false,
@@ -580,7 +625,7 @@ mod tests {
             for has_sky in [false, true] {
                 let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
                 pack_chunk(
-                    ChunkLookup::Unloaded,
+                    WireRow::Unloaded,
                     None,
                     layer,
                     has_sky,
@@ -603,7 +648,7 @@ mod tests {
     fn pack_chunk_top_padding_sky_having_sets_sky_mask_and_appends_0xff() {
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
-            ChunkLookup::TopPadding,
+            WireRow::TopPadding,
             None,
             Layer::Sky,
             true,
@@ -621,7 +666,7 @@ mod tests {
         // empty mask — only the sky layer synthesizes the 0xFF payload.
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
-            ChunkLookup::TopPadding,
+            WireRow::TopPadding,
             None,
             Layer::Block,
             true,
@@ -640,7 +685,7 @@ mod tests {
         // Sky layer.
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
-            ChunkLookup::TopPadding,
+            WireRow::TopPadding,
             None,
             Layer::Sky,
             false,
@@ -656,7 +701,7 @@ mod tests {
         // Block layer.
         let (mut mask, mut empty_mask, mut arrays) = fresh_buffers();
         pack_chunk(
-            ChunkLookup::TopPadding,
+            WireRow::TopPadding,
             None,
             Layer::Block,
             false,
@@ -679,31 +724,31 @@ mod tests {
         let mut nibble = LightNibbles::zeros();
         nibble.set(0, 0, 0, 0xC);
 
-        let rows: Vec<(ChunkLookup, Option<LightStorage>, Option<LightStorage>)> = vec![
-            (ChunkLookup::BottomPadding, None, None),
-            (ChunkLookup::Unloaded, None, None),
+        let rows: Vec<(WireRow, Option<LightStorage>, Option<LightStorage>)> = vec![
+            (WireRow::BottomPadding, None, None),
+            (WireRow::Unloaded, None, None),
             (
-                ChunkLookup::Loaded(fake_entity(1)),
+                WireRow::Loaded(fake_entity(1)),
                 Some(LightStorage::Dense(Box::new(nibble.clone()))),
                 Some(LightStorage::Uniform(0xF)),
             ),
             (
-                ChunkLookup::Loaded(fake_entity(2)),
+                WireRow::Loaded(fake_entity(2)),
                 Some(LightStorage::Uniform(0x5)),
                 Some(LightStorage::Uniform(0)),
             ),
             (
-                ChunkLookup::Loaded(fake_entity(3)),
+                WireRow::Loaded(fake_entity(3)),
                 Some(LightStorage::Empty),
                 Some(LightStorage::Empty),
             ),
             (
-                ChunkLookup::Loaded(fake_entity(4)),
+                WireRow::Loaded(fake_entity(4)),
                 Some(LightStorage::Uniform(0)),
                 Some(LightStorage::Dense(Box::new(nibble))),
             ),
-            (ChunkLookup::Unloaded, None, None),
-            (ChunkLookup::TopPadding, None, None),
+            (WireRow::Unloaded, None, None),
+            (WireRow::TopPadding, None, None),
         ];
 
         let mut block_mask: Vec<u64> = Vec::new();

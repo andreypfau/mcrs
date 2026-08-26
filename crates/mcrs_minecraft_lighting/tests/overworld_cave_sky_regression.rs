@@ -23,14 +23,13 @@ use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::state::NextState;
 
-use mcrs_voxel_math::voxel_shape::VoxelShape;
+use mcrs_core::ResourceLocation;
 use mcrs_core::{AppState, StaticRegistry};
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{
     ChunkViewPlugin, PlayerChunkObserver, PlayerViewDistance,
 };
-use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig, HasSkyLight, InDimension,
 };
@@ -47,8 +46,9 @@ use mcrs_minecraft_worldgen::density_function::proto::{
     DensityFunctionHolder, NoiseParam, ProtoDensityFunction,
 };
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
-use mcrs_core::ResourceLocation;
 use mcrs_vanilla::block::Block;
+use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::voxel_shape::VoxelShape;
 
 const DIM_MIN_Y: i32 = -64;
 const DIM_HEIGHT: u32 = 384;

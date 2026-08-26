@@ -3,21 +3,21 @@
 // lighting-side (PrimeHeightmaps, AttachState) stages precisely because mcrs_engine
 // sits upstream of mcrs_minecraft_lighting in the workspace graph.
 //
-// Heightmaps zero-init convention: `Heightmaps::new(height)` zero-initializes the
-// backing PackedBitStorage long arrays. `surface_get(x, z) = min_y` for unprimed
-// columns; downstream lighting code overwrites with real values before any consumer
-// reads, and uses `min_y` as the "no surface found" sentinel.
+// Heightmaps zero-init convention: `Heightmaps::new` zero-initializes the backing
+// PackedBitStorage long arrays. `get(key, x, z) = min_y` for unprimed columns;
+// downstream game code overwrites with real values before any consumer reads, and
+// uses `min_y` as the "nothing found" sentinel.
 
-use mcrs_voxel_math::ChunkPos;
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
 use crate::world::lifecycle::markers::ChunkLoaded;
 use crate::world::lifecycle::markers::ChunkUnloading;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::{
-    Added, ApplyDeferred, Bundle, Commands, Component, Entity, IntoScheduleConfigs, Query,
-    SystemSet,
+    Added, ApplyDeferred, Bundle, Commands, Component, Entity, IntoScheduleConfigs, Query, Res,
+    Resource, SystemSet,
 };
+use mcrs_voxel_math::ChunkPos;
 use rustc_hash::FxHashMap;
 
 pub use mcrs_voxel_math::ColumnPos;
@@ -144,13 +144,45 @@ fn bits_needed_for(max_value: u32) -> u8 {
     (32 - max_value.leading_zeros()) as u8
 }
 
-/// World-surface and motion-blocking heightmaps for a chunk column. Indexed
-/// by `(x, z)` in `0..16` each (entry layout matches vanilla
-/// `Heightmap.java`: `z * 16 + x`). Stored Y values are absolute world Y.
+/// Key into [`Heightmaps`], handed out by [`ColumnScalarRegistry::register`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ColumnScalarKey(pub usize);
+
+/// The set of per-column scalars the game wants stored on every column.
+/// Registration is idempotent, so a plugin may register its names without
+/// caring whether a sibling plugin got there first.
+#[derive(Resource, Debug, Clone, Default)]
+pub struct ColumnScalarRegistry(Vec<String>);
+
+impl ColumnScalarRegistry {
+    pub fn register(&mut self, name: &str) -> ColumnScalarKey {
+        if let Some(i) = self.0.iter().position(|n| n == name) {
+            return ColumnScalarKey(i);
+        }
+        self.0.push(name.to_owned());
+        ColumnScalarKey(self.0.len() - 1)
+    }
+
+    pub fn key(&self, name: &str) -> Option<ColumnScalarKey> {
+        self.0.iter().position(|n| n == name).map(ColumnScalarKey)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+/// One packed Y scalar per registered [`ColumnScalarKey`] over the 16x16
+/// column footprint. Indexed by `(x, z)` in `0..16` each (entry layout
+/// matches vanilla `Heightmap.java`: `z * 16 + x`). Stored Y values are
+/// absolute world Y.
 #[derive(Component, Debug, Clone)]
 pub struct Heightmaps {
-    pub world_surface: PackedBitStorage,
-    pub motion_blocking: PackedBitStorage,
+    stores: Box<[PackedBitStorage]>,
     height: u32,
     min_y: i32,
 }
@@ -158,16 +190,17 @@ pub struct Heightmaps {
 impl Heightmaps {
     /// Create heightmaps sized to the dimension height. `min_y` defaults to 0;
     /// use `with_min_y` for dimensions whose lowest section is negative.
-    pub fn new(height: u32) -> Self {
-        Self::with_min_y(height, 0)
+    pub fn new(scalar_count: usize, height: u32) -> Self {
+        Self::with_min_y(scalar_count, height, 0)
     }
 
-    pub fn with_min_y(height: u32, min_y: i32) -> Self {
+    pub fn with_min_y(scalar_count: usize, height: u32, min_y: i32) -> Self {
         let max_value = height; // stored value range is [0, height]
         let bits = bits_needed_for(max_value);
         Self {
-            world_surface: PackedBitStorage::with_bits(256, bits, max_value),
-            motion_blocking: PackedBitStorage::with_bits(256, bits, max_value),
+            stores: (0..scalar_count)
+                .map(|_| PackedBitStorage::with_bits(256, bits, max_value))
+                .collect(),
             height,
             min_y,
         }
@@ -181,50 +214,58 @@ impl Heightmaps {
         self.min_y
     }
 
+    pub fn scalar_count(&self) -> usize {
+        self.stores.len()
+    }
+
     #[inline]
     fn index(x: usize, z: usize) -> usize {
         debug_assert!(x < 16 && z < 16, "Heightmaps index ({x}, {z}) out of 16x16");
         (z & 15) * 16 + (x & 15)
     }
 
-    pub fn surface_get(&self, x: usize, z: usize) -> i32 {
-        self.world_surface.get(Self::index(x, z)) as i32 + self.min_y
+    /// Panics rather than indexing blindly: a column sized before the scalar
+    /// was registered would otherwise fail far from the plugin that skipped it.
+    #[inline]
+    #[track_caller]
+    fn slot(stores: usize, key: ColumnScalarKey) -> usize {
+        assert!(
+            key.0 < stores,
+            "ColumnScalarKey({}) was not registered before this column was spawned (scalar_count={stores})",
+            key.0,
+        );
+        key.0
     }
 
-    pub fn surface_set(&mut self, x: usize, z: usize, y: i32) {
+    #[inline]
+    fn store(&self, key: ColumnScalarKey) -> &PackedBitStorage {
+        &self.stores[Self::slot(self.stores.len(), key)]
+    }
+
+    pub fn get(&self, key: ColumnScalarKey, x: usize, z: usize) -> i32 {
+        self.store(key).get(Self::index(x, z)) as i32 + self.min_y
+    }
+
+    pub fn set(&mut self, key: ColumnScalarKey, x: usize, z: usize, y: i32) {
         let max_stored = self.min_y + self.height as i32;
         debug_assert!(
             y >= self.min_y && y <= max_stored,
-            "surface_set y={y} outside [{min}, {max}]",
+            "Heightmaps::set y={y} outside [{min}, {max}]",
             min = self.min_y,
             max = max_stored,
         );
         let rel = (y - self.min_y).clamp(0, self.height as i32);
-        self.world_surface.set(Self::index(x, z), rel as u32);
+        let index = Self::index(x, z);
+        let slot = Self::slot(self.stores.len(), key);
+        self.stores[slot].set(index, rel as u32);
     }
 
-    pub fn motion_blocking_get(&self, x: usize, z: usize) -> i32 {
-        self.motion_blocking.get(Self::index(x, z)) as i32 + self.min_y
+    pub fn raw_longs(&self, key: ColumnScalarKey) -> &[u64] {
+        self.store(key).raw_longs()
     }
 
-    pub fn motion_blocking_set(&mut self, x: usize, z: usize, y: i32) {
-        let max_stored = self.min_y + self.height as i32;
-        debug_assert!(
-            y >= self.min_y && y <= max_stored,
-            "motion_blocking_set y={y} outside [{min}, {max}]",
-            min = self.min_y,
-            max = max_stored,
-        );
-        let rel = (y - self.min_y).clamp(0, self.height as i32);
-        self.motion_blocking.set(Self::index(x, z), rel as u32);
-    }
-
-    pub fn to_long_array_surface(&self) -> &[u64] {
-        self.world_surface.raw_longs()
-    }
-
-    pub fn to_long_array_motion_blocking(&self) -> &[u64] {
-        self.motion_blocking.raw_longs()
+    pub fn storage(&self, key: ColumnScalarKey) -> &PackedBitStorage {
+        self.store(key)
     }
 }
 
@@ -239,14 +280,10 @@ impl Heightmaps {
 pub enum ChunkLookup {
     Loaded(Entity),
     Unloaded,
-    BottomPadding,
-    TopPadding,
     OutOfRange,
 }
 
-/// Per-column index of real chunk entities. The backing storage holds
-/// `real_count` entries (no padding); `iter_wire()` adds the two padding rows
-/// expected by the network wire format.
+/// Per-column index of real chunk entities.
 #[derive(Component, Debug, Clone)]
 pub struct ColumnChunks {
     pub min_section_y: i32,
@@ -263,14 +300,7 @@ impl ColumnChunks {
 
     pub fn lookup(&self, chunk_y: i32) -> ChunkLookup {
         let rel = chunk_y - self.min_section_y;
-        let len = self.sections.len() as i32;
-        if rel == -1 {
-            return ChunkLookup::BottomPadding;
-        }
-        if rel == len {
-            return ChunkLookup::TopPadding;
-        }
-        if rel < -1 || rel > len {
+        if rel < 0 || rel as usize >= self.sections.len() {
             return ChunkLookup::OutOfRange;
         }
         match self.sections[rel as usize] {
@@ -279,13 +309,12 @@ impl ColumnChunks {
         }
     }
 
-    pub fn iter_wire(&self) -> impl Iterator<Item = ChunkLookup> + '_ {
-        std::iter::once(ChunkLookup::BottomPadding)
-            .chain(self.sections.iter().map(|slot| match slot {
-                Some(e) => ChunkLookup::Loaded(*e),
-                None => ChunkLookup::Unloaded,
-            }))
-            .chain(std::iter::once(ChunkLookup::TopPadding))
+    /// Every real section in ascending Y, starting at `min_section_y`.
+    pub fn iter(&self) -> impl Iterator<Item = ChunkLookup> + '_ {
+        self.sections.iter().map(|slot| match slot {
+            Some(e) => ChunkLookup::Loaded(*e),
+            None => ChunkLookup::Unloaded,
+        })
     }
 
     pub fn set_loaded(&mut self, chunk_y: i32, entity: Entity) {
@@ -345,12 +374,17 @@ impl From<ColumnPos> for ColumnPosComponent {
 }
 
 impl ColumnBundle {
-    pub fn new(col_pos: ColumnPos, dim: InDimension, dim_config: &DimensionTypeConfig) -> Self {
+    pub fn new(
+        col_pos: ColumnPos,
+        dim: InDimension,
+        dim_config: &DimensionTypeConfig,
+        scalars: &ColumnScalarRegistry,
+    ) -> Self {
         let min_section_y = dim_config.min_y.div_euclid(16);
         Self {
             col_pos: ColumnPosComponent(col_pos),
             dim,
-            heightmaps: Heightmaps::with_min_y(dim_config.height, dim_config.min_y),
+            heightmaps: Heightmaps::with_min_y(scalars.len(), dim_config.height, dim_config.min_y),
             sections: ColumnChunks::new(min_section_y, dim_config.section_count as usize),
             marker: Column,
         }
@@ -376,6 +410,7 @@ fn reconcile_column_existence(
     newly_unloading: Query<(&ChunkPos, &InDimension), Added<ChunkUnloading>>,
     mut dimensions: Query<&mut ColumnIndex>,
     dim_configs: Query<&DimensionTypeConfig>,
+    scalars: Res<ColumnScalarRegistry>,
     mut commands: Commands,
 ) {
     for (chunk_pos, in_dim) in newly_loaded.iter() {
@@ -389,7 +424,7 @@ fn reconcile_column_existence(
         match column_index.0.entry(col_pos) {
             std::collections::hash_map::Entry::Vacant(v) => {
                 let col_entity = commands
-                    .spawn(ColumnBundle::new(col_pos, *in_dim, dim_config))
+                    .spawn(ColumnBundle::new(col_pos, *in_dim, dim_config, &scalars))
                     .id();
                 v.insert(ColumnSlot {
                     entity: col_entity,
@@ -490,6 +525,7 @@ pub struct ColumnPlugin;
 
 impl Plugin for ColumnPlugin {
     fn build(&self, app: &mut App) {
+        app.init_resource::<ColumnScalarRegistry>();
         app.add_systems(
             FixedUpdate,
             (
@@ -508,8 +544,8 @@ impl Plugin for ColumnPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcrs_voxel_math::BlockPos;
     use bevy_ecs::entity::Entity;
+    use mcrs_voxel_math::BlockPos;
 
     fn fake_entity(index: u32) -> Entity {
         Entity::from_raw_u32(index + 1).expect("valid entity index")
@@ -573,27 +609,31 @@ mod tests {
 
     #[test]
     fn heightmap_new_dimensions_sized_correctly() {
-        let h = Heightmaps::new(384);
-        assert_eq!(h.world_surface.bits_per_entry(), 9);
-        assert_eq!(h.world_surface.entry_count(), 256);
+        let h = Heightmaps::new(2, 384);
+        assert_eq!(h.storage(ColumnScalarKey(0)).bits_per_entry(), 9);
+        assert_eq!(h.storage(ColumnScalarKey(0)).entry_count(), 256);
         // 256 entries / (64 / 9 = 7 per long) = 37 longs.
-        assert_eq!(h.to_long_array_surface().len(), 37);
-        assert_eq!(h.to_long_array_motion_blocking().len(), 37);
+        assert_eq!(h.raw_longs(ColumnScalarKey(0)).len(), 37);
+        assert_eq!(h.raw_longs(ColumnScalarKey(1)).len(), 37);
     }
 
     #[test]
     fn heightmap_set_get_round_trip() {
-        let mut h = Heightmaps::new(384);
+        let mut h = Heightmaps::new(2, 384);
         for z in 0..16 {
             for x in 0..16 {
                 let y = (z * 16 + x) as i32;
-                h.surface_set(x, z, y);
+                h.set(ColumnScalarKey(0), x, z, y);
             }
         }
         for z in 0..16 {
             for x in 0..16 {
                 let y = (z * 16 + x) as i32;
-                assert_eq!(h.surface_get(x, z), y, "surface mismatch at ({x}, {z})");
+                assert_eq!(
+                    h.get(ColumnScalarKey(0), x, z),
+                    y,
+                    "scalar mismatch at ({x}, {z})"
+                );
             }
         }
     }
@@ -601,14 +641,14 @@ mod tests {
     #[test]
     fn heightmap_to_long_array_vanilla_fixture() {
         // 9 bits per entry, lowest entry in lowest bits of long 0.
-        let mut h = Heightmaps::new(384);
+        let mut h = Heightmaps::new(2, 384);
         // Index 0 = (x=0, z=0); index 1 = (x=1, z=0); index 2 = (x=2, z=0).
-        h.surface_set(0, 0, 5); // value 5 at sub-position 0
-        h.surface_set(1, 0, 10); // value 10 at sub-position 1
-        h.surface_set(2, 0, 15); // value 15 at sub-position 2
+        h.set(ColumnScalarKey(0), 0, 0, 5); // value 5 at sub-position 0
+        h.set(ColumnScalarKey(0), 1, 0, 10); // value 10 at sub-position 1
+        h.set(ColumnScalarKey(0), 2, 0, 15); // value 15 at sub-position 2
         let expected = (5u64 << 0) | (10u64 << 9) | (15u64 << 18);
         assert_eq!(
-            h.to_long_array_surface()[0],
+            h.raw_longs(ColumnScalarKey(0))[0],
             expected,
             "heightmap wire layout must match vanilla SimpleBitStorage"
         );
@@ -616,9 +656,9 @@ mod tests {
 
     #[test]
     fn heightmap_zero_init_returns_min_y_for_unprimed_columns() {
-        let h = Heightmaps::with_min_y(384, -64);
-        assert_eq!(h.surface_get(0, 0), -64);
-        assert_eq!(h.motion_blocking_get(15, 15), -64);
+        let h = Heightmaps::with_min_y(2, 384, -64);
+        assert_eq!(h.get(ColumnScalarKey(0), 0, 0), -64);
+        assert_eq!(h.get(ColumnScalarKey(1), 15, 15), -64);
     }
 
     #[test]
@@ -636,16 +676,16 @@ mod tests {
     }
 
     #[test]
-    fn section_lookup_bottom_padding() {
+    fn section_lookup_just_below_range() {
         let si = ColumnChunks::new(-4, 24);
-        assert_eq!(si.lookup(-5), ChunkLookup::BottomPadding);
+        assert_eq!(si.lookup(-5), ChunkLookup::OutOfRange);
     }
 
     #[test]
-    fn section_lookup_top_padding() {
+    fn section_lookup_just_above_range() {
         let si = ColumnChunks::new(-4, 24);
-        // min_section_y=-4, len=24 -> real range is -4..=19, top padding = 20.
-        assert_eq!(si.lookup(20), ChunkLookup::TopPadding);
+        // min_section_y=-4, len=24 -> real range is -4..=19.
+        assert_eq!(si.lookup(20), ChunkLookup::OutOfRange);
     }
 
     #[test]
@@ -661,41 +701,37 @@ mod tests {
     }
 
     #[test]
-    fn iter_wire_length_equals_real_plus_two() {
+    fn iter_length_equals_real_count() {
         let si = ColumnChunks::new(-4, 24);
-        assert_eq!(si.iter_wire().count(), 26);
+        assert_eq!(si.iter().count(), 24);
     }
 
     #[test]
-    fn iter_wire_first_is_bottom_padding() {
-        let si = ColumnChunks::new(-4, 24);
-        let first = si.iter_wire().next().unwrap();
-        assert_eq!(first, ChunkLookup::BottomPadding);
-    }
-
-    #[test]
-    fn iter_wire_last_is_top_padding() {
-        let si = ColumnChunks::new(-4, 24);
-        let last = si.iter_wire().last().unwrap();
-        assert_eq!(last, ChunkLookup::TopPadding);
-    }
-
-    #[test]
-    fn iter_wire_passes_loaded_and_unloaded() {
+    fn iter_passes_loaded_and_unloaded() {
         let mut si = ColumnChunks::new(0, 3);
         let e = fake_entity(11);
         si.set_loaded(1, e);
-        let collected: Vec<_> = si.iter_wire().collect();
+        let collected: Vec<_> = si.iter().collect();
         assert_eq!(
             collected,
             vec![
-                ChunkLookup::BottomPadding,
                 ChunkLookup::Unloaded,
                 ChunkLookup::Loaded(e),
                 ChunkLookup::Unloaded,
-                ChunkLookup::TopPadding,
             ]
         );
+    }
+
+    #[test]
+    fn column_scalar_registry_is_idempotent() {
+        let mut r = ColumnScalarRegistry::default();
+        let a = r.register("a");
+        let b = r.register("b");
+        assert_eq!(r.register("a"), a);
+        assert_eq!(b, ColumnScalarKey(1));
+        assert_eq!(r.len(), 2);
+        assert_eq!(r.key("b"), Some(b));
+        assert_eq!(r.key("c"), None);
     }
 
     #[test]
@@ -703,7 +739,10 @@ mod tests {
         let dim_config = DimensionTypeConfig::new(-64, 384);
         let in_dim = InDimension(fake_entity(0));
         let col_pos = ColumnPos::new(3, -5);
-        let bundle = ColumnBundle::new(col_pos, in_dim, &dim_config);
+        let mut scalars = ColumnScalarRegistry::default();
+        scalars.register("a");
+        let bundle = ColumnBundle::new(col_pos, in_dim, &dim_config, &scalars);
+        assert_eq!(bundle.heightmaps.scalar_count(), 1);
         assert_eq!(bundle.col_pos.0, col_pos);
         assert_eq!(bundle.sections.min_section_y, -4);
         assert_eq!(bundle.sections.sections.len(), 24);
@@ -717,7 +756,8 @@ mod tests {
         let dim_config = DimensionTypeConfig::new(0, 256);
         let in_dim = InDimension(fake_entity(0));
         let col_pos = ColumnPos::new(0, 0);
-        let bundle = ColumnBundle::new(col_pos, in_dim, &dim_config);
+        let scalars = ColumnScalarRegistry::default();
+        let bundle = ColumnBundle::new(col_pos, in_dim, &dim_config, &scalars);
         assert_eq!(bundle.sections.min_section_y, 0);
         assert_eq!(bundle.sections.sections.len(), 16);
         assert_eq!(bundle.heightmaps.height(), 256);

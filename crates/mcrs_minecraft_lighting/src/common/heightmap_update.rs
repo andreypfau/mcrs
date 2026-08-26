@@ -21,7 +21,7 @@
 // Concurrency: `Query<&mut Heightmaps>` plus a separate `Query<&BlockPalette>`
 // give the scheduler exclusive write access to heightmap state for the
 // duration of the system; no manual locking is needed.
-use crate::heightmap::{HeightmapVariant, scan_top_down};
+use crate::heightmap::{HeightmapVariant, MinecraftHeightmaps, scan_top_down};
 use crate::table::{BlockStateLightTable, flag_bits};
 use bevy_ecs::entity::EntityHashMap;
 use bevy_ecs::message::MessageReader;
@@ -202,15 +202,16 @@ fn rescan_column_xz(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::heightmap::HEIGHTMAP_NAMES;
     use crate::table::flag_bits;
     use bevy_app::{App, Update};
     use bevy_ecs::message::Messages;
-    use mcrs_voxel_math::voxel_shape::VoxelShape;
-    use mcrs_voxel_math::ChunkPos;
-    use mcrs_voxel_math::BlockPos;
     use mcrs_engine::world::storage::column::{Column, ColumnChunks, Heightmaps, InColumn};
     use mcrs_minecraft_block::block::BlockUpdateFlags;
     use mcrs_minecraft_block::palette::BlockPalette;
+    use mcrs_voxel_math::BlockPos;
+    use mcrs_voxel_math::ChunkPos;
+    use mcrs_voxel_math::voxel_shape::VoxelShape;
     use mcrs_voxel_storage::VoxelId;
 
     const AIR: VoxelId = VoxelId(0);
@@ -260,7 +261,7 @@ mod tests {
             .world_mut()
             .spawn((
                 Column,
-                Heightmaps::with_min_y(DIM_HEIGHT, DIM_MIN_Y),
+                Heightmaps::with_min_y(HEIGHTMAP_NAMES.len(), DIM_HEIGHT, DIM_MIN_Y),
                 ColumnChunks::new(0, 1),
             ))
             .id();

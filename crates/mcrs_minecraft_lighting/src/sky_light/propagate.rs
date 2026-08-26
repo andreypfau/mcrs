@@ -16,8 +16,8 @@ use crate::{
 use bevy_ecs::change_detection::Res;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ParallelCommands, Query, With};
-use mcrs_voxel_math::Direction;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_voxel_math::Direction;
 
 /// Five non-Up faces used by the column-walker fast path to dump 256
 /// wavefronts per face onto `SkyOutbox` (1280 entries total) when an

@@ -5,10 +5,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use mcrs_core::AppState;
-use mcrs_voxel_math::Direction;
 use mcrs_engine::entity::ChunkEntities;
-use mcrs_voxel_math::ChunkPos;
-use mcrs_voxel_math::BlockPos;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
@@ -26,6 +23,9 @@ use mcrs_minecraft_lighting::sky_light::invariants::check_sky_light_invariants;
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::BlockStateLightTable;
 use mcrs_minecraft_lighting::test_bench::assert_nibbles_eq;
+use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::Direction;
 use mcrs_voxel_storage::VoxelId;
 
 #[path = "golden/mod.rs"]

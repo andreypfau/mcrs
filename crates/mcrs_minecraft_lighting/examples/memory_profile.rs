@@ -6,7 +6,7 @@ use bevy_state::prelude::NextState;
 use mcrs_core::AppState;
 use mcrs_engine::world::dimension::HasSkyLight;
 use mcrs_engine::world::lifecycle::ticket::LightTicket;
-use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, Heightmaps};
+use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, ColumnScalarKey, Heightmaps};
 use mcrs_minecraft_lighting::components::{
     BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockNeedsInitialSeed, BlockOutbox,
     BlockParkedEgress, IsAllAir, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight,
@@ -307,12 +307,14 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
     alloc.sky_increase_queue_cap_nonzero = depth_distribution(sky_inc_caps_nz);
     alloc.sky_decrease_queue_cap_nonzero = depth_distribution(sky_dec_caps_nz);
 
-    // "heightmaps": per-column Heightmaps (two PackedBitStorage backing Vec<u64>)
+    // "heightmaps": per-column Heightmaps (one PackedBitStorage backing Vec<u64>
+    // per registered column scalar)
     let mut heightmaps: usize = 0;
     for hm in world.query::<&Heightmaps>().iter(world) {
         heightmaps += mem::size_of_val(hm)
-            + hm.world_surface.raw_longs().len() * 8
-            + hm.motion_blocking.raw_longs().len() * 8;
+            + (0..hm.scalar_count())
+                .map(|i| hm.raw_longs(ColumnScalarKey(i)).len() * 8)
+                .sum::<usize>();
     }
 
     // "chunk_indexes": per-column ColumnChunks (Box<[Option<Entity>]>)

@@ -68,9 +68,9 @@ mod tests {
     };
     use bevy_app::{App, Update};
     use bevy_ecs::prelude::{Entity, IntoScheduleConfigs};
+    use mcrs_minecraft_block::palette::BlockPalette;
     use mcrs_voxel_math::Direction;
     use mcrs_voxel_math::voxel_shape::VoxelShape;
-    use mcrs_minecraft_block::palette::BlockPalette;
     use mcrs_voxel_storage::VoxelId;
 
     const AIR: VoxelId = VoxelId(0);
@@ -701,10 +701,10 @@ mod tests {
     #[test]
     fn block_only_event_inserts_only_block_bfs_pending() {
         use bevy_ecs::message::Messages;
-        use mcrs_voxel_math::ChunkPos;
-        use mcrs_voxel_math::BlockPos;
         use mcrs_minecraft_block::block::BlockUpdateFlags;
         use mcrs_minecraft_block::block_update::BlockPlaced;
+        use mcrs_voxel_math::BlockPos;
+        use mcrs_voxel_math::ChunkPos;
 
         const TORCH: VoxelId = VoxelId(1);
 
@@ -750,11 +750,11 @@ mod tests {
     #[test]
     fn sky_only_opacity_change_inserts_only_sky_bfs_pending() {
         use bevy_ecs::message::Messages;
-        use mcrs_voxel_math::ChunkPos;
-        use mcrs_voxel_math::BlockPos;
         use mcrs_engine::world::storage::column::{ColumnChunks, InColumn};
         use mcrs_minecraft_block::block::BlockUpdateFlags;
         use mcrs_minecraft_block::block_update::BlockPlaced;
+        use mcrs_voxel_math::BlockPos;
+        use mcrs_voxel_math::ChunkPos;
 
         const LEAVES: VoxelId = VoxelId(4);
 

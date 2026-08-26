@@ -12,8 +12,8 @@
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use mcrs_engine::world::storage::column::ColumnLifecycleSet;
 use mcrs_engine::voxel_update::VoxelUpdateSet;
+use mcrs_engine::world::storage::column::ColumnLifecycleSet;
 use mcrs_minecraft_lighting::components::{BlockBfsPending, SkyBfsPending};
 use mcrs_minecraft_lighting::metrics::snapshot as lighting_snapshot;
 use mcrs_minecraft_lighting::sets::LightingSet;
@@ -280,8 +280,8 @@ fn build_instrumented_factory() -> Box<dyn Fn() -> App + Send + Sync> {
     use bevy_app::App as BApp;
     use bevy_state::app::{AppExtStates, StatesPlugin};
     use mcrs_core::AppState;
-    use mcrs_voxel_math::ChunkPos;
     use mcrs_engine::world::storage::column::ColumnPlugin;
+    use mcrs_voxel_math::ChunkPos;
     Box::new(|| {
         let mut app = BApp::new();
         app.add_plugins(StatesPlugin);

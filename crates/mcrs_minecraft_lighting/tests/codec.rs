@@ -13,7 +13,6 @@ use bevy_ecs::prelude::*;
 use bevy_state::app::AppExtStates;
 use bevy_state::app::StatesPlugin;
 use mcrs_core::AppState;
-use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
@@ -25,6 +24,7 @@ use mcrs_minecraft_lighting::nibble::LightNibbles;
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
 use mcrs_minecraft_lighting::{BlockLightDirty, ColumnLightUpdate, LightingPlugin, SkyLightDirty};
+use mcrs_voxel_math::voxel_shape::VoxelShape;
 
 const TEST_DIM_HEIGHT: u32 = 384;
 const TEST_DIM_MIN_Y: i32 = -64;

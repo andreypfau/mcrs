@@ -1,5 +1,5 @@
-use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 pub fn from_input(input: &[((i32, i32, i32), VoxelId)]) -> BlockPalette {
@@ -32,10 +32,7 @@ mod tests {
 
     #[test]
     fn duplicate_coordinates_last_write_wins() {
-        let palette = from_input(&[
-            ((5, 5, 5), VoxelId(0x1000)),
-            ((5, 5, 5), VoxelId(0x1001)),
-        ]);
+        let palette = from_input(&[((5, 5, 5), VoxelId(0x1000)), ((5, 5, 5), VoxelId(0x1001))]);
         assert_eq!(palette.get(BlockPos::new(5, 5, 5)), VoxelId(0x1001));
     }
 }

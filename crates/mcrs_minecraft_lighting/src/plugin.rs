@@ -11,10 +11,10 @@ use crate::converge::{LightConvergeSchedule, LightConvergeSet, light_converge_dr
 use crate::distribute::{distribute_block_wavefronts, distribute_sky_wavefronts};
 use crate::emit_dirty::{clear_light_tickets, downgrade_light_storage};
 use crate::enqueue::consume_needs_full_reseed;
+use crate::heightmap::register_heightmaps;
 use crate::heightmap_update::update_heightmaps_on_block_placed;
 use crate::lifecycle::{attach_lighting_state, prime_heightmaps_on_column_spawn};
 use crate::sets::LightingSet;
-use crate::table::{BlockStateLightTable, build_block_light_table};
 use crate::sky_light::SkyLightPlugin;
 use crate::sky_light::emit_dirty::{clear_sky_bfs_pending_safety_net, emit_sky_light_dirty};
 use crate::sky_light::enqueue::invalidate_previous_topmost;
@@ -22,6 +22,7 @@ use crate::sky_light::enqueue::{
     enqueue_sky_light_on_block_placed, pull_sky_neighbor_edges, seed_sky_initial,
 };
 use crate::sky_light::propagate::{propagate_decrease_sky_system, propagate_increase_sky_system};
+use crate::table::{BlockStateLightTable, build_block_light_table};
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{ApplyDeferred, IntoScheduleConfigs};
 use bevy_ecs::schedule::{Schedule, SingleThreadedExecutor};
@@ -29,7 +30,7 @@ use bevy_state::prelude::OnEnter;
 use mcrs_core::AppState;
 use mcrs_core::tag::TagPhase;
 use mcrs_engine::voxel_update::{VoxelUpdateSet, apply_voxel_set_requests};
-use mcrs_engine::world::storage::column::ColumnLifecycleSet;
+use mcrs_engine::world::storage::column::{ColumnLifecycleSet, ColumnScalarRegistry};
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_vanilla::transition_to_playing;
@@ -52,6 +53,11 @@ pub struct LightingPlugin;
 
 impl Plugin for LightingPlugin {
     fn build(&self, app: &mut App) {
+        // Must precede the first column spawn: `ColumnBundle` sizes its scalar
+        // store from the registry at construction time.
+        app.init_resource::<ColumnScalarRegistry>();
+        register_heightmaps(&mut app.world_mut().resource_mut::<ColumnScalarRegistry>());
+
         // `update_heightmaps_on_block_placed` reads `MessageReader<BlockPlaced>`.
         // The production binary also registers `BlockUpdatePlugin`, which calls
         // `add_message::<BlockPlaced>()`. Registering twice would re-initialize

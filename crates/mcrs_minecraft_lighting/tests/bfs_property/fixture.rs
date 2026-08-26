@@ -7,8 +7,6 @@
 //! initial conditions. Any non-trivial change here invalidates the
 //! committed `snapshot.json` and the generator must be re-run.
 
-use mcrs_voxel_math::voxel_shape::VoxelShape;
-use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::bfs::{
     ALL_DIRECTIONS_BITSET, FLAG_WRITE_LEVEL, pack_bfs_entry, propagate_decrease,
@@ -18,6 +16,8 @@ use mcrs_minecraft_lighting::components::{BlockBfsQueues, BlockOutbox, SkyBfsQue
 use mcrs_minecraft_lighting::nibble::LightNibbles;
 use mcrs_minecraft_lighting::storage::LightStorage;
 use mcrs_minecraft_lighting::table::{BlockStateLightTable, flag_bits};
+use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_voxel_storage::VoxelId;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};

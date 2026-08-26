@@ -15,8 +15,8 @@ use crate::codec::LightStorage;
 use crate::invariants::{CHUNK_DIM, DIRECTIONS, neighbour_contribution};
 pub use crate::invariants::{InvariantViolation, ViolationKind};
 use crate::table::BlockStateLightTable;
-use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_voxel_math::BlockPos;
 
 pub fn check_block_light_invariants(
     table: &BlockStateLightTable,

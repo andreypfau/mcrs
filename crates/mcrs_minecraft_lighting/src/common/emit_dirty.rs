@@ -116,10 +116,10 @@ pub fn clear_light_tickets(
 #[inline]
 pub(crate) fn chunk_y_for_chunk(index: &ColumnChunks, target: Entity) -> Option<i32> {
     let min_y = index.min_section_y;
-    index.iter_wire().enumerate().find_map(|(idx, lookup)| {
+    index.iter().enumerate().find_map(|(idx, lookup)| {
         if let ChunkLookup::Loaded(e) = lookup {
             if e == target {
-                return Some(min_y + idx as i32 - 1);
+                return Some(min_y + idx as i32);
             }
         }
         None

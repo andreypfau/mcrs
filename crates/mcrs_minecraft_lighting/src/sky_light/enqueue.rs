@@ -11,6 +11,7 @@ use crate::codec::LightStorage;
 use crate::distribute::{ResolveOutcome, resolve_neighbor_chunk};
 use crate::enqueue::CARDINAL_DIRECTIONS;
 use crate::geom::face_cell_to_chunk_xyz;
+use crate::heightmap::MinecraftHeightmaps;
 use crate::heightmap::topmost_surface_world_y;
 use crate::nibble::LightNibbles;
 use crate::sky_light::components::NeedsRetop;
@@ -23,13 +24,13 @@ use bevy_ecs::change_detection::Res;
 use bevy_ecs::entity::{Entity, EntityHashMap};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Added, Commands, Local, Or, ParallelCommands, Query, With, Without};
-use mcrs_voxel_math::Direction;
-use mcrs_voxel_math::ChunkPos;
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
 use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, Heightmaps, InColumn};
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_voxel_math::ChunkPos;
+use mcrs_voxel_math::Direction;
 
 /// Reacts to `BlockPlaced` by enqueuing sky-light decrease and increase seeds
 /// whenever the placed block changes either its dampening or its

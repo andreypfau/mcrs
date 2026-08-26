@@ -21,9 +21,73 @@ use mcrs_minecraft_block::palette::BlockPalette;
 
 use crate::bitset::BitSet256;
 use crate::table::{BlockStateLightTable, flag_bits};
-use mcrs_engine::world::storage::column::Heightmaps;
+use mcrs_engine::world::storage::column::{ColumnScalarKey, ColumnScalarRegistry, Heightmaps};
 
 const CHUNK_SIZE: i32 = 16;
+
+/// The per-column scalars Minecraft stores on every chunk column, in
+/// registration order. The strings are the vanilla NBT / registry names.
+pub const HEIGHTMAP_NAMES: [&str; 2] = ["WORLD_SURFACE", "MOTION_BLOCKING"];
+
+pub const WORLD_SURFACE: ColumnScalarKey = ColumnScalarKey(0);
+pub const MOTION_BLOCKING: ColumnScalarKey = ColumnScalarKey(1);
+
+/// Register [`HEIGHTMAP_NAMES`] so every column spawned afterwards carries
+/// storage for them. Must run before any column is spawned; registration is
+/// idempotent, so several plugins may call it.
+pub fn register_heightmaps(registry: &mut ColumnScalarRegistry) {
+    for (expected, name) in HEIGHTMAP_NAMES.iter().enumerate() {
+        let key = registry.register(name);
+        assert_eq!(
+            key,
+            ColumnScalarKey(expected),
+            "{name} must be registered at index {expected}"
+        );
+    }
+}
+
+/// The Minecraft-named accessors over the engine's generic per-column scalar
+/// store.
+pub trait MinecraftHeightmaps {
+    fn surface_get(&self, x: usize, z: usize) -> i32;
+    fn motion_blocking_get(&self, x: usize, z: usize) -> i32;
+    fn surface_set(&mut self, x: usize, z: usize, y: i32);
+    fn motion_blocking_set(&mut self, x: usize, z: usize, y: i32);
+    fn to_long_array_surface(&self) -> &[u64];
+    fn to_long_array_motion_blocking(&self) -> &[u64];
+}
+
+impl MinecraftHeightmaps for Heightmaps {
+    #[inline]
+    fn surface_get(&self, x: usize, z: usize) -> i32 {
+        self.get(WORLD_SURFACE, x, z)
+    }
+
+    #[inline]
+    fn motion_blocking_get(&self, x: usize, z: usize) -> i32 {
+        self.get(MOTION_BLOCKING, x, z)
+    }
+
+    #[inline]
+    fn surface_set(&mut self, x: usize, z: usize, y: i32) {
+        self.set(WORLD_SURFACE, x, z, y);
+    }
+
+    #[inline]
+    fn motion_blocking_set(&mut self, x: usize, z: usize, y: i32) {
+        self.set(MOTION_BLOCKING, x, z, y);
+    }
+
+    #[inline]
+    fn to_long_array_surface(&self) -> &[u64] {
+        self.raw_longs(WORLD_SURFACE)
+    }
+
+    #[inline]
+    fn to_long_array_motion_blocking(&self) -> &[u64] {
+        self.raw_longs(MOTION_BLOCKING)
+    }
+}
 
 /// Which heightmap variant a helper operates on. Used by the
 /// [`record_topmost`] dispatcher when the caller already knows the variant

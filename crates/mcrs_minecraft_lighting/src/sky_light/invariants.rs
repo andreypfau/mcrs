@@ -21,9 +21,9 @@
 use crate::codec::LightStorage;
 use crate::invariants::{CHUNK_DIM, DIRECTIONS, direction_offset};
 use crate::table::{BlockStateLightTable, flag_bits};
-use mcrs_voxel_math::Direction;
-use mcrs_voxel_math::BlockPos;
 use mcrs_minecraft_block::palette::BlockPalette;
+use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_math::Direction;
 use mcrs_voxel_storage::VoxelId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
