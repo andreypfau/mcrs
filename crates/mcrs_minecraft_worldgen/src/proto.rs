@@ -1,5 +1,6 @@
 use crate::density_function::proto::{DensityFunctionHolder, HashableF64, ProtoDensityFunction};
-use mcrs_protocol::{BlockStateId, Ident};
+use mcrs_core::ResourceLocation;
+use mcrs_protocol::BlockStateId;
 
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -9,7 +10,7 @@ pub struct NoiseGeneratorSettings {
     pub default_block: BlockState,
     pub default_fluid: BlockState,
     pub noise_router: NoiseRouter,
-    pub material_rule: Ident<String>,
+    pub material_rule: ResourceLocation,
     pub spawn_target: Vec<SpawnTargetPoint>,
     pub sea_level: i32,
     pub disable_mob_generation: bool,
@@ -20,7 +21,7 @@ pub struct NoiseGeneratorSettings {
     pub legacy_random_source: bool,
 }
 
-pub type SpawnTargetPoint = std::collections::BTreeMap<Ident<String>, Interval<HashableF64>>;
+pub type SpawnTargetPoint = std::collections::BTreeMap<ResourceLocation, Interval<HashableF64>>;
 
 #[derive(Hash, PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -89,16 +90,16 @@ pub enum SurfaceRule {
 #[serde(tag = "type")]
 pub enum ConditionSource {
     #[serde(rename = "minecraft:biome")]
-    Biome { biome_is: Vec<Ident<String>> },
+    Biome { biome_is: Vec<ResourceLocation> },
     #[serde(rename = "minecraft:noise_threshold")]
     NoiseThreshold {
-        noise: Ident<String>,
+        noise: ResourceLocation,
         min_threshold: f64,
         max_threshold: f64,
     },
     #[serde(rename = "minecraft:vertical_gradient")]
     VerticalGradient {
-        random_name: Ident<String>,
+        random_name: ResourceLocation,
         true_at_and_below: VerticalAnchor,
         false_at_and_above: VerticalAnchor,
     },
@@ -152,14 +153,14 @@ pub enum CaveSurface {
 
 #[derive(Hash, PartialEq, Debug, Clone)]
 pub struct BlockState {
-    pub name: Ident<String>,
+    pub name: ResourceLocation,
     pub properties: Option<std::collections::BTreeMap<String, String>>,
 }
 
 #[cfg(feature = "serde")]
 #[derive(serde::Serialize, serde::Deserialize)]
 struct DispatchedBlockState {
-    id: Ident<String>,
+    id: ResourceLocation,
     #[serde(default)]
     properties: std::collections::BTreeMap<String, String>,
 }
@@ -167,7 +168,7 @@ struct DispatchedBlockState {
 #[cfg(feature = "serde")]
 impl<'de> serde::Deserialize<'de> for BlockState {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        match Either::<Ident<String>, DispatchedBlockState>::deserialize(deserializer)? {
+        match Either::<ResourceLocation, DispatchedBlockState>::deserialize(deserializer)? {
             Either::Left(name) => Ok(BlockState {
                 name,
                 properties: None,

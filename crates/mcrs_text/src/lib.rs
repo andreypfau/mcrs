@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use std::{fmt, ops};
 
-use mcrs_ident::Ident;
+use mcrs_core::ResourceLocation;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, de};
 use uuid::Uuid;
@@ -155,7 +155,7 @@ pub enum TextContent {
     },
     /// Displays NBT values from command storage.
     StorageNbt {
-        storage: Ident<Cow<'static, str>>,
+        storage: ResourceLocation<Cow<'static, str>>,
         nbt: Cow<'static, str>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         interpret: Option<bool>,
@@ -211,7 +211,7 @@ pub enum HoverEvent {
     /// Shows an item.
     ShowItem {
         /// Resource identifier of the item
-        id: Ident<Cow<'static, str>>,
+        id: ResourceLocation<Cow<'static, str>>,
         /// Number of the items in the stack
         count: Option<i32>,
         /// NBT information about the item (sNBT format)
@@ -224,7 +224,7 @@ pub enum HoverEvent {
         /// Resource identifier of the entity
         #[serde(rename = "type")]
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        kind: Option<Ident<Cow<'static, str>>>,
+        kind: Option<ResourceLocation<Cow<'static, str>>>,
         /// Optional custom name for the entity
         #[serde(default, skip_serializing_if = "Option::is_none")]
         name: Option<Text>,
@@ -348,7 +348,7 @@ impl Text {
 
     /// Creates a text component for a command storage NBT tag.
     pub fn storage_nbt(
-        storage: impl Into<Ident<Cow<'static, str>>>,
+        storage: impl Into<ResourceLocation<Cow<'static, str>>>,
         nbt: impl Into<Cow<'static, str>>,
         interpret: Option<bool>,
         separator: Option<Text>,

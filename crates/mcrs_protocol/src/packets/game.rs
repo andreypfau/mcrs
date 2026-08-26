@@ -9,7 +9,7 @@ pub mod clientbound {
     use bevy_math::DVec3;
     use mcrs_engine::geometry::ChunkPos;
     use mcrs_engine::world::block::BlockPos;
-    use mcrs_ident::Ident;
+    use mcrs_core::ResourceLocation;
     use mcrs_protocol::{BlockStateId, ByteAngle};
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use mcrs_text::Text;
@@ -116,7 +116,7 @@ pub mod clientbound {
     pub struct ClientboundLogin<'a> {
         pub player_id: i32,
         pub hardcore: bool,
-        pub dimensions: Vec<Ident<Cow<'a, str>>>,
+        pub dimensions: Vec<ResourceLocation<Cow<'a, str>>>,
         pub max_players: VarInt,
         pub chunk_radius: VarInt,
         pub simulation_distance: VarInt,

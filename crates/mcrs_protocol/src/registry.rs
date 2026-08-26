@@ -1,12 +1,12 @@
 use crate::{Decode, Encode, VarInt, nbt};
-use mcrs_ident::Ident;
+use mcrs_core::ResourceLocation;
 use mcrs_nbt::compound::NbtCompound;
 use std::borrow::Cow;
 use std::io::Write;
 
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct Entry<'a> {
-    pub id: Ident<Cow<'a, str>>,
+    pub id: ResourceLocation<Cow<'a, str>>,
     pub data: Option<Cow<'a, NbtCompound>>,
 }
 

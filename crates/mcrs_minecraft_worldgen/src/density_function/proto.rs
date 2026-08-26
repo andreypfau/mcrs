@@ -1,4 +1,4 @@
-use mcrs_protocol::Ident;
+use mcrs_core::ResourceLocation;
 use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -25,7 +25,7 @@ impl From<f64> for HashableF64 {
 #[cfg_attr(feature = "bevy", derive(bevy_asset::Asset, bevy_reflect::TypePath))]
 pub enum DensityFunctionHolder {
     Value(HashableF64),
-    Reference(Ident<String>),
+    Reference(ResourceLocation),
     Owned(Box<ProtoDensityFunction>),
 }
 
@@ -180,7 +180,7 @@ pub enum ProtoDensityFunction {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(untagged))]
 pub enum NoiseHolder {
-    Reference(Ident<String>),
+    Reference(ResourceLocation),
     Owned(NoiseParam),
 }
 
@@ -291,7 +291,7 @@ pub trait Visitor {
 
     fn visit_constant(&mut self, value: f64) {}
 
-    fn visit_reference(&mut self, value: &Ident<String>) {}
+    fn visit_reference(&mut self, value: &ResourceLocation) {}
 
     fn visit_noise_holder(&mut self, noise: &NoiseHolder) {}
 

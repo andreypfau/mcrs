@@ -1,6 +1,6 @@
 use crate::world::item::component::Enchantments;
 use crate::world::loot::condition::LootCondition;
-use mcrs_protocol::Ident;
+use mcrs_core::ResourceLocation;
 
 pub struct BlockBreakContext<'a> {
     pub tool_enchantments: Option<&'a Enchantments>,
@@ -8,7 +8,7 @@ pub struct BlockBreakContext<'a> {
 
 #[derive(Debug, Clone)]
 pub struct LootDrop {
-    pub item_name: Ident<String>,
+    pub item_name: ResourceLocation,
     pub count: u8,
 }
 

@@ -1,4 +1,4 @@
-use mcrs_ident::ident;
+use mcrs_core::rl;
 
 use super::*;
 
@@ -100,7 +100,7 @@ fn entity_nbt() {
 
 #[test]
 fn storage_nbt() {
-    let txt = Text::storage_nbt(ident!("foo"), "bar", Some(true), Some("baz".into_text()));
+    let txt = Text::storage_nbt(rl!("foo"), "bar", Some(true), Some("baz".into_text()));
     let serialized = txt.to_string();
     let deserialized = Text::from_str(&serialized).unwrap();
     let expected =

@@ -1,5 +1,5 @@
 use crate::world::loot::condition::LootConditionProto;
-use mcrs_protocol::Ident;
+use mcrs_core::ResourceLocation;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -7,7 +7,7 @@ use serde::Deserialize;
 pub enum LootEntryProto {
     #[serde(rename = "minecraft:item")]
     Item {
-        name: Ident<String>,
+        name: ResourceLocation,
         #[serde(default)]
         conditions: Vec<LootConditionProto>,
         #[serde(default)]

@@ -88,9 +88,7 @@ pub use game_event::GameEventKind;
 pub use game_mode::GameMode;
 pub use global_pos::GlobalPos;
 pub use hand::Hand;
-pub use ident::ident;
 pub use item::{ItemId, Slot};
-pub use mcrs_ident::Ident;
 pub use mcrs_protocol_macros::{Decode, Encode, Packet};
 pub use pos::Look;
 pub use pos::MoveFlags;
@@ -102,7 +100,7 @@ pub use text::Text;
 pub use var_int::VarInt;
 pub use var_long::VarLong;
 pub use velocity::Velocity;
-pub use {anyhow, bytes, mcrs_ident as ident, mcrs_nbt as nbt, mcrs_text as text, uuid};
+pub use {anyhow, bytes, mcrs_nbt as nbt, mcrs_text as text, uuid};
 
 /// The maximum number of bytes in a single Minecraft packet.
 pub const MAX_PACKET_SIZE: i32 = 2097152;
@@ -353,7 +351,7 @@ mod tests {
 //     use crate::text::{IntoText, Text};
 //     use crate::var_int::VarInt;
 //     use crate::var_long::VarLong;
-//     use crate::Ident;
+//     use crate::ResourceLocation;
 //
 //     #[derive(Encode, Decode, Packet, Debug)]
 //     #[packet(id = 1, side = PacketSide::Clientbound)]
@@ -419,7 +417,7 @@ mod tests {
 //         e: f64,
 //         f: BlockPos,
 //         g: Hand,
-//         h: Ident<Cow<'a, str>>,
+//         h: ResourceLocation<Cow<'a, str>>,
 //         i: ItemStack,
 //         j: Text,
 //         k: VarInt,
@@ -439,7 +437,7 @@ mod tests {
 //                 e: 1e10,
 //                 f: BlockPos::new(1, 2, 3),
 //                 g: Hand::Off,
-//                 h: Ident::new("minecraft:whatever").unwrap(),
+//                 h: ResourceLocation::new("minecraft:whatever").unwrap(),
 //                 i: ItemStack::new(ItemId(1), 12, None),
 //                 j: "my ".into_text() + "fancy".italic() + " text",
 //                 k: VarInt(123),

@@ -8,7 +8,7 @@ pub mod clientbound {
     use crate::packets::common::clientbound::{CustomPayload, Disconnect, KeepAlive, Ping};
     use crate::packets::cookie::clientbound::CookieRequest;
     use derive_more::From;
-    use mcrs_ident::Ident;
+    use mcrs_core::ResourceLocation;
     use mcrs_nbt::compound::NbtCompound;
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
@@ -24,7 +24,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x07, state=Configuration)]
     pub struct ClientboundRegistryData<'a> {
-        pub registry: Ident<Cow<'a, str>>,
+        pub registry: ResourceLocation<Cow<'a, str>>,
         pub entries: Vec<crate::registry::Entry<'a>>,
     }
 
@@ -44,7 +44,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct TagGroup<'a> {
         /// The tag identifier (e.g., "minecraft:mineable/pickaxe")
-        pub name: Ident<Cow<'a, str>>,
+        pub name: ResourceLocation<Cow<'a, str>>,
         /// Array of numeric registry entry IDs that belong to this tag
         pub entries: Vec<crate::VarInt>,
     }
@@ -53,7 +53,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, Encode, Decode)]
     pub struct RegistryTags<'a> {
         /// The registry identifier (e.g., "minecraft:block", "minecraft:item")
-        pub registry: Ident<Cow<'a, str>>,
+        pub registry: ResourceLocation<Cow<'a, str>>,
         /// Array of tags for this registry
         pub tags: Vec<TagGroup<'a>>,
     }

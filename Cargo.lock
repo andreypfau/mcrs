@@ -3246,24 +3246,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_ident"
-version = "0.1.0"
-dependencies = [
- "mcrs_ident_macros",
- "serde",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "mcrs_ident_macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.115",
-]
-
-[[package]]
 name = "mcrs_minecraft"
 version = "0.1.0"
 dependencies = [
@@ -3370,6 +3352,7 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "bevy_reflect",
+ "mcrs_core",
  "mcrs_engine",
  "mcrs_protocol",
  "mcrs_random",
@@ -3427,9 +3410,8 @@ dependencies = [
  "cfb8",
  "derive_more",
  "flate2",
+ "mcrs_core",
  "mcrs_engine",
- "mcrs_ident",
- "mcrs_ident_macros",
  "mcrs_nbt",
  "mcrs_protocol_macros",
  "mcrs_text",
@@ -3478,7 +3460,7 @@ name = "mcrs_text"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "mcrs_ident",
+ "mcrs_core",
  "serde",
  "serde_json",
  "thiserror 2.0.18",

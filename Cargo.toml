@@ -68,8 +68,6 @@ flume = { version = "0.12.0", default-features = false }
 mcrs_protocol_macros = { path = "crates/mcrs_protocol_macros" }
 mcrs_protocol = { path = "crates/mcrs_protocol" }
 mcrs_nbt = { path = "crates/mcrs_nbt" }
-mcrs_ident = { path = "crates/mcrs_ident" }
-mcrs_ident_macros = { path = "crates/mcrs_ident_macros" }
 mcrs_text = { path = "crates/mcrs_text" }
 mcrs_network = { path = "crates/mcrs_network" }
 mcrs_engine = { path = "crates/mcrs_engine" }

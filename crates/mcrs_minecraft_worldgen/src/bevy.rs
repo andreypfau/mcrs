@@ -12,7 +12,7 @@ use bevy_asset::{
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
 use bevy_reflect::TypePath;
-use mcrs_protocol::Ident;
+use mcrs_core::ResourceLocation;
 use std::collections::BTreeMap;
 use std::env;
 use std::sync::Arc;
@@ -255,8 +255,8 @@ fn build_noise_router_on_load(
                     func_asset: &DensityFunctionAsset,
                     density_functions: &Res<Assets<DensityFunctionAsset>>,
                     noises: &Res<Assets<NoiseParamAsset>>,
-                    all_functions: &mut BTreeMap<Ident<String>, DensityFunctionAsset>,
-                    all_noises: &mut BTreeMap<Ident<String>, NoiseParamAsset>,
+                    all_functions: &mut BTreeMap<ResourceLocation, DensityFunctionAsset>,
+                    all_noises: &mut BTreeMap<ResourceLocation, NoiseParamAsset>,
                 ) {
                     for (dep_id, dep_handle) in &func_asset.deps {
                         if !all_functions.contains_key(dep_id) {
@@ -294,10 +294,10 @@ fn build_noise_router_on_load(
                 let mut functions_proto = BTreeMap::new();
 
                 fn register_function(
-                    id: &Ident<String>,
+                    id: &ResourceLocation,
                     func_asset: &DensityFunctionAsset,
-                    all_functions: &BTreeMap<Ident<String>, DensityFunctionAsset>,
-                    functions_proto: &mut BTreeMap<Ident<String>, ProtoDensityFunction>,
+                    all_functions: &BTreeMap<ResourceLocation, DensityFunctionAsset>,
+                    functions_proto: &mut BTreeMap<ResourceLocation, ProtoDensityFunction>,
                 ) {
                     match &func_asset.function {
                         DensityFunctionHolder::Value(x) => {
@@ -359,8 +359,8 @@ fn build_noise_router_on_load(
 #[derive(TypePath, Debug)]
 pub struct NoiseGeneratorSettingsAsset {
     pub settings: NoiseGeneratorSettings,
-    pub density_functions: BTreeMap<Ident<String>, Handle<DensityFunctionAsset>>,
-    pub noises: BTreeMap<Ident<String>, Handle<NoiseParamAsset>>,
+    pub density_functions: BTreeMap<ResourceLocation, Handle<DensityFunctionAsset>>,
+    pub noises: BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
 }
 
 impl bevy_asset::Asset for NoiseGeneratorSettingsAsset {}
@@ -375,8 +375,8 @@ impl bevy_asset::VisitAssetDependencies for NoiseGeneratorSettingsAsset {
 #[derive(TypePath, Debug, Clone)]
 pub struct DensityFunctionAsset {
     pub function: DensityFunctionHolder,
-    pub deps: BTreeMap<Ident<String>, Handle<DensityFunctionAsset>>,
-    pub noise_deps: BTreeMap<Ident<String>, Handle<NoiseParamAsset>>,
+    pub deps: BTreeMap<ResourceLocation, Handle<DensityFunctionAsset>>,
+    pub noise_deps: BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
 }
 
 #[derive(TypePath, Asset, Debug, Clone)]
@@ -520,12 +520,12 @@ impl AssetLoader for DensityFunctionLoader {
 
 struct DensityFunctionVisitor<'a, 'b> {
     pub load_context: &'a mut LoadContext<'b>,
-    pub density_functions: BTreeMap<Ident<String>, Handle<DensityFunctionAsset>>,
-    pub noises: BTreeMap<Ident<String>, Handle<NoiseParamAsset>>,
+    pub density_functions: BTreeMap<ResourceLocation, Handle<DensityFunctionAsset>>,
+    pub noises: BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
 }
 
 impl<'a, 'b> Visitor for DensityFunctionVisitor<'a, 'b> {
-    fn visit_reference(&mut self, value: &Ident<String>) {
+    fn visit_reference(&mut self, value: &ResourceLocation) {
         if self.density_functions.contains_key(value) {
             return;
         }

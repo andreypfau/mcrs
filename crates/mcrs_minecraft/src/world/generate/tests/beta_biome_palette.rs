@@ -33,7 +33,7 @@ fn make_beta_biome() -> Biome {
 
 /// Load the named density function JSON assets the beta router references.
 fn load_density_functions_from_disk() -> BTreeMap<
-    mcrs_protocol::Ident<String>,
+    mcrs_core::ResourceLocation,
     mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
 > {
     use mcrs_minecraft_worldgen::density_function::proto::DensityFunctionHolder;
@@ -41,7 +41,7 @@ fn load_density_functions_from_disk() -> BTreeMap<
         dir: &std::path::Path,
         prefix: &str,
         map: &mut BTreeMap<
-            mcrs_protocol::Ident<String>,
+            mcrs_core::ResourceLocation,
             mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
         >,
     ) {
@@ -73,7 +73,7 @@ fn load_density_functions_from_disk() -> BTreeMap<
                 } else {
                     format!("minecraft:{}/{}", prefix, stem)
                 };
-                if let Ok(ident) = key.parse::<mcrs_protocol::Ident<String>>() {
+                if let Ok(ident) = key.parse::<mcrs_core::ResourceLocation>() {
                     map.insert(ident, *pdf);
                 }
             }

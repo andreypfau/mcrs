@@ -1,7 +1,8 @@
+use std::borrow::Cow;
 use std::io::{Cursor, Write};
 
 use anyhow::Context;
-use mcrs_ident::{Ident, IdentError};
+use mcrs_core::ResourceLocation;
 use mcrs_nbt::Nbt;
 use mcrs_nbt::compound::NbtCompound;
 use mcrs_nbt::deserializer::NbtReadHelper;
@@ -61,19 +62,15 @@ impl Decode<'_> for NbtCompound {
     }
 }
 
-impl<S: Encode> Encode for Ident<S> {
+impl<S: AsRef<str>> Encode for ResourceLocation<S> {
     fn encode(&self, w: impl Write) -> anyhow::Result<()> {
-        self.as_ref().encode(w)
+        self.as_str().encode(w)
     }
 }
 
-impl<'a, S> Decode<'a> for Ident<S>
-where
-    S: Decode<'a>,
-    Ident<S>: TryFrom<S, Error = IdentError>,
-{
+impl<'a> Decode<'a> for ResourceLocation<Cow<'a, str>> {
     fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
-        Ok(Ident::try_from(S::decode(r)?)?)
+        Ok(ResourceLocation::parse_cow(<Cow<'a, str>>::decode(r)?)?)
     }
 }
 

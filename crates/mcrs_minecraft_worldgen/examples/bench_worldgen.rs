@@ -21,7 +21,7 @@ use mcrs_minecraft_worldgen::density_function::proto::{
     DensityFunctionHolder, NoiseParam, ProtoDensityFunction,
 };
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
-use mcrs_protocol::Ident;
+use mcrs_core::ResourceLocation;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -30,7 +30,7 @@ fn walk_json_files(
     base: &Path,
     dir: &Path,
     namespace: &str,
-    out: &mut Vec<(Ident<String>, Vec<u8>)>,
+    out: &mut Vec<(ResourceLocation, Vec<u8>)>,
 ) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
@@ -43,7 +43,7 @@ fn walk_json_files(
             let rel = path.strip_prefix(base).unwrap();
             let name = rel.with_extension("").to_string_lossy().replace('\\', "/");
             let ident_str = format!("{}:{}", namespace, name);
-            if let Ok(ident) = Ident::new(ident_str) {
+            if let Ok(ident) = ResourceLocation::parse(&ident_str) {
                 let data = std::fs::read(&path).unwrap();
                 out.push((ident.into(), data));
             }
@@ -52,10 +52,10 @@ fn walk_json_files(
 }
 
 fn resolve_holder(
-    id: &Ident<String>,
+    id: &ResourceLocation,
     holder: &DensityFunctionHolder,
-    all: &BTreeMap<Ident<String>, DensityFunctionHolder>,
-    out: &mut BTreeMap<Ident<String>, ProtoDensityFunction>,
+    all: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
+    out: &mut BTreeMap<ResourceLocation, ProtoDensityFunction>,
 ) {
     if out.contains_key(id) {
         return;
@@ -79,8 +79,8 @@ fn load_all(
     assets_path: &Path,
     settings_name: &str,
 ) -> (
-    BTreeMap<Ident<String>, ProtoDensityFunction>,
-    BTreeMap<Ident<String>, NoiseParam>,
+    BTreeMap<ResourceLocation, ProtoDensityFunction>,
+    BTreeMap<ResourceLocation, NoiseParam>,
     NoiseGeneratorSettings,
 ) {
     let settings_path = assets_path.join(format!(
@@ -96,14 +96,14 @@ fn load_all(
     let mut df_files = Vec::new();
     walk_json_files(&df_dir, &df_dir, "minecraft", &mut df_files);
 
-    let mut holders: BTreeMap<Ident<String>, DensityFunctionHolder> = BTreeMap::new();
+    let mut holders: BTreeMap<ResourceLocation, DensityFunctionHolder> = BTreeMap::new();
     for (ident, data) in &df_files {
         if let Ok(holder) = serde_json::from_slice::<DensityFunctionHolder>(data) {
             holders.insert(ident.clone(), holder);
         }
     }
 
-    let mut functions: BTreeMap<Ident<String>, ProtoDensityFunction> = BTreeMap::new();
+    let mut functions: BTreeMap<ResourceLocation, ProtoDensityFunction> = BTreeMap::new();
     let holders_snapshot = holders.clone();
     for (ident, holder) in &holders_snapshot {
         resolve_holder(ident, holder, &holders_snapshot, &mut functions);
@@ -113,7 +113,7 @@ fn load_all(
     let mut noise_files = Vec::new();
     walk_json_files(&noise_dir, &noise_dir, "minecraft", &mut noise_files);
 
-    let mut noises: BTreeMap<Ident<String>, NoiseParam> = BTreeMap::new();
+    let mut noises: BTreeMap<ResourceLocation, NoiseParam> = BTreeMap::new();
     for (ident, data) in &noise_files {
         if let Ok(noise) = serde_json::from_slice::<NoiseParam>(data) {
             noises.insert(ident.clone(), noise);

@@ -1,13 +1,13 @@
 use crate::game_mode::OptGameMode;
 use crate::{Bounded, FixedBitSet, GameMode, GlobalPos, VarInt};
-use mcrs_ident::{Ident, ident};
+use mcrs_core::{ResourceLocation, rl};
 use mcrs_protocol_macros::{Decode, Encode};
 use std::borrow::Cow;
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct PlayerSpawnInfo<'a> {
     pub dimension_type_id: VarInt,
-    pub dimension: Ident<Cow<'a, str>>,
+    pub dimension: ResourceLocation<Cow<'a, str>>,
     pub seed: u64,
     pub game_mode: GameMode,
     pub prev_game_mode: OptGameMode,
@@ -22,7 +22,7 @@ impl Default for PlayerSpawnInfo<'_> {
     fn default() -> Self {
         Self {
             dimension_type_id: VarInt(0),
-            dimension: Ident::from(ident!("overworld")),
+            dimension: ResourceLocation::from(rl!("overworld")),
             seed: 0,
             game_mode: GameMode::Survival,
             prev_game_mode: OptGameMode::default(),

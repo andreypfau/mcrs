@@ -14,7 +14,7 @@ fn assets_root() -> std::path::PathBuf {
 }
 
 fn load_density_functions() -> BTreeMap<
-    mcrs_protocol::Ident<String>,
+    mcrs_core::ResourceLocation,
     mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
 > {
     use mcrs_minecraft_worldgen::density_function::proto::DensityFunctionHolder;
@@ -22,7 +22,7 @@ fn load_density_functions() -> BTreeMap<
         dir: &std::path::Path,
         prefix: &str,
         map: &mut BTreeMap<
-            mcrs_protocol::Ident<String>,
+            mcrs_core::ResourceLocation,
             mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
         >,
     ) {
@@ -54,7 +54,7 @@ fn load_density_functions() -> BTreeMap<
                 } else {
                     format!("minecraft:{}/{}", prefix, stem)
                 };
-                if let Ok(ident) = key.parse::<mcrs_protocol::Ident<String>>() {
+                if let Ok(ident) = key.parse::<mcrs_core::ResourceLocation>() {
                     map.insert(ident, *pdf);
                 }
             }
@@ -66,7 +66,7 @@ fn load_density_functions() -> BTreeMap<
 }
 
 fn load_noises() -> BTreeMap<
-    mcrs_protocol::Ident<String>,
+    mcrs_core::ResourceLocation,
     mcrs_minecraft_worldgen::density_function::proto::NoiseParam,
 > {
     let mut map = BTreeMap::new();
@@ -88,7 +88,7 @@ fn load_noises() -> BTreeMap<
             continue;
         };
         let stem = path.file_stem().unwrap().to_string_lossy();
-        if let Ok(ident) = format!("minecraft:{}", stem).parse::<mcrs_protocol::Ident<String>>() {
+        if let Ok(ident) = format!("minecraft:{}", stem).parse::<mcrs_core::ResourceLocation>() {
             map.insert(ident, param);
         }
     }

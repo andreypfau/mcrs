@@ -7,7 +7,7 @@ use mcrs_minecraft_worldgen::density_function::proto::{
     DensityFunctionHolder, ProtoDensityFunction,
 };
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
-use mcrs_protocol::Ident;
+use mcrs_core::ResourceLocation;
 use std::collections::BTreeMap;
 
 fn load_noise_settings(name: &str) -> NoiseGeneratorSettings {
@@ -22,7 +22,7 @@ fn load_noise_settings(name: &str) -> NoiseGeneratorSettings {
         .unwrap_or_else(|e| panic!("noise_settings/{}.json must deserialize: {}", name, e))
 }
 
-fn load_beta_density_functions() -> BTreeMap<Ident<String>, ProtoDensityFunction> {
+fn load_beta_density_functions() -> BTreeMap<ResourceLocation, ProtoDensityFunction> {
     let dir = format!(
         "{}/../../assets/minecraft/worldgen/density_function/beta",
         env!("CARGO_MANIFEST_DIR"),
@@ -42,7 +42,7 @@ fn load_beta_density_functions() -> BTreeMap<Ident<String>, ProtoDensityFunction
         };
         let stem = path.file_stem().unwrap().to_string_lossy();
         let ident = format!("minecraft:beta/{}", stem)
-            .parse::<Ident<String>>()
+            .parse::<ResourceLocation>()
             .expect("valid ident");
         map.insert(ident, *pdf);
     }

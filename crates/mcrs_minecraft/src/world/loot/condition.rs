@@ -1,4 +1,4 @@
-use mcrs_protocol::Ident;
+use mcrs_core::ResourceLocation;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -34,7 +34,7 @@ pub struct ToolPredicatesProto {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct EnchantmentPredicateProto {
-    pub enchantments: Ident<String>,
+    pub enchantments: ResourceLocation,
     #[serde(default)]
     pub levels: Option<LevelRange>,
 }

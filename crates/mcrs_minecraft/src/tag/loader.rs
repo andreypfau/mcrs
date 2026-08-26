@@ -4,8 +4,8 @@ use bevy_asset::{
     VisitAssetDependencies,
 };
 use bevy_reflect::TypePath;
-use mcrs_protocol::Ident;
-use mcrs_protocol::ident::IdentError;
+use mcrs_core::ResourceLocation;
+use mcrs_core::resource_location::ResourceLocationError;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::Display;
@@ -34,7 +34,7 @@ pub struct TagEntry {
 
 #[derive(Debug)]
 pub enum TagOrTagFileHandle {
-    Tag(Ident<String>),
+    Tag(ResourceLocation),
     TagFile(Handle<ResourcePackTags>),
 }
 
@@ -162,7 +162,7 @@ impl Serialize for SerializedTagEntry {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TagOrElementLocation {
-    pub id: Ident<String>,
+    pub id: ResourceLocation,
     pub tag: bool,
 }
 
@@ -177,17 +177,17 @@ impl Display for TagOrElementLocation {
 }
 
 impl FromStr for TagOrElementLocation {
-    type Err = IdentError;
+    type Err = ResourceLocationError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Some(rest) = s.strip_prefix('#') {
             Ok(TagOrElementLocation {
-                id: Ident::from_str(rest)?,
+                id: ResourceLocation::from_str(rest)?,
                 tag: true,
             })
         } else {
             Ok(TagOrElementLocation {
-                id: Ident::from_str(s)?,
+                id: ResourceLocation::from_str(s)?,
                 tag: false,
             })
         }

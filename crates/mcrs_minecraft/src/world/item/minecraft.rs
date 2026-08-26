@@ -1,7 +1,8 @@
 use crate::world::item::Item;
 use crate::world::item::component::ItemComponents;
 use crate::world::item::component::tool::ToolMaterial;
-use mcrs_protocol::{ItemId, ident};
+use mcrs_core::rl;
+use mcrs_protocol::ItemId;
 
 /// Dynamic tag identifier for blocks mineable with a pickaxe.
 /// This replaces the hardcoded MINEABLE_PICKAXE constant with a runtime tag lookup.
@@ -9,13 +10,13 @@ const MINEABLE_PICKAXE_TAG: &str = "minecraft:mineable/pickaxe";
 
 pub const TORCH: Item = Item {
     id: ItemId(323),
-    identifier: ident!("torch"),
+    identifier: rl!("torch"),
     components: &ItemComponents::new(),
 };
 
 pub const WOODEN_PICKAXE: Item = Item {
     id: ItemId(914),
-    identifier: ident!("wooden_pickaxe"),
+    identifier: rl!("wooden_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::WOOD,
         1.0,
@@ -26,7 +27,7 @@ pub const WOODEN_PICKAXE: Item = Item {
 
 pub const STONE_PICKAXE: Item = Item {
     id: ItemId(924),
-    identifier: ident!("stone_pickaxe"),
+    identifier: rl!("stone_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::STONE,
         1.0,
@@ -37,7 +38,7 @@ pub const STONE_PICKAXE: Item = Item {
 
 pub const GOLDEN_PICKAXE: Item = Item {
     id: ItemId(929),
-    identifier: ident!("golden_pickaxe"),
+    identifier: rl!("golden_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::GOLD,
         1.0,
@@ -48,7 +49,7 @@ pub const GOLDEN_PICKAXE: Item = Item {
 
 pub const IRON_PICKAXE: Item = Item {
     id: ItemId(934),
-    identifier: ident!("iron_pickaxe"),
+    identifier: rl!("iron_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::IRON,
         1.0,
@@ -59,7 +60,7 @@ pub const IRON_PICKAXE: Item = Item {
 
 pub const DIAMOND_PICKAXE: Item = Item {
     id: ItemId(939),
-    identifier: ident!("diamond_pickaxe"),
+    identifier: rl!("diamond_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::DIAMOND,
         1.0,

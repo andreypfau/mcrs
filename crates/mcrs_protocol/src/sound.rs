@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::io::Write;
 
-use mcrs_ident::Ident;
+use mcrs_core::ResourceLocation;
 
 use crate::var_int::VarInt;
 use crate::{Decode, Encode};
@@ -9,7 +9,7 @@ use crate::{Decode, Encode};
 #[derive(Clone, PartialEq, Debug)]
 pub enum SoundId<'a> {
     Direct {
-        id: Ident<Cow<'a, str>>,
+        id: ResourceLocation<Cow<'a, str>>,
         range: Option<f32>,
     },
     Reference {
@@ -52,7 +52,7 @@ impl<'a> Decode<'a> for SoundId<'a> {
 
         if i == 0 {
             Ok(SoundId::Direct {
-                id: Ident::decode(r)?,
+                id: ResourceLocation::decode(r)?,
                 range: <Option<f32>>::decode(r)?,
             })
         } else {

@@ -11,4 +11,4 @@ serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true
 uuid = { workspace = true, features = ["serde"] }
-mcrs_ident.workspace = true
+mcrs_core.workspace = true

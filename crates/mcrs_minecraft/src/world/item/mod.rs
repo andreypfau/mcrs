@@ -1,14 +1,15 @@
 use crate::world::item::component::ItemComponents;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Component;
-use mcrs_protocol::{Ident, ItemId, Slot};
+use mcrs_core::ResourceLocation;
+use mcrs_protocol::{ItemId, Slot};
 
 pub mod component;
 pub mod minecraft;
 
 pub struct Item {
     pub id: ItemId,
-    pub identifier: Ident<&'static str>,
+    pub identifier: ResourceLocation<&'static str>,
     pub components: &'static ItemComponents,
 }
 

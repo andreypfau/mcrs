@@ -3,7 +3,7 @@ pub mod clientbound {
     use crate::profile::GameProfile;
     use crate::{Bounded, RawBytes, VarInt};
     use derive_more::{From, Into};
-    use mcrs_ident::Ident;
+    use mcrs_core::ResourceLocation;
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
 
@@ -35,7 +35,7 @@ pub mod clientbound {
     #[derive(Clone, Debug, Encode, Decode, Into)]
     pub struct CustomQuery<'a> {
         pub message_id: VarInt,
-        pub channel: Ident<Cow<'a, str>>,
+        pub channel: ResourceLocation<Cow<'a, str>>,
         pub data: Bounded<RawBytes<'a>, 1048576>,
     }
 

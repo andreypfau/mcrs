@@ -18,7 +18,7 @@ use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, ResMut, With, With
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use bevy_math::{DVec3, Vec2};
-use mcrs_core::RegistryAccess;
+use mcrs_core::{RegistryAccess, ResourceLocation, rl};
 use mcrs_core::registry::access::ErasedRegistrySnapshot;
 use mcrs_core::tag::registry::DynTagRegistry;
 use mcrs_core::tag::registry::TagRegistry;
@@ -40,7 +40,7 @@ use mcrs_protocol::packets::game::clientbound::ClientboundStartConfiguration;
 use mcrs_protocol::packets::game::serverbound::ServerboundConfigurationAcknowledged;
 use mcrs_protocol::registry::Entry;
 use mcrs_protocol::resource_pack::KnownPack;
-use mcrs_protocol::{Ident, VarInt, WritePacket, ident};
+use mcrs_protocol::{VarInt, WritePacket};
 use mcrs_vanilla::block::Block as VanillaBlock;
 use mcrs_vanilla::block::definition::Blocks;
 use mcrs_vanilla::enchantment::EnchantmentData;
@@ -193,7 +193,7 @@ fn load_dynamic_registry_tags(
         ids.sort();
         ids.dedup();
         groups.push(TagGroup {
-            name: Ident::new(Cow::Owned(tag_name)).unwrap(),
+            name: ResourceLocation::parse_cow(Cow::Owned(tag_name)).unwrap(),
             entries: ids.into_iter().map(VarInt).collect(),
         });
     }
@@ -493,7 +493,7 @@ fn on_known_packs_response(
                 let skip_nbt = should_skip_nbt(e.data.is_some(), pack, &client_known);
 
                 Entry {
-                    id: Cow::from(e.location.as_str()).try_into().unwrap(),
+                    id: ResourceLocation::parse_cow(e.location.as_str()).unwrap(),
                     data: if skip_nbt {
                         None
                     } else {
@@ -504,7 +504,7 @@ fn on_known_packs_response(
             .collect();
 
         con.write_packet(&ClientboundRegistryData {
-            registry: Cow::from(registry.registry_key()).try_into().unwrap(),
+            registry: ResourceLocation::parse_cow(registry.registry_key()).unwrap(),
             entries,
         });
     }
@@ -527,12 +527,12 @@ fn on_known_packs_response(
             let entries: Vec<Entry> = attr_keys
                 .iter()
                 .map(|key| Entry {
-                    id: Cow::from(key.as_str()).try_into().unwrap(),
+                    id: ResourceLocation::parse_cow(key.as_str()).unwrap(),
                     data: None,
                 })
                 .collect();
             con.write_packet(&ClientboundRegistryData {
-                registry: ident!("minecraft:environment_attribute").into(),
+                registry: rl!("minecraft:environment_attribute").into(),
                 entries,
             });
         }
@@ -550,8 +550,10 @@ fn on_known_packs_response(
         let groups: Vec<TagGroup> = block_tags
             .iter()
             .map(|(tag_loc, bitset)| TagGroup {
-                name: Ident::new(Cow::Owned(tag_loc.as_str().to_string()))
-                    .unwrap_or_else(|_| Ident::new(Cow::Borrowed("minecraft:unknown")).unwrap()),
+                name: ResourceLocation::parse_cow(Cow::Owned(tag_loc.as_str().to_string()))
+                    .unwrap_or_else(|_| {
+                        ResourceLocation::parse_cow(Cow::Borrowed("minecraft:unknown")).unwrap()
+                    }),
                 entries: bitset
                     .iter()
                     .filter_map(|index| blocks.blocks().get(index as usize))
@@ -560,7 +562,7 @@ fn on_known_packs_response(
             })
             .collect();
         tag_registries.push(RegistryTags {
-            registry: ident!("minecraft:block").into(),
+            registry: rl!("minecraft:block").into(),
             tags: groups,
         });
     }
@@ -568,13 +570,15 @@ fn on_known_packs_response(
         let groups: Vec<TagGroup> = item_tags
             .iter()
             .map(|(tag_loc, bitset)| TagGroup {
-                name: Ident::new(Cow::Owned(tag_loc.as_str().to_string()))
-                    .unwrap_or_else(|_| Ident::new(Cow::Borrowed("minecraft:unknown")).unwrap()),
+                name: ResourceLocation::parse_cow(Cow::Owned(tag_loc.as_str().to_string()))
+                    .unwrap_or_else(|_| {
+                        ResourceLocation::parse_cow(Cow::Borrowed("minecraft:unknown")).unwrap()
+                    }),
                 entries: bitset.iter().map(|id| VarInt(id.raw() as i32)).collect(),
             })
             .collect();
         tag_registries.push(RegistryTags {
-            registry: ident!("minecraft:item").into(),
+            registry: rl!("minecraft:item").into(),
             tags: groups,
         });
     }
@@ -582,13 +586,15 @@ fn on_known_packs_response(
         let groups: Vec<TagGroup> = enchantment_tags
             .iter()
             .map(|(tag_loc, bitset)| TagGroup {
-                name: Ident::new(Cow::Owned(tag_loc.as_str().to_string()))
-                    .unwrap_or_else(|_| Ident::new(Cow::Borrowed("minecraft:unknown")).unwrap()),
+                name: ResourceLocation::parse_cow(Cow::Owned(tag_loc.as_str().to_string()))
+                    .unwrap_or_else(|_| {
+                        ResourceLocation::parse_cow(Cow::Borrowed("minecraft:unknown")).unwrap()
+                    }),
                 entries: bitset.iter().map(|id| VarInt(id.raw() as i32)).collect(),
             })
             .collect();
         tag_registries.push(RegistryTags {
-            registry: ident!("minecraft:enchantment").into(),
+            registry: rl!("minecraft:enchantment").into(),
             tags: groups,
         });
     }
@@ -596,13 +602,15 @@ fn on_known_packs_response(
         let groups: Vec<TagGroup> = entity_type_tags
             .iter()
             .map(|(tag_loc, bitset)| TagGroup {
-                name: Ident::new(Cow::Owned(tag_loc.as_str().to_string()))
-                    .unwrap_or_else(|_| Ident::new(Cow::Borrowed("minecraft:unknown")).unwrap()),
+                name: ResourceLocation::parse_cow(Cow::Owned(tag_loc.as_str().to_string()))
+                    .unwrap_or_else(|_| {
+                        ResourceLocation::parse_cow(Cow::Borrowed("minecraft:unknown")).unwrap()
+                    }),
                 entries: bitset.iter().map(|id| VarInt(id.raw() as i32)).collect(),
             })
             .collect();
         tag_registries.push(RegistryTags {
-            registry: ident!("minecraft:entity_type").into(),
+            registry: rl!("minecraft:entity_type").into(),
             tags: groups,
         });
     }
@@ -636,7 +644,8 @@ fn on_known_packs_response(
         let groups = load_dynamic_registry_tags(tag_dir, &index_of);
         if !groups.is_empty() {
             tag_registries.push(RegistryTags {
-                registry: Ident::new(Cow::Owned(registry_key.to_string())).unwrap(),
+                registry: ResourceLocation::parse_cow(Cow::Owned(registry_key.to_string()))
+                    .unwrap(),
                 tags: groups,
             });
         }
@@ -651,7 +660,7 @@ fn on_known_packs_response(
             continue;
         }
         tag_registries.push(RegistryTags {
-            registry: Ident::new(Cow::Owned(reg_key.to_string())).unwrap(),
+            registry: ResourceLocation::parse_cow(Cow::Owned(reg_key.to_string())).unwrap(),
             tags: vec![],
         });
     }
@@ -785,14 +794,14 @@ pub fn emit_initial_player_spawn(
 }
 
 #[derive(Default, Resource)]
-pub(crate) struct LoadedDimensionTypes(pub Vec<(Ident<String>, DimensionType)>);
+pub(crate) struct LoadedDimensionTypes(pub Vec<(ResourceLocation, DimensionType)>);
 
 /// Resource containing the loaded world preset with ordered dimensions.
 /// The dimensions are sorted alphabetically by dimension key for deterministic ordering.
 #[derive(Resource)]
 pub struct LoadedWorldPreset {
     pub preset_name: String,
-    pub dimensions: Vec<(Ident<String>, Ident<String>)>,
+    pub dimensions: Vec<(ResourceLocation, ResourceLocation)>,
     pub is_loaded: bool,
 }
 

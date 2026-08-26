@@ -1,7 +1,7 @@
 pub mod clientbound {
     use crate::{Bounded, RawBytes};
     use derive_more::Into;
-    use mcrs_ident::Ident;
+    use mcrs_core::ResourceLocation;
     use mcrs_protocol_macros::{Decode, Encode};
     use mcrs_text::Text;
     use std::borrow::Cow;
@@ -11,7 +11,7 @@ pub mod clientbound {
 
     #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode)]
     pub struct CustomPayload<'a> {
-        pub channel: Ident<Cow<'a, str>>,
+        pub channel: ResourceLocation<Cow<'a, str>>,
         pub data: Bounded<Cow<'a, RawBytes<'a>>, MAX_PAYLOAD_SIZE>,
     }
 
@@ -47,7 +47,7 @@ pub mod clientbound {
 
 pub mod serverbound {
     use crate::{Bounded, RawBytes};
-    use mcrs_ident::Ident;
+    use mcrs_core::ResourceLocation;
     use mcrs_nbt::compound::NbtCompound;
     use mcrs_protocol_macros::{Decode, Encode};
     use std::borrow::Cow;
@@ -70,7 +70,7 @@ pub mod serverbound {
 
     #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode)]
     pub struct CustomPayload<'a> {
-        pub channel: Ident<Cow<'a, str>>,
+        pub channel: ResourceLocation<Cow<'a, str>>,
         pub data: Bounded<RawBytes<'a>, MAX_PAYLOAD_SIZE>,
     }
 
@@ -92,7 +92,7 @@ pub mod serverbound {
 
     #[derive(Clone, PartialEq, Debug, Encode, Decode)]
     pub struct CustomClickAction<'a> {
-        pub id: Ident<Cow<'a, str>>,
+        pub id: ResourceLocation<Cow<'a, str>>,
         pub payload: NbtCompound,
     }
 }

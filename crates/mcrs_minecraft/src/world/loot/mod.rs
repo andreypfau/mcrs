@@ -19,7 +19,7 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use bevy_reflect::TypePath;
 use mcrs_core::StaticRegistry;
-use mcrs_protocol::Ident;
+use mcrs_core::ResourceLocation;
 use mcrs_vanilla::block::definition::{BlockDefinitions, Blocks, LootId};
 use mcrs_vanilla::enchantment::EnchantmentData;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -72,7 +72,7 @@ pub struct LootPool {
 #[derive(Debug, Clone)]
 pub enum LootEntry {
     Item {
-        name: Ident<String>,
+        name: ResourceLocation,
         conditions: Vec<LootCondition>,
     },
     Alternatives {

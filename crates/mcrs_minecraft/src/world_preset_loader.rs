@@ -15,7 +15,7 @@ use bevy_asset::{
     VisitAssetDependencies,
 };
 use bevy_reflect::TypePath;
-use mcrs_protocol::Ident;
+use mcrs_core::ResourceLocation;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -70,14 +70,14 @@ impl VisitAssetDependencies for WorldPresetAsset {
 impl WorldPresetAsset {
     /// Returns an ordered list of dimension entries as (dimension_key, dimension_type_ref) tuples.
     /// Order is deterministic: sorted alphabetically by dimension key.
-    pub fn ordered_dimensions(&self) -> Vec<(Ident<String>, Ident<String>)> {
+    pub fn ordered_dimensions(&self) -> Vec<(ResourceLocation, ResourceLocation)> {
         let mut dims: Vec<_> = self
             .dimensions
             .iter()
             .map(|(key, entry)| {
-                let dim_key =
-                    Ident::from_str(key).unwrap_or_else(|_| panic!("Invalid dimension key: {key}"));
-                let dim_type = Ident::from_str(&entry.dimension_type)
+                let dim_key = ResourceLocation::from_str(key)
+                    .unwrap_or_else(|_| panic!("Invalid dimension key: {key}"));
+                let dim_type = ResourceLocation::from_str(&entry.dimension_type)
                     .unwrap_or_else(|_| panic!("Invalid dimension type: {}", entry.dimension_type));
                 (dim_key, dim_type)
             })
@@ -98,7 +98,7 @@ pub struct DimensionTypeAsset {
     /// The fully parsed dimension type data
     pub dimension_type: DimensionType,
     /// The identifier for this dimension type (e.g., "minecraft:overworld")
-    pub id: Ident<String>,
+    pub id: ResourceLocation,
 }
 
 impl Asset for DimensionTypeAsset {}
@@ -170,7 +170,7 @@ impl AssetLoader for WorldPresetLoader {
             }
 
             // Parse the dimension type reference to extract namespace and path
-            if let Ok(ident) = Ident::<String>::from_str(type_ref) {
+            if let Ok(ident) = ResourceLocation::from_str(type_ref) {
                 let asset_path =
                     format!("{}/dimension_type/{}.json", ident.namespace(), ident.path());
 
@@ -249,7 +249,7 @@ impl AssetLoader for DimensionTypeLoader {
 
 /// Extract the dimension type identifier from the asset path.
 /// Path format: "minecraft/dimension_type/overworld.json" -> "minecraft:overworld"
-fn extract_dimension_type_id(path: &std::path::Path) -> Ident<String> {
+fn extract_dimension_type_id(path: &std::path::Path) -> ResourceLocation {
     let path_str = path.to_string_lossy();
 
     // Try to find the pattern "namespace/dimension_type/name.json"
@@ -264,8 +264,8 @@ fn extract_dimension_type_id(path: &std::path::Path) -> Ident<String> {
             .unwrap_or("overworld");
 
         let id_str = format!("{namespace}:{name}");
-        return Ident::from_str(&id_str)
-            .unwrap_or_else(|_| Ident::from_str("minecraft:overworld").unwrap());
+        return ResourceLocation::from_str(&id_str)
+            .unwrap_or_else(|_| ResourceLocation::from_str("minecraft:overworld").unwrap());
     }
 
     // Fallback: just use the file stem
@@ -274,8 +274,8 @@ fn extract_dimension_type_id(path: &std::path::Path) -> Ident<String> {
         .and_then(|s| s.to_str())
         .unwrap_or("overworld");
 
-    Ident::from_str(&format!("minecraft:{name}"))
-        .unwrap_or_else(|_| Ident::from_str("minecraft:overworld").unwrap())
+    ResourceLocation::from_str(&format!("minecraft:{name}"))
+        .unwrap_or_else(|_| ResourceLocation::from_str("minecraft:overworld").unwrap())
 }
 
 /// Resolve a preset name (e.g., "normal") to an asset path.
@@ -284,7 +284,7 @@ fn extract_dimension_type_id(path: &std::path::Path) -> Ident<String> {
 pub fn resolve_preset_asset_path(preset_name: &str) -> String {
     if preset_name.contains(':') {
         // Already namespaced: "minecraft:normal" -> "minecraft/worldgen/world_preset/normal.json"
-        if let Ok(ident) = Ident::<String>::from_str(preset_name) {
+        if let Ok(ident) = ResourceLocation::from_str(preset_name) {
             return format!(
                 "{}/worldgen/world_preset/{}.json",
                 ident.namespace(),

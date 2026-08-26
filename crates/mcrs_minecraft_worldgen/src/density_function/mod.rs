@@ -8,7 +8,8 @@ use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::proto::NoiseGeneratorSettings;
 use crate::spline::{RangeFunction, SplineFunction};
 use bevy_math::{Curve, FloatExt, IVec3};
-use mcrs_protocol::{BlockStateId, Ident};
+use mcrs_core::ResourceLocation;
+use mcrs_protocol::BlockStateId;
 use mcrs_random::legacy::LegacyRandom;
 use mcrs_random::{Random, RandomSource};
 use std::collections::{BTreeMap, HashMap};
@@ -1485,8 +1486,8 @@ fn reachable_backwards(
 }
 
 pub fn build_functions(
-    functions: &BTreeMap<Ident<String>, ProtoDensityFunction>,
-    noises: &BTreeMap<Ident<String>, NoiseParam>,
+    functions: &BTreeMap<ResourceLocation, ProtoDensityFunction>,
+    noises: &BTreeMap<ResourceLocation, NoiseParam>,
     noise_settings: &NoiseGeneratorSettings,
     seed: u64,
     default_block_state: BlockStateId,
@@ -6191,8 +6192,8 @@ impl RangeFunction for DensityFunctionComponent {
 struct FunctionStackBuilder<'a> {
     random: RandomSource,
     world_seed: u64,
-    functions: &'a BTreeMap<Ident<String>, ProtoDensityFunction>,
-    noises: &'a BTreeMap<Ident<String>, NoiseParam>,
+    functions: &'a BTreeMap<ResourceLocation, ProtoDensityFunction>,
+    noises: &'a BTreeMap<ResourceLocation, NoiseParam>,
     stack: Vec<DensityFunctionComponent>,
     built: HashMap<ProtoDensityFunction, usize>,
     builder_options: &'a ChunkNoiseFunctionBuilderOptions,
@@ -6202,8 +6203,8 @@ impl<'a> FunctionStackBuilder<'a> {
     fn new(
         random: RandomSource,
         world_seed: u64,
-        functions: &'a BTreeMap<Ident<String>, ProtoDensityFunction>,
-        noises: &'a BTreeMap<Ident<String>, NoiseParam>,
+        functions: &'a BTreeMap<ResourceLocation, ProtoDensityFunction>,
+        noises: &'a BTreeMap<ResourceLocation, NoiseParam>,
         builder_options: &'a ChunkNoiseFunctionBuilderOptions,
     ) -> Self {
         Self {
@@ -6276,7 +6277,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         );
     }
 
-    fn visit_reference(&mut self, value: &Ident<String>) {
+    fn visit_reference(&mut self, value: &ResourceLocation) {
         if let Some(x) = self.functions.get(value) {
             self.visit_density_function(&x);
             return;
@@ -7031,7 +7032,7 @@ impl<'a> FunctionStackBuilder<'a> {
         }
     }
 
-    fn create_noise(&mut self, id: &Ident<String>) -> NoiseSampler {
+    fn create_noise(&mut self, id: &ResourceLocation) -> NoiseSampler {
         if let RandomSource::Legacy(r) = &self.random {
             match id.as_str() {
                 "minecraft:temperature" => {
@@ -7832,7 +7833,7 @@ mod tests {
         dir: &std::path::Path,
         prefix: &str,
         map: &mut std::collections::BTreeMap<
-            mcrs_protocol::Ident<String>,
+            mcrs_core::ResourceLocation,
             crate::density_function::ProtoDensityFunction,
         >,
     ) {
@@ -7874,7 +7875,7 @@ mod tests {
                     format!("minecraft:{}/{}", prefix, stem)
                 };
                 let ident = key
-                    .parse::<mcrs_protocol::Ident<String>>()
+                    .parse::<mcrs_core::ResourceLocation>()
                     .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
                 map.insert(ident, function);
             }
@@ -7883,7 +7884,7 @@ mod tests {
 
     /// Load all density_function JSON assets recursively into a `ProtoDensityFunction` map.
     fn load_density_functions_from_disk() -> std::collections::BTreeMap<
-        mcrs_protocol::Ident<String>,
+        mcrs_core::ResourceLocation,
         crate::density_function::ProtoDensityFunction,
     > {
         let base = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -7895,7 +7896,7 @@ mod tests {
 
     /// Load all noise JSON assets into a `NoiseParam` map.
     fn load_noises_from_disk() -> std::collections::BTreeMap<
-        mcrs_protocol::Ident<String>,
+        mcrs_core::ResourceLocation,
         crate::density_function::proto::NoiseParam,
     > {
         let base = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -7914,7 +7915,7 @@ mod tests {
                         .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
                 let stem = path.file_stem().unwrap().to_string_lossy();
                 let ident = format!("minecraft:{}", stem)
-                    .parse::<mcrs_protocol::Ident<String>>()
+                    .parse::<mcrs_core::ResourceLocation>()
                     .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
                 map.insert(ident, noise);
             }
@@ -7938,11 +7939,11 @@ mod tests {
             serde_json::from_str(&json).expect("overworld.json must deserialize");
 
         let functions: std::collections::BTreeMap<
-            mcrs_protocol::Ident<String>,
+            mcrs_core::ResourceLocation,
             crate::density_function::ProtoDensityFunction,
         > = load_density_functions_from_disk();
         let noises: std::collections::BTreeMap<
-            mcrs_protocol::Ident<String>,
+            mcrs_core::ResourceLocation,
             crate::density_function::proto::NoiseParam,
         > = load_noises_from_disk();
 

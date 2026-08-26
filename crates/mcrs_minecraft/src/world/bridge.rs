@@ -33,7 +33,8 @@ use mcrs_protocol::packets::game::clientbound::{
     ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket,
 };
 use mcrs_protocol::profile::{PlayerListActions, PlayerListEntry};
-use mcrs_protocol::{ByteAngle, GameEventKind, Ident, Look, PositionFlag, Text, VarInt};
+use mcrs_core::ResourceLocation;
+use mcrs_protocol::{ByteAngle, GameEventKind, Look, PositionFlag, Text, VarInt};
 use tracing::{debug, trace, warn};
 
 use crate::world::bridge_queue::{
@@ -442,9 +443,9 @@ pub fn dispatch_encode(
                             player_id,
                             "dispatch_encode: PlayerLogin (releases client from Joining world)"
                         );
-                        let dim_idents: Vec<Ident<std::borrow::Cow<str>>> = dimensions
+                        let dim_idents: Vec<ResourceLocation<std::borrow::Cow<str>>> = dimensions
                             .iter()
-                            .filter_map(|s| Ident::<std::borrow::Cow<str>>::new(s.as_str()).ok())
+                            .filter_map(|s| ResourceLocation::parse_cow(s.as_str()).ok())
                             .collect();
                         conn.raw
                             .append(&ClientboundLogin {
@@ -459,10 +460,8 @@ pub fn dispatch_encode(
                                 do_limited_crafting,
                                 player_spawn_info: PlayerSpawnInfo {
                                     dimension_type_id: VarInt(dimension_type_id),
-                                    dimension: Ident::<std::borrow::Cow<str>>::new(
-                                        dimension.as_str(),
-                                    )
-                                    .expect("dimension id is a valid resource location"),
+                                    dimension: ResourceLocation::parse_cow(dimension.as_str())
+                                        .expect("dimension id is a valid resource location"),
                                     game_mode,
                                     ..Default::default()
                                 },
