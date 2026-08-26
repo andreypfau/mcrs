@@ -32,7 +32,6 @@ fn handle_change_game_mode(
             &GameProfile,
             &mut PlayerGameMode,
             &mut Invulnerable,
-            &mut Flying,
             &mut MayFly,
             &mut MayBuild,
             &HostAnchor,
@@ -40,6 +39,7 @@ fn handle_change_game_mode(
         With<HostAnchor>,
     >,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
+    mut commands: Commands,
 ) {
     let Some(pkt) = event.decode::<ServerboundChangeGameMode>() else {
         return;
@@ -51,7 +51,6 @@ fn handle_change_game_mode(
             _profile,
             mut current_mode,
             mut invulnerable,
-            mut flying,
             mut may_fly,
             mut may_build,
             anchor,
@@ -74,13 +73,17 @@ fn handle_change_game_mode(
         }
 
         current_mode.0 = pkt.mode;
-        update_abilities_for_game_mode(
+        let flying = update_abilities_for_game_mode(
             pkt.mode,
             &mut invulnerable,
-            &mut flying,
             &mut may_fly,
             &mut may_build,
         );
+        if flying {
+            commands.entity(event.entity).insert(Flying);
+        } else {
+            commands.entity(event.entity).remove::<Flying>();
+        }
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(anchor.0),
             priority: PacketPriority::Normal,
@@ -94,7 +97,7 @@ fn handle_change_game_mode(
 
     let entries: Vec<PlayerInfoEntry> = players
         .iter()
-        .map(|(_, profile, mode, _, _, _, _, _)| PlayerInfoEntry {
+        .map(|(_, profile, mode, _, _, _, _)| PlayerInfoEntry {
             player_uuid: profile.id,
             username: profile.username.clone(),
             game_mode: mode.0,
@@ -102,7 +105,7 @@ fn handle_change_game_mode(
         })
         .collect();
 
-    for (_, _, _, _, _, _, _, anchor) in players.iter() {
+    for (_, _, _, _, _, _, anchor) in players.iter() {
         packet_writer.write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(anchor.0),
             priority: PacketPriority::Normal,
