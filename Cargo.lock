@@ -3324,7 +3324,6 @@ dependencies = [
  "bevy_ecs_macros",
  "bitflags 2.10.0",
  "mcrs_engine",
- "mcrs_network",
  "mcrs_palette",
  "mcrs_protocol",
  "rustc-hash 2.1.1",
