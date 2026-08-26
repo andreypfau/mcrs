@@ -1,7 +1,7 @@
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use mcrs_core::tag::key::TaggedRegistry;
 use mcrs_core::tag::tag_ref::TagRef;
@@ -97,7 +97,6 @@ impl AssetLoader for DialogLoader {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::path::PathBuf;
 
     fn assets_dir() -> PathBuf {

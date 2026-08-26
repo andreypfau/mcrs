@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
@@ -130,7 +129,7 @@ mod tests {
             }
             let bytes = std::fs::read(&path).unwrap();
             match serde_json::from_slice::<ProtoWorldPreset>(&bytes) {
-                Ok(proto) => {
+                Ok(_) => {
                     count += 1;
                 }
                 Err(e) => failures.push((path.display().to_string(), e.to_string())),

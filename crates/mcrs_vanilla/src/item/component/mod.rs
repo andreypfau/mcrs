@@ -6,12 +6,10 @@ mod swing;
 pub mod tool;
 
 pub use attribute::AttributeModifiers;
-use bevy_ecs::bundle::Bundle;
 use bevy_ecs::component::Component;
 pub use enchantments::Enchantments;
 use mcrs_protocol::item::{CustomData, ItemComponentKind, Lore, MaxStackSize};
 use rarity::Rarity;
-use std::borrow::Cow;
 use swing::SwingAnimation;
 pub use tool::Tool;
 use tool::{ToolMaterial, ToolRule};
@@ -33,8 +31,6 @@ pub struct ItemComponents {
     pub enchantable: Option<Enchantable>,
     pub tool: Option<Tool>,
 }
-
-const BREAK_SOUND: Cow<'static, str> = Cow::Borrowed("entity.item.break");
 
 impl ItemComponents {
     pub const fn new() -> Self {
@@ -73,14 +69,8 @@ impl ItemComponents {
         self
     }
 
-    pub const fn with_pickaxe(
-        self,
-        material: &ToolMaterial,
-        attack_damage: f32,
-        attack_speed: f32,
-        rules: &'static [ToolRule],
-    ) -> Self {
-        material.apply_tool_properties(self, attack_damage, attack_speed, 0.0, rules)
+    pub const fn with_pickaxe(self, material: &ToolMaterial, rules: &'static [ToolRule]) -> Self {
+        material.apply_tool_properties(self, rules)
     }
 }
 

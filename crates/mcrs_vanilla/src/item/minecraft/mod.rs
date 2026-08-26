@@ -30,8 +30,6 @@ pub const WOODEN_PICKAXE: Item = Item {
     identifier: mcrs_core::rl!("minecraft:wooden_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::WOOD,
-        1.0,
-        -2.0,
         &ToolMaterial::WOOD.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
     ),
 };
@@ -41,8 +39,6 @@ pub const STONE_PICKAXE: Item = Item {
     identifier: mcrs_core::rl!("minecraft:stone_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::STONE,
-        1.0,
-        -2.0,
         &ToolMaterial::STONE.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
     ),
 };
@@ -52,8 +48,6 @@ pub const GOLDEN_PICKAXE: Item = Item {
     identifier: mcrs_core::rl!("minecraft:golden_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::GOLD,
-        1.0,
-        -2.8,
         &ToolMaterial::GOLD.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
     ),
 };
@@ -63,8 +57,6 @@ pub const IRON_PICKAXE: Item = Item {
     identifier: mcrs_core::rl!("minecraft:iron_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::IRON,
-        1.0,
-        -2.8,
         &ToolMaterial::IRON.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
     ),
 };
@@ -74,8 +66,6 @@ pub const DIAMOND_PICKAXE: Item = Item {
     identifier: mcrs_core::rl!("minecraft:diamond_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::DIAMOND,
-        1.0,
-        -2.8,
         &ToolMaterial::DIAMOND.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
     ),
 };

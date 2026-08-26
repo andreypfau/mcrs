@@ -4,7 +4,6 @@ use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::ResourceLocation;
 use crate::attribute::EnvironmentAttributeMap;
@@ -277,6 +276,7 @@ pub enum CardinalLight {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
     use std::path::PathBuf;
 
     fn dimension_type_dir() -> PathBuf {

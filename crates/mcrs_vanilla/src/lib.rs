@@ -1,7 +1,4 @@
 #![allow(
-    dead_code,
-    unused_variables,
-    unused_imports,
     clippy::type_complexity,
     clippy::needless_borrow,
     clippy::too_many_arguments
@@ -18,13 +15,11 @@ pub mod dimension;
 pub mod enchantment;
 pub mod entity;
 pub mod environment;
-pub mod explosion;
 pub mod instrument;
 pub mod item;
 pub mod jukebox_song;
 pub mod material;
 pub mod painting_variant;
-pub mod player_action;
 pub mod save;
 pub mod sound;
 pub mod test_types;
@@ -169,15 +164,19 @@ impl Plugin for MinecraftWorldPlugin {
                 (
                     biome::Biome,
                     "minecraft:worldgen/biome",
-                    |b: &biome::Biome| mcrs_minecraft_nbt::to_nbt_compound(&biome::NetworkBiome::from(b)),
+                    |b: &biome::Biome| mcrs_minecraft_nbt::to_nbt_compound(
+                        &biome::NetworkBiome::from(b)
+                    ),
                     Some(mcrs_core::PackSource::vanilla_core())
                 ),
                 (
                     dimension::dimension_type::DimensionType,
                     "minecraft:dimension_type",
-                    |d: &dimension::dimension_type::DimensionType| mcrs_minecraft_nbt::to_nbt_compound(
-                        &dimension::dimension_type::NetworkDimensionType::from(d)
-                    ),
+                    |d: &dimension::dimension_type::DimensionType| {
+                        mcrs_minecraft_nbt::to_nbt_compound(
+                            &dimension::dimension_type::NetworkDimensionType::from(d),
+                        )
+                    },
                     Some(mcrs_core::PackSource::vanilla_core())
                 ),
                 (

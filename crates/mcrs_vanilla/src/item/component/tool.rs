@@ -5,7 +5,6 @@ use crate::item::component::ItemComponents;
 use bevy_ecs::component::Component;
 use mcrs_core::tag::key::TagKey;
 use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_core::{StaticId, StaticRegistry, TagRegistry};
 
 #[derive(Clone, Copy, Debug, Default, Component)]
 pub struct Tool {
@@ -142,6 +141,9 @@ pub struct ToolMaterial {
     incorrect_blocks_for_drops: TagKey<Block>,
     durability: u32,
     speed: f32,
+    // Vanilla data with no consumer yet: item attribute modifiers are an
+    // empty stub, so nothing can carry this onto an item.
+    #[allow(dead_code)]
     attack_damage_bonus: f32,
     enchantment_value: u8,
 }
@@ -225,9 +227,6 @@ impl ToolMaterial {
     pub const fn apply_tool_properties(
         &self,
         components: ItemComponents,
-        attack_damage: f32,
-        attack_speed: f32,
-        disable_blocking_for_seconds: f32,
         rules: &'static [ToolRule],
     ) -> ItemComponents {
         self.apply_common_properties(components).with_tool(Tool {
