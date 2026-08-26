@@ -41,29 +41,11 @@ pub const fn ceillog2(count: usize) -> u32 {
     }
 }
 
-/// Which of vanilla's palette configurations a container of a given size lands in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PaletteForm {
-    Single,
-    /// Values are indices into the palette list.
-    Indirect {
-        bits: u32,
-    },
-    /// Values are registry ids and the palette list is absent.
-    Direct {
-        bits: u32,
-    },
-}
-
-/// Vanilla's `Strategy`: the per-axis index formula and the bits-per-entry table
-/// for one kind of section container.
+/// The per-axis index formula and the stored width for one kind of section
+/// container. A game supplies the instances.
 pub trait SectionKind {
     const AXIS_BITS: u32;
     const MIN_INDIRECT_BITS: u32;
-    const MAX_INDIRECT_BITS: u32;
-    /// `Strategy.globalPaletteBitsInMemory`, the width the wire uses once the
-    /// palette outgrows the indirect configurations.
-    const DIRECT_BITS: u32;
 
     const ENTRY_COUNT: usize = 1 << (3 * Self::AXIS_BITS);
 
@@ -81,46 +63,8 @@ pub trait SectionKind {
             bits => bits.max(Self::MIN_INDIRECT_BITS),
         }
     }
-
-    /// The form the network format uses, where a palette past
-    /// `MAX_INDIRECT_BITS` is dropped in favour of raw registry ids.
-    #[inline]
-    fn network_form(palette_len: usize) -> PaletteForm {
-        match ceillog2(palette_len) {
-            0 => PaletteForm::Single,
-            bits if bits <= Self::MAX_INDIRECT_BITS => PaletteForm::Indirect {
-                bits: bits.max(Self::MIN_INDIRECT_BITS),
-            },
-            _ => PaletteForm::Direct {
-                bits: Self::DIRECT_BITS,
-            },
-        }
-    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Blocks;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct Biomes;
-
-impl SectionKind for Blocks {
-    const AXIS_BITS: u32 = 4;
-    const MIN_INDIRECT_BITS: u32 = 4;
-    const MAX_INDIRECT_BITS: u32 = 8;
-    const DIRECT_BITS: u32 = 15;
-}
-
-impl SectionKind for Biomes {
-    const AXIS_BITS: u32 = 2;
-    const MIN_INDIRECT_BITS: u32 = 1;
-    const MAX_INDIRECT_BITS: u32 = 3;
-    const DIRECT_BITS: u32 = 7;
-}
-
-/// Resolves a value to its registry id. The only place vanilla's `IdMap<T>`
-/// reaches the palette layer is `read`/`write`, which is why nothing else here
-/// takes one.
 pub trait IdMap<T: ?Sized> {
     fn id_of(&self, value: &T) -> Option<u32>;
 }

@@ -58,6 +58,7 @@ pub mod profile;
 mod raw;
 pub mod registry;
 pub mod resource_pack;
+pub mod section;
 mod serial;
 pub mod setting;
 pub mod sound;

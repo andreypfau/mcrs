@@ -115,6 +115,7 @@ serde.workspace = true
 serde_json.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_voxel_storage.workspace = true
+mcrs_protocol.workspace = true
 flate2.workspace = true
 bytemuck = { version = "1", features = ["derive"] }
 # Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.

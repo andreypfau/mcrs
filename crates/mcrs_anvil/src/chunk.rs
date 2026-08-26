@@ -20,8 +20,8 @@ pub struct PalettedContainer<K> {
     kind: PhantomData<K>,
 }
 
-pub type BlockStates = PalettedContainer<mcrs_voxel_storage::Blocks>;
-pub type Biomes = PalettedContainer<mcrs_voxel_storage::Biomes>;
+pub type BlockStates = PalettedContainer<mcrs_protocol::section::Blocks>;
+pub type Biomes = PalettedContainer<mcrs_protocol::section::Biomes>;
 
 impl<K: SectionKind> PalettedContainer<K> {
     pub const ENTRY_COUNT: usize = K::ENTRY_COUNT;
@@ -79,8 +79,10 @@ impl<K: SectionKind> PalettedContainer<K> {
         assert_eq!(entries.len(), self.palette.len());
         match &self.cells {
             Cells::Uniform => out.fill(entries[0]),
-            Cells::Packed { bits, data } => mcrs_voxel_storage::remap_into(*bits, data, entries, out)
-                .expect("the data length was checked at load"),
+            Cells::Packed { bits, data } => {
+                mcrs_voxel_storage::remap_into(*bits, data, entries, out)
+                    .expect("the data length was checked at load")
+            }
         }
     }
 

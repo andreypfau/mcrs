@@ -1,10 +1,11 @@
 use bevy_ecs::component::Component;
-use mcrs_voxel_math::chunk_pos;
+use mcrs_protocol::BlockStateId;
+use mcrs_protocol::section::{NetworkSectionKind, PaletteForm};
 use mcrs_voxel_math::BlockPos;
+use mcrs_voxel_math::chunk_pos;
 use mcrs_voxel_storage::PalettedContainer;
 use mcrs_voxel_storage::PalettedContainer::{Heterogeneous, Homogeneous};
-use mcrs_voxel_storage::{PaletteForm, SectionKind};
-use mcrs_protocol::BlockStateId;
+use mcrs_voxel_storage::SectionKind;
 
 impl BiomePalette {
     /// Set the biome id for a 4x4x4 biome cell within this section.
@@ -21,25 +22,31 @@ impl BiomePalette {
                 palette: mcrs_protocol::chunk::Palette::Single(*registry_id),
                 packed_data: Box::new([]),
             },
-            Heterogeneous(data) => match mcrs_voxel_storage::Biomes::network_form(data.counts.len()) {
-                PaletteForm::Single => unreachable!("a heterogeneous container has two entries"),
-                PaletteForm::Indirect { bits } => {
-                    let (palette, packed) = self.0.to_palette_and_packed_data(bits as u8);
-                    mcrs_protocol::chunk::PalettedContainer {
-                        bits_per_entry: bits as u8,
-                        palette: mcrs_protocol::chunk::Palette::Indirect(palette),
-                        packed_data: packed,
+            Heterogeneous(data) => {
+                match mcrs_protocol::section::Biomes::network_form(data.counts.len()) {
+                    PaletteForm::Single => {
+                        unreachable!("a heterogeneous container has two entries")
+                    }
+                    PaletteForm::Indirect { bits } => {
+                        let (palette, packed) = self.0.to_palette_and_packed_data(bits as u8);
+                        mcrs_protocol::chunk::PalettedContainer {
+                            bits_per_entry: bits as u8,
+                            palette: mcrs_protocol::chunk::Palette::Indirect(palette),
+                            packed_data: packed,
+                        }
+                    }
+                    PaletteForm::Direct { bits } => {
+                        let cells = data.cube.as_flattened().as_flattened();
+                        mcrs_protocol::chunk::PalettedContainer {
+                            bits_per_entry: bits as u8,
+                            palette: mcrs_protocol::chunk::Palette::Direct,
+                            packed_data: mcrs_voxel_storage::pack_from(bits, cells, |&id| {
+                                id as u32
+                            }),
+                        }
                     }
                 }
-                PaletteForm::Direct { bits } => {
-                    let cells = data.cube.as_flattened().as_flattened();
-                    mcrs_protocol::chunk::PalettedContainer {
-                        bits_per_entry: bits as u8,
-                        palette: mcrs_protocol::chunk::Palette::Direct,
-                        packed_data: mcrs_voxel_storage::pack_from(bits, cells, |&id| id as u32),
-                    }
-                }
-            },
+            }
         }
     }
 }
@@ -52,25 +59,31 @@ impl BlockPalette {
                 palette: mcrs_protocol::chunk::Palette::Single(*registry_id),
                 packed_data: Box::new([]),
             },
-            Heterogeneous(data) => match mcrs_voxel_storage::Blocks::network_form(data.counts.len()) {
-                PaletteForm::Single => unreachable!("a heterogeneous container has two entries"),
-                PaletteForm::Indirect { bits } => {
-                    let (palette, packed) = self.0.to_palette_and_packed_data(bits as u8);
-                    mcrs_protocol::chunk::PalettedContainer {
-                        bits_per_entry: bits as u8,
-                        palette: mcrs_protocol::chunk::Palette::Indirect(palette),
-                        packed_data: packed,
+            Heterogeneous(data) => {
+                match mcrs_protocol::section::Blocks::network_form(data.counts.len()) {
+                    PaletteForm::Single => {
+                        unreachable!("a heterogeneous container has two entries")
+                    }
+                    PaletteForm::Indirect { bits } => {
+                        let (palette, packed) = self.0.to_palette_and_packed_data(bits as u8);
+                        mcrs_protocol::chunk::PalettedContainer {
+                            bits_per_entry: bits as u8,
+                            palette: mcrs_protocol::chunk::Palette::Indirect(palette),
+                            packed_data: packed,
+                        }
+                    }
+                    PaletteForm::Direct { bits } => {
+                        let cells = data.cube.as_flattened().as_flattened();
+                        mcrs_protocol::chunk::PalettedContainer {
+                            bits_per_entry: bits as u8,
+                            palette: mcrs_protocol::chunk::Palette::Direct,
+                            packed_data: mcrs_voxel_storage::pack_from(bits, cells, |id| {
+                                id.0 as u32
+                            }),
+                        }
                     }
                 }
-                PaletteForm::Direct { bits } => {
-                    let cells = data.cube.as_flattened().as_flattened();
-                    mcrs_protocol::chunk::PalettedContainer {
-                        bits_per_entry: bits as u8,
-                        palette: mcrs_protocol::chunk::Palette::Direct,
-                        packed_data: mcrs_voxel_storage::pack_from(bits, cells, |id| id.0 as u32),
-                    }
-                }
-            },
+            }
         }
     }
 
