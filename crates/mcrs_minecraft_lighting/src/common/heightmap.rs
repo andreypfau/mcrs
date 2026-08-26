@@ -1,4 +1,4 @@
-//! Typed helpers around `mcrs_engine::world::column::Heightmaps` plus the
+//! Typed helpers around `mcrs_engine::world::storage::column::Heightmaps` plus the
 //! shared top-down scanner core consumed by `lifecycle::advance_scan` and
 //! `heightmap_update::rescan_column_xz`.
 //!
@@ -16,12 +16,12 @@
 //! exactly one place.
 
 use bevy_ecs::prelude::Entity;
-use mcrs_engine::world::column::ColumnChunks;
+use mcrs_engine::world::storage::column::ColumnChunks;
 use mcrs_minecraft_block::palette::BlockPalette;
 
 use crate::bitset::BitSet256;
 use crate::table::{BlockStateLightTable, flag_bits};
-use mcrs_engine::world::column::Heightmaps;
+use mcrs_engine::world::storage::column::Heightmaps;
 
 const CHUNK_SIZE: i32 = 16;
 

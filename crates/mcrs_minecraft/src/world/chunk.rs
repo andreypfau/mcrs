@@ -15,10 +15,12 @@ use mcrs_core::RegistrySnapshot;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::PlayerChunkObserver;
-use mcrs_engine::world::chunk::{
-    ChunkGenerating, ChunkLoaded, ChunkLoading, ChunkPos, ChunkUnloading,
-};
-use mcrs_engine::world::lighting::LightTicket;
+use mcrs_engine::geometry::ChunkPos;
+use mcrs_engine::world::lifecycle::markers::ChunkGenerating;
+use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
+use mcrs_engine::world::lifecycle::markers::ChunkLoading;
+use mcrs_engine::world::lifecycle::markers::ChunkUnloading;
+use mcrs_engine::world::lifecycle::ticket::LightTicket;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::bevy::{
     BuildNoiseRouter, NoiseGeneratorSettingsAsset, NoiseGeneratorSettingsPlugin,

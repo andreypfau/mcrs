@@ -20,12 +20,15 @@ use bevy_state::state::NextState;
 use mcrs_core::AppState;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
+use mcrs_engine::geometry::ChunkPos;
 use mcrs_engine::world::block::BlockPos;
-use mcrs_engine::world::chunk::{Chunk, ChunkIndex, ChunkLoaded, ChunkPos};
-use mcrs_engine::world::column::{ColumnPlugin, ColumnPos, ColumnPosComponent, InColumn};
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
+use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
+use mcrs_engine::world::storage::chunk::Chunk;
+use mcrs_engine::world::storage::chunk::ChunkIndex;
+use mcrs_engine::world::storage::column::{ColumnPlugin, ColumnPos, ColumnPosComponent, InColumn};
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::{BlockSetRequest, BlockUpdatePlugin};
 use mcrs_minecraft_block::palette::BlockPalette;

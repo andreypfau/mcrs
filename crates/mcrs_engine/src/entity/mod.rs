@@ -1,8 +1,10 @@
 use crate::entity::physics::{OldTransform, Transform};
 use crate::entity::player::Player;
+use crate::geometry::ChunkPos;
 use crate::session::MoveId;
-use crate::world::chunk::{Chunk, ChunkIndex, ChunkPos};
 use crate::world::dimension::{Dimension, DimensionPlayers, InDimension, OldInDimension};
+use crate::world::storage::chunk::Chunk;
+use crate::world::storage::chunk::ChunkIndex;
 use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Plugin};
 use bevy_derive::Deref;
 use bevy_ecs::entity::EntityHashSet;

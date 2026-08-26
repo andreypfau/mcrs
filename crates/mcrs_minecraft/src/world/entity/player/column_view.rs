@@ -13,11 +13,13 @@ use mcrs_engine::entity::player::chunk_view::{
     PlayerChunkUnloadRequest,
 };
 use mcrs_engine::entity::player::reposition::Reposition;
+use mcrs_engine::geometry::ChunkPos;
 use mcrs_engine::session::PlayerSession;
-use mcrs_engine::world::chunk::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
-use mcrs_engine::world::chunk::{ChunkIndex, ChunkLoaded, ChunkPos};
-use mcrs_engine::world::column::{ColumnIndex, ColumnPos as EngineColumnPos};
 use mcrs_engine::world::dimension::{DimensionTypeConfig, InDimension};
+use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
+use mcrs_engine::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
+use mcrs_engine::world::storage::chunk::ChunkIndex;
+use mcrs_engine::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_lighting::codec::{ColumnLightUpdate, LightCodecParams, build_full_light_data};
 use mcrs_minecraft_lighting::sets::LightingSet;
@@ -423,7 +425,7 @@ fn add_player_column_view(
 
 #[inline]
 fn offset_sections(rep: &Reposition, min_y: i32) -> i32 {
-    let bits = mcrs_engine::world::chunk::BLOCKS::BITS as i32;
+    let bits = mcrs_engine::geometry::chunk_pos::BLOCKS::BITS as i32;
     (rep.offset_y_blocks() >> bits) - (min_y >> bits)
 }
 

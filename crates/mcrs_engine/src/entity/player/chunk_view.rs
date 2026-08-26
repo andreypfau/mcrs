@@ -1,7 +1,9 @@
 use crate::entity::physics::Transform;
-use crate::world::chunk::ticket::{ChunkTicketsCommands, Ticket, TicketCommand, TicketKind};
-use crate::world::chunk::{ChunkIndex, ChunkLoaded, ChunkPos};
+use crate::geometry::ChunkPos;
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
+use crate::world::lifecycle::markers::ChunkLoaded;
+use crate::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketCommand, TicketKind};
+use crate::world::storage::chunk::ChunkIndex;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{
     Added, Changed, Component, ContainsEntity, Entity, EntityEvent, IntoScheduleConfigs,

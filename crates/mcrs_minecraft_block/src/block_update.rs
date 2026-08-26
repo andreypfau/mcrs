@@ -6,8 +6,9 @@ use bevy_ecs::message::{Message, MessageReader, MessageWriter, Messages};
 use bevy_ecs::prelude::{Commands, Component, Query};
 use bevy_ecs::query::{With, Without};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
+use mcrs_engine::geometry::ChunkPos;
 use mcrs_engine::world::block::BlockPos;
-use mcrs_engine::world::chunk::{ChunkIndex, ChunkPos};
+use mcrs_engine::world::storage::chunk::ChunkIndex;
 use mcrs_protocol::BlockStateId;
 use rustc_hash::FxHashSet;
 

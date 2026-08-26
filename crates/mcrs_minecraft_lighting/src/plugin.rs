@@ -24,7 +24,7 @@ use crate::sky_light::propagate::{propagate_decrease_sky_system, propagate_incre
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{ApplyDeferred, IntoScheduleConfigs};
 use bevy_ecs::schedule::{Schedule, SingleThreadedExecutor};
-use mcrs_engine::world::column::ColumnLifecycleSet;
+use mcrs_engine::world::storage::column::ColumnLifecycleSet;
 use mcrs_minecraft_block::block_update::{BlockPlaced, BlockUpdateSet, apply_set_block_request};
 
 pub struct LightingPlugin;
@@ -226,7 +226,7 @@ mod tests {
     use bevy_ecs::schedule::Schedules;
     use bevy_state::app::{AppExtStates, StatesPlugin};
     use mcrs_core::AppState;
-    use mcrs_engine::world::column::ColumnPlugin;
+    use mcrs_engine::world::storage::column::ColumnPlugin;
 
     fn build_test_app() -> App {
         let mut app = App::new();

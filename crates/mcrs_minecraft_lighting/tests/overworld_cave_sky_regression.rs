@@ -30,10 +30,11 @@ use mcrs_engine::entity::player::Player;
 use mcrs_engine::entity::player::chunk_view::{
     ChunkViewPlugin, PlayerChunkObserver, PlayerViewDistance,
 };
-use mcrs_engine::world::chunk::{ChunkLoading, ChunkPos};
+use mcrs_engine::geometry::ChunkPos;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionPlugin, DimensionTypeConfig, HasSkyLight, InDimension,
 };
+use mcrs_engine::world::lifecycle::markers::ChunkLoading;
 use mcrs_minecraft::world::chunk::{ChunkPlugin as WorldgenChunkPlugin, ColumnScheduler};
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::components::{
@@ -166,8 +167,10 @@ fn load_overworld_noise_router(assets_path: &std::path::Path) -> OverworldNoiseR
 
 // ---- BlockStateLightTable from block registry ------------------------------------
 
-fn build_production_block_light_table()
--> (BlockStateLightTable, mcrs_vanilla::block::definition::Blocks) {
+fn build_production_block_light_table() -> (
+    BlockStateLightTable,
+    mcrs_vanilla::block::definition::Blocks,
+) {
     let mut app = App::new();
     app.add_plugins(bevy_app::TaskPoolPlugin::default());
     app.add_plugins(bevy_asset::AssetPlugin {

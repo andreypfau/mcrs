@@ -12,7 +12,7 @@
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use mcrs_engine::world::column::ColumnLifecycleSet;
+use mcrs_engine::world::storage::column::ColumnLifecycleSet;
 use mcrs_minecraft_block::block_update::BlockUpdateSet;
 use mcrs_minecraft_lighting::components::{BlockBfsPending, SkyBfsPending};
 use mcrs_minecraft_lighting::metrics::snapshot as lighting_snapshot;
@@ -111,7 +111,7 @@ impl Plugin for PhaseTimingPlugin {
         app.add_systems(
             FixedUpdate,
             (|q: Query<
-                &mcrs_engine::world::chunk::ChunkPos,
+                &mcrs_engine::geometry::ChunkPos,
                 Or<(With<BlockBfsPending>, With<SkyBfsPending>)>,
             >| {
                 let positions: Vec<_> = q.iter().copied().collect();
@@ -280,8 +280,8 @@ fn build_instrumented_factory() -> Box<dyn Fn() -> App + Send + Sync> {
     use bevy_app::App as BApp;
     use bevy_state::app::{AppExtStates, StatesPlugin};
     use mcrs_core::AppState;
-    use mcrs_engine::world::chunk::ChunkPos;
-    use mcrs_engine::world::column::ColumnPlugin;
+    use mcrs_engine::geometry::ChunkPos;
+    use mcrs_engine::world::storage::column::ColumnPlugin;
     Box::new(|| {
         let mut app = BApp::new();
         app.add_plugins(StatesPlugin);
@@ -338,7 +338,7 @@ fn main() {
     // Probe one sample to see how many chunks are dirty AT THE MOMENT
     // light_converge_driver starts (after Enqueue, before Converge).
     {
-        use mcrs_engine::world::chunk::ChunkPos as CPos;
+        use mcrs_engine::geometry::ChunkPos as CPos;
 
         let mut probe_app = factory();
         // Check if factory left anything dirty.

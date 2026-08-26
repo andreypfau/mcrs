@@ -7,8 +7,8 @@ pub mod clientbound {
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::{ColumnPos, Look, PositionFlag, Slot, VarInt};
     use bevy_math::DVec3;
+    use mcrs_engine::geometry::ChunkPos;
     use mcrs_engine::world::block::BlockPos;
-    use mcrs_engine::world::chunk::ChunkPos;
     use mcrs_ident::Ident;
     use mcrs_protocol::{BlockStateId, ByteAngle};
     use mcrs_protocol_macros::{Decode, Encode, Packet};

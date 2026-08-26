@@ -1,13 +1,13 @@
+use crate::geometry::chunk_pos;
 use crate::geometry::{BlockPos, ChunkPos};
 use crate::math::BitSize;
-use crate::world::chunk;
 use bevy_math::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Hash)]
 pub struct RegionPos(pub IVec3);
 
 pub type CHUNKS = BitSize<4>;
-pub type BLOCKS = BitSize<{ CHUNKS::BITS + chunk::BLOCKS::BITS }>;
+pub type BLOCKS = BitSize<{ CHUNKS::BITS + chunk_pos::BLOCKS::BITS }>;
 
 impl RegionPos {
     pub fn new(x: i32, y: i32, z: i32) -> Self {

@@ -18,12 +18,14 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use mcrs_core::AppState;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
-use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
-use mcrs_engine::world::column::{
-    ChunkLookup, Column, ColumnChunks, ColumnIndex, ColumnPlugin, ColumnPos, InColumn,
-};
+use mcrs_engine::geometry::ChunkPos;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
+};
+use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
+use mcrs_engine::world::storage::chunk::Chunk;
+use mcrs_engine::world::storage::column::{
+    ChunkLookup, Column, ColumnChunks, ColumnIndex, ColumnPlugin, ColumnPos, InColumn,
 };
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
@@ -217,7 +219,7 @@ fn multi_chunk_in_same_column_share_column() {
 
 #[test]
 fn unload_one_chunk_keeps_column_alive() {
-    use mcrs_engine::world::chunk::ChunkUnloading;
+    use mcrs_engine::world::lifecycle::markers::ChunkUnloading;
 
     let (mut app, dim) = make_test_app(true);
     let s_low = spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), air_palette());
@@ -242,7 +244,7 @@ fn unload_one_chunk_keeps_column_alive() {
 
 #[test]
 fn unload_last_chunk_despawns_column() {
-    use mcrs_engine::world::chunk::ChunkUnloading;
+    use mcrs_engine::world::lifecycle::markers::ChunkUnloading;
 
     let (mut app, dim) = make_test_app(true);
     let chunk = spawn_test_chunk(&mut app, dim, ChunkPos::new(0, 0, 0), air_palette());

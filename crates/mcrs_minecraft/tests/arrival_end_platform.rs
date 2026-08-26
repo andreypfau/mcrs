@@ -3,15 +3,17 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{Schedule, ScheduleLabel};
 use bevy_math::DVec3;
+use mcrs_engine::geometry::ChunkPos;
 use mcrs_engine::session::{DimPlayerIndex, MoveId, PlayerSessionCounter, SessionRegistry};
 use mcrs_engine::world::block::BlockPos;
 use mcrs_engine::world::channels::{
     DimSender, FROM_DIM_CAPACITY, FromDimSender, TO_DIM_CAPACITY, TO_DIM_CONTROL_CAPACITY,
     ToDimReceiver,
 };
-use mcrs_engine::world::chunk::{Chunk, ChunkIndex, ChunkPos};
 use mcrs_engine::world::dimension::Dimension;
 use mcrs_engine::world::in_flight::InFlightMoves;
+use mcrs_engine::world::storage::chunk::Chunk;
+use mcrs_engine::world::storage::chunk::ChunkIndex;
 use mcrs_engine::world::sub_app::DimDespawnQueue;
 use mcrs_minecraft::world::arrival::ArrivalPlugin;
 use mcrs_minecraft::world::bus::{

@@ -4,12 +4,12 @@ use crate::world::entity::player::attribute::{BlockBreakSpeed, MiningEfficiency}
 use crate::world::entity::player::player_action::{
     PlayerAction, PlayerActionKind, PlayerWillDestroyBlock,
 };
+use crate::world::experience::BlockDestroyed;
 use crate::world::inventory::PlayerHotbarSlots;
 use crate::world::item::component::Enchantments;
 use crate::world::item::component::Tool;
 use crate::world::item::{Item, ItemStack};
 use crate::world::loot::BlockLootTables;
-use crate::world::experience::BlockDestroyed;
 use crate::world::loot::context::BlockBreakContext;
 use bevy_app::{FixedUpdate, Plugin, Update};
 use bevy_asset::AssetServer;
@@ -20,8 +20,8 @@ use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::entity::player::reposition::Reposition;
 use mcrs_engine::session::PlayerSession;
 use mcrs_engine::world::block::BlockPos;
-use mcrs_engine::world::chunk::ChunkIndex;
 use mcrs_engine::world::dimension::{DimensionPlayers, InDimension};
+use mcrs_engine::world::storage::chunk::ChunkIndex;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_protocol::BlockStateId;
@@ -406,7 +406,9 @@ fn handle_player_will_destroy_block(
                             .as_ref()
                     })
                 })
-                .is_some_and(|tool| tool.is_correct_block_for_drops(block_id, &tag_registry, &blocks))
+                .is_some_and(|tool| {
+                    tool.is_correct_block_for_drops(block_id, &tag_registry, &blocks)
+                })
         } else {
             true
         };

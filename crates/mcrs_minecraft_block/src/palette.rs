@@ -1,8 +1,8 @@
 use bevy_ecs::component::Component;
+use mcrs_engine::geometry::chunk_pos;
 use mcrs_engine::world::block::BlockPos;
-use mcrs_engine::world::chunk;
-use mcrs_engine::world::chunk::palette::PalettedContainer;
-use mcrs_engine::world::chunk::palette::PalettedContainer::{Heterogeneous, Homogeneous};
+use mcrs_engine::world::storage::palette::PalettedContainer;
+use mcrs_engine::world::storage::palette::PalettedContainer::{Heterogeneous, Homogeneous};
 use mcrs_palette::{PaletteForm, SectionKind};
 use mcrs_protocol::BlockStateId;
 
@@ -85,7 +85,7 @@ impl BlockPalette {
         match &self.0 {
             Homogeneous(registry_id) => {
                 if **registry_id != 0 {
-                    chunk::BLOCKS::VOLUME as u16
+                    chunk_pos::BLOCKS::VOLUME as u16
                 } else {
                     0
                 }
@@ -112,9 +112,9 @@ impl BlockPalette {
     pub fn get<I: Into<BlockPos>>(&self, pos: I) -> BlockStateId {
         let pos = pos.into();
         self.0.get(
-            pos.x as usize & chunk::BLOCKS::MASK,
-            pos.y as usize & chunk::BLOCKS::MASK,
-            pos.z as usize & chunk::BLOCKS::MASK,
+            pos.x as usize & chunk_pos::BLOCKS::MASK,
+            pos.y as usize & chunk_pos::BLOCKS::MASK,
+            pos.z as usize & chunk_pos::BLOCKS::MASK,
         )
     }
 
@@ -125,9 +125,9 @@ impl BlockPalette {
     ) -> BlockStateId {
         let pos = pos.into();
         self.0.set(
-            pos.x as usize & chunk::BLOCKS::MASK,
-            pos.y as usize & chunk::BLOCKS::MASK,
-            pos.z as usize & chunk::BLOCKS::MASK,
+            pos.x as usize & chunk_pos::BLOCKS::MASK,
+            pos.y as usize & chunk_pos::BLOCKS::MASK,
+            pos.z as usize & chunk_pos::BLOCKS::MASK,
             block.into(),
         )
     }

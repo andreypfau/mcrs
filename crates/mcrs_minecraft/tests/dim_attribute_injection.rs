@@ -31,8 +31,10 @@ use mcrs_core::registry::snapshot::RegistrySnapshot;
 use mcrs_core::registry::static_registry::StaticRegistry;
 use mcrs_core::tag::TagRegistry;
 use mcrs_engine::entity::ChunkEntities;
-use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
+use mcrs_engine::geometry::ChunkPos;
 use mcrs_engine::world::dimension::{DimensionId, DimensionTypeConfig, InDimension};
+use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
+use mcrs_engine::world::storage::chunk::Chunk;
 use mcrs_engine::world::sub_app::{DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use mcrs_minecraft::world::bridge::partition_main_inbound;
 use mcrs_minecraft::world::bus::{

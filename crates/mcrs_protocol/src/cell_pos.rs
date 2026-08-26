@@ -1,6 +1,6 @@
+use mcrs_engine::geometry::ChunkPos;
+use mcrs_engine::geometry::chunk_pos;
 use mcrs_engine::world::block::BlockPos;
-use mcrs_engine::world::chunk;
-use mcrs_engine::world::chunk::ChunkPos;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CellPos {
@@ -17,7 +17,7 @@ impl CellPos {
     pub const HALF_SIZE: usize = Self::SIZE >> 1;
     pub const HALF_VOLUME: usize = Self::VOLUME >> 1;
     pub const MASK: usize = Self::SIZE - 1;
-    pub const CHUNK_TO_CELL_BITS: usize = chunk::BLOCKS::BITS - Self::BITS;
+    pub const CHUNK_TO_CELL_BITS: usize = chunk_pos::BLOCKS::BITS - Self::BITS;
 
     pub const INVALID: CellPos = CellPos {
         x: i32::MIN,

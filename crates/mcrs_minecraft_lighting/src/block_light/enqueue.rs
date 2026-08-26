@@ -18,9 +18,9 @@ use bevy_ecs::entity::{Entity, EntityHashMap};
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Added, Commands, Local, ParallelCommands, Query, With};
 use mcrs_engine::geometry::{BlockPos, ChunkPos};
-use mcrs_engine::world::chunk::ChunkLoaded;
-use mcrs_engine::world::column::{ColumnChunks, ColumnIndex, InColumn};
 use mcrs_engine::world::dimension::InDimension;
+use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
+use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, InColumn};
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 

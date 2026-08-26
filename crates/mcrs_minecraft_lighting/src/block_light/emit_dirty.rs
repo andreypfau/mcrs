@@ -10,7 +10,7 @@ use crate::{
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Changed, Commands, Query, With};
-use mcrs_engine::world::column::{ColumnChunks, ColumnPosComponent, InColumn};
+use mcrs_engine::world::storage::column::{ColumnChunks, ColumnPosComponent, InColumn};
 
 /// Removes `BlockBfsPending` from chunks whose block-channel outbox,
 /// inbox, and queues queues are all empty. Emits `tracing::debug!`

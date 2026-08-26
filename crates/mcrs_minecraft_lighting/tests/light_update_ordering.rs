@@ -14,7 +14,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use std::borrow::Cow;
 
-use mcrs_engine::world::column::ColumnPos as EngineColumnPos;
+use mcrs_engine::world::storage::column::ColumnPos as EngineColumnPos;
 use mcrs_minecraft::world::entity::player::column_view::ColumnView;
 use mcrs_minecraft_lighting::codec::ColumnLightUpdate;
 use mcrs_protocol::ColumnPos;

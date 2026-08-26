@@ -31,8 +31,8 @@ use crate::{
     SkyBfsQueues, SkyInbox, SkyLight, SkyOutbox,
 };
 use bevy_ecs::prelude::{Commands, Entity, Or, Query, With, Without};
-use mcrs_engine::world::column::{ChunkLookup, ColumnChunks};
-use mcrs_engine::world::lighting::LightTicket;
+use mcrs_engine::world::lifecycle::ticket::LightTicket;
+use mcrs_engine::world::storage::column::{ChunkLookup, ColumnChunks};
 
 /// Downgrades `LightStorage::Dense` to `Empty` (all-zero) or `Uniform(15)`
 /// (all-fifteen) on every chunk parked on either channel. The check
@@ -134,7 +134,7 @@ mod tests {
     use crate::nibble::LightNibbles;
     use crate::sky_light::emit_dirty::clear_sky_bfs_pending_safety_net;
     use bevy_app::{App, Update};
-    use mcrs_engine::world::lighting::LightTicket;
+    use mcrs_engine::world::lifecycle::ticket::LightTicket;
 
     fn build_downgrade_app() -> App {
         let mut app = App::new();

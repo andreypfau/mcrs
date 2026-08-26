@@ -14,8 +14,8 @@ use bevy_math::DVec3;
 use mcrs_engine::entity::physics::Transform;
 use mcrs_engine::session::{DimPlayerIndex, Owner, PlayerSession};
 use mcrs_engine::world::channels::FromDimSender;
-use mcrs_engine::world::chunk::ChunkIndex;
 use mcrs_engine::world::dimension::{Dimension, InDimension};
+use mcrs_engine::world::storage::chunk::ChunkIndex;
 use mcrs_minecraft_block::block_update::BlockSetRequest;
 use mcrs_minecraft_block::palette::BlockPalette;
 

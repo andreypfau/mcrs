@@ -8,8 +8,10 @@
 // columns; downstream lighting code overwrites with real values before any consumer
 // reads, and uses `min_y` as the "no surface found" sentinel.
 
-use crate::world::chunk::{ChunkLoaded, ChunkPos, ChunkUnloading};
+use crate::geometry::ChunkPos;
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
+use crate::world::lifecycle::markers::ChunkLoaded;
+use crate::world::lifecycle::markers::ChunkUnloading;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::{

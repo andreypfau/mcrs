@@ -15,9 +15,10 @@ use crate::sky_light::bundle::SkyLightBundle;
 use crate::table::BlockStateLightTable;
 use crate::{BlockNeedsInitialSeed, IsAllAir, SkyNeedsInitialSeed};
 use bevy_ecs::prelude::{Added, Changed, Commands, Component, Entity, Has, Query, Res, With};
-use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
-use mcrs_engine::world::column::{Column, ColumnChunks, Heightmaps};
+use mcrs_engine::geometry::ChunkPos;
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
+use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
+use mcrs_engine::world::storage::column::{Column, ColumnChunks, Heightmaps};
 use mcrs_minecraft_block::palette::BlockPalette;
 
 const XZ_FULL: [(usize, usize); 256] = {
@@ -363,9 +364,10 @@ mod tests {
     use mcrs_core::AppState;
     use mcrs_core::voxel_shape::VoxelShape;
     use mcrs_engine::entity::ChunkEntities;
-    use mcrs_engine::world::chunk::{Chunk, ChunkLoaded};
-    use mcrs_engine::world::column::ColumnPlugin;
     use mcrs_engine::world::dimension::{DimensionBundle, DimensionId, DimensionTypeConfig};
+    use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
+    use mcrs_engine::world::storage::chunk::Chunk;
+    use mcrs_engine::world::storage::column::ColumnPlugin;
 
     const TEST_DIM_HEIGHT: u32 = 384;
     const TEST_DIM_MIN_Y: i32 = -64;

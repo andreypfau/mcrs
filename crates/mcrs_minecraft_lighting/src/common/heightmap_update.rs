@@ -26,7 +26,7 @@ use crate::table::{BlockStateLightTable, flag_bits};
 use bevy_ecs::entity::EntityHashMap;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Entity, Local, Query, Res};
-use mcrs_engine::world::column::{ColumnChunks, Heightmaps, InColumn};
+use mcrs_engine::world::storage::column::{ColumnChunks, Heightmaps, InColumn};
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 
@@ -206,9 +206,9 @@ mod tests {
     use bevy_app::{App, Update};
     use bevy_ecs::message::Messages;
     use mcrs_core::voxel_shape::VoxelShape;
+    use mcrs_engine::geometry::ChunkPos;
     use mcrs_engine::world::block::BlockPos;
-    use mcrs_engine::world::chunk::ChunkPos;
-    use mcrs_engine::world::column::{Column, ColumnChunks, Heightmaps, InColumn};
+    use mcrs_engine::world::storage::column::{Column, ColumnChunks, Heightmaps, InColumn};
     use mcrs_minecraft_block::block::BlockUpdateFlags;
     use mcrs_minecraft_block::palette::BlockPalette;
     use mcrs_protocol::BlockStateId;

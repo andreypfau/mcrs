@@ -24,10 +24,10 @@ use crate::{BlockLight, SkyLight};
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::prelude::{Entity, Query, With};
 use bevy_ecs::system::{Local, SystemParam};
-use mcrs_engine::world::column::{
+use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
+use mcrs_engine::world::storage::column::{
     ChunkLookup, ColumnChunks, ColumnPos, ColumnPosComponent, InColumn,
 };
-use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
 use mcrs_protocol::chunk::{LightChunk, LightData};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;

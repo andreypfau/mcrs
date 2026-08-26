@@ -25,9 +25,9 @@ use bevy_ecs::message::MessageReader;
 use bevy_ecs::prelude::{Added, Commands, Local, Or, ParallelCommands, Query, With, Without};
 use mcrs_core::voxel_shape::Direction;
 use mcrs_engine::geometry::ChunkPos;
-use mcrs_engine::world::chunk::ChunkLoaded;
-use mcrs_engine::world::column::{ColumnChunks, ColumnIndex, Heightmaps, InColumn};
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
+use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
+use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, Heightmaps, InColumn};
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;
 

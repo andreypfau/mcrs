@@ -10,10 +10,14 @@
 //! valid shared anchor for the marker. `mcrs_engine` carries no other
 //! lighting knowledge.
 
-use crate::world::chunk::{
-    Chunk, ChunkBundle, ChunkIndex, ChunkLoaded, ChunkPos, ChunkUnloaded, ChunkUnloading,
-};
+use crate::geometry::ChunkPos;
 use crate::world::dimension::InDimension;
+use crate::world::lifecycle::markers::ChunkLoaded;
+use crate::world::lifecycle::markers::ChunkUnloaded;
+use crate::world::lifecycle::markers::ChunkUnloading;
+use crate::world::storage::chunk::Chunk;
+use crate::world::storage::chunk::ChunkBundle;
+use crate::world::storage::chunk::ChunkIndex;
 use bevy_app::{App, FixedPreUpdate, FixedUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;

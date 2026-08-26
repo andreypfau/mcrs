@@ -14,11 +14,11 @@ use bevy_state::app::AppExtStates;
 use bevy_state::app::StatesPlugin;
 use mcrs_core::AppState;
 use mcrs_core::voxel_shape::VoxelShape;
-use mcrs_engine::world::column::{
-    Column, ColumnChunks, ColumnPlugin, ColumnPos, ColumnPosComponent, InColumn,
-};
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
+};
+use mcrs_engine::world::storage::column::{
+    Column, ColumnChunks, ColumnPlugin, ColumnPos, ColumnPosComponent, InColumn,
 };
 use mcrs_minecraft_lighting::components::{BlockBfsPending, BlockLight, SkyLight};
 use mcrs_minecraft_lighting::nibble::LightNibbles;

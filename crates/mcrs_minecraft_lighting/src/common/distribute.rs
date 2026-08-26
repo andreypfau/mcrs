@@ -35,10 +35,12 @@ use crate::{
     SkyParkedEgress,
 };
 use mcrs_core::voxel_shape::Direction;
-use mcrs_engine::world::chunk::ChunkPos;
-use mcrs_engine::world::column::{ChunkLookup, ColumnChunks, ColumnIndex, ColumnPos, InColumn};
+use mcrs_engine::geometry::ChunkPos;
 use mcrs_engine::world::dimension::InDimension;
-use mcrs_engine::world::lighting::LightTicket;
+use mcrs_engine::world::lifecycle::ticket::LightTicket;
+use mcrs_engine::world::storage::column::{
+    ChunkLookup, ColumnChunks, ColumnIndex, ColumnPos, InColumn,
+};
 
 /// Manhattan attenuation: face-adjacent (1), edge (2), corner (3). The
 /// `max(1)` floor guarantees at least one step of attenuation even if a
@@ -521,7 +523,7 @@ mod tests {
     use bevy_app::{App, Update};
     use bevy_ecs::prelude::IntoScheduleConfigs;
     use bevy_ecs::schedule::Schedule;
-    use mcrs_engine::world::column::{ColumnPos, ColumnSlot};
+    use mcrs_engine::world::storage::column::{ColumnPos, ColumnSlot};
     use smallvec::SmallVec;
 
     use crate::converge::{LightConvergeSchedule, LightConvergeSet};

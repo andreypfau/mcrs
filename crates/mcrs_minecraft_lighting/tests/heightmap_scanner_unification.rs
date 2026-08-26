@@ -15,11 +15,13 @@ use bevy_state::app::{AppExtStates, StatesPlugin};
 use mcrs_core::AppState;
 use mcrs_core::voxel_shape::VoxelShape;
 use mcrs_engine::entity::ChunkEntities;
-use mcrs_engine::world::chunk::{Chunk, ChunkLoaded, ChunkPos};
-use mcrs_engine::world::column::{ColumnPlugin, Heightmaps};
+use mcrs_engine::geometry::ChunkPos;
 use mcrs_engine::world::dimension::{
     DimensionBundle, DimensionId, DimensionTypeConfig, HasSkyLight, InDimension,
 };
+use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
+use mcrs_engine::world::storage::chunk::Chunk;
+use mcrs_engine::world::storage::column::{ColumnPlugin, Heightmaps};
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_minecraft_lighting::LightingPlugin;
 use mcrs_minecraft_lighting::lifecycle::ColumnHeightmapScan;

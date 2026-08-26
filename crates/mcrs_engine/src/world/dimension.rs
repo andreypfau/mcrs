@@ -1,8 +1,9 @@
 use crate::entity::despawn::Despawned;
 use crate::entity::player::Player;
-use crate::world::chunk::ticket::ChunkTicketsCommands;
-use crate::world::chunk::{ChunkIndex, ChunkPlugin};
-use crate::world::column::ColumnIndex;
+use crate::world::lifecycle::ticket::ChunkTicketsCommands;
+use crate::world::storage::chunk::ChunkIndex;
+use crate::world::storage::chunk::ChunkPlugin;
+use crate::world::storage::column::ColumnIndex;
 use bevy_app::{App, FixedPostUpdate, Plugin};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::change_detection::DetectChanges;
@@ -17,7 +18,7 @@ pub struct DimensionPlugin;
 impl Plugin for DimensionPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(ChunkPlugin);
-        app.add_plugins(crate::world::column::ColumnPlugin);
+        app.add_plugins(crate::world::storage::column::ColumnPlugin);
         // Note: Dimensions are spawned dynamically by mcrs_minecraft based on LoadedWorldPreset resource.
         // See mcrs_minecraft::world::WorldPlugin for the spawn_dimensions_from_preset system.
         app.add_systems(

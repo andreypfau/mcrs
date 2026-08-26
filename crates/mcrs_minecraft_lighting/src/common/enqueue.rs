@@ -17,8 +17,8 @@
 
 use bevy_ecs::prelude::{Added, Commands, Entity, Query, With};
 use mcrs_core::voxel_shape::Direction;
-use mcrs_engine::world::column::{Column, ColumnChunks};
 use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
+use mcrs_engine::world::storage::column::{Column, ColumnChunks};
 
 use crate::{BlockNeedsInitialSeed, NeedsFullReseed, SkyNeedsInitialSeed};
 
@@ -117,12 +117,13 @@ mod tests {
     use bevy_ecs::message::Messages;
     use bevy_ecs::prelude::IntoScheduleConfigs;
     use mcrs_core::voxel_shape::{Direction, VoxelShape};
+    use mcrs_engine::geometry::ChunkPos;
     use mcrs_engine::world::block::BlockPos;
-    use mcrs_engine::world::chunk::{ChunkLoaded, ChunkPos};
-    use mcrs_engine::world::column::{
+    use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
+    use mcrs_engine::world::lifecycle::markers::ChunkLoaded;
+    use mcrs_engine::world::storage::column::{
         Column, ColumnChunks, ColumnIndex, ColumnPos, ColumnSlot, InColumn,
     };
-    use mcrs_engine::world::dimension::{HasSkyLight, InDimension};
     use mcrs_lighting_table_helpers::*;
     use mcrs_minecraft_block::block::BlockUpdateFlags;
     use mcrs_minecraft_block::block_update::BlockPlaced;

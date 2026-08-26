@@ -4,9 +4,9 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 
 use bevy_state::prelude::NextState;
 use mcrs_core::AppState;
-use mcrs_engine::world::column::{ColumnChunks, ColumnIndex, Heightmaps};
 use mcrs_engine::world::dimension::HasSkyLight;
-use mcrs_engine::world::lighting::LightTicket;
+use mcrs_engine::world::lifecycle::ticket::LightTicket;
+use mcrs_engine::world::storage::column::{ColumnChunks, ColumnIndex, Heightmaps};
 use mcrs_minecraft_lighting::components::{
     BlockBfsPending, BlockBfsQueues, BlockInbox, BlockLight, BlockNeedsInitialSeed, BlockOutbox,
     BlockParkedEgress, IsAllAir, SkyBfsPending, SkyBfsQueues, SkyInbox, SkyLight,
@@ -325,7 +325,7 @@ fn walk_ecs(app: &mut bevy_app::App) -> MemorySnapshot {
     // "column_indexes": per-dimension ColumnIndex (FxHashMap)
     let mut column_indexes: usize = 0;
     for idx in world.query::<&ColumnIndex>().iter(world) {
-        use mcrs_engine::world::column::{ColumnPos, ColumnSlot};
+        use mcrs_engine::world::storage::column::{ColumnPos, ColumnSlot};
         column_indexes += mem::size_of_val(idx)
             + idx.len() * (mem::size_of::<ColumnPos>() + mem::size_of::<ColumnSlot>());
     }
