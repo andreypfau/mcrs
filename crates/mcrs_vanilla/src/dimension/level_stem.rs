@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bevy_asset::{Asset, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
-use mcrs_core::{ResourceKey, rl};
+use mcrs_minecraft_core::{ResourceKey, rl};
 use serde::Deserialize;
 
 use super::dimension_type::DimensionType;

@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bevy_asset::Assets;
-use mcrs_core::RegistrySnapshot;
-use mcrs_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::RegistrySnapshot;
+use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::carver::WorldCarver;
 use mcrs_minecraft_worldgen::carver::cave::CaveWorldCarver;
@@ -349,7 +349,7 @@ fn make_beta_biome() -> Biome {
 }
 
 fn load_density_functions_from_disk() -> BTreeMap<
-    mcrs_core::ResourceLocation,
+    mcrs_minecraft_core::ResourceLocation,
     mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
 > {
     use mcrs_minecraft_worldgen::density_function::proto::DensityFunctionHolder;
@@ -357,7 +357,7 @@ fn load_density_functions_from_disk() -> BTreeMap<
         dir: &std::path::Path,
         prefix: &str,
         map: &mut BTreeMap<
-            mcrs_core::ResourceLocation,
+            mcrs_minecraft_core::ResourceLocation,
             mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
         >,
     ) {
@@ -389,7 +389,7 @@ fn load_density_functions_from_disk() -> BTreeMap<
                 } else {
                     format!("minecraft:{}/{}", prefix, stem)
                 };
-                if let Ok(ident) = key.parse::<mcrs_core::ResourceLocation>() {
+                if let Ok(ident) = key.parse::<mcrs_minecraft_core::ResourceLocation>() {
                     map.insert(ident, *pdf);
                 }
             }

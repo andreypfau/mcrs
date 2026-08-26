@@ -38,7 +38,7 @@ impl Plugin for MinecraftServerPlugin {
         app.add_plugins(VoxelServerPlugin {
             tick_rate: DEFAULT_TPS,
         });
-        app.add_plugins(mcrs_core::MinecraftCorePlugin);
+        app.add_plugins(mcrs_minecraft_core::MinecraftCorePlugin);
         app.add_plugins(mcrs_vanilla::MinecraftWorldPlugin);
         app.add_plugins(NetworkPlugin);
         app.add_plugins(LoginPlugin);

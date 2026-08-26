@@ -1,4 +1,4 @@
-use mcrs_core::{ResourceLocation, StaticRegistry, rl};
+use mcrs_minecraft_core::{ResourceLocation, StaticRegistry, rl};
 
 use super::SoundEvent;
 

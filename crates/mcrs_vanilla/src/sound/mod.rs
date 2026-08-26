@@ -1,6 +1,6 @@
 pub mod minecraft;
 
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SoundEvent {

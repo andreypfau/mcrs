@@ -11,7 +11,7 @@ use bevy_ecs::system::{Commands, Local, Res, ResMut};
 use bevy_math::IVec3;
 use bevy_tasks::futures_lite::future;
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder, block_on};
-use mcrs_core::RegistrySnapshot;
+use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_worldgen::bevy::{
     BuildNoiseRouter, NoiseGeneratorSettingsAsset, NoiseGeneratorSettingsPlugin,

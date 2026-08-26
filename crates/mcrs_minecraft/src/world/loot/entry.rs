@@ -1,5 +1,5 @@
 use crate::world::loot::condition::LootConditionProto;
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]

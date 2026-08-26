@@ -20,7 +20,7 @@ pub enum BridgeSet {
     Dispatch,
     Inbound,
 }
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{EngineConnection, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::chunk::ChunkData;

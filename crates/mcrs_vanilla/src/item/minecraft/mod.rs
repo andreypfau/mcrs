@@ -2,7 +2,7 @@ use crate::block::tags as block_tags;
 use crate::item::Item;
 use crate::item::component::ItemComponents;
 use crate::item::component::tool::ToolMaterial;
-use mcrs_core::StaticRegistry;
+use mcrs_minecraft_core::StaticRegistry;
 use mcrs_protocol::ItemId;
 
 pub fn register_all_items(registry: &mut StaticRegistry<Item>) {
@@ -21,13 +21,13 @@ pub fn register_all_items(registry: &mut StaticRegistry<Item>) {
 
 pub const TORCH: Item = Item {
     id: ItemId(323),
-    identifier: mcrs_core::rl!("minecraft:torch"),
+    identifier: mcrs_minecraft_core::rl!("minecraft:torch"),
     components: &ItemComponents::new(),
 };
 
 pub const WOODEN_PICKAXE: Item = Item {
     id: ItemId(914),
-    identifier: mcrs_core::rl!("minecraft:wooden_pickaxe"),
+    identifier: mcrs_minecraft_core::rl!("minecraft:wooden_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::WOOD,
         &ToolMaterial::WOOD.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
@@ -36,7 +36,7 @@ pub const WOODEN_PICKAXE: Item = Item {
 
 pub const STONE_PICKAXE: Item = Item {
     id: ItemId(924),
-    identifier: mcrs_core::rl!("minecraft:stone_pickaxe"),
+    identifier: mcrs_minecraft_core::rl!("minecraft:stone_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::STONE,
         &ToolMaterial::STONE.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
@@ -45,7 +45,7 @@ pub const STONE_PICKAXE: Item = Item {
 
 pub const GOLDEN_PICKAXE: Item = Item {
     id: ItemId(929),
-    identifier: mcrs_core::rl!("minecraft:golden_pickaxe"),
+    identifier: mcrs_minecraft_core::rl!("minecraft:golden_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::GOLD,
         &ToolMaterial::GOLD.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
@@ -54,7 +54,7 @@ pub const GOLDEN_PICKAXE: Item = Item {
 
 pub const IRON_PICKAXE: Item = Item {
     id: ItemId(934),
-    identifier: mcrs_core::rl!("minecraft:iron_pickaxe"),
+    identifier: mcrs_minecraft_core::rl!("minecraft:iron_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::IRON,
         &ToolMaterial::IRON.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),
@@ -63,7 +63,7 @@ pub const IRON_PICKAXE: Item = Item {
 
 pub const DIAMOND_PICKAXE: Item = Item {
     id: ItemId(939),
-    identifier: mcrs_core::rl!("minecraft:diamond_pickaxe"),
+    identifier: mcrs_minecraft_core::rl!("minecraft:diamond_pickaxe"),
     components: &ItemComponents::new().with_pickaxe(
         &ToolMaterial::DIAMOND,
         &ToolMaterial::DIAMOND.for_mineable_blocks(block_tags::MINEABLE_PICKAXE),

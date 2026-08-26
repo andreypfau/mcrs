@@ -17,7 +17,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::*;
 use bevy_state::app::AppExtStates;
 use bevy_state::app::StatesPlugin;
-use mcrs_core::AppState;
+use mcrs_minecraft_core::AppState;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::block_update::BlockPlaced;
 use mcrs_minecraft_block::palette::BlockPalette;

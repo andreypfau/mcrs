@@ -9,7 +9,7 @@ use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use mcrs_core::tag::key::TaggedRegistry;
+use mcrs_minecraft_core::tag::key::TaggedRegistry;
 
 use crate::ResourceLocation;
 use crate::attribute::{

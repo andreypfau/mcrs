@@ -4,7 +4,7 @@ use bevy_app::{App, FixedPostUpdate, FixedPreUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_state::prelude::OnEnter;
-use mcrs_core::AppState;
+use mcrs_minecraft_core::AppState;
 use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 use tracing::{debug, error, info, warn};

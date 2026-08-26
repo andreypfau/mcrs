@@ -5,7 +5,7 @@ use bevy_asset::{AssetServer, io::Reader};
 use bevy_tasks::block_on;
 
 use super::data::{EnchantmentData, ProtoEnchantmentData};
-use mcrs_core::{ResourceLocation, StaticRegistry};
+use mcrs_minecraft_core::{ResourceLocation, StaticRegistry};
 
 /// The 43 vanilla enchantments in Java bootstrap (protocol) order.
 pub const VANILLA_ENCHANTMENTS: &[&str] = &[

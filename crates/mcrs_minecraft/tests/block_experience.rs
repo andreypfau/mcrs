@@ -3,7 +3,7 @@ mod support;
 use bevy_app::{App, TaskPoolPlugin, Update};
 use bevy_asset::{AssetPlugin, AssetServer};
 use bevy_ecs::prelude::*;
-use mcrs_core::StaticRegistry;
+use mcrs_minecraft_core::StaticRegistry;
 use mcrs_minecraft::world::experience::{
     AwardExperience, BlockDestroyed, DimensionRandom, ExperiencePlugin,
 };

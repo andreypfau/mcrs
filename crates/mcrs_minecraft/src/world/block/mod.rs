@@ -1,4 +1,4 @@
-use mcrs_core::tag::key::TaggedRegistry;
+use mcrs_minecraft_core::tag::key::TaggedRegistry;
 
 pub mod tnt;
 

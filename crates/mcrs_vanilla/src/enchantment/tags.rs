@@ -1,5 +1,5 @@
 use super::data::EnchantmentData;
-use mcrs_core::tag::key::{TagKey, TaggedRegistry};
+use mcrs_minecraft_core::tag::key::{TagKey, TaggedRegistry};
 
 impl TaggedRegistry for EnchantmentData {
     const REGISTRY_PATH: &'static str = "enchantment";
@@ -8,50 +8,50 @@ impl TaggedRegistry for EnchantmentData {
 // Top-level enchantment tags
 
 pub const TOOLTIP_ORDER: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:tooltip_order"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:tooltip_order"));
 pub const NON_TREASURE: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:non_treasure"));
-pub const TREASURE: TagKey<EnchantmentData> = TagKey::new(mcrs_core::rl!("minecraft:treasure"));
-pub const CURSE: TagKey<EnchantmentData> = TagKey::new(mcrs_core::rl!("minecraft:curse"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:non_treasure"));
+pub const TREASURE: TagKey<EnchantmentData> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:treasure"));
+pub const CURSE: TagKey<EnchantmentData> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:curse"));
 pub const IN_ENCHANTING_TABLE: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:in_enchanting_table"));
-pub const TRADEABLE: TagKey<EnchantmentData> = TagKey::new(mcrs_core::rl!("minecraft:tradeable"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:in_enchanting_table"));
+pub const TRADEABLE: TagKey<EnchantmentData> = TagKey::new(mcrs_minecraft_core::rl!("minecraft:tradeable"));
 pub const DOUBLE_TRADE_PRICE: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:double_trade_price"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:double_trade_price"));
 pub const ON_MOB_SPAWN_EQUIPMENT: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:on_mob_spawn_equipment"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:on_mob_spawn_equipment"));
 pub const ON_TRADED_EQUIPMENT: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:on_traded_equipment"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:on_traded_equipment"));
 pub const ON_RANDOM_LOOT: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:on_random_loot"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:on_random_loot"));
 pub const SMELTS_LOOT: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:smelts_loot"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:smelts_loot"));
 pub const PREVENTS_BEE_SPAWNS_WHEN_MINING: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:prevents_bee_spawns_when_mining"));
-pub const PREVENTS_DECORATED_POT_SHATTERING: TagKey<EnchantmentData> = TagKey::new(mcrs_core::rl!(
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:prevents_bee_spawns_when_mining"));
+pub const PREVENTS_DECORATED_POT_SHATTERING: TagKey<EnchantmentData> = TagKey::new(mcrs_minecraft_core::rl!(
     "minecraft:prevents_decorated_pot_shattering"
 ));
 pub const PREVENTS_ICE_MELTING: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:prevents_ice_melting"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:prevents_ice_melting"));
 pub const PREVENTS_INFESTED_SPAWNS: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:prevents_infested_spawns"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:prevents_infested_spawns"));
 
 // exclusive_set/ enchantment tags
 
 pub const EXCLUSIVE_SET_ARMOR: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:exclusive_set/armor"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:exclusive_set/armor"));
 pub const EXCLUSIVE_SET_BOOTS: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:exclusive_set/boots"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:exclusive_set/boots"));
 pub const EXCLUSIVE_SET_BOW: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:exclusive_set/bow"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:exclusive_set/bow"));
 pub const EXCLUSIVE_SET_CROSSBOW: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:exclusive_set/crossbow"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:exclusive_set/crossbow"));
 pub const EXCLUSIVE_SET_DAMAGE: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:exclusive_set/damage"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:exclusive_set/damage"));
 pub const EXCLUSIVE_SET_MINING: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:exclusive_set/mining"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:exclusive_set/mining"));
 pub const EXCLUSIVE_SET_RIPTIDE: TagKey<EnchantmentData> =
-    TagKey::new(mcrs_core::rl!("minecraft:exclusive_set/riptide"));
+    TagKey::new(mcrs_minecraft_core::rl!("minecraft:exclusive_set/riptide"));
 
 /// All enchantment tag keys, for bulk loading.
 pub const ALL_ENCHANTMENT_TAGS: &[TagKey<EnchantmentData>] = &[

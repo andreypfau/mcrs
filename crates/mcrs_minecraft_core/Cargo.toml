@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_core"
+name = "mcrs_minecraft_core"
 description = "Core types: ResourceLocation, StaticRegistry, TagFile, AppState"
 version.workspace = true
 edition.workspace = true

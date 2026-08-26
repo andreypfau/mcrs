@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::io::{Cursor, Write};
 
 use anyhow::Context;
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_nbt::Nbt;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;

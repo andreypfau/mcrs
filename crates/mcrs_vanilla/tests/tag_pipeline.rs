@@ -2,11 +2,11 @@ use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::AssetPlugin;
 use bevy_state::app::StatesPlugin;
 use bevy_state::state::State;
-use mcrs_core::AppState;
-use mcrs_core::resource_location::ResourceLocation;
-use mcrs_core::tag::TagLoader;
-use mcrs_core::tag::key::TagKey;
-use mcrs_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_core::AppState;
+use mcrs_minecraft_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::tag::TagLoader;
+use mcrs_minecraft_core::tag::key::TagKey;
+use mcrs_minecraft_core::tag::registry::DynTagRegistry;
 use mcrs_vanilla::MinecraftWorldPlugin;
 use mcrs_vanilla::block::definition::Blocks;
 use mcrs_vanilla::block::{Block, tags as block_tags};
@@ -33,7 +33,7 @@ fn tags_load_resolve_and_freeze_on_the_way_to_playing() {
         watch_for_changes_override: Some(false),
         ..Default::default()
     });
-    app.add_plugins(mcrs_core::MinecraftCorePlugin);
+    app.add_plugins(mcrs_minecraft_core::MinecraftCorePlugin);
     app.add_plugins(MinecraftWorldPlugin);
     app.finish();
     app.cleanup();

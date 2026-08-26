@@ -1,5 +1,5 @@
 use mcrs_vanilla::item::Item;
-use mcrs_core::tag::key::TagKey;
+use mcrs_minecraft_core::tag::key::TagKey;
 
 pub const SWORDS: TagKey<Item> = TagKey::of("minecraft", "swords");
 pub const PICKAXES: TagKey<Item> = TagKey::of("minecraft", "pickaxes");

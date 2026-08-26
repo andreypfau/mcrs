@@ -15,10 +15,10 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::OnEnter;
-use mcrs_core::registry::access::ErasedRegistrySnapshot;
-use mcrs_core::tag::registry::DynTagRegistry;
-use mcrs_core::tag::registry::TagRegistry;
-use mcrs_core::{AppState, RegistryAccess, ResourceLocation, rl};
+use mcrs_minecraft_core::registry::access::ErasedRegistrySnapshot;
+use mcrs_minecraft_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_core::tag::registry::TagRegistry;
+use mcrs_minecraft_core::{AppState, RegistryAccess, ResourceLocation, rl};
 use mcrs_network::event::ReceivedPacketEvent;
 use mcrs_network::{ConnectionState, InGameConnectionState, ServerSideConnection};
 use mcrs_protocol::packets::configuration::clientbound::{

@@ -8,7 +8,7 @@ pub mod clientbound {
     use crate::text::Text;
     use crate::{ColumnPos, Look, PositionFlag, Slot, VarInt};
     use bevy_math::DVec3;
-    use mcrs_core::ResourceLocation;
+    use mcrs_minecraft_core::ResourceLocation;
     use mcrs_protocol::{BlockStateId, ByteAngle};
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use mcrs_voxel_math::BlockPos;

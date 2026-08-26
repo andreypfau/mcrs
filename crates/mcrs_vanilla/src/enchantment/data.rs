@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use mcrs_core::ResourceLocation;
-use mcrs_core::tag::key::{TagKey, TaggedRegistry};
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::tag::key::{TagKey, TaggedRegistry};
 use mcrs_protocol::text::Text;
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeMap};
 
@@ -36,7 +36,7 @@ pub enum EnchantmentResolveError {
     #[error("tag reference `{0}` does not start with '#'")]
     MissingHashPrefix(String),
     #[error("invalid resource location in tag reference: {0}")]
-    InvalidResourceLocation(#[from] mcrs_core::resource_location::ResourceLocationError),
+    InvalidResourceLocation(#[from] mcrs_minecraft_core::resource_location::ResourceLocationError),
 }
 
 fn parse_tag_key<T: TaggedRegistry>(

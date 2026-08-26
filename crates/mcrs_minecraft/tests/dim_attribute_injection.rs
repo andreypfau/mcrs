@@ -25,11 +25,11 @@ use bevy_asset::AssetPlugin;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time, TimePlugin};
-use mcrs_core::AppState;
-use mcrs_core::registry::access::RegistryAccess;
-use mcrs_core::registry::snapshot::RegistrySnapshot;
-use mcrs_core::registry::static_registry::StaticRegistry;
-use mcrs_core::tag::TagRegistry;
+use mcrs_minecraft_core::AppState;
+use mcrs_minecraft_core::registry::access::RegistryAccess;
+use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
+use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
+use mcrs_minecraft_core::tag::TagRegistry;
 use mcrs_minecraft::world::bridge::partition_main_inbound;
 use mcrs_minecraft::world::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
@@ -51,7 +51,7 @@ use vanilla::biome::Biome;
 use vanilla::block::Block;
 use vanilla::enchantment::EnchantmentData;
 
-use mcrs_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_core::tag::registry::DynTagRegistry;
 #[allow(unused_imports)]
 use mcrs_vanilla as vanilla;
 

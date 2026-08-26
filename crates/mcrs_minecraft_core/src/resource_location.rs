@@ -311,7 +311,7 @@ impl ResourceLocation<Arc<str>> {
 /// auto-prefixes `"minecraft:"` when no namespace is given.
 ///
 /// ```rust,ignore
-/// use mcrs_core::rl;
+/// use mcrs_minecraft_core::rl;
 /// let loc = rl!("minecraft:stone");   // ResourceLocation<&'static str>
 /// let loc2 = rl!("stone");            // same: "minecraft:stone"
 /// ```

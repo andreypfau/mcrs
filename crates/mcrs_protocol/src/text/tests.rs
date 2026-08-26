@@ -1,4 +1,4 @@
-use mcrs_core::rl;
+use mcrs_minecraft_core::rl;
 
 use super::*;
 

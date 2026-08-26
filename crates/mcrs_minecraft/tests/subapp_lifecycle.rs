@@ -7,8 +7,8 @@ use bevy_app::{AppLabel, FixedPostUpdate, FixedPreUpdate, FixedUpdate};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::NextState;
 use bevy_time::{Fixed, Time};
-use mcrs_core::AppState;
-use mcrs_core::registry::access::RegistryAccess;
+use mcrs_minecraft_core::AppState;
+use mcrs_minecraft_core::registry::access::RegistryAccess;
 use mcrs_minecraft::world::sub_app_builder::{
     DimSubAppHandle, drain_dim_despawn_queue, drain_dim_spawn_queue, gather_dim_registries,
     spawn_dim_subapp,

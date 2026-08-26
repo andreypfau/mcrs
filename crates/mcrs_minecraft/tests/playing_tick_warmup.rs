@@ -21,7 +21,7 @@ use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::state::NextState;
-use mcrs_core::AppState;
+use mcrs_minecraft_core::AppState;
 use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_block::palette::BlockPalette;
 use mcrs_voxel_light::LightingPlugin;

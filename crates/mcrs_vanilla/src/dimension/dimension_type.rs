@@ -10,7 +10,7 @@ use crate::attribute::EnvironmentAttributeMap;
 use crate::block::Block;
 use crate::timeline::Timeline;
 use crate::value::IntValueProvider;
-use mcrs_core::tag::tag_ref::TagRef;
+use mcrs_minecraft_core::tag::tag_ref::TagRef;
 
 // ── Proto (deserialization-only) ──
 
@@ -52,7 +52,7 @@ pub enum DimensionTypeResolveError {
     #[error("tag field `{0}` does not start with '#'")]
     MissingHashPrefix(String),
     #[error("invalid resource location in infiniburn: {0}")]
-    InvalidResourceLocation(#[from] mcrs_core::resource_location::ResourceLocationError),
+    InvalidResourceLocation(#[from] mcrs_minecraft_core::resource_location::ResourceLocationError),
 }
 
 impl ProtoDimensionType {

@@ -42,7 +42,7 @@ impl<T> ResourceKey<T, &'static str> {
     /// Const-compatible constructor from a static `ResourceLocation`.
     ///
     /// ```rust,ignore
-    /// use mcrs_core::{rl, ResourceKey};
+    /// use mcrs_minecraft_core::{rl, ResourceKey};
     /// const KEY: ResourceKey<MyType, &'static str> = ResourceKey::new(rl!("minecraft:overworld"));
     /// ```
     pub const fn new(location: ResourceLocation<&'static str>) -> Self {

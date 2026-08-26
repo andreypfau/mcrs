@@ -28,7 +28,7 @@ use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
-use mcrs_core::tag::registry::DynTagRegistry;
+use mcrs_minecraft_core::tag::registry::DynTagRegistry;
 use mcrs_vanilla::block::Block as VanillaBlock;
 use mcrs_vanilla::block::definition::{BlockDefinitions, BlockStateFlags, Blocks};
 use std::time::Duration;

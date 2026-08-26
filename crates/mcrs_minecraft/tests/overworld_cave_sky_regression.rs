@@ -24,8 +24,8 @@ use bevy_ecs::prelude::*;
 use bevy_state::app::{AppExtStates, StatesPlugin};
 use bevy_state::state::NextState;
 
-use mcrs_core::AppState;
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::AppState;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft::world::chunk::{ChunkPlugin as WorldgenChunkPlugin, ColumnScheduler};
 use mcrs_minecraft_worldgen::bevy::OverworldNoiseRouter;
 use mcrs_minecraft_worldgen::density_function::build_functions;

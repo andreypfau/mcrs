@@ -1,7 +1,7 @@
 use mcrs_minecraft_block::palette::AirCount;
 mod support;
 
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft::world::chunk::CancellationToken;
 use mcrs_minecraft::world::generate::generate_column;
 use mcrs_minecraft_worldgen::density_function::build_functions;

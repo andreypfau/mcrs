@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use uuid::Uuid;

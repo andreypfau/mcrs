@@ -5,7 +5,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-mcrs_core.workspace = true
+mcrs_minecraft_core.workspace = true
 mcrs_voxel_storage.workspace = true
 mcrs_minecraft_random.workspace = true
 bevy_math.workspace = true

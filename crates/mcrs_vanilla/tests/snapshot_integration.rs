@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use bevy_asset::Assets;
-use mcrs_core::registry::snapshot::RegistrySnapshot;
-use mcrs_core::resource_location::ResourceLocation;
+use mcrs_minecraft_core::registry::snapshot::RegistrySnapshot;
+use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_vanilla::biome::{Biome, BiomeEffects, NetworkBiome};
 
 fn fixture_biome() -> Biome {

@@ -1,4 +1,4 @@
-use mcrs_core::{StaticRegistry, rl};
+use mcrs_minecraft_core::{StaticRegistry, rl};
 
 use super::EntityType;
 

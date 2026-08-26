@@ -3,7 +3,7 @@ pub mod clientbound {
     use crate::profile::GameProfile;
     use crate::{Bounded, RawBytes, VarInt};
     use derive_more::{From, Into};
-    use mcrs_core::ResourceLocation;
+    use mcrs_minecraft_core::ResourceLocation;
     use mcrs_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
 

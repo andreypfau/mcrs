@@ -4,7 +4,7 @@ use bevy::asset::AssetPlugin;
 use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::transform::TransformSystems;
-use mcrs_core::AppState;
+use mcrs_minecraft_core::AppState;
 use mcrs_vanilla::biome::Biome;
 use mcrs_vanilla::dimension::dimension_type::DimensionType;
 use mcrs_vanilla::environment::Weather;
@@ -43,7 +43,7 @@ fn main() {
                 ..default()
             }),
     )
-    .add_plugins(mcrs_core::MinecraftCorePlugin)
+    .add_plugins(mcrs_minecraft_core::MinecraftCorePlugin)
     .add_plugins(mcrs_vanilla::MinecraftWorldPlugin)
     .add_plugins(player::PlayerPlugin)
     .add_plugins(input::ClientInputPlugin)

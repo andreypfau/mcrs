@@ -8,7 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]

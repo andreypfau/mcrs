@@ -45,14 +45,14 @@ use bevy_asset::{Asset, AssetApp, AssetServer, Assets, UntypedHandle};
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use futures_lite::StreamExt;
-use mcrs_core::registry::snapshot::rl_from_asset_path;
-use mcrs_core::tag::file::TagFile;
-use mcrs_core::tag::key::TagKey;
-use mcrs_core::tag::key::TaggedRegistry;
-use mcrs_core::tag::{
+use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
+use mcrs_minecraft_core::tag::file::TagFile;
+use mcrs_minecraft_core::tag::key::TagKey;
+use mcrs_minecraft_core::tag::key::TaggedRegistry;
+use mcrs_minecraft_core::tag::{
     DynRegistryIndex, DynTagLoader, TagLoader, TagLoadersSettled, TagPhase, TagRegistryAppExt,
 };
-use mcrs_core::{AppState, ResourceLocation, StaticRegistry};
+use mcrs_minecraft_core::{AppState, ResourceLocation, StaticRegistry};
 
 #[derive(Resource, Default)]
 pub struct LoadedRegistryAssets {
@@ -163,9 +163,9 @@ impl Plugin for MinecraftWorldPlugin {
 
         app.init_resource::<DimensionEnvironments>();
 
-        app.init_resource::<mcrs_core::RegistryAccess>();
+        app.init_resource::<mcrs_minecraft_core::RegistryAccess>();
 
-        mcrs_core::snapshot_registry!(
+        mcrs_minecraft_core::snapshot_registry!(
             app,
             [
                 (
@@ -174,7 +174,7 @@ impl Plugin for MinecraftWorldPlugin {
                     |b: &biome::Biome| mcrs_minecraft_nbt::to_nbt_compound(
                         &biome::NetworkBiome::from(b)
                     ),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     dimension::dimension_type::DimensionType,
@@ -184,7 +184,7 @@ impl Plugin for MinecraftWorldPlugin {
                             &dimension::dimension_type::NetworkDimensionType::from(d),
                         )
                     },
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     timeline::Timeline,
@@ -192,151 +192,151 @@ impl Plugin for MinecraftWorldPlugin {
                     |t: &timeline::Timeline| mcrs_minecraft_nbt::to_nbt_compound(
                         &timeline::NetworkTimeline::from(t)
                     ),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     chat_type::ChatType,
                     "minecraft:chat_type",
                     |v: &chat_type::ChatType| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     trim::TrimPattern,
                     "minecraft:trim_pattern",
                     |v: &trim::TrimPattern| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     trim::TrimMaterial,
                     "minecraft:trim_material",
                     |v: &trim::TrimMaterial| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     variant::WolfVariant,
                     "minecraft:wolf_variant",
                     |v: &variant::WolfVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     variant::WolfSoundVariant,
                     "minecraft:wolf_sound_variant",
                     |v: &variant::WolfSoundVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     variant::PigSoundVariant,
                     "minecraft:pig_sound_variant",
                     |v: &variant::PigSoundVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     variant::CatSoundVariant,
                     "minecraft:cat_sound_variant",
                     |v: &variant::CatSoundVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     variant::CowSoundVariant,
                     "minecraft:cow_sound_variant",
                     |v: &variant::CowSoundVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     variant::ChickenSoundVariant,
                     "minecraft:chicken_sound_variant",
                     |v: &variant::ChickenSoundVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     variant::PigVariant,
                     "minecraft:pig_variant",
                     |v: &variant::PigVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     variant::FrogVariant,
                     "minecraft:frog_variant",
                     |v: &variant::FrogVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     variant::CatVariant,
                     "minecraft:cat_variant",
                     |v: &variant::CatVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     variant::CowVariant,
                     "minecraft:cow_variant",
                     |v: &variant::CowVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     variant::ChickenVariant,
                     "minecraft:chicken_variant",
                     |v: &variant::ChickenVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     variant::ZombieNautilusVariant,
                     "minecraft:zombie_nautilus_variant",
                     |v: &variant::ZombieNautilusVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     painting_variant::PaintingVariant,
                     "minecraft:painting_variant",
                     |v: &painting_variant::PaintingVariant| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     damage_type::DamageType,
                     "minecraft:damage_type",
                     |v: &damage_type::DamageType| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     banner_pattern::BannerPattern,
                     "minecraft:banner_pattern",
                     |v: &banner_pattern::BannerPattern| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     jukebox_song::JukeboxSong,
                     "minecraft:jukebox_song",
                     |v: &jukebox_song::JukeboxSong| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     instrument::Instrument,
                     "minecraft:instrument",
                     |v: &instrument::Instrument| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     dialog::Dialog,
                     "minecraft:dialog",
                     |v: &dialog::Dialog| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     test_types::TestEnvironment,
                     "minecraft:test_environment",
                     |v: &test_types::TestEnvironment| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     test_types::TestInstance,
                     "minecraft:test_instance",
                     |v: &test_types::TestInstance| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
                 (
                     world_clock::WorldClock,
                     "minecraft:world_clock",
                     |v: &world_clock::WorldClock| mcrs_minecraft_nbt::to_nbt_compound(v),
-                    Some(mcrs_core::PackSource::vanilla_core())
+                    Some(mcrs_minecraft_core::PackSource::vanilla_core())
                 ),
             ]
         );
@@ -737,11 +737,11 @@ fn request_every_block_tag(
 fn tag_location(
     root: &std::path::Path,
     path: &std::path::Path,
-) -> Option<mcrs_core::resource_location::ResourceLocation<std::sync::Arc<str>>> {
+) -> Option<mcrs_minecraft_core::resource_location::ResourceLocation<std::sync::Arc<str>>> {
     let namespace = root.iter().next()?.to_str()?;
     let relative = path.strip_prefix(root).ok()?.to_str()?;
     let name = relative.strip_suffix(".json")?;
-    mcrs_core::resource_location::ResourceLocation::parse(&format!("{namespace}:{name}")).ok()
+    mcrs_minecraft_core::resource_location::ResourceLocation::parse(&format!("{namespace}:{name}")).ok()
 }
 
 fn check_tags_ready(
@@ -826,27 +826,27 @@ fn register_static_registries_with_access(
     sound_registry: Res<StaticRegistry<sound::SoundEvent>>,
     entity_registry: Res<StaticRegistry<entity::EntityType>>,
     enchantment_registry: Res<StaticRegistry<EnchantmentData>>,
-    mut access: ResMut<mcrs_core::RegistryAccess>,
+    mut access: ResMut<mcrs_minecraft_core::RegistryAccess>,
 ) {
-    access.register(Box::new(mcrs_core::RegistrySnapshotErased::from_static(
+    access.register(Box::new(mcrs_minecraft_core::RegistrySnapshotErased::from_static(
         "minecraft:item",
         &item_registry,
         |_, _| None,
-        Some(mcrs_core::PackSource::vanilla_core()),
+        Some(mcrs_minecraft_core::PackSource::vanilla_core()),
     )));
-    access.register(Box::new(mcrs_core::RegistrySnapshotErased::from_static(
+    access.register(Box::new(mcrs_minecraft_core::RegistrySnapshotErased::from_static(
         "minecraft:sound_event",
         &sound_registry,
         |_, _| None,
-        Some(mcrs_core::PackSource::vanilla_core()),
+        Some(mcrs_minecraft_core::PackSource::vanilla_core()),
     )));
-    access.register(Box::new(mcrs_core::RegistrySnapshotErased::from_static(
+    access.register(Box::new(mcrs_minecraft_core::RegistrySnapshotErased::from_static(
         "minecraft:entity_type",
         &entity_registry,
         |_, _| None,
-        Some(mcrs_core::PackSource::vanilla_core()),
+        Some(mcrs_minecraft_core::PackSource::vanilla_core()),
     )));
-    access.register(Box::new(mcrs_core::RegistrySnapshotErased::from_static(
+    access.register(Box::new(mcrs_minecraft_core::RegistrySnapshotErased::from_static(
         "minecraft:enchantment",
         &enchantment_registry,
         |_, data| {
@@ -854,7 +854,7 @@ fn register_static_registries_with_access(
             let network = NetworkEnchantmentData::from(data);
             mcrs_minecraft_nbt::to_nbt_compound(&network).ok()
         },
-        Some(mcrs_core::PackSource::vanilla_core()),
+        Some(mcrs_minecraft_core::PackSource::vanilla_core()),
     )));
     tracing::info!(count = access.len(), "populated RegistryAccess");
 }

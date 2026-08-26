@@ -3,8 +3,8 @@ use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDepe
 use bevy_reflect::TypePath;
 use serde::Serialize;
 
-use mcrs_core::tag::key::TaggedRegistry;
-use mcrs_core::tag::tag_ref::TagRef;
+use mcrs_minecraft_core::tag::key::TaggedRegistry;
+use mcrs_minecraft_core::tag::tag_ref::TagRef;
 
 impl TaggedRegistry for Dialog {
     const REGISTRY_PATH: &'static str = "dialog";
@@ -15,7 +15,7 @@ impl TaggedRegistry for Dialog {
 #[derive(Debug, thiserror::Error)]
 pub enum DialogResolveError {
     #[error("invalid resource location in dialogs: {0}")]
-    InvalidResourceLocation(#[from] mcrs_core::resource_location::ResourceLocationError),
+    InvalidResourceLocation(#[from] mcrs_minecraft_core::resource_location::ResourceLocationError),
 }
 
 // ── Runtime Dialog ──

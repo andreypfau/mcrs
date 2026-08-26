@@ -20,7 +20,7 @@ use self::schema::{
 };
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_protocol::BlockStateId;
 use mcrs_voxel_math::voxel_shape::Aabb;
 
@@ -277,7 +277,7 @@ pub struct Blocks(pub Arc<BlockDefinitions>);
 
 /// Block tags are resolved against the corpus, so every block the game has can
 /// be in a tag — not only the ones a static registry happens to name.
-impl mcrs_core::tag::registry::TagSource for Blocks {
+impl mcrs_minecraft_core::tag::registry::TagSource for Blocks {
     type Id = u32;
 
     fn id_of(&self, loc: &str) -> Option<u32> {

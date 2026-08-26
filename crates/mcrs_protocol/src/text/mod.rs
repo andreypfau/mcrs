@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use std::{fmt, ops};
 
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, de};
 use uuid::Uuid;

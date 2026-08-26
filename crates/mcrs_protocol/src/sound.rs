@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::io::Write;
 
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 
 use crate::var_int::VarInt;
 use crate::{Decode, Encode};

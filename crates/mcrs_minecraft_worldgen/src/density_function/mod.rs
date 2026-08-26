@@ -8,7 +8,7 @@ use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::proto::NoiseGeneratorSettings;
 use crate::spline::{RangeFunction, SplineFunction};
 use bevy_math::{Curve, FloatExt, IVec3};
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, RandomSource};
 use mcrs_voxel_storage::VoxelId;
@@ -7833,7 +7833,7 @@ mod tests {
         dir: &std::path::Path,
         prefix: &str,
         map: &mut std::collections::BTreeMap<
-            mcrs_core::ResourceLocation,
+            mcrs_minecraft_core::ResourceLocation,
             crate::density_function::ProtoDensityFunction,
         >,
     ) {
@@ -7875,7 +7875,7 @@ mod tests {
                     format!("minecraft:{}/{}", prefix, stem)
                 };
                 let ident = key
-                    .parse::<mcrs_core::ResourceLocation>()
+                    .parse::<mcrs_minecraft_core::ResourceLocation>()
                     .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
                 map.insert(ident, function);
             }
@@ -7884,7 +7884,7 @@ mod tests {
 
     /// Load all density_function JSON assets recursively into a `ProtoDensityFunction` map.
     fn load_density_functions_from_disk() -> std::collections::BTreeMap<
-        mcrs_core::ResourceLocation,
+        mcrs_minecraft_core::ResourceLocation,
         crate::density_function::ProtoDensityFunction,
     > {
         let base = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -7896,7 +7896,7 @@ mod tests {
 
     /// Load all noise JSON assets into a `NoiseParam` map.
     fn load_noises_from_disk() -> std::collections::BTreeMap<
-        mcrs_core::ResourceLocation,
+        mcrs_minecraft_core::ResourceLocation,
         crate::density_function::proto::NoiseParam,
     > {
         let base = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -7915,7 +7915,7 @@ mod tests {
                         .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
                 let stem = path.file_stem().unwrap().to_string_lossy();
                 let ident = format!("minecraft:{}", stem)
-                    .parse::<mcrs_core::ResourceLocation>()
+                    .parse::<mcrs_minecraft_core::ResourceLocation>()
                     .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
                 map.insert(ident, noise);
             }
@@ -7939,11 +7939,11 @@ mod tests {
             serde_json::from_str(&json).expect("overworld.json must deserialize");
 
         let functions: std::collections::BTreeMap<
-            mcrs_core::ResourceLocation,
+            mcrs_minecraft_core::ResourceLocation,
             crate::density_function::ProtoDensityFunction,
         > = load_density_functions_from_disk();
         let noises: std::collections::BTreeMap<
-            mcrs_core::ResourceLocation,
+            mcrs_minecraft_core::ResourceLocation,
             crate::density_function::proto::NoiseParam,
         > = load_noises_from_disk();
 

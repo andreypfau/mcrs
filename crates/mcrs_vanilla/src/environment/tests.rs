@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use serde_json::json;
 
 use super::*;
-use mcrs_core::tag::file::TagEntry;
+use mcrs_minecraft_core::tag::file::TagEntry;
 
 use crate::attribute::attribute;
 use crate::dimension::dimension_type::ProtoDimensionType;

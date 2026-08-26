@@ -61,7 +61,7 @@ impl<T: TaggedRegistry> TagKey<T, &'static str> {
     /// Create a tag key from a compile-time validated `ResourceLocation<&'static str>`.
     ///
     /// ```rust,ignore
-    /// use mcrs_core::{rl, TagKey};
+    /// use mcrs_minecraft_core::{rl, TagKey};
     /// const MY_TAG: TagKey<Block> = TagKey::new(rl!("minecraft:mineable/pickaxe"));
     /// ```
     pub const fn new(rl: ResourceLocation<&'static str>) -> Self {

@@ -7,9 +7,9 @@ use bevy::render::render_resource::{
     Extent3d, TextureDimension, TextureFormat, TextureViewDescriptor, TextureViewDimension,
 };
 use bevy::transform::TransformSystems;
-use mcrs_core::AppState;
-use mcrs_core::ResourceLocation;
-use mcrs_core::registry::snapshot::rl_from_asset_path;
+use mcrs_minecraft_core::AppState;
+use mcrs_minecraft_core::ResourceLocation;
+use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
 
 use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
 use mcrs_vanilla::dimension::dimension_type::DimensionType;

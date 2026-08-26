@@ -3157,7 +3157,7 @@ dependencies = [
  "bitflags 2.10.0",
  "bytemuck",
  "flate2",
- "mcrs_core",
+ "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_protocol",
  "mcrs_vanilla",
@@ -3168,24 +3168,6 @@ dependencies = [
  "serde",
  "serde_json",
  "wgpu",
-]
-
-[[package]]
-name = "mcrs_core"
-version = "0.1.0"
-dependencies = [
- "bevy_app",
- "bevy_asset",
- "bevy_ecs",
- "bevy_math",
- "bevy_reflect",
- "bevy_state",
- "mcrs_minecraft_core_macros",
- "mcrs_minecraft_nbt",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tracing",
 ]
 
 [[package]]
@@ -3213,9 +3195,9 @@ dependencies = [
  "derive_more",
  "flume",
  "indexmap",
- "mcrs_core",
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_random",
  "mcrs_minecraft_worldgen",
@@ -3274,6 +3256,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_core"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_math",
+ "bevy_reflect",
+ "bevy_state",
+ "mcrs_minecraft_core_macros",
+ "mcrs_minecraft_nbt",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_core_macros"
 version = "0.1.0"
 dependencies = [
@@ -3311,7 +3311,7 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "bevy_reflect",
- "mcrs_core",
+ "mcrs_minecraft_core",
  "mcrs_minecraft_random",
  "mcrs_voxel_storage",
  "num-traits",
@@ -3353,7 +3353,7 @@ dependencies = [
  "cfb8",
  "derive_more",
  "flate2",
- "mcrs_core",
+ "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_protocol_macros",
  "mcrs_voxel_light",
@@ -3407,7 +3407,7 @@ dependencies = [
  "bitflags 2.10.0",
  "derive_more",
  "futures-lite",
- "mcrs_core",
+ "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_worldgen",
  "mcrs_protocol",

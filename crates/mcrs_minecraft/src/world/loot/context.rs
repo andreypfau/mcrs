@@ -1,5 +1,5 @@
 use crate::world::loot::condition::LootCondition;
-use mcrs_core::ResourceLocation;
+use mcrs_minecraft_core::ResourceLocation;
 use mcrs_vanilla::item::component::Enchantments;
 
 pub struct BlockBreakContext<'a> {

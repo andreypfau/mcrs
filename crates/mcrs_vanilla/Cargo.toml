@@ -6,7 +6,7 @@ edition.workspace = true
 
 [dependencies]
 mcrs_voxel_math.workspace = true
-mcrs_core.workspace = true
+mcrs_minecraft_core.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_protocol.workspace = true
 bevy_app.workspace = true

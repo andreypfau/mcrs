@@ -101,7 +101,7 @@ fn host_side_no_longer_registers_per_dim_simulation_plugins() {
     app.add_plugins(bevy_time::TimePlugin);
     app.add_plugins(bevy_state::app::StatesPlugin);
     use bevy_state::app::AppExtStates;
-    app.init_state::<mcrs_core::AppState>();
+    app.init_state::<mcrs_minecraft_core::AppState>();
     app.add_plugins(WorldPlugin);
 
     let world = app.world();
