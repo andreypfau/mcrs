@@ -189,6 +189,18 @@ fn overworld_router(seed: u64) -> NoiseRouter {
 /// same calls `generate_column`/`generate_section` make: one
 /// `precompute_column_grid` for the whole column, then per-section
 /// `fill_plane_cached_reuse` + `on_sampled_cell_corners`.
+/// Cell corner order produced by `on_sampled_cell_corners`, as (dx, dy, dz).
+const CORNER_OFFSETS: [(usize, usize, usize); 8] = [
+    (0, 0, 0),
+    (0, 1, 0),
+    (0, 0, 1),
+    (0, 1, 1),
+    (1, 0, 0),
+    (1, 1, 0),
+    (1, 0, 1),
+    (1, 1, 1),
+];
+
 fn our_final_density_lattice(router: &NoiseRouter, chunk_x: i32, chunk_z: i32) -> Vec<f32> {
     let mut interp = router.new_noise_cell_interpolator();
     let h = interp.h_cell_blocks();
@@ -228,16 +240,22 @@ fn our_final_density_lattice(router: &NoiseRouter, chunk_x: i32, chunk_z: i32) -
             for cell_z in 0..h_cells {
                 for cell_y in (0..v_cells).rev() {
                     interp.on_sampled_cell_corners(cell_y, cell_z);
-                    let c = *interp.corners();
+                    let w = interp.values_per_corner();
+                    let corners = interp.corners().to_vec();
                     let row = ((base_y - noise_min_y) as usize) / v + cell_y;
-                    put(cell_x, row, cell_z, c[0]);
-                    put(cell_x, row + 1, cell_z, c[1]);
-                    put(cell_x, row, cell_z + 1, c[2]);
-                    put(cell_x, row + 1, cell_z + 1, c[3]);
-                    put(cell_x + 1, row, cell_z, c[4]);
-                    put(cell_x + 1, row + 1, cell_z, c[5]);
-                    put(cell_x + 1, row, cell_z + 1, c[6]);
-                    put(cell_x + 1, row + 1, cell_z + 1, c[7]);
+                    for (slot, (dx, dy, dz)) in CORNER_OFFSETS.iter().enumerate() {
+                        let pos = IVec3::new(
+                            block_x + ((cell_x + dx) * h) as i32,
+                            base_y + ((cell_y + dy) * v) as i32,
+                            block_z + ((cell_z + dz) * h) as i32,
+                        );
+                        let value = router.final_density_from_cell_values(
+                            pos,
+                            &corners[slot * w..(slot + 1) * w],
+                            &mut cache.scratch,
+                        );
+                        put(cell_x + dx, row + dy, cell_z + dz, value);
+                    }
                 }
             }
             interp.swap_buffers();
@@ -492,6 +510,7 @@ fn dense_final_density_matches_the_vanilla_oracle() {
     let rows = router.noise_height() as usize / v + 1;
     interp.precompute_column_grid(&router, &mut cache, noise_min_y, rows);
 
+    let mut scratch = vec![0.0f32; cache.scratch.len()];
     let mut ours = vec![f32::NAN; volume.values.len()];
     for sy in (noise_min_y / 16)..((noise_min_y + router.noise_height() as i32) / 16) {
         let base_y = sy * 16;
@@ -521,7 +540,11 @@ fn dense_final_density_matches_the_vanilla_oracle() {
                                 let zi = (cell_z * h + local_z) as i32;
                                 let yi = world_y - volume.min[1];
                                 let i = (yi + (xi + zi * volume.size[0]) * volume.size[1]) as usize;
-                                ours[i] = interp.result();
+                                ours[i] = router.final_density_from_cell_values(
+                                    IVec3::new(block_x + xi, world_y, block_z + zi),
+                                    interp.result(),
+                                    &mut scratch,
+                                );
                             }
                         }
                     }
@@ -547,3 +570,105 @@ fn dense_final_density_matches_the_vanilla_oracle() {
         d.worst_pair.1
     );
 }
+
+/// `final_density_cell_bounds` drives the whole-cell fill fast path, so a bound
+/// that is ever tighter than the block values inside the cell would place solid
+/// blocks in air. Interval arithmetic in f32 is not outward-rounded, so this
+/// also measures how far the bound can sit on the wrong side.
+#[test]
+fn cell_bounds_contain_every_block_density() {
+    let dump = read_dump(&fixtures_dir().join("overworld_s42_c0_0_dense.bin"));
+    let router = overworld_router(dump.seed as u64);
+
+    let mut interp = router.new_noise_cell_interpolator();
+    let h = interp.h_cell_blocks();
+    let v = interp.v_cell_blocks();
+    let h_cells = interp.h_cells();
+    let v_cells = interp.v_cells();
+
+    let block_x = dump.chunk_x * 16;
+    let block_z = dump.chunk_z * 16;
+    let mut cache = router.new_column_cache(block_x, block_z);
+    router.populate_columns(&mut cache);
+    let noise_min_y = router.noise_min_y();
+    let rows = router.noise_height() as usize / v + 1;
+    interp.precompute_column_grid(&router, &mut cache, noise_min_y, rows);
+
+    let mut scratch = vec![0.0f32; cache.scratch.len()];
+    let mut worst_low = 0.0f32;
+    let mut worst_high = 0.0f32;
+    let mut bounded_cells = 0usize;
+    let mut total_cells = 0usize;
+
+    for sy in (noise_min_y / 16)..((noise_min_y + router.noise_height() as i32) / 16) {
+        let base_y = sy * 16;
+        interp.fill_plane_cached_reuse(0, true, block_x, base_y, block_z, &router, &mut cache);
+        for cell_x in 0..h_cells {
+            let next_x = block_x + ((cell_x + 1) * h) as i32;
+            interp.fill_plane_cached_reuse(
+                cell_x + 1,
+                false,
+                next_x,
+                base_y,
+                block_z,
+                &router,
+                &mut cache,
+            );
+            for cell_z in 0..h_cells {
+                for cell_y in (0..v_cells).rev() {
+                    interp.on_sampled_cell_corners(cell_y, cell_z);
+                    total_cells += 1;
+                    let Some((lo, hi)) =
+                        router.final_density_cell_bounds(interp.corner_bounds(), &mut cache)
+                    else {
+                        continue;
+                    };
+                    bounded_cells += 1;
+                    for local_y in (0..v).rev() {
+                        interp.interpolate_y(local_y as f32 / v as f32);
+                        let world_y = base_y + (cell_y * v + local_y) as i32;
+                        for local_x in 0..h {
+                            interp.interpolate_x(local_x as f32 / h as f32);
+                            for local_z in 0..h {
+                                interp.interpolate_z(local_z as f32 / h as f32);
+                                let value = router.final_density_from_cell_values(
+                                    IVec3::new(
+                                        block_x + (cell_x * h + local_x) as i32,
+                                        world_y,
+                                        block_z + (cell_z * h + local_z) as i32,
+                                    ),
+                                    interp.result(),
+                                    &mut scratch,
+                                );
+                                worst_low = worst_low.max(lo - value);
+                                worst_high = worst_high.max(value - hi);
+                            }
+                        }
+                    }
+                }
+            }
+            interp.swap_buffers();
+        }
+        interp.end_section();
+    }
+
+    println!(
+        "cell bounds: {}/{} cells bounded, worst overshoot low={:e} high={:e}",
+        bounded_cells, total_cells, worst_low, worst_high
+    );
+    assert_eq!(
+        bounded_cells, total_cells,
+        "overworld final_density should be fully interval-bounded"
+    );
+    assert!(
+        worst_low < CELL_BOUNDS_SLACK && worst_high < CELL_BOUNDS_SLACK,
+        "cell bounds violated by more than {:e}: low={:e} high={:e}",
+        CELL_BOUNDS_SLACK,
+        worst_low,
+        worst_high
+    );
+}
+
+/// Margin the fill fast path keeps away from zero, covering the rounding f32
+/// interval arithmetic accumulates over the outer terms.
+const CELL_BOUNDS_SLACK: f32 = 1e-5;

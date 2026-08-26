@@ -929,6 +929,50 @@ fn compute_per_block(stack: &[DensityFunctionComponent], _roots: &[usize]) -> Ve
     per_block
 }
 
+/// Split the sub-graph feeding `root` at every `interpolated` node: the wrappers
+/// themselves and everything above them evaluate per block, while their inputs
+/// are only ever read off the cell lattice.
+fn compute_outer_terms(
+    stack: &[DensityFunctionComponent],
+    root: usize,
+) -> (Vec<usize>, Vec<usize>) {
+    let is_interpolated = |i: usize| {
+        matches!(
+            &stack[i],
+            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(_))
+        )
+    };
+
+    let mut reached = vec![false; stack.len()];
+    let mut pending = vec![root];
+    reached[root] = true;
+    while let Some(i) = pending.pop() {
+        if is_interpolated(i) {
+            continue;
+        }
+        stack[i].visit_input_indices(&mut |j| {
+            if !reached[j] {
+                reached[j] = true;
+                pending.push(j);
+            }
+        });
+    }
+
+    let mut terms = Vec::new();
+    let mut wrappers = Vec::new();
+    for i in 0..stack.len() {
+        if !reached[i] {
+            continue;
+        }
+        if is_interpolated(i) {
+            wrappers.push(i);
+        } else {
+            terms.push(i);
+        }
+    }
+    (terms, wrappers)
+}
+
 /// A cache node whose value is constant down a column: everything it shields is
 /// evaluated once per column instead of once per block.
 fn is_column_barrier(stack: &[DensityFunctionComponent], per_block: &[bool], index: usize) -> bool {
@@ -1126,6 +1170,8 @@ pub struct ColumnCache {
     pub(crate) base_block_z: i32,
     /// Scratch buffer (len == stack.len()), reused per `final_density_from_column_cache` call.
     pub scratch: Vec<f32>,
+    /// Interval scratch (len == stack.len()) for `final_density_cell_bounds`.
+    bounds_scratch: Vec<(f32, f32)>,
     /// Scratch buffer for batch evaluation: MAX_BATCH * stack_len flat layout.
     /// Pre-allocated at construction to avoid repeated allocation.
     #[cfg(feature = "batch-noise")]
@@ -1367,6 +1413,39 @@ pub fn build_functions(
             (None, None, None)
         };
 
+    let (outer_terms, outer_wrappers) = compute_outer_terms(&builder.stack, final_density_index);
+    let outer_wrapper_inputs: Vec<usize> = outer_wrappers
+        .iter()
+        .map(|&i| match &builder.stack[i] {
+            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) => {
+                x.input_index
+            }
+            _ => unreachable!(),
+        })
+        .collect();
+
+    // The lattice the chunk fill walks is the wrappers' own cell geometry, so a
+    // datapack whose wrappers disagree would need one lattice per cell size.
+    let mut cell_sizes = outer_wrappers.iter().map(|&i| match &builder.stack[i] {
+        DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) => {
+            (x.cell_size_xz as usize, x.cell_size_y as usize)
+        }
+        _ => unreachable!(),
+    });
+    let (h_cell_blocks, v_cell_blocks) = match cell_sizes.next() {
+        Some(first) => {
+            assert!(
+                cell_sizes.all(|other| other == first),
+                "final_density mixes interpolated cell sizes"
+            );
+            first
+        }
+        None => (
+            builder_options.horizontal_cell_block_count,
+            builder_options.vertical_cell_block_count,
+        ),
+    };
+
     let router = NoiseRouter {
         temperature_index: roots[0],
         vegetation_index: roots[1],
@@ -1386,10 +1465,13 @@ pub fn build_functions(
         beta_surface_noise,
         beta_terrain_f64: beta_terrain_f64_opt,
         per_block: per_block.into_boxed_slice(),
+        outer_terms: outer_terms.into_boxed_slice(),
+        outer_wrappers: outer_wrappers.into_boxed_slice(),
+        outer_wrapper_inputs: outer_wrapper_inputs.into_boxed_slice(),
         column_boundary,
         fd_boundary,
-        h_cell_blocks: builder_options.horizontal_cell_block_count,
-        v_cell_blocks: builder_options.vertical_cell_block_count,
+        h_cell_blocks,
+        v_cell_blocks,
         stack: Box::from(builder.stack),
         node_labels: node_labels.into_boxed_slice(),
         #[cfg(feature = "lazy-range-choice")]
@@ -1446,6 +1528,12 @@ pub struct NoiseRouter {
     /// per_block[i] == true means entry i depends on Y and must be recomputed per block.
     /// per_block[i] == false means entry i is column-only (cached across Y changes).
     per_block: Box<[bool]>,
+    /// Terms of `final_density` at or above every `interpolated` wrapper, ascending.
+    outer_terms: Box<[usize]>,
+    /// The `interpolated` wrappers `final_density` reads, ascending.
+    outer_wrappers: Box<[usize]>,
+    /// Stack index of each outer wrapper's input, in the same order.
+    outer_wrapper_inputs: Box<[usize]>,
     /// First index of Zone B (per-Y entries for final_density).
     /// Zone A [0..column_boundary): column-only entries reachable from final_density.
     column_boundary: usize,
@@ -1595,6 +1683,7 @@ impl NoiseRouter {
             base_block_x,
             base_block_z,
             scratch: vec![0.0f32; self.stack.len()],
+            bounds_scratch: vec![(0.0f32, 0.0f32); self.stack.len()],
             #[cfg(feature = "batch-noise")]
             batch_scratch: vec![0.0f32; MAX_BATCH * (self.final_density_index + 1)],
             #[cfg(feature = "batch-noise")]
@@ -1738,6 +1827,118 @@ impl NoiseRouter {
         cache.scratch[self.final_density_index]
     }
 
+    /// Number of `interpolated` wrapper inputs carried per cell corner.
+    #[inline]
+    pub fn cell_value_count(&self) -> usize {
+        self.outer_wrappers.len()
+    }
+
+    /// `final_density` at `pos` from this block's already-interpolated wrapper
+    /// values. `scratch` must be at least `stack.len()` long; nothing in it is
+    /// read before it is written.
+    pub fn final_density_from_cell_values(
+        &self,
+        pos: IVec3,
+        cell_values: &[f32],
+        scratch: &mut [f32],
+    ) -> f32 {
+        for (k, &idx) in self.outer_wrappers.iter().enumerate() {
+            scratch[idx] = cell_values[k];
+        }
+        for &i in self.outer_terms.iter() {
+            let value = self.stack[i].sample_cached(scratch, &self.stack, pos);
+            scratch[i] = value;
+        }
+        scratch[self.final_density_index]
+    }
+
+    /// Bounds on `final_density` across a whole cell, given each `interpolated`
+    /// wrapper's own bounds over the cell's eight corners. Trilinear
+    /// interpolation is a convex combination, so it never leaves the corner
+    /// hull; interval arithmetic over the outer terms carries that up.
+    ///
+    /// `None` when an outer term has a kind this cannot bound, which simply
+    /// means the caller must evaluate the cell block by block.
+    pub fn final_density_cell_bounds(
+        &self,
+        wrapper_bounds: &[(f32, f32)],
+        cache: &mut ColumnCache,
+    ) -> Option<(f32, f32)> {
+        let iv = &mut cache.bounds_scratch;
+        for (k, &idx) in self.outer_wrappers.iter().enumerate() {
+            iv[idx] = wrapper_bounds[k];
+        }
+        for &i in self.outer_terms.iter() {
+            iv[i] = match &self.stack[i] {
+                DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(v)) => {
+                    (*v, *v)
+                }
+                DensityFunctionComponent::Dependent(f) => match f {
+                    DependentDensityFunction::Linear(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        match x.operation {
+                            LinearOperation::Add => (lo + x.argument, hi + x.argument),
+                            LinearOperation::Multiply => mul_range(lo, hi, x.argument, x.argument),
+                        }
+                    }
+                    DependentDensityFunction::Affine(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        Affine::compute_range(lo, hi, x.scale, x.offset)
+                    }
+                    DependentDensityFunction::Unary(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        unary_range(x.operation, lo, hi)
+                    }
+                    DependentDensityFunction::Binary(x) => {
+                        binary_range(x.operation, iv[x.input1_index], iv[x.input2_index])
+                    }
+                    DependentDensityFunction::Clamp(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        (
+                            lo.clamp(x.min_value, x.max_value),
+                            hi.clamp(x.min_value, x.max_value),
+                        )
+                    }
+                    DependentDensityFunction::RangeChoice(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        if lo >= x.min_inclusion_value && hi < x.max_exclusion_value {
+                            iv[x.when_in_index]
+                        } else if hi < x.min_inclusion_value || lo >= x.max_exclusion_value {
+                            iv[x.when_out_index]
+                        } else {
+                            let a = iv[x.when_in_index];
+                            let b = iv[x.when_out_index];
+                            (a.0.min(b.0), a.1.max(b.1))
+                        }
+                    }
+                    _ => return None,
+                },
+                DensityFunctionComponent::Wrapper(WrapperDensityFunction::Cache(x)) => {
+                    iv[x.input_index]
+                }
+                _ => return None,
+            };
+        }
+        Some(iv[self.final_density_index])
+    }
+
+    /// The inputs of `final_density`'s `interpolated` wrappers at one lattice corner.
+    /// Zone A must already be loaded into `cache.scratch` via `load_column`.
+    pub fn cell_values_from_column_cache(
+        &self,
+        pos: IVec3,
+        cache: &mut ColumnCache,
+        out: &mut [f32],
+    ) {
+        for i in self.column_boundary..=self.final_density_index {
+            let value = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
+            cache.scratch[i] = value;
+        }
+        for (k, &idx) in self.outer_wrapper_inputs.iter().enumerate() {
+            out[k] = cache.scratch[idx];
+        }
+    }
+
     /// Batch-evaluate Zone B of final_density across multiple positions.
     ///
     /// **Preconditions**: `cache.batch_scratch` must be pre-populated with Zone A data for
@@ -1754,7 +1955,7 @@ impl NoiseRouter {
         results: &mut [f32],
     ) {
         let n = positions.len();
-        debug_assert_eq!(n, results.len());
+        debug_assert_eq!(n * self.cell_value_count(), results.len());
         debug_assert!(n <= MAX_BATCH);
         let stack_len = self.final_density_index + 1;
 
@@ -1937,22 +2138,34 @@ impl NoiseRouter {
                         }
                     }
                 },
-                DensityFunctionComponent::Wrapper(f) => {
-                    let input_index = match f {
-                        WrapperDensityFunction::Interpolated(x) => x.input_index,
-                        WrapperDensityFunction::Cache(x) => x.input_index,
-                    };
-                    for p in 0..n {
-                        let base = p * stack_len;
-                        cache.batch_scratch[base + i] = cache.batch_scratch[base + input_index];
+                DensityFunctionComponent::Wrapper(f) => match f {
+                    WrapperDensityFunction::Interpolated(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            cache.batch_scratch[base + i] = if x.is_cell_corner(positions[p]) {
+                                cache.batch_scratch[base + x.input_index]
+                            } else {
+                                x.sample(&self.stack, positions[p])
+                            };
+                        }
                     }
-                }
+                    WrapperDensityFunction::Cache(x) => {
+                        for p in 0..n {
+                            let base = p * stack_len;
+                            cache.batch_scratch[base + i] =
+                                cache.batch_scratch[base + x.input_index];
+                        }
+                    }
+                },
             }
         }
 
-        // Extract results
+        let w = self.outer_wrapper_inputs.len();
         for p in 0..n {
-            results[p] = cache.batch_scratch[p * stack_len + self.final_density_index];
+            let base = p * stack_len;
+            for (k, &idx) in self.outer_wrapper_inputs.iter().enumerate() {
+                results[p * w + k] = cache.batch_scratch[base + idx];
+            }
         }
     }
 
@@ -1974,7 +2187,7 @@ impl NoiseRouter {
         results: &mut [f32],
     ) {
         let n = positions.len();
-        debug_assert_eq!(n, results.len());
+        debug_assert_eq!(n * self.cell_value_count(), results.len());
         debug_assert_eq!(n, column_local_xz.len() * per_col);
         debug_assert!(n <= MAX_BATCH);
 
@@ -2069,51 +2282,55 @@ impl NoiseRouter {
 
     /// Create a new `NoiseCellInterpolator` matching this router's cell dimensions.
     pub fn new_noise_cell_interpolator(&self) -> NoiseCellInterpolator {
-        NoiseCellInterpolator::new(self.h_cell_blocks, self.v_cell_blocks)
+        NoiseCellInterpolator::new(self.h_cell_blocks, self.v_cell_blocks, self.cell_value_count())
     }
 }
 
-/// Trilinear interpolator for chunk section noise generation.
+/// Trilinear interpolator for the chunk fill.
 ///
-/// Samples `final_density` only at cell corners and trilinearly interpolates
-/// interior block positions. With cell sizes of 4x8x4, this reduces expensive
-/// density evaluations from 4,096 to 75 per 16x16x16 section.
+/// Carries the input of every `interpolated` wrapper `final_density` reads —
+/// `values_per_corner()` floats per lattice corner. Those are the only values
+/// vanilla interpolates; everything above the wrappers is applied per block by
+/// `NoiseRouter::final_density_from_cell_values`.
 pub struct NoiseCellInterpolator {
     h_cell_blocks: usize,
     v_cell_blocks: usize,
     h_cells: usize,
     v_cells: usize,
+    values: usize,
 
-    /// Y-Z plane of corner densities at the current X plane start.
-    /// Indexed: `buf[(z_corner * (v_cells + 1)) + y_corner]`
+    /// Y-Z plane of corner values at the current X plane start.
+    /// Indexed: `buf[((z_corner * (v_cells + 1)) + y_corner) * values + k]`
     start_buf: Vec<f32>,
-    /// Y-Z plane of corner densities at the current X plane end.
+    /// Y-Z plane of corner values at the current X plane end.
     end_buf: Vec<f32>,
 
-    /// 8 cell corners after `on_sampled_cell_corners`
-    corners: [f32; 8],
-    /// 4 values after Y interpolation
-    after_y: [f32; 4],
+    /// 8 cell corners after `on_sampled_cell_corners`, corner-major.
+    corners: Vec<f32>,
+    /// 4 corner-pairs after Y interpolation
+    after_y: Vec<f32>,
     /// 2 values after X interpolation
-    after_x: [f32; 2],
-    /// Final interpolated value
-    val: f32,
+    after_x: Vec<f32>,
+    /// Final interpolated cell values
+    val: Vec<f32>,
+    /// Per-value (min, max) over the 8 corners, refreshed by `on_sampled_cell_corners`.
+    bounds: Vec<(f32, f32)>,
 
-    /// Saved top-Y density values for section-boundary reuse.
+    /// Saved top-Y corner values for section-boundary reuse.
     /// Adjacent Y sections share cell corners at their boundary (the top Y-row
     /// of section s equals the bottom Y-row of section s+1). This buffer saves
     /// those values to avoid recomputing them.
     ///
-    /// Indexed by `[plane_seq * z_count + z_corner]` where plane_seq is the
-    /// sequential plane fill index within a section (0..=h_cells) and
-    /// z_count = h_cells + 1.
+    /// Indexed by `[(plane_seq * z_count + z_corner) * values + k]` where
+    /// plane_seq is the sequential plane fill index within a section
+    /// (0..=h_cells) and z_count = h_cells + 1.
     saved_top_y: Vec<f32>,
     /// True after the first section has been fully processed, meaning
     /// `saved_top_y` contains valid data for the next section.
     section_boundary_valid: bool,
 
-    /// Precomputed corner densities for the whole column:
-    /// `grid[(plane_x * (h_cells + 1) + z_corner) * grid_rows + y_row]`.
+    /// Precomputed corner values for the whole column:
+    /// `grid[((plane_x * (h_cells + 1) + z_corner) * grid_rows + y_row) * values + k]`.
     /// Filled by `precompute_column_grid`; plane fills copy from it instead
     /// of evaluating the density stack per section.
     #[cfg(feature = "batch-noise")]
@@ -2124,13 +2341,16 @@ pub struct NoiseCellInterpolator {
     grid_rows: usize,
     #[cfg(feature = "batch-noise")]
     grid_valid: bool,
+    /// Reusable batch output, `MAX_BATCH * values` long.
+    #[cfg(feature = "batch-noise")]
+    batch_results: Vec<f32>,
 }
 
 impl NoiseCellInterpolator {
-    pub fn new(h_cell_blocks: usize, v_cell_blocks: usize) -> Self {
+    pub fn new(h_cell_blocks: usize, v_cell_blocks: usize, values: usize) -> Self {
         let h_cells = 16 / h_cell_blocks;
         let v_cells = 16 / v_cell_blocks;
-        let plane_size = (h_cells + 1) * (v_cells + 1);
+        let plane_size = (h_cells + 1) * (v_cells + 1) * values;
         let z_count = h_cells + 1;
         let num_planes = h_cells + 1; // start plane + h_cells end planes
         Self {
@@ -2138,13 +2358,15 @@ impl NoiseCellInterpolator {
             v_cell_blocks,
             h_cells,
             v_cells,
+            values,
             start_buf: vec![0.0f32; plane_size],
             end_buf: vec![0.0f32; plane_size],
-            corners: [0.0f32; 8],
-            after_y: [0.0f32; 4],
-            after_x: [0.0f32; 2],
-            val: 0.0f32,
-            saved_top_y: vec![0.0f32; num_planes * z_count],
+            corners: vec![0.0f32; 8 * values],
+            after_y: vec![0.0f32; 4 * values],
+            after_x: vec![0.0f32; 2 * values],
+            val: vec![0.0f32; values],
+            bounds: vec![(0.0f32, 0.0f32); values],
+            saved_top_y: vec![0.0f32; num_planes * z_count * values],
             section_boundary_valid: false,
             #[cfg(feature = "batch-noise")]
             grid: Vec::new(),
@@ -2154,11 +2376,13 @@ impl NoiseCellInterpolator {
             grid_rows: 0,
             #[cfg(feature = "batch-noise")]
             grid_valid: false,
+            #[cfg(feature = "batch-noise")]
+            batch_results: vec![0.0f32; MAX_BATCH * values],
         }
     }
 
-    /// Evaluate `final_density` for every cell corner in the column in large
-    /// multi-column batches and store the results in the interpolator grid.
+    /// Evaluate the cell-lattice values for every corner in the column in large
+    /// multi-column batches and store them in the interpolator grid.
     ///
     /// Corner rows span `grid_base_y + r * v_cell_blocks` for `r in 0..rows`.
     /// Subsequent `fill_plane_cached_reuse` calls whose corners fall inside the
@@ -2173,17 +2397,17 @@ impl NoiseCellInterpolator {
         rows: usize,
     ) {
         let side = self.h_cells + 1;
+        let w = self.values;
         if rows == 0 || rows > MAX_BATCH {
             self.grid_valid = false;
             return;
         }
-        self.grid.resize(side * side * rows, 0.0);
+        self.grid.resize(side * side * rows * w, 0.0);
         self.grid_base_y = grid_base_y;
         self.grid_rows = rows;
 
         let cols_per_batch = MAX_BATCH / rows;
         let mut positions = [IVec3::ZERO; MAX_BATCH];
-        let mut results = [0.0f32; MAX_BATCH];
         let mut col_xz = [(0i32, 0i32); MAX_BATCH];
         let mut col_grid_idx = [0usize; MAX_BATCH];
         let mut batch_cols = 0usize;
@@ -2210,12 +2434,13 @@ impl NoiseCellInterpolator {
                         &col_xz[..batch_cols],
                         rows,
                         cache,
-                        &mut results[..idx],
+                        &mut self.batch_results[..idx * w],
                     );
                     for c in 0..batch_cols {
-                        let g0 = col_grid_idx[c] * rows;
-                        self.grid[g0..g0 + rows]
-                            .copy_from_slice(&results[c * rows..(c + 1) * rows]);
+                        let g0 = col_grid_idx[c] * rows * w;
+                        self.grid[g0..g0 + rows * w].copy_from_slice(
+                            &self.batch_results[c * rows * w..(c + 1) * rows * w],
+                        );
                     }
                     batch_cols = 0;
                     idx = 0;
@@ -2228,11 +2453,12 @@ impl NoiseCellInterpolator {
                 &col_xz[..batch_cols],
                 rows,
                 cache,
-                &mut results[..idx],
+                &mut self.batch_results[..idx * w],
             );
             for c in 0..batch_cols {
-                let g0 = col_grid_idx[c] * rows;
-                self.grid[g0..g0 + rows].copy_from_slice(&results[c * rows..(c + 1) * rows]);
+                let g0 = col_grid_idx[c] * rows * w;
+                self.grid[g0..g0 + rows * w]
+                    .copy_from_slice(&self.batch_results[c * rows * w..(c + 1) * rows * w]);
             }
         }
         self.grid_valid = true;
@@ -2258,6 +2484,11 @@ impl NoiseCellInterpolator {
         self.v_cell_blocks
     }
 
+    #[inline]
+    pub fn values_per_corner(&self) -> usize {
+        self.values
+    }
+
     /// No-op without the `batch-noise` feature; plane fills evaluate lazily.
     #[cfg(not(feature = "batch-noise"))]
     pub fn precompute_column_grid(
@@ -2269,9 +2500,9 @@ impl NoiseCellInterpolator {
     ) {
     }
 
-    /// Evaluate `final_density` at every cell corner on a Y-Z plane for a given X,
-    /// storing results into `start_buf` or `end_buf`. Zone A comes from the
-    /// pre-populated `ColumnCache`, so only Zone B is evaluated per corner.
+    /// Evaluate the cell-lattice values at every corner on a Y-Z plane for a
+    /// given X, storing results into `start_buf` or `end_buf`. Zone A comes from
+    /// the pre-populated `ColumnCache`, so only Zone B is evaluated per corner.
     ///
     /// The top-Y row from the previous section is reused as this section's
     /// bottom-Y row when `section_boundary_valid` is true.
@@ -2291,12 +2522,8 @@ impl NoiseCellInterpolator {
         router: &NoiseRouter,
         column_cache: &mut ColumnCache,
     ) {
-        let buf = if is_start {
-            &mut self.start_buf
-        } else {
-            &mut self.end_buf
-        };
-        let v_stride = self.v_cells + 1;
+        let w = self.values;
+        let v_stride = (self.v_cells + 1) * w;
         let local_x = x - column_cache.base_block_x;
         let z_count = self.h_cells + 1;
         let reuse = self.section_boundary_valid;
@@ -2316,12 +2543,18 @@ impl NoiseCellInterpolator {
                 let px = (local_x as usize) / self.h_cell_blocks;
                 if px < z_count {
                     let row0 = row0 as usize;
+                    let buf = if is_start {
+                        &mut self.start_buf
+                    } else {
+                        &mut self.end_buf
+                    };
                     for cz in 0..z_count {
-                        let g0 = (px * z_count + cz) * self.grid_rows + row0;
+                        let g0 = ((px * z_count + cz) * self.grid_rows + row0) * w;
                         buf[cz * v_stride..cz * v_stride + v_stride]
                             .copy_from_slice(&self.grid[g0..g0 + v_stride]);
-                        self.saved_top_y[plane_seq * z_count + cz] =
-                            buf[cz * v_stride + self.v_cells];
+                        let top = cz * v_stride + self.v_cells * w;
+                        self.saved_top_y[(plane_seq * z_count + cz) * w..][..w]
+                            .copy_from_slice(&buf[top..top + w]);
                     }
                     return;
                 }
@@ -2339,68 +2572,104 @@ impl NoiseCellInterpolator {
             debug_assert!(total <= MAX_BATCH);
 
             let mut positions = [IVec3::ZERO; MAX_BATCH];
-            let mut column_xz = [(0i32, 0i32); MAX_BATCH]; // max z_count = 5
+            let mut column_xz = [(0i32, 0i32); MAX_BATCH];
             let mut idx = 0;
 
-            for cz in 0..z_count {
-                if reuse {
-                    buf[cz * v_stride] = self.saved_top_y[plane_seq * z_count + cz];
-                }
-                let z = base_z + (cz * self.h_cell_blocks) as i32;
-                let local_z = z - column_cache.base_block_z;
-                column_xz[cz] = (local_x, local_z);
+            {
+                let buf = if is_start {
+                    &mut self.start_buf
+                } else {
+                    &mut self.end_buf
+                };
+                for cz in 0..z_count {
+                    if reuse {
+                        buf[cz * v_stride..cz * v_stride + w].copy_from_slice(
+                            &self.saved_top_y[(plane_seq * z_count + cz) * w..][..w],
+                        );
+                    }
+                    let z = base_z + (cz * self.h_cell_blocks) as i32;
+                    let local_z = z - column_cache.base_block_z;
+                    column_xz[cz] = (local_x, local_z);
 
-                for cy in cy_start..=self.v_cells {
-                    let y = base_y + (cy * self.v_cell_blocks) as i32;
-                    positions[idx] = IVec3::new(x, y, z);
-                    idx += 1;
+                    for cy in cy_start..=self.v_cells {
+                        let y = base_y + (cy * self.v_cell_blocks) as i32;
+                        positions[idx] = IVec3::new(x, y, z);
+                        idx += 1;
+                    }
                 }
             }
             debug_assert_eq!(idx, total);
 
             // Phase 2: Batch evaluate all positions
-            let mut results = [0.0f32; MAX_BATCH];
             router.evaluate_plane_batch(
                 &positions[..total],
                 &column_xz[..z_count],
                 per_col,
                 column_cache,
-                &mut results[..total],
+                &mut self.batch_results[..total * w],
             );
 
             // Phase 3: Write results back to buf and save top-Y
-            idx = 0;
+            let buf = if is_start {
+                &mut self.start_buf
+            } else {
+                &mut self.end_buf
+            };
+            let mut idx = 0;
             for cz in 0..z_count {
                 for cy in cy_start..=self.v_cells {
-                    buf[cz * v_stride + cy] = results[idx];
+                    let dst = cz * v_stride + cy * w;
+                    buf[dst..dst + w].copy_from_slice(&self.batch_results[idx * w..(idx + 1) * w]);
                     idx += 1;
                 }
-                self.saved_top_y[plane_seq * z_count + cz] = buf[cz * v_stride + self.v_cells];
+                let top = cz * v_stride + self.v_cells * w;
+                self.saved_top_y[(plane_seq * z_count + cz) * w..][..w]
+                    .copy_from_slice(&buf[top..top + w]);
             }
         }
 
         #[cfg(not(feature = "batch-noise"))]
         {
+            let mut corner = vec![0.0f32; w];
             for cz in 0..z_count {
-                // Restore bottom-Y from saved top-Y of previous section
                 if reuse {
-                    buf[cz * v_stride] = self.saved_top_y[plane_seq * z_count + cz];
+                    let src = (plane_seq * z_count + cz) * w;
+                    let dst = cz * v_stride;
+                    let saved: Vec<f32> = self.saved_top_y[src..src + w].to_vec();
+                    let buf = if is_start {
+                        &mut self.start_buf
+                    } else {
+                        &mut self.end_buf
+                    };
+                    buf[dst..dst + w].copy_from_slice(&saved);
                 }
 
                 let z = base_z + (cz * self.h_cell_blocks) as i32;
                 let local_z = z - column_cache.base_block_z;
-                column_cache.load_column(local_x, local_z);
 
                 let cy_start = if reuse { 1 } else { 0 };
                 for cy in cy_start..=self.v_cells {
+                    column_cache.load_column(local_x, local_z);
                     let y = base_y + (cy * self.v_cell_blocks) as i32;
                     let pos = IVec3::new(x, y, z);
-                    let density = router.final_density_from_column_cache(pos, column_cache);
-                    buf[cz * v_stride + cy] = density;
+                    router.cell_values_from_column_cache(pos, column_cache, &mut corner);
+                    let dst = cz * v_stride + cy * w;
+                    let buf = if is_start {
+                        &mut self.start_buf
+                    } else {
+                        &mut self.end_buf
+                    };
+                    buf[dst..dst + w].copy_from_slice(&corner);
                 }
 
-                // Save top-Y for next section
-                self.saved_top_y[plane_seq * z_count + cz] = buf[cz * v_stride + self.v_cells];
+                let top = cz * v_stride + self.v_cells * w;
+                let buf = if is_start {
+                    &self.start_buf
+                } else {
+                    &self.end_buf
+                };
+                let saved: Vec<f32> = buf[top..top + w].to_vec();
+                self.saved_top_y[(plane_seq * z_count + cz) * w..][..w].copy_from_slice(&saved);
             }
         }
     }
@@ -2421,90 +2690,87 @@ impl NoiseCellInterpolator {
         self.section_boundary_valid = false;
     }
 
-    /// Load the 8 corner densities for a given cell from the start/end buffers.
-    /// Corner layout:
-    ///   corners[0] = start_buf[z][y]       (x0, y0, z0)
-    ///   corners[1] = start_buf[z][y+1]     (x0, y1, z0)
-    ///   corners[2] = start_buf[z+1][y]     (x0, y0, z1)
-    ///   corners[3] = start_buf[z+1][y+1]   (x0, y1, z1)
-    ///   corners[4] = end_buf[z][y]         (x1, y0, z0)
-    ///   corners[5] = end_buf[z][y+1]       (x1, y1, z0)
-    ///   corners[6] = end_buf[z+1][y]       (x1, y0, z1)
-    ///   corners[7] = end_buf[z+1][y+1]     (x1, y1, z1)
+    /// Load the 8 cell corners into `corners`, corner-major:
+    ///   corner 0 = (x0, y0, z0)   corner 1 = (x0, y1, z0)
+    ///   corner 2 = (x0, y0, z1)   corner 3 = (x0, y1, z1)
+    ///   corner 4 = (x1, y0, z0)   corner 5 = (x1, y1, z0)
+    ///   corner 6 = (x1, y0, z1)   corner 7 = (x1, y1, z1)
     #[inline]
     pub fn on_sampled_cell_corners(&mut self, cell_y: usize, cell_z: usize) {
-        let v_stride = self.v_cells + 1;
-        let z0 = cell_z * v_stride;
-        let z1 = (cell_z + 1) * v_stride;
-        self.corners[0] = self.start_buf[z0 + cell_y];
-        self.corners[1] = self.start_buf[z0 + cell_y + 1];
-        self.corners[2] = self.start_buf[z1 + cell_y];
-        self.corners[3] = self.start_buf[z1 + cell_y + 1];
-        self.corners[4] = self.end_buf[z0 + cell_y];
-        self.corners[5] = self.end_buf[z0 + cell_y + 1];
-        self.corners[6] = self.end_buf[z1 + cell_y];
-        self.corners[7] = self.end_buf[z1 + cell_y + 1];
+        let w = self.values;
+        let v_stride = (self.v_cells + 1) * w;
+        let z0 = cell_z * v_stride + cell_y * w;
+        let z1 = (cell_z + 1) * v_stride + cell_y * w;
+        for (slot, (buf, off)) in [
+            (0usize, (false, z0)),
+            (1, (false, z0 + w)),
+            (2, (false, z1)),
+            (3, (false, z1 + w)),
+            (4, (true, z0)),
+            (5, (true, z0 + w)),
+            (6, (true, z1)),
+            (7, (true, z1 + w)),
+        ] {
+            let src = if buf { &self.end_buf } else { &self.start_buf };
+            self.corners[slot * w..slot * w + w].copy_from_slice(&src[off..off + w]);
+        }
+        for k in 0..w {
+            let mut lo = self.corners[k];
+            let mut hi = lo;
+            for slot in 1..8 {
+                let v = self.corners[slot * w + k];
+                lo = lo.min(v);
+                hi = hi.max(v);
+            }
+            self.bounds[k] = (lo, hi);
+        }
     }
 
+    /// Per-value (min, max) over the current cell's eight corners.
     #[inline]
-    pub fn corners(&self) -> &[f32; 8] {
+    pub fn corner_bounds(&self) -> &[(f32, f32)] {
+        &self.bounds
+    }
+
+    /// The 8 cell corners, corner-major, `values_per_corner()` floats each.
+    #[inline]
+    pub fn corners(&self) -> &[f32] {
         &self.corners
-    }
-
-    /// Check if all 8 corner densities agree on sign.
-    /// Returns `Some(true)` if all positive (solid), `Some(false)` if all <= 0 (air),
-    /// or `None` if mixed (requires interpolation).
-    #[inline]
-    pub fn corners_uniform_sign(&self) -> Option<bool> {
-        let c = &self.corners;
-        if c[0] > 0.0
-            && c[1] > 0.0
-            && c[2] > 0.0
-            && c[3] > 0.0
-            && c[4] > 0.0
-            && c[5] > 0.0
-            && c[6] > 0.0
-            && c[7] > 0.0
-        {
-            return Some(true);
-        }
-        if c[0] <= 0.0
-            && c[1] <= 0.0
-            && c[2] <= 0.0
-            && c[3] <= 0.0
-            && c[4] <= 0.0
-            && c[5] <= 0.0
-            && c[6] <= 0.0
-            && c[7] <= 0.0
-        {
-            return Some(false);
-        }
-        None
     }
 
     /// Interpolate along Y: 8 corners → 4 values.
     /// `delta` = local_y / v_cell_blocks (0.0 at bottom of cell, 1.0 at top).
     #[inline]
     pub fn interpolate_y(&mut self, delta: f32) {
-        self.after_y[0] = self.corners[0].lerp(self.corners[1], delta);
-        self.after_y[1] = self.corners[2].lerp(self.corners[3], delta);
-        self.after_y[2] = self.corners[4].lerp(self.corners[5], delta);
-        self.after_y[3] = self.corners[6].lerp(self.corners[7], delta);
+        let w = self.values;
+        for pair in 0..4 {
+            let lo = pair * 2 * w;
+            let hi = lo + w;
+            for k in 0..w {
+                self.after_y[pair * w + k] = self.corners[lo + k].lerp(self.corners[hi + k], delta);
+            }
+        }
     }
 
     /// Interpolate along X: 4 values → 2 values.
     /// `delta` = local_x / h_cell_blocks.
     #[inline]
     pub fn interpolate_x(&mut self, delta: f32) {
-        self.after_x[0] = self.after_y[0].lerp(self.after_y[2], delta);
-        self.after_x[1] = self.after_y[1].lerp(self.after_y[3], delta);
+        let w = self.values;
+        for k in 0..w {
+            self.after_x[k] = self.after_y[k].lerp(self.after_y[2 * w + k], delta);
+            self.after_x[w + k] = self.after_y[w + k].lerp(self.after_y[3 * w + k], delta);
+        }
     }
 
     /// Interpolate along Z: 2 values → 1 value.
     /// `delta` = local_z / h_cell_blocks.
     #[inline]
     pub fn interpolate_z(&mut self, delta: f32) {
-        self.val = self.after_x[0].lerp(self.after_x[1], delta);
+        let w = self.values;
+        for k in 0..w {
+            self.val[k] = self.after_x[k].lerp(self.after_x[w + k], delta);
+        }
     }
 
     /// Swap start and end buffers (the current end becomes the next start).
@@ -2513,10 +2779,11 @@ impl NoiseCellInterpolator {
         swap(&mut self.start_buf, &mut self.end_buf);
     }
 
-    /// Get the final interpolated density value.
+    /// The interpolated cell values for the current block, ready to feed
+    /// `NoiseRouter::final_density_from_cell_values`.
     #[inline]
-    pub fn result(&self) -> f32 {
-        self.val
+    pub fn result(&self) -> &[f32] {
+        &self.val
     }
 }
 
@@ -3077,6 +3344,74 @@ impl RangeFunction for Interpolated {
     }
 }
 
+impl Interpolated {
+    #[inline]
+    fn sample_input(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos)
+    }
+
+    #[inline]
+    fn is_cell_corner(&self, pos: IVec3) -> bool {
+        pos.x.rem_euclid(self.cell_size_xz as i32) == 0
+            && pos.y.rem_euclid(self.cell_size_y as i32) == 0
+            && pos.z.rem_euclid(self.cell_size_xz as i32) == 0
+    }
+
+    #[inline]
+    fn sample_cached(&self, cache: &[f32], stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        if self.is_cell_corner(pos) {
+            cache[self.input_index]
+        } else {
+            self.sample(stack, pos)
+        }
+    }
+}
+
+impl DensityFunction for Interpolated {
+    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        let size_xz = self.cell_size_xz as i32;
+        let size_y = self.cell_size_y as i32;
+        let x_in_cell = pos.x.rem_euclid(size_xz);
+        let y_in_cell = pos.y.rem_euclid(size_y);
+        let z_in_cell = pos.z.rem_euclid(size_xz);
+        if x_in_cell == 0 && y_in_cell == 0 && z_in_cell == 0 {
+            return self.sample_input(stack, pos);
+        }
+
+        let x0 = pos.x - x_in_cell;
+        let y0 = pos.y - y_in_cell;
+        let z0 = pos.z - z_in_cell;
+        let alpha_x = x_in_cell as f32 / size_xz as f32;
+        let alpha_y = y_in_cell as f32 / size_y as f32;
+        let alpha_z = z_in_cell as f32 / size_xz as f32;
+
+        // lerp(0, a, b) is exactly a, so a zero weight lets the far corner go
+        // unevaluated instead of costing another walk of the input sub-tree.
+        let along_x = |y: i32, z: i32| {
+            let low = self.sample_input(stack, IVec3::new(x0, y, z));
+            if alpha_x == 0.0 {
+                low
+            } else {
+                low + alpha_x * (self.sample_input(stack, IVec3::new(x0 + size_xz, y, z)) - low)
+            }
+        };
+        let along_xy = |z: i32| {
+            let low = along_x(y0, z);
+            if alpha_y == 0.0 {
+                low
+            } else {
+                low + alpha_y * (along_x(y0 + size_y, z) - low)
+            }
+        };
+        let low = along_xy(z0);
+        if alpha_z == 0.0 {
+            low
+        } else {
+            low + alpha_z * (along_xy(z0 + size_xz) - low)
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 struct Cache {
     input_index: usize,
@@ -3288,9 +3623,7 @@ impl RangeFunction for WrapperDensityFunction {
 impl DensityFunction for WrapperDensityFunction {
     fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
         match self {
-            WrapperDensityFunction::Interpolated(x) => {
-                DensityFunctionComponent::sample_from_stack(&stack[..=x.input_index], pos)
-            }
+            WrapperDensityFunction::Interpolated(x) => x.sample(stack, pos),
             WrapperDensityFunction::Cache(x) => x.sample(stack, pos),
         }
     }
@@ -4711,7 +5044,7 @@ impl DensityFunctionComponent {
                 }
             },
             DensityFunctionComponent::Wrapper(f) => match f {
-                WrapperDensityFunction::Interpolated(x) => cache[x.input_index],
+                WrapperDensityFunction::Interpolated(x) => x.sample_cached(cache, stack, pos),
                 WrapperDensityFunction::Cache(x) => cache[x.input_index],
             },
         }

@@ -1,3 +1,4 @@
+use bevy_math::IVec3;
 use crate::world::chunk::CancellationToken;
 use mcrs_core::RegistrySnapshot;
 use mcrs_voxel_math::BlockPos;
@@ -14,6 +15,11 @@ use mcrs_vanilla::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
 };
 use mcrs_vanilla::block::definition::BlockDefinitions;
+
+/// Margin the whole-cell fill keeps away from zero. `final_density_cell_bounds`
+/// is f32 interval arithmetic without outward rounding, so a bound that lands
+/// exactly on zero is not trustworthy; cells inside the margin go block by block.
+const CELL_BOUNDS_SLACK: f32 = 1e-5;
 
 /// Generate a single section using a pre-populated column cache and interpolator.
 /// The column cache and interpolator are passed in so they can be reused across
@@ -68,44 +74,14 @@ fn generate_section(
             for cell_y in (0..v_cells).rev() {
                 interp.on_sampled_cell_corners(cell_y, cell_z);
 
-                // World Y range for this cell: [cell_min_y, cell_max_y)
                 let cell_min_world_y = block_y + (cell_y * v_cell_blocks) as i32;
                 let cell_max_world_y = cell_min_world_y + v_cell_blocks as i32;
+                let bx_base = cell_x * h_cell_blocks;
+                let by_base = cell_y * v_cell_blocks;
+                let bz_base = cell_z * h_cell_blocks;
 
-                // Fast path: if all 8 corners agree on sign, skip interpolation
-                match interp.corners_uniform_sign() {
-                    Some(false) => {
-                        // All non-solid — fill with fluid where world Y < sea_level.
-                        if cell_max_world_y <= sea_level {
-                            // Entire cell is below sea level: fill all with fluid.
-                            let bx_base = cell_x * h_cell_blocks;
-                            let by_base = cell_y * v_cell_blocks;
-                            let bz_base = cell_z * h_cell_blocks;
-                            block_states.fill_box(
-                                bx_base,
-                                bx_base + h_cell_blocks,
-                                by_base,
-                                by_base + v_cell_blocks,
-                                bz_base,
-                                bz_base + h_cell_blocks,
-                                default_fluid,
-                            );
-                            // Per-block interpolation would only re-set the same
-                            // fluid (all corners non-solid, every Y below sea level),
-                            // so the cell is complete.
-                            continue;
-                        } else if cell_min_world_y >= sea_level {
-                            // Entire cell is at or above sea level: all air.
-                            continue;
-                        } else {
-                            // Cell straddles sea level: fall through to per-block loop.
-                        }
-                    }
-                    Some(true) => {
-                        // All solid — fill the entire cell with default block.
-                        let bx_base = cell_x * h_cell_blocks;
-                        let by_base = cell_y * v_cell_blocks;
-                        let bz_base = cell_z * h_cell_blocks;
+                match noise_router.final_density_cell_bounds(interp.corner_bounds(), column_cache) {
+                    Some((lo, _)) if lo > CELL_BOUNDS_SLACK => {
                         block_states.fill_box(
                             bx_base,
                             bx_base + h_cell_blocks,
@@ -117,27 +93,44 @@ fn generate_section(
                         );
                         continue;
                     }
-                    None => {}
+                    Some((_, hi)) if hi < -CELL_BOUNDS_SLACK => {
+                        if cell_max_world_y <= sea_level {
+                            block_states.fill_box(
+                                bx_base,
+                                bx_base + h_cell_blocks,
+                                by_base,
+                                by_base + v_cell_blocks,
+                                bz_base,
+                                bz_base + h_cell_blocks,
+                                default_fluid,
+                            );
+                            continue;
+                        } else if cell_min_world_y >= sea_level {
+                            continue;
+                        }
+                    }
+                    _ => {}
                 }
 
                 for local_y in (0..v_cell_blocks).rev() {
-                    let delta_y = local_y as f32 / v_cell_blocks as f32;
-                    interp.interpolate_y(delta_y);
-
+                    interp.interpolate_y(local_y as f32 / v_cell_blocks as f32);
                     let world_y = block_y + (cell_y * v_cell_blocks + local_y) as i32;
 
                     for local_x in 0..h_cell_blocks {
-                        let delta_x = local_x as f32 / h_cell_blocks as f32;
-                        interp.interpolate_x(delta_x);
+                        interp.interpolate_x(local_x as f32 / h_cell_blocks as f32);
 
                         for local_z in 0..h_cell_blocks {
-                            let delta_z = local_z as f32 / h_cell_blocks as f32;
-                            interp.interpolate_z(delta_z);
+                            interp.interpolate_z(local_z as f32 / h_cell_blocks as f32);
 
-                            let density = interp.result();
                             let bx = (cell_x * h_cell_blocks + local_x) as i32;
                             let by = (cell_y * v_cell_blocks + local_y) as i32;
                             let bz = (cell_z * h_cell_blocks + local_z) as i32;
+
+                            let density = noise_router.final_density_from_cell_values(
+                                IVec3::new(block_x + bx, world_y, block_z + bz),
+                                interp.result(),
+                                &mut column_cache.scratch,
+                            );
 
                             if density > 0.0 {
                                 block_states.set(BlockPos::new(bx, by, bz), default_block);
