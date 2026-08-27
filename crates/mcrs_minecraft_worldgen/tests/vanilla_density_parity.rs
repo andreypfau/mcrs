@@ -194,84 +194,17 @@ fn router_from_settings(settings: serde_json::Value, seed: u64) -> NoiseRouter {
     )
 }
 
-/// `final_density` at every cell corner of the chunk column, driven through the
-/// same calls `generate_column`/`generate_section` make: one
-/// `precompute_column_grid` for the whole column, then per-section
-/// `fill_plane_cached_reuse` + `on_sampled_cell_corners`.
-/// Cell corner order produced by `on_sampled_cell_corners`, as (dx, dy, dz).
-const CORNER_OFFSETS: [(usize, usize, usize); 8] = [
-    (0, 0, 0),
-    (0, 1, 0),
-    (0, 0, 1),
-    (0, 1, 1),
-    (1, 0, 0),
-    (1, 1, 0),
-    (1, 0, 1),
-    (1, 1, 1),
-];
-
-fn our_final_density_lattice(router: &NoiseRouter, chunk_x: i32, chunk_z: i32) -> Vec<f32> {
-    let mut interp = router.new_noise_cell_interpolator();
-    let h = interp.h_cell_blocks();
-    let v = interp.v_cell_blocks();
-    let h_cells = interp.h_cells();
-    let v_cells = interp.v_cells();
-    let side = h_cells + 1;
-
-    let block_x = chunk_x * 16;
-    let block_z = chunk_z * 16;
-    let mut cache = router.new_column_cache(block_x, block_z);
-    router.populate_columns(&mut cache);
-
-    let noise_min_y = router.noise_min_y();
-    let rows = router.noise_height() as usize / v + 1;
-    interp.precompute_column_grid(router, &mut cache, noise_min_y, rows);
-
-    let mut out = vec![f32::NAN; side * rows * side];
-    let mut put = |xc: usize, row: usize, zc: usize, value: f32| {
-        out[row + (xc + zc * side) * rows] = value;
-    };
-
-    for sy in (noise_min_y / 16)..((noise_min_y + router.noise_height() as i32) / 16) {
-        let base_y = sy * 16;
-        interp.fill_plane_cached_reuse(0, true, block_x, base_y, block_z, router, &mut cache);
-        for cell_x in 0..h_cells {
-            let next_x = block_x + ((cell_x + 1) * h) as i32;
-            interp.fill_plane_cached_reuse(
-                cell_x + 1,
-                false,
-                next_x,
-                base_y,
-                block_z,
-                router,
-                &mut cache,
-            );
-            for cell_z in 0..h_cells {
-                for cell_y in (0..v_cells).rev() {
-                    interp.on_sampled_cell_corners(cell_y, cell_z);
-                    let w = interp.values_per_corner();
-                    let corners = interp.corners().to_vec();
-                    let row = ((base_y - noise_min_y) as usize) / v + cell_y;
-                    for (slot, (dx, dy, dz)) in CORNER_OFFSETS.iter().enumerate() {
-                        let pos = IVec3::new(
-                            block_x + ((cell_x + dx) * h) as i32,
-                            base_y + ((cell_y + dy) * v) as i32,
-                            block_z + ((cell_z + dz) * h) as i32,
-                        );
-                        let value = router.final_density_from_cell_values(
-                            pos,
-                            &corners[slot * w..(slot + 1) * w],
-                            &mut cache.scratch,
-                        );
-                        put(cell_x + dx, row + dy, cell_z + dz, value);
-                    }
-                }
-            }
-            interp.swap_buffers();
-        }
-        interp.end_section();
-    }
-    assert!(out.iter().all(|v| !v.is_nan()), "corner lattice has holes");
+/// `final_density` over a dump volume, through the same `fill` the chunk
+/// generator drives.
+fn our_fill(router: &NoiseRouter, root: usize, volume: &Volume) -> Vec<f32> {
+    let box_volume = mcrs_minecraft_worldgen::density_function::Volume::new(
+        IVec3::from_array(volume.size),
+        IVec3::from_array(volume.min),
+        IVec3::from_array(volume.step),
+    );
+    let mut out = vec![f32::NAN; box_volume.len()];
+    let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
+    router.fill(root, &box_volume, &mut out, &mut scratch);
     out
 }
 
@@ -383,7 +316,7 @@ fn lattice_report() -> BTreeMap<String, Diff> {
             assert_eq!(volume.min[0], dump.chunk_x * 16);
             assert_eq!(volume.min[2], dump.chunk_z * 16);
             let ours = if volume.name == "final_density" {
-                our_final_density_lattice(&router, dump.chunk_x, dump.chunk_z)
+                our_fill(&router, router.final_density_index(), volume)
             } else {
                 our_root_lattice(&router, roots[volume.name.as_str()], volume)
             };
@@ -471,10 +404,10 @@ fn climate_and_depth_roots_track_the_vanilla_oracle_within_f32_drift() {
 /// Vanilla evaluates the noise tree in double and narrows to float only when
 /// storing into `DensityBuffer`; we evaluate in f32 throughout. Every root but
 /// `final_density` still lands bit-exact, so only that one carries a tolerance:
-/// 5.96e-8 observed, which is one f32 ulp at the magnitude where it occurs.
-/// A budget of two ulps there cannot mask a structural divergence — the 1e-3
-/// counter asserted alongside it stays at zero.
-const FINAL_DENSITY_DRIFT: f32 = 1.2e-7;
+/// 2.98e-8 observed, an f32 ulp at the magnitude where it occurs. A budget of
+/// two ulps there cannot mask a structural divergence — the 1e-3 counter
+/// asserted alongside it stays at zero.
+const FINAL_DENSITY_DRIFT: f32 = 6e-8;
 
 #[test]
 fn all_roots_match_the_vanilla_oracle() {
@@ -518,98 +451,85 @@ fn all_roots_match_the_vanilla_oracle() {
     }
 }
 
-/// Per-block `final_density` over a whole chunk, through the trilinear
-/// interpolation `generate_section` runs. This discriminates interpolation
-/// scope: vanilla lerps only the `interpolated` sub-tree and applies squeeze,
-/// min-with-noodle and add-beardifier per block outside it, so a whole-root
-/// interpolation disagrees here even where the corner lattice agrees.
-/// The trilinear interpolation compounds the same f32-versus-f64 drift the
-/// corner lattice carries: 1.79e-7 observed, a few ulps at that magnitude.
-const DENSE_DRIFT: f32 = 4e-7;
-
+/// Per-block `final_density` over a whole chunk, through the same `fill` the
+/// chunk generator drives — both as one box and cell by cell, which is the
+/// shape the generator actually uses once interval arithmetic leaves a cell
+/// undecided. Vanilla's own per-block path is `fillCell`, so this lands
+/// bit-exact rather than merely close.
 #[test]
 fn dense_final_density_matches_the_vanilla_oracle() {
     let dump = read_dump(&fixtures_dir().join("overworld_s42_c0_0_dense.bin"));
     let router = overworld_router(dump.seed as u64);
     let volume = &dump.volumes[0];
+    assert_eq!(volume.step, [1, 1, 1]);
 
-    let mut interp = router.new_noise_cell_interpolator();
-    let h = interp.h_cell_blocks();
-    let v = interp.v_cell_blocks();
-    let h_cells = interp.h_cells();
-    let v_cells = interp.v_cells();
-
-    let block_x = dump.chunk_x * 16;
-    let block_z = dump.chunk_z * 16;
-    let mut cache = router.new_column_cache(block_x, block_z);
-    router.populate_columns(&mut cache);
-    let noise_min_y = router.noise_min_y();
-    let rows = router.noise_height() as usize / v + 1;
-    interp.precompute_column_grid(&router, &mut cache, noise_min_y, rows);
-
-    let mut scratch = vec![0.0f32; cache.scratch.len()];
-    let mut ours = vec![f32::NAN; volume.values.len()];
-    for sy in (noise_min_y / 16)..((noise_min_y + router.noise_height() as i32) / 16) {
-        let base_y = sy * 16;
-        interp.fill_plane_cached_reuse(0, true, block_x, base_y, block_z, &router, &mut cache);
-        for cell_x in 0..h_cells {
-            let next_x = block_x + ((cell_x + 1) * h) as i32;
-            interp.fill_plane_cached_reuse(
-                cell_x + 1,
-                false,
-                next_x,
-                base_y,
-                block_z,
-                &router,
-                &mut cache,
-            );
-            for cell_z in 0..h_cells {
-                for cell_y in (0..v_cells).rev() {
-                    interp.on_sampled_cell_corners(cell_y, cell_z);
-                    for local_y in (0..v).rev() {
-                        interp.interpolate_y(local_y as f32 / v as f32);
-                        let world_y = base_y + (cell_y * v + local_y) as i32;
-                        for local_x in 0..h {
-                            interp.interpolate_x(local_x as f32 / h as f32);
-                            for local_z in 0..h {
-                                interp.interpolate_z(local_z as f32 / h as f32);
-                                let xi = (cell_x * h + local_x) as i32;
-                                let zi = (cell_z * h + local_z) as i32;
-                                let yi = world_y - volume.min[1];
-                                let i = (yi + (xi + zi * volume.size[0]) * volume.size[1]) as usize;
-                                ours[i] = router.final_density_from_cell_values(
-                                    IVec3::new(block_x + xi, world_y, block_z + zi),
-                                    interp.result(),
-                                    &mut scratch,
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            interp.swap_buffers();
-        }
-        interp.end_section();
-    }
-    assert!(ours.iter().all(|v| !v.is_nan()), "dense volume has holes");
-
-    let d = compare(volume, &ours);
-    assert_eq!(
-        d.coarse, 0,
-        "dense final_density: {} values differ by more than {:e} (worst@{:?} vanilla={} ours={})",
-        d.coarse, COARSE_TOLERANCE, d.worst, d.worst_pair.0, d.worst_pair.1
-    );
-    assert!(
-        d.max_abs < DENSE_DRIFT,
-        "dense final_density: max_abs={:e} exceeds {:e} ({} of {} differ, max_ulp={}, worst@{:?} vanilla={} ours={})",
-        d.max_abs,
-        DENSE_DRIFT,
+    let whole = our_fill(&router, router.final_density_index(), volume);
+    let d = compare(volume, &whole);
+    println!(
+        "dense fill vs oracle: {}/{} differ  max_abs={:e}  max_ulp={}  worst@{:?} vanilla={} ours={}",
         d.mismatches,
         volume.values.len(),
+        d.max_abs,
         d.max_ulp,
         d.worst,
         d.worst_pair.0,
         d.worst_pair.1
+    );
+    assert_eq!(
+        d.mismatches,
+        0,
+        "dense fill: {} of {} values differ from vanilla (max_abs={:e}, max_ulp={}, worst@{:?} vanilla={} ours={})",
+        d.mismatches,
+        volume.values.len(),
+        d.max_abs,
+        d.max_ulp,
+        d.worst,
+        d.worst_pair.0,
+        d.worst_pair.1
+    );
+
+    let cell = router
+        .cell_size()
+        .expect("the overworld has one cell geometry");
+    let mut by_cell = vec![f32::NAN; whole.len()];
+    let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
+    let mut cell_values = vec![0.0f32; (cell.x * cell.y * cell.z) as usize];
+    for z in (0..volume.size[2]).step_by(cell.z as usize) {
+        for x in (0..volume.size[0]).step_by(cell.x as usize) {
+            for y in (0..volume.size[1]).step_by(cell.y as usize) {
+                let cell_volume = mcrs_minecraft_worldgen::density_function::Volume::dense(
+                    cell,
+                    IVec3::new(volume.min[0] + x, volume.min[1] + y, volume.min[2] + z),
+                );
+                router.fill(
+                    router.final_density_index(),
+                    &cell_volume,
+                    &mut cell_values,
+                    &mut scratch,
+                );
+                for (i, &value) in cell_values.iter().enumerate() {
+                    let (cx, cy, cz) = (
+                        (i as i32 / cell.y) % cell.x,
+                        i as i32 % cell.y,
+                        i as i32 / (cell.y * cell.x),
+                    );
+                    let j =
+                        (y + cy + (x + cx + (z + cz) * volume.size[0]) * volume.size[1]) as usize;
+                    by_cell[j] = value;
+                }
+            }
+        }
+    }
+    let mismatched = whole
+        .iter()
+        .zip(&by_cell)
+        .filter(|(a, b)| a.to_bits() != b.to_bits())
+        .count();
+    assert_eq!(
+        mismatched,
+        0,
+        "{mismatched} of {} values move when the same volume is filled cell by cell",
+        whole.len()
     );
 }
 
@@ -621,77 +541,72 @@ fn dense_final_density_matches_the_vanilla_oracle() {
 fn cell_bounds_contain_every_block_density() {
     let dump = read_dump(&fixtures_dir().join("overworld_s42_c0_0_dense.bin"));
     let router = overworld_router(dump.seed as u64);
+    let volume = &dump.volumes[0];
+    let cell = router
+        .cell_size()
+        .expect("the overworld has one cell geometry");
+    let block_min = IVec3::from_array(volume.min);
+    let cells = IVec3::from_array(volume.size) / cell;
 
-    let mut interp = router.new_noise_cell_interpolator();
-    let h = interp.h_cell_blocks();
-    let v = interp.v_cell_blocks();
-    let h_cells = interp.h_cells();
-    let v_cells = interp.v_cells();
+    let roots = router.cell_value_roots();
+    let width = roots.len();
+    let corner_volume =
+        mcrs_minecraft_worldgen::density_function::Volume::new(cells + IVec3::ONE, block_min, cell);
+    let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
+    let mut corners = vec![0.0f32; width * corner_volume.len()];
+    router.fill_roots(roots, &corner_volume, &mut corners, &mut scratch);
 
-    let block_x = dump.chunk_x * 16;
-    let block_z = dump.chunk_z * 16;
-    let mut cache = router.new_column_cache(block_x, block_z);
-    router.populate_columns(&mut cache);
-    let noise_min_y = router.noise_min_y();
-    let rows = router.noise_height() as usize / v + 1;
-    interp.precompute_column_grid(&router, &mut cache, noise_min_y, rows);
-
-    let mut scratch = vec![0.0f32; cache.scratch.len()];
+    let mut bounds_scratch = vec![(0.0f32, 0.0f32); router.final_density_index() + 1];
+    let mut cell_values = vec![0.0f32; (cell.x * cell.y * cell.z) as usize];
     let mut worst_low = 0.0f32;
     let mut worst_high = 0.0f32;
     let mut bounded_cells = 0usize;
     let mut total_cells = 0usize;
 
-    for sy in (noise_min_y / 16)..((noise_min_y + router.noise_height() as i32) / 16) {
-        let base_y = sy * 16;
-        interp.fill_plane_cached_reuse(0, true, block_x, base_y, block_z, &router, &mut cache);
-        for cell_x in 0..h_cells {
-            let next_x = block_x + ((cell_x + 1) * h) as i32;
-            interp.fill_plane_cached_reuse(
-                cell_x + 1,
-                false,
-                next_x,
-                base_y,
-                block_z,
-                &router,
-                &mut cache,
-            );
-            for cell_z in 0..h_cells {
-                for cell_y in (0..v_cells).rev() {
-                    interp.on_sampled_cell_corners(cell_y, cell_z);
-                    total_cells += 1;
-                    let Some((lo, hi)) =
-                        router.final_density_cell_bounds(interp.corner_bounds(), &mut cache)
-                    else {
-                        continue;
-                    };
-                    bounded_cells += 1;
-                    for local_y in (0..v).rev() {
-                        interp.interpolate_y(local_y as f32 / v as f32);
-                        let world_y = base_y + (cell_y * v + local_y) as i32;
-                        for local_x in 0..h {
-                            interp.interpolate_x(local_x as f32 / h as f32);
-                            for local_z in 0..h {
-                                interp.interpolate_z(local_z as f32 / h as f32);
-                                let value = router.final_density_from_cell_values(
-                                    IVec3::new(
-                                        block_x + (cell_x * h + local_x) as i32,
-                                        world_y,
-                                        block_z + (cell_z * h + local_z) as i32,
-                                    ),
-                                    interp.result(),
-                                    &mut scratch,
-                                );
-                                worst_low = worst_low.max(lo - value);
-                                worst_high = worst_high.max(value - hi);
+    for cz in 0..cells.z {
+        for cx in 0..cells.x {
+            for cy in 0..cells.y {
+                total_cells += 1;
+                let wrapper_bounds: Vec<(f32, f32)> = (0..width)
+                    .map(|k| {
+                        let row = &corners[k * corner_volume.len()..(k + 1) * corner_volume.len()];
+                        let mut lo = f32::INFINITY;
+                        let mut hi = f32::NEG_INFINITY;
+                        for dz in 0..2 {
+                            for dx in 0..2 {
+                                for dy in 0..2 {
+                                    let v = row
+                                        [corner_volume.index_unchecked(cx + dx, cy + dy, cz + dz)];
+                                    lo = lo.min(v);
+                                    hi = hi.max(v);
+                                }
                             }
                         }
-                    }
+                        (lo, hi)
+                    })
+                    .collect();
+                let Some((lo, hi)) =
+                    router.final_density_cell_bounds(&wrapper_bounds, &mut bounds_scratch)
+                else {
+                    continue;
+                };
+                bounded_cells += 1;
+                let cell_volume = mcrs_minecraft_worldgen::density_function::Volume::dense(
+                    cell,
+                    block_min + IVec3::new(cx, cy, cz) * cell,
+                );
+                router.fill(
+                    router.final_density_index(),
+                    &cell_volume,
+                    &mut cell_values,
+                    &mut scratch,
+                );
+                for &value in &cell_values {
+                    worst_low = worst_low.max(lo - value);
+                    worst_high = worst_high.max(value - hi);
                 }
             }
-            interp.swap_buffers();
         }
-        interp.end_section();
     }
 
     println!(
@@ -741,10 +656,6 @@ fn branch_skipping_preserves_every_zone_b_root() {
                     }
                 }
             }
-
-            let mut interp = router.new_noise_cell_interpolator();
-            let rows = height as usize / interp.v_cell_blocks() + 1;
-            interp.precompute_column_grid(&router, &mut cache, min_y, rows);
         }
     }
 }
@@ -806,12 +717,9 @@ fn lattice_fill_cases(
     mcrs_minecraft_worldgen::density_function::Volume,
 )> {
     use mcrs_minecraft_worldgen::density_function::Volume as V;
-    let interp = router.new_noise_cell_interpolator();
-    let step = IVec3::new(
-        interp.h_cell_blocks() as i32,
-        interp.v_cell_blocks() as i32,
-        interp.h_cell_blocks() as i32,
-    );
+    let step = router
+        .cell_size()
+        .expect("the overworld has one cell geometry");
     vec![
         (
             "cell lattice",
@@ -916,54 +824,6 @@ fn fill_and_sample_root_differ_only_by_the_y_accumulation() {
             );
         }
     }
-}
-
-/// Vanilla's own per-block path is `fillCell`, so the router fill is the closest
-/// thing we have to the oracle: it must land at least as near as the legacy
-/// cell interpolator, whose exact-lerp Y makes it drift further.
-#[test]
-fn dense_fill_matches_the_vanilla_oracle() {
-    let dump = read_dump(&fixtures_dir().join("overworld_s42_c0_0_dense.bin"));
-    let router = overworld_router(dump.seed as u64);
-    let volume = &dump.volumes[0];
-    assert_eq!(volume.step, [1, 1, 1]);
-
-    let box_volume = mcrs_minecraft_worldgen::density_function::Volume::dense(
-        IVec3::from_array(volume.size),
-        IVec3::from_array(volume.min),
-    );
-    let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
-    let mut ours = vec![f32::NAN; box_volume.len()];
-    router.fill(
-        router.final_density_index(),
-        &box_volume,
-        &mut ours,
-        &mut scratch,
-    );
-
-    let d = compare(volume, &ours);
-    println!(
-        "dense fill vs oracle: {}/{} differ  max_abs={:e}  max_ulp={}  worst@{:?} vanilla={} ours={}",
-        d.mismatches,
-        volume.values.len(),
-        d.max_abs,
-        d.max_ulp,
-        d.worst,
-        d.worst_pair.0,
-        d.worst_pair.1
-    );
-    assert_eq!(
-        d.mismatches,
-        0,
-        "dense fill: {} of {} values differ from vanilla (max_abs={:e}, max_ulp={}, worst@{:?} vanilla={} ours={})",
-        d.mismatches,
-        volume.values.len(),
-        d.max_abs,
-        d.max_ulp,
-        d.worst,
-        d.worst_pair.0,
-        d.worst_pair.1
-    );
 }
 
 /// Vanilla puts no single cell geometry on a router, and the shipped corpus

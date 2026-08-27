@@ -957,20 +957,25 @@ pub fn build_functions(
         branch_schedule::build(&builder.stack, &members, &zone_b_roots)
     };
 
-    // The chunk fill walks one lattice, so mixed wrapper geometries fall back to
-    // the finest of them: every wrapper's own corners then land on it.
-    let (h_cell_blocks, v_cell_blocks) = outer_wrappers
-        .iter()
-        .map(|&i| match &builder.stack[i] {
-            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) => {
-                (x.cell_size_xz as usize, x.cell_size_y as usize)
-            }
-            _ => unreachable!(),
-        })
-        .reduce(|a, b| (a.0.min(b.0), a.1.min(b.1)))
-        .unwrap_or((
-            builder_options.horizontal_cell_block_count,
-            builder_options.vertical_cell_block_count,
+    let mut geometries = outer_wrappers.iter().map(|&i| match &builder.stack[i] {
+        DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) => IVec3::new(
+            x.cell_size_xz as i32,
+            x.cell_size_y as i32,
+            x.cell_size_xz as i32,
+        ),
+        _ => unreachable!(),
+    });
+    let first = geometries.next();
+    let uniform_cells = geometries.clone().all(|g| Some(g) == first);
+    // Mixed geometries have no common lattice; the finest of them still bounds
+    // the column grid the biome pass reads.
+    let cell_size = geometries
+        .chain(first)
+        .reduce(IVec3::min)
+        .unwrap_or(IVec3::new(
+            builder_options.horizontal_cell_block_count as i32,
+            builder_options.vertical_cell_block_count as i32,
+            builder_options.horizontal_cell_block_count as i32,
         ));
 
     let router = NoiseRouter {
@@ -997,8 +1002,8 @@ pub fn build_functions(
         outer_wrapper_inputs: outer_wrapper_inputs.into_boxed_slice(),
         column_boundary,
         fd_boundary,
-        h_cell_blocks,
-        v_cell_blocks,
+        cell_size,
+        uniform_cells,
         stack: Box::from(builder.stack),
         scratch_len,
         node_labels: node_labels.into_boxed_slice(),

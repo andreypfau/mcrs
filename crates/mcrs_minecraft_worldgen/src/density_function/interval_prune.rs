@@ -445,8 +445,8 @@ struct ColumnResult {
 
 fn run_seed(seed: u64, radius: i32) -> (Vec<ColumnResult>, Stats, f64, f64, u64) {
     let router = overworld_router(seed);
-    let rows = router.noise_height() as usize / router.v_cell_blocks + 1;
-    let v = router.v_cell_blocks as i32;
+    let v = router.cell_size.y;
+    let rows = router.noise_height() as usize / v as usize + 1;
     let min_y = router.noise_min_y();
 
     let mut walker = Walker::new(&router);

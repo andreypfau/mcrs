@@ -12,7 +12,7 @@ use mcrs_minecraft_world::biome::source::{
 };
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::density_function::{
-    ColumnCache, NoiseCellInterpolator, NoiseRouter, beta_terrain_f64::BetaTerrainF64,
+    ColumnCache, FillScratch, NoiseRouter, Volume, beta_terrain_f64::BetaTerrainF64,
 };
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
@@ -22,89 +22,159 @@ use mcrs_voxel_storage::VoxelId;
 /// exactly on zero is not trustworthy; cells inside the margin go block by block.
 const CELL_BOUNDS_SLACK: f32 = 1e-5;
 
-/// Generate a single section using a pre-populated column cache and interpolator.
-/// The column cache and interpolator are passed in so they can be reused across
-/// multiple Y sections in the same column.
+/// The `interpolated` wrapper inputs at every cell corner of a whole chunk
+/// column, laid out one `volume`-shaped row per wrapper.
+struct ColumnCorners {
+    volume: Volume,
+    cell: IVec3,
+    values: Vec<f32>,
+    width: usize,
+}
+
+impl ColumnCorners {
+    /// `None` for a router with no single cell lattice, or one whose cells do
+    /// not tile a section; such a chunk is filled block by block throughout.
+    fn fill(
+        noise_router: &NoiseRouter,
+        block_x: i32,
+        block_z: i32,
+        scratch: &mut FillScratch,
+    ) -> Option<Self> {
+        let cell = noise_router.cell_size()?;
+        // Sections must tile into whole cells, and the lattice must start on
+        // one, or the eight values below would not be a cell's corners and the
+        // interval bound over them would not hold.
+        if 16 % cell.x != 0 || 16 % cell.y != 0 || 16 % cell.z != 0 {
+            return None;
+        }
+        let height = noise_router.noise_height() as i32;
+        if noise_router.noise_min_y() % 16 != 0 || height % 16 != 0 {
+            return None;
+        }
+        let rows = height / cell.y + 1;
+        let volume = Volume::new(
+            IVec3::new(16 / cell.x + 1, rows, 16 / cell.z + 1),
+            IVec3::new(block_x, noise_router.noise_min_y(), block_z),
+            cell,
+        );
+        let roots = noise_router.cell_value_roots();
+        let mut values = vec![0.0f32; roots.len() * volume.len()];
+        noise_router.fill_roots(roots, &volume, &mut values, scratch);
+        Some(Self {
+            volume,
+            cell,
+            values,
+            width: roots.len(),
+        })
+    }
+
+    /// The eight corner values of one cell, per wrapper.
+    fn cell_bounds(&self, cell: IVec3, out: &mut [(f32, f32)]) {
+        let stride = self.volume.len();
+        for (k, bound) in out.iter_mut().enumerate() {
+            let row = &self.values[k * stride..(k + 1) * stride];
+            let mut lo = f32::INFINITY;
+            let mut hi = f32::NEG_INFINITY;
+            for dz in 0..2 {
+                for dx in 0..2 {
+                    for dy in 0..2 {
+                        let v =
+                            row[self
+                                .volume
+                                .index_unchecked(cell.x + dx, cell.y + dy, cell.z + dz)];
+                        lo = lo.min(v);
+                        hi = hi.max(v);
+                    }
+                }
+            }
+            *bound = (lo, hi);
+        }
+    }
+}
+
+/// Buffers every section fill in a chunk column reuses.
+#[derive(Default)]
+struct SectionFill {
+    scratch: FillScratch,
+    density: Vec<f32>,
+    bounds: Vec<(f32, f32)>,
+    wrapper_bounds: Vec<(f32, f32)>,
+}
+
+/// Generate a single section by filling `final_density` over it.
 ///
-/// Uses `fill_plane_cached_reuse` for Y-boundary sharing: the top-Y row of the
-/// previous section is reused as the bottom-Y row of this section, eliminating
-/// ~33% of density evaluations for all sections after the first.
+/// The corner lattice is the pass-through case of the fill — every
+/// `interpolated` wrapper hands its input straight back — so interval
+/// arithmetic over a cell's eight corners settles most cells outright, and only
+/// the rest are filled block by block.
 fn generate_section(
-    block_x: i32,
-    block_y: i32,
-    block_z: i32,
+    section_min: IVec3,
     block_states: &mut BlockPalette,
     noise_router: &NoiseRouter,
-    column_cache: &mut ColumnCache,
-    interp: &mut NoiseCellInterpolator,
+    corners: Option<&ColumnCorners>,
+    fill: &mut SectionFill,
 ) {
-    let h_cell_blocks = interp.h_cell_blocks();
-    let v_cell_blocks = interp.v_cell_blocks();
-    let h_cells = interp.h_cells();
-    let v_cells = interp.v_cells();
-
+    let block_y = section_min.y;
     let sea_level = noise_router.sea_level();
     let default_block = noise_router.default_block_state();
     let default_fluid = noise_router.default_fluid_state();
 
-    // Fill the initial X start plane using column cache (with Y-boundary reuse)
-    interp.fill_plane_cached_reuse(
-        0,
-        true,
-        block_x,
-        block_y,
-        block_z,
-        noise_router,
-        column_cache,
-    );
-
-    for cell_x in 0..h_cells {
-        // Fill end plane at x = block_x + (cell_x + 1) * h_cell_blocks
-        let next_x = block_x + ((cell_x + 1) * h_cell_blocks) as i32;
-        interp.fill_plane_cached_reuse(
-            cell_x + 1,
-            false,
-            next_x,
-            block_y,
-            block_z,
+    let Some(corners) = corners else {
+        let volume = Volume::dense(IVec3::splat(16), section_min);
+        fill_and_set(
+            block_states,
+            &volume,
+            IVec3::ZERO,
             noise_router,
-            column_cache,
+            fill,
+            sea_level,
+            default_block,
+            default_fluid,
         );
+        return;
+    };
 
-        for cell_z in 0..h_cells {
-            for cell_y in (0..v_cells).rev() {
-                interp.on_sampled_cell_corners(cell_y, cell_z);
+    let cell = corners.cell;
+    let row0 = (block_y - corners.volume.min_block_y()) / cell.y;
+    fill.bounds.clear();
+    fill.bounds
+        .resize(noise_router.final_density_index() + 1, (0.0, 0.0));
+    fill.wrapper_bounds.clear();
+    fill.wrapper_bounds.resize(corners.width, (0.0, 0.0));
 
-                let cell_min_world_y = block_y + (cell_y * v_cell_blocks) as i32;
-                let cell_max_world_y = cell_min_world_y + v_cell_blocks as i32;
-                let bx_base = cell_x * h_cell_blocks;
-                let by_base = cell_y * v_cell_blocks;
-                let bz_base = cell_z * h_cell_blocks;
+    for cell_z in 0..16 / cell.z {
+        for cell_x in 0..16 / cell.x {
+            for cell_y in 0..16 / cell.y {
+                let base = IVec3::new(cell_x * cell.x, cell_y * cell.y, cell_z * cell.z);
+                debug_assert_eq!(
+                    corners.volume.index_of_block(
+                        section_min.x + base.x,
+                        section_min.y + base.y,
+                        section_min.z + base.z
+                    ),
+                    Some(
+                        corners
+                            .volume
+                            .index_unchecked(cell_x, row0 + cell_y, cell_z)
+                    ),
+                    "cell corner is not the lattice position it indexes"
+                );
+                corners.cell_bounds(
+                    IVec3::new(cell_x, row0 + cell_y, cell_z),
+                    &mut fill.wrapper_bounds,
+                );
 
-                match noise_router.final_density_cell_bounds(interp.corner_bounds(), column_cache) {
+                let cell_min_world_y = block_y + base.y;
+                let cell_max_world_y = cell_min_world_y + cell.y;
+                match noise_router.final_density_cell_bounds(&fill.wrapper_bounds, &mut fill.bounds)
+                {
                     Some((lo, _)) if lo > CELL_BOUNDS_SLACK => {
-                        block_states.fill_box(
-                            bx_base,
-                            bx_base + h_cell_blocks,
-                            by_base,
-                            by_base + v_cell_blocks,
-                            bz_base,
-                            bz_base + h_cell_blocks,
-                            default_block,
-                        );
+                        fill_cell_box(block_states, base, cell, default_block);
                         continue;
                     }
                     Some((_, hi)) if hi < -CELL_BOUNDS_SLACK => {
                         if cell_max_world_y <= sea_level {
-                            block_states.fill_box(
-                                bx_base,
-                                bx_base + h_cell_blocks,
-                                by_base,
-                                by_base + v_cell_blocks,
-                                bz_base,
-                                bz_base + h_cell_blocks,
-                                default_fluid,
-                            );
+                            fill_cell_box(block_states, base, cell, default_fluid);
                             continue;
                         } else if cell_min_world_y >= sea_level {
                             continue;
@@ -113,42 +183,66 @@ fn generate_section(
                     _ => {}
                 }
 
-                for local_y in (0..v_cell_blocks).rev() {
-                    interp.interpolate_y(local_y as f32 / v_cell_blocks as f32);
-                    let world_y = block_y + (cell_y * v_cell_blocks + local_y) as i32;
+                let volume = Volume::dense(cell, section_min + base);
+                fill_and_set(
+                    block_states,
+                    &volume,
+                    base,
+                    noise_router,
+                    fill,
+                    sea_level,
+                    default_block,
+                    default_fluid,
+                );
+            }
+        }
+    }
+}
 
-                    for local_x in 0..h_cell_blocks {
-                        interp.interpolate_x(local_x as f32 / h_cell_blocks as f32);
+fn fill_cell_box(block_states: &mut BlockPalette, base: IVec3, cell: IVec3, state: VoxelId) {
+    block_states.fill_box(
+        base.x as usize,
+        (base.x + cell.x) as usize,
+        base.y as usize,
+        (base.y + cell.y) as usize,
+        base.z as usize,
+        (base.z + cell.z) as usize,
+        state,
+    );
+}
 
-                        for local_z in 0..h_cell_blocks {
-                            interp.interpolate_z(local_z as f32 / h_cell_blocks as f32);
-
-                            let bx = (cell_x * h_cell_blocks + local_x) as i32;
-                            let by = (cell_y * v_cell_blocks + local_y) as i32;
-                            let bz = (cell_z * h_cell_blocks + local_z) as i32;
-
-                            let density = noise_router.final_density_from_cell_values(
-                                IVec3::new(block_x + bx, world_y, block_z + bz),
-                                interp.result(),
-                                &mut column_cache.scratch,
-                            );
-
-                            if density > 0.0 {
-                                block_states.set(BlockPos::new(bx, by, bz), default_block);
-                            } else if world_y < sea_level {
-                                block_states.set(BlockPos::new(bx, by, bz), default_fluid);
-                            }
-                        }
-                    }
+#[allow(clippy::too_many_arguments)]
+fn fill_and_set(
+    block_states: &mut BlockPalette,
+    volume: &Volume,
+    origin: IVec3,
+    noise_router: &NoiseRouter,
+    fill: &mut SectionFill,
+    sea_level: i32,
+    default_block: VoxelId,
+    default_fluid: VoxelId,
+) {
+    fill.density.clear();
+    fill.density.resize(volume.len(), 0.0);
+    noise_router.fill(
+        noise_router.final_density_index(),
+        volume,
+        &mut fill.density,
+        &mut fill.scratch,
+    );
+    for z in 0..volume.size_z() {
+        for x in 0..volume.size_x() {
+            for y in 0..volume.size_y() {
+                let value = fill.density[volume.index_unchecked(x, y, z)];
+                let pos = BlockPos::new(origin.x + x, origin.y + y, origin.z + z);
+                if value > 0.0 {
+                    block_states.set(pos, default_block);
+                } else if volume.block_y(y) < sea_level {
+                    block_states.set(pos, default_fluid);
                 }
             }
         }
-
-        interp.swap_buffers();
     }
-
-    // Mark section complete so the next section can reuse our top-Y row
-    interp.end_section();
 }
 
 /// Fill a `BiomePalette` for a single 16x16x16 section from Beta climate data.
@@ -338,23 +432,11 @@ pub fn generate_column(
         );
     }
 
-    let mut interp = noise_router.new_noise_cell_interpolator();
     let block_x = section_x * 16;
     let block_z = section_z * 16;
 
-    // Pre-populate Zone A values for all 17x17 XZ positions in one pass
-    let mut column_cache = noise_router.new_column_cache(block_x, block_z);
-    noise_router.populate_columns(&mut column_cache);
-
     let noise_min_y = noise_router.noise_min_y();
     let noise_max_y = noise_min_y + noise_router.noise_height() as i32;
-
-    // Precompute all corner densities for the column in large batches; the
-    // per-section plane fills then copy from this grid.
-    {
-        let rows = noise_router.noise_height() as usize / interp.v_cell_blocks() + 1;
-        interp.precompute_column_grid(noise_router, &mut column_cache, noise_min_y, rows);
-    }
 
     // Only fill biome palettes when the source is Beta; modern paths keep default().
     let beta_biome = biome_context.and_then(|(src, reg)| {
@@ -365,7 +447,16 @@ pub fn generate_column(
         }
     });
 
-    let mut prev_sy: Option<i32> = None;
+    // The column grid now serves the Beta climate lookup alone; the density fill
+    // walks its own columns.
+    let column_cache = beta_biome.map(|_| {
+        let mut cache = noise_router.new_column_cache(block_x, block_z);
+        noise_router.populate_columns(&mut cache);
+        cache
+    });
+
+    let mut fill = SectionFill::default();
+    let corners = ColumnCorners::fill(noise_router, block_x, block_z, &mut fill.scratch);
     y_sections
         .iter()
         .map(|&sy| {
@@ -381,50 +472,25 @@ pub fn generate_column(
             // when a Beta biome source is active.
             let section_min_y = sy * 16;
             let section_max_y = section_min_y + 16;
-            if section_min_y >= noise_max_y || section_max_y <= noise_min_y {
-                interp.reset_section_boundary();
-                prev_sy = Some(sy);
-                let mut biomes = BiomePalette::default();
-                if let Some((src, reg)) = beta_biome {
-                    fill_biome_palette_beta(
-                        &mut biomes,
-                        sy,
-                        block_x,
-                        block_z,
-                        noise_router,
-                        &column_cache,
-                        src,
-                        reg,
-                    );
-                }
-                return Some((BlockPalette::default(), biomes));
-            }
-
-            // Invalidate Y-boundary cache when sections are not adjacent
-            if prev_sy.is_some_and(|prev| prev + 1 != sy) {
-                interp.reset_section_boundary();
-            }
-            prev_sy = Some(sy);
-
             let mut blocks = BlockPalette::default();
             let mut biomes = BiomePalette::default();
-            generate_section(
-                block_x,
-                sy * 16,
-                block_z,
-                &mut blocks,
-                noise_router,
-                &mut column_cache,
-                &mut interp,
-            );
-            if let Some((src, reg)) = beta_biome {
+            if section_min_y < noise_max_y && section_max_y > noise_min_y {
+                generate_section(
+                    IVec3::new(block_x, section_min_y, block_z),
+                    &mut blocks,
+                    noise_router,
+                    corners.as_ref(),
+                    &mut fill,
+                );
+            }
+            if let Some(((src, reg), cache)) = beta_biome.zip(column_cache.as_ref()) {
                 fill_biome_palette_beta(
                     &mut biomes,
                     sy,
                     block_x,
                     block_z,
                     noise_router,
-                    &column_cache,
+                    cache,
                     src,
                     reg,
                 );

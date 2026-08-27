@@ -1,6 +1,6 @@
 use super::{
     DensityFunctionComponent, DependentDensityFunction, IndependentDensityFunction, Interpolated,
-    LinearOperation, NoiseRouter, WrapperDensityFunction, eval_subgraph,
+    LinearOperation, NoiseRouter, WrapperDensityFunction, branch_schedule::Step, eval_subgraph,
 };
 use crate::density_function::DensityFunction;
 use crate::density_function::proto::Axis;
@@ -195,6 +195,7 @@ pub struct FillScratch {
     column: Vec<f32>,
     point: Vec<f32>,
     positions: Vec<IVec3>,
+    needed: Vec<bool>,
 }
 
 impl FillScratch {
@@ -209,23 +210,66 @@ impl NoiseRouter {
     ///
     /// Bit-identical to `sample_root` at each position.
     pub fn fill(&self, root: usize, volume: &Volume, out: &mut [f32], scratch: &mut FillScratch) {
-        let n = volume.len();
-        assert_eq!(out.len(), n, "output length must match the volume");
-        let live = root + 1;
+        self.fill_roots(&[root], volume, out, scratch);
+    }
 
-        scratch.rows.clear();
+    /// Evaluate several roots over `volume` in one pass, writing one
+    /// `volume.len()`-long row per root into `out`, in the order given.
+    pub fn fill_roots(
+        &self,
+        roots: &[usize],
+        volume: &Volume,
+        out: &mut [f32],
+        scratch: &mut FillScratch,
+    ) {
+        let n = volume.len();
+        assert_eq!(
+            out.len(),
+            roots.len() * n,
+            "output length must match the volume"
+        );
+        let live = roots.iter().copied().max().expect("at least one root") + 1;
+
+        // Resized, never cleared: a row is read only after this pass writes it,
+        // so re-zeroing the arena is a memset the size of the whole volume.
         scratch.rows.resize(live * n, 0.0);
-        scratch.column.clear();
         scratch.column.resize(self.scratch_len, 0.0);
-        scratch.point.clear();
         scratch.point.resize(self.scratch_len, 0.0);
         volume.positions_into(&mut scratch.positions);
 
-        let column_needed = if root < self.fd_boundary {
-            self.column_boundary
+        let column_end = if live <= self.fd_boundary {
+            self.column_boundary.min(live)
         } else {
             live
         };
+
+        let needed = &mut scratch.needed;
+        needed.clear();
+        needed.resize(live, false);
+        for &root in roots {
+            needed[root] = true;
+        }
+        for i in (0..live).rev() {
+            if !needed[i] {
+                continue;
+            }
+            // An off-lattice `interpolated` refills its own input subtree over the
+            // cell lattice, so evaluating that subtree here would be dead work.
+            // Only above `column_end`, though: the column pass reads the input row
+            // straight back out whenever the position is a cell corner.
+            if i >= column_end
+                && let DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) =
+                    &self.stack[i]
+                && !x.is_lattice_volume(volume)
+            {
+                continue;
+            }
+            self.stack[i].visit_input_indices(&mut |dep| {
+                if dep < live {
+                    needed[dep] = true;
+                }
+            });
+        }
 
         let rows = &mut scratch.rows;
         let column = &mut scratch.column;
@@ -233,12 +277,18 @@ impl NoiseRouter {
         for z in 0..volume.size_z {
             for x in 0..volume.size_x {
                 let y0 = IVec3::new(volume.block_x(x), 0, volume.block_z(z));
-                for i in 0..column_needed {
+                for i in 0..column_end {
+                    if !needed[i] {
+                        continue;
+                    }
                     let value = self.stack[i].sample_cached(column, &self.stack, y0);
                     column[i] = value;
                 }
                 let base = volume.index_unchecked(x, 0, z);
-                for i in 0..column_needed.min(live) {
+                for i in 0..column_end {
+                    if !needed[i] {
+                        continue;
+                    }
                     rows[i * n + base..i * n + base + size_y].fill(column[i]);
                 }
             }
@@ -246,9 +296,9 @@ impl NoiseRouter {
 
         let positions = &scratch.positions;
         let point = &mut scratch.point;
-        if root >= self.fd_boundary {
+        if live > self.fd_boundary {
             for i in 0..live {
-                if self.per_block[i] {
+                if self.per_block[i] && needed[i] {
                     fill_node(
                         &self.stack,
                         self.scratch_len,
@@ -260,21 +310,79 @@ impl NoiseRouter {
                     );
                 }
             }
-        } else if root >= self.column_boundary {
+        } else if roots.iter().all(|r| self.zone_b_roots.contains(r)) {
+            self.fill_zone_b_scheduled(volume, positions, rows, point, needed);
+        } else {
             for i in self.column_boundary..live {
-                fill_node(
-                    &self.stack,
-                    self.scratch_len,
-                    i,
-                    volume,
-                    positions,
-                    rows,
-                    point,
-                );
+                if needed[i] {
+                    fill_node(
+                        &self.stack,
+                        self.scratch_len,
+                        i,
+                        volume,
+                        positions,
+                        rows,
+                        point,
+                    );
+                }
             }
         }
 
-        out.copy_from_slice(&rows[root * n..root * n + n]);
+        for (k, &root) in roots.iter().enumerate() {
+            out[k * n..k * n + n].copy_from_slice(&rows[root * n..root * n + n]);
+        }
+    }
+
+    /// Zone B over the whole volume, jumping over every arm-exclusive run no
+    /// position in the volume can select. The schedule only preserves the Zone B
+    /// roots, so it may not drive a fill of anything else.
+    fn fill_zone_b_scheduled(
+        &self,
+        volume: &Volume,
+        positions: &[IVec3],
+        rows: &mut [f32],
+        point: &mut [f32],
+        needed: &[bool],
+    ) {
+        let n = volume.len();
+        let sched = &self.zone_b_schedule;
+        let mut s = 0usize;
+        while s < sched.steps.len() {
+            match sched.steps[s] {
+                Step::Eval { start, end } => {
+                    for &i in &sched.order[start as usize..end as usize] {
+                        if i < needed.len() && needed[i] {
+                            fill_node(
+                                &self.stack,
+                                self.scratch_len,
+                                i,
+                                volume,
+                                positions,
+                                rows,
+                                point,
+                            );
+                        }
+                    }
+                    s += 1;
+                }
+                Step::Guard {
+                    input,
+                    min_inclusive,
+                    max_exclusive,
+                    want_in,
+                    unguard,
+                } => {
+                    let input = input as usize;
+                    let reachable = input >= needed.len()
+                        || !needed[input]
+                        || rows[input * n..input * n + n]
+                            .iter()
+                            .any(|&v| (v >= min_inclusive && v < max_exclusive) == want_in);
+                    s = if reachable { s + 1 } else { unguard as usize };
+                }
+                Step::Unguard => s += 1,
+            }
+        }
     }
 }
 
