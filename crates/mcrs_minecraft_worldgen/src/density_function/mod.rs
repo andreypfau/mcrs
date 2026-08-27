@@ -219,8 +219,7 @@ impl ColumnCache {
 
     #[inline]
     fn offset_of(&self, local_x: i32, local_z: i32) -> Option<usize> {
-        let on_lattice =
-            |v: i32| v >= 0 && v < Self::GRID_SIDE && v.rem_euclid(self.step) == 0;
+        let on_lattice = |v: i32| (0..Self::GRID_SIDE).contains(&v) && v.rem_euclid(self.step) == 0;
         (on_lattice(local_x) && on_lattice(local_z))
             .then(|| (local_x * Self::GRID_SIDE + local_z) as usize * self.zone_a_count)
     }
@@ -1151,9 +1150,7 @@ impl NoiseRouter {
             root + 1
         };
 
-        if pos.x != cache.last_x
-            || pos.z != cache.last_z
-            || cache.column_valid_upto < column_needed
+        if pos.x != cache.last_x || pos.z != cache.last_z || cache.column_valid_upto < column_needed
         {
             cache.last_x = pos.x;
             cache.last_z = pos.z;
@@ -3742,10 +3739,10 @@ pub fn lerp(delta: f32, start: f32, end: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::{BlendedNoise, EndIslands, OldBlendedNoise, RangeFunction};
-    use bevy_math::IVec3;
     use crate::density_function::DensityFunction;
     use crate::density_function::beta_seed::seed_beta_terrain;
     use crate::proto::NoiseGeneratorSettings;
+    use bevy_math::IVec3;
     use mcrs_minecraft_random::RandomSource;
 
     #[test]

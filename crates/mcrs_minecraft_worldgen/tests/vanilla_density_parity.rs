@@ -127,7 +127,7 @@ fn resolve_holder(
     }
     match holder {
         DensityFunctionHolder::Value(v) => {
-            out.insert(id.clone(), ProtoDensityFunction::Constant(v.clone()));
+            out.insert(id.clone(), ProtoDensityFunction::Constant(*v));
         }
         DensityFunctionHolder::Reference(r) => {
             if let Some(dep) = all.get(r) {
