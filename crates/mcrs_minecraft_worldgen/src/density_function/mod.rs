@@ -35,11 +35,6 @@ pub mod volume;
 pub use compile::build_functions;
 pub use volume::{FillScratch, Volume};
 
-/// Maximum number of positions that can be batched in a single plane fill.
-/// 5 Z-columns * 3 Y-positions = 15, rounded up to 16 for alignment.
-#[cfg(feature = "batch-noise")]
-pub(crate) const MAX_BATCH: usize = 128;
-
 trait DensityFunction: RangeFunction {
     fn sample(&self, pos: IVec3) -> f32;
 }
@@ -240,10 +235,6 @@ impl NoiseRouter {
 
     pub fn world_seed(&self) -> u64 {
         self.world_seed
-    }
-
-    pub fn final_density_idx(&self) -> usize {
-        self.final_density_index
     }
 
     pub fn temperature_index(&self) -> usize {
@@ -2321,7 +2312,7 @@ mod tests {
         );
         // final_density must be wired into Zone B.
         assert!(
-            router.final_density_idx() >= router.column_boundary,
+            router.final_density_index() >= router.column_boundary,
             "final_density must be in Zone B"
         );
     }
@@ -3308,7 +3299,7 @@ mod tests {
         );
 
         assert!(
-            router.final_density_idx() > 0,
+            router.final_density_index() > 0,
             "modern router final_density_index must be non-zero (wired)"
         );
         assert!(

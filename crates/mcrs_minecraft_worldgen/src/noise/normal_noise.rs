@@ -246,42 +246,6 @@ impl NoiseSampler {
             }
         }
     }
-
-    /// Batch evaluate NoiseSampler at multiple positions (zero heap allocation).
-    /// Evaluates both inner OctavePerlinNoise instances in batch, then combines.
-    #[cfg(feature = "batch-noise")]
-    pub fn get_batch(&self, positions: &[(f64, f64, f64)], results: &mut [f32]) {
-        let n = match self {
-            Self::Normal(n) => n,
-            _ => {
-                for (r, &(x, y, z)) in results.iter_mut().zip(positions) {
-                    *r = self.get(x, y, z);
-                }
-                return;
-            }
-        };
-        use crate::density_function::MAX_BATCH;
-        let len = positions.len();
-        debug_assert_eq!(len, results.len());
-        debug_assert!(len <= MAX_BATCH);
-        results[..len].iter_mut().for_each(|r| *r = 0.0);
-
-        let mut scaled = [(0.0f64, 0.0f64, 0.0f64); MAX_BATCH];
-        let mut layer_results = [0.0f32; MAX_BATCH];
-        for layer in &n.layers {
-            let f = layer.frequency;
-            for i in 0..len {
-                let (x, y, z) = positions[i];
-                scaled[i] = (wrap(x * f), wrap(y * f), wrap(z * f));
-            }
-            layer
-                .noise
-                .sample_batch(&scaled[..len], 0.0, &[], &mut layer_results[..len]);
-            for i in 0..len {
-                results[i] += layer.amplitude * layer_results[i];
-            }
-        }
-    }
 }
 
 #[inline(always)]
@@ -330,56 +294,6 @@ fn compensated_sum(values: impl Iterator<Item = f64>) -> f64 {
         total
     }
 }
-
-// #[cfg(test)]
-// mod test {
-//     use crate::noise::normal_noise::NoiseSampler;
-//     use mcrs_minecraft_random::legacy::LegacyRandom;
-//
-//     #[test]
-//     fn sample() {
-//         let mut random = LegacyRandom::new(82);
-//         let noise = NoiseSampler::new(&mut random, -6, vec![1.0, 1.0]);
-//         assert_eq!(
-//             format!("{:.4}", noise.get(0.0, 0.0, 0.0)),
-//             format!("{:.4}", -0.11173738673691287)
-//         );
-//         assert_eq!(
-//             format!("{:.4}", noise.get(0.5, 4.0, -2.0)),
-//             format!("{:.4}", -0.12418270136523879)
-//         );
-//         assert_eq!(
-//             format!("{:.4}", noise.get(-204.0, 28.0, 12.0)),
-//             format!("{:.4}", -0.593348747968403)
-//         );
-//     }
-//
-//     #[cfg(feature = "batch-noise")]
-//     #[test]
-//     fn get_batch_matches_scalar() {
-//         let mut random = LegacyRandom::new(82);
-//         let noise = NoiseSampler::new(&mut random, -6, vec![1.0, 1.0]);
-//
-//         let positions = [
-//             (0.0, 0.0, 0.0),
-//             (0.5, 4.0, -2.0),
-//             (-204.0, 28.0, 12.0),
-//             (50.0, 25.0, -50.0),
-//             (1000.0, 64.0, 1000.0),
-//         ];
-//         let mut batch_results = [0.0f32; 5];
-//         noise.get_batch(&positions, &mut batch_results);
-//
-//         for (i, &(x, y, z)) in positions.iter().enumerate() {
-//             let scalar = noise.get(x, y, z);
-//             assert_eq!(
-//                 batch_results[i], scalar,
-//                 "Mismatch at position {}: batch={}, scalar={}",
-//                 i, batch_results[i], scalar
-//             );
-//         }
-//     }
-// }
 
 #[cfg(test)]
 mod bound_tests {

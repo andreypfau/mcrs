@@ -101,12 +101,6 @@ impl<F: Float + Clone> OctavePerlinNoise<F> {
 }
 
 impl OctavePerlinNoise<f32> {
-    pub fn get_octave(&self, octave: usize) -> Option<&ImprovedNoise<f32>> {
-        self.octave_samplers
-            .get(self.octave_samplers.len() - 1 - octave)
-            .and_then(|sampler| sampler.as_ref())
-    }
-
     /// Sample a specific octave directly, with custom y_scale/y_max.
     /// Skips the Option check — use only when you know the octave is populated
     /// (e.g., all amplitudes are non-zero).
@@ -168,78 +162,6 @@ impl OctavePerlinNoise<f32> {
             persistence *= 0.5;
         }
         acc
-    }
-
-    /// Batch evaluate all octaves for multiple positions (zero heap allocation).
-    /// Iterates octaves in the outer loop to keep each octave's permutation
-    /// table L1-hot across all positions.
-    #[cfg(feature = "batch-noise")]
-    pub fn get_batch(&self, positions: &[(f64, f64, f64)], results: &mut [f32]) {
-        use crate::density_function::MAX_BATCH;
-        let n = positions.len();
-        debug_assert_eq!(n, results.len());
-        debug_assert!(n <= MAX_BATCH);
-        results[..n].iter_mut().for_each(|r| *r = 0.0);
-
-        let mut scaled = [(0.0f64, 0.0f64, 0.0f64); MAX_BATCH];
-        for j in 0..n {
-            let (x, y, z) = positions[j];
-            let lac = self.lacunarity as f64;
-            scaled[j] = (x * lac, y * lac, z * lac);
-        }
-
-        let mut maintained = [(0.0f64, 0.0f64, 0.0f64); MAX_BATCH];
-        let mut octave_results = [0.0f32; MAX_BATCH];
-
-        let mut persistence = self.persistence;
-        let len = self.octave_samplers.len();
-
-        for i in 0..len {
-            let sampler = unsafe { self.octave_samplers.get_unchecked(i) };
-            if let Some(sampler) = sampler {
-                let amp = unsafe { *self.amplitudes.get_unchecked(i) };
-                let factor = persistence * amp;
-
-                for j in 0..n {
-                    maintained[j] = (
-                        Self::maintain_precission(scaled[j].0),
-                        Self::maintain_precission(scaled[j].1),
-                        Self::maintain_precission(scaled[j].2),
-                    );
-                }
-
-                sampler.sample_batch(&maintained[..n], 0.0, &[], &mut octave_results[..n]);
-
-                for j in 0..n {
-                    results[j] += octave_results[j] * factor;
-                }
-            }
-
-            for j in 0..n {
-                scaled[j].0 *= 2.0;
-                scaled[j].1 *= 2.0;
-                scaled[j].2 *= 2.0;
-            }
-            persistence *= 0.5;
-        }
-    }
-
-    /// Batch evaluate a single octave for multiple positions with per-position y_max.
-    /// Used by OldBlendedNoise which manually iterates octaves with custom smear parameters.
-    #[cfg(feature = "batch-noise")]
-    pub fn sample_octave_batch(
-        &self,
-        octave: usize,
-        positions: &[(f64, f64, f64)],
-        y_scale: f64,
-        y_maxes: &[f64],
-        results: &mut [f32],
-    ) {
-        let idx = self.octave_samplers.len() - 1 - octave;
-        match unsafe { self.octave_samplers.get_unchecked(idx) } {
-            Some(sampler) => sampler.sample_batch(positions, y_scale, y_maxes, results),
-            None => results.iter_mut().for_each(|r| *r = 0.0),
-        }
     }
 }
 
@@ -415,15 +337,6 @@ impl OctavePerlinNoise<f64> {
     }
 }
 
-impl OctavePerlinNoise<f64> {
-    pub fn get_octave_f64(&self, k: usize) -> Option<&ImprovedNoise<f64>> {
-        let len = self.octave_samplers.len();
-        self.octave_samplers
-            .get(len - 1 - k)
-            .and_then(|s| s.as_ref())
-    }
-}
-
 #[cfg(test)]
 mod test {
     use crate::noise::octave_perlin_noise::OctavePerlinNoise;
@@ -544,31 +457,5 @@ mod test {
             "beta_octave_perlin_noise_4_octave.sample_xy_100_200: {:.15}",
             noise.sample_xy(100.0, 200.0)
         );
-    }
-
-    #[cfg(feature = "batch-noise")]
-    #[test]
-    fn get_batch_matches_scalar() {
-        let mut random = LegacyRandom::new(381);
-        let noise = OctavePerlinNoise::<f32>::new(&mut random, -6, vec![1.0, 1.0], true);
-
-        let positions = [
-            (0.0, 0.0, 0.0),
-            (0.5, 4.0, -2.0),
-            (-204.0, 28.0, 12.0),
-            (50.0, 25.0, -50.0),
-            (1000.0, 64.0, 1000.0),
-        ];
-        let mut batch_results = [0.0f32; 5];
-        noise.get_batch(&positions, &mut batch_results);
-
-        for (i, &(x, y, z)) in positions.iter().enumerate() {
-            let scalar = noise.get(x, y, z);
-            assert_eq!(
-                batch_results[i], scalar,
-                "Mismatch at position {}: batch={}, scalar={}",
-                i, batch_results[i], scalar
-            );
-        }
     }
 }

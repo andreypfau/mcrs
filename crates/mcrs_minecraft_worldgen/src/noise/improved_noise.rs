@@ -539,46 +539,6 @@ impl ImprovedNoise<f32> {
         }
     }
 
-    /// Batch sample: identical per-position math to `sample`, with runs of positions that
-    /// share an x/z column routed through `sample_column`.
-    /// An empty `y_maxes` means y_max = 0.0 for every position.
-    #[cfg(feature = "batch-noise")]
-    pub fn sample_batch(
-        &self,
-        positions: &[(f64, f64, f64)],
-        y_scale: f64,
-        y_maxes: &[f64],
-        results: &mut [f32],
-    ) {
-        debug_assert_eq!(positions.len(), results.len());
-        debug_assert!(y_maxes.is_empty() || y_maxes.len() == positions.len());
-        let mut start = 0;
-        while start < positions.len() {
-            let (x, _, z) = positions[start];
-            let mut end = start + 1;
-            while end < positions.len() && positions[end].0 == x && positions[end].2 == z {
-                end += 1;
-            }
-            let column = &positions[start..end];
-            let maxes = if y_maxes.is_empty() {
-                &[][..]
-            } else {
-                &y_maxes[start..end]
-            };
-            self.sample_column_iter(
-                x,
-                z,
-                column
-                    .iter()
-                    .enumerate()
-                    .map(|(j, p)| (p.1, if maxes.is_empty() { 0.0 } else { maxes[j] })),
-                y_scale,
-                &mut results[start..end],
-            );
-            start = end;
-        }
-    }
-
     #[inline(always)]
     fn x_perms(&self, section_x: i32) -> (usize, usize) {
         // SAFETY: both indices are masked with & 0xFF, so they are in [0, 255].
