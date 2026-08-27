@@ -171,7 +171,10 @@ pub struct DensityCache {
     scratch: Vec<f32>,
     last_x: i32,
     last_z: i32,
-    column_valid: bool,
+    /// Entries `[0..column_valid_upto)` hold values for `(last_x, last_z)` at y=0.
+    /// A root reaching further needs the whole prefix recomputed, never extended:
+    /// the per-Y pass has since overwritten the per-block entries inside it.
+    column_valid_upto: usize,
 }
 
 /// Pre-populated cache holding Zone A (column-only) results for all 289 (17x17) XZ positions
@@ -354,7 +357,7 @@ impl NoiseRouter {
             scratch: vec![0.0f32; self.stack.len()],
             last_x: i32::MIN,
             last_z: i32::MIN,
-            column_valid: false,
+            column_valid_upto: 0,
         }
     }
 
@@ -1115,55 +1118,40 @@ impl NoiseRouter {
     /// For Zone C roots (temperature, chunk_surface_level, veins, etc.):
     ///   Falls back to the general per_block-checking approach.
     fn evaluate_forward(&self, root: usize, pos: IVec3, cache: &mut DensityCache) -> f32 {
-        let column_changed = pos.x != cache.last_x || pos.z != cache.last_z || !cache.column_valid;
-
-        if root < self.column_boundary {
-            // Zone A root: column-only (e.g., continents, erosion, ridges)
-            if column_changed {
-                cache.last_x = pos.x;
-                cache.last_z = pos.z;
-                let y0_pos = IVec3::new(pos.x, 0, pos.z);
-                for i in 0..=root {
-                    cache.scratch[i] =
-                        self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
-                }
-                cache.column_valid = true;
-            }
-        } else if root < self.fd_boundary {
-            // Zone B root: final_density path
-            if column_changed {
-                cache.last_x = pos.x;
-                cache.last_z = pos.z;
-                // Evaluate Zone A (column-only) entries at Y=0.
-                let y0_pos = IVec3::new(pos.x, 0, pos.z);
-                for i in 0..self.column_boundary {
-                    cache.scratch[i] =
-                        self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
-                }
-                cache.column_valid = true;
-            }
-            // Evaluate Zone B (per-Y) entries at actual position — branchless.
-            // All entries in this range are per_block=true by construction.
-            for i in self.column_boundary..=root {
-                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
-            }
+        // Zone A and Zone B roots read column values only below the boundary;
+        // a Zone C root also reads the column-only entries interleaved with its
+        // own per-Y ones, so its prefix runs all the way to the root.
+        let column_needed = if root < self.fd_boundary {
+            self.column_boundary
         } else {
-            // Zone C root: fallback for aquifer, veins, temperature, etc.
-            if column_changed {
-                cache.last_x = pos.x;
-                cache.last_z = pos.z;
-                let y0_pos = IVec3::new(pos.x, 0, pos.z);
-                for i in 0..=root {
-                    cache.scratch[i] =
-                        self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
-                }
-                cache.column_valid = true;
+            root + 1
+        };
+
+        if pos.x != cache.last_x
+            || pos.z != cache.last_z
+            || cache.column_valid_upto < column_needed
+        {
+            cache.last_x = pos.x;
+            cache.last_z = pos.z;
+            cache.column_valid_upto = column_needed;
+            let y0_pos = IVec3::new(pos.x, 0, pos.z);
+            for i in 0..column_needed {
+                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
             }
+        }
+
+        if root >= self.fd_boundary {
+            // Zone C root: fallback for aquifer, veins, temperature, etc.
             for i in 0..=root {
                 if self.per_block[i] {
                     cache.scratch[i] =
                         self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
                 }
+            }
+        } else if root >= self.column_boundary {
+            // Zone B root: every entry in this range is per_block by construction.
+            for i in self.column_boundary..=root {
+                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
             }
         }
 
@@ -4871,6 +4859,43 @@ mod tests {
             mcrs_voxel_storage::VoxelId(1),
             mcrs_voxel_storage::VoxelId(86),
         )
+    }
+
+    /// A `DensityCache` is not one root's private scratch: every root queried
+    /// through a shared cache, in any order, must answer exactly as a cache
+    /// built for it alone does.
+    #[test]
+    fn a_shared_cache_answers_every_root() {
+        let router = router_for("overworld.json");
+        let mut roots = router.roots();
+        roots.sort_by_key(|&(_, index)| index);
+
+        for (x, y, z) in [(37, 55, -19), (37, 71, -19), (38, 55, -19)] {
+            let pos = bevy_math::IVec3::new(x, y, z);
+            let alone: Vec<f32> = roots
+                .iter()
+                .map(|&(_, index)| router.sample_root(index, pos, &mut router.new_cache()))
+                .collect();
+
+            for descending in [false, true] {
+                let mut shared = router.new_cache();
+                let mut order: Vec<usize> = (0..roots.len()).collect();
+                if descending {
+                    order.reverse();
+                }
+                for k in order {
+                    let (name, index) = roots[k];
+                    let got = router.sample_root(index, pos, &mut shared);
+                    assert_eq!(
+                        got.to_bits(),
+                        alone[k].to_bits(),
+                        "{name} at {pos:?} through a shared cache (descending={descending}) \
+                         gave {got}, alone it gives {}",
+                        alone[k]
+                    );
+                }
+            }
+        }
     }
 
     /// The slicing rewrite has to leave every parent-to-child edge either uniform
