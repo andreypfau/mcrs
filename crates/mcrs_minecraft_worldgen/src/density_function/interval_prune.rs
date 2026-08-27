@@ -91,8 +91,8 @@ fn node_octaves(c: &DensityFunctionComponent) -> u64 {
 }
 
 fn grad_iv(g: &ClampedYGradient, y_lo: f32, y_hi: f32) -> Iv {
-    let a = g.sample(&[], IVec3::new(0, y_lo as i32, 0));
-    let b = g.sample(&[], IVec3::new(0, y_hi as i32, 0));
+    let a = g.sample(IVec3::new(0, y_lo as i32, 0));
+    let b = g.sample(IVec3::new(0, y_hi as i32, 0));
     Iv::new(a.min(b), a.max(b))
 }
 
@@ -170,7 +170,7 @@ impl<'a> Walker<'a> {
         Walker {
             router,
             iv: vec![Iv::point(0.0); n],
-            pt: vec![0.0; n],
+            pt: vec![0.0; router.scratch_len],
             exact: vec![false; n],
             rc_by_index,
             sites,
@@ -203,7 +203,7 @@ impl<'a> Walker<'a> {
                 }
             });
             if inputs_exact && (y_degenerate || !is_y_dependent_kind(comp)) {
-                let v = comp.sample_cached(&self.pt, stack, pos);
+                let v = comp.sample_cached(&mut self.pt, stack, pos);
                 self.pt[i] = v;
                 self.exact[i] = true;
                 self.iv[i] = Iv::point(v).widen();
@@ -221,12 +221,12 @@ impl<'a> Walker<'a> {
                     IndependentDensityFunction::Gradient(g)
                         if g.axis == Axis::Y && g.tiling == TilingMode::ClampToEdge =>
                     {
-                        let a = g.sample(&[], IVec3::new(x, y_lo, z));
-                        let b = g.sample(&[], IVec3::new(x, y_hi, z));
+                        let a = g.sample(IVec3::new(x, y_lo, z));
+                        let b = g.sample(IVec3::new(x, y_hi, z));
                         Iv::new(a.min(b), a.max(b))
                     }
                     IndependentDensityFunction::Gradient(g) if g.axis != Axis::Y => {
-                        Iv::point(g.sample(&[], pos))
+                        Iv::point(g.sample(pos))
                     }
                     _ => {
                         stats.static_fallbacks += 1;
@@ -849,7 +849,7 @@ fn branch_skip_octave_census() {
                                 for &i in &sched.order[start as usize..end as usize] {
                                     evaluated += node_octaves(&router.stack[i]);
                                     let v = router.stack[i].sample_cached(
-                                        &cache.scratch,
+                                        &mut cache.scratch,
                                         &router.stack,
                                         pos,
                                     );

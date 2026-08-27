@@ -664,6 +664,65 @@ pub(super) fn compute_outer_terms(
     (terms, wrappers)
 }
 
+fn substituted_input(component: &DensityFunctionComponent) -> Option<usize> {
+    match component {
+        DensityFunctionComponent::Dependent(DependentDensityFunction::Slice(x)) => {
+            Some(x.input_index)
+        }
+        DensityFunctionComponent::Dependent(DependentDensityFunction::FindTopSurface(x)) => {
+            Some(x.density_index)
+        }
+        DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) => {
+            Some(x.input_index)
+        }
+        _ => None,
+    }
+}
+
+/// Give every opcode that evaluates at a substituted position the ascending
+/// member list of its own subgraph, and return the scratch length one
+/// evaluation of this stack needs: one register file per level of nesting.
+///
+/// Must run after every pass that renumbers the stack — the member lists are
+/// final indices and nothing rewrites them.
+pub(super) fn resolve_substituted_subgraphs(stack: &mut [DensityFunctionComponent]) -> usize {
+    let mut nesting = vec![0usize; stack.len()];
+    let mut members: Vec<Option<Box<[u32]>>> = vec![None; stack.len()];
+    for i in 0..stack.len() {
+        let mut depth = 0usize;
+        stack[i].visit_input_indices(&mut |input| depth = depth.max(nesting[input]));
+        if let Some(input) = substituted_input(&stack[i]) {
+            let reached = branch_schedule::reachable_backwards(input, stack, input + 1);
+            members[i] = Some(
+                reached
+                    .iter()
+                    .enumerate()
+                    .filter(|&(_, &hit)| hit)
+                    .map(|(index, _)| index as u32)
+                    .collect(),
+            );
+            depth += 1;
+        }
+        nesting[i] = depth;
+    }
+    for (i, list) in members.into_iter().enumerate() {
+        let Some(list) = list else { continue };
+        match &mut stack[i] {
+            DensityFunctionComponent::Dependent(DependentDensityFunction::Slice(x)) => {
+                x.input_members = list
+            }
+            DensityFunctionComponent::Dependent(DependentDensityFunction::FindTopSurface(x)) => {
+                x.density_members = list
+            }
+            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) => {
+                x.input_members = list
+            }
+            _ => unreachable!(),
+        }
+    }
+    stack.len() * (1 + nesting.iter().copied().max().unwrap_or(0))
+}
+
 /// Reorder the stack into three zones for optimal `evaluate_forward` performance:
 ///
 ///   Zone A `[0..column_boundary)`:  column-only entries reachable from final_density
@@ -860,6 +919,7 @@ pub fn build_functions(
     );
 
     let final_density_index = roots[7];
+    let scratch_len = resolve_substituted_subgraphs(&mut builder.stack);
 
     // Expose beach and surface octave noises for the Beta surface pass.
     // Only populated when using the Beta (legacy) random source; modern router gets None.
@@ -946,6 +1006,7 @@ pub fn build_functions(
         h_cell_blocks,
         v_cell_blocks,
         stack: Box::from(builder.stack),
+        scratch_len,
         node_labels: node_labels.into_boxed_slice(),
         zone_b_schedule,
         zone_b_roots: zone_b_roots.into_boxed_slice(),
@@ -1564,6 +1625,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                 axis,
                 coordinate,
                 input_index,
+                input_members: Box::default(),
                 min_value,
                 max_value,
             })),
@@ -1632,6 +1694,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             DensityFunctionComponent::Dependent(DependentDensityFunction::FindTopSurface(
                 FindTopSurface {
                     density_index,
+                    density_members: Box::default(),
                     upper_bound_index,
                     lower_bound: lower_bound as f32,
                     cell_height: cell_height.get() as f32,
@@ -1660,6 +1723,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             },
             DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(Interpolated {
                 input_index,
+                input_members: Box::default(),
                 cell_size_xz,
                 cell_size_y,
                 min_value,
@@ -1919,10 +1983,14 @@ mod arithmetic_node_tests {
         let mut builder =
             FunctionStackBuilder::new(RandomSource::new(0, false), 0, &functions, &noises);
         let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
-        let value =
-            DensityFunctionComponent::sample_from_stack(&builder.stack[..=index], IVec3::ZERO);
+        let scratch_len = super::resolve_substituted_subgraphs(&mut builder.stack);
+        let mut scratch = vec![0.0f32; scratch_len];
+        for i in 0..=index {
+            let value = builder.stack[i].sample_cached(&mut scratch, &builder.stack, IVec3::ZERO);
+            scratch[i] = value;
+        }
         let component = &builder.stack[index];
-        (value, component.min_value(), component.max_value())
+        (scratch[index], component.min_value(), component.max_value())
     }
 
     fn sample(json: &str) -> f32 {

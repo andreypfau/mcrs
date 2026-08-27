@@ -42,7 +42,7 @@ pub(crate) const MAX_BATCH: usize = 128;
 const _: () = assert!(MAX_BATCH <= u8::MAX as usize + 1);
 
 trait DensityFunction: RangeFunction {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32;
+    fn sample(&self, pos: IVec3) -> f32;
 }
 
 fn mul_range(min1: f32, max1: f32, min2: f32, max2: f32) -> (f32, f32) {
@@ -302,6 +302,9 @@ pub struct NoiseRouter {
     /// Vertical cell size in blocks (typically 8).
     v_cell_blocks: usize,
     stack: Box<[DensityFunctionComponent]>,
+    /// Register-file length for every scratch buffer: one file per level of
+    /// nested off-position evaluation the stack can reach.
+    scratch_len: usize,
     node_labels: Box<[String]>,
     zone_b_schedule: BranchSchedule,
     zone_b_roots: Box<[usize]>,
@@ -349,15 +352,29 @@ impl NoiseRouter {
 
     /// Evaluate a single stack entry using pre-computed cache values.
     #[inline]
-    pub fn sample_entry(&self, index: usize, cache: &[f32], pos: IVec3) -> f32 {
+    pub fn sample_entry(&self, index: usize, cache: &mut [f32], pos: IVec3) -> f32 {
         self.stack[index].sample_cached(cache, &self.stack, pos)
+    }
+
+    /// A scratch buffer sized for this router, for any API that takes one.
+    pub fn new_scratch(&self) -> Vec<f32> {
+        vec![0.0f32; self.scratch_len]
+    }
+
+    /// Evaluate one entry with no cache at all, walking the whole prefix.
+    fn dense_forward(&self, root: usize, pos: IVec3, scratch: &mut [f32]) -> f32 {
+        for i in 0..=root {
+            let value = self.stack[i].sample_cached(scratch, &self.stack, pos);
+            scratch[i] = value;
+        }
+        scratch[root]
     }
 
     /// Create a new DensityCache for use with `final_density`.
     /// Reuse across calls within the same chunk generation.
     pub fn new_cache(&self) -> DensityCache {
         DensityCache {
-            scratch: vec![0.0f32; self.stack.len()],
+            scratch: vec![0.0f32; self.scratch_len],
             last_x: i32::MIN,
             last_z: i32::MIN,
             column_valid_upto: 0,
@@ -432,9 +449,9 @@ impl NoiseRouter {
         self.evaluate_forward(root, pos, cache)
     }
 
-    /// Evaluate final_density without caching (recursive, for validation/comparison).
+    /// Evaluate final_density with no cache carried between calls.
     pub fn final_density_uncached(&self, pos: IVec3) -> f32 {
-        DensityFunctionComponent::sample_from_stack(&self.stack[..=self.final_density_index], pos)
+        self.dense_forward(self.final_density_index, pos, &mut self.new_scratch())
     }
 
     /// Create a new `ColumnCache` for a 17x17 chunk column grid starting at block (base_block_x, base_block_z).
@@ -447,12 +464,12 @@ impl NoiseRouter {
             base_block_x,
             base_block_z,
             step: self.h_cell_blocks as i32,
-            scratch: vec![0.0f32; self.stack.len()],
+            scratch: vec![0.0f32; self.scratch_len],
             bounds_scratch: vec![(0.0f32, 0.0f32); self.stack.len()],
             #[cfg(feature = "batch-noise")]
             batch_scratch: vec![0.0f32; MAX_BATCH * (self.final_density_index + 1)],
             #[cfg(feature = "batch-noise")]
-            spline_temp: vec![0.0f32; self.stack.len()],
+            spline_temp: vec![0.0f32; self.scratch_len],
             #[cfg(feature = "batch-noise")]
             batch_noise_results: [0.0f32; MAX_BATCH],
             #[cfg(feature = "batch-noise")]
@@ -478,8 +495,9 @@ impl NoiseRouter {
                     cache.base_block_z + local_z,
                 );
                 for i in 0..zone_a_count {
-                    cache.scratch[i] =
-                        self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
+                    let value =
+                        self.stack[i].sample_cached(&mut cache.scratch, &self.stack, y0_pos);
+                    cache.scratch[i] = value;
                 }
                 let xz_idx = (local_x * grid_side + local_z) as usize;
                 let off = xz_idx * zone_a_count;
@@ -528,19 +546,14 @@ impl NoiseRouter {
     ) -> ([f32; 256], [f32; 256]) {
         let mut temp_grid = [0.0f32; 256];
         let mut rain_grid = [0.0f32; 256];
+        let mut scratch = self.new_scratch();
         for x in 0..16i32 {
             for z in 0..16i32 {
                 let pos = IVec3::new(block_x + x, 0, block_z + z);
-                let temp = DensityFunctionComponent::sample_from_stack(
-                    &self.stack[..=self.temperature_index],
-                    pos,
-                );
-                let rain = DensityFunctionComponent::sample_from_stack(
-                    &self.stack[..=self.vegetation_index],
-                    pos,
-                );
-                temp_grid[(x * 16 + z) as usize] = temp;
-                rain_grid[(x * 16 + z) as usize] = rain;
+                temp_grid[(x * 16 + z) as usize] =
+                    self.dense_forward(self.temperature_index, pos, &mut scratch);
+                rain_grid[(x * 16 + z) as usize] =
+                    self.dense_forward(self.vegetation_index, pos, &mut scratch);
             }
         }
         (temp_grid, rain_grid)
@@ -551,12 +564,9 @@ impl NoiseRouter {
     /// generate_column has already discarded the cache.
     pub fn sample_beta_climate(&self, block_x: i32, block_z: i32) -> (f32, f32) {
         let pos = IVec3::new(block_x, 0, block_z);
-        let temperature = DensityFunctionComponent::sample_from_stack(
-            &self.stack[..=self.temperature_index],
-            pos,
-        );
-        let humidity =
-            DensityFunctionComponent::sample_from_stack(&self.stack[..=self.vegetation_index], pos);
+        let mut scratch = self.new_scratch();
+        let temperature = self.dense_forward(self.temperature_index, pos, &mut scratch);
+        let humidity = self.dense_forward(self.vegetation_index, pos, &mut scratch);
         (temperature, humidity)
     }
 
@@ -601,7 +611,7 @@ impl NoiseRouter {
     fn verify_zone_b(&self, pos: IVec3, scratch: &[f32]) {
         let mut full = scratch.to_vec();
         for i in self.column_boundary..=self.final_density_index {
-            let value = self.stack[i].sample_cached(&full, &self.stack, pos);
+            let value = self.stack[i].sample_cached(&mut full, &self.stack, pos);
             full[i] = value;
         }
         for &root in self.zone_b_roots.iter() {
@@ -899,7 +909,7 @@ impl NoiseRouter {
                 }
                 _ => {
                     for p in ps.clone() {
-                        cache.batch_scratch[p * stack_len + i] = f.sample(&[], positions[p]);
+                        cache.batch_scratch[p * stack_len + i] = f.sample(positions[p]);
                     }
                 }
             },
@@ -1014,8 +1024,17 @@ impl NoiseRouter {
                 }
                 DependentDensityFunction::Slice(x) => {
                     for p in ps.clone() {
-                        cache.batch_scratch[p * stack_len + i] =
-                            x.sample(&self.stack[..=i], positions[p]);
+                        let pinned = match x.axis {
+                            Axis::X => IVec3::new(x.coordinate, positions[p].y, positions[p].z),
+                            Axis::Y => IVec3::new(positions[p].x, x.coordinate, positions[p].z),
+                            Axis::Z => IVec3::new(positions[p].x, positions[p].y, x.coordinate),
+                        };
+                        cache.batch_scratch[p * stack_len + i] = eval_subgraph(
+                            &x.input_members,
+                            &self.stack,
+                            pinned,
+                            &mut cache.spline_temp,
+                        );
                     }
                 }
                 DependentDensityFunction::FindTopSurface(x) => {
@@ -1030,11 +1049,13 @@ impl NoiseRouter {
                         } else {
                             let mut current_y = top_y;
                             loop {
-                                let sample_pos =
+                                let probe =
                                     IVec3::new(positions[p].x, current_y as i32, positions[p].z);
-                                let density = DensityFunctionComponent::sample_from_stack(
-                                    &self.stack[..=x.density_index],
-                                    sample_pos,
+                                let density = eval_subgraph(
+                                    &x.density_members,
+                                    &self.stack,
+                                    probe,
+                                    &mut cache.spline_temp,
                                 );
                                 if density > 0.0 || current_y <= x.lower_bound {
                                     break current_y;
@@ -1052,7 +1073,7 @@ impl NoiseRouter {
                         cache.batch_scratch[base + i] = if x.is_cell_corner(positions[p]) {
                             cache.batch_scratch[base + x.input_index]
                         } else {
-                            x.sample(&self.stack, positions[p])
+                            x.interpolate(&self.stack, positions[p], &mut cache.spline_temp)
                         };
                     }
                 }
@@ -1139,7 +1160,8 @@ impl NoiseRouter {
             cache.column_valid_upto = column_needed;
             let y0_pos = IVec3::new(pos.x, 0, pos.z);
             for i in 0..column_needed {
-                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, y0_pos);
+                let value = self.stack[i].sample_cached(&mut cache.scratch, &self.stack, y0_pos);
+                cache.scratch[i] = value;
             }
         }
 
@@ -1147,14 +1169,15 @@ impl NoiseRouter {
             // Zone C root: fallback for aquifer, veins, temperature, etc.
             for i in 0..=root {
                 if self.per_block[i] {
-                    cache.scratch[i] =
-                        self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
+                    let value = self.stack[i].sample_cached(&mut cache.scratch, &self.stack, pos);
+                    cache.scratch[i] = value;
                 }
             }
         } else if root >= self.column_boundary {
             // Zone B root: every entry in this range is per_block by construction.
             for i in self.column_boundary..=root {
-                cache.scratch[i] = self.stack[i].sample_cached(&cache.scratch, &self.stack, pos);
+                let value = self.stack[i].sample_cached(&mut cache.scratch, &self.stack, pos);
+                cache.scratch[i] = value;
             }
         }
 
@@ -1969,7 +1992,7 @@ impl RangeFunction for BlendedNoise {
 }
 
 impl DensityFunction for BlendedNoise {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, pos: IVec3) -> f32 {
         let scaled_x = pos.x as f64 * self.xz_multiplier;
         let scaled_y = pos.y as f64 * self.y_multiplier;
         let scaled_z = pos.z as f64 * self.xz_multiplier;
@@ -2100,7 +2123,7 @@ impl RangeFunction for Noise {
 }
 
 impl DensityFunction for Noise {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, pos: IVec3) -> f32 {
         let xz_scale = self.xz_scale;
         let y_scale = self.y_scale;
         self.sampler.get(
@@ -2140,7 +2163,7 @@ impl RangeFunction for ShiftA {
 }
 
 impl DensityFunction for ShiftA {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, pos: IVec3) -> f32 {
         self.sampler
             .get(pos.x as f64 * 0.25, 0.0, pos.z as f64 * 0.25)
             * 4.0
@@ -2176,7 +2199,7 @@ impl RangeFunction for ShiftB {
 }
 
 impl DensityFunction for ShiftB {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, pos: IVec3) -> f32 {
         self.sampler
             .get(pos.z as f64 * 0.25, pos.x as f64 * 0.25, 0.0)
             * 4.0
@@ -2202,7 +2225,7 @@ impl RangeFunction for Shift {
 }
 
 impl DensityFunction for Shift {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, pos: IVec3) -> f32 {
         self.sampler.get(
             pos.z as f64 * 0.25,
             pos.x as f64 * 0.25,
@@ -2214,6 +2237,7 @@ impl DensityFunction for Shift {
 #[derive(Clone, Debug, PartialEq)]
 struct Interpolated {
     input_index: usize,
+    input_members: Box<[u32]>,
     cell_size_xz: u32,
     cell_size_y: u32,
     min_value: f32,
@@ -2234,37 +2258,18 @@ impl RangeFunction for Interpolated {
 
 impl Interpolated {
     #[inline]
-    fn sample_input(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos)
-    }
-
-    #[inline]
     fn is_cell_corner(&self, pos: IVec3) -> bool {
         pos.x.rem_euclid(self.cell_size_xz as i32) == 0
             && pos.y.rem_euclid(self.cell_size_y as i32) == 0
             && pos.z.rem_euclid(self.cell_size_xz as i32) == 0
     }
 
-    #[inline]
-    fn sample_cached(&self, cache: &[f32], stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        if self.is_cell_corner(pos) {
-            cache[self.input_index]
-        } else {
-            self.sample(stack, pos)
-        }
-    }
-}
-
-impl DensityFunction for Interpolated {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn interpolate(&self, stack: &[DensityFunctionComponent], pos: IVec3, sub: &mut [f32]) -> f32 {
         let size_xz = self.cell_size_xz as i32;
         let size_y = self.cell_size_y as i32;
         let x_in_cell = pos.x.rem_euclid(size_xz);
         let y_in_cell = pos.y.rem_euclid(size_y);
         let z_in_cell = pos.z.rem_euclid(size_xz);
-        if x_in_cell == 0 && y_in_cell == 0 && z_in_cell == 0 {
-            return self.sample_input(stack, pos);
-        }
 
         let x0 = pos.x - x_in_cell;
         let y0 = pos.y - y_in_cell;
@@ -2273,29 +2278,32 @@ impl DensityFunction for Interpolated {
         let alpha_y = y_in_cell as f32 / size_y as f32;
         let alpha_z = z_in_cell as f32 / size_xz as f32;
 
+        let corner = |x: i32, y: i32, z: i32, sub: &mut [f32]| {
+            eval_subgraph(&self.input_members, stack, IVec3::new(x, y, z), sub)
+        };
         // lerp(0, a, b) is exactly a, so a zero weight lets the far corner go
         // unevaluated instead of costing another walk of the input sub-tree.
-        let along_x = |y: i32, z: i32| {
-            let low = self.sample_input(stack, IVec3::new(x0, y, z));
+        let along_x = |y: i32, z: i32, sub: &mut [f32]| {
+            let low = corner(x0, y, z, sub);
             if alpha_x == 0.0 {
                 low
             } else {
-                low + alpha_x * (self.sample_input(stack, IVec3::new(x0 + size_xz, y, z)) - low)
+                low + alpha_x * (corner(x0 + size_xz, y, z, sub) - low)
             }
         };
-        let along_xy = |z: i32| {
-            let low = along_x(y0, z);
+        let along_xy = |z: i32, sub: &mut [f32]| {
+            let low = along_x(y0, z, sub);
             if alpha_y == 0.0 {
                 low
             } else {
-                low + alpha_y * (along_x(y0 + size_y, z) - low)
+                low + alpha_y * (along_x(y0 + size_y, z, sub) - low)
             }
         };
-        let low = along_xy(z0);
+        let low = along_xy(z0, sub);
         if alpha_z == 0.0 {
             low
         } else {
-            low + alpha_z * (along_xy(z0 + size_xz) - low)
+            low + alpha_z * (along_xy(z0 + size_xz, sub) - low)
         }
     }
 }
@@ -2316,12 +2324,6 @@ impl RangeFunction for Cache {
     #[inline]
     fn max_value(&self) -> f32 {
         self.max_value
-    }
-}
-
-impl DensityFunction for Cache {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos)
     }
 }
 
@@ -2362,7 +2364,7 @@ impl RangeFunction for Gradient {
 }
 
 impl DensityFunction for Gradient {
-    fn sample(&self, _stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, pos: IVec3) -> f32 {
         let coordinate = match self.axis {
             Axis::X => pos.x,
             Axis::Y => pos.y,
@@ -2389,7 +2391,7 @@ impl DensityFunction for Gradient {
 }
 
 impl DensityFunction for ClampedYGradient {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, pos: IVec3) -> f32 {
         let y = pos.y as f32;
         let from_y = self.from_y;
         if y < from_y {
@@ -2460,7 +2462,7 @@ impl RangeFunction for EndIslands {
 }
 
 impl DensityFunction for EndIslands {
-    fn sample(&self, _stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, pos: IVec3) -> f32 {
         (self.height(pos.x / 8, pos.z / 8) - 8.0) / 128.0
     }
 }
@@ -2512,18 +2514,18 @@ impl RangeFunction for IndependentDensityFunction {
 }
 
 impl DensityFunction for IndependentDensityFunction {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, pos: IVec3) -> f32 {
         match self {
             IndependentDensityFunction::Constant(x) => *x,
-            IndependentDensityFunction::OldBlendedNoise(x) => x.sample(stack, pos),
-            IndependentDensityFunction::Noise(x) => x.sample(stack, pos),
-            IndependentDensityFunction::ShiftA(x) => x.sample(stack, pos),
-            IndependentDensityFunction::ShiftB(x) => x.sample(stack, pos),
-            IndependentDensityFunction::Shift(x) => x.sample(stack, pos),
-            IndependentDensityFunction::ClampedYGradient(x) => x.sample(stack, pos),
-            IndependentDensityFunction::Gradient(x) => x.sample(stack, pos),
-            IndependentDensityFunction::DistanceToPoint(x) => x.sample(stack, pos),
-            IndependentDensityFunction::EndOuterIslands(x) => x.sample(stack, pos),
+            IndependentDensityFunction::OldBlendedNoise(x) => x.sample(pos),
+            IndependentDensityFunction::Noise(x) => x.sample(pos),
+            IndependentDensityFunction::ShiftA(x) => x.sample(pos),
+            IndependentDensityFunction::ShiftB(x) => x.sample(pos),
+            IndependentDensityFunction::Shift(x) => x.sample(pos),
+            IndependentDensityFunction::ClampedYGradient(x) => x.sample(pos),
+            IndependentDensityFunction::Gradient(x) => x.sample(pos),
+            IndependentDensityFunction::DistanceToPoint(x) => x.sample(pos),
+            IndependentDensityFunction::EndOuterIslands(x) => x.sample(pos),
         }
     }
 }
@@ -2563,35 +2565,6 @@ impl RangeFunction for WrapperDensityFunction {
         match self {
             WrapperDensityFunction::Interpolated(x) => x.max_value(),
             WrapperDensityFunction::Cache(x) => x.max_value(),
-        }
-    }
-}
-
-impl DensityFunction for WrapperDensityFunction {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        match self {
-            WrapperDensityFunction::Interpolated(x) => x.sample(stack, pos),
-            WrapperDensityFunction::Cache(x) => x.sample(stack, pos),
-        }
-    }
-}
-
-impl DensityFunction for DependentDensityFunction {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        match self {
-            DependentDensityFunction::Linear(x) => x.sample(stack, pos),
-            DependentDensityFunction::Affine(x) => x.sample(stack, pos),
-            DependentDensityFunction::PiecewiseAffine(x) => x.sample(stack, pos),
-            DependentDensityFunction::Slide(x) => x.sample(stack, pos),
-            DependentDensityFunction::Unary(x) => x.sample(stack, pos),
-            DependentDensityFunction::Binary(x) => x.sample(stack, pos),
-            DependentDensityFunction::ShiftedNoise(x) => x.sample(stack, pos),
-            DependentDensityFunction::Clamp(x) => x.sample(stack, pos),
-            DependentDensityFunction::RangeChoice(x) => x.sample(stack, pos),
-            DependentDensityFunction::Spline(x) => x.sample(stack, pos),
-            DependentDensityFunction::FindTopSurface(x) => x.sample(stack, pos),
-            DependentDensityFunction::Lerp(x) => x.sample(stack, pos),
-            DependentDensityFunction::Slice(x) => x.sample(stack, pos),
         }
     }
 }
@@ -2686,14 +2659,6 @@ impl RangeFunction for Affine {
     }
 }
 
-impl DensityFunction for Affine {
-    #[inline]
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let density = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
-        density.mul_add(self.scale, self.offset)
-    }
-}
-
 /// Piecewise-linear affine: different scales for negative vs non-negative input.
 ///
 /// Replaces patterns like `Affine(Unary::QuarterNegative(x))` or
@@ -2749,19 +2714,6 @@ impl RangeFunction for PiecewiseAffine {
     #[inline]
     fn max_value(&self) -> f32 {
         self.max_value
-    }
-}
-
-impl DensityFunction for PiecewiseAffine {
-    #[inline]
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let x = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
-        let scale = if x < 0.0 {
-            self.neg_scale
-        } else {
-            self.pos_scale
-        };
-        x.mul_add(scale, self.offset)
     }
 }
 
@@ -2850,25 +2802,6 @@ impl RangeFunction for Slide {
     }
 }
 
-impl DensityFunction for Slide {
-    #[inline]
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let input = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
-        self.compute(input, pos.y as f32)
-    }
-}
-
-impl DensityFunction for Linear {
-    #[inline]
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let density = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
-        match self.operation {
-            LinearOperation::Add => density + self.argument,
-            LinearOperation::Multiply => density * self.argument,
-        }
-    }
-}
-
 impl RangeFunction for Linear {
     #[inline]
     fn min_value(&self) -> f32 {
@@ -2945,14 +2878,6 @@ impl UnaryOperation {
     }
 }
 
-impl DensityFunction for Unary {
-    #[inline]
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let density = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
-        self.operation.apply(density)
-    }
-}
-
 impl RangeFunction for Unary {
     #[inline]
     fn min_value(&self) -> f32 {
@@ -2991,24 +2916,6 @@ impl Debug for ShiftedNoise {
     }
 }
 
-impl DensityFunction for ShiftedNoise {
-    #[inline]
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let shifted_x =
-            DensityFunctionComponent::sample_from_stack(&stack[..=self.input_x_index], pos);
-        let shifted_y =
-            DensityFunctionComponent::sample_from_stack(&stack[..=self.input_y_index], pos);
-        let shifted_z =
-            DensityFunctionComponent::sample_from_stack(&stack[..=self.input_z_index], pos);
-
-        self.sampler.get(
-            pos.x as f64 * self.xz_scale + shifted_x as f64,
-            pos.y as f64 * self.y_scale + shifted_y as f64,
-            pos.z as f64 * self.xz_scale + shifted_z as f64,
-        )
-    }
-}
-
 impl RangeFunction for ShiftedNoise {
     #[inline]
     fn min_value(&self) -> f32 {
@@ -3043,14 +2950,6 @@ impl RangeFunction for Clamp {
     }
 }
 
-impl DensityFunction for Clamp {
-    #[inline]
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let density = DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
-        density.clamp(self.min_value, self.max_value)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 struct RangeChoice {
     input_index: usize,
@@ -3074,23 +2973,6 @@ impl RangeFunction for RangeChoice {
     }
 }
 
-impl DensityFunction for RangeChoice {
-    #[inline]
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let input_density =
-            DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
-
-        let idx = if input_density >= self.min_inclusion_value
-            && input_density < self.max_exclusion_value
-        {
-            self.when_in_index
-        } else {
-            self.when_out_index
-        };
-        DensityFunctionComponent::sample_from_stack(&stack[..=idx], pos)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 enum SplineValue {
     Spline(Spline),
@@ -3108,15 +2990,6 @@ impl RangeFunction for SplineValue {
     fn max_value(&self) -> f32 {
         match self {
             SplineValue::Spline(x) => x.max_value(),
-            SplineValue::Constant(x) => *x,
-        }
-    }
-}
-
-impl DensityFunction for SplineValue {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        match self {
-            SplineValue::Spline(x) => x.sample(stack, pos),
             SplineValue::Constant(x) => *x,
         }
     }
@@ -3302,57 +3175,6 @@ impl RangeFunction for Spline {
     }
 }
 
-impl DensityFunction for Spline {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let location =
-            DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pos);
-
-        let locs = &self.locations;
-        let idx_gt = Self::upper_bound(locs, location);
-        let n_points = locs.len();
-
-        if idx_gt == 0 {
-            let v0 = self.values[0].sample(stack, pos);
-            let d0 = self.derivatives[0];
-            return if d0 == 0.0 {
-                v0
-            } else {
-                v0 + d0 * (location - locs[0])
-            };
-        }
-
-        if idx_gt == n_points {
-            let i = n_points - 1;
-            let v = self.values[i].sample(stack, pos);
-            let d = self.derivatives[i];
-            return if d == 0.0 {
-                v
-            } else {
-                v + d * (location - locs[i])
-            };
-        }
-
-        let i0 = idx_gt - 1;
-        let i1 = idx_gt;
-
-        let v0 = self.values[i0].sample(stack, pos);
-        let v1 = self.values[i1].sample(stack, pos);
-
-        let seg = self.segments[i0];
-        let x = (location - seg.left) / seg.dist;
-
-        let delta = v1 - v0;
-
-        let e0 = seg.lower_deriv_dist - delta;
-        let e1 = -seg.upper_deriv_dist + delta;
-
-        let cubic = (x * (1.0 - x)) * Self::lerp(e0, e1, x);
-        let linear = Self::lerp(v0, v1, x);
-
-        cubic + linear
-    }
-}
-
 impl SplineValue {
     #[inline]
     fn sample_cached(&self, cache: &[f32], stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
@@ -3416,6 +3238,7 @@ impl Spline {
 #[derive(Clone, Debug, PartialEq)]
 struct FindTopSurface {
     density_index: usize,
+    density_members: Box<[u32]>,
     upper_bound_index: usize,
     lower_bound: f32,
     cell_height: f32,
@@ -3443,26 +3266,12 @@ impl RangeFunction for Lerp {
     }
 }
 
-impl DensityFunction for Lerp {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let alpha = DensityFunctionComponent::sample_from_stack(&stack[..=self.alpha_index], pos);
-        if alpha == 0.0 {
-            return DensityFunctionComponent::sample_from_stack(&stack[..=self.first_index], pos);
-        }
-        let second = DensityFunctionComponent::sample_from_stack(&stack[..=self.second_index], pos);
-        if alpha == 1.0 {
-            return second;
-        }
-        let first = DensityFunctionComponent::sample_from_stack(&stack[..=self.first_index], pos);
-        first + alpha * (second - first)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 struct Slice {
     axis: Axis,
     coordinate: i32,
     input_index: usize,
+    input_members: Box<[u32]>,
     min_value: f32,
     max_value: f32,
 }
@@ -3476,17 +3285,6 @@ impl RangeFunction for Slice {
     #[inline]
     fn max_value(&self) -> f32 {
         self.max_value
-    }
-}
-
-impl DensityFunction for Slice {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let pinned = match self.axis {
-            Axis::X => IVec3::new(self.coordinate, pos.y, pos.z),
-            Axis::Y => IVec3::new(pos.x, self.coordinate, pos.z),
-            Axis::Z => IVec3::new(pos.x, pos.y, self.coordinate),
-        };
-        DensityFunctionComponent::sample_from_stack(&stack[..=self.input_index], pinned)
     }
 }
 
@@ -3509,7 +3307,7 @@ impl RangeFunction for DistanceToPoint {
 }
 
 impl DensityFunction for DistanceToPoint {
-    fn sample(&self, _stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, pos: IVec3) -> f32 {
         let d = (self.point - pos).as_vec3();
         match self.metric {
             DistanceMetric::Euclidean => d.length(),
@@ -3532,32 +3330,6 @@ impl RangeFunction for FindTopSurface {
     }
 }
 
-impl DensityFunction for FindTopSurface {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let top_y =
-            (DensityFunctionComponent::sample_from_stack(&stack[..=self.upper_bound_index], pos)
-                / self.cell_height)
-                .floor()
-                * self.cell_height;
-        if top_y <= self.lower_bound {
-            self.lower_bound
-        } else {
-            let mut current_y = top_y;
-            loop {
-                let sample_pos = IVec3::new(pos.x, current_y as i32, pos.z);
-                let density = DensityFunctionComponent::sample_from_stack(
-                    &stack[..=self.density_index],
-                    sample_pos,
-                );
-                if density > 0.0 || current_y <= self.lower_bound {
-                    return current_y;
-                }
-                current_y -= self.cell_height;
-            }
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 struct Binary {
     input1_index: usize,
@@ -3565,87 +3337,6 @@ struct Binary {
     min_value: f32,
     max_value: f32,
     operation: BinaryOperation,
-}
-
-impl DensityFunction for Binary {
-    #[inline]
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let input1_density =
-            DensityFunctionComponent::sample_from_stack(&stack[..=self.input1_index], pos);
-        // let input2_density =
-        //     DensityFunctionComponent::sample_from_stack(&stack[..=self.input2_index], pos);
-        // println!("binary {:?} d1={} d2={}", self.operation, input1_density, input2_density);
-        // println!(
-        //     "binary {:?} d={:?} arg1.min={:?} arg1.max={:?}",
-        //     self.operation,
-        //     input1_density,
-        //     stack[self.input1_index].min_value(),
-        //     stack[self.input1_index].max_value()
-        // );
-        match self.operation {
-            BinaryOperation::Add => {
-                let input2_density =
-                    DensityFunctionComponent::sample_from_stack(&stack[..=self.input2_index], pos);
-                input1_density + input2_density
-            }
-            BinaryOperation::Subtract => {
-                let input2_density =
-                    DensityFunctionComponent::sample_from_stack(&stack[..=self.input2_index], pos);
-                input1_density - input2_density
-            }
-            BinaryOperation::Multiply => {
-                if input1_density == 0.0 {
-                    0.0
-                } else {
-                    let input2_density = DensityFunctionComponent::sample_from_stack(
-                        &stack[..=self.input2_index],
-                        pos,
-                    );
-                    input1_density * input2_density
-                }
-            }
-            BinaryOperation::Divide => {
-                if input1_density == 0.0 {
-                    0.0
-                } else {
-                    let input2_density = DensityFunctionComponent::sample_from_stack(
-                        &stack[..=self.input2_index],
-                        pos,
-                    );
-                    input1_density / input2_density
-                }
-            }
-            BinaryOperation::Min => {
-                let input2_min = stack[self.input2_index].min_value();
-                if input1_density < input2_min {
-                    input1_density
-                } else {
-                    let input2_density = DensityFunctionComponent::sample_from_stack(
-                        &stack[..=self.input2_index],
-                        pos,
-                    );
-                    input1_density.min(input2_density)
-                }
-            }
-            BinaryOperation::Max => {
-                let input2_max = stack[self.input2_index].max_value();
-                if input1_density > input2_max {
-                    input1_density
-                } else {
-                    let input2_density = DensityFunctionComponent::sample_from_stack(
-                        &stack[..=self.input2_index],
-                        pos,
-                    );
-                    input1_density.max(input2_density)
-                }
-            }
-            BinaryOperation::Pow | BinaryOperation::Round(_) => {
-                let input2_density =
-                    DensityFunctionComponent::sample_from_stack(&stack[..=self.input2_index], pos);
-                self.operation.apply(input1_density, input2_density)
-            }
-        }
-    }
 }
 
 impl RangeFunction for Binary {
@@ -3882,37 +3573,52 @@ impl DensityFunctionComponent {
     }
 }
 
+/// Run a node's stored subgraph forward at `pos`, returning the value of its
+/// last member — which is the subgraph's own root.
+///
+/// `scratch` is the register file one level below the caller's: an off-position
+/// evaluation would otherwise overwrite the values the caller's own pass still
+/// has to read.
+fn eval_subgraph(
+    members: &[u32],
+    stack: &[DensityFunctionComponent],
+    pos: IVec3,
+    scratch: &mut [f32],
+) -> f32 {
+    let mut value = 0.0;
+    for &member in members {
+        let member = member as usize;
+        value = stack[member].sample_cached(scratch, stack, pos);
+        scratch[member] = value;
+    }
+    value
+}
+
 impl DensityFunctionComponent {
-    fn sample(&self, stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        match self {
-            DensityFunctionComponent::Independent(func) => func.sample(stack, pos),
-            DensityFunctionComponent::Dependent(func) => func.sample(stack, pos),
-            DensityFunctionComponent::Wrapper(func) => func.sample(stack, pos),
-        }
-    }
-
-    fn sample_from_stack(stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
-        let (top_component, component_stack) = stack.split_last().unwrap();
-        top_component.sample(component_stack, pos)
-    }
-
     /// Evaluate using pre-computed cache (forward evaluation).
     /// All entries at indices < this entry's position are already computed in `cache`.
-    /// No tracing spans — this is the optimized hot path.
+    ///
+    /// `cache` is a whole ladder of register files: `cache[..stack.len()]` is this
+    /// level's, the rest belongs to nested off-position evaluations.
     #[inline]
-    fn sample_cached(&self, cache: &[f32], stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample_cached(
+        &self,
+        cache: &mut [f32],
+        stack: &[DensityFunctionComponent],
+        pos: IVec3,
+    ) -> f32 {
         match self {
             DensityFunctionComponent::Independent(f) => match f {
                 IndependentDensityFunction::Constant(x) => *x,
-                IndependentDensityFunction::OldBlendedNoise(x) => x.sample(&[], pos),
-                IndependentDensityFunction::Noise(x) => x.sample(&[], pos),
-                IndependentDensityFunction::ShiftA(x) => x.sample(&[], pos),
-                IndependentDensityFunction::ShiftB(x) => x.sample(&[], pos),
-                IndependentDensityFunction::Shift(x) => x.sample(&[], pos),
-                IndependentDensityFunction::ClampedYGradient(x) => x.sample(&[], pos),
-                IndependentDensityFunction::Gradient(x) => x.sample(&[], pos),
-                IndependentDensityFunction::DistanceToPoint(x) => x.sample(&[], pos),
-                IndependentDensityFunction::EndOuterIslands(x) => x.sample(&[], pos),
+                IndependentDensityFunction::OldBlendedNoise(x) => x.sample(pos),
+                IndependentDensityFunction::Noise(x) => x.sample(pos),
+                IndependentDensityFunction::ShiftA(x) => x.sample(pos),
+                IndependentDensityFunction::ShiftB(x) => x.sample(pos),
+                IndependentDensityFunction::Shift(x) => x.sample(pos),
+                IndependentDensityFunction::ClampedYGradient(x) => x.sample(pos),
+                IndependentDensityFunction::Gradient(x) => x.sample(pos),
+                IndependentDensityFunction::DistanceToPoint(x) => x.sample(pos),
+                IndependentDensityFunction::EndOuterIslands(x) => x.sample(pos),
             },
             DensityFunctionComponent::Dependent(f) => match f {
                 DependentDensityFunction::Linear(x) => {
@@ -3967,23 +3673,28 @@ impl DensityFunctionComponent {
                         first + alpha * (cache[x.second_index] - first)
                     }
                 }
-                DependentDensityFunction::Slice(x) => x.sample(stack, pos),
+                DependentDensityFunction::Slice(x) => {
+                    let pinned = match x.axis {
+                        Axis::X => IVec3::new(x.coordinate, pos.y, pos.z),
+                        Axis::Y => IVec3::new(pos.x, x.coordinate, pos.z),
+                        Axis::Z => IVec3::new(pos.x, pos.y, x.coordinate),
+                    };
+                    let (_, sub) = cache.split_at_mut(stack.len());
+                    eval_subgraph(&x.input_members, stack, pinned, sub)
+                }
                 DependentDensityFunction::FindTopSurface(x) => {
                     let top_y =
                         (cache[x.upper_bound_index] / x.cell_height).floor() * x.cell_height;
                     if top_y <= x.lower_bound {
                         x.lower_bound
                     } else {
-                        // Must evaluate density at different Y positions — fall back to recursive
+                        let (_, sub) = cache.split_at_mut(stack.len());
                         let mut current_y = top_y;
                         loop {
-                            let sample_pos = IVec3::new(pos.x, current_y as i32, pos.z);
-                            let density = DensityFunctionComponent::sample_from_stack(
-                                &stack[..=x.density_index],
-                                sample_pos,
-                            );
+                            let probe = IVec3::new(pos.x, current_y as i32, pos.z);
+                            let density = eval_subgraph(&x.density_members, stack, probe, sub);
                             if density > 0.0 || current_y <= x.lower_bound {
-                                return current_y;
+                                break current_y;
                             }
                             current_y -= x.cell_height;
                         }
@@ -3991,7 +3702,14 @@ impl DensityFunctionComponent {
                 }
             },
             DensityFunctionComponent::Wrapper(f) => match f {
-                WrapperDensityFunction::Interpolated(x) => x.sample_cached(cache, stack, pos),
+                WrapperDensityFunction::Interpolated(x) => {
+                    if x.is_cell_corner(pos) {
+                        cache[x.input_index]
+                    } else {
+                        let (_, sub) = cache.split_at_mut(stack.len());
+                        x.interpolate(stack, pos, sub)
+                    }
+                }
                 WrapperDensityFunction::Cache(x) => cache[x.input_index],
             },
         }
@@ -4069,7 +3787,7 @@ mod tests {
                 }
             };
             for y in [-64, 0, 200] {
-                let actual = function.sample(&[], IVec3::new(x, y, z));
+                let actual = function.sample(IVec3::new(x, y, z));
                 assert_eq!(
                     actual.to_bits(),
                     expected,
@@ -4090,7 +3808,7 @@ mod tests {
             ((4, 8, 4), 1044906416),
             ((8, 16, 8), 1054301785),
         ] {
-            let sample = noise.sample(&[], bevy_math::IVec3::new(pos.0, pos.1, pos.2));
+            let sample = noise.sample(bevy_math::IVec3::new(pos.0, pos.1, pos.2));
             assert_eq!(sample.to_bits(), expected, "blended noise moved at {pos:?}");
         }
     }
@@ -4131,7 +3849,7 @@ mod tests {
                     (next() % 2049) as i32 - 1024,
                     (next() % 4_000_001) as i32 - 2_000_000,
                 );
-                let value = noise.sample(&[], pos);
+                let value = noise.sample(pos);
                 peak = peak.max(value.abs());
                 assert!(
                     value.abs() <= bound,
@@ -4154,8 +3872,8 @@ mod tests {
         let noise_no_div = BlendedNoise::new(&mut r2, 1.0, 1.0, 80.0, 160.0, 8.0, 1.0);
 
         let pos = bevy_math::IVec3::new(4, 8, 4);
-        let v_div = noise_with_div.sample(&[], pos);
-        let v_nodiv = noise_no_div.sample(&[], pos);
+        let v_div = noise_with_div.sample(pos);
+        let v_nodiv = noise_no_div.sample(pos);
         let ratio = v_nodiv / v_div;
         assert!(
             (ratio - 128.0).abs() < 1e-3,
@@ -5193,10 +4911,9 @@ mod tests {
                         continue;
                     }
                     checked += 1;
-                    let full =
-                        super::DensityFunctionComponent::sample_from_stack(&stack[..=i], pos);
-                    let restricted =
-                        super::DensityFunctionComponent::sample_from_stack(&stack[..=i], pinned);
+                    let mut scratch = router.new_scratch();
+                    let full = router.dense_forward(i, pos, &mut scratch);
+                    let restricted = router.dense_forward(i, pinned, &mut scratch);
                     assert_eq!(
                         full.to_bits(),
                         restricted.to_bits(),
@@ -5393,5 +5110,99 @@ mod tests {
             settings_count += 1;
         }
         assert_eq!(settings_count, count_json_files(&settings_dir));
+    }
+    /// The three opcodes that evaluate at a substituted position used to leave
+    /// the register file and walk the stack recursively; they now run a stored
+    /// member list forward into a scratch level of their own. These digests were
+    /// captured from the recursive walk before it was deleted.
+    #[test]
+    fn substituted_position_evaluation_matches_the_recursive_walk() {
+        const EXPECTED: &[(&str, &str, u64)] = &[
+            ("caves.json", "chunk_surface_level", 0x14d5bceae7b5b1a5),
+            ("caves.json", "continents", 0x14d5bceae7b5b1a5),
+            ("caves.json", "depth", 0x14d5bceae7b5b1a5),
+            ("caves.json", "erosion", 0x14d5bceae7b5b1a5),
+            ("caves.json", "final_density", 0x59ee0276aa40e18e),
+            ("caves.json", "ridges", 0x14d5bceae7b5b1a5),
+            ("caves.json", "temperature", 0x14d5bceae7b5b1a5),
+            ("caves.json", "vegetation", 0x14d5bceae7b5b1a5),
+            ("end.json", "chunk_surface_level", 0x14d5bceae7b5b1a5),
+            ("end.json", "continents", 0x14d5bceae7b5b1a5),
+            ("end.json", "depth", 0x14d5bceae7b5b1a5),
+            ("end.json", "erosion", 0xa6b0d65c5400b585),
+            ("end.json", "final_density", 0x2e692d68276d0b0f),
+            ("end.json", "ridges", 0x14d5bceae7b5b1a5),
+            ("end.json", "temperature", 0x14d5bceae7b5b1a5),
+            ("end.json", "vegetation", 0x14d5bceae7b5b1a5),
+            (
+                "floating_islands.json",
+                "chunk_surface_level",
+                0x14d5bceae7b5b1a5,
+            ),
+            ("floating_islands.json", "continents", 0x14d5bceae7b5b1a5),
+            ("floating_islands.json", "depth", 0x14d5bceae7b5b1a5),
+            ("floating_islands.json", "erosion", 0x14d5bceae7b5b1a5),
+            ("floating_islands.json", "final_density", 0x34670f4acb0f9c53),
+            ("floating_islands.json", "ridges", 0x14d5bceae7b5b1a5),
+            ("floating_islands.json", "temperature", 0x14d5bceae7b5b1a5),
+            ("floating_islands.json", "vegetation", 0x14d5bceae7b5b1a5),
+            ("nether.json", "chunk_surface_level", 0x14d5bceae7b5b1a5),
+            ("nether.json", "continents", 0x14d5bceae7b5b1a5),
+            ("nether.json", "depth", 0x14d5bceae7b5b1a5),
+            ("nether.json", "erosion", 0x14d5bceae7b5b1a5),
+            ("nether.json", "final_density", 0x7fa120eb23cf8e2d),
+            ("nether.json", "ridges", 0x14d5bceae7b5b1a5),
+            ("nether.json", "temperature", 0xb2576844c806bd65),
+            ("nether.json", "vegetation", 0x053a8c98b160a025),
+            ("overworld.json", "chunk_surface_level", 0x797cbee7e2025605),
+            ("overworld.json", "continents", 0x1abef3bb8dc94ee5),
+            ("overworld.json", "depth", 0x80adf8d39580cc42),
+            ("overworld.json", "erosion", 0x41903cf3b87af165),
+            ("overworld.json", "final_density", 0xb5e2f421ac2d79f9),
+            ("overworld.json", "ridges", 0x75248f177bef94a5),
+            ("overworld.json", "temperature", 0x737146785309bbd5),
+            ("overworld.json", "vegetation", 0x9a2b3c9a221c5875),
+        ];
+
+        let mut digests: std::collections::BTreeMap<(&str, &str), u64> =
+            std::collections::BTreeMap::new();
+        for settings in [
+            "overworld.json",
+            "end.json",
+            "nether.json",
+            "caves.json",
+            "floating_islands.json",
+        ] {
+            let router = router_for(settings);
+            let mut roots = router.roots();
+            roots.sort_by_key(|&(_, index)| index);
+            let mut scratch = router.new_scratch();
+            for x in [-37i32, 0, 3, 16, 41] {
+                for z in [-19i32, 0, 5, 12, 64] {
+                    for y in [-60i32, -1, 0, 3, 55, 64, 71, 200] {
+                        let pos = bevy_math::IVec3::new(x, y, z);
+                        for &(name, index) in roots.iter() {
+                            let bits = router.dense_forward(index, pos, &mut scratch).to_bits();
+                            let digest = digests
+                                .entry((settings, name))
+                                .or_insert(0xcbf2_9ce4_8422_2325);
+                            for shift in [0, 8, 16, 24] {
+                                *digest ^= ((bits >> shift) & 0xff) as u64;
+                                *digest = digest.wrapping_mul(0x100_0000_01b3);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for &(settings, name, expected) in EXPECTED {
+            assert_eq!(
+                digests.get(&(settings, name)).copied(),
+                Some(expected),
+                "{settings} {name} moved"
+            );
+        }
+        assert_eq!(digests.len(), EXPECTED.len());
     }
 }
