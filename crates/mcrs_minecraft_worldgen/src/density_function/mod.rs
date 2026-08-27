@@ -1677,6 +1677,9 @@ struct BlendedNoise {
     max_value: f32,
     limit_smear: f64,
     main_smear: f64,
+    /// The fBm value factor folded into each main-noise layer, narrowed to f32
+    /// per layer. Applying it once after the sum instead rounds differently.
+    main_amplitudes: [f32; MAIN_OCTAVES],
     /// Trailing divisor applied after the combine. Modern path passes 128.0; Beta path
     /// passes 1.0 (no division) — verified against ChunkProviderGenerate.java:280-297
     /// which has NO /128 vs BlendedNoise.java:159 which does.
@@ -1705,6 +1708,13 @@ impl Debug for BlendedNoise {
 }
 
 const LIMIT_OCTAVES: u32 = 16;
+const MAIN_OCTAVES: usize = 8;
+const MAIN_VALUE_FACTOR: f64 = 12.75;
+
+fn fbm_amplitudes<const N: usize>(value_factor: f64) -> [f32; N] {
+    let base = value_factor / ((1u64 << N) - 1) as f64;
+    std::array::from_fn(|i| (base * (1u64 << i) as f64) as f32)
+}
 
 impl BlendedNoise {
     pub fn new(
@@ -1741,6 +1751,7 @@ impl BlendedNoise {
             max_value,
             limit_smear,
             main_smear,
+            main_amplitudes: fbm_amplitudes(MAIN_VALUE_FACTOR),
             final_divisor,
             lower_interpolated_noise,
             upper_interpolated_noise: OctavePerlinNoise::<f32>::new(
@@ -1789,9 +1800,8 @@ impl BlendedNoise {
         }
         let mut interp_values = [0.0f32; MAX_BATCH];
         let mut main_smear = self.main_smear;
-        let mut amplitude = 1.0f32;
 
-        for i in 0..8 {
+        for i in 0..MAIN_OCTAVES {
             for j in 0..n {
                 positions_buf[j] = (
                     OctavePerlinNoise::maintain_precission(interp_fxs[j]),
@@ -1810,13 +1820,12 @@ impl BlendedNoise {
             );
 
             for j in 0..n {
-                interp_values[j] += octave_results[j] * amplitude;
+                interp_values[j] += octave_results[j] * self.main_amplitudes[i];
                 interp_fxs[j] *= 0.5;
                 interp_fys[j] *= 0.5;
                 interp_fzs[j] *= 0.5;
             }
             main_smear *= 0.5;
-            amplitude *= 2.0;
         }
 
         // Mirror the scalar path's laziness: only evaluate the lower (resp. upper)
@@ -1828,7 +1837,7 @@ impl BlendedNoise {
         let mut n_lower = 0;
         let mut n_upper = 0;
         for j in 0..n {
-            let value = (interp_values[j] / 10.0 + 1.0) / 2.0;
+            let value = interp_values[j] + 0.5;
             blend_values[j] = value;
             if value < 1.0 {
                 lower_idx[n_lower] = j;
@@ -1852,7 +1861,7 @@ impl BlendedNoise {
         }
         let mut lower_values = [0.0f32; MAX_BATCH];
         let mut sm: f64 = self.limit_smear;
-        amplitude = 1.0;
+        let mut amplitude = 1.0f32;
 
         for i in 0..16 {
             for k in 0..n_lower {
@@ -1971,8 +1980,7 @@ impl DensityFunction for BlendedNoise {
 
         // Interpolated noise: 8 octaves.
         let mut value = 0.0f32;
-        let mut amplitude = 1.0f32;
-        for i in 0..8 {
+        for i in 0..MAIN_OCTAVES {
             let s = self.interpolated_noise.sample_octave(
                 i,
                 OctavePerlinNoise::maintain_precission(fx),
@@ -1981,15 +1989,14 @@ impl DensityFunction for BlendedNoise {
                 main_smear,
                 fy,
             );
-            value += s * amplitude;
+            value += s * self.main_amplitudes[i];
             fx *= 0.5;
             fy *= 0.5;
             fz *= 0.5;
             main_smear *= 0.5;
-            amplitude *= 2.0;
         }
 
-        value = (value / 10.0 + 1.0) / 2.0;
+        value += 0.5;
         let need_lower = value < 1.0;
         let need_upper = value > 0.0;
         let mut min = 0.0f32;
