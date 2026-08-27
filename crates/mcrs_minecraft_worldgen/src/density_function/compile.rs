@@ -1823,18 +1823,26 @@ impl<'a> FunctionStackBuilder<'a> {
     }
 
     fn create_noise(&mut self, id: &ResourceLocation) -> NoiseSampler {
-        if let RandomSource::Legacy(r) = &self.random {
+        match id.as_str() {
+            "minecraft:nether/temperature" => {
+                return NoiseSampler::new(
+                    &mut LegacyRandom::new(self.world_seed),
+                    -7,
+                    vec![1.0, 1.0],
+                );
+            }
+            "minecraft:nether/vegetation" => {
+                return NoiseSampler::new(
+                    &mut LegacyRandom::new(self.world_seed.wrapping_add(1)),
+                    -7,
+                    vec![1.0, 1.0],
+                );
+            }
+            _ => {}
+        }
+
+        if let RandomSource::Legacy(_) = &self.random {
             match id.as_str() {
-                "minecraft:temperature" => {
-                    return NoiseSampler::new(&mut LegacyRandom::new(r.seed), -7, vec![1.0, 1.0]);
-                }
-                "minecraft:vegetation" => {
-                    return NoiseSampler::new(
-                        &mut LegacyRandom::new(r.seed + 1),
-                        -7,
-                        vec![1.0, 1.0],
-                    );
-                }
                 "minecraft:offset" => {
                     return NoiseSampler::new(
                         &mut self.random.clone().fork_hash("minecraft:offset"),
@@ -1890,10 +1898,15 @@ mod arithmetic_node_tests {
     use super::{
         DensityFunctionComponent, DependentDensityFunction, FunctionStackBuilder, UnaryOperation,
     };
-    use crate::density_function::proto::{DensityFunctionHolder, ProtoDensityFunction};
+    use crate::density_function::proto::{
+        DensityFunctionHolder, HashableF64, NoiseParam, Normalization, ProtoDensityFunction,
+    };
+    use crate::noise::normal_noise::NoiseSampler;
     use crate::spline::RangeFunction;
     use bevy_math::IVec3;
-    use mcrs_minecraft_random::RandomSource;
+    use mcrs_minecraft_core::ResourceLocation;
+    use mcrs_minecraft_random::legacy::LegacyRandom;
+    use mcrs_minecraft_random::{Random, RandomSource};
     use std::collections::BTreeMap;
 
     fn build(json: &str) -> (f32, f32, f32) {
@@ -2024,6 +2037,62 @@ mod arithmetic_node_tests {
         ));
         assert_eq!(value, 0.0);
         assert_eq!((min, max), (0.0, 12.0));
+    }
+
+    fn nether_climate_params() -> NoiseParam {
+        NoiseParam {
+            base_octave: -7,
+            base_amplitude: HashableF64(0.9494731054427981),
+            octave_count: 2,
+            normalize: Normalization::Enabled,
+            amplitude_modifiers: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn the_nether_climate_noises_are_seeded_the_legacy_way() {
+        const SEED: u64 = 845;
+        let functions = BTreeMap::new();
+        let mut noises = BTreeMap::new();
+        for name in [
+            "minecraft:nether/temperature",
+            "minecraft:nether/vegetation",
+        ] {
+            noises.insert(
+                ResourceLocation::parse(name).unwrap().into(),
+                nether_climate_params(),
+            );
+        }
+        let mut builder =
+            FunctionStackBuilder::new(RandomSource::new(SEED, true), SEED, &functions, &noises);
+
+        for (name, seed_offset) in [
+            ("minecraft:nether/temperature", 0),
+            ("minecraft:nether/vegetation", 1),
+        ] {
+            let id = ResourceLocation::parse(name).unwrap().into();
+            let built = builder.create_noise(&id);
+            assert_eq!(
+                built,
+                NoiseSampler::new(
+                    &mut LegacyRandom::new(SEED + seed_offset),
+                    -7,
+                    vec![1.0, 1.0]
+                ),
+                "{name} must come from a raw legacy stream"
+            );
+            let param = nether_climate_params();
+            assert_ne!(
+                built,
+                NoiseSampler::from_params(
+                    &mut RandomSource::new(SEED, true).fork_hash(name),
+                    param.base_octave,
+                    param.octave_amplitudes(),
+                    param.base_amplitude.0,
+                ),
+                "{name} must not fall through to the hashed fork"
+            );
+        }
     }
 
     fn unary_operation(json: &str) -> Option<UnaryOperation> {
