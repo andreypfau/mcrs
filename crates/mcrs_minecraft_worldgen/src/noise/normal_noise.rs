@@ -103,12 +103,22 @@ impl NoiseSampler {
         let expected_deviation = 0.1 * (1.0 + 1.0 / (max - min + 1.0));
         let value_factor = (1.0 / 6.0) / expected_deviation;
         let base_persistence = first.persistence();
+        let octave_count = amplitudes.len() as i32;
+        let persistence = 2.0f64.powi(octave_count - 1) / (2.0f64.powi(octave_count) - 1.0);
+        let input_deviation = deviation(
+            amplitudes
+                .iter()
+                .enumerate()
+                .map(|(i, a)| persistence * 0.5f64.powi(i as i32) * *a as f64),
+        );
         let layers = build_layers(first, second, first_octave, |i| {
             let persistence = base_persistence * 0.5f32.powi(i as i32);
             persistence * amplitudes[i] * value_factor
         });
         Self::Normal(NormalNoise {
-            max_value: stack_max_value(&layers),
+            max_value: symmetric_bound(
+                3.0 * std::f64::consts::SQRT_2 * input_deviation * value_factor as f64,
+            ),
             layers,
         })
     }
@@ -145,12 +155,7 @@ impl NoiseSampler {
         }
 
         let target_amplitude = compensated_sum(octave_amplitude.iter().flatten().map(|a| a.abs()));
-        let mut variance = 0.0f64;
-        for a in octave_amplitude.iter().flatten() {
-            let layer_deviation = PERLIN_STANDARD_DEVIATION * a.abs();
-            variance += layer_deviation * layer_deviation;
-        }
-        let input_deviation = variance.sqrt();
+        let input_deviation = deviation(octave_amplitude.iter().flatten().copied());
         let normalization_factor = if input_deviation == 0.0 {
             0.0
         } else {
@@ -161,7 +166,7 @@ impl NoiseSampler {
             (normalization_factor * octave_amplitude[i].unwrap_or(0.0)) as f32
         });
         Self::Normal(NormalNoise {
-            max_value: stack_max_value(&layers),
+            max_value: symmetric_bound(target_amplitude),
             layers,
         })
     }
@@ -272,8 +277,20 @@ fn wrap(value: f64) -> f64 {
     OctavePerlinNoise::<f32>::maintain_precission(value)
 }
 
-fn stack_max_value(layers: &[Layer]) -> f32 {
-    layers.iter().map(|l| l.amplitude.abs() * 2.0).sum()
+fn deviation(amplitudes: impl Iterator<Item = f64>) -> f64 {
+    let mut variance = 0.0f64;
+    for a in amplitudes {
+        let layer_deviation = PERLIN_STANDARD_DEVIATION * a.abs();
+        variance += layer_deviation * layer_deviation;
+    }
+    variance.sqrt()
+}
+
+// Deliberately a six-sigma statistical bound on the summed octaves, not the analytically
+// rigorous extreme (which is ~2x wider). Branch elimination consumes it, and widening it
+// to the rigorous form silently changes generated terrain.
+fn symmetric_bound(target_amplitude: f64) -> f32 {
+    (target_amplitude * TARGET_DEVIATION * 6.0) as f32
 }
 
 // The reference totals the octave amplitudes with compensated summation, and that total
@@ -346,3 +363,26 @@ fn compensated_sum(values: impl Iterator<Item = f64>) -> f64 {
 //         }
 //     }
 // }
+
+#[cfg(test)]
+mod bound_tests {
+    use super::NoiseSampler;
+    use mcrs_minecraft_random::legacy::LegacyRandom;
+
+    #[test]
+    fn reported_range_is_the_six_sigma_bound() {
+        let continentalness = NoiseSampler::from_params(
+            &mut LegacyRandom::new(1),
+            -9,
+            vec![1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0],
+            0.8880832896205223,
+        );
+        assert_eq!(continentalness.max_value(), 2.1654634);
+
+        let legacy_temperature = NoiseSampler::new(&mut LegacyRandom::new(82), -7, vec![1.0, 1.0]);
+        assert_eq!(legacy_temperature.max_value(), 1.898946);
+
+        let legacy_offset = NoiseSampler::new(&mut LegacyRandom::new(82), 0, vec![0.0]);
+        assert_eq!(legacy_offset.max_value(), 0.0);
+    }
+}
