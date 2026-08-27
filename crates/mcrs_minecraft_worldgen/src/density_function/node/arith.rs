@@ -25,23 +25,10 @@ use std::sync::Arc;
 use tracing::info;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Linear {
-    pub(crate) input_index: usize,
-    pub(crate) argument: f32,
-    pub(crate) operation: LinearOperation,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Affine {
     pub(crate) input_index: usize,
     pub(crate) scale: f32,
     pub(crate) offset: f32,
-}
-
-#[derive(Clone, Debug, PartialEq, Copy, Eq)]
-pub(crate) enum LinearOperation {
-    Add,
-    Multiply,
 }
 
 impl Affine {
@@ -57,8 +44,8 @@ impl Affine {
 
 /// Piecewise-linear affine: different scales for negative vs non-negative input.
 ///
-/// Replaces patterns like `Affine(Unary::QuarterNegative(x))` or
-/// `Affine(Unary::HalfNegative(x))` where the unary damps the negative side.
+/// Replaces `Affine(LeakyReLU(x))`, where the leaky rectifier damps the
+/// negative side.
 ///
 /// Computes: `if x < 0 { x * neg_scale + offset } else { x * pos_scale + offset }`
 #[derive(Clone, Debug, PartialEq)]
@@ -164,12 +151,6 @@ impl Slide {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Unary {
-    pub(crate) input_index: usize,
-    pub(crate) operation: UnaryOperation,
-}
-
 #[derive(Clone, Debug, PartialEq, Copy, Eq)]
 pub(crate) enum UnaryOperation {
     Abs,
@@ -211,15 +192,12 @@ impl UnaryOperation {
                 clamped / 2.0 - clamped * clamped * clamped / 24.0
             }
             UnaryOperation::Sqrt => value.sqrt(),
-            UnaryOperation::Log => (value as f64).ln() as f32,
-            // Unlike f32::signum, zero and NaN come back unchanged.
+            UnaryOperation::Log => value.ln(),
             UnaryOperation::Sign => {
-                if value == 0.0 || value.is_nan() {
+                if value == 0.0 {
                     value
-                } else if value > 0.0 {
-                    1.0
                 } else {
-                    -1.0
+                    1.0_f32.copysign(value)
                 }
             }
         }
@@ -234,13 +212,6 @@ pub(crate) struct Clamp {
     /// clamp that can never bite be eliminated outright.
     pub(crate) min: f32,
     pub(crate) max: f32,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Binary {
-    pub(crate) input1_index: usize,
-    pub(crate) input2_index: usize,
-    pub(crate) operation: BinaryOperation,
 }
 
 #[derive(Clone, Debug, PartialEq, Copy, Eq)]
@@ -262,13 +233,7 @@ impl BinaryOperation {
             BinaryOperation::Add => a + b,
             BinaryOperation::Subtract => a - b,
             BinaryOperation::Multiply => a * b,
-            BinaryOperation::Divide => {
-                if a == 0.0 {
-                    0.0
-                } else {
-                    a / b
-                }
-            }
+            BinaryOperation::Divide => a / b,
             BinaryOperation::Min => a.min(b),
             BinaryOperation::Max => a.max(b),
             BinaryOperation::Pow => a.powf(b),
@@ -348,7 +313,7 @@ const_binary_samplers! {
     ConstMin, value, argument => value.min(argument);
     ConstMax, value, argument => value.max(argument);
     ConstSub, value, argument => argument - value;
-    ConstDiv, value, argument => if argument == 0.0 { 0.0 } else { argument / value };
+    ConstDiv, value, argument => argument / value;
 }
 
 macro_rules! two_input_samplers {
@@ -408,17 +373,11 @@ one_input_samplers! {
     Reciprocal, v => 1.0 / v;
     Sqrt, v => v.sqrt();
     Log, v => v.ln();
-    /// `f32::signum` answers 1.0 at zero, where the reference answers zero.
-    Sign, v => if v == 0.0 || v.is_nan() { v } else if v > 0.0 { 1.0 } else { -1.0 };
+    Sign, v => if v == 0.0 { v } else { 1.0_f32.copysign(v) };
     Squeeze, v => {
         let clamped = v.clamp(-1.0, 1.0);
         clamped / 2.0 - clamped * clamped * clamped / 24.0
     };
-}
-
-const_binary_samplers! {
-    ConstAdd, value, argument => value + argument;
-    ConstMul, value, argument => value * argument;
 }
 
 /// Negative values are scaled, positive ones pass through.
@@ -426,6 +385,17 @@ const_binary_samplers! {
 pub(crate) struct LeakyReLU {
     pub(crate) input_index: usize,
     pub(crate) negative_factor: f32,
+}
+
+impl LeakyReLU {
+    #[inline]
+    pub(crate) fn apply(&self, value: f32) -> f32 {
+        if value > 0.0 {
+            value
+        } else {
+            value * self.negative_factor
+        }
+    }
 }
 
 impl DensitySampler for LeakyReLU {

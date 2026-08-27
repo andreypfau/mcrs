@@ -229,42 +229,12 @@ impl<'a> Walker<'a> {
                     }
                 },
                 Sampler::Dependent(f) => match f {
-                    DependentDensityFunction::Linear(x2) => {
-                        let a = self.iv[x2.input_index];
-                        let argument = Interval::exact(x2.argument);
-                        match x2.operation {
-                            LinearOperation::Add => a + argument,
-                            LinearOperation::Multiply => a * argument,
-                        }
-                    }
-                    DependentDensityFunction::Affine(x2) => {
-                        Affine::compute_range(self.iv[x2.input_index], x2.scale, x2.offset)
-                    }
-                    DependentDensityFunction::PiecewiseAffine(x2) => {
-                        PiecewiseAffine::compute_range(
-                            self.iv[x2.input_index],
-                            x2.neg_scale,
-                            x2.pos_scale,
-                            x2.offset,
-                        )
-                    }
                     DependentDensityFunction::Slide(x2) => {
                         let g1 = grad_iv(&x2.grad1, y_lo as f32, y_hi as f32);
                         let g2 = grad_iv(&x2.grad2, y_lo as f32, y_hi as f32);
                         let inner = self.iv[x2.input_index] + Interval::exact(x2.offset_a);
                         (g1 * inner + Interval::exact(x2.offset_b)) * g2
                             + Interval::exact(x2.offset_c)
-                    }
-                    DependentDensityFunction::Unary(x2) => {
-                        unary_range(x2.operation, self.iv[x2.input_index])
-                    }
-                    DependentDensityFunction::Binary(x2) => binary_range(
-                        x2.operation,
-                        self.iv[x2.input1_index],
-                        self.iv[x2.input2_index],
-                    ),
-                    DependentDensityFunction::Clamp(x2) => {
-                        self.iv[x2.input_index].clamped(x2.min, x2.max)
                     }
                     DependentDensityFunction::RangeChoice(x2) => {
                         let a = self.iv[x2.input_index];
@@ -293,15 +263,13 @@ impl<'a> Walker<'a> {
                             wi.union(wo)
                         }
                     }
-                    DependentDensityFunction::Lerp(x2) => Interval::lerp(
-                        self.iv[x2.alpha_index],
-                        self.iv[x2.first_index],
-                        self.iv[x2.second_index],
-                    ),
-                    _ => {
-                        stats.static_fallbacks += 1;
-                        statik()
-                    }
+                    _ => match dependent_range(f, &self.iv) {
+                        Some(bounds) => bounds,
+                        None => {
+                            stats.static_fallbacks += 1;
+                            statik()
+                        }
+                    },
                 },
                 Sampler::Interpolated(x2) => self.iv[x2.input_index],
             };
@@ -710,18 +678,13 @@ pub(super) fn kind_name(c: &DensityFunctionComponent) -> &'static str {
             IndependentDensityFunction::EndOuterIslands(_) => "EndOuterIslands",
         },
         Sampler::Dependent(f) => match f {
-            DependentDensityFunction::Linear(_) => "Linear",
             DependentDensityFunction::Affine(_) => "Affine",
             DependentDensityFunction::PiecewiseAffine(_) => "PiecewiseAffine",
             DependentDensityFunction::Slide(_) => "Slide",
-            DependentDensityFunction::Unary(_) => "Unary",
-            DependentDensityFunction::Binary(_) => "Binary",
             DependentDensityFunction::ConstMin(_) => "ConstMin",
             DependentDensityFunction::ConstMax(_) => "ConstMax",
             DependentDensityFunction::ConstSub(_) => "ConstSub",
             DependentDensityFunction::ConstDiv(_) => "ConstDiv",
-            DependentDensityFunction::ConstAdd(_) => "ConstAdd",
-            DependentDensityFunction::ConstMul(_) => "ConstMul",
             DependentDensityFunction::Abs(_) => "Abs",
             DependentDensityFunction::Square(_) => "Square",
             DependentDensityFunction::Cube(_) => "Cube",

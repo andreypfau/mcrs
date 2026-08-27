@@ -53,24 +53,21 @@ fn lower_constant_exponent(
     })
 }
 
-/// Check if a Binary::Multiply has one ClampedYGradient input.
+/// Check if a multiply has one ClampedYGradient input.
 /// Returns (gradient, other_input_index) if found.
 pub(super) fn extract_mul_y_grad(
-    bin: &Binary,
+    mul: &Mul,
     stack: &[DensityFunctionComponent],
 ) -> Option<(ClampedYGradient, usize)> {
-    if bin.operation != BinaryOperation::Multiply {
-        return None;
+    if let Sampler::Independent(IndependentDensityFunction::ClampedYGradient(g)) =
+        &stack[mul.input1_index].sampler
+    {
+        return Some((g.clone(), mul.input2_index));
     }
     if let Sampler::Independent(IndependentDensityFunction::ClampedYGradient(g)) =
-        &stack[bin.input1_index].sampler
+        &stack[mul.input2_index].sampler
     {
-        return Some((g.clone(), bin.input2_index));
-    }
-    if let Sampler::Independent(IndependentDensityFunction::ClampedYGradient(g)) =
-        &stack[bin.input2_index].sampler
-    {
-        return Some((g.clone(), bin.input1_index));
+        return Some((g.clone(), mul.input1_index));
     }
     None
 }
@@ -83,21 +80,21 @@ pub(super) fn try_build_slide(idx: usize, stack: &[DensityFunctionComponent]) ->
         _ => None,
     };
     let multiply = |i: usize| match &stack[i].sampler {
-        Sampler::Dependent(DependentDensityFunction::Binary(b)) => Some(b),
+        Sampler::Dependent(DependentDensityFunction::Mul(m)) => Some(m),
         _ => None,
     };
 
     // Node at idx must be Affine with scale=1.0 (the outermost "add offset_c")
     let aff_c = affine_with_unit_scale(idx)?;
 
-    // Its input must be Binary::Multiply with a ClampedYGradient
+    // Its input must be a multiply with a ClampedYGradient
     let mul2 = multiply(aff_c.input_index)?;
     let (grad2, aff_b_idx) = extract_mul_y_grad(mul2, stack)?;
 
     // The other Mul input must be Affine with scale=1.0
     let aff_b = affine_with_unit_scale(aff_b_idx)?;
 
-    // Its input must be Binary::Multiply with a ClampedYGradient
+    // Its input must be a multiply with a ClampedYGradient
     let mul1 = multiply(aff_b.input_index)?;
     let (grad1, aff_a_idx) = extract_mul_y_grad(mul1, stack)?;
 
@@ -130,108 +127,322 @@ pub(super) fn try_build_slide(idx: usize, stack: &[DensityFunctionComponent]) ->
     })
 }
 
-/// Rewrite the optimiser's operation-carrying nodes into one concrete sampler
-/// per operation, so no fill loop carries a branch on which operation it is.
-fn lower_to_samplers(stack: &mut [DensityFunctionComponent]) {
-    let constants: Vec<Option<f32>> = stack.iter().map(|c| c.as_constant()).collect();
-    for component in stack.iter_mut() {
-        let Sampler::Dependent(f) = &component.sampler else {
-            continue;
+/// Choosing a sampler for an operation either collapses it onto a node that
+/// already exists or produces exactly one concrete node — never a node that
+/// still has to decide, at fill time, which operation it is.
+#[allow(clippy::large_enum_variant)]
+enum Lowering {
+    Redirect(usize),
+    Node(DensityFunctionComponent),
+}
+
+impl Lowering {
+    fn dependent(range: Interval, function: DependentDensityFunction) -> Self {
+        Lowering::Node(DensityFunctionComponent::dependent(range, function))
+    }
+
+    fn constant(value: f32) -> Self {
+        Lowering::Node(DensityFunctionComponent::constant(value))
+    }
+}
+
+fn lower_affine(
+    stack: &[DensityFunctionComponent],
+    input_index: usize,
+    scale: f32,
+    offset: f32,
+) -> Lowering {
+    let input = &stack[input_index];
+    if let Some(value) = input.as_constant() {
+        return Lowering::constant(value.mul_add(scale, offset));
+    }
+    if scale == 0.0 {
+        return Lowering::constant(offset);
+    }
+    if scale == 1.0 && offset == 0.0 {
+        return Lowering::Redirect(input_index);
+    }
+    Lowering::dependent(
+        Affine::compute_range(input.range, scale, offset),
+        DependentDensityFunction::Affine(Affine {
+            input_index,
+            scale,
+            offset,
+        }),
+    )
+}
+
+fn lower_unary(
+    stack: &[DensityFunctionComponent],
+    operation: UnaryOperation,
+    input_index: usize,
+) -> Lowering {
+    let input = &stack[input_index];
+    if let Some(value) = input.as_constant() {
+        return Lowering::constant(operation.apply(value));
+    }
+    macro_rules! one_input {
+        ($variant:ident) => {
+            DependentDensityFunction::$variant($variant { input_index })
         };
-        let lowered = match f {
-            DependentDensityFunction::Binary(x) => {
-                macro_rules! two_input {
-                    ($variant:ident) => {
-                        DependentDensityFunction::$variant($variant {
-                            input1_index: x.input1_index,
-                            input2_index: x.input2_index,
-                        })
-                    };
-                }
-                match x.operation {
-                    BinaryOperation::Add => two_input!(Add),
-                    BinaryOperation::Subtract => two_input!(Sub),
-                    BinaryOperation::Multiply => two_input!(Mul),
-                    BinaryOperation::Divide => two_input!(Div),
-                    BinaryOperation::Min => two_input!(Min),
-                    BinaryOperation::Max => two_input!(Max),
-                    // The reference tests the base first, so a constant base wins
-                    // even when the exponent is constant too.
-                    BinaryOperation::Pow => {
-                        match (constants[x.input1_index], constants[x.input2_index]) {
-                            (Some(base), _) => {
-                                DependentDensityFunction::ConstBasePow(ConstBasePow {
-                                    input_index: x.input2_index,
-                                    base,
-                                })
-                            }
-                            (None, Some(exponent)) => {
-                                DependentDensityFunction::ConstExponentPow(ConstExponentPow {
-                                    input_index: x.input1_index,
-                                    exponent,
-                                })
-                            }
-                            (None, None) => two_input!(Pow),
-                        }
-                    }
-                    BinaryOperation::Round(mode) => match constants[x.input2_index] {
-                        Some(multiple) => {
-                            DependentDensityFunction::IntegerMultipleRound(IntegerMultipleRound {
-                                input_index: x.input1_index,
-                                multiple,
-                                mode,
-                            })
-                        }
-                        None => DependentDensityFunction::Round(Round {
-                            input1_index: x.input1_index,
-                            input2_index: x.input2_index,
-                            mode,
-                        }),
-                    },
-                }
-            }
-            DependentDensityFunction::Unary(x) => {
-                macro_rules! one_input {
-                    ($variant:ident) => {
-                        DependentDensityFunction::$variant($variant {
-                            input_index: x.input_index,
-                        })
-                    };
-                }
-                match x.operation {
-                    UnaryOperation::Abs => one_input!(Abs),
-                    UnaryOperation::Square => one_input!(Square),
-                    UnaryOperation::Cube => one_input!(Cube),
-                    UnaryOperation::Reciprocal => one_input!(Reciprocal),
-                    UnaryOperation::Squeeze => one_input!(Squeeze),
-                    UnaryOperation::Sqrt => one_input!(Sqrt),
-                    UnaryOperation::Log => one_input!(Log),
-                    UnaryOperation::Sign => one_input!(Sign),
-                    UnaryOperation::HalfNegative | UnaryOperation::QuarterNegative => {
-                        DependentDensityFunction::LeakyReLU(LeakyReLU {
-                            input_index: x.input_index,
-                            negative_factor: if x.operation == UnaryOperation::HalfNegative {
-                                0.5
-                            } else {
-                                0.25
-                            },
-                        })
-                    }
-                }
-            }
-            DependentDensityFunction::Linear(x) => match x.operation {
-                LinearOperation::Add => DependentDensityFunction::ConstAdd(ConstAdd {
-                    input_index: x.input_index,
-                    argument: x.argument,
+    }
+    let leaky = |negative_factor| {
+        DependentDensityFunction::LeakyReLU(LeakyReLU {
+            input_index,
+            negative_factor,
+        })
+    };
+    let function = match operation {
+        UnaryOperation::Abs => one_input!(Abs),
+        UnaryOperation::Square => one_input!(Square),
+        UnaryOperation::Cube => one_input!(Cube),
+        UnaryOperation::Reciprocal => one_input!(Reciprocal),
+        UnaryOperation::Squeeze => one_input!(Squeeze),
+        UnaryOperation::Sqrt => one_input!(Sqrt),
+        UnaryOperation::Log => one_input!(Log),
+        UnaryOperation::Sign => one_input!(Sign),
+        UnaryOperation::HalfNegative => leaky(0.5),
+        UnaryOperation::QuarterNegative => leaky(0.25),
+    };
+    Lowering::dependent(unary_range(operation, input.range), function)
+}
+
+/// The reference picks a constant-operand sampler wherever one operand compiled
+/// to a constant, so the constant is baked in rather than read from a row.
+fn lower_binary(
+    stack: &[DensityFunctionComponent],
+    operation: BinaryOperation,
+    input1_index: usize,
+    input2_index: usize,
+) -> Lowering {
+    let left = &stack[input1_index];
+    let right = &stack[input2_index];
+    let left_constant = left.as_constant();
+    let right_constant = right.as_constant();
+    if let (Some(a), Some(b)) = (left_constant, right_constant) {
+        return Lowering::constant(operation.apply(a, b));
+    }
+    let range = binary_range(operation, left.range, right.range);
+    macro_rules! two_input {
+        ($variant:ident) => {
+            Lowering::dependent(
+                range,
+                DependentDensityFunction::$variant($variant {
+                    input1_index,
+                    input2_index,
                 }),
-                LinearOperation::Multiply => DependentDensityFunction::ConstMul(ConstMul {
-                    input_index: x.input_index,
-                    argument: x.argument,
-                }),
-            },
-            _ => continue,
+            )
         };
-        component.sampler = Sampler::Dependent(lowered);
+    }
+    macro_rules! const_operand {
+        ($variant:ident, $input_index:expr, $argument:expr) => {
+            Lowering::dependent(
+                range,
+                DependentDensityFunction::$variant($variant {
+                    input_index: $input_index,
+                    argument: $argument,
+                }),
+            )
+        };
+    }
+    match operation {
+        BinaryOperation::Add => match (left_constant, right_constant) {
+            (Some(c), None) => lower_affine(stack, input2_index, 1.0, c),
+            (None, Some(c)) => lower_affine(stack, input1_index, 1.0, c),
+            _ if input1_index == input2_index => lower_affine(stack, input1_index, 2.0, 0.0),
+            _ => two_input!(Add),
+        },
+        BinaryOperation::Subtract => match (left_constant, right_constant) {
+            // `c - x` keeps the constant on the left, so it is its own sampler
+            // rather than a scaled input.
+            (Some(c), None) => const_operand!(ConstSub, input2_index, c),
+            // `x - c` is exactly `x + (-c)`: negation is exact in binary floating point.
+            (None, Some(c)) => lower_affine(stack, input1_index, 1.0, -c),
+            _ => two_input!(Sub),
+        },
+        BinaryOperation::Multiply => match (left_constant, right_constant) {
+            (Some(c), None) => lower_affine(stack, input2_index, c, 0.0),
+            (None, Some(c)) => lower_affine(stack, input1_index, c, 0.0),
+            _ if input1_index == input2_index => Lowering::dependent(
+                left.range.square(),
+                DependentDensityFunction::Square(Square {
+                    input_index: input1_index,
+                }),
+            ),
+            _ => two_input!(Mul),
+        },
+        BinaryOperation::Divide => match (left_constant, right_constant) {
+            (Some(c), None) => const_operand!(ConstDiv, input2_index, c),
+            (None, Some(c)) => lower_affine(stack, input1_index, 1.0 / c, 0.0),
+            _ => two_input!(Div),
+        },
+        BinaryOperation::Min => {
+            if input1_index == input2_index || left.range.max() <= right.range.min() {
+                return Lowering::Redirect(input1_index);
+            }
+            if right.range.max() <= left.range.min() {
+                return Lowering::Redirect(input2_index);
+            }
+            match (left_constant, right_constant) {
+                (Some(c), None) => const_operand!(ConstMin, input2_index, c),
+                (None, Some(c)) => const_operand!(ConstMin, input1_index, c),
+                _ => two_input!(Min),
+            }
+        }
+        BinaryOperation::Max => {
+            if input1_index == input2_index || left.range.min() >= right.range.max() {
+                return Lowering::Redirect(input1_index);
+            }
+            if right.range.min() >= left.range.max() {
+                return Lowering::Redirect(input2_index);
+            }
+            match (left_constant, right_constant) {
+                (Some(c), None) => const_operand!(ConstMax, input2_index, c),
+                (None, Some(c)) => const_operand!(ConstMax, input1_index, c),
+                _ => two_input!(Max),
+            }
+        }
+        // The reference tests the base first, so a constant base wins even when
+        // the exponent is constant too.
+        BinaryOperation::Pow => match (left_constant, right_constant) {
+            (Some(base), _) => Lowering::dependent(
+                range,
+                DependentDensityFunction::ConstBasePow(ConstBasePow {
+                    input_index: input2_index,
+                    base,
+                }),
+            ),
+            (None, Some(exponent)) => Lowering::dependent(
+                range,
+                DependentDensityFunction::ConstExponentPow(ConstExponentPow {
+                    input_index: input1_index,
+                    exponent,
+                }),
+            ),
+            (None, None) => two_input!(Pow),
+        },
+        BinaryOperation::Round(mode) => match right_constant {
+            Some(multiple) => Lowering::dependent(
+                range,
+                DependentDensityFunction::IntegerMultipleRound(IntegerMultipleRound {
+                    input_index: input1_index,
+                    multiple,
+                    mode,
+                }),
+            ),
+            None => Lowering::dependent(
+                range,
+                DependentDensityFunction::Round(Round {
+                    input1_index,
+                    input2_index,
+                    mode,
+                }),
+            ),
+        },
+    }
+}
+
+/// A node whose only input became constant after the graph was built.
+fn fold_constant_input(
+    stack: &[DensityFunctionComponent],
+    function: &DependentDensityFunction,
+) -> Option<f32> {
+    let input = |index: usize| stack[index].as_constant();
+    Some(match function {
+        DependentDensityFunction::PiecewiseAffine(x) => {
+            let value = input(x.input_index)?;
+            let scale = if value < 0.0 {
+                x.neg_scale
+            } else {
+                x.pos_scale
+            };
+            value.mul_add(scale, x.offset)
+        }
+        DependentDensityFunction::LeakyReLU(x) => x.apply(input(x.input_index)?),
+        DependentDensityFunction::ConstMin(x) => input(x.input_index)?.min(x.argument),
+        DependentDensityFunction::ConstMax(x) => input(x.input_index)?.max(x.argument),
+        DependentDensityFunction::ConstSub(x) => x.argument - input(x.input_index)?,
+        DependentDensityFunction::ConstDiv(x) => x.argument / input(x.input_index)?,
+        DependentDensityFunction::ConstExponentPow(x) => input(x.input_index)?.powf(x.exponent),
+        DependentDensityFunction::ConstBasePow(x) => x.base.powf(input(x.input_index)?),
+        DependentDensityFunction::IntegerMultipleRound(x) => {
+            BinaryOperation::Round(x.mode).apply(input(x.input_index)?, x.multiple)
+        }
+        _ => return None,
+    })
+}
+
+/// Re-run the lowering for one entry, now that everything below it is final.
+/// `None` when the entry is already the node the lowering would produce.
+fn relower(stack: &[DensityFunctionComponent], index: usize) -> Option<Lowering> {
+    let Sampler::Dependent(function) = &stack[index].sampler else {
+        return None;
+    };
+    macro_rules! unary {
+        ($operation:ident, $x:expr) => {
+            lower_unary(stack, UnaryOperation::$operation, $x.input_index)
+        };
+    }
+    macro_rules! binary {
+        ($operation:ident, $x:expr) => {
+            lower_binary(
+                stack,
+                BinaryOperation::$operation,
+                $x.input1_index,
+                $x.input2_index,
+            )
+        };
+    }
+    let lowered = match function {
+        DependentDensityFunction::Affine(x) => {
+            lower_affine(stack, x.input_index, x.scale, x.offset)
+        }
+        DependentDensityFunction::Abs(x) => unary!(Abs, x),
+        DependentDensityFunction::Square(x) => unary!(Square, x),
+        DependentDensityFunction::Cube(x) => unary!(Cube, x),
+        DependentDensityFunction::Reciprocal(x) => unary!(Reciprocal, x),
+        DependentDensityFunction::Squeeze(x) => unary!(Squeeze, x),
+        DependentDensityFunction::Sqrt(x) => unary!(Sqrt, x),
+        DependentDensityFunction::Log(x) => unary!(Log, x),
+        DependentDensityFunction::Sign(x) => unary!(Sign, x),
+        DependentDensityFunction::Add(x) => binary!(Add, x),
+        DependentDensityFunction::Sub(x) => binary!(Subtract, x),
+        DependentDensityFunction::Mul(x) => binary!(Multiply, x),
+        DependentDensityFunction::Div(x) => binary!(Divide, x),
+        DependentDensityFunction::Min(x) => binary!(Min, x),
+        DependentDensityFunction::Max(x) => binary!(Max, x),
+        DependentDensityFunction::Pow(x) => binary!(Pow, x),
+        DependentDensityFunction::Round(x) => lower_binary(
+            stack,
+            BinaryOperation::Round(x.mode),
+            x.input1_index,
+            x.input2_index,
+        ),
+        DependentDensityFunction::Clamp(x) => {
+            let input = &stack[x.input_index];
+            if let Some(value) = input.as_constant() {
+                Lowering::constant(value.clamp(x.min, x.max))
+            } else if input.range.min() >= x.min && input.range.max() <= x.max {
+                Lowering::Redirect(x.input_index)
+            } else {
+                return None;
+            }
+        }
+        DependentDensityFunction::RangeChoice(x) => {
+            let input = stack[x.input_index].range;
+            if input.max() < x.min_inclusion_value || input.min() >= x.max_exclusion_value {
+                Lowering::Redirect(x.when_out_index)
+            } else if input.min() >= x.min_inclusion_value && input.max() < x.max_exclusion_value {
+                Lowering::Redirect(x.when_in_index)
+            } else {
+                return None;
+            }
+        }
+        other => Lowering::constant(fold_constant_input(stack, other)?),
+    };
+    match &lowered {
+        Lowering::Node(node) if node == &stack[index] => None,
+        _ => Some(lowered),
     }
 }
 
@@ -245,346 +456,61 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
     let mut piecewise_affine_fusions = 0usize;
     let mut constants_folded = 0usize;
     let mut identities_eliminated = 0usize;
-    let mut binary_demotions = 0usize;
+    let mut demotions = 0usize;
     let mut slide_fusions = 0usize;
 
     for i in 0..n {
-        // 2. Apply redirects to current entry's inputs
         stack[i].rewrite_indices(&redirect);
 
-        // 3. Binary optimizations: constant folding, demotion, and range elimination
-        if let Sampler::Dependent(DependentDensityFunction::Binary(bin)) = &stack[i].sampler {
-            let range = stack[i].range;
-            let c1 = stack[bin.input1_index].as_constant();
-            let c2 = stack[bin.input2_index].as_constant();
-            let replacement = match (c1, c2, bin.operation) {
-                // Both constant → fold for all operations
-                (Some(a), Some(b), op) => Some(DensityFunctionComponent::constant(op.apply(a, b))),
-                // One constant, and the operation has a dedicated constant-operand
-                // sampler: drop the constant row entirely.
-                (Some(c), None, BinaryOperation::Min) | (None, Some(c), BinaryOperation::Min) => {
-                    let input_index = if c1.is_some() {
-                        bin.input2_index
-                    } else {
-                        bin.input1_index
-                    };
-                    Some(DensityFunctionComponent::dependent(
-                        range,
-                        DependentDensityFunction::ConstMin(ConstMin {
-                            input_index,
-                            argument: c,
-                        }),
-                    ))
-                }
-                (Some(c), None, BinaryOperation::Max) | (None, Some(c), BinaryOperation::Max) => {
-                    let input_index = if c1.is_some() {
-                        bin.input2_index
-                    } else {
-                        bin.input1_index
-                    };
-                    Some(DensityFunctionComponent::dependent(
-                        range,
-                        DependentDensityFunction::ConstMax(ConstMax {
-                            input_index,
-                            argument: c,
-                        }),
-                    ))
-                }
-                // `c - x` and `c / x` keep the constant on the left, so they are
-                // their own samplers rather than a scaled input.
-                (Some(c), None, BinaryOperation::Subtract) => {
-                    Some(DensityFunctionComponent::dependent(
-                        range,
-                        DependentDensityFunction::ConstSub(ConstSub {
-                            input_index: bin.input2_index,
-                            argument: c,
-                        }),
-                    ))
-                }
-                (Some(c), None, BinaryOperation::Divide) => {
-                    Some(DensityFunctionComponent::dependent(
-                        range,
-                        DependentDensityFunction::ConstDiv(ConstDiv {
-                            input_index: bin.input2_index,
-                            argument: c,
-                        }),
-                    ))
-                }
-                // `x - c` is exactly `x + (-c)`: negation is exact in binary floating point.
-                (None, Some(c), BinaryOperation::Subtract) => {
-                    Some(DensityFunctionComponent::dependent(
-                        range,
-                        DependentDensityFunction::ConstAdd(ConstAdd {
-                            input_index: bin.input1_index,
-                            argument: -c,
-                        }),
-                    ))
-                }
-                // One constant, Add/Multiply → demote to Linear
-                (Some(c), None, BinaryOperation::Add | BinaryOperation::Multiply)
-                | (None, Some(c), BinaryOperation::Add | BinaryOperation::Multiply) => {
-                    let input_index = if c1.is_some() {
-                        bin.input2_index
-                    } else {
-                        bin.input1_index
-                    };
-                    let operation = match bin.operation {
-                        BinaryOperation::Add => LinearOperation::Add,
-                        BinaryOperation::Multiply => LinearOperation::Multiply,
-                        _ => unreachable!(),
-                    };
-                    Some(DensityFunctionComponent::dependent(
-                        range,
-                        match operation {
-                            LinearOperation::Add => DependentDensityFunction::ConstAdd(ConstAdd {
-                                input_index,
-                                argument: c,
-                            }),
-                            LinearOperation::Multiply => {
-                                DependentDensityFunction::ConstMul(ConstMul {
-                                    input_index,
-                                    argument: c,
-                                })
-                            }
-                        },
-                    ))
-                }
-                _ => None,
-            };
-            if let Some(r) = replacement {
-                if r.as_constant().is_some() {
+        // Everything below this entry is final, so an input that only became
+        // constant or only became provably in range gets its lowering now.
+        match relower(stack, i) {
+            Some(Lowering::Redirect(target)) => {
+                redirect[i] = target;
+                identities_eliminated += 1;
+                continue;
+            }
+            Some(Lowering::Node(node)) => {
+                if node.as_constant().is_some() {
                     constants_folded += 1;
                 } else {
-                    binary_demotions += 1;
+                    demotions += 1;
                 }
-                stack[i] = r;
-                // Fall through — the new Linear/Constant will be caught by subsequent steps
+                stack[i] = node;
             }
+            None => {}
         }
 
-        // 3b. Binary Min/Max range elimination
-        if let Sampler::Dependent(DependentDensityFunction::Binary(bin)) = &stack[i].sampler {
-            let in1 = stack[bin.input1_index].range;
-            let in2 = stack[bin.input2_index].range;
-            match bin.operation {
-                // Min(x, y) where x.max <= y.min → x always wins
-                BinaryOperation::Min => {
-                    if in1.max() <= in2.min() {
-                        redirect[i] = bin.input1_index;
-                        identities_eliminated += 1;
-                        continue;
-                    } else if in2.max() <= in1.min() {
-                        redirect[i] = bin.input2_index;
-                        identities_eliminated += 1;
-                        continue;
-                    }
-                }
-                // Max(x, y) where x.min >= y.max → x always wins
-                BinaryOperation::Max => {
-                    if in1.min() >= in2.max() {
-                        redirect[i] = bin.input1_index;
-                        identities_eliminated += 1;
-                        continue;
-                    } else if in2.min() >= in1.max() {
-                        redirect[i] = bin.input2_index;
-                        identities_eliminated += 1;
-                        continue;
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        // 4. Constant folding for all single-input operations
-        let folded = match &stack[i].sampler {
-            Sampler::Dependent(DependentDensityFunction::Linear(lin)) => stack[lin.input_index]
-                .as_constant()
-                .map(|c| match lin.operation {
-                    LinearOperation::Add => c + lin.argument,
-                    LinearOperation::Multiply => c * lin.argument,
-                }),
-            Sampler::Dependent(DependentDensityFunction::Affine(aff)) => stack[aff.input_index]
-                .as_constant()
-                .map(|c| c.mul_add(aff.scale, aff.offset)),
-            Sampler::Dependent(DependentDensityFunction::PiecewiseAffine(pa)) => {
-                stack[pa.input_index].as_constant().map(|c| {
-                    let scale = if c < 0.0 { pa.neg_scale } else { pa.pos_scale };
-                    c.mul_add(scale, pa.offset)
-                })
-            }
-            Sampler::Dependent(DependentDensityFunction::Unary(u)) => stack[u.input_index]
-                .as_constant()
-                .map(|c| u.operation.apply(c)),
-            Sampler::Dependent(DependentDensityFunction::Clamp(cl)) => stack[cl.input_index]
-                .as_constant()
-                .map(|c| c.clamp(cl.min, cl.max)),
-            _ => None,
-        };
-        if let Some(constant) = folded {
-            stack[i] = DensityFunctionComponent::constant(constant);
-            constants_folded += 1;
-            continue;
-        }
-
-        // 5. Convert standalone Linear to Affine
-        if let Sampler::Dependent(DependentDensityFunction::Linear(lin)) = &stack[i].sampler {
-            let (scale, offset) = match lin.operation {
-                LinearOperation::Add => (1.0, lin.argument),
-                LinearOperation::Multiply => (lin.argument, 0.0),
-            };
-            let range = Affine::compute_range(stack[lin.input_index].range, scale, offset);
-            stack[i] = DensityFunctionComponent::dependent(
-                range,
-                DependentDensityFunction::Affine(Affine {
-                    input_index: lin.input_index,
+        // The leaky rectifier is two half-lines through the origin, so scaling
+        // and offsetting it is one node rather than two.
+        if let Sampler::Dependent(DependentDensityFunction::Affine(aff)) = &stack[i].sampler {
+            let (scale, offset, relu_index) = (aff.scale, aff.offset, aff.input_index);
+            if let Sampler::Dependent(DependentDensityFunction::LeakyReLU(relu)) =
+                &stack[relu_index].sampler
+            {
+                let (input_index, neg_scale) = (relu.input_index, scale * relu.negative_factor);
+                let range = PiecewiseAffine::compute_range(
+                    stack[input_index].range,
+                    neg_scale,
                     scale,
                     offset,
-                }),
-            );
-        }
-
-        // 6. Identity/zero elimination
-        match &stack[i].sampler {
-            Sampler::Dependent(DependentDensityFunction::Affine(aff)) => {
-                if aff.scale == 1.0 && aff.offset == 0.0 {
-                    // Identity
-                    redirect[i] = aff.input_index;
-                    identities_eliminated += 1;
-                    continue;
-                }
-                if aff.scale == 0.0 {
-                    // Constant
-                    stack[i] = DensityFunctionComponent::constant(aff.offset);
-                    constants_folded += 1;
-                    continue;
-                }
-            }
-            Sampler::Dependent(DependentDensityFunction::Linear(lin)) => match lin.operation {
-                LinearOperation::Add if lin.argument == 0.0 => {
-                    redirect[i] = lin.input_index;
-                    identities_eliminated += 1;
-                    continue;
-                }
-                LinearOperation::Multiply if lin.argument == 1.0 => {
-                    redirect[i] = lin.input_index;
-                    identities_eliminated += 1;
-                    continue;
-                }
-                LinearOperation::Multiply if lin.argument == 0.0 => {
-                    stack[i] = DensityFunctionComponent::constant(0.0);
-                    constants_folded += 1;
-                    continue;
-                }
-                _ => {}
-            },
-            _ => {}
-        }
-
-        // 7. Clamp of in-range elimination
-        if let Sampler::Dependent(DependentDensityFunction::Clamp(clamp)) = &stack[i].sampler {
-            let input = stack[clamp.input_index].range;
-            if input.min() >= clamp.min && input.max() <= clamp.max {
-                redirect[i] = clamp.input_index;
-                identities_eliminated += 1;
-            }
-        }
-
-        // 8. RangeChoice range-based elimination: if the input's static range proves
-        //    it always falls in or always falls out, redirect to the known branch.
-        if let Sampler::Dependent(DependentDensityFunction::RangeChoice(rc)) = &stack[i].sampler {
-            let input = stack[rc.input_index].range;
-            if input.max() < rc.min_inclusion_value || input.min() >= rc.max_exclusion_value {
-                // Always out-of-range
-                redirect[i] = rc.when_out_index;
-                identities_eliminated += 1;
-                continue;
-            }
-            if input.min() >= rc.min_inclusion_value && input.max() < rc.max_exclusion_value {
-                // Always in-range
-                redirect[i] = rc.when_in_index;
-                identities_eliminated += 1;
-                continue;
-            }
-        }
-
-        // 9. Unary→Affine fusion: Affine(Unary::QuarterNegative/HalfNegative(x)) → PiecewiseAffine
-        if let Sampler::Dependent(DependentDensityFunction::Affine(aff)) = &stack[i].sampler {
-            if let Sampler::Dependent(DependentDensityFunction::Unary(u)) =
-                &stack[aff.input_index].sampler
-            {
-                let pwa = match u.operation {
-                    // QuarterNegative(x) = if x<0 { 0.25*x } else { x }
-                    // Affine(QuarterNeg(x), s, o) = if x<0 { 0.25*s*x + o } else { s*x + o }
-                    UnaryOperation::QuarterNegative => Some((aff.scale * 0.25, aff.scale)),
-                    // HalfNegative(x) = if x<0 { 0.5*x } else { x }
-                    // Affine(HalfNeg(x), s, o) = if x<0 { 0.5*s*x + o } else { s*x + o }
-                    UnaryOperation::HalfNegative => Some((aff.scale * 0.5, aff.scale)),
-                    _ => None,
-                };
-                if let Some((neg_scale, pos_scale)) = pwa {
-                    let range = PiecewiseAffine::compute_range(
-                        stack[u.input_index].range,
+                );
+                stack[i] = DensityFunctionComponent::dependent(
+                    range,
+                    DependentDensityFunction::PiecewiseAffine(PiecewiseAffine {
+                        input_index,
                         neg_scale,
-                        pos_scale,
-                        aff.offset,
-                    );
-                    stack[i] = DensityFunctionComponent::dependent(
-                        range,
-                        DependentDensityFunction::PiecewiseAffine(PiecewiseAffine {
-                            input_index: u.input_index,
-                            neg_scale,
-                            pos_scale,
-                            offset: aff.offset,
-                        }),
-                    );
-                    piecewise_affine_fusions += 1;
-                }
+                        pos_scale: scale,
+                        offset,
+                    }),
+                );
+                piecewise_affine_fusions += 1;
             }
         }
 
-        // 10. Binary same-index identity: Min(x,x)→x, Max(x,x)→x, Add(x,x)→2*x, Mul(x,x)→x²
-        if let Sampler::Dependent(DependentDensityFunction::Binary(bin)) = &stack[i].sampler {
-            if bin.input1_index == bin.input2_index {
-                match bin.operation {
-                    BinaryOperation::Min | BinaryOperation::Max => {
-                        redirect[i] = bin.input1_index;
-                        identities_eliminated += 1;
-                        continue;
-                    }
-                    BinaryOperation::Add => {
-                        // Add(x, x) = 2*x
-                        let range = Affine::compute_range(stack[bin.input1_index].range, 2.0, 0.0);
-                        stack[i] = DensityFunctionComponent::dependent(
-                            range,
-                            DependentDensityFunction::Affine(Affine {
-                                input_index: bin.input1_index,
-                                scale: 2.0,
-                                offset: 0.0,
-                            }),
-                        );
-                        binary_demotions += 1;
-                    }
-                    BinaryOperation::Multiply => {
-                        // Mul(x, x) = x²
-                        stack[i] = DensityFunctionComponent::dependent(
-                            stack[bin.input1_index].range.square(),
-                            DependentDensityFunction::Square(Square {
-                                input_index: bin.input1_index,
-                            }),
-                        );
-                        binary_demotions += 1;
-                    }
-                    BinaryOperation::Subtract
-                    | BinaryOperation::Divide
-                    | BinaryOperation::Pow
-                    | BinaryOperation::Round(_) => {}
-                }
-            }
-        }
-
-        // 11. Slide fusion: detect Affine(+c) ← Mul(ygrad2, Affine(+b) ← Mul(ygrad1, Affine(+a, input)))
-        //     Fuses the 5-node chain into a single Slide operation.
-        if let Some(slide) = try_build_slide(i, &stack) {
+        // Fuse the world-boundary chain
+        // `Affine(+c) ← Mul(ygrad2, Affine(+b) ← Mul(ygrad1, Affine(+a, input)))`.
+        if let Some(slide) = try_build_slide(i, stack) {
             stack[i].sampler = Sampler::Dependent(DependentDensityFunction::Slide(slide));
             slide_fusions += 1;
         }
@@ -611,7 +537,7 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
         piecewise_affine_fusions,
         constants_folded,
         identities_eliminated,
-        binary_demotions,
+        demotions,
         slide_fusions,
         "Density function stack optimized"
     );
@@ -929,7 +855,6 @@ pub fn build_functions(
     ];
 
     optimize_stack(&mut builder.stack, &mut roots);
-    lower_to_samplers(&mut builder.stack);
 
     let mut per_block = compute_per_block(&builder.stack);
 
@@ -1224,20 +1149,12 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
 
     fn visit_negate(&mut self, function: &SingleArgumentFunction) {
         let input_index = self.component(&function.input);
-        let input = &self.stack[input_index];
-        let range = Affine::compute_range(input.range, -1.0, 0.0);
-        self.register_component(
+        let lowering = lower_affine(&self.stack, input_index, -1.0, 0.0);
+        self.register_lowering(
             ProtoDensityFunction::Negate(SingleArgumentFunction {
                 input: function.input.clone(),
             }),
-            DensityFunctionComponent::dependent(
-                range,
-                DependentDensityFunction::Affine(Affine {
-                    input_index,
-                    scale: -1.0,
-                    offset: 0.0,
-                }),
-            ),
+            lowering,
         );
     }
 
@@ -1788,6 +1705,19 @@ impl<'a> FunctionStackBuilder<'a> {
         Spline::new(cord_index, coordinate, locations, derivatives, values)
     }
 
+    /// A lowering that collapsed onto an existing entry gives this function's
+    /// proto that entry, rather than a node of its own.
+    fn register_lowering(&mut self, proto: ProtoDensityFunction, lowering: Lowering) {
+        match lowering {
+            Lowering::Redirect(index) => {
+                self.built.insert(proto, index);
+            }
+            Lowering::Node(component) => {
+                self.register_component(proto, component);
+            }
+        }
+    }
+
     fn binary(
         &mut self,
         left: &DensityFunctionHolder,
@@ -1795,58 +1725,14 @@ impl<'a> FunctionStackBuilder<'a> {
         proto: ProtoDensityFunction,
         operation: BinaryOperation,
     ) {
-        let (input1_index) = self.component(left);
-        let arg1 = &self.stack[input1_index];
-        let range1 = arg1.range;
-        let arg1_constant = arg1.as_constant();
-
-        let (input2_index) = self.component(right);
-        let arg2 = &self.stack[input2_index];
-        let range2 = arg2.range;
-        let arg2_constant = arg2.as_constant();
-
-        let range = binary_range(operation, range1, range2);
-
-        if let BinaryOperation::Add | BinaryOperation::Multiply = operation {
-            if let Some((input_index, argument)) = match (arg1_constant, arg2_constant) {
-                (Some(x), None) => Some((input2_index, x)),
-                (None, Some(x)) => Some((input1_index, x)),
-                _ => None,
-            } {
-                self.register_component(
-                    proto,
-                    DensityFunctionComponent::dependent(
-                        range,
-                        DependentDensityFunction::Linear(Linear {
-                            input_index,
-                            argument,
-                            operation: match operation {
-                                BinaryOperation::Add => LinearOperation::Add,
-                                BinaryOperation::Multiply => LinearOperation::Multiply,
-                                _ => unreachable!(),
-                            },
-                        }),
-                    ),
-                );
-                return;
-            }
-        }
-        self.register_component(
-            proto,
-            DensityFunctionComponent::dependent(
-                range,
-                DependentDensityFunction::Binary(Binary {
-                    input1_index,
-                    input2_index,
-                    operation,
-                }),
-            ),
-        );
+        let input1_index = self.component(left);
+        let input2_index = self.component(right);
+        let lowering = lower_binary(&self.stack, operation, input1_index, input2_index);
+        self.register_lowering(proto, lowering);
     }
 
     fn unary(&mut self, arg: &SingleArgumentFunction, operation: UnaryOperation) {
-        let (input_index) = self.component(&arg.input);
-        let input_range = self.stack[input_index].range;
+        let input_index = self.component(&arg.input);
         let proto = match operation {
             UnaryOperation::Abs => ProtoDensityFunction::Abs(arg.clone()),
             UnaryOperation::Square => ProtoDensityFunction::Square(arg.clone()),
@@ -1859,19 +1745,8 @@ impl<'a> FunctionStackBuilder<'a> {
             UnaryOperation::Log => ProtoDensityFunction::Log(arg.clone()),
             UnaryOperation::Sign => ProtoDensityFunction::Sign(arg.clone()),
         };
-
-        let range = unary_range(operation, input_range);
-
-        self.register_component(
-            proto,
-            DensityFunctionComponent::dependent(
-                range,
-                DependentDensityFunction::Unary(Unary {
-                    input_index,
-                    operation,
-                }),
-            ),
-        );
+        let lowering = lower_unary(&self.stack, operation, input_index);
+        self.register_lowering(proto, lowering);
     }
 
     fn noise_name(holder: &NoiseHolder) -> String {
@@ -2001,7 +1876,6 @@ mod arithmetic_node_tests {
             FunctionStackBuilder::new(RandomSource::new(0, false), 0, &functions, &noises);
         let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
         super::resolve_substituted_subgraphs(&mut builder.stack);
-        super::lower_to_samplers(&mut builder.stack);
         let members: Vec<u32> = (0..=index as u32).collect();
         let mut value = [0.0f32];
         crate::density_function::node::Arena::new(&builder.stack).fill_members(
@@ -2102,7 +1976,6 @@ mod arithmetic_node_tests {
                 FunctionStackBuilder::new(RandomSource::new(0, false), 0, &functions, &noises);
             let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
             super::resolve_substituted_subgraphs(&mut builder.stack);
-            super::lower_to_samplers(&mut builder.stack);
             crate::density_function::interval_prune::kind_name(&builder.stack[index])
         };
         let base = moving(0.5, 2.0);
@@ -2239,7 +2112,6 @@ mod arithmetic_node_tests {
         let mut builder =
             FunctionStackBuilder::new(RandomSource::new(0, false), 0, &functions, &noises);
         let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
-        super::lower_to_samplers(&mut builder.stack);
         match &builder.stack[index].sampler {
             Sampler::Dependent(f) => match f {
                 DependentDensityFunction::Abs(_) => Some(UnaryOperation::Abs),

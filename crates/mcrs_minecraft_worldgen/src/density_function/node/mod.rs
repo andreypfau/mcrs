@@ -89,18 +89,13 @@ impl DensityFunction for IndependentDensityFunction {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum DependentDensityFunction {
-    Linear(Linear),
     Affine(Affine),
     PiecewiseAffine(PiecewiseAffine),
     Slide(Slide),
-    Unary(Unary),
-    Binary(Binary),
     ConstMin(ConstMin),
     ConstMax(ConstMax),
     ConstSub(ConstSub),
     ConstDiv(ConstDiv),
-    ConstAdd(ConstAdd),
-    ConstMul(ConstMul),
     Abs(Abs),
     Square(Square),
     Cube(Cube),
@@ -191,9 +186,6 @@ impl DensityFunctionComponent {
         match &mut self.sampler {
             Sampler::Independent(_) => {}
             Sampler::Dependent(dep) => match dep {
-                DependentDensityFunction::Linear(x) => {
-                    x.input_index = redirect[x.input_index];
-                }
                 DependentDensityFunction::ConstMin(x) => {
                     x.input_index = redirect[x.input_index];
                 }
@@ -204,12 +196,6 @@ impl DensityFunctionComponent {
                     x.input_index = redirect[x.input_index];
                 }
                 DependentDensityFunction::ConstDiv(x) => {
-                    x.input_index = redirect[x.input_index];
-                }
-                DependentDensityFunction::ConstAdd(x) => {
-                    x.input_index = redirect[x.input_index];
-                }
-                DependentDensityFunction::ConstMul(x) => {
                     x.input_index = redirect[x.input_index];
                 }
                 DependentDensityFunction::Abs(x) => {
@@ -292,13 +278,6 @@ impl DensityFunctionComponent {
                 DependentDensityFunction::Slide(x) => {
                     x.input_index = redirect[x.input_index];
                 }
-                DependentDensityFunction::Unary(x) => {
-                    x.input_index = redirect[x.input_index];
-                }
-                DependentDensityFunction::Binary(x) => {
-                    x.input1_index = redirect[x.input1_index];
-                    x.input2_index = redirect[x.input2_index];
-                }
                 DependentDensityFunction::ShiftedNoise(x) => {
                     x.input_x_index = redirect[x.input_x_index];
                     x.input_y_index = redirect[x.input_y_index];
@@ -338,13 +317,10 @@ impl DensityFunctionComponent {
         match &self.sampler {
             Sampler::Independent(_) => {}
             Sampler::Dependent(dep) => match dep {
-                DependentDensityFunction::Linear(x) => f(x.input_index),
                 DependentDensityFunction::ConstMin(x) => f(x.input_index),
                 DependentDensityFunction::ConstMax(x) => f(x.input_index),
                 DependentDensityFunction::ConstSub(x) => f(x.input_index),
                 DependentDensityFunction::ConstDiv(x) => f(x.input_index),
-                DependentDensityFunction::ConstAdd(x) => f(x.input_index),
-                DependentDensityFunction::ConstMul(x) => f(x.input_index),
                 DependentDensityFunction::Abs(x) => f(x.input_index),
                 DependentDensityFunction::Square(x) => f(x.input_index),
                 DependentDensityFunction::Cube(x) => f(x.input_index),
@@ -393,11 +369,6 @@ impl DensityFunctionComponent {
                 DependentDensityFunction::Affine(x) => f(x.input_index),
                 DependentDensityFunction::PiecewiseAffine(x) => f(x.input_index),
                 DependentDensityFunction::Slide(x) => f(x.input_index),
-                DependentDensityFunction::Unary(x) => f(x.input_index),
-                DependentDensityFunction::Binary(x) => {
-                    f(x.input1_index);
-                    f(x.input2_index);
-                }
                 DependentDensityFunction::ShiftedNoise(x) => {
                     f(x.input_x_index);
                     f(x.input_y_index);
@@ -518,24 +489,13 @@ impl DensitySampler for IndependentDensityFunction {
 impl DensitySampler for DependentDensityFunction {
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         match self {
-            DependentDensityFunction::Linear(_) => {
-                unreachable!("linear carries an operation and must be lowered to a sampler first")
-            }
             DependentDensityFunction::Affine(x) => x.sample_volume(ctx, out),
             DependentDensityFunction::PiecewiseAffine(x) => x.sample_volume(ctx, out),
             DependentDensityFunction::Slide(x) => x.sample_volume(ctx, out),
-            DependentDensityFunction::Unary(_) => {
-                unreachable!("unary carries an operation and must be lowered to a sampler first")
-            }
-            DependentDensityFunction::Binary(_) => {
-                unreachable!("binary carries an operation and must be lowered to a sampler first")
-            }
             DependentDensityFunction::ConstMin(x) => x.sample_volume(ctx, out),
             DependentDensityFunction::ConstMax(x) => x.sample_volume(ctx, out),
             DependentDensityFunction::ConstSub(x) => x.sample_volume(ctx, out),
             DependentDensityFunction::ConstDiv(x) => x.sample_volume(ctx, out),
-            DependentDensityFunction::ConstAdd(x) => x.sample_volume(ctx, out),
-            DependentDensityFunction::ConstMul(x) => x.sample_volume(ctx, out),
             DependentDensityFunction::Abs(x) => x.sample_volume(ctx, out),
             DependentDensityFunction::Square(x) => x.sample_volume(ctx, out),
             DependentDensityFunction::Cube(x) => x.sample_volume(ctx, out),
