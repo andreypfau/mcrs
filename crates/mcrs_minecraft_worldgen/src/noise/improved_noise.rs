@@ -3,7 +3,7 @@ use mcrs_minecraft_random::{Random, RandomSource};
 use num_traits::{Float, ToPrimitive};
 use std::marker::PhantomData;
 
-// SIMD-packed f32 mirror of `GRADIENTS` for the hot f32 path (`sample_and_lerp`):
+// SIMD-packed f32 mirror of `GRADIENTS` for the hot f32 path (`lerp_corners`):
 // 16 gradients × {x, y, z, pad} so each lookup is a contiguous slice. Kept in sync with
 // `GRADIENTS` by the `flat_grad_matches_gradients` test.
 const FLAT_SIMPLEX_GRAD: [f32; 64] = [
@@ -456,37 +456,91 @@ impl ImprovedNoise<f32> {
 
     #[inline(always)]
     pub fn sample(&self, x: f64, y: f64, z: f64, y_scale: f64, y_max: f64) -> f32 {
-        let shifted_x = x + self.origin_x;
-        let shifted_y = y + self.origin_y;
-        let shifted_z = z + self.origin_z;
-        let floor_x = shifted_x.floor();
-        let floor_y = shifted_y.floor();
-        let floor_z = shifted_z.floor();
-        let local_x = (shifted_x - floor_x) as f32;
-        let local_y = shifted_y - floor_y;
-        let local_z = (shifted_z - floor_z) as f32;
-        let mut fade = 0.0_f64;
-        if y_scale != 0.0 {
-            let t = if y_max >= 0.0 && y_max < local_y {
-                y_max
-            } else {
-                local_y
-            };
-            fade = ((t / y_scale + 1.0E-7f32 as f64).floor() as i32) as f64 * y_scale;
-        }
-        self.sample_and_lerp(
-            floor_x as i32,
-            floor_y as i32,
-            floor_z as i32,
-            local_x,
-            (local_y - fade) as f32,
-            local_z,
-            local_y as f32,
-        )
+        let mut out = [0.0f32; 1];
+        self.sample_column(x, z, &[y], y_scale, &[y_max], &mut out);
+        out[0]
     }
 
-    /// Batch sample: identical per-position math to `sample`, looped so the
-    /// permutation table stays L1-hot across all positions of one octave.
+    /// Samples one x/z column: the lattice hashes and the x/z smoothsteps are computed once,
+    /// and the eight corner gradients only when the y lattice cell changes.
+    ///
+    /// An empty `y_maxes` means y_max = 0.0 for every position.
+    #[inline]
+    pub fn sample_column(
+        &self,
+        x: f64,
+        z: f64,
+        ys: &[f64],
+        y_scale: f64,
+        y_maxes: &[f64],
+        out: &mut [f32],
+    ) {
+        debug_assert_eq!(ys.len(), out.len());
+        debug_assert!(y_maxes.is_empty() || y_maxes.len() == ys.len());
+        self.sample_column_iter(
+            x,
+            z,
+            ys.iter()
+                .enumerate()
+                .map(|(j, &y)| (y, if y_maxes.is_empty() { 0.0 } else { y_maxes[j] })),
+            y_scale,
+            out,
+        );
+    }
+
+    #[inline]
+    fn sample_column_iter<I>(&self, x: f64, z: f64, ys: I, y_scale: f64, out: &mut [f32])
+    where
+        I: Iterator<Item = (f64, f64)>,
+    {
+        let shifted_x = x + self.origin_x;
+        let shifted_z = z + self.origin_z;
+        let floor_x = shifted_x.floor();
+        let floor_z = shifted_z.floor();
+        let local_x = (shifted_x - floor_x) as f32;
+        let local_z = (shifted_z - floor_z) as f32;
+        let section_z = floor_z as i32;
+        let fade_x = smoothstep(local_x);
+        let fade_z = smoothstep(local_z);
+        let (p0, p1) = self.x_perms(floor_x as i32);
+
+        let mut cell: Option<(i32, [usize; 8])> = None;
+        for ((y, y_max), slot) in ys.zip(out.iter_mut()) {
+            let shifted_y = y + self.origin_y;
+            let floor_y = shifted_y.floor();
+            let local_y = shifted_y - floor_y;
+            let mut fade = 0.0_f64;
+            if y_scale != 0.0 {
+                let t = if y_max >= 0.0 && y_max < local_y {
+                    y_max
+                } else {
+                    local_y
+                };
+                fade = ((t / y_scale + 1.0E-7f32 as f64).floor() as i32) as f64 * y_scale;
+            }
+            let section_y = floor_y as i32;
+            let grads = match cell {
+                Some((cached_y, grads)) if cached_y == section_y => grads,
+                _ => {
+                    let grads = self.corner_grads(p0, p1, section_y, section_z);
+                    cell = Some((section_y, grads));
+                    grads
+                }
+            };
+            *slot = lerp_corners(
+                &grads,
+                local_x,
+                (local_y - fade) as f32,
+                local_z,
+                fade_x,
+                smoothstep(local_y as f32),
+                fade_z,
+            );
+        }
+    }
+
+    /// Batch sample: identical per-position math to `sample`, with runs of positions that
+    /// share an x/z column routed through `sample_column`.
     /// An empty `y_maxes` means y_max = 0.0 for every position.
     #[cfg(feature = "batch-noise")]
     pub fn sample_batch(
@@ -498,9 +552,67 @@ impl ImprovedNoise<f32> {
     ) {
         debug_assert_eq!(positions.len(), results.len());
         debug_assert!(y_maxes.is_empty() || y_maxes.len() == positions.len());
-        for (j, &(x, y, z)) in positions.iter().enumerate() {
-            let y_max = if y_maxes.is_empty() { 0.0 } else { y_maxes[j] };
-            results[j] = self.sample(x, y, z, y_scale, y_max);
+        let mut start = 0;
+        while start < positions.len() {
+            let (x, _, z) = positions[start];
+            let mut end = start + 1;
+            while end < positions.len() && positions[end].0 == x && positions[end].2 == z {
+                end += 1;
+            }
+            let column = &positions[start..end];
+            let maxes = if y_maxes.is_empty() {
+                &[][..]
+            } else {
+                &y_maxes[start..end]
+            };
+            self.sample_column_iter(
+                x,
+                z,
+                column
+                    .iter()
+                    .enumerate()
+                    .map(|(j, p)| (p.1, if maxes.is_empty() { 0.0 } else { maxes[j] })),
+                y_scale,
+                &mut results[start..end],
+            );
+            start = end;
+        }
+    }
+
+    #[inline(always)]
+    fn x_perms(&self, section_x: i32) -> (usize, usize) {
+        // SAFETY: both indices are masked with & 0xFF, so they are in [0, 255].
+        unsafe {
+            let perm = &self.permutation;
+            (
+                *perm.get_unchecked((section_x & 0xFF) as usize) as usize,
+                *perm.get_unchecked((section_x.wrapping_add(1) & 0xFF) as usize) as usize,
+            )
+        }
+    }
+
+    #[inline(always)]
+    fn corner_grads(&self, p0: usize, p1: usize, section_y: i32, section_z: i32) -> [usize; 8] {
+        // SAFETY: every permutation index is masked with & 0xFF, so it is in [0, 255].
+        unsafe {
+            let perm = &self.permutation;
+            let sy = section_y as usize;
+            let p4 = *perm.get_unchecked(p0.wrapping_add(sy) & 0xFF) as usize;
+            let p5 = *perm.get_unchecked(p1.wrapping_add(sy) & 0xFF) as usize;
+            let p6 = *perm.get_unchecked(p0.wrapping_add(sy).wrapping_add(1) & 0xFF) as usize;
+            let p7 = *perm.get_unchecked(p1.wrapping_add(sy).wrapping_add(1) & 0xFF) as usize;
+            let sz = section_z as usize;
+            let grad = |base: usize| ((*perm.get_unchecked(base & 0xFF) & 15) as usize) << 2;
+            [
+                grad(p4.wrapping_add(sz)),
+                grad(p5.wrapping_add(sz)),
+                grad(p6.wrapping_add(sz)),
+                grad(p7.wrapping_add(sz)),
+                grad(p4.wrapping_add(sz).wrapping_add(1)),
+                grad(p5.wrapping_add(sz).wrapping_add(1)),
+                grad(p6.wrapping_add(sz).wrapping_add(1)),
+                grad(p7.wrapping_add(sz).wrapping_add(1)),
+            ]
         }
     }
 
@@ -515,83 +627,67 @@ impl ImprovedNoise<f32> {
         local_z: f32,
         fade_local_x: f32,
     ) -> f32 {
-        // SAFETY: All permutation indices are masked with & 0xFF, guaranteeing [0, 255].
-        // All gradient indices are (perm & 15) << 2 = [0, 60], accessed with offsets +0/+1/+2,
-        // so max index is 62, within FLAT_SIMPLEX_GRAD's 64 elements.
-        unsafe {
-            let perm = &self.permutation;
+        let (p0, p1) = self.x_perms(section_x);
+        let grads = self.corner_grads(p0, p1, section_y, section_z);
+        lerp_corners(
+            &grads,
+            local_x,
+            local_y,
+            local_z,
+            smoothstep(local_x),
+            smoothstep(fade_local_x),
+            smoothstep(local_z),
+        )
+    }
+}
 
-            // Hash lookups — first level (X)
-            let var0 = (section_x & 0xFF) as usize;
-            let var1 = (section_x.wrapping_add(1) & 0xFF) as usize;
-            let p0 = *perm.get_unchecked(var0) as usize;
-            let p1 = *perm.get_unchecked(var1) as usize;
+#[inline(always)]
+fn smoothstep(t: f32) -> f32 {
+    t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
+}
 
-            // Second level (X+Y)
-            let sy = section_y as usize;
-            let var4 = (p0.wrapping_add(sy)) & 0xFF;
-            let var5 = (p1.wrapping_add(sy)) & 0xFF;
-            let var6 = (p0.wrapping_add(sy).wrapping_add(1)) & 0xFF;
-            let var7 = (p1.wrapping_add(sy).wrapping_add(1)) & 0xFF;
-            let p4 = *perm.get_unchecked(var4) as usize;
-            let p5 = *perm.get_unchecked(var5) as usize;
-            let p6 = *perm.get_unchecked(var6) as usize;
-            let p7 = *perm.get_unchecked(var7) as usize;
+#[inline(always)]
+fn lerp_corners(
+    grads: &[usize; 8],
+    local_x: f32,
+    local_y: f32,
+    local_z: f32,
+    fade_x: f32,
+    fade_y: f32,
+    fade_z: f32,
+) -> f32 {
+    // SAFETY: gradient indices are (perm & 15) << 2 = [0, 60], accessed with offsets +0/+1/+2,
+    // so the max index is 62, within FLAT_SIMPLEX_GRAD's 64 elements.
+    unsafe {
+        let x1 = local_x - 1.0;
+        let y1 = local_y - 1.0;
+        let z1 = local_z - 1.0;
 
-            // Third level (X+Y+Z) — 8 corner gradient indices
-            let sz = section_z as usize;
-            let h000 = ((*perm.get_unchecked((p4.wrapping_add(sz)) & 0xFF) & 15) as usize) << 2;
-            let h100 = ((*perm.get_unchecked((p5.wrapping_add(sz)) & 0xFF) & 15) as usize) << 2;
-            let h010 = ((*perm.get_unchecked((p6.wrapping_add(sz)) & 0xFF) & 15) as usize) << 2;
-            let h110 = ((*perm.get_unchecked((p7.wrapping_add(sz)) & 0xFF) & 15) as usize) << 2;
-            let h001 = ((*perm.get_unchecked((p4.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15)
-                as usize)
-                << 2;
-            let h101 = ((*perm.get_unchecked((p5.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15)
-                as usize)
-                << 2;
-            let h011 = ((*perm.get_unchecked((p6.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15)
-                as usize)
-                << 2;
-            let h111 = ((*perm.get_unchecked((p7.wrapping_add(sz).wrapping_add(1)) & 0xFF) & 15)
-                as usize)
-                << 2;
+        // Vanilla evaluates these as plain float ops; fusing them into FMAs changes
+        // the rounding and breaks bit-parity with the oracle.
+        let g = &FLAT_SIMPLEX_GRAD;
+        let dot = |corner: usize, x: f32, y: f32, z: f32| {
+            let h = *grads.get_unchecked(corner);
+            g.get_unchecked(h + 2)
+                .mul_add(z, g.get_unchecked(h + 1).mul_add(y, g.get_unchecked(h) * x))
+        };
+        let d000 = dot(0, local_x, local_y, local_z);
+        let d100 = dot(1, x1, local_y, local_z);
+        let d010 = dot(2, local_x, y1, local_z);
+        let d110 = dot(3, x1, y1, local_z);
+        let d001 = dot(4, local_x, local_y, z1);
+        let d101 = dot(5, x1, local_y, z1);
+        let d011 = dot(6, local_x, y1, z1);
+        let d111 = dot(7, x1, y1, z1);
 
-            // Relative offsets for the far corner
-            let x1 = local_x - 1.0;
-            let y1 = local_y - 1.0;
-            let z1 = local_z - 1.0;
-
-            // Vanilla evaluates these as plain float ops; fusing them into FMAs changes
-            // the rounding and breaks bit-parity with the oracle.
-            let g = &FLAT_SIMPLEX_GRAD;
-            let dot = |h: usize, x: f32, y: f32, z: f32| {
-                g.get_unchecked(h + 2)
-                    .mul_add(z, g.get_unchecked(h + 1).mul_add(y, g.get_unchecked(h) * x))
-            };
-            let d000 = dot(h000, local_x, local_y, local_z);
-            let d100 = dot(h100, x1, local_y, local_z);
-            let d010 = dot(h010, local_x, y1, local_z);
-            let d110 = dot(h110, x1, y1, local_z);
-            let d001 = dot(h001, local_x, local_y, z1);
-            let d101 = dot(h101, x1, local_y, z1);
-            let d011 = dot(h011, local_x, y1, z1);
-            let d111 = dot(h111, x1, y1, z1);
-
-            let smoothstep = |t: f32| t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
-            let fade_x = smoothstep(local_x);
-            let fade_y = smoothstep(fade_local_x);
-            let fade_z = smoothstep(local_z);
-
-            let lerp = |a: f32, p0: f32, p1: f32| p0 + a * (p1 - p0);
-            let l00 = lerp(fade_x, d000, d100);
-            let l10 = lerp(fade_x, d010, d110);
-            let l01 = lerp(fade_x, d001, d101);
-            let l11 = lerp(fade_x, d011, d111);
-            let ll0 = lerp(fade_y, l00, l10);
-            let ll1 = lerp(fade_y, l01, l11);
-            lerp(fade_z, ll0, ll1)
-        }
+        let lerp = |a: f32, p0: f32, p1: f32| p0 + a * (p1 - p0);
+        let l00 = lerp(fade_x, d000, d100);
+        let l10 = lerp(fade_x, d010, d110);
+        let l01 = lerp(fade_x, d001, d101);
+        let l11 = lerp(fade_x, d011, d111);
+        let ll0 = lerp(fade_y, l00, l10);
+        let ll1 = lerp(fade_y, l01, l11);
+        lerp(fade_z, ll0, ll1)
     }
 }
 
@@ -739,6 +835,38 @@ mod test {
                 "z mismatch at {i}"
             );
             assert_eq!(FLAT_SIMPLEX_GRAD[i * 4 + 3], 0.0, "pad nonzero at {i}");
+        }
+    }
+
+    #[test]
+    fn column_matches_per_position_bit_for_bit() {
+        use crate::noise::improved_noise::ImprovedNoise;
+        let noise = ImprovedNoise::<f32>::from_random(&mut LegacyRandom::new(845));
+        // Steps far below one lattice cell, so consecutive entries reuse the hoisted corners.
+        for (y_step, y_scale, y_max) in [
+            (0.03_f64, 0.0_f64, 0.0_f64),
+            (0.03, 0.25, 0.4),
+            (0.37, 2.0, -1.0),
+            (1.5, 0.0, 0.0),
+        ] {
+            for xi in 0..7 {
+                for zi in 0..7 {
+                    let x = -12.5 + xi as f64 * 3.7;
+                    let z = 7.25 + zi as f64 * 5.3;
+                    let ys: Vec<f64> = (0..49).map(|k| -64.0 + k as f64 * y_step).collect();
+                    let maxes = vec![y_max; ys.len()];
+                    let mut column = vec![0.0f32; ys.len()];
+                    noise.sample_column(x, z, &ys, y_scale, &maxes, &mut column);
+                    for (j, &y) in ys.iter().enumerate() {
+                        let scalar = noise.sample(x, y, z, y_scale, y_max);
+                        assert_eq!(
+                            column[j].to_bits(),
+                            scalar.to_bits(),
+                            "column hoist diverged at x={x} z={z} y={y} y_scale={y_scale}"
+                        );
+                    }
+                }
+            }
         }
     }
 }
