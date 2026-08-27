@@ -1,5 +1,61 @@
 use super::*;
 
+/// What a sampler reads while it fills a volume: the arena, the volume with its
+/// materialised positions, and the rows every node below it already wrote.
+#[derive(Clone, Copy)]
+pub(crate) struct Fill<'a> {
+    pub(crate) arena: Arena<'a>,
+    pub(crate) volume: &'a Volume,
+    pub(crate) positions: &'a [IVec3],
+    filled: &'a [f32],
+}
+
+impl<'a> Fill<'a> {
+    #[inline]
+    pub(crate) fn len(self) -> usize {
+        self.positions.len()
+    }
+
+    /// The row node `index` wrote earlier in this pass.
+    #[inline]
+    pub(crate) fn row(self, index: usize) -> &'a [f32] {
+        let n = self.len();
+        &self.filled[index * n..index * n + n]
+    }
+
+    /// How many nodes precede the one being filled.
+    #[inline]
+    pub(crate) fn depth(self) -> usize {
+        self.filled.len() / self.len()
+    }
+}
+
+/// The compiled form of a density function: the thing that actually reads noise.
+pub(crate) trait DensitySampler {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]);
+}
+
+/// A sampler whose value at one position needs nothing but that position and
+/// the rows below it.
+pub(crate) trait PointSampler {
+    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32;
+}
+
+/// Fill a volume by sampling each position in turn — the fallback for a node
+/// with no cheaper way to cover a whole volume.
+macro_rules! naive_volume {
+    ($($t:ty),* $(,)?) => {$(
+        impl DensitySampler for $t {
+            fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+                for (p, slot) in out.iter_mut().enumerate() {
+                    *slot = self.sample_at(ctx, p);
+                }
+            }
+        }
+    )*};
+}
+pub(crate) use naive_volume;
+
 mod arith;
 mod noise;
 mod shape;
@@ -22,40 +78,7 @@ pub(super) enum IndependentDensityFunction {
     EndOuterIslands(EndIslands),
 }
 
-impl IndependentDensityFunction {
-    /// Fill `out` a column at a time, so each octave hoists its lattice hashes
-    /// across the run. Returns false when the caller must sample per position.
-    pub(super) fn fill_columns(
-        &self,
-        volume: &Volume,
-        positions: &[IVec3],
-        out: &mut [f32],
-    ) -> bool {
-        let Self::Noise(noise) = self else {
-            return false;
-        };
-        let height = volume.size().y as usize;
-        if height < 2 {
-            return false;
-        }
-        let mut ys = vec![0.0f64; height];
-        let mut scratch = ColumnScratch::default();
-        for (column, slots) in out.chunks_mut(height).enumerate() {
-            let run = &positions[column * height..column * height + height];
-            for (slot, pos) in ys.iter_mut().zip(run) {
-                *slot = pos.y as f64 * noise.y_scale;
-            }
-            noise.sampler.get_column(
-                run[0].x as f64 * noise.xz_scale,
-                run[0].z as f64 * noise.xz_scale,
-                &ys,
-                slots,
-                &mut scratch,
-            );
-        }
-        true
-    }
-}
+impl IndependentDensityFunction {}
 
 impl RangeFunction for IndependentDensityFunction {
     fn min_value(&self) -> f32 {
@@ -316,7 +339,7 @@ pub fn lerp(delta: f32, start: f32, end: f32) -> f32 {
 
 /// The compiled node arena: everything a fill needs that is not the volume.
 #[derive(Clone, Copy)]
-pub(super) struct Arena<'a> {
+pub(crate) struct Arena<'a> {
     stack: &'a [DensityFunctionComponent],
 }
 
@@ -360,7 +383,6 @@ impl<'a> Arena<'a> {
                 volume,
                 &scratch.positions,
                 &mut scratch.rows,
-                &mut scratch.point,
             );
         }
         out.copy_from_slice(&scratch.rows[root * n..root * n + n]);
@@ -372,142 +394,66 @@ impl<'a> Arena<'a> {
         volume: &Volume,
         positions: &[IVec3],
         rows: &mut [f32],
-        point: &mut [f32],
     ) {
-        let stack = self.stack;
         let n = volume.len();
-        let out_base = i * n;
-        match &stack[i] {
-            DensityFunctionComponent::Independent(f) => {
-                let out = &mut rows[out_base..out_base + n];
-                if !f.fill_columns(volume, positions, out) {
-                    for (p, slot) in out.iter_mut().enumerate() {
-                        *slot = f.sample(positions[p]);
-                    }
+        let (filled, out) = rows.split_at_mut(i * n);
+        let ctx = Fill {
+            arena: self,
+            volume,
+            positions,
+            filled,
+        };
+        self.stack[i].sample_volume(ctx, &mut out[..n]);
+    }
+}
+
+impl PointSampler for IndependentDensityFunction {
+    #[inline]
+    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
+        self.sample(ctx.positions[p])
+    }
+}
+
+impl DensitySampler for IndependentDensityFunction {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        match self {
+            IndependentDensityFunction::Noise(x) => x.sample_volume(ctx, out),
+            IndependentDensityFunction::ShiftB(x) => x.sample_volume(ctx, out),
+            _ => {
+                for (p, slot) in out.iter_mut().enumerate() {
+                    *slot = self.sample(ctx.positions[p]);
                 }
             }
-            DensityFunctionComponent::Dependent(f) => match f {
-                DependentDensityFunction::Linear(x) => {
-                    let a = x.input_index * n;
-                    for p in 0..n {
-                        let input = rows[a + p];
-                        rows[out_base + p] = match x.operation {
-                            LinearOperation::Add => input + x.argument,
-                            LinearOperation::Multiply => input * x.argument,
-                        };
-                    }
-                }
-                DependentDensityFunction::Affine(x) => {
-                    let a = x.input_index * n;
-                    for p in 0..n {
-                        rows[out_base + p] = rows[a + p].mul_add(x.scale, x.offset);
-                    }
-                }
-                DependentDensityFunction::PiecewiseAffine(x) => {
-                    let a = x.input_index * n;
-                    for p in 0..n {
-                        let input = rows[a + p];
-                        let scale = if input < 0.0 {
-                            x.neg_scale
-                        } else {
-                            x.pos_scale
-                        };
-                        rows[out_base + p] = input.mul_add(scale, x.offset);
-                    }
-                }
-                DependentDensityFunction::Slide(x) => {
-                    let a = x.input_index * n;
-                    for p in 0..n {
-                        rows[out_base + p] = x.compute(rows[a + p], positions[p].y as f32);
-                    }
-                }
-                DependentDensityFunction::Unary(x) => {
-                    let a = x.input_index * n;
-                    for p in 0..n {
-                        rows[out_base + p] = x.operation.apply(rows[a + p]);
-                    }
-                }
-                DependentDensityFunction::Binary(x) => {
-                    let a = x.input1_index * n;
-                    let b = x.input2_index * n;
-                    for p in 0..n {
-                        rows[out_base + p] = x.operation.apply(rows[a + p], rows[b + p]);
-                    }
-                }
-                DependentDensityFunction::ShiftedNoise(x) => {
-                    let (sx, sy, sz) = (
-                        x.input_x_index * n,
-                        x.input_y_index * n,
-                        x.input_z_index * n,
-                    );
-                    for p in 0..n {
-                        let pos = positions[p];
-                        rows[out_base + p] = x.sampler.get(
-                            pos.x as f64 * x.xz_scale + rows[sx + p] as f64,
-                            pos.y as f64 * x.y_scale + rows[sy + p] as f64,
-                            pos.z as f64 * x.xz_scale + rows[sz + p] as f64,
-                        );
-                    }
-                }
-                DependentDensityFunction::Clamp(x) => {
-                    let a = x.input_index * n;
-                    for p in 0..n {
-                        rows[out_base + p] = rows[a + p].clamp(x.min_value, x.max_value);
-                    }
-                }
-                DependentDensityFunction::RangeChoice(x) => {
-                    let a = x.input_index * n;
-                    let win = x.when_in_index * n;
-                    let wout = x.when_out_index * n;
-                    for p in 0..n {
-                        let input = rows[a + p];
-                        rows[out_base + p] =
-                            if input >= x.min_inclusion_value && input < x.max_exclusion_value {
-                                rows[win + p]
-                            } else {
-                                rows[wout + p]
-                            };
-                    }
-                }
-                DependentDensityFunction::Lerp(x) => {
-                    let al = x.alpha_index * n;
-                    let fi = x.first_index * n;
-                    let se = x.second_index * n;
-                    for p in 0..n {
-                        let alpha = rows[al + p];
-                        rows[out_base + p] = if alpha == 0.0 {
-                            rows[fi + p]
-                        } else if alpha == 1.0 {
-                            rows[se + p]
-                        } else {
-                            let first = rows[fi + p];
-                            first + alpha * (rows[se + p] - first)
-                        };
-                    }
-                }
-                DependentDensityFunction::Spline(x) => {
-                    for p in 0..n {
-                        for j in 0..i {
-                            point[j] = rows[j * n + p];
-                        }
-                        rows[out_base + p] = x.sample(point);
-                    }
-                }
-                DependentDensityFunction::Slice(x) => {
-                    let (_, out) = rows.split_at_mut(out_base);
-                    x.fill(self, volume, &mut out[..n]);
-                }
-                DependentDensityFunction::FindTopSurface(x) => {
-                    let a = x.upper_bound_index * n;
-                    let (filled, out) = rows.split_at_mut(out_base);
-                    x.fill(self, positions, &filled[a..a + n], &mut out[..n]);
-                }
-            },
-            DensityFunctionComponent::Interpolated(x) => {
-                let (filled, out) = rows.split_at_mut(out_base);
-                let input = x.input_index * n;
-                x.sample_volume(self, volume, &filled[input..input + n], &mut out[..n]);
-            }
+        }
+    }
+}
+
+impl DensitySampler for DependentDensityFunction {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        match self {
+            DependentDensityFunction::Linear(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::Affine(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::PiecewiseAffine(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::Slide(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::Unary(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::Binary(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::ShiftedNoise(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::Clamp(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::RangeChoice(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::Lerp(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::Spline(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::Slice(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::FindTopSurface(x) => x.sample_volume(ctx, out),
+        }
+    }
+}
+
+impl DensitySampler for DensityFunctionComponent {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        match self {
+            DensityFunctionComponent::Independent(x) => x.sample_volume(ctx, out),
+            DensityFunctionComponent::Dependent(x) => x.sample_volume(ctx, out),
+            DensityFunctionComponent::Interpolated(x) => x.sample_volume(ctx, out),
         }
     }
 }

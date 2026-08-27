@@ -394,3 +394,65 @@ impl BinaryOperation {
         }
     }
 }
+
+impl PointSampler for Linear {
+    #[inline]
+    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
+        let input = ctx.row(self.input_index)[p];
+        match self.operation {
+            LinearOperation::Add => input + self.argument,
+            LinearOperation::Multiply => input * self.argument,
+        }
+    }
+}
+
+impl PointSampler for Affine {
+    #[inline]
+    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
+        ctx.row(self.input_index)[p].mul_add(self.scale, self.offset)
+    }
+}
+
+impl PointSampler for PiecewiseAffine {
+    #[inline]
+    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
+        let input = ctx.row(self.input_index)[p];
+        let scale = if input < 0.0 {
+            self.neg_scale
+        } else {
+            self.pos_scale
+        };
+        input.mul_add(scale, self.offset)
+    }
+}
+
+impl PointSampler for Slide {
+    #[inline]
+    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
+        self.compute(ctx.row(self.input_index)[p], ctx.positions[p].y as f32)
+    }
+}
+
+impl PointSampler for Unary {
+    #[inline]
+    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
+        self.operation.apply(ctx.row(self.input_index)[p])
+    }
+}
+
+impl PointSampler for Binary {
+    #[inline]
+    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
+        self.operation
+            .apply(ctx.row(self.input1_index)[p], ctx.row(self.input2_index)[p])
+    }
+}
+
+impl PointSampler for Clamp {
+    #[inline]
+    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
+        ctx.row(self.input_index)[p].clamp(self.min_value, self.max_value)
+    }
+}
+
+naive_volume!(Linear, Affine, PiecewiseAffine, Slide, Unary, Binary, Clamp);

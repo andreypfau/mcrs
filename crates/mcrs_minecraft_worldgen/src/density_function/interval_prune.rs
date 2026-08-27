@@ -216,13 +216,7 @@ impl<'a> Walker<'a> {
                 }
             });
             if inputs_exact && (y_degenerate || !is_y_dependent_kind(comp)) {
-                node::Arena::new(stack).fill_node(
-                    i,
-                    &Volume::point(pos),
-                    &[pos],
-                    &mut self.pt,
-                    &mut self.reg,
-                );
+                node::Arena::new(stack).fill_node(i, &Volume::point(pos), &[pos], &mut self.pt);
                 let v = self.pt[i];
                 self.exact[i] = true;
                 self.iv[i] = Iv::point(v).widen();
@@ -863,13 +857,7 @@ fn branch_skip_octave_census() {
                             Step::Eval { start, end } => {
                                 for &i in &sched.order[start as usize..end as usize] {
                                     evaluated += node_octaves(&router.stack[i]);
-                                    arena.fill_node(
-                                        i,
-                                        &Volume::point(pos),
-                                        &[pos],
-                                        &mut pt,
-                                        &mut reg,
-                                    );
+                                    arena.fill_node(i, &Volume::point(pos), &[pos], &mut pt);
                                 }
                                 s += 1;
                             }

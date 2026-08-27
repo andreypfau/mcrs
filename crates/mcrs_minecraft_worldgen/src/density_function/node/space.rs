@@ -354,7 +354,7 @@ impl Interpolated {
     /// `input_row` must hold the input's values over `volume` whenever
     /// [`Interpolated::is_lattice_volume`] holds; off the lattice this node
     /// resamples its input over its own cell volume and never reads it.
-    pub(crate) fn sample_volume(
+    pub(crate) fn fill_volume(
         &self,
         arena: Arena<'_>,
         volume: &Volume,
@@ -506,6 +506,29 @@ impl Interpolated {
                 }
             }
         }
+    }
+}
+
+impl DensitySampler for Slice {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        self.fill(ctx.arena, ctx.volume, out);
+    }
+}
+
+impl DensitySampler for FindTopSurface {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        self.fill(
+            ctx.arena,
+            ctx.positions,
+            ctx.row(self.upper_bound_index),
+            out,
+        );
+    }
+}
+
+impl DensitySampler for Interpolated {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        self.fill_volume(ctx.arena, ctx.volume, ctx.row(self.input_index), out);
     }
 }
 

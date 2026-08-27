@@ -355,3 +355,47 @@ impl Spline {
         }
     }
 }
+
+impl PointSampler for RangeChoice {
+    #[inline]
+    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
+        let input = ctx.row(self.input_index)[p];
+        if input >= self.min_inclusion_value && input < self.max_exclusion_value {
+            ctx.row(self.when_in_index)[p]
+        } else {
+            ctx.row(self.when_out_index)[p]
+        }
+    }
+}
+
+impl PointSampler for Lerp {
+    #[inline]
+    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
+        let alpha = ctx.row(self.alpha_index)[p];
+        if alpha == 0.0 {
+            ctx.row(self.first_index)[p]
+        } else if alpha == 1.0 {
+            ctx.row(self.second_index)[p]
+        } else {
+            let first = ctx.row(self.first_index)[p];
+            first + alpha * (ctx.row(self.second_index)[p] - first)
+        }
+    }
+}
+
+naive_volume!(RangeChoice, Lerp);
+
+impl DensitySampler for Spline {
+    /// Reads its inputs by stack index rather than by edge, so it needs the
+    /// whole register column gathered per position.
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let depth = ctx.depth();
+        let mut column = vec![0.0f32; depth];
+        for (p, slot) in out.iter_mut().enumerate() {
+            for (j, cell) in column.iter_mut().enumerate() {
+                *cell = ctx.row(j)[p];
+            }
+            *slot = self.sample(&column);
+        }
+    }
+}

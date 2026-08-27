@@ -350,3 +350,56 @@ impl RangeFunction for ShiftedNoise {
         self.sampler.max_value()
     }
 }
+
+impl PointSampler for ShiftedNoise {
+    #[inline]
+    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
+        let pos = ctx.positions[p];
+        self.sampler.get(
+            pos.x as f64 * self.xz_scale + ctx.row(self.input_x_index)[p] as f64,
+            pos.y as f64 * self.y_scale + ctx.row(self.input_y_index)[p] as f64,
+            pos.z as f64 * self.xz_scale + ctx.row(self.input_z_index)[p] as f64,
+        )
+    }
+}
+
+naive_volume!(ShiftedNoise);
+
+impl DensitySampler for Noise {
+    /// Y is the volume's fastest axis, so a run of positions is a column and
+    /// every octave can hoist its lattice hashes across it.
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let height = ctx.volume.size().y as usize;
+        if height < 2 {
+            for (p, slot) in out.iter_mut().enumerate() {
+                *slot = self.sample(ctx.positions[p]);
+            }
+            return;
+        }
+        let mut ys = vec![0.0f64; height];
+        let mut scratch = ColumnScratch::default();
+        for (column, slots) in out.chunks_mut(height).enumerate() {
+            let run = &ctx.positions[column * height..column * height + height];
+            for (slot, pos) in ys.iter_mut().zip(run) {
+                *slot = pos.y as f64 * self.y_scale;
+            }
+            self.sampler.get_column(
+                run[0].x as f64 * self.xz_scale,
+                run[0].z as f64 * self.xz_scale,
+                &ys,
+                slots,
+                &mut scratch,
+            );
+        }
+    }
+}
+
+impl DensitySampler for ShiftB {
+    /// Reads the noise at (z, x, 0), so its value is constant down a column.
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let height = ctx.volume.size().y as usize;
+        for (column, slots) in out.chunks_mut(height).enumerate() {
+            slots.fill(self.sample(ctx.positions[column * height]));
+        }
+    }
+}

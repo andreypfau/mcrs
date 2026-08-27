@@ -277,13 +277,7 @@ impl NoiseRouter {
             if !needed[i] {
                 continue;
             }
-            arena.fill_node(
-                i,
-                &column_volume,
-                &scratch.column_positions,
-                column_rows,
-                point,
-            );
+            arena.fill_node(i, &column_volume, &scratch.column_positions, column_rows);
             for c in 0..columns {
                 let base = i * n + c * size_y;
                 rows[base..base + size_y].fill(column_rows[i * columns + c]);
@@ -294,7 +288,7 @@ impl NoiseRouter {
         if live > self.fd_boundary {
             for i in 0..live {
                 if self.per_block[i] && needed[i] {
-                    arena.fill_node(i, volume, positions, rows, point);
+                    arena.fill_node(i, volume, positions, rows);
                 }
             }
         } else if roots.iter().all(|r| self.zone_b_roots.contains(r)) {
@@ -302,7 +296,7 @@ impl NoiseRouter {
         } else {
             for i in self.column_boundary..live {
                 if needed[i] {
-                    arena.fill_node(i, volume, positions, rows, point);
+                    arena.fill_node(i, volume, positions, rows);
                 }
             }
         }
@@ -332,7 +326,7 @@ impl NoiseRouter {
                 Step::Eval { start, end } => {
                     for &i in &sched.order[start as usize..end as usize] {
                         if i < needed.len() && needed[i] {
-                            arena.fill_node(i, volume, positions, rows, point);
+                            arena.fill_node(i, volume, positions, rows);
                         }
                     }
                     s += 1;
@@ -378,7 +372,7 @@ impl NoiseRouter {
         let arena = self.arena();
         for i in self.column_boundary..=self.final_density_index {
             if i < live && needed[i] {
-                arena.fill_node(i, volume, positions, rows, point);
+                arena.fill_node(i, volume, positions, rows);
             }
         }
         for (k, root) in roots().enumerate() {
