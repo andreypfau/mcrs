@@ -4,6 +4,9 @@ description = "mcrs_voxel_light"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 mcrs_voxel_math.workspace = true
 bevy_app.workspace = true

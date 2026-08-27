@@ -4,6 +4,9 @@ description = "mcrs_minecraft_anvil"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 mcrs_minecraft_nbt.workspace = true
 mcrs_voxel_storage.workspace = true

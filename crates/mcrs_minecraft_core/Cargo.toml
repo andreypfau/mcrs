@@ -4,6 +4,9 @@ description = "Core types: ResourceLocation, StaticRegistry, TagFile, AppState"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 bevy_app.workspace = true
 bevy_ecs.workspace = true

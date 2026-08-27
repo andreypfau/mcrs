@@ -32,7 +32,12 @@ impl Plugin for VoxelServerPlugin {
             app.add_plugins(TimePlugin);
         }
         app.insert_resource(Time::<Fixed>::from_hz(self.tick_rate.get() as f64));
-        app.add_plugins(AssetPlugin::default());
+        // Dropping a notify fsevents watcher joins its CFRunLoop thread and
+        // can block forever. The server has no hot-reload consumer.
+        app.add_plugins(AssetPlugin {
+            watch_for_changes_override: Some(false),
+            ..AssetPlugin::default()
+        });
     }
 }
 

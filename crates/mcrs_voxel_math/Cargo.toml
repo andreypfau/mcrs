@@ -4,6 +4,9 @@ description = "mcrs_voxel_math"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 bevy_ecs.workspace = true
 bevy_derive.workspace = true

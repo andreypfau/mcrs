@@ -246,7 +246,13 @@ pub fn spawn_dim_subapp(
     // this block. `AppTypeRegistry` is initialised by `App::new` but not by
     // `SubApp::new`, so the sub-app needs the explicit `init_resource` call.
     sub_app.init_resource::<bevy_ecs::reflect::AppTypeRegistry>();
-    sub_app.add_plugins(AssetPlugin::default());
+    // Dropping a notify fsevents watcher joins its CFRunLoop thread and can
+    // block forever; one recursive watch over the 22k-file corpus per dimension
+    // also costs more than the whole sub-app spawn. Nothing here hot-reloads.
+    sub_app.add_plugins(AssetPlugin {
+        watch_for_changes_override: Some(false),
+        ..AssetPlugin::default()
+    });
     // The worldgen `ChunkPlugin` (NoiseGeneratorSettings, ColumnScheduler, the
     // CHUNK_TASK_POOL, and the five FixedPreUpdate worldgen systems) is the
     // per-dim entry-point that turns DimSpawnRequest into populated columns.

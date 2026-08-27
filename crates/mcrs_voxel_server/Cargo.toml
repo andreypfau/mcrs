@@ -4,6 +4,9 @@ description = "mcrs_voxel_server"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 bevy_app.workspace = true
 bevy_asset.workspace = true

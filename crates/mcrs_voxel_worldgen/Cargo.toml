@@ -4,6 +4,9 @@ description = "mcrs_voxel_worldgen"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 mcrs_voxel_math.workspace = true
 mcrs_voxel_storage.workspace = true

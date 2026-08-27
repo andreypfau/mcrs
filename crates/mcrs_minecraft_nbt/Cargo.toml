@@ -3,6 +3,9 @@ name = "mcrs_minecraft_nbt"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 serde.workspace = true
 thiserror.workspace = true

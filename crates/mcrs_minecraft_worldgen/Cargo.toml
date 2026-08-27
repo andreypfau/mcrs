@@ -4,6 +4,9 @@ description = "mcrs_minecraft_worldgen"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 mcrs_minecraft_core.workspace = true
 mcrs_voxel_storage.workspace = true

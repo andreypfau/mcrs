@@ -4,6 +4,9 @@ description = "Tracy / diagnostics substrate for mcrs"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 bevy_app.workspace = true
 bevy_log.workspace = true

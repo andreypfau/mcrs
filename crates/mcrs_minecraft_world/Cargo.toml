@@ -4,6 +4,9 @@ description = "Vanilla Minecraft block/item type vocabulary and static registrie
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 mcrs_voxel_math.workspace = true
 mcrs_minecraft_core.workspace = true

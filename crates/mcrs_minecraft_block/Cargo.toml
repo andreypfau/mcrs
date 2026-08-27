@@ -4,6 +4,9 @@ description = "mcrs_minecraft_block"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 mcrs_voxel_math.workspace = true
 mcrs_voxel_storage.workspace = true
