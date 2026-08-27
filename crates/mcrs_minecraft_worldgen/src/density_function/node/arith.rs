@@ -150,59 +150,6 @@ impl Slide {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Copy, Eq)]
-pub(crate) enum UnaryOperation {
-    Abs,
-    Square,
-    Cube,
-    HalfNegative,
-    QuarterNegative,
-    Reciprocal,
-    Squeeze,
-    Sqrt,
-    Log,
-    Sign,
-}
-
-impl UnaryOperation {
-    #[inline]
-    pub fn apply(&self, value: f32) -> f32 {
-        match self {
-            UnaryOperation::Abs => value.abs(),
-            UnaryOperation::Square => value * value,
-            UnaryOperation::Cube => value * value * value,
-            UnaryOperation::HalfNegative => {
-                if value > 0.0 {
-                    value
-                } else {
-                    value * 0.5
-                }
-            }
-            UnaryOperation::QuarterNegative => {
-                if value > 0.0 {
-                    value
-                } else {
-                    value * 0.25
-                }
-            }
-            UnaryOperation::Reciprocal => 1.0 / value,
-            UnaryOperation::Squeeze => {
-                let clamped = value.clamp(-1.0, 1.0);
-                clamped / 2.0 - clamped * clamped * clamped / 24.0
-            }
-            UnaryOperation::Sqrt => value.sqrt(),
-            UnaryOperation::Log => value.ln(),
-            UnaryOperation::Sign => {
-                if value == 0.0 {
-                    value
-                } else {
-                    1.0_f32.copysign(value)
-                }
-            }
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Clamp {
     pub(crate) input_index: usize,
@@ -351,22 +298,32 @@ macro_rules! two_input_samplers {
 }
 
 macro_rules! one_input_samplers {
-    ($($(#[$m:meta])* $name:ident, $v:ident => $body:expr;)*) => {$(
+    ($($(#[$m:meta])* $name:ident, $v:ident => $body:expr, $input:ident => $range:expr;)*) => {$(
         $(#[$m])*
         #[derive(Clone, Debug, PartialEq)]
         pub(crate) struct $name {
             pub(crate) input_index: usize,
         }
 
-        impl DensitySampler for $name {
-            fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
-                let $v = ctx.row(self.input_index)[index];
+        impl $name {
+            #[inline]
+            pub(crate) fn apply($v: f32) -> f32 {
                 $body
             }
 
+            pub(crate) fn range($input: Interval) -> Interval {
+                $range
+            }
+        }
+
+        impl DensitySampler for $name {
+            fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+                Self::apply(ctx.row(self.input_index)[index])
+            }
+
             fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
-                for (slot, &$v) in out.iter_mut().zip(ctx.row(self.input_index)) {
-                    *slot = $body;
+                for (slot, &value) in out.iter_mut().zip(ctx.row(self.input_index)) {
+                    *slot = Self::apply(value);
                 }
             }
         }
@@ -384,18 +341,21 @@ two_input_samplers! {
 }
 
 one_input_samplers! {
-    Abs, v => v.abs();
-    Square, v => v * v;
-    Cube, v => v * v * v;
-    Negate, v => -v;
-    Reciprocal, v => 1.0 / v;
-    Sqrt, v => v.sqrt();
-    Log, v => v.ln();
-    Sign, v => if v == 0.0 { v } else { 1.0_f32.copysign(v) };
+    Abs, v => v.abs(), input => input.abs();
+    Square, v => v * v, input => input.square();
+    Cube, v => v * v * v, input => input.map_monotonic(Self::apply);
+    Negate, v => -v, input => Interval::exact(0.0) - input;
+    Reciprocal, v => 1.0 / v, input => input.reciprocal();
+    Sqrt, v => v.sqrt(),
+        input => input
+            .pointwise_max(Interval::exact(0.0))
+            .map_monotonic(Self::apply);
+    Log, v => v.ln(), input => input.log();
+    Sign, v => if v == 0.0 { v } else { 1.0_f32.copysign(v) }, input => input.sign();
     Squeeze, v => {
         let clamped = v.clamp(-1.0, 1.0);
         clamped / 2.0 - clamped * clamped * clamped / 24.0
-    };
+    }, input => input.map_monotonic(Self::apply);
 }
 
 /// Negative values are scaled, positive ones pass through.

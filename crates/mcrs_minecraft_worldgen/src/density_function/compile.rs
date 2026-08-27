@@ -172,39 +172,51 @@ fn lower_affine(
     )
 }
 
-fn lower_unary(
+/// The visitor for each one-input operation: lower it, then register it under
+/// the proto of the same name.
+macro_rules! unary_visitors {
+    ($($visit:ident, $node:ident;)*) => {$(
+        fn $visit(&mut self, arg: &SingleArgumentFunction) {
+            let input_index = self.component(&arg.input);
+            let lowering = lower_unary!(self.stack, $node, input_index);
+            self.register_lowering(ProtoDensityFunction::$node(arg.clone()), lowering);
+        }
+    )*};
+}
+
+/// Fold a constant input through the operation, otherwise build the node and
+/// take its bounds from the input's.
+macro_rules! lower_unary {
+    ($stack:expr, $node:ident, $input_index:expr) => {{
+        let index = $input_index;
+        let input = &$stack[index];
+        match input.as_constant() {
+            Some(value) => Lowering::constant($node::apply(value)),
+            None => Lowering::dependent(
+                $node::range(input.range),
+                DependentDensityFunction::$node($node { input_index: index }),
+            ),
+        }
+    }};
+}
+
+fn lower_leaky_relu(
     stack: &[DensityFunctionComponent],
-    operation: UnaryOperation,
     input_index: usize,
+    negative_factor: f32,
 ) -> Lowering {
     let input = &stack[input_index];
+    let leaky = LeakyReLU {
+        input_index,
+        negative_factor,
+    };
     if let Some(value) = input.as_constant() {
-        return Lowering::constant(operation.apply(value));
+        return Lowering::constant(leaky.apply(value));
     }
-    macro_rules! one_input {
-        ($variant:ident) => {
-            DependentDensityFunction::$variant($variant { input_index })
-        };
-    }
-    let leaky = |negative_factor| {
-        DependentDensityFunction::LeakyReLU(LeakyReLU {
-            input_index,
-            negative_factor,
-        })
-    };
-    let function = match operation {
-        UnaryOperation::Abs => one_input!(Abs),
-        UnaryOperation::Square => one_input!(Square),
-        UnaryOperation::Cube => one_input!(Cube),
-        UnaryOperation::Reciprocal => one_input!(Reciprocal),
-        UnaryOperation::Squeeze => one_input!(Squeeze),
-        UnaryOperation::Sqrt => one_input!(Sqrt),
-        UnaryOperation::Log => one_input!(Log),
-        UnaryOperation::Sign => one_input!(Sign),
-        UnaryOperation::HalfNegative => leaky(0.5),
-        UnaryOperation::QuarterNegative => leaky(0.25),
-    };
-    Lowering::dependent(unary_range(operation, input.range), function)
+    Lowering::dependent(
+        input.range.map_monotonic(|value| leaky.apply(value)),
+        DependentDensityFunction::LeakyReLU(leaky),
+    )
 }
 
 /// The reference picks a constant-operand sampler wherever one operand compiled
@@ -481,23 +493,18 @@ fn relower(stack: &[DensityFunctionComponent], index: usize) -> Option<Lowering>
     let Sampler::Dependent(function) = &stack[index].sampler else {
         return None;
     };
-    macro_rules! unary {
-        ($operation:ident, $x:expr) => {
-            lower_unary(stack, UnaryOperation::$operation, $x.input_index)
-        };
-    }
     let lowered = match function {
         DependentDensityFunction::Affine(x) => {
             lower_affine(stack, x.input_index, x.scale, x.offset)
         }
-        DependentDensityFunction::Abs(x) => unary!(Abs, x),
-        DependentDensityFunction::Square(x) => unary!(Square, x),
-        DependentDensityFunction::Cube(x) => unary!(Cube, x),
-        DependentDensityFunction::Reciprocal(x) => unary!(Reciprocal, x),
-        DependentDensityFunction::Squeeze(x) => unary!(Squeeze, x),
-        DependentDensityFunction::Sqrt(x) => unary!(Sqrt, x),
-        DependentDensityFunction::Log(x) => unary!(Log, x),
-        DependentDensityFunction::Sign(x) => unary!(Sign, x),
+        DependentDensityFunction::Abs(x) => lower_unary!(stack, Abs, x.input_index),
+        DependentDensityFunction::Square(x) => lower_unary!(stack, Square, x.input_index),
+        DependentDensityFunction::Cube(x) => lower_unary!(stack, Cube, x.input_index),
+        DependentDensityFunction::Reciprocal(x) => lower_unary!(stack, Reciprocal, x.input_index),
+        DependentDensityFunction::Squeeze(x) => lower_unary!(stack, Squeeze, x.input_index),
+        DependentDensityFunction::Sqrt(x) => lower_unary!(stack, Sqrt, x.input_index),
+        DependentDensityFunction::Log(x) => lower_unary!(stack, Log, x.input_index),
+        DependentDensityFunction::Sign(x) => lower_unary!(stack, Sign, x.input_index),
         DependentDensityFunction::Add(x) => lower_add(stack, x.input1_index, x.input2_index),
         DependentDensityFunction::Sub(x) => lower_sub(stack, x.input1_index, x.input2_index),
         DependentDensityFunction::Mul(x) => lower_mul(stack, x.input1_index, x.input2_index),
@@ -1213,28 +1220,23 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         );
     }
 
-    fn visit_abs(&mut self, arg: &SingleArgumentFunction) {
-        self.unary(arg, UnaryOperation::Abs);
-    }
-
-    fn visit_square(&mut self, function: &SingleArgumentFunction) {
-        self.unary(function, UnaryOperation::Square);
-    }
-
-    fn visit_cube(&mut self, function: &SingleArgumentFunction) {
-        self.unary(function, UnaryOperation::Cube);
+    unary_visitors! {
+        visit_abs, Abs;
+        visit_square, Square;
+        visit_cube, Cube;
+        visit_reciprocal, Reciprocal;
+        visit_squeeze, Squeeze;
+        visit_sqrt, Sqrt;
+        visit_log, Log;
+        visit_sign, Sign;
     }
 
     fn visit_half_negative(&mut self, function: &SingleArgumentFunction) {
-        self.unary(function, UnaryOperation::HalfNegative);
+        self.leaky_relu(function, 0.5, ProtoDensityFunction::HalfNegative);
     }
 
     fn visit_quarter_negative(&mut self, function: &SingleArgumentFunction) {
-        self.unary(function, UnaryOperation::QuarterNegative);
-    }
-
-    fn visit_reciprocal(&mut self, function: &SingleArgumentFunction) {
-        self.unary(function, UnaryOperation::Reciprocal);
+        self.leaky_relu(function, 0.25, ProtoDensityFunction::QuarterNegative);
     }
 
     fn visit_negate(&mut self, function: &SingleArgumentFunction) {
@@ -1246,22 +1248,6 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             }),
             lowering,
         );
-    }
-
-    fn visit_squeeze(&mut self, function: &SingleArgumentFunction) {
-        self.unary(function, UnaryOperation::Squeeze);
-    }
-
-    fn visit_sqrt(&mut self, function: &SingleArgumentFunction) {
-        self.unary(function, UnaryOperation::Sqrt);
-    }
-
-    fn visit_log(&mut self, function: &SingleArgumentFunction) {
-        self.unary(function, UnaryOperation::Log);
-    }
-
-    fn visit_sign(&mut self, function: &SingleArgumentFunction) {
-        self.unary(function, UnaryOperation::Sign);
     }
 
     fn visit_pow(&mut self, function: &PowFunctionArguments) {
@@ -1792,22 +1778,15 @@ impl<'a> FunctionStackBuilder<'a> {
         (self.component(left), self.component(right))
     }
 
-    fn unary(&mut self, arg: &SingleArgumentFunction, operation: UnaryOperation) {
+    fn leaky_relu(
+        &mut self,
+        arg: &SingleArgumentFunction,
+        negative_factor: f32,
+        proto: fn(SingleArgumentFunction) -> ProtoDensityFunction,
+    ) {
         let input_index = self.component(&arg.input);
-        let proto = match operation {
-            UnaryOperation::Abs => ProtoDensityFunction::Abs(arg.clone()),
-            UnaryOperation::Square => ProtoDensityFunction::Square(arg.clone()),
-            UnaryOperation::Cube => ProtoDensityFunction::Cube(arg.clone()),
-            UnaryOperation::HalfNegative => ProtoDensityFunction::HalfNegative(arg.clone()),
-            UnaryOperation::QuarterNegative => ProtoDensityFunction::QuarterNegative(arg.clone()),
-            UnaryOperation::Reciprocal => ProtoDensityFunction::Reciprocal(arg.clone()),
-            UnaryOperation::Squeeze => ProtoDensityFunction::Squeeze(arg.clone()),
-            UnaryOperation::Sqrt => ProtoDensityFunction::Sqrt(arg.clone()),
-            UnaryOperation::Log => ProtoDensityFunction::Log(arg.clone()),
-            UnaryOperation::Sign => ProtoDensityFunction::Sign(arg.clone()),
-        };
-        let lowering = lower_unary(&self.stack, operation, input_index);
-        self.register_lowering(proto, lowering);
+        let lowering = lower_leaky_relu(&self.stack, input_index, negative_factor);
+        self.register_lowering(proto(arg.clone()), lowering);
     }
 
     fn noise_name(holder: &NoiseHolder) -> String {
@@ -1915,7 +1894,7 @@ impl<'a> FunctionStackBuilder<'a> {
 #[cfg(all(test, feature = "serde"))]
 mod arithmetic_node_tests {
     use super::{
-        DensityFunctionComponent, DependentDensityFunction, FunctionStackBuilder, UnaryOperation,
+        DensityFunctionComponent, DependentDensityFunction, FunctionStackBuilder,
     };
     use crate::density_function::node::Sampler;
     use crate::density_function::proto::{
@@ -2166,7 +2145,7 @@ mod arithmetic_node_tests {
         }
     }
 
-    fn unary_operation(json: &str) -> Option<UnaryOperation> {
+    fn unary_node(json: &str) -> Option<&'static str> {
         let proto: ProtoDensityFunction = serde_json::from_str(json).unwrap();
         let functions = BTreeMap::new();
         let noises = BTreeMap::new();
@@ -2175,14 +2154,14 @@ mod arithmetic_node_tests {
         let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
         match &builder.stack[index].sampler {
             Sampler::Dependent(f) => match f {
-                DependentDensityFunction::Abs(_) => Some(UnaryOperation::Abs),
-                DependentDensityFunction::Square(_) => Some(UnaryOperation::Square),
-                DependentDensityFunction::Cube(_) => Some(UnaryOperation::Cube),
-                DependentDensityFunction::Reciprocal(_) => Some(UnaryOperation::Reciprocal),
-                DependentDensityFunction::Squeeze(_) => Some(UnaryOperation::Squeeze),
-                DependentDensityFunction::Sqrt(_) => Some(UnaryOperation::Sqrt),
-                DependentDensityFunction::Log(_) => Some(UnaryOperation::Log),
-                DependentDensityFunction::Sign(_) => Some(UnaryOperation::Sign),
+                DependentDensityFunction::Abs(_) => Some("abs"),
+                DependentDensityFunction::Square(_) => Some("square"),
+                DependentDensityFunction::Cube(_) => Some("cube"),
+                DependentDensityFunction::Reciprocal(_) => Some("reciprocal"),
+                DependentDensityFunction::Squeeze(_) => Some("squeeze"),
+                DependentDensityFunction::Sqrt(_) => Some("sqrt"),
+                DependentDensityFunction::Log(_) => Some("log"),
+                DependentDensityFunction::Sign(_) => Some("sign"),
                 _ => None,
             },
             _ => None,
@@ -2197,14 +2176,11 @@ mod arithmetic_node_tests {
                 moving(0.5, 2.0)
             )
         };
-        assert_eq!(unary_operation(&pow("0.5")), Some(UnaryOperation::Sqrt));
-        assert_eq!(unary_operation(&pow("2.0")), Some(UnaryOperation::Square));
-        assert_eq!(unary_operation(&pow("3.0")), Some(UnaryOperation::Cube));
-        assert_eq!(
-            unary_operation(&pow("-2.0")),
-            Some(UnaryOperation::Reciprocal)
-        );
-        assert_eq!(unary_operation(&pow("4.0")), None);
+        assert_eq!(unary_node(&pow("0.5")), Some("sqrt"));
+        assert_eq!(unary_node(&pow("2.0")), Some("square"));
+        assert_eq!(unary_node(&pow("3.0")), Some("cube"));
+        assert_eq!(unary_node(&pow("-2.0")), Some("reciprocal"));
+        assert_eq!(unary_node(&pow("4.0")), None);
 
         assert_eq!(sample(&pow("1.0")), sample(&moving(0.5, 2.0)));
         assert_eq!(

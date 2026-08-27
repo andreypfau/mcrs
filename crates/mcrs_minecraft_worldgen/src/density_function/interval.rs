@@ -1,6 +1,7 @@
 use super::{
-    Affine, DependentDensityFunction, IndependentDensityFunction, IndependentSampler, NoiseRouter,
-    PiecewiseAffine, RoundingMode, Sampler, UnaryOperation, round_to_integer,
+    Abs, Affine, Cube, DependentDensityFunction, IndependentDensityFunction, IndependentSampler,
+    Log, Negate, NoiseRouter, PiecewiseAffine, Reciprocal, RoundingMode, Sampler, Sign, Sqrt,
+    Square, Squeeze, round_to_integer,
 };
 
 /// The bounds a value can take. Only ever widened: a bound narrower than the
@@ -203,7 +204,7 @@ impl Interval {
         if self.is_nai() {
             Self::NAI
         } else if self.min == self.max {
-            Self::exact(UnaryOperation::Sign.apply(self.min))
+            Self::exact(Sign::apply(self.min))
         } else if !self.contains(0.0) {
             Self::exact(if self.min > 0.0 { 1.0 } else { -1.0 })
         } else if self.min == 0.0 {
@@ -220,7 +221,7 @@ impl Interval {
             return Self::NAI;
         }
         self.pointwise_max(Self::exact(0.0))
-            .map_monotonic(|value| UnaryOperation::Log.apply(value))
+            .map_monotonic(Log::apply)
     }
 
     pub fn map_monotonic(self, op: impl Fn(f32) -> f32) -> Self {
@@ -426,23 +427,6 @@ impl std::ops::Div for Interval {
     }
 }
 
-pub(super) fn unary_range(operation: UnaryOperation, input: Interval) -> Interval {
-    match operation {
-        UnaryOperation::Abs => input.abs(),
-        UnaryOperation::Square => input.square(),
-        UnaryOperation::Reciprocal => input.reciprocal(),
-        UnaryOperation::Sign => input.sign(),
-        UnaryOperation::Log => input.log(),
-        UnaryOperation::Sqrt => input
-            .pointwise_max(Interval::exact(0.0))
-            .map_monotonic(|value| operation.apply(value)),
-        UnaryOperation::Cube
-        | UnaryOperation::Squeeze
-        | UnaryOperation::HalfNegative
-        | UnaryOperation::QuarterNegative => input.map_monotonic(|value| operation.apply(value)),
-    }
-}
-
 pub(super) fn round_range(value: Interval, multiple: Interval, mode: RoundingMode) -> Interval {
     (value / multiple).map_monotonic(|v| round_to_integer(v, mode)) * multiple
 }
@@ -484,17 +468,15 @@ pub(super) fn dependent_range(
         DependentDensityFunction::Round(x) => {
             round_range(iv[x.input1_index], iv[x.input2_index], x.mode)
         }
-        DependentDensityFunction::Abs(x) => iv[x.input_index].abs(),
-        DependentDensityFunction::Square(x) => iv[x.input_index].square(),
-        DependentDensityFunction::Cube(x) => unary_range(UnaryOperation::Cube, iv[x.input_index]),
-        DependentDensityFunction::Reciprocal(x) => iv[x.input_index].reciprocal(),
-        DependentDensityFunction::Squeeze(x) => {
-            unary_range(UnaryOperation::Squeeze, iv[x.input_index])
-        }
-        DependentDensityFunction::Sqrt(x) => unary_range(UnaryOperation::Sqrt, iv[x.input_index]),
-        DependentDensityFunction::Log(x) => iv[x.input_index].log(),
-        DependentDensityFunction::Sign(x) => iv[x.input_index].sign(),
-        DependentDensityFunction::Negate(x) => Interval::exact(0.0) - iv[x.input_index],
+        DependentDensityFunction::Abs(x) => Abs::range(iv[x.input_index]),
+        DependentDensityFunction::Square(x) => Square::range(iv[x.input_index]),
+        DependentDensityFunction::Cube(x) => Cube::range(iv[x.input_index]),
+        DependentDensityFunction::Reciprocal(x) => Reciprocal::range(iv[x.input_index]),
+        DependentDensityFunction::Squeeze(x) => Squeeze::range(iv[x.input_index]),
+        DependentDensityFunction::Sqrt(x) => Sqrt::range(iv[x.input_index]),
+        DependentDensityFunction::Log(x) => Log::range(iv[x.input_index]),
+        DependentDensityFunction::Sign(x) => Sign::range(iv[x.input_index]),
+        DependentDensityFunction::Negate(x) => Negate::range(iv[x.input_index]),
         DependentDensityFunction::LeakyReLU(x) => {
             iv[x.input_index].map_monotonic(|value| x.apply(value))
         }
