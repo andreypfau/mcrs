@@ -27,20 +27,22 @@ pub mod beta_seed;
 pub mod beta_terrain_f64;
 mod branch_schedule;
 mod compile;
+mod interval;
 #[cfg(test)]
 mod interval_prune;
 pub mod proto;
-mod range;
 #[cfg(test)]
 mod tests;
 pub mod volume;
 
-use range::{binary_range, mul_range, pow_narrowed, unary_range};
+use interval::{binary_range, unary_range};
+
+pub use interval::Interval;
 
 pub use compile::build_functions;
 pub use volume::{FillScratch, Volume};
 
-trait DensityFunction: RangeFunction {
+trait DensityFunction {
     fn sample(&self, pos: IVec3) -> f32;
 }
 

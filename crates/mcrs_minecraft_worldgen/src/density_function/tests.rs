@@ -52,7 +52,7 @@ fn end_outer_islands_matches_the_vanilla_oracle() {
             );
         }
         let value = f32::from_bits(expected);
-        assert!((function.min_value()..=function.max_value()).contains(&value));
+        assert!(function.range().contains(value));
     }
 }
 
@@ -97,9 +97,9 @@ fn blended_noise_never_leaves_its_declared_range() {
             smear,
             divisor,
         );
-        let bound = noise.max_value();
+        let bound = noise.range().max();
         let mut peak = 0.0f32;
-        assert_eq!(bound, -noise.min_value());
+        assert_eq!(bound, -noise.range().min());
         for _ in 0..200_000 {
             let pos = bevy_math::IVec3::new(
                 (next() % 4_000_001) as i32 - 2_000_000,
@@ -1564,7 +1564,7 @@ fn no_operation_carrying_node_survives_lowering() {
     for settings in ["overworld.json", "nether.json", "end.json", "caves.json"] {
         let router = router_for(settings);
         for (i, component) in router.stack.iter().enumerate() {
-            if let super::DensityFunctionComponent::Dependent(f) = component {
+            if let super::Sampler::Dependent(f) = &component.sampler {
                 assert!(
                     !matches!(
                         f,

@@ -11,7 +11,7 @@ use crate::noise::normal_noise::{ColumnScratch, NoiseSampler};
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::noise::simplex::SimplexNoise;
 use crate::proto::NoiseGeneratorSettings;
-use crate::spline::{RangeFunction, SplineFunction};
+use crate::spline::SplineFunction;
 use bevy_math::{Curve, FloatExt, IVec3};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -32,20 +32,6 @@ pub(crate) struct Interpolated {
     pub(crate) cell_size_y: u32,
     pub(crate) cell_size_xz_inv: f32,
     pub(crate) cell_size_y_inv: f32,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
-}
-
-impl RangeFunction for Interpolated {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -55,13 +41,9 @@ pub(crate) struct ClampedYGradient {
     pub(crate) from_value: f32,
     pub(crate) to_value: f32,
 }
-impl RangeFunction for ClampedYGradient {
-    fn min_value(&self) -> f32 {
-        self.from_value.min(self.to_value)
-    }
-
-    fn max_value(&self) -> f32 {
-        self.from_value.max(self.to_value)
+impl ClampedYGradient {
+    pub(crate) fn range(&self) -> Interval {
+        Interval::encapsulating(self.from_value, self.to_value)
     }
 }
 #[derive(Clone, Debug, PartialEq)]
@@ -74,13 +56,9 @@ pub(crate) struct Gradient {
     pub(crate) to_value: f32,
 }
 
-impl RangeFunction for Gradient {
-    fn min_value(&self) -> f32 {
-        self.from_value.min(self.to_value)
-    }
-
-    fn max_value(&self) -> f32 {
-        self.from_value.max(self.to_value)
+impl Gradient {
+    pub(crate) fn range(&self) -> Interval {
+        Interval::encapsulating(self.from_value, self.to_value)
     }
 }
 
@@ -172,13 +150,9 @@ impl EndIslands {
     }
 }
 
-impl RangeFunction for EndIslands {
-    fn min_value(&self) -> f32 {
-        -0.84375
-    }
-
-    fn max_value(&self) -> f32 {
-        0.5625
+impl EndIslands {
+    pub(crate) fn range(&self) -> Interval {
+        Interval::of(-0.84375, 0.5625)
     }
 }
 
@@ -195,7 +169,6 @@ pub(crate) struct FindTopSurface {
     pub(crate) upper_bound_index: usize,
     pub(crate) lower_bound: f32,
     pub(crate) cell_height: f32,
-    pub(crate) max_value: f32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -204,20 +177,6 @@ pub(crate) struct Slice {
     pub(crate) coordinate: i32,
     pub(crate) input_index: usize,
     pub(crate) input_members: Box<[u32]>,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
-}
-
-impl RangeFunction for Slice {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -226,15 +185,9 @@ pub(crate) struct DistanceToPoint {
     pub(crate) metric: DistanceMetric,
 }
 
-impl RangeFunction for DistanceToPoint {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        0.0
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        f32::INFINITY
+impl DistanceToPoint {
+    pub(crate) fn range(&self) -> Interval {
+        Interval::of(0.0, f32::INFINITY)
     }
 }
 
@@ -247,18 +200,6 @@ impl DensityFunction for DistanceToPoint {
             DistanceMetric::Manhattan => d.x.abs() + d.y.abs() + d.z.abs(),
             DistanceMetric::Chebyshev => d.x.abs().max(d.y.abs()).max(d.z.abs()),
         }
-    }
-}
-
-impl RangeFunction for FindTopSurface {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.lower_bound
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
     }
 }
 

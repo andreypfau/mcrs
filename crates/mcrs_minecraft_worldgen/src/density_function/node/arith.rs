@@ -11,7 +11,7 @@ use crate::noise::normal_noise::{ColumnScratch, NoiseSampler};
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::noise::simplex::SimplexNoise;
 use crate::proto::NoiseGeneratorSettings;
-use crate::spline::{RangeFunction, SplineFunction};
+use crate::spline::SplineFunction;
 use bevy_math::{Curve, FloatExt, IVec3};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -27,8 +27,6 @@ use tracing::info;
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Linear {
     pub(crate) input_index: usize,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
     pub(crate) argument: f32,
     pub(crate) operation: LinearOperation,
 }
@@ -38,8 +36,6 @@ pub(crate) struct Affine {
     pub(crate) input_index: usize,
     pub(crate) scale: f32,
     pub(crate) offset: f32,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
 }
 
 #[derive(Clone, Debug, PartialEq, Copy, Eq)]
@@ -49,35 +45,13 @@ pub(crate) enum LinearOperation {
 }
 
 impl Affine {
-    pub(crate) fn compute_range(
-        input_min: f32,
-        input_max: f32,
-        scale: f32,
-        offset: f32,
-    ) -> (f32, f32) {
-        if scale >= 0.0 {
-            (
-                input_min.mul_add(scale, offset),
-                input_max.mul_add(scale, offset),
-            )
-        } else {
-            (
-                input_max.mul_add(scale, offset),
-                input_min.mul_add(scale, offset),
-            )
-        }
-    }
-}
-
-impl RangeFunction for Affine {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
+    /// Fused with the same rounding the sampler uses, so the bounds are the
+    /// exact images of the input's own bounds rather than a rounding away.
+    pub(crate) fn compute_range(input: Interval, scale: f32, offset: f32) -> Interval {
+        Interval::encapsulating(
+            input.min().mul_add(scale, offset),
+            input.max().mul_add(scale, offset),
+        )
     }
 }
 
@@ -93,18 +67,15 @@ pub(crate) struct PiecewiseAffine {
     pub(crate) neg_scale: f32,
     pub(crate) pos_scale: f32,
     pub(crate) offset: f32,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
 }
 
 impl PiecewiseAffine {
     pub(crate) fn compute_range(
-        input_min: f32,
-        input_max: f32,
+        input: Interval,
         neg_scale: f32,
         pos_scale: f32,
         offset: f32,
-    ) -> (f32, f32) {
+    ) -> Interval {
         // Two monotone pieces meeting at zero: the extremes can only sit at an
         // endpoint or at the breakpoint, and the breakpoint only counts when the
         // input interval actually straddles it.
@@ -115,27 +86,11 @@ impl PiecewiseAffine {
                 x * pos_scale + offset
             }
         };
-        let a = apply(input_min);
-        let b = apply(input_max);
-        let mut lo = a.min(b);
-        let mut hi = a.max(b);
-        if input_min < 0.0 && input_max >= 0.0 {
-            lo = lo.min(offset);
-            hi = hi.max(offset);
+        let mut result = Interval::encapsulating(apply(input.min()), apply(input.max()));
+        if input.min() < 0.0 && input.max() >= 0.0 {
+            result = result.union_value(offset);
         }
-        (lo, hi)
-    }
-}
-
-impl RangeFunction for PiecewiseAffine {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
+        result
     }
 }
 
@@ -170,9 +125,6 @@ pub(crate) struct Slide {
     // Y range where both gradients saturate to 1.0 (fast path)
     pub(crate) fast_path_min_y: f32,
     pub(crate) fast_path_max_y: f32,
-
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
 }
 
 impl Slide {
@@ -212,35 +164,9 @@ impl Slide {
     }
 }
 
-impl RangeFunction for Slide {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
-}
-
-impl RangeFunction for Linear {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Unary {
     pub(crate) input_index: usize,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
     pub(crate) operation: UnaryOperation,
 }
 
@@ -300,59 +226,21 @@ impl UnaryOperation {
     }
 }
 
-impl RangeFunction for Unary {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Clamp {
     pub(crate) input_index: usize,
-    /// The datapack bounds already narrowed to the input's own range. Sampling clamps
-    /// to these rather than the raw bounds: for any value the input can produce the two
-    /// agree, so the narrower pair serves as both the operation and the declared range.
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
-}
-
-impl RangeFunction for Clamp {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
+    /// The datapack bounds already narrowed to the input's own range: for any
+    /// value the input can produce the two agree, and the narrower pair lets a
+    /// clamp that can never bite be eliminated outright.
+    pub(crate) min: f32,
+    pub(crate) max: f32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Binary {
     pub(crate) input1_index: usize,
     pub(crate) input2_index: usize,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
     pub(crate) operation: BinaryOperation,
-}
-
-impl RangeFunction for Binary {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Copy, Eq)]
@@ -383,7 +271,7 @@ impl BinaryOperation {
             }
             BinaryOperation::Min => a.min(b),
             BinaryOperation::Max => a.max(b),
-            BinaryOperation::Pow => pow_narrowed(a, b),
+            BinaryOperation::Pow => a.powf(b),
             BinaryOperation::Round(mode) => {
                 if b == 0.0 {
                     a
@@ -428,7 +316,7 @@ impl DensitySampler for Slide {
 impl DensitySampler for Clamp {
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         for (slot, &value) in out.iter_mut().zip(ctx.row(self.input_index)) {
-            *slot = value.clamp(self.min_value, self.max_value);
+            *slot = value.clamp(self.min, self.max);
         }
     }
 }
@@ -443,19 +331,6 @@ macro_rules! const_binary_samplers {
         pub(crate) struct $name {
             pub(crate) input_index: usize,
             pub(crate) argument: f32,
-            pub(crate) min_value: f32,
-            pub(crate) max_value: f32,
-        }
-
-        impl RangeFunction for $name {
-            #[inline]
-            fn min_value(&self) -> f32 {
-                self.min_value
-            }
-            #[inline]
-            fn max_value(&self) -> f32 {
-                self.max_value
-            }
         }
 
         impl DensitySampler for $name {
@@ -483,15 +358,6 @@ macro_rules! two_input_samplers {
         pub(crate) struct $name {
             pub(crate) input1_index: usize,
             pub(crate) input2_index: usize,
-            pub(crate) min_value: f32,
-            pub(crate) max_value: f32,
-        }
-
-        impl RangeFunction for $name {
-            #[inline]
-            fn min_value(&self) -> f32 { self.min_value }
-            #[inline]
-            fn max_value(&self) -> f32 { self.max_value }
         }
 
         impl DensitySampler for $name {
@@ -512,15 +378,6 @@ macro_rules! one_input_samplers {
         #[derive(Clone, Debug, PartialEq)]
         pub(crate) struct $name {
             pub(crate) input_index: usize,
-            pub(crate) min_value: f32,
-            pub(crate) max_value: f32,
-        }
-
-        impl RangeFunction for $name {
-            #[inline]
-            fn min_value(&self) -> f32 { self.min_value }
-            #[inline]
-            fn max_value(&self) -> f32 { self.max_value }
         }
 
         impl DensitySampler for $name {
@@ -540,7 +397,7 @@ two_input_samplers! {
     Div, a, b => a / b;
     Min, a, b => a.min(b);
     Max, a, b => a.max(b);
-    Pow, a, b => pow_narrowed(a, b);
+    Pow, a, b => a.powf(b);
 }
 
 one_input_samplers! {
@@ -569,19 +426,6 @@ const_binary_samplers! {
 pub(crate) struct LeakyReLU {
     pub(crate) input_index: usize,
     pub(crate) negative_factor: f32,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
-}
-
-impl RangeFunction for LeakyReLU {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
 }
 
 impl DensitySampler for LeakyReLU {
@@ -599,19 +443,6 @@ pub(crate) struct Round {
     pub(crate) input1_index: usize,
     pub(crate) input2_index: usize,
     pub(crate) mode: RoundingMode,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
-}
-
-impl RangeFunction for Round {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
 }
 
 impl DensitySampler for Round {
@@ -635,19 +466,6 @@ pub(crate) struct IntegerMultipleRound {
     pub(crate) input_index: usize,
     pub(crate) multiple: f32,
     pub(crate) mode: RoundingMode,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
-}
-
-impl RangeFunction for IntegerMultipleRound {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
 }
 
 impl DensitySampler for IntegerMultipleRound {
@@ -669,26 +487,13 @@ impl DensitySampler for IntegerMultipleRound {
 pub(crate) struct ConstExponentPow {
     pub(crate) input_index: usize,
     pub(crate) exponent: f32,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
-}
-
-impl RangeFunction for ConstExponentPow {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
 }
 
 impl DensitySampler for ConstExponentPow {
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         let exponent = self.exponent;
         for (slot, &v) in out.iter_mut().zip(ctx.row(self.input_index)) {
-            *slot = pow_narrowed(v, exponent);
+            *slot = v.powf(exponent);
         }
     }
 }
@@ -698,26 +503,13 @@ impl DensitySampler for ConstExponentPow {
 pub(crate) struct ConstBasePow {
     pub(crate) input_index: usize,
     pub(crate) base: f32,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
-}
-
-impl RangeFunction for ConstBasePow {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
 }
 
 impl DensitySampler for ConstBasePow {
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         let base = self.base;
         for (slot, &v) in out.iter_mut().zip(ctx.row(self.input_index)) {
-            *slot = pow_narrowed(base, v);
+            *slot = base.powf(v);
         }
     }
 }

@@ -31,20 +31,6 @@ pub(crate) struct RangeChoice {
     pub(crate) when_out_index: usize,
     pub(crate) min_inclusion_value: f32,
     pub(crate) max_exclusion_value: f32,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
-}
-
-impl RangeFunction for RangeChoice {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -80,8 +66,7 @@ pub(crate) struct Segment {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Spline {
     pub(crate) input_index: usize,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
+    pub(crate) range: Interval,
     pub(crate) locations: Box<[f32]>,
     pub(crate) derivatives: Box<[f32]>,
     pub(crate) values: Box<[SplineValue]>,
@@ -91,8 +76,7 @@ pub(crate) struct Spline {
 impl Spline {
     pub fn new(
         input_index: usize,
-        coordinate_min: f32,
-        coordinate_max: f32,
+        coordinate: Interval,
         locations: Vec<f32>,
         derivatives: Vec<f32>,
         values: Vec<SplineValue>,
@@ -102,6 +86,8 @@ impl Spline {
         let mut min_value = f32::INFINITY;
         let mut max_value = f32::NEG_INFINITY;
 
+        let coordinate_min = coordinate.min();
+        let coordinate_max = coordinate.max();
         if coordinate_min < locations[0] {
             let extend_min = Self::linear_extend(
                 coordinate_min,
@@ -197,8 +183,7 @@ impl Spline {
 
         Self {
             input_index,
-            min_value,
-            max_value,
+            range: Interval::of(min_value, max_value),
             locations: locations.into_boxed_slice(),
             derivatives: derivatives.into_boxed_slice(),
             values: values.into_boxed_slice(),
@@ -240,12 +225,12 @@ impl Spline {
 impl RangeFunction for Spline {
     #[inline]
     fn min_value(&self) -> f32 {
-        self.min_value
+        self.range.min()
     }
 
     #[inline]
     fn max_value(&self) -> f32 {
-        self.max_value
+        self.range.max()
     }
 }
 
@@ -314,20 +299,6 @@ pub(crate) struct Lerp {
     pub(crate) alpha_index: usize,
     pub(crate) first_index: usize,
     pub(crate) second_index: usize,
-    pub(crate) min_value: f32,
-    pub(crate) max_value: f32,
-}
-
-impl RangeFunction for Lerp {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
 }
 
 impl SplineValue {

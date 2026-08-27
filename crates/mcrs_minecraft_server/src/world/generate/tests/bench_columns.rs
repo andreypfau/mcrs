@@ -9,7 +9,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::density_function::proto::{
     DensityFunctionHolder, NoiseParam, ProtoDensityFunction,
 };
-use mcrs_minecraft_worldgen::density_function::{NoiseRouter, build_functions};
+use mcrs_minecraft_worldgen::density_function::{Interval, NoiseRouter, build_functions};
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 
 use crate::world::chunk::CancellationToken;
@@ -237,8 +237,8 @@ fn census(label: &str, router: &NoiseRouter, columns: i32) {
         let lattice = CellLattice::fill(router, cx * 16, cz * 16, &mut fill.scratch)
             .expect("the router has a cell lattice");
         fill.bounds
-            .resize(router.final_density_index() + 1, (0.0, 0.0));
-        fill.corners.resize(lattice.width, (0.0, 0.0));
+            .resize(router.final_density_index() + 1, Interval::exact(0.0));
+        fill.corners.resize(lattice.width, Interval::exact(0.0));
         for z in 0..lattice.volume.size().z - 1 {
             for x in 0..lattice.volume.size().x - 1 {
                 for y in 0..lattice.volume.size().y - 1 {

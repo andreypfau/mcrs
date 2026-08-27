@@ -11,7 +11,7 @@ use crate::noise::normal_noise::{ColumnScratch, NoiseSampler};
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::noise::simplex::SimplexNoise;
 use crate::proto::NoiseGeneratorSettings;
-use crate::spline::{RangeFunction, SplineFunction};
+use crate::spline::SplineFunction;
 use bevy_math::{Curve, FloatExt, IVec3};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -122,15 +122,9 @@ impl BlendedNoise {
     }
 }
 
-impl RangeFunction for BlendedNoise {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        -self.max_value()
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
+impl BlendedNoise {
+    pub(crate) fn range(&self) -> Interval {
+        Interval::symmetric(self.max_value)
     }
 }
 
@@ -247,21 +241,14 @@ impl Debug for Noise {
             .field("noise_name", &self.noise_name)
             .field("xz_scale", &self.xz_scale)
             .field("y_scale", &self.y_scale)
-            .field("min_value", &self.min_value())
-            .field("max_value", &self.max_value())
+            .field("range", &self.range())
             .finish()
     }
 }
 
-impl RangeFunction for Noise {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        -self.max_value()
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.sampler.max_value() as f32
+impl Noise {
+    pub(crate) fn range(&self) -> Interval {
+        Interval::symmetric(self.sampler.max_value() as f32)
     }
 }
 
@@ -287,21 +274,14 @@ impl Debug for ShiftB {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ShiftB")
             .field("noise_name", &self.noise_name)
-            .field("min_value", &self.min_value())
-            .field("max_value", &self.max_value())
+            .field("range", &self.range())
             .finish()
     }
 }
 
-impl RangeFunction for ShiftB {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        -self.max_value()
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        (self.sampler.max_value() * 4.0) as f32
+impl ShiftB {
+    pub(crate) fn range(&self) -> Interval {
+        Interval::symmetric((self.sampler.max_value() * 4.0) as f32)
     }
 }
 
@@ -333,21 +313,14 @@ impl Debug for ShiftedNoise {
             .field("input_z_index", &self.input_z_index)
             .field("xz_scale", &self.xz_scale)
             .field("y_scale", &self.y_scale)
-            .field("min_value", &self.min_value())
-            .field("max_value", &self.max_value())
+            .field("range", &self.range())
             .finish()
     }
 }
 
-impl RangeFunction for ShiftedNoise {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        -self.max_value()
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.sampler.max_value()
+impl ShiftedNoise {
+    pub(crate) fn range(&self) -> Interval {
+        Interval::symmetric(self.sampler.max_value())
     }
 }
 

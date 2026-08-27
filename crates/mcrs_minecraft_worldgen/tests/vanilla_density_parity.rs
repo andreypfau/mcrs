@@ -3,7 +3,7 @@ use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_worldgen::density_function::proto::{
     DensityFunctionHolder, NoiseParam, ProtoDensityFunction,
 };
-use mcrs_minecraft_worldgen::density_function::{NoiseRouter, build_functions};
+use mcrs_minecraft_worldgen::density_function::{Interval, NoiseRouter, build_functions};
 use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -515,7 +515,7 @@ fn cell_bounds_contain_every_block_density() {
     let mut corners = vec![0.0f32; width * corner_volume.len()];
     router.sample_volume_roots(roots, &corner_volume, &mut corners, &mut scratch);
 
-    let mut bounds_scratch = vec![(0.0f32, 0.0f32); router.final_density_index() + 1];
+    let mut bounds_scratch = vec![Interval::exact(0.0); router.final_density_index() + 1];
     let mut cell_values = vec![0.0f32; (cell.x * cell.y * cell.z) as usize];
     let mut worst_low = 0.0f32;
     let mut worst_high = 0.0f32;
@@ -526,7 +526,7 @@ fn cell_bounds_contain_every_block_density() {
         for cx in 0..cells.x {
             for cy in 0..cells.y {
                 total_cells += 1;
-                let wrapper_bounds: Vec<(f32, f32)> = (0..width)
+                let wrapper_bounds: Vec<Interval> = (0..width)
                     .map(|k| {
                         let row = &corners[k * corner_volume.len()..(k + 1) * corner_volume.len()];
                         let mut lo = f32::INFINITY;
@@ -541,10 +541,10 @@ fn cell_bounds_contain_every_block_density() {
                                 }
                             }
                         }
-                        (lo, hi)
+                        Interval::of(lo, hi)
                     })
                     .collect();
-                let Some((lo, hi)) =
+                let Some(bounds) =
                     router.final_density_cell_bounds(&wrapper_bounds, &mut bounds_scratch)
                 else {
                     continue;
@@ -561,8 +561,8 @@ fn cell_bounds_contain_every_block_density() {
                     &mut scratch,
                 );
                 for &value in &cell_values {
-                    worst_low = worst_low.max(lo - value);
-                    worst_high = worst_high.max(value - hi);
+                    worst_low = worst_low.max(bounds.min() - value);
+                    worst_high = worst_high.max(value - bounds.max());
                 }
             }
         }

@@ -12,7 +12,7 @@ use mcrs_minecraft_world::biome::source::{
 };
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::density_function::{
-    FillScratch, NoiseRouter, Volume, beta_terrain_f64::BetaTerrainF64,
+    FillScratch, Interval, NoiseRouter, Volume, beta_terrain_f64::BetaTerrainF64,
 };
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
@@ -78,7 +78,7 @@ impl CellLattice {
     }
 
     /// The eight corner values of one cell, per wrapper.
-    fn corner_bounds(&self, at: IVec3, out: &mut [(f32, f32)]) {
+    fn corner_bounds(&self, at: IVec3, out: &mut [Interval]) {
         let stride = self.volume.len();
         for (k, bound) in out.iter_mut().enumerate() {
             let row = &self.values[k * stride..(k + 1) * stride];
@@ -93,7 +93,7 @@ impl CellLattice {
                     }
                 }
             }
-            *bound = (lo, hi);
+            *bound = Interval::of(lo, hi);
         }
     }
 
@@ -105,15 +105,14 @@ impl CellLattice {
         fill: &mut FillBuffers,
     ) -> CellFill {
         self.corner_bounds(at, &mut fill.corners);
-        let Some((lo, hi)) =
-            noise_router.final_density_cell_bounds(&fill.corners, &mut fill.bounds)
+        let Some(bounds) = noise_router.final_density_cell_bounds(&fill.corners, &mut fill.bounds)
         else {
             return CellFill::Mixed;
         };
-        if lo > CELL_BOUNDS_SLACK {
+        if bounds.min() > CELL_BOUNDS_SLACK {
             return CellFill::Solid;
         }
-        if hi < -CELL_BOUNDS_SLACK {
+        if bounds.max() < -CELL_BOUNDS_SLACK {
             let min_y = self.volume.block_y(at.y);
             if min_y + self.cell.y <= sea_level {
                 return CellFill::Fluid;
@@ -132,8 +131,8 @@ impl CellLattice {
 struct FillBuffers {
     scratch: FillScratch,
     density: Vec<f32>,
-    bounds: Vec<(f32, f32)>,
-    corners: Vec<(f32, f32)>,
+    bounds: Vec<Interval>,
+    corners: Vec<Interval>,
 }
 
 /// Place `final_density` over a whole chunk column.
@@ -171,8 +170,8 @@ fn fill_column(
 
     let cell = lattice.cell;
     fill.bounds
-        .resize(noise_router.final_density_index() + 1, (0.0, 0.0));
-    fill.corners.resize(lattice.width, (0.0, 0.0));
+        .resize(noise_router.final_density_index() + 1, Interval::exact(0.0));
+    fill.corners.resize(lattice.width, Interval::exact(0.0));
 
     for cell_z in 0..lattice.volume.size().z - 1 {
         if cancel.is_cancelled() {

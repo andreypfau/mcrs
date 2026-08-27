@@ -53,33 +53,6 @@ fn lower_constant_exponent(
     })
 }
 
-fn lerp_range(alpha: (f32, f32), first: (f32, f32), second: (f32, f32)) -> (f32, f32) {
-    let scaled = |alpha: f32, delta: f32| {
-        if alpha == 0.0 || delta == 0.0 {
-            0.0
-        } else {
-            alpha * delta
-        }
-    };
-    let mut min_value = f32::INFINITY;
-    let mut max_value = f32::NEG_INFINITY;
-    for a in [alpha.0, alpha.1] {
-        for f in [first.0, first.1] {
-            for s in [second.0, second.1] {
-                let bound = f + scaled(a, s - f);
-                // Opposing infinities cancel to NaN, which no finite pair of bounds
-                // describes; only the widest interval stays sound.
-                if bound.is_nan() {
-                    return (f32::NEG_INFINITY, f32::INFINITY);
-                }
-                min_value = min_value.min(bound);
-                max_value = max_value.max(bound);
-            }
-        }
-    }
-    (min_value, max_value)
-}
-
 /// Check if a Binary::Multiply has one ClampedYGradient input.
 /// Returns (gradient, other_input_index) if found.
 pub(super) fn extract_mul_y_grad(
@@ -89,13 +62,13 @@ pub(super) fn extract_mul_y_grad(
     if bin.operation != BinaryOperation::Multiply {
         return None;
     }
-    if let DensityFunctionComponent::Independent(IndependentDensityFunction::ClampedYGradient(g)) =
-        &stack[bin.input1_index]
+    if let Sampler::Independent(IndependentDensityFunction::ClampedYGradient(g)) =
+        &stack[bin.input1_index].sampler
     {
         return Some((g.clone(), bin.input2_index));
     }
-    if let DensityFunctionComponent::Independent(IndependentDensityFunction::ClampedYGradient(g)) =
-        &stack[bin.input2_index]
+    if let Sampler::Independent(IndependentDensityFunction::ClampedYGradient(g)) =
+        &stack[bin.input2_index].sampler
     {
         return Some((g.clone(), bin.input1_index));
     }
@@ -105,51 +78,31 @@ pub(super) fn extract_mul_y_grad(
 /// Try to detect and build a Slide from a 5-node pattern:
 ///   Affine(+c) at `idx` ← Mul(ygrad2, Affine(+b) ← Mul(ygrad1, Affine(+a, input)))
 pub(super) fn try_build_slide(idx: usize, stack: &[DensityFunctionComponent]) -> Option<Slide> {
-    // Node at idx must be Affine with scale=1.0 (the outermost "add offset_c")
-    let aff_c = match &stack[idx] {
-        DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(a))
-            if a.scale == 1.0 =>
-        {
-            a
-        }
-        _ => return None,
+    let affine_with_unit_scale = |i: usize| match &stack[i].sampler {
+        Sampler::Dependent(DependentDensityFunction::Affine(a)) if a.scale == 1.0 => Some(a),
+        _ => None,
     };
-    let outer_min = aff_c.min_value;
-    let outer_max = aff_c.max_value;
+    let multiply = |i: usize| match &stack[i].sampler {
+        Sampler::Dependent(DependentDensityFunction::Binary(b)) => Some(b),
+        _ => None,
+    };
+
+    // Node at idx must be Affine with scale=1.0 (the outermost "add offset_c")
+    let aff_c = affine_with_unit_scale(idx)?;
 
     // Its input must be Binary::Multiply with a ClampedYGradient
-    let mul2 = match &stack[aff_c.input_index] {
-        DensityFunctionComponent::Dependent(DependentDensityFunction::Binary(b)) => b,
-        _ => return None,
-    };
+    let mul2 = multiply(aff_c.input_index)?;
     let (grad2, aff_b_idx) = extract_mul_y_grad(mul2, stack)?;
 
     // The other Mul input must be Affine with scale=1.0
-    let aff_b = match &stack[aff_b_idx] {
-        DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(a))
-            if a.scale == 1.0 =>
-        {
-            a
-        }
-        _ => return None,
-    };
+    let aff_b = affine_with_unit_scale(aff_b_idx)?;
 
     // Its input must be Binary::Multiply with a ClampedYGradient
-    let mul1 = match &stack[aff_b.input_index] {
-        DensityFunctionComponent::Dependent(DependentDensityFunction::Binary(b)) => b,
-        _ => return None,
-    };
+    let mul1 = multiply(aff_b.input_index)?;
     let (grad1, aff_a_idx) = extract_mul_y_grad(mul1, stack)?;
 
     // The other Mul input must be Affine with scale=1.0
-    let aff_a = match &stack[aff_a_idx] {
-        DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(a))
-            if a.scale == 1.0 =>
-        {
-            a
-        }
-        _ => return None,
-    };
+    let aff_a = affine_with_unit_scale(aff_a_idx)?;
 
     // Both gradients must have a Y range where they saturate to 1.0
     let (g1_min, g1_max) = Slide::saturate_one_range(&grad1)?;
@@ -174,8 +127,6 @@ pub(super) fn try_build_slide(idx: usize, stack: &[DensityFunctionComponent]) ->
         combined_offset,
         fast_path_min_y: fast_min,
         fast_path_max_y: fast_max,
-        min_value: outer_min,
-        max_value: outer_max,
     })
 }
 
@@ -184,7 +135,7 @@ pub(super) fn try_build_slide(idx: usize, stack: &[DensityFunctionComponent]) ->
 fn lower_to_samplers(stack: &mut [DensityFunctionComponent]) {
     let constants: Vec<Option<f32>> = stack.iter().map(|c| c.as_constant()).collect();
     for component in stack.iter_mut() {
-        let DensityFunctionComponent::Dependent(f) = component else {
+        let Sampler::Dependent(f) = &component.sampler else {
             continue;
         };
         let lowered = match f {
@@ -194,8 +145,6 @@ fn lower_to_samplers(stack: &mut [DensityFunctionComponent]) {
                         DependentDensityFunction::$variant($variant {
                             input1_index: x.input1_index,
                             input2_index: x.input2_index,
-                            min_value: x.min_value,
-                            max_value: x.max_value,
                         })
                     };
                 }
@@ -214,16 +163,12 @@ fn lower_to_samplers(stack: &mut [DensityFunctionComponent]) {
                                 DependentDensityFunction::ConstBasePow(ConstBasePow {
                                     input_index: x.input2_index,
                                     base,
-                                    min_value: x.min_value,
-                                    max_value: x.max_value,
                                 })
                             }
                             (None, Some(exponent)) => {
                                 DependentDensityFunction::ConstExponentPow(ConstExponentPow {
                                     input_index: x.input1_index,
                                     exponent,
-                                    min_value: x.min_value,
-                                    max_value: x.max_value,
                                 })
                             }
                             (None, None) => two_input!(Pow),
@@ -235,16 +180,12 @@ fn lower_to_samplers(stack: &mut [DensityFunctionComponent]) {
                                 input_index: x.input1_index,
                                 multiple,
                                 mode,
-                                min_value: x.min_value,
-                                max_value: x.max_value,
                             })
                         }
                         None => DependentDensityFunction::Round(Round {
                             input1_index: x.input1_index,
                             input2_index: x.input2_index,
                             mode,
-                            min_value: x.min_value,
-                            max_value: x.max_value,
                         }),
                     },
                 }
@@ -254,8 +195,6 @@ fn lower_to_samplers(stack: &mut [DensityFunctionComponent]) {
                     ($variant:ident) => {
                         DependentDensityFunction::$variant($variant {
                             input_index: x.input_index,
-                            min_value: x.min_value,
-                            max_value: x.max_value,
                         })
                     };
                 }
@@ -276,8 +215,6 @@ fn lower_to_samplers(stack: &mut [DensityFunctionComponent]) {
                             } else {
                                 0.25
                             },
-                            min_value: x.min_value,
-                            max_value: x.max_value,
                         })
                     }
                 }
@@ -286,19 +223,15 @@ fn lower_to_samplers(stack: &mut [DensityFunctionComponent]) {
                 LinearOperation::Add => DependentDensityFunction::ConstAdd(ConstAdd {
                     input_index: x.input_index,
                     argument: x.argument,
-                    min_value: x.min_value,
-                    max_value: x.max_value,
                 }),
                 LinearOperation::Multiply => DependentDensityFunction::ConstMul(ConstMul {
                     input_index: x.input_index,
                     argument: x.argument,
-                    min_value: x.min_value,
-                    max_value: x.max_value,
                 }),
             },
             _ => continue,
         };
-        *component = DensityFunctionComponent::Dependent(lowered);
+        component.sampler = Sampler::Dependent(lowered);
     }
 }
 
@@ -320,19 +253,13 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
         stack[i].rewrite_indices(&redirect);
 
         // 3. Binary optimizations: constant folding, demotion, and range elimination
-        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Binary(bin)) =
-            &stack[i]
-        {
+        if let Sampler::Dependent(DependentDensityFunction::Binary(bin)) = &stack[i].sampler {
+            let range = stack[i].range;
             let c1 = stack[bin.input1_index].as_constant();
             let c2 = stack[bin.input2_index].as_constant();
             let replacement = match (c1, c2, bin.operation) {
                 // Both constant → fold for all operations
-                (Some(a), Some(b), op) => {
-                    let result = op.apply(a, b);
-                    Some(DensityFunctionComponent::Independent(
-                        IndependentDensityFunction::Constant(result),
-                    ))
-                }
+                (Some(a), Some(b), op) => Some(DensityFunctionComponent::constant(op.apply(a, b))),
                 // One constant, and the operation has a dedicated constant-operand
                 // sampler: drop the constant row entirely.
                 (Some(c), None, BinaryOperation::Min) | (None, Some(c), BinaryOperation::Min) => {
@@ -341,12 +268,11 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
                     } else {
                         bin.input1_index
                     };
-                    Some(DensityFunctionComponent::Dependent(
+                    Some(DensityFunctionComponent::dependent(
+                        range,
                         DependentDensityFunction::ConstMin(ConstMin {
                             input_index,
                             argument: c,
-                            min_value: bin.min_value,
-                            max_value: bin.max_value,
                         }),
                     ))
                 }
@@ -356,45 +282,41 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
                     } else {
                         bin.input1_index
                     };
-                    Some(DensityFunctionComponent::Dependent(
+                    Some(DensityFunctionComponent::dependent(
+                        range,
                         DependentDensityFunction::ConstMax(ConstMax {
                             input_index,
                             argument: c,
-                            min_value: bin.min_value,
-                            max_value: bin.max_value,
                         }),
                     ))
                 }
                 // `c - x` and `c / x` keep the constant on the left, so they are
                 // their own samplers rather than a scaled input.
                 (Some(c), None, BinaryOperation::Subtract) => {
-                    Some(DensityFunctionComponent::Dependent(
+                    Some(DensityFunctionComponent::dependent(
+                        range,
                         DependentDensityFunction::ConstSub(ConstSub {
                             input_index: bin.input2_index,
                             argument: c,
-                            min_value: bin.min_value,
-                            max_value: bin.max_value,
                         }),
                     ))
                 }
                 (Some(c), None, BinaryOperation::Divide) => {
-                    Some(DensityFunctionComponent::Dependent(
+                    Some(DensityFunctionComponent::dependent(
+                        range,
                         DependentDensityFunction::ConstDiv(ConstDiv {
                             input_index: bin.input2_index,
                             argument: c,
-                            min_value: bin.min_value,
-                            max_value: bin.max_value,
                         }),
                     ))
                 }
                 // `x - c` is exactly `x + (-c)`: negation is exact in binary floating point.
                 (None, Some(c), BinaryOperation::Subtract) => {
-                    Some(DensityFunctionComponent::Dependent(
+                    Some(DensityFunctionComponent::dependent(
+                        range,
                         DependentDensityFunction::ConstAdd(ConstAdd {
                             input_index: bin.input1_index,
                             argument: -c,
-                            min_value: bin.min_value,
-                            max_value: bin.max_value,
                         }),
                     ))
                 }
@@ -411,20 +333,21 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
                         BinaryOperation::Multiply => LinearOperation::Multiply,
                         _ => unreachable!(),
                     };
-                    Some(DensityFunctionComponent::Dependent(match operation {
-                        LinearOperation::Add => DependentDensityFunction::ConstAdd(ConstAdd {
-                            input_index,
-                            argument: c,
-                            min_value: bin.min_value,
-                            max_value: bin.max_value,
-                        }),
-                        LinearOperation::Multiply => DependentDensityFunction::ConstMul(ConstMul {
-                            input_index,
-                            argument: c,
-                            min_value: bin.min_value,
-                            max_value: bin.max_value,
-                        }),
-                    }))
+                    Some(DensityFunctionComponent::dependent(
+                        range,
+                        match operation {
+                            LinearOperation::Add => DependentDensityFunction::ConstAdd(ConstAdd {
+                                input_index,
+                                argument: c,
+                            }),
+                            LinearOperation::Multiply => {
+                                DependentDensityFunction::ConstMul(ConstMul {
+                                    input_index,
+                                    argument: c,
+                                })
+                            }
+                        },
+                    ))
                 }
                 _ => None,
             };
@@ -440,19 +363,17 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
         }
 
         // 3b. Binary Min/Max range elimination
-        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Binary(bin)) =
-            &stack[i]
-        {
-            let in1 = &stack[bin.input1_index];
-            let in2 = &stack[bin.input2_index];
+        if let Sampler::Dependent(DependentDensityFunction::Binary(bin)) = &stack[i].sampler {
+            let in1 = stack[bin.input1_index].range;
+            let in2 = stack[bin.input2_index].range;
             match bin.operation {
                 // Min(x, y) where x.max <= y.min → x always wins
                 BinaryOperation::Min => {
-                    if in1.max_value() <= in2.min_value() {
+                    if in1.max() <= in2.min() {
                         redirect[i] = bin.input1_index;
                         identities_eliminated += 1;
                         continue;
-                    } else if in2.max_value() <= in1.min_value() {
+                    } else if in2.max() <= in1.min() {
                         redirect[i] = bin.input2_index;
                         identities_eliminated += 1;
                         continue;
@@ -460,11 +381,11 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
                 }
                 // Max(x, y) where x.min >= y.max → x always wins
                 BinaryOperation::Max => {
-                    if in1.min_value() >= in2.max_value() {
+                    if in1.min() >= in2.max() {
                         redirect[i] = bin.input1_index;
                         identities_eliminated += 1;
                         continue;
-                    } else if in2.min_value() >= in1.max_value() {
+                    } else if in2.min() >= in1.max() {
                         redirect[i] = bin.input2_index;
                         identities_eliminated += 1;
                         continue;
@@ -475,69 +396,56 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
         }
 
         // 4. Constant folding for all single-input operations
-        let folded = match &stack[i] {
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(lin)) => stack
-                [lin.input_index]
+        let folded = match &stack[i].sampler {
+            Sampler::Dependent(DependentDensityFunction::Linear(lin)) => stack[lin.input_index]
                 .as_constant()
                 .map(|c| match lin.operation {
                     LinearOperation::Add => c + lin.argument,
                     LinearOperation::Multiply => c * lin.argument,
                 }),
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(aff)) => stack
-                [aff.input_index]
+            Sampler::Dependent(DependentDensityFunction::Affine(aff)) => stack[aff.input_index]
                 .as_constant()
                 .map(|c| c.mul_add(aff.scale, aff.offset)),
-            DensityFunctionComponent::Dependent(DependentDensityFunction::PiecewiseAffine(pa)) => {
+            Sampler::Dependent(DependentDensityFunction::PiecewiseAffine(pa)) => {
                 stack[pa.input_index].as_constant().map(|c| {
                     let scale = if c < 0.0 { pa.neg_scale } else { pa.pos_scale };
                     c.mul_add(scale, pa.offset)
                 })
             }
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Unary(u)) => stack
-                [u.input_index]
+            Sampler::Dependent(DependentDensityFunction::Unary(u)) => stack[u.input_index]
                 .as_constant()
                 .map(|c| u.operation.apply(c)),
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Clamp(cl)) => stack
-                [cl.input_index]
+            Sampler::Dependent(DependentDensityFunction::Clamp(cl)) => stack[cl.input_index]
                 .as_constant()
-                .map(|c| c.clamp(cl.min_value, cl.max_value)),
+                .map(|c| c.clamp(cl.min, cl.max)),
             _ => None,
         };
         if let Some(constant) = folded {
-            stack[i] = DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(
-                constant,
-            ));
+            stack[i] = DensityFunctionComponent::constant(constant);
             constants_folded += 1;
             continue;
         }
 
         // 5. Convert standalone Linear to Affine
-        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(lin)) =
-            &stack[i]
-        {
+        if let Sampler::Dependent(DependentDensityFunction::Linear(lin)) = &stack[i].sampler {
             let (scale, offset) = match lin.operation {
                 LinearOperation::Add => (1.0, lin.argument),
                 LinearOperation::Multiply => (lin.argument, 0.0),
             };
-            let (min_value, max_value) = Affine::compute_range(
-                stack[lin.input_index].min_value(),
-                stack[lin.input_index].max_value(),
-                scale,
-                offset,
-            );
-            stack[i] =
-                DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(Affine {
+            let range = Affine::compute_range(stack[lin.input_index].range, scale, offset);
+            stack[i] = DensityFunctionComponent::dependent(
+                range,
+                DependentDensityFunction::Affine(Affine {
                     input_index: lin.input_index,
                     scale,
                     offset,
-                    min_value,
-                    max_value,
-                }));
+                }),
+            );
         }
 
         // 6. Identity/zero elimination
-        match &stack[i] {
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(aff)) => {
+        match &stack[i].sampler {
+            Sampler::Dependent(DependentDensityFunction::Affine(aff)) => {
                 if aff.scale == 1.0 && aff.offset == 0.0 {
                     // Identity
                     redirect[i] = aff.input_index;
@@ -546,44 +454,36 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
                 }
                 if aff.scale == 0.0 {
                     // Constant
-                    stack[i] = DensityFunctionComponent::Independent(
-                        IndependentDensityFunction::Constant(aff.offset),
-                    );
+                    stack[i] = DensityFunctionComponent::constant(aff.offset);
                     constants_folded += 1;
                     continue;
                 }
             }
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(lin)) => {
-                match lin.operation {
-                    LinearOperation::Add if lin.argument == 0.0 => {
-                        redirect[i] = lin.input_index;
-                        identities_eliminated += 1;
-                        continue;
-                    }
-                    LinearOperation::Multiply if lin.argument == 1.0 => {
-                        redirect[i] = lin.input_index;
-                        identities_eliminated += 1;
-                        continue;
-                    }
-                    LinearOperation::Multiply if lin.argument == 0.0 => {
-                        stack[i] = DensityFunctionComponent::Independent(
-                            IndependentDensityFunction::Constant(0.0),
-                        );
-                        constants_folded += 1;
-                        continue;
-                    }
-                    _ => {}
+            Sampler::Dependent(DependentDensityFunction::Linear(lin)) => match lin.operation {
+                LinearOperation::Add if lin.argument == 0.0 => {
+                    redirect[i] = lin.input_index;
+                    identities_eliminated += 1;
+                    continue;
                 }
-            }
+                LinearOperation::Multiply if lin.argument == 1.0 => {
+                    redirect[i] = lin.input_index;
+                    identities_eliminated += 1;
+                    continue;
+                }
+                LinearOperation::Multiply if lin.argument == 0.0 => {
+                    stack[i] = DensityFunctionComponent::constant(0.0);
+                    constants_folded += 1;
+                    continue;
+                }
+                _ => {}
+            },
             _ => {}
         }
 
         // 7. Clamp of in-range elimination
-        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Clamp(clamp)) =
-            &stack[i]
-        {
-            let input = &stack[clamp.input_index];
-            if input.min_value() >= clamp.min_value && input.max_value() <= clamp.max_value {
+        if let Sampler::Dependent(DependentDensityFunction::Clamp(clamp)) = &stack[i].sampler {
+            let input = stack[clamp.input_index].range;
+            if input.min() >= clamp.min && input.max() <= clamp.max {
                 redirect[i] = clamp.input_index;
                 identities_eliminated += 1;
             }
@@ -591,21 +491,15 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
 
         // 8. RangeChoice range-based elimination: if the input's static range proves
         //    it always falls in or always falls out, redirect to the known branch.
-        if let DensityFunctionComponent::Dependent(DependentDensityFunction::RangeChoice(rc)) =
-            &stack[i]
-        {
-            let input = &stack[rc.input_index];
-            if input.max_value() < rc.min_inclusion_value
-                || input.min_value() >= rc.max_exclusion_value
-            {
+        if let Sampler::Dependent(DependentDensityFunction::RangeChoice(rc)) = &stack[i].sampler {
+            let input = stack[rc.input_index].range;
+            if input.max() < rc.min_inclusion_value || input.min() >= rc.max_exclusion_value {
                 // Always out-of-range
                 redirect[i] = rc.when_out_index;
                 identities_eliminated += 1;
                 continue;
             }
-            if input.min_value() >= rc.min_inclusion_value
-                && input.max_value() < rc.max_exclusion_value
-            {
+            if input.min() >= rc.min_inclusion_value && input.max() < rc.max_exclusion_value {
                 // Always in-range
                 redirect[i] = rc.when_in_index;
                 identities_eliminated += 1;
@@ -614,11 +508,9 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
         }
 
         // 9. Unary→Affine fusion: Affine(Unary::QuarterNegative/HalfNegative(x)) → PiecewiseAffine
-        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(aff)) =
-            &stack[i]
-        {
-            if let DensityFunctionComponent::Dependent(DependentDensityFunction::Unary(u)) =
-                &stack[aff.input_index]
+        if let Sampler::Dependent(DependentDensityFunction::Affine(aff)) = &stack[i].sampler {
+            if let Sampler::Dependent(DependentDensityFunction::Unary(u)) =
+                &stack[aff.input_index].sampler
             {
                 let pwa = match u.operation {
                     // QuarterNegative(x) = if x<0 { 0.25*x } else { x }
@@ -630,21 +522,19 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
                     _ => None,
                 };
                 if let Some((neg_scale, pos_scale)) = pwa {
-                    let (min_value, max_value) = PiecewiseAffine::compute_range(
-                        stack[u.input_index].min_value(),
-                        stack[u.input_index].max_value(),
+                    let range = PiecewiseAffine::compute_range(
+                        stack[u.input_index].range,
                         neg_scale,
                         pos_scale,
                         aff.offset,
                     );
-                    stack[i] = DensityFunctionComponent::Dependent(
+                    stack[i] = DensityFunctionComponent::dependent(
+                        range,
                         DependentDensityFunction::PiecewiseAffine(PiecewiseAffine {
                             input_index: u.input_index,
                             neg_scale,
                             pos_scale,
                             offset: aff.offset,
-                            min_value,
-                            max_value,
                         }),
                     );
                     piecewise_affine_fusions += 1;
@@ -653,9 +543,7 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
         }
 
         // 10. Binary same-index identity: Min(x,x)→x, Max(x,x)→x, Add(x,x)→2*x, Mul(x,x)→x²
-        if let DensityFunctionComponent::Dependent(DependentDensityFunction::Binary(bin)) =
-            &stack[i]
-        {
+        if let Sampler::Dependent(DependentDensityFunction::Binary(bin)) = &stack[i].sampler {
             if bin.input1_index == bin.input2_index {
                 match bin.operation {
                     BinaryOperation::Min | BinaryOperation::Max => {
@@ -665,39 +553,23 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
                     }
                     BinaryOperation::Add => {
                         // Add(x, x) = 2*x
-                        let (min_value, max_value) = Affine::compute_range(
-                            stack[bin.input1_index].min_value(),
-                            stack[bin.input1_index].max_value(),
-                            2.0,
-                            0.0,
-                        );
-                        stack[i] = DensityFunctionComponent::Dependent(
+                        let range = Affine::compute_range(stack[bin.input1_index].range, 2.0, 0.0);
+                        stack[i] = DensityFunctionComponent::dependent(
+                            range,
                             DependentDensityFunction::Affine(Affine {
                                 input_index: bin.input1_index,
                                 scale: 2.0,
                                 offset: 0.0,
-                                min_value,
-                                max_value,
                             }),
                         );
                         binary_demotions += 1;
                     }
                     BinaryOperation::Multiply => {
                         // Mul(x, x) = x²
-                        let in_min = stack[bin.input1_index].min_value();
-                        let in_max = stack[bin.input1_index].max_value();
-                        let (min_value, max_value) = if in_min >= 0.0 {
-                            (in_min * in_min, in_max * in_max)
-                        } else if in_max <= 0.0 {
-                            (in_max * in_max, in_min * in_min)
-                        } else {
-                            (0.0, (in_min * in_min).max(in_max * in_max))
-                        };
-                        stack[i] = DensityFunctionComponent::Dependent(
+                        stack[i] = DensityFunctionComponent::dependent(
+                            stack[bin.input1_index].range.square(),
                             DependentDensityFunction::Square(Square {
                                 input_index: bin.input1_index,
-                                min_value,
-                                max_value,
                             }),
                         );
                         binary_demotions += 1;
@@ -713,7 +585,7 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
         // 11. Slide fusion: detect Affine(+c) ← Mul(ygrad2, Affine(+b) ← Mul(ygrad1, Affine(+a, input)))
         //     Fuses the 5-node chain into a single Slide operation.
         if let Some(slide) = try_build_slide(i, &stack) {
-            stack[i] = DensityFunctionComponent::Dependent(DependentDensityFunction::Slide(slide));
+            stack[i].sampler = Sampler::Dependent(DependentDensityFunction::Slide(slide));
             slide_fusions += 1;
         }
     }
@@ -781,8 +653,8 @@ pub(super) fn compute_domain_axes(stack: &[DensityFunctionComponent]) -> Vec<u8>
             inputs |= axes[j];
         });
 
-        axes[i] = match &stack[i] {
-            DensityFunctionComponent::Independent(f) => match f {
+        axes[i] = match &stack[i].sampler {
+            Sampler::Independent(f) => match f {
                 IndependentDensityFunction::Constant(_) => 0,
                 IndependentDensityFunction::OldBlendedNoise(_)
                 | IndependentDensityFunction::DistanceToPoint(_) => ALL_AXES,
@@ -792,7 +664,7 @@ pub(super) fn compute_domain_axes(stack: &[DensityFunctionComponent]) -> Vec<u8>
                 IndependentDensityFunction::ClampedYGradient(_) => AXIS_Y,
                 IndependentDensityFunction::Gradient(g) => g.axis.bit(),
             },
-            DensityFunctionComponent::Dependent(f) => match f {
+            Sampler::Dependent(f) => match f {
                 DependentDensityFunction::ShiftedNoise(n) => {
                     inputs | noise_scale_axes(n.xz_scale, n.y_scale)
                 }
@@ -803,7 +675,7 @@ pub(super) fn compute_domain_axes(stack: &[DensityFunctionComponent]) -> Vec<u8>
                 DependentDensityFunction::FindTopSurface(_) => inputs & !AXIS_Y,
                 _ => inputs,
             },
-            DensityFunctionComponent::Interpolated(_) => inputs,
+            Sampler::Interpolated(_) => inputs,
         };
     }
 
@@ -817,7 +689,7 @@ pub(super) fn compute_outer_terms(
     stack: &[DensityFunctionComponent],
     root: usize,
 ) -> (Vec<usize>, Vec<usize>) {
-    let is_interpolated = |i: usize| matches!(&stack[i], DensityFunctionComponent::Interpolated(_));
+    let is_interpolated = |i: usize| matches!(&stack[i].sampler, Sampler::Interpolated(_));
 
     let mut reached = vec![false; stack.len()];
     let mut pending = vec![root];
@@ -850,14 +722,10 @@ pub(super) fn compute_outer_terms(
 }
 
 fn substituted_input(component: &DensityFunctionComponent) -> Option<usize> {
-    match component {
-        DensityFunctionComponent::Dependent(DependentDensityFunction::Slice(x)) => {
-            Some(x.input_index)
-        }
-        DensityFunctionComponent::Dependent(DependentDensityFunction::FindTopSurface(x)) => {
-            Some(x.density_index)
-        }
-        DensityFunctionComponent::Interpolated(x) => Some(x.input_index),
+    match &component.sampler {
+        Sampler::Dependent(DependentDensityFunction::Slice(x)) => Some(x.input_index),
+        Sampler::Dependent(DependentDensityFunction::FindTopSurface(x)) => Some(x.density_index),
+        Sampler::Interpolated(x) => Some(x.input_index),
         _ => None,
     }
 }
@@ -884,14 +752,12 @@ pub(super) fn resolve_substituted_subgraphs(stack: &mut [DensityFunctionComponen
     }
     for (i, list) in members.into_iter().enumerate() {
         let Some(list) = list else { continue };
-        match &mut stack[i] {
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Slice(x)) => {
-                x.input_members = list
-            }
-            DensityFunctionComponent::Dependent(DependentDensityFunction::FindTopSurface(x)) => {
+        match &mut stack[i].sampler {
+            Sampler::Dependent(DependentDensityFunction::Slice(x)) => x.input_members = list,
+            Sampler::Dependent(DependentDensityFunction::FindTopSurface(x)) => {
                 x.density_members = list
             }
-            DensityFunctionComponent::Interpolated(x) => x.input_members = list,
+            Sampler::Interpolated(x) => x.input_members = list,
             _ => unreachable!(),
         }
     }
@@ -988,14 +854,12 @@ pub(super) fn reorder_stack_for_evaluation(
         range
             .filter(|&i| {
                 matches!(
-                    &stack[i],
-                    DensityFunctionComponent::Independent(
+                    &stack[i].sampler,
+                    Sampler::Independent(
                         IndependentDensityFunction::OldBlendedNoise(_)
                             | IndependentDensityFunction::Noise(_)
                             | IndependentDensityFunction::ShiftB(_)
-                    ) | DensityFunctionComponent::Dependent(
-                        DependentDensityFunction::ShiftedNoise(_)
-                    )
+                    ) | Sampler::Dependent(DependentDensityFunction::ShiftedNoise(_))
                 )
             })
             .count()
@@ -1112,8 +976,8 @@ pub fn build_functions(
     let (outer_terms, outer_wrappers) = compute_outer_terms(&builder.stack, final_density_index);
     let outer_wrapper_inputs: Vec<usize> = outer_wrappers
         .iter()
-        .map(|&i| match &builder.stack[i] {
-            DensityFunctionComponent::Interpolated(x) => x.input_index,
+        .map(|&i| match &builder.stack[i].sampler {
+            Sampler::Interpolated(x) => x.input_index,
             _ => unreachable!(),
         })
         .collect();
@@ -1128,14 +992,16 @@ pub fn build_functions(
         branch_schedule::build(&builder.stack, &members, &zone_b_roots)
     };
 
-    let mut geometries = outer_wrappers.iter().map(|&i| match &builder.stack[i] {
-        DensityFunctionComponent::Interpolated(x) => IVec3::new(
-            x.cell_size_xz as i32,
-            x.cell_size_y as i32,
-            x.cell_size_xz as i32,
-        ),
-        _ => unreachable!(),
-    });
+    let mut geometries = outer_wrappers
+        .iter()
+        .map(|&i| match &builder.stack[i].sampler {
+            Sampler::Interpolated(x) => IVec3::new(
+                x.cell_size_xz as i32,
+                x.cell_size_y as i32,
+                x.cell_size_xz as i32,
+            ),
+            _ => unreachable!(),
+        });
     let first = geometries.next();
     // Mixed geometries have no common lattice, so no whole-cell shortcut either.
     let cell_size = geometries.all(|g| Some(g) == first).then(|| {
@@ -1282,30 +1148,28 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     fn visit_constant(&mut self, value: f64) {
         self.register_component(
             ProtoDensityFunction::Constant(value.into()),
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(
-                value as f32,
-            )),
+            DensityFunctionComponent::constant(value as f32),
         );
     }
 
     fn visit_blend_alpha(&mut self) {
         self.register_component(
             ProtoDensityFunction::BlendAlpha,
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(1.0)),
+            DensityFunctionComponent::constant(1.0),
         );
     }
 
     fn visit_blend_offset(&mut self) {
         self.register_component(
             ProtoDensityFunction::BlendOffset,
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(0.0)),
+            DensityFunctionComponent::constant(0.0),
         );
     }
 
     fn visit_beardifier(&mut self) {
         self.register_component(
             ProtoDensityFunction::Beardifier,
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(0.0)),
+            DensityFunctionComponent::constant(0.0),
         );
     }
 
@@ -1361,19 +1225,19 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     fn visit_negate(&mut self, function: &SingleArgumentFunction) {
         let input_index = self.component(&function.input);
         let input = &self.stack[input_index];
-        let (min_value, max_value) =
-            Affine::compute_range(input.min_value(), input.max_value(), -1.0, 0.0);
+        let range = Affine::compute_range(input.range, -1.0, 0.0);
         self.register_component(
             ProtoDensityFunction::Negate(SingleArgumentFunction {
                 input: function.input.clone(),
             }),
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Affine(Affine {
-                input_index,
-                scale: -1.0,
-                offset: 0.0,
-                min_value,
-                max_value,
-            })),
+            DensityFunctionComponent::dependent(
+                range,
+                DependentDensityFunction::Affine(Affine {
+                    input_index,
+                    scale: -1.0,
+                    offset: 0.0,
+                }),
+            ),
         );
     }
 
@@ -1515,7 +1379,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                 y_factor: y_factor.into(),
                 smear_scale_multiplier: smear_scale_multiplier.into(),
             },
-            DensityFunctionComponent::Independent(IndependentDensityFunction::OldBlendedNoise(
+            DensityFunctionComponent::independent(IndependentDensityFunction::OldBlendedNoise(
                 blended,
             )),
         );
@@ -1544,7 +1408,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         if shift_x.is_none() && shift_y.is_none() && shift_z.is_none() {
             self.register_component(
                 proto,
-                DensityFunctionComponent::Independent(IndependentDensityFunction::Noise(Noise {
+                DensityFunctionComponent::independent(IndependentDensityFunction::Noise(Noise {
                     noise_name,
                     sampler,
                     xz_scale: xz_scale as f64,
@@ -1558,19 +1422,21 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         let input_x_index = self.component(shift_x.unwrap_or(&zero));
         let input_y_index = self.component(shift_y.unwrap_or(&zero));
         let input_z_index = self.component(shift_z.unwrap_or(&zero));
+        let shifted = ShiftedNoise {
+            noise_name,
+            input_x_index,
+            input_y_index,
+            input_z_index,
+            xz_scale: xz_scale as f64,
+            y_scale: y_scale as f64,
+            sampler,
+        };
         self.register_component(
             proto,
-            DensityFunctionComponent::Dependent(DependentDensityFunction::ShiftedNoise(
-                ShiftedNoise {
-                    noise_name,
-                    input_x_index,
-                    input_y_index,
-                    input_z_index,
-                    xz_scale: xz_scale as f64,
-                    y_scale: y_scale as f64,
-                    sampler,
-                },
-            )),
+            DensityFunctionComponent::dependent(
+                shifted.range(),
+                DependentDensityFunction::ShiftedNoise(shifted),
+            ),
         );
     }
 
@@ -1585,12 +1451,9 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         let (input_index) = self.component(input);
         let (when_in_index) = self.component(when_in_range);
         let (when_out_index) = self.component(when_out_of_range);
-        let min_value = self.stack[when_in_index]
-            .min_value()
-            .min(self.stack[when_out_index].min_value());
-        let max_value = self.stack[when_in_index]
-            .max_value()
-            .max(self.stack[when_out_index].max_value());
+        let range = self.stack[when_in_index]
+            .range
+            .union(self.stack[when_out_index].range);
         let proto = ProtoDensityFunction::RangeChoice {
             input: input.clone(),
             min_inclusive: NoiseValue(min_inclusive),
@@ -1600,17 +1463,16 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         };
         self.register_component(
             proto,
-            DensityFunctionComponent::Dependent(DependentDensityFunction::RangeChoice(
-                RangeChoice {
+            DensityFunctionComponent::dependent(
+                range,
+                DependentDensityFunction::RangeChoice(RangeChoice {
                     input_index,
                     when_in_index,
                     when_out_index,
                     min_inclusion_value: min_inclusive as f32,
                     max_exclusion_value: max_exclusive as f32,
-                    min_value,
-                    max_value,
-                },
-            )),
+                }),
+            ),
         );
     }
 
@@ -1631,7 +1493,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             ProtoDensityFunction::ShiftB {
                 noise: function.clone(),
             },
-            DensityFunctionComponent::Independent(IndependentDensityFunction::ShiftB(ShiftB {
+            DensityFunctionComponent::independent(IndependentDensityFunction::ShiftB(ShiftB {
                 noise_name,
                 sampler,
             })),
@@ -1651,7 +1513,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     fn visit_end_outer_islands(&mut self) {
         self.register_component(
             ProtoDensityFunction::EndOuterIslands,
-            DensityFunctionComponent::Independent(IndependentDensityFunction::EndOuterIslands(
+            DensityFunctionComponent::independent(IndependentDensityFunction::EndOuterIslands(
                 EndIslands::new(self.world_seed),
             )),
         );
@@ -1659,8 +1521,9 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
 
     fn visit_clamp(&mut self, input: &DensityFunctionHolder, min: f64, max: f64) {
         let (input_index) = self.component(input);
-        let input_min = self.stack[input_index].min_value();
-        let input_max = self.stack[input_index].max_value();
+        let range = self.stack[input_index]
+            .range
+            .clamped(min as f32, max as f32);
         let proto = ProtoDensityFunction::Clamp(ClampArguments {
             input: input.clone(),
             min: NoiseValue(min),
@@ -1668,11 +1531,14 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         });
         self.register_component(
             proto,
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Clamp(Clamp {
-                input_index,
-                min_value: input_min.clamp(min as f32, max as f32),
-                max_value: input_max.clamp(min as f32, max as f32),
-            })),
+            DensityFunctionComponent::dependent(
+                range,
+                DependentDensityFunction::Clamp(Clamp {
+                    input_index,
+                    min: range.min(),
+                    max: range.max(),
+                }),
+            ),
         );
     }
 
@@ -1682,7 +1548,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             SplineValue::Constant(x) => {
                 self.register_component(
                     ProtoDensityFunction::Constant((x as f64).into()),
-                    DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(x)),
+                    DensityFunctionComponent::constant(x),
                 );
             }
             SplineValue::Spline(x) => {
@@ -1690,7 +1556,10 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                     ProtoDensityFunction::Spline {
                         spline: spline.clone(),
                     },
-                    DensityFunctionComponent::Dependent(DependentDensityFunction::Spline(x)),
+                    DensityFunctionComponent::dependent(
+                        x.range,
+                        DependentDensityFunction::Spline(x),
+                    ),
                 );
             }
         }
@@ -1730,7 +1599,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                 to_value: to_value as f32,
             })
         };
-        self.register_component(proto, DensityFunctionComponent::Independent(component));
+        self.register_component(proto, DensityFunctionComponent::independent(component));
     }
 
     fn visit_lerp(
@@ -1742,19 +1611,10 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         let alpha_index = self.component(alpha);
         let first_index = self.component(first);
         let second_index = self.component(second);
-        let (min_value, max_value) = lerp_range(
-            (
-                self.stack[alpha_index].min_value(),
-                self.stack[alpha_index].max_value(),
-            ),
-            (
-                self.stack[first_index].min_value(),
-                self.stack[first_index].max_value(),
-            ),
-            (
-                self.stack[second_index].min_value(),
-                self.stack[second_index].max_value(),
-            ),
+        let range = Interval::lerp(
+            self.stack[alpha_index].range,
+            self.stack[first_index].range,
+            self.stack[second_index].range,
         );
         self.register_component(
             ProtoDensityFunction::Lerp {
@@ -1762,13 +1622,14 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                 first: first.clone(),
                 second: second.clone(),
             },
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Lerp(Lerp {
-                alpha_index,
-                first_index,
-                second_index,
-                min_value,
-                max_value,
-            })),
+            DensityFunctionComponent::dependent(
+                range,
+                DependentDensityFunction::Lerp(Lerp {
+                    alpha_index,
+                    first_index,
+                    second_index,
+                }),
+            ),
         );
     }
 
@@ -1784,25 +1645,25 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             self.register_component(proto, component);
             return;
         }
-        let min_value = self.stack[input_index].min_value();
-        let max_value = self.stack[input_index].max_value();
+        let range = self.stack[input_index].range;
         self.register_component(
             proto,
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Slice(Slice {
-                axis,
-                coordinate,
-                input_index,
-                input_members: Box::default(),
-                min_value,
-                max_value,
-            })),
+            DensityFunctionComponent::dependent(
+                range,
+                DependentDensityFunction::Slice(Slice {
+                    axis,
+                    coordinate,
+                    input_index,
+                    input_members: Box::default(),
+                }),
+            ),
         );
     }
 
     fn visit_distance_to_point(&mut self, point: [i32; 3], metric: DistanceMetric) {
         self.register_component(
             ProtoDensityFunction::DistanceToPoint { point, metric },
-            DensityFunctionComponent::Independent(IndependentDensityFunction::DistanceToPoint(
+            DensityFunctionComponent::independent(IndependentDensityFunction::DistanceToPoint(
                 DistanceToPoint {
                     point: IVec3::new(point[0], point[1], point[2]),
                     metric,
@@ -1847,9 +1708,13 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     ) {
         let (density_index) = self.component(density);
         let (upper_bound_index) = self.component(upper_bound);
-        let max_value = self.stack[upper_bound_index]
-            .max_value()
-            .max(lower_bound as f32);
+        let range = Interval::of(
+            lower_bound as f32,
+            self.stack[upper_bound_index]
+                .range
+                .max()
+                .max(lower_bound as f32),
+        );
         let proto = ProtoDensityFunction::FindTopSurface {
             density: density.clone(),
             upper_bound: upper_bound.clone(),
@@ -1858,16 +1723,16 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         };
         self.register_component(
             proto,
-            DensityFunctionComponent::Dependent(DependentDensityFunction::FindTopSurface(
-                FindTopSurface {
+            DensityFunctionComponent::dependent(
+                range,
+                DependentDensityFunction::FindTopSurface(FindTopSurface {
                     density_index,
                     density_members: Box::default(),
                     upper_bound_index,
                     lower_bound: lower_bound as f32,
                     cell_height: cell_height.get() as f32,
-                    max_value,
-                },
-            )),
+                }),
+            ),
         );
     }
 
@@ -1878,9 +1743,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         cell_size_y: std::num::NonZeroU32,
     ) {
         let input_index = self.component(input);
-        let component = &self.stack[input_index];
-        let min_value = component.min_value();
-        let max_value = component.max_value();
+        let range = self.stack[input_index].range;
 
         self.register_component(
             ProtoDensityFunction::Interpolated {
@@ -1888,16 +1751,17 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                 cell_size_xz,
                 cell_size_y,
             },
-            DensityFunctionComponent::Interpolated(Interpolated {
-                input_index,
-                input_members: Box::default(),
-                cell_size_xz: cell_size_xz.get(),
-                cell_size_y: cell_size_y.get(),
-                cell_size_xz_inv: 1.0 / cell_size_xz.get() as f32,
-                cell_size_y_inv: 1.0 / cell_size_y.get() as f32,
-                min_value,
-                max_value,
-            }),
+            DensityFunctionComponent::new(
+                range,
+                Sampler::Interpolated(Interpolated {
+                    input_index,
+                    input_members: Box::default(),
+                    cell_size_xz: cell_size_xz.get(),
+                    cell_size_y: cell_size_y.get(),
+                    cell_size_xz_inv: 1.0 / cell_size_xz.get() as f32,
+                    cell_size_y_inv: 1.0 / cell_size_y.get() as f32,
+                }),
+            ),
         );
     }
 }
@@ -1912,9 +1776,7 @@ impl<'a> FunctionStackBuilder<'a> {
 
     fn spline(&mut self, proto_spline: &proto::Spline) -> Spline {
         let (cord_index) = self.component(&proto_spline.coordinate);
-        let cord_comp = &self.stack[cord_index];
-        let coord_min = cord_comp.min_value();
-        let coord_max = cord_comp.max_value();
+        let coordinate = self.stack[cord_index].range;
         let mut values = Vec::with_capacity(proto_spline.points.len());
         let mut derivatives = Vec::with_capacity(proto_spline.points.len());
         let mut locations = Vec::with_capacity(proto_spline.points.len());
@@ -1923,14 +1785,7 @@ impl<'a> FunctionStackBuilder<'a> {
             derivatives.push(p.derivative.0 as f32);
             locations.push(p.location.0 as f32);
         }
-        Spline::new(
-            cord_index,
-            coord_min,
-            coord_max,
-            locations,
-            derivatives,
-            values,
-        )
+        Spline::new(cord_index, coordinate, locations, derivatives, values)
     }
 
     fn binary(
@@ -1942,17 +1797,15 @@ impl<'a> FunctionStackBuilder<'a> {
     ) {
         let (input1_index) = self.component(left);
         let arg1 = &self.stack[input1_index];
-        let min1 = arg1.min_value();
-        let max1 = arg1.max_value();
+        let range1 = arg1.range;
         let arg1_constant = arg1.as_constant();
 
         let (input2_index) = self.component(right);
         let arg2 = &self.stack[input2_index];
-        let min2 = arg2.min_value();
-        let max2 = arg2.max_value();
+        let range2 = arg2.range;
         let arg2_constant = arg2.as_constant();
 
-        let (min_value, max_value) = binary_range(operation, (min1, max1), (min2, max2));
+        let range = binary_range(operation, range1, range2);
 
         if let BinaryOperation::Add | BinaryOperation::Multiply = operation {
             if let Some((input_index, argument)) = match (arg1_constant, arg2_constant) {
@@ -1962,38 +1815,38 @@ impl<'a> FunctionStackBuilder<'a> {
             } {
                 self.register_component(
                     proto,
-                    DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(Linear {
-                        input_index,
-                        min_value,
-                        max_value,
-                        argument,
-                        operation: match operation {
-                            BinaryOperation::Add => LinearOperation::Add,
-                            BinaryOperation::Multiply => LinearOperation::Multiply,
-                            _ => unreachable!(),
-                        },
-                    })),
+                    DensityFunctionComponent::dependent(
+                        range,
+                        DependentDensityFunction::Linear(Linear {
+                            input_index,
+                            argument,
+                            operation: match operation {
+                                BinaryOperation::Add => LinearOperation::Add,
+                                BinaryOperation::Multiply => LinearOperation::Multiply,
+                                _ => unreachable!(),
+                            },
+                        }),
+                    ),
                 );
                 return;
             }
         }
         self.register_component(
             proto,
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Binary(Binary {
-                input1_index,
-                input2_index,
-                min_value,
-                max_value,
-                operation,
-            })),
+            DensityFunctionComponent::dependent(
+                range,
+                DependentDensityFunction::Binary(Binary {
+                    input1_index,
+                    input2_index,
+                    operation,
+                }),
+            ),
         );
     }
 
     fn unary(&mut self, arg: &SingleArgumentFunction, operation: UnaryOperation) {
         let (input_index) = self.component(&arg.input);
-        let input = &self.stack[input_index];
-        let min = input.min_value();
-        let max = input.max_value();
+        let input_range = self.stack[input_index].range;
         let proto = match operation {
             UnaryOperation::Abs => ProtoDensityFunction::Abs(arg.clone()),
             UnaryOperation::Square => ProtoDensityFunction::Square(arg.clone()),
@@ -2007,16 +1860,17 @@ impl<'a> FunctionStackBuilder<'a> {
             UnaryOperation::Sign => ProtoDensityFunction::Sign(arg.clone()),
         };
 
-        let (min_value, max_value) = unary_range(operation, min, max);
+        let range = unary_range(operation, input_range);
 
         self.register_component(
             proto,
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Unary(Unary {
-                input_index,
-                min_value,
-                max_value,
-                operation,
-            })),
+            DensityFunctionComponent::dependent(
+                range,
+                DependentDensityFunction::Unary(Unary {
+                    input_index,
+                    operation,
+                }),
+            ),
         );
     }
 
@@ -2127,11 +1981,11 @@ mod arithmetic_node_tests {
     use super::{
         DensityFunctionComponent, DependentDensityFunction, FunctionStackBuilder, UnaryOperation,
     };
+    use crate::density_function::node::Sampler;
     use crate::density_function::proto::{
         DensityFunctionHolder, HashableF64, NoiseParam, Normalization, ProtoDensityFunction,
     };
     use crate::noise::normal_noise::NoiseSampler;
-    use crate::spline::RangeFunction;
     use bevy_math::IVec3;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -2155,8 +2009,8 @@ mod arithmetic_node_tests {
             &crate::density_function::Volume::point(IVec3::ZERO),
             &mut value,
         );
-        let component = &builder.stack[index];
-        (value[0], component.min_value(), component.max_value())
+        let range = builder.stack[index].range;
+        (value[0], range.min(), range.max())
     }
 
     fn sample(json: &str) -> f32 {
@@ -2386,8 +2240,8 @@ mod arithmetic_node_tests {
             FunctionStackBuilder::new(RandomSource::new(0, false), 0, &functions, &noises);
         let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
         super::lower_to_samplers(&mut builder.stack);
-        match &builder.stack[index] {
-            DensityFunctionComponent::Dependent(f) => match f {
+        match &builder.stack[index].sampler {
+            Sampler::Dependent(f) => match f {
                 DependentDensityFunction::Abs(_) => Some(UnaryOperation::Abs),
                 DependentDensityFunction::Square(_) => Some(UnaryOperation::Square),
                 DependentDensityFunction::Cube(_) => Some(UnaryOperation::Cube),

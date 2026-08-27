@@ -57,32 +57,17 @@ pub(super) enum IndependentDensityFunction {
     EndOuterIslands(EndIslands),
 }
 
-impl IndependentDensityFunction {}
-
-impl RangeFunction for IndependentDensityFunction {
-    fn min_value(&self) -> f32 {
+impl IndependentDensityFunction {
+    fn range(&self) -> Interval {
         match self {
-            IndependentDensityFunction::Constant(x) => *x,
-            IndependentDensityFunction::OldBlendedNoise(x) => x.min_value(),
-            IndependentDensityFunction::Noise(x) => x.min_value(),
-            IndependentDensityFunction::ShiftB(x) => x.min_value(),
-            IndependentDensityFunction::ClampedYGradient(x) => x.min_value(),
-            IndependentDensityFunction::Gradient(x) => x.min_value(),
-            IndependentDensityFunction::DistanceToPoint(x) => x.min_value(),
-            IndependentDensityFunction::EndOuterIslands(x) => x.min_value(),
-        }
-    }
-
-    fn max_value(&self) -> f32 {
-        match self {
-            IndependentDensityFunction::Constant(x) => *x,
-            IndependentDensityFunction::OldBlendedNoise(x) => x.max_value(),
-            IndependentDensityFunction::Noise(x) => x.max_value(),
-            IndependentDensityFunction::ShiftB(x) => x.max_value(),
-            IndependentDensityFunction::ClampedYGradient(x) => x.max_value(),
-            IndependentDensityFunction::Gradient(x) => x.max_value(),
-            IndependentDensityFunction::DistanceToPoint(x) => x.max_value(),
-            IndependentDensityFunction::EndOuterIslands(x) => x.max_value(),
+            IndependentDensityFunction::Constant(x) => Interval::exact(*x),
+            IndependentDensityFunction::OldBlendedNoise(x) => x.range(),
+            IndependentDensityFunction::Noise(x) => x.range(),
+            IndependentDensityFunction::ShiftB(x) => x.range(),
+            IndependentDensityFunction::ClampedYGradient(x) => x.range(),
+            IndependentDensityFunction::Gradient(x) => x.range(),
+            IndependentDensityFunction::DistanceToPoint(x) => x.range(),
+            IndependentDensityFunction::EndOuterIslands(x) => x.range(),
         }
     }
 }
@@ -146,98 +131,6 @@ pub(super) enum DependentDensityFunction {
     Slice(Slice),
 }
 
-impl RangeFunction for DependentDensityFunction {
-    fn min_value(&self) -> f32 {
-        match self {
-            DependentDensityFunction::Linear(x) => x.min_value(),
-            DependentDensityFunction::ConstMin(x) => x.min_value(),
-            DependentDensityFunction::ConstMax(x) => x.min_value(),
-            DependentDensityFunction::ConstSub(x) => x.min_value(),
-            DependentDensityFunction::ConstDiv(x) => x.min_value(),
-            DependentDensityFunction::ConstAdd(x) => x.min_value(),
-            DependentDensityFunction::ConstMul(x) => x.min_value(),
-            DependentDensityFunction::Abs(x) => x.min_value(),
-            DependentDensityFunction::Square(x) => x.min_value(),
-            DependentDensityFunction::Cube(x) => x.min_value(),
-            DependentDensityFunction::Negate(x) => x.min_value(),
-            DependentDensityFunction::Reciprocal(x) => x.min_value(),
-            DependentDensityFunction::Sqrt(x) => x.min_value(),
-            DependentDensityFunction::Log(x) => x.min_value(),
-            DependentDensityFunction::Sign(x) => x.min_value(),
-            DependentDensityFunction::Squeeze(x) => x.min_value(),
-            DependentDensityFunction::LeakyReLU(x) => x.min_value(),
-            DependentDensityFunction::IntegerMultipleRound(x) => x.min_value(),
-            DependentDensityFunction::ConstExponentPow(x) => x.min_value(),
-            DependentDensityFunction::ConstBasePow(x) => x.min_value(),
-            DependentDensityFunction::Add(x) => x.min_value(),
-            DependentDensityFunction::Sub(x) => x.min_value(),
-            DependentDensityFunction::Mul(x) => x.min_value(),
-            DependentDensityFunction::Div(x) => x.min_value(),
-            DependentDensityFunction::Min(x) => x.min_value(),
-            DependentDensityFunction::Max(x) => x.min_value(),
-            DependentDensityFunction::Pow(x) => x.min_value(),
-            DependentDensityFunction::Round(x) => x.min_value(),
-            DependentDensityFunction::Affine(x) => x.min_value(),
-            DependentDensityFunction::PiecewiseAffine(x) => x.min_value(),
-            DependentDensityFunction::Slide(x) => x.min_value(),
-            DependentDensityFunction::Unary(x) => x.min_value(),
-            DependentDensityFunction::Binary(x) => x.min_value(),
-            DependentDensityFunction::ShiftedNoise(x) => x.min_value(),
-            DependentDensityFunction::Clamp(x) => x.min_value(),
-            DependentDensityFunction::RangeChoice(x) => x.min_value(),
-            DependentDensityFunction::Spline(x) => x.min_value(),
-            DependentDensityFunction::FindTopSurface(x) => x.min_value(),
-            DependentDensityFunction::Lerp(x) => x.min_value(),
-            DependentDensityFunction::Slice(x) => x.min_value(),
-        }
-    }
-
-    fn max_value(&self) -> f32 {
-        match self {
-            DependentDensityFunction::Linear(x) => x.max_value(),
-            DependentDensityFunction::ConstMin(x) => x.max_value(),
-            DependentDensityFunction::ConstMax(x) => x.max_value(),
-            DependentDensityFunction::ConstSub(x) => x.max_value(),
-            DependentDensityFunction::ConstDiv(x) => x.max_value(),
-            DependentDensityFunction::ConstAdd(x) => x.max_value(),
-            DependentDensityFunction::ConstMul(x) => x.max_value(),
-            DependentDensityFunction::Abs(x) => x.max_value(),
-            DependentDensityFunction::Square(x) => x.max_value(),
-            DependentDensityFunction::Cube(x) => x.max_value(),
-            DependentDensityFunction::Negate(x) => x.max_value(),
-            DependentDensityFunction::Reciprocal(x) => x.max_value(),
-            DependentDensityFunction::Sqrt(x) => x.max_value(),
-            DependentDensityFunction::Log(x) => x.max_value(),
-            DependentDensityFunction::Sign(x) => x.max_value(),
-            DependentDensityFunction::Squeeze(x) => x.max_value(),
-            DependentDensityFunction::LeakyReLU(x) => x.max_value(),
-            DependentDensityFunction::IntegerMultipleRound(x) => x.max_value(),
-            DependentDensityFunction::ConstExponentPow(x) => x.max_value(),
-            DependentDensityFunction::ConstBasePow(x) => x.max_value(),
-            DependentDensityFunction::Add(x) => x.max_value(),
-            DependentDensityFunction::Sub(x) => x.max_value(),
-            DependentDensityFunction::Mul(x) => x.max_value(),
-            DependentDensityFunction::Div(x) => x.max_value(),
-            DependentDensityFunction::Min(x) => x.max_value(),
-            DependentDensityFunction::Max(x) => x.max_value(),
-            DependentDensityFunction::Pow(x) => x.max_value(),
-            DependentDensityFunction::Round(x) => x.max_value(),
-            DependentDensityFunction::Affine(x) => x.max_value(),
-            DependentDensityFunction::PiecewiseAffine(x) => x.max_value(),
-            DependentDensityFunction::Slide(x) => x.max_value(),
-            DependentDensityFunction::Unary(x) => x.max_value(),
-            DependentDensityFunction::Binary(x) => x.max_value(),
-            DependentDensityFunction::ShiftedNoise(x) => x.max_value(),
-            DependentDensityFunction::Clamp(x) => x.max_value(),
-            DependentDensityFunction::RangeChoice(x) => x.max_value(),
-            DependentDensityFunction::Spline(x) => x.max_value(),
-            DependentDensityFunction::FindTopSurface(x) => x.max_value(),
-            DependentDensityFunction::Lerp(x) => x.max_value(),
-            DependentDensityFunction::Slice(x) => x.max_value(),
-        }
-    }
-}
-
 #[inline]
 pub(super) fn round_to_integer(value: f32, mode: RoundingMode) -> f32 {
     match mode {
@@ -256,29 +149,48 @@ pub(super) fn round_to_integer(value: f32, mode: RoundingMode) -> f32 {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum DensityFunctionComponent {
+pub(super) enum Sampler {
     Independent(IndependentDensityFunction),
     Dependent(DependentDensityFunction),
     Interpolated(Interpolated),
 }
 
-impl DensityFunctionComponent {
-    pub(super) fn as_constant(&self) -> Option<f32> {
-        match self {
-            DensityFunctionComponent::Independent(x) => match x {
-                IndependentDensityFunction::Constant(v) => Some(*v),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
+/// A stack entry: what it computes, and the bounds on what it can compute.
+/// Nothing on the sampler side ever reads the range.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct DensityFunctionComponent {
+    pub(super) range: Interval,
+    pub(super) sampler: Sampler,
 }
 
 impl DensityFunctionComponent {
+    pub(super) fn new(range: Interval, sampler: Sampler) -> Self {
+        Self { range, sampler }
+    }
+
+    pub(super) fn independent(function: IndependentDensityFunction) -> Self {
+        Self::new(function.range(), Sampler::Independent(function))
+    }
+
+    pub(super) fn dependent(range: Interval, function: DependentDensityFunction) -> Self {
+        Self::new(range, Sampler::Dependent(function))
+    }
+
+    pub(super) fn constant(value: f32) -> Self {
+        Self::independent(IndependentDensityFunction::Constant(value))
+    }
+
+    pub(super) fn as_constant(&self) -> Option<f32> {
+        match &self.sampler {
+            Sampler::Independent(IndependentDensityFunction::Constant(v)) => Some(*v),
+            _ => None,
+        }
+    }
+
     pub(super) fn rewrite_indices(&mut self, redirect: &[usize]) {
-        match self {
-            DensityFunctionComponent::Independent(_) => {}
-            DensityFunctionComponent::Dependent(dep) => match dep {
+        match &mut self.sampler {
+            Sampler::Independent(_) => {}
+            Sampler::Dependent(dep) => match dep {
                 DependentDensityFunction::Linear(x) => {
                     x.input_index = redirect[x.input_index];
                 }
@@ -416,16 +328,16 @@ impl DensityFunctionComponent {
                     x.input_index = redirect[x.input_index];
                 }
             },
-            DensityFunctionComponent::Interpolated(x) => {
+            Sampler::Interpolated(x) => {
                 x.input_index = redirect[x.input_index];
             }
         }
     }
 
     pub(super) fn visit_input_indices(&self, f: &mut impl FnMut(usize)) {
-        match self {
-            DensityFunctionComponent::Independent(_) => {}
-            DensityFunctionComponent::Dependent(dep) => match dep {
+        match &self.sampler {
+            Sampler::Independent(_) => {}
+            Sampler::Dependent(dep) => match dep {
                 DependentDensityFunction::Linear(x) => f(x.input_index),
                 DependentDensityFunction::ConstMin(x) => f(x.input_index),
                 DependentDensityFunction::ConstMax(x) => f(x.input_index),
@@ -509,25 +421,7 @@ impl DensityFunctionComponent {
                 }
                 DependentDensityFunction::Slice(x) => f(x.input_index),
             },
-            DensityFunctionComponent::Interpolated(x) => f(x.input_index),
-        }
-    }
-}
-
-impl RangeFunction for DensityFunctionComponent {
-    fn min_value(&self) -> f32 {
-        match self {
-            DensityFunctionComponent::Independent(func) => func.min_value(),
-            DensityFunctionComponent::Dependent(func) => func.min_value(),
-            DensityFunctionComponent::Interpolated(func) => func.min_value(),
-        }
-    }
-
-    fn max_value(&self) -> f32 {
-        match self {
-            DensityFunctionComponent::Independent(func) => func.max_value(),
-            DensityFunctionComponent::Dependent(func) => func.max_value(),
-            DensityFunctionComponent::Interpolated(func) => func.max_value(),
+            Sampler::Interpolated(x) => f(x.input_index),
         }
     }
 }
@@ -676,10 +570,10 @@ impl DensitySampler for DependentDensityFunction {
 
 impl DensitySampler for DensityFunctionComponent {
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
-        match self {
-            DensityFunctionComponent::Independent(x) => x.sample_volume(ctx, out),
-            DensityFunctionComponent::Dependent(x) => x.sample_volume(ctx, out),
-            DensityFunctionComponent::Interpolated(x) => x.sample_volume(ctx, out),
+        match &self.sampler {
+            Sampler::Independent(x) => x.sample_volume(ctx, out),
+            Sampler::Dependent(x) => x.sample_volume(ctx, out),
+            Sampler::Interpolated(x) => x.sample_volume(ctx, out),
         }
     }
 }

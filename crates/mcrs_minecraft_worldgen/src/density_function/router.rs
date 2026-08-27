@@ -247,7 +247,7 @@ impl NoiseRouter {
             // Only above `column_end`, though: the column pass reads the input row
             // straight back out whenever the position is a cell corner.
             if i >= column_end
-                && let DensityFunctionComponent::Interpolated(x) = &self.stack[i]
+                && let Sampler::Interpolated(x) = &self.stack[i].sampler
                 && !x.is_lattice_volume(volume)
             {
                 continue;
