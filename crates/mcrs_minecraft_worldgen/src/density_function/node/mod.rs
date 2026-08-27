@@ -110,6 +110,10 @@ pub(super) enum DependentDensityFunction {
     Slide(Slide),
     Unary(Unary),
     Binary(Binary),
+    ConstMin(ConstMin),
+    ConstMax(ConstMax),
+    ConstSub(ConstSub),
+    ConstDiv(ConstDiv),
     ShiftedNoise(ShiftedNoise),
     Clamp(Clamp),
     RangeChoice(RangeChoice),
@@ -123,6 +127,10 @@ impl RangeFunction for DependentDensityFunction {
     fn min_value(&self) -> f32 {
         match self {
             DependentDensityFunction::Linear(x) => x.min_value(),
+            DependentDensityFunction::ConstMin(x) => x.min_value(),
+            DependentDensityFunction::ConstMax(x) => x.min_value(),
+            DependentDensityFunction::ConstSub(x) => x.min_value(),
+            DependentDensityFunction::ConstDiv(x) => x.min_value(),
             DependentDensityFunction::Affine(x) => x.min_value(),
             DependentDensityFunction::PiecewiseAffine(x) => x.min_value(),
             DependentDensityFunction::Slide(x) => x.min_value(),
@@ -141,6 +149,10 @@ impl RangeFunction for DependentDensityFunction {
     fn max_value(&self) -> f32 {
         match self {
             DependentDensityFunction::Linear(x) => x.max_value(),
+            DependentDensityFunction::ConstMin(x) => x.max_value(),
+            DependentDensityFunction::ConstMax(x) => x.max_value(),
+            DependentDensityFunction::ConstSub(x) => x.max_value(),
+            DependentDensityFunction::ConstDiv(x) => x.max_value(),
             DependentDensityFunction::Affine(x) => x.max_value(),
             DependentDensityFunction::PiecewiseAffine(x) => x.max_value(),
             DependentDensityFunction::Slide(x) => x.max_value(),
@@ -201,6 +213,18 @@ impl DensityFunctionComponent {
                 DependentDensityFunction::Linear(x) => {
                     x.input_index = redirect[x.input_index];
                 }
+                DependentDensityFunction::ConstMin(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+                DependentDensityFunction::ConstMax(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+                DependentDensityFunction::ConstSub(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
+                DependentDensityFunction::ConstDiv(x) => {
+                    x.input_index = redirect[x.input_index];
+                }
                 DependentDensityFunction::Affine(x) => {
                     x.input_index = redirect[x.input_index];
                 }
@@ -257,6 +281,10 @@ impl DensityFunctionComponent {
             DensityFunctionComponent::Independent(_) => {}
             DensityFunctionComponent::Dependent(dep) => match dep {
                 DependentDensityFunction::Linear(x) => f(x.input_index),
+                DependentDensityFunction::ConstMin(x) => f(x.input_index),
+                DependentDensityFunction::ConstMax(x) => f(x.input_index),
+                DependentDensityFunction::ConstSub(x) => f(x.input_index),
+                DependentDensityFunction::ConstDiv(x) => f(x.input_index),
                 DependentDensityFunction::Affine(x) => f(x.input_index),
                 DependentDensityFunction::PiecewiseAffine(x) => f(x.input_index),
                 DependentDensityFunction::Slide(x) => f(x.input_index),
@@ -409,6 +437,10 @@ impl DensitySampler for DependentDensityFunction {
             DependentDensityFunction::Slide(x) => x.sample_volume(ctx, out),
             DependentDensityFunction::Unary(x) => x.sample_volume(ctx, out),
             DependentDensityFunction::Binary(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::ConstMin(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::ConstMax(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::ConstSub(x) => x.sample_volume(ctx, out),
+            DependentDensityFunction::ConstDiv(x) => x.sample_volume(ctx, out),
             DependentDensityFunction::ShiftedNoise(x) => x.sample_volume(ctx, out),
             DependentDensityFunction::Clamp(x) => x.sample_volume(ctx, out),
             DependentDensityFunction::RangeChoice(x) => x.sample_volume(ctx, out),

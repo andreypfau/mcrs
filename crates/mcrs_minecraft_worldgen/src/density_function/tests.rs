@@ -1541,3 +1541,18 @@ fn every_shift_variant_permutes_its_coordinates() {
         router.sample_value(router.continents_index, off_diagonal, &mut scratch)
     );
 }
+
+#[test]
+#[ignore]
+fn count_node_kinds() {
+    let router = router_for("overworld.json");
+    let mut kinds: std::collections::BTreeMap<&str, usize> = Default::default();
+    for i in 0..router.stack.len() {
+        *kinds
+            .entry(super::interval_prune::kind_name(&router.stack[i]))
+            .or_default() += 1;
+    }
+    for (k, n) in kinds {
+        println!("{k:24} {n}");
+    }
+}

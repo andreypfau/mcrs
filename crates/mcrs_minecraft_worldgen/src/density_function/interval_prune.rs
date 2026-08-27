@@ -733,7 +733,7 @@ fn interval_prune_yield() {
     }
 }
 
-fn kind_name(c: &DensityFunctionComponent) -> &'static str {
+pub(super) fn kind_name(c: &DensityFunctionComponent) -> &'static str {
     match c {
         DensityFunctionComponent::Independent(f) => match f {
             IndependentDensityFunction::Constant(_) => "Constant",
@@ -752,6 +752,10 @@ fn kind_name(c: &DensityFunctionComponent) -> &'static str {
             DependentDensityFunction::Slide(_) => "Slide",
             DependentDensityFunction::Unary(_) => "Unary",
             DependentDensityFunction::Binary(_) => "Binary",
+            DependentDensityFunction::ConstMin(_) => "ConstMin",
+            DependentDensityFunction::ConstMax(_) => "ConstMax",
+            DependentDensityFunction::ConstSub(_) => "ConstSub",
+            DependentDensityFunction::ConstDiv(_) => "ConstDiv",
             DependentDensityFunction::ShiftedNoise(_) => "ShiftedNoise",
             DependentDensityFunction::Clamp(_) => "Clamp",
             DependentDensityFunction::RangeChoice(_) => "RangeChoice",

@@ -445,8 +445,37 @@ impl DensitySampler for Slide {
 
 impl DensitySampler for Unary {
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
-        for (slot, &value) in out.iter_mut().zip(ctx.row(self.input_index)) {
-            *slot = self.operation.apply(value);
+        let input = ctx.row(self.input_index);
+        macro_rules! run {
+            ($op:expr) => {{
+                let f = $op;
+                for (slot, &value) in out.iter_mut().zip(input) {
+                    *slot = f(value);
+                }
+            }};
+        }
+        match self.operation {
+            UnaryOperation::Abs => run!(f32::abs),
+            UnaryOperation::Square => run!(|v: f32| v.powi(2)),
+            UnaryOperation::Cube => run!(|v: f32| v.powi(3)),
+            UnaryOperation::HalfNegative => {
+                run!(|v: f32| if v > 0.0 { v } else { v * 0.5 })
+            }
+            UnaryOperation::QuarterNegative => {
+                run!(|v: f32| if v > 0.0 { v } else { v * 0.25 })
+            }
+            UnaryOperation::Reciprocal => run!(|v: f32| 1.0 / v),
+            UnaryOperation::Squeeze => run!(|v: f32| {
+                let clamped = v.clamp(-1.0, 1.0);
+                clamped / 2.0 - clamped.powi(3) / 24.0
+            }),
+            UnaryOperation::Sqrt => run!(f32::sqrt),
+            UnaryOperation::Log => run!(|v: f32| (v as f64).ln() as f32),
+            _ => {
+                for (slot, &value) in out.iter_mut().zip(input) {
+                    *slot = self.operation.apply(value);
+                }
+            }
         }
     }
 }
@@ -455,8 +484,29 @@ impl DensitySampler for Binary {
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         let left = ctx.row(self.input1_index);
         let right = ctx.row(self.input2_index);
-        for ((slot, &a), &b) in out.iter_mut().zip(left).zip(right) {
-            *slot = self.operation.apply(a, b);
+        macro_rules! run {
+            ($op:expr) => {{
+                let f = $op;
+                for ((slot, &a), &b) in out.iter_mut().zip(left).zip(right) {
+                    *slot = f(a, b);
+                }
+            }};
+        }
+        match self.operation {
+            BinaryOperation::Add => run!(|a: f32, b: f32| a + b),
+            BinaryOperation::Subtract => run!(|a: f32, b: f32| a - b),
+            BinaryOperation::Multiply => run!(|a: f32, b: f32| a * b),
+            BinaryOperation::Divide => {
+                run!(|a: f32, b: f32| if a == 0.0 { 0.0 } else { a / b })
+            }
+            BinaryOperation::Min => run!(f32::min),
+            BinaryOperation::Max => run!(f32::max),
+            BinaryOperation::Pow => run!(pow_narrowed),
+            BinaryOperation::Round(mode) => run!(move |a: f32, b: f32| if b == 0.0 {
+                a
+            } else {
+                round_to_integer(a / b, mode) * b
+            }),
         }
     }
 }
@@ -467,4 +517,47 @@ impl DensitySampler for Clamp {
             *slot = value.clamp(self.min_value, self.max_value);
         }
     }
+}
+
+/// `min(x, c)`, `max(x, c)`, `c - x` and `c / x`: the constant-operand forms
+/// the reference gives their own samplers, so no constant row is materialised
+/// and the inner loop carries no branch on the operation.
+macro_rules! const_binary_samplers {
+    ($($(#[$doc:meta])* $name:ident, $value:ident, $arg:ident => $body:expr;)*) => {$(
+        $(#[$doc])*
+        #[derive(Clone, Debug, PartialEq)]
+        pub(crate) struct $name {
+            pub(crate) input_index: usize,
+            pub(crate) argument: f32,
+            pub(crate) min_value: f32,
+            pub(crate) max_value: f32,
+        }
+
+        impl RangeFunction for $name {
+            #[inline]
+            fn min_value(&self) -> f32 {
+                self.min_value
+            }
+            #[inline]
+            fn max_value(&self) -> f32 {
+                self.max_value
+            }
+        }
+
+        impl DensitySampler for $name {
+            fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+                let $arg = self.argument;
+                for (slot, &$value) in out.iter_mut().zip(ctx.row(self.input_index)) {
+                    *slot = $body;
+                }
+            }
+        }
+    )*};
+}
+
+const_binary_samplers! {
+    ConstMin, value, argument => value.min(argument);
+    ConstMax, value, argument => value.max(argument);
+    ConstSub, value, argument => argument - value;
+    ConstDiv, value, argument => if argument == 0.0 { 0.0 } else { argument / value };
 }

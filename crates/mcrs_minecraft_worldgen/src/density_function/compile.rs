@@ -210,6 +210,70 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
                         IndependentDensityFunction::Constant(result),
                     ))
                 }
+                // One constant, and the operation has a dedicated constant-operand
+                // sampler: drop the constant row entirely.
+                (Some(c), None, BinaryOperation::Min) | (None, Some(c), BinaryOperation::Min) => {
+                    let input_index = if c1.is_some() {
+                        bin.input2_index
+                    } else {
+                        bin.input1_index
+                    };
+                    Some(DensityFunctionComponent::Dependent(
+                        DependentDensityFunction::ConstMin(ConstMin {
+                            input_index,
+                            argument: c,
+                            min_value: bin.min_value,
+                            max_value: bin.max_value,
+                        }),
+                    ))
+                }
+                (Some(c), None, BinaryOperation::Max) | (None, Some(c), BinaryOperation::Max) => {
+                    let input_index = if c1.is_some() {
+                        bin.input2_index
+                    } else {
+                        bin.input1_index
+                    };
+                    Some(DensityFunctionComponent::Dependent(
+                        DependentDensityFunction::ConstMax(ConstMax {
+                            input_index,
+                            argument: c,
+                            min_value: bin.min_value,
+                            max_value: bin.max_value,
+                        }),
+                    ))
+                }
+                // `c - x` and `c / x` keep the constant on the left, so they are
+                // their own samplers rather than a scaled input.
+                (Some(c), None, BinaryOperation::Subtract) => {
+                    Some(DensityFunctionComponent::Dependent(
+                        DependentDensityFunction::ConstSub(ConstSub {
+                            input_index: bin.input2_index,
+                            argument: c,
+                            min_value: bin.min_value,
+                            max_value: bin.max_value,
+                        }),
+                    ))
+                }
+                (Some(c), None, BinaryOperation::Divide) => {
+                    Some(DensityFunctionComponent::Dependent(
+                        DependentDensityFunction::ConstDiv(ConstDiv {
+                            input_index: bin.input2_index,
+                            argument: c,
+                            min_value: bin.min_value,
+                            max_value: bin.max_value,
+                        }),
+                    ))
+                }
+                // `x - c` is exactly `x + (-c)`: negation is exact in binary floating point.
+                (None, Some(c), BinaryOperation::Subtract) => Some(
+                    DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(Linear {
+                        input_index: bin.input1_index,
+                        min_value: bin.min_value,
+                        max_value: bin.max_value,
+                        argument: -c,
+                        operation: LinearOperation::Add,
+                    })),
+                ),
                 // One constant, Add/Multiply → demote to Linear
                 (Some(c), None, BinaryOperation::Add | BinaryOperation::Multiply)
                 | (None, Some(c), BinaryOperation::Add | BinaryOperation::Multiply) => {
