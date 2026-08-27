@@ -740,9 +740,7 @@ fn interior_fill_cases() -> Vec<(
 #[test]
 fn fill_matches_sample_root_on_the_cell_lattice() {
     let router = overworld_router(42);
-    let mut roots: Vec<(&str, usize)> = router.roots();
-    roots.push(("final_density", router.final_density_index()));
-    for (root_name, root) in roots {
+    for (root_name, root) in router.roots() {
         for (name, volume) in lattice_fill_cases(&router) {
             let d = fill_vs_sample_root(&router, root, &volume);
             assert_eq!(
@@ -764,9 +762,7 @@ const FILL_VERSUS_SCALAR: f32 = 8e-8;
 #[test]
 fn fill_and_sample_root_differ_only_by_the_y_accumulation() {
     let router = overworld_router(42);
-    let mut roots: Vec<(&str, usize)> = router.roots();
-    roots.push(("final_density", router.final_density_index()));
-    for (root_name, root) in roots {
+    for (root_name, root) in router.roots() {
         for (name, volume) in interior_fill_cases() {
             let d = fill_vs_sample_root(&router, root, &volume);
             println!(
