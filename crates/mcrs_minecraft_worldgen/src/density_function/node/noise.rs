@@ -1,27 +1,4 @@
 use super::*;
-use crate::density_function::branch_schedule::{BranchSchedule, Step};
-use crate::density_function::proto::{
-    ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axis, ClampArguments, ConstantValue, DensityFunctionHolder,
-    DistanceMetric, GradientArguments, HashableF64, InlineReference, IntervalSelectArguments,
-    NoiseHolder, NoiseParam, NoiseValue, Normalization, PowFunctionArguments, ProtoDensityFunction,
-    RewriteRule, RoundFunctionArguments, RoundingMode, SingleArgumentFunction, SliceUniformAxes,
-    SplineHolder, TilingMode, TwoArgumentFunction, Visitor, noise_scale_axes,
-};
-use crate::noise::normal_noise::{ColumnScratch, NoiseSampler};
-use crate::noise::octave_perlin_noise::OctavePerlinNoise;
-use crate::noise::simplex::SimplexNoise;
-use crate::proto::NoiseGeneratorSettings;
-use bevy_math::{Curve, FloatExt, IVec3};
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_random::{Random, RandomSource};
-use mcrs_voxel_storage::VoxelId;
-use std::collections::{BTreeMap, HashMap};
-use std::fmt::{Debug, Formatter};
-use std::mem::swap;
-use std::ops::Index;
-use std::sync::Arc;
-use tracing::info;
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct BlendedNoise {

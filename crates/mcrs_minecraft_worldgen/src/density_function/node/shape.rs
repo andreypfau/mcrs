@@ -1,27 +1,4 @@
 use super::*;
-use crate::density_function::branch_schedule::{BranchSchedule, Step};
-use crate::density_function::proto::{
-    ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axis, ClampArguments, ConstantValue, DensityFunctionHolder,
-    DistanceMetric, GradientArguments, HashableF64, InlineReference, IntervalSelectArguments,
-    NoiseHolder, NoiseParam, NoiseValue, Normalization, PowFunctionArguments, ProtoDensityFunction,
-    RewriteRule, RoundFunctionArguments, RoundingMode, SingleArgumentFunction, SliceUniformAxes,
-    SplineHolder, TilingMode, TwoArgumentFunction, Visitor, noise_scale_axes,
-};
-use crate::noise::normal_noise::{ColumnScratch, NoiseSampler};
-use crate::noise::octave_perlin_noise::OctavePerlinNoise;
-use crate::noise::simplex::SimplexNoise;
-use crate::proto::NoiseGeneratorSettings;
-use bevy_math::{Curve, FloatExt, IVec3};
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_random::legacy::LegacyRandom;
-use mcrs_minecraft_random::{Random, RandomSource};
-use mcrs_voxel_storage::VoxelId;
-use std::collections::{BTreeMap, HashMap};
-use std::fmt::{Debug, Formatter};
-use std::mem::swap;
-use std::ops::Index;
-use std::sync::Arc;
-use tracing::info;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct RangeChoice {
@@ -218,24 +195,24 @@ impl Spline {
 
 impl SplineValue {
     #[inline]
-    pub(crate) fn sample(&self, cache: &[f32]) -> f32 {
+    fn sample(&self, ctx: Fill<'_>, index: usize) -> f32 {
         match self {
-            SplineValue::Spline(x) => x.sample(cache),
+            SplineValue::Spline(x) => x.sample(ctx, index),
             SplineValue::Constant(x) => *x,
         }
     }
 }
 
 impl Spline {
-    pub(crate) fn sample(&self, cache: &[f32]) -> f32 {
-        let location = cache[self.input_index];
+    fn sample(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        let location = ctx.row(self.input_index)[index];
 
         let locs = &self.locations;
         let idx_gt = Self::upper_bound(locs, location);
         let n_points = locs.len();
 
         if idx_gt == 0 {
-            let v0 = self.values[0].sample(cache);
+            let v0 = self.values[0].sample(ctx, index);
             let d0 = self.derivatives[0];
             return if d0 == 0.0 {
                 v0
@@ -246,7 +223,7 @@ impl Spline {
 
         if idx_gt == n_points {
             let i = n_points - 1;
-            let v = self.values[i].sample(cache);
+            let v = self.values[i].sample(ctx, index);
             let d = self.derivatives[i];
             return if d == 0.0 {
                 v
@@ -258,8 +235,8 @@ impl Spline {
         let i0 = idx_gt - 1;
         let i1 = idx_gt;
 
-        let v0 = self.values[i0].sample(cache);
-        let v1 = self.values[i1].sample(cache);
+        let v0 = self.values[i0].sample(ctx, index);
+        let v1 = self.values[i1].sample(ctx, index);
 
         let seg = self.segments[i0];
         let x = (location - seg.left) / seg.dist;
@@ -307,6 +284,7 @@ impl Spline {
             }
         }
     }
+
 }
 impl DensitySampler for RangeChoice {
     fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
@@ -368,20 +346,12 @@ impl DensitySampler for Lerp {
 
 impl DensitySampler for Spline {
     fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
-        let column: Vec<f32> = (0..ctx.depth()).map(|j| ctx.row(j)[index]).collect();
-        self.sample(&column)
+        self.sample(ctx, index)
     }
 
-    /// Reads its inputs by stack index rather than by edge, so it needs the
-    /// whole register column gathered per position.
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
-        let depth = ctx.depth();
-        let mut column = vec![0.0f32; depth];
-        for (p, slot) in out.iter_mut().enumerate() {
-            for (j, cell) in column.iter_mut().enumerate() {
-                *cell = ctx.row(j)[p];
-            }
-            *slot = self.sample(&column);
+        for (index, slot) in out.iter_mut().enumerate() {
+            *slot = self.sample(ctx, index);
         }
     }
 }

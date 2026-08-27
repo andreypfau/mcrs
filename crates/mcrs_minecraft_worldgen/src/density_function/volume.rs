@@ -107,14 +107,12 @@ impl Volume {
 }
 
 /// Reusable buffers for [`NoiseRouter::sample_volume`]: one row per live node
-/// over the volume, the same over the volume's columns, and the register file
-/// the spline opcode reads its inputs from.
+/// over the volume, and the same over the volume's columns.
 #[derive(Default)]
 pub struct FillScratch {
     pub(super) rows: Vec<f32>,
     pub(super) column_rows: Vec<f32>,
     pub(super) column_positions: Vec<IVec3>,
-    pub(super) point: Vec<f32>,
     pub(super) positions: Vec<IVec3>,
     pub(super) needed: Vec<bool>,
 }

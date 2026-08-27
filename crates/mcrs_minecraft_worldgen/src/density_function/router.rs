@@ -223,7 +223,6 @@ impl NoiseRouter {
         // Resized, never cleared: a row is read only after this pass writes it,
         // so re-zeroing the arena is a memset the size of the whole volume.
         scratch.rows.resize(live * n, 0.0);
-        scratch.point.resize(self.stack.len(), 0.0);
         volume.positions_into(&mut scratch.positions);
 
         let column_end = if live <= self.fd_boundary {
@@ -271,7 +270,6 @@ impl NoiseRouter {
         let arena = self.arena();
         let rows = &mut scratch.rows;
         let column_rows = &mut scratch.column_rows;
-        let point = &mut scratch.point;
         let size_y = volume.size().y as usize;
         for i in 0..column_end {
             if !needed[i] {
@@ -292,7 +290,7 @@ impl NoiseRouter {
                 }
             }
         } else if roots.iter().all(|r| self.zone_b_roots.contains(r)) {
-            self.fill_zone_b_scheduled(volume, positions, rows, point, needed);
+            self.fill_zone_b_scheduled(volume, positions, rows, needed);
         } else {
             for i in self.column_boundary..live {
                 if needed[i] {
@@ -314,7 +312,6 @@ impl NoiseRouter {
         volume: &Volume,
         positions: &[IVec3],
         rows: &mut [f32],
-        point: &mut [f32],
         needed: &[bool],
     ) {
         let n = volume.len();
@@ -350,7 +347,7 @@ impl NoiseRouter {
             }
         }
         #[cfg(debug_assertions)]
-        self.verify_fill_zone_b(volume, positions, rows, point, needed);
+        self.verify_fill_zone_b(volume, positions, rows, needed);
     }
 
     /// Re-evaluate the skipped runs and check nothing the caller reads moved.
@@ -360,7 +357,6 @@ impl NoiseRouter {
         volume: &Volume,
         positions: &[IVec3],
         rows: &mut [f32],
-        point: &mut [f32],
         needed: &[bool],
     ) {
         let n = volume.len();
