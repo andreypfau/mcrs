@@ -1,6 +1,6 @@
 use super::{
-    Affine, BinaryOperation, DependentDensityFunction, IndependentDensityFunction,
-    IndependentSampler, NoiseRouter, PiecewiseAffine, Sampler, UnaryOperation, round_to_integer,
+    Affine, DependentDensityFunction, IndependentDensityFunction, IndependentSampler, NoiseRouter,
+    PiecewiseAffine, RoundingMode, Sampler, UnaryOperation, round_to_integer,
 };
 
 /// The bounds a value can take. Only ever widened: a bound narrower than the
@@ -443,23 +443,8 @@ pub(super) fn unary_range(operation: UnaryOperation, input: Interval) -> Interva
     }
 }
 
-pub(super) fn binary_range(
-    operation: BinaryOperation,
-    left: Interval,
-    right: Interval,
-) -> Interval {
-    match operation {
-        BinaryOperation::Add => left + right,
-        BinaryOperation::Subtract => left - right,
-        BinaryOperation::Multiply => left * right,
-        BinaryOperation::Divide => left / right,
-        BinaryOperation::Min => left.pointwise_min(right),
-        BinaryOperation::Max => left.pointwise_max(right),
-        BinaryOperation::Pow => left.pow(right),
-        BinaryOperation::Round(mode) => {
-            (left / right).map_monotonic(|value| round_to_integer(value, mode)) * right
-        }
-    }
+pub(super) fn round_range(value: Interval, multiple: Interval, mode: RoundingMode) -> Interval {
+    (value / multiple).map_monotonic(|v| round_to_integer(v, mode)) * multiple
 }
 
 /// Bounds on one dependent entry from the bounds already computed for the
@@ -496,11 +481,9 @@ pub(super) fn dependent_range(
         DependentDensityFunction::Min(x) => iv[x.input1_index].pointwise_min(iv[x.input2_index]),
         DependentDensityFunction::Max(x) => iv[x.input1_index].pointwise_max(iv[x.input2_index]),
         DependentDensityFunction::Pow(x) => iv[x.input1_index].pow(iv[x.input2_index]),
-        DependentDensityFunction::Round(x) => binary_range(
-            BinaryOperation::Round(x.mode),
-            iv[x.input1_index],
-            iv[x.input2_index],
-        ),
+        DependentDensityFunction::Round(x) => {
+            round_range(iv[x.input1_index], iv[x.input2_index], x.mode)
+        }
         DependentDensityFunction::Abs(x) => iv[x.input_index].abs(),
         DependentDensityFunction::Square(x) => iv[x.input_index].square(),
         DependentDensityFunction::Cube(x) => unary_range(UnaryOperation::Cube, iv[x.input_index]),
@@ -527,11 +510,9 @@ pub(super) fn dependent_range(
             iv[x.input_index].pow(Interval::exact(x.exponent))
         }
         DependentDensityFunction::ConstBasePow(x) => Interval::exact(x.base).pow(iv[x.input_index]),
-        DependentDensityFunction::IntegerMultipleRound(x) => binary_range(
-            BinaryOperation::Round(x.mode),
-            iv[x.input_index],
-            Interval::exact(x.multiple),
-        ),
+        DependentDensityFunction::IntegerMultipleRound(x) => {
+            round_range(iv[x.input_index], Interval::exact(x.multiple), x.mode)
+        }
         DependentDensityFunction::Slide(_)
         | DependentDensityFunction::ShiftedNoise(_)
         | DependentDensityFunction::Spline(_)

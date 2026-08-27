@@ -209,136 +209,239 @@ fn lower_unary(
 
 /// The reference picks a constant-operand sampler wherever one operand compiled
 /// to a constant, so the constant is baked in rather than read from a row.
-fn lower_binary(
+fn lower_add(
     stack: &[DensityFunctionComponent],
-    operation: BinaryOperation,
-    input1_index: usize,
-    input2_index: usize,
+    left_index: usize,
+    right_index: usize,
 ) -> Lowering {
-    let left = &stack[input1_index];
-    let right = &stack[input2_index];
-    let left_constant = left.as_constant();
-    let right_constant = right.as_constant();
-    if let (Some(a), Some(b)) = (left_constant, right_constant) {
-        return Lowering::constant(operation.apply(a, b));
+    let (left, right) = (&stack[left_index], &stack[right_index]);
+    match (left.as_constant(), right.as_constant()) {
+        (Some(a), Some(b)) => Lowering::constant(a + b),
+        (Some(c), None) => lower_affine(stack, right_index, 1.0, c),
+        (None, Some(c)) => lower_affine(stack, left_index, 1.0, c),
+        (None, None) if left_index == right_index => lower_affine(stack, left_index, 2.0, 0.0),
+        (None, None) => Lowering::dependent(
+            left.range + right.range,
+            DependentDensityFunction::Add(Add {
+                input1_index: left_index,
+                input2_index: right_index,
+            }),
+        ),
     }
-    let range = binary_range(operation, left.range, right.range);
-    macro_rules! two_input {
-        ($variant:ident) => {
-            Lowering::dependent(
-                range,
-                DependentDensityFunction::$variant($variant {
-                    input1_index,
-                    input2_index,
-                }),
-            )
-        };
+}
+
+fn lower_sub(
+    stack: &[DensityFunctionComponent],
+    left_index: usize,
+    right_index: usize,
+) -> Lowering {
+    let (left, right) = (&stack[left_index], &stack[right_index]);
+    match (left.as_constant(), right.as_constant()) {
+        (Some(a), Some(b)) => Lowering::constant(a - b),
+        // `c - x` keeps the constant on the left, so it is its own sampler
+        // rather than a scaled input.
+        (Some(c), None) => Lowering::dependent(
+            left.range - right.range,
+            DependentDensityFunction::ConstSub(ConstSub {
+                input_index: right_index,
+                argument: c,
+            }),
+        ),
+        // `x - c` is exactly `x + (-c)`: negation is exact in binary floating point.
+        (None, Some(c)) => lower_affine(stack, left_index, 1.0, -c),
+        (None, None) => Lowering::dependent(
+            left.range - right.range,
+            DependentDensityFunction::Sub(Sub {
+                input1_index: left_index,
+                input2_index: right_index,
+            }),
+        ),
     }
-    macro_rules! const_operand {
-        ($variant:ident, $input_index:expr, $argument:expr) => {
-            Lowering::dependent(
-                range,
-                DependentDensityFunction::$variant($variant {
-                    input_index: $input_index,
-                    argument: $argument,
-                }),
-            )
-        };
+}
+
+fn lower_mul(
+    stack: &[DensityFunctionComponent],
+    left_index: usize,
+    right_index: usize,
+) -> Lowering {
+    let (left, right) = (&stack[left_index], &stack[right_index]);
+    match (left.as_constant(), right.as_constant()) {
+        (Some(a), Some(b)) => Lowering::constant(a * b),
+        (Some(c), None) => lower_affine(stack, right_index, c, 0.0),
+        (None, Some(c)) => lower_affine(stack, left_index, c, 0.0),
+        (None, None) if left_index == right_index => Lowering::dependent(
+            left.range.square(),
+            DependentDensityFunction::Square(Square {
+                input_index: left_index,
+            }),
+        ),
+        (None, None) => Lowering::dependent(
+            left.range * right.range,
+            DependentDensityFunction::Mul(Mul {
+                input1_index: left_index,
+                input2_index: right_index,
+            }),
+        ),
     }
-    match operation {
-        BinaryOperation::Add => match (left_constant, right_constant) {
-            (Some(c), None) => lower_affine(stack, input2_index, 1.0, c),
-            (None, Some(c)) => lower_affine(stack, input1_index, 1.0, c),
-            _ if input1_index == input2_index => lower_affine(stack, input1_index, 2.0, 0.0),
-            _ => two_input!(Add),
-        },
-        BinaryOperation::Subtract => match (left_constant, right_constant) {
-            // `c - x` keeps the constant on the left, so it is its own sampler
-            // rather than a scaled input.
-            (Some(c), None) => const_operand!(ConstSub, input2_index, c),
-            // `x - c` is exactly `x + (-c)`: negation is exact in binary floating point.
-            (None, Some(c)) => lower_affine(stack, input1_index, 1.0, -c),
-            _ => two_input!(Sub),
-        },
-        BinaryOperation::Multiply => match (left_constant, right_constant) {
-            (Some(c), None) => lower_affine(stack, input2_index, c, 0.0),
-            (None, Some(c)) => lower_affine(stack, input1_index, c, 0.0),
-            _ if input1_index == input2_index => Lowering::dependent(
-                left.range.square(),
-                DependentDensityFunction::Square(Square {
-                    input_index: input1_index,
-                }),
-            ),
-            _ => two_input!(Mul),
-        },
-        BinaryOperation::Divide => match (left_constant, right_constant) {
-            (Some(c), None) => const_operand!(ConstDiv, input2_index, c),
-            (None, Some(c)) => lower_affine(stack, input1_index, 1.0 / c, 0.0),
-            _ => two_input!(Div),
-        },
-        BinaryOperation::Min => {
-            if input1_index == input2_index || left.range.max() <= right.range.min() {
-                return Lowering::Redirect(input1_index);
+}
+
+fn lower_div(
+    stack: &[DensityFunctionComponent],
+    left_index: usize,
+    right_index: usize,
+) -> Lowering {
+    let (left, right) = (&stack[left_index], &stack[right_index]);
+    match (left.as_constant(), right.as_constant()) {
+        (Some(a), Some(b)) => Lowering::constant(a / b),
+        (Some(c), None) => Lowering::dependent(
+            left.range / right.range,
+            DependentDensityFunction::ConstDiv(ConstDiv {
+                input_index: right_index,
+                argument: c,
+            }),
+        ),
+        (None, Some(c)) => lower_affine(stack, left_index, 1.0 / c, 0.0),
+        (None, None) => Lowering::dependent(
+            left.range / right.range,
+            DependentDensityFunction::Div(Div {
+                input1_index: left_index,
+                input2_index: right_index,
+            }),
+        ),
+    }
+}
+
+/// `min` and `max` differ only in which side wins, so the redirect that drops
+/// an operand whose range can never beat the other is written once.
+macro_rules! extremum_lowering {
+    ($name:ident, $fold:ident, $pointwise:ident, $const_variant:ident, $variant:ident, $dominates:expr) => {
+        fn $name(
+            stack: &[DensityFunctionComponent],
+            left_index: usize,
+            right_index: usize,
+        ) -> Lowering {
+            let (left, right) = (&stack[left_index], &stack[right_index]);
+            let constants = (left.as_constant(), right.as_constant());
+            if let (Some(a), Some(b)) = constants {
+                return Lowering::constant(a.$fold(b));
             }
-            if right.range.max() <= left.range.min() {
-                return Lowering::Redirect(input2_index);
+            let dominates: fn(Interval, Interval) -> bool = $dominates;
+            if left_index == right_index || dominates(left.range, right.range) {
+                return Lowering::Redirect(left_index);
             }
-            match (left_constant, right_constant) {
-                (Some(c), None) => const_operand!(ConstMin, input2_index, c),
-                (None, Some(c)) => const_operand!(ConstMin, input1_index, c),
-                _ => two_input!(Min),
+            if dominates(right.range, left.range) {
+                return Lowering::Redirect(right_index);
+            }
+            let range = left.range.$pointwise(right.range);
+            match constants {
+                (Some(argument), None) => Lowering::dependent(
+                    range,
+                    DependentDensityFunction::$const_variant($const_variant {
+                        input_index: right_index,
+                        argument,
+                    }),
+                ),
+                (None, Some(argument)) => Lowering::dependent(
+                    range,
+                    DependentDensityFunction::$const_variant($const_variant {
+                        input_index: left_index,
+                        argument,
+                    }),
+                ),
+                _ => Lowering::dependent(
+                    range,
+                    DependentDensityFunction::$variant($variant {
+                        input1_index: left_index,
+                        input2_index: right_index,
+                    }),
+                ),
             }
         }
-        BinaryOperation::Max => {
-            if input1_index == input2_index || left.range.min() >= right.range.max() {
-                return Lowering::Redirect(input1_index);
-            }
-            if right.range.min() >= left.range.max() {
-                return Lowering::Redirect(input2_index);
-            }
-            match (left_constant, right_constant) {
-                (Some(c), None) => const_operand!(ConstMax, input2_index, c),
-                (None, Some(c)) => const_operand!(ConstMax, input1_index, c),
-                _ => two_input!(Max),
-            }
-        }
-        // The reference tests the base first, so a constant base wins even when
-        // the exponent is constant too.
-        BinaryOperation::Pow => match (left_constant, right_constant) {
-            (Some(base), _) => Lowering::dependent(
-                range,
-                DependentDensityFunction::ConstBasePow(ConstBasePow {
-                    input_index: input2_index,
-                    base,
-                }),
-            ),
-            (None, Some(exponent)) => Lowering::dependent(
-                range,
-                DependentDensityFunction::ConstExponentPow(ConstExponentPow {
-                    input_index: input1_index,
-                    exponent,
-                }),
-            ),
-            (None, None) => two_input!(Pow),
-        },
-        BinaryOperation::Round(mode) => match right_constant {
-            Some(multiple) => Lowering::dependent(
-                range,
-                DependentDensityFunction::IntegerMultipleRound(IntegerMultipleRound {
-                    input_index: input1_index,
-                    multiple,
-                    mode,
-                }),
-            ),
-            None => Lowering::dependent(
-                range,
-                DependentDensityFunction::Round(Round {
-                    input1_index,
-                    input2_index,
-                    mode,
-                }),
-            ),
-        },
+    };
+}
+
+extremum_lowering!(
+    lower_min,
+    min,
+    pointwise_min,
+    ConstMin,
+    Min,
+    |left, right| left.max() <= right.min()
+);
+extremum_lowering!(
+    lower_max,
+    max,
+    pointwise_max,
+    ConstMax,
+    Max,
+    |left, right| left.min() >= right.max()
+);
+
+fn lower_pow(
+    stack: &[DensityFunctionComponent],
+    base_index: usize,
+    exponent_index: usize,
+) -> Lowering {
+    let (base, exponent) = (&stack[base_index], &stack[exponent_index]);
+    let constants = (base.as_constant(), exponent.as_constant());
+    if let (Some(a), Some(b)) = constants {
+        return Lowering::constant(a.powf(b));
+    }
+    let range = base.range.pow(exponent.range);
+    match constants {
+        (Some(base), _) => Lowering::dependent(
+            range,
+            DependentDensityFunction::ConstBasePow(ConstBasePow {
+                input_index: exponent_index,
+                base,
+            }),
+        ),
+        (None, Some(exponent)) => Lowering::dependent(
+            range,
+            DependentDensityFunction::ConstExponentPow(ConstExponentPow {
+                input_index: base_index,
+                exponent,
+            }),
+        ),
+        (None, None) => Lowering::dependent(
+            range,
+            DependentDensityFunction::Pow(Pow {
+                input1_index: base_index,
+                input2_index: exponent_index,
+            }),
+        ),
+    }
+}
+
+fn lower_round(
+    stack: &[DensityFunctionComponent],
+    mode: RoundingMode,
+    input_index: usize,
+    multiple_index: usize,
+) -> Lowering {
+    let (input, multiple) = (&stack[input_index], &stack[multiple_index]);
+    let constants = (input.as_constant(), multiple.as_constant());
+    if let (Some(a), Some(b)) = constants {
+        return Lowering::constant(round_to_multiple(a, b, mode));
+    }
+    let range = round_range(input.range, multiple.range, mode);
+    match constants.1 {
+        Some(multiple) => Lowering::dependent(
+            range,
+            DependentDensityFunction::IntegerMultipleRound(IntegerMultipleRound {
+                input_index,
+                multiple,
+                mode,
+            }),
+        ),
+        None => Lowering::dependent(
+            range,
+            DependentDensityFunction::Round(Round {
+                input1_index: input_index,
+                input2_index: multiple_index,
+                mode,
+            }),
+        ),
     }
 }
 
@@ -366,7 +469,7 @@ fn fold_constant_input(
         DependentDensityFunction::ConstExponentPow(x) => input(x.input_index)?.powf(x.exponent),
         DependentDensityFunction::ConstBasePow(x) => x.base.powf(input(x.input_index)?),
         DependentDensityFunction::IntegerMultipleRound(x) => {
-            BinaryOperation::Round(x.mode).apply(input(x.input_index)?, x.multiple)
+            round_to_multiple(input(x.input_index)?, x.multiple, x.mode)
         }
         _ => return None,
     })
@@ -383,16 +486,6 @@ fn relower(stack: &[DensityFunctionComponent], index: usize) -> Option<Lowering>
             lower_unary(stack, UnaryOperation::$operation, $x.input_index)
         };
     }
-    macro_rules! binary {
-        ($operation:ident, $x:expr) => {
-            lower_binary(
-                stack,
-                BinaryOperation::$operation,
-                $x.input1_index,
-                $x.input2_index,
-            )
-        };
-    }
     let lowered = match function {
         DependentDensityFunction::Affine(x) => {
             lower_affine(stack, x.input_index, x.scale, x.offset)
@@ -405,19 +498,16 @@ fn relower(stack: &[DensityFunctionComponent], index: usize) -> Option<Lowering>
         DependentDensityFunction::Sqrt(x) => unary!(Sqrt, x),
         DependentDensityFunction::Log(x) => unary!(Log, x),
         DependentDensityFunction::Sign(x) => unary!(Sign, x),
-        DependentDensityFunction::Add(x) => binary!(Add, x),
-        DependentDensityFunction::Sub(x) => binary!(Subtract, x),
-        DependentDensityFunction::Mul(x) => binary!(Multiply, x),
-        DependentDensityFunction::Div(x) => binary!(Divide, x),
-        DependentDensityFunction::Min(x) => binary!(Min, x),
-        DependentDensityFunction::Max(x) => binary!(Max, x),
-        DependentDensityFunction::Pow(x) => binary!(Pow, x),
-        DependentDensityFunction::Round(x) => lower_binary(
-            stack,
-            BinaryOperation::Round(x.mode),
-            x.input1_index,
-            x.input2_index,
-        ),
+        DependentDensityFunction::Add(x) => lower_add(stack, x.input1_index, x.input2_index),
+        DependentDensityFunction::Sub(x) => lower_sub(stack, x.input1_index, x.input2_index),
+        DependentDensityFunction::Mul(x) => lower_mul(stack, x.input1_index, x.input2_index),
+        DependentDensityFunction::Div(x) => lower_div(stack, x.input1_index, x.input2_index),
+        DependentDensityFunction::Min(x) => lower_min(stack, x.input1_index, x.input2_index),
+        DependentDensityFunction::Max(x) => lower_max(stack, x.input1_index, x.input2_index),
+        DependentDensityFunction::Pow(x) => lower_pow(stack, x.input1_index, x.input2_index),
+        DependentDensityFunction::Round(x) => {
+            lower_round(stack, x.mode, x.input1_index, x.input2_index)
+        }
         DependentDensityFunction::Clamp(x) => {
             let input = &stack[x.input_index];
             if let Some(value) = input.as_constant() {
@@ -1186,12 +1276,9 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             self.built.insert(proto, index);
             return;
         }
-        self.binary(
-            &function.base,
-            &function.exponent,
-            proto,
-            BinaryOperation::Pow,
-        );
+        let (base, exponent) = self.operands(&function.base, &function.exponent);
+        let lowering = lower_pow(&self.stack, base, exponent);
+        self.register_lowering(proto, lowering);
     }
 
     fn visit_round(&mut self, mode: RoundingMode, function: &RoundFunctionArguments) {
@@ -1201,66 +1288,45 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             RoundingMode::Ceil => ProtoDensityFunction::Ceil(function.clone()),
             RoundingMode::Truncate => ProtoDensityFunction::Truncate(function.clone()),
         };
-        self.binary(
-            &function.input,
-            &function.multiple,
-            proto,
-            BinaryOperation::Round(mode),
-        );
+        let (input, multiple) = self.operands(&function.input, &function.multiple);
+        let lowering = lower_round(&self.stack, mode, input, multiple);
+        self.register_lowering(proto, lowering);
     }
 
     fn visit_add(&mut self, arg: &TwoArgumentFunction) {
-        self.binary(
-            &arg.left,
-            &arg.right,
-            ProtoDensityFunction::Add(arg.clone()),
-            BinaryOperation::Add,
-        );
+        let (left, right) = self.operands(&arg.left, &arg.right);
+        let lowering = lower_add(&self.stack, left, right);
+        self.register_lowering(ProtoDensityFunction::Add(arg.clone()), lowering);
     }
 
     fn visit_sub(&mut self, function: &TwoArgumentFunction) {
-        self.binary(
-            &function.left,
-            &function.right,
-            ProtoDensityFunction::Sub(function.clone()),
-            BinaryOperation::Subtract,
-        );
+        let (left, right) = self.operands(&function.left, &function.right);
+        let lowering = lower_sub(&self.stack, left, right);
+        self.register_lowering(ProtoDensityFunction::Sub(function.clone()), lowering);
     }
 
     fn visit_div(&mut self, function: &TwoArgumentFunction) {
-        self.binary(
-            &function.left,
-            &function.right,
-            ProtoDensityFunction::Div(function.clone()),
-            BinaryOperation::Divide,
-        );
+        let (left, right) = self.operands(&function.left, &function.right);
+        let lowering = lower_div(&self.stack, left, right);
+        self.register_lowering(ProtoDensityFunction::Div(function.clone()), lowering);
     }
 
     fn visit_mul(&mut self, function: &TwoArgumentFunction) {
-        self.binary(
-            &function.left,
-            &function.right,
-            ProtoDensityFunction::Mul(function.clone()),
-            BinaryOperation::Multiply,
-        );
+        let (left, right) = self.operands(&function.left, &function.right);
+        let lowering = lower_mul(&self.stack, left, right);
+        self.register_lowering(ProtoDensityFunction::Mul(function.clone()), lowering);
     }
 
     fn visit_min(&mut self, function: &TwoArgumentFunction) {
-        self.binary(
-            &function.left,
-            &function.right,
-            ProtoDensityFunction::Min(function.clone()),
-            BinaryOperation::Min,
-        );
+        let (left, right) = self.operands(&function.left, &function.right);
+        let lowering = lower_min(&self.stack, left, right);
+        self.register_lowering(ProtoDensityFunction::Min(function.clone()), lowering);
     }
 
     fn visit_max(&mut self, function: &TwoArgumentFunction) {
-        self.binary(
-            &function.left,
-            &function.right,
-            ProtoDensityFunction::Max(function.clone()),
-            BinaryOperation::Max,
-        );
+        let (left, right) = self.operands(&function.left, &function.right);
+        let lowering = lower_max(&self.stack, left, right);
+        self.register_lowering(ProtoDensityFunction::Max(function.clone()), lowering);
     }
 
     fn visit_old_blended_noise(
@@ -1718,17 +1784,12 @@ impl<'a> FunctionStackBuilder<'a> {
         }
     }
 
-    fn binary(
+    fn operands(
         &mut self,
         left: &DensityFunctionHolder,
         right: &DensityFunctionHolder,
-        proto: ProtoDensityFunction,
-        operation: BinaryOperation,
-    ) {
-        let input1_index = self.component(left);
-        let input2_index = self.component(right);
-        let lowering = lower_binary(&self.stack, operation, input1_index, input2_index);
-        self.register_lowering(proto, lowering);
+    ) -> (usize, usize) {
+        (self.component(left), self.component(right))
     }
 
     fn unary(&mut self, arg: &SingleArgumentFunction, operation: UnaryOperation) {

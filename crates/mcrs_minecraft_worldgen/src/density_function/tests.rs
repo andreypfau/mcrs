@@ -1615,11 +1615,11 @@ fn sample_value_agrees_for(settings: &str) {
 /// volume fill has no corpus coverage.
 #[test]
 fn every_gradient_fills_a_volume_as_it_samples_a_point() {
+    use super::proto::{Axis, TilingMode};
     use super::{
         Arena, DensityFunctionComponent, Gradient, IndependentDensityFunction, IndependentSampler,
         Volume,
     };
-    use super::proto::{Axis, TilingMode};
 
     for axis in [Axis::X, Axis::Y, Axis::Z] {
         for tiling in [

@@ -213,37 +213,14 @@ pub(crate) struct Clamp {
     pub(crate) max: f32,
 }
 
-#[derive(Clone, Debug, PartialEq, Copy, Eq)]
-pub(crate) enum BinaryOperation {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Min,
-    Max,
-    Pow,
-    Round(RoundingMode),
-}
-
-impl BinaryOperation {
-    #[inline]
-    pub(crate) fn apply(self, a: f32, b: f32) -> f32 {
-        match self {
-            BinaryOperation::Add => a + b,
-            BinaryOperation::Subtract => a - b,
-            BinaryOperation::Multiply => a * b,
-            BinaryOperation::Divide => a / b,
-            BinaryOperation::Min => a.min(b),
-            BinaryOperation::Max => a.max(b),
-            BinaryOperation::Pow => a.powf(b),
-            BinaryOperation::Round(mode) => {
-                if b == 0.0 {
-                    a
-                } else {
-                    round_to_integer(a / b, mode) * b
-                }
-            }
-        }
+/// Rounding to a zero multiple would divide by zero, so the reference passes
+/// the value through instead.
+#[inline]
+pub(crate) fn round_to_multiple(value: f32, multiple: f32, mode: RoundingMode) -> f32 {
+    if multiple == 0.0 {
+        value
+    } else {
+        round_to_integer(value / multiple, mode) * multiple
     }
 }
 
@@ -462,13 +439,11 @@ pub(crate) struct Round {
 
 impl DensitySampler for Round {
     fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
-        let a = ctx.row(self.input1_index)[index];
-        let b = ctx.row(self.input2_index)[index];
-        if b == 0.0 {
-            a
-        } else {
-            round_to_integer(a / b, self.mode) * b
-        }
+        round_to_multiple(
+            ctx.row(self.input1_index)[index],
+            ctx.row(self.input2_index)[index],
+            self.mode,
+        )
     }
 
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
@@ -476,11 +451,7 @@ impl DensitySampler for Round {
         let right = ctx.row(self.input2_index);
         let mode = self.mode;
         for ((slot, &a), &b) in out.iter_mut().zip(left).zip(right) {
-            *slot = if b == 0.0 {
-                a
-            } else {
-                round_to_integer(a / b, mode) * b
-            };
+            *slot = round_to_multiple(a, b, mode);
         }
     }
 }
@@ -495,23 +466,14 @@ pub(crate) struct IntegerMultipleRound {
 
 impl DensitySampler for IntegerMultipleRound {
     fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
-        let value = ctx.row(self.input_index)[index];
-        if self.multiple == 0.0 {
-            value
-        } else {
-            round_to_integer(value / self.multiple, self.mode) * self.multiple
-        }
+        round_to_multiple(ctx.row(self.input_index)[index], self.multiple, self.mode)
     }
 
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         let multiple = self.multiple;
         let mode = self.mode;
         for (slot, &v) in out.iter_mut().zip(ctx.row(self.input_index)) {
-            *slot = if multiple == 0.0 {
-                v
-            } else {
-                round_to_integer(v / multiple, mode) * multiple
-            };
+            *slot = round_to_multiple(v, multiple, mode);
         }
     }
 }

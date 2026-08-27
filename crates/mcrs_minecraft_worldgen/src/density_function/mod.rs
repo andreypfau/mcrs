@@ -34,7 +34,7 @@ pub mod proto;
 mod tests;
 pub mod volume;
 
-use interval::{binary_range, dependent_range, unary_range};
+use interval::{dependent_range, round_range, unary_range};
 
 pub use interval::Interval;
 
