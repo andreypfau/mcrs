@@ -141,11 +141,20 @@ fn resolve_holder(
 }
 
 fn overworld_router(seed: u64) -> NoiseRouter {
-    let assets = assets_dir();
-    let settings: NoiseGeneratorSettings = serde_json::from_slice(
-        &std::fs::read(assets.join("minecraft/worldgen/noise_settings/overworld.json")).unwrap(),
+    router_from_settings(overworld_settings(), seed)
+}
+
+fn overworld_settings() -> serde_json::Value {
+    serde_json::from_slice(
+        &std::fs::read(assets_dir().join("minecraft/worldgen/noise_settings/overworld.json"))
+            .unwrap(),
     )
-    .unwrap();
+    .unwrap()
+}
+
+fn router_from_settings(settings: serde_json::Value, seed: u64) -> NoiseRouter {
+    let assets = assets_dir();
+    let settings: NoiseGeneratorSettings = serde_json::from_value(settings).unwrap();
 
     let df_dir = assets.join("minecraft/worldgen/density_function");
     let mut files = Vec::new();
@@ -740,20 +749,99 @@ fn branch_skipping_preserves_every_zone_b_root() {
     }
 }
 
-fn fill_cases() -> Vec<(&'static str, mcrs_minecraft_worldgen::density_function::Volume)> {
+struct FillDiff {
+    mismatches: usize,
+    total: usize,
+    max_ulp: i64,
+    max_abs: f32,
+    worst: IVec3,
+}
+
+fn fill_vs_sample_root(
+    router: &NoiseRouter,
+    root: usize,
+    volume: &mcrs_minecraft_worldgen::density_function::Volume,
+) -> FillDiff {
+    let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
+    let mut filled = vec![f32::NAN; volume.len()];
+    router.fill(root, volume, &mut filled, &mut scratch);
+
+    let mut cache = router.new_cache();
+    let mut d = FillDiff {
+        mismatches: 0,
+        total: volume.len(),
+        max_ulp: 0,
+        max_abs: 0.0,
+        worst: IVec3::ZERO,
+    };
+    for z in 0..volume.size_z() {
+        for x in 0..volume.size_x() {
+            for y in 0..volume.size_y() {
+                let pos = IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
+                let want = router.sample_root(root, pos, &mut cache);
+                let got = filled[volume.index_unchecked(x, y, z)];
+                if want.to_bits() == got.to_bits() {
+                    continue;
+                }
+                d.mismatches += 1;
+                d.max_ulp = d.max_ulp.max((ordered(want) - ordered(got)).abs());
+                let abs = (want - got).abs();
+                if abs > d.max_abs {
+                    d.max_abs = abs;
+                    d.worst = pos;
+                }
+            }
+        }
+    }
+    d
+}
+
+/// Volumes that already sample the router's cell lattice. Every `interpolated`
+/// wrapper passes its input straight through there, so the volume fill and the
+/// scalar sample run identical arithmetic.
+fn lattice_fill_cases(
+    router: &NoiseRouter,
+) -> Vec<(
+    &'static str,
+    mcrs_minecraft_worldgen::density_function::Volume,
+)> {
+    use mcrs_minecraft_worldgen::density_function::Volume as V;
+    let interp = router.new_noise_cell_interpolator();
+    let step = IVec3::new(
+        interp.h_cell_blocks() as i32,
+        interp.v_cell_blocks() as i32,
+        interp.h_cell_blocks() as i32,
+    );
+    vec![
+        (
+            "cell lattice",
+            V::new(IVec3::new(5, 5, 5), IVec3::new(0, -64, 0), step),
+        ),
+        (
+            "2x2x2 cell corners",
+            V::new(IVec3::new(2, 2, 2), IVec3::new(8, -8, 8), step),
+        ),
+        (
+            "negative cell corners",
+            V::new(IVec3::new(3, 4, 3), IVec3::new(-36, -64, -52), step),
+        ),
+        (
+            "single cell corner",
+            V::new(IVec3::ONE, IVec3::new(16, 32, -48), step),
+        ),
+    ]
+}
+
+/// Volumes that cut across cells, where the two paths deliberately diverge.
+fn interior_fill_cases() -> Vec<(
+    &'static str,
+    mcrs_minecraft_worldgen::density_function::Volume,
+)> {
     use mcrs_minecraft_worldgen::density_function::Volume as V;
     vec![
         (
             "dense box over several cells",
             V::dense(IVec3::new(8, 9, 8), IVec3::new(4, -16, 4)),
-        ),
-        (
-            "cell lattice",
-            V::new(
-                IVec3::new(5, 5, 5),
-                IVec3::new(0, -64, 0),
-                IVec3::new(4, 8, 4),
-            ),
         ),
         (
             "single column",
@@ -764,14 +852,6 @@ fn fill_cases() -> Vec<(&'static str, mcrs_minecraft_worldgen::density_function:
             V::dense(IVec3::new(16, 1, 16), IVec3::new(0, 63, 0)),
         ),
         (
-            "2x2x2 cell corners",
-            V::new(
-                IVec3::new(2, 2, 2),
-                IVec3::new(8, -8, 8),
-                IVec3::new(4, 8, 4),
-            ),
-        ),
-        (
             "unaligned min",
             V::dense(IVec3::new(3, 3, 3), IVec3::new(5, -59, 7)),
         ),
@@ -779,71 +859,174 @@ fn fill_cases() -> Vec<(&'static str, mcrs_minecraft_worldgen::density_function:
             "negative min",
             V::dense(IVec3::new(4, 4, 4), IVec3::new(-37, -64, -53)),
         ),
+        (
+            "unaligned stride",
+            V::new(
+                IVec3::new(4, 4, 4),
+                IVec3::new(2, -62, 6),
+                IVec3::new(2, 3, 2),
+            ),
+        ),
     ]
 }
 
-fn assert_fill_matches_sample_root(
-    router: &NoiseRouter,
-    name: &str,
-    root_name: &str,
-    root: usize,
-    volume: &mcrs_minecraft_worldgen::density_function::Volume,
-) {
+#[test]
+fn fill_matches_sample_root_on_the_cell_lattice() {
+    let router = overworld_router(42);
+    let mut roots: Vec<(&str, usize)> = router.roots();
+    roots.push(("final_density", router.final_density_index()));
+    for (root_name, root) in roots {
+        for (name, volume) in lattice_fill_cases(&router) {
+            let d = fill_vs_sample_root(&router, root, &volume);
+            assert_eq!(
+                d.mismatches, 0,
+                "{name} / {root_name}: {} of {} values differ (max_ulp={}, max_abs={:e}, worst@{:?})",
+                d.mismatches, d.total, d.max_ulp, d.max_abs, d.worst
+            );
+        }
+    }
+}
+
+/// Off the cell lattice the two paths are vanilla's two paths, and vanilla's
+/// own arithmetic differs between them: `sampleValue` combines the eight cell
+/// corners with an exact `lerp3`, while `fillCell` accumulates along Y. The
+/// gap is one f32 ulp of the wrapper value, carried through the per-block terms
+/// above the wrapper: 5.96e-8 observed, one ulp at unit magnitude.
+const FILL_VERSUS_SCALAR: f32 = 1.2e-7;
+
+#[test]
+fn fill_and_sample_root_differ_only_by_the_y_accumulation() {
+    let router = overworld_router(42);
+    let mut roots: Vec<(&str, usize)> = router.roots();
+    roots.push(("final_density", router.final_density_index()));
+    for (root_name, root) in roots {
+        for (name, volume) in interior_fill_cases() {
+            let d = fill_vs_sample_root(&router, root, &volume);
+            println!(
+                "{:>20} / {:<28}: {:>5}/{} differ  max_ulp={}  max_abs={:e}  worst@{:?}",
+                root_name, name, d.mismatches, d.total, d.max_ulp, d.max_abs, d.worst
+            );
+            assert!(
+                d.max_abs < FILL_VERSUS_SCALAR,
+                "{name} / {root_name}: max_abs={:e} exceeds {:e} (max_ulp={}, worst@{:?})",
+                d.max_abs,
+                FILL_VERSUS_SCALAR,
+                d.max_ulp,
+                d.worst
+            );
+        }
+    }
+}
+
+/// Vanilla's own per-block path is `fillCell`, so the router fill is the closest
+/// thing we have to the oracle: it must land at least as near as the legacy
+/// cell interpolator, whose exact-lerp Y makes it drift further.
+#[test]
+fn dense_fill_matches_the_vanilla_oracle() {
+    let dump = read_dump(&fixtures_dir().join("overworld_s42_c0_0_dense.bin"));
+    let router = overworld_router(dump.seed as u64);
+    let volume = &dump.volumes[0];
+    assert_eq!(volume.step, [1, 1, 1]);
+
+    let box_volume = mcrs_minecraft_worldgen::density_function::Volume::dense(
+        IVec3::from_array(volume.size),
+        IVec3::from_array(volume.min),
+    );
     let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
-    let mut filled = vec![f32::NAN; volume.len()];
-    router.fill(root, volume, &mut filled, &mut scratch);
+    let mut ours = vec![f32::NAN; box_volume.len()];
+    router.fill(
+        router.final_density_index(),
+        &box_volume,
+        &mut ours,
+        &mut scratch,
+    );
+
+    let d = compare(volume, &ours);
+    println!(
+        "dense fill vs oracle: {}/{} differ  max_abs={:e}  max_ulp={}  worst@{:?} vanilla={} ours={}",
+        d.mismatches,
+        volume.values.len(),
+        d.max_abs,
+        d.max_ulp,
+        d.worst,
+        d.worst_pair.0,
+        d.worst_pair.1
+    );
+    assert_eq!(
+        d.mismatches,
+        0,
+        "dense fill: {} of {} values differ from vanilla (max_abs={:e}, max_ulp={}, worst@{:?} vanilla={} ours={})",
+        d.mismatches,
+        volume.values.len(),
+        d.max_abs,
+        d.max_ulp,
+        d.worst,
+        d.worst_pair.0,
+        d.worst_pair.1
+    );
+}
+
+/// Vanilla puts no single cell geometry on a router, and the shipped corpus
+/// already carries three. A `final_density` reading two at once must load and
+/// evaluate, with each wrapper interpolating on its own lattice.
+#[test]
+fn a_router_mixing_cell_geometries_loads_and_evaluates() {
+    let mut settings = overworld_settings();
+    let coarse = serde_json::json!({
+        "type": "minecraft:interpolated",
+        "cell_size_xz": 8,
+        "cell_size_y": 4,
+        "input": {
+            "type": "minecraft:mul",
+            "left": "minecraft:overworld/depth",
+            "right": 0.25
+        }
+    });
+    settings["noise_router"]["final_density"] = serde_json::json!({
+        "type": "minecraft:add",
+        "left": "minecraft:overworld/final_density",
+        "right": coarse
+    });
+    let router = router_from_settings(settings, 42);
+    let plain = overworld_router(42);
+
+    let volume = mcrs_minecraft_worldgen::density_function::Volume::dense(
+        IVec3::new(9, 17, 9),
+        IVec3::new(-4, -20, 12),
+    );
+    let d = fill_vs_sample_root(&router, router.final_density_index(), &volume);
+    println!(
+        "mixed geometry: {}/{} differ  max_ulp={}  max_abs={:e}  worst@{:?}",
+        d.mismatches, d.total, d.max_ulp, d.max_abs, d.worst
+    );
+    assert!(
+        d.max_abs < FILL_VERSUS_SCALAR,
+        "mixed geometry: max_abs={:e} exceeds {:e} (max_ulp={}, worst@{:?})",
+        d.max_abs,
+        FILL_VERSUS_SCALAR,
+        d.max_ulp,
+        d.worst
+    );
 
     let mut cache = router.new_cache();
+    let mut plain_cache = plain.new_cache();
+    let mut moved = 0usize;
     for z in 0..volume.size_z() {
         for x in 0..volume.size_x() {
             for y in 0..volume.size_y() {
                 let pos = IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
-                let expected = router.sample_root(root, pos, &mut cache);
-                let got = filled[volume.index_unchecked(x, y, z)];
-                assert_eq!(
-                    got.to_bits(),
-                    expected.to_bits(),
-                    "{name} / {root_name} at {pos:?}: fill {got} != sample_root {expected}"
-                );
+                let with = router.sample_root(router.final_density_index(), pos, &mut cache);
+                let without = plain.sample_root(plain.final_density_index(), pos, &mut plain_cache);
+                assert!(with.is_finite(), "non-finite density at {pos:?}");
+                if with != without {
+                    moved += 1;
+                }
             }
         }
     }
-}
-
-#[test]
-fn fill_matches_sample_root_for_final_density() {
-    let router = overworld_router(42);
-    let root = router.final_density_index();
-    for (name, volume) in fill_cases() {
-        assert_fill_matches_sample_root(&router, name, "final_density", root, &volume);
-    }
-}
-
-#[test]
-fn fill_matches_sample_root_for_every_router_root() {
-    use mcrs_minecraft_worldgen::density_function::Volume as V;
-    let router = overworld_router(42);
-    let volumes = [
-        (
-            "unaligned min",
-            V::dense(IVec3::new(3, 3, 3), IVec3::new(5, -59, 7)),
-        ),
-        (
-            "2x2x2 cell corners",
-            V::new(
-                IVec3::new(2, 2, 2),
-                IVec3::new(8, -8, 8),
-                IVec3::new(4, 8, 4),
-            ),
-        ),
-        (
-            "negative min column",
-            V::dense(IVec3::new(1, 8, 1), IVec3::new(-37, -64, -53)),
-        ),
-    ];
-    for (root_name, root) in router.roots() {
-        for (name, volume) in &volumes {
-            assert_fill_matches_sample_root(&router, name, root_name, root, volume);
-        }
-    }
+    assert!(
+        moved > volume.len() / 2,
+        "the second wrapper moved only {moved} of {} values",
+        volume.len()
+    );
 }

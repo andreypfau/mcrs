@@ -1,6 +1,6 @@
 use super::{
-    DensityFunctionComponent, DependentDensityFunction, IndependentDensityFunction, LinearOperation,
-    NoiseRouter, WrapperDensityFunction, eval_subgraph,
+    DensityFunctionComponent, DependentDensityFunction, IndependentDensityFunction, Interpolated,
+    LinearOperation, NoiseRouter, WrapperDensityFunction, eval_subgraph,
 };
 use crate::density_function::DensityFunction;
 use crate::density_function::proto::Axis;
@@ -158,9 +158,8 @@ impl Volume {
                 && (0..self.size_z).contains(&rz);
             return inside.then(|| self.index_unchecked(rx, ry, rz));
         }
-        let on_lattice = |r: i32, size: i32, step: i32| {
-            r >= 0 && r < size * step && r.rem_euclid(step) == 0
-        };
+        let on_lattice =
+            |r: i32, size: i32, step: i32| r >= 0 && r < size * step && r.rem_euclid(step) == 0;
         (on_lattice(rx, self.size_x, self.step_block_x)
             && on_lattice(ry, self.size_y, self.step_block_y)
             && on_lattice(rz, self.size_z, self.step_block_z))
@@ -250,198 +249,410 @@ impl NoiseRouter {
         if root >= self.fd_boundary {
             for i in 0..live {
                 if self.per_block[i] {
-                    self.fill_node(i, n, positions, rows, point);
+                    fill_node(
+                        &self.stack,
+                        self.scratch_len,
+                        i,
+                        volume,
+                        positions,
+                        rows,
+                        point,
+                    );
                 }
             }
         } else if root >= self.column_boundary {
             for i in self.column_boundary..live {
-                self.fill_node(i, n, positions, rows, point);
+                fill_node(
+                    &self.stack,
+                    self.scratch_len,
+                    i,
+                    volume,
+                    positions,
+                    rows,
+                    point,
+                );
             }
         }
 
         out.copy_from_slice(&rows[root * n..root * n + n]);
     }
+}
 
-    fn fill_node(
-        &self,
-        i: usize,
-        n: usize,
-        positions: &[IVec3],
-        rows: &mut [f32],
-        point: &mut [f32],
-    ) {
-        let stack = &self.stack;
-        let out_base = i * n;
-        match &stack[i] {
-            DensityFunctionComponent::Independent(f) => {
+/// Evaluate the subgraph `members` — topologically ordered, its own root last —
+/// over every position of `volume`.
+pub(super) fn fill_members(
+    stack: &[DensityFunctionComponent],
+    scratch_len: usize,
+    members: &[u32],
+    volume: &Volume,
+    out: &mut [f32],
+) {
+    let n = volume.len();
+    let root = *members.last().expect("a subgraph has at least one member") as usize;
+    let mut rows = vec![0.0f32; (root + 1) * n];
+    let mut point = vec![0.0f32; scratch_len];
+    let mut positions = Vec::new();
+    volume.positions_into(&mut positions);
+    for &member in members {
+        fill_node(
+            stack,
+            scratch_len,
+            member as usize,
+            volume,
+            &positions,
+            &mut rows,
+            &mut point,
+        );
+    }
+    out.copy_from_slice(&rows[root * n..root * n + n]);
+}
+
+fn fill_node(
+    stack: &[DensityFunctionComponent],
+    scratch_len: usize,
+    i: usize,
+    volume: &Volume,
+    positions: &[IVec3],
+    rows: &mut [f32],
+    point: &mut [f32],
+) {
+    let n = volume.len();
+    let out_base = i * n;
+    match &stack[i] {
+        DensityFunctionComponent::Independent(f) => {
+            for p in 0..n {
+                rows[out_base + p] = f.sample(positions[p]);
+            }
+        }
+        DensityFunctionComponent::Dependent(f) => match f {
+            DependentDensityFunction::Linear(x) => {
+                let a = x.input_index * n;
                 for p in 0..n {
-                    rows[out_base + p] = f.sample(positions[p]);
+                    let input = rows[a + p];
+                    rows[out_base + p] = match x.operation {
+                        LinearOperation::Add => input + x.argument,
+                        LinearOperation::Multiply => input * x.argument,
+                    };
                 }
             }
-            DensityFunctionComponent::Dependent(f) => match f {
-                DependentDensityFunction::Linear(x) => {
-                    let a = x.input_index * n;
-                    for p in 0..n {
-                        let input = rows[a + p];
-                        rows[out_base + p] = match x.operation {
-                            LinearOperation::Add => input + x.argument,
-                            LinearOperation::Multiply => input * x.argument,
-                        };
-                    }
+            DependentDensityFunction::Affine(x) => {
+                let a = x.input_index * n;
+                for p in 0..n {
+                    rows[out_base + p] = rows[a + p].mul_add(x.scale, x.offset);
                 }
-                DependentDensityFunction::Affine(x) => {
-                    let a = x.input_index * n;
-                    for p in 0..n {
-                        rows[out_base + p] = rows[a + p].mul_add(x.scale, x.offset);
-                    }
+            }
+            DependentDensityFunction::PiecewiseAffine(x) => {
+                let a = x.input_index * n;
+                for p in 0..n {
+                    let input = rows[a + p];
+                    let scale = if input < 0.0 {
+                        x.neg_scale
+                    } else {
+                        x.pos_scale
+                    };
+                    rows[out_base + p] = input.mul_add(scale, x.offset);
                 }
-                DependentDensityFunction::PiecewiseAffine(x) => {
-                    let a = x.input_index * n;
-                    for p in 0..n {
-                        let input = rows[a + p];
-                        let scale = if input < 0.0 {
-                            x.neg_scale
-                        } else {
-                            x.pos_scale
-                        };
-                        rows[out_base + p] = input.mul_add(scale, x.offset);
-                    }
+            }
+            DependentDensityFunction::Slide(x) => {
+                let a = x.input_index * n;
+                for p in 0..n {
+                    rows[out_base + p] = x.compute(rows[a + p], positions[p].y as f32);
                 }
-                DependentDensityFunction::Slide(x) => {
-                    let a = x.input_index * n;
-                    for p in 0..n {
-                        rows[out_base + p] = x.compute(rows[a + p], positions[p].y as f32);
-                    }
+            }
+            DependentDensityFunction::Unary(x) => {
+                let a = x.input_index * n;
+                for p in 0..n {
+                    rows[out_base + p] = x.operation.apply(rows[a + p]);
                 }
-                DependentDensityFunction::Unary(x) => {
-                    let a = x.input_index * n;
-                    for p in 0..n {
-                        rows[out_base + p] = x.operation.apply(rows[a + p]);
-                    }
+            }
+            DependentDensityFunction::Binary(x) => {
+                let a = x.input1_index * n;
+                let b = x.input2_index * n;
+                for p in 0..n {
+                    rows[out_base + p] = x.operation.apply(rows[a + p], rows[b + p]);
                 }
-                DependentDensityFunction::Binary(x) => {
-                    let a = x.input1_index * n;
-                    let b = x.input2_index * n;
-                    for p in 0..n {
-                        rows[out_base + p] = x.operation.apply(rows[a + p], rows[b + p]);
-                    }
-                }
-                DependentDensityFunction::ShiftedNoise(x) => {
-                    let (sx, sy, sz) = (
-                        x.input_x_index * n,
-                        x.input_y_index * n,
-                        x.input_z_index * n,
+            }
+            DependentDensityFunction::ShiftedNoise(x) => {
+                let (sx, sy, sz) = (
+                    x.input_x_index * n,
+                    x.input_y_index * n,
+                    x.input_z_index * n,
+                );
+                for p in 0..n {
+                    let pos = positions[p];
+                    rows[out_base + p] = x.sampler.get(
+                        pos.x as f64 * x.xz_scale + rows[sx + p] as f64,
+                        pos.y as f64 * x.y_scale + rows[sy + p] as f64,
+                        pos.z as f64 * x.xz_scale + rows[sz + p] as f64,
                     );
-                    for p in 0..n {
-                        let pos = positions[p];
-                        rows[out_base + p] = x.sampler.get(
-                            pos.x as f64 * x.xz_scale + rows[sx + p] as f64,
-                            pos.y as f64 * x.y_scale + rows[sy + p] as f64,
-                            pos.z as f64 * x.xz_scale + rows[sz + p] as f64,
-                        );
-                    }
                 }
-                DependentDensityFunction::Clamp(x) => {
-                    let a = x.input_index * n;
-                    for p in 0..n {
-                        rows[out_base + p] = rows[a + p].clamp(x.min_value, x.max_value);
-                    }
+            }
+            DependentDensityFunction::Clamp(x) => {
+                let a = x.input_index * n;
+                for p in 0..n {
+                    rows[out_base + p] = rows[a + p].clamp(x.min_value, x.max_value);
                 }
-                DependentDensityFunction::RangeChoice(x) => {
-                    let a = x.input_index * n;
-                    let win = x.when_in_index * n;
-                    let wout = x.when_out_index * n;
-                    for p in 0..n {
-                        let input = rows[a + p];
-                        rows[out_base + p] =
-                            if input >= x.min_inclusion_value && input < x.max_exclusion_value {
-                                rows[win + p]
-                            } else {
-                                rows[wout + p]
-                            };
-                    }
-                }
-                DependentDensityFunction::Lerp(x) => {
-                    let al = x.alpha_index * n;
-                    let fi = x.first_index * n;
-                    let se = x.second_index * n;
-                    for p in 0..n {
-                        let alpha = rows[al + p];
-                        rows[out_base + p] = if alpha == 0.0 {
-                            rows[fi + p]
-                        } else if alpha == 1.0 {
-                            rows[se + p]
+            }
+            DependentDensityFunction::RangeChoice(x) => {
+                let a = x.input_index * n;
+                let win = x.when_in_index * n;
+                let wout = x.when_out_index * n;
+                for p in 0..n {
+                    let input = rows[a + p];
+                    rows[out_base + p] =
+                        if input >= x.min_inclusion_value && input < x.max_exclusion_value {
+                            rows[win + p]
                         } else {
-                            let first = rows[fi + p];
-                            first + alpha * (rows[se + p] - first)
+                            rows[wout + p]
                         };
-                    }
                 }
-                DependentDensityFunction::Spline(x) => {
-                    for p in 0..n {
-                        for j in 0..i {
-                            point[j] = rows[j * n + p];
-                        }
-                        rows[out_base + p] = x.sample_cached(point, stack, positions[p]);
-                    }
+            }
+            DependentDensityFunction::Lerp(x) => {
+                let al = x.alpha_index * n;
+                let fi = x.first_index * n;
+                let se = x.second_index * n;
+                for p in 0..n {
+                    let alpha = rows[al + p];
+                    rows[out_base + p] = if alpha == 0.0 {
+                        rows[fi + p]
+                    } else if alpha == 1.0 {
+                        rows[se + p]
+                    } else {
+                        let first = rows[fi + p];
+                        first + alpha * (rows[se + p] - first)
+                    };
                 }
-                DependentDensityFunction::Slice(x) => {
-                    let (_, sub) = point.split_at_mut(stack.len());
-                    for p in 0..n {
-                        let pos = positions[p];
-                        let pinned = match x.axis {
-                            Axis::X => IVec3::new(x.coordinate, pos.y, pos.z),
-                            Axis::Y => IVec3::new(pos.x, x.coordinate, pos.z),
-                            Axis::Z => IVec3::new(pos.x, pos.y, x.coordinate),
-                        };
-                        rows[out_base + p] = eval_subgraph(&x.input_members, stack, pinned, sub);
+            }
+            DependentDensityFunction::Spline(x) => {
+                for p in 0..n {
+                    for j in 0..i {
+                        point[j] = rows[j * n + p];
                     }
+                    rows[out_base + p] = x.sample_cached(point, stack, positions[p]);
                 }
-                DependentDensityFunction::FindTopSurface(x) => {
-                    let a = x.upper_bound_index * n;
-                    let (_, sub) = point.split_at_mut(stack.len());
-                    for p in 0..n {
-                        let top_y = (rows[a + p] / x.cell_height).floor() * x.cell_height;
-                        rows[out_base + p] = if top_y <= x.lower_bound {
-                            x.lower_bound
-                        } else {
-                            let mut current_y = top_y;
-                            loop {
-                                let probe =
-                                    IVec3::new(positions[p].x, current_y as i32, positions[p].z);
-                                let density =
-                                    eval_subgraph(&x.density_members, stack, probe, sub);
-                                if density > 0.0 || current_y <= x.lower_bound {
-                                    break current_y;
-                                }
-                                current_y -= x.cell_height;
+            }
+            DependentDensityFunction::Slice(x) => {
+                let (_, sub) = point.split_at_mut(stack.len());
+                for p in 0..n {
+                    let pos = positions[p];
+                    let pinned = match x.axis {
+                        Axis::X => IVec3::new(x.coordinate, pos.y, pos.z),
+                        Axis::Y => IVec3::new(pos.x, x.coordinate, pos.z),
+                        Axis::Z => IVec3::new(pos.x, pos.y, x.coordinate),
+                    };
+                    rows[out_base + p] = eval_subgraph(&x.input_members, stack, pinned, sub);
+                }
+            }
+            DependentDensityFunction::FindTopSurface(x) => {
+                let a = x.upper_bound_index * n;
+                let (_, sub) = point.split_at_mut(stack.len());
+                for p in 0..n {
+                    let top_y = (rows[a + p] / x.cell_height).floor() * x.cell_height;
+                    rows[out_base + p] = if top_y <= x.lower_bound {
+                        x.lower_bound
+                    } else {
+                        let mut current_y = top_y;
+                        loop {
+                            let probe =
+                                IVec3::new(positions[p].x, current_y as i32, positions[p].z);
+                            let density = eval_subgraph(&x.density_members, stack, probe, sub);
+                            if density > 0.0 || current_y <= x.lower_bound {
+                                break current_y;
                             }
-                        };
+                            current_y -= x.cell_height;
+                        }
+                    };
+                }
+            }
+        },
+        DensityFunctionComponent::Wrapper(f) => match f {
+            WrapperDensityFunction::Cache(x) => {
+                let a = x.input_index * n;
+                for p in 0..n {
+                    rows[out_base + p] = rows[a + p];
+                }
+            }
+            WrapperDensityFunction::Interpolated(x) => {
+                if x.is_lattice_volume(volume) {
+                    rows.copy_within(x.input_index * n..x.input_index * n + n, out_base);
+                } else {
+                    let (_, out) = rows.split_at_mut(out_base);
+                    x.sample_volume(stack, scratch_len, volume, &mut out[..n]);
+                }
+            }
+        },
+    }
+}
+
+impl Interpolated {
+    /// Whether `volume` already samples this node's cell lattice, so the input
+    /// can be passed straight through with no interpolation.
+    pub(super) fn is_lattice_volume(&self, volume: &Volume) -> bool {
+        let xz = self.cell_size_xz as i32;
+        let y = self.cell_size_y as i32;
+        (volume.step_block_x() == xz || volume.size_x() == 1)
+            && (volume.step_block_y() == y || volume.size_y() == 1)
+            && (volume.step_block_z() == xz || volume.size_z() == 1)
+            && volume.min_block_x().rem_euclid(xz) == 0
+            && volume.min_block_y().rem_euclid(y) == 0
+            && volume.min_block_z().rem_euclid(xz) == 0
+    }
+
+    pub(super) fn sample_volume(
+        &self,
+        stack: &[DensityFunctionComponent],
+        scratch_len: usize,
+        volume: &Volume,
+        out: &mut [f32],
+    ) {
+        if self.is_lattice_volume(volume) {
+            fill_members(stack, scratch_len, &self.input_members, volume, out);
+        } else if volume.step_block_x() == 1
+            && volume.step_block_y() == 1
+            && volume.step_block_z() == 1
+        {
+            self.fill_block_step(stack, scratch_len, volume, out);
+        } else {
+            let block_volume = Volume::dense(
+                IVec3::new(
+                    volume.size_x() * volume.step_block_x(),
+                    volume.size_y() * volume.step_block_y(),
+                    volume.size_z() * volume.step_block_z(),
+                ),
+                IVec3::new(
+                    volume.min_block_x(),
+                    volume.min_block_y(),
+                    volume.min_block_z(),
+                ),
+            );
+            let mut block = vec![0.0f32; block_volume.len()];
+            self.fill_block_step(stack, scratch_len, &block_volume, &mut block);
+            for z in 0..volume.size_z() {
+                for x in 0..volume.size_x() {
+                    for y in 0..volume.size_y() {
+                        out[volume.index_unchecked(x, y, z)] = block[block_volume.index_unchecked(
+                            x * volume.step_block_x(),
+                            y * volume.step_block_y(),
+                            z * volume.step_block_z(),
+                        )];
                     }
                 }
-            },
-            DensityFunctionComponent::Wrapper(f) => match f {
-                WrapperDensityFunction::Cache(x) => {
-                    let a = x.input_index * n;
-                    for p in 0..n {
-                        rows[out_base + p] = rows[a + p];
-                    }
-                }
-                WrapperDensityFunction::Interpolated(x) => {
-                    let a = x.input_index * n;
-                    let (_, sub) = point.split_at_mut(stack.len());
-                    for p in 0..n {
-                        let pos = positions[p];
-                        rows[out_base + p] = if x.is_cell_corner(pos) {
-                            rows[a + p]
-                        } else {
-                            x.interpolate(stack, pos, sub)
-                        };
-                    }
-                }
-            },
+            }
         }
     }
+
+    fn fill_block_step(
+        &self,
+        stack: &[DensityFunctionComponent],
+        scratch_len: usize,
+        volume: &Volume,
+        out: &mut [f32],
+    ) {
+        let xz = self.cell_size_xz as i32;
+        let sy = self.cell_size_y as i32;
+        let min_cell_x = volume.min_block_x().div_euclid(xz);
+        let min_cell_y = volume.min_block_y().div_euclid(sy);
+        let min_cell_z = volume.min_block_z().div_euclid(xz);
+        let cell_count_x = volume.max_block_x().div_euclid(xz) - min_cell_x + 1;
+        let cell_count_y = volume.max_block_y().div_euclid(sy) - min_cell_y + 1;
+        let cell_count_z = volume.max_block_z().div_euclid(xz) - min_cell_z + 1;
+        let cell_volume = Volume::new(
+            IVec3::new(
+                cell_count_x + i32::from(volume.max_block_x().rem_euclid(xz) != 0),
+                cell_count_y + i32::from(volume.max_block_y().rem_euclid(sy) != 0),
+                cell_count_z + i32::from(volume.max_block_z().rem_euclid(xz) != 0),
+            ),
+            IVec3::new(min_cell_x * xz, min_cell_y * sy, min_cell_z * xz),
+            IVec3::new(xz, sy, xz),
+        );
+
+        let mut cell = vec![0.0f32; cell_volume.len()];
+        fill_members(
+            stack,
+            scratch_len,
+            &self.input_members,
+            &cell_volume,
+            &mut cell,
+        );
+
+        for cell_z in 0..cell_count_z {
+            let next_cell_z = (cell_z + 1).min(cell_volume.size_z() - 1);
+            for cell_x in 0..cell_count_x {
+                let next_cell_x = (cell_x + 1).min(cell_volume.size_x() - 1);
+                let mut v000 = cell[cell_volume.index_unchecked(cell_x, 0, cell_z)];
+                let mut v100 = cell[cell_volume.index_unchecked(next_cell_x, 0, cell_z)];
+                let mut v001 = cell[cell_volume.index_unchecked(cell_x, 0, next_cell_z)];
+                let mut v101 = cell[cell_volume.index_unchecked(next_cell_x, 0, next_cell_z)];
+                for cell_y in 0..cell_count_y {
+                    let next_cell_y = (cell_y + 1).min(cell_volume.size_y() - 1);
+                    let v010 = cell[cell_volume.index_unchecked(cell_x, next_cell_y, cell_z)];
+                    let v110 = cell[cell_volume.index_unchecked(next_cell_x, next_cell_y, cell_z)];
+                    let v011 = cell[cell_volume.index_unchecked(cell_x, next_cell_y, next_cell_z)];
+                    let v111 =
+                        cell[cell_volume.index_unchecked(next_cell_x, next_cell_y, next_cell_z)];
+                    self.fill_cell(
+                        out,
+                        volume,
+                        &cell_volume,
+                        IVec3::new(cell_x, cell_y, cell_z),
+                        [v000, v100, v010, v110, v001, v101, v011, v111],
+                    );
+                    v000 = v010;
+                    v100 = v110;
+                    v001 = v011;
+                    v101 = v111;
+                }
+            }
+        }
+    }
+
+    fn fill_cell(
+        &self,
+        out: &mut [f32],
+        output_volume: &Volume,
+        cell_volume: &Volume,
+        cell: IVec3,
+        [v000, v100, v010, v110, v001, v101, v011, v111]: [f32; 8],
+    ) {
+        let cell_output_x = cell_volume.block_x(cell.x) - output_volume.min_block_x();
+        let cell_output_y = cell_volume.block_y(cell.y) - output_volume.min_block_y();
+        let cell_output_z = cell_volume.block_z(cell.z) - output_volume.min_block_z();
+        let x0 = 0.max(-cell_output_x);
+        let y0 = 0.max(-cell_output_y);
+        let z0 = 0.max(-cell_output_z);
+        let x1 = (self.cell_size_xz as i32).min(output_volume.size_x() - cell_output_x) - 1;
+        let y1 = (self.cell_size_y as i32).min(output_volume.size_y() - cell_output_y) - 1;
+        let z1 = (self.cell_size_xz as i32).min(output_volume.size_z() - cell_output_z) - 1;
+
+        for z in z0..=z1 {
+            let output_z = cell_output_z + z;
+            let alpha_z = z as f32 * self.cell_size_xz_inv;
+            let v00_ = lerp(alpha_z, v000, v001);
+            let v01_ = lerp(alpha_z, v010, v011);
+            let v10_ = lerp(alpha_z, v100, v101);
+            let v11_ = lerp(alpha_z, v110, v111);
+
+            for x in x0..=x1 {
+                let output_x = cell_output_x + x;
+                let alpha_x = x as f32 * self.cell_size_xz_inv;
+                let v_0_ = lerp(alpha_x, v00_, v10_);
+                let v_1_ = lerp(alpha_x, v01_, v11_);
+                let value_step = (v_1_ - v_0_) * self.cell_size_y_inv;
+                let mut value = v_0_ + value_step * y0 as f32;
+                let start = output_volume.index_unchecked(output_x, cell_output_y + y0, output_z);
+
+                for slot in &mut out[start..start + (y1 - y0 + 1).max(0) as usize] {
+                    *slot = value;
+                    value += value_step;
+                }
+            }
+        }
+    }
+}
+
+#[inline]
+fn lerp(alpha: f32, p0: f32, p1: f32) -> f32 {
+    p0 + alpha * (p1 - p0)
 }
 
 #[cfg(test)]

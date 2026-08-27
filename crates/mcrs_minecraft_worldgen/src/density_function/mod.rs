@@ -2239,6 +2239,8 @@ struct Interpolated {
     input_members: Box<[u32]>,
     cell_size_xz: u32,
     cell_size_y: u32,
+    cell_size_xz_inv: f32,
+    cell_size_y_inv: f32,
     min_value: f32,
     max_value: f32,
 }

@@ -957,27 +957,21 @@ pub fn build_functions(
         branch_schedule::build(&builder.stack, &members, &zone_b_roots)
     };
 
-    // The lattice the chunk fill walks is the wrappers' own cell geometry, so a
-    // datapack whose wrappers disagree would need one lattice per cell size.
-    let mut cell_sizes = outer_wrappers.iter().map(|&i| match &builder.stack[i] {
-        DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) => {
-            (x.cell_size_xz as usize, x.cell_size_y as usize)
-        }
-        _ => unreachable!(),
-    });
-    let (h_cell_blocks, v_cell_blocks) = match cell_sizes.next() {
-        Some(first) => {
-            assert!(
-                cell_sizes.all(|other| other == first),
-                "final_density mixes interpolated cell sizes"
-            );
-            first
-        }
-        None => (
+    // The chunk fill walks one lattice, so mixed wrapper geometries fall back to
+    // the finest of them: every wrapper's own corners then land on it.
+    let (h_cell_blocks, v_cell_blocks) = outer_wrappers
+        .iter()
+        .map(|&i| match &builder.stack[i] {
+            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) => {
+                (x.cell_size_xz as usize, x.cell_size_y as usize)
+            }
+            _ => unreachable!(),
+        })
+        .reduce(|a, b| (a.0.min(b.0), a.1.min(b.1)))
+        .unwrap_or((
             builder_options.horizontal_cell_block_count,
             builder_options.vertical_cell_block_count,
-        ),
-    };
+        ));
 
     let router = NoiseRouter {
         temperature_index: roots[0],
@@ -1726,6 +1720,8 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                 input_members: Box::default(),
                 cell_size_xz,
                 cell_size_y,
+                cell_size_xz_inv: 1.0 / cell_size_xz as f32,
+                cell_size_y_inv: 1.0 / cell_size_y as f32,
                 min_value,
                 max_value,
             })),
