@@ -29,7 +29,7 @@ pub use into_text::IntoText;
 ///
 /// With [`IntoText`] in scope, you can write the following:
 /// ```
-/// use crate::text::{Color, IntoText, Text};
+/// use mcrs_minecraft_protocol::text::{Color, IntoText, Text};
 ///
 /// let txt = "The text is ".into_text()
 ///     + "Red".color(Color::RED)

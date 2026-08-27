@@ -12,7 +12,7 @@ use super::{ClickEvent, Color, Font, HoverEvent, Text};
 /// # Usage
 ///
 /// ```
-/// # use crate::text::{IntoText, color::NamedColor};
+/// # use mcrs_minecraft_protocol::text::{IntoText, color::NamedColor};
 /// let mut my_text = "".into_text();
 /// my_text = my_text.color(NamedColor::Red).bold();
 /// my_text = my_text.add_child("CRABBBBB".obfuscated());
@@ -367,8 +367,8 @@ mod tests {
             matches!(value.into_cow_text(), Cow::Borrowed(..))
         }
 
-        assert!(is_borrowed("this should be borrowed".into_text()));
-        assert!(is_borrowed("this should be borrowed too".bold()));
+        assert!(is_borrowed(&"this should be borrowed".into_text()));
+        assert!(is_borrowed(&"this should be borrowed too".bold()));
         assert!(!is_borrowed("this should be owned?".bold()));
         assert!(!is_borrowed("this should be owned"));
         assert!(!is_borrowed(465));
