@@ -1289,7 +1289,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         } else {
             (self.random.clone().fork_hash("minecraft:terrain"), 128.0)
         };
-        let blended = OldBlendedNoise::new(
+        let blended = BlendedNoise::new(
             &mut random,
             xz_scale as f32,
             y_scale as f32,
@@ -1948,13 +1948,12 @@ mod arithmetic_node_tests {
         super::resolve_substituted_subgraphs(&mut builder.stack);
         let members: Vec<u32> = (0..=index as u32).collect();
         let mut value = [0.0f32];
-        crate::density_function::volume::fill_members(
-            &builder.stack,
-            builder.stack.len(),
-            &members,
-            &crate::density_function::Volume::point(IVec3::ZERO),
-            &mut value,
-        );
+        crate::density_function::volume::Arena::new(&builder.stack, builder.stack.len())
+            .fill_members(
+                &members,
+                &crate::density_function::Volume::point(IVec3::ZERO),
+                &mut value,
+            );
         let component = &builder.stack[index];
         (value[0], component.min_value(), component.max_value())
     }

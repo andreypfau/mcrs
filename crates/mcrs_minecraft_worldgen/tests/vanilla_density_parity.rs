@@ -645,9 +645,9 @@ fn fill_vs_sample_value(
         max_abs: 0.0,
         worst: IVec3::ZERO,
     };
-    for z in 0..volume.size_z() {
-        for x in 0..volume.size_x() {
-            for y in 0..volume.size_y() {
+    for z in 0..volume.size().z {
+        for x in 0..volume.size().x {
+            for y in 0..volume.size().y {
                 let pos = IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
                 let want = router.sample_value(root, pos, &mut scratch);
                 let got = filled[volume.index_unchecked(x, y, z)];
@@ -827,9 +827,9 @@ fn a_router_mixing_cell_geometries_loads_and_evaluates() {
     let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
     let mut plain_scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
     let mut moved = 0usize;
-    for z in 0..volume.size_z() {
-        for x in 0..volume.size_x() {
-            for y in 0..volume.size_y() {
+    for z in 0..volume.size().z {
+        for x in 0..volume.size().x {
+            for y in 0..volume.size().y {
                 let pos = IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
                 let with = router.sample_value(router.final_density_index(), pos, &mut scratch);
                 let without =

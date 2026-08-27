@@ -174,12 +174,12 @@ fn fill_column(
         .resize(noise_router.final_density_index() + 1, (0.0, 0.0));
     fill.corners.resize(lattice.width, (0.0, 0.0));
 
-    for cell_z in 0..lattice.volume.size_z() - 1 {
+    for cell_z in 0..lattice.volume.size().z - 1 {
         if cancel.is_cancelled() {
             return false;
         }
-        for cell_x in 0..lattice.volume.size_x() - 1 {
-            for cell_y in (0..lattice.volume.size_y() - 1).rev() {
+        for cell_x in 0..lattice.volume.size().x - 1 {
+            for cell_y in (0..lattice.volume.size().y - 1).rev() {
                 let at = IVec3::new(cell_x, cell_y, cell_z);
                 let world = IVec3::new(
                     lattice.volume.block_x(cell_x),
@@ -286,9 +286,9 @@ fn fill_blocks(
         &mut fill.density,
         &mut fill.scratch,
     );
-    for z in 0..volume.size_z() {
-        for x in 0..volume.size_x() {
-            for y in (0..volume.size_y()).rev() {
+    for z in 0..volume.size().z {
+        for x in 0..volume.size().x {
+            for y in (0..volume.size().y).rev() {
                 let value = fill.density[volume.index_unchecked(x, y, z)];
                 let pos = BlockPos::new(origin.x + x, origin.y + y, origin.z + z);
                 if value > 0.0 {

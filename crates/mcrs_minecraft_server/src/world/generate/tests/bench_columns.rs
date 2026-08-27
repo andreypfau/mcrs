@@ -239,9 +239,9 @@ fn census(label: &str, router: &NoiseRouter, columns: i32) {
         fill.bounds
             .resize(router.final_density_index() + 1, (0.0, 0.0));
         fill.corners.resize(lattice.width, (0.0, 0.0));
-        for z in 0..lattice.volume.size_z() - 1 {
-            for x in 0..lattice.volume.size_x() - 1 {
-                for y in 0..lattice.volume.size_y() - 1 {
+        for z in 0..lattice.volume.size().z - 1 {
+            for x in 0..lattice.volume.size().x - 1 {
+                for y in 0..lattice.volume.size().y - 1 {
                     let at = bevy_math::IVec3::new(x, y, z);
                     let slot = match lattice.classify(router, at, sea_level, &mut fill) {
                         CellFill::Solid => 0,
