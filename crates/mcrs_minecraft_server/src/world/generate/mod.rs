@@ -206,9 +206,6 @@ fn fill_column(
                         base,
                         noise_router,
                         &mut fill,
-                        sea_level,
-                        default_block,
-                        default_fluid,
                     ),
                 }
             }
@@ -244,16 +241,7 @@ fn fill_column_dense(
             IVec3::splat(16),
             IVec3::new(block_x, section_min_y, block_z),
         );
-        fill_blocks(
-            blocks,
-            &volume,
-            IVec3::ZERO,
-            noise_router,
-            fill,
-            noise_router.sea_level(),
-            noise_router.default_block_state(),
-            noise_router.default_fluid_state(),
-        );
+        fill_blocks(blocks, &volume, IVec3::ZERO, noise_router, fill);
     }
     true
 }
@@ -280,17 +268,16 @@ fn fill_cell_box(block_states: &mut BlockPalette, base: IVec3, cell: IVec3, stat
     );
 }
 
-#[allow(clippy::too_many_arguments)]
 fn fill_blocks(
     block_states: &mut BlockPalette,
     volume: &Volume,
     origin: IVec3,
     noise_router: &NoiseRouter,
     fill: &mut FillBuffers,
-    sea_level: i32,
-    default_block: VoxelId,
-    default_fluid: VoxelId,
 ) {
+    let sea_level = noise_router.sea_level();
+    let default_block = noise_router.default_block_state();
+    let default_fluid = noise_router.default_fluid_state();
     fill.density.clear();
     fill.density.resize(volume.len(), 0.0);
     noise_router.sample_volume(
@@ -342,28 +329,30 @@ fn beta_climate_cells(noise_router: &NoiseRouter, block_x: i32, block_z: i32) ->
     cells
 }
 
-/// Fill a `BiomePalette` for a single 16x16x16 section from Beta climate data.
+/// The `BiomePalette` every section of a chunk column shares, empty unless the
+/// source is Beta.
 ///
-/// Each of the 4x4x4 biome cells is sampled once from `climate`. The
-/// ocean/land split is per cell-row Y: a cell whose
-/// center world Y falls below `sea_level` receives the ocean biome for
-/// the land bucket at that XZ position; cells at or above sea level receive
-/// the land biome directly.
+/// Beta biomes are 2D: WorldChunkManager derives the biome purely from
+/// temperature/humidity at (x,z) via getBiomeFromLookup, with no Y or sea-level
+/// dependence, so one palette serves the whole column.
 ///
 /// A biome handle that is absent from the frozen registry snapshot signals a
 /// misconfiguration (unregistered biome, asset load failure, or registry/preset
 /// ordering bug). Such a miss is logged and asserted in debug builds rather than
 /// silently substituting id 0, which would render a plausible-but-wrong biome.
-fn fill_biome_palette_beta(
-    biomes: &mut BiomePalette,
-    _section_y: i32,
-    climate: &[(f32, f32); 16],
-    biome_source: &BiomeSource,
-    biome_registry: &RegistrySnapshot<Biome>,
-) {
-    // Beta biomes are 2D: WorldChunkManager derives the biome purely from
-    // temperature/humidity at (x,z) via getBiomeFromLookup, with no Y or
-    // sea-level dependence, so every cell in a column shares one biome.
+fn beta_biome_palette(
+    noise_router: &NoiseRouter,
+    biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
+    block_x: i32,
+    block_z: i32,
+) -> BiomePalette {
+    let mut biomes = BiomePalette::default();
+    let Some((biome_source, biome_registry)) =
+        biome_context.filter(|(src, _)| matches!(src, BiomeSource::Beta { .. }))
+    else {
+        return biomes;
+    };
+    let climate = beta_climate_cells(noise_router, block_x, block_z);
     for cx in 0..4usize {
         for cz in 0..4usize {
             let (temp, humidity) = climate[cx * 4 + cz];
@@ -381,6 +370,7 @@ fn fill_biome_palette_beta(
             }
         }
     }
+    biomes
 }
 
 /// Fill section block palettes for the Beta terrain using the exact-precision f64 path.
@@ -406,7 +396,6 @@ fn fill_sections_beta_f64(
     let stone_id = noise_router.default_block_state().0 as u32;
     let water_id = noise_router.default_fluid_state().0 as u32;
     let ice_id = blocks.default_state("minecraft:ice").0 as u32;
-    let _air_id = 0u32;
 
     // Sample the 16×16 climate grids needed by computeDensity.
     let (temp_grid, rain_grid) = noise_router.sample_beta_climate_grids(block_x, block_z);
@@ -416,15 +405,7 @@ fn fill_sections_beta_f64(
     let flat =
         BetaTerrainF64::fill_terrain(&density, &temp_grid, sea_level, stone_id, water_id, ice_id);
 
-    let climate = beta_climate_cells(noise_router, block_x, block_z);
-
-    let beta_biome = biome_context.and_then(|(src, reg)| {
-        if matches!(src, BiomeSource::Beta { .. }) {
-            Some((src, reg))
-        } else {
-            None
-        }
-    });
+    let biome_palette = beta_biome_palette(noise_router, biome_context, block_x, block_z);
 
     y_sections
         .iter()
@@ -436,7 +417,6 @@ fn fill_sections_beta_f64(
             let section_min_y = sy * 16;
 
             let mut blocks = BlockPalette::default();
-            let mut biomes = BiomePalette::default();
 
             // Only sections in [0, 128) contain Beta terrain blocks.
             if (0..128).contains(&section_min_y) {
@@ -462,11 +442,7 @@ fn fill_sections_beta_f64(
                 }
             }
 
-            if let Some((src, reg)) = beta_biome {
-                fill_biome_palette_beta(&mut biomes, sy, &climate, src, reg);
-            }
-
-            Some((blocks, biomes))
+            Some((blocks, biome_palette.clone()))
         })
         .collect()
 }
@@ -515,26 +491,9 @@ pub fn generate_column(
     let block_x = section_x * 16;
     let block_z = section_z * 16;
 
-    // Only fill biome palettes when the source is Beta; modern paths keep default().
-    let beta_biome = biome_context.and_then(|(src, reg)| {
-        if matches!(src, BiomeSource::Beta { .. }) {
-            Some((src, reg))
-        } else {
-            None
-        }
-    });
-    let climate = beta_biome.map(|_| beta_climate_cells(noise_router, block_x, block_z));
-
-    let mut sections: Vec<Option<(BlockPalette, BiomePalette)>> = y_sections
-        .iter()
-        .map(|&sy| {
-            let mut biomes = BiomePalette::default();
-            if let Some(((src, reg), climate)) = beta_biome.zip(climate.as_ref()) {
-                fill_biome_palette_beta(&mut biomes, sy, climate, src, reg);
-            }
-            Some((BlockPalette::default(), biomes))
-        })
-        .collect();
+    let biome_palette = beta_biome_palette(noise_router, biome_context, block_x, block_z);
+    let mut sections: Vec<Option<(BlockPalette, BiomePalette)>> =
+        vec![Some((BlockPalette::default(), biome_palette)); y_sections.len()];
 
     if !fill_column(
         &mut sections,

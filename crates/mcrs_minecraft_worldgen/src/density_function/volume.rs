@@ -10,15 +10,9 @@ use bevy_math::IVec3;
 /// `min_block`, spaced `step_block` apart.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Volume {
-    size_x: i32,
-    size_y: i32,
-    size_z: i32,
-    min_block_x: i32,
-    min_block_y: i32,
-    min_block_z: i32,
-    step_block_x: i32,
-    step_block_y: i32,
-    step_block_z: i32,
+    size: IVec3,
+    min_block: IVec3,
+    step_block: IVec3,
 }
 
 impl Volume {
@@ -38,15 +32,9 @@ impl Volume {
             step_block.z
         );
         Self {
-            size_x: size.x,
-            size_y: size.y,
-            size_z: size.z,
-            min_block_x: min_block.x,
-            min_block_y: min_block.y,
-            min_block_z: min_block.z,
-            step_block_x: step_block.x,
-            step_block_y: step_block.y,
-            step_block_z: step_block.z,
+            size,
+            min_block,
+            step_block,
         }
     }
 
@@ -59,88 +47,103 @@ impl Volume {
     }
 
     #[inline]
+    pub fn size(&self) -> IVec3 {
+        self.size
+    }
+
+    #[inline]
+    pub fn min_block(&self) -> IVec3 {
+        self.min_block
+    }
+
+    #[inline]
+    pub fn step_block(&self) -> IVec3 {
+        self.step_block
+    }
+
+    #[inline]
     pub fn size_x(&self) -> i32 {
-        self.size_x
+        self.size.x
     }
 
     #[inline]
     pub fn size_y(&self) -> i32 {
-        self.size_y
+        self.size.y
     }
 
     #[inline]
     pub fn size_z(&self) -> i32 {
-        self.size_z
+        self.size.z
     }
 
     #[inline]
     pub fn min_block_x(&self) -> i32 {
-        self.min_block_x
+        self.min_block.x
     }
 
     #[inline]
     pub fn min_block_y(&self) -> i32 {
-        self.min_block_y
+        self.min_block.y
     }
 
     #[inline]
     pub fn min_block_z(&self) -> i32 {
-        self.min_block_z
+        self.min_block.z
     }
 
     #[inline]
     pub fn step_block_x(&self) -> i32 {
-        self.step_block_x
+        self.step_block.x
     }
 
     #[inline]
     pub fn step_block_y(&self) -> i32 {
-        self.step_block_y
+        self.step_block.y
     }
 
     #[inline]
     pub fn step_block_z(&self) -> i32 {
-        self.step_block_z
+        self.step_block.z
     }
 
     #[inline]
     pub fn index_unchecked(&self, x: i32, y: i32, z: i32) -> usize {
-        (y + (x + z * self.size_x) * self.size_y) as usize
+        (y + (x + z * self.size.x) * self.size.y) as usize
     }
 
     #[inline]
     pub fn block_x(&self, x: i32) -> i32 {
-        self.min_block_x + x * self.step_block_x
+        self.min_block.x + x * self.step_block.x
     }
 
     #[inline]
     pub fn block_y(&self, y: i32) -> i32 {
-        self.min_block_y + y * self.step_block_y
+        self.min_block.y + y * self.step_block.y
     }
 
     #[inline]
     pub fn block_z(&self, z: i32) -> i32 {
-        self.min_block_z + z * self.step_block_z
+        self.min_block.z + z * self.step_block.z
     }
 
     #[inline]
     pub fn max_block_x(&self) -> i32 {
-        self.min_block_x + self.size_x * self.step_block_x - 1
+        self.min_block.x + self.size.x * self.step_block.x - 1
     }
 
     #[inline]
     pub fn max_block_y(&self) -> i32 {
-        self.min_block_y + self.size_y * self.step_block_y - 1
+        self.min_block.y + self.size.y * self.step_block.y - 1
     }
 
     #[inline]
     pub fn max_block_z(&self) -> i32 {
-        self.min_block_z + self.size_z * self.step_block_z - 1
+        self.min_block.z + self.size.z * self.step_block.z - 1
     }
 
     #[inline]
     pub fn len(&self) -> usize {
-        (self.size_x * self.size_y * self.size_z) as usize
+        (self.size.x * self.size.y * self.size.z) as usize
     }
 
     #[inline]
@@ -149,25 +152,25 @@ impl Volume {
     }
 
     pub fn index_of_block(&self, block_x: i32, block_y: i32, block_z: i32) -> Option<usize> {
-        let rx = block_x - self.min_block_x;
-        let ry = block_y - self.min_block_y;
-        let rz = block_z - self.min_block_z;
-        if self.step_block_x == 1 && self.step_block_y == 1 && self.step_block_z == 1 {
-            let inside = (0..self.size_x).contains(&rx)
-                && (0..self.size_y).contains(&ry)
-                && (0..self.size_z).contains(&rz);
+        let rx = block_x - self.min_block.x;
+        let ry = block_y - self.min_block.y;
+        let rz = block_z - self.min_block.z;
+        if self.step_block == IVec3::ONE {
+            let inside = (0..self.size.x).contains(&rx)
+                && (0..self.size.y).contains(&ry)
+                && (0..self.size.z).contains(&rz);
             return inside.then(|| self.index_unchecked(rx, ry, rz));
         }
         let on_lattice =
             |r: i32, size: i32, step: i32| r >= 0 && r < size * step && r.rem_euclid(step) == 0;
-        (on_lattice(rx, self.size_x, self.step_block_x)
-            && on_lattice(ry, self.size_y, self.step_block_y)
-            && on_lattice(rz, self.size_z, self.step_block_z))
+        (on_lattice(rx, self.size.x, self.step_block.x)
+            && on_lattice(ry, self.size.y, self.step_block.y)
+            && on_lattice(rz, self.size.z, self.step_block.z))
         .then(|| {
             self.index_unchecked(
-                rx / self.step_block_x,
-                ry / self.step_block_y,
-                rz / self.step_block_z,
+                rx / self.step_block.x,
+                ry / self.step_block.y,
+                rz / self.step_block.z,
             )
         })
     }
@@ -175,11 +178,11 @@ impl Volume {
     fn positions_into(&self, out: &mut Vec<IVec3>) {
         out.clear();
         out.reserve(self.len());
-        for z in 0..self.size_z {
+        for z in 0..self.size.z {
             let bz = self.block_z(z);
-            for x in 0..self.size_x {
+            for x in 0..self.size.x {
                 let bx = self.block_x(x);
-                for y in 0..self.size_y {
+                for y in 0..self.size.y {
                     out.push(IVec3::new(bx, self.block_y(y), bz));
                 }
             }
@@ -283,9 +286,9 @@ impl NoiseRouter {
         }
 
         let column_volume = Volume::new(
-            IVec3::new(volume.size_x(), 1, volume.size_z()),
-            IVec3::new(volume.min_block_x(), 0, volume.min_block_z()),
-            IVec3::new(volume.step_block_x(), 1, volume.step_block_z()),
+            volume.size().with_y(1),
+            volume.min_block().with_y(0),
+            volume.step_block().with_y(1),
         );
         let columns = column_volume.len();
         scratch.column_rows.resize(column_end * columns, 0.0);
@@ -671,17 +674,8 @@ pub(super) fn fill_node(
 impl Slice {
     /// `volume` with this node's axis collapsed onto its pinned coordinate.
     fn pinned_volume(&self, volume: &Volume) -> Volume {
-        let mut size = IVec3::new(volume.size_x(), volume.size_y(), volume.size_z());
-        let mut min = IVec3::new(
-            volume.min_block_x(),
-            volume.min_block_y(),
-            volume.min_block_z(),
-        );
-        let step = IVec3::new(
-            volume.step_block_x(),
-            volume.step_block_y(),
-            volume.step_block_z(),
-        );
+        let mut size = volume.size();
+        let mut min = volume.min_block();
         let axis = match self.axis {
             Axis::X => 0,
             Axis::Y => 1,
@@ -689,7 +683,7 @@ impl Slice {
         };
         size[axis] = 1;
         min[axis] = self.coordinate;
-        Volume::new(size, min, step)
+        Volume::new(size, min, volume.step_block())
     }
 }
 
@@ -724,33 +718,12 @@ impl Interpolated {
             // A single position combines the eight corners exactly, where a
             // volume accumulates along Y. Vanilla splits the same two ways, and
             // the block values a chunk fill produces come from the second.
-            out[0] = self.sample_point(
-                stack,
-                scratch_len,
-                IVec3::new(
-                    volume.min_block_x(),
-                    volume.min_block_y(),
-                    volume.min_block_z(),
-                ),
-            );
-        } else if volume.step_block_x() == 1
-            && volume.step_block_y() == 1
-            && volume.step_block_z() == 1
-        {
+            out[0] = self.sample_point(stack, scratch_len, volume.min_block());
+        } else if volume.step_block() == IVec3::ONE {
             self.fill_block_step(stack, scratch_len, volume, out);
         } else {
-            let block_volume = Volume::dense(
-                IVec3::new(
-                    volume.size_x() * volume.step_block_x(),
-                    volume.size_y() * volume.step_block_y(),
-                    volume.size_z() * volume.step_block_z(),
-                ),
-                IVec3::new(
-                    volume.min_block_x(),
-                    volume.min_block_y(),
-                    volume.min_block_z(),
-                ),
-            );
+            let block_volume =
+                Volume::dense(volume.size() * volume.step_block(), volume.min_block());
             let mut block = vec![0.0f32; block_volume.len()];
             self.fill_block_step(stack, scratch_len, &block_volume, &mut block);
             for z in 0..volume.size_z() {
