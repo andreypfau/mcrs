@@ -35,27 +35,6 @@ pub(crate) trait DensitySampler {
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]);
 }
 
-/// A sampler whose value at one position needs nothing but that position and
-/// the rows below it.
-pub(crate) trait PointSampler {
-    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32;
-}
-
-/// Fill a volume by sampling each position in turn — the fallback for a node
-/// with no cheaper way to cover a whole volume.
-macro_rules! naive_volume {
-    ($($t:ty),* $(,)?) => {$(
-        impl DensitySampler for $t {
-            fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
-                for (p, slot) in out.iter_mut().enumerate() {
-                    *slot = self.sample_at(ctx, p);
-                }
-            }
-        }
-    )*};
-}
-pub(crate) use naive_volume;
-
 mod arith;
 mod noise;
 mod shape;
@@ -404,13 +383,6 @@ impl<'a> Arena<'a> {
             filled,
         };
         self.stack[i].sample_volume(ctx, &mut out[..n]);
-    }
-}
-
-impl PointSampler for IndependentDensityFunction {
-    #[inline]
-    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
-        self.sample(ctx.positions[p])
     }
 }
 

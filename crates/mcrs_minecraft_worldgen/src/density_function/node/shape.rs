@@ -355,35 +355,40 @@ impl Spline {
         }
     }
 }
-
-impl PointSampler for RangeChoice {
-    #[inline]
-    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
-        let input = ctx.row(self.input_index)[p];
-        if input >= self.min_inclusion_value && input < self.max_exclusion_value {
-            ctx.row(self.when_in_index)[p]
-        } else {
-            ctx.row(self.when_out_index)[p]
+impl DensitySampler for RangeChoice {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let input = ctx.row(self.input_index);
+        let when_in = ctx.row(self.when_in_index);
+        let when_out = ctx.row(self.when_out_index);
+        for (((slot, &value), &inside), &outside) in
+            out.iter_mut().zip(input).zip(when_in).zip(when_out)
+        {
+            *slot = if value >= self.min_inclusion_value && value < self.max_exclusion_value {
+                inside
+            } else {
+                outside
+            };
         }
     }
 }
 
-impl PointSampler for Lerp {
-    #[inline]
-    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
-        let alpha = ctx.row(self.alpha_index)[p];
-        if alpha == 0.0 {
-            ctx.row(self.first_index)[p]
-        } else if alpha == 1.0 {
-            ctx.row(self.second_index)[p]
-        } else {
-            let first = ctx.row(self.first_index)[p];
-            first + alpha * (ctx.row(self.second_index)[p] - first)
+impl DensitySampler for Lerp {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let alpha = ctx.row(self.alpha_index);
+        let first = ctx.row(self.first_index);
+        let second = ctx.row(self.second_index);
+        for (((slot, &alpha), &first), &second) in out.iter_mut().zip(alpha).zip(first).zip(second)
+        {
+            *slot = if alpha == 0.0 {
+                first
+            } else if alpha == 1.0 {
+                second
+            } else {
+                first + alpha * (second - first)
+            };
         }
     }
 }
-
-naive_volume!(RangeChoice, Lerp);
 
 impl DensitySampler for Spline {
     /// Reads its inputs by stack index rather than by edge, so it needs the

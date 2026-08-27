@@ -351,19 +351,26 @@ impl RangeFunction for ShiftedNoise {
     }
 }
 
-impl PointSampler for ShiftedNoise {
-    #[inline]
-    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
-        let pos = ctx.positions[p];
-        self.sampler.get(
-            pos.x as f64 * self.xz_scale + ctx.row(self.input_x_index)[p] as f64,
-            pos.y as f64 * self.y_scale + ctx.row(self.input_y_index)[p] as f64,
-            pos.z as f64 * self.xz_scale + ctx.row(self.input_z_index)[p] as f64,
-        )
+impl DensitySampler for ShiftedNoise {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let shift_x = ctx.row(self.input_x_index);
+        let shift_y = ctx.row(self.input_y_index);
+        let shift_z = ctx.row(self.input_z_index);
+        for ((((slot, pos), &dx), &dy), &dz) in out
+            .iter_mut()
+            .zip(ctx.positions)
+            .zip(shift_x)
+            .zip(shift_y)
+            .zip(shift_z)
+        {
+            *slot = self.sampler.get(
+                pos.x as f64 * self.xz_scale + dx as f64,
+                pos.y as f64 * self.y_scale + dy as f64,
+                pos.z as f64 * self.xz_scale + dz as f64,
+            );
+        }
     }
 }
-
-naive_volume!(ShiftedNoise);
 
 impl DensitySampler for Noise {
     /// Y is the volume's fastest axis, so a run of positions is a column and

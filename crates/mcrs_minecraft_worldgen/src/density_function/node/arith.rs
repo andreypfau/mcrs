@@ -394,65 +394,77 @@ impl BinaryOperation {
         }
     }
 }
-
-impl PointSampler for Linear {
-    #[inline]
-    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
-        let input = ctx.row(self.input_index)[p];
+impl DensitySampler for Linear {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let input = ctx.row(self.input_index);
+        let argument = self.argument;
         match self.operation {
-            LinearOperation::Add => input + self.argument,
-            LinearOperation::Multiply => input * self.argument,
+            LinearOperation::Add => {
+                for (slot, &value) in out.iter_mut().zip(input) {
+                    *slot = value + argument;
+                }
+            }
+            LinearOperation::Multiply => {
+                for (slot, &value) in out.iter_mut().zip(input) {
+                    *slot = value * argument;
+                }
+            }
         }
     }
 }
 
-impl PointSampler for Affine {
-    #[inline]
-    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
-        ctx.row(self.input_index)[p].mul_add(self.scale, self.offset)
+impl DensitySampler for Affine {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        for (slot, &value) in out.iter_mut().zip(ctx.row(self.input_index)) {
+            *slot = value.mul_add(self.scale, self.offset);
+        }
     }
 }
 
-impl PointSampler for PiecewiseAffine {
-    #[inline]
-    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
-        let input = ctx.row(self.input_index)[p];
-        let scale = if input < 0.0 {
-            self.neg_scale
-        } else {
-            self.pos_scale
-        };
-        input.mul_add(scale, self.offset)
+impl DensitySampler for PiecewiseAffine {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        for (slot, &value) in out.iter_mut().zip(ctx.row(self.input_index)) {
+            let scale = if value < 0.0 {
+                self.neg_scale
+            } else {
+                self.pos_scale
+            };
+            *slot = value.mul_add(scale, self.offset);
+        }
     }
 }
 
-impl PointSampler for Slide {
-    #[inline]
-    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
-        self.compute(ctx.row(self.input_index)[p], ctx.positions[p].y as f32)
+impl DensitySampler for Slide {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let input = ctx.row(self.input_index);
+        for ((slot, &value), pos) in out.iter_mut().zip(input).zip(ctx.positions) {
+            *slot = self.compute(value, pos.y as f32);
+        }
     }
 }
 
-impl PointSampler for Unary {
-    #[inline]
-    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
-        self.operation.apply(ctx.row(self.input_index)[p])
+impl DensitySampler for Unary {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        for (slot, &value) in out.iter_mut().zip(ctx.row(self.input_index)) {
+            *slot = self.operation.apply(value);
+        }
     }
 }
 
-impl PointSampler for Binary {
-    #[inline]
-    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
-        self.operation
-            .apply(ctx.row(self.input1_index)[p], ctx.row(self.input2_index)[p])
+impl DensitySampler for Binary {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let left = ctx.row(self.input1_index);
+        let right = ctx.row(self.input2_index);
+        for ((slot, &a), &b) in out.iter_mut().zip(left).zip(right) {
+            *slot = self.operation.apply(a, b);
+        }
     }
 }
 
-impl PointSampler for Clamp {
-    #[inline]
-    fn sample_at(&self, ctx: Fill<'_>, p: usize) -> f32 {
-        ctx.row(self.input_index)[p].clamp(self.min_value, self.max_value)
+impl DensitySampler for Clamp {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        for (slot, &value) in out.iter_mut().zip(ctx.row(self.input_index)) {
+            *slot = value.clamp(self.min_value, self.max_value);
+        }
     }
 }
-
-naive_volume!(Linear, Affine, PiecewiseAffine, Slide, Unary, Binary, Clamp);
