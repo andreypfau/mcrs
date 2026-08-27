@@ -132,6 +132,13 @@ pub(super) struct Arena<'a> {
     stack: &'a [DensityFunctionComponent],
 }
 
+#[derive(Default)]
+pub(super) struct MemberScratch {
+    rows: Vec<f32>,
+    point: Vec<f32>,
+    positions: Vec<IVec3>,
+}
+
 impl<'a> Arena<'a> {
     pub(super) fn new(stack: &'a [DensityFunctionComponent]) -> Self {
         Self { stack }
@@ -140,16 +147,35 @@ impl<'a> Arena<'a> {
     /// Evaluate the subgraph `members` — topologically ordered, its own root last —
     /// over every position of `volume`.
     pub(super) fn fill_members(self, members: &[u32], volume: &Volume, out: &mut [f32]) {
+        self.fill_members_with(members, volume, out, &mut MemberScratch::default());
+    }
+
+    /// [`Arena::fill_members`] against caller-owned buffers, for callers that
+    /// evaluate the same subgraph many times over.
+    pub(super) fn fill_members_with(
+        self,
+        members: &[u32],
+        volume: &Volume,
+        out: &mut [f32],
+        scratch: &mut MemberScratch,
+    ) {
         let n = volume.len();
         let root = *members.last().expect("a subgraph has at least one member") as usize;
-        let mut rows = vec![0.0f32; (root + 1) * n];
-        let mut point = vec![0.0f32; self.stack.len()];
-        let mut positions = Vec::new();
-        volume.positions_into(&mut positions);
+        scratch.rows.clear();
+        scratch.rows.resize((root + 1) * n, 0.0);
+        scratch.point.clear();
+        scratch.point.resize(self.stack.len(), 0.0);
+        volume.positions_into(&mut scratch.positions);
         for &member in members {
-            self.fill_node(member as usize, volume, &positions, &mut rows, &mut point);
+            self.fill_node(
+                member as usize,
+                volume,
+                &scratch.positions,
+                &mut scratch.rows,
+                &mut scratch.point,
+            );
         }
-        out.copy_from_slice(&rows[root * n..root * n + n]);
+        out.copy_from_slice(&scratch.rows[root * n..root * n + n]);
     }
 
     pub(super) fn fill_node(
@@ -553,6 +579,7 @@ impl FindTopSurface {
     /// positive, probing downwards one cell at a time.
     fn fill(&self, arena: Arena<'_>, positions: &[IVec3], upper_bounds: &[f32], out: &mut [f32]) {
         let mut probed = [0.0f32];
+        let mut scratch = MemberScratch::default();
         for (p, slot) in out.iter_mut().enumerate() {
             let top_y = (upper_bounds[p] / self.cell_height).floor() * self.cell_height;
             *slot = if top_y <= self.lower_bound {
@@ -562,7 +589,12 @@ impl FindTopSurface {
                 loop {
                     let probe =
                         Volume::point(IVec3::new(positions[p].x, current_y as i32, positions[p].z));
-                    arena.fill_members(&self.density_members, &probe, &mut probed);
+                    arena.fill_members_with(
+                        &self.density_members,
+                        &probe,
+                        &mut probed,
+                        &mut scratch,
+                    );
                     if probed[0] > 0.0 || current_y <= self.lower_bound {
                         break current_y;
                     }
