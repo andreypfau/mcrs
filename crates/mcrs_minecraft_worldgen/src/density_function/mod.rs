@@ -6,7 +6,7 @@ use crate::density_function::proto::{
     RoundFunctionArguments, RoundingMode, SingleArgumentFunction, SliceUniformAxes, SplineHolder,
     TilingMode, TwoArgumentFunction, Visitor, noise_scale_axes,
 };
-use crate::noise::normal_noise::NoiseSampler;
+use crate::noise::normal_noise::{ColumnScratch, NoiseSampler};
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::noise::simplex::SimplexNoise;
 use crate::proto::NoiseGeneratorSettings;
@@ -752,6 +752,41 @@ enum IndependentDensityFunction {
     Gradient(Gradient),
     DistanceToPoint(DistanceToPoint),
     EndOuterIslands(EndIslands),
+}
+
+impl IndependentDensityFunction {
+    /// Fill `out` a column at a time, so each octave hoists its lattice hashes
+    /// across the run. Returns false when the caller must sample per position.
+    pub(super) fn fill_columns(
+        &self,
+        volume: &Volume,
+        positions: &[IVec3],
+        out: &mut [f32],
+    ) -> bool {
+        let Self::Noise(noise) = self else {
+            return false;
+        };
+        let height = volume.size().y as usize;
+        if height < 2 {
+            return false;
+        }
+        let mut ys = vec![0.0f64; height];
+        let mut scratch = ColumnScratch::default();
+        for (column, slots) in out.chunks_mut(height).enumerate() {
+            let run = &positions[column * height..column * height + height];
+            for (slot, pos) in ys.iter_mut().zip(run) {
+                *slot = pos.y as f64 * noise.y_scale;
+            }
+            noise.sampler.get_column(
+                run[0].x as f64 * noise.xz_scale,
+                run[0].z as f64 * noise.xz_scale,
+                &ys,
+                slots,
+                &mut scratch,
+            );
+        }
+        true
+    }
 }
 
 impl RangeFunction for IndependentDensityFunction {

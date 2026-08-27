@@ -191,8 +191,11 @@ impl<'a> Arena<'a> {
         let out_base = i * n;
         match &stack[i] {
             DensityFunctionComponent::Independent(f) => {
-                for p in 0..n {
-                    rows[out_base + p] = f.sample(positions[p]);
+                let out = &mut rows[out_base..out_base + n];
+                if !f.fill_columns(volume, positions, out) {
+                    for (p, slot) in out.iter_mut().enumerate() {
+                        *slot = f.sample(positions[p]);
+                    }
                 }
             }
             DensityFunctionComponent::Dependent(f) => match f {

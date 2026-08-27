@@ -248,6 +248,54 @@ impl NoiseSampler {
     }
 }
 
+#[derive(Default)]
+pub struct ColumnScratch {
+    scaled: Vec<f64>,
+    layer: Vec<f32>,
+}
+
+impl NoiseSampler {
+    /// [`NoiseSampler::get`] over a run of positions sharing `x` and `z`, which
+    /// lets each octave hoist its lattice hashes across the run.
+    pub fn get_column(
+        &self,
+        x: f64,
+        z: f64,
+        ys: &[f64],
+        out: &mut [f32],
+        scratch: &mut ColumnScratch,
+    ) {
+        let Self::Normal(n) = self else {
+            for (slot, &y) in out.iter_mut().zip(ys) {
+                *slot = self.get(x, y, z);
+            }
+            return;
+        };
+        out.fill(0.0);
+        scratch.scaled.clear();
+        scratch.scaled.resize(ys.len(), 0.0);
+        scratch.layer.clear();
+        scratch.layer.resize(ys.len(), 0.0);
+        for layer in &n.layers {
+            let f = layer.frequency;
+            for (slot, &y) in scratch.scaled.iter_mut().zip(ys) {
+                *slot = wrap(y * f);
+            }
+            layer.noise.sample_column(
+                wrap(x * f),
+                wrap(z * f),
+                &scratch.scaled,
+                0.0,
+                &[],
+                &mut scratch.layer,
+            );
+            for (slot, &sampled) in out.iter_mut().zip(scratch.layer.iter()) {
+                *slot += layer.amplitude * sampled;
+            }
+        }
+    }
+}
+
 #[inline(always)]
 fn wrap(value: f64) -> f64 {
     OctavePerlinNoise::<f32>::maintain_precission(value)
