@@ -101,10 +101,7 @@ impl NoiseSampler {
             }
         }
 
-        // Deliberately f32 throughout: the legacy nether streams were pinned against this
-        // rounding, so folding it into parity_normalization_factor's f64 form shifts terrain.
-        let expected_deviation = 0.1 * (1.0 + 1.0 / (max - min + 1.0));
-        let value_factor = (1.0 / 6.0) / expected_deviation;
+        let value_factor = parity_normalization_factor(1.0, (max - min) as f64) as f32;
         let base_persistence = first.persistence();
         let octave_count = amplitudes.len() as i32;
         let persistence = 2.0f64.powi(octave_count - 1) / (2.0f64.powi(octave_count) - 1.0);
@@ -521,6 +518,8 @@ mod bound_tests {
         }
     }
 
+    // Unlike the octave factors and ranges above, these bits are pinned from our own
+    // sampler, not derived from the reference: a drift guard, not a parity check.
     #[test]
     fn the_modes_sample_apart() {
         let positions = [(0.0, 0.0, 0.0), (0.5, 4.0, -2.0), (-204.0, 28.0, 12.0)];
