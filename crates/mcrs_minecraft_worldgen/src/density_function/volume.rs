@@ -383,6 +383,47 @@ impl NoiseRouter {
                 Step::Unguard => s += 1,
             }
         }
+        #[cfg(debug_assertions)]
+        self.verify_fill_zone_b(volume, positions, rows, point, needed);
+    }
+
+    /// Re-evaluate the skipped runs and check nothing the caller reads moved.
+    #[cfg(debug_assertions)]
+    fn verify_fill_zone_b(
+        &self,
+        volume: &Volume,
+        positions: &[IVec3],
+        rows: &mut [f32],
+        point: &mut [f32],
+        needed: &[bool],
+    ) {
+        let n = volume.len();
+        let live = needed.len();
+        let roots = || self.zone_b_roots.iter().copied().filter(|&r| r < live);
+        let guarded: Vec<f32> = roots().flat_map(|r| rows[r * n..r * n + n].to_vec()).collect();
+        for i in self.column_boundary..=self.final_density_index {
+            if i < live && needed[i] {
+                fill_node(
+                    &self.stack,
+                    self.scratch_len,
+                    i,
+                    volume,
+                    positions,
+                    rows,
+                    point,
+                );
+            }
+        }
+        for (k, root) in roots().enumerate() {
+            for p in 0..n {
+                assert_eq!(
+                    guarded[k * n + p].to_bits(),
+                    rows[root * n + p].to_bits(),
+                    "branch skip changed node {root} at {:?}",
+                    positions[p]
+                );
+            }
+        }
     }
 }
 
