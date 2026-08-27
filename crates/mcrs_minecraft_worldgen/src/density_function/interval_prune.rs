@@ -9,31 +9,11 @@ const ABS_EPS: f32 = 1e-6;
 const DECIDE_EPS: f32 = 1e-3;
 const ROWS_PER_BLOCK: usize = 4;
 
-#[derive(Clone, Copy, Debug)]
-struct Iv {
-    lo: f32,
-    hi: f32,
-}
-
-impl Iv {
-    fn new(lo: f32, hi: f32) -> Self {
-        Iv { lo, hi }
-    }
-    fn point(v: f32) -> Self {
-        Iv { lo: v, hi: v }
-    }
-    fn widen(self) -> Self {
-        Iv {
-            lo: self.lo - (self.lo.abs() * REL_EPS + ABS_EPS),
-            hi: self.hi + (self.hi.abs() * REL_EPS + ABS_EPS),
-        }
-    }
-    fn hull(self, other: Iv) -> Self {
-        Iv {
-            lo: self.lo.min(other.lo),
-            hi: self.hi.max(other.hi),
-        }
-    }
+fn widen(iv: Interval) -> Interval {
+    Interval::of(
+        iv.min() - (iv.min().abs() * REL_EPS + ABS_EPS),
+        iv.max() + (iv.max().abs() * REL_EPS + ABS_EPS),
+    )
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -53,47 +33,46 @@ struct Stats {
 }
 
 fn is_y_dependent_kind(c: &DensityFunctionComponent) -> bool {
-    match c {
-        DensityFunctionComponent::Independent(f) => matches!(
+    match &c.sampler {
+        Sampler::Independent(f) => matches!(
             f,
             IndependentDensityFunction::OldBlendedNoise(_)
                 | IndependentDensityFunction::Noise(_)
                 | IndependentDensityFunction::ClampedYGradient(_)
                 | IndependentDensityFunction::Gradient(_)
-                | IndependentDensityFunction::EndOuterIslands
+                | IndependentDensityFunction::EndOuterIslands(_)
         ),
-        DensityFunctionComponent::Dependent(f) => matches!(
+        Sampler::Dependent(f) => matches!(
             f,
             DependentDensityFunction::ShiftedNoise(_)
                 | DependentDensityFunction::Slide(_)
                 | DependentDensityFunction::Slice(_)
                 | DependentDensityFunction::FindTopSurface(_)
         ),
-        DensityFunctionComponent::Wrapper(_) => false,
+        Sampler::Interpolated(_) => false,
     }
 }
 
 fn node_octaves(c: &DensityFunctionComponent) -> u64 {
-    match c {
-        DensityFunctionComponent::Independent(f) => match f {
+    match &c.sampler {
+        Sampler::Independent(f) => match f {
             IndependentDensityFunction::OldBlendedNoise(_) => 40,
             IndependentDensityFunction::Noise(x) => x.sampler.octave_count() as u64,
-            IndependentDensityFunction::ShiftA(x) => x.sampler.octave_count() as u64,
             IndependentDensityFunction::ShiftB(x) => x.sampler.octave_count() as u64,
-            IndependentDensityFunction::Shift(x) => x.sampler.octave_count() as u64,
             _ => 0,
         },
-        DensityFunctionComponent::Dependent(DependentDensityFunction::ShiftedNoise(x)) => {
+        Sampler::Dependent(DependentDensityFunction::ShiftedNoise(x)) => {
             x.sampler.octave_count() as u64
         }
         _ => 0,
     }
 }
 
-fn grad_iv(g: &ClampedYGradient, y_lo: f32, y_hi: f32) -> Iv {
-    let a = g.sample(&[], IVec3::new(0, y_lo as i32, 0));
-    let b = g.sample(&[], IVec3::new(0, y_hi as i32, 0));
-    Iv::new(a.min(b), a.max(b))
+fn grad_iv(g: &ClampedYGradient, y_lo: f32, y_hi: f32) -> Interval {
+    Interval::encapsulating(
+        g.sample(IVec3::new(0, y_lo as i32, 0)),
+        g.sample(IVec3::new(0, y_hi as i32, 0)),
+    )
 }
 
 /// Per-RangeChoice cone data: octaves exclusive to each arm.
@@ -109,8 +88,8 @@ fn rc_sites(router: &NoiseRouter) -> Vec<RcSite> {
     let stack = &router.stack;
     let mut out = Vec::new();
     for rc_idx in cb..=fd {
-        let rc = match &stack[rc_idx] {
-            DensityFunctionComponent::Dependent(DependentDensityFunction::RangeChoice(rc)) => rc,
+        let rc = match &stack[rc_idx].sampler {
+            Sampler::Dependent(DependentDensityFunction::RangeChoice(rc)) => rc,
             _ => continue,
         };
         let extent = fd + 1;
@@ -150,10 +129,24 @@ fn rc_sites(router: &NoiseRouter) -> Vec<RcSite> {
     out
 }
 
+/// Every column-invariant value at `(x, z)`, in stack order.
+fn zone_a_at(router: &NoiseRouter, x: i32, z: i32, scratch: &mut FillScratch) -> Vec<f32> {
+    let entries: Vec<usize> = (0..router.column_boundary).collect();
+    let mut out = vec![0.0f32; entries.len()];
+    router.sample_volume_roots(
+        &entries,
+        &Volume::point(IVec3::new(x, 0, z)),
+        &mut out,
+        scratch,
+    );
+    out
+}
+
 struct Walker<'a> {
     router: &'a NoiseRouter,
-    iv: Vec<Iv>,
+    iv: Vec<Interval>,
     pt: Vec<f32>,
+    reg: Vec<f32>,
     exact: Vec<bool>,
     rc_by_index: Vec<Option<usize>>,
     sites: Vec<RcSite>,
@@ -169,8 +162,9 @@ impl<'a> Walker<'a> {
         }
         Walker {
             router,
-            iv: vec![Iv::point(0.0); n],
+            iv: vec![Interval::exact(0.0); n],
             pt: vec![0.0; n],
+            reg: vec![0.0; n],
             exact: vec![false; n],
             rc_by_index,
             sites,
@@ -179,13 +173,13 @@ impl<'a> Walker<'a> {
 
     fn seed(&mut self, zone_a: &[f32]) {
         for i in 0..self.router.column_boundary {
-            self.iv[i] = Iv::point(zone_a[i]);
+            self.iv[i] = Interval::exact(zone_a[i]);
             self.pt[i] = zone_a[i];
             self.exact[i] = true;
         }
     }
 
-    fn walk(&mut self, x: i32, z: i32, y_lo: i32, y_hi: i32, stats: &mut Stats) -> Iv {
+    fn walk(&mut self, x: i32, z: i32, y_lo: i32, y_hi: i32, stats: &mut Stats) -> Interval {
         let router = self.router;
         let stack = &router.stack;
         let cb = router.column_boundary;
@@ -203,90 +197,74 @@ impl<'a> Walker<'a> {
                 }
             });
             if inputs_exact && (y_degenerate || !is_y_dependent_kind(comp)) {
-                let v = comp.sample_cached(&self.pt, stack, pos);
-                self.pt[i] = v;
+                node::Arena::new(stack).fill_node(i, &Volume::point(pos), &[pos], &mut self.pt);
+                let v = self.pt[i];
                 self.exact[i] = true;
-                self.iv[i] = Iv::point(v).widen();
+                self.iv[i] = widen(Interval::exact(v));
                 continue;
             }
             self.exact[i] = false;
 
-            let statik = || Iv::new(comp.min_value(), comp.max_value());
-            let raw = match comp {
-                DensityFunctionComponent::Independent(f) => match f {
-                    IndependentDensityFunction::Constant(v) => Iv::point(*v),
+            let statik = || comp.range;
+            let raw = match &comp.sampler {
+                Sampler::Independent(f) => match f {
+                    IndependentDensityFunction::Constant(v) => Interval::exact(*v),
                     IndependentDensityFunction::ClampedYGradient(g) => {
                         grad_iv(g, y_lo as f32, y_hi as f32)
                     }
                     IndependentDensityFunction::Gradient(g)
                         if g.axis == Axis::Y && g.tiling == TilingMode::ClampToEdge =>
                     {
-                        let a = g.sample(&[], IVec3::new(x, y_lo, z));
-                        let b = g.sample(&[], IVec3::new(x, y_hi, z));
-                        Iv::new(a.min(b), a.max(b))
+                        Interval::encapsulating(
+                            g.sample(IVec3::new(x, y_lo, z)),
+                            g.sample(IVec3::new(x, y_hi, z)),
+                        )
                     }
                     IndependentDensityFunction::Gradient(g) if g.axis != Axis::Y => {
-                        Iv::point(g.sample(&[], pos))
+                        Interval::exact(g.sample(pos))
                     }
                     _ => {
                         stats.static_fallbacks += 1;
                         statik()
                     }
                 },
-                DensityFunctionComponent::Dependent(f) => match f {
+                Sampler::Dependent(f) => match f {
                     DependentDensityFunction::Linear(x2) => {
                         let a = self.iv[x2.input_index];
+                        let argument = Interval::exact(x2.argument);
                         match x2.operation {
-                            LinearOperation::Add => Iv::new(a.lo + x2.argument, a.hi + x2.argument),
-                            LinearOperation::Multiply => {
-                                let (lo, hi) = mul_range(a.lo, a.hi, x2.argument, x2.argument);
-                                Iv::new(lo, hi)
-                            }
+                            LinearOperation::Add => a + argument,
+                            LinearOperation::Multiply => a * argument,
                         }
                     }
                     DependentDensityFunction::Affine(x2) => {
-                        let a = self.iv[x2.input_index];
-                        let (lo, hi) = Affine::compute_range(a.lo, a.hi, x2.scale, x2.offset);
-                        Iv::new(lo, hi)
+                        Affine::compute_range(self.iv[x2.input_index], x2.scale, x2.offset)
                     }
                     DependentDensityFunction::PiecewiseAffine(x2) => {
-                        let a = self.iv[x2.input_index];
-                        let (lo, hi) = PiecewiseAffine::compute_range(
-                            a.lo,
-                            a.hi,
+                        PiecewiseAffine::compute_range(
+                            self.iv[x2.input_index],
                             x2.neg_scale,
                             x2.pos_scale,
                             x2.offset,
-                        );
-                        Iv::new(lo, hi)
+                        )
                     }
                     DependentDensityFunction::Slide(x2) => {
-                        let a = self.iv[x2.input_index];
                         let g1 = grad_iv(&x2.grad1, y_lo as f32, y_hi as f32);
                         let g2 = grad_iv(&x2.grad2, y_lo as f32, y_hi as f32);
-                        let inner = Iv::new(a.lo + x2.offset_a, a.hi + x2.offset_a);
-                        let (p1lo, p1hi) = mul_range(g1.lo, g1.hi, inner.lo, inner.hi);
-                        let (p2lo, p2hi) =
-                            mul_range(p1lo + x2.offset_b, p1hi + x2.offset_b, g2.lo, g2.hi);
-                        Iv::new(p2lo + x2.offset_c, p2hi + x2.offset_c)
+                        let inner = self.iv[x2.input_index] + Interval::exact(x2.offset_a);
+                        (g1 * inner + Interval::exact(x2.offset_b)) * g2
+                            + Interval::exact(x2.offset_c)
                     }
                     DependentDensityFunction::Unary(x2) => {
-                        let a = self.iv[x2.input_index];
-                        let (lo, hi) = unary_range(x2.operation, a.lo, a.hi);
-                        Iv::new(lo, hi)
+                        unary_range(x2.operation, self.iv[x2.input_index])
                     }
-                    DependentDensityFunction::Binary(x2) => {
-                        let a = self.iv[x2.input1_index];
-                        let b = self.iv[x2.input2_index];
-                        let (lo, hi) = binary_range(x2.operation, (a.lo, a.hi), (b.lo, b.hi));
-                        Iv::new(lo, hi)
-                    }
+                    DependentDensityFunction::Binary(x2) => binary_range(
+                        x2.operation,
+                        self.iv[x2.input1_index],
+                        self.iv[x2.input2_index],
+                    ),
                     DependentDensityFunction::Clamp(x2) => {
-                        let a = self.iv[x2.input_index];
-                        Iv::new(
-                            a.lo.clamp(x2.min_value, x2.max_value),
-                            a.hi.clamp(x2.min_value, x2.max_value),
-                        )
+                        self.iv[x2.input_index].clamped(x2.min, x2.max)
                     }
                     DependentDensityFunction::RangeChoice(x2) => {
                         let a = self.iv[x2.input_index];
@@ -297,50 +275,46 @@ impl<'a> Walker<'a> {
                         if let Some(s) = site {
                             stats.octaves_total += s.when_in_octaves + s.when_out_octaves;
                         }
-                        if a.lo >= x2.min_inclusion_value && a.hi < x2.max_exclusion_value {
+                        if a.min() >= x2.min_inclusion_value && a.max() < x2.max_exclusion_value {
                             stats.rc_resolved += 1;
                             if let Some(s) = site {
                                 stats.octaves_skipped += s.when_out_octaves;
                             }
                             wi
-                        } else if a.hi < x2.min_inclusion_value || a.lo >= x2.max_exclusion_value {
+                        } else if a.max() < x2.min_inclusion_value
+                            || a.min() >= x2.max_exclusion_value
+                        {
                             stats.rc_resolved += 1;
                             if let Some(s) = site {
                                 stats.octaves_skipped += s.when_in_octaves;
                             }
                             wo
                         } else {
-                            wi.hull(wo)
+                            wi.union(wo)
                         }
                     }
-                    DependentDensityFunction::Lerp(x2) => {
-                        let al = self.iv[x2.alpha_index];
-                        let first = self.iv[x2.first_index];
-                        let second = self.iv[x2.second_index];
-                        let d = Iv::new(second.lo - first.hi, second.hi - first.lo);
-                        let (m_lo, m_hi) = mul_range(al.lo, al.hi, d.lo, d.hi);
-                        Iv::new(first.lo + m_lo, first.hi + m_hi)
-                    }
+                    DependentDensityFunction::Lerp(x2) => Interval::lerp(
+                        self.iv[x2.alpha_index],
+                        self.iv[x2.first_index],
+                        self.iv[x2.second_index],
+                    ),
                     _ => {
                         stats.static_fallbacks += 1;
                         statik()
                     }
                 },
-                DensityFunctionComponent::Wrapper(f) => match f {
-                    WrapperDensityFunction::Interpolated(x2) => self.iv[x2.input_index],
-                    WrapperDensityFunction::Cache(x2) => self.iv[x2.input_index],
-                },
+                Sampler::Interpolated(x2) => self.iv[x2.input_index],
             };
-            self.iv[i] = raw.widen();
+            self.iv[i] = widen(raw);
         }
         self.iv[fd]
     }
 }
 
-fn classify(iv: Iv) -> Class {
-    if iv.hi <= -DECIDE_EPS {
+fn classify(iv: Interval) -> Class {
+    if iv.max() <= -DECIDE_EPS {
         Class::Air
-    } else if iv.lo > DECIDE_EPS {
+    } else if iv.min() > DECIDE_EPS {
         Class::Stone
     } else {
         Class::Undetermined
@@ -445,8 +419,11 @@ struct ColumnResult {
 
 fn run_seed(seed: u64, radius: i32) -> (Vec<ColumnResult>, Stats, f64, f64, u64) {
     let router = overworld_router(seed);
-    let rows = router.noise_height() as usize / router.v_cell_blocks + 1;
-    let v = router.v_cell_blocks as i32;
+    let v = router
+        .cell_size()
+        .expect("the overworld interpolates on one lattice")
+        .y;
+    let rows = router.noise_height() as usize / v as usize + 1;
     let min_y = router.noise_min_y();
 
     let mut walker = Walker::new(&router);
@@ -460,17 +437,15 @@ fn run_seed(seed: u64, radius: i32) -> (Vec<ColumnResult>, Stats, f64, f64, u64)
     let mut eval_nanos = 0u128;
     let mut violations = 0u64;
     let mut values = vec![0.0f32; rows];
+    let mut scratch = FillScratch::new();
 
     for cx in -radius..=radius {
         for cz in -radius..=radius {
             let bx = cx * 16;
             let bz = cz * 16;
             let t_pop = Instant::now();
-            let mut cache = router.new_column_cache(bx, bz);
-            router.populate_columns(&mut cache);
+            let zone_a = zone_a_at(&router, bx, bz, &mut scratch);
             populate_nanos += t_pop.elapsed().as_nanos();
-            cache.load_column(0, 0);
-            let zone_a: Vec<f32> = cache.scratch[..router.column_boundary].to_vec();
 
             let mut result = ColumnResult {
                 air: 0,
@@ -509,9 +484,10 @@ fn run_seed(seed: u64, radius: i32) -> (Vec<ColumnResult>, Stats, f64, f64, u64)
                     continue;
                 }
                 for r in r0..r1 {
-                    values[r] = router.final_density_from_column_cache(
+                    values[r] = router.sample_value(
+                        router.final_density_index,
                         IVec3::new(bx, min_y + r as i32 * v, bz),
-                        &mut cache,
+                        &mut scratch,
                     );
                 }
             }
@@ -525,9 +501,10 @@ fn run_seed(seed: u64, radius: i32) -> (Vec<ColumnResult>, Stats, f64, f64, u64)
                     continue;
                 }
                 for r in r0..r1 {
-                    values[r] = router.final_density_from_column_cache(
+                    values[r] = router.sample_value(
+                        router.final_density_index,
                         IVec3::new(bx, min_y + r as i32 * v, bz),
-                        &mut cache,
+                        &mut scratch,
                     );
                 }
             }
@@ -720,27 +697,52 @@ fn interval_prune_yield() {
     }
 }
 
-fn kind_name(c: &DensityFunctionComponent) -> &'static str {
-    match c {
-        DensityFunctionComponent::Independent(f) => match f {
+pub(super) fn kind_name(c: &DensityFunctionComponent) -> &'static str {
+    match &c.sampler {
+        Sampler::Independent(f) => match f {
             IndependentDensityFunction::Constant(_) => "Constant",
             IndependentDensityFunction::OldBlendedNoise(_) => "OldBlendedNoise",
             IndependentDensityFunction::Noise(_) => "Noise",
-            IndependentDensityFunction::ShiftA(_) => "ShiftA",
             IndependentDensityFunction::ShiftB(_) => "ShiftB",
-            IndependentDensityFunction::Shift(_) => "Shift",
             IndependentDensityFunction::ClampedYGradient(_) => "ClampedYGradient",
             IndependentDensityFunction::Gradient(_) => "Gradient",
             IndependentDensityFunction::DistanceToPoint(_) => "DistanceToPoint",
-            IndependentDensityFunction::EndOuterIslands => "EndOuterIslands",
+            IndependentDensityFunction::EndOuterIslands(_) => "EndOuterIslands",
         },
-        DensityFunctionComponent::Dependent(f) => match f {
+        Sampler::Dependent(f) => match f {
             DependentDensityFunction::Linear(_) => "Linear",
             DependentDensityFunction::Affine(_) => "Affine",
             DependentDensityFunction::PiecewiseAffine(_) => "PiecewiseAffine",
             DependentDensityFunction::Slide(_) => "Slide",
             DependentDensityFunction::Unary(_) => "Unary",
             DependentDensityFunction::Binary(_) => "Binary",
+            DependentDensityFunction::ConstMin(_) => "ConstMin",
+            DependentDensityFunction::ConstMax(_) => "ConstMax",
+            DependentDensityFunction::ConstSub(_) => "ConstSub",
+            DependentDensityFunction::ConstDiv(_) => "ConstDiv",
+            DependentDensityFunction::ConstAdd(_) => "ConstAdd",
+            DependentDensityFunction::ConstMul(_) => "ConstMul",
+            DependentDensityFunction::Abs(_) => "Abs",
+            DependentDensityFunction::Square(_) => "Square",
+            DependentDensityFunction::Cube(_) => "Cube",
+            DependentDensityFunction::Negate(_) => "Negate",
+            DependentDensityFunction::Reciprocal(_) => "Reciprocal",
+            DependentDensityFunction::Sqrt(_) => "Sqrt",
+            DependentDensityFunction::Log(_) => "Log",
+            DependentDensityFunction::Sign(_) => "Sign",
+            DependentDensityFunction::Squeeze(_) => "Squeeze",
+            DependentDensityFunction::LeakyReLU(_) => "LeakyReLU",
+            DependentDensityFunction::IntegerMultipleRound(_) => "IntegerMultipleRound",
+            DependentDensityFunction::ConstExponentPow(_) => "ConstExponentPow",
+            DependentDensityFunction::ConstBasePow(_) => "ConstBasePow",
+            DependentDensityFunction::Add(_) => "Add",
+            DependentDensityFunction::Sub(_) => "Sub",
+            DependentDensityFunction::Mul(_) => "Mul",
+            DependentDensityFunction::Div(_) => "Div",
+            DependentDensityFunction::Min(_) => "Min",
+            DependentDensityFunction::Max(_) => "Max",
+            DependentDensityFunction::Pow(_) => "Pow",
+            DependentDensityFunction::Round(_) => "Round",
             DependentDensityFunction::ShiftedNoise(_) => "ShiftedNoise",
             DependentDensityFunction::Clamp(_) => "Clamp",
             DependentDensityFunction::RangeChoice(_) => "RangeChoice",
@@ -749,10 +751,7 @@ fn kind_name(c: &DensityFunctionComponent) -> &'static str {
             DependentDensityFunction::Lerp(_) => "Lerp",
             DependentDensityFunction::Slice(_) => "Slice",
         },
-        DensityFunctionComponent::Wrapper(f) => match f {
-            WrapperDensityFunction::Interpolated(_) => "Interpolated",
-            WrapperDensityFunction::Cache(_) => "Cache",
-        },
+        Sampler::Interpolated(_) => "Interpolated",
     }
 }
 
@@ -768,34 +767,35 @@ fn interval_prune_debug() {
         *hist.entry(kind_name(&router.stack[i])).or_default() += 1;
     }
     println!("zone B kinds: {hist:?}");
-    let mut cache = router.new_column_cache(0, 0);
-    router.populate_columns(&mut cache);
-    cache.load_column(0, 0);
-    let zone_a: Vec<f32> = cache.scratch[..cb].to_vec();
+    let mut scratch = FillScratch::new();
+    let zone_a = zone_a_at(&router, 0, 0, &mut scratch);
     let mut walker = Walker::new(&router);
     let mut stats = Stats::default();
     for (y_lo, y_hi) in [(0, 24), (-56, -32), (120, 144)] {
         walker.seed(&zone_a);
         let iv = walker.walk(0, 0, y_lo, y_hi, &mut stats);
-        println!("--- y {y_lo}..{y_hi}: final [{:.4}, {:.4}]", iv.lo, iv.hi);
+        println!(
+            "--- y {y_lo}..{y_hi}: final [{:.4}, {:.4}]",
+            iv.min(),
+            iv.max()
+        );
         for i in cb..=fd {
-            let w = walker.iv[i].hi - walker.iv[i].lo;
+            let w = walker.iv[i].max() - walker.iv[i].min();
             if w > 0.05 {
                 println!(
                     "  [{i}] {:<16} {:<44} [{:>9.4}, {:>9.4}] static [{:>9.4}, {:>9.4}]",
                     kind_name(&router.stack[i]),
                     router.node_labels[i],
-                    walker.iv[i].lo,
-                    walker.iv[i].hi,
-                    router.stack[i].min_value(),
-                    router.stack[i].max_value(),
+                    walker.iv[i].min(),
+                    walker.iv[i].max(),
+                    router.stack[i].range.min(),
+                    router.stack[i].range.max(),
                 );
             }
         }
         let mut real = vec![0.0f32; 4];
         for (k, r) in real.iter_mut().enumerate() {
-            *r = router
-                .final_density_from_column_cache(IVec3::new(0, y_lo + k as i32 * 8, 0), &mut cache);
+            *r = router.sample_value(fd, IVec3::new(0, y_lo + k as i32 * 8, 0), &mut scratch);
         }
         println!("  actual values: {real:?}");
     }
@@ -831,14 +831,18 @@ fn branch_skip_octave_census() {
     let mut sites = 0u64;
     let mut taken = 0u64;
 
+    let mut scratch = FillScratch::new();
+    let n = router.stack.len();
+    let mut pt = vec![0.0f32; n];
+    let mut reg = vec![0.0f32; n];
+    let arena = node::Arena::new(&router.stack);
     for chunk in 0..4i32 {
         let (bx, bz) = (chunk * 16, chunk * 48);
-        let mut cache = router.new_column_cache(bx, bz);
-        router.populate_columns(&mut cache);
         for gx in 0..5i32 {
             for gz in 0..5i32 {
-                cache.load_column(gx * 4, gz * 4);
+                let zone_a = zone_a_at(&router, bx + gx * 4, bz + gz * 4, &mut scratch);
                 for row in 0..49i32 {
+                    pt[..cb].copy_from_slice(&zone_a);
                     let pos = IVec3::new(bx + gx * 4, -64 + row * 8, bz + gz * 4);
                     positions += 1;
                     total += per_pos_total;
@@ -848,12 +852,7 @@ fn branch_skip_octave_census() {
                             Step::Eval { start, end } => {
                                 for &i in &sched.order[start as usize..end as usize] {
                                     evaluated += node_octaves(&router.stack[i]);
-                                    let v = router.stack[i].sample_cached(
-                                        &cache.scratch,
-                                        &router.stack,
-                                        pos,
-                                    );
-                                    cache.scratch[i] = v;
+                                    arena.fill_node(i, &Volume::point(pos), &[pos], &mut pt);
                                 }
                                 s += 1;
                             }
@@ -865,7 +864,7 @@ fn branch_skip_octave_census() {
                                 unguard,
                             } => {
                                 sites += 1;
-                                let v = cache.scratch[input as usize];
+                                let v = pt[input as usize];
                                 let hit = (v >= min_inclusive && v < max_exclusive) == want_in;
                                 taken += hit as u64;
                                 s = if hit { s + 1 } else { unguard as usize };

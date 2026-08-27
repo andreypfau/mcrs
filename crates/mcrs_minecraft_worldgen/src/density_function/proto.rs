@@ -20,11 +20,74 @@ impl From<f64> for HashableF64 {
     }
 }
 
+pub const MAX_REASONABLE_NOISE_VALUE: f64 = 1_000_000.0;
+
+/// A density value carried by a datapack field, range-checked at load.
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(try_from = "f64")]
+pub struct NoiseValue(pub f64);
+
+impl Hash for NoiseValue {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.to_le_bytes().hash(state);
+    }
+}
+
+impl Eq for NoiseValue {}
+
+impl TryFrom<f64> for NoiseValue {
+    type Error = String;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value.is_nan() || value.abs() > MAX_REASONABLE_NOISE_VALUE {
+            return Err(format!(
+                "Value must be within range [-{MAX_REASONABLE_NOISE_VALUE};{MAX_REASONABLE_NOISE_VALUE}]: {value}"
+            ));
+        }
+        Ok(NoiseValue(value))
+    }
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConstantValue {
+    pub value: NoiseValue,
+}
+
+impl From<f64> for ConstantValue {
+    #[inline]
+    fn from(value: f64) -> Self {
+        ConstantValue {
+            value: NoiseValue(value),
+        }
+    }
+}
+
+/// The tagged `minecraft:constant` carries `{"value": n}`, but a bare number is
+/// the shape every shipped asset uses and the only one vanilla ever writes.
+mod bare_value {
+    use super::{ConstantValue, NoiseValue};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S: Serializer>(
+        value: &ConstantValue,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        value.value.0.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<ConstantValue, D::Error> {
+        NoiseValue::deserialize(deserializer).map(|value| ConstantValue { value })
+    }
+}
+
 #[derive(Hash, PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(feature = "bevy", derive(bevy_asset::Asset, bevy_reflect::TypePath))]
 pub enum DensityFunctionHolder {
-    Value(HashableF64),
+    Value(#[serde(with = "bare_value")] ConstantValue),
     Reference(ResourceLocation),
     Owned(Box<ProtoDensityFunction>),
 }
@@ -57,8 +120,8 @@ pub enum ProtoDensityFunction {
     #[serde(alias = "interpolated", rename = "minecraft:interpolated")]
     Interpolated {
         input: DensityFunctionHolder,
-        cell_size_xz: u32,
-        cell_size_y: u32,
+        cell_size_xz: std::num::NonZeroU32,
+        cell_size_y: std::num::NonZeroU32,
     },
     #[serde(alias = "minecraft:cache")]
     Cache(SingleArgumentFunction),
@@ -79,8 +142,8 @@ pub enum ProtoDensityFunction {
     #[serde(rename = "minecraft:range_choice")]
     RangeChoice {
         input: DensityFunctionHolder,
-        min_inclusive: HashableF64,
-        max_exclusive: HashableF64,
+        min_inclusive: NoiseValue,
+        max_exclusive: NoiseValue,
         when_in_range: DensityFunctionHolder,
         when_out_of_range: DensityFunctionHolder,
     },
@@ -93,11 +156,7 @@ pub enum ProtoDensityFunction {
     #[serde(rename = "minecraft:blend_density", alias = "blend_density")]
     BlendDensity(SingleArgumentFunction),
     #[serde(alias = "minecraft:clamp")]
-    Clamp {
-        input: DensityFunctionHolder,
-        min: HashableF64,
-        max: HashableF64,
-    },
+    Clamp(ClampArguments),
     #[serde(alias = "minecraft:abs")]
     Abs(SingleArgumentFunction),
     #[serde(alias = "minecraft:square")]
@@ -145,17 +204,9 @@ pub enum ProtoDensityFunction {
     #[serde(alias = "minecraft:spline")]
     Spline { spline: SplineHolder },
     #[serde(alias = "minecraft:constant")]
-    Constant(HashableF64),
+    Constant(ConstantValue),
     #[serde(alias = "minecraft:gradient")]
-    Gradient {
-        axis: Axis,
-        #[serde(default)]
-        tiling: TilingMode,
-        from_coordinate: i32,
-        to_coordinate: i32,
-        from_value: HashableF64,
-        to_value: HashableF64,
-    },
+    Gradient(GradientArguments),
     #[serde(alias = "minecraft:lerp")]
     Lerp {
         alpha: DensityFunctionHolder,
@@ -169,11 +220,7 @@ pub enum ProtoDensityFunction {
         input: DensityFunctionHolder,
     },
     #[serde(alias = "minecraft:interval_select")]
-    IntervalSelect {
-        input: DensityFunctionHolder,
-        thresholds: Vec<HashableF64>,
-        functions: Vec<DensityFunctionHolder>,
-    },
+    IntervalSelect(IntervalSelectArguments),
     #[serde(alias = "minecraft:distance_to_point")]
     DistanceToPoint {
         point: [i32; 3],
@@ -184,8 +231,129 @@ pub enum ProtoDensityFunction {
         density: DensityFunctionHolder,
         upper_bound: DensityFunctionHolder,
         lower_bound: i32,
-        cell_height: u32,
+        cell_height: std::num::NonZeroU32,
     },
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, try_from = "UncheckedClamp")]
+pub struct ClampArguments {
+    pub input: DensityFunctionHolder,
+    pub min: NoiseValue,
+    pub max: NoiseValue,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UncheckedClamp {
+    input: DensityFunctionHolder,
+    min: NoiseValue,
+    max: NoiseValue,
+}
+
+impl TryFrom<UncheckedClamp> for ClampArguments {
+    type Error = String;
+
+    fn try_from(raw: UncheckedClamp) -> Result<Self, Self::Error> {
+        if raw.max.0 < raw.min.0 {
+            return Err(format!(
+                "min ({}) must be less than or equal to max ({})",
+                raw.min.0, raw.max.0
+            ));
+        }
+        Ok(ClampArguments {
+            input: raw.input,
+            min: raw.min,
+            max: raw.max,
+        })
+    }
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, try_from = "UncheckedGradient")]
+pub struct GradientArguments {
+    pub axis: Axis,
+    #[serde(default)]
+    pub tiling: TilingMode,
+    pub from_coordinate: i32,
+    pub to_coordinate: i32,
+    pub from_value: NoiseValue,
+    pub to_value: NoiseValue,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UncheckedGradient {
+    axis: Axis,
+    #[serde(default)]
+    tiling: TilingMode,
+    from_coordinate: i32,
+    to_coordinate: i32,
+    from_value: NoiseValue,
+    to_value: NoiseValue,
+}
+
+impl TryFrom<UncheckedGradient> for GradientArguments {
+    type Error = String;
+
+    fn try_from(raw: UncheckedGradient) -> Result<Self, Self::Error> {
+        if raw.from_coordinate == raw.to_coordinate {
+            return Err("from_coordinate cannot be equal to to_coordinate".to_string());
+        }
+        Ok(GradientArguments {
+            axis: raw.axis,
+            tiling: raw.tiling,
+            from_coordinate: raw.from_coordinate,
+            to_coordinate: raw.to_coordinate,
+            from_value: raw.from_value,
+            to_value: raw.to_value,
+        })
+    }
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, try_from = "UncheckedIntervalSelect")]
+pub struct IntervalSelectArguments {
+    pub input: DensityFunctionHolder,
+    pub thresholds: Vec<NoiseValue>,
+    pub functions: Vec<DensityFunctionHolder>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UncheckedIntervalSelect {
+    input: DensityFunctionHolder,
+    thresholds: Vec<NoiseValue>,
+    functions: Vec<DensityFunctionHolder>,
+}
+
+impl TryFrom<UncheckedIntervalSelect> for IntervalSelectArguments {
+    type Error = String;
+
+    fn try_from(raw: UncheckedIntervalSelect) -> Result<Self, Self::Error> {
+        if raw.functions.len() < 2 {
+            return Err(format!(
+                "List must have at least 2 elements: {}",
+                raw.functions.len()
+            ));
+        }
+        if raw.thresholds.len() != raw.functions.len() - 1 {
+            return Err(format!(
+                "Expected {} thresholds for {} functions, but got {}",
+                raw.functions.len() - 1,
+                raw.functions.len(),
+                raw.thresholds.len()
+            ));
+        }
+        if raw.thresholds.windows(2).any(|w| w[1].0 < w[0].0) {
+            return Err("Threshold values must be ordered from smallest to largest".to_string());
+        }
+        Ok(IntervalSelectArguments {
+            input: raw.input,
+            thresholds: raw.thresholds,
+            functions: raw.functions,
+        })
+    }
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
@@ -209,7 +377,60 @@ pub struct NoiseParam {
     #[cfg_attr(feature = "serde", serde(default = "NoiseParam::default_octave_count"))]
     pub octave_count: usize,
     #[cfg_attr(feature = "serde", serde(default))]
+    pub normalize: Normalization,
+    #[cfg_attr(feature = "serde", serde(default))]
     pub amplitude_modifiers: Vec<HashableF64>,
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, Default)]
+pub enum Normalization {
+    Disabled,
+    #[default]
+    Enabled,
+    Legacy,
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for Normalization {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Normalization::Disabled => serializer.serialize_bool(false),
+            Normalization::Enabled => serializer.serialize_bool(true),
+            Normalization::Legacy => serializer.serialize_str("legacy"),
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Normalization {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct NormalizationVisitor;
+
+        impl serde::de::Visitor<'_> for NormalizationVisitor {
+            type Value = Normalization;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a boolean or the string \"legacy\"")
+            }
+
+            fn visit_bool<E: serde::de::Error>(self, enabled: bool) -> Result<Normalization, E> {
+                Ok(if enabled {
+                    Normalization::Enabled
+                } else {
+                    Normalization::Disabled
+                })
+            }
+
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Normalization, E> {
+                match value {
+                    "legacy" => Ok(Normalization::Legacy),
+                    other => Err(E::custom(format!("Invalid normalization type: {other}"))),
+                }
+            }
+        }
+
+        deserializer.deserialize_any(NormalizationVisitor)
+    }
 }
 
 impl NoiseParam {
@@ -294,7 +515,7 @@ pub struct RoundFunctionArguments {
 
 impl RoundFunctionArguments {
     fn default_multiple() -> DensityFunctionHolder {
-        DensityFunctionHolder::Value(HashableF64(1.0))
+        DensityFunctionHolder::Value(ConstantValue::from(1.0))
     }
 }
 
@@ -316,10 +537,34 @@ pub enum SplineHolder {
 
 #[derive(Hash, Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+#[cfg_attr(
+    feature = "serde",
+    serde(deny_unknown_fields, try_from = "UncheckedSpline")
+)]
 pub struct Spline {
     pub coordinate: DensityFunctionHolder,
     pub points: Vec<SplinePoint>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UncheckedSpline {
+    coordinate: DensityFunctionHolder,
+    points: Vec<SplinePoint>,
+}
+
+impl TryFrom<UncheckedSpline> for Spline {
+    type Error = String;
+
+    fn try_from(raw: UncheckedSpline) -> Result<Self, Self::Error> {
+        if raw.points.is_empty() {
+            return Err("List must have contents".to_string());
+        }
+        Ok(Spline {
+            coordinate: raw.coordinate,
+            points: raw.points,
+        })
+    }
 }
 
 #[derive(Hash, Clone, Eq, PartialEq, Debug)]
@@ -334,7 +579,7 @@ pub struct SplinePoint {
 pub trait Visitor {
     fn visit_density_function_holder(&mut self, function: &DensityFunctionHolder) {
         match function {
-            DensityFunctionHolder::Value(v) => self.visit_constant(v.0),
+            DensityFunctionHolder::Value(v) => self.visit_constant(v.value.0),
             DensityFunctionHolder::Reference(r) => self.visit_reference(r),
             DensityFunctionHolder::Owned(f) => self.visit_density_function(f),
         }
@@ -403,9 +648,7 @@ pub trait Visitor {
             ProtoDensityFunction::ShiftB { noise } => self.visit_shift_b(noise),
             ProtoDensityFunction::Shift { noise } => self.visit_shift(noise),
             ProtoDensityFunction::BlendDensity(x) => self.visit_blend_density(x),
-            ProtoDensityFunction::Clamp { input, min, max } => {
-                self.visit_clamp(input, min.0, max.0)
-            }
+            ProtoDensityFunction::Clamp(x) => self.visit_clamp(&x.input, x.min.0, x.max.0),
             ProtoDensityFunction::Abs(x) => self.visit_abs(x),
             ProtoDensityFunction::Square(x) => self.visit_square(x),
             ProtoDensityFunction::Cube(x) => self.visit_cube(x),
@@ -429,21 +672,14 @@ pub trait Visitor {
             ProtoDensityFunction::Min(x) => self.visit_min(x),
             ProtoDensityFunction::Max(x) => self.visit_max(x),
             ProtoDensityFunction::Spline { spline } => self.visit_spline(spline),
-            ProtoDensityFunction::Constant(x) => self.visit_constant(x.0),
-            ProtoDensityFunction::Gradient {
-                axis,
-                tiling,
-                from_coordinate,
-                to_coordinate,
-                from_value,
-                to_value,
-            } => self.visit_gradient(
-                *axis,
-                *tiling,
-                *from_coordinate,
-                *to_coordinate,
-                from_value.0,
-                to_value.0,
+            ProtoDensityFunction::Constant(x) => self.visit_constant(x.value.0),
+            ProtoDensityFunction::Gradient(x) => self.visit_gradient(
+                x.axis,
+                x.tiling,
+                x.from_coordinate,
+                x.to_coordinate,
+                x.from_value.0,
+                x.to_value.0,
             ),
             ProtoDensityFunction::Lerp {
                 alpha,
@@ -455,11 +691,9 @@ pub trait Visitor {
                 coordinate,
                 input,
             } => self.visit_slice(*axis, *coordinate, input),
-            ProtoDensityFunction::IntervalSelect {
-                input,
-                thresholds,
-                functions,
-            } => self.visit_interval_select(input, thresholds, functions),
+            ProtoDensityFunction::IntervalSelect(x) => {
+                self.visit_interval_select(&x.input, &x.thresholds, &x.functions)
+            }
             ProtoDensityFunction::DistanceToPoint { point, metric } => {
                 self.visit_distance_to_point(*point, *metric)
             }
@@ -498,8 +732,8 @@ pub trait Visitor {
     fn visit_interpolated(
         &mut self,
         input: &DensityFunctionHolder,
-        cell_size_xz: u32,
-        cell_size_y: u32,
+        cell_size_xz: std::num::NonZeroU32,
+        cell_size_y: std::num::NonZeroU32,
     ) {
         self.visit_density_function_holder(input)
     }
@@ -654,7 +888,7 @@ pub trait Visitor {
     fn visit_interval_select(
         &mut self,
         input: &DensityFunctionHolder,
-        thresholds: &[HashableF64],
+        thresholds: &[NoiseValue],
         functions: &[DensityFunctionHolder],
     ) {
         self.visit_density_function_holder(input);
@@ -669,7 +903,7 @@ pub trait Visitor {
         density: &DensityFunctionHolder,
         upper_bound: &DensityFunctionHolder,
         lower_bound: i32,
-        cell_height: u32,
+        cell_height: std::num::NonZeroU32,
     ) {
         self.visit_density_function_holder(density);
         self.visit_density_function_holder(upper_bound);
@@ -735,9 +969,10 @@ impl ProtoDensityFunction {
             | ShiftB { .. }
             | Shift { .. }
             | Constant(_)
-            | Gradient { .. }
+            | Gradient(_)
             | DistanceToPoint { .. } => {}
-            Interpolated { input, .. } | Clamp { input, .. } | Slice { input, .. } => f(input),
+            Interpolated { input, .. } | Slice { input, .. } => f(input),
+            Clamp(x) => f(&x.input),
             Cache(x) | BlendDensity(x) | Abs(x) | Square(x) | Cube(x) | HalfNegative(x)
             | QuarterNegative(x) | Reciprocal(x) | Negate(x) | Squeeze(x) | Sqrt(x) | Log(x)
             | Sign(x) => f(&x.input),
@@ -783,11 +1018,9 @@ impl ProtoDensityFunction {
                 f(first);
                 f(second);
             }
-            IntervalSelect {
-                input, functions, ..
-            } => {
-                f(input);
-                for function in functions {
+            IntervalSelect(x) => {
+                f(&x.input);
+                for function in &x.functions {
                     f(function);
                 }
             }
@@ -814,9 +1047,10 @@ impl ProtoDensityFunction {
             | ShiftB { .. }
             | Shift { .. }
             | Constant(_)
-            | Gradient { .. }
+            | Gradient(_)
             | DistanceToPoint { .. } => {}
-            Interpolated { input, .. } | Clamp { input, .. } | Slice { input, .. } => f(input),
+            Interpolated { input, .. } | Slice { input, .. } => f(input),
+            Clamp(x) => f(&mut x.input),
             Cache(x) | BlendDensity(x) | Abs(x) | Square(x) | Cube(x) | HalfNegative(x)
             | QuarterNegative(x) | Reciprocal(x) | Negate(x) | Squeeze(x) | Sqrt(x) | Log(x)
             | Sign(x) => f(&mut x.input),
@@ -862,11 +1096,9 @@ impl ProtoDensityFunction {
                 f(first);
                 f(second);
             }
-            IntervalSelect {
-                input, functions, ..
-            } => {
-                f(input);
-                for function in functions {
+            IntervalSelect(x) => {
+                f(&mut x.input);
+                for function in &mut x.functions {
                     f(function);
                 }
             }
@@ -892,7 +1124,7 @@ impl ProtoDensityFunction {
             BlendAlpha | BlendOffset | Beardifier | Constant(_) => 0,
             OldBlendedNoise { .. } | Shift { .. } | DistanceToPoint { .. } => ALL_AXES,
             ShiftA { .. } | ShiftB { .. } | EndOuterIslands => AXIS_X | AXIS_Z,
-            Gradient { axis, .. } => axis.bit(),
+            Gradient(x) => x.axis.bit(),
             Noise {
                 xz_scale, y_scale, ..
             } => children() | noise_scale_axes(xz_scale.0, y_scale.0),
@@ -970,7 +1202,7 @@ pub fn is_uniform_axis_slice_leaf(function: &DensityFunctionHolder) -> bool {
         DensityFunctionHolder::Value(_) => true,
         DensityFunctionHolder::Owned(f) => matches!(
             **f,
-            ProtoDensityFunction::Constant(_) | ProtoDensityFunction::Gradient { .. }
+            ProtoDensityFunction::Constant(_) | ProtoDensityFunction::Gradient(_)
         ),
         DensityFunctionHolder::Reference(_) => false,
     }
@@ -1015,5 +1247,131 @@ impl RewriteRule for SliceUniformAxes {
         }
         let rewritten = function.rewrite_children(&SliceUniformAxes { parent_axes: axes });
         slice_at_origin(rewritten, self.parent_axes & !axes)
+    }
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod validation_tests {
+    use super::{DensityFunctionHolder, NoiseParam, Normalization, ProtoDensityFunction};
+
+    fn rejects(json: &str) -> String {
+        match serde_json::from_str::<ProtoDensityFunction>(json) {
+            Ok(parsed) => panic!("{json} must not parse, but gave {parsed:?}"),
+            Err(e) => e.to_string(),
+        }
+    }
+
+    #[test]
+    fn a_tagged_constant_round_trips_as_an_object() {
+        let parsed: ProtoDensityFunction =
+            serde_json::from_str(r#"{"type":"minecraft:constant","value":1.5}"#).unwrap();
+        let reencoded = serde_json::to_string(&parsed).unwrap();
+        assert_eq!(
+            serde_json::from_str::<ProtoDensityFunction>(&reencoded).unwrap(),
+            parsed
+        );
+    }
+
+    #[test]
+    fn a_bare_constant_round_trips_as_a_number() {
+        let parsed: DensityFunctionHolder = serde_json::from_str("1.5").unwrap();
+        assert_eq!(serde_json::to_string(&parsed).unwrap(), "1.5");
+    }
+
+    #[test]
+    fn a_clamp_cannot_invert_its_bounds() {
+        assert!(
+            rejects(r#"{"type":"clamp","input":0.0,"min":1.0,"max":-1.0}"#).contains("less than")
+        );
+    }
+
+    #[test]
+    fn a_clamp_cannot_leave_the_reasonable_noise_range() {
+        rejects(r#"{"type":"clamp","input":0.0,"min":-2000000.0,"max":1.0}"#);
+        rejects(r#"{"type":"clamp","input":0.0,"min":-1.0,"max":2000000.0}"#);
+    }
+
+    #[test]
+    fn a_gradient_cannot_span_a_single_coordinate() {
+        assert!(
+            rejects(
+                r#"{"type":"gradient","axis":"y","from_coordinate":4,"to_coordinate":4,"from_value":0.0,"to_value":1.0}"#
+            )
+            .contains("to_coordinate")
+        );
+    }
+
+    #[test]
+    fn find_top_surface_cannot_take_a_zero_cell_height() {
+        rejects(
+            r#"{"type":"find_top_surface","density":0.0,"upper_bound":1.0,"lower_bound":0,"cell_height":0}"#,
+        );
+    }
+
+    #[test]
+    fn interpolated_cannot_take_a_zero_cell_size() {
+        rejects(r#"{"type":"interpolated","input":0.0,"cell_size_xz":0,"cell_size_y":8}"#);
+        rejects(r#"{"type":"interpolated","input":0.0,"cell_size_xz":4,"cell_size_y":0}"#);
+    }
+
+    #[test]
+    fn a_spline_cannot_be_empty() {
+        rejects(r#"{"type":"spline","spline":{"coordinate":0.0,"points":[]}}"#);
+    }
+
+    #[test]
+    fn interval_select_thresholds_must_match_the_branches() {
+        assert!(
+            rejects(
+                r#"{"type":"interval_select","input":0.0,"thresholds":[0.0,1.0],"functions":[1.0,2.0]}"#
+            )
+            .contains("thresholds")
+        );
+        rejects(r#"{"type":"interval_select","input":0.0,"thresholds":[],"functions":[1.0]}"#);
+    }
+
+    #[test]
+    fn interval_select_thresholds_must_increase() {
+        assert!(
+            rejects(
+                r#"{"type":"interval_select","input":0.0,"thresholds":[1.0,0.0],"functions":[1.0,2.0,3.0]}"#
+            )
+            .contains("ordered")
+        );
+    }
+
+    #[test]
+    fn noise_normalization_round_trips_all_three_shapes() {
+        for (json, expected) in [
+            (
+                r#"{"base_octave":-7,"normalize":false}"#,
+                Normalization::Disabled,
+            ),
+            (
+                r#"{"base_octave":-7,"normalize":true}"#,
+                Normalization::Enabled,
+            ),
+            (
+                r#"{"base_octave":-7,"normalize":"legacy"}"#,
+                Normalization::Legacy,
+            ),
+        ] {
+            let parsed: NoiseParam = serde_json::from_str(json).unwrap();
+            assert_eq!(parsed.normalize, expected);
+            let reencoded = serde_json::to_string(&parsed).unwrap();
+            assert_eq!(
+                serde_json::from_str::<NoiseParam>(&reencoded)
+                    .unwrap()
+                    .normalize,
+                expected
+            );
+        }
+        assert_eq!(
+            serde_json::from_str::<NoiseParam>(r#"{"base_octave":-7}"#)
+                .unwrap()
+                .normalize,
+            Normalization::Enabled
+        );
+        serde_json::from_str::<NoiseParam>(r#"{"base_octave":-7,"normalize":"nope"}"#).unwrap_err();
     }
 }

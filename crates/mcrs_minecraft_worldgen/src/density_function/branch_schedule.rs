@@ -1,4 +1,4 @@
-use super::{DensityFunctionComponent, DependentDensityFunction};
+use super::{DensityFunctionComponent, DependentDensityFunction, Sampler};
 
 pub(crate) const MAX_GUARD_DEPTH: usize = 8;
 
@@ -58,8 +58,8 @@ struct Cone {
 }
 
 fn range_choice(stack: &[DensityFunctionComponent], i: usize) -> Option<&super::RangeChoice> {
-    match &stack[i] {
-        DensityFunctionComponent::Dependent(DependentDensityFunction::RangeChoice(rc)) => Some(rc),
+    match &stack[i].sampler {
+        Sampler::Dependent(DependentDensityFunction::RangeChoice(rc)) => Some(rc),
         _ => None,
     }
 }

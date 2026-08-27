@@ -25,14 +25,6 @@ pub fn can_replace_block(config: &BetaCaveCarverConfig, state: VoxelId) -> bool 
     state == config.stone_state || state == config.dirt_state || state == config.grass_state
 }
 
-pub fn get_carve_state(config: &BetaCaveCarverConfig, world_y: i32) -> VoxelId {
-    if world_y < config.lava_level {
-        config.lava_state
-    } else {
-        config.air_state
-    }
-}
-
 /// Returns false if carving should be aborted due to water adjacency.
 ///
 /// Ports MapGenCaves water-abort scan (lines 98–113): outer Y-loop from j2+1 down

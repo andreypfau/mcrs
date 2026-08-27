@@ -147,7 +147,7 @@ impl<C, F: SplineFunction<C>> CubicSpline<C, F> {
                 let max_value = max_left.max(max_right);
                 let min_delta_left = max_value_delta_left - max_right + min_left;
                 let max_delta_left = max_value_delta_left - min_right + max_left;
-                let min_delta_right = -max_value_delta_right + min_right - min_left;
+                let min_delta_right = -max_value_delta_right + min_right - max_left;
                 let max_delta_right = -max_value_delta_right + max_right - min_left;
                 let min_delta = min_delta_left.min(min_delta_right);
                 let max_delta = max_delta_left.max(max_delta_right);

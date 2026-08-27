@@ -101,16 +101,6 @@ impl WorldGenConfig {
         }
     }
 
-    /// Returns the Bevy asset path for the active world preset JSON.
-    ///
-    /// Format: `{namespace}/worldgen/world_preset/{path}.json`
-    pub fn preset_asset_path(&self) -> String {
-        format!(
-            "{}/worldgen/world_preset/{}.json",
-            self.preset_namespace, self.preset_path
-        )
-    }
-
     /// Returns the Bevy asset path for the overworld noise settings JSON.
     ///
     /// Format: `{namespace}/worldgen/noise_settings/{path}.json`
