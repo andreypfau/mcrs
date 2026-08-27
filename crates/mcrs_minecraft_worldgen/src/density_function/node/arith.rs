@@ -537,8 +537,7 @@ two_input_samplers! {
     Add, a, b => a + b;
     Sub, a, b => a - b;
     Mul, a, b => a * b;
-    /// A zero numerator short-circuits, so a zero divisor cannot leak a NaN.
-    Div, a, b => if a == 0.0 { 0.0 } else { a / b };
+    Div, a, b => a / b;
     Min, a, b => a.min(b);
     Max, a, b => a.max(b);
     Pow, a, b => pow_narrowed(a, b);
@@ -551,9 +550,8 @@ one_input_samplers! {
     Negate, v => -v;
     Reciprocal, v => 1.0 / v;
     Sqrt, v => v.sqrt();
-    Log, v => (v as f64).ln() as f32;
-    /// Unlike `f32::signum`, zero and NaN come back unchanged.
-    Sign, v => if v > 0.0 { 1.0 } else if v < 0.0 { -1.0 } else { v };
+    Log, v => v.ln();
+    Sign, v => v.signum();
     Squeeze, v => {
         let clamped = v.clamp(-1.0, 1.0);
         clamped / 2.0 - clamped.powi(3) / 24.0
