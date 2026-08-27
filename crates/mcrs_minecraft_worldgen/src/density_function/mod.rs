@@ -116,13 +116,7 @@ fn unary_range(operation: UnaryOperation, min: f32, max: f32) -> (f32, f32) {
     let min_image = operation.apply(min);
     let max_image = operation.apply(max);
     match operation {
-        UnaryOperation::Reciprocal => {
-            if min < 0.0 && max > 0.0 {
-                (f32::NEG_INFINITY, f32::INFINITY)
-            } else {
-                (max_image, min_image)
-            }
-        }
+        UnaryOperation::Reciprocal => reciprocal_range(min, max),
         UnaryOperation::Abs | UnaryOperation::Square => {
             if min >= 0.0 {
                 (min_image, max_image)
