@@ -187,6 +187,8 @@ pub struct ColumnCache {
     zone_a_count: usize,
     pub(crate) base_block_x: i32,
     pub(crate) base_block_z: i32,
+    /// Spacing of the populated positions; only multiples of it hold real values.
+    step: i32,
     /// Scratch buffer (len == stack.len()), reused per `final_density_from_column_cache` call.
     pub scratch: Vec<f32>,
     /// Interval scratch (len == stack.len()) for `final_density_cell_bounds`.
@@ -209,25 +211,42 @@ pub struct ColumnCache {
 impl ColumnCache {
     const GRID_SIDE: i32 = 17;
 
+    #[inline]
+    fn offset_of(&self, local_x: i32, local_z: i32) -> Option<usize> {
+        let on_lattice =
+            |v: i32| v >= 0 && v < Self::GRID_SIDE && v.rem_euclid(self.step) == 0;
+        (on_lattice(local_x) && on_lattice(local_z))
+            .then(|| (local_x * Self::GRID_SIDE + local_z) as usize * self.zone_a_count)
+    }
+
+    /// All Zone A values at (local_x, local_z), or `None` for a position the
+    /// column pass never visited.
+    #[inline]
+    pub fn column_values(&self, local_x: i32, local_z: i32) -> Option<&[f32]> {
+        self.offset_of(local_x, local_z)
+            .map(|off| &self.column_data[off..off + self.zone_a_count])
+    }
+
     /// One column-invariant value at (local_x, local_z) without loading the whole
     /// column. Only entries below the column boundary are in the grid; screening
     /// the index with `NoiseRouter::is_column_entry` is the caller's job, because
     /// doing it here measured at 7% of the Beta chunk fill.
     #[inline]
-    pub fn read_za_value(&self, local_x: i32, local_z: i32, za_index: usize) -> f32 {
+    pub fn read_za_value(&self, local_x: i32, local_z: i32, za_index: usize) -> Option<f32> {
         debug_assert!(
             za_index < self.zone_a_count,
             "entry {za_index} is not in the column grid"
         );
-        let xz_idx = (local_x * Self::GRID_SIDE + local_z) as usize;
-        self.column_data[xz_idx * self.zone_a_count + za_index]
+        self.column_values(local_x, local_z)
+            .map(|column| column[za_index])
     }
 
     /// Load pre-computed Zone A values for the given local (x, z) into scratch[0..zone_a_count).
     #[inline]
     pub fn load_column(&mut self, local_x: i32, local_z: i32) {
-        let xz_idx = (local_x * Self::GRID_SIDE + local_z) as usize;
-        let off = xz_idx * self.zone_a_count;
+        let off = self
+            .offset_of(local_x, local_z)
+            .expect("column position is not on the populated lattice");
         self.scratch[..self.zone_a_count]
             .copy_from_slice(&self.column_data[off..off + self.zone_a_count]);
     }
@@ -421,6 +440,7 @@ impl NoiseRouter {
             zone_a_count: self.column_boundary,
             base_block_x,
             base_block_z,
+            step: self.h_cell_blocks as i32,
             scratch: vec![0.0f32; self.stack.len()],
             bounds_scratch: vec![(0.0f32, 0.0f32); self.stack.len()],
             #[cfg(feature = "batch-noise")]
@@ -440,7 +460,7 @@ impl NoiseRouter {
     pub fn populate_columns(&self, cache: &mut ColumnCache) {
         let zone_a_count = cache.zone_a_count;
         let grid_side = ColumnCache::GRID_SIDE;
-        let step = self.h_cell_blocks as i32;
+        let step = cache.step;
         let corners = (16 / step) + 1; // h_cells + 1
         for cx in 0..corners {
             let local_x = cx * step;
@@ -465,29 +485,25 @@ impl NoiseRouter {
 
     /// Read post-processed (temperature, humidity) for a column position from Zone A cache.
     ///
-    /// Returns (0.0, 0.0) outside the cached grid. Only a router whose climate
-    /// roots are column entries can answer at all — the modern router's are not,
-    /// and it reaches its climate through `evaluate_forward` instead.
+    /// Returns (0.0, 0.0) for a position the column pass never visited. Only a
+    /// router whose climate roots are column entries can answer at all — the
+    /// modern router's are not, and it reaches its climate through
+    /// `evaluate_forward` instead.
     pub fn sample_climate_at(&self, cache: &ColumnCache, block_x: i32, block_z: i32) -> (f32, f32) {
-        let base_x = cache.base_block_x;
-        let base_z = cache.base_block_z;
-        let local_x = block_x - base_x;
-        let local_z = block_z - base_z;
-        if local_x < 0
-            || local_z < 0
-            || local_x >= ColumnCache::GRID_SIDE
-            || local_z >= ColumnCache::GRID_SIDE
-        {
+        let local_x = block_x - cache.base_block_x;
+        let local_z = block_z - cache.base_block_z;
+        let Some(column) = cache.column_values(local_x, local_z) else {
             return (0.0, 0.0);
-        }
+        };
         debug_assert!(
             self.is_column_entry(self.temperature_index)
                 && self.is_column_entry(self.vegetation_index),
             "this router's climate roots are not in the column grid"
         );
-        let temperature = cache.read_za_value(local_x, local_z, self.temperature_index);
-        let humidity = cache.read_za_value(local_x, local_z, self.vegetation_index);
-        (temperature, humidity)
+        (
+            column[self.temperature_index],
+            column[self.vegetation_index],
+        )
     }
 
     /// Return the f64 Beta terrain noises, if this is a Beta router.
