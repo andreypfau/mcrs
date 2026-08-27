@@ -60,7 +60,7 @@ fn is_y_dependent_kind(c: &DensityFunctionComponent) -> bool {
                 | IndependentDensityFunction::Noise(_)
                 | IndependentDensityFunction::ClampedYGradient(_)
                 | IndependentDensityFunction::Gradient(_)
-                | IndependentDensityFunction::EndOuterIslands
+                | IndependentDensityFunction::EndOuterIslands(_)
         ),
         DensityFunctionComponent::Dependent(f) => matches!(
             f,
@@ -732,7 +732,7 @@ fn kind_name(c: &DensityFunctionComponent) -> &'static str {
             IndependentDensityFunction::ClampedYGradient(_) => "ClampedYGradient",
             IndependentDensityFunction::Gradient(_) => "Gradient",
             IndependentDensityFunction::DistanceToPoint(_) => "DistanceToPoint",
-            IndependentDensityFunction::EndOuterIslands => "EndOuterIslands",
+            IndependentDensityFunction::EndOuterIslands(_) => "EndOuterIslands",
         },
         DensityFunctionComponent::Dependent(f) => match f {
             DependentDensityFunction::Linear(_) => "Linear",

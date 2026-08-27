@@ -8,6 +8,7 @@ use crate::density_function::proto::{
 };
 use crate::noise::normal_noise::NoiseSampler;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
+use crate::noise::simplex::SimplexNoise;
 use crate::proto::NoiseGeneratorSettings;
 use crate::spline::{RangeFunction, SplineFunction};
 use bevy_math::{Curve, FloatExt, IVec3};
@@ -19,6 +20,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Formatter};
 use std::mem::swap;
 use std::ops::Index;
+use std::sync::Arc;
 use tracing::info;
 
 pub mod beta_seed;
@@ -2402,6 +2404,68 @@ impl DensityFunction for ClampedYGradient {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+struct EndIslands {
+    noise: Arc<SimplexNoise>,
+}
+
+impl EndIslands {
+    fn new(world_seed: u64) -> Self {
+        let mut random = LegacyRandom::new(world_seed);
+        for _ in 0..17292 {
+            random.next_i32();
+        }
+        Self {
+            noise: Arc::new(SimplexNoise::from_random_at_origin(&mut random)),
+        }
+    }
+
+    fn height(&self, section_x: i32, section_z: i32) -> f32 {
+        let chunk_x = section_x / 2;
+        let chunk_z = section_z / 2;
+        let sub_x = (section_x % 2) as f32;
+        let sub_z = (section_z % 2) as f32;
+        let mut height = -100.0f32;
+        for offset_x in -12..=12 {
+            for offset_z in -12..=12 {
+                let cell_x = (chunk_x + offset_x) as i64;
+                let cell_z = (chunk_z + offset_z) as i64;
+                if cell_x * cell_x + cell_z * cell_z <= 4096 {
+                    continue;
+                }
+                // vanilla narrows the simplex value to f32 before the threshold test
+                if self.noise.sample(cell_x as f64, cell_z as f64, 1.0, 1.0) as f32 >= -0.9 {
+                    continue;
+                }
+                let island_size =
+                    ((cell_x as f32).abs() * 3439.0 + (cell_z as f32).abs() * 147.0) % 13.0 + 9.0;
+                let dx = sub_x - (offset_x * 2) as f32;
+                let dz = sub_z - (offset_z * 2) as f32;
+                let candidate =
+                    (100.0 - (dx * dx + dz * dz).sqrt() * island_size).clamp(-100.0, 80.0);
+                height = height.max(candidate);
+            }
+        }
+        height
+    }
+}
+
+impl RangeFunction for EndIslands {
+    fn min_value(&self) -> f32 {
+        -0.84375
+    }
+
+    fn max_value(&self) -> f32 {
+        0.5625
+    }
+}
+
+impl DensityFunction for EndIslands {
+    fn sample(&self, _stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+        (self.height(pos.x / 8, pos.z / 8) - 8.0) / 128.0
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 enum IndependentDensityFunction {
     Constant(f32),
     OldBlendedNoise(OldBlendedNoise),
@@ -2412,7 +2476,7 @@ enum IndependentDensityFunction {
     ClampedYGradient(ClampedYGradient),
     Gradient(Gradient),
     DistanceToPoint(DistanceToPoint),
-    EndOuterIslands,
+    EndOuterIslands(EndIslands),
 }
 
 impl RangeFunction for IndependentDensityFunction {
@@ -2427,7 +2491,7 @@ impl RangeFunction for IndependentDensityFunction {
             IndependentDensityFunction::ClampedYGradient(x) => x.min_value(),
             IndependentDensityFunction::Gradient(x) => x.min_value(),
             IndependentDensityFunction::DistanceToPoint(x) => x.min_value(),
-            IndependentDensityFunction::EndOuterIslands => -0.84375,
+            IndependentDensityFunction::EndOuterIslands(x) => x.min_value(),
         }
     }
 
@@ -2442,7 +2506,7 @@ impl RangeFunction for IndependentDensityFunction {
             IndependentDensityFunction::ClampedYGradient(x) => x.max_value(),
             IndependentDensityFunction::Gradient(x) => x.max_value(),
             IndependentDensityFunction::DistanceToPoint(x) => x.max_value(),
-            IndependentDensityFunction::EndOuterIslands => 0.5625,
+            IndependentDensityFunction::EndOuterIslands(x) => x.max_value(),
         }
     }
 }
@@ -2459,10 +2523,7 @@ impl DensityFunction for IndependentDensityFunction {
             IndependentDensityFunction::ClampedYGradient(x) => x.sample(stack, pos),
             IndependentDensityFunction::Gradient(x) => x.sample(stack, pos),
             IndependentDensityFunction::DistanceToPoint(x) => x.sample(stack, pos),
-            IndependentDensityFunction::EndOuterIslands => {
-                // TODO: implement proper end islands noise sampling
-                0.0
-            }
+            IndependentDensityFunction::EndOuterIslands(x) => x.sample(stack, pos),
         }
     }
 }
@@ -3851,7 +3912,7 @@ impl DensityFunctionComponent {
                 IndependentDensityFunction::ClampedYGradient(x) => x.sample(&[], pos),
                 IndependentDensityFunction::Gradient(x) => x.sample(&[], pos),
                 IndependentDensityFunction::DistanceToPoint(x) => x.sample(&[], pos),
-                IndependentDensityFunction::EndOuterIslands => 0.0,
+                IndependentDensityFunction::EndOuterIslands(x) => x.sample(&[], pos),
             },
             DensityFunctionComponent::Dependent(f) => match f {
                 DependentDensityFunction::Linear(x) => {
@@ -3962,11 +4023,63 @@ pub fn lerp(delta: f32, start: f32, end: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{BlendedNoise, OldBlendedNoise, RangeFunction};
+    use super::{BlendedNoise, EndIslands, OldBlendedNoise, RangeFunction};
+    use bevy_math::IVec3;
     use crate::density_function::DensityFunction;
     use crate::density_function::beta_seed::seed_beta_terrain;
     use crate::proto::NoiseGeneratorSettings;
     use mcrs_minecraft_random::RandomSource;
+
+    #[test]
+    fn end_outer_islands_matches_the_vanilla_oracle() {
+        const EXPECTED: &[(u64, i32, i32, u32)] = &[
+            (0, 0, 0, 0xbf58_0000),
+            (0, 16, 16, 0xbf58_0000),
+            (0, -16, -16, 0xbf58_0000),
+            (0, 1000, 1000, 0x3e24_e8e8),
+            (0, -1234, 5678, 0x3f10_0000),
+            (0, 2000, -40, 0xbe9e_1e2c),
+            (0, 123, -457, 0xbf58_0000),
+            (0, 50000, 50000, 0xbd8f_4978),
+            (42, 0, 0, 0xbf58_0000),
+            (42, 16, 16, 0xbf58_0000),
+            (42, -16, -16, 0xbf58_0000),
+            (42, 1000, 1000, 0xbf11_75ce),
+            (42, -1234, 5678, 0xbe3c_9478),
+            (42, 2000, -40, 0xbf40_9450),
+            (42, 123, -457, 0xbf58_0000),
+            (42, 50000, 50000, 0xbdf7_af08),
+            (845, 0, 0, 0xbf58_0000),
+            (845, 16, 16, 0xbf58_0000),
+            (845, -16, -16, 0xbf58_0000),
+            (845, 1000, 1000, 0x3b9c_5800),
+            (845, -1234, 5678, 0xbd4f_a270),
+            (845, 2000, -40, 0xbdbc_6170),
+            (845, 123, -457, 0xbf58_0000),
+            (845, 50000, 50000, 0x3eab_39dc),
+        ];
+
+        let mut islands: Option<(u64, EndIslands)> = None;
+        for &(seed, x, z, expected) in EXPECTED {
+            let function = match &islands {
+                Some((s, f)) if *s == seed => f,
+                _ => {
+                    islands = Some((seed, EndIslands::new(seed)));
+                    &islands.as_ref().unwrap().1
+                }
+            };
+            for y in [-64, 0, 200] {
+                let actual = function.sample(&[], IVec3::new(x, y, z));
+                assert_eq!(
+                    actual.to_bits(),
+                    expected,
+                    "seed {seed} at ({x}, {y}, {z}): got {actual}"
+                );
+            }
+            let value = f32::from_bits(expected);
+            assert!((function.min_value()..=function.max_value()).contains(&value));
+        }
+    }
 
     #[test]
     fn modern_blended_noise_unchanged() {

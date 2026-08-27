@@ -598,7 +598,7 @@ pub(super) fn compute_domain_axes(stack: &[DensityFunctionComponent]) -> Vec<u8>
                 IndependentDensityFunction::Noise(n) => noise_scale_axes(n.xz_scale, n.y_scale),
                 IndependentDensityFunction::ShiftA(_)
                 | IndependentDensityFunction::ShiftB(_)
-                | IndependentDensityFunction::EndOuterIslands => AXIS_X | AXIS_Z,
+                | IndependentDensityFunction::EndOuterIslands(_) => AXIS_X | AXIS_Z,
                 IndependentDensityFunction::ClampedYGradient(_) => AXIS_Y,
                 IndependentDensityFunction::Gradient(g) => g.axis.bit(),
             },
@@ -1423,7 +1423,9 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     fn visit_end_outer_islands(&mut self) {
         self.register_component(
             ProtoDensityFunction::EndOuterIslands,
-            DensityFunctionComponent::Independent(IndependentDensityFunction::EndOuterIslands),
+            DensityFunctionComponent::Independent(IndependentDensityFunction::EndOuterIslands(
+                EndIslands::new(self.world_seed),
+            )),
         );
     }
 

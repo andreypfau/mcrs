@@ -56,6 +56,17 @@ impl SimplexNoise {
         }
     }
 
+    /// Vanilla's `new SimplexNoise(random, true)`: the three origin draws still happen,
+    /// but are scaled by zero.
+    pub fn from_random_at_origin<T: Random>(random: &mut T) -> Self {
+        Self {
+            origin_x: 0.0,
+            origin_y: 0.0,
+            origin_z: 0.0,
+            ..Self::from_random(random)
+        }
+    }
+
     #[inline(always)]
     fn map(&self, input: i32) -> i32 {
         self.permutation[(input & 0xFF) as usize] as i32
