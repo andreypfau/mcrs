@@ -65,16 +65,21 @@ fn mul_range(min1: f32, max1: f32, min2: f32, max2: f32) -> (f32, f32) {
 // A negative base with a non-constant exponent falls back to the trivial
 // interval rather than analysing sign alternation. Ranges are only ever used to
 // prove work redundant, so a wider interval costs speed, never parity.
+#[inline]
+fn pow_narrowed(base: f32, exponent: f32) -> f32 {
+    (base as f64).powf(exponent as f64) as f32
+}
+
 fn pow_range(base: (f32, f32), exponent: (f32, f32)) -> (f32, f32) {
     let is_constant = base.0 == base.1 && exponent.0 == exponent.1;
     if base.0 < 0.0 && !is_constant {
         return (f32::NEG_INFINITY, f32::INFINITY);
     }
     let corners = [
-        base.0.powf(exponent.0),
-        base.0.powf(exponent.1),
-        base.1.powf(exponent.0),
-        base.1.powf(exponent.1),
+        pow_narrowed(base.0, exponent.0),
+        pow_narrowed(base.0, exponent.1),
+        pow_narrowed(base.1, exponent.0),
+        pow_narrowed(base.1, exponent.1),
     ];
     if corners.iter().any(|v| v.is_nan()) {
         return (f32::NEG_INFINITY, f32::INFINITY);
@@ -2852,7 +2857,7 @@ impl UnaryOperation {
                 clamped / 2.0 - clamped.powi(3) / 24.0
             }
             UnaryOperation::Sqrt => value.sqrt(),
-            UnaryOperation::Log => value.ln(),
+            UnaryOperation::Log => (value as f64).ln() as f32,
             // Unlike f32::signum, zero and NaN come back unchanged.
             UnaryOperation::Sign => {
                 if value == 0.0 || value.is_nan() {
@@ -3610,7 +3615,7 @@ impl BinaryOperation {
             }
             BinaryOperation::Min => a.min(b),
             BinaryOperation::Max => a.max(b),
-            BinaryOperation::Pow => a.powf(b),
+            BinaryOperation::Pow => pow_narrowed(a, b),
             BinaryOperation::Round(mode) => {
                 if b == 0.0 {
                     a
