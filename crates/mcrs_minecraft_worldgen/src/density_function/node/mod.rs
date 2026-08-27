@@ -32,7 +32,43 @@ impl<'a> Fill<'a> {
 
 /// The compiled form of a density function: the thing that actually reads noise.
 pub(crate) trait DensitySampler {
-    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]);
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32;
+
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        for (index, slot) in out.iter_mut().enumerate() {
+            *slot = self.sample_value(ctx, index);
+        }
+    }
+}
+
+/// A sampler that reads nothing but the position, so its bounds follow from its
+/// own parameters with no input interval to propagate.
+pub(crate) trait IndependentSampler: DensitySampler {
+    fn range(&self) -> Interval;
+
+    fn sample(&self, pos: IVec3) -> f32;
+}
+
+/// Fills each column of `volume` with one value, for a sampler that does not
+/// vary along Y.
+fn fill_columns(sampler: &impl IndependentSampler, ctx: Fill<'_>, out: &mut [f32]) {
+    let height = ctx.volume.size().y as usize;
+    for (column, slots) in out.chunks_mut(height).enumerate() {
+        slots.fill(sampler.sample(ctx.positions[column * height]));
+    }
+}
+
+/// Fills every column of `volume` with the same values, for a sampler that
+/// varies along Y alone.
+fn fill_shared_column(sampler: &impl IndependentSampler, ctx: Fill<'_>, out: &mut [f32]) {
+    let height = ctx.volume.size().y as usize;
+    let (first, rest) = out.split_at_mut(height);
+    for (slot, pos) in first.iter_mut().zip(ctx.positions) {
+        *slot = sampler.sample(*pos);
+    }
+    for column in rest.chunks_mut(height) {
+        column.copy_from_slice(first);
+    }
 }
 
 mod arith;
@@ -47,7 +83,7 @@ pub(super) use space::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum IndependentDensityFunction {
-    Constant(f32),
+    Constant(Constant),
     OldBlendedNoise(BlendedNoise),
     Noise(Noise),
     ShiftB(ShiftB),
@@ -55,36 +91,6 @@ pub(super) enum IndependentDensityFunction {
     Gradient(Gradient),
     DistanceToPoint(DistanceToPoint),
     EndOuterIslands(EndIslands),
-}
-
-impl IndependentDensityFunction {
-    fn range(&self) -> Interval {
-        match self {
-            IndependentDensityFunction::Constant(x) => Interval::exact(*x),
-            IndependentDensityFunction::OldBlendedNoise(x) => x.range(),
-            IndependentDensityFunction::Noise(x) => x.range(),
-            IndependentDensityFunction::ShiftB(x) => x.range(),
-            IndependentDensityFunction::ClampedYGradient(x) => x.range(),
-            IndependentDensityFunction::Gradient(x) => x.range(),
-            IndependentDensityFunction::DistanceToPoint(x) => x.range(),
-            IndependentDensityFunction::EndOuterIslands(x) => x.range(),
-        }
-    }
-}
-
-impl DensityFunction for IndependentDensityFunction {
-    fn sample(&self, pos: IVec3) -> f32 {
-        match self {
-            IndependentDensityFunction::Constant(x) => *x,
-            IndependentDensityFunction::OldBlendedNoise(x) => x.sample(pos),
-            IndependentDensityFunction::Noise(x) => x.sample(pos),
-            IndependentDensityFunction::ShiftB(x) => x.sample(pos),
-            IndependentDensityFunction::ClampedYGradient(x) => x.sample(pos),
-            IndependentDensityFunction::Gradient(x) => x.sample(pos),
-            IndependentDensityFunction::DistanceToPoint(x) => x.sample(pos),
-            IndependentDensityFunction::EndOuterIslands(x) => x.sample(pos),
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -172,12 +178,12 @@ impl DensityFunctionComponent {
     }
 
     pub(super) fn constant(value: f32) -> Self {
-        Self::independent(IndependentDensityFunction::Constant(value))
+        Self::independent(IndependentDensityFunction::Constant(Constant { value }))
     }
 
     pub(super) fn as_constant(&self) -> Option<f32> {
         match &self.sampler {
-            Sampler::Independent(IndependentDensityFunction::Constant(v)) => Some(*v),
+            Sampler::Independent(IndependentDensityFunction::Constant(c)) => Some(c.value),
             _ => None,
         }
     }
@@ -453,6 +459,24 @@ impl<'a> Arena<'a> {
         out.copy_from_slice(&scratch.rows[root * n..root * n + n]);
     }
 
+    /// [`Arena::fill_node`] for a single position of the same pass.
+    pub(super) fn sample_node(
+        self,
+        i: usize,
+        volume: &Volume,
+        positions: &[IVec3],
+        rows: &[f32],
+        index: usize,
+    ) -> f32 {
+        let ctx = Fill {
+            arena: self,
+            volume,
+            positions,
+            filled: &rows[..i * volume.len()],
+        };
+        self.stack[i].sample_value(ctx, index)
+    }
+
     pub(super) fn fill_node(
         self,
         i: usize,
@@ -473,20 +497,102 @@ impl<'a> Arena<'a> {
 }
 
 impl DensitySampler for IndependentDensityFunction {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        match self {
+            IndependentDensityFunction::Constant(x) => x.sample_value(ctx, index),
+            IndependentDensityFunction::OldBlendedNoise(x) => x.sample_value(ctx, index),
+            IndependentDensityFunction::Noise(x) => x.sample_value(ctx, index),
+            IndependentDensityFunction::ShiftB(x) => x.sample_value(ctx, index),
+            IndependentDensityFunction::ClampedYGradient(x) => x.sample_value(ctx, index),
+            IndependentDensityFunction::Gradient(x) => x.sample_value(ctx, index),
+            IndependentDensityFunction::DistanceToPoint(x) => x.sample_value(ctx, index),
+            IndependentDensityFunction::EndOuterIslands(x) => x.sample_value(ctx, index),
+        }
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         match self {
+            IndependentDensityFunction::Constant(x) => x.sample_volume(ctx, out),
+            IndependentDensityFunction::OldBlendedNoise(x) => x.sample_volume(ctx, out),
             IndependentDensityFunction::Noise(x) => x.sample_volume(ctx, out),
             IndependentDensityFunction::ShiftB(x) => x.sample_volume(ctx, out),
-            _ => {
-                for (p, slot) in out.iter_mut().enumerate() {
-                    *slot = self.sample(ctx.positions[p]);
-                }
-            }
+            IndependentDensityFunction::ClampedYGradient(x) => x.sample_volume(ctx, out),
+            IndependentDensityFunction::Gradient(x) => x.sample_volume(ctx, out),
+            IndependentDensityFunction::DistanceToPoint(x) => x.sample_volume(ctx, out),
+            IndependentDensityFunction::EndOuterIslands(x) => x.sample_volume(ctx, out),
+        }
+    }
+}
+
+impl IndependentSampler for IndependentDensityFunction {
+    fn range(&self) -> Interval {
+        match self {
+            IndependentDensityFunction::Constant(x) => x.range(),
+            IndependentDensityFunction::OldBlendedNoise(x) => x.range(),
+            IndependentDensityFunction::Noise(x) => x.range(),
+            IndependentDensityFunction::ShiftB(x) => x.range(),
+            IndependentDensityFunction::ClampedYGradient(x) => x.range(),
+            IndependentDensityFunction::Gradient(x) => x.range(),
+            IndependentDensityFunction::DistanceToPoint(x) => x.range(),
+            IndependentDensityFunction::EndOuterIslands(x) => x.range(),
+        }
+    }
+
+    fn sample(&self, pos: IVec3) -> f32 {
+        match self {
+            IndependentDensityFunction::Constant(x) => x.sample(pos),
+            IndependentDensityFunction::OldBlendedNoise(x) => x.sample(pos),
+            IndependentDensityFunction::Noise(x) => x.sample(pos),
+            IndependentDensityFunction::ShiftB(x) => x.sample(pos),
+            IndependentDensityFunction::ClampedYGradient(x) => x.sample(pos),
+            IndependentDensityFunction::Gradient(x) => x.sample(pos),
+            IndependentDensityFunction::DistanceToPoint(x) => x.sample(pos),
+            IndependentDensityFunction::EndOuterIslands(x) => x.sample(pos),
         }
     }
 }
 
 impl DensitySampler for DependentDensityFunction {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        match self {
+            DependentDensityFunction::Affine(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::PiecewiseAffine(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Slide(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::ConstMin(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::ConstMax(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::ConstSub(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::ConstDiv(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Abs(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Square(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Cube(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Negate(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Reciprocal(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Sqrt(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Log(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Sign(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Squeeze(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::LeakyReLU(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::IntegerMultipleRound(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::ConstExponentPow(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::ConstBasePow(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Add(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Sub(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Mul(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Div(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Min(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Max(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Pow(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Round(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::ShiftedNoise(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Clamp(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::RangeChoice(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Lerp(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Spline(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::Slice(x) => x.sample_value(ctx, index),
+            DependentDensityFunction::FindTopSurface(x) => x.sample_value(ctx, index),
+        }
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         match self {
             DependentDensityFunction::Affine(x) => x.sample_volume(ctx, out),
@@ -529,6 +635,14 @@ impl DensitySampler for DependentDensityFunction {
 }
 
 impl DensitySampler for DensityFunctionComponent {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        match &self.sampler {
+            Sampler::Independent(x) => x.sample_value(ctx, index),
+            Sampler::Dependent(x) => x.sample_value(ctx, index),
+            Sampler::Interpolated(x) => x.sample_value(ctx, index),
+        }
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         match &self.sampler {
             Sampler::Independent(x) => x.sample_volume(ctx, out),

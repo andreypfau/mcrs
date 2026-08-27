@@ -2,7 +2,6 @@ use super::{
     DensityFunctionComponent, DependentDensityFunction, FindTopSurface, IndependentDensityFunction,
     Interpolated, NoiseRouter, Slice, branch_schedule::Step,
 };
-use crate::density_function::DensityFunction;
 use crate::density_function::proto::Axis;
 use bevy_math::IVec3;
 

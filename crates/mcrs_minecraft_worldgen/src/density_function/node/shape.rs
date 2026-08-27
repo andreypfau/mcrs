@@ -11,7 +11,6 @@ use crate::noise::normal_noise::{ColumnScratch, NoiseSampler};
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::noise::simplex::SimplexNoise;
 use crate::proto::NoiseGeneratorSettings;
-use crate::spline::{RangeFunction, SplineFunction};
 use bevy_math::{Curve, FloatExt, IVec3};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -39,18 +38,11 @@ pub(crate) enum SplineValue {
     Constant(f32),
 }
 
-impl RangeFunction for SplineValue {
-    fn min_value(&self) -> f32 {
+impl SplineValue {
+    pub(crate) fn range(&self) -> Interval {
         match self {
-            SplineValue::Spline(x) => x.min_value(),
-            SplineValue::Constant(x) => *x,
-        }
-    }
-
-    fn max_value(&self) -> f32 {
-        match self {
-            SplineValue::Spline(x) => x.max_value(),
-            SplineValue::Constant(x) => *x,
+            SplineValue::Spline(x) => x.range,
+            SplineValue::Constant(x) => Interval::exact(*x),
         }
     }
 }
@@ -92,14 +84,14 @@ impl Spline {
             let extend_min = Self::linear_extend(
                 coordinate_min,
                 &locations,
-                values[0].min_value(),
+                values[0].range().min(),
                 &derivatives,
                 0,
             );
             let extend_max = Self::linear_extend(
                 coordinate_min,
                 &locations,
-                values[0].max_value(),
+                values[0].range().max(),
                 &derivatives,
                 0,
             );
@@ -111,14 +103,14 @@ impl Spline {
             let extend_min = Self::linear_extend(
                 coordinate_max,
                 &locations,
-                values[n].min_value(),
+                values[n].range().min(),
                 &derivatives,
                 n,
             );
             let extend_max = Self::linear_extend(
                 coordinate_max,
                 &locations,
-                values[n].max_value(),
+                values[n].range().max(),
                 &derivatives,
                 n,
             );
@@ -127,8 +119,8 @@ impl Spline {
         }
 
         values.iter().for_each(|v| {
-            min_value = min_value.min(v.min_value());
-            max_value = max_value.max(v.max_value());
+            min_value = min_value.min(v.range().min());
+            max_value = max_value.max(v.range().max());
         });
 
         for i in 0..n {
@@ -136,10 +128,12 @@ impl Spline {
             let location_right = locations[i + 1];
             let location_delta = location_right - location_left;
 
-            let min_left = values[i].min_value();
-            let max_left = values[i].max_value();
-            let min_right = values[i + 1].min_value();
-            let max_right = values[i + 1].max_value();
+            let left = values[i].range();
+            let right = values[i + 1].range();
+            let min_left = left.min();
+            let max_left = left.max();
+            let min_right = right.min();
+            let max_right = right.max();
 
             let derivative_left = derivatives[i];
             let derivative_right = derivatives[i + 1];
@@ -219,18 +213,6 @@ impl Spline {
     #[inline(always)]
     fn lerp(a: f32, b: f32, t: f32) -> f32 {
         a + t * (b - a)
-    }
-}
-
-impl RangeFunction for Spline {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.range.min()
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.range.max()
     }
 }
 
@@ -327,6 +309,15 @@ impl Spline {
     }
 }
 impl DensitySampler for RangeChoice {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        let value = ctx.row(self.input_index)[index];
+        if value >= self.min_inclusion_value && value < self.max_exclusion_value {
+            ctx.row(self.when_in_index)[index]
+        } else {
+            ctx.row(self.when_out_index)[index]
+        }
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         let input = ctx.row(self.input_index);
         let when_in = ctx.row(self.when_in_index);
@@ -344,6 +335,20 @@ impl DensitySampler for RangeChoice {
 }
 
 impl DensitySampler for Lerp {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        let alpha = ctx.row(self.alpha_index)[index];
+        let first = ctx.row(self.first_index)[index];
+        if alpha == 0.0 {
+            return first;
+        }
+        let second = ctx.row(self.second_index)[index];
+        if alpha == 1.0 {
+            second
+        } else {
+            first + alpha * (second - first)
+        }
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         let alpha = ctx.row(self.alpha_index);
         let first = ctx.row(self.first_index);
@@ -362,6 +367,11 @@ impl DensitySampler for Lerp {
 }
 
 impl DensitySampler for Spline {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        let column: Vec<f32> = (0..ctx.depth()).map(|j| ctx.row(j)[index]).collect();
+        self.sample(&column)
+    }
+
     /// Reads its inputs by stack index rather than by edge, so it needs the
     /// whole register column gathered per position.
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {

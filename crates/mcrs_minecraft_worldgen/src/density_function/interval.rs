@@ -1,6 +1,6 @@
 use super::{
-    Affine, BinaryOperation, DependentDensityFunction, IndependentDensityFunction, NoiseRouter,
-    PiecewiseAffine, Sampler, UnaryOperation, round_to_integer,
+    Affine, BinaryOperation, DependentDensityFunction, IndependentDensityFunction,
+    IndependentSampler, NoiseRouter, PiecewiseAffine, Sampler, UnaryOperation, round_to_integer,
 };
 
 /// The bounds a value can take. Only ever widened: a bound narrower than the
@@ -558,9 +558,7 @@ impl NoiseRouter {
         }
         for &i in self.outer_terms.iter() {
             let bounds = match &self.stack[i].sampler {
-                Sampler::Independent(IndependentDensityFunction::Constant(v)) => {
-                    Interval::exact(*v)
-                }
+                Sampler::Independent(IndependentDensityFunction::Constant(c)) => c.range(),
                 Sampler::Dependent(f) => dependent_range(f, iv)?,
                 _ => return None,
             };

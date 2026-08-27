@@ -36,7 +36,6 @@ pub mod density_function;
 pub mod feature;
 mod noise;
 pub mod proto;
-mod spline;
 
 #[cfg(feature = "bevy")]
 pub mod bevy;

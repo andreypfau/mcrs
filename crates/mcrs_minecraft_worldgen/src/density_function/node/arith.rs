@@ -11,7 +11,6 @@ use crate::noise::normal_noise::{ColumnScratch, NoiseSampler};
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::noise::simplex::SimplexNoise;
 use crate::proto::NoiseGeneratorSettings;
-use crate::spline::SplineFunction;
 use bevy_math::{Curve, FloatExt, IVec3};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -249,6 +248,10 @@ impl BinaryOperation {
 }
 
 impl DensitySampler for Affine {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        ctx.row(self.input_index)[index].mul_add(self.scale, self.offset)
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         for (slot, &value) in out.iter_mut().zip(ctx.row(self.input_index)) {
             *slot = value.mul_add(self.scale, self.offset);
@@ -257,6 +260,16 @@ impl DensitySampler for Affine {
 }
 
 impl DensitySampler for PiecewiseAffine {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        let value = ctx.row(self.input_index)[index];
+        let scale = if value < 0.0 {
+            self.neg_scale
+        } else {
+            self.pos_scale
+        };
+        value.mul_add(scale, self.offset)
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         for (slot, &value) in out.iter_mut().zip(ctx.row(self.input_index)) {
             let scale = if value < 0.0 {
@@ -270,6 +283,13 @@ impl DensitySampler for PiecewiseAffine {
 }
 
 impl DensitySampler for Slide {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        self.compute(
+            ctx.row(self.input_index)[index],
+            ctx.positions[index].y as f32,
+        )
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         let input = ctx.row(self.input_index);
         for ((slot, &value), pos) in out.iter_mut().zip(input).zip(ctx.positions) {
@@ -279,6 +299,10 @@ impl DensitySampler for Slide {
 }
 
 impl DensitySampler for Clamp {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        ctx.row(self.input_index)[index].clamp(self.min, self.max)
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         for (slot, &value) in out.iter_mut().zip(ctx.row(self.input_index)) {
             *slot = value.clamp(self.min, self.max);
@@ -299,6 +323,12 @@ macro_rules! const_binary_samplers {
         }
 
         impl DensitySampler for $name {
+            fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+                let $arg = self.argument;
+                let $value = ctx.row(self.input_index)[index];
+                $body
+            }
+
             fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
                 let $arg = self.argument;
                 for (slot, &$value) in out.iter_mut().zip(ctx.row(self.input_index)) {
@@ -326,6 +356,12 @@ macro_rules! two_input_samplers {
         }
 
         impl DensitySampler for $name {
+            fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+                let $a = ctx.row(self.input1_index)[index];
+                let $b = ctx.row(self.input2_index)[index];
+                $body
+            }
+
             fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
                 let left = ctx.row(self.input1_index);
                 let right = ctx.row(self.input2_index);
@@ -346,6 +382,11 @@ macro_rules! one_input_samplers {
         }
 
         impl DensitySampler for $name {
+            fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+                let $v = ctx.row(self.input_index)[index];
+                $body
+            }
+
             fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
                 for (slot, &$v) in out.iter_mut().zip(ctx.row(self.input_index)) {
                     *slot = $body;
@@ -399,6 +440,10 @@ impl LeakyReLU {
 }
 
 impl DensitySampler for LeakyReLU {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        self.apply(ctx.row(self.input_index)[index])
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         let factor = self.negative_factor;
         for (slot, &v) in out.iter_mut().zip(ctx.row(self.input_index)) {
@@ -416,6 +461,16 @@ pub(crate) struct Round {
 }
 
 impl DensitySampler for Round {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        let a = ctx.row(self.input1_index)[index];
+        let b = ctx.row(self.input2_index)[index];
+        if b == 0.0 {
+            a
+        } else {
+            round_to_integer(a / b, self.mode) * b
+        }
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         let left = ctx.row(self.input1_index);
         let right = ctx.row(self.input2_index);
@@ -439,6 +494,15 @@ pub(crate) struct IntegerMultipleRound {
 }
 
 impl DensitySampler for IntegerMultipleRound {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        let value = ctx.row(self.input_index)[index];
+        if self.multiple == 0.0 {
+            value
+        } else {
+            round_to_integer(value / self.multiple, self.mode) * self.multiple
+        }
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         let multiple = self.multiple;
         let mode = self.mode;
@@ -460,6 +524,10 @@ pub(crate) struct ConstExponentPow {
 }
 
 impl DensitySampler for ConstExponentPow {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        ctx.row(self.input_index)[index].powf(self.exponent)
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         let exponent = self.exponent;
         for (slot, &v) in out.iter_mut().zip(ctx.row(self.input_index)) {
@@ -476,6 +544,10 @@ pub(crate) struct ConstBasePow {
 }
 
 impl DensitySampler for ConstBasePow {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        self.base.powf(ctx.row(self.input_index)[index])
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         let base = self.base;
         for (slot, &v) in out.iter_mut().zip(ctx.row(self.input_index)) {

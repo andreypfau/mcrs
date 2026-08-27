@@ -10,7 +10,6 @@ use crate::noise::normal_noise::{ColumnScratch, NoiseSampler};
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::noise::simplex::SimplexNoise;
 use crate::proto::NoiseGeneratorSettings;
-use crate::spline::{RangeFunction, SplineFunction};
 use bevy_math::{Curve, FloatExt, IVec3};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -41,10 +40,6 @@ pub use interval::Interval;
 
 pub use compile::build_functions;
 pub use volume::{FillScratch, Volume};
-
-trait DensityFunction {
-    fn sample(&self, pos: IVec3) -> f32;
-}
 
 mod node;
 mod router;

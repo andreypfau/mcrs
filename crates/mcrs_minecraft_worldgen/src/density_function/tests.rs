@@ -1,5 +1,4 @@
-use super::{BlendedNoise, EndIslands, FillScratch, RangeFunction};
-use crate::density_function::DensityFunction;
+use super::{BlendedNoise, EndIslands, FillScratch, IndependentSampler};
 use crate::density_function::beta_seed::seed_beta_terrain;
 use crate::proto::NoiseGeneratorSettings;
 use bevy_math::IVec3;
@@ -1554,5 +1553,113 @@ fn count_node_kinds() {
     }
     for (k, n) in kinds {
         println!("{k:24} {n}");
+    }
+}
+
+/// Every node's point sampler has to answer what its own volume fill wrote at
+/// that position. `interpolated` is the one exception vanilla also makes: over
+/// a volume it accumulates along Y, at a point it combines the eight corners.
+#[test]
+fn sample_value_agrees_with_the_volume_fill() {
+    for settings in [
+        "overworld.json",
+        "amplified.json",
+        "caves.json",
+        "end.json",
+        "floating_islands.json",
+        "nether.json",
+    ] {
+        sample_value_agrees_for(settings);
+    }
+}
+
+fn sample_value_agrees_for(settings: &str) {
+    use super::{Arena, Sampler, Volume};
+
+    let router = router_for(settings);
+    let stack = &router.stack;
+    let arena = Arena::new(stack);
+
+    for volume in [
+        Volume::point(IVec3::new(37, 55, -19)),
+        Volume::dense(IVec3::new(2, 5, 2), IVec3::new(36, 52, -20)),
+    ] {
+        let n = volume.len();
+        let mut positions = Vec::new();
+        volume.positions_into(&mut positions);
+        let mut rows = vec![0.0f32; stack.len() * n];
+        for i in 0..stack.len() {
+            arena.fill_node(i, &volume, &positions, &mut rows);
+        }
+
+        for (i, node) in stack.iter().enumerate() {
+            if n > 1 && matches!(node.sampler, Sampler::Interpolated(_)) {
+                continue;
+            }
+            for p in 0..n {
+                let filled = rows[i * n + p];
+                let sampled = arena.sample_node(i, &volume, &positions, &rows, p);
+                assert_eq!(
+                    sampled.to_bits(),
+                    filled.to_bits(),
+                    "{settings}: {} at {:?} filled {filled} but sampled {sampled}",
+                    router.node_labels[i],
+                    positions[p]
+                );
+            }
+        }
+    }
+}
+
+/// No vanilla setting compiles a `gradient` off the Y axis, so the axis-aware
+/// volume fill has no corpus coverage.
+#[test]
+fn every_gradient_fills_a_volume_as_it_samples_a_point() {
+    use super::{
+        Arena, DensityFunctionComponent, Gradient, IndependentDensityFunction, IndependentSampler,
+        Volume,
+    };
+    use super::proto::{Axis, TilingMode};
+
+    for axis in [Axis::X, Axis::Y, Axis::Z] {
+        for tiling in [
+            TilingMode::ClampToEdge,
+            TilingMode::Repeat,
+            TilingMode::MirroredRepeat,
+        ] {
+            let gradient = Gradient {
+                axis,
+                tiling,
+                from_coordinate: -6,
+                to_coordinate: 6,
+                from_value: -1.5,
+                to_value: 2.25,
+            };
+            let stack = [DensityFunctionComponent::independent(
+                IndependentDensityFunction::Gradient(gradient.clone()),
+            )];
+            let volume = Volume::dense(IVec3::new(3, 4, 3), IVec3::new(-7, -2, 5));
+            let mut positions = Vec::new();
+            volume.positions_into(&mut positions);
+            let mut rows = vec![0.0f32; volume.len()];
+            Arena::new(&stack).fill_node(0, &volume, &positions, &mut rows);
+
+            let distinct: std::collections::BTreeSet<u32> =
+                rows.iter().map(|v| v.to_bits()).collect();
+            assert!(
+                distinct.len() > 1,
+                "{axis:?}/{tiling:?} is constant over the volume, so the fill proves nothing"
+            );
+
+            for (p, &pos) in positions.iter().enumerate() {
+                let point = gradient.sample(pos);
+                assert_eq!(
+                    rows[p].to_bits(),
+                    point.to_bits(),
+                    "{axis:?}/{tiling:?} at {pos:?} filled {} but sampled {point}",
+                    rows[p]
+                );
+            }
+        }
     }
 }

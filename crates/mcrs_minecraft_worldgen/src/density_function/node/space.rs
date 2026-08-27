@@ -11,7 +11,6 @@ use crate::noise::normal_noise::{ColumnScratch, NoiseSampler};
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::noise::simplex::SimplexNoise;
 use crate::proto::NoiseGeneratorSettings;
-use crate::spline::SplineFunction;
 use bevy_math::{Curve, FloatExt, IVec3};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -23,6 +22,31 @@ use std::mem::swap;
 use std::ops::Index;
 use std::sync::Arc;
 use tracing::info;
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Constant {
+    pub(crate) value: f32,
+}
+
+impl DensitySampler for Constant {
+    fn sample_value(&self, _ctx: Fill<'_>, _index: usize) -> f32 {
+        self.value
+    }
+
+    fn sample_volume(&self, _ctx: Fill<'_>, out: &mut [f32]) {
+        out.fill(self.value);
+    }
+}
+
+impl IndependentSampler for Constant {
+    fn range(&self) -> Interval {
+        Interval::exact(self.value)
+    }
+
+    fn sample(&self, _pos: IVec3) -> f32 {
+        self.value
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Interpolated {
@@ -41,11 +65,6 @@ pub(crate) struct ClampedYGradient {
     pub(crate) from_value: f32,
     pub(crate) to_value: f32,
 }
-impl ClampedYGradient {
-    pub(crate) fn range(&self) -> Interval {
-        Interval::encapsulating(self.from_value, self.to_value)
-    }
-}
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Gradient {
     pub(crate) axis: Axis,
@@ -56,13 +75,26 @@ pub(crate) struct Gradient {
     pub(crate) to_value: f32,
 }
 
-impl Gradient {
-    pub(crate) fn range(&self) -> Interval {
-        Interval::encapsulating(self.from_value, self.to_value)
+impl DensitySampler for Gradient {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        self.sample(ctx.positions[index])
+    }
+
+    /// Varies along one axis alone, so a column is either one repeated value or
+    /// the same run of values every other column repeats.
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        match self.axis {
+            Axis::Y => fill_shared_column(self, ctx, out),
+            Axis::X | Axis::Z => fill_columns(self, ctx, out),
+        }
     }
 }
 
-impl DensityFunction for Gradient {
+impl IndependentSampler for Gradient {
+    fn range(&self) -> Interval {
+        Interval::encapsulating(self.from_value, self.to_value)
+    }
+
     fn sample(&self, pos: IVec3) -> f32 {
         let coordinate = match self.axis {
             Axis::X => pos.x,
@@ -89,7 +121,21 @@ impl DensityFunction for Gradient {
     }
 }
 
-impl DensityFunction for ClampedYGradient {
+impl DensitySampler for ClampedYGradient {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        self.sample(ctx.positions[index])
+    }
+
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        fill_shared_column(self, ctx, out);
+    }
+}
+
+impl IndependentSampler for ClampedYGradient {
+    fn range(&self) -> Interval {
+        Interval::encapsulating(self.from_value, self.to_value)
+    }
+
     fn sample(&self, pos: IVec3) -> f32 {
         let y = pos.y as f32;
         let from_y = self.from_y;
@@ -150,13 +196,23 @@ impl EndIslands {
     }
 }
 
-impl EndIslands {
-    pub(crate) fn range(&self) -> Interval {
-        Interval::of(-0.84375, 0.5625)
+impl DensitySampler for EndIslands {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        self.sample(ctx.positions[index])
+    }
+
+    /// Reads the island height at (x, z) only, so its value is constant down a
+    /// column and the 25x25 island scan runs once per column.
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        fill_columns(self, ctx, out);
     }
 }
 
-impl DensityFunction for EndIslands {
+impl IndependentSampler for EndIslands {
+    fn range(&self) -> Interval {
+        Interval::of(-0.84375, 0.5625)
+    }
+
     fn sample(&self, pos: IVec3) -> f32 {
         (self.height(pos.x / 8, pos.z / 8) - 8.0) / 128.0
     }
@@ -185,13 +241,17 @@ pub(crate) struct DistanceToPoint {
     pub(crate) metric: DistanceMetric,
 }
 
-impl DistanceToPoint {
-    pub(crate) fn range(&self) -> Interval {
-        Interval::of(0.0, f32::INFINITY)
+impl DensitySampler for DistanceToPoint {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        self.sample(ctx.positions[index])
     }
 }
 
-impl DensityFunction for DistanceToPoint {
+impl IndependentSampler for DistanceToPoint {
+    fn range(&self) -> Interval {
+        Interval::of(0.0, f32::INFINITY)
+    }
+
     fn sample(&self, pos: IVec3) -> f32 {
         let d = (self.point - pos).as_vec3();
         match self.metric {
@@ -251,29 +311,32 @@ impl FindTopSurface {
         upper_bounds: &[f32],
         out: &mut [f32],
     ) {
-        let mut probed = [0.0f32];
         let mut scratch = MemberScratch::default();
         for (p, slot) in out.iter_mut().enumerate() {
-            let top_y = (upper_bounds[p] / self.cell_height).floor() * self.cell_height;
-            *slot = if top_y <= self.lower_bound {
-                self.lower_bound
-            } else {
-                let mut current_y = top_y;
-                loop {
-                    let probe =
-                        Volume::point(IVec3::new(positions[p].x, current_y as i32, positions[p].z));
-                    arena.fill_members_with(
-                        &self.density_members,
-                        &probe,
-                        &mut probed,
-                        &mut scratch,
-                    );
-                    if probed[0] > 0.0 || current_y <= self.lower_bound {
-                        break current_y;
-                    }
-                    current_y -= self.cell_height;
-                }
-            };
+            *slot = self.probe(arena, positions[p], upper_bounds[p], &mut scratch);
+        }
+    }
+
+    fn probe(
+        &self,
+        arena: Arena<'_>,
+        pos: IVec3,
+        upper_bound: f32,
+        scratch: &mut MemberScratch,
+    ) -> f32 {
+        let top_y = (upper_bound / self.cell_height).floor() * self.cell_height;
+        if top_y <= self.lower_bound {
+            return self.lower_bound;
+        }
+        let mut probed = [0.0f32];
+        let mut current_y = top_y;
+        loop {
+            let probe = Volume::point(IVec3::new(pos.x, current_y as i32, pos.z));
+            arena.fill_members_with(&self.density_members, &probe, &mut probed, scratch);
+            if probed[0] > 0.0 || current_y <= self.lower_bound {
+                break current_y;
+            }
+            current_y -= self.cell_height;
         }
     }
 }
@@ -451,12 +514,34 @@ impl Interpolated {
 }
 
 impl DensitySampler for Slice {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        let mut pinned = ctx.positions[index];
+        match self.axis {
+            Axis::X => pinned.x = self.coordinate,
+            Axis::Y => pinned.y = self.coordinate,
+            Axis::Z => pinned.z = self.coordinate,
+        }
+        let mut sliced = [0.0f32];
+        ctx.arena
+            .fill_members(&self.input_members, &Volume::point(pinned), &mut sliced);
+        sliced[0]
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         self.fill(ctx.arena, ctx.volume, out);
     }
 }
 
 impl DensitySampler for FindTopSurface {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        self.probe(
+            ctx.arena,
+            ctx.positions[index],
+            ctx.row(self.upper_bound_index)[index],
+            &mut MemberScratch::default(),
+        )
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         self.fill(
             ctx.arena,
@@ -468,6 +553,14 @@ impl DensitySampler for FindTopSurface {
 }
 
 impl DensitySampler for Interpolated {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        if self.is_lattice_volume(ctx.volume) {
+            ctx.row(self.input_index)[index]
+        } else {
+            self.sample_point(ctx.arena, ctx.positions[index])
+        }
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         self.fill_volume(ctx.arena, ctx.volume, ctx.row(self.input_index), out);
     }

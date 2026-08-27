@@ -208,7 +208,7 @@ impl<'a> Walker<'a> {
             let statik = || comp.range;
             let raw = match &comp.sampler {
                 Sampler::Independent(f) => match f {
-                    IndependentDensityFunction::Constant(v) => Interval::exact(*v),
+                    IndependentDensityFunction::Constant(c) => c.range(),
                     IndependentDensityFunction::ClampedYGradient(g) => {
                         grad_iv(g, y_lo as f32, y_hi as f32)
                     }

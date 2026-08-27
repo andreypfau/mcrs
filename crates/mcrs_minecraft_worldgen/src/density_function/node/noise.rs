@@ -11,7 +11,6 @@ use crate::noise::normal_noise::{ColumnScratch, NoiseSampler};
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 use crate::noise::simplex::SimplexNoise;
 use crate::proto::NoiseGeneratorSettings;
-use crate::spline::SplineFunction;
 use bevy_math::{Curve, FloatExt, IVec3};
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_random::legacy::LegacyRandom;
@@ -122,13 +121,17 @@ impl BlendedNoise {
     }
 }
 
-impl BlendedNoise {
-    pub(crate) fn range(&self) -> Interval {
-        Interval::symmetric(self.max_value)
+impl DensitySampler for BlendedNoise {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        self.sample(ctx.positions[index])
     }
 }
 
-impl DensityFunction for BlendedNoise {
+impl IndependentSampler for BlendedNoise {
+    fn range(&self) -> Interval {
+        Interval::symmetric(self.max_value)
+    }
+
     fn sample(&self, pos: IVec3) -> f32 {
         let scaled_x = pos.x as f64 * self.xz_multiplier;
         let scaled_y = pos.y as f64 * self.y_multiplier;
@@ -246,13 +249,11 @@ impl Debug for Noise {
     }
 }
 
-impl Noise {
-    pub(crate) fn range(&self) -> Interval {
+impl IndependentSampler for Noise {
+    fn range(&self) -> Interval {
         Interval::symmetric(self.sampler.max_value() as f32)
     }
-}
 
-impl DensityFunction for Noise {
     fn sample(&self, pos: IVec3) -> f32 {
         let xz_scale = self.xz_scale;
         let y_scale = self.y_scale;
@@ -279,13 +280,11 @@ impl Debug for ShiftB {
     }
 }
 
-impl ShiftB {
-    pub(crate) fn range(&self) -> Interval {
+impl IndependentSampler for ShiftB {
+    fn range(&self) -> Interval {
         Interval::symmetric((self.sampler.max_value() * 4.0) as f32)
     }
-}
 
-impl DensityFunction for ShiftB {
     fn sample(&self, pos: IVec3) -> f32 {
         self.sampler
             .get(pos.z as f64 * 0.25, pos.x as f64 * 0.25, 0.0)
@@ -325,6 +324,15 @@ impl ShiftedNoise {
 }
 
 impl DensitySampler for ShiftedNoise {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        let pos = ctx.positions[index];
+        self.sampler.get(
+            pos.x as f64 * self.xz_scale + ctx.row(self.input_x_index)[index] as f64,
+            pos.y as f64 * self.y_scale + ctx.row(self.input_y_index)[index] as f64,
+            pos.z as f64 * self.xz_scale + ctx.row(self.input_z_index)[index] as f64,
+        )
+    }
+
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
         let shift_x = ctx.row(self.input_x_index);
         let shift_y = ctx.row(self.input_y_index);
@@ -346,6 +354,10 @@ impl DensitySampler for ShiftedNoise {
 }
 
 impl DensitySampler for Noise {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        self.sample(ctx.positions[index])
+    }
+
     /// Y is the volume's fastest axis, so a run of positions is a column and
     /// every octave can hoist its lattice hashes across it.
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
@@ -375,11 +387,12 @@ impl DensitySampler for Noise {
 }
 
 impl DensitySampler for ShiftB {
+    fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
+        self.sample(ctx.positions[index])
+    }
+
     /// Reads the noise at (z, x, 0), so its value is constant down a column.
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
-        let height = ctx.volume.size().y as usize;
-        for (column, slots) in out.chunks_mut(height).enumerate() {
-            slots.fill(self.sample(ctx.positions[column * height]));
-        }
+        fill_columns(self, ctx, out);
     }
 }
