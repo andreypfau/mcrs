@@ -1865,26 +1865,20 @@ impl<'a> FunctionStackBuilder<'a> {
     fn noise_sampler(&mut self, holder: &NoiseHolder) -> NoiseSampler {
         match holder {
             NoiseHolder::Reference(x) => self.create_noise(x),
-            NoiseHolder::Owned(x) => Self::from_noise_param(&mut self.random.clone(), "inline", x),
+            NoiseHolder::Owned(x) => Self::from_noise_param(&mut self.random.clone(), x),
         }
     }
 
     fn from_noise_param<R: mcrs_minecraft_random::Random>(
         random: &mut R,
-        id: &str,
         param: &NoiseParam,
     ) -> NoiseSampler {
-        if param.normalize != Normalization::Enabled {
-            panic!(
-                "Noise {id}: normalize {:?} is not supported",
-                param.normalize
-            );
-        }
         NoiseSampler::from_params(
             random,
             param.base_octave,
             param.octave_amplitudes(),
             param.base_amplitude.0,
+            param.normalize,
         )
     }
 
@@ -1955,7 +1949,7 @@ impl<'a> FunctionStackBuilder<'a> {
         if noise_param.is_none() {
             panic!("Noise not loaded: {}", id);
         }
-        Self::from_noise_param(&mut random, id.as_str(), noise_param.unwrap())
+        Self::from_noise_param(&mut random, noise_param.unwrap())
     }
 }
 
@@ -2159,6 +2153,7 @@ mod arithmetic_node_tests {
                     param.base_octave,
                     param.octave_amplitudes(),
                     param.base_amplitude.0,
+                    param.normalize,
                 ),
                 "{name} must not fall through to the hashed fork"
             );

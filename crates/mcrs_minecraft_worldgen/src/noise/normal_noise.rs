@@ -1,3 +1,4 @@
+use crate::density_function::proto::Normalization;
 use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
 use crate::noise::improved_noise::ImprovedNoise;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
@@ -100,6 +101,8 @@ impl NoiseSampler {
             }
         }
 
+        // Deliberately f32 throughout: the legacy nether streams were pinned against this
+        // rounding, so folding it into parity_normalization_factor's f64 form shifts terrain.
         let expected_deviation = 0.1 * (1.0 + 1.0 / (max - min + 1.0));
         let value_factor = (1.0 / 6.0) / expected_deviation;
         let base_persistence = first.persistence();
@@ -128,6 +131,7 @@ impl NoiseSampler {
         base_octave: i32,
         octave_amplitudes: Vec<f64>,
         base_amplitude: f64,
+        normalize: Normalization,
     ) -> Self
     where
         R: Random,
@@ -143,7 +147,10 @@ impl NoiseSampler {
             OctavePerlinNoise::<f32>::new(random, base_octave, modifiers, random.is_legacy());
 
         let count = octave_amplitudes.len() as i32;
-        let mut amplitude = base_amplitude * (2.0f64.powi(count - 1) / (2.0f64.powi(count) - 1.0));
+        let mut amplitude = match normalize {
+            Normalization::Disabled => base_amplitude,
+            _ => base_amplitude * (2.0f64.powi(count - 1) / (2.0f64.powi(count) - 1.0)),
+        };
         let mut octave_amplitude = Vec::with_capacity(octave_amplitudes.len());
         for modifier in &octave_amplitudes {
             octave_amplitude.push(if *modifier != 0.0 {
@@ -154,13 +161,21 @@ impl NoiseSampler {
             amplitude *= 0.5;
         }
 
-        let target_amplitude = compensated_sum(octave_amplitude.iter().flatten().map(|a| a.abs()));
+        let mut target_amplitude =
+            compensated_sum(octave_amplitude.iter().flatten().map(|a| a.abs()));
         let input_deviation = deviation(octave_amplitude.iter().flatten().copied());
-        let normalization_factor = if input_deviation == 0.0 {
+        let mut normalization_factor = if input_deviation == 0.0 {
             0.0
         } else {
             (target_amplitude * TARGET_DEVIATION) / (input_deviation * std::f64::consts::SQRT_2)
         };
+        if normalize == Normalization::Legacy && normalization_factor != 0.0 {
+            let lowest = octave_amplitudes.iter().position(|a| *a != 0.0).unwrap();
+            let highest = octave_amplitudes.iter().rposition(|a| *a != 0.0).unwrap();
+            let parity = parity_normalization_factor(base_amplitude, (highest - lowest) as f64);
+            target_amplitude *= parity / normalization_factor;
+            normalization_factor = parity;
+        }
 
         let layers = build_layers(first, second, base_octave, |i| {
             (normalization_factor * octave_amplitude[i].unwrap_or(0.0)) as f32
@@ -277,6 +292,11 @@ fn wrap(value: f64) -> f64 {
     OctavePerlinNoise::<f32>::maintain_precission(value)
 }
 
+fn parity_normalization_factor(base_amplitude: f64, octave_span: f64) -> f64 {
+    let expected_deviation = 0.1 * (1.0 + 1.0 / (octave_span + 1.0));
+    base_amplitude * 0.5 * TARGET_DEVIATION / expected_deviation
+}
+
 fn deviation(amplitudes: impl Iterator<Item = f64>) -> f64 {
     let mut variance = 0.0f64;
     for a in amplitudes {
@@ -366,23 +386,163 @@ fn compensated_sum(values: impl Iterator<Item = f64>) -> f64 {
 
 #[cfg(test)]
 mod bound_tests {
-    use super::NoiseSampler;
+    use super::{NoiseSampler, Normalization};
     use mcrs_minecraft_random::legacy::LegacyRandom;
 
-    #[test]
-    fn reported_range_is_the_six_sigma_bound() {
-        let continentalness = NoiseSampler::from_params(
+    const CONTINENTALNESS_MODIFIERS: [f64; 9] = [1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0];
+    const CONTINENTALNESS_AMPLITUDE: f64 = 0.8880832896205223;
+    const GAPPED_MODIFIERS: [f64; 5] = [1.0, 0.0, 0.0, 0.5, 1.0];
+
+    fn sampler(modifiers: &[f64], base_amplitude: f64, normalize: Normalization) -> NoiseSampler {
+        NoiseSampler::from_params(
             &mut LegacyRandom::new(1),
             -9,
-            vec![1.0, 1.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0],
-            0.8880832896205223,
+            modifiers.to_vec(),
+            base_amplitude,
+            normalize,
+        )
+    }
+
+    fn octave_factors(sampler: &NoiseSampler) -> Vec<f32> {
+        let NoiseSampler::Normal(noise) = sampler else {
+            unreachable!()
+        };
+        noise
+            .layers
+            .chunks(2)
+            .map(|pair| pair[0].amplitude)
+            .collect()
+    }
+
+    #[test]
+    fn disabled_normalization_keeps_the_base_amplitude_unscaled() {
+        let noise = sampler(
+            &CONTINENTALNESS_MODIFIERS,
+            CONTINENTALNESS_AMPLITUDE,
+            Normalization::Disabled,
         );
-        assert_eq!(continentalness.max_value(), 2.1654634);
+        assert_eq!(
+            octave_factors(&noise),
+            vec![
+                1.5,
+                0.75,
+                0.75,
+                0.375,
+                0.1875,
+                0.046875,
+                0.0234375,
+                0.01171875,
+                0.005859375
+            ]
+        );
+        assert_eq!(noise.max_value(), 4.322468);
 
-        let legacy_temperature = NoiseSampler::new(&mut LegacyRandom::new(82), -7, vec![1.0, 1.0]);
-        assert_eq!(legacy_temperature.max_value(), 1.898946);
+        let gapped = sampler(&GAPPED_MODIFIERS, 1.0, Normalization::Disabled);
+        assert_eq!(
+            octave_factors(&gapped),
+            vec![0.97746503, 0.061091565, 0.061091565]
+        );
+        assert_eq!(gapped.max_value(), 2.25);
+    }
 
-        let legacy_offset = NoiseSampler::new(&mut LegacyRandom::new(82), 0, vec![0.0]);
-        assert_eq!(legacy_offset.max_value(), 0.0);
+    #[test]
+    fn enabled_normalization_prescales_the_octave_amplitudes() {
+        let noise = sampler(
+            &CONTINENTALNESS_MODIFIERS,
+            CONTINENTALNESS_AMPLITUDE,
+            Normalization::Enabled,
+        );
+        assert_eq!(
+            octave_factors(&noise),
+            vec![
+                0.7514677,
+                0.37573385,
+                0.37573385,
+                0.18786693,
+                0.09393346,
+                0.023483366,
+                0.011741683,
+                0.0058708414,
+                0.0029354207
+            ]
+        );
+        assert_eq!(noise.max_value(), 2.1654634);
+
+        let gapped = sampler(&GAPPED_MODIFIERS, 1.0, Normalization::Enabled);
+        assert_eq!(
+            octave_factors(&gapped),
+            vec![0.50449806, 0.03153113, 0.03153113]
+        );
+        assert_eq!(gapped.max_value(), 1.1612903);
+    }
+
+    #[test]
+    fn legacy_normalization_swaps_in_the_parity_factor() {
+        let noise = sampler(
+            &CONTINENTALNESS_MODIFIERS,
+            CONTINENTALNESS_AMPLITUDE,
+            Normalization::Legacy,
+        );
+        assert_eq!(
+            octave_factors(&noise),
+            vec![
+                0.5926765,
+                0.29633826,
+                0.29633826,
+                0.14816913,
+                0.074084565,
+                0.018521141,
+                0.009260571,
+                0.0046302853,
+                0.0023151427
+            ]
+        );
+        assert_eq!(noise.max_value(), 1.7078835);
+
+        let gapped = sampler(&GAPPED_MODIFIERS, 1.0, Normalization::Legacy);
+        assert_eq!(
+            octave_factors(&gapped),
+            vec![0.71684587, 0.044802867, 0.044802867]
+        );
+        assert_eq!(gapped.max_value(), 1.650088);
+    }
+
+    #[test]
+    fn a_silent_noise_normalizes_to_nothing_in_every_mode() {
+        for normalize in [
+            Normalization::Disabled,
+            Normalization::Enabled,
+            Normalization::Legacy,
+        ] {
+            let noise = sampler(&[0.0], 1.0, normalize);
+            assert_eq!(octave_factors(&noise), Vec::<f32>::new());
+            assert_eq!(noise.max_value(), 0.0);
+            assert_eq!(noise.get(12.0, -30.0, 7.0), 0.0);
+        }
+    }
+
+    #[test]
+    fn the_modes_sample_apart() {
+        let positions = [(0.0, 0.0, 0.0), (0.5, 4.0, -2.0), (-204.0, 28.0, 12.0)];
+        let expected: [[u32; 3]; 3] = [
+            [0x3e68047a, 0x3e2b16cf, 0xbf105330],
+            [0x3de878b7, 0x3dab6c85, 0xbe909b7e],
+            [0x3db75933, 0x3d87335d, 0xbe6419f3],
+        ];
+        for (mode, bits) in [
+            Normalization::Disabled,
+            Normalization::Enabled,
+            Normalization::Legacy,
+        ]
+        .into_iter()
+        .zip(expected)
+        {
+            let noise = sampler(&CONTINENTALNESS_MODIFIERS, CONTINENTALNESS_AMPLITUDE, mode);
+            let actual: Vec<u32> = positions
+                .iter()
+                .map(|(x, y, z)| noise.get(*x, *y, *z).to_bits())
+                .collect();
+            assert_eq!(actual, bits.to_vec(), "{mode:?}");
+        }
     }
 }
