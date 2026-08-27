@@ -360,54 +360,13 @@ fn print_report(report: &BTreeMap<String, Diff>, total: usize) {
     }
 }
 
-/// Vanilla evaluates every noise in double precision and narrows to float only
-/// when storing into `DensityBuffer`; we evaluate the whole tree in f32. No root
-/// is therefore bit-identical. These roots carry nothing but that drift.
-const F32_DRIFT_ROOTS: &[&str] = &[
-    "continents",
-    "depth",
-    "erosion",
-    "ridges",
-    "temperature",
-    "vegetation",
-];
-
-/// Largest observed f32-versus-f64 drift on `F32_DRIFT_ROOTS` is 3.7e-5.
-const DRIFT_TOLERANCE: f32 = 1e-4;
-
-#[test]
-fn climate_and_depth_roots_track_the_vanilla_oracle_within_f32_drift() {
-    let report = lattice_report();
-    let total = LATTICE_FILES.len() * 1225;
-    print_report(&report, total);
-    for name in F32_DRIFT_ROOTS {
-        let d = &report[*name];
-        assert!(
-            d.max_abs < DRIFT_TOLERANCE,
-            "{}: max_abs={:e} exceeds {:e} (max_ulp={}, worst@{:?} vanilla={} ours={})",
-            name,
-            d.max_abs,
-            DRIFT_TOLERANCE,
-            d.max_ulp,
-            d.worst,
-            d.worst_pair.0,
-            d.worst_pair.1
-        );
-        assert_eq!(
-            d.coarse, 0,
-            "{}: {} values differ by more than {:e}",
-            name, d.coarse, COARSE_TOLERANCE
-        );
-    }
-}
-
 /// Vanilla evaluates the noise tree in double and narrows to float only when
 /// storing into `DensityBuffer`; we evaluate in f32 throughout. Every root but
 /// `final_density` still lands bit-exact, so only that one carries a tolerance:
-/// 2.98e-8 observed, an f32 ulp at the magnitude where it occurs. A budget of
-/// two ulps there cannot mask a structural divergence — the 1e-3 counter
-/// asserted alongside it stays at zero.
-const FINAL_DENSITY_DRIFT: f32 = 6e-8;
+/// 2.98e-8 observed, two f32 ulps at the magnitude where it occurs. A budget
+/// that small cannot mask a structural divergence — the 1e-3 counter asserted
+/// alongside it stays at zero.
+const FINAL_DENSITY_DRIFT: f32 = 4e-8;
 
 #[test]
 fn all_roots_match_the_vanilla_oracle() {
@@ -800,7 +759,7 @@ fn fill_matches_sample_root_on_the_cell_lattice() {
 /// corners with an exact `lerp3`, while `fillCell` accumulates along Y. The
 /// gap is one f32 ulp of the wrapper value, carried through the per-block terms
 /// above the wrapper: 5.96e-8 observed, one ulp at unit magnitude.
-const FILL_VERSUS_SCALAR: f32 = 1.2e-7;
+const FILL_VERSUS_SCALAR: f32 = 8e-8;
 
 #[test]
 fn fill_and_sample_root_differ_only_by_the_y_accumulation() {
@@ -890,3 +849,4 @@ fn a_router_mixing_cell_geometries_loads_and_evaluates() {
         volume.len()
     );
 }
+
