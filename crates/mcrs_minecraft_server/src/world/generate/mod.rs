@@ -24,14 +24,24 @@ const CELL_BOUNDS_SLACK: f32 = 1e-5;
 
 /// The `interpolated` wrapper inputs at every cell corner of a whole chunk
 /// column, laid out one `volume`-shaped row per wrapper.
-struct ColumnCorners {
+struct CellLattice {
     volume: Volume,
     cell: IVec3,
     values: Vec<f32>,
     width: usize,
 }
 
-impl ColumnCorners {
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum CellFill {
+    Solid,
+    Fluid,
+    Air,
+    /// Empty, but crossing sea level: fluid below it, air above.
+    Sea,
+    Mixed,
+}
+
+impl CellLattice {
     /// `None` for a router with no single cell lattice, or one whose cells do
     /// not tile a section; such a chunk is filled block by block throughout.
     fn fill(
@@ -51,9 +61,8 @@ impl ColumnCorners {
         if noise_router.noise_min_y() % 16 != 0 || height % 16 != 0 {
             return None;
         }
-        let rows = height / cell.y + 1;
         let volume = Volume::new(
-            IVec3::new(16 / cell.x + 1, rows, 16 / cell.z + 1),
+            IVec3::new(16 / cell.x + 1, height / cell.y + 1, 16 / cell.z + 1),
             IVec3::new(block_x, noise_router.noise_min_y(), block_z),
             cell,
         );
@@ -69,7 +78,7 @@ impl ColumnCorners {
     }
 
     /// The eight corner values of one cell, per wrapper.
-    fn cell_bounds(&self, cell: IVec3, out: &mut [(f32, f32)]) {
+    fn corner_bounds(&self, at: IVec3, out: &mut [(f32, f32)]) {
         let stride = self.volume.len();
         for (k, bound) in out.iter_mut().enumerate() {
             let row = &self.values[k * stride..(k + 1) * stride];
@@ -78,10 +87,7 @@ impl ColumnCorners {
             for dz in 0..2 {
                 for dx in 0..2 {
                     for dy in 0..2 {
-                        let v =
-                            row[self
-                                .volume
-                                .index_unchecked(cell.x + dx, cell.y + dy, cell.z + dz)];
+                        let v = row[self.volume.index_unchecked(at.x + dx, at.y + dy, at.z + dz)];
                         lo = lo.min(v);
                         hi = hi.max(v);
                     }
@@ -90,113 +96,176 @@ impl ColumnCorners {
             *bound = (lo, hi);
         }
     }
+
+    fn classify(
+        &self,
+        noise_router: &NoiseRouter,
+        at: IVec3,
+        sea_level: i32,
+        fill: &mut FillBuffers,
+    ) -> CellFill {
+        self.corner_bounds(at, &mut fill.corners);
+        let Some((lo, hi)) =
+            noise_router.final_density_cell_bounds(&fill.corners, &mut fill.bounds)
+        else {
+            return CellFill::Mixed;
+        };
+        if lo > CELL_BOUNDS_SLACK {
+            return CellFill::Solid;
+        }
+        if hi < -CELL_BOUNDS_SLACK {
+            let min_y = self.volume.block_y(at.y);
+            if min_y + self.cell.y <= sea_level {
+                return CellFill::Fluid;
+            }
+            if min_y >= sea_level {
+                return CellFill::Air;
+            }
+            return CellFill::Sea;
+        }
+        CellFill::Mixed
+    }
 }
 
-/// Buffers every section fill in a chunk column reuses.
+/// Buffers every fill in a chunk column reuses.
 #[derive(Default)]
-struct SectionFill {
+struct FillBuffers {
     scratch: FillScratch,
     density: Vec<f32>,
     bounds: Vec<(f32, f32)>,
-    wrapper_bounds: Vec<(f32, f32)>,
+    corners: Vec<(f32, f32)>,
 }
 
-/// Generate a single section by filling `final_density` over it.
+/// Place `final_density` over a whole chunk column.
 ///
 /// The corner lattice is the pass-through case of the fill — every
-/// `interpolated` wrapper hands its input straight back — so interval
-/// arithmetic over a cell's eight corners settles most cells outright, and only
-/// the rest are filled block by block.
-fn generate_section(
-    section_min: IVec3,
-    block_states: &mut BlockPalette,
+/// `interpolated` wrapper hands its input straight back — so one fill over the
+/// column settles most cells outright from interval arithmetic over their eight
+/// corners, and only the rest are filled block by block.
+///
+/// Returns `false` if the column was cancelled part-way.
+fn fill_column(
+    sections: &mut [Option<(BlockPalette, BiomePalette)>],
+    y_sections: &[i32],
+    block_x: i32,
+    block_z: i32,
     noise_router: &NoiseRouter,
-    corners: Option<&ColumnCorners>,
-    fill: &mut SectionFill,
-) {
-    let block_y = section_min.y;
+    cancel: &CancellationToken,
+) -> bool {
     let sea_level = noise_router.sea_level();
     let default_block = noise_router.default_block_state();
     let default_fluid = noise_router.default_fluid_state();
+    let mut fill = FillBuffers::default();
 
-    let Some(corners) = corners else {
-        let volume = Volume::dense(IVec3::splat(16), section_min);
-        fill_and_set(
-            block_states,
+    let Some(lattice) = CellLattice::fill(noise_router, block_x, block_z, &mut fill.scratch) else {
+        return fill_column_dense(
+            sections,
+            y_sections,
+            block_x,
+            block_z,
+            noise_router,
+            &mut fill,
+            cancel,
+        );
+    };
+
+    let cell = lattice.cell;
+    fill.bounds
+        .resize(noise_router.final_density_index() + 1, (0.0, 0.0));
+    fill.corners.resize(lattice.width, (0.0, 0.0));
+
+    for cell_z in 0..lattice.volume.size_z() - 1 {
+        if cancel.is_cancelled() {
+            return false;
+        }
+        for cell_x in 0..lattice.volume.size_x() - 1 {
+            for cell_y in (0..lattice.volume.size_y() - 1).rev() {
+                let at = IVec3::new(cell_x, cell_y, cell_z);
+                let world = IVec3::new(
+                    lattice.volume.block_x(cell_x),
+                    lattice.volume.block_y(cell_y),
+                    lattice.volume.block_z(cell_z),
+                );
+                let Some(blocks) = section_blocks(sections, y_sections, world.y) else {
+                    continue;
+                };
+                let base = IVec3::new(cell_x * cell.x, world.y.rem_euclid(16), cell_z * cell.z);
+                match lattice.classify(noise_router, at, sea_level, &mut fill) {
+                    CellFill::Solid => fill_cell_box(blocks, base, cell, default_block),
+                    CellFill::Fluid => fill_cell_box(blocks, base, cell, default_fluid),
+                    CellFill::Air => {}
+                    CellFill::Sea => fill_cell_box(
+                        blocks,
+                        base,
+                        IVec3::new(cell.x, sea_level - world.y, cell.z),
+                        default_fluid,
+                    ),
+                    CellFill::Mixed => fill_blocks(
+                        blocks,
+                        &Volume::dense(cell, world),
+                        base,
+                        noise_router,
+                        &mut fill,
+                        sea_level,
+                        default_block,
+                        default_fluid,
+                    ),
+                }
+            }
+        }
+    }
+    true
+}
+
+/// The block-by-block fallback for a router whose cells do not tile a section.
+fn fill_column_dense(
+    sections: &mut [Option<(BlockPalette, BiomePalette)>],
+    y_sections: &[i32],
+    block_x: i32,
+    block_z: i32,
+    noise_router: &NoiseRouter,
+    fill: &mut FillBuffers,
+    cancel: &CancellationToken,
+) -> bool {
+    let noise_min_y = noise_router.noise_min_y();
+    let noise_max_y = noise_min_y + noise_router.noise_height() as i32;
+    for (index, &section_y) in y_sections.iter().enumerate() {
+        if cancel.is_cancelled() {
+            return false;
+        }
+        let section_min_y = section_y * 16;
+        if section_min_y >= noise_max_y || section_min_y + 16 <= noise_min_y {
+            continue;
+        }
+        let Some((blocks, _)) = sections[index].as_mut() else {
+            continue;
+        };
+        let volume = Volume::dense(
+            IVec3::splat(16),
+            IVec3::new(block_x, section_min_y, block_z),
+        );
+        fill_blocks(
+            blocks,
             &volume,
             IVec3::ZERO,
             noise_router,
             fill,
-            sea_level,
-            default_block,
-            default_fluid,
+            noise_router.sea_level(),
+            noise_router.default_block_state(),
+            noise_router.default_fluid_state(),
         );
-        return;
-    };
-
-    let cell = corners.cell;
-    let row0 = (block_y - corners.volume.min_block_y()) / cell.y;
-    fill.bounds.clear();
-    fill.bounds
-        .resize(noise_router.final_density_index() + 1, (0.0, 0.0));
-    fill.wrapper_bounds.clear();
-    fill.wrapper_bounds.resize(corners.width, (0.0, 0.0));
-
-    for cell_z in 0..16 / cell.z {
-        for cell_x in 0..16 / cell.x {
-            for cell_y in 0..16 / cell.y {
-                let base = IVec3::new(cell_x * cell.x, cell_y * cell.y, cell_z * cell.z);
-                debug_assert_eq!(
-                    corners.volume.index_of_block(
-                        section_min.x + base.x,
-                        section_min.y + base.y,
-                        section_min.z + base.z
-                    ),
-                    Some(
-                        corners
-                            .volume
-                            .index_unchecked(cell_x, row0 + cell_y, cell_z)
-                    ),
-                    "cell corner is not the lattice position it indexes"
-                );
-                corners.cell_bounds(
-                    IVec3::new(cell_x, row0 + cell_y, cell_z),
-                    &mut fill.wrapper_bounds,
-                );
-
-                let cell_min_world_y = block_y + base.y;
-                let cell_max_world_y = cell_min_world_y + cell.y;
-                match noise_router.final_density_cell_bounds(&fill.wrapper_bounds, &mut fill.bounds)
-                {
-                    Some((lo, _)) if lo > CELL_BOUNDS_SLACK => {
-                        fill_cell_box(block_states, base, cell, default_block);
-                        continue;
-                    }
-                    Some((_, hi)) if hi < -CELL_BOUNDS_SLACK => {
-                        if cell_max_world_y <= sea_level {
-                            fill_cell_box(block_states, base, cell, default_fluid);
-                            continue;
-                        } else if cell_min_world_y >= sea_level {
-                            continue;
-                        }
-                    }
-                    _ => {}
-                }
-
-                let volume = Volume::dense(cell, section_min + base);
-                fill_and_set(
-                    block_states,
-                    &volume,
-                    base,
-                    noise_router,
-                    fill,
-                    sea_level,
-                    default_block,
-                    default_fluid,
-                );
-            }
-        }
     }
+    true
+}
+
+fn section_blocks<'a>(
+    sections: &'a mut [Option<(BlockPalette, BiomePalette)>],
+    y_sections: &[i32],
+    world_y: i32,
+) -> Option<&'a mut BlockPalette> {
+    let section_y = world_y.div_euclid(16);
+    let index = y_sections.iter().position(|&sy| sy == section_y)?;
+    sections[index].as_mut().map(|(blocks, _)| blocks)
 }
 
 fn fill_cell_box(block_states: &mut BlockPalette, base: IVec3, cell: IVec3, state: VoxelId) {
@@ -212,12 +281,12 @@ fn fill_cell_box(block_states: &mut BlockPalette, base: IVec3, cell: IVec3, stat
 }
 
 #[allow(clippy::too_many_arguments)]
-fn fill_and_set(
+fn fill_blocks(
     block_states: &mut BlockPalette,
     volume: &Volume,
     origin: IVec3,
     noise_router: &NoiseRouter,
-    fill: &mut SectionFill,
+    fill: &mut FillBuffers,
     sea_level: i32,
     default_block: VoxelId,
     default_fluid: VoxelId,
@@ -232,7 +301,7 @@ fn fill_and_set(
     );
     for z in 0..volume.size_z() {
         for x in 0..volume.size_x() {
-            for y in 0..volume.size_y() {
+            for y in (0..volume.size_y()).rev() {
                 let value = fill.density[volume.index_unchecked(x, y, z)];
                 let pos = BlockPos::new(origin.x + x, origin.y + y, origin.z + z);
                 if value > 0.0 {
@@ -404,13 +473,13 @@ fn fill_sections_beta_f64(
 
 /// Generate all sections in a column.
 ///
-/// The `interpolated` wrapper inputs are filled once over the whole column's
-/// cell lattice, so adjacent Y sections share the cell corners at their
-/// boundary instead of re-evaluating them.
+/// `final_density` is filled once over the whole column, so a cell straddling
+/// no longer costs anything at a section boundary and the walk is a single
+/// z, x, descending-y sweep over the column's cells.
 ///
-/// Accepts a `CancellationToken` for cooperative cancellation. The token is checked
-/// between section generations; if cancelled, remaining sections return `None` while
-/// already-completed sections return `Some((blocks, biomes))`.
+/// Accepts a `CancellationToken` for cooperative cancellation. A column
+/// cancelled part-way returns `None` for every section, since one column-wide
+/// fill leaves no section boundary at which a partial result is meaningful.
 ///
 /// When `biome_context` is `Some((source, registry))` and `source` is a Beta biome
 /// source, every section's `BiomePalette` is filled from climate data.  Non-Beta
@@ -446,9 +515,6 @@ pub fn generate_column(
     let block_x = section_x * 16;
     let block_z = section_z * 16;
 
-    let noise_min_y = noise_router.noise_min_y();
-    let noise_max_y = noise_min_y + noise_router.noise_height() as i32;
-
     // Only fill biome palettes when the source is Beta; modern paths keep default().
     let beta_biome = biome_context.and_then(|(src, reg)| {
         if matches!(src, BiomeSource::Beta { .. }) {
@@ -457,43 +523,30 @@ pub fn generate_column(
             None
         }
     });
-
     let climate = beta_biome.map(|_| beta_climate_cells(noise_router, block_x, block_z));
 
-    let mut fill = SectionFill::default();
-    let corners = ColumnCorners::fill(noise_router, block_x, block_z, &mut fill.scratch);
-    y_sections
+    let mut sections: Vec<Option<(BlockPalette, BiomePalette)>> = y_sections
         .iter()
         .map(|&sy| {
-            // Check cancellation between sections (cooperative cancellation)
-            if cancel.is_cancelled() {
-                return None;
-            }
-
-            // Sections outside [noise_min_y, noise_min_y + noise_height) are always air.
-            // This matches vanilla: only cells within the noise settings vertical range are
-            // filled by the density function; everything else is the default block (air).
-            // Clients still need biome data for these sections, so the palette is always filled
-            // when a Beta biome source is active.
-            let section_min_y = sy * 16;
-            let section_max_y = section_min_y + 16;
-            let mut blocks = BlockPalette::default();
             let mut biomes = BiomePalette::default();
-            if section_min_y < noise_max_y && section_max_y > noise_min_y {
-                generate_section(
-                    IVec3::new(block_x, section_min_y, block_z),
-                    &mut blocks,
-                    noise_router,
-                    corners.as_ref(),
-                    &mut fill,
-                );
-            }
             if let Some(((src, reg), climate)) = beta_biome.zip(climate.as_ref()) {
                 fill_biome_palette_beta(&mut biomes, sy, climate, src, reg);
             }
-            Some((blocks, biomes))
+            Some((BlockPalette::default(), biomes))
         })
-        .collect()
+        .collect();
+
+    if !fill_column(
+        &mut sections,
+        y_sections,
+        block_x,
+        block_z,
+        noise_router,
+        cancel,
+    ) {
+        return vec![None; y_sections.len()];
+    }
+    sections
 }
 
 /// Apply the Beta surface pass to a generated chunk column.
