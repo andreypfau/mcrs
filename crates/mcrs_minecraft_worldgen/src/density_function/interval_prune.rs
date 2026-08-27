@@ -78,9 +78,7 @@ fn node_octaves(c: &DensityFunctionComponent) -> u64 {
         DensityFunctionComponent::Independent(f) => match f {
             IndependentDensityFunction::OldBlendedNoise(_) => 40,
             IndependentDensityFunction::Noise(x) => x.sampler.octave_count() as u64,
-            IndependentDensityFunction::ShiftA(x) => x.sampler.octave_count() as u64,
             IndependentDensityFunction::ShiftB(x) => x.sampler.octave_count() as u64,
-            IndependentDensityFunction::Shift(x) => x.sampler.octave_count() as u64,
             _ => 0,
         },
         DensityFunctionComponent::Dependent(DependentDensityFunction::ShiftedNoise(x)) => {
@@ -747,9 +745,7 @@ fn kind_name(c: &DensityFunctionComponent) -> &'static str {
             IndependentDensityFunction::Constant(_) => "Constant",
             IndependentDensityFunction::OldBlendedNoise(_) => "OldBlendedNoise",
             IndependentDensityFunction::Noise(_) => "Noise",
-            IndependentDensityFunction::ShiftA(_) => "ShiftA",
             IndependentDensityFunction::ShiftB(_) => "ShiftB",
-            IndependentDensityFunction::Shift(_) => "Shift",
             IndependentDensityFunction::ClampedYGradient(_) => "ClampedYGradient",
             IndependentDensityFunction::Gradient(_) => "Gradient",
             IndependentDensityFunction::DistanceToPoint(_) => "DistanceToPoint",

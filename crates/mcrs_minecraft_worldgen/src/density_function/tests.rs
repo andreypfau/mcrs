@@ -1482,60 +1482,62 @@ fn substituted_position_evaluation_matches_the_recursive_walk() {
 }
 
 /// `shift` is absent from the 26.3 corpus, so no oracle fixture reaches it.
-/// These pin all three variants to the coordinate permutation each one applies.
+/// Each variant is the same noise read through its own coordinate permutation,
+/// which these identities pin: `shift_a` drops y, `shift_b` reads (z, x, 0).
 #[test]
 fn every_shift_variant_permutes_its_coordinates() {
-    use super::{Shift, ShiftA, ShiftB};
-    use crate::density_function::proto::Normalization;
-    use crate::noise::normal_noise::NoiseSampler;
-    use mcrs_minecraft_random::legacy::LegacyRandom;
-
-    let sampler = NoiseSampler::from_params(
-        &mut LegacyRandom::new(7),
-        -7,
-        vec![1.0, 1.0, 1.0],
-        1.0,
-        Normalization::Enabled,
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../assets/minecraft/worldgen/noise_settings/overworld.json");
+    let mut settings: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let noise = serde_json::json!("minecraft:offset");
+    for (root, kind) in [
+        ("temperature", "minecraft:shift"),
+        ("vegetation", "minecraft:shift_a"),
+        ("continents", "minecraft:shift_b"),
+    ] {
+        settings["noise_router"][root] =
+            serde_json::json!({ "type": kind, "noise": noise.clone() });
+    }
+    let router = super::build_functions(
+        &load_density_functions_from_disk(),
+        &load_noises_from_disk(),
+        &serde_json::from_value(settings).unwrap(),
+        2,
+        mcrs_voxel_storage::VoxelId(1),
+        mcrs_voxel_storage::VoxelId(86),
     );
-    let name = || "minecraft:test".to_string();
-    let shift = Shift {
-        noise_name: name(),
-        sampler: sampler.clone(),
-    };
-    let shift_a = ShiftA {
-        noise_name: name(),
-        sampler: sampler.clone(),
-    };
-    let shift_b = ShiftB {
-        noise_name: name(),
-        sampler: sampler.clone(),
-    };
 
+    let mut scratch = FillScratch::new();
+    let shift = |p: IVec3, s: &mut FillScratch| router.sample_value(router.temperature_index, p, s);
     for pos in [
         IVec3::new(0, 0, 0),
         IVec3::new(13, -47, 5),
         IVec3::new(-8, 91, 200),
         IVec3::new(4, 4, 4),
     ] {
-        let (x, y, z) = (pos.x as f64, pos.y as f64, pos.z as f64);
+        let shift_a = router.sample_value(router.vegetation_index, pos, &mut scratch);
+        let shift_b = router.sample_value(router.continents_index, pos, &mut scratch);
         assert_eq!(
-            shift.sample(pos),
-            sampler.get(x * 0.25, y * 0.25, z * 0.25) * 4.0,
-            "shift at {pos:?}"
-        );
-        assert_eq!(
-            shift_a.sample(pos),
-            sampler.get(x * 0.25, 0.0, z * 0.25) * 4.0,
+            shift_a,
+            shift(IVec3::new(pos.x, 0, pos.z), &mut scratch),
             "shift_a at {pos:?}"
         );
         assert_eq!(
-            shift_b.sample(pos),
-            sampler.get(z * 0.25, x * 0.25, 0.0) * 4.0,
+            shift_b,
+            shift(IVec3::new(pos.z, pos.x, 0), &mut scratch),
             "shift_b at {pos:?}"
         );
     }
 
     let off_diagonal = IVec3::new(13, -47, 5);
-    assert_ne!(shift.sample(off_diagonal), shift_a.sample(off_diagonal));
-    assert_ne!(shift.sample(off_diagonal), shift_b.sample(off_diagonal));
+    let here = shift(off_diagonal, &mut scratch);
+    assert_ne!(
+        here,
+        router.sample_value(router.vegetation_index, off_diagonal, &mut scratch)
+    );
+    assert_ne!(
+        here,
+        router.sample_value(router.continents_index, off_diagonal, &mut scratch)
+    );
 }

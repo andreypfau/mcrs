@@ -1,10 +1,10 @@
 use crate::density_function::branch_schedule::{BranchSchedule, Step};
 use crate::density_function::proto::{
-    ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axis, ClampArguments, DensityFunctionHolder, DistanceMetric,
-    GradientArguments, HashableF64, InlineReference, IntervalSelectArguments, NoiseHolder,
-    NoiseParam, NoiseValue, Normalization, PowFunctionArguments, ProtoDensityFunction, RewriteRule,
-    RoundFunctionArguments, RoundingMode, SingleArgumentFunction, SliceUniformAxes, SplineHolder,
-    TilingMode, TwoArgumentFunction, Visitor, noise_scale_axes,
+    ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axis, ClampArguments, ConstantValue, DensityFunctionHolder,
+    DistanceMetric, GradientArguments, HashableF64, InlineReference, IntervalSelectArguments,
+    NoiseHolder, NoiseParam, NoiseValue, Normalization, PowFunctionArguments, ProtoDensityFunction,
+    RewriteRule, RoundFunctionArguments, RoundingMode, SingleArgumentFunction, SliceUniformAxes,
+    SplineHolder, TilingMode, TwoArgumentFunction, Visitor, noise_scale_axes,
 };
 use crate::noise::normal_noise::{ColumnScratch, NoiseSampler};
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
@@ -477,42 +477,6 @@ impl DensityFunction for Noise {
 }
 
 #[derive(Clone, PartialEq)]
-struct ShiftA {
-    noise_name: String,
-    sampler: NoiseSampler,
-}
-
-impl Debug for ShiftA {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ShiftA")
-            .field("noise_name", &self.noise_name)
-            .field("min_value", &self.min_value())
-            .field("max_value", &self.max_value())
-            .finish()
-    }
-}
-
-impl RangeFunction for ShiftA {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        -self.max_value()
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        (self.sampler.max_value() * 4.0) as f32
-    }
-}
-
-impl DensityFunction for ShiftA {
-    fn sample(&self, pos: IVec3) -> f32 {
-        self.sampler
-            .get(pos.x as f64 * 0.25, 0.0, pos.z as f64 * 0.25)
-            * 4.0
-    }
-}
-
-#[derive(Clone, PartialEq)]
 struct ShiftB {
     noise_name: String,
     sampler: NoiseSampler,
@@ -545,34 +509,6 @@ impl DensityFunction for ShiftB {
         self.sampler
             .get(pos.z as f64 * 0.25, pos.x as f64 * 0.25, 0.0)
             * 4.0
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct Shift {
-    noise_name: String,
-    sampler: NoiseSampler,
-}
-
-impl RangeFunction for Shift {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        -self.max_value()
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.sampler.max_value() * 4.0
-    }
-}
-
-impl DensityFunction for Shift {
-    fn sample(&self, pos: IVec3) -> f32 {
-        self.sampler.get(
-            pos.x as f64 * 0.25,
-            pos.y as f64 * 0.25,
-            pos.z as f64 * 0.25,
-        ) * 4.0
     }
 }
 
@@ -745,9 +681,7 @@ enum IndependentDensityFunction {
     Constant(f32),
     OldBlendedNoise(BlendedNoise),
     Noise(Noise),
-    ShiftA(ShiftA),
     ShiftB(ShiftB),
-    Shift(Shift),
     ClampedYGradient(ClampedYGradient),
     Gradient(Gradient),
     DistanceToPoint(DistanceToPoint),
@@ -795,9 +729,7 @@ impl RangeFunction for IndependentDensityFunction {
             IndependentDensityFunction::Constant(x) => *x,
             IndependentDensityFunction::OldBlendedNoise(x) => x.min_value(),
             IndependentDensityFunction::Noise(x) => x.min_value(),
-            IndependentDensityFunction::ShiftA(x) => x.min_value(),
             IndependentDensityFunction::ShiftB(x) => x.min_value(),
-            IndependentDensityFunction::Shift(x) => x.min_value(),
             IndependentDensityFunction::ClampedYGradient(x) => x.min_value(),
             IndependentDensityFunction::Gradient(x) => x.min_value(),
             IndependentDensityFunction::DistanceToPoint(x) => x.min_value(),
@@ -810,9 +742,7 @@ impl RangeFunction for IndependentDensityFunction {
             IndependentDensityFunction::Constant(x) => *x,
             IndependentDensityFunction::OldBlendedNoise(x) => x.max_value(),
             IndependentDensityFunction::Noise(x) => x.max_value(),
-            IndependentDensityFunction::ShiftA(x) => x.max_value(),
             IndependentDensityFunction::ShiftB(x) => x.max_value(),
-            IndependentDensityFunction::Shift(x) => x.max_value(),
             IndependentDensityFunction::ClampedYGradient(x) => x.max_value(),
             IndependentDensityFunction::Gradient(x) => x.max_value(),
             IndependentDensityFunction::DistanceToPoint(x) => x.max_value(),
@@ -827,9 +757,7 @@ impl DensityFunction for IndependentDensityFunction {
             IndependentDensityFunction::Constant(x) => *x,
             IndependentDensityFunction::OldBlendedNoise(x) => x.sample(pos),
             IndependentDensityFunction::Noise(x) => x.sample(pos),
-            IndependentDensityFunction::ShiftA(x) => x.sample(pos),
             IndependentDensityFunction::ShiftB(x) => x.sample(pos),
-            IndependentDensityFunction::Shift(x) => x.sample(pos),
             IndependentDensityFunction::ClampedYGradient(x) => x.sample(pos),
             IndependentDensityFunction::Gradient(x) => x.sample(pos),
             IndependentDensityFunction::DistanceToPoint(x) => x.sample(pos),

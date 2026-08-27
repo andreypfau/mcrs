@@ -593,11 +593,9 @@ pub(super) fn compute_domain_axes(stack: &[DensityFunctionComponent]) -> Vec<u8>
             DensityFunctionComponent::Independent(f) => match f {
                 IndependentDensityFunction::Constant(_) => 0,
                 IndependentDensityFunction::OldBlendedNoise(_)
-                | IndependentDensityFunction::Shift(_)
                 | IndependentDensityFunction::DistanceToPoint(_) => ALL_AXES,
                 IndependentDensityFunction::Noise(n) => noise_scale_axes(n.xz_scale, n.y_scale),
-                IndependentDensityFunction::ShiftA(_)
-                | IndependentDensityFunction::ShiftB(_)
+                IndependentDensityFunction::ShiftB(_)
                 | IndependentDensityFunction::EndOuterIslands(_) => AXIS_X | AXIS_Z,
                 IndependentDensityFunction::ClampedYGradient(_) => AXIS_Y,
                 IndependentDensityFunction::Gradient(g) => g.axis.bit(),
@@ -802,9 +800,7 @@ pub(super) fn reorder_stack_for_evaluation(
                     DensityFunctionComponent::Independent(
                         IndependentDensityFunction::OldBlendedNoise(_)
                             | IndependentDensityFunction::Noise(_)
-                            | IndependentDensityFunction::ShiftA(_)
                             | IndependentDensityFunction::ShiftB(_)
-                            | IndependentDensityFunction::Shift(_)
                     ) | DensityFunctionComponent::Dependent(
                         DependentDensityFunction::ShiftedNoise(_)
                     )
@@ -1038,6 +1034,29 @@ impl<'a> FunctionStackBuilder<'a> {
         }
         let idx = idx.unwrap();
         idx
+    }
+
+    /// `shift` and `shift_a` are the plain noise scaled by four, so they lower
+    /// into nodes that already exist instead of carrying a sampler each.
+    fn lower_shift(&mut self, proto: ProtoDensityFunction, noise: &NoiseHolder, y_scale: f64) {
+        let scaled = DensityFunctionHolder::Owned(Box::new(ProtoDensityFunction::Noise {
+            noise: noise.clone(),
+            xz_scale: 0.25.into(),
+            y_scale: y_scale.into(),
+            shift_x: None,
+            shift_y: None,
+            shift_z: None,
+        }));
+        let lowered = DensityFunctionHolder::Owned(Box::new(ProtoDensityFunction::Mul(
+            TwoArgumentFunction {
+                left: scaled,
+                right: DensityFunctionHolder::Owned(Box::new(ProtoDensityFunction::Constant(
+                    ConstantValue::from(4.0),
+                ))),
+            },
+        )));
+        let index = self.component(&lowered);
+        self.built.insert(proto, index);
     }
 
     fn register_component(
@@ -1403,16 +1422,12 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     }
 
     fn visit_shift_a(&mut self, function: &NoiseHolder) {
-        let noise_name = Self::noise_name(function);
-        let sampler = self.noise_sampler(function);
-        self.register_component(
+        self.lower_shift(
             ProtoDensityFunction::ShiftA {
                 noise: function.clone(),
             },
-            DensityFunctionComponent::Independent(IndependentDensityFunction::ShiftA(ShiftA {
-                noise_name,
-                sampler,
-            })),
+            function,
+            0.0,
         );
     }
 
@@ -1431,16 +1446,12 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     }
 
     fn visit_shift(&mut self, argument: &NoiseHolder) {
-        let noise_name = Self::noise_name(argument);
-        let sampler = self.noise_sampler(argument);
-        self.register_component(
+        self.lower_shift(
             ProtoDensityFunction::Shift {
                 noise: argument.clone(),
             },
-            DensityFunctionComponent::Independent(IndependentDensityFunction::Shift(Shift {
-                noise_name,
-                sampler,
-            })),
+            argument,
+            0.25,
         );
     }
 
@@ -1945,12 +1956,11 @@ mod arithmetic_node_tests {
         super::resolve_substituted_subgraphs(&mut builder.stack);
         let members: Vec<u32> = (0..=index as u32).collect();
         let mut value = [0.0f32];
-        crate::density_function::volume::Arena::new(&builder.stack)
-            .fill_members(
-                &members,
-                &crate::density_function::Volume::point(IVec3::ZERO),
-                &mut value,
-            );
+        crate::density_function::volume::Arena::new(&builder.stack).fill_members(
+            &members,
+            &crate::density_function::Volume::point(IVec3::ZERO),
+            &mut value,
+        );
         let component = &builder.stack[index];
         (value[0], component.min_value(), component.max_value())
     }
