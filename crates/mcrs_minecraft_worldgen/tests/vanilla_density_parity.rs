@@ -739,3 +739,111 @@ fn branch_skipping_preserves_every_zone_b_root() {
         }
     }
 }
+
+fn fill_cases() -> Vec<(&'static str, mcrs_minecraft_worldgen::density_function::Volume)> {
+    use mcrs_minecraft_worldgen::density_function::Volume as V;
+    vec![
+        (
+            "dense box over several cells",
+            V::dense(IVec3::new(8, 9, 8), IVec3::new(4, -16, 4)),
+        ),
+        (
+            "cell lattice",
+            V::new(
+                IVec3::new(5, 5, 5),
+                IVec3::new(0, -64, 0),
+                IVec3::new(4, 8, 4),
+            ),
+        ),
+        (
+            "single column",
+            V::dense(IVec3::new(1, 32, 1), IVec3::new(13, -32, -27)),
+        ),
+        (
+            "16x1x16 plane",
+            V::dense(IVec3::new(16, 1, 16), IVec3::new(0, 63, 0)),
+        ),
+        (
+            "2x2x2 cell corners",
+            V::new(
+                IVec3::new(2, 2, 2),
+                IVec3::new(8, -8, 8),
+                IVec3::new(4, 8, 4),
+            ),
+        ),
+        (
+            "unaligned min",
+            V::dense(IVec3::new(3, 3, 3), IVec3::new(5, -59, 7)),
+        ),
+        (
+            "negative min",
+            V::dense(IVec3::new(4, 4, 4), IVec3::new(-37, -64, -53)),
+        ),
+    ]
+}
+
+fn assert_fill_matches_sample_root(
+    router: &NoiseRouter,
+    name: &str,
+    root_name: &str,
+    root: usize,
+    volume: &mcrs_minecraft_worldgen::density_function::Volume,
+) {
+    let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
+    let mut filled = vec![f32::NAN; volume.len()];
+    router.fill(root, volume, &mut filled, &mut scratch);
+
+    let mut cache = router.new_cache();
+    for z in 0..volume.size_z() {
+        for x in 0..volume.size_x() {
+            for y in 0..volume.size_y() {
+                let pos = IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
+                let expected = router.sample_root(root, pos, &mut cache);
+                let got = filled[volume.index_unchecked(x, y, z)];
+                assert_eq!(
+                    got.to_bits(),
+                    expected.to_bits(),
+                    "{name} / {root_name} at {pos:?}: fill {got} != sample_root {expected}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn fill_matches_sample_root_for_final_density() {
+    let router = overworld_router(42);
+    let root = router.final_density_index();
+    for (name, volume) in fill_cases() {
+        assert_fill_matches_sample_root(&router, name, "final_density", root, &volume);
+    }
+}
+
+#[test]
+fn fill_matches_sample_root_for_every_router_root() {
+    use mcrs_minecraft_worldgen::density_function::Volume as V;
+    let router = overworld_router(42);
+    let volumes = [
+        (
+            "unaligned min",
+            V::dense(IVec3::new(3, 3, 3), IVec3::new(5, -59, 7)),
+        ),
+        (
+            "2x2x2 cell corners",
+            V::new(
+                IVec3::new(2, 2, 2),
+                IVec3::new(8, -8, 8),
+                IVec3::new(4, 8, 4),
+            ),
+        ),
+        (
+            "negative min column",
+            V::dense(IVec3::new(1, 8, 1), IVec3::new(-37, -64, -53)),
+        ),
+    ];
+    for (root_name, root) in router.roots() {
+        for (name, volume) in &volumes {
+            assert_fill_matches_sample_root(&router, name, root_name, root, volume);
+        }
+    }
+}

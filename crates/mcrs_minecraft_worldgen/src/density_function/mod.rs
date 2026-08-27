@@ -30,8 +30,10 @@ mod compile;
 #[cfg(test)]
 mod interval_prune;
 pub mod proto;
+pub mod volume;
 
 pub use compile::build_functions;
+pub use volume::{FillScratch, Volume};
 
 /// Maximum number of positions that can be batched in a single plane fill.
 /// 5 Z-columns * 3 Y-positions = 15, rounded up to 16 for alignment.
