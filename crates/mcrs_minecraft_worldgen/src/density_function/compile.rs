@@ -179,6 +179,95 @@ pub(super) fn try_build_slide(idx: usize, stack: &[DensityFunctionComponent]) ->
     })
 }
 
+/// Rewrite the optimiser's operation-carrying nodes into one concrete sampler
+/// per operation, so no fill loop carries a branch on which operation it is.
+fn lower_to_samplers(stack: &mut [DensityFunctionComponent]) {
+    for component in stack.iter_mut() {
+        let DensityFunctionComponent::Dependent(f) = component else {
+            continue;
+        };
+        let lowered = match f {
+            DependentDensityFunction::Binary(x) => {
+                macro_rules! two_input {
+                    ($variant:ident) => {
+                        DependentDensityFunction::$variant($variant {
+                            input1_index: x.input1_index,
+                            input2_index: x.input2_index,
+                            min_value: x.min_value,
+                            max_value: x.max_value,
+                        })
+                    };
+                }
+                match x.operation {
+                    BinaryOperation::Add => two_input!(Add),
+                    BinaryOperation::Subtract => two_input!(Sub),
+                    BinaryOperation::Multiply => two_input!(Mul),
+                    BinaryOperation::Divide => two_input!(Div),
+                    BinaryOperation::Min => two_input!(Min),
+                    BinaryOperation::Max => two_input!(Max),
+                    BinaryOperation::Pow => two_input!(Pow),
+                    BinaryOperation::Round(mode) => DependentDensityFunction::Round(Round {
+                        input1_index: x.input1_index,
+                        input2_index: x.input2_index,
+                        mode,
+                        min_value: x.min_value,
+                        max_value: x.max_value,
+                    }),
+                }
+            }
+            DependentDensityFunction::Unary(x) => {
+                macro_rules! one_input {
+                    ($variant:ident) => {
+                        DependentDensityFunction::$variant($variant {
+                            input_index: x.input_index,
+                            min_value: x.min_value,
+                            max_value: x.max_value,
+                        })
+                    };
+                }
+                match x.operation {
+                    UnaryOperation::Abs => one_input!(Abs),
+                    UnaryOperation::Square => one_input!(Square),
+                    UnaryOperation::Cube => one_input!(Cube),
+                    UnaryOperation::Reciprocal => one_input!(Reciprocal),
+                    UnaryOperation::Squeeze => one_input!(Squeeze),
+                    UnaryOperation::Sqrt => one_input!(Sqrt),
+                    UnaryOperation::Log => one_input!(Log),
+                    UnaryOperation::Sign => one_input!(Sign),
+                    UnaryOperation::HalfNegative | UnaryOperation::QuarterNegative => {
+                        DependentDensityFunction::LeakyReLU(LeakyReLU {
+                            input_index: x.input_index,
+                            negative_factor: if x.operation == UnaryOperation::HalfNegative {
+                                0.5
+                            } else {
+                                0.25
+                            },
+                            min_value: x.min_value,
+                            max_value: x.max_value,
+                        })
+                    }
+                }
+            }
+            DependentDensityFunction::Linear(x) => match x.operation {
+                LinearOperation::Add => DependentDensityFunction::ConstAdd(ConstAdd {
+                    input_index: x.input_index,
+                    argument: x.argument,
+                    min_value: x.min_value,
+                    max_value: x.max_value,
+                }),
+                LinearOperation::Multiply => DependentDensityFunction::ConstMul(ConstMul {
+                    input_index: x.input_index,
+                    argument: x.argument,
+                    min_value: x.min_value,
+                    max_value: x.max_value,
+                }),
+            },
+            _ => continue,
+        };
+        *component = DensityFunctionComponent::Dependent(lowered);
+    }
+}
+
 pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &mut [usize]) {
     let n = stack.len();
     if n == 0 {
@@ -265,15 +354,16 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
                     ))
                 }
                 // `x - c` is exactly `x + (-c)`: negation is exact in binary floating point.
-                (None, Some(c), BinaryOperation::Subtract) => Some(
-                    DensityFunctionComponent::Dependent(DependentDensityFunction::Linear(Linear {
-                        input_index: bin.input1_index,
-                        min_value: bin.min_value,
-                        max_value: bin.max_value,
-                        argument: -c,
-                        operation: LinearOperation::Add,
-                    })),
-                ),
+                (None, Some(c), BinaryOperation::Subtract) => {
+                    Some(DensityFunctionComponent::Dependent(
+                        DependentDensityFunction::ConstAdd(ConstAdd {
+                            input_index: bin.input1_index,
+                            argument: -c,
+                            min_value: bin.min_value,
+                            max_value: bin.max_value,
+                        }),
+                    ))
+                }
                 // One constant, Add/Multiply → demote to Linear
                 (Some(c), None, BinaryOperation::Add | BinaryOperation::Multiply)
                 | (None, Some(c), BinaryOperation::Add | BinaryOperation::Multiply) => {
@@ -287,15 +377,20 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
                         BinaryOperation::Multiply => LinearOperation::Multiply,
                         _ => unreachable!(),
                     };
-                    Some(DensityFunctionComponent::Dependent(
-                        DependentDensityFunction::Linear(Linear {
+                    Some(DensityFunctionComponent::Dependent(match operation {
+                        LinearOperation::Add => DependentDensityFunction::ConstAdd(ConstAdd {
                             input_index,
+                            argument: c,
                             min_value: bin.min_value,
                             max_value: bin.max_value,
-                            argument: c,
-                            operation,
                         }),
-                    ))
+                        LinearOperation::Multiply => DependentDensityFunction::ConstMul(ConstMul {
+                            input_index,
+                            argument: c,
+                            min_value: bin.min_value,
+                            max_value: bin.max_value,
+                        }),
+                    }))
                 }
                 _ => None,
             };
@@ -565,9 +660,8 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
                             (0.0, (in_min * in_min).max(in_max * in_max))
                         };
                         stack[i] = DensityFunctionComponent::Dependent(
-                            DependentDensityFunction::Unary(Unary {
+                            DependentDensityFunction::Square(Square {
                                 input_index: bin.input1_index,
-                                operation: UnaryOperation::Square,
                                 min_value,
                                 max_value,
                             }),
@@ -937,6 +1031,7 @@ pub fn build_functions(
     ];
 
     optimize_stack(&mut builder.stack, &mut roots);
+    lower_to_samplers(&mut builder.stack);
 
     let mut per_block = compute_per_block(&builder.stack);
 
@@ -2018,6 +2113,7 @@ mod arithmetic_node_tests {
             FunctionStackBuilder::new(RandomSource::new(0, false), 0, &functions, &noises);
         let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
         super::resolve_substituted_subgraphs(&mut builder.stack);
+        super::lower_to_samplers(&mut builder.stack);
         let members: Vec<u32> = (0..=index as u32).collect();
         let mut value = [0.0f32];
         crate::density_function::node::Arena::new(&builder.stack).fill_members(
@@ -2209,10 +2305,19 @@ mod arithmetic_node_tests {
         let mut builder =
             FunctionStackBuilder::new(RandomSource::new(0, false), 0, &functions, &noises);
         let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
+        super::lower_to_samplers(&mut builder.stack);
         match &builder.stack[index] {
-            DensityFunctionComponent::Dependent(DependentDensityFunction::Unary(unary)) => {
-                Some(unary.operation)
-            }
+            DensityFunctionComponent::Dependent(f) => match f {
+                DependentDensityFunction::Abs(_) => Some(UnaryOperation::Abs),
+                DependentDensityFunction::Square(_) => Some(UnaryOperation::Square),
+                DependentDensityFunction::Cube(_) => Some(UnaryOperation::Cube),
+                DependentDensityFunction::Reciprocal(_) => Some(UnaryOperation::Reciprocal),
+                DependentDensityFunction::Squeeze(_) => Some(UnaryOperation::Squeeze),
+                DependentDensityFunction::Sqrt(_) => Some(UnaryOperation::Sqrt),
+                DependentDensityFunction::Log(_) => Some(UnaryOperation::Log),
+                DependentDensityFunction::Sign(_) => Some(UnaryOperation::Sign),
+                _ => None,
+            },
             _ => None,
         }
     }

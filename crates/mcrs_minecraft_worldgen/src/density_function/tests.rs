@@ -1556,3 +1556,26 @@ fn count_node_kinds() {
         println!("{k:24} {n}");
     }
 }
+
+/// `Binary`, `Unary` and `Linear` carry the operation as data so the optimiser
+/// can reason about it. They are not samplers: lowering must replace every one.
+#[test]
+fn no_operation_carrying_node_survives_lowering() {
+    for settings in ["overworld.json", "nether.json", "end.json", "caves.json"] {
+        let router = router_for(settings);
+        for (i, component) in router.stack.iter().enumerate() {
+            if let super::DensityFunctionComponent::Dependent(f) = component {
+                assert!(
+                    !matches!(
+                        f,
+                        super::DependentDensityFunction::Binary(_)
+                            | super::DependentDensityFunction::Unary(_)
+                            | super::DependentDensityFunction::Linear(_)
+                    ),
+                    "{settings} entry {i} is still {}",
+                    super::interval_prune::kind_name(component)
+                );
+            }
+        }
+    }
+}

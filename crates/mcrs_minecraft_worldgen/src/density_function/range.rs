@@ -185,6 +185,121 @@ impl NoiseRouter {
                             (a.0.min(b.0), a.1.max(b.1))
                         }
                     }
+                    DependentDensityFunction::Add(x) => {
+                        binary_range(BinaryOperation::Add, iv[x.input1_index], iv[x.input2_index])
+                    }
+                    DependentDensityFunction::Sub(x) => binary_range(
+                        BinaryOperation::Subtract,
+                        iv[x.input1_index],
+                        iv[x.input2_index],
+                    ),
+                    DependentDensityFunction::Mul(x) => binary_range(
+                        BinaryOperation::Multiply,
+                        iv[x.input1_index],
+                        iv[x.input2_index],
+                    ),
+                    DependentDensityFunction::Div(x) => binary_range(
+                        BinaryOperation::Divide,
+                        iv[x.input1_index],
+                        iv[x.input2_index],
+                    ),
+                    DependentDensityFunction::Min(x) => {
+                        binary_range(BinaryOperation::Min, iv[x.input1_index], iv[x.input2_index])
+                    }
+                    DependentDensityFunction::Max(x) => {
+                        binary_range(BinaryOperation::Max, iv[x.input1_index], iv[x.input2_index])
+                    }
+                    DependentDensityFunction::Pow(x) => {
+                        binary_range(BinaryOperation::Pow, iv[x.input1_index], iv[x.input2_index])
+                    }
+                    DependentDensityFunction::Round(x) => binary_range(
+                        BinaryOperation::Round(x.mode),
+                        iv[x.input1_index],
+                        iv[x.input2_index],
+                    ),
+                    DependentDensityFunction::Abs(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        unary_range(UnaryOperation::Abs, lo, hi)
+                    }
+                    DependentDensityFunction::Square(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        unary_range(UnaryOperation::Square, lo, hi)
+                    }
+                    DependentDensityFunction::Cube(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        unary_range(UnaryOperation::Cube, lo, hi)
+                    }
+                    DependentDensityFunction::Reciprocal(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        unary_range(UnaryOperation::Reciprocal, lo, hi)
+                    }
+                    DependentDensityFunction::Squeeze(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        unary_range(UnaryOperation::Squeeze, lo, hi)
+                    }
+                    DependentDensityFunction::Sqrt(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        unary_range(UnaryOperation::Sqrt, lo, hi)
+                    }
+                    DependentDensityFunction::Log(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        unary_range(UnaryOperation::Log, lo, hi)
+                    }
+                    DependentDensityFunction::Sign(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        unary_range(UnaryOperation::Sign, lo, hi)
+                    }
+                    DependentDensityFunction::Negate(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        (-hi, -lo)
+                    }
+                    DependentDensityFunction::LeakyReLU(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        let operation = if x.negative_factor == 0.5 {
+                            UnaryOperation::HalfNegative
+                        } else {
+                            UnaryOperation::QuarterNegative
+                        };
+                        unary_range(operation, lo, hi)
+                    }
+                    DependentDensityFunction::ConstAdd(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        (lo + x.argument, hi + x.argument)
+                    }
+                    DependentDensityFunction::ConstMul(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        mul_range(lo, hi, x.argument, x.argument)
+                    }
+                    DependentDensityFunction::ConstSub(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        (x.argument - hi, x.argument - lo)
+                    }
+                    DependentDensityFunction::ConstDiv(x) => binary_range(
+                        BinaryOperation::Divide,
+                        (x.argument, x.argument),
+                        iv[x.input_index],
+                    ),
+                    DependentDensityFunction::ConstMin(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        (lo.min(x.argument), hi.min(x.argument))
+                    }
+                    DependentDensityFunction::ConstMax(x) => {
+                        let (lo, hi) = iv[x.input_index];
+                        (lo.max(x.argument), hi.max(x.argument))
+                    }
+                    DependentDensityFunction::ConstExponentPow(x) => binary_range(
+                        BinaryOperation::Pow,
+                        iv[x.input_index],
+                        (x.exponent, x.exponent),
+                    ),
+                    DependentDensityFunction::ConstBasePow(x) => {
+                        binary_range(BinaryOperation::Pow, (x.base, x.base), iv[x.input_index])
+                    }
+                    DependentDensityFunction::IntegerMultipleRound(x) => binary_range(
+                        BinaryOperation::Round(x.mode),
+                        iv[x.input_index],
+                        (x.multiple, x.multiple),
+                    ),
                     _ => return None,
                 },
                 _ => return None,

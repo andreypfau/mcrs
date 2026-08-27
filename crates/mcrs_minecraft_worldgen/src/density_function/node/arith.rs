@@ -394,24 +394,6 @@ impl BinaryOperation {
         }
     }
 }
-impl DensitySampler for Linear {
-    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
-        let input = ctx.row(self.input_index);
-        let argument = self.argument;
-        match self.operation {
-            LinearOperation::Add => {
-                for (slot, &value) in out.iter_mut().zip(input) {
-                    *slot = value + argument;
-                }
-            }
-            LinearOperation::Multiply => {
-                for (slot, &value) in out.iter_mut().zip(input) {
-                    *slot = value * argument;
-                }
-            }
-        }
-    }
-}
 
 impl DensitySampler for Affine {
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
@@ -439,74 +421,6 @@ impl DensitySampler for Slide {
         let input = ctx.row(self.input_index);
         for ((slot, &value), pos) in out.iter_mut().zip(input).zip(ctx.positions) {
             *slot = self.compute(value, pos.y as f32);
-        }
-    }
-}
-
-impl DensitySampler for Unary {
-    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
-        let input = ctx.row(self.input_index);
-        macro_rules! run {
-            ($op:expr) => {{
-                let f = $op;
-                for (slot, &value) in out.iter_mut().zip(input) {
-                    *slot = f(value);
-                }
-            }};
-        }
-        match self.operation {
-            UnaryOperation::Abs => run!(f32::abs),
-            UnaryOperation::Square => run!(|v: f32| v.powi(2)),
-            UnaryOperation::Cube => run!(|v: f32| v.powi(3)),
-            UnaryOperation::HalfNegative => {
-                run!(|v: f32| if v > 0.0 { v } else { v * 0.5 })
-            }
-            UnaryOperation::QuarterNegative => {
-                run!(|v: f32| if v > 0.0 { v } else { v * 0.25 })
-            }
-            UnaryOperation::Reciprocal => run!(|v: f32| 1.0 / v),
-            UnaryOperation::Squeeze => run!(|v: f32| {
-                let clamped = v.clamp(-1.0, 1.0);
-                clamped / 2.0 - clamped.powi(3) / 24.0
-            }),
-            UnaryOperation::Sqrt => run!(f32::sqrt),
-            UnaryOperation::Log => run!(|v: f32| (v as f64).ln() as f32),
-            _ => {
-                for (slot, &value) in out.iter_mut().zip(input) {
-                    *slot = self.operation.apply(value);
-                }
-            }
-        }
-    }
-}
-
-impl DensitySampler for Binary {
-    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
-        let left = ctx.row(self.input1_index);
-        let right = ctx.row(self.input2_index);
-        macro_rules! run {
-            ($op:expr) => {{
-                let f = $op;
-                for ((slot, &a), &b) in out.iter_mut().zip(left).zip(right) {
-                    *slot = f(a, b);
-                }
-            }};
-        }
-        match self.operation {
-            BinaryOperation::Add => run!(|a: f32, b: f32| a + b),
-            BinaryOperation::Subtract => run!(|a: f32, b: f32| a - b),
-            BinaryOperation::Multiply => run!(|a: f32, b: f32| a * b),
-            BinaryOperation::Divide => {
-                run!(|a: f32, b: f32| if a == 0.0 { 0.0 } else { a / b })
-            }
-            BinaryOperation::Min => run!(f32::min),
-            BinaryOperation::Max => run!(f32::max),
-            BinaryOperation::Pow => run!(pow_narrowed),
-            BinaryOperation::Round(mode) => run!(move |a: f32, b: f32| if b == 0.0 {
-                a
-            } else {
-                round_to_integer(a / b, mode) * b
-            }),
         }
     }
 }
@@ -560,4 +474,251 @@ const_binary_samplers! {
     ConstMax, value, argument => value.max(argument);
     ConstSub, value, argument => argument - value;
     ConstDiv, value, argument => if argument == 0.0 { 0.0 } else { argument / value };
+}
+
+macro_rules! two_input_samplers {
+    ($($(#[$m:meta])* $name:ident, $a:ident, $b:ident => $body:expr;)*) => {$(
+        $(#[$m])*
+        #[derive(Clone, Debug, PartialEq)]
+        pub(crate) struct $name {
+            pub(crate) input1_index: usize,
+            pub(crate) input2_index: usize,
+            pub(crate) min_value: f32,
+            pub(crate) max_value: f32,
+        }
+
+        impl RangeFunction for $name {
+            #[inline]
+            fn min_value(&self) -> f32 { self.min_value }
+            #[inline]
+            fn max_value(&self) -> f32 { self.max_value }
+        }
+
+        impl DensitySampler for $name {
+            fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+                let left = ctx.row(self.input1_index);
+                let right = ctx.row(self.input2_index);
+                for ((slot, &$a), &$b) in out.iter_mut().zip(left).zip(right) {
+                    *slot = $body;
+                }
+            }
+        }
+    )*};
+}
+
+macro_rules! one_input_samplers {
+    ($($(#[$m:meta])* $name:ident, $v:ident => $body:expr;)*) => {$(
+        $(#[$m])*
+        #[derive(Clone, Debug, PartialEq)]
+        pub(crate) struct $name {
+            pub(crate) input_index: usize,
+            pub(crate) min_value: f32,
+            pub(crate) max_value: f32,
+        }
+
+        impl RangeFunction for $name {
+            #[inline]
+            fn min_value(&self) -> f32 { self.min_value }
+            #[inline]
+            fn max_value(&self) -> f32 { self.max_value }
+        }
+
+        impl DensitySampler for $name {
+            fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+                for (slot, &$v) in out.iter_mut().zip(ctx.row(self.input_index)) {
+                    *slot = $body;
+                }
+            }
+        }
+    )*};
+}
+
+two_input_samplers! {
+    Add, a, b => a + b;
+    Sub, a, b => a - b;
+    Mul, a, b => a * b;
+    /// A zero numerator short-circuits, so a zero divisor cannot leak a NaN.
+    Div, a, b => if a == 0.0 { 0.0 } else { a / b };
+    Min, a, b => a.min(b);
+    Max, a, b => a.max(b);
+    Pow, a, b => pow_narrowed(a, b);
+}
+
+one_input_samplers! {
+    Abs, v => v.abs();
+    Square, v => v.powi(2);
+    Cube, v => v.powi(3);
+    Negate, v => -v;
+    Reciprocal, v => 1.0 / v;
+    Sqrt, v => v.sqrt();
+    Log, v => (v as f64).ln() as f32;
+    /// Unlike `f32::signum`, zero and NaN come back unchanged.
+    Sign, v => if v > 0.0 { 1.0 } else if v < 0.0 { -1.0 } else { v };
+    Squeeze, v => {
+        let clamped = v.clamp(-1.0, 1.0);
+        clamped / 2.0 - clamped.powi(3) / 24.0
+    };
+}
+
+const_binary_samplers! {
+    ConstAdd, value, argument => value + argument;
+    ConstMul, value, argument => value * argument;
+}
+
+/// Negative values are scaled, positive ones pass through.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct LeakyReLU {
+    pub(crate) input_index: usize,
+    pub(crate) negative_factor: f32,
+    pub(crate) min_value: f32,
+    pub(crate) max_value: f32,
+}
+
+impl RangeFunction for LeakyReLU {
+    #[inline]
+    fn min_value(&self) -> f32 {
+        self.min_value
+    }
+    #[inline]
+    fn max_value(&self) -> f32 {
+        self.max_value
+    }
+}
+
+impl DensitySampler for LeakyReLU {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let factor = self.negative_factor;
+        for (slot, &v) in out.iter_mut().zip(ctx.row(self.input_index)) {
+            *slot = if v > 0.0 { v } else { v * factor };
+        }
+    }
+}
+
+/// `x` rounded to the nearest multiple of another function's value.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Round {
+    pub(crate) input1_index: usize,
+    pub(crate) input2_index: usize,
+    pub(crate) mode: RoundingMode,
+    pub(crate) min_value: f32,
+    pub(crate) max_value: f32,
+}
+
+impl RangeFunction for Round {
+    #[inline]
+    fn min_value(&self) -> f32 {
+        self.min_value
+    }
+    #[inline]
+    fn max_value(&self) -> f32 {
+        self.max_value
+    }
+}
+
+impl DensitySampler for Round {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let left = ctx.row(self.input1_index);
+        let right = ctx.row(self.input2_index);
+        let mode = self.mode;
+        for ((slot, &a), &b) in out.iter_mut().zip(left).zip(right) {
+            *slot = if b == 0.0 {
+                a
+            } else {
+                round_to_integer(a / b, mode) * b
+            };
+        }
+    }
+}
+
+/// `x` rounded to a multiple fixed at compile time.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct IntegerMultipleRound {
+    pub(crate) input_index: usize,
+    pub(crate) multiple: f32,
+    pub(crate) mode: RoundingMode,
+    pub(crate) min_value: f32,
+    pub(crate) max_value: f32,
+}
+
+impl RangeFunction for IntegerMultipleRound {
+    #[inline]
+    fn min_value(&self) -> f32 {
+        self.min_value
+    }
+    #[inline]
+    fn max_value(&self) -> f32 {
+        self.max_value
+    }
+}
+
+impl DensitySampler for IntegerMultipleRound {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let multiple = self.multiple;
+        let mode = self.mode;
+        for (slot, &v) in out.iter_mut().zip(ctx.row(self.input_index)) {
+            *slot = if multiple == 0.0 {
+                v
+            } else {
+                round_to_integer(v / multiple, mode) * multiple
+            };
+        }
+    }
+}
+
+/// `x` raised to an exponent fixed at compile time.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ConstExponentPow {
+    pub(crate) input_index: usize,
+    pub(crate) exponent: f32,
+    pub(crate) min_value: f32,
+    pub(crate) max_value: f32,
+}
+
+impl RangeFunction for ConstExponentPow {
+    #[inline]
+    fn min_value(&self) -> f32 {
+        self.min_value
+    }
+    #[inline]
+    fn max_value(&self) -> f32 {
+        self.max_value
+    }
+}
+
+impl DensitySampler for ConstExponentPow {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let exponent = self.exponent;
+        for (slot, &v) in out.iter_mut().zip(ctx.row(self.input_index)) {
+            *slot = pow_narrowed(v, exponent);
+        }
+    }
+}
+
+/// A base fixed at compile time raised to `x`.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ConstBasePow {
+    pub(crate) input_index: usize,
+    pub(crate) base: f32,
+    pub(crate) min_value: f32,
+    pub(crate) max_value: f32,
+}
+
+impl RangeFunction for ConstBasePow {
+    #[inline]
+    fn min_value(&self) -> f32 {
+        self.min_value
+    }
+    #[inline]
+    fn max_value(&self) -> f32 {
+        self.max_value
+    }
+}
+
+impl DensitySampler for ConstBasePow {
+    fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
+        let base = self.base;
+        for (slot, &v) in out.iter_mut().zip(ctx.row(self.input_index)) {
+            *slot = pow_narrowed(base, v);
+        }
+    }
 }
