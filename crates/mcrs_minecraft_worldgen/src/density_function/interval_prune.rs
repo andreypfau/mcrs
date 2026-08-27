@@ -468,7 +468,10 @@ struct ColumnResult {
 
 fn run_seed(seed: u64, radius: i32) -> (Vec<ColumnResult>, Stats, f64, f64, u64) {
     let router = overworld_router(seed);
-    let v = router.cell_size.y;
+    let v = router
+        .cell_size()
+        .expect("the overworld interpolates on one lattice")
+        .y;
     let rows = router.noise_height() as usize / v as usize + 1;
     let min_y = router.noise_min_y();
 

@@ -205,12 +205,9 @@ pub struct NoiseRouter {
     /// First index of Zone C (entries not reachable from final_density).
     /// Zone B [column_boundary..fd_boundary): per-Y entries for final_density.
     fd_boundary: usize,
-    /// Cell size in blocks of the `interpolated` wrappers `final_density` reads
-    /// (typically 4 x 8 x 4), or the settings' own cell size when it reads none.
-    cell_size: IVec3,
-    /// Whether every one of those wrappers shares `cell_size`. A router mixing
-    /// geometries has no single cell lattice, so no whole-cell shortcut either.
-    uniform_cells: bool,
+    /// The one cell size in blocks (typically 4 x 8 x 4) every `interpolated`
+    /// wrapper `final_density` reads agrees on, or `None` when they disagree.
+    cell_size: Option<IVec3>,
     stack: Box<[DensityFunctionComponent]>,
     /// Register-file length for every scratch buffer: one file per level of
     /// nested off-position evaluation the stack can reach.
@@ -371,7 +368,7 @@ impl NoiseRouter {
     /// wrappers disagree and there is no single one.
     #[inline]
     pub fn cell_size(&self) -> Option<IVec3> {
-        self.uniform_cells.then_some(self.cell_size)
+        self.cell_size
     }
 
     /// Bounds on `final_density` across a whole cell, given each `interpolated`

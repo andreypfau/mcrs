@@ -663,12 +663,15 @@ pub(super) fn fill_node(
                 }
             }
             WrapperDensityFunction::Interpolated(x) => {
-                if x.is_lattice_volume(volume) {
-                    rows.copy_within(x.input_index * n..x.input_index * n + n, out_base);
-                } else {
-                    let (_, out) = rows.split_at_mut(out_base);
-                    x.sample_volume(stack, scratch_len, volume, &mut out[..n]);
-                }
+                let (filled, out) = rows.split_at_mut(out_base);
+                let input = x.input_index * n;
+                x.sample_volume(
+                    stack,
+                    scratch_len,
+                    volume,
+                    &filled[input..input + n],
+                    &mut out[..n],
+                );
             }
         },
     }
@@ -713,15 +716,19 @@ impl Interpolated {
             && volume.min_block_z().rem_euclid(xz) == 0
     }
 
+    /// `input_row` must hold the input's values over `volume` whenever
+    /// [`Interpolated::is_lattice_volume`] holds; off the lattice this node
+    /// resamples its input over its own cell volume and never reads it.
     pub(super) fn sample_volume(
         &self,
         stack: &[DensityFunctionComponent],
         scratch_len: usize,
         volume: &Volume,
+        input_row: &[f32],
         out: &mut [f32],
     ) {
         if self.is_lattice_volume(volume) {
-            fill_members(stack, scratch_len, &self.input_members, volume, out);
+            out.copy_from_slice(input_row);
         } else if volume.len() == 1 {
             // A single position combines the eight corners exactly, where a
             // volume accumulates along Y. Vanilla splits the same two ways, and

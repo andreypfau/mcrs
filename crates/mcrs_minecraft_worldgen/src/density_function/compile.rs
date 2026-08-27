@@ -961,17 +961,14 @@ pub fn build_functions(
         _ => unreachable!(),
     });
     let first = geometries.next();
-    let uniform_cells = geometries.clone().all(|g| Some(g) == first);
-    // Mixed geometries have no common lattice; the finest of them still bounds
-    // the column grid the biome pass reads.
-    let cell_size = geometries
-        .chain(first)
-        .reduce(IVec3::min)
-        .unwrap_or(IVec3::new(
+    // Mixed geometries have no common lattice, so no whole-cell shortcut either.
+    let cell_size = geometries.all(|g| Some(g) == first).then(|| {
+        first.unwrap_or(IVec3::new(
             builder_options.horizontal_cell_block_count as i32,
             builder_options.vertical_cell_block_count as i32,
             builder_options.horizontal_cell_block_count as i32,
-        ));
+        ))
+    });
 
     let router = NoiseRouter {
         temperature_index: roots[0],
@@ -998,7 +995,6 @@ pub fn build_functions(
         column_boundary,
         fd_boundary,
         cell_size,
-        uniform_cells,
         stack: Box::from(builder.stack),
         scratch_len,
         node_labels: node_labels.into_boxed_slice(),
