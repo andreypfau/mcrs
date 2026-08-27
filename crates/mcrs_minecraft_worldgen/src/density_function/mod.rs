@@ -432,9 +432,6 @@ impl NoiseRouter {
                     }
                     _ => return None,
                 },
-                DensityFunctionComponent::Wrapper(WrapperDensityFunction::Cache(x)) => {
-                    iv[x.input_index]
-                }
                 _ => return None,
             };
         }
@@ -822,25 +819,6 @@ impl RangeFunction for Interpolated {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct Cache {
-    input_index: usize,
-    min_value: f32,
-    max_value: f32,
-}
-
-impl RangeFunction for Cache {
-    #[inline]
-    fn min_value(&self) -> f32 {
-        self.min_value
-    }
-
-    #[inline]
-    fn max_value(&self) -> f32 {
-        self.max_value
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
 struct ClampedYGradient {
     from_y: f32,
     to_y: f32,
@@ -1058,28 +1036,6 @@ enum DependentDensityFunction {
     FindTopSurface(FindTopSurface),
     Lerp(Lerp),
     Slice(Slice),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum WrapperDensityFunction {
-    Interpolated(Interpolated),
-    Cache(Cache),
-}
-
-impl RangeFunction for WrapperDensityFunction {
-    fn min_value(&self) -> f32 {
-        match self {
-            WrapperDensityFunction::Interpolated(x) => x.min_value(),
-            WrapperDensityFunction::Cache(x) => x.min_value(),
-        }
-    }
-
-    fn max_value(&self) -> f32 {
-        match self {
-            WrapperDensityFunction::Interpolated(x) => x.max_value(),
-            WrapperDensityFunction::Cache(x) => x.max_value(),
-        }
-    }
 }
 
 impl RangeFunction for DependentDensityFunction {
@@ -1925,7 +1881,7 @@ fn round_to_integer(value: f32, mode: RoundingMode) -> f32 {
 enum DensityFunctionComponent {
     Independent(IndependentDensityFunction),
     Dependent(DependentDensityFunction),
-    Wrapper(WrapperDensityFunction),
+    Interpolated(Interpolated),
 }
 
 impl DensityFunctionComponent {
@@ -2031,14 +1987,9 @@ impl DensityFunctionComponent {
                     x.input_index = redirect[x.input_index];
                 }
             },
-            DensityFunctionComponent::Wrapper(wrapper) => match wrapper {
-                WrapperDensityFunction::Interpolated(x) => {
-                    x.input_index = redirect[x.input_index];
-                }
-                WrapperDensityFunction::Cache(x) => {
-                    x.input_index = redirect[x.input_index];
-                }
-            },
+            DensityFunctionComponent::Interpolated(x) => {
+                x.input_index = redirect[x.input_index];
+            }
         }
     }
 
@@ -2078,10 +2029,7 @@ impl DensityFunctionComponent {
                 }
                 DependentDensityFunction::Slice(x) => f(x.input_index),
             },
-            DensityFunctionComponent::Wrapper(wrapper) => match wrapper {
-                WrapperDensityFunction::Interpolated(x) => f(x.input_index),
-                WrapperDensityFunction::Cache(x) => f(x.input_index),
-            },
+            DensityFunctionComponent::Interpolated(x) => f(x.input_index),
         }
     }
 }
@@ -2091,7 +2039,7 @@ impl RangeFunction for DensityFunctionComponent {
         match self {
             DensityFunctionComponent::Independent(func) => func.min_value(),
             DensityFunctionComponent::Dependent(func) => func.min_value(),
-            DensityFunctionComponent::Wrapper(func) => func.min_value(),
+            DensityFunctionComponent::Interpolated(func) => func.min_value(),
         }
     }
 
@@ -2099,7 +2047,7 @@ impl RangeFunction for DensityFunctionComponent {
         match self {
             DensityFunctionComponent::Independent(func) => func.max_value(),
             DensityFunctionComponent::Dependent(func) => func.max_value(),
-            DensityFunctionComponent::Wrapper(func) => func.max_value(),
+            DensityFunctionComponent::Interpolated(func) => func.max_value(),
         }
     }
 }

@@ -1,6 +1,6 @@
 use super::{
     DensityFunctionComponent, DependentDensityFunction, IndependentDensityFunction, Interpolated,
-    LinearOperation, NoiseRouter, Slice, WrapperDensityFunction, branch_schedule::Step,
+    LinearOperation, NoiseRouter, Slice, branch_schedule::Step,
 };
 use crate::density_function::DensityFunction;
 use crate::density_function::proto::Axis;
@@ -270,8 +270,7 @@ impl NoiseRouter {
             // Only above `column_end`, though: the column pass reads the input row
             // straight back out whenever the position is a cell corner.
             if i >= column_end
-                && let DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) =
-                    &self.stack[i]
+                && let DensityFunctionComponent::Interpolated(x) = &self.stack[i]
                 && !x.is_lattice_volume(volume)
             {
                 continue;
@@ -655,25 +654,17 @@ pub(super) fn fill_node(
                 }
             }
         },
-        DensityFunctionComponent::Wrapper(f) => match f {
-            WrapperDensityFunction::Cache(x) => {
-                let a = x.input_index * n;
-                for p in 0..n {
-                    rows[out_base + p] = rows[a + p];
-                }
-            }
-            WrapperDensityFunction::Interpolated(x) => {
-                let (filled, out) = rows.split_at_mut(out_base);
-                let input = x.input_index * n;
-                x.sample_volume(
-                    stack,
-                    scratch_len,
-                    volume,
-                    &filled[input..input + n],
-                    &mut out[..n],
-                );
-            }
-        },
+        DensityFunctionComponent::Interpolated(x) => {
+            let (filled, out) = rows.split_at_mut(out_base);
+            let input = x.input_index * n;
+            x.sample_volume(
+                stack,
+                scratch_len,
+                volume,
+                &filled[input..input + n],
+                &mut out[..n],
+            );
+        }
     }
 }
 

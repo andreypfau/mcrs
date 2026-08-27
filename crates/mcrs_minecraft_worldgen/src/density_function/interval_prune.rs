@@ -69,7 +69,7 @@ fn is_y_dependent_kind(c: &DensityFunctionComponent) -> bool {
                 | DependentDensityFunction::Slice(_)
                 | DependentDensityFunction::FindTopSurface(_)
         ),
-        DensityFunctionComponent::Wrapper(_) => false,
+        DensityFunctionComponent::Interpolated(_) => false,
     }
 }
 
@@ -349,10 +349,7 @@ impl<'a> Walker<'a> {
                         statik()
                     }
                 },
-                DensityFunctionComponent::Wrapper(f) => match f {
-                    WrapperDensityFunction::Interpolated(x2) => self.iv[x2.input_index],
-                    WrapperDensityFunction::Cache(x2) => self.iv[x2.input_index],
-                },
+                DensityFunctionComponent::Interpolated(x2) => self.iv[x2.input_index],
             };
             self.iv[i] = raw.widen();
         }
@@ -775,10 +772,7 @@ fn kind_name(c: &DensityFunctionComponent) -> &'static str {
             DependentDensityFunction::Lerp(_) => "Lerp",
             DependentDensityFunction::Slice(_) => "Slice",
         },
-        DensityFunctionComponent::Wrapper(f) => match f {
-            WrapperDensityFunction::Interpolated(_) => "Interpolated",
-            WrapperDensityFunction::Cache(_) => "Cache",
-        },
+        DensityFunctionComponent::Interpolated(_) => "Interpolated",
     }
 }
 

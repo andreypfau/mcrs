@@ -613,7 +613,7 @@ pub(super) fn compute_domain_axes(stack: &[DensityFunctionComponent]) -> Vec<u8>
                 DependentDensityFunction::FindTopSurface(_) => inputs & !AXIS_Y,
                 _ => inputs,
             },
-            DensityFunctionComponent::Wrapper(_) => inputs,
+            DensityFunctionComponent::Interpolated(_) => inputs,
         };
     }
 
@@ -627,12 +627,7 @@ pub(super) fn compute_outer_terms(
     stack: &[DensityFunctionComponent],
     root: usize,
 ) -> (Vec<usize>, Vec<usize>) {
-    let is_interpolated = |i: usize| {
-        matches!(
-            &stack[i],
-            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(_))
-        )
-    };
+    let is_interpolated = |i: usize| matches!(&stack[i], DensityFunctionComponent::Interpolated(_));
 
     let mut reached = vec![false; stack.len()];
     let mut pending = vec![root];
@@ -672,9 +667,7 @@ fn substituted_input(component: &DensityFunctionComponent) -> Option<usize> {
         DensityFunctionComponent::Dependent(DependentDensityFunction::FindTopSurface(x)) => {
             Some(x.density_index)
         }
-        DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) => {
-            Some(x.input_index)
-        }
+        DensityFunctionComponent::Interpolated(x) => Some(x.input_index),
         _ => None,
     }
 }
@@ -709,9 +702,7 @@ pub(super) fn resolve_substituted_subgraphs(stack: &mut [DensityFunctionComponen
             DensityFunctionComponent::Dependent(DependentDensityFunction::FindTopSurface(x)) => {
                 x.density_members = list
             }
-            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) => {
-                x.input_members = list
-            }
+            DensityFunctionComponent::Interpolated(x) => x.input_members = list,
             _ => unreachable!(),
         }
     }
@@ -935,9 +926,7 @@ pub fn build_functions(
     let outer_wrapper_inputs: Vec<usize> = outer_wrappers
         .iter()
         .map(|&i| match &builder.stack[i] {
-            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) => {
-                x.input_index
-            }
+            DensityFunctionComponent::Interpolated(x) => x.input_index,
             _ => unreachable!(),
         })
         .collect();
@@ -953,7 +942,7 @@ pub fn build_functions(
     };
 
     let mut geometries = outer_wrappers.iter().map(|&i| match &builder.stack[i] {
-        DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(x)) => IVec3::new(
+        DensityFunctionComponent::Interpolated(x) => IVec3::new(
             x.cell_size_xz as i32,
             x.cell_size_y as i32,
             x.cell_size_xz as i32,
@@ -1122,30 +1111,17 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         );
     }
 
+    /// `cache` memoizes for an engine that re-walks the graph once per position.
+    /// The arena evaluates every node exactly once per fill, so the memo is
+    /// already implied and the node is its input.
     fn visit_cache(&mut self, function: &SingleArgumentFunction) {
         let input_index = self.component(&function.input);
-        let input = &self.stack[input_index];
-        let proto = ProtoDensityFunction::Cache(SingleArgumentFunction {
-            input: function.input.clone(),
-        });
-        if let Some(constant) = input.as_constant() {
-            self.register_component(
-                proto,
-                DensityFunctionComponent::Independent(IndependentDensityFunction::Constant(
-                    constant,
-                )),
-            );
-            return;
-        }
-        let min_value = input.min_value();
-        let max_value = input.max_value();
+        let component = self.stack[input_index].clone();
         self.register_component(
-            proto,
-            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Cache(Cache {
-                input_index,
-                min_value,
-                max_value,
-            })),
+            ProtoDensityFunction::Cache(SingleArgumentFunction {
+                input: function.input.clone(),
+            }),
+            component,
         );
     }
 
@@ -1711,7 +1687,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                 cell_size_xz,
                 cell_size_y,
             },
-            DensityFunctionComponent::Wrapper(WrapperDensityFunction::Interpolated(Interpolated {
+            DensityFunctionComponent::Interpolated(Interpolated {
                 input_index,
                 input_members: Box::default(),
                 cell_size_xz,
@@ -1720,7 +1696,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                 cell_size_y_inv: 1.0 / cell_size_y as f32,
                 min_value,
                 max_value,
-            })),
+            }),
         );
     }
 }
