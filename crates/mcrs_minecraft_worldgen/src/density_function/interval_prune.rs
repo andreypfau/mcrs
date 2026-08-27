@@ -184,8 +184,8 @@ impl<'a> Walker<'a> {
         Walker {
             router,
             iv: vec![Iv::point(0.0); n],
-            pt: vec![0.0; router.scratch_len],
-            reg: vec![0.0; router.scratch_len],
+            pt: vec![0.0; n],
+            reg: vec![0.0; n],
             exact: vec![false; n],
             rc_by_index,
             sites,
@@ -218,7 +218,7 @@ impl<'a> Walker<'a> {
                 }
             });
             if inputs_exact && (y_degenerate || !is_y_dependent_kind(comp)) {
-                volume::Arena::new(stack, router.scratch_len).fill_node(
+                volume::Arena::new(stack).fill_node(
                     i,
                     &Volume::point(pos),
                     &[pos],
@@ -847,9 +847,10 @@ fn branch_skip_octave_census() {
     let mut taken = 0u64;
 
     let mut scratch = FillScratch::new();
-    let mut pt = vec![0.0f32; router.scratch_len];
-    let mut reg = vec![0.0f32; router.scratch_len];
-    let arena = volume::Arena::new(&router.stack, router.scratch_len);
+    let n = router.stack.len();
+    let mut pt = vec![0.0f32; n];
+    let mut reg = vec![0.0f32; n];
+    let arena = volume::Arena::new(&router.stack);
     for chunk in 0..4i32 {
         let (bx, bz) = (chunk * 16, chunk * 48);
         for gx in 0..5i32 {

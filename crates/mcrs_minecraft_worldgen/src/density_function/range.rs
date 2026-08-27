@@ -137,9 +137,8 @@ impl NoiseRouter {
     pub fn final_density_cell_bounds(
         &self,
         wrapper_bounds: &[(f32, f32)],
-        scratch: &mut [(f32, f32)],
+        iv: &mut [(f32, f32)],
     ) -> Option<(f32, f32)> {
-        let iv = scratch;
         for (k, &idx) in self.outer_wrappers.iter().enumerate() {
             iv[idx] = wrapper_bounds[k];
         }

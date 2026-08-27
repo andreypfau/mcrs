@@ -120,8 +120,8 @@ pub enum ProtoDensityFunction {
     #[serde(alias = "interpolated", rename = "minecraft:interpolated")]
     Interpolated {
         input: DensityFunctionHolder,
-        cell_size_xz: u32,
-        cell_size_y: u32,
+        cell_size_xz: std::num::NonZeroU32,
+        cell_size_y: std::num::NonZeroU32,
     },
     #[serde(alias = "minecraft:cache")]
     Cache(SingleArgumentFunction),
@@ -732,8 +732,8 @@ pub trait Visitor {
     fn visit_interpolated(
         &mut self,
         input: &DensityFunctionHolder,
-        cell_size_xz: u32,
-        cell_size_y: u32,
+        cell_size_xz: std::num::NonZeroU32,
+        cell_size_y: std::num::NonZeroU32,
     ) {
         self.visit_density_function_holder(input)
     }
@@ -1306,6 +1306,12 @@ mod validation_tests {
         rejects(
             r#"{"type":"find_top_surface","density":0.0,"upper_bound":1.0,"lower_bound":0,"cell_height":0}"#,
         );
+    }
+
+    #[test]
+    fn interpolated_cannot_take_a_zero_cell_size() {
+        rejects(r#"{"type":"interpolated","input":0.0,"cell_size_xz":0,"cell_size_y":8}"#);
+        rejects(r#"{"type":"interpolated","input":0.0,"cell_size_xz":4,"cell_size_y":0}"#);
     }
 
     #[test]

@@ -332,14 +332,8 @@ fn beta_climate_cells(noise_router: &NoiseRouter, block_x: i32, block_z: i32) ->
 /// The `BiomePalette` every section of a chunk column shares, empty unless the
 /// source is Beta.
 ///
-/// Beta biomes are 2D: WorldChunkManager derives the biome purely from
-/// temperature/humidity at (x,z) via getBiomeFromLookup, with no Y or sea-level
-/// dependence, so one palette serves the whole column.
-///
-/// A biome handle that is absent from the frozen registry snapshot signals a
-/// misconfiguration (unregistered biome, asset load failure, or registry/preset
-/// ordering bug). Such a miss is logged and asserted in debug builds rather than
-/// silently substituting id 0, which would render a plausible-but-wrong biome.
+/// A Beta biome comes from temperature and humidity at `(x, z)` alone, with no
+/// Y or sea-level dependence, so one palette serves the whole column.
 fn beta_biome_palette(
     noise_router: &NoiseRouter,
     biome_context: Option<(&BiomeSource, &RegistrySnapshot<Biome>)>,
@@ -360,6 +354,8 @@ fn beta_biome_palette(
             let network_id = match biome_registry.by_location(location.as_str()) {
                 Some(id) => id as u8,
                 None => {
+                    // Falling back to id 0 renders a plausible-but-wrong biome, so a
+                    // registry that cannot resolve a preset's own biome is loud.
                     tracing::error!(biome = %location.as_str(), "beta biome not present in registry snapshot");
                     debug_assert!(false, "unresolved beta biome location");
                     0
@@ -449,18 +445,12 @@ fn fill_sections_beta_f64(
 
 /// Generate all sections in a column.
 ///
-/// `final_density` is filled once over the whole column, so a cell straddling
-/// no longer costs anything at a section boundary and the walk is a single
-/// z, x, descending-y sweep over the column's cells.
+/// `final_density` is filled once over the whole column, then walked as a single
+/// z, x, descending-y sweep over its cells.
 ///
-/// Accepts a `CancellationToken` for cooperative cancellation. A column
-/// cancelled part-way returns `None` for every section, since one column-wide
-/// fill leaves no section boundary at which a partial result is meaningful.
-///
-/// When `biome_context` is `Some((source, registry))` and `source` is a Beta biome
-/// source, every section's `BiomePalette` is filled from climate data.  Non-Beta
-/// sources leave the palette as the default (id 0) — modern biome assignment is
-/// unchanged.
+/// A column `cancel` stops part-way returns `None` for every section: one
+/// column-wide fill leaves no section boundary at which a partial result is
+/// meaningful.
 #[cfg_attr(
     feature = "telemetry-tracy",
     tracing::instrument(name = "world::column_gen", skip_all)

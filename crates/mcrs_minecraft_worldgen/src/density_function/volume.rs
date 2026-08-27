@@ -15,6 +15,7 @@ pub struct Volume {
     step_block: IVec3,
 }
 
+#[allow(clippy::len_without_is_empty)]
 impl Volume {
     pub fn new(size: IVec3, min_block: IVec3, step_block: IVec3) -> Self {
         assert!(
@@ -91,35 +92,6 @@ impl Volume {
         (self.size.x * self.size.y * self.size.z) as usize
     }
 
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        false
-    }
-
-    pub fn index_of_block(&self, block_x: i32, block_y: i32, block_z: i32) -> Option<usize> {
-        let rx = block_x - self.min_block.x;
-        let ry = block_y - self.min_block.y;
-        let rz = block_z - self.min_block.z;
-        if self.step_block == IVec3::ONE {
-            let inside = (0..self.size.x).contains(&rx)
-                && (0..self.size.y).contains(&ry)
-                && (0..self.size.z).contains(&rz);
-            return inside.then(|| self.index_unchecked(rx, ry, rz));
-        }
-        let on_lattice =
-            |r: i32, size: i32, step: i32| r >= 0 && r < size * step && r.rem_euclid(step) == 0;
-        (on_lattice(rx, self.size.x, self.step_block.x)
-            && on_lattice(ry, self.size.y, self.step_block.y)
-            && on_lattice(rz, self.size.z, self.step_block.z))
-        .then(|| {
-            self.index_unchecked(
-                rx / self.step_block.x,
-                ry / self.step_block.y,
-                rz / self.step_block.z,
-            )
-        })
-    }
-
     fn positions_into(&self, out: &mut Vec<IVec3>) {
         out.clear();
         out.reserve(self.len());
@@ -154,17 +126,15 @@ impl FillScratch {
     }
 }
 
-/// The compiled node arena, plus the register-file length its spline opcode
-/// reads its inputs from: everything a fill needs that is not the volume.
+/// The compiled node arena: everything a fill needs that is not the volume.
 #[derive(Clone, Copy)]
 pub(super) struct Arena<'a> {
     stack: &'a [DensityFunctionComponent],
-    scratch_len: usize,
 }
 
 impl<'a> Arena<'a> {
-    pub(super) fn new(stack: &'a [DensityFunctionComponent], scratch_len: usize) -> Self {
-        Self { stack, scratch_len }
+    pub(super) fn new(stack: &'a [DensityFunctionComponent]) -> Self {
+        Self { stack }
     }
 
     /// Evaluate the subgraph `members` — topologically ordered, its own root last —
@@ -173,7 +143,7 @@ impl<'a> Arena<'a> {
         let n = volume.len();
         let root = *members.last().expect("a subgraph has at least one member") as usize;
         let mut rows = vec![0.0f32; (root + 1) * n];
-        let mut point = vec![0.0f32; self.scratch_len];
+        let mut point = vec![0.0f32; self.stack.len()];
         let mut positions = Vec::new();
         volume.positions_into(&mut positions);
         for &member in members {
@@ -327,7 +297,7 @@ impl<'a> Arena<'a> {
 
 impl NoiseRouter {
     fn arena(&self) -> Arena<'_> {
-        Arena::new(&self.stack, self.scratch_len)
+        Arena::new(&self.stack)
     }
 
     /// Evaluate `root` at one position.
@@ -369,7 +339,7 @@ impl NoiseRouter {
         // Resized, never cleared: a row is read only after this pass writes it,
         // so re-zeroing the arena is a memset the size of the whole volume.
         scratch.rows.resize(live * n, 0.0);
-        scratch.point.resize(self.scratch_len, 0.0);
+        scratch.point.resize(self.stack.len(), 0.0);
         volume.positions_into(&mut scratch.positions);
 
         let column_end = if live <= self.fd_boundary {
@@ -785,26 +755,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn index_of_block_round_trips_the_dense_layout() {
+    fn the_dense_layout_is_contiguous_from_min_block() {
         let v = Volume::dense(IVec3::new(3, 5, 2), IVec3::new(-7, 12, 40));
         assert_eq!(v.len(), 30);
-        assert_eq!(v.max_block().x, -5);
-        assert_eq!(v.max_block().y, 16);
-        assert_eq!(v.max_block().z, 41);
+        assert_eq!(v.max_block(), IVec3::new(-5, 16, 41));
+        let mut seen = vec![false; v.len()];
         for z in 0..v.size().z {
             for x in 0..v.size().x {
                 for y in 0..v.size().y {
-                    let i = v.index_unchecked(x, y, z);
                     assert_eq!(
-                        v.index_of_block(v.block_x(x), v.block_y(y), v.block_z(z)),
-                        Some(i)
+                        IVec3::new(v.block_x(x), v.block_y(y), v.block_z(z)),
+                        v.min_block() + IVec3::new(x, y, z)
                     );
+                    seen[v.index_unchecked(x, y, z)] = true;
                 }
             }
         }
-        assert_eq!(v.index_of_block(-8, 12, 40), None);
-        assert_eq!(v.index_of_block(-7, 11, 40), None);
-        assert_eq!(v.index_of_block(-7, 12, 42), None);
+        assert!(seen.into_iter().all(|hit| hit));
     }
 
     #[test]
@@ -816,29 +783,30 @@ mod tests {
     }
 
     #[test]
-    fn index_of_block_rejects_off_lattice_positions() {
+    fn a_strided_lattice_index_steps_by_the_cell_size() {
         let v = Volume::new(
             IVec3::new(2, 2, 2),
             IVec3::new(-8, -64, 4),
             IVec3::new(4, 8, 4),
         );
-        assert_eq!(v.index_of_block(-8, -64, 4), Some(0));
-        assert_eq!(v.index_of_block(-8, -56, 4), Some(1));
-        assert_eq!(v.index_of_block(-4, -64, 4), Some(2));
-        assert_eq!(v.index_of_block(-8, -64, 8), Some(4));
-        assert_eq!(v.index_of_block(-8, -64, 7), None);
-        assert_eq!(v.index_of_block(-7, -64, 4), None);
-        assert_eq!(v.index_of_block(-8, -60, 4), None);
-        assert_eq!(v.index_of_block(0, -64, 4), None);
-        assert_eq!(v.index_of_block(-12, -64, 4), None);
+        assert_eq!(v.max_block(), IVec3::new(-1, -49, 11));
+        assert_eq!(
+            IVec3::new(v.block_x(1), v.block_y(1), v.block_z(1)),
+            IVec3::new(-4, -56, 8)
+        );
+        assert_eq!(v.index_unchecked(0, 1, 0), 1);
+        assert_eq!(v.index_unchecked(1, 0, 0), 2);
+        assert_eq!(v.index_unchecked(0, 0, 1), 4);
     }
 
     #[test]
     fn point_is_a_single_dense_cell() {
         let v = Volume::point(IVec3::new(5, -3, 9));
         assert_eq!(v.len(), 1);
-        assert_eq!(v.index_of_block(5, -3, 9), Some(0));
-        assert_eq!(v.index_of_block(5, -2, 9), None);
+        assert_eq!(v.size(), IVec3::ONE);
+        assert_eq!(v.step_block(), IVec3::ONE);
+        assert_eq!(v.min_block(), IVec3::new(5, -3, 9));
+        assert_eq!(v.max_block(), IVec3::new(5, -3, 9));
     }
 
     #[test]

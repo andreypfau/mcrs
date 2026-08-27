@@ -31,7 +31,7 @@ fn cell_elimination_matches_the_block_by_block_fill() {
     let stone = router.default_block_state();
     let water = router.default_fluid_state();
     let mut scratch = FillScratch::new();
-    let mut settled = 0usize;
+    let mut checked = 0usize;
 
     for (index, &section_y) in y_sections.iter().enumerate() {
         let (blocks, _) = results[index].as_ref().expect("the section generates");
@@ -65,10 +65,10 @@ fn cell_elimination_matches_the_block_by_block_fill() {
                         volume.block_x(x),
                         volume.block_z(z),
                     );
-                    settled += 1;
+                    checked += 1;
                 }
             }
         }
     }
-    assert_eq!(settled, 24 * 16 * 16 * 16);
+    assert_eq!(checked, 24 * 16 * 16 * 16);
 }

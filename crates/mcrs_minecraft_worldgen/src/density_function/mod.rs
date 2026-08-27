@@ -87,9 +87,6 @@ pub struct NoiseRouter {
     /// wrapper `final_density` reads agrees on, or `None` when they disagree.
     cell_size: Option<IVec3>,
     stack: Box<[DensityFunctionComponent]>,
-    /// Register-file length for every scratch buffer: one file per level of
-    /// nested off-position evaluation the stack can reach.
-    scratch_len: usize,
     node_labels: Box<[String]>,
     zone_b_schedule: BranchSchedule,
     zone_b_roots: Box<[usize]>,

@@ -673,8 +673,7 @@ fn substituted_input(component: &DensityFunctionComponent) -> Option<usize> {
 }
 
 /// Give every opcode that evaluates at a substituted position the ascending
-/// member list of its own subgraph, and return the scratch length one
-/// evaluation of this stack needs: one register file per level of nesting.
+/// member list of its own subgraph.
 ///
 /// Must run after every pass that renumbers the stack — the member lists are
 /// final indices and nothing rewrites them.
@@ -905,7 +904,6 @@ pub fn build_functions(
 
     let final_density_index = roots[7];
     resolve_substituted_subgraphs(&mut builder.stack);
-    let scratch_len = builder.stack.len();
 
     // Expose beach and surface octave noises for the Beta surface pass.
     // Only populated when using the Beta (legacy) random source; modern router gets None.
@@ -985,7 +983,6 @@ pub fn build_functions(
         fd_boundary,
         cell_size,
         stack: Box::from(builder.stack),
-        scratch_len,
         node_labels: node_labels.into_boxed_slice(),
         zone_b_schedule,
         zone_b_roots: zone_b_roots.into_boxed_slice(),
@@ -1673,8 +1670,8 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     fn visit_interpolated(
         &mut self,
         input: &DensityFunctionHolder,
-        cell_size_xz: u32,
-        cell_size_y: u32,
+        cell_size_xz: std::num::NonZeroU32,
+        cell_size_y: std::num::NonZeroU32,
     ) {
         let input_index = self.component(input);
         let component = &self.stack[input_index];
@@ -1690,10 +1687,10 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             DensityFunctionComponent::Interpolated(Interpolated {
                 input_index,
                 input_members: Box::default(),
-                cell_size_xz,
-                cell_size_y,
-                cell_size_xz_inv: 1.0 / cell_size_xz as f32,
-                cell_size_y_inv: 1.0 / cell_size_y as f32,
+                cell_size_xz: cell_size_xz.get(),
+                cell_size_y: cell_size_y.get(),
+                cell_size_xz_inv: 1.0 / cell_size_xz.get() as f32,
+                cell_size_y_inv: 1.0 / cell_size_y.get() as f32,
                 min_value,
                 max_value,
             }),
@@ -1948,7 +1945,7 @@ mod arithmetic_node_tests {
         super::resolve_substituted_subgraphs(&mut builder.stack);
         let members: Vec<u32> = (0..=index as u32).collect();
         let mut value = [0.0f32];
-        crate::density_function::volume::Arena::new(&builder.stack, builder.stack.len())
+        crate::density_function::volume::Arena::new(&builder.stack)
             .fill_members(
                 &members,
                 &crate::density_function::Volume::point(IVec3::ZERO),
