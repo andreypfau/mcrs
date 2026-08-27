@@ -252,8 +252,8 @@ impl Debug for BlendedNoise {
         f.debug_struct("BlendedNoise")
             .field("xz_scale", &self.xz_scale)
             .field("y_scale", &self.y_scale)
-            .field("xz_factor", &self.xz_scale)
-            .field("y_factor", &self.y_scale)
+            .field("xz_factor", &self.xz_factor)
+            .field("y_factor", &self.y_factor)
             .field("smear_scale_multiplier", &self.smear_scale_multiplier)
             .field("xz_multiplier", &self.xz_multiplier)
             .field("y_multiplier", &self.y_multiplier)
@@ -569,8 +569,8 @@ impl RangeFunction for Shift {
 impl DensityFunction for Shift {
     fn sample(&self, pos: IVec3) -> f32 {
         self.sampler.get(
-            pos.z as f64 * 0.25,
             pos.x as f64 * 0.25,
+            pos.y as f64 * 0.25,
             pos.z as f64 * 0.25,
         ) * 4.0
     }

@@ -1480,3 +1480,62 @@ fn substituted_position_evaluation_matches_the_recursive_walk() {
     }
     assert_eq!(digests.len(), EXPECTED.len());
 }
+
+/// `shift` is absent from the 26.3 corpus, so no oracle fixture reaches it.
+/// These pin all three variants to the coordinate permutation each one applies.
+#[test]
+fn every_shift_variant_permutes_its_coordinates() {
+    use super::{Shift, ShiftA, ShiftB};
+    use crate::density_function::proto::Normalization;
+    use crate::noise::normal_noise::NoiseSampler;
+    use mcrs_minecraft_random::legacy::LegacyRandom;
+
+    let sampler = NoiseSampler::from_params(
+        &mut LegacyRandom::new(7),
+        -7,
+        vec![1.0, 1.0, 1.0],
+        1.0,
+        Normalization::Enabled,
+    );
+    let name = || "minecraft:test".to_string();
+    let shift = Shift {
+        noise_name: name(),
+        sampler: sampler.clone(),
+    };
+    let shift_a = ShiftA {
+        noise_name: name(),
+        sampler: sampler.clone(),
+    };
+    let shift_b = ShiftB {
+        noise_name: name(),
+        sampler: sampler.clone(),
+    };
+
+    for pos in [
+        IVec3::new(0, 0, 0),
+        IVec3::new(13, -47, 5),
+        IVec3::new(-8, 91, 200),
+        IVec3::new(4, 4, 4),
+    ] {
+        let (x, y, z) = (pos.x as f64, pos.y as f64, pos.z as f64);
+        assert_eq!(
+            shift.sample(pos),
+            sampler.get(x * 0.25, y * 0.25, z * 0.25) * 4.0,
+            "shift at {pos:?}"
+        );
+        assert_eq!(
+            shift_a.sample(pos),
+            sampler.get(x * 0.25, 0.0, z * 0.25) * 4.0,
+            "shift_a at {pos:?}"
+        );
+        assert_eq!(
+            shift_b.sample(pos),
+            sampler.get(z * 0.25, x * 0.25, 0.0) * 4.0,
+            "shift_b at {pos:?}"
+        );
+    }
+
+    let off_diagonal = IVec3::new(13, -47, 5);
+    assert_ne!(shift.sample(off_diagonal), shift_a.sample(off_diagonal));
+    assert_ne!(shift.sample(off_diagonal), shift_b.sample(off_diagonal));
+}
