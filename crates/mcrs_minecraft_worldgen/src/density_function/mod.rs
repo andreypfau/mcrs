@@ -1947,7 +1947,7 @@ impl BlendedNoise {
             } else if value > 1.0 {
                 ends[j]
             } else {
-                value.mul_add(ends[j] - starts[j], starts[j])
+                starts[j] + value * (ends[j] - starts[j])
             } / self.final_divisor;
         }
     }
@@ -2058,7 +2058,7 @@ impl DensityFunction for BlendedNoise {
         } else if value > 1.0 {
             end
         } else {
-            value.mul_add(end - start, start)
+            start + value * (end - start)
         };
         value / self.final_divisor
     }
