@@ -263,8 +263,8 @@ impl UnaryOperation {
     pub fn apply(&self, value: f32) -> f32 {
         match self {
             UnaryOperation::Abs => value.abs(),
-            UnaryOperation::Square => value.powi(2),
-            UnaryOperation::Cube => value.powi(3),
+            UnaryOperation::Square => value * value,
+            UnaryOperation::Cube => value * value * value,
             UnaryOperation::HalfNegative => {
                 if value > 0.0 {
                     value
@@ -282,7 +282,7 @@ impl UnaryOperation {
             UnaryOperation::Reciprocal => 1.0 / value,
             UnaryOperation::Squeeze => {
                 let clamped = value.clamp(-1.0, 1.0);
-                clamped / 2.0 - clamped.powi(3) / 24.0
+                clamped / 2.0 - clamped * clamped * clamped / 24.0
             }
             UnaryOperation::Sqrt => value.sqrt(),
             UnaryOperation::Log => (value as f64).ln() as f32,
@@ -545,8 +545,8 @@ two_input_samplers! {
 
 one_input_samplers! {
     Abs, v => v.abs();
-    Square, v => v.powi(2);
-    Cube, v => v.powi(3);
+    Square, v => v * v;
+    Cube, v => v * v * v;
     Negate, v => -v;
     Reciprocal, v => 1.0 / v;
     Sqrt, v => v.sqrt();
@@ -555,7 +555,7 @@ one_input_samplers! {
     Sign, v => if v == 0.0 || v.is_nan() { v } else if v > 0.0 { 1.0 } else { -1.0 };
     Squeeze, v => {
         let clamped = v.clamp(-1.0, 1.0);
-        clamped / 2.0 - clamped.powi(3) / 24.0
+        clamped / 2.0 - clamped * clamped * clamped / 24.0
     };
 }
 
