@@ -1,9 +1,10 @@
 use crate::density_function::branch_schedule::{BranchSchedule, Step};
 use crate::density_function::proto::{
-    ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axis, DensityFunctionHolder, DistanceMetric, HashableF64,
-    InlineReference, NoiseHolder, NoiseParam, PowFunctionArguments, ProtoDensityFunction,
-    RewriteRule, RoundFunctionArguments, RoundingMode, SingleArgumentFunction, SliceUniformAxes,
-    SplineHolder, TilingMode, TwoArgumentFunction, Visitor, noise_scale_axes,
+    ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axis, ClampArguments, DensityFunctionHolder, DistanceMetric,
+    GradientArguments, HashableF64, InlineReference, IntervalSelectArguments, NoiseHolder,
+    NoiseParam, NoiseValue, Normalization, PowFunctionArguments, ProtoDensityFunction, RewriteRule,
+    RoundFunctionArguments, RoundingMode, SingleArgumentFunction, SliceUniformAxes, SplineHolder,
+    TilingMode, TwoArgumentFunction, Visitor, noise_scale_axes,
 };
 use crate::noise::normal_noise::NoiseSampler;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
@@ -5244,13 +5245,6 @@ mod tests {
         );
 
         for (ident, function) in &functions {
-            // A bare constant ships as a naked number, never as a tagged object.
-            if matches!(
-                function,
-                crate::density_function::ProtoDensityFunction::Constant(_)
-            ) {
-                continue;
-            }
             let reencoded = serde_json::to_string(function).unwrap();
             let roundtripped =
                 serde_json::from_str::<crate::density_function::ProtoDensityFunction>(&reencoded)

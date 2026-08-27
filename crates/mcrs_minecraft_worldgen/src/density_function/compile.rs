@@ -13,6 +13,73 @@ pub(super) struct ChunkNoiseFunctionBuilderOptions {
     pub horizontal_biome_end: usize,
 }
 
+fn constant_value(holder: &DensityFunctionHolder) -> Option<f32> {
+    match holder {
+        DensityFunctionHolder::Value(v) => Some(v.value.0 as f32),
+        DensityFunctionHolder::Owned(f) => match &**f {
+            ProtoDensityFunction::Constant(v) => Some(v.value.0 as f32),
+            _ => None,
+        },
+        DensityFunctionHolder::Reference(_) => None,
+    }
+}
+
+fn lower_constant_exponent(
+    base: &DensityFunctionHolder,
+    exponent: f32,
+) -> Option<DensityFunctionHolder> {
+    let owned = |function| DensityFunctionHolder::Owned(Box::new(function));
+    let argument = SingleArgumentFunction {
+        input: base.clone(),
+    };
+    let magnitude = exponent.abs();
+    let lowered = if magnitude == 0.5 {
+        owned(ProtoDensityFunction::Sqrt(argument))
+    } else if magnitude == 1.0 {
+        base.clone()
+    } else if magnitude == 2.0 {
+        owned(ProtoDensityFunction::Square(argument))
+    } else if magnitude == 3.0 {
+        owned(ProtoDensityFunction::Cube(argument))
+    } else {
+        return None;
+    };
+    Some(if exponent < 0.0 {
+        owned(ProtoDensityFunction::Reciprocal(SingleArgumentFunction {
+            input: lowered,
+        }))
+    } else {
+        lowered
+    })
+}
+
+fn lerp_range(alpha: (f32, f32), first: (f32, f32), second: (f32, f32)) -> (f32, f32) {
+    let scaled = |alpha: f32, delta: f32| {
+        if alpha == 0.0 || delta == 0.0 {
+            0.0
+        } else {
+            alpha * delta
+        }
+    };
+    let mut min_value = f32::INFINITY;
+    let mut max_value = f32::NEG_INFINITY;
+    for a in [alpha.0, alpha.1] {
+        for f in [first.0, first.1] {
+            for s in [second.0, second.1] {
+                let bound = f + scaled(a, s - f);
+                // Opposing infinities cancel to NaN, which no finite pair of bounds
+                // describes; only the widest interval stays sound.
+                if bound.is_nan() {
+                    return (f32::NEG_INFINITY, f32::INFINITY);
+                }
+                min_value = min_value.min(bound);
+                max_value = max_value.max(bound);
+            }
+        }
+    }
+    (min_value, max_value)
+}
+
 /// Check if a Binary::Multiply has one ClampedYGradient input.
 /// Returns (gradient, other_input_index) if found.
 pub(super) fn extract_mul_y_grad(
@@ -1091,10 +1158,21 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     }
 
     fn visit_pow(&mut self, function: &PowFunctionArguments) {
+        let proto = ProtoDensityFunction::Pow(function.clone());
+        // A constant base keeps the transcendental even when the exponent is also
+        // constant, so the exponent lowering only applies to a moving base.
+        if constant_value(&function.base).is_none()
+            && let Some(lowered) = constant_value(&function.exponent)
+                .and_then(|exponent| lower_constant_exponent(&function.base, exponent))
+        {
+            let index = self.component(&lowered);
+            self.built.insert(proto, index);
+            return;
+        }
         self.binary(
             &function.base,
             &function.exponent,
-            ProtoDensityFunction::Pow(function.clone()),
+            proto,
             BinaryOperation::Pow,
         );
     }
@@ -1279,8 +1357,8 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             .max(self.stack[when_out_index].max_value());
         let proto = ProtoDensityFunction::RangeChoice {
             input: input.clone(),
-            min_inclusive: min_inclusive.into(),
-            max_exclusive: max_exclusive.into(),
+            min_inclusive: NoiseValue(min_inclusive),
+            max_exclusive: NoiseValue(max_exclusive),
             when_in_range: when_in_range.clone(),
             when_out_of_range: when_out_of_range.clone(),
         };
@@ -1353,11 +1431,11 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         let (input_index) = self.component(input);
         let input_min = self.stack[input_index].min_value();
         let input_max = self.stack[input_index].max_value();
-        let proto = ProtoDensityFunction::Clamp {
+        let proto = ProtoDensityFunction::Clamp(ClampArguments {
             input: input.clone(),
-            min: min.into(),
-            max: max.into(),
-        };
+            min: NoiseValue(min),
+            max: NoiseValue(max),
+        });
         self.register_component(
             proto,
             DensityFunctionComponent::Dependent(DependentDensityFunction::Clamp(Clamp {
@@ -1397,14 +1475,14 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         from_value: f64,
         to_value: f64,
     ) {
-        let proto = ProtoDensityFunction::Gradient {
+        let proto = ProtoDensityFunction::Gradient(GradientArguments {
             axis,
             tiling,
             from_coordinate,
             to_coordinate,
-            from_value: from_value.into(),
-            to_value: to_value.into(),
-        };
+            from_value: NoiseValue(from_value),
+            to_value: NoiseValue(to_value),
+        });
         let component = if axis == Axis::Y && tiling == TilingMode::ClampToEdge {
             IndependentDensityFunction::ClampedYGradient(ClampedYGradient {
                 from_y: from_coordinate as f32,
@@ -1434,12 +1512,20 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         let alpha_index = self.component(alpha);
         let first_index = self.component(first);
         let second_index = self.component(second);
-        let min_value = self.stack[first_index]
-            .min_value()
-            .min(self.stack[second_index].min_value());
-        let max_value = self.stack[first_index]
-            .max_value()
-            .max(self.stack[second_index].max_value());
+        let (min_value, max_value) = lerp_range(
+            (
+                self.stack[alpha_index].min_value(),
+                self.stack[alpha_index].max_value(),
+            ),
+            (
+                self.stack[first_index].min_value(),
+                self.stack[first_index].max_value(),
+            ),
+            (
+                self.stack[second_index].min_value(),
+                self.stack[second_index].max_value(),
+            ),
+        );
         self.register_component(
             ProtoDensityFunction::Lerp {
                 alpha: alpha.clone(),
@@ -1497,29 +1583,26 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
     fn visit_interval_select(
         &mut self,
         input: &DensityFunctionHolder,
-        thresholds: &[HashableF64],
+        thresholds: &[NoiseValue],
         functions: &[DensityFunctionHolder],
     ) {
-        let mut lowered = functions
-            .last()
-            .expect("interval_select must carry at least two functions")
-            .clone();
+        let mut lowered = functions[functions.len() - 1].clone();
         for (threshold, function) in thresholds.iter().zip(functions).rev() {
             lowered = DensityFunctionHolder::Owned(Box::new(ProtoDensityFunction::RangeChoice {
                 input: input.clone(),
-                min_inclusive: f64::NEG_INFINITY.into(),
-                max_exclusive: threshold.clone(),
+                min_inclusive: NoiseValue(f64::NEG_INFINITY),
+                max_exclusive: *threshold,
                 when_in_range: function.clone(),
                 when_out_of_range: lowered,
             }));
         }
         let index = self.component(&lowered);
         self.built.insert(
-            ProtoDensityFunction::IntervalSelect {
+            ProtoDensityFunction::IntervalSelect(IntervalSelectArguments {
                 input: input.clone(),
                 thresholds: thresholds.to_vec(),
                 functions: functions.to_vec(),
-            },
+            }),
             index,
         );
     }
@@ -1529,7 +1612,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         density: &DensityFunctionHolder,
         upper_bound: &DensityFunctionHolder,
         lower_bound: i32,
-        cell_height: u32,
+        cell_height: std::num::NonZeroU32,
     ) {
         let (density_index) = self.component(density);
         let (upper_bound_index) = self.component(upper_bound);
@@ -1539,8 +1622,8 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
         let proto = ProtoDensityFunction::FindTopSurface {
             density: density.clone(),
             upper_bound: upper_bound.clone(),
-            lower_bound: lower_bound.into(),
-            cell_height: cell_height.into(),
+            lower_bound,
+            cell_height,
         };
         self.register_component(
             proto,
@@ -1549,7 +1632,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                     density_index,
                     upper_bound_index,
                     lower_bound: lower_bound as f32,
-                    cell_height: cell_height as f32,
+                    cell_height: cell_height.get() as f32,
                     max_value,
                 },
             )),
@@ -1716,13 +1799,27 @@ impl<'a> FunctionStackBuilder<'a> {
     fn noise_sampler(&mut self, holder: &NoiseHolder) -> NoiseSampler {
         match holder {
             NoiseHolder::Reference(x) => self.create_noise(x),
-            NoiseHolder::Owned(x) => NoiseSampler::from_params(
-                &mut self.random.clone(),
-                x.base_octave,
-                x.octave_amplitudes(),
-                x.base_amplitude.0,
-            ),
+            NoiseHolder::Owned(x) => Self::from_noise_param(&mut self.random.clone(), "inline", x),
         }
+    }
+
+    fn from_noise_param<R: mcrs_minecraft_random::Random>(
+        random: &mut R,
+        id: &str,
+        param: &NoiseParam,
+    ) -> NoiseSampler {
+        if param.normalize != Normalization::Enabled {
+            panic!(
+                "Noise {id}: normalize {:?} is not supported",
+                param.normalize
+            );
+        }
+        NoiseSampler::from_params(
+            random,
+            param.base_octave,
+            param.octave_amplitudes(),
+            param.base_amplitude.0,
+        )
     }
 
     fn create_noise(&mut self, id: &ResourceLocation) -> NoiseSampler {
@@ -1784,19 +1881,15 @@ impl<'a> FunctionStackBuilder<'a> {
         if noise_param.is_none() {
             panic!("Noise not loaded: {}", id);
         }
-        let noise_param = noise_param.unwrap();
-        NoiseSampler::from_params(
-            &mut random,
-            noise_param.base_octave,
-            noise_param.octave_amplitudes(),
-            noise_param.base_amplitude.0,
-        )
+        Self::from_noise_param(&mut random, id.as_str(), noise_param.unwrap())
     }
 }
 
 #[cfg(all(test, feature = "serde"))]
 mod arithmetic_node_tests {
-    use super::{DensityFunctionComponent, FunctionStackBuilder};
+    use super::{
+        DensityFunctionComponent, DependentDensityFunction, FunctionStackBuilder, UnaryOperation,
+    };
     use crate::density_function::proto::{DensityFunctionHolder, ProtoDensityFunction};
     use crate::spline::RangeFunction;
     use bevy_math::IVec3;
@@ -1931,5 +2024,59 @@ mod arithmetic_node_tests {
         ));
         assert_eq!(value, 0.0);
         assert_eq!((min, max), (0.0, 12.0));
+    }
+
+    fn unary_operation(json: &str) -> Option<UnaryOperation> {
+        let proto: ProtoDensityFunction = serde_json::from_str(json).unwrap();
+        let functions = BTreeMap::new();
+        let noises = BTreeMap::new();
+        let mut builder =
+            FunctionStackBuilder::new(RandomSource::new(0, false), 0, &functions, &noises);
+        let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
+        match &builder.stack[index] {
+            DensityFunctionComponent::Dependent(DependentDensityFunction::Unary(unary)) => {
+                Some(unary.operation)
+            }
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn a_constant_exponent_avoids_the_transcendental() {
+        let pow = |exponent: &str| {
+            format!(
+                r#"{{"type":"pow","base":{},"exponent":{exponent}}}"#,
+                moving(0.5, 2.0)
+            )
+        };
+        assert_eq!(unary_operation(&pow("0.5")), Some(UnaryOperation::Sqrt));
+        assert_eq!(unary_operation(&pow("2.0")), Some(UnaryOperation::Square));
+        assert_eq!(unary_operation(&pow("3.0")), Some(UnaryOperation::Cube));
+        assert_eq!(
+            unary_operation(&pow("-2.0")),
+            Some(UnaryOperation::Reciprocal)
+        );
+        assert_eq!(unary_operation(&pow("4.0")), None);
+
+        assert_eq!(sample(&pow("1.0")), sample(&moving(0.5, 2.0)));
+        assert_eq!(
+            sample(&pow("3.0")).to_bits(),
+            sample(&format!(
+                r#"{{"type":"cube","input":{}}}"#,
+                moving(0.5, 2.0)
+            ))
+            .to_bits()
+        );
+    }
+
+    #[test]
+    fn lerp_follows_alpha_outside_the_unit_interval() {
+        let lerp = |alpha: String| {
+            format!(r#"{{"type":"lerp","alpha":{alpha},"first":0.0,"second":1.0}}"#)
+        };
+        let (_, min, max) = build(&lerp(moving(0.0, 1.0).to_string()));
+        assert_eq!((min, max), (0.0, 1.0));
+        let (_, min, max) = build(&lerp(moving(-2.0, 2.0).to_string()));
+        assert_eq!((min, max), (-2.0, 2.0));
     }
 }
