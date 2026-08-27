@@ -685,12 +685,9 @@ fn substituted_input(component: &DensityFunctionComponent) -> Option<usize> {
 ///
 /// Must run after every pass that renumbers the stack — the member lists are
 /// final indices and nothing rewrites them.
-pub(super) fn resolve_substituted_subgraphs(stack: &mut [DensityFunctionComponent]) -> usize {
-    let mut nesting = vec![0usize; stack.len()];
+pub(super) fn resolve_substituted_subgraphs(stack: &mut [DensityFunctionComponent]) {
     let mut members: Vec<Option<Box<[u32]>>> = vec![None; stack.len()];
     for i in 0..stack.len() {
-        let mut depth = 0usize;
-        stack[i].visit_input_indices(&mut |input| depth = depth.max(nesting[input]));
         if let Some(input) = substituted_input(&stack[i]) {
             let reached = branch_schedule::reachable_backwards(input, stack, input + 1);
             members[i] = Some(
@@ -701,9 +698,7 @@ pub(super) fn resolve_substituted_subgraphs(stack: &mut [DensityFunctionComponen
                     .map(|(index, _)| index as u32)
                     .collect(),
             );
-            depth += 1;
         }
-        nesting[i] = depth;
     }
     for (i, list) in members.into_iter().enumerate() {
         let Some(list) = list else { continue };
@@ -720,10 +715,9 @@ pub(super) fn resolve_substituted_subgraphs(stack: &mut [DensityFunctionComponen
             _ => unreachable!(),
         }
     }
-    stack.len() * (1 + nesting.iter().copied().max().unwrap_or(0))
 }
 
-/// Reorder the stack into three zones for optimal `evaluate_forward` performance:
+/// Reorder the stack into three zones the volume fill dispatches on:
 ///
 ///   Zone A `[0..column_boundary)`:  column-only entries reachable from final_density
 ///   Zone B `[column_boundary..fd_boundary)`: per-Y entries reachable from final_density
@@ -919,7 +913,8 @@ pub fn build_functions(
     );
 
     let final_density_index = roots[7];
-    let scratch_len = resolve_substituted_subgraphs(&mut builder.stack);
+    resolve_substituted_subgraphs(&mut builder.stack);
+    let scratch_len = builder.stack.len();
 
     // Expose beach and surface octave noises for the Beta surface pass.
     // Only populated when using the Beta (legacy) random source; modern router gets None.
@@ -1978,14 +1973,18 @@ mod arithmetic_node_tests {
         let mut builder =
             FunctionStackBuilder::new(RandomSource::new(0, false), 0, &functions, &noises);
         let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
-        let scratch_len = super::resolve_substituted_subgraphs(&mut builder.stack);
-        let mut scratch = vec![0.0f32; scratch_len];
-        for i in 0..=index {
-            let value = builder.stack[i].sample_cached(&mut scratch, &builder.stack, IVec3::ZERO);
-            scratch[i] = value;
-        }
+        super::resolve_substituted_subgraphs(&mut builder.stack);
+        let members: Vec<u32> = (0..=index as u32).collect();
+        let mut value = [0.0f32];
+        crate::density_function::volume::fill_members(
+            &builder.stack,
+            builder.stack.len(),
+            &members,
+            &crate::density_function::Volume::point(IVec3::ZERO),
+            &mut value,
+        );
         let component = &builder.stack[index];
-        (scratch[index], component.min_value(), component.max_value())
+        (value[0], component.min_value(), component.max_value())
     }
 
     fn sample(json: &str) -> f32 {

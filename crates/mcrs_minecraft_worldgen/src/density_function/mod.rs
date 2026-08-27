@@ -166,81 +166,6 @@ fn reciprocal_range(min: f32, max: f32) -> (f32, f32) {
     }
 }
 
-/// Persistent cache for density function evaluation.
-/// Reuse across calls to `final_density` within the same chunk generation
-/// to cache column-only values.
-pub struct DensityCache {
-    scratch: Vec<f32>,
-    last_x: i32,
-    last_z: i32,
-    /// Entries `[0..column_valid_upto)` hold values for `(last_x, last_z)` at y=0.
-    /// A root reaching further needs the whole prefix recomputed, never extended:
-    /// the per-Y pass has since overwritten the per-block entries inside it.
-    column_valid_upto: usize,
-}
-
-/// Pre-populated cache holding Zone A (column-only) results for all 289 (17x17) XZ positions
-/// within a chunk column plus the +16 boundary. Eliminates the `column_changed` branch from
-/// the per-block hot path when evaluating `final_density`.
-///
-/// The 17x17 grid covers local coordinates 0..=16 in both X and Z, which is needed because
-/// plane fills sample corner positions at block_x+0, block_x+4, ..., block_x+16.
-pub struct ColumnCache {
-    /// `column_data[xz_idx * zone_a_count + entry_idx]`
-    /// where `xz_idx = local_x * GRID_SIDE + local_z` (row-major).
-    column_data: Vec<f32>,
-    zone_a_count: usize,
-    pub(crate) base_block_x: i32,
-    pub(crate) base_block_z: i32,
-    /// Spacing of the populated positions; only multiples of it hold real values.
-    step: i32,
-    /// Scratch buffer (len == stack.len()), reused per `final_density_from_column_cache` call.
-    pub scratch: Vec<f32>,
-}
-
-impl ColumnCache {
-    const GRID_SIDE: i32 = 17;
-
-    #[inline]
-    fn offset_of(&self, local_x: i32, local_z: i32) -> Option<usize> {
-        let on_lattice = |v: i32| (0..Self::GRID_SIDE).contains(&v) && v.rem_euclid(self.step) == 0;
-        (on_lattice(local_x) && on_lattice(local_z))
-            .then(|| (local_x * Self::GRID_SIDE + local_z) as usize * self.zone_a_count)
-    }
-
-    /// All Zone A values at (local_x, local_z), or `None` for a position the
-    /// column pass never visited.
-    #[inline]
-    pub fn column_values(&self, local_x: i32, local_z: i32) -> Option<&[f32]> {
-        self.offset_of(local_x, local_z)
-            .map(|off| &self.column_data[off..off + self.zone_a_count])
-    }
-
-    /// One column-invariant value at (local_x, local_z) without loading the whole
-    /// column. Only entries below the column boundary are in the grid; screening
-    /// the index with `NoiseRouter::is_column_entry` is the caller's job, because
-    /// doing it here measured at 7% of the Beta chunk fill.
-    #[inline]
-    pub fn read_za_value(&self, local_x: i32, local_z: i32, za_index: usize) -> Option<f32> {
-        debug_assert!(
-            za_index < self.zone_a_count,
-            "entry {za_index} is not in the column grid"
-        );
-        self.column_values(local_x, local_z)
-            .map(|column| column[za_index])
-    }
-
-    /// Load pre-computed Zone A values for the given local (x, z) into scratch[0..zone_a_count).
-    #[inline]
-    pub fn load_column(&mut self, local_x: i32, local_z: i32) {
-        let off = self
-            .offset_of(local_x, local_z)
-            .expect("column position is not on the populated lattice");
-        self.scratch[..self.zone_a_count]
-            .copy_from_slice(&self.column_data[off..off + self.zone_a_count]);
-    }
-}
-
 pub struct NoiseRouter {
     temperature_index: usize,
     vegetation_index: usize,
@@ -316,54 +241,12 @@ impl NoiseRouter {
         ]
     }
 
-    pub fn column_boundary(&self) -> usize {
-        self.column_boundary
-    }
-
-    /// Whether an entry is one the column pass computes, and so one a
-    /// `ColumnCache` actually carries.
-    #[inline]
-    pub fn is_column_entry(&self, index: usize) -> bool {
-        index < self.column_boundary
-    }
-
     pub fn world_seed(&self) -> u64 {
         self.world_seed
     }
 
     pub fn final_density_idx(&self) -> usize {
         self.final_density_index
-    }
-
-    /// Evaluate a single stack entry using pre-computed cache values.
-    #[inline]
-    pub fn sample_entry(&self, index: usize, cache: &mut [f32], pos: IVec3) -> f32 {
-        self.stack[index].sample_cached(cache, &self.stack, pos)
-    }
-
-    /// A scratch buffer sized for this router, for any API that takes one.
-    pub fn new_scratch(&self) -> Vec<f32> {
-        vec![0.0f32; self.scratch_len]
-    }
-
-    /// Evaluate one entry with no cache at all, walking the whole prefix.
-    fn dense_forward(&self, root: usize, pos: IVec3, scratch: &mut [f32]) -> f32 {
-        for i in 0..=root {
-            let value = self.stack[i].sample_cached(scratch, &self.stack, pos);
-            scratch[i] = value;
-        }
-        scratch[root]
-    }
-
-    /// Create a new DensityCache for use with `final_density`.
-    /// Reuse across calls within the same chunk generation.
-    pub fn new_cache(&self) -> DensityCache {
-        DensityCache {
-            scratch: vec![0.0f32; self.scratch_len],
-            last_x: i32::MIN,
-            last_z: i32::MIN,
-            column_valid_upto: 0,
-        }
     }
 
     pub fn temperature_index(&self) -> usize {
@@ -430,82 +313,6 @@ impl NoiseRouter {
         self.beta_surface_noise.as_deref()
     }
 
-    pub fn sample_root(&self, root: usize, pos: IVec3, cache: &mut DensityCache) -> f32 {
-        self.evaluate_forward(root, pos, cache)
-    }
-
-    /// Evaluate final_density with no cache carried between calls.
-    pub fn final_density_uncached(&self, pos: IVec3) -> f32 {
-        self.dense_forward(self.final_density_index, pos, &mut self.new_scratch())
-    }
-
-    /// Create a new `ColumnCache` for a 17x17 chunk column grid starting at block (base_block_x, base_block_z).
-    /// The 17x17 grid covers local coordinates 0..=16 to include boundary corner positions.
-    pub fn new_column_cache(&self, base_block_x: i32, base_block_z: i32) -> ColumnCache {
-        let grid_positions = (ColumnCache::GRID_SIDE * ColumnCache::GRID_SIDE) as usize;
-        ColumnCache {
-            column_data: vec![0.0f32; grid_positions * self.column_boundary],
-            zone_a_count: self.column_boundary,
-            base_block_x,
-            base_block_z,
-            step: self.cell_size.x,
-            scratch: vec![0.0f32; self.scratch_len],
-        }
-    }
-
-    /// Pre-populate Zone A values at cell corner positions in the chunk column grid.
-    /// Only evaluates the (h_cells+1)^2 = 25 corner positions (step by h_cell_blocks),
-    /// not every block position. This matches exactly the positions sampled by the plane fills.
-    pub fn populate_columns(&self, cache: &mut ColumnCache) {
-        let zone_a_count = cache.zone_a_count;
-        let grid_side = ColumnCache::GRID_SIDE;
-        let step = cache.step;
-        let corners = (16 / step) + 1; // h_cells + 1
-        for cx in 0..corners {
-            let local_x = cx * step;
-            for cz in 0..corners {
-                let local_z = cz * step;
-                let y0_pos = IVec3::new(
-                    cache.base_block_x + local_x,
-                    0,
-                    cache.base_block_z + local_z,
-                );
-                for i in 0..zone_a_count {
-                    let value =
-                        self.stack[i].sample_cached(&mut cache.scratch, &self.stack, y0_pos);
-                    cache.scratch[i] = value;
-                }
-                let xz_idx = (local_x * grid_side + local_z) as usize;
-                let off = xz_idx * zone_a_count;
-                cache.column_data[off..off + zone_a_count]
-                    .copy_from_slice(&cache.scratch[..zone_a_count]);
-            }
-        }
-    }
-
-    /// Read post-processed (temperature, humidity) for a column position from Zone A cache.
-    ///
-    /// Returns (0.0, 0.0) for a position the column pass never visited. Only a
-    /// router whose climate roots are column entries can answer at all — the
-    /// modern router's are not, and it reaches its climate through
-    /// `evaluate_forward` instead.
-    pub fn sample_climate_at(&self, cache: &ColumnCache, block_x: i32, block_z: i32) -> (f32, f32) {
-        let local_x = block_x - cache.base_block_x;
-        let local_z = block_z - cache.base_block_z;
-        let Some(column) = cache.column_values(local_x, local_z) else {
-            return (0.0, 0.0);
-        };
-        debug_assert!(
-            self.is_column_entry(self.temperature_index)
-                && self.is_column_entry(self.vegetation_index),
-            "this router's climate roots are not in the column grid"
-        );
-        (
-            column[self.temperature_index],
-            column[self.vegetation_index],
-        )
-    }
-
     /// Return the f64 Beta terrain noises, if this is a Beta router.
     /// None for the modern overworld router.
     pub fn beta_terrain_f64(&self) -> Option<&beta_terrain_f64::BetaTerrainF64> {
@@ -522,89 +329,35 @@ impl NoiseRouter {
     ) -> ([f32; 256], [f32; 256]) {
         let mut temp_grid = [0.0f32; 256];
         let mut rain_grid = [0.0f32; 256];
-        let mut scratch = self.new_scratch();
+        let volume = Volume::new(
+            IVec3::new(16, 1, 16),
+            IVec3::new(block_x, 0, block_z),
+            IVec3::ONE,
+        );
+        let mut values = vec![0.0f32; 2 * volume.len()];
+        self.sample_volume_roots(
+            &[self.temperature_index, self.vegetation_index],
+            &volume,
+            &mut values,
+            &mut FillScratch::new(),
+        );
         for x in 0..16i32 {
             for z in 0..16i32 {
-                let pos = IVec3::new(block_x + x, 0, block_z + z);
-                temp_grid[(x * 16 + z) as usize] =
-                    self.dense_forward(self.temperature_index, pos, &mut scratch);
-                rain_grid[(x * 16 + z) as usize] =
-                    self.dense_forward(self.vegetation_index, pos, &mut scratch);
+                let source = volume.index_unchecked(x, 0, z);
+                temp_grid[(x * 16 + z) as usize] = values[source];
+                rain_grid[(x * 16 + z) as usize] = values[volume.len() + source];
             }
         }
         (temp_grid, rain_grid)
     }
 
-    /// Evaluate temperature and vegetation at `(block_x, block_z)` without a
-    /// pre-populated column cache. Used by apply_beta_surface which runs after
-    /// generate_column has already discarded the cache.
+    /// Evaluate temperature and vegetation at `(block_x, block_z)`.
     pub fn sample_beta_climate(&self, block_x: i32, block_z: i32) -> (f32, f32) {
         let pos = IVec3::new(block_x, 0, block_z);
-        let mut scratch = self.new_scratch();
-        let temperature = self.dense_forward(self.temperature_index, pos, &mut scratch);
-        let humidity = self.dense_forward(self.vegetation_index, pos, &mut scratch);
+        let mut scratch = FillScratch::new();
+        let temperature = self.sample_value(self.temperature_index, pos, &mut scratch);
+        let humidity = self.sample_value(self.vegetation_index, pos, &mut scratch);
         (temperature, humidity)
-    }
-
-    /// Evaluate Zone B at `pos` into `scratch`, jumping over every arm-exclusive
-    /// run whose selection cannot reach it.
-    fn run_zone_b(&self, pos: IVec3, scratch: &mut [f32]) {
-        let sched = &self.zone_b_schedule;
-        let mut s = 0usize;
-        while s < sched.steps.len() {
-            match sched.steps[s] {
-                Step::Eval { start, end } => {
-                    for &i in &sched.order[start as usize..end as usize] {
-                        let value = self.stack[i].sample_cached(scratch, &self.stack, pos);
-                        scratch[i] = value;
-                    }
-                    s += 1;
-                }
-                Step::Guard {
-                    input,
-                    min_inclusive,
-                    max_exclusive,
-                    want_in,
-                    unguard,
-                } => {
-                    let v = scratch[input as usize];
-                    let in_range = v >= min_inclusive && v < max_exclusive;
-                    s = if in_range == want_in {
-                        s + 1
-                    } else {
-                        unguard as usize
-                    };
-                }
-                Step::Unguard => s += 1,
-            }
-        }
-        #[cfg(debug_assertions)]
-        self.verify_zone_b(pos, scratch);
-    }
-
-    /// Re-evaluate the skipped runs and check nothing the caller reads moved.
-    #[cfg(debug_assertions)]
-    fn verify_zone_b(&self, pos: IVec3, scratch: &[f32]) {
-        let mut full = scratch.to_vec();
-        for i in self.column_boundary..=self.final_density_index {
-            let value = self.stack[i].sample_cached(&mut full, &self.stack, pos);
-            full[i] = value;
-        }
-        for &root in self.zone_b_roots.iter() {
-            assert_eq!(
-                full[root].to_bits(),
-                scratch[root].to_bits(),
-                "branch skip changed node {root} at {pos:?}"
-            );
-        }
-    }
-
-    /// Evaluate final_density using a pre-populated column cache.
-    /// Zone A values must already be loaded into `cache.scratch` via `load_column`.
-    #[inline]
-    pub fn final_density_from_column_cache(&self, pos: IVec3, cache: &mut ColumnCache) -> f32 {
-        self.run_zone_b(pos, &mut cache.scratch);
-        cache.scratch[self.final_density_index]
     }
 
     /// Roots to fill over a cell-corner volume to feed `final_density_cell_bounds`,
@@ -689,62 +442,6 @@ impl NoiseRouter {
             };
         }
         Some(iv[self.final_density_index])
-    }
-
-    /// Forward evaluation with column caching and zone-based dispatch.
-    ///
-    /// The stack is reordered into three zones:
-    ///   Zone A `[0..column_boundary)`:  column-only entries for final_density
-    ///   Zone B `[column_boundary..fd_boundary)`: per-Y entries for final_density
-    ///   Zone C `[fd_boundary..n)`:               other roots (aquifer, veins, etc.)
-    ///
-    /// For Zone A roots (continents, erosion, ridges, etc.):
-    ///   Only the column pass runs; the per-Y loop is empty.
-    ///
-    /// For Zone B roots (final_density and its per-Y dependencies):
-    ///   Column pass evaluates Zone A at Y=0; per-Y pass sweeps Zone B branchlessly.
-    ///
-    /// For Zone C roots (temperature, chunk_surface_level, veins, etc.):
-    ///   Falls back to the general per_block-checking approach.
-    fn evaluate_forward(&self, root: usize, pos: IVec3, cache: &mut DensityCache) -> f32 {
-        // Zone A and Zone B roots read column values only below the boundary;
-        // a Zone C root also reads the column-only entries interleaved with its
-        // own per-Y ones, so its prefix runs all the way to the root.
-        let column_needed = if root < self.fd_boundary {
-            self.column_boundary
-        } else {
-            root + 1
-        };
-
-        if pos.x != cache.last_x || pos.z != cache.last_z || cache.column_valid_upto < column_needed
-        {
-            cache.last_x = pos.x;
-            cache.last_z = pos.z;
-            cache.column_valid_upto = column_needed;
-            let y0_pos = IVec3::new(pos.x, 0, pos.z);
-            for i in 0..column_needed {
-                let value = self.stack[i].sample_cached(&mut cache.scratch, &self.stack, y0_pos);
-                cache.scratch[i] = value;
-            }
-        }
-
-        if root >= self.fd_boundary {
-            // Zone C root: fallback for aquifer, veins, temperature, etc.
-            for i in 0..=root {
-                if self.per_block[i] {
-                    let value = self.stack[i].sample_cached(&mut cache.scratch, &self.stack, pos);
-                    cache.scratch[i] = value;
-                }
-            }
-        } else if root >= self.column_boundary {
-            // Zone B root: every entry in this range is per_block by construction.
-            for i in self.column_boundary..=root {
-                let value = self.stack[i].sample_cached(&mut cache.scratch, &self.stack, pos);
-                cache.scratch[i] = value;
-            }
-        }
-
-        cache.scratch[root]
     }
 }
 
@@ -844,194 +541,6 @@ impl BlendedNoise {
                 true,
             ),
             interpolated_noise: OctavePerlinNoise::<f32>::new(random, -7, vec![1.0; 8], true),
-        }
-    }
-
-    /// Batch-evaluate OldBlendedNoise at multiple positions simultaneously (zero heap allocation).
-    /// Evaluates all octaves for all positions together, keeping permutation
-    /// tables cache-warm. Evaluates both lower and upper noise unconditionally
-    /// (the branch savings from skipping are offset by batch SIMD gains).
-    #[cfg(feature = "batch-noise")]
-    pub fn sample_batch(&self, positions: &[IVec3], results: &mut [f32]) {
-        let n = positions.len();
-        debug_assert_eq!(n, results.len());
-        debug_assert!(n <= MAX_BATCH);
-
-        // Pre-compute scaled coordinates on stack
-        let mut scaled = [(0.0f64, 0.0f64, 0.0f64); MAX_BATCH];
-        for j in 0..n {
-            scaled[j] = (
-                positions[j].x as f64 * self.xz_multiplier,
-                positions[j].y as f64 * self.y_multiplier,
-                positions[j].z as f64 * self.xz_multiplier,
-            );
-        }
-
-        // Reusable stack buffers
-        let mut octave_results = [0.0f32; MAX_BATCH];
-        let mut positions_buf = [(0.0f64, 0.0f64, 0.0f64); MAX_BATCH];
-        let mut y_maxes = [0.0f64; MAX_BATCH];
-
-        // ---- Interpolated noise: 8 octaves ----
-        let mut interp_fxs = [0.0f64; MAX_BATCH];
-        let mut interp_fys = [0.0f64; MAX_BATCH];
-        let mut interp_fzs = [0.0f64; MAX_BATCH];
-        for j in 0..n {
-            interp_fxs[j] = scaled[j].0 / self.xz_factor;
-            interp_fys[j] = scaled[j].1 / self.y_factor;
-            interp_fzs[j] = scaled[j].2 / self.xz_factor;
-        }
-        let mut interp_values = [0.0f32; MAX_BATCH];
-        let mut main_smear = self.main_smear;
-
-        for i in 0..MAIN_OCTAVES {
-            for j in 0..n {
-                positions_buf[j] = (
-                    OctavePerlinNoise::maintain_precission(interp_fxs[j]),
-                    OctavePerlinNoise::maintain_precission(interp_fys[j]),
-                    OctavePerlinNoise::maintain_precission(interp_fzs[j]),
-                );
-                y_maxes[j] = interp_fys[j];
-            }
-
-            self.interpolated_noise.sample_octave_batch(
-                i,
-                &positions_buf[..n],
-                main_smear,
-                &y_maxes[..n],
-                &mut octave_results[..n],
-            );
-
-            for j in 0..n {
-                interp_values[j] += octave_results[j] * self.main_amplitudes[i];
-                interp_fxs[j] *= 0.5;
-                interp_fys[j] *= 0.5;
-                interp_fzs[j] *= 0.5;
-            }
-            main_smear *= 0.5;
-        }
-
-        // Mirror the scalar path's laziness: only evaluate the lower (resp. upper)
-        // 16-octave noise for positions whose main-noise value actually selects it.
-        // Each position's math is unchanged, so results stay bit-identical.
-        let mut blend_values = [0.0f32; MAX_BATCH];
-        let mut lower_idx = [0usize; MAX_BATCH];
-        let mut upper_idx = [0usize; MAX_BATCH];
-        let mut n_lower = 0;
-        let mut n_upper = 0;
-        for j in 0..n {
-            let value = interp_values[j] + 0.5;
-            blend_values[j] = value;
-            if value < 1.0 {
-                lower_idx[n_lower] = j;
-                n_lower += 1;
-            }
-            if value > 0.0 {
-                upper_idx[n_upper] = j;
-                n_upper += 1;
-            }
-        }
-
-        let mut sxs = [0.0f64; MAX_BATCH];
-        let mut sys = [0.0f64; MAX_BATCH];
-        let mut szs = [0.0f64; MAX_BATCH];
-
-        // ---- Lower noise: 16 octaves (only positions with value < 1.0) ----
-        for (k, &j) in lower_idx[..n_lower].iter().enumerate() {
-            sxs[k] = scaled[j].0;
-            sys[k] = scaled[j].1;
-            szs[k] = scaled[j].2;
-        }
-        let mut lower_values = [0.0f32; MAX_BATCH];
-        let mut sm: f64 = self.limit_smear;
-        let mut amplitude = 1.0f32;
-
-        for i in 0..16 {
-            for k in 0..n_lower {
-                positions_buf[k] = (
-                    OctavePerlinNoise::maintain_precission(sxs[k]),
-                    OctavePerlinNoise::maintain_precission(sys[k]),
-                    OctavePerlinNoise::maintain_precission(szs[k]),
-                );
-                y_maxes[k] = sys[k];
-            }
-
-            self.lower_interpolated_noise.sample_octave_batch(
-                i,
-                &positions_buf[..n_lower],
-                sm,
-                &y_maxes[..n_lower],
-                &mut octave_results[..n_lower],
-            );
-
-            for k in 0..n_lower {
-                lower_values[k] += octave_results[k] * amplitude;
-                sxs[k] *= 0.5;
-                sys[k] *= 0.5;
-                szs[k] *= 0.5;
-            }
-            sm *= 0.5;
-            amplitude *= 2.0;
-        }
-
-        // ---- Upper noise: 16 octaves (only positions with value > 0.0) ----
-        for (k, &j) in upper_idx[..n_upper].iter().enumerate() {
-            sxs[k] = scaled[j].0;
-            sys[k] = scaled[j].1;
-            szs[k] = scaled[j].2;
-        }
-        let mut upper_values = [0.0f32; MAX_BATCH];
-        sm = self.limit_smear;
-        amplitude = 1.0;
-
-        for i in 0..16 {
-            for k in 0..n_upper {
-                positions_buf[k] = (
-                    OctavePerlinNoise::maintain_precission(sxs[k]),
-                    OctavePerlinNoise::maintain_precission(sys[k]),
-                    OctavePerlinNoise::maintain_precission(szs[k]),
-                );
-                y_maxes[k] = sys[k];
-            }
-
-            self.upper_interpolated_noise.sample_octave_batch(
-                i,
-                &positions_buf[..n_upper],
-                sm,
-                &y_maxes[..n_upper],
-                &mut octave_results[..n_upper],
-            );
-
-            for k in 0..n_upper {
-                upper_values[k] += octave_results[k] * amplitude;
-                sxs[k] *= 0.5;
-                sys[k] *= 0.5;
-                szs[k] *= 0.5;
-            }
-            sm *= 0.5;
-            amplitude *= 2.0;
-        }
-
-        // ---- Scatter lower/upper back to per-position slots ----
-        let mut starts = [0.0f32; MAX_BATCH];
-        let mut ends = [0.0f32; MAX_BATCH];
-        for (k, &j) in lower_idx[..n_lower].iter().enumerate() {
-            starts[j] = lower_values[k] / 512.0;
-        }
-        for (k, &j) in upper_idx[..n_upper].iter().enumerate() {
-            ends[j] = upper_values[k] / 512.0;
-        }
-
-        // ---- Combine results ----
-        for j in 0..n {
-            let value = blend_values[j];
-            results[j] = if value < 0.0 {
-                starts[j]
-            } else if value > 1.0 {
-                ends[j]
-            } else {
-                starts[j] + value * (ends[j] - starts[j])
-            } / self.final_divisor;
         }
     }
 }
@@ -1312,58 +821,6 @@ impl RangeFunction for Interpolated {
     #[inline]
     fn max_value(&self) -> f32 {
         self.max_value
-    }
-}
-
-impl Interpolated {
-    #[inline]
-    fn is_cell_corner(&self, pos: IVec3) -> bool {
-        pos.x.rem_euclid(self.cell_size_xz as i32) == 0
-            && pos.y.rem_euclid(self.cell_size_y as i32) == 0
-            && pos.z.rem_euclid(self.cell_size_xz as i32) == 0
-    }
-
-    fn interpolate(&self, stack: &[DensityFunctionComponent], pos: IVec3, sub: &mut [f32]) -> f32 {
-        let size_xz = self.cell_size_xz as i32;
-        let size_y = self.cell_size_y as i32;
-        let x_in_cell = pos.x.rem_euclid(size_xz);
-        let y_in_cell = pos.y.rem_euclid(size_y);
-        let z_in_cell = pos.z.rem_euclid(size_xz);
-
-        let x0 = pos.x - x_in_cell;
-        let y0 = pos.y - y_in_cell;
-        let z0 = pos.z - z_in_cell;
-        let alpha_x = x_in_cell as f32 / size_xz as f32;
-        let alpha_y = y_in_cell as f32 / size_y as f32;
-        let alpha_z = z_in_cell as f32 / size_xz as f32;
-
-        let corner = |x: i32, y: i32, z: i32, sub: &mut [f32]| {
-            eval_subgraph(&self.input_members, stack, IVec3::new(x, y, z), sub)
-        };
-        // lerp(0, a, b) is exactly a, so a zero weight lets the far corner go
-        // unevaluated instead of costing another walk of the input sub-tree.
-        let along_x = |y: i32, z: i32, sub: &mut [f32]| {
-            let low = corner(x0, y, z, sub);
-            if alpha_x == 0.0 {
-                low
-            } else {
-                low + alpha_x * (corner(x0 + size_xz, y, z, sub) - low)
-            }
-        };
-        let along_xy = |z: i32, sub: &mut [f32]| {
-            let low = along_x(y0, z, sub);
-            if alpha_y == 0.0 {
-                low
-            } else {
-                low + alpha_y * (along_x(y0 + size_y, z, sub) - low)
-            }
-        };
-        let low = along_xy(z0, sub);
-        if alpha_z == 0.0 {
-            low
-        } else {
-            low + alpha_z * (along_xy(z0 + size_xz, sub) - low)
-        }
     }
 }
 
@@ -2236,16 +1693,16 @@ impl RangeFunction for Spline {
 
 impl SplineValue {
     #[inline]
-    fn sample_cached(&self, cache: &[f32], stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, cache: &[f32]) -> f32 {
         match self {
-            SplineValue::Spline(x) => x.sample_cached(cache, stack, pos),
+            SplineValue::Spline(x) => x.sample(cache),
             SplineValue::Constant(x) => *x,
         }
     }
 }
 
 impl Spline {
-    fn sample_cached(&self, cache: &[f32], stack: &[DensityFunctionComponent], pos: IVec3) -> f32 {
+    fn sample(&self, cache: &[f32]) -> f32 {
         let location = cache[self.input_index];
 
         let locs = &self.locations;
@@ -2253,7 +1710,7 @@ impl Spline {
         let n_points = locs.len();
 
         if idx_gt == 0 {
-            let v0 = self.values[0].sample_cached(cache, stack, pos);
+            let v0 = self.values[0].sample(cache);
             let d0 = self.derivatives[0];
             return if d0 == 0.0 {
                 v0
@@ -2264,7 +1721,7 @@ impl Spline {
 
         if idx_gt == n_points {
             let i = n_points - 1;
-            let v = self.values[i].sample_cached(cache, stack, pos);
+            let v = self.values[i].sample(cache);
             let d = self.derivatives[i];
             return if d == 0.0 {
                 v
@@ -2276,8 +1733,8 @@ impl Spline {
         let i0 = idx_gt - 1;
         let i1 = idx_gt;
 
-        let v0 = self.values[i0].sample_cached(cache, stack, pos);
-        let v1 = self.values[i1].sample_cached(cache, stack, pos);
+        let v0 = self.values[i0].sample(cache);
+        let v1 = self.values[i1].sample(cache);
 
         let seg = self.segments[i0];
         let x = (location - seg.left) / seg.dist;
@@ -2632,149 +2089,6 @@ impl DensityFunctionComponent {
     }
 }
 
-/// Run a node's stored subgraph forward at `pos`, returning the value of its
-/// last member — which is the subgraph's own root.
-///
-/// `scratch` is the register file one level below the caller's: an off-position
-/// evaluation would otherwise overwrite the values the caller's own pass still
-/// has to read.
-fn eval_subgraph(
-    members: &[u32],
-    stack: &[DensityFunctionComponent],
-    pos: IVec3,
-    scratch: &mut [f32],
-) -> f32 {
-    let mut value = 0.0;
-    for &member in members {
-        let member = member as usize;
-        value = stack[member].sample_cached(scratch, stack, pos);
-        scratch[member] = value;
-    }
-    value
-}
-
-impl DensityFunctionComponent {
-    /// Evaluate using pre-computed cache (forward evaluation).
-    /// All entries at indices < this entry's position are already computed in `cache`.
-    ///
-    /// `cache` is a whole ladder of register files: `cache[..stack.len()]` is this
-    /// level's, the rest belongs to nested off-position evaluations.
-    #[inline]
-    fn sample_cached(
-        &self,
-        cache: &mut [f32],
-        stack: &[DensityFunctionComponent],
-        pos: IVec3,
-    ) -> f32 {
-        match self {
-            DensityFunctionComponent::Independent(f) => match f {
-                IndependentDensityFunction::Constant(x) => *x,
-                IndependentDensityFunction::OldBlendedNoise(x) => x.sample(pos),
-                IndependentDensityFunction::Noise(x) => x.sample(pos),
-                IndependentDensityFunction::ShiftA(x) => x.sample(pos),
-                IndependentDensityFunction::ShiftB(x) => x.sample(pos),
-                IndependentDensityFunction::Shift(x) => x.sample(pos),
-                IndependentDensityFunction::ClampedYGradient(x) => x.sample(pos),
-                IndependentDensityFunction::Gradient(x) => x.sample(pos),
-                IndependentDensityFunction::DistanceToPoint(x) => x.sample(pos),
-                IndependentDensityFunction::EndOuterIslands(x) => x.sample(pos),
-            },
-            DensityFunctionComponent::Dependent(f) => match f {
-                DependentDensityFunction::Linear(x) => {
-                    let input = cache[x.input_index];
-                    match x.operation {
-                        LinearOperation::Add => input + x.argument,
-                        LinearOperation::Multiply => input * x.argument,
-                    }
-                }
-                DependentDensityFunction::Affine(x) => {
-                    cache[x.input_index].mul_add(x.scale, x.offset)
-                }
-                DependentDensityFunction::PiecewiseAffine(x) => {
-                    let input = cache[x.input_index];
-                    let scale = if input < 0.0 {
-                        x.neg_scale
-                    } else {
-                        x.pos_scale
-                    };
-                    input.mul_add(scale, x.offset)
-                }
-                DependentDensityFunction::Slide(x) => x.compute(cache[x.input_index], pos.y as f32),
-                DependentDensityFunction::Unary(x) => x.operation.apply(cache[x.input_index]),
-                DependentDensityFunction::Binary(x) => x
-                    .operation
-                    .apply(cache[x.input1_index], cache[x.input2_index]),
-                DependentDensityFunction::ShiftedNoise(x) => x.sampler.get(
-                    pos.x as f64 * x.xz_scale + cache[x.input_x_index] as f64,
-                    pos.y as f64 * x.y_scale + cache[x.input_y_index] as f64,
-                    pos.z as f64 * x.xz_scale + cache[x.input_z_index] as f64,
-                ),
-                DependentDensityFunction::Clamp(x) => {
-                    cache[x.input_index].clamp(x.min_value, x.max_value)
-                }
-                DependentDensityFunction::RangeChoice(x) => {
-                    let input = cache[x.input_index];
-                    if input >= x.min_inclusion_value && input < x.max_exclusion_value {
-                        cache[x.when_in_index]
-                    } else {
-                        cache[x.when_out_index]
-                    }
-                }
-                DependentDensityFunction::Spline(x) => x.sample_cached(cache, stack, pos),
-                DependentDensityFunction::Lerp(x) => {
-                    let alpha = cache[x.alpha_index];
-                    if alpha == 0.0 {
-                        cache[x.first_index]
-                    } else if alpha == 1.0 {
-                        cache[x.second_index]
-                    } else {
-                        let first = cache[x.first_index];
-                        first + alpha * (cache[x.second_index] - first)
-                    }
-                }
-                DependentDensityFunction::Slice(x) => {
-                    let pinned = match x.axis {
-                        Axis::X => IVec3::new(x.coordinate, pos.y, pos.z),
-                        Axis::Y => IVec3::new(pos.x, x.coordinate, pos.z),
-                        Axis::Z => IVec3::new(pos.x, pos.y, x.coordinate),
-                    };
-                    let (_, sub) = cache.split_at_mut(stack.len());
-                    eval_subgraph(&x.input_members, stack, pinned, sub)
-                }
-                DependentDensityFunction::FindTopSurface(x) => {
-                    let top_y =
-                        (cache[x.upper_bound_index] / x.cell_height).floor() * x.cell_height;
-                    if top_y <= x.lower_bound {
-                        x.lower_bound
-                    } else {
-                        let (_, sub) = cache.split_at_mut(stack.len());
-                        let mut current_y = top_y;
-                        loop {
-                            let probe = IVec3::new(pos.x, current_y as i32, pos.z);
-                            let density = eval_subgraph(&x.density_members, stack, probe, sub);
-                            if density > 0.0 || current_y <= x.lower_bound {
-                                break current_y;
-                            }
-                            current_y -= x.cell_height;
-                        }
-                    }
-                }
-            },
-            DensityFunctionComponent::Wrapper(f) => match f {
-                WrapperDensityFunction::Interpolated(x) => {
-                    if x.is_cell_corner(pos) {
-                        cache[x.input_index]
-                    } else {
-                        let (_, sub) = cache.split_at_mut(stack.len());
-                        x.interpolate(stack, pos, sub)
-                    }
-                }
-                WrapperDensityFunction::Cache(x) => cache[x.input_index],
-            },
-        }
-    }
-}
-
 impl RangeFunction for DensityFunctionComponent {
     fn min_value(&self) -> f32 {
         match self {
@@ -2800,7 +2114,7 @@ pub fn lerp(delta: f32, start: f32, end: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{BlendedNoise, EndIslands, OldBlendedNoise, RangeFunction};
+    use super::{BlendedNoise, EndIslands, FillScratch, OldBlendedNoise, RangeFunction};
     use crate::density_function::DensityFunction;
     use crate::density_function::beta_seed::seed_beta_terrain;
     use crate::proto::NoiseGeneratorSettings;
@@ -3014,8 +2328,13 @@ mod tests {
 
         // Sample a column at multiple Y values to find a sign flip
         let mut all_densities = vec![];
+        let mut scratch = FillScratch::new();
         for y in (0..128).step_by(8) {
-            let v = router.final_density_uncached(bevy_math::IVec3::new(0, y, 0));
+            let v = router.sample_value(
+                router.final_density_index,
+                bevy_math::IVec3::new(0, y, 0),
+                &mut scratch,
+            );
             assert!(v.is_finite(), "density at y={y} must be finite");
             all_densities.push(v);
         }
@@ -3052,12 +2371,12 @@ mod tests {
         );
         // Zone A must contain the two cached 2D nodes (scale/depth).
         assert!(
-            router.column_boundary() > 0,
+            router.column_boundary > 0,
             "Zone A must be non-empty (cached 2D scale/depth nodes)"
         );
         // final_density must be wired into Zone B.
         assert!(
-            router.final_density_idx() >= router.column_boundary(),
+            router.final_density_idx() >= router.column_boundary,
             "final_density must be in Zone B"
         );
     }
@@ -3515,11 +2834,12 @@ mod tests {
         );
         let mut i = 0;
         let mut max_diff = 0.0_f32;
+        let mut scratch = FillScratch::new();
         for cx in 0..5i32 {
             for cz in 0..5i32 {
                 for cy in 0..17i32 {
                     let pos = bevy_math::IVec3::new(cx * 4, cy * 8, cz * 4);
-                    let rust_v = router.final_density_uncached(pos);
+                    let rust_v = router.sample_value(router.final_density_index, pos, &mut scratch);
                     let java_v = JAVA_Q[i];
                     let diff = (rust_v - java_v).abs();
                     max_diff = max_diff.max(diff);
@@ -3576,11 +2896,12 @@ mod tests {
             mcrs_voxel_storage::VoxelId(1),
             mcrs_voxel_storage::VoxelId(86),
         );
+        let mut scratch = FillScratch::new();
         for cx in 0..5i32 {
             for cz in 0..5i32 {
                 for cy in 0..17i32 {
                     let pos = bevy_math::IVec3::new(cx * 4, cy * 8, cz * 4);
-                    let d = router.final_density_uncached(pos);
+                    let d = router.sample_value(router.final_density_index, pos, &mut scratch);
                     println!("q {} {} {} {:.6}", cx, cz, cy, d);
                 }
             }
@@ -3759,11 +3080,11 @@ mod tests {
         )
     }
 
-    /// A `DensityCache` is not one root's private scratch: every root queried
-    /// through a shared cache, in any order, must answer exactly as a cache
+    /// A `FillScratch` is not one root's private buffer: every root sampled
+    /// through a shared one, in any order, must answer exactly as a scratch
     /// built for it alone does.
     #[test]
-    fn a_shared_cache_answers_every_root() {
+    fn a_shared_scratch_answers_every_root() {
         let router = router_for("overworld.json");
         let mut roots = router.roots();
         roots.sort_by_key(|&(_, index)| index);
@@ -3772,18 +3093,18 @@ mod tests {
             let pos = bevy_math::IVec3::new(x, y, z);
             let alone: Vec<f32> = roots
                 .iter()
-                .map(|&(_, index)| router.sample_root(index, pos, &mut router.new_cache()))
+                .map(|&(_, index)| router.sample_value(index, pos, &mut FillScratch::new()))
                 .collect();
 
             for descending in [false, true] {
-                let mut shared = router.new_cache();
+                let mut shared = FillScratch::new();
                 let mut order: Vec<usize> = (0..roots.len()).collect();
                 if descending {
                     order.reverse();
                 }
                 for k in order {
                     let (name, index) = roots[k];
-                    let got = router.sample_root(index, pos, &mut shared);
+                    let got = router.sample_value(index, pos, &mut shared);
                     assert_eq!(
                         got.to_bits(),
                         alone[k].to_bits(),
@@ -3970,9 +3291,9 @@ mod tests {
                         continue;
                     }
                     checked += 1;
-                    let mut scratch = router.new_scratch();
-                    let full = router.dense_forward(i, pos, &mut scratch);
-                    let restricted = router.dense_forward(i, pinned, &mut scratch);
+                    let mut scratch = FillScratch::new();
+                    let full = router.sample_value(i, pos, &mut scratch);
+                    let restricted = router.sample_value(i, pinned, &mut scratch);
                     assert_eq!(
                         full.to_bits(),
                         restricted.to_bits(),
@@ -4046,11 +3367,15 @@ mod tests {
             "modern router final_density_index must be non-zero (wired)"
         );
         assert!(
-            router.column_boundary() > 0,
+            router.column_boundary > 0,
             "modern router must have Zone A column-only entries"
         );
 
-        let sample = router.final_density_uncached(bevy_math::IVec3::new(0, 64, 0));
+        let sample = router.sample_value(
+            router.final_density_index,
+            bevy_math::IVec3::new(0, 64, 0),
+            &mut FillScratch::new(),
+        );
         assert!(
             sample.is_finite(),
             "modern router sample at (0,64,0) must be finite"
@@ -4106,8 +3431,16 @@ mod tests {
         );
 
         let pos = bevy_math::IVec3::new(0, 64, 0);
-        let modern_sample = modern_router.final_density_uncached(pos);
-        let beta_sample = beta_router.final_density_uncached(pos);
+        let modern_sample = modern_router.sample_value(
+            modern_router.final_density_index,
+            pos,
+            &mut FillScratch::new(),
+        );
+        let beta_sample = beta_router.sample_value(
+            beta_router.final_density_index,
+            pos,
+            &mut FillScratch::new(),
+        );
 
         assert!(modern_sample.is_finite(), "modern sample must be finite");
         assert!(beta_sample.is_finite(), "beta sample must be finite");
@@ -4235,13 +3568,13 @@ mod tests {
             let router = router_for(settings);
             let mut roots = router.roots();
             roots.sort_by_key(|&(_, index)| index);
-            let mut scratch = router.new_scratch();
+            let mut scratch = FillScratch::new();
             for x in [-37i32, 0, 3, 16, 41] {
                 for z in [-19i32, 0, 5, 12, 64] {
                     for y in [-60i32, -1, 0, 3, 55, 64, 71, 200] {
                         let pos = bevy_math::IVec3::new(x, y, z);
                         for &(name, index) in roots.iter() {
-                            let bits = router.dense_forward(index, pos, &mut scratch).to_bits();
+                            let bits = router.sample_value(index, pos, &mut scratch).to_bits();
                             let digest = digests
                                 .entry((settings, name))
                                 .or_insert(0xcbf2_9ce4_8422_2325);

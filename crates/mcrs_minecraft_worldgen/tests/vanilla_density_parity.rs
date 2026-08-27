@@ -204,12 +204,12 @@ fn our_fill(router: &NoiseRouter, root: usize, volume: &Volume) -> Vec<f32> {
     );
     let mut out = vec![f32::NAN; box_volume.len()];
     let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
-    router.fill(root, &box_volume, &mut out, &mut scratch);
+    router.sample_volume(root, &box_volume, &mut out, &mut scratch);
     out
 }
 
 fn our_root_lattice(router: &NoiseRouter, root: usize, volume: &Volume) -> Vec<f32> {
-    let mut cache = router.new_cache();
+    let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
     let mut out = Vec::with_capacity(volume.values.len());
     for zi in 0..volume.size[2] {
         for xi in 0..volume.size[0] {
@@ -219,7 +219,7 @@ fn our_root_lattice(router: &NoiseRouter, root: usize, volume: &Volume) -> Vec<f
                     volume.min[1] + yi * volume.step[1],
                     volume.min[2] + zi * volume.step[2],
                 );
-                out.push(router.sample_root(root, pos, &mut cache));
+                out.push(router.sample_value(root, pos, &mut scratch));
             }
         }
     }
@@ -460,7 +460,7 @@ fn dense_final_density_matches_the_vanilla_oracle() {
                     cell,
                     IVec3::new(volume.min[0] + x, volume.min[1] + y, volume.min[2] + z),
                 );
-                router.fill(
+                router.sample_volume(
                     router.final_density_index(),
                     &cell_volume,
                     &mut cell_values,
@@ -513,7 +513,7 @@ fn cell_bounds_contain_every_block_density() {
         mcrs_minecraft_worldgen::density_function::Volume::new(cells + IVec3::ONE, block_min, cell);
     let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
     let mut corners = vec![0.0f32; width * corner_volume.len()];
-    router.fill_roots(roots, &corner_volume, &mut corners, &mut scratch);
+    router.sample_volume_roots(roots, &corner_volume, &mut corners, &mut scratch);
 
     let mut bounds_scratch = vec![(0.0f32, 0.0f32); router.final_density_index() + 1];
     let mut cell_values = vec![0.0f32; (cell.x * cell.y * cell.z) as usize];
@@ -554,7 +554,7 @@ fn cell_bounds_contain_every_block_density() {
                     cell,
                     block_min + IVec3::new(cx, cy, cz) * cell,
                 );
-                router.fill(
+                router.sample_volume(
                     router.final_density_index(),
                     &cell_volume,
                     &mut cell_values,
@@ -589,30 +589,32 @@ fn cell_bounds_contain_every_block_density() {
 /// interval arithmetic accumulates over the outer terms.
 const CELL_BOUNDS_SLACK: f32 = 1e-5;
 
-/// Both Zone B evaluation paths carry a debug-only check that the branch
-/// schedule's skipped runs never move a value the caller reads back. Neither
-/// parity test above reaches the scalar path, and skips are position-dependent,
-/// so this sweeps whole columns block by block to drive the check.
+/// Zone B carries a debug-only check that the branch schedule's skipped runs
+/// never move a value the caller reads back. Skips depend on the values a
+/// volume covers, so this drives whole columns at seeds and chunks the oracle
+/// dumps do not reach.
 #[test]
 fn branch_skipping_preserves_every_zone_b_root() {
+    let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
     for seed in [1u64, 42] {
         let router = overworld_router(seed);
+        let min_y = router.noise_min_y();
+        let height = router.noise_height() as i32;
+        let mut column = vec![0.0f32; height as usize];
         for (cx, cz) in [(0i32, 0i32), (-33, 55), (7, 7), (100, -7)] {
             let (bx, bz) = (cx * 16, cz * 16);
-            let mut cache = router.new_column_cache(bx, bz);
-            router.populate_columns(&mut cache);
-            let min_y = router.noise_min_y();
-            let height = router.noise_height() as i32;
-
             for lx in (0..=16).step_by(4) {
                 for lz in (0..=16).step_by(4) {
-                    cache.load_column(lx, lz);
-                    for y in min_y..min_y + height {
-                        router.final_density_from_column_cache(
-                            IVec3::new(bx + lx, y, bz + lz),
-                            &mut cache,
-                        );
-                    }
+                    let volume = mcrs_minecraft_worldgen::density_function::Volume::dense(
+                        IVec3::new(1, height, 1),
+                        IVec3::new(bx + lx, min_y, bz + lz),
+                    );
+                    router.sample_volume(
+                        router.final_density_index(),
+                        &volume,
+                        &mut column,
+                        &mut scratch,
+                    );
                 }
             }
         }
@@ -627,16 +629,15 @@ struct FillDiff {
     worst: IVec3,
 }
 
-fn fill_vs_sample_root(
+fn fill_vs_sample_value(
     router: &NoiseRouter,
     root: usize,
     volume: &mcrs_minecraft_worldgen::density_function::Volume,
 ) -> FillDiff {
     let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
     let mut filled = vec![f32::NAN; volume.len()];
-    router.fill(root, volume, &mut filled, &mut scratch);
+    router.sample_volume(root, volume, &mut filled, &mut scratch);
 
-    let mut cache = router.new_cache();
     let mut d = FillDiff {
         mismatches: 0,
         total: volume.len(),
@@ -648,7 +649,7 @@ fn fill_vs_sample_root(
         for x in 0..volume.size_x() {
             for y in 0..volume.size_y() {
                 let pos = IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
-                let want = router.sample_root(root, pos, &mut cache);
+                let want = router.sample_value(root, pos, &mut scratch);
                 let got = filled[volume.index_unchecked(x, y, z)];
                 if want.to_bits() == got.to_bits() {
                     continue;
@@ -738,11 +739,11 @@ fn interior_fill_cases() -> Vec<(
 }
 
 #[test]
-fn fill_matches_sample_root_on_the_cell_lattice() {
+fn fill_matches_sample_value_on_the_cell_lattice() {
     let router = overworld_router(42);
     for (root_name, root) in router.roots() {
         for (name, volume) in lattice_fill_cases(&router) {
-            let d = fill_vs_sample_root(&router, root, &volume);
+            let d = fill_vs_sample_value(&router, root, &volume);
             assert_eq!(
                 d.mismatches, 0,
                 "{name} / {root_name}: {} of {} values differ (max_ulp={}, max_abs={:e}, worst@{:?})",
@@ -760,11 +761,11 @@ fn fill_matches_sample_root_on_the_cell_lattice() {
 const FILL_VERSUS_SCALAR: f32 = 8e-8;
 
 #[test]
-fn fill_and_sample_root_differ_only_by_the_y_accumulation() {
+fn fill_and_sample_value_differ_only_by_the_y_accumulation() {
     let router = overworld_router(42);
     for (root_name, root) in router.roots() {
         for (name, volume) in interior_fill_cases() {
-            let d = fill_vs_sample_root(&router, root, &volume);
+            let d = fill_vs_sample_value(&router, root, &volume);
             println!(
                 "{:>20} / {:<28}: {:>5}/{} differ  max_ulp={}  max_abs={:e}  worst@{:?}",
                 root_name, name, d.mismatches, d.total, d.max_ulp, d.max_abs, d.worst
@@ -809,7 +810,7 @@ fn a_router_mixing_cell_geometries_loads_and_evaluates() {
         IVec3::new(9, 17, 9),
         IVec3::new(-4, -20, 12),
     );
-    let d = fill_vs_sample_root(&router, router.final_density_index(), &volume);
+    let d = fill_vs_sample_value(&router, router.final_density_index(), &volume);
     println!(
         "mixed geometry: {}/{} differ  max_ulp={}  max_abs={:e}  worst@{:?}",
         d.mismatches, d.total, d.max_ulp, d.max_abs, d.worst
@@ -823,15 +824,16 @@ fn a_router_mixing_cell_geometries_loads_and_evaluates() {
         d.worst
     );
 
-    let mut cache = router.new_cache();
-    let mut plain_cache = plain.new_cache();
+    let mut scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
+    let mut plain_scratch = mcrs_minecraft_worldgen::density_function::FillScratch::new();
     let mut moved = 0usize;
     for z in 0..volume.size_z() {
         for x in 0..volume.size_x() {
             for y in 0..volume.size_y() {
                 let pos = IVec3::new(volume.block_x(x), volume.block_y(y), volume.block_z(z));
-                let with = router.sample_root(router.final_density_index(), pos, &mut cache);
-                let without = plain.sample_root(plain.final_density_index(), pos, &mut plain_cache);
+                let with = router.sample_value(router.final_density_index(), pos, &mut scratch);
+                let without =
+                    plain.sample_value(plain.final_density_index(), pos, &mut plain_scratch);
                 assert!(with.is_finite(), "non-finite density at {pos:?}");
                 if with != without {
                     moved += 1;
@@ -845,4 +847,3 @@ fn a_router_mixing_cell_geometries_loads_and_evaluates() {
         volume.len()
     );
 }
-

@@ -166,12 +166,7 @@ fn generate_column_beta_biome_not_default() {
         lookup: Box::new(build_beta_lookup_table()),
     };
 
-    // Build a column cache once to sample climate at (0, 0).
-    let block_x = 0i32;
-    let block_z = 0i32;
-    let mut column_cache = router.new_column_cache(block_x, block_z);
-    router.populate_columns(&mut column_cache);
-    let (temp_0, hum_0) = router.sample_climate_at(&column_cache, block_x, block_z);
+    let (temp_0, hum_0) = router.sample_beta_climate(0, 0);
 
     // Ocean biome id for (temp_0, hum_0) at below-sea-level cell.
     let ocean_asset_id = biome_source.beta_biome_id(temp_0, hum_0, true);

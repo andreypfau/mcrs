@@ -1,6 +1,6 @@
 use super::{
     DensityFunctionComponent, DependentDensityFunction, IndependentDensityFunction, Interpolated,
-    LinearOperation, NoiseRouter, WrapperDensityFunction, branch_schedule::Step, eval_subgraph,
+    LinearOperation, NoiseRouter, Slice, WrapperDensityFunction, branch_schedule::Step,
 };
 use crate::density_function::DensityFunction;
 use crate::density_function::proto::Axis;
@@ -187,12 +187,14 @@ impl Volume {
     }
 }
 
-/// Reusable buffers for [`NoiseRouter::fill`]: one row per live node plus the
-/// register files the per-position opcodes still need.
+/// Reusable buffers for [`NoiseRouter::sample_volume`]: one row per live node
+/// over the volume, the same over the volume's columns, and the register file
+/// the spline opcode reads its inputs from.
 #[derive(Default)]
 pub struct FillScratch {
     rows: Vec<f32>,
-    column: Vec<f32>,
+    column_rows: Vec<f32>,
+    column_positions: Vec<IVec3>,
     point: Vec<f32>,
     positions: Vec<IVec3>,
     needed: Vec<bool>,
@@ -205,17 +207,28 @@ impl FillScratch {
 }
 
 impl NoiseRouter {
+    /// Evaluate `root` at one position.
+    pub fn sample_value(&self, root: usize, pos: IVec3, scratch: &mut FillScratch) -> f32 {
+        let mut out = [0.0f32];
+        self.sample_volume(root, &Volume::point(pos), &mut out, scratch);
+        out[0]
+    }
+
     /// Evaluate `root` over every position of `volume`, writing `volume.len()`
     /// values into `out` in the volume's own index layout.
-    ///
-    /// Bit-identical to `sample_root` at each position.
-    pub fn fill(&self, root: usize, volume: &Volume, out: &mut [f32], scratch: &mut FillScratch) {
-        self.fill_roots(&[root], volume, out, scratch);
+    pub fn sample_volume(
+        &self,
+        root: usize,
+        volume: &Volume,
+        out: &mut [f32],
+        scratch: &mut FillScratch,
+    ) {
+        self.sample_volume_roots(&[root], volume, out, scratch);
     }
 
     /// Evaluate several roots over `volume` in one pass, writing one
     /// `volume.len()`-long row per root into `out`, in the order given.
-    pub fn fill_roots(
+    pub fn sample_volume_roots(
         &self,
         roots: &[usize],
         volume: &Volume,
@@ -233,7 +246,6 @@ impl NoiseRouter {
         // Resized, never cleared: a row is read only after this pass writes it,
         // so re-zeroing the arena is a memset the size of the whole volume.
         scratch.rows.resize(live * n, 0.0);
-        scratch.column.resize(self.scratch_len, 0.0);
         scratch.point.resize(self.scratch_len, 0.0);
         volume.positions_into(&mut scratch.positions);
 
@@ -271,31 +283,39 @@ impl NoiseRouter {
             });
         }
 
+        let column_volume = Volume::new(
+            IVec3::new(volume.size_x(), 1, volume.size_z()),
+            IVec3::new(volume.min_block_x(), 0, volume.min_block_z()),
+            IVec3::new(volume.step_block_x(), 1, volume.step_block_z()),
+        );
+        let columns = column_volume.len();
+        scratch.column_rows.resize(column_end * columns, 0.0);
+        column_volume.positions_into(&mut scratch.column_positions);
+
         let rows = &mut scratch.rows;
-        let column = &mut scratch.column;
-        let size_y = volume.size_y as usize;
-        for z in 0..volume.size_z {
-            for x in 0..volume.size_x {
-                let y0 = IVec3::new(volume.block_x(x), 0, volume.block_z(z));
-                for i in 0..column_end {
-                    if !needed[i] {
-                        continue;
-                    }
-                    let value = self.stack[i].sample_cached(column, &self.stack, y0);
-                    column[i] = value;
-                }
-                let base = volume.index_unchecked(x, 0, z);
-                for i in 0..column_end {
-                    if !needed[i] {
-                        continue;
-                    }
-                    rows[i * n + base..i * n + base + size_y].fill(column[i]);
-                }
+        let column_rows = &mut scratch.column_rows;
+        let point = &mut scratch.point;
+        let size_y = volume.size_y() as usize;
+        for i in 0..column_end {
+            if !needed[i] {
+                continue;
+            }
+            fill_node(
+                &self.stack,
+                self.scratch_len,
+                i,
+                &column_volume,
+                &scratch.column_positions,
+                column_rows,
+                point,
+            );
+            for c in 0..columns {
+                let base = i * n + c * size_y;
+                rows[base..base + size_y].fill(column_rows[i * columns + c]);
             }
         }
 
         let positions = &scratch.positions;
-        let point = &mut scratch.point;
         if live > self.fd_boundary {
             for i in 0..live {
                 if self.per_block[i] && needed[i] {
@@ -400,7 +420,9 @@ impl NoiseRouter {
         let n = volume.len();
         let live = needed.len();
         let roots = || self.zone_b_roots.iter().copied().filter(|&r| r < live);
-        let guarded: Vec<f32> = roots().flat_map(|r| rows[r * n..r * n + n].to_vec()).collect();
+        let guarded: Vec<f32> = roots()
+            .flat_map(|r| rows[r * n..r * n + n].to_vec())
+            .collect();
         for i in self.column_boundary..=self.final_density_index {
             if i < live && needed[i] {
                 fill_node(
@@ -456,7 +478,7 @@ pub(super) fn fill_members(
     out.copy_from_slice(&rows[root * n..root * n + n]);
 }
 
-fn fill_node(
+pub(super) fn fill_node(
     stack: &[DensityFunctionComponent],
     scratch_len: usize,
     i: usize,
@@ -577,24 +599,34 @@ fn fill_node(
                     for j in 0..i {
                         point[j] = rows[j * n + p];
                     }
-                    rows[out_base + p] = x.sample_cached(point, stack, positions[p]);
+                    rows[out_base + p] = x.sample(point);
                 }
             }
             DependentDensityFunction::Slice(x) => {
-                let (_, sub) = point.split_at_mut(stack.len());
-                for p in 0..n {
-                    let pos = positions[p];
-                    let pinned = match x.axis {
-                        Axis::X => IVec3::new(x.coordinate, pos.y, pos.z),
-                        Axis::Y => IVec3::new(pos.x, x.coordinate, pos.z),
-                        Axis::Z => IVec3::new(pos.x, pos.y, x.coordinate),
-                    };
-                    rows[out_base + p] = eval_subgraph(&x.input_members, stack, pinned, sub);
+                let pinned = x.pinned_volume(volume);
+                if &pinned == volume {
+                    let (_, out) = rows.split_at_mut(out_base);
+                    fill_members(stack, scratch_len, &x.input_members, volume, &mut out[..n]);
+                } else {
+                    let mut sliced = vec![0.0f32; pinned.len()];
+                    fill_members(stack, scratch_len, &x.input_members, &pinned, &mut sliced);
+                    for z in 0..volume.size_z() {
+                        for vx in 0..volume.size_x() {
+                            for y in 0..volume.size_y() {
+                                let source = match x.axis {
+                                    Axis::X => pinned.index_unchecked(0, y, z),
+                                    Axis::Y => pinned.index_unchecked(vx, 0, z),
+                                    Axis::Z => pinned.index_unchecked(vx, y, 0),
+                                };
+                                rows[out_base + volume.index_unchecked(vx, y, z)] = sliced[source];
+                            }
+                        }
+                    }
                 }
             }
             DependentDensityFunction::FindTopSurface(x) => {
                 let a = x.upper_bound_index * n;
-                let (_, sub) = point.split_at_mut(stack.len());
+                let mut probed = [0.0f32];
                 for p in 0..n {
                     let top_y = (rows[a + p] / x.cell_height).floor() * x.cell_height;
                     rows[out_base + p] = if top_y <= x.lower_bound {
@@ -602,10 +634,19 @@ fn fill_node(
                     } else {
                         let mut current_y = top_y;
                         loop {
-                            let probe =
-                                IVec3::new(positions[p].x, current_y as i32, positions[p].z);
-                            let density = eval_subgraph(&x.density_members, stack, probe, sub);
-                            if density > 0.0 || current_y <= x.lower_bound {
+                            let probe = Volume::point(IVec3::new(
+                                positions[p].x,
+                                current_y as i32,
+                                positions[p].z,
+                            ));
+                            fill_members(
+                                stack,
+                                scratch_len,
+                                &x.density_members,
+                                &probe,
+                                &mut probed,
+                            );
+                            if probed[0] > 0.0 || current_y <= x.lower_bound {
                                 break current_y;
                             }
                             current_y -= x.cell_height;
@@ -633,6 +674,31 @@ fn fill_node(
     }
 }
 
+impl Slice {
+    /// `volume` with this node's axis collapsed onto its pinned coordinate.
+    fn pinned_volume(&self, volume: &Volume) -> Volume {
+        let mut size = IVec3::new(volume.size_x(), volume.size_y(), volume.size_z());
+        let mut min = IVec3::new(
+            volume.min_block_x(),
+            volume.min_block_y(),
+            volume.min_block_z(),
+        );
+        let step = IVec3::new(
+            volume.step_block_x(),
+            volume.step_block_y(),
+            volume.step_block_z(),
+        );
+        let axis = match self.axis {
+            Axis::X => 0,
+            Axis::Y => 1,
+            Axis::Z => 2,
+        };
+        size[axis] = 1;
+        min[axis] = self.coordinate;
+        Volume::new(size, min, step)
+    }
+}
+
 impl Interpolated {
     /// Whether `volume` already samples this node's cell lattice, so the input
     /// can be passed straight through with no interpolation.
@@ -656,6 +722,19 @@ impl Interpolated {
     ) {
         if self.is_lattice_volume(volume) {
             fill_members(stack, scratch_len, &self.input_members, volume, out);
+        } else if volume.len() == 1 {
+            // A single position combines the eight corners exactly, where a
+            // volume accumulates along Y. Vanilla splits the same two ways, and
+            // the block values a chunk fill produces come from the second.
+            out[0] = self.sample_point(
+                stack,
+                scratch_len,
+                IVec3::new(
+                    volume.min_block_x(),
+                    volume.min_block_y(),
+                    volume.min_block_z(),
+                ),
+            );
         } else if volume.step_block_x() == 1
             && volume.step_block_y() == 1
             && volume.step_block_z() == 1
@@ -688,6 +767,34 @@ impl Interpolated {
                 }
             }
         }
+    }
+
+    fn sample_point(
+        &self,
+        stack: &[DensityFunctionComponent],
+        scratch_len: usize,
+        pos: IVec3,
+    ) -> f32 {
+        let size_xz = self.cell_size_xz as i32;
+        let size_y = self.cell_size_y as i32;
+        let x_in_cell = pos.x.rem_euclid(size_xz);
+        let y_in_cell = pos.y.rem_euclid(size_y);
+        let z_in_cell = pos.z.rem_euclid(size_xz);
+        let cell = Volume::new(
+            IVec3::splat(2),
+            IVec3::new(pos.x - x_in_cell, pos.y - y_in_cell, pos.z - z_in_cell),
+            IVec3::new(size_xz, size_y, size_xz),
+        );
+        let mut corners = [0.0f32; 8];
+        fill_members(stack, scratch_len, &self.input_members, &cell, &mut corners);
+
+        let alpha_x = x_in_cell as f32 / size_xz as f32;
+        let alpha_y = y_in_cell as f32 / size_y as f32;
+        let alpha_z = z_in_cell as f32 / size_xz as f32;
+        let at = |x: i32, y: i32, z: i32| corners[cell.index_unchecked(x, y, z)];
+        let along_x = |y: i32, z: i32| lerp(alpha_x, at(0, y, z), at(1, y, z));
+        let along_xy = |z: i32| lerp(alpha_y, along_x(0, z), along_x(1, z));
+        lerp(alpha_z, along_xy(0), along_xy(1))
     }
 
     fn fill_block_step(

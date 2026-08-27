@@ -12,7 +12,7 @@ use mcrs_minecraft_world::biome::source::{
 };
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
 use mcrs_minecraft_worldgen::density_function::{
-    ColumnCache, FillScratch, NoiseRouter, Volume, beta_terrain_f64::BetaTerrainF64,
+    FillScratch, NoiseRouter, Volume, beta_terrain_f64::BetaTerrainF64,
 };
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
@@ -59,7 +59,7 @@ impl ColumnCorners {
         );
         let roots = noise_router.cell_value_roots();
         let mut values = vec![0.0f32; roots.len() * volume.len()];
-        noise_router.fill_roots(roots, &volume, &mut values, scratch);
+        noise_router.sample_volume_roots(roots, &volume, &mut values, scratch);
         Some(Self {
             volume,
             cell,
@@ -224,7 +224,7 @@ fn fill_and_set(
 ) {
     fill.density.clear();
     fill.density.resize(volume.len(), 0.0);
-    noise_router.fill(
+    noise_router.sample_volume(
         noise_router.final_density_index(),
         volume,
         &mut fill.density,
@@ -245,10 +245,38 @@ fn fill_and_set(
     }
 }
 
+/// The (temperature, humidity) pair at each of the sixteen biome-cell columns
+/// of a chunk.
+fn beta_climate_cells(noise_router: &NoiseRouter, block_x: i32, block_z: i32) -> [(f32, f32); 16] {
+    let volume = Volume::new(
+        IVec3::new(4, 1, 4),
+        IVec3::new(block_x, 0, block_z),
+        IVec3::new(4, 1, 4),
+    );
+    let mut values = vec![0.0f32; 2 * volume.len()];
+    noise_router.sample_volume_roots(
+        &[
+            noise_router.temperature_index(),
+            noise_router.vegetation_index(),
+        ],
+        &volume,
+        &mut values,
+        &mut FillScratch::new(),
+    );
+    let mut cells = [(0.0f32, 0.0f32); 16];
+    for cx in 0..4 {
+        for cz in 0..4 {
+            let source = volume.index_unchecked(cx, 0, cz);
+            cells[(cx * 4 + cz) as usize] = (values[source], values[volume.len() + source]);
+        }
+    }
+    cells
+}
+
 /// Fill a `BiomePalette` for a single 16x16x16 section from Beta climate data.
 ///
-/// Each of the 4x4x4 biome cells is sampled once from the pre-populated
-/// `column_cache`. The ocean/land split is per cell-row Y: a cell whose
+/// Each of the 4x4x4 biome cells is sampled once from `climate`. The
+/// ocean/land split is per cell-row Y: a cell whose
 /// center world Y falls below `sea_level` receives the ocean biome for
 /// the land bucket at that XZ position; cells at or above sea level receive
 /// the land biome directly.
@@ -260,10 +288,7 @@ fn fill_and_set(
 fn fill_biome_palette_beta(
     biomes: &mut BiomePalette,
     _section_y: i32,
-    block_x: i32,
-    block_z: i32,
-    noise_router: &NoiseRouter,
-    column_cache: &ColumnCache,
+    climate: &[(f32, f32); 16],
     biome_source: &BiomeSource,
     biome_registry: &RegistrySnapshot<Biome>,
 ) {
@@ -271,10 +296,8 @@ fn fill_biome_palette_beta(
     // temperature/humidity at (x,z) via getBiomeFromLookup, with no Y or
     // sea-level dependence, so every cell in a column shares one biome.
     for cx in 0..4usize {
-        let sample_x = block_x + cx as i32 * 4;
         for cz in 0..4usize {
-            let sample_z = block_z + cz as i32 * 4;
-            let (temp, humidity) = noise_router.sample_climate_at(column_cache, sample_x, sample_z);
+            let (temp, humidity) = climate[cx * 4 + cz];
             let location = biome_source.beta_biome_location(temp, humidity, false);
             let network_id = match biome_registry.by_location(location.as_str()) {
                 Some(id) => id as u8,
@@ -324,9 +347,7 @@ fn fill_sections_beta_f64(
     let flat =
         BetaTerrainF64::fill_terrain(&density, &temp_grid, sea_level, stone_id, water_id, ice_id);
 
-    // Build a column cache for biome sampling (used by fill_biome_palette_beta).
-    let mut column_cache = noise_router.new_column_cache(block_x, block_z);
-    noise_router.populate_columns(&mut column_cache);
+    let climate = beta_climate_cells(noise_router, block_x, block_z);
 
     let beta_biome = biome_context.and_then(|(src, reg)| {
         if matches!(src, BiomeSource::Beta { .. }) {
@@ -373,16 +394,7 @@ fn fill_sections_beta_f64(
             }
 
             if let Some((src, reg)) = beta_biome {
-                fill_biome_palette_beta(
-                    &mut biomes,
-                    sy,
-                    block_x,
-                    block_z,
-                    noise_router,
-                    &column_cache,
-                    src,
-                    reg,
-                );
+                fill_biome_palette_beta(&mut biomes, sy, &climate, src, reg);
             }
 
             Some((blocks, biomes))
@@ -390,12 +402,11 @@ fn fill_sections_beta_f64(
         .collect()
 }
 
-/// Generate all sections in a column using a pre-populated ColumnCache.
-/// Zone A (column-only density functions) is computed once for all 17x17 XZ positions
-/// and reused across all Y sections, eliminating per-block column-change branches.
+/// Generate all sections in a column.
 ///
-/// Adjacent Y sections share cell corners at their boundary via Y-boundary reuse,
-/// eliminating ~33% of density evaluations for all sections after the first.
+/// The `interpolated` wrapper inputs are filled once over the whole column's
+/// cell lattice, so adjacent Y sections share the cell corners at their
+/// boundary instead of re-evaluating them.
 ///
 /// Accepts a `CancellationToken` for cooperative cancellation. The token is checked
 /// between section generations; if cancelled, remaining sections return `None` while
@@ -447,13 +458,7 @@ pub fn generate_column(
         }
     });
 
-    // The column grid now serves the Beta climate lookup alone; the density fill
-    // walks its own columns.
-    let column_cache = beta_biome.map(|_| {
-        let mut cache = noise_router.new_column_cache(block_x, block_z);
-        noise_router.populate_columns(&mut cache);
-        cache
-    });
+    let climate = beta_biome.map(|_| beta_climate_cells(noise_router, block_x, block_z));
 
     let mut fill = SectionFill::default();
     let corners = ColumnCorners::fill(noise_router, block_x, block_z, &mut fill.scratch);
@@ -483,17 +488,8 @@ pub fn generate_column(
                     &mut fill,
                 );
             }
-            if let Some(((src, reg), cache)) = beta_biome.zip(column_cache.as_ref()) {
-                fill_biome_palette_beta(
-                    &mut biomes,
-                    sy,
-                    block_x,
-                    block_z,
-                    noise_router,
-                    cache,
-                    src,
-                    reg,
-                );
+            if let Some(((src, reg), climate)) = beta_biome.zip(climate.as_ref()) {
+                fill_biome_palette_beta(&mut biomes, sy, climate, src, reg);
             }
             Some((blocks, biomes))
         })

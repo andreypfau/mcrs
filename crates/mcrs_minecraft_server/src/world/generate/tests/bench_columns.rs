@@ -117,8 +117,7 @@ fn build_router(settings_name: &str, seed: u64) -> NoiseRouter {
         super::corpus().default_state("minecraft:water").into(),
     );
     println!(
-        "[{settings_name}] zone A entries={} final_density index={} noise height={} sea level={}",
-        router.column_boundary(),
+        "[{settings_name}] final_density index={} noise height={} sea level={}",
         router.final_density_index(),
         router.noise_height(),
         router.sea_level()
@@ -158,20 +157,6 @@ fn bench_columns(label: &str, router: &NoiseRouter, columns: i32, reps: usize) {
             &cancel,
         ));
     }
-
-    // Phase timing: column cache population only
-    let t = Instant::now();
-    for i in 0..columns {
-        let (cx, cz) = (i % 8, i / 8);
-        let mut cache = router.new_column_cache(cx * 16, cz * 16);
-        router.populate_columns(&mut cache);
-    }
-    let populate = t.elapsed();
-    println!(
-        "[{label}] populate-only phase: {:?} total, {:.3}ms/col",
-        populate,
-        populate.as_secs_f64() * 1000.0 / columns as f64
-    );
 
     for rep in 0..reps {
         let mut samples = Vec::with_capacity(columns as usize);

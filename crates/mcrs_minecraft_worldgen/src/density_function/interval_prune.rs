@@ -150,10 +150,24 @@ fn rc_sites(router: &NoiseRouter) -> Vec<RcSite> {
     out
 }
 
+/// Every column-invariant value at `(x, z)`, in stack order.
+fn zone_a_at(router: &NoiseRouter, x: i32, z: i32, scratch: &mut FillScratch) -> Vec<f32> {
+    let entries: Vec<usize> = (0..router.column_boundary).collect();
+    let mut out = vec![0.0f32; entries.len()];
+    router.sample_volume_roots(
+        &entries,
+        &Volume::point(IVec3::new(x, 0, z)),
+        &mut out,
+        scratch,
+    );
+    out
+}
+
 struct Walker<'a> {
     router: &'a NoiseRouter,
     iv: Vec<Iv>,
     pt: Vec<f32>,
+    reg: Vec<f32>,
     exact: Vec<bool>,
     rc_by_index: Vec<Option<usize>>,
     sites: Vec<RcSite>,
@@ -171,6 +185,7 @@ impl<'a> Walker<'a> {
             router,
             iv: vec![Iv::point(0.0); n],
             pt: vec![0.0; router.scratch_len],
+            reg: vec![0.0; router.scratch_len],
             exact: vec![false; n],
             rc_by_index,
             sites,
@@ -203,8 +218,16 @@ impl<'a> Walker<'a> {
                 }
             });
             if inputs_exact && (y_degenerate || !is_y_dependent_kind(comp)) {
-                let v = comp.sample_cached(&mut self.pt, stack, pos);
-                self.pt[i] = v;
+                volume::fill_node(
+                    stack,
+                    router.scratch_len,
+                    i,
+                    &Volume::point(pos),
+                    &[pos],
+                    &mut self.pt,
+                    &mut self.reg,
+                );
+                let v = self.pt[i];
                 self.exact[i] = true;
                 self.iv[i] = Iv::point(v).widen();
                 continue;
@@ -460,17 +483,15 @@ fn run_seed(seed: u64, radius: i32) -> (Vec<ColumnResult>, Stats, f64, f64, u64)
     let mut eval_nanos = 0u128;
     let mut violations = 0u64;
     let mut values = vec![0.0f32; rows];
+    let mut scratch = FillScratch::new();
 
     for cx in -radius..=radius {
         for cz in -radius..=radius {
             let bx = cx * 16;
             let bz = cz * 16;
             let t_pop = Instant::now();
-            let mut cache = router.new_column_cache(bx, bz);
-            router.populate_columns(&mut cache);
+            let zone_a = zone_a_at(&router, bx, bz, &mut scratch);
             populate_nanos += t_pop.elapsed().as_nanos();
-            cache.load_column(0, 0);
-            let zone_a: Vec<f32> = cache.scratch[..router.column_boundary].to_vec();
 
             let mut result = ColumnResult {
                 air: 0,
@@ -509,9 +530,10 @@ fn run_seed(seed: u64, radius: i32) -> (Vec<ColumnResult>, Stats, f64, f64, u64)
                     continue;
                 }
                 for r in r0..r1 {
-                    values[r] = router.final_density_from_column_cache(
+                    values[r] = router.sample_value(
+                        router.final_density_index,
                         IVec3::new(bx, min_y + r as i32 * v, bz),
-                        &mut cache,
+                        &mut scratch,
                     );
                 }
             }
@@ -525,9 +547,10 @@ fn run_seed(seed: u64, radius: i32) -> (Vec<ColumnResult>, Stats, f64, f64, u64)
                     continue;
                 }
                 for r in r0..r1 {
-                    values[r] = router.final_density_from_column_cache(
+                    values[r] = router.sample_value(
+                        router.final_density_index,
                         IVec3::new(bx, min_y + r as i32 * v, bz),
-                        &mut cache,
+                        &mut scratch,
                     );
                 }
             }
@@ -768,10 +791,8 @@ fn interval_prune_debug() {
         *hist.entry(kind_name(&router.stack[i])).or_default() += 1;
     }
     println!("zone B kinds: {hist:?}");
-    let mut cache = router.new_column_cache(0, 0);
-    router.populate_columns(&mut cache);
-    cache.load_column(0, 0);
-    let zone_a: Vec<f32> = cache.scratch[..cb].to_vec();
+    let mut scratch = FillScratch::new();
+    let zone_a = zone_a_at(&router, 0, 0, &mut scratch);
     let mut walker = Walker::new(&router);
     let mut stats = Stats::default();
     for (y_lo, y_hi) in [(0, 24), (-56, -32), (120, 144)] {
@@ -794,8 +815,7 @@ fn interval_prune_debug() {
         }
         let mut real = vec![0.0f32; 4];
         for (k, r) in real.iter_mut().enumerate() {
-            *r = router
-                .final_density_from_column_cache(IVec3::new(0, y_lo + k as i32 * 8, 0), &mut cache);
+            *r = router.sample_value(fd, IVec3::new(0, y_lo + k as i32 * 8, 0), &mut scratch);
         }
         println!("  actual values: {real:?}");
     }
@@ -831,14 +851,16 @@ fn branch_skip_octave_census() {
     let mut sites = 0u64;
     let mut taken = 0u64;
 
+    let mut scratch = FillScratch::new();
+    let mut pt = vec![0.0f32; router.scratch_len];
+    let mut reg = vec![0.0f32; router.scratch_len];
     for chunk in 0..4i32 {
         let (bx, bz) = (chunk * 16, chunk * 48);
-        let mut cache = router.new_column_cache(bx, bz);
-        router.populate_columns(&mut cache);
         for gx in 0..5i32 {
             for gz in 0..5i32 {
-                cache.load_column(gx * 4, gz * 4);
+                let zone_a = zone_a_at(&router, bx + gx * 4, bz + gz * 4, &mut scratch);
                 for row in 0..49i32 {
+                    pt[..cb].copy_from_slice(&zone_a);
                     let pos = IVec3::new(bx + gx * 4, -64 + row * 8, bz + gz * 4);
                     positions += 1;
                     total += per_pos_total;
@@ -848,12 +870,15 @@ fn branch_skip_octave_census() {
                             Step::Eval { start, end } => {
                                 for &i in &sched.order[start as usize..end as usize] {
                                     evaluated += node_octaves(&router.stack[i]);
-                                    let v = router.stack[i].sample_cached(
-                                        &mut cache.scratch,
+                                    volume::fill_node(
                                         &router.stack,
-                                        pos,
+                                        router.scratch_len,
+                                        i,
+                                        &Volume::point(pos),
+                                        &[pos],
+                                        &mut pt,
+                                        &mut reg,
                                     );
-                                    cache.scratch[i] = v;
                                 }
                                 s += 1;
                             }
@@ -865,7 +890,7 @@ fn branch_skip_octave_census() {
                                 unguard,
                             } => {
                                 sites += 1;
-                                let v = cache.scratch[input as usize];
+                                let v = pt[input as usize];
                                 let hit = (v >= min_inclusive && v < max_exclusive) == want_in;
                                 taken += hit as u64;
                                 s = if hit { s + 1 } else { unguard as usize };
