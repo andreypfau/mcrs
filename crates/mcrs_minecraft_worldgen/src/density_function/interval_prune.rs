@@ -216,7 +216,7 @@ impl<'a> Walker<'a> {
                 }
             });
             if inputs_exact && (y_degenerate || !is_y_dependent_kind(comp)) {
-                volume::Arena::new(stack).fill_node(
+                node::Arena::new(stack).fill_node(
                     i,
                     &Volume::point(pos),
                     &[pos],
@@ -846,7 +846,7 @@ fn branch_skip_octave_census() {
     let n = router.stack.len();
     let mut pt = vec![0.0f32; n];
     let mut reg = vec![0.0f32; n];
-    let arena = volume::Arena::new(&router.stack);
+    let arena = node::Arena::new(&router.stack);
     for chunk in 0..4i32 {
         let (bx, bz) = (chunk * 16, chunk * 48);
         for gx in 0..5i32 {

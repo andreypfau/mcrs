@@ -1956,7 +1956,7 @@ mod arithmetic_node_tests {
         super::resolve_substituted_subgraphs(&mut builder.stack);
         let members: Vec<u32> = (0..=index as u32).collect();
         let mut value = [0.0f32];
-        crate::density_function::volume::Arena::new(&builder.stack).fill_members(
+        crate::density_function::node::Arena::new(&builder.stack).fill_members(
             &members,
             &crate::density_function::Volume::point(IVec3::ZERO),
             &mut value,
