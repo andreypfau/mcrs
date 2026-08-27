@@ -29,7 +29,7 @@ pub(super) fn mul_range(min1: f32, max1: f32, min2: f32, max2: f32) -> (f32, f32
 // prove work redundant, so a wider interval costs speed, never parity.
 #[inline]
 pub(super) fn pow_narrowed(base: f32, exponent: f32) -> f32 {
-    (base as f64).powf(exponent as f64) as f32
+    base.powf(exponent)
 }
 
 pub(super) fn pow_range(base: (f32, f32), exponent: (f32, f32)) -> (f32, f32) {

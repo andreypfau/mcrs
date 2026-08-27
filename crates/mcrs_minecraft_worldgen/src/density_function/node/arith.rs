@@ -551,7 +551,8 @@ one_input_samplers! {
     Reciprocal, v => 1.0 / v;
     Sqrt, v => v.sqrt();
     Log, v => v.ln();
-    Sign, v => v.signum();
+    /// `f32::signum` answers 1.0 at zero, where the reference answers zero.
+    Sign, v => if v == 0.0 || v.is_nan() { v } else if v > 0.0 { 1.0 } else { -1.0 };
     Squeeze, v => {
         let clamped = v.clamp(-1.0, 1.0);
         clamped / 2.0 - clamped.powi(3) / 24.0

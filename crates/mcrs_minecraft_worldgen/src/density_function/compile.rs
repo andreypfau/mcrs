@@ -182,6 +182,7 @@ pub(super) fn try_build_slide(idx: usize, stack: &[DensityFunctionComponent]) ->
 /// Rewrite the optimiser's operation-carrying nodes into one concrete sampler
 /// per operation, so no fill loop carries a branch on which operation it is.
 fn lower_to_samplers(stack: &mut [DensityFunctionComponent]) {
+    let constants: Vec<Option<f32>> = stack.iter().map(|c| c.as_constant()).collect();
     for component in stack.iter_mut() {
         let DensityFunctionComponent::Dependent(f) = component else {
             continue;
@@ -205,14 +206,47 @@ fn lower_to_samplers(stack: &mut [DensityFunctionComponent]) {
                     BinaryOperation::Divide => two_input!(Div),
                     BinaryOperation::Min => two_input!(Min),
                     BinaryOperation::Max => two_input!(Max),
-                    BinaryOperation::Pow => two_input!(Pow),
-                    BinaryOperation::Round(mode) => DependentDensityFunction::Round(Round {
-                        input1_index: x.input1_index,
-                        input2_index: x.input2_index,
-                        mode,
-                        min_value: x.min_value,
-                        max_value: x.max_value,
-                    }),
+                    // The reference tests the base first, so a constant base wins
+                    // even when the exponent is constant too.
+                    BinaryOperation::Pow => {
+                        match (constants[x.input1_index], constants[x.input2_index]) {
+                            (Some(base), _) => {
+                                DependentDensityFunction::ConstBasePow(ConstBasePow {
+                                    input_index: x.input2_index,
+                                    base,
+                                    min_value: x.min_value,
+                                    max_value: x.max_value,
+                                })
+                            }
+                            (None, Some(exponent)) => {
+                                DependentDensityFunction::ConstExponentPow(ConstExponentPow {
+                                    input_index: x.input1_index,
+                                    exponent,
+                                    min_value: x.min_value,
+                                    max_value: x.max_value,
+                                })
+                            }
+                            (None, None) => two_input!(Pow),
+                        }
+                    }
+                    BinaryOperation::Round(mode) => match constants[x.input2_index] {
+                        Some(multiple) => {
+                            DependentDensityFunction::IntegerMultipleRound(IntegerMultipleRound {
+                                input_index: x.input1_index,
+                                multiple,
+                                mode,
+                                min_value: x.min_value,
+                                max_value: x.max_value,
+                            })
+                        }
+                        None => DependentDensityFunction::Round(Round {
+                            input1_index: x.input1_index,
+                            input2_index: x.input2_index,
+                            mode,
+                            min_value: x.min_value,
+                            max_value: x.max_value,
+                        }),
+                    },
                 }
             }
             DependentDensityFunction::Unary(x) => {
@@ -2199,6 +2233,52 @@ mod arithmetic_node_tests {
             moving(-2.0, 2.0)
         ));
         assert_eq!((min, max), (0.25, 4.0));
+    }
+
+    /// No shipped 26.3 asset uses `pow` or a rounding function, so nothing else
+    /// proves these samplers are reachable rather than dead variants.
+    #[test]
+    fn pow_and_round_compile_their_constant_operand_samplers() {
+        let kind = |json: &str| {
+            let proto: ProtoDensityFunction =
+                serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
+            let functions = BTreeMap::new();
+            let noises = BTreeMap::new();
+            let mut builder =
+                FunctionStackBuilder::new(RandomSource::new(0, false), 0, &functions, &noises);
+            let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
+            super::resolve_substituted_subgraphs(&mut builder.stack);
+            super::lower_to_samplers(&mut builder.stack);
+            crate::density_function::interval_prune::kind_name(&builder.stack[index])
+        };
+        let base = moving(0.5, 2.0);
+
+        // The reference tests the base first, so a constant base wins outright.
+        assert_eq!(
+            kind(&format!(r#"{{"type":"pow","base":2.0,"exponent":{base}}}"#)),
+            "ConstBasePow"
+        );
+        // An exponent the special cases do not cover keeps the transcendental,
+        // but with the exponent baked in rather than read from a row.
+        assert_eq!(
+            kind(&format!(r#"{{"type":"pow","base":{base},"exponent":4.0}}"#)),
+            "ConstExponentPow"
+        );
+        assert_eq!(
+            kind(&format!(
+                r#"{{"type":"pow","base":{base},"exponent":{base}}}"#
+            )),
+            "Pow"
+        );
+        assert_eq!(
+            kind(&format!(
+                r#"{{"type":"floor","input":{base},"multiple":4.0}}"#
+            )),
+            "IntegerMultipleRound"
+        );
+
+        assert_eq!(sample(r#"{"type":"pow","base":2.0,"exponent":3.0}"#), 8.0);
+        assert_eq!(sample(r#"{"type":"pow","base":3.0,"exponent":4.0}"#), 81.0);
     }
 
     #[test]
