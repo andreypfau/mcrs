@@ -24,9 +24,10 @@ pub struct NoiseRouter {
     /// f64-precision Beta terrain density noises for exact Java parity.
     /// None for the modern router. Replaces the f32 density-function tree for the Beta path.
     pub(super) beta_terrain_f64: Option<Box<beta_terrain_f64::BetaTerrainF64>>,
-    /// per_block[i] == true means entry i depends on Y and must be recomputed per block.
-    /// per_block[i] == false means entry i is column-only (cached across Y changes).
-    pub(super) per_block: Box<[bool]>,
+    /// `column_ready[i]` means entry i and everything it reads hold for a whole
+    /// column, so the column pass can evaluate it and every fill of that column
+    /// can reuse the result.
+    pub(super) column_ready: Box<[bool]>,
     /// Terms of `final_density` at or above every `interpolated` wrapper, ascending.
     pub(super) outer_terms: Box<[usize]>,
     /// The `interpolated` wrappers `final_density` reads, ascending.
@@ -157,11 +158,15 @@ impl NoiseRouter {
 
     /// Evaluate temperature and vegetation at `(block_x, block_z)`.
     pub fn sample_beta_climate(&self, block_x: i32, block_z: i32) -> (f32, f32) {
-        let pos = IVec3::new(block_x, 0, block_z);
-        let mut scratch = FillScratch::new();
-        let temperature = self.sample_value(self.temperature_index, pos, &mut scratch);
-        let humidity = self.sample_value(self.vegetation_index, pos, &mut scratch);
-        (temperature, humidity)
+        let volume = Volume::point(IVec3::new(block_x, 0, block_z));
+        let mut values = [0.0f32; 2];
+        self.sample_volume_roots(
+            &[self.temperature_index, self.vegetation_index],
+            &volume,
+            &mut values,
+            &mut FillScratch::new(),
+        );
+        (values[0], values[1])
     }
 
     /// Roots to fill over a cell-corner volume to feed `final_density_cell_bounds`,
@@ -180,10 +185,6 @@ impl NoiseRouter {
 }
 
 impl NoiseRouter {
-    fn arena(&self) -> Arena<'_> {
-        Arena::new(&self.stack)
-    }
-
     /// Evaluate `root` at one position.
     pub fn sample_value(&self, root: usize, pos: IVec3, scratch: &mut FillScratch) -> f32 {
         let mut out = [0.0f32];
@@ -220,20 +221,14 @@ impl NoiseRouter {
         );
         let live = roots.iter().copied().max().expect("at least one root") + 1;
 
-        // Resized, never cleared: a row is read only after this pass writes it,
-        // so re-zeroing the arena is a memset the size of the whole volume.
-        scratch.rows.resize(live * n, 0.0);
-        volume.positions_into(&mut scratch.positions);
+        let arena = Arena::new(&self.stack, scratch);
+        let pool = &scratch.pool;
+        let column_volume = volume.column();
 
-        let column_end = if live <= self.fd_boundary {
-            self.column_boundary.min(live)
-        } else {
-            live
-        };
-
-        let needed = &mut scratch.needed;
-        needed.clear();
-        needed.resize(live, false);
+        // An entry whose value holds for a whole column is evaluated on the
+        // column volume, so that is the volume deciding which rows it reads.
+        let mut needed = pool.bools(live);
+        needed.fill(false);
         for &root in roots {
             needed[root] = true;
         }
@@ -241,66 +236,56 @@ impl NoiseRouter {
             if !needed[i] {
                 continue;
             }
-            // An off-lattice `interpolated` refills its own input subtree over the
-            // cell lattice, so evaluating that subtree here would be dead work.
-            // Only above `column_end`, though: the column pass reads the input row
-            // straight back out whenever the position is a cell corner.
-            if i >= column_end
-                && let Sampler::Interpolated(x) = &self.stack[i].sampler
-                && !x.is_lattice_volume(volume)
-            {
-                continue;
-            }
-            self.stack[i].visit_input_indices(&mut |dep| {
+            let at = if self.column_ready[i] {
+                &column_volume
+            } else {
+                volume
+            };
+            self.stack[i].visit_row_inputs(at, &mut |dep| {
                 if dep < live {
                     needed[dep] = true;
                 }
             });
         }
 
-        let column_volume = Volume::new(
-            volume.size().with_y(1),
-            volume.min_block().with_y(0),
-            volume.step_block().with_y(1),
-        );
-        let columns = column_volume.len();
-        scratch.column_rows.resize(column_end * columns, 0.0);
-        column_volume.positions_into(&mut scratch.column_positions);
-
-        let arena = self.arena();
-        let rows = &mut scratch.rows;
-        let column_rows = &mut scratch.column_rows;
-        let size_y = volume.size().y as usize;
-        for i in 0..column_end {
+        // Rows go to the entries this fill needs and no others, in ascending
+        // order so every reader's slot sits above the slots it reads.
+        let mut slots = pool.slots(live);
+        let mut columns = pool.slots(live);
+        let (mut row_count, mut column_count) = (0usize, 0usize);
+        for i in 0..live {
             if !needed[i] {
+                slots[i] = NO_SLOT;
                 continue;
             }
-            arena.fill_node(i, &column_volume, &scratch.column_positions, column_rows);
-            for c in 0..columns {
-                let base = i * n + c * size_y;
-                rows[base..base + size_y].fill(column_rows[i * columns + c]);
+            slots[i] = row_count as u32;
+            row_count += 1;
+            if self.column_ready[i] {
+                columns[column_count] = i as u32;
+                column_count += 1;
             }
         }
 
-        let positions = &scratch.positions;
-        if live > self.fd_boundary {
-            for i in 0..live {
-                if self.per_block[i] && needed[i] {
-                    arena.fill_node(i, volume, positions, rows);
-                }
-            }
-        } else if roots.iter().all(|r| self.zone_b_roots.contains(r)) {
-            self.fill_zone_b_scheduled(volume, positions, rows, needed);
+        let mut rows = pool.floats(row_count * n);
+        let mut positions = pool.positions(n);
+        volume.positions_into(&mut positions);
+        if column_count > 0 {
+            arena.spread_column(&columns[..column_count], &slots, volume, &mut rows);
+        }
+
+        if live <= self.fd_boundary && roots.iter().all(|r| self.zone_b_roots.contains(r)) {
+            self.fill_zone_b_scheduled(arena, volume, &positions, &slots, &mut rows, &needed);
         } else {
-            for i in self.column_boundary..live {
-                if needed[i] {
-                    arena.fill_node(i, volume, positions, rows);
+            for i in 0..live {
+                if needed[i] && !self.column_ready[i] {
+                    arena.fill_node(i, volume, &positions, &slots, &mut rows);
                 }
             }
         }
 
         for (k, &root) in roots.iter().enumerate() {
-            out[k * n..k * n + n].copy_from_slice(&rows[root * n..root * n + n]);
+            let base = slots[root] as usize * n;
+            out[k * n..(k + 1) * n].copy_from_slice(&rows[base..base + n]);
         }
     }
 
@@ -309,21 +294,22 @@ impl NoiseRouter {
     /// roots, so it may not drive a fill of anything else.
     fn fill_zone_b_scheduled(
         &self,
+        arena: Arena<'_>,
         volume: &Volume,
         positions: &[IVec3],
+        slots: &[u32],
         rows: &mut [f32],
         needed: &[bool],
     ) {
         let n = volume.len();
-        let arena = self.arena();
         let sched = &self.zone_b_schedule;
         let mut s = 0usize;
         while s < sched.steps.len() {
             match sched.steps[s] {
                 Step::Eval { start, end } => {
                     for &i in &sched.order[start as usize..end as usize] {
-                        if i < needed.len() && needed[i] {
-                            arena.fill_node(i, volume, positions, rows);
+                        if i < needed.len() && needed[i] && !self.column_ready[i] {
+                            arena.fill_node(i, volume, positions, slots, rows);
                         }
                     }
                     s += 1;
@@ -336,46 +322,56 @@ impl NoiseRouter {
                     unguard,
                 } => {
                     let input = input as usize;
-                    let reachable = input >= needed.len()
-                        || !needed[input]
-                        || rows[input * n..input * n + n]
+                    let reachable = input >= needed.len() || !needed[input] || {
+                        let base = slots[input] as usize * n;
+                        rows[base..base + n]
                             .iter()
-                            .any(|&v| (v >= min_inclusive && v < max_exclusive) == want_in);
+                            .any(|&v| (v >= min_inclusive && v < max_exclusive) == want_in)
+                    };
                     s = if reachable { s + 1 } else { unguard as usize };
                 }
                 Step::Unguard => s += 1,
             }
         }
         #[cfg(debug_assertions)]
-        self.verify_fill_zone_b(volume, positions, rows, needed);
+        self.verify_fill_zone_b(arena, volume, positions, slots, rows, needed);
     }
 
     /// Re-evaluate the skipped runs and check nothing the caller reads moved.
     #[cfg(debug_assertions)]
     fn verify_fill_zone_b(
         &self,
+        arena: Arena<'_>,
         volume: &Volume,
         positions: &[IVec3],
+        slots: &[u32],
         rows: &mut [f32],
         needed: &[bool],
     ) {
         let n = volume.len();
         let live = needed.len();
-        let roots = || self.zone_b_roots.iter().copied().filter(|&r| r < live);
-        let guarded: Vec<f32> = roots()
-            .flat_map(|r| rows[r * n..r * n + n].to_vec())
-            .collect();
-        let arena = self.arena();
+        let roots = || {
+            self.zone_b_roots
+                .iter()
+                .copied()
+                .filter(|&r| r < live && needed[r])
+        };
+        let mut guarded = arena.pool().floats(roots().count() * n);
+        for (k, root) in roots().enumerate() {
+            let base = slots[root] as usize * n;
+            guarded[k * n..(k + 1) * n].copy_from_slice(&rows[base..base + n]);
+        }
         for i in self.column_boundary..=self.final_density_index {
-            if i < live && needed[i] {
-                arena.fill_node(i, volume, positions, rows);
+            if i < live && needed[i] && !self.column_ready[i] {
+                arena.fill_node(i, volume, positions, slots, rows);
             }
         }
         for (k, root) in roots().enumerate() {
+            let base = slots[root] as usize * n;
             for p in 0..n {
                 assert_eq!(
                     guarded[k * n + p].to_bits(),
-                    rows[root * n + p].to_bits(),
+                    rows[base + p].to_bits(),
                     "branch skip changed node {root} at {:?}",
                     positions[p]
                 );

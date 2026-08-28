@@ -1,17 +1,8 @@
 use super::*;
 
-pub(super) struct ChunkNoiseFunctionBuilderOptions {
-    // Number of blocks per cell per axis
-    horizontal_cell_block_count: usize,
-    vertical_cell_block_count: usize,
-
-    // The biome coords of this chunk
-    pub start_biome_x: i32,
-    pub start_biome_z: i32,
-
-    // Number of biome regions per chunk per axis
-    pub horizontal_biome_end: usize,
-}
+/// The cell a router falls back on when it interpolates nothing, so there is no
+/// wrapper to read a lattice from.
+const DEFAULT_CELL: IVec3 = IVec3::new(4, 8, 4);
 
 fn constant_value(holder: &DensityFunctionHolder) -> Option<f32> {
     match holder {
@@ -640,24 +631,18 @@ pub(super) fn optimize_stack(stack: &mut Vec<DensityFunctionComponent>, roots: &
     );
 }
 
-/// Which stack entries have to be recomputed as Y changes, and which hold for a
-/// whole column.
-pub(super) fn compute_per_block(stack: &[DensityFunctionComponent]) -> Vec<bool> {
-    compute_domain_axes(stack)
-        .into_iter()
-        .map(|axes| axes & AXIS_Y != 0)
-        .collect()
-}
-
 /// Whether the column pass can evaluate an entry: its own value holds for the
-/// whole column and so does every value it reads. `slice` and `find_top_surface`
-/// are the two nodes that drop an axis their input still varies along, so they
-/// are also the only ones that stay per-Y here despite a column-wide value.
+/// whole column, so does every value it reads, and it resamples no subgraph of
+/// its own.
+///
+/// That last clause is what lets the column cache lend its rows out across a
+/// fill: an entry the column pass evaluates cannot re-enter the cache, because
+/// `slice`, `find_top_surface` and `interpolated` are all excluded here.
 pub(super) fn compute_column_ready(stack: &[DensityFunctionComponent]) -> Vec<bool> {
     let axes = compute_domain_axes(stack);
     let mut ready = vec![false; stack.len()];
     for i in 0..stack.len() {
-        let mut i_ready = axes[i] & AXIS_Y == 0;
+        let mut i_ready = axes[i] & AXIS_Y == 0 && substituted_input(&stack[i]).is_none();
         stack[i].visit_input_indices(&mut |j| i_ready &= ready[j]);
         ready[i] = i_ready;
     }
@@ -692,7 +677,7 @@ pub(super) fn compute_domain_axes(stack: &[DensityFunctionComponent]) -> Vec<u8>
                     inputs | noise_scale_axes(n.xz_scale, n.y_scale)
                 }
                 DependentDensityFunction::Slide(_) => inputs | AXIS_Y,
-                DependentDensityFunction::Slice(s) => inputs & !s.axis.bit(),
+                DependentDensityFunction::Slice(s) => inputs & !s.axes,
                 // The upper bound is read at the sampled Y, so this is only sound
                 // while that bound is itself Y-free; `domain_axes_are_sound` proves it.
                 DependentDensityFunction::FindTopSurface(_) => inputs & !AXIS_Y,
@@ -758,29 +743,31 @@ fn substituted_input(component: &DensityFunctionComponent) -> Option<usize> {
 ///
 /// Must run after every pass that renumbers the stack — the member lists are
 /// final indices and nothing rewrites them.
-pub(super) fn resolve_substituted_subgraphs(stack: &mut [DensityFunctionComponent]) {
-    let mut members: Vec<Option<Box<[u32]>>> = vec![None; stack.len()];
+pub(super) fn resolve_substituted_subgraphs(
+    stack: &mut [DensityFunctionComponent],
+    column_ready: &[bool],
+) {
+    let mut subgraphs: Vec<Option<Subgraph>> = vec![None; stack.len()];
     for i in 0..stack.len() {
         if let Some(input) = substituted_input(&stack[i]) {
             let reached = branch_schedule::reachable_backwards(input, stack, input + 1);
-            members[i] = Some(
+            subgraphs[i] = Some(Subgraph::new(
                 reached
                     .iter()
                     .enumerate()
                     .filter(|&(_, &hit)| hit)
                     .map(|(index, _)| index as u32)
                     .collect(),
-            );
+                column_ready,
+            ));
         }
     }
-    for (i, list) in members.into_iter().enumerate() {
-        let Some(list) = list else { continue };
+    for (i, subgraph) in subgraphs.into_iter().enumerate() {
+        let Some(subgraph) = subgraph else { continue };
         match &mut stack[i].sampler {
-            Sampler::Dependent(DependentDensityFunction::Slice(x)) => x.input_members = list,
-            Sampler::Dependent(DependentDensityFunction::FindTopSurface(x)) => {
-                x.density_members = list
-            }
-            Sampler::Interpolated(x) => x.input_members = list,
+            Sampler::Dependent(DependentDensityFunction::Slice(x)) => x.input = subgraph,
+            Sampler::Dependent(DependentDensityFunction::FindTopSurface(x)) => x.density = subgraph,
+            Sampler::Interpolated(x) => x.input = subgraph,
             _ => unreachable!(),
         }
     }
@@ -796,7 +783,7 @@ pub(super) fn resolve_substituted_subgraphs(stack: &mut [DensityFunctionComponen
 /// Returns `(column_boundary, fd_boundary)`.
 pub(super) fn reorder_stack_for_evaluation(
     stack: &mut Vec<DensityFunctionComponent>,
-    per_block: &mut Vec<bool>,
+    column_ready: &mut Vec<bool>,
     node_labels: &mut Vec<String>,
     roots: &mut [usize],
     final_density_root_idx: usize,
@@ -822,7 +809,6 @@ pub(super) fn reorder_stack_for_evaluation(
     //   Zone A (0): fd_reachable AND the column pass can evaluate it
     //   Zone B (1): fd_reachable AND it has to be re-evaluated as Y moves
     //   Zone C (2): NOT fd_reachable
-    let column_ready = compute_column_ready(stack);
     let mut zone = vec![2u8; n];
     for i in 0..n {
         if fd_reachable[i] {
@@ -841,12 +827,12 @@ pub(super) fn reorder_stack_for_evaluation(
     }
 
     let old_stack: Vec<DensityFunctionComponent> = stack.drain(..).collect();
-    let old_per_block: Vec<bool> = per_block.drain(..).collect();
+    let old_column_ready: Vec<bool> = column_ready.drain(..).collect();
     let old_labels: Vec<String> = node_labels.drain(..).collect();
 
     for &old_idx in &sorted_indices {
         stack.push(old_stack[old_idx].clone());
-        per_block.push(old_per_block[old_idx]);
+        column_ready.push(old_column_ready[old_idx]);
         node_labels.push(old_labels[old_idx].clone());
     }
 
@@ -906,13 +892,6 @@ pub fn build_functions(
     default_fluid_state: VoxelId,
 ) -> NoiseRouter {
     let random = RandomSource::new(seed, noise_settings.legacy_random_source);
-    let builder_options = ChunkNoiseFunctionBuilderOptions {
-        horizontal_cell_block_count: 4,
-        vertical_cell_block_count: 8,
-        start_biome_x: 0,
-        start_biome_z: 0,
-        horizontal_biome_end: 4,
-    };
     let inline = InlineReference(functions);
     let inlined: BTreeMap<ResourceLocation, ProtoDensityFunction> = functions
         .iter()
@@ -953,7 +932,7 @@ pub fn build_functions(
 
     optimize_stack(&mut builder.stack, &mut roots);
 
-    let mut per_block = compute_per_block(&builder.stack);
+    let mut column_ready = compute_column_ready(&builder.stack);
 
     // Build node labels: start with type labels, then overlay reference names
     let mut node_labels: Vec<String> = vec![String::new(); builder.stack.len()];
@@ -971,14 +950,14 @@ pub fn build_functions(
     //   Zone C [fd_boundary..): entries not reachable from final_density
     let (column_boundary, fd_boundary) = reorder_stack_for_evaluation(
         &mut builder.stack,
-        &mut per_block,
+        &mut column_ready,
         &mut node_labels,
         &mut roots,
         7, // final_density is roots[7]
     );
 
     let final_density_index = roots[7];
-    resolve_substituted_subgraphs(&mut builder.stack);
+    resolve_substituted_subgraphs(&mut builder.stack, &column_ready);
 
     // Expose beach and surface octave noises for the Beta surface pass.
     // Only populated when using the Beta (legacy) random source; modern router gets None.
@@ -1026,13 +1005,9 @@ pub fn build_functions(
         });
     let first = geometries.next();
     // Mixed geometries have no common lattice, so no whole-cell shortcut either.
-    let cell_size = geometries.all(|g| Some(g) == first).then(|| {
-        first.unwrap_or(IVec3::new(
-            builder_options.horizontal_cell_block_count as i32,
-            builder_options.vertical_cell_block_count as i32,
-            builder_options.horizontal_cell_block_count as i32,
-        ))
-    });
+    let cell_size = geometries
+        .all(|g| Some(g) == first)
+        .then(|| first.unwrap_or(DEFAULT_CELL));
 
     let router = NoiseRouter {
         temperature_index: roots[0],
@@ -1052,7 +1027,7 @@ pub fn build_functions(
         beta_beach_noise,
         beta_surface_noise,
         beta_terrain_f64: beta_terrain_f64_opt,
-        per_block: per_block.into_boxed_slice(),
+        column_ready: column_ready.into_boxed_slice(),
         outer_terms: outer_terms.into_boxed_slice(),
         outer_wrappers: outer_wrappers.into_boxed_slice(),
         outer_wrapper_inputs: outer_wrapper_inputs.into_boxed_slice(),
@@ -1615,16 +1590,27 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
             return;
         }
         let range = self.stack[input_index].range;
+        let mut slice = Slice {
+            axes: axis.bit(),
+            coordinate: IVec3::splat(coordinate),
+            input_index,
+            input: Subgraph::default(),
+        };
+        // A slice of a slice pins both axes at once, and the inner coordinate
+        // wins wherever the two name the same one: the inner substitution is
+        // the one applied last.
+        if let Sampler::Dependent(DependentDensityFunction::Slice(inner)) =
+            &self.stack[input_index].sampler
+        {
+            slice.coordinate = inner.pin(slice.coordinate);
+            slice.axes |= inner.axes;
+            slice.input_index = inner.input_index;
+        }
         self.register_component(
             proto,
             DensityFunctionComponent::dependent(
                 range,
-                DependentDensityFunction::Slice(Slice {
-                    axis,
-                    coordinate,
-                    input_index,
-                    input_members: Box::default(),
-                }),
+                DependentDensityFunction::Slice(slice),
             ),
         );
     }
@@ -1696,7 +1682,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                 range,
                 DependentDensityFunction::FindTopSurface(FindTopSurface {
                     density_index,
-                    density_members: Box::default(),
+                    density: Subgraph::default(),
                     upper_bound_index,
                     lower_bound: lower_bound as f32,
                     cell_height: cell_height.get() as f32,
@@ -1724,7 +1710,7 @@ impl<'a> Visitor for FunctionStackBuilder<'a> {
                 range,
                 Sampler::Interpolated(Interpolated {
                     input_index,
-                    input_members: Box::default(),
+                    input: Subgraph::default(),
                     cell_size_xz: cell_size_xz.get(),
                     cell_size_y: cell_size_y.get(),
                     cell_size_xz_inv: 1.0 / cell_size_xz.get() as f32,
@@ -1896,9 +1882,11 @@ mod arithmetic_node_tests {
     use super::{
         DensityFunctionComponent, DependentDensityFunction, FunctionStackBuilder,
     };
+    use crate::density_function::Interval;
     use crate::density_function::node::Sampler;
     use crate::density_function::proto::{
-        DensityFunctionHolder, HashableF64, NoiseParam, Normalization, ProtoDensityFunction,
+        AXIS_X, AXIS_Z, DensityFunctionHolder, HashableF64, NoiseParam, Normalization,
+        ProtoDensityFunction,
     };
     use crate::noise::normal_noise::NoiseSampler;
     use bevy_math::IVec3;
@@ -1907,7 +1895,10 @@ mod arithmetic_node_tests {
     use mcrs_minecraft_random::{Random, RandomSource};
     use std::collections::BTreeMap;
 
-    fn build(json: &str) -> (f32, f32, f32) {
+    fn build_at(
+        json: &str,
+        at: IVec3,
+    ) -> (Vec<DensityFunctionComponent>, usize, f32, Interval) {
         let proto: ProtoDensityFunction =
             serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
         let functions = BTreeMap::new();
@@ -1915,20 +1906,79 @@ mod arithmetic_node_tests {
         let mut builder =
             FunctionStackBuilder::new(RandomSource::new(0, false), 0, &functions, &noises);
         let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
-        super::resolve_substituted_subgraphs(&mut builder.stack);
-        let members: Vec<u32> = (0..=index as u32).collect();
+        let column_ready = super::compute_column_ready(&builder.stack);
+        super::resolve_substituted_subgraphs(&mut builder.stack, &column_ready);
+        let subgraph =
+            crate::density_function::Subgraph::new((0..=index as u32).collect(), &column_ready);
+        let scratch = crate::density_function::FillScratch::new();
         let mut value = [0.0f32];
-        crate::density_function::node::Arena::new(&builder.stack).fill_members(
-            &members,
-            &crate::density_function::Volume::point(IVec3::ZERO),
+        crate::density_function::node::Arena::new(&builder.stack, &scratch).fill_subgraph(
+            &subgraph,
+            &crate::density_function::Volume::point(at),
             &mut value,
         );
         let range = builder.stack[index].range;
-        (value[0], range.min(), range.max())
+        (builder.stack, index, value[0], range)
+    }
+
+    fn build(json: &str) -> (f32, f32, f32) {
+        let (_, _, value, range) = build_at(json, IVec3::ZERO);
+        (value, range.min(), range.max())
     }
 
     fn sample(json: &str) -> f32 {
         build(json).0
+    }
+
+    /// A gradient whose value is its own coordinate, so a pinned axis shows up
+    /// in the result as the coordinate it was pinned to.
+    fn coordinate_gradient(axis: &str) -> String {
+        format!(
+            r#"{{"type":"gradient","axis":"{axis}","from_coordinate":0,"to_coordinate":16,"from_value":0.0,"to_value":16.0}}"#
+        )
+    }
+
+    fn plane() -> String {
+        format!(
+            r#"{{"type":"add","left":{},"right":{}}}"#,
+            coordinate_gradient("x"),
+            coordinate_gradient("z")
+        )
+    }
+
+    fn sliced(axis: &str, coordinate: i32, input: &str) -> String {
+        format!(r#"{{"type":"slice","axis":"{axis}","coordinate":{coordinate},"input":{input}}}"#)
+    }
+
+    /// A datapack may nest `slice` directly. The reference folds an X slice over
+    /// a Z one into a sampler of its own; a mask folds a chain of any length.
+    #[test]
+    fn nested_slices_over_distinct_axes_fuse_into_one_node() {
+        let json = sliced("x", 3, &sliced("z", 5, &plane()));
+        let (stack, root, value, _) = build_at(&json, IVec3::new(11, 0, 13));
+
+        let Sampler::Dependent(DependentDensityFunction::Slice(slice)) = &stack[root].sampler
+        else {
+            panic!("the outer slice compiled to {:?}", stack[root].sampler);
+        };
+        assert_eq!(slice.axes, AXIS_X | AXIS_Z);
+        assert!(
+            !matches!(
+                stack[slice.input_index].sampler,
+                Sampler::Dependent(DependentDensityFunction::Slice(_))
+            ),
+            "the fused slice still reads another slice"
+        );
+        assert_eq!(value, 8.0, "x pinned to 3 plus z pinned to 5");
+    }
+
+    /// Two slices naming the same axis: the inner substitution is the one
+    /// applied last, so its coordinate is the one that survives.
+    #[test]
+    fn the_inner_coordinate_wins_when_two_slices_share_an_axis() {
+        let json = sliced("x", 3, &sliced("x", 7, &plane()));
+        let (_, _, value, _) = build_at(&json, IVec3::new(11, 0, 13));
+        assert_eq!(value, 20.0, "x pinned to 7 plus z left at 13");
     }
 
     /// A y-gradient standing in for any input with a genuinely moving range;
@@ -2015,7 +2065,8 @@ mod arithmetic_node_tests {
             let mut builder =
                 FunctionStackBuilder::new(RandomSource::new(0, false), 0, &functions, &noises);
             let index = builder.component(&DensityFunctionHolder::Owned(Box::new(proto)));
-            super::resolve_substituted_subgraphs(&mut builder.stack);
+            let ready = super::compute_column_ready(&builder.stack);
+        super::resolve_substituted_subgraphs(&mut builder.stack, &ready);
             crate::density_function::interval_prune::kind_name(&builder.stack[index])
         };
         let base = moving(0.5, 2.0);

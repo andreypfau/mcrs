@@ -1190,23 +1190,23 @@ fn domain_axes_are_sound() {
         for i in 0..stack.len() {
             if axes[i] & AXIS_Y != 0 {
                 assert!(
-                    router.per_block[i],
-                    "{settings_file}: entry {i} ({}) varies with Y but per_block says otherwise",
+                    !router.column_ready[i],
+                    "{settings_file}: entry {i} ({}) varies with Y but is marked column-ready",
                     router.node_labels[i],
                 );
-            } else if router.per_block[i] {
+            } else if !router.column_ready[i] {
                 conservative.push((i, router.node_labels[i].clone()));
             }
         }
         assert!(restricted_entries > 0 && checked > 0);
         println!(
             "{settings_file}: {} entries, {restricted_entries} with a restricted domain, \
-             {checked} pinned-coordinate comparisons, {} per_block-only",
+             {checked} pinned-coordinate comparisons, {} not column-ready",
             stack.len(),
             conservative.len(),
         );
         for (i, label) in &conservative {
-            println!("  per_block over-approximates entry {i} ({label})");
+            println!("  column readiness over-approximates entry {i} ({label})");
         }
     }
 }
@@ -1578,18 +1578,20 @@ fn sample_value_agrees_for(settings: &str) {
 
     let router = router_for(settings);
     let stack = &router.stack;
-    let arena = Arena::new(stack);
+    let fill_scratch = FillScratch::new();
+    let arena = Arena::new(stack, &fill_scratch);
+    let slots = super::identity_slots(stack.len());
 
     for volume in [
         Volume::point(IVec3::new(37, 55, -19)),
         Volume::dense(IVec3::new(2, 5, 2), IVec3::new(36, 52, -20)),
     ] {
         let n = volume.len();
-        let mut positions = Vec::new();
+        let mut positions = vec![IVec3::ZERO; n];
         volume.positions_into(&mut positions);
         let mut rows = vec![0.0f32; stack.len() * n];
         for i in 0..stack.len() {
-            arena.fill_node(i, &volume, &positions, &mut rows);
+            arena.fill_node(i, &volume, &positions, &slots, &mut rows);
         }
 
         for (i, node) in stack.iter().enumerate() {
@@ -1598,7 +1600,7 @@ fn sample_value_agrees_for(settings: &str) {
             }
             for p in 0..n {
                 let filled = rows[i * n + p];
-                let sampled = arena.sample_node(i, &volume, &positions, &rows, p);
+                let sampled = arena.sample_node(i, &volume, &positions, &slots, &rows, p);
                 assert_eq!(
                     sampled.to_bits(),
                     filled.to_bits(),
@@ -1639,10 +1641,11 @@ fn every_gradient_fills_a_volume_as_it_samples_a_point() {
                 IndependentDensityFunction::Gradient(gradient.clone()),
             )];
             let volume = Volume::dense(IVec3::new(3, 4, 3), IVec3::new(-7, -2, 5));
-            let mut positions = Vec::new();
+            let mut positions = vec![IVec3::ZERO; volume.len()];
             volume.positions_into(&mut positions);
             let mut rows = vec![0.0f32; volume.len()];
-            Arena::new(&stack).fill_node(0, &volume, &positions, &mut rows);
+            let fill_scratch = FillScratch::new();
+            Arena::new(&stack, &fill_scratch).fill_node(0, &volume, &positions, &[0], &mut rows);
 
             let distinct: std::collections::BTreeSet<u32> =
                 rows.iter().map(|v| v.to_bits()).collect();
@@ -1663,3 +1666,31 @@ fn every_gradient_fills_a_volume_as_it_samples_a_point() {
         }
     }
 }
+
+/// A slice on an axis its input does not vary along is dropped outright, so a
+/// compiled slice never sits on another and the reference's fused X-over-Z
+/// sampler has nothing left to fold.
+#[test]
+fn a_compiled_slice_never_reads_another() {
+    use super::{DependentDensityFunction, Sampler};
+
+    let mut slices = 0usize;
+    for settings_file in ["overworld.json", "nether.json", "end.json", "beta.json"] {
+        let router = router_for(settings_file);
+        for entry in router.stack.iter() {
+            let Sampler::Dependent(DependentDensityFunction::Slice(slice)) = &entry.sampler else {
+                continue;
+            };
+            slices += 1;
+            assert!(
+                !matches!(
+                    router.stack[slice.input_index].sampler,
+                    Sampler::Dependent(DependentDensityFunction::Slice(_))
+                ),
+                "{settings_file}: a slice reads another slice",
+            );
+        }
+    }
+    assert!(slices > 0, "no router compiled a slice, so the sampler is untested");
+}
+

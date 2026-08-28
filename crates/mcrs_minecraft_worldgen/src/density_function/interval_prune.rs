@@ -150,6 +150,8 @@ struct Walker<'a> {
     exact: Vec<bool>,
     rc_by_index: Vec<Option<usize>>,
     sites: Vec<RcSite>,
+    scratch: crate::density_function::FillScratch,
+    slots: Vec<u32>,
 }
 
 impl<'a> Walker<'a> {
@@ -168,6 +170,8 @@ impl<'a> Walker<'a> {
             exact: vec![false; n],
             rc_by_index,
             sites,
+            scratch: crate::density_function::FillScratch::new(),
+            slots: crate::density_function::identity_slots(n),
         }
     }
 
@@ -197,7 +201,13 @@ impl<'a> Walker<'a> {
                 }
             });
             if inputs_exact && (y_degenerate || !is_y_dependent_kind(comp)) {
-                node::Arena::new(stack).fill_node(i, &Volume::point(pos), &[pos], &mut self.pt);
+                node::Arena::new(stack, &self.scratch).fill_node(
+                    i,
+                    &Volume::point(pos),
+                    &[pos],
+                    &self.slots,
+                    &mut self.pt,
+                );
                 let v = self.pt[i];
                 self.exact[i] = true;
                 self.iv[i] = widen(Interval::exact(v));
@@ -798,7 +808,9 @@ fn branch_skip_octave_census() {
     let n = router.stack.len();
     let mut pt = vec![0.0f32; n];
     let mut reg = vec![0.0f32; n];
-    let arena = node::Arena::new(&router.stack);
+    let arena_scratch = crate::density_function::FillScratch::new();
+    let slots = crate::density_function::identity_slots(n);
+    let arena = node::Arena::new(&router.stack, &arena_scratch);
     for chunk in 0..4i32 {
         let (bx, bz) = (chunk * 16, chunk * 48);
         for gx in 0..5i32 {
@@ -815,7 +827,13 @@ fn branch_skip_octave_census() {
                             Step::Eval { start, end } => {
                                 for &i in &sched.order[start as usize..end as usize] {
                                     evaluated += node_octaves(&router.stack[i]);
-                                    arena.fill_node(i, &Volume::point(pos), &[pos], &mut pt);
+                                    arena.fill_node(
+                                        i,
+                                        &Volume::point(pos),
+                                        &[pos],
+                                        &slots,
+                                        &mut pt,
+                                    );
                                 }
                                 s += 1;
                             }

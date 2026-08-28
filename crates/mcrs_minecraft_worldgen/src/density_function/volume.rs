@@ -1,9 +1,6 @@
-use super::{
-    DensityFunctionComponent, DependentDensityFunction, FindTopSurface, IndependentDensityFunction,
-    Interpolated, NoiseRouter, Slice, branch_schedule::Step,
-};
-use crate::density_function::proto::Axis;
+use super::{BufferPool, NO_SLOT};
 use bevy_math::IVec3;
+use std::cell::RefCell;
 
 /// A strided box of block positions: `size` samples per axis, starting at
 /// `min_block`, spaced `step_block` apart.
@@ -91,34 +88,132 @@ impl Volume {
         (self.size.x * self.size.y * self.size.z) as usize
     }
 
-    pub(super) fn positions_into(&self, out: &mut Vec<IVec3>) {
-        out.clear();
-        out.reserve(self.len());
+    pub(super) fn positions_into(&self, out: &mut [IVec3]) {
+        debug_assert_eq!(out.len(), self.len());
+        let mut i = 0;
         for z in 0..self.size.z {
             let bz = self.block_z(z);
             for x in 0..self.size.x {
                 let bx = self.block_x(x);
                 for y in 0..self.size.y {
-                    out.push(IVec3::new(bx, self.block_y(y), bz));
+                    out[i] = IVec3::new(bx, self.block_y(y), bz);
+                    i += 1;
                 }
             }
         }
     }
+
+    /// `self` flattened onto a single Y layer: the key under which a value that
+    /// holds for a whole column is cached.
+    pub(super) fn column(&self) -> Volume {
+        Volume {
+            size: self.size.with_y(1),
+            min_block: self.min_block.with_y(0),
+            step_block: self.step_block.with_y(1),
+        }
+    }
 }
 
-/// Reusable buffers for [`NoiseRouter::sample_volume`]: one row per live node
-/// over the volume, and the same over the volume's columns.
+/// Buffers a caller keeps across fills.
+///
+/// Reusing one across the cells of a chunk column is what makes the column-only
+/// half of the graph cost once rather than once per cell.
 #[derive(Default)]
 pub struct FillScratch {
-    pub(super) rows: Vec<f32>,
-    pub(super) column_rows: Vec<f32>,
-    pub(super) column_positions: Vec<IVec3>,
-    pub(super) positions: Vec<IVec3>,
-    pub(super) needed: Vec<bool>,
+    pub(super) pool: BufferPool,
+    pub(super) column: RefCell<ColumnCache>,
 }
 
 impl FillScratch {
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+/// How many distinct columns the cache holds at once.
+///
+/// A chunk column asks about two: the block volume of the cell being filled,
+/// and the cell lattice its interpolations resample on. The corner pass over a
+/// whole chunk adds a third.
+const COLUMNS_HELD: usize = 4;
+
+/// The rows of every entry whose value holds for a whole column, for the last
+/// few columns anyone asked about.
+///
+/// Entries accumulate within a column: a fill that needs one the cache has not
+/// seen computes it and leaves it behind, so the next fill over that column —
+/// the cell above, or a different root — pays only for what is new.
+#[derive(Default)]
+pub(super) struct ColumnCache {
+    held: Vec<Column>,
+    clock: u64,
+}
+
+#[derive(Default)]
+pub(super) struct Column {
+    volume: Option<Volume>,
+    pub(super) rows: Vec<f32>,
+    pub(super) slots: Vec<u32>,
+    pub(super) positions: Vec<IVec3>,
+    claimed: usize,
+    used: u64,
+}
+
+impl ColumnCache {
+    /// The entry holding `volume`, evicting the column left untouched longest
+    /// if there is no room for it.
+    pub(super) fn column(&mut self, volume: &Volume, entries: usize) -> &mut Column {
+        self.clock += 1;
+        let hit = self.held.iter().position(|c| c.volume.as_ref() == Some(volume));
+        let index = match hit {
+            Some(index) => index,
+            None => {
+                let index = if self.held.len() < COLUMNS_HELD {
+                    self.held.push(Column::default());
+                    self.held.len() - 1
+                } else {
+                    let mut oldest = 0;
+                    for (i, column) in self.held.iter().enumerate() {
+                        if column.used < self.held[oldest].used {
+                            oldest = i;
+                        }
+                    }
+                    oldest
+                };
+                self.held[index].reset(volume, entries);
+                index
+            }
+        };
+        self.held[index].used = self.clock;
+        &mut self.held[index]
+    }
+}
+
+impl Column {
+    fn reset(&mut self, volume: &Volume, entries: usize) {
+        self.volume = Some(*volume);
+        self.slots.clear();
+        self.slots.resize(entries, NO_SLOT);
+        self.claimed = 0;
+        self.positions.resize(volume.len(), IVec3::ZERO);
+        volume.positions_into(&mut self.positions[..volume.len()]);
+    }
+
+    /// Give `entry` a row if it has none, reporting whether it still has to be
+    /// filled.
+    pub(super) fn claim(&mut self, entry: usize, columns: usize) -> bool {
+        if self.slots[entry] != NO_SLOT {
+            return false;
+        }
+        self.slots[entry] = self.claimed as u32;
+        self.claimed += 1;
+        self.rows.resize(self.claimed * columns, 0.0);
+        true
+    }
+
+    #[inline]
+    pub(super) fn row(&self, entry: usize, columns: usize) -> &[f32] {
+        let base = self.slots[entry] as usize * columns;
+        &self.rows[base..base + columns]
     }
 }

@@ -345,8 +345,8 @@ impl DensitySampler for Noise {
             }
             return;
         }
-        let mut ys = vec![0.0f64; height];
-        let mut scratch = ColumnScratch::default();
+        let mut ys = ctx.arena.pool().doubles(height);
+        let mut scratch = ctx.arena.pool().column_scratch();
         for (column, slots) in out.chunks_mut(height).enumerate() {
             let run = &ctx.positions[column * height..column * height + height];
             for (slot, pos) in ys.iter_mut().zip(run) {

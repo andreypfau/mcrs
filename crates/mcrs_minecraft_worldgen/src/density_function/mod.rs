@@ -30,6 +30,7 @@ mod interval;
 #[cfg(test)]
 mod interval_prune;
 pub mod proto;
+mod pool;
 #[cfg(test)]
 mod tests;
 pub mod volume;
@@ -40,9 +41,12 @@ pub use interval::Interval;
 
 pub use compile::build_functions;
 pub use volume::{FillScratch, Volume};
+use std::cell::RefCell;
+use volume::{Column, ColumnCache};
 
 mod node;
 mod router;
 
 pub(crate) use node::*;
+pub(crate) use pool::BufferPool;
 pub use router::NoiseRouter;

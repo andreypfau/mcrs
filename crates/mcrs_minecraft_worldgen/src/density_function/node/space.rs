@@ -28,7 +28,7 @@ impl IndependentSampler for Constant {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Interpolated {
     pub(crate) input_index: usize,
-    pub(crate) input_members: Box<[u32]>,
+    pub(crate) input: Subgraph,
     pub(crate) cell_size_xz: u32,
     pub(crate) cell_size_y: u32,
     pub(crate) cell_size_xz_inv: f32,
@@ -198,18 +198,23 @@ impl IndependentSampler for EndIslands {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct FindTopSurface {
     pub(crate) density_index: usize,
-    pub(crate) density_members: Box<[u32]>,
+    pub(crate) density: Subgraph,
     pub(crate) upper_bound_index: usize,
     pub(crate) lower_bound: f32,
     pub(crate) cell_height: f32,
 }
 
+/// Evaluation with one or more coordinates pinned.
+///
+/// The reference gives each axis its own sampler and fuses an X slice over a Z
+/// slice into a third; a mask does the same work for every combination, and
+/// folds a chain of any length into one node.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Slice {
-    pub(crate) axis: Axis,
-    pub(crate) coordinate: i32,
+    pub(crate) axes: u8,
+    pub(crate) coordinate: IVec3,
     pub(crate) input_index: usize,
-    pub(crate) input_members: Box<[u32]>,
+    pub(crate) input: Subgraph,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -241,40 +246,67 @@ impl IndependentSampler for DistanceToPoint {
 }
 
 impl Slice {
-    pub(crate) fn fill(&self, arena: Arena<'_>, volume: &Volume, out: &mut [f32]) {
-        let pinned = self.pinned_volume(volume);
-        if &pinned == volume {
-            arena.fill_members(&self.input_members, volume, out);
-            return;
-        }
-        let mut sliced = vec![0.0f32; pinned.len()];
-        arena.fill_members(&self.input_members, &pinned, &mut sliced);
-        for z in 0..volume.size().z {
-            for x in 0..volume.size().x {
-                for y in 0..volume.size().y {
-                    let source = match self.axis {
-                        Axis::X => pinned.index_unchecked(0, y, z),
-                        Axis::Y => pinned.index_unchecked(x, 0, z),
-                        Axis::Z => pinned.index_unchecked(x, y, 0),
-                    };
-                    out[volume.index_unchecked(x, y, z)] = sliced[source];
-                }
+    /// `pos` with every pinned coordinate replaced.
+    #[inline]
+    pub(crate) fn pin(&self, mut pos: IVec3) -> IVec3 {
+        for axis in 0..3 {
+            if self.axes & (1 << axis) != 0 {
+                pos[axis] = self.coordinate[axis];
             }
         }
+        pos
     }
 
-    /// `volume` with this node's axis collapsed onto its pinned coordinate.
+    /// `volume` with every pinned axis collapsed onto its coordinate.
     fn pinned_volume(&self, volume: &Volume) -> Volume {
         let mut size = volume.size();
         let mut min = volume.min_block();
-        let axis = match self.axis {
-            Axis::X => 0,
-            Axis::Y => 1,
-            Axis::Z => 2,
-        };
-        size[axis] = 1;
-        min[axis] = self.coordinate;
+        for axis in 0..3 {
+            if self.axes & (1 << axis) != 0 {
+                size[axis] = 1;
+                min[axis] = self.coordinate[axis];
+            }
+        }
         Volume::new(size, min, volume.step_block())
+    }
+
+    /// Evaluate the input once over the pinned volume, then repeat each of its
+    /// columns across the columns of `volume` that share it.
+    ///
+    /// Y is the fastest axis, so an unpinned column is one contiguous run and a
+    /// pinned one is a single value: every output column is a copy or a fill.
+    pub(crate) fn fill(
+        &self,
+        arena: Arena<'_>,
+        volume: &Volume,
+        positions: &[IVec3],
+        out: &mut [f32],
+    ) {
+        let pinned = self.pinned_volume(volume);
+        if &pinned == volume {
+            arena.fill_subgraph_at(&self.input, volume, positions, out);
+            return;
+        }
+
+        let mut sliced = arena.pool().floats(pinned.len());
+        arena.fill_subgraph(&self.input, &pinned, &mut sliced);
+
+        let size = volume.size();
+        let height = size.y as usize;
+        let flat_y = self.axes & AXIS_Y != 0;
+        for z in 0..size.z {
+            let source_z = if self.axes & AXIS_Z != 0 { 0 } else { z };
+            for x in 0..size.x {
+                let source_x = if self.axes & AXIS_X != 0 { 0 } else { x };
+                let source = pinned.index_unchecked(source_x, 0, source_z);
+                let column = &mut out[volume.index_unchecked(x, 0, z)..][..height];
+                if flat_y {
+                    column.fill(sliced[source]);
+                } else {
+                    column.copy_from_slice(&sliced[source..source + height]);
+                }
+            }
+        }
     }
 }
 
@@ -288,28 +320,23 @@ impl FindTopSurface {
         upper_bounds: &[f32],
         out: &mut [f32],
     ) {
-        let mut scratch = MemberScratch::default();
         for (p, slot) in out.iter_mut().enumerate() {
-            *slot = self.probe(arena, positions[p], upper_bounds[p], &mut scratch);
+            *slot = self.probe(arena, positions[p], upper_bounds[p]);
         }
     }
 
-    fn probe(
-        &self,
-        arena: Arena<'_>,
-        pos: IVec3,
-        upper_bound: f32,
-        scratch: &mut MemberScratch,
-    ) -> f32 {
+    fn probe(&self, arena: Arena<'_>, pos: IVec3, upper_bound: f32) -> f32 {
         let top_y = (upper_bound / self.cell_height).floor() * self.cell_height;
         if top_y <= self.lower_bound {
             return self.lower_bound;
         }
         let mut probed = [0.0f32];
+        let mut at = [IVec3::ZERO];
         let mut current_y = top_y;
         loop {
-            let probe = Volume::point(IVec3::new(pos.x, current_y as i32, pos.z));
-            arena.fill_members_with(&self.density_members, &probe, &mut probed, scratch);
+            at[0] = IVec3::new(pos.x, current_y as i32, pos.z);
+            let probe = Volume::point(at[0]);
+            arena.fill_subgraph_at(&self.density, &probe, &at, &mut probed);
             if probed[0] > 0.0 || current_y <= self.lower_bound {
                 break current_y;
             }
@@ -332,19 +359,10 @@ impl Interpolated {
             && volume.min_block().z.rem_euclid(xz) == 0
     }
 
-    /// `input_row` must hold the input's values over `volume` whenever
-    /// [`Interpolated::is_lattice_volume`] holds; off the lattice this node
-    /// resamples its input over its own cell volume and never reads it.
-    pub(crate) fn fill_volume(
-        &self,
-        arena: Arena<'_>,
-        volume: &Volume,
-        input_row: &[f32],
-        out: &mut [f32],
-    ) {
-        if self.is_lattice_volume(volume) {
-            out.copy_from_slice(input_row);
-        } else if volume.len() == 1 {
+    /// Off the lattice this node resamples its input over its own cell volume,
+    /// so the caller's row for that input is neither written nor read.
+    pub(crate) fn fill_volume(&self, arena: Arena<'_>, volume: &Volume, out: &mut [f32]) {
+        if volume.len() == 1 {
             // A single position combines the eight corners exactly, where a
             // volume accumulates along Y. Vanilla splits the same two ways, and
             // the block values a chunk fill produces come from the second.
@@ -354,7 +372,7 @@ impl Interpolated {
         } else {
             let block_volume =
                 Volume::dense(volume.size() * volume.step_block(), volume.min_block());
-            let mut block = vec![0.0f32; block_volume.len()];
+            let mut block = arena.pool().floats(block_volume.len());
             self.fill_block_step(arena, &block_volume, &mut block);
             for z in 0..volume.size().z {
                 for x in 0..volume.size().x {
@@ -382,7 +400,7 @@ impl Interpolated {
             IVec3::new(size_xz, size_y, size_xz),
         );
         let mut corners = [0.0f32; 8];
-        arena.fill_members(&self.input_members, &cell, &mut corners);
+        arena.fill_subgraph(&self.input, &cell, &mut corners);
 
         let alpha_x = x_in_cell as f32 / size_xz as f32;
         let alpha_y = y_in_cell as f32 / size_y as f32;
@@ -412,8 +430,8 @@ impl Interpolated {
             IVec3::new(xz, sy, xz),
         );
 
-        let mut cell = vec![0.0f32; cell_volume.len()];
-        arena.fill_members(&self.input_members, &cell_volume, &mut cell);
+        let mut cell = arena.pool().floats(cell_volume.len());
+        arena.fill_subgraph(&self.input, &cell_volume, &mut cell);
 
         for cell_z in 0..cell_count_z {
             let next_cell_z = (cell_z + 1).min(cell_volume.size().z - 1);
@@ -492,20 +510,15 @@ impl Interpolated {
 
 impl DensitySampler for Slice {
     fn sample_value(&self, ctx: Fill<'_>, index: usize) -> f32 {
-        let mut pinned = ctx.positions[index];
-        match self.axis {
-            Axis::X => pinned.x = self.coordinate,
-            Axis::Y => pinned.y = self.coordinate,
-            Axis::Z => pinned.z = self.coordinate,
-        }
+        let at = [self.pin(ctx.positions[index])];
         let mut sliced = [0.0f32];
         ctx.arena
-            .fill_members(&self.input_members, &Volume::point(pinned), &mut sliced);
+            .fill_subgraph_at(&self.input, &Volume::point(at[0]), &at, &mut sliced);
         sliced[0]
     }
 
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
-        self.fill(ctx.arena, ctx.volume, out);
+        self.fill(ctx.arena, ctx.volume, ctx.positions, out);
     }
 }
 
@@ -515,7 +528,6 @@ impl DensitySampler for FindTopSurface {
             ctx.arena,
             ctx.positions[index],
             ctx.row(self.upper_bound_index)[index],
-            &mut MemberScratch::default(),
         )
     }
 
@@ -539,7 +551,11 @@ impl DensitySampler for Interpolated {
     }
 
     fn sample_volume(&self, ctx: Fill<'_>, out: &mut [f32]) {
-        self.fill_volume(ctx.arena, ctx.volume, ctx.row(self.input_index), out);
+        if self.is_lattice_volume(ctx.volume) {
+            out.copy_from_slice(ctx.row(self.input_index));
+        } else {
+            self.fill_volume(ctx.arena, ctx.volume, out);
+        }
     }
 }
 

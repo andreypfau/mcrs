@@ -847,3 +847,91 @@ fn a_router_mixing_cell_geometries_loads_and_evaluates() {
         volume.len()
     );
 }
+
+mod allocations {
+    use super::*;
+    use mcrs_minecraft_worldgen::density_function::{FillScratch, Volume as FillVolume};
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::cell::Cell;
+
+    // A plain `#[thread_local]` cell with no destructor, so reading it from
+    // inside the allocator cannot allocate and recurse.
+    thread_local! {
+        static ALLOCATIONS: Cell<usize> = const { Cell::new(0) };
+    }
+
+    fn count() -> usize {
+        ALLOCATIONS.with(|c| c.get())
+    }
+
+    struct Counting;
+
+    impl Counting {
+        #[inline]
+        fn tick() {
+            ALLOCATIONS.with(|c| c.set(c.get() + 1));
+        }
+    }
+
+    unsafe impl GlobalAlloc for Counting {
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            Self::tick();
+            unsafe { System.alloc(layout) }
+        }
+
+        unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+            Self::tick();
+            unsafe { System.alloc_zeroed(layout) }
+        }
+
+        unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+            Self::tick();
+            unsafe { System.realloc(ptr, layout, new_size) }
+        }
+
+        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+            unsafe { System.dealloc(ptr, layout) }
+        }
+    }
+
+    #[global_allocator]
+    static ALLOCATOR: Counting = Counting;
+
+    /// Every buffer a fill needs beyond the caller's own output comes from the
+    /// scratch, so a chunk column filled cell by cell reaches the allocator only
+    /// while that scratch is still cold.
+    #[test]
+    fn a_warm_scratch_fills_a_chunk_column_without_allocating() {
+        let router = overworld_router(0);
+        let cell = router
+            .cell_size()
+            .expect("the overworld interpolates on one lattice");
+        let cells = router.noise_height() as i32 / cell.y;
+        let root = router.final_density_index();
+        let mut scratch = FillScratch::new();
+        let mut out = vec![0.0f32; (cell.x * cell.y * cell.z) as usize];
+
+        let mut column = |scratch: &mut FillScratch, out: &mut [f32]| {
+            for i in 0..cells {
+                let volume = FillVolume::dense(
+                    cell,
+                    IVec3::new(0, router.noise_min_y() + i * cell.y, 0),
+                );
+                router.sample_volume(root, &volume, out, scratch);
+            }
+        };
+
+        // Two passes to warm: the first sizes every buffer, the second settles
+        // the order they come back to the pool in.
+        column(&mut scratch, &mut out);
+        column(&mut scratch, &mut out);
+
+        let before = count();
+        column(&mut scratch, &mut out);
+        let during = count() - before;
+        assert_eq!(
+            during, 0,
+            "{cells} cell fills over a warm scratch made {during} allocations"
+        );
+    }
+}
