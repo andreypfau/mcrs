@@ -30,17 +30,52 @@ use crate::world::WorldPlugin;
 use bevy_app::{App, Plugin};
 use mcrs_minecraft_network::NetworkPlugin;
 use mcrs_voxel_server::VoxelServerPlugin;
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
-pub struct MinecraftServerPlugin;
+pub use mcrs_minecraft_network::BoundAddress;
+pub use mcrs_voxel_server::spawn_server_thread;
+
+pub struct MinecraftServerPlugin {
+    /// Port 0 asks the OS for a free port; read the result back from
+    /// [`BoundAddress`].
+    pub bind_address: SocketAddr,
+    /// Clear when the server shares a process with another Bevy app, which
+    /// then owns the process-global task pools.
+    pub owns_task_pools: bool,
+}
+
+impl Default for MinecraftServerPlugin {
+    fn default() -> Self {
+        Self {
+            bind_address: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 25565).into(),
+            owns_task_pools: true,
+        }
+    }
+}
+
+impl MinecraftServerPlugin {
+    /// A server running inside another process: loopback only, an OS-assigned
+    /// port, and the task pools left to the host app.
+    pub fn embedded() -> Self {
+        Self {
+            bind_address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
+            owns_task_pools: false,
+        }
+    }
+}
 
 impl Plugin for MinecraftServerPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(VoxelServerPlugin {
             tick_rate: DEFAULT_TPS,
+            owns_task_pools: self.owns_task_pools,
         });
         app.add_plugins(mcrs_minecraft_core::MinecraftCorePlugin);
         app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
-        app.add_plugins(NetworkPlugin);
+        app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);
+        app.add_plugins(NetworkPlugin {
+            address: self.bind_address,
+        });
         app.add_plugins(LoginPlugin);
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);

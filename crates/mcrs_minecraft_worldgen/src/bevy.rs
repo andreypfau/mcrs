@@ -119,16 +119,25 @@ enum ChunkGenerator {
     Unsupported,
 }
 
+/// Where the asset system reads from, resolved exactly as `AssetPlugin` does so
+/// the two never disagree. Chunk generation needs the preset before any
+/// `AssetServer` exists, which is the only reason this path is read directly.
+fn asset_root() -> std::path::PathBuf {
+    bevy_asset::io::file::FileAssetReader::get_base_path()
+        .join(bevy_asset::AssetPlugin::default().file_path)
+}
+
 /// The `generator.settings` id the preset states for `minecraft:overworld`.
 pub(crate) fn resolve_overworld_noise_settings(
     preset_ns: &str,
     preset_path: &str,
 ) -> (Arc<str>, Arc<str>) {
-    let asset_root = env::var("BEVY_ASSET_ROOT").unwrap_or_else(|_| ".".to_string());
-    let json_path =
-        format!("{asset_root}/assets/{preset_ns}/worldgen/world_preset/{preset_path}.json");
+    let preset_file = asset_root().join(format!(
+        "{preset_ns}/worldgen/world_preset/{preset_path}.json"
+    ));
+    let json_path = preset_file.display();
 
-    let data = std::fs::read_to_string(&json_path)
+    let data = std::fs::read_to_string(&preset_file)
         .unwrap_or_else(|e| panic!("cannot read world preset {json_path}: {e}"));
     let preset: WorldPreset = serde_json::from_str(&data)
         .unwrap_or_else(|e| panic!("cannot parse world preset {json_path}: {e}"));
@@ -155,14 +164,27 @@ pub(crate) fn resolve_overworld_noise_settings(
 
 pub struct NoiseGeneratorSettingsPlugin;
 
-impl Plugin for NoiseGeneratorSettingsPlugin {
+/// Registers the worldgen asset types and their loaders, and nothing else.
+///
+/// A world preset names its noise settings, so loading one allocates a
+/// `NoiseGeneratorSettingsAsset` handle. Any app that reads a preset therefore
+/// needs these types even when it never builds a noise router itself.
+pub struct WorldgenAssetsPlugin;
+
+impl Plugin for WorldgenAssetsPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<DensityFunctionAsset>()
             .init_asset::<NoiseGeneratorSettingsAsset>()
             .init_asset::<NoiseParamAsset>()
             .register_asset_loader(DensityFunctionLoader)
             .register_asset_loader(NoiseGeneratorSettingsLoader)
-            .register_asset_loader(NoiseParamLoader)
+            .register_asset_loader(NoiseParamLoader);
+    }
+}
+
+impl Plugin for NoiseGeneratorSettingsPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(WorldgenAssetsPlugin)
             .add_systems(Startup, request_overworld_noise_settings)
             .add_systems(Update, build_noise_router_on_load.in_set(BuildNoiseRouter));
     }

@@ -30,32 +30,64 @@ use tokio::runtime::{Handle, Runtime};
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::mpsc::{Sender, channel};
 
-pub struct NetworkPlugin;
+pub struct NetworkPlugin {
+    /// Port 0 asks the OS for a free port; read the result back from
+    /// [`BoundAddress`].
+    pub address: SocketAddr,
+}
 
-impl Plugin for NetworkPlugin {
-    fn build(&self, app: &mut App) {
-        build_plugin(app).expect("Failed to build network plugin");
+impl Default for NetworkPlugin {
+    fn default() -> Self {
+        Self {
+            address: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 25565).into(),
+        }
     }
 }
 
-fn build_plugin(app: &mut App) -> anyhow::Result<()> {
+/// The address the listener is actually bound to, inserted while the plugin
+/// builds, so a caller that asked for port 0 can read the port before the app
+/// ever ticks.
+#[derive(Resource, Clone, Copy, Debug)]
+pub struct BoundAddress(pub SocketAddr);
+
+impl Plugin for NetworkPlugin {
+    fn build(&self, app: &mut App) {
+        build_plugin(app, self.address).expect("Failed to build network plugin");
+    }
+}
+
+fn build_plugin(app: &mut App, address: SocketAddr) -> anyhow::Result<()> {
     let runtime = Runtime::new()?;
     let tokio_handle = runtime.handle().clone();
+
+    // Binding through std keeps this usable from a caller that is itself
+    // already inside a tokio runtime, where `block_on` would panic.
+    let std_listener = std::net::TcpListener::bind(address)?;
+    std_listener.set_nonblocking(true)?;
+    let bound = std_listener.local_addr()?;
+    let listener = {
+        let _guard = tokio_handle.enter();
+        tokio::net::TcpListener::from_std(std_listener)?
+    };
 
     let (new_sessions_send, mut new_sessions_recv) = channel(128);
 
     let shared_state = SharedNetworkState(Arc::new(SharedNetworkStateInner {
-        address: SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 25565).into(),
         tokio_handle,
         tokio_runtime: Some(runtime),
         new_connections_send: new_sessions_send,
     }));
 
     app.insert_resource(shared_state.clone());
+    app.insert_resource(BoundAddress(bound));
 
+    let mut listener = Some(listener);
     let start_accept_loop = move |shared_state: Res<SharedNetworkState>| {
+        let Some(listener) = listener.take() else {
+            return;
+        };
         let _guard = shared_state.0.tokio_handle.enter();
-        tokio::spawn(connect::start_accept_loop(shared_state.clone()));
+        tokio::spawn(connect::start_accept_loop(shared_state.clone(), listener));
     };
     let spawn_new_raw_connections = move |world: &mut World| {
         for _ in 0..new_sessions_recv.len() {
@@ -90,7 +122,6 @@ fn build_plugin(app: &mut App) -> anyhow::Result<()> {
 struct SharedNetworkState(Arc<SharedNetworkStateInner>);
 
 struct SharedNetworkStateInner {
-    address: SocketAddr,
     tokio_handle: Handle,
     // Held to keep the runtime alive for the process lifetime; dropping it shuts down all tasks.
     #[allow(dead_code)]

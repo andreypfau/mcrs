@@ -1,28 +1,9 @@
 use bevy_app::{App, AppExit};
 use bevy_ecs::message::Messages;
-use mcrs_minecraft_server::run_server_loop;
+use mcrs_minecraft_server::{run_server_loop, spawn_server_thread};
 use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue};
 use std::sync::mpsc;
-use std::thread;
 use std::time::Duration;
-
-// `App` is not `Send` because it holds `Box<dyn FnOnce(App) -> AppExit>`.
-// This wrapper is sound here because:
-//   - the `App` is fully owned (no borrowed data, 'static lifetime),
-//   - it is used only from one thread at a time,
-//   - the spawning thread blocks on `join` before the wrapper is dropped.
-//
-// The wrapper must contain the `App` via a method, not a field access in
-// the closure, because Rust 2021 edition closure capture captures individual
-// fields, which would expose `App` (not `SendableApp`) to the `Send` check.
-struct SendableApp(App);
-unsafe impl Send for SendableApp {}
-
-impl SendableApp {
-    fn into_inner(self) -> App {
-        self.0
-    }
-}
 
 #[test]
 fn run_server_loop_exits_on_app_exit() {
@@ -35,10 +16,9 @@ fn run_server_loop_exits_on_app_exit() {
         .write(AppExit::Success);
 
     let (tx, rx) = mpsc::channel::<()>();
-    let wrapper = SendableApp(app);
 
-    let handle = thread::spawn(move || {
-        run_server_loop(wrapper.into_inner());
+    let handle = spawn_server_thread(app, move |app| {
+        run_server_loop(app);
         tx.send(()).ok();
     });
 
