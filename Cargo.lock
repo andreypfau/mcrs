@@ -3191,6 +3191,7 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_world",
+ "mcrs_voxel_math",
  "mcrs_voxel_storage",
  "mcrs_voxel_world",
  "objc2-foundation 0.3.2",

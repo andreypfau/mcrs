@@ -14,6 +14,7 @@ use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClock, WorldClocks};
 use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 
 mod camera;
+mod gui;
 mod input;
 mod local_player;
 mod options;
@@ -49,6 +50,7 @@ fn main() {
     .add_plugins(input::ClientInputPlugin)
     .add_plugins(local_player::LocalPlayerPlugin)
     .add_plugins(camera::CameraPlugin)
+    .add_plugins(gui::debug::DebugScreenPlugin)
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .add_plugins(sky::SkyPlugin)
     .add_plugins(screenshot::ScreenshotPlugin)

@@ -19,11 +19,16 @@ bevy = { version = "0.19.1", default-features = false, features = [
     "keyboard",
     "mouse",
     "png",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_ui_render",
+    "default_font",
 ] }
 bytemuck = { version = "1", features = ["derive"] }
 bitflags = "2"
 serde_json.workspace = true
 mcrs_minecraft_core.workspace = true
+mcrs_voxel_math.workspace = true
 mcrs_voxel_world.workspace = true
 mcrs_minecraft_world.workspace = true
 

@@ -46,6 +46,28 @@ impl Direction {
         }
     }
 
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Direction::Down => "down",
+            Direction::Up => "up",
+            Direction::North => "north",
+            Direction::South => "south",
+            Direction::West => "west",
+            Direction::East => "east",
+        }
+    }
+
+    /// `Direction.fromYRot`, through the `[south, west, north, east]` 2D data
+    /// values.
+    pub fn from_y_rot(y_rot: f32) -> Direction {
+        match ((f64::from(y_rot) / 90.0 + 0.5).floor() as i32) & 3 {
+            0 => Direction::South,
+            1 => Direction::West,
+            2 => Direction::North,
+            _ => Direction::East,
+        }
+    }
+
     pub const fn all() -> [Direction; 6] {
         [
             Direction::Down,
@@ -55,6 +77,12 @@ impl Direction {
             Direction::West,
             Direction::East,
         ]
+    }
+}
+
+impl std::fmt::Display for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
     }
 }
 
@@ -189,5 +217,27 @@ impl From<Direction> for DirectionSet {
 impl BitAndAssign for DirectionSet {
     fn bitand_assign(&mut self, rhs: Self) {
         self.0 &= rhs.0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_facing_direction_follows_the_yaw_quadrant() {
+        for (yaw, expected) in [
+            (0.0, Direction::South),
+            (44.9, Direction::South),
+            (45.1, Direction::West),
+            (90.0, Direction::West),
+            (180.0, Direction::North),
+            (-90.0, Direction::East),
+            (-180.0, Direction::North),
+            (-134.9, Direction::East),
+            (-135.1, Direction::North),
+        ] {
+            assert_eq!(Direction::from_y_rot(yaw), expected, "yaw {yaw}");
+        }
     }
 }
