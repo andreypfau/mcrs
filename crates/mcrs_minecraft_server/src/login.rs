@@ -17,6 +17,12 @@ use std::borrow::Cow;
 use crate::world::player_index::{HostAnchorRef, PlayerIndex, PlayerSessionRef};
 use mcrs_voxel_world::session::{PlayerSessionCounter, SessionEntry, SessionRegistry};
 
+/// Vanilla mints one chat session id per listener and reuses it for every login.
+fn session_id() -> uuid::Uuid {
+    static SESSION_ID: std::sync::OnceLock<uuid::Uuid> = std::sync::OnceLock::new();
+    *SESSION_ID.get_or_init(uuid::Uuid::new_v4)
+}
+
 pub struct LoginPlugin;
 
 impl bevy_app::Plugin for LoginPlugin {
@@ -90,6 +96,7 @@ pub fn handle_hello_packet(
     println!("new profile: {profile:?}");
     let response = ClientboundLoginFinished {
         profile: (&profile).into(),
+        session_id: session_id(),
     };
     con.write_packet(&response);
     commands

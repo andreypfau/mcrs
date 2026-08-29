@@ -66,7 +66,7 @@ rand_xoshiro = "0.8.0-rc.0"
 flume = { version = "0.12.0", default-features = false }
 
 mcrs_minecraft_protocol_macros = { path = "crates/mcrs_minecraft_protocol_macros" }
-mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol" }
+mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol", features = ["compression"] }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
 mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network" }
 mcrs_voxel_world = { path = "crates/mcrs_voxel_world" }

@@ -35,9 +35,7 @@ impl<'a> Decode<'a> for Holder {
     fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
         let i = VarInt::decode(r)?;
         if i.0 == 0 {
-            let cursor = std::io::Cursor::new(&r[i.written_size()..]);
-            let compound = nbt::from_bytes_unnamed(cursor)?;
-            Ok(Holder::Direct(compound))
+            Ok(Holder::Direct(NbtCompound::decode(r)?))
         } else {
             Ok(Holder::Reference(i.0 - 1))
         }
