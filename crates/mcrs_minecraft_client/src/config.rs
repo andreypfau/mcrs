@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
 use crate::mesh::STREAMS;
 use crate::render::{Raster, Streams, Wireframe};
 
@@ -13,6 +16,33 @@ const VISIBLE_MB: usize = 32;
 
 const REGION_WINDOW: usize = 2;
 
+static KNOBS: OnceLock<HashMap<String, String>> = OnceLock::new();
+
+/// Names a knob without its `ANVIL_` prefix, so a source that is not the
+/// environment — the browser has none, and reads the query string instead —
+/// can supply the same values. Only the first call is kept, and it has to come
+/// before the first read.
+pub fn seed(knobs: HashMap<String, String>) {
+    let _ = KNOBS.set(knobs);
+}
+
+fn knob(name: &str) -> Option<String> {
+    match KNOBS.get() {
+        Some(knobs) => knobs.get(name).cloned(),
+        None => from_environment(name),
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+fn from_environment(name: &str) -> Option<String> {
+    std::env::var(format!("ANVIL_{name}")).ok()
+}
+
+#[cfg(target_family = "wasm")]
+fn from_environment(_name: &str) -> Option<String> {
+    None
+}
+
 fn numbers<T: std::str::FromStr>(spec: &str) -> Vec<T> {
     spec.split(',')
         .filter_map(|n| n.trim().parse().ok())
@@ -20,8 +50,7 @@ fn numbers<T: std::str::FromStr>(spec: &str) -> Vec<T> {
 }
 
 pub fn upload_budget() -> usize {
-    std::env::var("ANVIL_UPLOAD")
-        .ok()
+    knob("UPLOAD")
         .and_then(|megabytes| megabytes.parse::<usize>().ok())
         .unwrap_or(UPLOAD_MB)
         << 20
@@ -29,7 +58,7 @@ pub fn upload_budget() -> usize {
 
 pub fn arena_budget() -> (usize, usize, usize) {
     let default = (QUAD_MB_PER_FILE, MODEL_MB_PER_FILE, FACE_MB_PER_FILE);
-    let Ok(spec) = std::env::var("ANVIL_ARENA") else {
+    let Some(spec) = knob("ARENA") else {
         return default;
     };
     match numbers::<usize>(&spec)[..] {
@@ -42,8 +71,7 @@ pub fn arena_budget() -> (usize, usize, usize) {
 }
 
 pub fn visible_budget() -> usize {
-    std::env::var("ANVIL_VISIBLE")
-        .ok()
+    knob("VISIBLE")
         .and_then(|megabytes| megabytes.parse::<usize>().ok())
         .unwrap_or(VISIBLE_MB)
         .max(1)
@@ -51,7 +79,7 @@ pub fn visible_budget() -> usize {
 }
 
 pub fn drawn_streams() -> Streams {
-    let Ok(spec) = std::env::var("ANVIL_STREAMS") else {
+    let Some(spec) = knob("STREAMS") else {
         return Streams::default();
     };
     let mut mask = 0;
@@ -65,7 +93,7 @@ pub fn drawn_streams() -> Streams {
 }
 
 pub fn raster_fraction() -> Raster {
-    let Ok(spec) = std::env::var("ANVIL_RASTER") else {
+    let Some(spec) = knob("RASTER") else {
         return Raster::default();
     };
     match spec.trim().parse::<f32>() {
@@ -78,7 +106,7 @@ pub fn raster_fraction() -> Raster {
 }
 
 pub fn window_centre() -> Option<[i32; 2]> {
-    let spec = std::env::var("ANVIL_CENTER").ok()?;
+    let spec = knob("CENTER")?;
     match numbers::<i32>(&spec)[..] {
         [x, z] => Some([x, z]),
         _ => {
@@ -89,17 +117,16 @@ pub fn window_centre() -> Option<[i32; 2]> {
 }
 
 pub fn region_window() -> usize {
-    std::env::var("ANVIL_WINDOW")
-        .ok()
+    knob("WINDOW")
         .and_then(|size| size.parse().ok())
         .unwrap_or(REGION_WINDOW)
         .max(1)
 }
 
 pub fn gputrace_path() -> Option<String> {
-    std::env::var("ANVIL_GPUTRACE").ok()
+    knob("GPUTRACE")
 }
 
 pub fn wireframe() -> Wireframe {
-    Wireframe(std::env::var("ANVIL_WIREFRAME").is_ok_and(|on| on != "0"))
+    Wireframe(knob("WIREFRAME").is_some_and(|on| on != "0"))
 }

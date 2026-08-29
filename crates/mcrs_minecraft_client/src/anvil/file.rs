@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use mcrs_voxel_storage::SectionKind;
 use serde::Deserialize;
@@ -358,5 +358,71 @@ fn write_nibbles(source: &[i8], out: &mut [u8; SECTION_VOLUME], shift: u32) {
         let byte = source[i] as u8;
         out[i * 2] |= (byte & 0x0f) << shift;
         out[i * 2 + 1] |= (byte >> 4) << shift;
+    }
+}
+
+pub fn region_coords(name: &str) -> Option<[i32; 2]> {
+    let (x, z) = name
+        .strip_prefix("r.")?
+        .strip_suffix(".mca")?
+        .split_once('.')?;
+    Some([x.parse().ok()?, z.parse().ok()?])
+}
+
+pub struct Window {
+    pub min_region: [i32; 2],
+    pub regions: [usize; 2],
+    pub files: Vec<([i32; 2], PathBuf)>,
+}
+
+pub fn window(path: &Path, centre: [i32; 2], size: usize) -> Result<Window, String> {
+    if !path.is_dir() {
+        let coords = path
+            .file_name()
+            .and_then(|name| region_coords(&name.to_string_lossy()))
+            .unwrap_or([0, 0]);
+        return Ok(Window {
+            min_region: coords,
+            regions: [1, 1],
+            files: vec![(coords, path.to_path_buf())],
+        });
+    }
+
+    let min = [centre[0] - (size / 2) as i32, centre[1] - (size / 2) as i32];
+    let mut files = Vec::new();
+    for rz in 0..size as i32 {
+        for rx in 0..size as i32 {
+            let coords = [min[0] + rx, min[1] + rz];
+            let file = path.join(format!("r.{}.{}.mca", coords[0], coords[1]));
+            if file.is_file() {
+                files.push((coords, file));
+            }
+        }
+    }
+    if files.is_empty() {
+        return Err(format!(
+            "{} holds none of the {size}x{size} region files around r.{}.{}",
+            path.display(),
+            centre[0],
+            centre[1],
+        ));
+    }
+    Ok(Window {
+        min_region: min,
+        regions: [size, size],
+        files,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_region_file_name_carries_signed_coordinates() {
+        assert_eq!(region_coords("r.0.0.mca"), Some([0, 0]));
+        assert_eq!(region_coords("r.-4.-4.mca"), Some([-4, -4]));
+        assert_eq!(region_coords("r.-1.3.mca"), Some([-1, 3]));
+        assert_eq!(region_coords("level.dat"), None);
     }
 }

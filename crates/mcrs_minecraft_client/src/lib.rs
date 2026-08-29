@@ -22,10 +22,12 @@ pub mod player;
 pub mod probe;
 pub mod readback;
 pub mod render;
+#[cfg(not(target_family = "wasm"))]
 pub mod screenshot;
 pub mod sky;
 pub mod sky_render;
 pub mod sky_state;
+#[cfg(not(target_family = "wasm"))]
 pub mod stream;
 
 pub fn asset_corpus() -> PathBuf {
