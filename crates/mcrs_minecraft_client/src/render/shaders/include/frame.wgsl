@@ -15,7 +15,7 @@ struct Params {
     tint_origin_z: i32,
     tint_span_x: f32,
     tint_span_z: f32,
-    pad: u32,
+    visible_limit: u32,
 }
 
 struct Sky {

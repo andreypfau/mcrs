@@ -11,7 +11,7 @@ struct Animation {
 
 @group(1) @binding(0) var<storage, read> quads: array<u32>;
 @group(1) @binding(1) var<storage, read> vertices: array<u32>;
-@group(1) @binding(2) var<storage, read> visible: array<u32>;
+@group(1) @binding(2) var<storage, read> visible: array<vec2<u32>>;
 @group(1) @binding(3) var atlas0: texture_2d_array<f32>;
 @group(1) @binding(4) var atlas1: texture_2d_array<f32>;
 @group(1) @binding(5) var atlas2: texture_2d_array<f32>;

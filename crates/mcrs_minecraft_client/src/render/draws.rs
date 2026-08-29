@@ -25,12 +25,13 @@ pub(super) struct Params {
     tint_origin_z: i32,
     tint_span_x: f32,
     tint_span_z: f32,
-    pad: u32,
+    visible_limit: u32,
 }
 
 pub(super) struct DrawList {
     pub draws: Vec<Draw>,
     pub group_counts: Vec<u32>,
+    pub limits: Vec<u32>,
     pub wireframe: u32,
     params: Vec<Params>,
     dirty: bool,
@@ -41,6 +42,7 @@ impl DrawList {
         Self {
             draws: Vec::new(),
             group_counts: Vec::new(),
+            limits: Vec::new(),
             wireframe: 0,
             params: Vec::with_capacity(STREAMS),
             dirty: false,
@@ -50,8 +52,14 @@ impl DrawList {
     pub fn rebuild(&mut self, budget: &Budget, animated_from: u32) {
         self.params.clear();
         self.group_counts.clear();
+        self.limits.clear();
+        let asked: usize = self.draws.iter().map(|draw| draw.quad_count as usize).sum();
         let mut visible_base = 0u32;
         for (index, draw) in self.draws.iter().enumerate() {
+            let limit = match asked > budget.visible {
+                true => (draw.quad_count as usize * budget.visible / asked) as u32,
+                false => draw.quad_count,
+            };
             self.params.push(Params {
                 group_base: draw.first_group,
                 group_count: draw.group_count,
@@ -68,9 +76,10 @@ impl DrawList {
                 tint_origin_z: budget.tint_origin[1],
                 tint_span_x: budget.tint_size[0] as f32,
                 tint_span_z: budget.tint_size[1] as f32,
-                pad: 0,
+                visible_limit: limit,
             });
-            visible_base += draw.quad_count;
+            visible_base += limit;
+            self.limits.push(limit);
             self.group_counts.push(draw.group_count);
         }
         self.dirty = true;

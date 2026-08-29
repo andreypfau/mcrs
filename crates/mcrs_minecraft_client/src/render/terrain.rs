@@ -40,7 +40,7 @@ pub(super) fn init_terrain(
 ) {
     let budget = budget.0.clone();
     let arenas = Arenas::new(&budget, &device);
-    let frame = Frame::new(&device);
+    let frame = Frame::new(&budget, &device);
     let sprites = Sprites::new(&budget, &device, &queue);
     let binds = Bindings::new(&arenas, &frame, &sprites, &device, &pipeline_cache);
     let pipelines = Pipelines::new(Shaders::load(&asset_server), &binds, &pipeline_cache);

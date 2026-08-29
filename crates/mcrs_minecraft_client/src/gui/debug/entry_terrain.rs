@@ -38,6 +38,10 @@ pub fn display(
             (true, Some(ms)) => format!("Sight lines: {} sections in {ms:.3} ms", cave.reached()),
         },
     ];
+    let dropped = triangles.dropped();
+    if dropped > 0 {
+        lines.push(format!("Visible list full: {dropped} quads dropped"));
+    }
     for (slot, name) in probe::NAMES.iter().enumerate() {
         if let Some(ms) = gpu.median(slot) {
             lines.push(format!("GPU {name}: {ms:.2} ms"));

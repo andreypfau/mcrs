@@ -36,12 +36,6 @@ impl Field {
     }
 }
 
-pub const SECTION_INDEX: Field = Field::new(0, 0, 16);
-
-pub const MAX_SECTIONS: usize = 1 << SECTION_INDEX.bits;
-
-pub const GROUP_FACE: Field = Field::new(0, SECTION_INDEX.bits, 4);
-
 pub const QUAD_X: Field = Field::new(0, 0, 5);
 pub const QUAD_Y: Field = Field::new(0, 5, 5);
 pub const QUAD_Z: Field = Field::new(0, 10, 5);
@@ -51,8 +45,7 @@ pub const QUAD_H: Field = Field::new(0, 22, 4);
 pub const QUAD_DROP: Field = Field::new(0, 26, 5);
 pub const QUAD_FLUID: Field = Field::new(0, 31, 1);
 
-pub const QUAD_SECTION: Field = Field::new(1, 0, SECTION_INDEX.bits);
-pub const QUAD_FACE_BASE: Field = Field::new(1, SECTION_INDEX.bits, 16);
+pub const QUAD_FACE_BASE: Field = Field::new(1, 0, 16);
 
 pub const QUAD_WORDS: usize = 2;
 
@@ -78,9 +71,8 @@ pub const MODEL_TINT: Field = Field::new(1, 20, 2);
 pub const MODEL_BLOCK_LIGHT: Field = Field::new(1, 22, 4);
 pub const MODEL_SHADE: Field = Field::new(1, 26, 2);
 pub const MODEL_SKY_LIGHT: Field = Field::new(1, 28, 4);
-pub const MODEL_SECTION: Field = Field::new(2, 0, SECTION_INDEX.bits);
-pub const MODEL_ARRAY: Field = Field::new(2, SECTION_INDEX.bits, FACE_ARRAY.bits);
-pub const MODEL_LAYER: Field = Field::new(2, SECTION_INDEX.bits + FACE_ARRAY.bits, FACE_LAYER.bits);
+pub const MODEL_ARRAY: Field = Field::new(2, 0, FACE_ARRAY.bits);
+pub const MODEL_LAYER: Field = Field::new(2, FACE_ARRAY.bits, FACE_LAYER.bits);
 
 pub const MODEL_OVERHANG: f32 = 2.0;
 
@@ -96,8 +88,6 @@ pub const MAX_SPRITE_ARRAYS: usize = 1 << FACE_ARRAY.bits;
 
 #[cfg(test)]
 const FIELDS: &[(&str, Field)] = &[
-    ("SECTION_INDEX", SECTION_INDEX),
-    ("GROUP_FACE", GROUP_FACE),
     ("QUAD_X", QUAD_X),
     ("QUAD_Y", QUAD_Y),
     ("QUAD_Z", QUAD_Z),
@@ -106,7 +96,6 @@ const FIELDS: &[(&str, Field)] = &[
     ("QUAD_H", QUAD_H),
     ("QUAD_DROP", QUAD_DROP),
     ("QUAD_FLUID", QUAD_FLUID),
-    ("QUAD_SECTION", QUAD_SECTION),
     ("QUAD_FACE_BASE", QUAD_FACE_BASE),
     ("FACE_LAYER", FACE_LAYER),
     ("FACE_ARRAY", FACE_ARRAY),
@@ -124,7 +113,6 @@ const FIELDS: &[(&str, Field)] = &[
     ("MODEL_BLOCK_LIGHT", MODEL_BLOCK_LIGHT),
     ("MODEL_SKY_LIGHT", MODEL_SKY_LIGHT),
     ("MODEL_SHADE", MODEL_SHADE),
-    ("MODEL_SECTION", MODEL_SECTION),
     ("MODEL_ARRAY", MODEL_ARRAY),
     ("MODEL_LAYER", MODEL_LAYER),
 ];
@@ -225,7 +213,6 @@ mod tests {
             QUAD_H,
             QUAD_DROP,
             QUAD_FLUID,
-            QUAD_SECTION,
             QUAD_FACE_BASE,
         ];
         for word in 0..QUAD_WORDS as u32 {
@@ -260,7 +247,6 @@ mod tests {
                     QUAD_FACE,
                     QUAD_W,
                     QUAD_H,
-                    QUAD_SECTION,
                     QUAD_FACE_BASE,
                 ][..],
             ),
@@ -275,7 +261,6 @@ mod tests {
                     FACE_AO,
                 ][..],
             ),
-            ("group section", &[SECTION_INDEX, GROUP_FACE][..]),
             (
                 "model vertex",
                 &[
@@ -287,7 +272,6 @@ mod tests {
                     MODEL_TINT,
                     MODEL_BLOCK_LIGHT,
                     MODEL_SHADE,
-                    MODEL_SECTION,
                     MODEL_ARRAY,
                     MODEL_LAYER,
                 ][..],

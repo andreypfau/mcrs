@@ -4,7 +4,6 @@
     MODEL_BLOCK_LIGHT_WORD, MODEL_BLOCK_LIGHT_SHIFT, MODEL_BLOCK_LIGHT_BITS,
     MODEL_LAYER_WORD, MODEL_LAYER_SHIFT, MODEL_LAYER_BITS,
     MODEL_OVERHANG,
-    MODEL_SECTION_WORD, MODEL_SECTION_SHIFT, MODEL_SECTION_BITS,
     MODEL_SHADE_WORD, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS,
     MODEL_SKY_LIGHT_WORD, MODEL_SKY_LIGHT_SHIFT, MODEL_SKY_LIGHT_BITS,
     MODEL_STEPS,
@@ -51,14 +50,18 @@ fn vertex_model(
     @builtin(vertex_index) vertex: u32,
     @builtin(instance_index) instance: u32,
 ) -> ModelOut {
-    let quad = visible[params.visible_base + instance];
     var out: ModelOut;
-    if (quad == CULLED) {
+    if (instance >= params.visible_limit) {
+        out.clip_position = degenerate();
+        return out;
+    }
+    let entry = visible[params.visible_base + instance];
+    if (entry.x == CULLED) {
         out.clip_position = degenerate();
         return out;
     }
     let corner = corner_index(vertex);
-    let base = (quad * CORNERS_PER_QUAD + corner) * WORDS_PER_VERTEX;
+    let base = (entry.x * CORNERS_PER_QUAD + corner) * WORDS_PER_VERTEX;
 
     // Positions are stored in steps of a block and biased so a model may lean into its
     // neighbours by the overhang the mesher allowed for.
@@ -67,7 +70,7 @@ fn vertex_model(
         f32(model_field(base, MODEL_Y_WORD, MODEL_Y_SHIFT, MODEL_Y_BITS)),
         f32(model_field(base, MODEL_Z_WORD, MODEL_Z_SHIFT, MODEL_Z_BITS)),
     ) / MODEL_STEPS - MODEL_OVERHANG;
-    let desc = sections[model_field(base, MODEL_SECTION_WORD, MODEL_SECTION_SHIFT, MODEL_SECTION_BITS)];
+    let desc = sections[entry.y];
     let world = section_origin(desc) + local * f32(desc.scale);
 
     let uv_scale = f32((1u << MODEL_U_BITS) - 1u);

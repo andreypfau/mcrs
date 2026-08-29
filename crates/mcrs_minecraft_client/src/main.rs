@@ -20,7 +20,7 @@ use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClock, WorldClocks};
 use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 
 use mcrs_minecraft_client::render::{
-    Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads,
+    Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads, VISIBLE_BYTES,
 };
 use mcrs_minecraft_client::{
     anvil, asset_corpus, camera, cave, config, gui, input, local_player, player, render,
@@ -142,6 +142,9 @@ const BUDGET_FILES: usize = 4;
 /// stale one, so the arena has to fit two of them with the buddy rounding on top.
 const GROUPS_PER_FILE: usize = 1 << 19;
 
+/// A region file of the fixture world fills around nine thousand section table rows.
+const SECTIONS_PER_FILE: usize = 1 << 14;
+
 /// The region files around the player, until columns arrive from the network.
 fn terrain_source(
     world: &Path,
@@ -162,6 +165,8 @@ fn terrain_source(
         models: model_mb * files * 1_000_000 / MODEL_BYTES,
         faces: face_mb * files * 1_000_000 / FACE_BYTES,
         groups: GROUPS_PER_FILE * files,
+        sections: SECTIONS_PER_FILE * files,
+        visible: config::visible_budget() / VISIBLE_BYTES,
         tint_origin: [
             window.min_region[0] * span as i32,
             window.min_region[1] * span as i32,
@@ -179,12 +184,18 @@ fn terrain_source(
         quad_mb = (budget.quads * QUAD_BYTES) / 1_000_000,
         model_mb = (budget.models * MODEL_BYTES) / 1_000_000,
         face_mb = (budget.faces * FACE_BYTES) / 1_000_000,
+        visible_mb = (budget.visible * VISIBLE_BYTES) / 1_000_000,
         "streaming terrain from region files"
     );
 
     let uploads = Uploads::default();
     let loader = stream::Loader::new(&budget, uploads.clone(), window);
-    Ok((budget, uploads, cave::CaveCull::new(), loader))
+    Ok((
+        budget.clone(),
+        uploads,
+        cave::CaveCull::new(budget.sections),
+        loader,
+    ))
 }
 
 fn world_folder() -> PathBuf {

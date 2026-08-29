@@ -296,7 +296,7 @@ fn side_sprite(fluid: Fluid, front_cover: u8) -> SpriteRef {
     }
 }
 
-pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, slot: u32) {
+pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
     let sloped = std::mem::take(&mut scratch.sloped);
     for cell in &sloped {
         let [x, y, z] = cell.cell;
@@ -381,7 +381,6 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, slot: u32) {
                     tint,
                     sprite,
                 },
-                slot,
             );
         }
 
@@ -401,7 +400,6 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, slot: u32) {
                     tint,
                     sprite: fluid.still,
                 },
-                slot,
             );
         }
 
@@ -468,7 +466,6 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, slot: u32) {
                     tint,
                     sprite: side_sprite(fluid, scratch.cover[facing(face)]),
                 },
-                slot,
             );
         }
     }

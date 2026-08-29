@@ -14,7 +14,6 @@
     QUAD_FACE_BASE_WORD, QUAD_FACE_BASE_SHIFT, QUAD_FACE_BASE_BITS,
     QUAD_FLUID_WORD, QUAD_FLUID_SHIFT, QUAD_FLUID_BITS,
     QUAD_H_WORD, QUAD_H_SHIFT, QUAD_H_BITS,
-    QUAD_SECTION_WORD, QUAD_SECTION_SHIFT, QUAD_SECTION_BITS,
     QUAD_W_WORD, QUAD_W_SHIFT, QUAD_W_BITS,
     QUAD_WORDS,
     QUAD_X_WORD, QUAD_X_SHIFT, QUAD_X_BITS,
@@ -45,16 +44,19 @@ fn vertex_greedy(
     @builtin(vertex_index) vertex: u32,
     @builtin(instance_index) instance: u32,
 ) -> GreedyOut {
-    let culled = visible[params.visible_base + instance];
     var out: GreedyOut;
-    if (culled == CULLED) {
+    if (instance >= params.visible_limit) {
         out.clip_position = degenerate();
         return out;
     }
-    let quad = culled * QUAD_WORDS;
+    let entry = visible[params.visible_base + instance];
+    if (entry.x == CULLED) {
+        out.clip_position = degenerate();
+        return out;
+    }
+    let quad = entry.x * QUAD_WORDS;
 
-    let slot = quad_field(quad, QUAD_SECTION_WORD, QUAD_SECTION_SHIFT, QUAD_SECTION_BITS);
-    let desc = sections[slot];
+    let desc = sections[entry.y];
     let scale = f32(desc.scale);
     let local = vec3<f32>(
         f32(quad_field(quad, QUAD_X_WORD, QUAD_X_SHIFT, QUAD_X_BITS)),

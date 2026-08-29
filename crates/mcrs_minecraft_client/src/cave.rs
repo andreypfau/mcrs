@@ -3,7 +3,6 @@ use bevy::prelude::*;
 
 use crate::anvil::SECTION_SIZE;
 use crate::mesh::CONNECT_ALL;
-use crate::pack::MAX_SECTIONS;
 
 const NEIGHBOUR: [[i32; 3]; 6] = [
     crate::mesh::face_normal(0),
@@ -71,10 +70,10 @@ pub struct CaveCull {
 }
 
 impl CaveCull {
-    pub fn new() -> Self {
+    pub fn new(slots: usize) -> Self {
         Self {
             enabled: !std::env::var("ANVIL_CAVE").is_ok_and(|on| on == "0"),
-            bits: vec![u32::MAX; MAX_SECTIONS / 32].into_boxed_slice(),
+            bits: vec![u32::MAX; slots.div_ceil(32)].into_boxed_slice(),
             min_section: [0; 3],
             reached: vec![0; WALK_CELLS / 32].into_boxed_slice(),
             inside: vec![0; WALK_CELLS / 32].into_boxed_slice(),
@@ -246,12 +245,6 @@ impl CaveCull {
     }
 }
 
-impl Default for CaveCull {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 pub fn cave_cull(
     mut cave: ResMut<CaveCull>,
     camera: Single<(&GlobalTransform, &Frustum), With<Camera3d>>,
@@ -290,7 +283,7 @@ mod tests {
 
     impl Slab {
         fn around(eye: Vec3) -> Self {
-            let mut cave = CaveCull::new();
+            let mut cave = CaveCull::new(WALK_CELLS);
             cave.follow(eye);
             cave.conn.fill(0);
             Self {

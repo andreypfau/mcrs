@@ -13,7 +13,7 @@ use crate::arena::{Arena, Block};
 use crate::blocks::{self, BlockInfo, Catalog};
 use crate::cave::{CaveCull, NO_SLOT};
 use crate::mesh::{self, Draw, Group, STREAM_NAMES, STREAMS, Scratch, SectionMesh};
-use crate::pack::{MAX_SECTIONS, QUAD_WORDS, SECTION_INDEX};
+use crate::pack::QUAD_WORDS;
 use crate::render::{Animation, Atlas, Budget, Placement, SectionDesc, Upload, Uploads};
 
 const HYSTERESIS: f32 = (16 * SECTION_SIZE) as f32;
@@ -46,6 +46,7 @@ pub struct Loader {
     meshing: Vec<(usize, u32, Task<SectionMesh>)>,
     lists: [Vec<Group>; STREAMS],
     group_block: Block,
+    slots: usize,
     free_slots: Vec<u32>,
     dead: Vec<u32>,
     slots_used: u32,
@@ -113,6 +114,7 @@ impl Loader {
             meshing: Vec::new(),
             lists: std::array::from_fn(|_| Vec::new()),
             group_block: Block::EMPTY,
+            slots: budget.sections,
             free_slots: Vec::new(),
             dead: Vec::new(),
             slots_used: 0,
@@ -231,7 +233,7 @@ impl Loader {
         if let Some(slot) = self.free_slots.pop() {
             return Some(slot);
         }
-        (self.slots_used < MAX_SECTIONS as u32).then(|| {
+        ((self.slots_used as usize) < self.slots).then(|| {
             self.slots_used += 1;
             self.slots_used - 1
         })
@@ -262,9 +264,7 @@ impl Loader {
         }
         let dead = std::mem::take(&mut self.dead);
         for list in &mut self.lists {
-            list.retain(|group| {
-                !dead.contains(&(SECTION_INDEX.get(group.section as u64) as u32))
-            });
+            list.retain(|group| !dead.contains(&group.section));
         }
         self.free_slots.extend(dead);
     }
@@ -801,6 +801,8 @@ mod tests {
                 models: 1 << 12,
                 faces: 1 << 16,
                 groups: 1 << 12,
+                sections: 1 << 8,
+                visible: 1 << 12,
                 tint_origin: [0; 2],
                 tint_size: [1; 2],
             },
@@ -828,6 +830,7 @@ mod tests {
                 quad_base: 0,
                 quad_count: quads,
                 section: slot,
+                face: 0,
                 quad_prefix: 0,
             }],
             spans,
@@ -838,7 +841,7 @@ mod tests {
     #[test]
     fn one_draw_a_bucket_covers_every_section_placed_in_it() {
         let mut loader = loader();
-        let mut cave = CaveCull::new();
+        let mut cave = CaveCull::new(1 << 8);
 
         let near = loader
             .place(one_greedy_group([0, 0, 0], 0, 3), 0, &mut cave)

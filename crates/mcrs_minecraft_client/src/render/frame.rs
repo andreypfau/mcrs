@@ -4,8 +4,9 @@ use bevy::render::renderer::RenderDevice;
 use super::draws::PARAMS_STRIDE;
 use super::stats::DrawArgs;
 use crate::mesh::STREAMS;
-use crate::pack::MAX_SECTIONS;
 use crate::sky::SkyUniform;
+
+use super::Budget;
 
 pub(super) struct Frame {
     pub params: Buffer,
@@ -19,7 +20,7 @@ pub(super) struct Frame {
 }
 
 impl Frame {
-    pub fn new(device: &RenderDevice) -> Self {
+    pub fn new(budget: &Budget, device: &RenderDevice) -> Self {
         let args_init = vec![DrawArgs::quad_strip(); STREAMS];
         Self {
             params: device.create_buffer(&BufferDescriptor {
@@ -36,7 +37,7 @@ impl Frame {
             }),
             cave: device.create_buffer_with_data(&BufferInitDescriptor {
                 label: Some("terrain cave visibility"),
-                contents: bytemuck::cast_slice(&vec![u32::MAX; MAX_SECTIONS / 32]),
+                contents: bytemuck::cast_slice(&vec![u32::MAX; budget.sections.div_ceil(32)]),
                 usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
             }),
             args: device.create_buffer_with_data(&BufferInitDescriptor {

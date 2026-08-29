@@ -7,6 +7,10 @@ const FACE_MB_PER_FILE: usize = 40;
 
 const UPLOAD_MB: usize = 4;
 
+/// A render distance of 16 holds around two and a half million quads, and the visible list only
+/// ever holds what a frame draws, so this leaves room to spare and is given back between frames.
+const VISIBLE_MB: usize = 32;
+
 const REGION_WINDOW: usize = 2;
 
 fn numbers<T: std::str::FromStr>(spec: &str) -> Vec<T> {
@@ -35,6 +39,15 @@ pub fn arena_budget() -> (usize, usize, usize) {
             default
         }
     }
+}
+
+pub fn visible_budget() -> usize {
+    std::env::var("ANVIL_VISIBLE")
+        .ok()
+        .and_then(|megabytes| megabytes.parse::<usize>().ok())
+        .unwrap_or(VISIBLE_MB)
+        .max(1)
+        * 1_000_000
 }
 
 pub fn drawn_streams() -> Streams {

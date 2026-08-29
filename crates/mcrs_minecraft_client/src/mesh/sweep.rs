@@ -1,7 +1,7 @@
 use crate::anvil::SECTION_SIZE;
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::{
-    QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H, QUAD_SECTION, QUAD_W, QUAD_WORDS,
+    QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS,
     QUAD_X, QUAD_Y, QUAD_Z,
 };
 
@@ -70,7 +70,7 @@ pub(super) fn sweep(
             }
         }
         if any {
-            merge_slice(scratch, face, n, sink.section());
+            merge_slice(scratch, face, n);
         }
     }
 
@@ -81,7 +81,7 @@ pub(super) fn sweep(
     }
 }
 
-fn merge_slice(scratch: &mut Scratch, face: usize, n: usize, section: u32) {
+fn merge_slice(scratch: &mut Scratch, face: usize, n: usize) {
     for gv in 0..SECTION_SIZE {
         let mut gu = 0usize;
         while gu < SECTION_SIZE {
@@ -125,7 +125,6 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize, section: u32) {
                 gv,
                 w,
                 h,
-                section,
                 base,
                 (key & !FLUID_KEY) >> PASS_KEY_BITS,
                 key & FLUID_KEY != 0,
@@ -162,7 +161,6 @@ fn pack_quad(
     gv: usize,
     w: usize,
     h: usize,
-    slot: u32,
     face_base: u32,
     drop: u8,
     fluid: bool,
@@ -177,7 +175,6 @@ fn pack_quad(
     QUAD_FACE.set(&mut words, face as u64);
     QUAD_W.set(&mut words, w as u64 - 1);
     QUAD_H.set(&mut words, h as u64 - 1);
-    QUAD_SECTION.set(&mut words, slot as u64);
     QUAD_FACE_BASE.set(&mut words, face_base as u64);
     words
 }
@@ -190,8 +187,7 @@ mod tests {
     use crate::blocks::{BlockInfo, CORNER_UV, CubeFace, FACE_AXES, Pass, cube_corner};
     use crate::mesh::{Scratch, mesh_world};
     use crate::pack::{
-        FACE_ARRAY, FACE_LAYER, QUAD_FACE, QUAD_FACE_BASE, QUAD_H, QUAD_SECTION, QUAD_W, QUAD_X,
-        QUAD_Y, QUAD_Z,
+        FACE_ARRAY, FACE_LAYER, QUAD_FACE, QUAD_FACE_BASE, QUAD_H, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z,
     };
     use bevy::math::Vec3;
 
@@ -226,8 +222,9 @@ mod tests {
         let mut runs: Vec<(u64, u64)> = batch
             .simple
             .iter()
-            .map(|quad| {
-                let slot = QUAD_SECTION.read(quad) as usize;
+            .enumerate()
+            .map(|(index, quad)| {
+                let slot = batch.quad_section[index] as usize;
                 (
                     batch.face_base[slot] as u64 + QUAD_FACE_BASE.read(quad),
                     (QUAD_W.read(quad) + 1) * (QUAD_H.read(quad) + 1),
@@ -287,13 +284,11 @@ mod tests {
 
     #[test]
     fn a_packed_quad_round_trips_every_field() {
-        let slot = 40_000;
-        let words = pack_quad(3, 9, 3, 7, 12, 16, slot, 24_575, 0, false);
+        let words = pack_quad(3, 9, 3, 7, 12, 16, 24_575, 0, false);
         let anchor = quad_anchor(3, 9, 3, 7);
         assert_eq!(QUAD_X.read(&words), anchor[0] as u64, "x");
         assert_eq!(QUAD_Y.read(&words), anchor[1] as u64, "y");
         assert_eq!(QUAD_Z.read(&words), anchor[2] as u64, "z");
-        assert_eq!(QUAD_SECTION.read(&words), slot as u64, "section");
         assert_eq!(QUAD_FACE.read(&words), 3, "face");
         assert_eq!(QUAD_W.read(&words) + 1, 12, "w");
         assert_eq!(QUAD_H.read(&words) + 1, 16, "h");

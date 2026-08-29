@@ -7,7 +7,7 @@ mod sweep;
 
 use crate::anvil::{SECTION_SIZE, World};
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
-use crate::pack::{GROUP_FACE, QUAD_WORDS};
+use crate::pack::QUAD_WORDS;
 
 pub use connectivity::CONNECT_ALL;
 pub use scratch::Scratch;
@@ -37,6 +37,7 @@ pub struct Group {
     pub quad_base: u32,
     pub quad_count: u32,
     pub section: u32,
+    pub face: u32,
     pub quad_prefix: u32,
 }
 
@@ -90,17 +91,14 @@ struct Sink<'a> {
 }
 
 impl Sink<'_> {
-    fn section(&self) -> u32 {
-        self.slot
-    }
-
     fn group(&mut self, stream: usize, face: u64, quad_base: usize, quad_count: usize) {
         self.partial.groups.push((
             stream as u32,
             Group {
                 quad_base: quad_base as u32,
                 quad_count: quad_count as u32,
-                section: self.slot | GROUP_FACE.pack(face) as u32,
+                section: self.slot,
+                face: face as u32,
                 quad_prefix: 0,
             },
         ));
@@ -162,8 +160,8 @@ pub fn mesh_section(
     cube::greedy(catalog, scratch, &mut sink);
     fluid::greedy(catalog, scratch, &mut sink);
 
-    model::blocks(catalog, scratch, slot);
-    fluid::models(catalog, scratch, slot);
+    model::blocks(catalog, scratch);
+    fluid::models(catalog, scratch);
     model::emit(scratch, &mut sink);
 
     let mut groups = Vec::with_capacity(partial.groups.len());
@@ -201,6 +199,7 @@ pub struct Batch {
     pub simple: Vec<[u32; QUAD_WORDS]>,
     pub faces: Vec<u32>,
     pub face_base: Vec<u32>,
+    pub quad_section: Vec<u32>,
     pub complex: Vec<u32>,
 }
 
@@ -218,6 +217,7 @@ pub fn mesh_world(world: &World, catalog: &[BlockInfo], scratch: &mut Scratch) -
         simple: Vec::new(),
         faces: Vec::new(),
         face_base: Vec::new(),
+        quad_section: Vec::new(),
         complex: Vec::new(),
     };
     for sz in 0..world.sections[2] {
@@ -229,6 +229,7 @@ pub fn mesh_world(world: &World, catalog: &[BlockInfo], scratch: &mut Scratch) -
                 let slot = batch.face_base.len() as u32;
                 let mesh = mesh_section(world, catalog, [sx, sy, sz], slot, scratch);
                 batch.simple.extend_from_slice(&mesh.simple);
+                batch.quad_section.resize(batch.simple.len(), slot);
                 batch.complex.extend_from_slice(&mesh.complex);
                 batch.face_base.push(batch.faces.len() as u32);
                 batch.faces.extend_from_slice(&mesh.faces);

@@ -30,12 +30,17 @@ pub const QUAD_BYTES: usize = crate::pack::QUAD_WORDS * 4;
 pub const MODEL_BYTES: usize = 4 * 3 * 4;
 pub const FACE_BYTES: usize = 4;
 pub const SECTION_BYTES: usize = size_of::<SectionDesc>();
+pub const VISIBLE_BYTES: usize = 8;
 
 pub struct Budget {
     pub quads: usize,
     pub models: usize,
     pub faces: usize,
     pub groups: usize,
+    pub sections: usize,
+    /// Entries the visible list holds for one frame, shared out between the buckets. A bucket
+    /// asking for more than its share has the rest of its quads dropped, and says so.
+    pub visible: usize,
     pub tint_origin: [i32; 2],
     pub tint_size: [u32; 2],
 }

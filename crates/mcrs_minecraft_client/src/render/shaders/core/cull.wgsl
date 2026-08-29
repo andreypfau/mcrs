@@ -1,9 +1,5 @@
 
-#import mcrs_minecraft_client::fields::{
-    FACE_NONE,
-    GROUP_FACE_SHIFT, GROUP_FACE_BITS,
-    SECTION_INDEX_SHIFT, SECTION_INDEX_BITS,
-}
+#import mcrs_minecraft_client::fields::FACE_NONE
 #import mcrs_minecraft_client::frame::{params, view}
 #import mcrs_minecraft_client::section::{CULLED, SectionDesc, section_origin, section_span}
 
@@ -11,6 +7,7 @@ struct Group {
     quad_base: u32,
     quad_count: u32,
     section: u32,
+    face: u32,
     quad_prefix: u32,
 }
 
@@ -22,7 +19,7 @@ struct DrawArgs {
 }
 
 @group(1) @binding(0) var<storage, read> groups: array<Group>;
-@group(1) @binding(1) var<storage, read_write> visible: array<u32>;
+@group(1) @binding(1) var<storage, read_write> visible: array<vec2<u32>>;
 @group(1) @binding(2) var<storage, read_write> args: array<DrawArgs>;
 @group(1) @binding(3) var<storage, read> cave_visible: array<u32>;
 @group(1) @binding(4) var<storage, read> sections: array<SectionDesc>;
@@ -71,14 +68,12 @@ fn faces_camera(face: u32, mn: vec3<f32>, mx: vec3<f32>) -> bool {
 }
 
 fn survives(g: Group) -> bool {
-    let slot = extractBits(g.section, SECTION_INDEX_SHIFT, SECTION_INDEX_BITS);
-    let reachable = (cave_visible[slot >> 5u] >> (slot & 31u)) & 1u;
-    let desc = sections[slot];
+    let reachable = (cave_visible[g.section >> 5u] >> (g.section & 31u)) & 1u;
+    let desc = sections[g.section];
     let origin = section_origin(desc);
     let mn = origin - params.overhang;
     let mx = origin + section_span(desc) + params.overhang;
-    let face = extractBits(g.section, GROUP_FACE_SHIFT, GROUP_FACE_BITS);
-    return reachable != 0u && in_frustum(mn, mx) && faces_camera(face, mn, mx);
+    return reachable != 0u && in_frustum(mn, mx) && faces_camera(g.face, mn, mx);
 }
 
 @compute @workgroup_size(CULL_THREADS)
@@ -109,7 +104,10 @@ fn cull(
         if (i >= g.quad_count) {
             break;
         }
-        visible[params.visible_base + base + i] = g.quad_base + i;
+        let at = base + i;
+        if (at < params.visible_limit) {
+            visible[params.visible_base + at] = vec2<u32>(g.quad_base + i, g.section);
+        }
         i = i + CULL_THREADS;
     }
 }
@@ -138,8 +136,11 @@ fn cull_stable(
         if (i >= g.quad_count) {
             break;
         }
-        visible[params.visible_base + g.quad_prefix + i] =
-            select(g.quad_base + i, CULLED, culled);
+        let at = g.quad_prefix + i;
+        if (at < params.visible_limit) {
+            visible[params.visible_base + at] =
+                vec2<u32>(select(g.quad_base + i, CULLED, culled), g.section);
+        }
         i = i + CULL_THREADS;
     }
 }

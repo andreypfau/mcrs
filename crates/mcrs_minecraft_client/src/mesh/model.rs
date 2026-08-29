@@ -2,9 +2,8 @@ use crate::anvil::SECTION_SIZE;
 use crate::atlas::SpriteRef;
 use crate::blocks::{BlockInfo, Pass};
 use crate::pack::{
-    FACE_NONE, MODEL_ARRAY, MODEL_BLOCK_LIGHT, MODEL_LAYER, MODEL_OVERHANG, MODEL_SECTION,
-    MODEL_SHADE, MODEL_SKY_LIGHT, MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y,
-    MODEL_Z,
+    FACE_NONE, MODEL_ARRAY, MODEL_BLOCK_LIGHT, MODEL_LAYER, MODEL_OVERHANG, MODEL_SHADE,
+    MODEL_SKY_LIGHT, MODEL_STEPS, MODEL_TINT, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
 };
 
 use super::Sink;
@@ -29,7 +28,7 @@ pub(super) struct Quad {
     pub sprite: SpriteRef,
 }
 
-pub(super) fn push(out: &mut Vec<u32>, quad: &Quad, slot: u32) {
+pub(super) fn push(out: &mut Vec<u32>, quad: &Quad) {
     let scale = MODEL_U.max() as f32;
     for corner in 0..4 {
         let mut words = [0u32; 3];
@@ -48,14 +47,13 @@ pub(super) fn push(out: &mut Vec<u32>, quad: &Quad, slot: u32) {
         MODEL_BLOCK_LIGHT.set(&mut words, quad.light.0 as u64);
         MODEL_SKY_LIGHT.set(&mut words, quad.light.1 as u64);
         MODEL_SHADE.set(&mut words, quad.shade[corner] as u64);
-        MODEL_SECTION.set(&mut words, slot as u64);
         MODEL_ARRAY.set(&mut words, quad.sprite.array as u64);
         MODEL_LAYER.set(&mut words, quad.sprite.layer as u64);
         out.extend_from_slice(&words);
     }
 }
 
-pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch, slot: u32) {
+pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
     for pass in 0..Pass::COUNT {
         for group in &mut scratch.complex_by_pass[pass] {
             group.clear();
@@ -105,7 +103,6 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch, slot: u32) {
                             },
                             sprite: quad.sprite,
                         },
-                        slot,
                     );
                 }
             }

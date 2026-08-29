@@ -2,10 +2,10 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 
 use crate::mesh::Group;
-use crate::pack::{MAX_SECTIONS, QUAD_WORDS};
+use crate::pack::QUAD_WORDS;
 
 use super::upload::Pending;
-use super::{Budget, SECTION_BYTES};
+use super::{Budget, SECTION_BYTES, VISIBLE_BYTES};
 
 pub(super) struct Arenas {
     pub quads: Buffer,
@@ -41,10 +41,10 @@ impl Arenas {
             vertices: arena("terrain vertices", (budget.models * super::MODEL_BYTES) as u64),
             faces: arena("terrain faces", (budget.faces * 4) as u64),
             groups: arena("terrain groups", (budget.groups * size_of::<Group>()) as u64),
-            sections: arena("terrain sections", (MAX_SECTIONS * SECTION_BYTES) as u64),
+            sections: arena("terrain sections", (budget.sections * SECTION_BYTES) as u64),
             visible: arena(
                 "terrain visible list",
-                ((budget.quads + budget.models) * 4) as u64,
+                (budget.visible * VISIBLE_BYTES) as u64,
             ),
             pending: None,
         }
