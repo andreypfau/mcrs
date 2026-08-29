@@ -6,6 +6,7 @@ use bevy::math::Vec3;
 use crate::anvil::BlockStateKey;
 use crate::atlas::{Opacity, SpriteRef, SpriteRegistry};
 use crate::bake::{Dir, TinyWorld};
+use crate::model::Pack;
 use crate::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 
 pub use build::Fluid;
@@ -132,10 +133,10 @@ pub fn empty() -> Catalog {
     }
 }
 
-pub fn extend(catalog: &mut Catalog, states: &[BlockStateKey], biomes: &[String]) {
+pub fn extend(pack: &Pack, catalog: &mut Catalog, states: &[BlockStateKey], biomes: &[String]) {
     let neighbours = TinyWorld::default();
     for state in &states[catalog.blocks.len()..] {
-        match build_one(state, &neighbours, &mut catalog.sprites) {
+        match build_one(pack, state, &neighbours, &mut catalog.sprites) {
             Ok(info) => catalog.blocks.push(info),
             Err(reason) => {
                 catalog
@@ -163,5 +164,5 @@ pub fn extend(catalog: &mut Catalog, states: &[BlockStateKey], biomes: &[String]
         );
     }
 
-    extend_tints(catalog, biomes);
+    extend_tints(pack, catalog, biomes);
 }

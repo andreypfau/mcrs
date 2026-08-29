@@ -5,15 +5,116 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use bevy::asset::io::{AssetSourceId, ErasedAssetReader, Reader};
+use bevy::prelude::{AssetServer, Resource};
+use bevy::tasks::futures_lite::StreamExt;
 use serde::Deserialize;
 
-pub fn assets_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("assets")
+/// The folders of the resource pack the renderer draws from. Everything under them is held in
+/// memory, because a block state first seen mid-stream has to bake without an await.
+const PACK_FOLDERS: [&str; 4] = ["blockstates", "models", "textures", "worldgen/biome"];
+
+/// The resource pack, read once through the asset system and thereafter immutable.
+#[derive(Resource, Default)]
+pub struct Pack {
+    files: HashMap<String, Vec<u8>>,
+}
+
+impl Pack {
+    pub async fn load(assets: &AssetServer) -> Result<Self, String> {
+        let source = assets
+            .get_source(AssetSourceId::Default)
+            .map_err(|error| format!("no default asset source: {error}"))?;
+        Self::walk(source.reader()).await
+    }
+
+    async fn walk(reader: &dyn ErasedAssetReader) -> Result<Self, String> {
+        let mut namespaces = reader
+            .read_directory(Path::new(""))
+            .await
+            .map_err(|error| format!("cannot list the asset root: {error}"))?;
+        let mut pending: Vec<PathBuf> = Vec::new();
+        while let Some(namespace) = namespaces.next().await {
+            pending.extend(PACK_FOLDERS.iter().map(|folder| namespace.join(folder)));
+        }
+
+        let mut files = HashMap::new();
+        while let Some(directory) = pending.pop() {
+            let Ok(mut entries) = reader.read_directory(&directory).await else {
+                continue;
+            };
+            while let Some(path) = entries.next().await {
+                if reader.is_directory(&path).await.unwrap_or(false) {
+                    pending.push(path);
+                    continue;
+                }
+                let mut file = reader
+                    .read(&path)
+                    .await
+                    .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+                let mut bytes = Vec::new();
+                file.read_to_end(&mut bytes)
+                    .await
+                    .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+                files.insert(path.to_string_lossy().into_owned(), bytes);
+            }
+        }
+        Ok(Self { files })
+    }
+
+    pub fn len(&self) -> usize {
+        self.files.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.files.is_empty()
+    }
+
+    pub fn read(&self, path: &str) -> Result<&[u8], String> {
+        self.get(path)
+            .ok_or_else(|| format!("{path} is not in the resource pack"))
+    }
+
+    pub fn get(&self, path: &str) -> Option<&[u8]> {
+        self.files.get(path).map(Vec::as_slice)
+    }
+}
+
+#[cfg(test)]
+impl Pack {
+    /// The shipped corpus, read straight off disk: a test has no asset system to read it through.
+    pub fn corpus() -> &'static Pack {
+        static CORPUS: std::sync::LazyLock<Pack> = std::sync::LazyLock::new(|| {
+            let root = crate::asset_corpus();
+            let mut files = HashMap::new();
+            let mut pending: Vec<PathBuf> = std::fs::read_dir(&root)
+                .expect("the corpus is next to the workspace")
+                .filter_map(|entry| entry.ok())
+                .flat_map(|namespace| {
+                    PACK_FOLDERS
+                        .iter()
+                        .map(move |folder| namespace.path().join(folder))
+                })
+                .collect();
+            while let Some(directory) = pending.pop() {
+                let Ok(entries) = std::fs::read_dir(&directory) else {
+                    continue;
+                };
+                for entry in entries.filter_map(|entry| entry.ok()) {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        pending.push(path);
+                        continue;
+                    }
+                    let relative = path.strip_prefix(&root).expect("walked from the root");
+                    let bytes = std::fs::read(&path).expect("the corpus is readable");
+                    files.insert(relative.to_string_lossy().into_owned(), bytes);
+                }
+            }
+            Pack { files }
+        });
+        &CORPUS
+    }
 }
 
 /// `block/cube` and `minecraft:block/cube` are the same resource; the vanilla pack mixes both
@@ -22,12 +123,9 @@ fn split_id(id: &str) -> (&str, &str) {
     id.split_once(':').unwrap_or(("minecraft", id))
 }
 
-pub fn resource_path(id: &str, kind: &str, ext: &str) -> PathBuf {
+pub fn resource_path(id: &str, kind: &str, ext: &str) -> String {
     let (namespace, path) = split_id(id);
-    assets_dir()
-        .join(namespace)
-        .join(kind)
-        .join(format!("{path}.{ext}"))
+    format!("{namespace}/{kind}/{path}.{ext}")
 }
 
 #[derive(Debug, Deserialize)]
@@ -137,11 +235,10 @@ impl BlockStateFile {
         Ok(out)
     }
 
-    pub fn load(block: &str) -> Result<Self, String> {
+    pub fn load(pack: &Pack, block: &str) -> Result<Self, String> {
         let path = resource_path(block, "blockstates", "json");
-        let text = std::fs::read_to_string(&path)
-            .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-        serde_json::from_str(&text).map_err(|e| format!("cannot parse {}: {e}", path.display()))
+        serde_json::from_slice(pack.read(&path)?)
+            .map_err(|error| format!("cannot parse {path}: {error}"))
     }
 
     pub fn select(&self, props: &[(&str, &str)]) -> Result<Variant, String> {
@@ -279,15 +376,13 @@ impl ResolvedModel {
     }
 }
 
-pub fn resolve_model(id: &str) -> Result<ResolvedModel, String> {
+pub fn resolve_model(pack: &Pack, id: &str) -> Result<ResolvedModel, String> {
     let mut chain: Vec<RawModel> = Vec::new();
     let mut next = Some(id.to_string());
     while let Some(current) = next {
         let path = resource_path(&current, "models", "json");
-        let text = std::fs::read_to_string(&path)
-            .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-        let raw: RawModel = serde_json::from_str(&text)
-            .map_err(|e| format!("cannot parse {}: {e}", path.display()))?;
+        let raw: RawModel = serde_json::from_slice(pack.read(&path)?)
+            .map_err(|error| format!("cannot parse {path}: {error}"))?;
         next = raw.parent.clone();
         chain.push(raw);
         if chain.len() > 16 {
@@ -338,4 +433,28 @@ pub fn resolve_model(id: &str) -> Result<ResolvedModel, String> {
         textures,
         ambient_occlusion,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_asset_system_reads_the_pack_the_corpus_holds() {
+        let mut app = bevy::app::App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_plugins(bevy::asset::AssetPlugin {
+                file_path: crate::asset_corpus().to_string_lossy().into_owned(),
+                ..Default::default()
+            });
+        let pack = bevy::tasks::block_on(Pack::load(app.world().resource::<AssetServer>()))
+            .expect("the corpus reads through the asset system");
+
+        assert_eq!(pack.len(), Pack::corpus().len());
+        let stone = resource_path("minecraft:block/stone", "textures", "png");
+        assert_eq!(
+            pack.read(&stone).unwrap(),
+            Pack::corpus().read(&stone).unwrap(),
+        );
+    }
 }

@@ -9,7 +9,9 @@ use std::collections::HashSet;
 
 use bevy::math::{IVec3, Mat4, Vec3};
 
-use crate::model::{BlockStateFile, Element, ElementRotation, Face, ResolvedModel, resolve_model};
+use crate::model::{
+    BlockStateFile, Element, ElementRotation, Face, Pack, ResolvedModel, resolve_model,
+};
 
 const BLOCK_MIDDLE: Vec3 = Vec3::splat(0.5);
 
@@ -555,12 +557,13 @@ fn bake_face(
 }
 
 pub fn bake(
+    pack: &Pack,
     block: &str,
     props: &[(&str, &str)],
     pos: IVec3,
     world: &dyn Neighborhood,
 ) -> Result<BakedBlock, String> {
-    let states = BlockStateFile::load(block)?;
+    let states = BlockStateFile::load(pack, block)?;
     let mut merged = BakedBlock {
         quads: Vec::new(),
         sprites: Vec::new(),
@@ -568,7 +571,7 @@ pub fn bake(
     // A multipart blockstate contributes several models at once (a fence post plus each connected
     // arm); their quads share one sprite table so the result bakes exactly like a single model.
     for variant in states.select_all(props)? {
-        let model = resolve_model(&variant.model)?;
+        let model = resolve_model(pack, &variant.model)?;
         let rotation = VariantRotation::from_degrees(variant.x, variant.y, variant.z)?;
         let part = bake_model(&model, rotation, variant.uvlock, pos, world)?;
         for mut quad in part.quads {
@@ -630,7 +633,14 @@ mod tests {
     use super::*;
 
     fn oak_log(props: &[(&str, &str)], world: &TinyWorld) -> BakedBlock {
-        bake("minecraft:oak_log", props, IVec3::ZERO, world).expect("oak_log bakes")
+        bake(
+            Pack::corpus(),
+            "minecraft:oak_log",
+            props,
+            IVec3::ZERO,
+            world,
+        )
+        .expect("oak_log bakes")
     }
 
     fn quad(baked: &BakedBlock, dir: Dir) -> &BakedQuad {
@@ -726,7 +736,14 @@ mod tests {
 
     #[test]
     fn object_form_texture_slots_resolve() {
-        let baked = bake("minecraft:glass", &[], IVec3::ZERO, &lone_block()).expect("glass bakes");
+        let baked = bake(
+            Pack::corpus(),
+            "minecraft:glass",
+            &[],
+            IVec3::ZERO,
+            &lone_block(),
+        )
+        .expect("glass bakes");
         assert_eq!(baked.sprites, ["minecraft:block/glass"]);
         assert_eq!(baked.quads.len(), 6);
     }

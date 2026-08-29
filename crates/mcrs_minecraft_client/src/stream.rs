@@ -4,15 +4,14 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use bevy::prelude::*;
-use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
+use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 
-use crate::anvil::{
-    self, Palette, REGION_BLOCKS, Region, SECTION_SIZE, Window, World,
-};
+use crate::anvil::{self, Palette, REGION_BLOCKS, Region, SECTION_SIZE, Window, World};
 use crate::arena::{Arena, Block};
 use crate::blocks::{self, BlockInfo, Catalog};
 use crate::cave::{CaveCull, NO_SLOT};
 use crate::mesh::{self, Draw, Group, STREAM_NAMES, STREAMS, Scratch, SectionMesh};
+use crate::model::Pack;
 use crate::pack::QUAD_WORDS;
 use crate::render::{Animation, Atlas, Budget, Placement, SectionDesc, Upload, Uploads};
 
@@ -28,6 +27,7 @@ const SECTIONS_PER_FRAME: usize = 32;
 pub struct Loader {
     uploads: Uploads,
     palette: Palette,
+    pack: PackLoad,
     catalog: Option<Catalog>,
     world: Arc<World>,
     newest: Arc<World>,
@@ -65,6 +65,12 @@ pub struct Loader {
     reported: bool,
 }
 
+enum PackLoad {
+    Pending,
+    Loading(Task<Result<Pack, String>>),
+    Ready(Arc<Pack>),
+}
+
 struct Resident {
     quads: Block,
     models: Block,
@@ -98,6 +104,7 @@ impl Loader {
             to_parse: window.files,
             uploads,
             palette: Palette::new(),
+            pack: PackLoad::Pending,
             catalog: Some(blocks::empty()),
             extent: world.sections,
             min_section: world.min_section,
@@ -198,7 +205,9 @@ impl Loader {
             return Vec::new();
         }
         let [ex, ey, ez] = self.extent;
-        let ready: Vec<bool> = (0..ex * ez).map(|at| self.ready_to_mesh(at % ex, at / ex)).collect();
+        let ready: Vec<bool> = (0..ex * ez)
+            .map(|at| self.ready_to_mesh(at % ex, at / ex))
+            .collect();
         let mut nearest: Vec<(f32, usize)> = Vec::new();
         for sy in 0..ey {
             for sz in 0..ez {
@@ -424,10 +433,12 @@ fn files_read(min_region: [i32; 2], sx: usize, sz: usize) -> [[i32; 2]; 4] {
 pub fn advance(
     mut loader: ResMut<Loader>,
     mut cave: ResMut<CaveCull>,
+    assets: Res<AssetServer>,
     camera: Single<&GlobalTransform, With<Camera3d>>,
 ) {
     let pool = AsyncComputeTaskPool::get();
     let loader = &mut *loader;
+    let pack = poll_pack(loader, &assets);
     loader.camera = camera.translation();
     loader.follow(&mut cave);
     if loader.camera.distance(loader.anchor) > HYSTERESIS {
@@ -465,7 +476,9 @@ pub fn advance(
             .expect("just held");
         publish(loader, world, tinted, Some(baked), pool);
     }
-    settle(loader, pool);
+    if let Some(pack) = pack {
+        settle(loader, &pack, pool);
+    }
 
     let mut tinted = Vec::new();
     loader
@@ -570,7 +583,29 @@ fn absorb(loader: &mut Loader, coords: [i32; 2], region: Region) {
     loader.to_tint.push(coords);
 }
 
-fn settle(loader: &mut Loader, pool: &'static AsyncComputeTaskPool) {
+/// The pack is read once, off the asset system, before anything can bake against it.
+fn poll_pack(loader: &mut Loader, assets: &AssetServer) -> Option<Arc<Pack>> {
+    match &mut loader.pack {
+        PackLoad::Pending => {
+            let assets = assets.clone();
+            loader.pack = PackLoad::Loading(
+                IoTaskPool::get().spawn(async move { Pack::load(&assets).await }),
+            );
+            None
+        }
+        PackLoad::Loading(task) => {
+            let pack = check_ready(task)?
+                .unwrap_or_else(|reason| panic!("cannot read the resource pack: {reason}"));
+            println!("{} resource pack files read", pack.len());
+            let pack = Arc::new(pack);
+            loader.pack = PackLoad::Ready(pack.clone());
+            Some(pack)
+        }
+        PackLoad::Ready(pack) => Some(pack.clone()),
+    }
+}
+
+fn settle(loader: &mut Loader, pack: &Arc<Pack>, pool: &'static AsyncComputeTaskPool) {
     if loader.baking.is_some() {
         return;
     }
@@ -580,7 +615,7 @@ fn settle(loader: &mut Loader, pool: &'static AsyncComputeTaskPool) {
         loader.palette.states.len(),
         Arc::ptr_eq(&loader.world, &loader.newest),
     ) {
-        Next::Bake => start_baking(loader, pool),
+        Next::Bake => start_baking(loader, pack, pool),
         Next::Publish => {
             let world = loader.newest.clone();
             let tinted = std::mem::take(&mut loader.to_tint);
@@ -607,7 +642,7 @@ fn next_step(baked: usize, interned: usize, published_is_newest: bool) -> Next {
     }
 }
 
-fn start_baking(loader: &mut Loader, pool: &'static AsyncComputeTaskPool) {
+fn start_baking(loader: &mut Loader, pack: &Arc<Pack>, pool: &'static AsyncComputeTaskPool) {
     let Some(mut catalog) = loader.catalog.take() else {
         return;
     };
@@ -616,8 +651,9 @@ fn start_baking(loader: &mut Loader, pool: &'static AsyncComputeTaskPool) {
     let known = loader.sprites;
     let world = loader.newest.clone();
     let tints = std::mem::take(&mut loader.to_tint);
+    let pack = pack.clone();
     let task = pool.spawn(async move {
-        blocks::extend(&mut catalog, &states, &biomes);
+        blocks::extend(&pack, &mut catalog, &states, &biomes);
         let blocks = catalog.blocks.clone();
         let sprites = (catalog.sprites.len() != known).then(|| {
             let sprites = &catalog.sprites;
@@ -859,8 +895,14 @@ mod tests {
         );
 
         let flushed = loader.flush().expect("the group arena has room");
-        let draws = flushed.draws.expect("a flush hands over the whole draw list");
-        assert_eq!(draws.len(), STREAMS, "one draw a bucket, however many sections");
+        let draws = flushed
+            .draws
+            .expect("a flush hands over the whole draw list");
+        assert_eq!(
+            draws.len(),
+            STREAMS,
+            "one draw a bucket, however many sections"
+        );
         assert_eq!(draws[0].group_count, 2);
         assert_eq!(draws[0].quad_count, 8);
         assert_eq!(
@@ -878,7 +920,9 @@ mod tests {
         loader.evict(cell, &mut cave);
         loader.sweep();
         let flushed = loader.flush().expect("the group arena has room");
-        let draws = flushed.draws.expect("a flush hands over the whole draw list");
+        let draws = flushed
+            .draws
+            .expect("a flush hands over the whole draw list");
         assert_eq!(draws[0].group_count, 1);
         assert_eq!(draws[0].quad_count, 5);
         assert_eq!(

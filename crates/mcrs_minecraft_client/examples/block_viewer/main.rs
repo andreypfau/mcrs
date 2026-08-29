@@ -13,8 +13,7 @@
 //! floor of neighbours — ambient occlusion is invisible on a block floating in open air, because
 //! every neighbour sample is then unoccluded.
 
-
-use bevy::asset::RenderAssetUsages;
+use bevy::asset::{AssetPlugin, RenderAssetUsages};
 use bevy::color::LinearRgba;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
@@ -22,9 +21,11 @@ use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseSc
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, PrimitiveTopology, VertexAttributeValues};
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+use bevy::tasks::block_on;
 
+use mcrs_minecraft_client::asset_corpus;
 use mcrs_minecraft_client::bake::{self, Neighborhood, TinyWorld};
-use mcrs_minecraft_client::model;
+use mcrs_minecraft_client::model::{self, Pack};
 
 const DEFAULT_TARGET: &str = "minecraft:oak_log[axis=y]";
 
@@ -33,6 +34,10 @@ fn main() {
     App::new()
         .add_plugins(
             DefaultPlugins
+                .set(AssetPlugin {
+                    file_path: asset_corpus().to_string_lossy().into_owned(),
+                    ..default()
+                })
                 .set(ImagePlugin::default_nearest())
                 .set(WindowPlugin {
                     primary_window: Some(Window {
@@ -45,7 +50,7 @@ fn main() {
         .insert_resource(ClearColor(Color::srgb(0.13, 0.14, 0.17)))
         .insert_resource(target)
         .init_resource::<ShowFloor>()
-        .add_systems(Startup, spawn_camera)
+        .add_systems(Startup, (spawn_camera, read_pack))
         .add_systems(Update, (toggle_floor, rebuild_scene, orbit))
         .run();
 }
@@ -112,6 +117,11 @@ struct Orbit {
     radius: f32,
 }
 
+fn read_pack(mut commands: Commands, assets: Res<AssetServer>) {
+    let pack = block_on(Pack::load(&assets)).expect("the resource pack is readable");
+    commands.insert_resource(pack);
+}
+
 fn spawn_camera(mut commands: Commands) {
     let orbit = Orbit {
         yaw: 0.7,
@@ -137,6 +147,7 @@ fn rebuild_scene(
     mut commands: Commands,
     target: Res<Target>,
     show: Res<ShowFloor>,
+    pack: Res<Pack>,
     existing: Query<Entity, With<BlockMesh>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -150,14 +161,14 @@ fn rebuild_scene(
     }
 
     let blocks = scene_blocks(show.0);
-    let (mesh, sprites) = match build_mesh(&blocks, &target) {
+    let (mesh, sprites) = match build_mesh(&pack, &blocks, &target) {
         Ok(built) => built,
         Err(error) => {
             error!("cannot bake {}: {error}", target.label());
             return;
         }
     };
-    let atlas = match build_atlas(&sprites) {
+    let atlas = match build_atlas(&pack, &sprites) {
         Ok(atlas) => atlas,
         Err(error) => {
             error!("cannot build the texture atlas: {error}");
@@ -191,7 +202,11 @@ fn scene_blocks(show_floor: bool) -> Vec<IVec3> {
     blocks
 }
 
-fn build_mesh(blocks: &[IVec3], target: &Target) -> Result<(Mesh, Vec<String>), String> {
+fn build_mesh(
+    pack: &Pack,
+    blocks: &[IVec3],
+    target: &Target,
+) -> Result<(Mesh, Vec<String>), String> {
     let props = target.pairs();
     let world = TinyWorld::new(blocks.iter().copied());
     let mut sprites: Vec<String> = Vec::new();
@@ -203,7 +218,7 @@ fn build_mesh(blocks: &[IVec3], target: &Target) -> Result<(Mesh, Vec<String>), 
     let mut baked_quads = Vec::new();
 
     for &pos in blocks {
-        let baked = bake::bake(&target.block, &props, pos, &world)?;
+        let baked = bake::bake(pack, &target.block, &props, pos, &world)?;
         for quad in baked.quads {
             // The only piece of vanilla's `shouldRenderFace` a lone block needs: a face touching a
             // full neighbour is never visible.
@@ -256,32 +271,28 @@ fn build_mesh(blocks: &[IVec3], target: &Target) -> Result<(Mesh, Vec<String>), 
 
 /// One vertical strip of sprites, so the whole block is a single mesh with a single material —
 /// which is what a chunk section will need.
-fn build_atlas(sprites: &[String]) -> Result<Image, String> {
+fn build_atlas(pack: &Pack, sprites: &[String]) -> Result<Image, String> {
     let mut cells: Vec<(usize, Vec<u8>)> = Vec::new();
     for id in sprites {
         let path = model::resource_path(id, "textures", "png");
-        let bytes =
-            std::fs::read(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+        let bytes = pack.read(&path)?;
         let image = Image::from_buffer(
-            &bytes,
+            bytes,
             ImageType::Extension("png"),
             CompressedImageFormats::NONE,
             true,
             ImageSampler::nearest(),
             RenderAssetUsages::default(),
         )
-        .map_err(|e| format!("cannot decode {}: {e}", path.display()))?;
+        .map_err(|error| format!("cannot decode {path}: {error}"))?;
         let width = image.width() as usize;
         let data = image
             .data
-            .ok_or_else(|| format!("{} decoded without pixel data", path.display()))?;
+            .ok_or_else(|| format!("{path} decoded without pixel data"))?;
         // An animated sprite is a vertical strip of square frames; take the first one.
         let frame = width * width * 4;
         if data.len() < frame {
-            return Err(format!(
-                "{} is smaller than one square frame",
-                path.display()
-            ));
+            return Err(format!("{path} is smaller than one square frame"));
         }
         cells.push((width, data[..frame].to_vec()));
     }

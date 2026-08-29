@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
-
 use serde::Deserialize;
+
+use crate::model::Pack;
 
 #[derive(Deserialize)]
 struct File {
@@ -38,16 +38,12 @@ impl Frame {
     }
 }
 
-pub fn read(png: &Path) -> Result<Option<Animation>, String> {
-    let mut path = png.as_os_str().to_os_string();
-    path.push(".mcmeta");
-    let path = PathBuf::from(path);
-    let bytes = match std::fs::read(&path) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("cannot read {}: {error}", path.display())),
+pub fn read(pack: &Pack, png: &str) -> Result<Option<Animation>, String> {
+    let path = format!("{png}.mcmeta");
+    let Some(bytes) = pack.get(&path) else {
+        return Ok(None);
     };
-    from_json(&bytes).map_err(|error| format!("cannot parse {}: {error}", path.display()))
+    from_json(bytes).map_err(|error| format!("cannot parse {path}: {error}"))
 }
 
 fn from_json(bytes: &[u8]) -> Result<Option<Animation>, serde_json::Error> {

@@ -6,7 +6,7 @@ use bevy::image::{CompressedImageFormats, ImageSampler, ImageType};
 use bevy::prelude::*;
 
 use crate::anim;
-use crate::model;
+use crate::model::{self, Pack};
 use crate::pack::MAX_SPRITES;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -87,23 +87,22 @@ impl SpriteRegistry {
         }
     }
 
-    pub fn intern(&mut self, id: &str) -> Result<SpriteRef, String> {
+    pub fn intern(&mut self, pack: &Pack, id: &str) -> Result<SpriteRef, String> {
         if let Some(&sprite) = self.index.get(id) {
             return Ok(sprite);
         }
         let path = model::resource_path(id, "textures", "png");
-        let bytes =
-            std::fs::read(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+        let bytes = pack.read(&path)?;
         let image = Image::from_buffer(
-            &bytes,
+            bytes,
             ImageType::Extension("png"),
             CompressedImageFormats::NONE,
             true,
             ImageSampler::nearest(),
             RenderAssetUsages::default(),
         )
-        .map_err(|e| format!("cannot decode {}: {e}", path.display()))?;
-        let animation = anim::read(&path)?;
+        .map_err(|error| format!("cannot decode {path}: {error}"))?;
+        let animation = anim::read(pack, &path)?;
         let image_size = (image.width(), image.height());
         let (frame_width, frame_height) = match &animation {
             Some(animation) => animation.frame_size(image_size),
@@ -111,14 +110,13 @@ impl SpriteRegistry {
         };
         if frame_width != frame_height {
             return Err(format!(
-                "{} has {frame_width}x{frame_height} frames, and every layer of an array is square",
-                path.display(),
+                "{path} has {frame_width}x{frame_height} frames, and every layer of an array is square",
             ));
         }
         let side = frame_width;
         let data = image
             .data
-            .ok_or_else(|| format!("{} decoded without pixel data", path.display()))?;
+            .ok_or_else(|| format!("{path} decoded without pixel data"))?;
 
         let sequence = match &animation {
             Some(animation) => animation.unroll(id, image_size),
@@ -135,7 +133,7 @@ impl SpriteRegistry {
         let mut pixels = Vec::with_capacity(frames.len() * (side * side * 4) as usize);
         for &frame in frames {
             let cut = cut(&data, image_size.0, side, frame)
-                .ok_or_else(|| format!("{} has no frame {frame}", path.display()))?;
+                .ok_or_else(|| format!("{path} has no frame {frame}"))?;
             pixels.extend_from_slice(&cut);
         }
         let opacity = opacity_of(&pixels);
@@ -405,9 +403,15 @@ mod tests {
     #[test]
     fn sprites_of_different_sizes_land_in_different_arrays() {
         let mut registry = SpriteRegistry::new();
-        let small = registry.intern("minecraft:block/stone").unwrap();
-        let large = registry.intern("minecraft:block/water_flow").unwrap();
-        let also_small = registry.intern("minecraft:block/dirt").unwrap();
+        let small = registry
+            .intern(Pack::corpus(), "minecraft:block/stone")
+            .unwrap();
+        let large = registry
+            .intern(Pack::corpus(), "minecraft:block/water_flow")
+            .unwrap();
+        let also_small = registry
+            .intern(Pack::corpus(), "minecraft:block/dirt")
+            .unwrap();
         assert_ne!(small.array, large.array, "16x16 and 32x32 share an array");
         assert_eq!(small.array, also_small.array);
         assert_eq!(
@@ -433,8 +437,12 @@ mod tests {
     #[test]
     fn every_step_of_an_animation_gets_its_own_layer() {
         let mut registry = SpriteRegistry::new();
-        registry.intern("minecraft:block/stone").unwrap();
-        registry.intern("minecraft:block/kelp").unwrap();
+        registry
+            .intern(Pack::corpus(), "minecraft:block/stone")
+            .unwrap();
+        registry
+            .intern(Pack::corpus(), "minecraft:block/kelp")
+            .unwrap();
         let array = &registry.arrays()[0];
         assert_eq!(array.sprites(), 2);
         assert_eq!(array.animated(), 1);
@@ -452,7 +460,9 @@ mod tests {
     #[test]
     fn a_sequence_that_revisits_a_frame_lays_it_down_twice() {
         let mut registry = SpriteRegistry::new();
-        registry.intern("minecraft:block/lava_still").unwrap();
+        registry
+            .intern(Pack::corpus(), "minecraft:block/lava_still")
+            .unwrap();
         let array = &registry.arrays()[0];
         assert_eq!(array.layers(), 38);
         assert_eq!(layer(array, 18), layer(array, 20));
@@ -462,7 +472,9 @@ mod tests {
     #[test]
     fn a_sequence_out_of_order_is_laid_out_in_the_order_it_names() {
         let mut registry = SpriteRegistry::new();
-        registry.intern("minecraft:block/prismarine").unwrap();
+        registry
+            .intern(Pack::corpus(), "minecraft:block/prismarine")
+            .unwrap();
         let array = &registry.arrays()[0];
         assert_eq!(array.layers(), 22);
         assert_eq!(layer(array, 0), layer(array, 2));
@@ -472,18 +484,21 @@ mod tests {
     #[test]
     fn a_sequence_starting_part_way_through_the_image_starts_there() {
         let mut registry = SpriteRegistry::new();
-        registry.intern("minecraft:block/fire_0").unwrap();
+        registry
+            .intern(Pack::corpus(), "minecraft:block/fire_0")
+            .unwrap();
         let array = &registry.arrays()[0];
         assert_eq!(array.layers(), 32);
         let stride = (array.size * array.size * 4) as usize;
-        let image = std::fs::read(crate::model::resource_path(
-            "minecraft:block/fire_0",
-            "textures",
-            "png",
-        ))
-        .unwrap();
+        let image = Pack::corpus()
+            .read(&model::resource_path(
+                "minecraft:block/fire_0",
+                "textures",
+                "png",
+            ))
+            .unwrap();
         let image = Image::from_buffer(
-            &image,
+            image,
             ImageType::Extension("png"),
             CompressedImageFormats::NONE,
             true,
@@ -497,9 +512,11 @@ mod tests {
     }
 
     fn source_frames(id: &str) -> Vec<Vec<u8>> {
-        let bytes = std::fs::read(model::resource_path(id, "textures", "png")).unwrap();
+        let bytes = Pack::corpus()
+            .read(&model::resource_path(id, "textures", "png"))
+            .unwrap();
         let image = Image::from_buffer(
-            &bytes,
+            bytes,
             ImageType::Extension("png"),
             CompressedImageFormats::NONE,
             true,
@@ -520,10 +537,18 @@ mod tests {
     #[test]
     fn an_animation_names_its_own_layers_whatever_order_the_interning_took() {
         let mut registry = SpriteRegistry::new();
-        let stone = registry.intern("minecraft:block/stone").unwrap();
-        let kelp = registry.intern("minecraft:block/kelp").unwrap();
-        let dirt = registry.intern("minecraft:block/dirt").unwrap();
-        let seagrass = registry.intern("minecraft:block/seagrass").unwrap();
+        let stone = registry
+            .intern(Pack::corpus(), "minecraft:block/stone")
+            .unwrap();
+        let kelp = registry
+            .intern(Pack::corpus(), "minecraft:block/kelp")
+            .unwrap();
+        let dirt = registry
+            .intern(Pack::corpus(), "minecraft:block/dirt")
+            .unwrap();
+        let seagrass = registry
+            .intern(Pack::corpus(), "minecraft:block/seagrass")
+            .unwrap();
 
         let array = &registry.arrays()[0];
         let stride = (array.size * array.size * 4) as usize;
@@ -590,8 +615,12 @@ mod tests {
     #[test]
     fn a_sprite_is_interned_once() {
         let mut registry = SpriteRegistry::new();
-        let first = registry.intern("minecraft:block/stone").unwrap();
-        let again = registry.intern("minecraft:block/stone").unwrap();
+        let first = registry
+            .intern(Pack::corpus(), "minecraft:block/stone")
+            .unwrap();
+        let again = registry
+            .intern(Pack::corpus(), "minecraft:block/stone")
+            .unwrap();
         assert_eq!(first, again);
         assert_eq!(registry.len(), 1);
     }

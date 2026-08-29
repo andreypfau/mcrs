@@ -3,6 +3,7 @@ use bevy::math::{IVec3, Vec3};
 use crate::anvil::BlockStateKey;
 use crate::atlas::{Opacity, SpriteRef, SpriteRegistry};
 use crate::bake::{self, Dir, TinyWorld};
+use crate::model::Pack;
 
 use super::{BlockInfo, CORNER_UV, CubeFace, FACE_AXES, ModelQuad, Pass, TintKind, cube_corner};
 
@@ -43,7 +44,11 @@ fn amount_of(level: u32) -> u8 {
     }
 }
 
-fn fluid_of(state: &BlockStateKey, sprites: &mut SpriteRegistry) -> Result<Option<Fluid>, String> {
+fn fluid_of(
+    pack: &Pack,
+    state: &BlockStateKey,
+    sprites: &mut SpriteRegistry,
+) -> Result<Option<Fluid>, String> {
     let prop = |key: &str| {
         state
             .props
@@ -69,18 +74,19 @@ fn fluid_of(state: &BlockStateKey, sprites: &mut SpriteRegistry) -> Result<Optio
     };
     let overlay = match lava {
         true => None,
-        false => Some(sprites.intern("minecraft:block/water_overlay")?),
+        false => Some(sprites.intern(pack, "minecraft:block/water_overlay")?),
     };
     Ok(Some(Fluid {
         lava,
         amount,
-        still: sprites.intern(still)?,
-        flow: sprites.intern(flow)?,
+        still: sprites.intern(pack, still)?,
+        flow: sprites.intern(pack, flow)?,
         overlay,
     }))
 }
 
 pub(super) fn build_one(
+    pack: &Pack,
     state: &BlockStateKey,
     world: &TinyWorld,
     sprites: &mut SpriteRegistry,
@@ -98,9 +104,9 @@ pub(super) fn build_one(
         .map(|(_, level)| *level)
         .unwrap_or(0);
     let tint_kind = tint_kind_of(&state.name);
-    let fluid = fluid_of(state, sprites)?;
+    let fluid = fluid_of(pack, state, sprites)?;
 
-    let baked = bake::bake(&state.name, &state.pairs(), IVec3::ZERO, world)?;
+    let baked = bake::bake(pack, &state.name, &state.pairs(), IVec3::ZERO, world)?;
     if baked.quads.is_empty() {
         return Ok(BlockInfo {
             fluid,
@@ -110,7 +116,7 @@ pub(super) fn build_one(
 
     let mut layers: Vec<SpriteRef> = Vec::with_capacity(baked.sprites.len());
     for sprite in &baked.sprites {
-        layers.push(sprites.intern(sprite)?);
+        layers.push(sprites.intern(pack, sprite)?);
     }
 
     let sturdy = sturdy_faces(&baked.quads, &layers, sprites);
@@ -297,7 +303,7 @@ mod tests {
         }
     }
 
-    use super::{BlockStateKey, cube_corner, face_group, split_cube};
+    use super::{BlockStateKey, Pack, cube_corner, face_group, split_cube};
     use crate::atlas::SpriteRegistry;
     use crate::bake::{self, Dir, TinyWorld};
     use bevy::math::{IVec3, Vec3};
@@ -310,8 +316,13 @@ mod tests {
                 .map(|(key, value)| (key.to_string(), value.to_string()))
                 .collect(),
         };
-        super::build_one(&state, &TinyWorld::default(), &mut SpriteRegistry::new())
-            .unwrap_or_else(|reason| panic!("{name} does not bake: {reason}"))
+        super::build_one(
+            Pack::corpus(),
+            &state,
+            &TinyWorld::default(),
+            &mut SpriteRegistry::new(),
+        )
+        .unwrap_or_else(|reason| panic!("{name} does not bake: {reason}"))
     }
 
     fn closed(name: &str, props: &[(&str, &str)]) -> Vec<&'static str> {
@@ -410,8 +421,14 @@ mod tests {
 
     #[test]
     fn cube_uv_matches_the_vanilla_bake() {
-        let baked = bake::bake("minecraft:stone", &[], IVec3::ZERO, &TinyWorld::default())
-            .expect("stone bakes");
+        let baked = bake::bake(
+            Pack::corpus(),
+            "minecraft:stone",
+            &[],
+            IVec3::ZERO,
+            &TinyWorld::default(),
+        )
+        .expect("stone bakes");
         let (faces, extras) = split_cube(&baked.quads);
         let faces = faces.expect("stone is a full cube");
         assert!(extras.is_empty(), "stone has nothing beyond its cube");
@@ -430,18 +447,31 @@ mod tests {
     #[test]
     fn a_rotated_log_is_not_greedy_meshable() {
         let world = TinyWorld::default();
-        let upright = bake::bake("minecraft:oak_log", &[("axis", "y")], IVec3::ZERO, &world)
-            .expect("upright log bakes");
+        let upright = bake::bake(
+            Pack::corpus(),
+            "minecraft:oak_log",
+            &[("axis", "y")],
+            IVec3::ZERO,
+            &world,
+        )
+        .expect("upright log bakes");
         assert!(split_cube(&upright.quads).0.is_some());
 
-        let sideways = bake::bake("minecraft:oak_log", &[("axis", "x")], IVec3::ZERO, &world)
-            .expect("sideways log bakes");
+        let sideways = bake::bake(
+            Pack::corpus(),
+            "minecraft:oak_log",
+            &[("axis", "x")],
+            IVec3::ZERO,
+            &world,
+        )
+        .expect("sideways log bakes");
         assert!(
             split_cube(&sideways.quads).0.is_none(),
             "a log turned on its side has rotated UVs and cannot tile"
         );
 
         let grass = bake::bake(
+            Pack::corpus(),
             "minecraft:grass_block",
             &[("snowy", "false")],
             IVec3::ZERO,
