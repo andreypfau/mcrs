@@ -21,7 +21,7 @@
     QUAD_Z_WORD, QUAD_Z_SHIFT, QUAD_Z_BITS,
 }
 #import mcrs_minecraft_client::finish::{finish_cutout, finish_solid, finish_translucent}
-#import mcrs_minecraft_client::frame::{params, view}
+#import mcrs_minecraft_client::frame::{camera, params}
 #import mcrs_minecraft_client::lighting::{ao_factor, face_shade, lightmap}
 #import mcrs_minecraft_client::quad::{
     corner_index, corner_uv, face_normal, face_u_dir, face_v_dir,
@@ -87,7 +87,7 @@ fn vertex_greedy(
     let fluid = quad_field(quad, QUAD_FLUID_WORD, QUAD_FLUID_SHIFT, QUAD_FLUID_BITS);
     world -= face_normal(u_dir, v_dir) * (FLUID_INSET * f32(fluid));
 
-    out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
+    out.clip_position = camera.clip_from_relative * vec4<f32>(world, 1.0);
     out.quad_uv = quad_uv;
     out.world_xz = world.xz;
     out.face_base = desc.face_base

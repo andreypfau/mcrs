@@ -253,7 +253,7 @@ fn prepare_sky(
                     format: CORE_3D_DEPTH_FORMAT,
                     depth_write_enabled: Some(draw.writes_depth),
                     depth_compare: Some(if draw.writes_depth {
-                        CompareFunction::GreaterEqual
+                        crate::render::DEPTH_COMPARE
                     } else {
                         CompareFunction::Always
                     }),

@@ -64,6 +64,7 @@ pub(super) fn prepare_view_bind_group(
             },
             globals_binding,
             terrain.frame.sky.as_entire_buffer_binding(),
+            terrain.frame.camera.as_entire_buffer_binding(),
         )),
     )));
 }

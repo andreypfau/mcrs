@@ -14,7 +14,7 @@ use crate::sky::SkyUniform;
 
 use super::arenas::Arenas;
 use super::draws::PARAMS_SIZE;
-use super::frame::Frame;
+use super::frame::{CAMERA_SIZE, Frame};
 use super::sprites::Sprites;
 use super::texture::array_view;
 
@@ -79,6 +79,7 @@ fn view_layout() -> BindGroupLayoutDescriptor {
                 uniform_buffer_sized(true, NonZeroU64::new(PARAMS_SIZE)),
                 uniform_buffer::<GlobalsUniform>(false),
                 uniform_buffer_sized(false, NonZeroU64::new(size_of::<SkyUniform>() as u64)),
+                uniform_buffer_sized(false, NonZeroU64::new(CAMERA_SIZE)),
             ),
         ),
     )

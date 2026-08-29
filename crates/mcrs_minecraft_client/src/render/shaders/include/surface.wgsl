@@ -1,7 +1,7 @@
 #define_import_path mcrs_minecraft_client::surface
 
 #import mcrs_minecraft_client::fields::{FACE_LAYER_BITS}
-#import mcrs_minecraft_client::frame::{globals, params}
+#import mcrs_minecraft_client::frame::{camera, globals, params}
 #import mcrs_minecraft_client::terrain_bindings::{
     animations, atlas0, atlas1, atlas2, atlas3, atlas_sampler, tint_sampler, tints,
 }
@@ -51,11 +51,10 @@ fn shade_surface(s: Surface) -> vec4<f32> {
     let color = sprite_color(s.array, s.uv, s.layer, s.ddx, s.ddy);
     var factor = vec3<f32>(1.0);
     if (s.tint_kind != 0u) {
-        let tint_origin = vec2<f32>(f32(params.tint_origin_x), f32(params.tint_origin_z));
         factor = textureSampleLevel(
             tints,
             tint_sampler,
-            (s.world_xz - tint_origin) / vec2<f32>(params.tint_span_x, params.tint_span_z),
+            (s.world_xz - camera.tint_origin) / camera.tint_span,
             s.tint_kind - 1u,
             0.0,
         ).rgb;

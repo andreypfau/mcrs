@@ -14,7 +14,7 @@ use crate::camera::FovFilter;
 use crate::local_player::Sprint;
 use crate::options::SENSITIVITY;
 
-const EYE_HEIGHT: f32 = 1.62;
+pub(crate) const EYE_HEIGHT: f32 = 1.62;
 
 const FAR_PLANE: f32 = 4000.0;
 

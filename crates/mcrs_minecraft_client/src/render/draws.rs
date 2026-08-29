@@ -8,7 +8,7 @@ use crate::pack::MODEL_OVERHANG;
 use super::Budget;
 
 pub(super) const PARAMS_STRIDE: u32 = 256;
-pub(super) const PARAMS_SIZE: u64 = 48;
+pub(super) const PARAMS_SIZE: u64 = 32;
 const _: () = assert!(size_of::<Params>() as u64 == PARAMS_SIZE);
 
 #[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
@@ -21,10 +21,6 @@ pub(super) struct Params {
     wireframe: u32,
     overhang: f32,
     animated_from: u32,
-    tint_origin_x: i32,
-    tint_origin_z: i32,
-    tint_span_x: f32,
-    tint_span_z: f32,
     visible_limit: u32,
 }
 
@@ -72,10 +68,6 @@ impl DrawList {
                     0.0
                 },
                 animated_from,
-                tint_origin_x: budget.tint_origin[0],
-                tint_origin_z: budget.tint_origin[1],
-                tint_span_x: budget.tint_size[0] as f32,
-                tint_span_z: budget.tint_size[1] as f32,
                 visible_limit: limit,
             });
             visible_base += limit;

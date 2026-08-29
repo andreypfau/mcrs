@@ -119,7 +119,7 @@ impl Pipelines {
             depth_stencil: Some(DepthStencilState {
                 format: CORE_3D_DEPTH_FORMAT,
                 depth_write_enabled: Some(layer.writes_depth()),
-                depth_compare: Some(CompareFunction::GreaterEqual),
+                depth_compare: Some(super::DEPTH_COMPARE),
                 stencil: default(),
                 bias: model_depth_bias(layer, shape),
             }),

@@ -15,7 +15,7 @@
     MODEL_Z_WORD, MODEL_Z_SHIFT, MODEL_Z_BITS,
 }
 #import mcrs_minecraft_client::finish::{finish_cutout, finish_solid, finish_translucent}
-#import mcrs_minecraft_client::frame::{params, view}
+#import mcrs_minecraft_client::frame::{camera, params}
 #import mcrs_minecraft_client::lighting::lightmap
 #import mcrs_minecraft_client::quad::{corner_index, corner_uv}
 #import mcrs_minecraft_client::section::{CULLED, degenerate, section_origin}
@@ -83,7 +83,7 @@ fn vertex_model(
     let shade =
         shade_bucket(model_field(base, MODEL_SHADE_WORD, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS));
 
-    out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
+    out.clip_position = camera.clip_from_relative * vec4<f32>(world, 1.0);
     out.uv = vec2<f32>(u, v);
     out.layer = model_field(base, MODEL_LAYER_WORD, MODEL_LAYER_SHIFT, MODEL_LAYER_BITS);
     out.array = model_field(base, MODEL_ARRAY_WORD, MODEL_ARRAY_SHIFT, MODEL_ARRAY_BITS);

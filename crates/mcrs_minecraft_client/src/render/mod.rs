@@ -14,10 +14,11 @@ mod upload;
 
 use std::sync::Arc;
 
-use bevy::core_pipeline::core_3d::main_opaque_pass_3d;
+use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d};
 use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy::prelude::*;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
+use bevy::render::render_resource::{CompareFunction, TextureFormat};
 use bevy::render::{ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
 use crate::mesh::STREAMS;
@@ -25,6 +26,11 @@ use crate::probe::{self, GpuTimings};
 
 pub use stats::DrawnTriangles;
 pub use upload::{Placement, Upload, Uploads};
+
+/// The depth buffer runs reverse-Z, so the near plane is at one and a fragment passes when its
+/// depth is the greater. Every pipeline drawing into the view depth must agree on this.
+pub const DEPTH_COMPARE: CompareFunction = CompareFunction::GreaterEqual;
+const _: () = assert!(matches!(CORE_3D_DEPTH_FORMAT, TextureFormat::Depth32Float));
 
 pub const QUAD_BYTES: usize = crate::pack::QUAD_WORDS * 4;
 pub const MODEL_BYTES: usize = 4 * 3 * 4;
@@ -158,6 +164,7 @@ impl Plugin for TerrainPlugin {
                         .before(draws::prepare_wireframe),
                     draws::prepare_wireframe.in_set(RenderSystems::Prepare),
                     terrain::write_sky.in_set(RenderSystems::Prepare),
+                    frame::write_camera.in_set(RenderSystems::Prepare),
                     pass::prepare_view_bind_group.in_set(RenderSystems::PrepareBindGroups),
                     stats::read_draw_args.in_set(RenderSystems::Cleanup),
                     probe::read.in_set(RenderSystems::Cleanup),

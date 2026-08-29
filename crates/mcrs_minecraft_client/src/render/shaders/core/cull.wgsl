@@ -1,6 +1,6 @@
 
 #import mcrs_minecraft_client::fields::FACE_NONE
-#import mcrs_minecraft_client::frame::{params, view}
+#import mcrs_minecraft_client::frame::{camera, params}
 #import mcrs_minecraft_client::section::{CULLED, SectionDesc, section_origin, section_span}
 
 struct Group {
@@ -29,8 +29,8 @@ const CULL_THREADS: u32 = 32u;
 var<workgroup> reserved_slot: u32;
 
 fn in_frustum(mn: vec3<f32>, mx: vec3<f32>) -> bool {
-    for (var i = 0u; i < 6u; i = i + 1u) {
-        let plane = view.frustum[i];
+    for (var i = 0u; i < 5u; i = i + 1u) {
+        let plane = camera.frustum[i];
         let corner = vec3<f32>(
             select(mn.x, mx.x, plane.x > 0.0),
             select(mn.y, mx.y, plane.y > 0.0),
@@ -64,7 +64,7 @@ fn faces_camera(face: u32, mn: vec3<f32>, mx: vec3<f32>) -> bool {
     }
     let n = group_normal(face);
     let nearest = select(mx, mn, n > vec3<f32>(0.0));
-    return dot(n, view.world_position.xyz - nearest) > 0.0;
+    return dot(n, camera.offset - nearest) > 0.0;
 }
 
 fn survives(g: Group) -> bool {

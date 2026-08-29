@@ -11,11 +11,16 @@ struct Params {
     wireframe: u32,
     overhang: f32,
     animated_from: u32,
-    tint_origin_x: i32,
-    tint_origin_z: i32,
-    tint_span_x: f32,
-    tint_span_z: f32,
     visible_limit: u32,
+}
+
+struct Camera {
+    clip_from_relative: mat4x4<f32>,
+    frustum: array<vec4<f32>, 5>,
+    section: vec3<i32>,
+    offset: vec3<f32>,
+    tint_origin: vec2<f32>,
+    tint_span: vec2<f32>,
 }
 
 struct Sky {
@@ -35,3 +40,4 @@ struct Sky {
 @group(0) @binding(1) var<uniform> params: Params;
 @group(0) @binding(2) var<uniform> globals: Globals;
 @group(0) @binding(3) var<uniform> sky: Sky;
+@group(0) @binding(4) var<uniform> camera: Camera;
