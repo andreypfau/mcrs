@@ -3509,6 +3509,7 @@ dependencies = [
  "objc2-metal 0.3.2",
  "serde",
  "serde_json",
+ "web-sys",
  "wgpu",
 ]
 

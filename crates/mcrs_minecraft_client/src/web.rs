@@ -58,3 +58,13 @@ pub fn window() -> Window {
         ..default()
     }
 }
+
+/// The browser has no environment, so the knobs the native binary reads from
+/// `MCRS_*` variables are taken from the query string instead: `?time=6000`.
+pub fn query(name: &str) -> Option<String> {
+    let search = web_sys::window()?.location().search().ok()?;
+    let value = web_sys::UrlSearchParams::new_with_str(&search)
+        .ok()?
+        .get(name)?;
+    (!value.is_empty()).then_some(value)
+}

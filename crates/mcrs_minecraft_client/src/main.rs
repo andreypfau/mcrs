@@ -11,7 +11,9 @@ use mcrs_minecraft_world::dimension::dimension_type::DimensionType;
 use mcrs_minecraft_world::environment::Weather;
 use mcrs_minecraft_world::save::{self, SaveError};
 use mcrs_minecraft_world::timeline::Timeline;
-use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClock, WorldClocks};
+use mcrs_minecraft_world::world_clock::{
+    AdvanceTime, WorldClock, WorldClocks, seed_world_clocks,
+};
 use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 
 mod camera;
@@ -79,15 +81,21 @@ fn main() {
     #[cfg(not(target_arch = "wasm32"))]
     app.add_plugins(screenshot::ScreenshotPlugin);
 
+    // A world with no save has no clocks to seed here: `seed_world_clocks`
+    // fills them from the registry once the registries are loaded, which is
+    // after this point, so a frozen time has to be applied there instead.
+    if let Some(ticks) = frozen_at {
+        app.insert_resource(FrozenTicks(ticks)).add_systems(
+            OnEnter(AppState::WorldgenFreeze),
+            freeze_clocks.after(seed_world_clocks),
+        );
+    }
+
     // Inserted after `add_plugins`: `WorldClockPlugin` calls
     // `init_resource::<WorldClocks>()` during its own build, so an earlier
     // insert here would be overwritten.
     let mut world_clocks = WorldClocks::default();
-    for (id, mut state) in save_data.world_clocks {
-        if let Some(ticks) = frozen_at {
-            state.total_ticks = ticks;
-            state.partial_tick = 0.0;
-        }
+    for (id, state) in save_data.world_clocks {
         world_clocks.insert(id, state);
     }
     app.insert_resource(world_clocks)
@@ -219,10 +227,35 @@ fn spawn_fallback(spawn: &save::RespawnData) -> (DVec3, f32, f32, String) {
     )
 }
 
+#[derive(Resource)]
+struct FrozenTicks(i64);
+
+fn freeze_clocks(mut clocks: ResMut<WorldClocks>, frozen: Res<FrozenTicks>) {
+    let names: Vec<String> = clocks.iter().map(|(id, _)| id.to_string()).collect();
+    for name in names {
+        if let Some(state) = clocks.get_mut(&name) {
+            state.total_ticks = frozen.0;
+            state.partial_tick = 0.0;
+        }
+    }
+}
+
+/// Native builds take these from the environment; the browser has none, so
+/// there they come from the query string.
+#[cfg(not(target_arch = "wasm32"))]
+fn setting(variable: &str, _parameter: &str) -> Option<String> {
+    std::env::var(variable).ok()
+}
+
+#[cfg(target_arch = "wasm32")]
+fn setting(_variable: &str, parameter: &str) -> Option<String> {
+    web::query(parameter)
+}
+
 /// `MCRS_LOOK=<yaw>,<pitch>` aims the camera somewhere other than where the
 /// save left it, in Minecraft degrees.
 fn look_override() -> Option<(f32, f32)> {
-    let look = std::env::var("MCRS_LOOK").ok()?;
+    let look = setting("MCRS_LOOK", "look")?;
     let angles = look
         .split_once(',')
         .and_then(|(yaw, pitch)| Some((yaw.trim().parse().ok()?, pitch.trim().parse().ok()?)));
@@ -236,7 +269,7 @@ fn look_override() -> Option<(f32, f32)> {
 /// `MCRS_TIME=<ticks>` pins every clock and stops them, so a scripted
 /// screenshot lands on the tick it asked for.
 fn frozen_time() -> Option<i64> {
-    let ticks = std::env::var("MCRS_TIME").ok()?;
+    let ticks = setting("MCRS_TIME", "time")?;
     match ticks.trim().parse() {
         Ok(ticks) => Some(ticks),
         Err(err) => {
