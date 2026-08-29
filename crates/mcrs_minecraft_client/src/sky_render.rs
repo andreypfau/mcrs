@@ -23,6 +23,10 @@ use crate::sky::{SkyEnvironment, SkyTextures, SkyUniform};
 
 const STAR_COUNT: u32 = 1500;
 
+// The alpha component keeps the destination rather than replacing it: these
+// draws add light, and a star whose colour has faded to zero would otherwise
+// leave the pixel under it transparent. That is invisible in an opaque native
+// window and punches holes through to the page behind a browser canvas.
 const ADDITIVE: BlendState = BlendState {
     color: BlendComponent {
         src_factor: BlendFactor::SrcAlpha,
@@ -30,8 +34,8 @@ const ADDITIVE: BlendState = BlendState {
         operation: BlendOperation::Add,
     },
     alpha: BlendComponent {
-        src_factor: BlendFactor::One,
-        dst_factor: BlendFactor::Zero,
+        src_factor: BlendFactor::Zero,
+        dst_factor: BlendFactor::One,
         operation: BlendOperation::Add,
     },
 };
