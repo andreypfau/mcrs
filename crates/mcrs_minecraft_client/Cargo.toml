@@ -9,7 +9,6 @@ bevy = { version = "0.19.1", default-features = false, features = [
     "std",
     "async_executor",
     "bevy_asset",
-    "file_watcher",
     "bevy_log",
     "bevy_state",
     "bevy_window",
@@ -19,7 +18,6 @@ bevy = { version = "0.19.1", default-features = false, features = [
     "keyboard",
     "mouse",
     "png",
-    "clipboard_image",
     "bevy_text",
     "bevy_ui",
     "bevy_ui_render",
@@ -32,6 +30,19 @@ mcrs_minecraft_core.workspace = true
 mcrs_voxel_math.workspace = true
 mcrs_voxel_world.workspace = true
 mcrs_minecraft_world.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+bevy = { version = "0.19.1", default-features = false, features = ["file_watcher", "clipboard_image"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+bevy = { version = "0.19.1", default-features = false, features = ["webgl2"] }
+flate2.workspace = true
+console_error_panic_hook = "0.1"
+getrandom = { version = "0.4", features = ["wasm_js"] }
+getrandom_03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+
+[build-dependencies]
+flate2.workspace = true
 
 [dev-dependencies]
 serde.workspace = true

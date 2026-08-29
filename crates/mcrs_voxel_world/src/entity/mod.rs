@@ -13,7 +13,7 @@ use bevy_ecs::prelude::{
 };
 use bevy_ecs::relationship::RelationshipSourceCollection;
 use mcrs_voxel_math::ChunkPos;
-use std::time::Instant;
+use bevy_platform::time::Instant;
 
 pub mod despawn;
 pub mod physics;

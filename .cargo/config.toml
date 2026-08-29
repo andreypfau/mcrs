@@ -11,3 +11,8 @@
 # config file (the workspace root), so the path stays portable across
 # clones.
 BEVY_ASSET_ROOT = { value = ".", relative = true }
+
+# getrandom has no default entropy source on wasm32-unknown-unknown; the
+# `wasm_js` backend routes it through `crypto.getRandomValues`.
+[target.wasm32-unknown-unknown]
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"']

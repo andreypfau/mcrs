@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+#[cfg(not(target_arch = "wasm32"))]
 use bevy::asset::AssetPlugin;
 use bevy::math::DVec3;
 use bevy::prelude::*;
@@ -19,27 +20,40 @@ mod input;
 mod local_player;
 mod options;
 mod player;
+#[cfg(not(target_arch = "wasm32"))]
 mod screenshot;
 mod sky;
 mod sky_render;
 mod sky_state;
+#[cfg(target_arch = "wasm32")]
+mod web;
 
 fn main() {
+    #[cfg(target_arch = "wasm32")]
+    console_error_panic_hook::set_once();
+
     let world = world_folder();
-    let save_data = load_save(&world);
+    let save_data = match &world {
+        Some(path) => load_save(path),
+        None => SaveData::new_world(),
+    };
     let frozen_at = frozen_time();
 
+    let title = match &world {
+        Some(path) => format!("mcrs — {}", path.display()),
+        None => "mcrs — new world".to_owned(),
+    };
+
     let mut app = App::new();
+    #[cfg(target_arch = "wasm32")]
+    web::register_asset_source(&mut app);
     app.add_plugins(
         DefaultPlugins
-            .set(AssetPlugin {
-                file_path: asset_corpus().to_string_lossy().into_owned(),
-                ..default()
-            })
+            .set(asset_plugin())
             .set(WindowPlugin {
                 primary_window: Some(Window {
-                    title: format!("mcrs — {}", world.display()),
-                    ..default()
+                    title,
+                    ..primary_window()
                 }),
                 ..default()
             }),
@@ -53,7 +67,6 @@ fn main() {
     .add_plugins(gui::debug::DebugScreenPlugin)
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .add_plugins(sky::SkyPlugin)
-    .add_plugins(screenshot::ScreenshotPlugin)
     .add_systems(
         OnEnter(AppState::Playing),
         (log_registry_counts, log_seeded_resources),
@@ -62,6 +75,9 @@ fn main() {
         PostStartup,
         log_spawned_transforms.after(TransformSystems::Propagate),
     );
+
+    #[cfg(not(target_arch = "wasm32"))]
+    app.add_plugins(screenshot::ScreenshotPlugin);
 
     // Inserted after `add_plugins`: `WorldClockPlugin` calls
     // `init_resource::<WorldClocks>()` during its own build, so an earlier
@@ -85,18 +101,18 @@ fn main() {
     app.run();
 }
 
-fn world_folder() -> PathBuf {
-    let Some(path) = std::env::args_os().nth(1).map(PathBuf::from) else {
-        eprintln!("usage: mcrs_minecraft_client <world folder>");
-        std::process::exit(1);
-    };
+/// No argument means no save to read: the client starts a fresh world from the
+/// registry defaults instead of refusing to run.
+fn world_folder() -> Option<PathBuf> {
+    let path = PathBuf::from(std::env::args_os().nth(1)?);
     if !path.is_dir() {
         eprintln!("not a world folder: {}", path.display());
         std::process::exit(1);
     }
-    path
+    Some(path)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn asset_corpus() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
@@ -104,6 +120,25 @@ fn asset_corpus() -> PathBuf {
         .expect("the crate sits two levels below the workspace root")
         .join("assets")
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+fn asset_plugin() -> AssetPlugin {
+    AssetPlugin {
+        file_path: asset_corpus().to_string_lossy().into_owned(),
+        ..default()
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+use web::asset_plugin;
+
+#[cfg(not(target_arch = "wasm32"))]
+fn primary_window() -> Window {
+    Window::default()
+}
+
+#[cfg(target_arch = "wasm32")]
+use web::window as primary_window;
 
 struct SaveData {
     world_clocks: save::WorldClockStates,
@@ -113,6 +148,26 @@ struct SaveData {
     position: DVec3,
     yaw: f32,
     pitch: f32,
+}
+
+impl SaveData {
+    /// A world that was never saved: every clock left for
+    /// `seed_world_clocks` to fill from the registry, clear weather, and the
+    /// player standing on the overworld origin column.
+    fn new_world() -> Self {
+        Self {
+            world_clocks: save::WorldClockStates::default(),
+            dimension: "minecraft:overworld".to_owned(),
+            advance_time: true,
+            weather: Weather {
+                rain: 0.0,
+                thunder: 0.0,
+            },
+            position: DVec3::new(0.5, 64.0, 0.5),
+            yaw: 0.0,
+            pitch: 0.0,
+        }
+    }
 }
 
 fn load_save(world: &Path) -> SaveData {

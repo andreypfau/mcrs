@@ -24,10 +24,11 @@ bevy_math = "0.19.1"
 bevy_time = "0.19.1"
 bevy_tasks = "0.19.1"
 bevy_utils = { version = "0.19.1", features = ["debug"] }
-bevy_asset = { version = "0.19.1", features = ["file_watcher"] }
+bevy_asset = { version = "0.19.1" }
 bevy_derive = "0.19.1"
 bevy_log = { version = "0.19.1" }
 bevy_reflect = "0.19.1"
+bevy_platform = "0.19.1"
 bevy_state = "0.19.1"
 
 rocksdb = { version = "0.24.0" }
@@ -147,3 +148,12 @@ opt-level = 3
 
 [profile.dev.package."bevy_math"]
 opt-level = 3
+
+# The browser bundle is inlined into a single HTML file, so binary size is the
+# dominant cost there in a way it never is for a native build.
+[profile.web]
+inherits = "release"
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

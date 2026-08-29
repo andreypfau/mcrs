@@ -14,6 +14,7 @@ mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
+bevy_platform.workspace = true
 bevy_asset.workspace = true
 bevy_state.workspace = true
 bevy_tasks.workspace = true
