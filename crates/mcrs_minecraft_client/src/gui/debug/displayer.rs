@@ -71,7 +71,11 @@ impl DebugScreenDisplayer {
             if lines.is_empty() {
                 continue;
             }
-            let column = if index < middle { &mut left } else { &mut right };
+            let column = if index < middle {
+                &mut left
+            } else {
+                &mut right
+            };
             column.extend_from_slice(lines);
             column.push(String::new());
         }

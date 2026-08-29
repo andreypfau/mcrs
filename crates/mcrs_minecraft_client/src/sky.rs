@@ -819,7 +819,12 @@ mod sky_regression {
             );
             close(&label("cloud"), got.cloud, want.cloud, 0.0);
             close(&label("sky_light"), got.sky_light, want.sky_light, CHANNEL);
-            close(&label("block_light"), got.block_light, want.block_light, CHANNEL);
+            close(
+                &label("block_light"),
+                got.block_light,
+                want.block_light,
+                CHANNEL,
+            );
             close(&label("ambient"), got.ambient, want.ambient, CHANNEL);
             close(&label("moon"), got.moon, want.moon, 0.0);
             // the keyframe easing is a cubic bezier where the reference solved

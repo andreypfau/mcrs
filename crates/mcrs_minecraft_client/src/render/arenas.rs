@@ -38,9 +38,15 @@ impl Arenas {
         };
         Self {
             quads: arena("terrain quads", (budget.quads * QUAD_WORDS * 4) as u64),
-            vertices: arena("terrain vertices", (budget.models * super::MODEL_BYTES) as u64),
+            vertices: arena(
+                "terrain vertices",
+                (budget.models * super::MODEL_BYTES) as u64,
+            ),
             faces: arena("terrain faces", (budget.faces * 4) as u64),
-            groups: arena("terrain groups", (budget.groups * size_of::<Group>()) as u64),
+            groups: arena(
+                "terrain groups",
+                (budget.groups * size_of::<Group>()) as u64,
+            ),
             sections: arena("terrain sections", (budget.sections * SECTION_BYTES) as u64),
             visible: arena(
                 "terrain visible list",

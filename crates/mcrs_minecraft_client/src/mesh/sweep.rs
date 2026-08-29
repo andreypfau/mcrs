@@ -1,8 +1,8 @@
 use crate::anvil::SECTION_SIZE;
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::{
-    QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS,
-    QUAD_X, QUAD_Y, QUAD_Z,
+    QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y,
+    QUAD_Z,
 };
 
 use super::Sink;

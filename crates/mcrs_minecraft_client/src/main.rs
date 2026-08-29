@@ -137,7 +137,9 @@ fn main() {
 }
 
 fn region_folder(world: &Path, dimension: &str) -> PathBuf {
-    let (namespace, path) = dimension.split_once(':').unwrap_or(("minecraft", dimension));
+    let (namespace, path) = dimension
+        .split_once(':')
+        .unwrap_or(("minecraft", dimension));
     world
         .join("dimensions")
         .join(namespace)
@@ -164,7 +166,11 @@ fn terrain_source(
         let region = |axis: f64| (axis / anvil::REGION_BLOCKS as f64).floor() as i32;
         [region(position.x), region(position.z)]
     });
-    let window = anvil::window(&region_folder(world, dimension), centre, config::region_window())?;
+    let window = anvil::window(
+        &region_folder(world, dimension),
+        centre,
+        config::region_window(),
+    )?;
 
     let files = window.files.len().clamp(1, BUDGET_FILES);
     let (quad_mb, model_mb, face_mb) = config::arena_budget();

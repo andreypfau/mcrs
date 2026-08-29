@@ -159,9 +159,7 @@ impl CaveCull {
 
     fn run(&mut self, camera: Vec3, frustum: &Frustum) {
         self.bits.fill(u32::MAX);
-        let here = std::array::from_fn(|axis| {
-            (camera[axis] / SECTION_SIZE as f32).floor() as i32
-        });
+        let here = std::array::from_fn(|axis| (camera[axis] / SECTION_SIZE as f32).floor() as i32);
         let Some(start) = self.cell(here).filter(|cell| self.conn[*cell] != 0) else {
             return;
         };
@@ -389,7 +387,8 @@ mod tests {
     fn a_walk_after_a_slide_culls_against_the_masks_written_back() {
         let eye = [35, 2, 16];
         let mut slab = Slab::around(middle(eye));
-        slab.cave.follow(middle(eye) + Vec3::X * (WALK[0] * SECTION_SIZE) as f32);
+        slab.cave
+            .follow(middle(eye) + Vec3::X * (WALK[0] * SECTION_SIZE) as f32);
         slab.cave.follow(middle(eye));
         slab.cave.conn.fill(0);
         for x in 0..40 {
@@ -398,7 +397,10 @@ mod tests {
             }
         }
         slab.run(middle(eye), middle([0, 2, 16]));
-        assert!(slab.visible([25, 2, 16]), "in front of the wall laid back in");
+        assert!(
+            slab.visible([25, 2, 16]),
+            "in front of the wall laid back in"
+        );
         assert!(!slab.visible([10, 2, 16]), "behind it");
     }
 
@@ -435,8 +437,14 @@ mod tests {
         slab.open([4, 1, 4], CONNECT_ALL);
 
         slab.run(middle(eye), middle([4, 2, 4]));
-        assert!(slab.visible([4, 3, 4]), "the way up, entered from the north");
-        assert!(slab.visible([4, 1, 4]), "the way down, entered from the west");
+        assert!(
+            slab.visible([4, 3, 4]),
+            "the way up, entered from the north"
+        );
+        assert!(
+            slab.visible([4, 1, 4]),
+            "the way down, entered from the west"
+        );
     }
 
     #[test]
