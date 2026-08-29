@@ -1,8 +1,10 @@
-use crate::{Decode as DecodeTrait, Encode as EncodeTrait, VarInt, VarLong};
-use anyhow::ensure;
+use crate::section::{NetworkSectionKind, SectionValue};
+use crate::{BlockStateId, Decode as DecodeTrait, Encode as EncodeTrait, VarInt, VarLong};
+use anyhow::{Context, ensure};
 use bitfield_struct::bitfield;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol_macros::{Decode, Encode};
+use mcrs_voxel_storage::{SectionKind, packed_len};
 use std::borrow::Cow;
 use std::io::Write;
 
@@ -168,12 +170,14 @@ impl crate::Decode<'_> for ChunkBlockUpdateEntry {
     }
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Palette<V> {
     Single(V),
     Indirect(Box<[V]>),
     Direct,
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct PalettedContainer<V> {
     pub bits_per_entry: u8,
     pub palette: Palette<V>,
@@ -204,6 +208,85 @@ impl<V: Into<VarInt> + Copy> mcrs_minecraft_protocol::Encode for PalettedContain
                 .expect("Failed to encode packed data entry");
         });
         Ok(())
+    }
+}
+
+impl<'a, V: SectionValue> DecodeTrait<'a> for PalettedContainer<V> {
+    fn decode(r: &mut &'a [u8]) -> anyhow::Result<Self> {
+        let bits_per_entry = u8::decode(r)?;
+        let storage_bits = V::Section::wire_storage_bits(bits_per_entry);
+        let palette = match bits_per_entry as u32 {
+            0 => Palette::Single(read_id(r)?),
+            bits if bits <= V::Section::MAX_INDIRECT_BITS => {
+                let len = VarInt::decode(r)?.0;
+                let len = usize::try_from(len)
+                    .with_context(|| format!("negative palette length {len}"))?;
+                ensure!(
+                    len <= 1 << storage_bits,
+                    "a palette of {len} entries is wider than the {storage_bits} bits \
+                     the entries are stored at"
+                );
+                let mut entries = Vec::with_capacity(len);
+                for index in 0..len {
+                    entries.push(read_id(r).with_context(|| format!("palette entry {index}"))?);
+                }
+                Palette::Indirect(entries.into_boxed_slice())
+            }
+            _ => Palette::Direct,
+        };
+
+        let words = match storage_bits {
+            0 => 0,
+            bits => packed_len(bits, V::Section::ENTRY_COUNT),
+        };
+        ensure!(
+            r.len() >= words * 8,
+            "container of {bits_per_entry} bits per entry needs {words} packed longs, \
+             but only {} bytes remain",
+            r.len()
+        );
+        let mut packed_data = Vec::with_capacity(words);
+        for _ in 0..words {
+            packed_data.push(i64::decode(r)?);
+        }
+
+        Ok(Self {
+            bits_per_entry,
+            palette,
+            packed_data: packed_data.into_boxed_slice(),
+        })
+    }
+}
+
+fn read_id<V: SectionValue>(r: &mut &[u8]) -> anyhow::Result<V> {
+    V::from_registry_id(VarInt::decode(r)?.0)
+}
+
+#[derive(Clone, PartialEq, Debug, Encode, Decode)]
+pub struct ChunkSection {
+    pub non_empty_block_count: u16,
+    pub fluid_count: u16,
+    pub blocks: PalettedContainer<BlockStateId>,
+    pub biomes: PalettedContainer<u8>,
+}
+
+impl<'a> ChunkData<'a> {
+    /// The column's sections, in wire order from the dimension's lowest section
+    /// upwards. `section_count` comes from the dimension's height: the blob
+    /// carries no count of its own and nothing in it can recover one.
+    pub fn sections(&self, section_count: usize) -> anyhow::Result<Vec<ChunkSection>> {
+        let mut r = self.data;
+        let sections = (0..section_count)
+            .map(|index| {
+                ChunkSection::decode(&mut r).with_context(|| format!("chunk section {index}"))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        ensure!(
+            r.is_empty(),
+            "{} bytes left over after {section_count} chunk sections",
+            r.len()
+        );
+        Ok(sections)
     }
 }
 

@@ -1,3 +1,5 @@
+use crate::{BlockStateId, VarInt};
+use anyhow::Context;
 use mcrs_voxel_storage::{SectionKind, ceillog2};
 
 /// Which of the palette configurations a container of a given size lands in.
@@ -35,6 +37,45 @@ pub trait NetworkSectionKind: SectionKind {
                 bits: Self::DIRECT_BITS,
             },
         }
+    }
+
+    /// The width the packed longs are stored at for a declared bits-per-entry
+    /// byte, which a sender is free to state narrower than the configuration it
+    /// selects.
+    #[inline]
+    fn wire_storage_bits(declared: u8) -> u32 {
+        match declared as u32 {
+            0 => 0,
+            bits if bits <= Self::MIN_INDIRECT_BITS => Self::MIN_INDIRECT_BITS,
+            bits if bits <= Self::MAX_INDIRECT_BITS => bits,
+            _ => Self::DIRECT_BITS,
+        }
+    }
+}
+
+/// A value a section container holds, which fixes the widths and the entry
+/// count its wire form is read at.
+pub trait SectionValue: Copy + Into<VarInt> {
+    type Section: NetworkSectionKind;
+
+    fn from_registry_id(id: i32) -> anyhow::Result<Self>;
+}
+
+impl SectionValue for BlockStateId {
+    type Section = Blocks;
+
+    fn from_registry_id(id: i32) -> anyhow::Result<Self> {
+        Ok(BlockStateId(
+            u16::try_from(id).with_context(|| format!("block state id {id}"))?,
+        ))
+    }
+}
+
+impl SectionValue for u8 {
+    type Section = Biomes;
+
+    fn from_registry_id(id: i32) -> anyhow::Result<Self> {
+        u8::try_from(id).with_context(|| format!("biome id {id}"))
     }
 }
 
