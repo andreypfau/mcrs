@@ -19,6 +19,7 @@ bevy = { version = "0.19.1", default-features = false, features = [
     "keyboard",
     "mouse",
     "png",
+    "clipboard_image",
     "bevy_text",
     "bevy_ui",
     "bevy_ui_render",
