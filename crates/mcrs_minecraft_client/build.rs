@@ -3,8 +3,9 @@ use std::path::{Path, PathBuf};
 
 /// Asset folders the browser build carries inside the binary. The native build
 /// reads `assets/` off disk; this list covers every folder the client resolves
-/// through the `AssetServer`, which is the registry corpus and the tag tree,
-/// not the rendering corpus (textures, models, blockstates).
+/// through the `AssetServer`: the registry corpus, the tag tree and the sky's
+/// own textures, but not the block rendering corpus (models, blockstates and
+/// the texture atlas).
 const WEB_ASSET_FOLDERS: &[&str] = &[
     "mcrs/block_definition",
     "minecraft/banner_pattern",
@@ -28,6 +29,7 @@ const WEB_ASSET_FOLDERS: &[&str] = &[
     "minecraft/tags",
     "minecraft/test_environment",
     "minecraft/test_instance",
+    "minecraft/textures/environment",
     "minecraft/timeline",
     "minecraft/trim_material",
     "minecraft/trim_pattern",
@@ -74,9 +76,6 @@ fn pack(assets: &Path, dir: &Path, blob: &mut Vec<u8>) {
     for path in paths {
         if path.is_dir() {
             pack(assets, &path, blob);
-            continue;
-        }
-        if path.extension().and_then(|e| e.to_str()) != Some("json") {
             continue;
         }
         let name = path.strip_prefix(assets).unwrap().to_str().unwrap();
