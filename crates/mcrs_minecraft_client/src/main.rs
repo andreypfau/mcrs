@@ -137,7 +137,7 @@ fn region_folder(world: &Path, dimension: &str) -> PathBuf {
 }
 
 const BUDGET_FILES: usize = 4;
-const GROUPS_PER_FILE: usize = 1 << 17;
+const GROUPS_PER_FILE: usize = 1 << 18;
 
 /// The region files around the player, until columns arrive from the network.
 fn terrain_source(

@@ -125,24 +125,8 @@ impl CaveCull {
         self.conn.fill(crate::mesh::CONNECT_ALL);
     }
 
-    pub fn set_region(&mut self, base: usize, entries: &[(u32, u64)]) {
-        debug_assert_eq!(
-            base % SECTIONS_PER_RENDER_REGION,
-            0,
-            "a region starts where a region starts"
-        );
-        for &(local, mask) in entries {
-            self.conn[base + local as usize] = mask;
-        }
-    }
-
-    pub fn forget(&mut self, base: usize) {
-        debug_assert_eq!(
-            base % SECTIONS_PER_RENDER_REGION,
-            0,
-            "a region starts where a region starts"
-        );
-        self.conn[base..base + SECTIONS_PER_RENDER_REGION].fill(crate::mesh::CONNECT_ALL);
+    pub fn set_section(&mut self, slot: usize, mask: u64) {
+        self.conn[slot] = mask;
     }
 
     pub fn words(&self) -> usize {
@@ -515,8 +499,7 @@ mod tests {
         cave.retarget([RENDER_REGION_X as i32, 0, 0]);
         for sy in 0..SECTIONS[1] {
             for sz in 0..SECTIONS[2] {
-                let (region, local) = grid().split(10, sy, sz);
-                cave.set_region(region * SECTIONS_PER_RENDER_REGION, &[(local, 0)]);
+                cave.set_section(slot(10, sy, sz), 0);
             }
         }
         let eye = Vec3::new(900.0, 40.0, 264.0);

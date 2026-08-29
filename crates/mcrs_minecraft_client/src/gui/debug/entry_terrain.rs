@@ -20,8 +20,12 @@ pub fn display(
     let mut lines = vec![
         format!("Tris: {}", triangles.get()),
         format!(
-            "Regions: {}/{}, files {}/{}, {} evicted",
-            status.regions, status.regions_total, status.files, status.files_total, status.evicted
+            "Sections: {}/{}, files {}/{}, {} evicted",
+            status.sections,
+            status.sections_total,
+            status.files,
+            status.files_total,
+            status.evicted
         ),
         format!(
             "Arena: {:.0}% quads, {:.0}% models",

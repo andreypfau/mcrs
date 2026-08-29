@@ -12,16 +12,20 @@ use crate::anvil::{
 use crate::arena::{Arena, Block};
 use crate::blocks::{self, BlockInfo, Catalog};
 use crate::cave::CaveCull;
-use crate::mesh::{self, Batch, Draw, Group, STREAM_NAMES, STREAMS, Scratch, StreamSpan};
+use crate::mesh::{self, CONNECT_ALL, Draw, Group, STREAM_NAMES, STREAMS, Scratch, SectionMesh};
 use crate::pack::{
-    QUAD_WORDS, RENDER_REGION_X, RENDER_REGION_Y, RENDER_REGION_Z, RegionGrid,
+    QUAD_WORDS, RENDER_REGION_X, RENDER_REGION_Y, RENDER_REGION_Z, RegionGrid, SECTION_FACE_TABLE,
     SECTIONS_PER_RENDER_REGION,
 };
 use crate::render::{Animation, Atlas, Layout, Placement, Upload, Uploads};
 
 const HYSTERESIS: f32 = (RENDER_REGION_X * SECTION_SIZE) as f32;
 
-const IN_FLIGHT: usize = 4;
+const FILES_IN_FLIGHT: usize = 4;
+
+const SECTIONS_IN_FLIGHT: usize = 128;
+
+const SECTIONS_PER_FRAME: usize = 32;
 
 #[derive(Resource)]
 pub struct Loader {
@@ -40,7 +44,10 @@ pub struct Loader {
     to_tint: Vec<[i32; 2]>,
     resident: Vec<Option<Resident>>,
     deferred: Vec<bool>,
-    meshing: Vec<(usize, Task<Batch>)>,
+    pending: Vec<bool>,
+    meshing: Vec<(usize, Task<SectionMesh>)>,
+    regions: Vec<RegionSlot>,
+    dirty: Vec<bool>,
     camera: Vec3,
     anchor: Vec3,
     evicted: usize,
@@ -50,7 +57,6 @@ pub struct Loader {
     groups: Arena,
     dropped: usize,
     sprites: usize,
-    streams: [StreamSpan; STREAMS],
     started: Instant,
     reported: bool,
 }
@@ -59,8 +65,29 @@ struct Resident {
     quads: Block,
     models: Block,
     faces: Block,
+    connectivity: u64,
+}
+
+/// The render region owns the group records and the face prefix table of every section placed
+/// in it, because a draw covers one bucket of one region and the cull walks that span.
+struct RegionSlot {
+    lists: [Vec<(u32, Group)>; STREAMS],
     groups: Block,
-    connectivity: Vec<(u32, u64)>,
+    table: Block,
+    faces: Vec<u32>,
+    live: usize,
+}
+
+impl RegionSlot {
+    fn new() -> Self {
+        Self {
+            lists: std::array::from_fn(|_| Vec::new()),
+            groups: Block::EMPTY,
+            table: Block::EMPTY,
+            faces: Vec::new(),
+            live: 0,
+        }
+    }
 }
 
 struct Baked {
@@ -72,8 +99,8 @@ struct Baked {
 pub struct Status {
     pub files: usize,
     pub files_total: usize,
-    pub regions: usize,
-    pub regions_total: usize,
+    pub sections: usize,
+    pub sections_total: usize,
     pub evicted: usize,
     pub quads: f32,
     pub models: f32,
@@ -89,6 +116,7 @@ impl Loader {
             layout.group_capacity,
         );
         let regions = layout.grid.len();
+        let slots = layout.grid.slots();
         Self {
             expected: window.files.iter().map(|(coords, _)| *coords).collect(),
             to_parse: window.files,
@@ -103,9 +131,12 @@ impl Loader {
             baking: None,
             to_tint: Vec::new(),
             tinting: Vec::new(),
-            resident: (0..regions).map(|_| None).collect(),
-            deferred: vec![false; regions],
+            resident: (0..slots).map(|_| None).collect(),
+            deferred: vec![false; slots],
+            pending: vec![false; slots],
             meshing: Vec::new(),
+            regions: (0..regions).map(|_| RegionSlot::new()).collect(),
+            dirty: vec![false; regions],
             camera: Vec3::ZERO,
             anchor: Vec3::splat(f32::MAX),
             evicted: 0,
@@ -115,7 +146,6 @@ impl Loader {
             groups: Arena::new(layout_groups),
             dropped: 0,
             sprites: 0,
-            streams: [StreamSpan::default(); STREAMS],
             started: Instant::now(),
             reported: false,
         }
@@ -125,8 +155,8 @@ impl Loader {
         Status {
             files: self.world.loaded(),
             files_total: self.expected.len(),
-            regions: self.resident.iter().filter(|slot| slot.is_some()).count(),
-            regions_total: self.layout.grid.len(),
+            sections: self.regions.iter().map(|region| region.live).sum(),
+            sections_total: self.world.non_empty_sections(),
             evicted: self.evicted,
             quads: self.quads.held() as f32 / self.quads.capacity() as f32,
             models: self.models.held() as f32 / self.models.capacity() as f32,
@@ -144,7 +174,8 @@ impl Loader {
             && self.to_tint.is_empty()
             && self.tinting.is_empty()
             && self.meshing.is_empty()
-            && self.wanted().is_none()
+            && self.dirty.iter().all(|dirty| !dirty)
+            && self.wanted(1).is_empty()
     }
 
     fn ready_to_mesh(&self, region: usize) -> bool {
@@ -153,7 +184,7 @@ impl Loader {
             .all(|coords| !self.expected.contains(coords) || self.world.holds(*coords))
     }
 
-    fn distance(&self, region: usize) -> f32 {
+    fn region_distance(&self, region: usize) -> f32 {
         let origin = self.layout.grid.origin(self.layout.min_section, region);
         let min = Vec3::new(origin[0] as f32, origin[1] as f32, origin[2] as f32);
         let max = min
@@ -165,35 +196,84 @@ impl Loader {
         (self.camera.clamp(min, max) - self.camera).length()
     }
 
-    fn wanted(&self) -> Option<usize> {
-        (0..self.layout.grid.len())
-            .filter(|region| {
-                self.resident[*region].is_none()
-                    && !self.deferred[*region]
-                    && !self.meshing.iter().any(|(at, _)| at == region)
-                    && self.ready_to_mesh(*region)
-            })
-            .min_by(|a, b| self.distance(*a).total_cmp(&self.distance(*b)))
+    fn distance(&self, slot: usize) -> f32 {
+        let section = self.layout.grid.section_at(slot);
+        let corner = std::array::from_fn(|axis| {
+            ((section[axis] as i32 + self.layout.min_section[axis]) * SECTION_SIZE as i32) as f32
+        });
+        let min = Vec3::from_array(corner);
+        let max = min + Vec3::splat(SECTION_SIZE as f32);
+        (self.camera.clamp(min, max) - self.camera).length()
+    }
+
+    /// The nearest sections that hold blocks, have nowhere to be but the arena, and whose region
+    /// has every file it borders. Nothing more than distance decides the order yet.
+    fn wanted(&self, want: usize) -> Vec<usize> {
+        if want == 0 {
+            return Vec::new();
+        }
+        let grid = self.layout.grid;
+        let ready: Vec<bool> = (0..grid.len())
+            .map(|region| self.ready_to_mesh(region))
+            .collect();
+        let mut nearest: Vec<(f32, usize)> = Vec::new();
+        for slot in 0..grid.slots() {
+            if self.resident[slot].is_some() || self.deferred[slot] || self.pending[slot] {
+                continue;
+            }
+            if !ready[slot / SECTIONS_PER_RENDER_REGION] {
+                continue;
+            }
+            let [sx, sy, sz] = grid.section_at(slot);
+            let inside = (0..3).all(|axis| [sx, sy, sz][axis] < self.world.sections[axis]);
+            if !inside || self.world.section(sx, sy, sz).is_none() {
+                continue;
+            }
+            nearest.push((self.distance(slot), slot));
+        }
+        if nearest.len() > want {
+            nearest.select_nth_unstable_by(want, |a, b| a.0.total_cmp(&b.0));
+            nearest.truncate(want);
+        }
+        nearest.sort_by(|a, b| a.0.total_cmp(&b.0));
+        nearest.into_iter().map(|(_, slot)| slot).collect()
     }
 
     fn victim(&self, candidate: f32) -> Option<usize> {
-        let held = (0..self.layout.grid.len()).filter(|region| self.resident[*region].is_some());
-        let farthest = held.max_by(|a, b| self.distance(*a).total_cmp(&self.distance(*b)))?;
+        let region = (0..self.layout.grid.len())
+            .filter(|region| self.regions[*region].live > 0)
+            .max_by(|a, b| {
+                self.region_distance(*a)
+                    .total_cmp(&self.region_distance(*b))
+            })?;
+        let base = region * SECTIONS_PER_RENDER_REGION;
+        let farthest = (base..base + SECTIONS_PER_RENDER_REGION)
+            .filter(|slot| self.resident[*slot].is_some())
+            .max_by(|a, b| self.distance(*a).total_cmp(&self.distance(*b)))?;
         worth_evicting(self.distance(farthest), candidate).then_some(farthest)
     }
 
-    fn evict(&mut self, region: usize, cave: &mut CaveCull) {
-        let Some(held) = self.resident[region].take() else {
+    fn evict(&mut self, slot: usize, cave: &mut CaveCull) {
+        let Some(held) = self.resident[slot].take() else {
             return;
         };
         self.quads.free(held.quads);
         self.models.free(held.models);
         self.faces.free(held.faces);
-        self.groups.free(held.groups);
-        self.uploads.push(Upload::Drop(region as u32));
-        if let Some(base) = self.cave_base(cave, region) {
-            cave.forget(base);
+
+        let region = slot / SECTIONS_PER_RENDER_REGION;
+        let local = (slot % SECTIONS_PER_RENDER_REGION) as u32;
+        let held = &mut self.regions[region];
+        for list in &mut held.lists {
+            list.retain(|(owner, _)| *owner != local);
         }
+        held.faces[local as usize] = 0;
+        held.live -= 1;
+
+        if let Some(base) = self.cave_base(cave, region) {
+            cave.set_section(base + local as usize, CONNECT_ALL);
+        }
+        self.dirty[region] = true;
         self.evicted += 1;
         self.deferred.fill(false);
     }
@@ -242,97 +322,159 @@ impl Loader {
         }
         cave.retarget(corner);
 
-        let mut bases = Vec::new();
-        for region in 0..self.layout.grid.len() {
-            let Some(held) = self.resident[region].as_ref() else {
-                continue;
-            };
-            match self.cave_base(cave, region) {
-                Some(base) => {
-                    cave.set_region(base, &held.connectivity);
-                    bases.push((region as u32, base as u32));
-                }
-                None => bases.push((region as u32, cave.always_visible())),
+        let bases: Vec<Option<usize>> = (0..self.layout.grid.len())
+            .map(|region| self.cave_base(cave, region))
+            .collect();
+        for (slot, held) in self.resident.iter().enumerate() {
+            let Some(held) = held else { continue };
+            if let Some(base) = bases[slot / SECTIONS_PER_RENDER_REGION] {
+                cave.set_section(base + slot % SECTIONS_PER_RENDER_REGION, held.connectivity);
             }
         }
-        self.uploads.rebase(bases);
+        self.uploads.rebase(
+            bases
+                .iter()
+                .enumerate()
+                .filter(|(region, _)| self.regions[*region].live > 0)
+                .map(|(region, base)| {
+                    (
+                        region as u32,
+                        base.map_or(cave.always_visible(), |base| base as u32),
+                    )
+                })
+                .collect(),
+        );
     }
 
-    fn place(&mut self, batch: Batch, cave: &mut CaveCull) -> Result<Placement, Batch> {
-        let cave_base = match self.cave_base(cave, batch.region) {
-            Some(base) => {
-                cave.set_region(base, &batch.connectivity);
-                base as u32
+    fn reserve(&mut self, mesh: &SectionMesh, region: usize) -> Option<[Block; 4]> {
+        let table = match self.regions[region].faces.is_empty() {
+            true => Some(self.faces.alloc(SECTION_FACE_TABLE)?),
+            false => None,
+        };
+        let quads = self.quads.alloc(mesh.simple.len());
+        let models = self.models.alloc(mesh.model_quads());
+        let faces = self.faces.alloc(mesh.faces.len());
+        match (quads, models, faces) {
+            (Some(quads), Some(models), Some(faces)) => {
+                Some([quads, models, faces, table.unwrap_or(Block::EMPTY)])
             }
-            None => cave.always_visible(),
-        };
-        let Some(quads) = self.quads.alloc(batch.simple.len()) else {
-            return Err(batch);
-        };
-        let Some(models) = self.models.alloc(batch.model_quads()) else {
-            self.quads.free(quads);
-            return Err(batch);
-        };
-        let Some(faces) = self.faces.alloc(batch.faces.len()) else {
-            self.quads.free(quads);
-            self.models.free(models);
-            return Err(batch);
-        };
-        let Some(groups) = self.groups.alloc(batch.groups.len()) else {
-            self.quads.free(quads);
-            self.models.free(models);
-            self.faces.free(faces);
-            return Err(batch);
+            (quads, models, faces) => {
+                if let Some(quads) = quads {
+                    self.quads.free(quads);
+                }
+                if let Some(models) = models {
+                    self.models.free(models);
+                }
+                if let Some(faces) = faces {
+                    self.faces.free(faces);
+                }
+                if let Some(table) = table {
+                    self.faces.free(table);
+                }
+                None
+            }
+        }
+    }
+
+    fn place(&mut self, mesh: SectionMesh, cave: &mut CaveCull) -> Result<Placement, SectionMesh> {
+        let grid = self.layout.grid;
+        let slot = grid.slot(mesh.section[0], mesh.section[1], mesh.section[2]);
+        let region = slot / SECTIONS_PER_RENDER_REGION;
+        let local = (slot % SECTIONS_PER_RENDER_REGION) as u32;
+
+        let Some([quads, models, faces, table]) = self.reserve(&mesh, region) else {
+            return Err(mesh);
         };
 
-        let mut placed = batch.groups;
-        let mut draws = Vec::new();
+        let held = &mut self.regions[region];
+        if held.faces.is_empty() {
+            held.faces = vec![0; SECTION_FACE_TABLE];
+            held.table = table;
+        }
+        let mut placed = mesh.groups;
         let mut first = 0usize;
         for stream in 0..STREAMS {
-            let span = batch.spans[stream];
-            if span.group_count == 0 {
-                continue;
-            }
+            let run = mesh.spans[stream].group_count as usize;
             let base = if stream % 2 == 0 {
                 quads.offset
             } else {
                 models.offset
             } as u32;
-            self.streams[stream].group_count += span.group_count;
-            self.streams[stream].quad_count += span.quad_count;
-            let run = span.group_count as usize;
             for group in &mut placed[first..first + run] {
                 group.quad_base += base;
             }
-            draws.push(Draw {
-                stream: stream as u32,
-                region: batch.region as u32,
-                origin: self
-                    .layout
-                    .grid
-                    .origin(self.layout.min_section, batch.region),
-                cave_base,
-                face_base: faces.offset as u32,
-                first_group: (groups.offset + first) as u32,
-                group_count: span.group_count,
-                quad_count: span.quad_count,
-            });
+            held.lists[stream].extend(placed[first..first + run].iter().map(|g| (local, *g)));
             first += run;
         }
+        held.faces[local as usize] = faces.offset as u32;
+        held.live += 1;
 
-        self.resident[batch.region] = Some(Resident {
+        if let Some(base) = self.cave_base(cave, region) {
+            cave.set_section(base + local as usize, mesh.connectivity);
+        }
+        self.resident[slot] = Some(Resident {
             quads,
             models,
             faces,
-            groups,
-            connectivity: batch.connectivity,
+            connectivity: mesh.connectivity,
         });
+        self.dirty[region] |= !placed.is_empty();
+
         Ok(Placement {
-            quads: ((quads.offset * QUAD_WORDS * 4) as u64, batch.simple),
-            vertices: ((models.offset * 4 * 3 * 4) as u64, batch.complex),
-            faces: ((faces.offset * 4) as u64, batch.faces),
-            groups: ((groups.offset * size_of::<Group>()) as u64, placed),
+            quads: ((quads.offset * QUAD_WORDS * 4) as u64, mesh.simple),
+            vertices: ((models.offset * 4 * 3 * 4) as u64, mesh.complex),
+            faces: ((faces.offset * 4) as u64, mesh.faces),
+            groups: (0, Vec::new()),
+            draws: Vec::new(),
+            replaces: None,
+        })
+    }
+
+    /// A region hands its whole group block back and takes a fresh one, so the block it is being
+    /// drawn from is never the block being written.
+    fn flush(&mut self, region: usize, cave: &CaveCull) -> Option<Placement> {
+        let total: usize = self.regions[region].lists.iter().map(Vec::len).sum();
+        let block = self.groups.alloc(total)?;
+        let stale = std::mem::replace(&mut self.regions[region].groups, block);
+        self.groups.free(stale);
+
+        let cave_base = self
+            .cave_base(cave, region)
+            .map_or(cave.always_visible(), |base| base as u32);
+        let origin = self.layout.grid.origin(self.layout.min_section, region);
+        let held = &self.regions[region];
+        let mut records = Vec::with_capacity(total);
+        let mut draws = Vec::new();
+        for stream in 0..STREAMS {
+            let first = records.len();
+            let mut quads = 0u32;
+            for (_, group) in &held.lists[stream] {
+                let mut group = *group;
+                group.quad_prefix = quads;
+                quads += group.quad_count;
+                records.push(group);
+            }
+            if records.len() == first {
+                continue;
+            }
+            draws.push(Draw {
+                stream: stream as u32,
+                region: region as u32,
+                origin,
+                cave_base,
+                face_base: held.table.offset as u32,
+                first_group: (block.offset + first) as u32,
+                group_count: (records.len() - first) as u32,
+                quad_count: quads,
+            });
+        }
+        Some(Placement {
+            quads: (0, Vec::new()),
+            vertices: (0, Vec::new()),
+            faces: ((held.table.offset * 4) as u64, held.faces.clone()),
+            groups: ((block.offset * size_of::<Group>()) as u64, records),
             draws,
+            replaces: Some(region as u32),
         })
     }
 }
@@ -422,21 +564,21 @@ pub fn advance(
     let mut meshed = Vec::new();
     loader
         .meshing
-        .retain_mut(|(_, task)| match check_ready(task) {
-            Some(batch) => {
-                meshed.push(batch);
+        .retain_mut(|(slot, task)| match check_ready(task) {
+            Some(mesh) => {
+                meshed.push((*slot, mesh));
                 false
             }
             None => true,
         });
-    for batch in meshed {
-        let region = batch.region;
-        let here = loader.distance(region);
-        let mut pending = batch;
+    for (slot, mesh) in meshed {
+        loader.pending[slot] = false;
+        let here = loader.distance(slot);
+        let mut pending = mesh;
         loop {
             match loader.place(pending, &mut cave) {
                 Ok(placement) => {
-                    if !placement.draws.is_empty() {
+                    if !placement.quads.1.is_empty() || !placement.vertices.1.is_empty() {
                         loader.uploads.push(Upload::Geometry(placement));
                     }
                     break;
@@ -447,7 +589,7 @@ pub fn advance(
                         pending = back;
                     }
                     None => {
-                        loader.deferred[region] = true;
+                        loader.deferred[slot] = true;
                         break;
                     }
                 },
@@ -455,7 +597,17 @@ pub fn advance(
         }
     }
 
-    while loader.parsing.len() < IN_FLIGHT
+    for region in 0..loader.dirty.len() {
+        if !loader.dirty[region] {
+            continue;
+        }
+        if let Some(placement) = loader.flush(region, &cave) {
+            loader.dirty[region] = false;
+            loader.uploads.push(Upload::Geometry(placement));
+        }
+    }
+
+    while loader.parsing.len() < FILES_IN_FLIGHT
         && let Some((coords, path)) = loader.to_parse.pop()
     {
         loader
@@ -463,22 +615,23 @@ pub fn advance(
             .push((coords, pool.spawn(async move { anvil::load(&path) })));
     }
 
-    while loader.meshing.len() < IN_FLIGHT
-        && let Some(region) = loader.wanted()
-    {
+    let room = SECTIONS_IN_FLIGHT.saturating_sub(loader.meshing.len());
+    for slot in loader.wanted(room.min(SECTIONS_PER_FRAME)) {
         let world = loader.world.clone();
         let blocks = loader.blocks.clone();
         let grid = loader.layout.grid;
+        let section = grid.section_at(slot);
+        loader.pending[slot] = true;
         loader.meshing.push((
-            region,
+            slot,
             pool.spawn(async move {
                 let mut scratch = Scratch::new();
-                mesh::mesh_render_region(&world, &blocks, grid, region, &mut scratch)
+                mesh::mesh_section(&world, &blocks, grid, section, &mut scratch)
             }),
         ));
     }
 
-    if loader.idle() && !loader.reported {
+    if !loader.reported && loader.idle() {
         loader.reported = true;
         report(loader);
     }
@@ -643,10 +796,16 @@ fn report(loader: &Loader) {
             array.layers(),
         );
     }
-    for (stream, span) in loader.streams.iter().enumerate() {
+    for stream in 0..STREAMS {
+        let live = loader.regions.iter().map(|region| &region.lists[stream]);
+        let groups: usize = live.clone().map(Vec::len).sum();
+        let quads: u64 = live
+            .flat_map(|list| list.iter())
+            .map(|(_, group)| u64::from(group.quad_count))
+            .sum();
         println!(
-            "  {:<22} {:>9} quads in {:>6} groups",
-            STREAM_NAMES[stream], span.quad_count, span.group_count,
+            "  {:<22} {quads:>9} quads in {groups:>6} groups",
+            STREAM_NAMES[stream],
         );
     }
     let arena = |arena: &Arena, unit: usize| {
@@ -679,7 +838,7 @@ fn report(loader: &Loader) {
     }
     if loader.evicted > 0 {
         println!(
-            "  {} render regions gave their room back to nearer ones",
+            "  {} sections gave their room back to nearer ones",
             loader.evicted,
         );
     }
@@ -691,7 +850,7 @@ mod tests {
     use crate::anvil::{REGION_CHUNKS, SECTIONS_Y};
 
     #[test]
-    fn two_regions_at_a_threshold_cannot_take_each_others_room() {
+    fn two_sections_at_a_threshold_cannot_take_each_others_room() {
         let (near, far) = (100.0, 100.0 + HYSTERESIS + 1.0);
         assert!(
             worth_evicting(far, near),
@@ -710,6 +869,94 @@ mod tests {
         assert_eq!(next_step(400, 400, false), Next::Publish);
         assert_eq!(next_step(400, 600, false), Next::Bake);
         assert_eq!(next_step(400, 400, true), Next::Wait);
+    }
+
+    fn loader(grid: RegionGrid) -> Loader {
+        let layout = Arc::new(Layout {
+            grid,
+            min_section: [0; 3],
+            quad_capacity: 1 << 12,
+            model_capacity: 1 << 12,
+            face_capacity: 1 << 16,
+            group_capacity: 1 << 12,
+            cave_words: 0,
+            tint_origin: [0; 2],
+            tint_size: [1; 2],
+        });
+        Loader::new(
+            layout,
+            Uploads::default(),
+            Window {
+                min_region: [0; 2],
+                regions: [1; 2],
+                files: Vec::new(),
+            },
+        )
+    }
+
+    fn one_greedy_group(section: [usize; 3], quads: u32) -> SectionMesh {
+        let mut spans = [Default::default(); STREAMS];
+        spans[0] = crate::mesh::StreamSpan {
+            group_count: 1,
+            quad_count: quads,
+        };
+        SectionMesh {
+            section,
+            simple: vec![[0; QUAD_WORDS]; quads as usize],
+            faces: vec![0; 4],
+            complex: Vec::new(),
+            groups: vec![Group {
+                quad_base: 0,
+                quad_count: quads,
+                section: 0,
+                quad_prefix: 0,
+            }],
+            spans,
+            connectivity: CONNECT_ALL,
+        }
+    }
+
+    #[test]
+    fn a_region_draws_the_groups_of_every_section_placed_in_it() {
+        let grid = RegionGrid { x: 1, y: 1, z: 1 };
+        let mut loader = loader(grid);
+        let mut cave = CaveCull::new(grid, [0; 3], grid.extent());
+
+        let near = loader
+            .place(one_greedy_group([0, 0, 0], 3), &mut cave)
+            .unwrap_or_else(|_| panic!("the arena has room"));
+        let far = loader
+            .place(one_greedy_group([1, 0, 0], 5), &mut cave)
+            .unwrap_or_else(|_| panic!("the arena has room"));
+        assert_ne!(
+            near.quads.0, far.quads.0,
+            "two sections cannot share arena room"
+        );
+
+        let flushed = loader.flush(0, &cave).expect("the group arena has room");
+        assert_eq!(flushed.replaces, Some(0));
+        assert_eq!(flushed.draws.len(), 1, "one bucket of one region");
+        assert_eq!(flushed.draws[0].group_count, 2);
+        assert_eq!(flushed.draws[0].quad_count, 8);
+        assert_eq!(
+            flushed
+                .groups
+                .1
+                .iter()
+                .map(|g| g.quad_prefix)
+                .collect::<Vec<_>>(),
+            [0, 3],
+            "the blend order of a region runs across the sections in it"
+        );
+
+        loader.evict(grid.slot(0, 0, 0), &mut cave);
+        let flushed = loader.flush(0, &cave).expect("the group arena has room");
+        assert_eq!(flushed.draws[0].group_count, 1);
+        assert_eq!(flushed.draws[0].quad_count, 5);
+        assert_eq!(
+            flushed.groups.1[0].quad_prefix, 0,
+            "what the evicted section held is given back, not left as a hole"
+        );
     }
 
     #[test]

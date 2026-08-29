@@ -87,8 +87,7 @@ fn vertex_greedy(
     out.clip_position = view.clip_from_world * vec4<f32>(world, 1.0);
     out.quad_uv = quad_uv;
     out.world_xz = world.xz;
-    out.face_base = params.face_origin
-        + faces[params.face_origin + section]
+    out.face_base = faces[params.face_origin + section]
         + quad_field(quad, QUAD_FACE_BASE_WORD, QUAD_FACE_BASE_SHIFT, QUAD_FACE_BASE_BITS);
     out.face_span = span;
     out.directional = face_shade(face);

@@ -29,7 +29,6 @@ pub enum Upload {
         animated_from: u32,
     },
     Geometry(Placement),
-    Drop(u32),
 }
 
 pub struct Placement {
@@ -38,6 +37,9 @@ pub struct Placement {
     pub faces: (u64, Vec<u32>),
     pub groups: (u64, Vec<Group>),
     pub draws: Vec<Draw>,
+    /// The draws of this render region, swapped in only once its geometry has landed, so the
+    /// region never spends a frame pointing at a group block that is still being written.
+    pub replaces: Option<u32>,
 }
 
 #[derive(Resource, Clone, Default)]
@@ -160,11 +162,6 @@ pub(super) fn apply_uploads(
                     }
                     continue;
                 }
-                Some(Upload::Drop(region)) => {
-                    terrain.list.draws.retain(|draw| draw.region != region);
-                    terrain.rebuild_params();
-                    continue;
-                }
                 Some(Upload::Geometry(placement)) => {
                     terrain.arenas.pending = Some(Pending {
                         placement,
@@ -207,7 +204,7 @@ pub(super) fn apply_uploads(
             terrain.arenas.pending = Some(pending);
             break;
         }
-        publish(terrain, pending.placement.draws);
+        publish(terrain, pending.placement);
         if budget == 0 {
             break;
         }
@@ -216,8 +213,11 @@ pub(super) fn apply_uploads(
     terrain.list.flush(&terrain.frame.params, &queue);
 }
 
-fn publish(terrain: &mut Terrain, draws: Vec<Draw>) {
-    terrain.list.draws.extend(draws);
+fn publish(terrain: &mut Terrain, placement: Placement) {
+    if let Some(region) = placement.replaces {
+        terrain.list.draws.retain(|draw| draw.region != region);
+    }
+    terrain.list.draws.extend(placement.draws);
     terrain.list.draws.sort_by_key(|draw| draw.stream);
     terrain.rebuild_params();
 }
