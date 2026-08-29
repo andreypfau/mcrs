@@ -8,6 +8,7 @@ use super::DebugEntryGroup;
 pub struct DebugScreenDisplayer {
     left: Vec<String>,
     right: Vec<String>,
+    lines: Vec<String>,
     groups: Vec<(DebugEntryGroup, Vec<String>)>,
 }
 
@@ -18,6 +19,10 @@ impl DebugScreenDisplayer {
         } else {
             self.left.push(line);
         }
+    }
+
+    pub fn add_line(&mut self, line: String) {
+        self.lines.push(line);
     }
 
     pub fn add_to_group(
@@ -34,6 +39,7 @@ impl DebugScreenDisplayer {
     pub(super) fn clear(&mut self) {
         self.left.clear();
         self.right.clear();
+        self.lines.clear();
         self.groups.clear();
     }
 
@@ -48,6 +54,16 @@ impl DebugScreenDisplayer {
         }
         if !right.is_empty() {
             right.push(String::new());
+        }
+
+        if !self.lines.is_empty() {
+            let middle = self.lines.len().div_ceil(2);
+            left.extend_from_slice(&self.lines[..middle]);
+            right.extend_from_slice(&self.lines[middle..]);
+            left.push(String::new());
+            if middle < self.lines.len() {
+                right.push(String::new());
+            }
         }
 
         let middle = self.groups.len().div_ceil(2);
@@ -85,6 +101,18 @@ mod tests {
         let (left, right) = displayer.columns();
         assert_eq!(left, lines(&["a", "c", ""]));
         assert_eq!(right, lines(&["b", ""]));
+    }
+
+    #[test]
+    fn plain_lines_split_across_the_columns_after_the_priority_ones() {
+        let mut displayer = DebugScreenDisplayer::default();
+        displayer.add_priority_line("top".to_owned());
+        for line in ["a", "b", "c"] {
+            displayer.add_line(line.to_owned());
+        }
+        let (left, right) = displayer.columns();
+        assert_eq!(left, lines(&["top", "", "a", "b", ""]));
+        assert_eq!(right, lines(&["c", ""]));
     }
 
     #[test]

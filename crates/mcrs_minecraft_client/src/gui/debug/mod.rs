@@ -7,8 +7,12 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 use crate::gui::debug_screen_overlay;
 
 pub mod displayer;
+pub mod entry_day_count;
 pub mod entry_fps;
 pub mod entry_position;
+pub mod entry_section_position;
+pub mod entry_system_specs;
+pub mod entry_version;
 
 pub use displayer::DebugScreenDisplayer;
 
@@ -110,20 +114,47 @@ impl AddDebugScreenEntry for App {
 pub struct DebugScreenEntries;
 
 impl DebugScreenEntries {
+    pub const DAY_COUNT: DebugEntryId = ResourceLocation::new_static("minecraft:day_count");
     pub const FPS: DebugEntryId = ResourceLocation::new_static("minecraft:fps");
+    pub const GAME_VERSION: DebugEntryId = ResourceLocation::new_static("minecraft:game_version");
     pub const PLAYER_POSITION: DebugEntryId =
         ResourceLocation::new_static("minecraft:player_position");
+    pub const PLAYER_SECTION_POSITION: DebugEntryId =
+        ResourceLocation::new_static("minecraft:player_section_position");
+    pub const SYSTEM_SPECS: DebugEntryId = ResourceLocation::new_static("minecraft:system_specs");
 
+    /// Registration order is identifier order, and the status each entry starts
+    /// on is the one the `default` profile gives it.
     fn register(app: &mut App) {
         app.add_debug_screen_entry(
+            Self::DAY_COUNT,
+            DebugScreenEntryStatus::Never,
+            entry_day_count::display,
+        )
+        .add_debug_screen_entry(
             Self::FPS,
             DebugScreenEntryStatus::InOverlay,
             entry_fps::display,
         )
         .add_debug_screen_entry(
+            Self::GAME_VERSION,
+            DebugScreenEntryStatus::InOverlay,
+            entry_version::display,
+        )
+        .add_debug_screen_entry(
             Self::PLAYER_POSITION,
             DebugScreenEntryStatus::InOverlay,
             entry_position::display,
+        )
+        .add_debug_screen_entry(
+            Self::PLAYER_SECTION_POSITION,
+            DebugScreenEntryStatus::InOverlay,
+            entry_section_position::display,
+        )
+        .add_debug_screen_entry(
+            Self::SYSTEM_SPECS,
+            DebugScreenEntryStatus::InOverlay,
+            entry_system_specs::display,
         );
     }
 }

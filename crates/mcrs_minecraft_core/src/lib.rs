@@ -1,3 +1,7 @@
+/// `SharedConstants.getCurrentVersion().name()`. There is no launcher and no
+/// version manifest to read it from, so the target version is stated once here.
+pub const VERSION_NAME: &str = "26.3-snapshot-9";
+
 pub mod block_state;
 pub mod registry;
 pub mod resource_location;
