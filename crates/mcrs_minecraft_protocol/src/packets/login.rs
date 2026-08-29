@@ -6,6 +6,7 @@ pub mod clientbound {
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
     use std::borrow::Cow;
+    use uuid::Uuid;
 
     #[derive(Copy, Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x00, state=Login)]
@@ -25,9 +26,11 @@ pub mod clientbound {
     #[packet(id=0x02, state=Login)]
     pub struct ClientboundLoginFinished<'a> {
         pub profile: GameProfile<'a>,
+        pub session_id: Uuid,
     }
 
-    #[derive(Copy, Clone, Debug, Encode, Decode, Into)]
+    #[derive(Copy, Clone, Debug, Encode, Decode, Into, Packet)]
+    #[packet(id=0x03, state=Login, side=crate::PacketSide::Clientbound)]
     pub struct LoginCompression {
         pub threshold: VarInt,
     }

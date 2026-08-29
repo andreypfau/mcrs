@@ -1,8 +1,8 @@
 use std::io::{Cursor, Write};
 
 use crate::text::{Text, TextContent};
-use crate::{Bounded, Decode, Encode, RawBytes, VarInt};
-use anyhow::ensure;
+use crate::{Bounded, Decode, Encode, VarInt};
+use anyhow::{Context, ensure};
 use byteorder::WriteBytesExt;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
@@ -125,17 +125,19 @@ impl Encode for Text {
 
 impl Decode<'_> for Text {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let data = RawBytes::decode(r)?;
-        let b = data.0[0];
-        if b == STRING_ID {
-            let s = NbtTag::deserialize(&mut NbtReadHelper::new(&mut Cursor::new(&data.0)))?;
-            if let NbtTag::String(s) = s {
-                Ok(Self::text(s))
-            } else {
-                anyhow::bail!("expected NBT String tag for Text deserialization, got {s:?}");
+        let tag = *r.first().context("empty input for Text")?;
+        let mut cursor = Cursor::new(*r);
+        let text = if tag == STRING_ID {
+            match NbtTag::deserialize(&mut NbtReadHelper::new(&mut cursor))? {
+                NbtTag::String(s) => Self::text(s),
+                other => anyhow::bail!(
+                    "expected NBT String tag for Text deserialization, got {other:?}"
+                ),
             }
         } else {
-            Ok(from_bytes_unnamed(&mut Cursor::new(&data.0))?)
-        }
+            from_bytes_unnamed(&mut cursor)?
+        };
+        *r = &r[cursor.position() as usize..];
+        Ok(text)
     }
 }

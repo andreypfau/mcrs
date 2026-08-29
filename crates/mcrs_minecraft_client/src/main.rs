@@ -1,3 +1,4 @@
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -11,6 +12,7 @@ use bevy::render::settings::WgpuSettings;
 use bevy::transform::TransformSystems;
 use bevy::winit::{UpdateMode, WinitSettings};
 use mcrs_minecraft_core::AppState;
+use mcrs_minecraft_network::client::ClientNetworkPlugin;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::dimension::dimension_type::DimensionType;
 use mcrs_minecraft_world::environment::Weather;
@@ -79,6 +81,13 @@ fn main() {
         PostStartup,
         log_spawned_transforms.after(TransformSystems::Propagate),
     );
+
+    if let Some(server) = server_address() {
+        app.add_plugins(ClientNetworkPlugin {
+            server,
+            username: std::env::var("MCRS_USERNAME").unwrap_or_else(|_| "Player".to_owned()),
+        });
+    }
 
     // Inserted after `add_plugins`: `WorldClockPlugin` calls
     // `init_resource::<WorldClocks>()` during its own build, so an earlier
@@ -196,6 +205,20 @@ fn terrain_source(
         cave::CaveCull::new(budget.sections),
         loader,
     ))
+}
+
+/// `MCRS_SERVER=<host>:<port>` joins a server alongside the save the window is
+/// already showing. What arrives over the wire is held on the connection and
+/// read by nobody yet.
+fn server_address() -> Option<SocketAddr> {
+    let address = std::env::var("MCRS_SERVER").ok()?;
+    match address.to_socket_addrs().map(|mut a| a.next()) {
+        Ok(Some(address)) => Some(address),
+        Ok(None) | Err(_) => {
+            eprintln!("MCRS_SERVER={address}: expected <host>:<port>");
+            std::process::exit(1);
+        }
+    }
 }
 
 fn world_folder() -> PathBuf {

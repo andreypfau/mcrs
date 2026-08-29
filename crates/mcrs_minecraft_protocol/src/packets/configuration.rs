@@ -29,13 +29,13 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x0E, state=Configuration)]
+    #[packet(id=0x0F, state=Configuration)]
     pub struct ClientboundSelectKnownPacks<'a> {
         pub known_packs: Vec<crate::resource_pack::KnownPack<'a>>,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x12, state=Configuration)]
+    #[packet(id=0x13, state=Configuration)]
     pub struct ClientboundShowDialog {
         pub dialog: NbtCompound,
     }
@@ -60,7 +60,7 @@ pub mod clientbound {
 
     /// Packet sent during Configuration phase to synchronize tags with the client.
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id = 0x0D, state = Configuration)]
+    #[packet(id = 0x0E, state = Configuration)]
     pub struct ClientboundUpdateTags<'a> {
         /// Tags grouped by registry type
         pub registries: Vec<RegistryTags<'a>>,

@@ -73,15 +73,11 @@ impl Drop for InflightGuard {
     }
 }
 
-pub(crate) async fn start_accept_loop(shared: SharedNetworkState) {
-    let listener = match TcpListener::bind(shared.0.address).await {
-        Ok(listener) => listener,
-        Err(e) => {
-            error!("Failed to bind to address {} {}", shared.0.address, e);
-            return;
-        }
-    };
-    info!("Listening on {}", shared.0.address);
+pub(crate) async fn start_accept_loop(shared: SharedNetworkState, listener: TcpListener) {
+    match listener.local_addr() {
+        Ok(address) => info!("Listening on {}", address),
+        Err(e) => error!("Failed to read the listener address: {}", e),
+    }
 
     // HashMap is safe without locks: the accept-loop runs in a single tokio task.
     let mut per_ip_buckets: HashMap<IpAddr, TokenBucket> = HashMap::new();
@@ -91,12 +87,25 @@ pub(crate) async fn start_accept_loop(shared: SharedNetworkState) {
         match listener.accept().await {
             Ok((socket, remote_addr)) => {
                 let ip = remote_addr.ip();
-                let bucket = per_ip_buckets
-                    .entry(ip)
-                    .or_insert_with(|| TokenBucket::new(ACCEPT_BUCKET_CAP));
-
                 let current_inflight = inflight.load(Ordering::Relaxed);
-                match accept_decision(bucket, current_inflight) {
+
+                // The per-IP bucket blunts remote connection floods. An
+                // integrated server reconnects over loopback far faster than
+                // its 0.5/s refill, where a silent refusal reads as a hang.
+                let outcome = if ip.is_loopback() {
+                    if current_inflight >= GLOBAL_HANDSHAKE_CAP {
+                        AcceptOutcome::CapExceeded
+                    } else {
+                        AcceptOutcome::Accept
+                    }
+                } else {
+                    let bucket = per_ip_buckets
+                        .entry(ip)
+                        .or_insert_with(|| TokenBucket::new(ACCEPT_BUCKET_CAP));
+                    accept_decision(bucket, current_inflight)
+                };
+
+                match outcome {
                     AcceptOutcome::RateLimited => {
                         warn!("accept-rate limit exceeded for {ip}");
                         // socket dropped here — no tokio task spawned
