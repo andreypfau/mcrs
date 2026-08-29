@@ -1,4 +1,4 @@
-use crate::density_function::beta_seed::seed_beta_terrain_f64;
+use crate::beta::seed::seed_beta_terrain_f64;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
 
 /// Density grid dimensions matching Java's `computeDensity` output.
@@ -252,7 +252,6 @@ impl BetaTerrainF64 {
 
         let b0 = CD_B0 as i32; // 4
         let b1 = sea_level as usize;
-        let b2 = CD_B2 as i32; // 17
         let ll = CD_LL as i32; // 5
 
         for i1 in 0..b0 {
@@ -299,7 +298,6 @@ impl BetaTerrainF64 {
                             // We use the same layout: flat[x * 16 * 128 + z * 128 + y]
                             // But Java uses (x<<11|z<<7|y) with short1=128 strides in z.
                             // Equivalent: flat[(i2+i1*4)*16*128 + (j1*4)*128 + y]
-                            let short1 = 128i32;
                             let d14 = 0.25_f64;
                             let mut d15 = d10;
                             let d16 = (d11 - d10) * d14;

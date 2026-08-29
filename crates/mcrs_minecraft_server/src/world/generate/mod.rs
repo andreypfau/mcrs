@@ -11,9 +11,11 @@ use mcrs_minecraft_world::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, beta_get_biome,
 };
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
-use mcrs_minecraft_worldgen::density_function::{
-    FillScratch, Interval, NoiseRouter, Volume, beta_terrain_f64::BetaTerrainF64,
-};
+use mcrs_minecraft_worldgen::beta::terrain_f64::BetaTerrainF64;
+use mcrs_minecraft_worldgen::interval::Interval;
+use mcrs_minecraft_worldgen::program::Workspace;
+use mcrs_minecraft_worldgen::router::NoiseRouter;
+use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
@@ -48,7 +50,7 @@ impl CellLattice {
         noise_router: &NoiseRouter,
         block_x: i32,
         block_z: i32,
-        scratch: &mut FillScratch,
+        ws: &mut Workspace,
     ) -> Option<Self> {
         let cell = noise_router.cell_size()?;
         // Sections must tile into whole cells, and the lattice must start on
@@ -66,14 +68,14 @@ impl CellLattice {
             IVec3::new(block_x, noise_router.noise_min_y(), block_z),
             cell,
         );
-        let roots = noise_router.cell_value_roots();
-        let mut values = vec![0.0f32; roots.len() * volume.len()];
-        noise_router.sample_volume_roots(roots, &volume, &mut values, scratch);
+        let inputs = noise_router.cell_inputs();
+        let mut values = vec![0.0f32; inputs.len() * volume.len()];
+        noise_router.fill_nodes(ws, &volume, inputs, &mut values);
         Some(Self {
             volume,
             cell,
             values,
-            width: roots.len(),
+            width: inputs.len(),
         })
     }
 
@@ -105,8 +107,7 @@ impl CellLattice {
         fill: &mut FillBuffers,
     ) -> CellFill {
         self.corner_bounds(at, &mut fill.corners);
-        let Some(bounds) = noise_router.final_density_cell_bounds(&fill.corners, &mut fill.bounds)
-        else {
+        let Some(bounds) = noise_router.final_density_cell_bounds(&fill.corners) else {
             return CellFill::Mixed;
         };
         if bounds.min() > CELL_BOUNDS_SLACK {
@@ -129,9 +130,8 @@ impl CellLattice {
 /// Buffers every fill in a chunk column reuses.
 #[derive(Default)]
 struct FillBuffers {
-    scratch: FillScratch,
+    ws: Workspace,
     density: Vec<f32>,
-    bounds: Vec<Interval>,
     corners: Vec<Interval>,
 }
 
@@ -156,7 +156,7 @@ fn fill_column(
     let default_fluid = noise_router.default_fluid_state();
     let mut fill = FillBuffers::default();
 
-    let Some(lattice) = CellLattice::fill(noise_router, block_x, block_z, &mut fill.scratch) else {
+    let Some(lattice) = CellLattice::fill(noise_router, block_x, block_z, &mut fill.ws) else {
         return fill_column_dense(
             sections,
             y_sections,
@@ -169,8 +169,6 @@ fn fill_column(
     };
 
     let cell = lattice.cell;
-    fill.bounds
-        .resize(noise_router.final_density_index() + 1, Interval::exact(0.0));
     fill.corners.resize(lattice.width, Interval::exact(0.0));
 
     for cell_z in 0..lattice.volume.size().z - 1 {
@@ -279,11 +277,11 @@ fn fill_blocks(
     let default_fluid = noise_router.default_fluid_state();
     fill.density.clear();
     fill.density.resize(volume.len(), 0.0);
-    noise_router.sample_volume(
-        noise_router.final_density_index(),
+    noise_router.fill(
+        &mut fill.ws,
         volume,
+        noise_router.final_density(),
         &mut fill.density,
-        &mut fill.scratch,
     );
     for z in 0..volume.size().z {
         for x in 0..volume.size().x {
@@ -309,14 +307,11 @@ fn beta_climate_cells(noise_router: &NoiseRouter, block_x: i32, block_z: i32) ->
         IVec3::new(4, 1, 4),
     );
     let mut values = vec![0.0f32; 2 * volume.len()];
-    noise_router.sample_volume_roots(
-        &[
-            noise_router.temperature_index(),
-            noise_router.vegetation_index(),
-        ],
+    noise_router.fill_roots(
+        &mut Workspace::new(),
         &volume,
+        &[noise_router.temperature(), noise_router.vegetation()],
         &mut values,
-        &mut FillScratch::new(),
     );
     let mut cells = [(0.0f32, 0.0f32); 16];
     for cx in 0..4 {
@@ -393,7 +388,8 @@ fn fill_sections_beta_f64(
     let ice_id = blocks.default_state("minecraft:ice").0 as u32;
 
     // Sample the 16×16 climate grids needed by computeDensity.
-    let (temp_grid, rain_grid) = noise_router.sample_beta_climate_grids(block_x, block_z);
+    let (temp_grid, rain_grid) =
+        noise_router.sample_beta_climate_grids(&mut Workspace::new(), block_x, block_z);
 
     // Run the f64 density computation and block fill.
     let density = terrain.compute_density(section_x, section_z, &temp_grid, &rain_grid);
@@ -596,6 +592,8 @@ pub fn apply_beta_surface(
         D0 * 2.0,
     );
 
+    let mut ws = Workspace::new();
+
     // back2beta replaceBlocksForBiome: outer loop kk=0..16 is Z, inner ll=0..16 is X.
     // Noise arrays r/s/t are filled at index x*16+z (geographic) and read at ll*16+kk
     // = x*16+z — the same geographic index. Climate is sampled at geographic (wx, wz).
@@ -610,7 +608,8 @@ pub fn apply_beta_surface(
 
             let climate_x = block_x + x_local;
             let climate_z = block_z + z_local;
-            let (temp, humidity) = noise_router.sample_beta_climate(climate_x, climate_z);
+            let (temp, humidity) =
+                noise_router.sample_beta_climate(&mut ws, climate_x, climate_z);
             let biome_land: BetaLandBiome = if let Some(table) = beta_lookup {
                 beta_biome_from_climate(table, temp, humidity)
             } else {

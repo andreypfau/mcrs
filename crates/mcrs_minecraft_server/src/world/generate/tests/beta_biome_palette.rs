@@ -1,5 +1,4 @@
 use mcrs_minecraft_block::palette::NetworkPalette;
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bevy_asset::Assets;
@@ -7,9 +6,8 @@ use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::source::{BiomeSource, build_beta_lookup_table};
-use mcrs_minecraft_worldgen::density_function::build_functions;
-use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 
+use super::build_beta_router;
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::generate_column;
 
@@ -33,80 +31,6 @@ fn make_beta_biome() -> Biome {
 }
 
 /// Load the named density function JSON assets the beta router references.
-fn load_density_functions_from_disk() -> BTreeMap<
-    mcrs_minecraft_core::ResourceLocation,
-    mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
-> {
-    use mcrs_minecraft_worldgen::density_function::proto::DensityFunctionHolder;
-    fn recurse(
-        dir: &std::path::Path,
-        prefix: &str,
-        map: &mut BTreeMap<
-            mcrs_minecraft_core::ResourceLocation,
-            mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
-        >,
-    ) {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                let subdir = entry.file_name().to_string_lossy().to_string();
-                let new_prefix = if prefix.is_empty() {
-                    subdir
-                } else {
-                    format!("{}/{}", prefix, subdir)
-                };
-                recurse(&path, &new_prefix, map);
-            } else if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                let Ok(json) = std::fs::read_to_string(&path) else {
-                    continue;
-                };
-                let Ok(DensityFunctionHolder::Owned(pdf)) =
-                    serde_json::from_str::<DensityFunctionHolder>(&json)
-                else {
-                    continue;
-                };
-                let stem = path.file_stem().unwrap().to_string_lossy();
-                let key = if prefix.is_empty() {
-                    format!("minecraft:{}", stem)
-                } else {
-                    format!("minecraft:{}/{}", prefix, stem)
-                };
-                if let Ok(ident) = key.parse::<mcrs_minecraft_core::ResourceLocation>() {
-                    map.insert(ident, *pdf);
-                }
-            }
-        }
-    }
-    let base = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../assets/minecraft/worldgen/density_function");
-    let mut map = BTreeMap::new();
-    recurse(&base, "", &mut map);
-    map
-}
-
-/// Build a Beta NoiseRouter from the actual beta.json settings file.
-fn build_beta_router() -> mcrs_minecraft_worldgen::density_function::NoiseRouter {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../assets/minecraft/worldgen/noise_settings/beta.json"
-    );
-    let json = std::fs::read_to_string(path).expect("beta.json must exist");
-    let settings: NoiseGeneratorSettings =
-        serde_json::from_str(&json).expect("beta.json must deserialize");
-    let functions = load_density_functions_from_disk();
-    let noises = BTreeMap::new();
-    build_functions(
-        &functions,
-        &noises,
-        &settings,
-        12345,
-        super::corpus().default_state("minecraft:stone").into(),
-        super::corpus().default_state("minecraft:water").into(),
-    )
-}
 
 /// Verify that a Beta-router column produces non-default BiomePalette cells.
 ///
@@ -166,7 +90,8 @@ fn generate_column_beta_biome_not_default() {
         lookup: Box::new(build_beta_lookup_table()),
     };
 
-    let (temp_0, hum_0) = router.sample_beta_climate(0, 0);
+    let (temp_0, hum_0) =
+        router.sample_beta_climate(&mut mcrs_minecraft_worldgen::program::Workspace::new(), 0, 0);
 
     // Ocean biome id for (temp_0, hum_0) at below-sea-level cell.
     let ocean_asset_id = biome_source.beta_biome_id(temp_0, hum_0, true);

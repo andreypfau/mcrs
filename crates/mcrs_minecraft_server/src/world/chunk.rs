@@ -815,7 +815,7 @@ fn dispatch_column_generation(
 
                 let world_seed = router.world_seed() as i64;
                 let cave_ids = BetaCaveBlockIds::resolve(&block_definitions);
-                let cave_config = mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig {
+                let cave_config = mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig {
                     air_state: cave_ids.air.into(),
                     lava_state: cave_ids.lava.into(),
                     stone_state: cave_ids.stone.into(),

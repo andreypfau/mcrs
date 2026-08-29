@@ -1,129 +1,15 @@
 //! Wall-clock benchmarks for column generation. Run with:
 //!   cargo test -p mcrs_minecraft_server --release bench_ -- --ignored --nocapture
 use mcrs_voxel_math::BlockPos;
-use std::collections::BTreeMap;
-use std::path::Path;
 use std::time::Instant;
 
-use mcrs_minecraft_core::ResourceLocation;
-use mcrs_minecraft_worldgen::density_function::proto::{
-    DensityFunctionHolder, NoiseParam, ProtoDensityFunction,
-};
-use mcrs_minecraft_worldgen::density_function::{Interval, NoiseRouter, build_functions};
-use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
+use mcrs_minecraft_worldgen::interval::Interval;
+use mcrs_minecraft_worldgen::router::NoiseRouter;
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::{CellFill, CellLattice, FillBuffers, generate_column};
 
-fn assets_root() -> std::path::PathBuf {
-    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/minecraft/worldgen")
-}
-
-fn walk_json(base: &Path, dir: &Path, out: &mut Vec<(ResourceLocation, String)>) {
-    let entries = std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
-    for entry in entries {
-        let path = entry.unwrap().path();
-        if path.is_dir() {
-            walk_json(base, &path, out);
-        } else if path.extension().and_then(|s| s.to_str()) == Some("json") {
-            let rel = path.strip_prefix(base).unwrap().with_extension("");
-            let key = format!("minecraft:{}", rel.to_string_lossy().replace('\\', "/"));
-            let ident = key
-                .parse::<ResourceLocation>()
-                .unwrap_or_else(|e| panic!("{key}: {e:?}"));
-            let json = std::fs::read_to_string(&path)
-                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            out.push((ident, json));
-        }
-    }
-}
-
-fn resolve_holder(
-    id: &ResourceLocation,
-    holder: &DensityFunctionHolder,
-    all: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
-    out: &mut BTreeMap<ResourceLocation, ProtoDensityFunction>,
-) {
-    match holder {
-        DensityFunctionHolder::Value(v) => {
-            out.insert(id.clone(), ProtoDensityFunction::Constant(v.clone()));
-        }
-        DensityFunctionHolder::Reference(r) => {
-            let dep = all
-                .get(r)
-                .unwrap_or_else(|| panic!("{id} references missing {r}"));
-            resolve_holder(id, dep, all, out);
-        }
-        DensityFunctionHolder::Owned(proto) => {
-            out.insert(id.clone(), (**proto).clone());
-        }
-    }
-}
-
-fn load_density_functions() -> BTreeMap<ResourceLocation, ProtoDensityFunction> {
-    let dir = assets_root().join("density_function");
-    let mut files = Vec::new();
-    walk_json(&dir, &dir, &mut files);
-    let holders: BTreeMap<ResourceLocation, DensityFunctionHolder> = files
-        .into_iter()
-        .map(|(id, json)| {
-            let holder = serde_json::from_str(&json).unwrap_or_else(|e| panic!("{id}: {e}"));
-            (id, holder)
-        })
-        .collect();
-    let mut out = BTreeMap::new();
-    for (id, holder) in &holders {
-        resolve_holder(id, holder, &holders, &mut out);
-    }
-    assert_eq!(
-        out.len(),
-        holders.len(),
-        "every density function must resolve"
-    );
-    out
-}
-
-fn load_noises() -> BTreeMap<ResourceLocation, NoiseParam> {
-    let dir = assets_root().join("noise");
-    let mut files = Vec::new();
-    walk_json(&dir, &dir, &mut files);
-    files
-        .into_iter()
-        .map(|(id, json)| {
-            let param = serde_json::from_str(&json).unwrap_or_else(|e| panic!("{id}: {e}"));
-            (id, param)
-        })
-        .collect()
-}
-
-pub(super) fn build_router(settings_name: &str, seed: u64) -> NoiseRouter {
-    let path = assets_root().join(format!("noise_settings/{settings_name}.json"));
-    let json = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    let settings: NoiseGeneratorSettings =
-        serde_json::from_str(&json).unwrap_or_else(|e| panic!("{settings_name}: {e}"));
-    let functions = load_density_functions();
-    let noises = load_noises();
-    println!(
-        "[{settings_name}] {} density functions, {} noises loaded",
-        functions.len(),
-        noises.len()
-    );
-    let router = build_functions(
-        &functions,
-        &noises,
-        &settings,
-        seed,
-        super::corpus().default_state("minecraft:stone").into(),
-        super::corpus().default_state("minecraft:water").into(),
-    );
-    println!(
-        "[{settings_name}] final_density index={} noise height={} sea level={}",
-        router.final_density_index(),
-        router.noise_height(),
-        router.sea_level()
-    );
-    router
-}
+use super::build_settings_router as build_router;
 
 fn summarize(label: &str, rep: usize, mut ms: Vec<f64>) {
     let n = ms.len();
@@ -234,10 +120,8 @@ fn census(label: &str, router: &NoiseRouter, columns: i32) {
     let sea_level = router.sea_level();
     for i in 0..columns {
         let (cx, cz) = (i % 8, i / 8);
-        let lattice = CellLattice::fill(router, cx * 16, cz * 16, &mut fill.scratch)
+        let lattice = CellLattice::fill(router, cx * 16, cz * 16, &mut fill.ws)
             .expect("the router has a cell lattice");
-        fill.bounds
-            .resize(router.final_density_index() + 1, Interval::exact(0.0));
         fill.corners.resize(lattice.width, Interval::exact(0.0));
         for z in 0..lattice.volume.size().z - 1 {
             for x in 0..lattice.volume.size().x - 1 {
@@ -255,7 +139,7 @@ fn census(label: &str, router: &NoiseRouter, columns: i32) {
             }
         }
     }
-    let lattice = CellLattice::fill(router, 0, 0, &mut fill.scratch).unwrap();
+    let lattice = CellLattice::fill(router, 0, 0, &mut fill.ws).unwrap();
     println!(
         "[{label}] lattice: {} wrappers x {} corners = {} evaluations/chunk",
         lattice.width,

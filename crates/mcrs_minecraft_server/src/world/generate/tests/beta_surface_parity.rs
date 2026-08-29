@@ -9,10 +9,11 @@ use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::biome::source::{
     BetaLandBiome, BiomeSource, beta_biome_from_climate, build_beta_lookup_table,
 };
-use mcrs_minecraft_worldgen::density_function::build_functions;
-use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
 use mcrs_voxel_math::BlockPos;
 
+use mcrs_minecraft_worldgen::program::Workspace;
+
+use super::build_beta_router;
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::{apply_beta_surface, generate_column};
 
@@ -209,7 +210,7 @@ impl std::fmt::Display for MismatchBand {
 fn column_matches(
     generated_col: &[BlockStateId; 128],
     fixture: &ColumnFixture,
-    router: &mcrs_minecraft_worldgen::density_function::NoiseRouter,
+    router: &mcrs_minecraft_worldgen::router::NoiseRouter,
     table: &[[BetaLandBiome; 64]; 64],
 ) -> ColumnMatchResult {
     let pre_cave = &fixture.pre_cave;
@@ -265,7 +266,7 @@ fn column_matches(
 
     // Biome check: sample climate at the geographic position and resolve via the
     // quantized 64x64 table, matching back2beta's getBiomeFromLookup.
-    let (temp, humidity) = router.sample_beta_climate(fixture.wx, fixture.wz);
+    let (temp, humidity) = router.sample_beta_climate(&mut Workspace::new(), fixture.wx, fixture.wz);
     let gen_biome = beta_biome_from_climate(table, temp, humidity);
     let gen_back2beta_id = beta_land_biome_to_back2beta_id(gen_biome);
     let biome_mismatch = if gen_back2beta_id != fixture.biome_id {
@@ -307,79 +308,6 @@ fn make_beta_biome() -> Biome {
     }
 }
 
-fn load_density_functions_from_disk() -> BTreeMap<
-    mcrs_minecraft_core::ResourceLocation,
-    mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
-> {
-    use mcrs_minecraft_worldgen::density_function::proto::DensityFunctionHolder;
-    fn recurse(
-        dir: &std::path::Path,
-        prefix: &str,
-        map: &mut BTreeMap<
-            mcrs_minecraft_core::ResourceLocation,
-            mcrs_minecraft_worldgen::density_function::proto::ProtoDensityFunction,
-        >,
-    ) {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                let subdir = entry.file_name().to_string_lossy().to_string();
-                let new_prefix = if prefix.is_empty() {
-                    subdir
-                } else {
-                    format!("{}/{}", prefix, subdir)
-                };
-                recurse(&path, &new_prefix, map);
-            } else if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                let Ok(json) = std::fs::read_to_string(&path) else {
-                    continue;
-                };
-                let Ok(DensityFunctionHolder::Owned(pdf)) =
-                    serde_json::from_str::<DensityFunctionHolder>(&json)
-                else {
-                    continue;
-                };
-                let stem = path.file_stem().unwrap().to_string_lossy();
-                let key = if prefix.is_empty() {
-                    format!("minecraft:{}", stem)
-                } else {
-                    format!("minecraft:{}/{}", prefix, stem)
-                };
-                if let Ok(ident) = key.parse::<mcrs_minecraft_core::ResourceLocation>() {
-                    map.insert(ident, *pdf);
-                }
-            }
-        }
-    }
-    let base = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../assets/minecraft/worldgen/density_function");
-    let mut map = BTreeMap::new();
-    recurse(&base, "", &mut map);
-    map
-}
-
-fn build_beta_router() -> mcrs_minecraft_worldgen::density_function::NoiseRouter {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../assets/minecraft/worldgen/noise_settings/beta.json"
-    );
-    let json = std::fs::read_to_string(path).expect("beta.json must exist");
-    let settings: NoiseGeneratorSettings =
-        serde_json::from_str(&json).expect("beta.json must deserialize");
-    let functions = load_density_functions_from_disk();
-    let noises = BTreeMap::new();
-    build_functions(
-        &functions,
-        &noises,
-        &settings,
-        12345,
-        super::corpus().default_state("minecraft:stone").into(),
-        super::corpus().default_state("minecraft:water").into(),
-    )
-}
 
 fn build_beta_biome_source() -> (BiomeSource, RegistrySnapshot<Biome>) {
     let mut assets = Assets::<Biome>::default();
@@ -678,7 +606,7 @@ fn beta_climate_matches_back2beta_oracle() {
     let mut failures: Vec<String> = Vec::new();
 
     for &(wx, wz, expected_biome_id) in oracle_cols {
-        let (temp, rain) = router.sample_beta_climate(wx, wz);
+        let (temp, rain) = router.sample_beta_climate(&mut Workspace::new(), wx, wz);
         let gen_id = beta_land_biome_to_back2beta_id(beta_biome_from_climate(&table, temp, rain));
 
         if gen_id != expected_biome_id {

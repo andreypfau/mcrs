@@ -1,12 +1,13 @@
 use bevy_math::IVec3;
-use mcrs_minecraft_worldgen::density_function::{FillScratch, Volume};
+use mcrs_minecraft_worldgen::program::Workspace;
+use mcrs_minecraft_worldgen::volume::Volume;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 
 use crate::world::chunk::CancellationToken;
 use crate::world::generate::generate_column;
 
-use super::bench_columns::build_router;
+use super::build_settings_router as build_router;
 
 /// Whole-cell elimination and the sea-level split settle most of a chunk from
 /// the corner lattice alone, without ever evaluating `final_density` inside
@@ -30,7 +31,7 @@ fn cell_elimination_matches_the_block_by_block_fill() {
     let sea_level = router.sea_level();
     let stone = router.default_block_state();
     let water = router.default_fluid_state();
-    let mut scratch = FillScratch::new();
+    let mut ws = Workspace::new();
     let mut checked = 0usize;
 
     for (index, &section_y) in y_sections.iter().enumerate() {
@@ -40,12 +41,7 @@ fn cell_elimination_matches_the_block_by_block_fill() {
             IVec3::new(section_x * 16, section_y * 16, section_z * 16),
         );
         let mut density = vec![0.0f32; volume.len()];
-        router.sample_volume(
-            router.final_density_index(),
-            &volume,
-            &mut density,
-            &mut scratch,
-        );
+        router.fill(&mut ws, &volume, router.final_density(), &mut density);
         for z in 0..16 {
             for x in 0..16 {
                 for y in 0..16 {

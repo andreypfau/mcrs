@@ -28,11 +28,9 @@ use mcrs_minecraft_core::AppState;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_server::world::chunk::{ChunkPlugin as WorldgenChunkPlugin, ColumnScheduler};
 use mcrs_minecraft_worldgen::bevy::OverworldNoiseRouter;
-use mcrs_minecraft_worldgen::density_function::build_functions;
-use mcrs_minecraft_worldgen::density_function::proto::{
-    DensityFunctionHolder, NoiseParam, ProtoDensityFunction,
-};
-use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
+use mcrs_minecraft_worldgen::compile::build_router;
+use mcrs_minecraft_worldgen::proto::{DensityFunctionHolder, NoiseParam};
+use mcrs_minecraft_worldgen::router::NoiseGeneratorSettings;
 use mcrs_voxel_light::LightingPlugin;
 use mcrs_voxel_light::components::{
     BlockBfsPending, BlockNeedsInitialSeed, SkyBfsPending, SkyLight, SkyNeedsInitialSeed,
@@ -91,30 +89,6 @@ fn walk_json_files(
     }
 }
 
-fn resolve_holder(
-    id: &ResourceLocation,
-    holder: &DensityFunctionHolder,
-    all: &BTreeMap<ResourceLocation, DensityFunctionHolder>,
-    out: &mut BTreeMap<ResourceLocation, ProtoDensityFunction>,
-) {
-    if out.contains_key(id) {
-        return;
-    }
-    match holder {
-        DensityFunctionHolder::Value(v) => {
-            out.insert(id.clone(), ProtoDensityFunction::Constant(v.clone()));
-        }
-        DensityFunctionHolder::Reference(r) => {
-            if let Some(dep) = all.get(r) {
-                resolve_holder(id, dep, all, out);
-            }
-        }
-        DensityFunctionHolder::Owned(proto) => {
-            out.insert(id.clone(), *proto.clone());
-        }
-    }
-}
-
 fn load_overworld_noise_router(assets_path: &std::path::Path) -> OverworldNoiseRouter {
     let settings_path = assets_path.join("minecraft/worldgen/noise_settings/overworld.json");
     let settings_data = std::fs::read(&settings_path)
@@ -133,12 +107,6 @@ fn load_overworld_noise_router(assets_path: &std::path::Path) -> OverworldNoiseR
         }
     }
 
-    let mut functions: BTreeMap<ResourceLocation, ProtoDensityFunction> = BTreeMap::new();
-    let holders_snapshot = holders.clone();
-    for (ident, holder) in &holders_snapshot {
-        resolve_holder(ident, holder, &holders_snapshot, &mut functions);
-    }
-
     let noise_dir = assets_path.join("minecraft/worldgen/noise");
     let mut noise_files = Vec::new();
     walk_json_files(&noise_dir, &noise_dir, "minecraft", &mut noise_files);
@@ -152,14 +120,15 @@ fn load_overworld_noise_router(assets_path: &std::path::Path) -> OverworldNoiseR
 
     // Match the production seed in `NoiseGeneratorSettingsPlugin` (bevy.rs).
     // Test with the same world the live server generates.
-    let router = build_functions(
-        &functions,
-        &noises,
+    let router = build_router(
         &settings,
+        &holders,
+        &noises,
         2,
         mcrs_voxel_storage::VoxelId(1),
         mcrs_voxel_storage::VoxelId(86),
-    );
+    )
+    .expect("the overworld noise router compiles");
     OverworldNoiseRouter(Arc::new(router))
 }
 

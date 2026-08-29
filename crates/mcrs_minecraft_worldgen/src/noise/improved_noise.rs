@@ -1,4 +1,6 @@
 use crate::noise::gradient::GRADIENTS;
+use crate::noise::octave_perlin_noise::OctavePerlinNoise;
+use crate::volume::Volume;
 use mcrs_minecraft_random::{Random, RandomSource};
 use num_traits::{Float, ToPrimitive};
 use std::marker::PhantomData;
@@ -599,6 +601,85 @@ impl ImprovedNoise<f32> {
             smoothstep(local_z),
         )
     }
+}
+
+impl ImprovedNoise<f32> {
+    /// Accumulates `amplitude * sample` over `volume`, Z outer / X middle / Y inner.
+    ///
+    /// The block coordinate is multiplied by the *already combined* scale, so this
+    /// forms `block * (outer_scale * frequency)` where [`Self::sample_column`] forms
+    /// `(block * outer_scale) * frequency`. The two differ by an f64 ulp at
+    /// non-power-of-two frequencies, and vanilla ships that difference.
+    pub fn add_to_volume(
+        &self,
+        out: &mut [f32],
+        volume: &Volume,
+        xz_scale: f64,
+        y_scale: f64,
+        smear_scale_y: f64,
+        amplitude: f32,
+    ) {
+        let size = volume.size();
+        let mut index = 0usize;
+        for iz in 0..size.z {
+            let shifted_z = wrap(volume.block_z(iz) as f64 * xz_scale) + self.origin_z;
+            let floor_z = shifted_z.floor();
+            let local_z = (shifted_z - floor_z) as f32;
+            let section_z = floor_z as i32;
+            let fade_z = smoothstep(local_z);
+
+            for ix in 0..size.x {
+                let shifted_x = wrap(volume.block_x(ix) as f64 * xz_scale) + self.origin_x;
+                let floor_x = shifted_x.floor();
+                let local_x = (shifted_x - floor_x) as f32;
+                let fade_x = smoothstep(local_x);
+                let (p0, p1) = self.x_perms(floor_x as i32);
+                let mut cell: Option<(i32, [usize; 8])> = None;
+
+                for iy in 0..size.y {
+                    let original_y = volume.block_y(iy) as f64 * y_scale;
+                    let shifted_y = wrap(original_y) + self.origin_y;
+                    let floor_y = shifted_y.floor();
+                    let local_y = shifted_y - floor_y;
+                    let mut fade = 0.0f64;
+                    if smear_scale_y != 0.0 {
+                        let t = if original_y >= 0.0 && original_y < local_y {
+                            original_y
+                        } else {
+                            local_y
+                        };
+                        fade = ((t / smear_scale_y + 1.0E-7f32 as f64).floor() as i32) as f64
+                            * smear_scale_y;
+                    }
+                    let section_y = floor_y as i32;
+                    let grads = match cell {
+                        Some((cached_y, grads)) if cached_y == section_y => grads,
+                        _ => {
+                            let grads = self.corner_grads(p0, p1, section_y, section_z);
+                            cell = Some((section_y, grads));
+                            grads
+                        }
+                    };
+                    out[index] += amplitude
+                        * lerp_corners(
+                            &grads,
+                            local_x,
+                            (local_y - fade) as f32,
+                            local_z,
+                            fade_x,
+                            smoothstep(local_y as f32),
+                            fade_z,
+                        );
+                    index += 1;
+                }
+            }
+        }
+    }
+}
+
+#[inline(always)]
+fn wrap(value: f64) -> f64 {
+    OctavePerlinNoise::<f32>::maintain_precission(value)
 }
 
 #[inline(always)]

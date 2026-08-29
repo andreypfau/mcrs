@@ -74,6 +74,7 @@ mcrs_minecraft_core_macros = { path = "crates/mcrs_minecraft_core_macros" }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core" }
 mcrs_minecraft_world = { path = "crates/mcrs_minecraft_world" }
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
+mcrs_minecraft_decoration = { path = "crates/mcrs_minecraft_decoration" }
 mcrs_minecraft_worldgen = { path = "crates/mcrs_minecraft_worldgen" }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
 mcrs_minecraft_random = { path = "crates/mcrs_minecraft_random" }
@@ -115,6 +116,9 @@ opt-level = 3
 # octave Perlin noise, palette writes) is far too hot for opt-level 0, so the
 # worldgen-critical member crates are optimized even in dev builds.
 [profile.dev.package."mcrs_minecraft_worldgen"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_decoration"]
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_random"]

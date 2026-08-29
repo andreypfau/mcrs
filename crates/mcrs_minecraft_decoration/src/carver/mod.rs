@@ -30,7 +30,6 @@ pub fn can_replace_block(config: &BetaCaveCarverConfig, state: VoxelId) -> bool 
 /// Ports MapGenCaves water-abort scan (lines 98–113): outer Y-loop from j2+1 down
 /// to i2-1, skipping interior via early-set `l3 = i2` — identical to the Java idiom.
 pub fn water_abort_scan<G>(
-    config: &BetaCaveCarverConfig,
     x_min: i32,
     x_max: i32,
     y_min: i32,
@@ -111,7 +110,6 @@ where
     let l2 = l2.min(16);
 
     if water_abort_scan(
-        config,
         k1,
         l1,
         i2,

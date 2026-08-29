@@ -4,11 +4,9 @@ use mcrs_minecraft_block::palette::AirCount;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_server::world::chunk::CancellationToken;
 use mcrs_minecraft_server::world::generate::generate_column;
-use mcrs_minecraft_worldgen::density_function::build_functions;
-use mcrs_minecraft_worldgen::density_function::proto::{
-    DensityFunctionHolder, ProtoDensityFunction,
-};
-use mcrs_minecraft_worldgen::proto::NoiseGeneratorSettings;
+use mcrs_minecraft_worldgen::compile::build_router;
+use mcrs_minecraft_worldgen::proto::DensityFunctionHolder;
+use mcrs_minecraft_worldgen::router::NoiseGeneratorSettings;
 use std::collections::BTreeMap;
 
 fn load_noise_settings(name: &str) -> NoiseGeneratorSettings {
@@ -23,7 +21,7 @@ fn load_noise_settings(name: &str) -> NoiseGeneratorSettings {
         .unwrap_or_else(|e| panic!("noise_settings/{}.json must deserialize: {}", name, e))
 }
 
-fn load_beta_density_functions() -> BTreeMap<ResourceLocation, ProtoDensityFunction> {
+fn load_beta_density_functions() -> BTreeMap<ResourceLocation, DensityFunctionHolder> {
     let dir = format!(
         "{}/../../assets/minecraft/worldgen/density_function/beta",
         env!("CARGO_MANIFEST_DIR"),
@@ -35,17 +33,13 @@ fn load_beta_density_functions() -> BTreeMap<ResourceLocation, ProtoDensityFunct
             continue;
         }
         let json = std::fs::read_to_string(&path).expect("density function must be readable");
-        let DensityFunctionHolder::Owned(pdf) =
-            serde_json::from_str::<DensityFunctionHolder>(&json)
-                .unwrap_or_else(|e| panic!("{} must deserialize: {}", path.display(), e))
-        else {
-            panic!("{} must be an owned density function", path.display());
-        };
+        let holder = serde_json::from_str::<DensityFunctionHolder>(&json)
+            .unwrap_or_else(|e| panic!("{} must deserialize: {}", path.display(), e));
         let stem = path.file_stem().unwrap().to_string_lossy();
         let ident = format!("minecraft:beta/{}", stem)
             .parse::<ResourceLocation>()
             .expect("valid ident");
-        map.insert(ident, *pdf);
+        map.insert(ident, holder);
     }
     map
 }
@@ -64,14 +58,15 @@ fn beta_sections_outside_noise_range_are_air() {
 
     let functions = load_beta_density_functions();
     let noises = BTreeMap::new();
-    let router = build_functions(
+    let router = build_router(
+        &settings,
         &functions,
         &noises,
-        &settings,
         42,
         mcrs_minecraft_protocol::BlockStateId(1).into(),
         mcrs_minecraft_protocol::BlockStateId(86).into(),
-    );
+    )
+    .expect("the beta noise router compiles");
 
     assert_eq!(router.noise_min_y(), 0);
     assert_eq!(router.noise_height(), 128);

@@ -1,7 +1,8 @@
-use crate::density_function::proto::Normalization;
 use crate::noise::beta::simplex_octave::SimplexOctaveNoise;
 use crate::noise::improved_noise::ImprovedNoise;
 use crate::noise::octave_perlin_noise::OctavePerlinNoise;
+use crate::proto::Normalization;
+use crate::volume::Volume;
 use mcrs_minecraft_random::Random;
 
 const INPUT_FACTOR: f64 = 1.0181268882175227;
@@ -292,6 +293,50 @@ impl NoiseSampler {
             for (slot, &sampled) in out.iter_mut().zip(scratch.layer.iter()) {
                 *slot += layer.amplitude * sampled;
             }
+        }
+    }
+}
+
+impl NoiseSampler {
+    /// Accumulates `amplitude * get(...)` over `volume`.
+    ///
+    /// Each layer receives `xz_scale * frequency` *before* the block multiply, where
+    /// [`NoiseSampler::get`] multiplies the block first and the frequency second. At
+    /// the `1.0181268882175227` frequency ratio of every second sub-noise the two
+    /// products differ by an f64 ulp; vanilla's scalar and volume paths disagree the
+    /// same way, so this must not be unified with `get`.
+    pub fn add_to_volume(
+        &self,
+        out: &mut [f32],
+        volume: &Volume,
+        xz_scale: f64,
+        y_scale: f64,
+        amplitude: f32,
+    ) {
+        let Self::Normal(n) = self else {
+            let size = volume.size();
+            let mut i = 0usize;
+            for iz in 0..size.z {
+                let z = volume.block_z(iz) as f64 * xz_scale;
+                for ix in 0..size.x {
+                    let x = volume.block_x(ix) as f64 * xz_scale;
+                    for iy in 0..size.y {
+                        out[i] += amplitude * self.get(x, volume.block_y(iy) as f64 * y_scale, z);
+                        i += 1;
+                    }
+                }
+            }
+            return;
+        };
+        for layer in &n.layers {
+            layer.noise.add_to_volume(
+                out,
+                volume,
+                xz_scale * layer.frequency,
+                y_scale * layer.frequency,
+                0.0,
+                amplitude * layer.amplitude,
+            );
         }
     }
 }

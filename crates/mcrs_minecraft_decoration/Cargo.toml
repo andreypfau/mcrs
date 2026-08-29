@@ -1,0 +1,12 @@
+[package]
+name = "mcrs_minecraft_decoration"
+description = "mcrs_minecraft_decoration"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+mcrs_minecraft_random.workspace = true
+mcrs_voxel_storage.workspace = true

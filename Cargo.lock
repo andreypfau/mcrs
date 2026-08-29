@@ -3228,6 +3228,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_decoration"
+version = "0.1.0"
+dependencies = [
+ "mcrs_minecraft_random",
+ "mcrs_voxel_storage",
+]
+
+[[package]]
 name = "mcrs_minecraft_nbt"
 version = "0.1.0"
 dependencies = [
@@ -3334,6 +3342,7 @@ dependencies = [
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_block",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_decoration",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",

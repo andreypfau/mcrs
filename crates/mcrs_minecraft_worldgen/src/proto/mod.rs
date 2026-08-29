@@ -1,0 +1,546 @@
+pub mod args;
+pub mod axes;
+pub mod noise;
+pub mod range;
+pub mod settings;
+pub mod spline;
+
+pub use args::{
+    BlendedNoiseArguments, ClampArguments, FindTopSurfaceArguments, GradientArguments,
+    IntervalSelectArguments, PowFunctionArguments, RoundFunctionArguments, ScaleValue,
+    SingleArgumentFunction, SmearScaleMultiplier, TwoArgumentFunction,
+};
+pub use axes::{ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, NO_AXES, axes_from, domain_axes, holder_axes};
+pub use noise::{NoiseHolder, NoiseParam, Normalization};
+pub use range::{holder_range, range, round_range};
+pub use settings::{BlockState, Either, ValueRange};
+pub use spline::{ProtoMultipoint, ProtoSpline};
+
+use crate::node::distance::DistanceMetric;
+use crate::volume::Axis;
+use mcrs_minecraft_core::ResourceLocation;
+use serde::de::Visitor;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::hash::{Hash, Hasher};
+use std::num::NonZeroU32;
+
+/// A `Codec.DOUBLE` payload. Compared and hashed on its bits, because vanilla
+/// compares these records with `Double.compare`: `-0.0` and `0.0` are distinct
+/// keys, and a derived `PartialEq` would call them equal while the bit hash
+/// disagreed.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct HashableF64(pub f64);
+
+impl PartialEq for HashableF64 {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.to_bits() == other.0.to_bits()
+    }
+}
+
+impl Eq for HashableF64 {}
+
+impl Hash for HashableF64 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.to_bits().hash(state);
+    }
+}
+
+impl From<f64> for HashableF64 {
+    #[inline]
+    fn from(value: f64) -> Self {
+        HashableF64(value)
+    }
+}
+
+pub const MAX_REASONABLE_NOISE_VALUE: f32 = 1_000_000.0;
+
+/// `NOISE_VALUE_CODEC`. Stored as `f64` because that is what `serde_json`
+/// parses, but bounded and compared as the `float` vanilla keeps.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(try_from = "f64")]
+pub struct NoiseValue(pub f64);
+
+impl PartialEq for NoiseValue {
+    fn eq(&self, other: &Self) -> bool {
+        (self.0 as f32).to_bits() == (other.0 as f32).to_bits()
+    }
+}
+
+impl Eq for NoiseValue {}
+
+impl Hash for NoiseValue {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        (self.0 as f32).to_bits().hash(state);
+    }
+}
+
+impl TryFrom<f64> for NoiseValue {
+    type Error = String;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        let narrowed = value as f32;
+        if !(-MAX_REASONABLE_NOISE_VALUE..=MAX_REASONABLE_NOISE_VALUE).contains(&narrowed) {
+            return Err(format!(
+                "Value must be within range [-{MAX_REASONABLE_NOISE_VALUE};{MAX_REASONABLE_NOISE_VALUE}]: {value}"
+            ));
+        }
+        Ok(NoiseValue(value))
+    }
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConstantValue {
+    pub value: NoiseValue,
+}
+
+impl From<f64> for ConstantValue {
+    #[inline]
+    fn from(value: f64) -> Self {
+        ConstantValue {
+            value: NoiseValue(value),
+        }
+    }
+}
+
+/// The tagged `minecraft:constant` carries `{"value": n}`, but a bare number is
+/// the shape every shipped asset uses and the only one vanilla ever writes.
+mod bare_value {
+    use super::{ConstantValue, NoiseValue};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S: Serializer>(
+        value: &ConstantValue,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        value.value.0.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<ConstantValue, D::Error> {
+        NoiseValue::deserialize(deserializer).map(|value| ConstantValue { value })
+    }
+}
+
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+#[cfg_attr(feature = "bevy", derive(bevy_asset::Asset, bevy_reflect::TypePath))]
+pub enum DensityFunctionHolder {
+    Value(#[serde(with = "bare_value")] ConstantValue),
+    Reference(ResourceLocation),
+    Owned(Box<ProtoDensityFunction>),
+}
+
+impl DensityFunctionHolder {
+    /// The `instanceof ConstantFunction` test every compile-time specialization
+    /// performs. A bare number and a tagged `constant` are the same function to
+    /// vanilla, so both answer here.
+    pub fn as_constant(&self) -> Option<f32> {
+        match self {
+            Self::Value(c) => Some(c.value.0 as f32),
+            Self::Owned(f) => match &**f {
+                ProtoDensityFunction::Constant(c) => Some(c.value.0 as f32),
+                _ => None,
+            },
+            Self::Reference(_) => None,
+        }
+    }
+
+    /// Structural equality against `DensityFunctions.zero()`, which is a record
+    /// over a `float`: a shift of `-0.0` is *not* zero and forces the shifted
+    /// noise sampler.
+    pub fn is_zero_constant(&self) -> bool {
+        self.as_constant().is_some_and(|v| v.to_bits() == 0)
+    }
+
+    pub fn rewrite_children(
+        &self,
+        rule: &mut dyn FnMut(&DensityFunctionHolder) -> DensityFunctionHolder,
+    ) -> DensityFunctionHolder {
+        match self {
+            Self::Value(_) | Self::Reference(_) => self.clone(),
+            Self::Owned(function) => Self::Owned(Box::new(function.rewrite_children(rule))),
+        }
+    }
+}
+
+impl From<SingleArgumentFunction> for DensityFunctionHolder {
+    fn from(function: SingleArgumentFunction) -> Self {
+        function.input
+    }
+}
+
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+#[serde(deny_unknown_fields)]
+pub enum ProtoDensityFunction {
+    #[serde(rename = "minecraft:constant", alias = "constant")]
+    Constant(ConstantValue),
+    #[serde(rename = "minecraft:blend_alpha", alias = "blend_alpha")]
+    BlendAlpha,
+    #[serde(rename = "minecraft:blend_offset", alias = "blend_offset")]
+    BlendOffset,
+    #[serde(rename = "minecraft:beardifier", alias = "beardifier")]
+    Beardifier,
+    #[serde(rename = "minecraft:noise", alias = "noise")]
+    Noise {
+        noise: NoiseHolder,
+        xz_scale: HashableF64,
+        y_scale: HashableF64,
+        #[serde(default = "zero_holder", skip_serializing_if = "is_zero_holder")]
+        shift_x: DensityFunctionHolder,
+        #[serde(default = "zero_holder", skip_serializing_if = "is_zero_holder")]
+        shift_y: DensityFunctionHolder,
+        #[serde(default = "zero_holder", skip_serializing_if = "is_zero_holder")]
+        shift_z: DensityFunctionHolder,
+    },
+    #[serde(rename = "minecraft:end_outer_islands", alias = "end_outer_islands")]
+    EndOuterIslands,
+    #[serde(rename = "minecraft:distance_to_point", alias = "distance_to_point")]
+    DistanceToPoint {
+        point: [i32; 3],
+        metric: DistanceMetric,
+    },
+    #[serde(rename = "minecraft:gradient", alias = "gradient")]
+    Gradient(GradientArguments),
+    #[serde(rename = "minecraft:shift_a", alias = "shift_a")]
+    ShiftA { noise: NoiseHolder },
+    #[serde(rename = "minecraft:shift_b", alias = "shift_b")]
+    ShiftB { noise: NoiseHolder },
+    #[serde(rename = "minecraft:shift", alias = "shift")]
+    Shift { noise: NoiseHolder },
+    #[serde(rename = "minecraft:abs", alias = "abs")]
+    Abs(SingleArgumentFunction),
+    #[serde(rename = "minecraft:square", alias = "square")]
+    Square(SingleArgumentFunction),
+    #[serde(rename = "minecraft:cube", alias = "cube")]
+    Cube(SingleArgumentFunction),
+    #[serde(rename = "minecraft:sqrt", alias = "sqrt")]
+    Sqrt(SingleArgumentFunction),
+    #[serde(rename = "minecraft:half_negative", alias = "half_negative")]
+    HalfNegative(SingleArgumentFunction),
+    #[serde(rename = "minecraft:quarter_negative", alias = "quarter_negative")]
+    QuarterNegative(SingleArgumentFunction),
+    #[serde(rename = "minecraft:reciprocal", alias = "reciprocal")]
+    Reciprocal(SingleArgumentFunction),
+    #[serde(rename = "minecraft:negate", alias = "negate")]
+    Negate(SingleArgumentFunction),
+    #[serde(rename = "minecraft:squeeze", alias = "squeeze")]
+    Squeeze(SingleArgumentFunction),
+    #[serde(rename = "minecraft:log", alias = "log")]
+    Log(SingleArgumentFunction),
+    #[serde(rename = "minecraft:sign", alias = "sign")]
+    Sign(SingleArgumentFunction),
+    #[serde(rename = "minecraft:floor", alias = "floor")]
+    Floor(RoundFunctionArguments),
+    #[serde(rename = "minecraft:round", alias = "round")]
+    Round(RoundFunctionArguments),
+    #[serde(rename = "minecraft:ceil", alias = "ceil")]
+    Ceil(RoundFunctionArguments),
+    #[serde(rename = "minecraft:truncate", alias = "truncate")]
+    Truncate(RoundFunctionArguments),
+    #[serde(rename = "minecraft:add", alias = "add")]
+    Add(TwoArgumentFunction),
+    #[serde(rename = "minecraft:sub", alias = "sub")]
+    Sub(TwoArgumentFunction),
+    #[serde(rename = "minecraft:mul", alias = "mul")]
+    Mul(TwoArgumentFunction),
+    #[serde(rename = "minecraft:div", alias = "div")]
+    Div(TwoArgumentFunction),
+    #[serde(rename = "minecraft:min", alias = "min")]
+    Min(TwoArgumentFunction),
+    #[serde(rename = "minecraft:max", alias = "max")]
+    Max(TwoArgumentFunction),
+    #[serde(rename = "minecraft:pow", alias = "pow")]
+    Pow(PowFunctionArguments),
+    #[serde(rename = "minecraft:spline", alias = "spline")]
+    Spline { spline: ProtoSpline },
+    #[serde(rename = "minecraft:lerp", alias = "lerp")]
+    Lerp {
+        alpha: DensityFunctionHolder,
+        first: DensityFunctionHolder,
+        second: DensityFunctionHolder,
+    },
+    #[serde(rename = "minecraft:clamp", alias = "clamp")]
+    Clamp(ClampArguments),
+    #[serde(rename = "minecraft:range_choice", alias = "range_choice")]
+    RangeChoice {
+        input: DensityFunctionHolder,
+        min_inclusive: NoiseValue,
+        max_exclusive: NoiseValue,
+        when_in_range: DensityFunctionHolder,
+        when_out_of_range: DensityFunctionHolder,
+    },
+    #[serde(rename = "minecraft:interval_select", alias = "interval_select")]
+    IntervalSelect(IntervalSelectArguments),
+    #[serde(rename = "minecraft:cache", alias = "cache")]
+    Cache(SingleArgumentFunction),
+    #[serde(rename = "minecraft:blend_density", alias = "blend_density")]
+    BlendDensity(SingleArgumentFunction),
+    #[serde(rename = "minecraft:interpolated", alias = "interpolated")]
+    Interpolated {
+        input: DensityFunctionHolder,
+        cell_size_xz: NonZeroU32,
+        cell_size_y: NonZeroU32,
+    },
+    #[serde(rename = "minecraft:slice", alias = "slice")]
+    Slice {
+        axis: Axis,
+        coordinate: i32,
+        input: DensityFunctionHolder,
+    },
+    #[serde(rename = "minecraft:find_top_surface", alias = "find_top_surface")]
+    FindTopSurface(FindTopSurfaceArguments),
+    #[serde(rename = "minecraft:old_blended_noise", alias = "old_blended_noise")]
+    OldBlendedNoise(BlendedNoiseArguments),
+}
+
+fn zero_holder() -> DensityFunctionHolder {
+    DensityFunctionHolder::Value(ConstantValue::from(0.0))
+}
+
+fn is_zero_holder(shift: &DensityFunctionHolder) -> bool {
+    shift.is_zero_constant()
+}
+
+impl ProtoDensityFunction {
+    pub fn visit_children(&self, f: &mut impl FnMut(&DensityFunctionHolder)) {
+        use ProtoDensityFunction::*;
+        match self {
+            Constant(_)
+            | BlendAlpha
+            | BlendOffset
+            | Beardifier
+            | EndOuterIslands
+            | DistanceToPoint { .. }
+            | Gradient(_)
+            | ShiftA { .. }
+            | ShiftB { .. }
+            | Shift { .. }
+            | OldBlendedNoise(_) => {}
+            Abs(x) | Square(x) | Cube(x) | Sqrt(x) | HalfNegative(x) | QuarterNegative(x)
+            | Reciprocal(x) | Negate(x) | Squeeze(x) | Log(x) | Sign(x) | Cache(x)
+            | BlendDensity(x) => f(&x.input),
+            Clamp(x) => f(&x.input),
+            Interpolated { input, .. } | Slice { input, .. } => f(input),
+            Noise {
+                shift_x,
+                shift_y,
+                shift_z,
+                ..
+            } => {
+                f(shift_x);
+                f(shift_y);
+                f(shift_z);
+            }
+            Floor(x) | Round(x) | Ceil(x) | Truncate(x) => {
+                f(&x.input);
+                f(&x.multiple);
+            }
+            Add(x) | Sub(x) | Mul(x) | Div(x) | Min(x) | Max(x) => {
+                f(&x.left);
+                f(&x.right);
+            }
+            Pow(x) => {
+                f(&x.base);
+                f(&x.exponent);
+            }
+            Lerp {
+                alpha,
+                first,
+                second,
+            } => {
+                f(alpha);
+                f(first);
+                f(second);
+            }
+            Spline { spline } => spline.visit_coordinates(f),
+            RangeChoice {
+                input,
+                when_in_range,
+                when_out_of_range,
+                ..
+            } => {
+                f(input);
+                f(when_in_range);
+                f(when_out_of_range);
+            }
+            IntervalSelect(x) => {
+                f(&x.input);
+                for function in &x.functions {
+                    f(function);
+                }
+            }
+            FindTopSurface(x) => {
+                f(&x.density);
+                f(&x.upper_bound);
+            }
+        }
+    }
+
+    pub fn visit_children_mut(&mut self, f: &mut impl FnMut(&mut DensityFunctionHolder)) {
+        use ProtoDensityFunction::*;
+        match self {
+            Constant(_)
+            | BlendAlpha
+            | BlendOffset
+            | Beardifier
+            | EndOuterIslands
+            | DistanceToPoint { .. }
+            | Gradient(_)
+            | ShiftA { .. }
+            | ShiftB { .. }
+            | Shift { .. }
+            | OldBlendedNoise(_) => {}
+            Abs(x) | Square(x) | Cube(x) | Sqrt(x) | HalfNegative(x) | QuarterNegative(x)
+            | Reciprocal(x) | Negate(x) | Squeeze(x) | Log(x) | Sign(x) | Cache(x)
+            | BlendDensity(x) => f(&mut x.input),
+            Clamp(x) => f(&mut x.input),
+            Interpolated { input, .. } | Slice { input, .. } => f(input),
+            Noise {
+                shift_x,
+                shift_y,
+                shift_z,
+                ..
+            } => {
+                f(shift_x);
+                f(shift_y);
+                f(shift_z);
+            }
+            Floor(x) | Round(x) | Ceil(x) | Truncate(x) => {
+                f(&mut x.input);
+                f(&mut x.multiple);
+            }
+            Add(x) | Sub(x) | Mul(x) | Div(x) | Min(x) | Max(x) => {
+                f(&mut x.left);
+                f(&mut x.right);
+            }
+            Pow(x) => {
+                f(&mut x.base);
+                f(&mut x.exponent);
+            }
+            Lerp {
+                alpha,
+                first,
+                second,
+            } => {
+                f(alpha);
+                f(first);
+                f(second);
+            }
+            Spline { spline } => spline.visit_coordinates_mut(f),
+            RangeChoice {
+                input,
+                when_in_range,
+                when_out_of_range,
+                ..
+            } => {
+                f(input);
+                f(when_in_range);
+                f(when_out_of_range);
+            }
+            IntervalSelect(x) => {
+                f(&mut x.input);
+                for function in &mut x.functions {
+                    f(function);
+                }
+            }
+            FindTopSurface(x) => {
+                f(&mut x.density);
+                f(&mut x.upper_bound);
+            }
+        }
+    }
+
+    pub fn rewrite_children(
+        &self,
+        rule: &mut dyn FnMut(&DensityFunctionHolder) -> DensityFunctionHolder,
+    ) -> ProtoDensityFunction {
+        let mut rewritten = self.clone();
+        rewritten.visit_children_mut(&mut |child| *child = rule(child));
+        rewritten
+    }
+}
+
+impl Serialize for Axis {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(match self {
+            Axis::X => "x",
+            Axis::Y => "y",
+            Axis::Z => "z",
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for Axis {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct AxisVisitor;
+
+        impl Visitor<'_> for AxisVisitor {
+            type Value = Axis;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("one of \"x\", \"y\", \"z\"")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Axis, E> {
+                match value {
+                    "x" => Ok(Axis::X),
+                    "y" => Ok(Axis::Y),
+                    "z" => Ok(Axis::Z),
+                    other => Err(E::unknown_variant(other, &["x", "y", "z"])),
+                }
+            }
+        }
+
+        deserializer.deserialize_str(AxisVisitor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_bare_constant_round_trips_as_a_number() {
+        let parsed: DensityFunctionHolder = serde_json::from_str("1.5").unwrap();
+        assert_eq!(serde_json::to_string(&parsed).unwrap(), "1.5");
+        assert_eq!(parsed.as_constant(), Some(1.5));
+    }
+
+    #[test]
+    fn a_tagged_constant_re_encodes_with_the_namespace() {
+        let parsed: ProtoDensityFunction =
+            serde_json::from_str(r#"{"type":"constant","value":1.5}"#).unwrap();
+        assert_eq!(
+            serde_json::to_string(&parsed).unwrap(),
+            r#"{"type":"minecraft:constant","value":1.5}"#
+        );
+    }
+
+    /// The three-way `noise` specialization tests structural equality against
+    /// `ConstantFunction(+0.0)`, and `Float.compare` separates the two zeros.
+    #[test]
+    fn a_negative_zero_shift_is_not_the_default() {
+        let plain: ProtoDensityFunction = serde_json::from_str(
+            r#"{"type":"minecraft:noise","noise":"minecraft:ridge","xz_scale":1.0,"y_scale":1.0}"#,
+        )
+        .unwrap();
+        let negative: ProtoDensityFunction = serde_json::from_str(
+            r#"{"type":"minecraft:noise","noise":"minecraft:ridge","xz_scale":1.0,"y_scale":1.0,"shift_x":-0.0}"#,
+        )
+        .unwrap();
+        assert_ne!(plain, negative);
+
+        let ProtoDensityFunction::Noise { shift_x, .. } = &negative else {
+            unreachable!()
+        };
+        assert!(!shift_x.is_zero_constant());
+        // A zero shift is the default, so it never reaches the encoded form.
+        assert_eq!(
+            serde_json::to_string(&plain).unwrap(),
+            r#"{"type":"minecraft:noise","noise":"minecraft:ridge","xz_scale":1.0,"y_scale":1.0}"#
+        );
+    }
+}

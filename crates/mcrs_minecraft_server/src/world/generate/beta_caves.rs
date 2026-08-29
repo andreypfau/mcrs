@@ -2,9 +2,9 @@ use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
-use mcrs_minecraft_worldgen::carver::WorldCarver;
-use mcrs_minecraft_worldgen::carver::cave::CaveWorldCarver;
-use mcrs_minecraft_worldgen::carver::config::BetaCaveCarverConfig;
+use mcrs_minecraft_decoration::carver::WorldCarver;
+use mcrs_minecraft_decoration::carver::cave::CaveWorldCarver;
+use mcrs_minecraft_decoration::carver::config::BetaCaveCarverConfig;
 use mcrs_voxel_math::BlockPos;
 use mcrs_voxel_storage::VoxelId;
 

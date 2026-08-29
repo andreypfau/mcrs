@@ -1,8 +1,4 @@
-use super::{
-    Abs, Affine, Cube, DependentDensityFunction, IndependentDensityFunction, IndependentSampler,
-    Log, Negate, NoiseRouter, PiecewiseAffine, Reciprocal, RoundingMode, Sampler, Sign, Sqrt,
-    Square, Squeeze, round_to_integer,
-};
+use crate::jmath;
 
 /// The bounds a value can take. Only ever widened: a bound narrower than the
 /// truth would let the optimiser delete a reachable branch.
@@ -204,7 +200,7 @@ impl Interval {
         if self.is_nai() {
             Self::NAI
         } else if self.min == self.max {
-            Self::exact(Sign::apply(self.min))
+            Self::exact(jmath::signum(self.min))
         } else if !self.contains(0.0) {
             Self::exact(if self.min > 0.0 { 1.0 } else { -1.0 })
         } else if self.min == 0.0 {
@@ -221,7 +217,7 @@ impl Interval {
             return Self::NAI;
         }
         self.pointwise_max(Self::exact(0.0))
-            .map_monotonic(Log::apply)
+            .map_monotonic(jmath::log)
     }
 
     pub fn map_monotonic(self, op: impl Fn(f32) -> f32) -> Self {
@@ -424,110 +420,6 @@ impl std::ops::Div for Interval {
 
     fn div(self, other: Interval) -> Interval {
         self.multiplied(other.reciprocal())
-    }
-}
-
-pub(super) fn round_range(value: Interval, multiple: Interval, mode: RoundingMode) -> Interval {
-    (value / multiple).map_monotonic(|v| round_to_integer(v, mode)) * multiple
-}
-
-/// Bounds on one dependent entry from the bounds already computed for the
-/// entries it reads. `None` for the kinds interval arithmetic cannot follow.
-pub(super) fn dependent_range(
-    function: &DependentDensityFunction,
-    iv: &[Interval],
-) -> Option<Interval> {
-    Some(match function {
-        DependentDensityFunction::Affine(x) => {
-            Affine::compute_range(iv[x.input_index], x.scale, x.offset)
-        }
-        DependentDensityFunction::PiecewiseAffine(x) => {
-            PiecewiseAffine::compute_range(iv[x.input_index], x.neg_scale, x.pos_scale, x.offset)
-        }
-        DependentDensityFunction::Clamp(x) => iv[x.input_index].clamped(x.min, x.max),
-        DependentDensityFunction::RangeChoice(x) => {
-            let input = iv[x.input_index];
-            if input.min() >= x.min_inclusion_value && input.max() < x.max_exclusion_value {
-                iv[x.when_in_index]
-            } else if input.max() < x.min_inclusion_value || input.min() >= x.max_exclusion_value {
-                iv[x.when_out_index]
-            } else {
-                iv[x.when_in_index].union(iv[x.when_out_index])
-            }
-        }
-        DependentDensityFunction::Lerp(x) => {
-            Interval::lerp(iv[x.alpha_index], iv[x.first_index], iv[x.second_index])
-        }
-        DependentDensityFunction::Add(x) => iv[x.input1_index] + iv[x.input2_index],
-        DependentDensityFunction::Sub(x) => iv[x.input1_index] - iv[x.input2_index],
-        DependentDensityFunction::Mul(x) => iv[x.input1_index] * iv[x.input2_index],
-        DependentDensityFunction::Div(x) => iv[x.input1_index] / iv[x.input2_index],
-        DependentDensityFunction::Min(x) => iv[x.input1_index].pointwise_min(iv[x.input2_index]),
-        DependentDensityFunction::Max(x) => iv[x.input1_index].pointwise_max(iv[x.input2_index]),
-        DependentDensityFunction::Pow(x) => iv[x.input1_index].pow(iv[x.input2_index]),
-        DependentDensityFunction::Round(x) => {
-            round_range(iv[x.input1_index], iv[x.input2_index], x.mode)
-        }
-        DependentDensityFunction::Abs(x) => Abs::range(iv[x.input_index]),
-        DependentDensityFunction::Square(x) => Square::range(iv[x.input_index]),
-        DependentDensityFunction::Cube(x) => Cube::range(iv[x.input_index]),
-        DependentDensityFunction::Reciprocal(x) => Reciprocal::range(iv[x.input_index]),
-        DependentDensityFunction::Squeeze(x) => Squeeze::range(iv[x.input_index]),
-        DependentDensityFunction::Sqrt(x) => Sqrt::range(iv[x.input_index]),
-        DependentDensityFunction::Log(x) => Log::range(iv[x.input_index]),
-        DependentDensityFunction::Sign(x) => Sign::range(iv[x.input_index]),
-        DependentDensityFunction::Negate(x) => Negate::range(iv[x.input_index]),
-        DependentDensityFunction::LeakyReLU(x) => {
-            iv[x.input_index].map_monotonic(|value| x.apply(value))
-        }
-        DependentDensityFunction::ConstSub(x) => Interval::exact(x.argument) - iv[x.input_index],
-        DependentDensityFunction::ConstDiv(x) => Interval::exact(x.argument) / iv[x.input_index],
-        DependentDensityFunction::ConstMin(x) => {
-            iv[x.input_index].pointwise_min(Interval::exact(x.argument))
-        }
-        DependentDensityFunction::ConstMax(x) => {
-            iv[x.input_index].pointwise_max(Interval::exact(x.argument))
-        }
-        DependentDensityFunction::ConstExponentPow(x) => {
-            iv[x.input_index].pow(Interval::exact(x.exponent))
-        }
-        DependentDensityFunction::ConstBasePow(x) => Interval::exact(x.base).pow(iv[x.input_index]),
-        DependentDensityFunction::IntegerMultipleRound(x) => {
-            round_range(iv[x.input_index], Interval::exact(x.multiple), x.mode)
-        }
-        DependentDensityFunction::Slide(_)
-        | DependentDensityFunction::ShiftedNoise(_)
-        | DependentDensityFunction::Spline(_)
-        | DependentDensityFunction::FindTopSurface(_)
-        | DependentDensityFunction::Slice(_) => return None,
-    })
-}
-
-impl NoiseRouter {
-    /// Bounds on `final_density` across a whole cell, given each `interpolated`
-    /// wrapper's own bounds over the cell's eight corners. Trilinear
-    /// interpolation is a convex combination, so it never leaves the corner
-    /// hull; interval arithmetic over the outer terms carries that up.
-    ///
-    /// `None` when an outer term has a kind this cannot bound, which simply
-    /// means the caller must evaluate the cell block by block.
-    pub fn final_density_cell_bounds(
-        &self,
-        wrapper_bounds: &[Interval],
-        iv: &mut [Interval],
-    ) -> Option<Interval> {
-        for (k, &idx) in self.outer_wrappers.iter().enumerate() {
-            iv[idx] = wrapper_bounds[k];
-        }
-        for &i in self.outer_terms.iter() {
-            let bounds = match &self.stack[i].sampler {
-                Sampler::Independent(IndependentDensityFunction::Constant(c)) => c.range(),
-                Sampler::Dependent(f) => dependent_range(f, iv)?,
-                _ => return None,
-            };
-            iv[i] = bounds;
-        }
-        Some(iv[self.final_density_index])
     }
 }
 

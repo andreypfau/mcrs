@@ -1,8 +1,6 @@
-use crate::density_function::proto::{
-    DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction, Visitor,
-};
-use crate::density_function::{NoiseRouter, build_functions};
-use crate::proto::{Either, NoiseGeneratorSettings};
+use crate::compile::build_router;
+use crate::proto::{DensityFunctionHolder, NoiseHolder, NoiseParam, ProtoDensityFunction};
+use crate::router::{GeneratorSettings, NoiseRouter};
 use bevy_app::{App, Plugin, Startup, Update};
 use bevy_asset::io::Reader;
 use bevy_asset::{
@@ -17,26 +15,22 @@ use std::collections::BTreeMap;
 use std::env;
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::info;
+use tracing::{error, info};
 
-/// Configures which world preset to load and the world seed to use for generation.
+/// Which world preset to load and the seed to generate with.
 ///
-/// Insert this resource before `Startup` so that the noise-router build can
-/// read it. Defaults to the `normal` preset (overworld noise settings) and
-/// seed 0.  Override by setting `MCRS_WORLD_PRESET` and `MCRS_WORLD_SEED`
-/// environment variables.
+/// Insert before `Startup` so the router build can read it. Defaults to the
+/// `normal` preset and seed 0; `MCRS_WORLD_PRESET` and `MCRS_WORLD_SEED`
+/// override both.
 #[derive(Resource, Clone, Debug)]
 pub struct WorldGenConfig {
-    /// The `namespace:path` identifier of the active world preset.
     pub preset_namespace: Arc<str>,
     pub preset_path: Arc<str>,
-    /// The noise-settings id for the overworld dimension of this preset,
-    /// derived from `generator.settings` in the preset JSON.
-    /// For `minecraft:normal` this is `minecraft:overworld`; for
-    /// `minecraft:beta` this is `minecraft:beta`.
+    /// The noise settings the preset's overworld dimension names, from its
+    /// `generator.settings`: `minecraft:overworld` for `minecraft:normal`,
+    /// `minecraft:beta` for `minecraft:beta`.
     pub noise_settings_namespace: Arc<str>,
     pub noise_settings_path: Arc<str>,
-    /// World seed forwarded to `build_functions`.
     pub seed: u64,
     /// The terrain block and the sea fluid the active noise settings state,
     /// resolved against the block registry by whoever runs before
@@ -61,9 +55,6 @@ impl Default for WorldGenConfig {
 }
 
 impl WorldGenConfig {
-    /// Build from environment variables:
-    /// - `MCRS_WORLD_PRESET`: `"normal"` or `"minecraft:normal"` (default: `"minecraft:normal"`)
-    /// - `MCRS_WORLD_SEED`: decimal `u64` (default: `0`)
     pub fn from_env() -> Self {
         let (preset_namespace, preset_path) = match env::var("MCRS_WORLD_PRESET") {
             Ok(raw) => {
@@ -101,9 +92,6 @@ impl WorldGenConfig {
         }
     }
 
-    /// Returns the Bevy asset path for the overworld noise settings JSON.
-    ///
-    /// Format: `{namespace}/worldgen/noise_settings/{path}.json`
     pub fn noise_settings_asset_path(&self) -> String {
         format!(
             "{}/worldgen/noise_settings/{}.json",
@@ -131,17 +119,14 @@ enum ChunkGenerator {
     Unsupported,
 }
 
-/// Read the world preset JSON from disk and extract the `generator.settings`
-/// id for the `minecraft:overworld` dimension.
+/// The `generator.settings` id the preset states for `minecraft:overworld`.
 pub(crate) fn resolve_overworld_noise_settings(
     preset_ns: &str,
     preset_path: &str,
 ) -> (Arc<str>, Arc<str>) {
     let asset_root = env::var("BEVY_ASSET_ROOT").unwrap_or_else(|_| ".".to_string());
-    let json_path = format!(
-        "{}/assets/{}/worldgen/world_preset/{}.json",
-        asset_root, preset_ns, preset_path
-    );
+    let json_path =
+        format!("{asset_root}/assets/{preset_ns}/worldgen/world_preset/{preset_path}.json");
 
     let data = std::fs::read_to_string(&json_path)
         .unwrap_or_else(|e| panic!("cannot read world preset {json_path}: {e}"));
@@ -188,8 +173,8 @@ impl Plugin for NoiseGeneratorSettingsPlugin {
 #[derive(bevy_ecs::schedule::SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BuildNoiseRouter;
 
-/// Retains the `Handle<NoiseGeneratorSettingsAsset>` so the asset is not
-/// dropped before `build_noise_router_on_load` can react to its load event.
+/// Retains the handle so the asset is not dropped before
+/// `build_noise_router_on_load` can react to its load event.
 #[derive(Resource)]
 pub struct NoiseSettingsHandle(pub Handle<NoiseGeneratorSettingsAsset>);
 
@@ -202,7 +187,7 @@ fn request_overworld_noise_settings(
     world_gen_config: Option<Res<WorldGenConfig>>,
 ) {
     let asset_path = match &world_gen_config {
-        Some(cfg) => cfg.noise_settings_asset_path(),
+        Some(config) => config.noise_settings_asset_path(),
         None => "minecraft/worldgen/noise_settings/overworld.json".to_string(),
     };
 
@@ -221,154 +206,117 @@ fn build_noise_router_on_load(
     world_gen_config: Option<Res<WorldGenConfig>>,
     noise_handle: Option<Res<NoiseSettingsHandle>>,
 ) {
-    messages.read().for_each(|event| match event {
-        AssetEvent::LoadedWithDependencies { id } => {
-            // Only react to the handle we explicitly requested, not to any
-            // incidentally loaded NoiseGeneratorSettingsAsset.
-            let expected_id = noise_handle.as_ref().map(|h| h.0.id());
-            if expected_id.is_some_and(|eid| eid != *id) {
-                return;
-            }
-
-            if let Some(settings) = noise_settings.get(*id) {
-                let mut all_functions: BTreeMap<_, _> = settings
-                    .density_functions
-                    .iter()
-                    .map(|(id, handle)| {
-                        density_functions
-                            .get(handle)
-                            .map(|func_asset| (id.clone(), func_asset.clone()))
-                    })
-                    .flatten()
-                    .collect();
-
-                let mut all_noises = settings
-                    .noises
-                    .iter()
-                    .map(|(id, handle)| {
-                        noises
-                            .get(handle)
-                            .map(|noise_asset| (id.clone(), noise_asset.clone()))
-                    })
-                    .flatten()
-                    .collect::<BTreeMap<_, _>>();
-
-                fn load_functions_recursively(
-                    func_asset: &DensityFunctionAsset,
-                    density_functions: &Res<Assets<DensityFunctionAsset>>,
-                    noises: &Res<Assets<NoiseParamAsset>>,
-                    all_functions: &mut BTreeMap<ResourceLocation, DensityFunctionAsset>,
-                    all_noises: &mut BTreeMap<ResourceLocation, NoiseParamAsset>,
-                ) {
-                    for (dep_id, dep_handle) in &func_asset.deps {
-                        if !all_functions.contains_key(dep_id) {
-                            if let Some(dep_asset) = density_functions.get(dep_handle) {
-                                all_functions.insert(dep_id.clone(), dep_asset.clone());
-                                load_functions_recursively(
-                                    dep_asset,
-                                    density_functions,
-                                    noises,
-                                    all_functions,
-                                    all_noises,
-                                );
-                            }
-                        }
-                    }
-                    func_asset.noise_deps.iter().for_each(|(id, handle)| {
-                        if !all_noises.contains_key(id) {
-                            if let Some(noise_asset) = noises.get(handle) {
-                                all_noises.insert(id.clone(), noise_asset.clone());
-                            }
-                        }
-                    })
-                }
-
-                all_functions.clone().values().for_each(|func_asset| {
-                    load_functions_recursively(
-                        func_asset,
-                        &density_functions,
-                        &noises,
-                        &mut all_functions,
-                        &mut all_noises,
-                    );
-                });
-
-                let mut functions_proto = BTreeMap::new();
-
-                fn register_function(
-                    id: &ResourceLocation,
-                    func_asset: &DensityFunctionAsset,
-                    all_functions: &BTreeMap<ResourceLocation, DensityFunctionAsset>,
-                    functions_proto: &mut BTreeMap<ResourceLocation, ProtoDensityFunction>,
-                ) {
-                    match &func_asset.function {
-                        DensityFunctionHolder::Value(x) => {
-                            functions_proto
-                                .insert(id.clone(), ProtoDensityFunction::Constant(x.clone()));
-                        }
-                        DensityFunctionHolder::Reference(r) => {
-                            all_functions.get(r).map(|dep_asset| {
-                                register_function(id, dep_asset, all_functions, functions_proto);
-                            });
-                        }
-                        DensityFunctionHolder::Owned(x) => {
-                            functions_proto.insert(id.clone(), *x.clone());
-                        }
-                    }
-                }
-
-                all_functions.iter().for_each(|(id, func_asset)| {
-                    register_function(id, func_asset, &all_functions, &mut functions_proto);
-                });
-
-                let mut noises_proto = BTreeMap::new();
-                all_noises.iter().for_each(|(id, handle)| {
-                    noises_proto.insert(id.clone(), handle.noise.clone());
-                });
-
-                let seed = world_gen_config.as_ref().map(|c| c.seed).unwrap_or(0);
-                let noise_settings_id = world_gen_config
-                    .as_ref()
-                    .map(|c| format!("{}:{}", c.noise_settings_namespace, c.noise_settings_path))
-                    .unwrap_or_else(|| "minecraft:overworld".to_string());
-                info!(
-                    noise_settings = %noise_settings_id,
-                    seed = seed,
-                    "Building OverworldNoiseRouter"
-                );
-                let (default_block, default_fluid) = world_gen_config
-                    .as_ref()
-                    .and_then(|c| Some((c.default_block_state_id?, c.default_fluid_state_id?)))
-                    .expect(
-                        "the noise settings default block and fluid were never resolved; \
-                         a system before BuildNoiseRouter has to state them",
-                    );
-                let overworld = OverworldNoiseRouter(Arc::new(build_functions(
-                    &functions_proto,
-                    &noises_proto,
-                    &settings.settings,
-                    seed,
-                    default_block,
-                    default_fluid,
-                )));
-                commands.insert_resource(overworld);
-            }
+    for event in messages.read() {
+        let AssetEvent::LoadedWithDependencies { id } = event else {
+            continue;
+        };
+        // Only the handle this plugin requested, not any other settings asset
+        // that happens to be loaded.
+        if noise_handle.as_ref().is_some_and(|h| h.0.id() != *id) {
+            continue;
         }
-        _ => {}
-    });
+        let Some(asset) = noise_settings.get(*id) else {
+            continue;
+        };
+
+        let mut registry = BTreeMap::new();
+        let mut noise_params = BTreeMap::new();
+        collect(
+            &asset.density_functions,
+            &asset.noises,
+            &density_functions,
+            &noises,
+            &mut registry,
+            &mut noise_params,
+        );
+
+        let config = world_gen_config.as_deref();
+        let seed = config.map(|c| c.seed).unwrap_or(0);
+        let noise_settings_id = config
+            .map(|c| format!("{}:{}", c.noise_settings_namespace, c.noise_settings_path))
+            .unwrap_or_else(|| "minecraft:overworld".to_string());
+        info!(
+            noise_settings = %noise_settings_id,
+            seed = seed,
+            "Building OverworldNoiseRouter"
+        );
+        let (default_block, default_fluid) = config
+            .and_then(|c| Some((c.default_block_state_id?, c.default_fluid_state_id?)))
+            .expect(
+                "the noise settings default block and fluid were never resolved; \
+                 a system before BuildNoiseRouter has to state them",
+            );
+
+        match build_router(
+            &asset.settings,
+            &registry,
+            &noise_params,
+            seed,
+            default_block,
+            default_fluid,
+        ) {
+            Ok(router) => {
+                for (name, error) in router.failed_roots() {
+                    error!(root = name, %error, "density root did not compile");
+                }
+                commands.insert_resource(OverworldNoiseRouter(Arc::new(router)));
+            }
+            Err(error) => error!(%error, "the noise router did not compile"),
+        }
+    }
+}
+
+/// Walks the loaded handle graph into the two flat registries the compiler
+/// takes. A density function reached only through another one still carries its
+/// own dependency handles, so the walk follows them rather than assuming the
+/// settings asset named everything.
+fn collect(
+    function_handles: &BTreeMap<ResourceLocation, Handle<DensityFunctionAsset>>,
+    noise_handles: &BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
+    density_functions: &Assets<DensityFunctionAsset>,
+    noises: &Assets<NoiseParamAsset>,
+    registry: &mut BTreeMap<ResourceLocation, DensityFunctionHolder>,
+    noise_params: &mut BTreeMap<ResourceLocation, NoiseParam>,
+) {
+    for (id, handle) in noise_handles {
+        if let Some(asset) = noises.get(handle) {
+            noise_params.insert(id.clone(), asset.noise.clone());
+        }
+    }
+    for (id, handle) in function_handles {
+        if registry.contains_key(id) {
+            continue;
+        }
+        let Some(asset) = density_functions.get(handle) else {
+            continue;
+        };
+        registry.insert(id.clone(), asset.function.clone());
+        collect(
+            &asset.deps,
+            &asset.noise_deps,
+            density_functions,
+            noises,
+            registry,
+            noise_params,
+        );
+    }
 }
 
 #[derive(TypePath, Debug)]
 pub struct NoiseGeneratorSettingsAsset {
-    pub settings: NoiseGeneratorSettings,
+    pub settings: GeneratorSettings,
     pub density_functions: BTreeMap<ResourceLocation, Handle<DensityFunctionAsset>>,
     pub noises: BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
 }
 
-impl bevy_asset::Asset for NoiseGeneratorSettingsAsset {}
+impl Asset for NoiseGeneratorSettingsAsset {}
+
 impl bevy_asset::VisitAssetDependencies for NoiseGeneratorSettingsAsset {
     fn visit_dependencies(&self, visit: &mut impl FnMut(bevy_asset::UntypedAssetId)) {
         for handle in self.density_functions.values() {
+            visit(handle.id().untyped());
+        }
+        for handle in self.noises.values() {
             visit(handle.id().untyped());
         }
     }
@@ -381,12 +329,8 @@ pub struct DensityFunctionAsset {
     pub noise_deps: BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
 }
 
-#[derive(TypePath, Asset, Debug, Clone)]
-pub struct NoiseParamAsset {
-    pub noise: NoiseParam,
-}
+impl Asset for DensityFunctionAsset {}
 
-impl bevy_asset::Asset for DensityFunctionAsset {}
 impl bevy_asset::VisitAssetDependencies for DensityFunctionAsset {
     fn visit_dependencies(&self, visit: &mut impl FnMut(bevy_asset::UntypedAssetId)) {
         for handle in self.deps.values() {
@@ -396,6 +340,11 @@ impl bevy_asset::VisitAssetDependencies for DensityFunctionAsset {
             visit(handle.id().untyped());
         }
     }
+}
+
+#[derive(TypePath, Asset, Debug, Clone)]
+pub struct NoiseParamAsset {
+    pub noise: NoiseParam,
 }
 
 #[derive(Default, TypePath)]
@@ -422,27 +371,18 @@ impl AssetLoader for NoiseGeneratorSettingsLoader {
     ) -> Result<Self::Asset, Self::Error> {
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;
-        let noise = serde_json::de::from_slice::<NoiseGeneratorSettings>(&bytes)
+        let settings = serde_json::from_slice::<GeneratorSettings>(&bytes)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
-        let mut visitor = DensityFunctionVisitor {
-            load_context,
-            density_functions: BTreeMap::new(),
-            noises: BTreeMap::new(),
-        };
-        visitor.visit_density_function_holder(&noise.noise_router.temperature);
-        visitor.visit_density_function_holder(&noise.noise_router.vegetation);
-        visitor.visit_density_function_holder(&noise.noise_router.continents);
-        visitor.visit_density_function_holder(&noise.noise_router.erosion);
-        visitor.visit_density_function_holder(&noise.noise_router.depth);
-        visitor.visit_density_function_holder(&noise.noise_router.ridges);
-        visitor.visit_density_function_holder(&noise.noise_router.chunk_surface_level);
-        visitor.visit_density_function_holder(&noise.noise_router.final_density);
+        let mut deps = Dependencies::new(load_context);
+        for root in settings.noise_router.roots() {
+            deps.visit_holder(root);
+        }
 
         Ok(NoiseGeneratorSettingsAsset {
-            settings: noise,
-            density_functions: visitor.density_functions,
-            noises: visitor.noises,
+            settings,
+            density_functions: deps.density_functions,
+            noises: deps.noises,
         })
     }
 }
@@ -463,15 +403,15 @@ impl AssetLoader for NoiseParamLoader {
     type Settings = ();
     type Error = NoiseParamLoaderError;
 
-    async fn load<'a>(
+    async fn load(
         &self,
         reader: &mut dyn Reader,
         _settings: &Self::Settings,
-        load_context: &mut LoadContext<'a>,
+        _load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;
-        let noise = serde_json::de::from_slice::<NoiseParam>(&bytes)
+        let noise = serde_json::from_slice::<NoiseParam>(&bytes)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
         Ok(NoiseParamAsset { noise })
@@ -494,64 +434,95 @@ impl AssetLoader for DensityFunctionLoader {
     type Settings = ();
     type Error = DensityFunctionLoaderError;
 
-    async fn load<'a>(
+    async fn load(
         &self,
         reader: &mut dyn Reader,
         _settings: &Self::Settings,
-        load_context: &mut LoadContext<'a>,
+        load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;
-        let holder = serde_json::de::from_slice::<DensityFunctionHolder>(&bytes)
+        let function = serde_json::from_slice::<DensityFunctionHolder>(&bytes)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
-        let mut collector = DensityFunctionVisitor {
-            load_context,
-            density_functions: BTreeMap::new(),
-            noises: BTreeMap::new(),
-        };
-        collector.visit_density_function_holder(&holder);
+        let mut deps = Dependencies::new(load_context);
+        deps.visit_holder(&function);
 
         Ok(DensityFunctionAsset {
-            function: holder,
-            deps: collector.density_functions,
-            noise_deps: collector.noises,
+            function,
+            deps: deps.density_functions,
+            noise_deps: deps.noises,
         })
     }
 }
 
-struct DensityFunctionVisitor<'a, 'b> {
-    pub load_context: &'a mut LoadContext<'b>,
-    pub density_functions: BTreeMap<ResourceLocation, Handle<DensityFunctionAsset>>,
-    pub noises: BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
+/// Turns the references one asset names into handles, one level deep: a
+/// referenced function's own references are collected when that asset loads.
+struct Dependencies<'a, 'b> {
+    load_context: &'a mut LoadContext<'b>,
+    density_functions: BTreeMap<ResourceLocation, Handle<DensityFunctionAsset>>,
+    noises: BTreeMap<ResourceLocation, Handle<NoiseParamAsset>>,
 }
 
-impl<'a, 'b> Visitor for DensityFunctionVisitor<'a, 'b> {
-    fn visit_reference(&mut self, value: &ResourceLocation) {
-        if self.density_functions.contains_key(value) {
+impl<'a, 'b> Dependencies<'a, 'b> {
+    fn new(load_context: &'a mut LoadContext<'b>) -> Self {
+        Self {
+            load_context,
+            density_functions: BTreeMap::new(),
+            noises: BTreeMap::new(),
+        }
+    }
+
+    fn visit_holder(&mut self, holder: &DensityFunctionHolder) {
+        match holder {
+            DensityFunctionHolder::Value(_) => {}
+            DensityFunctionHolder::Reference(id) => self.visit_reference(id),
+            DensityFunctionHolder::Owned(function) => self.visit_function(function),
+        }
+    }
+
+    fn visit_function(&mut self, function: &ProtoDensityFunction) {
+        if let Some(noise) = noise_holder(function) {
+            self.visit_noise(noise);
+        }
+        function.visit_children(&mut |child| self.visit_holder(child));
+    }
+
+    fn visit_reference(&mut self, id: &ResourceLocation) {
+        if self.density_functions.contains_key(id) {
             return;
         }
         let handle = self.load_context.load(format!(
             "{}/worldgen/density_function/{}.json",
-            value.namespace(),
-            value.path()
+            id.namespace(),
+            id.path()
         ));
-        self.density_functions.insert(value.clone(), handle);
+        self.density_functions.insert(id.clone(), handle);
     }
 
-    fn visit_noise_holder(&mut self, noise: &NoiseHolder) {
-        let NoiseHolder::Reference(r) = noise else {
+    fn visit_noise(&mut self, noise: &NoiseHolder) {
+        let NoiseHolder::Reference(id) = noise else {
             return;
         };
-        if self.noises.contains_key(r) {
+        if self.noises.contains_key(id) {
             return;
         }
         let handle = self.load_context.load(format!(
             "{}/worldgen/noise/{}.json",
-            r.namespace(),
-            r.path()
+            id.namespace(),
+            id.path()
         ));
-        self.noises.insert(r.clone(), handle);
+        self.noises.insert(id.clone(), handle);
+    }
+}
+
+fn noise_holder(function: &ProtoDensityFunction) -> Option<&NoiseHolder> {
+    match function {
+        ProtoDensityFunction::Noise { noise, .. }
+        | ProtoDensityFunction::Shift { noise }
+        | ProtoDensityFunction::ShiftA { noise }
+        | ProtoDensityFunction::ShiftB { noise } => Some(noise),
+        _ => None,
     }
 }
 
@@ -559,22 +530,17 @@ impl<'a, 'b> Visitor for DensityFunctionVisitor<'a, 'b> {
 mod tests {
     use super::resolve_overworld_noise_settings;
 
-    /// Verify that the normal preset resolves its overworld noise settings to
-    /// `minecraft:overworld` (not `minecraft:normal`), by reading the actual
-    /// preset JSON from disk.
     #[test]
     fn noise_settings_for_normal_preset_is_overworld() {
-        let (ns, path) = resolve_overworld_noise_settings("minecraft", "normal");
-        assert_eq!(ns.as_ref(), "minecraft");
+        let (namespace, path) = resolve_overworld_noise_settings("minecraft", "normal");
+        assert_eq!(namespace.as_ref(), "minecraft");
         assert_eq!(path.as_ref(), "overworld");
     }
 
-    /// Verify that the beta preset resolves its overworld noise settings to
-    /// `minecraft:beta`.
     #[test]
     fn noise_settings_for_beta_preset_is_beta() {
-        let (ns, path) = resolve_overworld_noise_settings("minecraft", "beta");
-        assert_eq!(ns.as_ref(), "minecraft");
+        let (namespace, path) = resolve_overworld_noise_settings("minecraft", "beta");
+        assert_eq!(namespace.as_ref(), "minecraft");
         assert_eq!(path.as_ref(), "beta");
     }
 }
