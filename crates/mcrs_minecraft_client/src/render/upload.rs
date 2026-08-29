@@ -11,7 +11,7 @@ use crate::pack::QUAD_WORDS;
 use super::arenas::Arena;
 use super::terrain::Terrain;
 use super::texture::write_tint_square;
-use super::{Animation, Atlas};
+use super::{Animation, Atlas, SectionDesc};
 
 static BUDGET: std::sync::LazyLock<usize> = std::sync::LazyLock::new(crate::config::upload_budget);
 
@@ -31,15 +31,16 @@ pub enum Upload {
     Geometry(Placement),
 }
 
+#[derive(Default)]
 pub struct Placement {
     pub quads: (u64, Vec<[u32; QUAD_WORDS]>),
     pub vertices: (u64, Vec<u32>),
     pub faces: (u64, Vec<u32>),
+    pub sections: (u64, Vec<SectionDesc>),
     pub groups: (u64, Vec<Group>),
-    pub draws: Vec<Draw>,
-    /// The draws of this render region, swapped in only once its geometry has landed, so the
-    /// region never spends a frame pointing at a group block that is still being written.
-    pub replaces: Option<u32>,
+    /// A whole new draw list, swapped in only once its group block has landed, so a draw never
+    /// spends a frame pointing at a block that is still being written.
+    pub draws: Option<Vec<Draw>>,
 }
 
 #[derive(Resource, Clone, Default)]
@@ -48,16 +49,11 @@ pub struct Uploads(Arc<Mutex<Waiting>>);
 #[derive(Default)]
 pub struct Waiting {
     queue: VecDeque<Upload>,
-    rebase: Option<Vec<(u32, u32)>>,
 }
 
 impl Uploads {
     pub fn push(&self, upload: Upload) {
         self.0.lock().unwrap().queue.push_back(upload);
-    }
-
-    pub fn rebase(&self, bases: Vec<(u32, u32)>) {
-        self.0.lock().unwrap().rebase = Some(bases);
     }
 
     pub fn waiting(&self) -> usize {
@@ -71,7 +67,7 @@ pub(super) struct Pending {
     done: usize,
 }
 
-const ARENA_PARTS: usize = 4;
+const ARENA_PARTS: usize = 5;
 
 impl Placement {
     fn part(&self, index: usize) -> (Arena, u64, &[u8]) {
@@ -90,6 +86,11 @@ impl Placement {
                 Arena::Faces,
                 self.faces.0,
                 bytemuck::cast_slice(&self.faces.1),
+            ),
+            3 => (
+                Arena::Sections,
+                self.sections.0,
+                bytemuck::cast_slice(&self.sections.1),
             ),
             _ => (
                 Arena::Groups,
@@ -112,20 +113,6 @@ pub(super) fn apply_uploads(
     };
     let terrain = terrain.as_mut();
     let mut budget = *BUDGET;
-
-    if let Some(bases) = uploads.0.lock().unwrap().rebase.take() {
-        for (region, base) in bases {
-            for draw in terrain
-                .list
-                .draws
-                .iter_mut()
-                .filter(|draw| draw.region == region)
-            {
-                draw.cave_base = base;
-            }
-        }
-        terrain.rebuild_params();
-    }
 
     loop {
         if terrain.arenas.pending.is_none() {
@@ -214,10 +201,8 @@ pub(super) fn apply_uploads(
 }
 
 fn publish(terrain: &mut Terrain, placement: Placement) {
-    if let Some(region) = placement.replaces {
-        terrain.list.draws.retain(|draw| draw.region != region);
+    if let Some(draws) = placement.draws {
+        terrain.list.draws = draws;
     }
-    terrain.list.draws.extend(placement.draws);
-    terrain.list.draws.sort_by_key(|draw| draw.stream);
     terrain.rebuild_params();
 }

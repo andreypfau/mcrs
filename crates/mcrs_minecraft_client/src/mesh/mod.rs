@@ -7,7 +7,7 @@ mod sweep;
 
 use crate::anvil::{SECTION_SIZE, World};
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
-use crate::pack::{GROUP_FACE, QUAD_WORDS, RegionGrid};
+use crate::pack::{GROUP_FACE, QUAD_WORDS};
 
 pub use connectivity::CONNECT_ALL;
 pub use scratch::Scratch;
@@ -49,10 +49,6 @@ pub struct StreamSpan {
 #[derive(Copy, Clone, Default, Debug)]
 pub struct Draw {
     pub stream: u32,
-    pub region: u32,
-    pub origin: [i32; 3],
-    pub cave_base: u32,
-    pub face_base: u32,
     pub first_group: u32,
     pub group_count: u32,
     pub quad_count: u32,
@@ -90,12 +86,12 @@ struct Partial {
 
 struct Sink<'a> {
     partial: &'a mut Partial,
-    local_section: u32,
+    slot: u32,
 }
 
 impl Sink<'_> {
     fn section(&self) -> u32 {
-        self.local_section
+        self.slot
     }
 
     fn group(&mut self, stream: usize, face: u64, quad_base: usize, quad_count: usize) {
@@ -104,7 +100,7 @@ impl Sink<'_> {
             Group {
                 quad_base: quad_base as u32,
                 quad_count: quad_count as u32,
-                section: self.local_section | GROUP_FACE.pack(face) as u32,
+                section: self.slot | GROUP_FACE.pack(face) as u32,
                 quad_prefix: 0,
             },
         ));
@@ -137,8 +133,8 @@ impl Sink<'_> {
 pub fn mesh_section(
     world: &World,
     catalog: &[BlockInfo],
-    grid: RegionGrid,
     [sx, sy, sz]: [usize; 3],
+    slot: u32,
     scratch: &mut Scratch,
 ) -> SectionMesh {
     scratch.load(
@@ -151,7 +147,6 @@ pub fn mesh_section(
         ],
     );
 
-    let (_, local_section) = grid.split(sx, sy, sz);
     let mut partial = Partial {
         simple: Vec::new(),
         complex: Vec::new(),
@@ -159,7 +154,7 @@ pub fn mesh_section(
     };
     let mut sink = Sink {
         partial: &mut partial,
-        local_section,
+        slot,
     };
 
     scratch.section_faces.clear();
@@ -167,8 +162,8 @@ pub fn mesh_section(
     cube::greedy(catalog, scratch, &mut sink);
     fluid::greedy(catalog, scratch, &mut sink);
 
-    model::blocks(catalog, scratch, local_section);
-    fluid::models(catalog, scratch, local_section);
+    model::blocks(catalog, scratch, slot);
+    fluid::models(catalog, scratch, slot);
     model::emit(scratch, &mut sink);
 
     let mut groups = Vec::with_capacity(partial.groups.len());
@@ -205,6 +200,7 @@ pub fn mesh_section(
 pub struct Batch {
     pub simple: Vec<[u32; QUAD_WORDS]>,
     pub faces: Vec<u32>,
+    pub face_base: Vec<u32>,
     pub complex: Vec<u32>,
 }
 
@@ -215,48 +211,29 @@ impl Batch {
     }
 }
 
+/// Every section of a world, meshed into one batch, with a table slot handed out in walk order.
 #[cfg(test)]
-pub fn mesh_render_region(
-    world: &World,
-    catalog: &[BlockInfo],
-    grid: RegionGrid,
-    region: usize,
-    scratch: &mut Scratch,
-) -> Batch {
-    use crate::pack::{RENDER_REGION_X, RENDER_REGION_Y, RENDER_REGION_Z, SECTION_FACE_TABLE};
-
+pub fn mesh_world(world: &World, catalog: &[BlockInfo], scratch: &mut Scratch) -> Batch {
     let mut batch = Batch {
         simple: Vec::new(),
-        faces: vec![0; SECTION_FACE_TABLE],
+        faces: Vec::new(),
+        face_base: Vec::new(),
         complex: Vec::new(),
     };
-    let [sx0, sy0, sz0] = grid.corner(region);
-    let hi = [
-        (sx0 + RENDER_REGION_X).min(world.sections[0]),
-        (sy0 + RENDER_REGION_Y).min(world.sections[1]),
-        (sz0 + RENDER_REGION_Z).min(world.sections[2]),
-    ];
-    let mut wrote_faces = false;
-    for sz in sz0..hi[2] {
-        for sx in sx0..hi[0] {
-            for sy in sy0..hi[1] {
+    for sz in 0..world.sections[2] {
+        for sx in 0..world.sections[0] {
+            for sy in 0..world.sections[1] {
                 if world.section(sx, sy, sz).is_none() {
                     continue;
                 }
-                let mesh = mesh_section(world, catalog, grid, [sx, sy, sz], scratch);
+                let slot = batch.face_base.len() as u32;
+                let mesh = mesh_section(world, catalog, [sx, sy, sz], slot, scratch);
                 batch.simple.extend_from_slice(&mesh.simple);
                 batch.complex.extend_from_slice(&mesh.complex);
-                if !mesh.faces.is_empty() {
-                    let (_, local) = grid.split(sx, sy, sz);
-                    batch.faces[local as usize] = batch.faces.len() as u32;
-                    batch.faces.extend_from_slice(&mesh.faces);
-                    wrote_faces = true;
-                }
+                batch.face_base.push(batch.faces.len() as u32);
+                batch.faces.extend_from_slice(&mesh.faces);
             }
         }
-    }
-    if !wrote_faces {
-        batch.faces.clear();
     }
     batch
 }
@@ -312,12 +289,11 @@ mod tests {
             tinted: false,
         }];
 
-        let grid = RegionGrid::covering(world.sections);
         let mut scratch = Scratch::new();
         let filled = (0..world.sections[1])
             .find(|sy| world.section(0, *sy, 0).is_some())
             .expect("the fixture holds one section");
-        let mesh = mesh_section(&world, &catalog, grid, [0, filled, 0], &mut scratch);
+        let mesh = mesh_section(&world, &catalog, [0, filled, 0], 0, &mut scratch);
 
         assert!(
             mesh.spans[0].quad_count > 0 && mesh.spans[3].quad_count > 0,

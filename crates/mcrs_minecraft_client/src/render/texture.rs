@@ -4,7 +4,7 @@ use bevy::render::renderer::{RenderDevice, RenderQueue};
 
 use crate::pack::MAX_SPRITE_ARRAYS;
 
-use super::{Atlas, Layout};
+use super::{Atlas, Budget};
 
 pub(super) const TINT_LAYERS: u32 = 3;
 
@@ -99,8 +99,8 @@ pub(super) fn atlas_sampler(device: &RenderDevice) -> Sampler {
     })
 }
 
-pub(super) fn create_tints(layout: &Layout, device: &RenderDevice) -> (Texture, Sampler) {
-    let [width, height] = layout.tint_size;
+pub(super) fn create_tints(budget: &Budget, device: &RenderDevice) -> (Texture, Sampler) {
+    let [width, height] = budget.tint_size;
     let texture = device.create_texture(&TextureDescriptor {
         label: Some("terrain tints"),
         size: Extent3d {

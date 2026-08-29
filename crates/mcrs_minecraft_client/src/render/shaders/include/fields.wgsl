@@ -2,22 +2,12 @@
 // checks it; `ANVIL_BLESS=1 cargo test -p mcrs_minecraft_client` rewrites it.
 #define_import_path mcrs_minecraft_client::fields
 
-const LOCAL_X_WORD: u32 = 0u;
-const LOCAL_X_SHIFT: u32 = 0u;
-const LOCAL_X_BITS: u32 = 4u;
-const LOCAL_Y_WORD: u32 = 0u;
-const LOCAL_Y_SHIFT: u32 = 4u;
-const LOCAL_Y_BITS: u32 = 3u;
-const LOCAL_Z_WORD: u32 = 0u;
-const LOCAL_Z_SHIFT: u32 = 7u;
-const LOCAL_Z_BITS: u32 = 4u;
-
 const SECTION_INDEX_WORD: u32 = 0u;
 const SECTION_INDEX_SHIFT: u32 = 0u;
-const SECTION_INDEX_BITS: u32 = 11u;
+const SECTION_INDEX_BITS: u32 = 16u;
 
 const GROUP_FACE_WORD: u32 = 0u;
-const GROUP_FACE_SHIFT: u32 = 11u;
+const GROUP_FACE_SHIFT: u32 = 16u;
 const GROUP_FACE_BITS: u32 = 4u;
 
 const QUAD_X_WORD: u32 = 0u;
@@ -46,9 +36,9 @@ const QUAD_FLUID_SHIFT: u32 = 31u;
 const QUAD_FLUID_BITS: u32 = 1u;
 const QUAD_SECTION_WORD: u32 = 1u;
 const QUAD_SECTION_SHIFT: u32 = 0u;
-const QUAD_SECTION_BITS: u32 = 11u;
+const QUAD_SECTION_BITS: u32 = 16u;
 const QUAD_FACE_BASE_WORD: u32 = 1u;
-const QUAD_FACE_BASE_SHIFT: u32 = 11u;
+const QUAD_FACE_BASE_SHIFT: u32 = 16u;
 const QUAD_FACE_BASE_BITS: u32 = 16u;
 
 const FACE_LAYER_WORD: u32 = 0u;
@@ -102,12 +92,12 @@ const MODEL_SHADE_SHIFT: u32 = 26u;
 const MODEL_SHADE_BITS: u32 = 2u;
 const MODEL_SECTION_WORD: u32 = 2u;
 const MODEL_SECTION_SHIFT: u32 = 0u;
-const MODEL_SECTION_BITS: u32 = 11u;
+const MODEL_SECTION_BITS: u32 = 16u;
 const MODEL_ARRAY_WORD: u32 = 2u;
-const MODEL_ARRAY_SHIFT: u32 = 11u;
+const MODEL_ARRAY_SHIFT: u32 = 16u;
 const MODEL_ARRAY_BITS: u32 = 2u;
 const MODEL_LAYER_WORD: u32 = 2u;
-const MODEL_LAYER_SHIFT: u32 = 13u;
+const MODEL_LAYER_SHIFT: u32 = 18u;
 const MODEL_LAYER_BITS: u32 = 10u;
 
 const QUAD_WORDS: u32 = 2u;

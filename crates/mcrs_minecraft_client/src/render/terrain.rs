@@ -11,11 +11,11 @@ use super::frame::Frame;
 use super::pipeline::Pipelines;
 use super::shaders::Shaders;
 use super::sprites::Sprites;
-use super::{Layout, WorldLayout};
+use super::{Budget, TerrainBudget};
 
 #[derive(Resource)]
 pub(super) struct Terrain {
-    pub layout: Arc<Layout>,
+    pub budget: Arc<Budget>,
     pub arenas: Arenas,
     pub frame: Frame,
     pub sprites: Sprites,
@@ -26,28 +26,28 @@ pub(super) struct Terrain {
 
 impl Terrain {
     pub fn rebuild_params(&mut self) {
-        self.list.rebuild(&self.layout, self.sprites.animated_from);
+        self.list.rebuild(&self.budget, self.sprites.animated_from);
     }
 }
 
 pub(super) fn init_terrain(
     mut commands: Commands,
-    layout: Res<WorldLayout>,
+    budget: Res<TerrainBudget>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     asset_server: Res<AssetServer>,
     pipeline_cache: Res<PipelineCache>,
 ) {
-    let layout = layout.0.clone();
-    let arenas = Arenas::new(&layout, &device);
-    let frame = Frame::new(&layout, &device);
-    let sprites = Sprites::new(&layout, &device, &queue);
+    let budget = budget.0.clone();
+    let arenas = Arenas::new(&budget, &device);
+    let frame = Frame::new(&device);
+    let sprites = Sprites::new(&budget, &device, &queue);
     let binds = Bindings::new(&arenas, &frame, &sprites, &device, &pipeline_cache);
     let pipelines = Pipelines::new(Shaders::load(&asset_server), &binds, &pipeline_cache);
 
     commands.insert_resource(Terrain {
-        list: DrawList::new(layout.max_draws().max(1)),
-        layout,
+        list: DrawList::new(),
+        budget,
         arenas,
         frame,
         sprites,

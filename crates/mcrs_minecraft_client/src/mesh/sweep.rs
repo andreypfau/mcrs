@@ -81,7 +81,7 @@ pub(super) fn sweep(
     }
 }
 
-fn merge_slice(scratch: &mut Scratch, face: usize, n: usize, local_section: u32) {
+fn merge_slice(scratch: &mut Scratch, face: usize, n: usize, section: u32) {
     for gv in 0..SECTION_SIZE {
         let mut gu = 0usize;
         while gu < SECTION_SIZE {
@@ -125,7 +125,7 @@ fn merge_slice(scratch: &mut Scratch, face: usize, n: usize, local_section: u32)
                 gv,
                 w,
                 h,
-                local_section,
+                section,
                 base,
                 (key & !FLUID_KEY) >> PASS_KEY_BITS,
                 key & FLUID_KEY != 0,
@@ -162,7 +162,7 @@ fn pack_quad(
     gv: usize,
     w: usize,
     h: usize,
-    local_section: u32,
+    slot: u32,
     face_base: u32,
     drop: u8,
     fluid: bool,
@@ -177,7 +177,7 @@ fn pack_quad(
     QUAD_FACE.set(&mut words, face as u64);
     QUAD_W.set(&mut words, w as u64 - 1);
     QUAD_H.set(&mut words, h as u64 - 1);
-    QUAD_SECTION.set(&mut words, local_section as u64);
+    QUAD_SECTION.set(&mut words, slot as u64);
     QUAD_FACE_BASE.set(&mut words, face_base as u64);
     words
 }
@@ -188,10 +188,10 @@ mod tests {
     use crate::anvil::{Palette, World, one_section_region};
     use crate::atlas::SpriteRef;
     use crate::blocks::{BlockInfo, CORNER_UV, CubeFace, FACE_AXES, Pass, cube_corner};
-    use crate::mesh::{Scratch, mesh_render_region};
+    use crate::mesh::{Scratch, mesh_world};
     use crate::pack::{
         FACE_ARRAY, FACE_LAYER, QUAD_FACE, QUAD_FACE_BASE, QUAD_H, QUAD_SECTION, QUAD_W, QUAD_X,
-        QUAD_Y, QUAD_Z, RegionGrid, SECTION_FACE_TABLE, pack_section,
+        QUAD_Y, QUAD_Z,
     };
     use bevy::math::Vec3;
 
@@ -221,49 +221,38 @@ mod tests {
         );
         blocks[id].occludes = true;
 
-        let grid = RegionGrid::covering(world.sections);
         let mut scratch = Scratch::new();
-        let mut quads = 0usize;
-        for region in 0..grid.len() {
-            let batch = mesh_render_region(&world, &blocks, grid, region, &mut scratch);
-            quads += batch.simple.len();
-            if batch.simple.is_empty() {
-                assert!(
-                    batch.faces.is_empty(),
-                    "a table describing nothing was written"
-                );
-                continue;
-            }
-            let mut runs: Vec<(u64, u64)> = batch
-                .simple
-                .iter()
-                .map(|quad| {
-                    let section = QUAD_SECTION.read(quad) as usize;
-                    (
-                        batch.faces[section] as u64 + QUAD_FACE_BASE.read(quad),
-                        (QUAD_W.read(quad) + 1) * (QUAD_H.read(quad) + 1),
-                    )
-                })
-                .collect();
-            runs.sort();
-            let mut at = SECTION_FACE_TABLE as u64;
-            for (base, len) in runs {
-                assert_eq!(
-                    base, at,
-                    "a face run does not start where the last one ended"
-                );
-                at += len;
-            }
+        let batch = mesh_world(&world, &blocks, &mut scratch);
+        let mut runs: Vec<(u64, u64)> = batch
+            .simple
+            .iter()
+            .map(|quad| {
+                let slot = QUAD_SECTION.read(quad) as usize;
+                (
+                    batch.face_base[slot] as u64 + QUAD_FACE_BASE.read(quad),
+                    (QUAD_W.read(quad) + 1) * (QUAD_H.read(quad) + 1),
+                )
+            })
+            .collect();
+        runs.sort();
+        let mut at = 0u64;
+        for (base, len) in runs {
             assert_eq!(
-                at as usize,
-                batch.faces.len(),
-                "the runs leave the buffer uncovered"
+                base, at,
+                "a face run does not start where the last one ended"
             );
-            for attr in &batch.faces[SECTION_FACE_TABLE..] {
-                assert_eq!(FACE_LAYER.get(*attr as u64), 7, "sprite layer");
-                assert_eq!(FACE_ARRAY.get(*attr as u64), 1, "sprite array");
-            }
+            at += len;
         }
+        assert_eq!(
+            at as usize,
+            batch.faces.len(),
+            "the runs leave the buffer uncovered"
+        );
+        for attr in &batch.faces {
+            assert_eq!(FACE_LAYER.get(*attr as u64), 7, "sprite layer");
+            assert_eq!(FACE_ARRAY.get(*attr as u64), 1, "sprite array");
+        }
+        let quads = batch.simple.len();
         assert_eq!(
             quads, 6,
             "a lone solid section is six merged faces, one per side"
@@ -298,13 +287,13 @@ mod tests {
 
     #[test]
     fn a_packed_quad_round_trips_every_field() {
-        let section = pack_section(9, 5, 12);
-        let words = pack_quad(3, 9, 3, 7, 12, 16, section, 24_575, 0, false);
+        let slot = 40_000;
+        let words = pack_quad(3, 9, 3, 7, 12, 16, slot, 24_575, 0, false);
         let anchor = quad_anchor(3, 9, 3, 7);
         assert_eq!(QUAD_X.read(&words), anchor[0] as u64, "x");
         assert_eq!(QUAD_Y.read(&words), anchor[1] as u64, "y");
         assert_eq!(QUAD_Z.read(&words), anchor[2] as u64, "z");
-        assert_eq!(QUAD_SECTION.read(&words), section as u64, "section");
+        assert_eq!(QUAD_SECTION.read(&words), slot as u64, "section");
         assert_eq!(QUAD_FACE.read(&words), 3, "face");
         assert_eq!(QUAD_W.read(&words) + 1, 12, "w");
         assert_eq!(QUAD_H.read(&words) + 1, 16, "h");

@@ -16,12 +16,12 @@
     MODEL_Z_WORD, MODEL_Z_SHIFT, MODEL_Z_BITS,
 }
 #import mcrs_minecraft_client::finish::{finish_cutout, finish_solid, finish_translucent}
-#import mcrs_minecraft_client::frame::{params, region_origin, view}
+#import mcrs_minecraft_client::frame::{params, view}
 #import mcrs_minecraft_client::lighting::lightmap
 #import mcrs_minecraft_client::quad::{corner_index, corner_uv}
-#import mcrs_minecraft_client::region::{CULLED, degenerate, section_origin}
+#import mcrs_minecraft_client::section::{CULLED, degenerate, section_origin}
 #import mcrs_minecraft_client::surface::{Surface, shade_surface}
-#import mcrs_minecraft_client::terrain_bindings::{model_field, visible}
+#import mcrs_minecraft_client::terrain_bindings::{model_field, sections, visible}
 
 const WORDS_PER_VERTEX: u32 = 3u;
 const CORNERS_PER_QUAD: u32 = 4u;
@@ -67,10 +67,8 @@ fn vertex_model(
         f32(model_field(base, MODEL_Y_WORD, MODEL_Y_SHIFT, MODEL_Y_BITS)),
         f32(model_field(base, MODEL_Z_WORD, MODEL_Z_SHIFT, MODEL_Z_BITS)),
     ) / MODEL_STEPS - MODEL_OVERHANG;
-    let world = section_origin(
-        model_field(base, MODEL_SECTION_WORD, MODEL_SECTION_SHIFT, MODEL_SECTION_BITS),
-        region_origin(),
-    ) + local;
+    let desc = sections[model_field(base, MODEL_SECTION_WORD, MODEL_SECTION_SHIFT, MODEL_SECTION_BITS)];
+    let world = section_origin(desc) + local * f32(desc.scale);
 
     let uv_scale = f32((1u << MODEL_U_BITS) - 1u);
     let u = f32(model_field(base, MODEL_U_WORD, MODEL_U_SHIFT, MODEL_U_BITS)) / uv_scale;

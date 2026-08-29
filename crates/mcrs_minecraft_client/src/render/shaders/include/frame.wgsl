@@ -8,10 +8,6 @@ struct Params {
     group_count: u32,
     visible_base: u32,
     args_index: u32,
-    origin_x: i32,
-    origin_y: i32,
-    origin_z: i32,
-    cave_base: u32,
     wireframe: u32,
     overhang: f32,
     animated_from: u32,
@@ -19,7 +15,7 @@ struct Params {
     tint_origin_z: i32,
     tint_span_x: f32,
     tint_span_z: f32,
-    face_origin: u32,
+    pad: u32,
 }
 
 struct Sky {
@@ -39,7 +35,3 @@ struct Sky {
 @group(0) @binding(1) var<uniform> params: Params;
 @group(0) @binding(2) var<uniform> globals: Globals;
 @group(0) @binding(3) var<uniform> sky: Sky;
-
-fn region_origin() -> vec3<f32> {
-    return vec3<f32>(f32(params.origin_x), f32(params.origin_y), f32(params.origin_z));
-}

@@ -3,9 +3,9 @@ use bevy::render::renderer::RenderDevice;
 
 use super::draws::PARAMS_STRIDE;
 use super::stats::DrawArgs;
+use crate::mesh::STREAMS;
+use crate::pack::MAX_SECTIONS;
 use crate::sky::SkyUniform;
-
-use super::Layout;
 
 pub(super) struct Frame {
     pub params: Buffer,
@@ -19,13 +19,12 @@ pub(super) struct Frame {
 }
 
 impl Frame {
-    pub fn new(layout: &Layout, device: &RenderDevice) -> Self {
-        let max_draws = layout.max_draws().max(1);
-        let args_init = vec![DrawArgs::quad_strip(); max_draws];
+    pub fn new(device: &RenderDevice) -> Self {
+        let args_init = vec![DrawArgs::quad_strip(); STREAMS];
         Self {
             params: device.create_buffer(&BufferDescriptor {
                 label: Some("terrain draw params"),
-                size: max_draws as u64 * PARAMS_STRIDE as u64,
+                size: STREAMS as u64 * PARAMS_STRIDE as u64,
                 usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
@@ -37,7 +36,7 @@ impl Frame {
             }),
             cave: device.create_buffer_with_data(&BufferInitDescriptor {
                 label: Some("terrain cave visibility"),
-                contents: bytemuck::cast_slice(&vec![u32::MAX; layout.cave_words.max(1)]),
+                contents: bytemuck::cast_slice(&vec![u32::MAX; MAX_SECTIONS / 32]),
                 usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
             }),
             args: device.create_buffer_with_data(&BufferInitDescriptor {

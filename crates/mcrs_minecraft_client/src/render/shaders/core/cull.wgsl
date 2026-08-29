@@ -3,10 +3,9 @@
     FACE_NONE,
     GROUP_FACE_SHIFT, GROUP_FACE_BITS,
     SECTION_INDEX_SHIFT, SECTION_INDEX_BITS,
-    SECTION_SIZE,
 }
 #import mcrs_minecraft_client::frame::{params, view}
-#import mcrs_minecraft_client::region::{CULLED, section_origin}
+#import mcrs_minecraft_client::section::{CULLED, SectionDesc, section_origin, section_span}
 
 struct Group {
     quad_base: u32,
@@ -26,15 +25,11 @@ struct DrawArgs {
 @group(1) @binding(1) var<storage, read_write> visible: array<u32>;
 @group(1) @binding(2) var<storage, read_write> args: array<DrawArgs>;
 @group(1) @binding(3) var<storage, read> cave_visible: array<u32>;
+@group(1) @binding(4) var<storage, read> sections: array<SectionDesc>;
 
 const CULL_THREADS: u32 = 32u;
 
 var<workgroup> reserved_slot: u32;
-
-fn section_min(g: Group) -> vec3<f32> {
-    let region = vec3<f32>(f32(params.origin_x), f32(params.origin_y), f32(params.origin_z));
-    return section_origin(g.section, region);
-}
 
 fn in_frustum(mn: vec3<f32>, mx: vec3<f32>) -> bool {
     for (var i = 0u; i < 6u; i = i + 1u) {
@@ -76,11 +71,12 @@ fn faces_camera(face: u32, mn: vec3<f32>, mx: vec3<f32>) -> bool {
 }
 
 fn survives(g: Group) -> bool {
-    let sec = params.cave_base + extractBits(g.section, SECTION_INDEX_SHIFT, SECTION_INDEX_BITS);
-    let reachable = (cave_visible[sec >> 5u] >> (sec & 31u)) & 1u;
-    let origin = section_min(g);
+    let slot = extractBits(g.section, SECTION_INDEX_SHIFT, SECTION_INDEX_BITS);
+    let reachable = (cave_visible[slot >> 5u] >> (slot & 31u)) & 1u;
+    let desc = sections[slot];
+    let origin = section_origin(desc);
     let mn = origin - params.overhang;
-    let mx = origin + SECTION_SIZE + params.overhang;
+    let mx = origin + section_span(desc) + params.overhang;
     let face = extractBits(g.section, GROUP_FACE_SHIFT, GROUP_FACE_BITS);
     return reachable != 0u && in_frustum(mn, mx) && faces_camera(face, mn, mx);
 }

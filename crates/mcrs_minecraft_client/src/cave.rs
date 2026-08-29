@@ -2,7 +2,8 @@ use bevy::camera::primitives::{Aabb, Frustum};
 use bevy::prelude::*;
 
 use crate::anvil::SECTION_SIZE;
-use crate::pack::{RegionGrid, SECTIONS_PER_RENDER_REGION};
+use crate::mesh::CONNECT_ALL;
+use crate::pack::MAX_SECTIONS;
 
 const NEIGHBOUR: [[i32; 3]; 6] = [
     crate::mesh::face_normal(0),
@@ -19,11 +20,21 @@ const ENTRIES: usize = 7;
 
 const NEVER: u8 = u8::MAX;
 
-const QUEUE_SLOT_BITS: u32 = 20;
-const QUEUE_ENTRY_SHIFT: u32 = QUEUE_SLOT_BITS;
+/// The walk box in sections, and how far it slides at a time. It is centred on the camera and
+/// bounded by sight, not by the world: a section outside it is drawn rather than tested.
+pub const WALK: [usize; 3] = [96, 32, 96];
+
+const WALK_STEP: i32 = 16;
+
+const WALK_CELLS: usize = WALK[0] * WALK[1] * WALK[2];
+
+pub const NO_SLOT: u32 = u32::MAX;
+
+const QUEUE_CELL_BITS: u32 = 20;
+const QUEUE_ENTRY_SHIFT: u32 = QUEUE_CELL_BITS;
 const QUEUE_DIRS_SHIFT: u32 = QUEUE_ENTRY_SHIFT + 3;
 
-const _: () = assert!(SECTIONS_PER_RENDER_REGION.is_multiple_of(32));
+const _: () = assert!(WALK_CELLS <= 1 << QUEUE_CELL_BITS);
 
 const _: () = assert!(QUEUE_DIRS_SHIFT + 6 <= 32);
 
@@ -35,61 +46,42 @@ const _: () = {
         assert!(there[0] == -back[0] && there[1] == -back[1] && there[2] == -back[2]);
         face += 1;
     }
+    // Half a box plus the widest step still has to land inside the box, or the camera could
+    // stand outside its own walk.
     let mut axis = 0;
     while axis < 3 {
-        assert!(crate::mesh::face_normal(AXIS_FACE[axis] as usize)[axis] == -1);
+        assert!(WALK[axis] / 2 + WALK_STEP as usize <= WALK[axis]);
         axis += 1;
     }
 };
-
-const AXIS_FACE: [u32; 3] = [4, 0, 2];
-
-pub const CAVE_REGIONS: usize = 6;
-
-pub fn cave_grid() -> RegionGrid {
-    RegionGrid {
-        x: CAVE_REGIONS,
-        y: crate::anvil::SECTIONS_Y / crate::pack::RENDER_REGION_Y,
-        z: CAVE_REGIONS,
-    }
-}
 
 #[derive(Resource)]
 pub struct CaveCull {
     pub enabled: bool,
     pub bits: Box<[u32]>,
+    min_section: [i32; 3],
+    reached: Box<[u32]>,
     inside: Box<[u32]>,
     spent: Vec<u8>,
     conn: Vec<u64>,
-    grid: RegionGrid,
-    min_section: [i32; 3],
-    world_min: [i32; 3],
-    world_extent: [usize; 3],
+    slot: Vec<u32>,
     queue: Vec<u32>,
     took: Box<[u32; CaveCull::TIMED]>,
     walks: usize,
 }
 
 impl CaveCull {
-    pub fn new(grid: RegionGrid, min_section: [i32; 3], world_extent: [usize; 3]) -> Self {
-        let slots = grid.slots();
-        assert!(
-            slots + SECTIONS_PER_RENDER_REGION < 1 << QUEUE_SLOT_BITS,
-            "the walk queue carries a section slot in {QUEUE_SLOT_BITS} bits, and this grid has \
-             {slots} of them"
-        );
-        let words = (slots + SECTIONS_PER_RENDER_REGION).div_ceil(32);
+    pub fn new() -> Self {
         Self {
             enabled: !std::env::var("ANVIL_CAVE").is_ok_and(|on| on == "0"),
-            bits: vec![u32::MAX; words].into_boxed_slice(),
-            inside: vec![0; words].into_boxed_slice(),
-            spent: vec![NEVER; slots * ENTRIES],
-            conn: vec![crate::mesh::CONNECT_ALL; slots],
-            grid,
-            min_section,
-            world_min: min_section,
-            world_extent,
-            queue: Vec::with_capacity(slots),
+            bits: vec![u32::MAX; MAX_SECTIONS / 32].into_boxed_slice(),
+            min_section: [0; 3],
+            reached: vec![0; WALK_CELLS / 32].into_boxed_slice(),
+            inside: vec![0; WALK_CELLS / 32].into_boxed_slice(),
+            spent: vec![NEVER; WALK_CELLS * ENTRIES],
+            conn: vec![CONNECT_ALL; WALK_CELLS],
+            slot: vec![NO_SLOT; WALK_CELLS],
+            queue: Vec::with_capacity(WALK_CELLS),
             took: Box::new([0; Self::TIMED]),
             walks: 0,
         }
@@ -108,56 +100,87 @@ impl CaveCull {
         Some(sorted[held / 2] as f32 / 1000.0)
     }
 
-    pub fn grid(&self) -> RegionGrid {
-        self.grid
-    }
-
-    pub fn min_section(&self) -> [i32; 3] {
-        self.min_section
-    }
-
-    pub fn always_visible(&self) -> u32 {
-        self.grid.slots() as u32
-    }
-
-    pub fn retarget(&mut self, min_section: [i32; 3]) {
-        self.min_section = min_section;
-        self.conn.fill(crate::mesh::CONNECT_ALL);
-    }
-
-    pub fn set_section(&mut self, slot: usize, mask: u64) {
-        self.conn[slot] = mask;
-    }
-
-    pub fn words(&self) -> usize {
-        self.bits.len()
-    }
-
     pub fn reached(&self) -> u32 {
-        self.bits.iter().map(|word| word.count_ones()).sum()
+        self.reached.iter().map(|word| word.count_ones()).sum()
+    }
+
+    /// Slides the walk box onto the camera, in whole steps. A box that moved holds nothing until
+    /// the loader lays its resident sections back in.
+    pub fn follow(&mut self, camera: Vec3) -> bool {
+        let corner = std::array::from_fn(|axis| {
+            let here = (camera[axis] / SECTION_SIZE as f32).floor() as i32;
+            here.div_euclid(WALK_STEP) * WALK_STEP - WALK[axis] as i32 / 2
+        });
+        if corner == self.min_section {
+            return false;
+        }
+        self.min_section = corner;
+        self.conn.fill(CONNECT_ALL);
+        self.slot.fill(NO_SLOT);
+        true
+    }
+
+    pub fn set_section(&mut self, section: [i32; 3], slot: u32, mask: u64) {
+        let Some(cell) = self.cell(section) else {
+            return;
+        };
+        self.conn[cell] = mask;
+        self.slot[cell] = slot;
+    }
+
+    pub fn forget(&mut self, section: [i32; 3]) {
+        let Some(cell) = self.cell(section) else {
+            return;
+        };
+        self.conn[cell] = CONNECT_ALL;
+        self.slot[cell] = NO_SLOT;
+    }
+
+    fn cell(&self, section: [i32; 3]) -> Option<usize> {
+        let mut local = [0usize; 3];
+        for axis in 0..3 {
+            let at = section[axis] - self.min_section[axis];
+            if at < 0 || at as usize >= WALK[axis] {
+                return None;
+            }
+            local[axis] = at as usize;
+        }
+        Some((local[1] * WALK[2] + local[2]) * WALK[0] + local[0])
+    }
+
+    fn section_at(&self, cell: usize) -> [i32; 3] {
+        let x = cell % WALK[0];
+        let rest = cell / WALK[0];
+        [
+            x as i32 + self.min_section[0],
+            (rest / WALK[2]) as i32 + self.min_section[1],
+            (rest % WALK[2]) as i32 + self.min_section[2],
+        ]
     }
 
     fn run(&mut self, camera: Vec3, frustum: &Frustum) {
+        self.bits.fill(u32::MAX);
+        let here = std::array::from_fn(|axis| {
+            (camera[axis] / SECTION_SIZE as f32).floor() as i32
+        });
+        let Some(start) = self.cell(here).filter(|cell| self.conn[*cell] != 0) else {
+            return;
+        };
         self.spent.fill(NEVER);
-        self.bits.fill(0);
-        self.open_the_tail();
+        self.reached.fill(0);
         self.inside.fill(0);
         self.queue.clear();
-        let (lo, hi) = self.bounds();
-        if !self.seed(camera, frustum, lo, hi) {
-            self.bits.fill(u32::MAX);
-            return;
-        }
+        self.push(start as u32, ENTRY_ANY, 0, frustum);
 
         let mut head = 0;
         while head < self.queue.len() {
             let node = self.queue[head];
             head += 1;
-            let slot = node & ((1 << QUEUE_SLOT_BITS) - 1);
+            let cell = node & ((1 << QUEUE_CELL_BITS) - 1);
             let entry = (node >> QUEUE_ENTRY_SHIFT) & 7;
             let dirs = (node >> QUEUE_DIRS_SHIFT) & 0x3f;
-            let here = self.grid.section_at(slot as usize).map(|n| n as i32);
-            let mask = self.conn[slot as usize];
+            let here = self.section_at(cell as usize);
+            let mask = self.conn[cell as usize];
 
             for exit in 0..6u32 {
                 if dirs & (1 << (exit ^ 1)) != 0 {
@@ -168,81 +191,39 @@ impl CaveCull {
                 }
                 let step = NEIGHBOUR[exit as usize];
                 let next = [here[0] + step[0], here[1] + step[1], here[2] + step[2]];
-                if (0..3).any(|a| next[a] < lo[a] || next[a] > hi[a]) {
+                let Some(neighbour) = self.cell(next) else {
                     continue;
-                }
-                let neighbour = self
-                    .grid
-                    .slot(next[0] as usize, next[1] as usize, next[2] as usize)
-                    as u32;
-                self.push(neighbour, exit ^ 1, dirs | 1 << exit, frustum);
+                };
+                self.push(neighbour as u32, exit ^ 1, dirs | 1 << exit, frustum);
             }
         }
+        self.project();
     }
 
-    fn seed(&mut self, camera: Vec3, frustum: &Frustum, lo: [i32; 3], hi: [i32; 3]) -> bool {
-        let size = SECTION_SIZE as f32;
-        let cs = [
-            camera.x.div_euclid(size) as i32 - self.min_section[0],
-            camera.y.div_euclid(size) as i32 - self.min_section[1],
-            camera.z.div_euclid(size) as i32 - self.min_section[2],
-        ];
-
-        let mut dirs = 0u32;
-        let mut outside = [0i32; 3];
-        for a in 0..3 {
-            if cs[a] < lo[a] {
-                outside[a] = -1;
-                dirs |= 1 << (AXIS_FACE[a] | 1);
-            } else if cs[a] > hi[a] {
-                outside[a] = 1;
-                dirs |= 1 << AXIS_FACE[a];
-            }
-        }
-
-        if outside == [0, 0, 0] {
-            let slot = self
-                .grid
-                .slot(cs[0] as usize, cs[1] as usize, cs[2] as usize) as u32;
-            if self.conn[slot as usize] == 0 {
-                return false;
-            }
-            self.push(slot, ENTRY_ANY, 0, frustum);
-            return true;
-        }
-
-        for a in 0..3 {
-            if outside[a] == 0 {
+    /// The shader indexes visibility by table slot, so what the walk did not reach loses its bit.
+    /// A section the box does not cover has no cell here and keeps the bit it was filled with.
+    fn project(&mut self) {
+        for cell in 0..WALK_CELLS {
+            let slot = self.slot[cell];
+            if slot == NO_SLOT || self.reached[cell >> 5] >> (cell & 31) & 1 != 0 {
                 continue;
             }
-            let (b, c) = ((a + 1) % 3, (a + 2) % 3);
-            let fixed = if outside[a] < 0 { lo[a] } else { hi[a] };
-            for u in lo[b]..=hi[b] {
-                for v in lo[c]..=hi[c] {
-                    let mut p = [0i32; 3];
-                    p[a] = fixed;
-                    p[b] = u;
-                    p[c] = v;
-                    let slot = self.grid.slot(p[0] as usize, p[1] as usize, p[2] as usize) as u32;
-                    self.push(slot, ENTRY_ANY, dirs, frustum);
-                }
-            }
+            self.bits[(slot >> 5) as usize] &= !(1 << (slot & 31));
         }
-        true
     }
 
-    fn push(&mut self, slot: u32, entry: u32, dirs: u32, frustum: &Frustum) {
-        let seen = &mut self.spent[slot as usize * ENTRIES + entry as usize];
+    fn push(&mut self, cell: u32, entry: u32, dirs: u32, frustum: &Frustum) {
+        let seen = &mut self.spent[cell as usize * ENTRIES + entry as usize];
         let merged = *seen & dirs as u8;
         if merged == *seen {
             return;
         }
         *seen = merged;
 
-        let (word, bit) = ((slot >> 5) as usize, 1u32 << (slot & 31));
-        if self.bits[word] & bit == 0 {
-            self.bits[word] |= bit;
-            if frustum.intersects_obb_identity(&self.aabb(slot)) {
+        let (word, bit) = ((cell >> 5) as usize, 1u32 << (cell & 31));
+        if self.reached[word] & bit == 0 {
+            self.reached[word] |= bit;
+            if frustum.intersects_obb_identity(&self.aabb(cell)) {
                 self.inside[word] |= bit;
             }
         }
@@ -250,35 +231,24 @@ impl CaveCull {
             return;
         }
         self.queue
-            .push(slot | entry << QUEUE_ENTRY_SHIFT | (merged as u32) << QUEUE_DIRS_SHIFT);
+            .push(cell | entry << QUEUE_ENTRY_SHIFT | (merged as u32) << QUEUE_DIRS_SHIFT);
     }
 
-    fn bounds(&self) -> ([i32; 3], [i32; 3]) {
-        let extent = self.grid.extent();
-        let mut lo = [0i32; 3];
-        let mut hi = [0i32; 3];
-        for axis in 0..3 {
-            let offset = self.world_min[axis] - self.min_section[axis];
-            lo[axis] = offset.max(0);
-            hi[axis] = (offset + self.world_extent[axis] as i32).min(extent[axis] as i32) - 1;
-        }
-        (lo, hi)
-    }
-
-    fn open_the_tail(&mut self) {
-        let tail = self.always_visible() as usize / 32;
-        self.bits[tail..].fill(u32::MAX);
-    }
-
-    fn aabb(&self, slot: u32) -> Aabb {
-        let [sx, sy, sz] = self.grid.section_at(slot as usize).map(|n| n as i32);
+    fn aabb(&self, cell: u32) -> Aabb {
+        let section = self.section_at(cell as usize);
         let size = SECTION_SIZE as f32;
         let min = Vec3::new(
-            (sx + self.min_section[0]) as f32 * size,
-            (sy + self.min_section[1]) as f32 * size,
-            (sz + self.min_section[2]) as f32 * size,
+            section[0] as f32 * size,
+            section[1] as f32 * size,
+            section[2] as f32 * size,
         );
         Aabb::from_min_max(min, min + size)
+    }
+}
+
+impl Default for CaveCull {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -307,47 +277,42 @@ pub fn toggle(keys: Res<ButtonInput<KeyCode>>, mut cave: ResMut<CaveCull>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::anvil::REGION_CHUNKS;
-    use crate::mesh::CONNECT_ALL;
-    use crate::pack::{RENDER_REGION_X, RENDER_REGION_Y};
     use bevy::camera::CameraProjection;
+    use std::collections::HashMap;
 
-    const SECTIONS: [usize; 3] = [REGION_CHUNKS, RENDER_REGION_Y, REGION_CHUNKS];
-
-    fn grid() -> RegionGrid {
-        RegionGrid::covering(SECTIONS)
+    /// The walk box is full of open air, so a test builds its topology into solid rock and opens
+    /// only the sections it means to talk about. A section gets a table slot the first time it is
+    /// opened, whatever its mask, because visibility is asked of slots.
+    struct Slab {
+        cave: CaveCull,
+        slots: HashMap<[i32; 3], u32>,
     }
 
-    fn slot(sx: usize, sy: usize, sz: usize) -> usize {
-        grid().slot(sx, sy, sz)
-    }
-
-    fn walk(conn: Vec<u64>) -> CaveCull {
-        at(conn, [0; 3])
-    }
-
-    fn at(conn: Vec<u64>, corner: [i32; 3]) -> CaveCull {
-        let mut cave = CaveCull::new(grid(), corner, SECTIONS);
-        cave.conn.copy_from_slice(&conn);
-        cave
-    }
-
-    fn wall_at(sx: usize) -> Vec<u64> {
-        let mut conn = open_conn();
-        for sy in 0..SECTIONS[1] {
-            for sz in 0..SECTIONS[2] {
-                conn[slot(sx, sy, sz)] = 0;
+    impl Slab {
+        fn around(eye: Vec3) -> Self {
+            let mut cave = CaveCull::new();
+            cave.follow(eye);
+            cave.conn.fill(0);
+            Self {
+                cave,
+                slots: HashMap::new(),
             }
         }
-        conn
-    }
 
-    fn empty_conn() -> Vec<u64> {
-        vec![0u64; grid().slots()]
-    }
+        fn open(&mut self, section: [i32; 3], mask: u64) {
+            let next = self.slots.len() as u32;
+            let slot = *self.slots.entry(section).or_insert(next);
+            self.cave.set_section(section, slot, mask);
+        }
 
-    fn open_conn() -> Vec<u64> {
-        vec![CONNECT_ALL; grid().slots()]
+        fn run(&mut self, eye: Vec3, at: Vec3) {
+            self.cave.run(eye, &wide(eye, at));
+        }
+
+        fn visible(&self, section: [i32; 3]) -> bool {
+            let slot = self.slots[&section];
+            self.cave.bits[(slot >> 5) as usize] >> (slot & 31) & 1 != 0
+        }
     }
 
     fn wide(eye: Vec3, at: Vec3) -> Frustum {
@@ -361,194 +326,134 @@ mod tests {
         ))
     }
 
-    fn visible(cave: &CaveCull, sx: usize, sy: usize, sz: usize) -> bool {
-        let slot = slot(sx, sy, sz);
-        cave.bits[slot >> 5] >> (slot & 31) & 1 != 0
-    }
-
-    #[test]
-    fn a_solid_wall_hides_what_is_behind_it() {
-        let conn = wall_at(20);
-        let mut cave = walk(conn);
-        let eye = Vec3::new(900.0, 32.0, 256.0);
-        cave.run(eye, &wide(eye, Vec3::new(0.0, 32.0, 256.0)));
-        assert!(visible(&cave, 25, 2, 16), "section in front of the wall");
-        assert!(!visible(&cave, 10, 2, 16), "section behind the wall");
-    }
-
-    #[test]
-    fn geometry_outside_the_walks_grid_is_drawn_rather_than_culled() {
-        let conn = wall_at(20);
-        let mut cave = walk(conn);
-        let eye = Vec3::new(900.0, 32.0, 256.0);
-        cave.run(eye, &wide(eye, Vec3::new(0.0, 32.0, 256.0)));
-        assert!(
-            !visible(&cave, 10, 2, 16),
-            "the walk really did cull something"
-        );
-
-        let tail = cave.always_visible() as usize;
-        for slot in tail..tail + SECTIONS_PER_RENDER_REGION {
-            assert!(
-                cave.bits[slot >> 5] >> (slot & 31) & 1 != 0,
-                "slot {slot} past the grid has to stay set"
-            );
-        }
-    }
-
-    #[test]
-    fn sliding_the_grid_forgets_what_it_covered() {
-        let mut conn = open_conn();
-        conn[slot(5, 2, 5)] = 0;
-        let mut cave = walk(conn);
-        assert_eq!(cave.conn[slot(5, 2, 5)], 0);
-
-        cave.retarget([RENDER_REGION_X as i32, 0, 0]);
-        assert_eq!(cave.min_section(), [RENDER_REGION_X as i32, 0, 0]);
-        assert!(
-            cave.conn.iter().all(|mask| *mask == CONNECT_ALL),
-            "a grid that has slid holds nothing until the loader lays it back in"
-        );
-    }
-
-    #[test]
-    fn a_window_below_the_origin_culls_from_where_the_camera_really_is() {
-        let corner = [-(REGION_CHUNKS as i32), 0, -(REGION_CHUNKS as i32)];
-        let conn = wall_at(20);
-        let mut cave = at(conn, corner);
-        let eye = Vec3::new(-104.0, 40.0, -248.0);
-        cave.run(eye, &wide(eye, Vec3::new(-900.0, 40.0, -248.0)));
-        assert!(
-            visible(&cave, 25, 2, 16),
-            "the section the camera stands in"
-        );
-        assert!(!visible(&cave, 10, 2, 16), "section behind the wall");
-    }
-
-    #[test]
-    fn a_corner_section_turns_only_the_way_its_mask_allows() {
-        let mut conn = empty_conn();
-        conn[slot(16, 2, 15)] = CONNECT_ALL;
-        conn[slot(16, 2, 16)] = 1 << (2 * 6 + 4) | 1 << (4 * 6 + 2);
-        let mut cave = walk(conn);
-        let eye = Vec3::new(264.0, 40.0, 248.0);
-        cave.run(eye, &wide(eye, Vec3::new(264.0, 40.0, 400.0)));
-        assert!(visible(&cave, 15, 2, 16), "the turn to the west");
-        assert!(!visible(&cave, 17, 2, 16), "east is closed by the mask");
-        assert!(!visible(&cave, 16, 3, 16), "up is closed by the mask");
-    }
-
-    fn one_face_two_ways() -> CaveCull {
-        let mut conn = empty_conn();
-        for (row, turn) in [(12usize, pair(5, 3)), (20, pair(5, 2))] {
-            for x in 18..SECTIONS[0] {
-                conn[slot(x, 2, row)] = pair(5, 4) | pair(4, 5);
-            }
-            conn[slot(17, 2, row)] = turn;
-        }
-        for z in 13..16 {
-            conn[slot(17, 2, z)] = pair(2, 3);
-        }
-        for z in 17..20 {
-            conn[slot(17, 2, z)] = pair(3, 2);
-        }
-        conn[slot(17, 2, 16)] = pair(2, 4) | pair(3, 4);
-        conn[slot(16, 2, 16)] = pair(5, 2) | pair(5, 3);
-        walk(conn)
-    }
-
-    #[test]
-    fn a_second_arrival_through_one_face_keeps_only_what_both_spent() {
-        let mut cave = one_face_two_ways();
-        let eye = Vec3::new(900.0, 40.0, 264.0);
-        cave.run(eye, &wide(eye, Vec3::new(0.0, 40.0, 264.0)));
-        assert!(visible(&cave, 16, 2, 16), "the section both routes reach");
-        assert!(
-            visible(&cave, 16, 2, 15),
-            "north of it, which only the southbound route forbids"
-        );
-        assert!(
-            visible(&cave, 16, 2, 17),
-            "south of it, which only the northbound route forbids"
-        );
-    }
-
-    #[test]
-    fn a_camera_outside_on_two_axes_spends_both_of_them() {
-        let mut conn = empty_conn();
-        for x in 18..SECTIONS[0] {
-            conn[slot(x, 2, 16)] = pair(5, 4) | pair(4, 5);
-        }
-        conn[slot(17, 2, 16)] = pair(5, 4) | pair(5, 3);
-        let mut cave = walk(conn);
-        let eye = Vec3::new(900.0, 40.0, 900.0);
-        cave.run(eye, &wide(eye, Vec3::new(0.0, 40.0, 0.0)));
-        assert!(
-            visible(&cave, 16, 2, 16),
-            "west of the turn, which the walk may still reach"
-        );
-        assert!(
-            !visible(&cave, 17, 2, 17),
-            "south of the turn: getting to the boundary already spent north"
-        );
-    }
-
-    #[test]
-    fn a_walk_after_a_slide_culls_against_the_masks_written_back() {
-        let mut cave = walk(open_conn());
-        cave.retarget([RENDER_REGION_X as i32, 0, 0]);
-        for sy in 0..SECTIONS[1] {
-            for sz in 0..SECTIONS[2] {
-                cave.set_section(slot(10, sy, sz), 0);
-            }
-        }
-        let eye = Vec3::new(900.0, 40.0, 264.0);
-        cave.run(eye, &wide(eye, Vec3::new(0.0, 40.0, 264.0)));
-        assert!(
-            visible(&cave, 12, 2, 16),
-            "section in front of the wall that was written back"
-        );
-        assert!(!visible(&cave, 5, 2, 16), "section behind it");
-    }
-
     fn pair(entry: u32, exit: u32) -> u64 {
         1 << (entry * 6 + exit)
     }
 
-    fn two_ways_in(mx: usize, mz: usize) -> CaveCull {
-        let mut conn = empty_conn();
-        conn[slot(mx, 2, mz)] = pair(4, 1) | pair(1, 4) | pair(2, 0) | pair(0, 2);
-        for x in 0..mx {
-            conn[slot(x, 2, mz)] = pair(4, 5) | pair(5, 4);
+    fn middle(section: [i32; 3]) -> Vec3 {
+        Vec3::new(
+            section[0] as f32 + 0.5,
+            section[1] as f32 + 0.5,
+            section[2] as f32 + 0.5,
+        ) * SECTION_SIZE as f32
+    }
+
+    /// One open storey with a wall across it, running from `from` in x to `to`.
+    fn walled(from: i32, to: i32, wall: i32, eye: [i32; 3]) -> Slab {
+        let mut slab = Slab::around(middle(eye));
+        for x in from..to {
+            for z in eye[2] - 8..eye[2] + 8 {
+                slab.open([x, eye[1], z], if x == wall { 0 } else { CONNECT_ALL });
+            }
         }
-        for z in 0..mz {
-            conn[slot(mx, 2, z)] = pair(2, 3) | pair(3, 2);
+        slab
+    }
+
+    #[test]
+    fn a_solid_wall_hides_what_is_behind_it() {
+        let mut slab = walled(0, 40, 20, [35, 2, 16]);
+        slab.run(middle([35, 2, 16]), middle([0, 2, 16]));
+        assert!(slab.visible([25, 2, 16]), "section in front of the wall");
+        assert!(!slab.visible([10, 2, 16]), "section behind the wall");
+    }
+
+    #[test]
+    fn a_storey_below_the_origin_culls_from_where_the_camera_really_is() {
+        let mut slab = walled(-40, 0, -20, [-5, -2, -16]);
+        slab.run(middle([-5, -2, -16]), middle([-40, -2, -16]));
+        assert!(slab.visible([-15, -2, -16]), "section in front of the wall");
+        assert!(!slab.visible([-30, -2, -16]), "section behind the wall");
+    }
+
+    #[test]
+    fn geometry_outside_the_walk_box_is_drawn_rather_than_culled() {
+        let mut slab = walled(0, 40, 20, [35, 2, 16]);
+        slab.open([100_000, 0, 0], CONNECT_ALL);
+        slab.run(middle([35, 2, 16]), middle([0, 2, 16]));
+        assert!(
+            !slab.visible([10, 2, 16]),
+            "the walk really did cull something"
+        );
+        assert!(
+            slab.visible([100_000, 0, 0]),
+            "a section the box does not cover has to stay drawn"
+        );
+    }
+
+    #[test]
+    fn sliding_the_box_forgets_what_it_covered() {
+        let mut slab = walled(0, 40, 20, [35, 2, 16]);
+        let far = middle([35, 2, 16]) + Vec3::X * (WALK[0] * SECTION_SIZE) as f32;
+        assert!(slab.cave.follow(far), "a whole box away has to move it");
+        assert!(
+            slab.cave.conn.iter().all(|mask| *mask == CONNECT_ALL),
+            "a box that has slid holds nothing until the loader lays it back in"
+        );
+        assert!(slab.cave.slot.iter().all(|slot| *slot == NO_SLOT));
+    }
+
+    #[test]
+    fn a_walk_after_a_slide_culls_against_the_masks_written_back() {
+        let eye = [35, 2, 16];
+        let mut slab = Slab::around(middle(eye));
+        slab.cave.follow(middle(eye) + Vec3::X * (WALK[0] * SECTION_SIZE) as f32);
+        slab.cave.follow(middle(eye));
+        slab.cave.conn.fill(0);
+        for x in 0..40 {
+            for z in 8..24 {
+                slab.open([x, 2, z], if x == 20 { 0 } else { CONNECT_ALL });
+            }
         }
-        walk(conn)
+        slab.run(middle(eye), middle([0, 2, 16]));
+        assert!(slab.visible([25, 2, 16]), "in front of the wall laid back in");
+        assert!(!slab.visible([10, 2, 16]), "behind it");
+    }
+
+    #[test]
+    fn a_corner_section_turns_only_the_way_its_mask_allows() {
+        let eye = [16, 2, 15];
+        let mut slab = Slab::around(middle(eye));
+        slab.open(eye, CONNECT_ALL);
+        slab.open([16, 2, 16], pair(2, 4) | pair(4, 2));
+        slab.open([15, 2, 16], CONNECT_ALL);
+        slab.open([17, 2, 16], CONNECT_ALL);
+        slab.open([16, 3, 16], CONNECT_ALL);
+        slab.run(middle(eye), middle([16, 2, 20]));
+        assert!(slab.visible([15, 2, 16]), "the turn to the west");
+        assert!(!slab.visible([17, 2, 16]), "east is closed by the mask");
+        assert!(!slab.visible([16, 3, 16]), "up is closed by the mask");
     }
 
     #[test]
     fn a_section_reached_twice_opens_the_exits_of_both_ways_in() {
-        for (mx, mz) in [(16, 24), (24, 16)] {
-            let mut cave = two_ways_in(mx, mz);
-            let eye = Vec3::new(-160.0, 40.0, -160.0);
-            cave.run(eye, &wide(eye, Vec3::new(400.0, 40.0, 400.0)));
-            assert!(
-                visible(&cave, mx, 3, mz),
-                "{mx},{mz}: the way up, entered from the west"
-            );
-            assert!(
-                visible(&cave, mx, 1, mz),
-                "{mx},{mz}: the way down, entered from the north"
-            );
+        let eye = [0, 2, 0];
+        let mut slab = Slab::around(middle(eye));
+        slab.open(eye, CONNECT_ALL);
+        for step in 1..4 {
+            slab.open([step, 2, 0], pair(4, 5));
+            slab.open([0, 2, step], pair(2, 3));
+            slab.open([4, 2, step], pair(2, 3));
+            slab.open([step, 2, 4], pair(4, 5));
         }
+        slab.open([4, 2, 0], pair(4, 3));
+        slab.open([0, 2, 4], pair(2, 5));
+        slab.open([4, 2, 4], pair(2, 1) | pair(4, 0));
+        slab.open([4, 3, 4], CONNECT_ALL);
+        slab.open([4, 1, 4], CONNECT_ALL);
+
+        slab.run(middle(eye), middle([4, 2, 4]));
+        assert!(slab.visible([4, 3, 4]), "the way up, entered from the north");
+        assert!(slab.visible([4, 1, 4]), "the way down, entered from the west");
     }
 
     #[test]
     fn a_camera_sealed_in_rock_gives_up_instead_of_culling_everything() {
-        let mut cave = walk(empty_conn());
-        let eye = Vec3::new(264.0, 40.0, 264.0);
-        cave.run(eye, &wide(eye, Vec3::new(264.0, 40.0, 400.0)));
-        assert_eq!(cave.reached(), cave.words() as u32 * 32);
+        let mut slab = walled(0, 40, 20, [35, 2, 16]);
+        slab.open([35, 2, 16], 0);
+        slab.run(middle([35, 2, 16]), middle([0, 2, 16]));
+        assert!(
+            slab.slots.keys().all(|section| slab.visible(*section)),
+            "a walk that cannot start must not cull anything"
+        );
     }
 }

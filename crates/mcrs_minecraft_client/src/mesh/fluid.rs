@@ -296,7 +296,7 @@ fn side_sprite(fluid: Fluid, front_cover: u8) -> SpriteRef {
     }
 }
 
-pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, local_section: u32) {
+pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, slot: u32) {
     let sloped = std::mem::take(&mut scratch.sloped);
     for cell in &sloped {
         let [x, y, z] = cell.cell;
@@ -381,7 +381,7 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, local_section
                     tint,
                     sprite,
                 },
-                local_section,
+                slot,
             );
         }
 
@@ -401,7 +401,7 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, local_section
                     tint,
                     sprite: fluid.still,
                 },
-                local_section,
+                slot,
             );
         }
 
@@ -468,7 +468,7 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch, local_section
                     tint,
                     sprite: side_sprite(fluid, scratch.cover[facing(face)]),
                 },
-                local_section,
+                slot,
             );
         }
     }
@@ -483,11 +483,8 @@ mod tests {
     use crate::bake::Dir;
     use crate::blocks::{BlockInfo, CubeFace, Fluid, Pass};
     use crate::mesh::model::fixed;
-    use crate::mesh::{Scratch, mesh_render_region};
-    use crate::pack::{
-        FACE_LAYER, MODEL_STEPS, QUAD_DROP, QUAD_FACE, QUAD_H, QUAD_W, RegionGrid,
-        SECTION_FACE_TABLE,
-    };
+    use crate::mesh::{Scratch, mesh_world};
+    use crate::pack::{FACE_LAYER, MODEL_STEPS, QUAD_DROP, QUAD_FACE, QUAD_H, QUAD_W};
 
     fn water(amount: u8) -> Fluid {
         Fluid {
@@ -533,21 +530,17 @@ mod tests {
         let mut blocks = catalog(&palette);
         blocks[state_id(&palette, "minecraft:water")].fluid = Some(water(8));
 
-        let grid = RegionGrid::covering(world.sections);
         let mut scratch = Scratch::new();
+        let batch = mesh_world(&world, &blocks, &mut scratch);
+        let models = batch.model_quads();
         let mut surfaces = Vec::new();
-        let mut models = 0;
-        for region in 0..grid.len() {
-            let batch = mesh_render_region(&world, &blocks, grid, region, &mut scratch);
-            models += batch.model_quads();
-            for quad in &batch.simple {
-                if QUAD_FACE.read(quad) == 1 {
-                    surfaces.push((
-                        QUAD_W.read(quad) + 1,
-                        QUAD_H.read(quad) + 1,
-                        QUAD_DROP.read(quad),
-                    ));
-                }
+        for quad in &batch.simple {
+            if QUAD_FACE.read(quad) == 1 {
+                surfaces.push((
+                    QUAD_W.read(quad) + 1,
+                    QUAD_H.read(quad) + 1,
+                    QUAD_DROP.read(quad),
+                ));
             }
         }
 
@@ -578,12 +571,11 @@ mod tests {
             blocks[id].sturdy = sturdy;
             blocks[id].fluid = Some(water(8));
 
-            let grid = RegionGrid::covering(world.sections);
             let mut scratch = Scratch::new();
-            (0..grid.len())
-                .map(|region| mesh_render_region(&world, &blocks, grid, region, &mut scratch))
-                .flat_map(|batch| batch.simple.into_iter())
-                .filter(|quad| QUAD_FACE.read(quad) == Dir::Up as u64)
+            mesh_world(&world, &blocks, &mut scratch)
+                .simple
+                .iter()
+                .filter(|quad| QUAD_FACE.read(*quad) == Dir::Up as u64)
                 .count()
         };
 
@@ -626,14 +618,10 @@ mod tests {
             }; 6],
         );
 
-        let grid = RegionGrid::covering(world.sections);
         let mut scratch = Scratch::new();
         let mut sprites = [0usize; 5];
-        for region in 0..grid.len() {
-            let batch = mesh_render_region(&world, &blocks, grid, region, &mut scratch);
-            for attr in batch.faces.iter().skip(SECTION_FACE_TABLE) {
-                sprites[FACE_LAYER.get(*attr as u64) as usize] += 1;
-            }
+        for attr in &mesh_world(&world, &blocks, &mut scratch).faces {
+            sprites[FACE_LAYER.get(*attr as u64) as usize] += 1;
         }
 
         assert_eq!(

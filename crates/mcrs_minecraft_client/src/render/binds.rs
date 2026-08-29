@@ -45,6 +45,7 @@ impl Bindings {
                 arenas.visible.as_entire_buffer_binding(),
                 frame.args.as_entire_buffer_binding(),
                 frame.cave.as_entire_buffer_binding(),
+                arenas.sections.as_entire_buffer_binding(),
             )),
         );
         let draw = draw_bind_group(&draw_layout, arenas, sprites, device, pipeline_cache);
@@ -93,6 +94,7 @@ fn cull_layout() -> BindGroupLayoutDescriptor {
                 storage_buffer_sized(false, None),
                 storage_buffer_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
+                storage_buffer_read_only_sized(false, None),
             ),
         ),
     )
@@ -115,6 +117,7 @@ fn draw_layout() -> BindGroupLayoutDescriptor {
                 sampler(SamplerBindingType::Filtering),
                 texture_2d_array(TextureSampleType::Float { filterable: true }),
                 sampler(SamplerBindingType::Filtering),
+                storage_buffer_read_only_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
             ),
@@ -145,6 +148,7 @@ fn draw_bind_group(
             &sprites.tint_sampler,
             sprites.animations.as_entire_buffer_binding(),
             arenas.faces.as_entire_buffer_binding(),
+            arenas.sections.as_entire_buffer_binding(),
         )),
     )
 }

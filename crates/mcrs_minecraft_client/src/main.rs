@@ -20,10 +20,10 @@ use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClock, WorldClocks};
 use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 
 use mcrs_minecraft_client::render::{
-    FACE_BYTES, Layout, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads,
+    Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads,
 };
 use mcrs_minecraft_client::{
-    anvil, asset_corpus, camera, cave, config, gui, input, local_player, pack, player, render,
+    anvil, asset_corpus, camera, cave, config, gui, input, local_player, player, render,
     screenshot, sky, stream,
 };
 
@@ -97,8 +97,8 @@ fn main() {
         .insert_resource(sky::PlayerDimension(save_data.dimension));
 
     match terrain {
-        Ok((layout, uploads, cave, loader)) => {
-            app.add_plugins(TerrainPlugin(layout, uploads))
+        Ok((budget, uploads, cave, loader)) => {
+            app.add_plugins(TerrainPlugin(budget, uploads))
                 .insert_resource(config::drawn_streams())
                 .insert_resource(config::raster_fraction())
                 .insert_resource(cave)
@@ -137,41 +137,31 @@ fn region_folder(world: &Path, dimension: &str) -> PathBuf {
 }
 
 const BUDGET_FILES: usize = 4;
-const GROUPS_PER_FILE: usize = 1 << 18;
+
+/// One block holds every group of every bucket and a flush takes a fresh one before freeing the
+/// stale one, so the arena has to fit two of them with the buddy rounding on top.
+const GROUPS_PER_FILE: usize = 1 << 19;
 
 /// The region files around the player, until columns arrive from the network.
 fn terrain_source(
     world: &Path,
     dimension: &str,
     position: DVec3,
-) -> Result<(Arc<Layout>, Uploads, cave::CaveCull, stream::Loader), String> {
+) -> Result<(Arc<Budget>, Uploads, cave::CaveCull, stream::Loader), String> {
     let centre = config::window_centre().unwrap_or_else(|| {
         let region = |axis: f64| (axis / anvil::REGION_BLOCKS as f64).floor() as i32;
         [region(position.x), region(position.z)]
     });
     let window = anvil::window(&region_folder(world, dimension), centre, config::region_window())?;
 
-    let chunks = anvil::REGION_CHUNKS;
-    let extent = [
-        window.regions[0] * chunks,
-        anvil::SECTIONS_Y,
-        window.regions[1] * chunks,
-    ];
     let files = window.files.len().clamp(1, BUDGET_FILES);
     let (quad_mb, model_mb, face_mb) = config::arena_budget();
     let span = anvil::REGION_BLOCKS as u32;
-    let layout = Arc::new(Layout {
-        grid: pack::RegionGrid::covering(extent),
-        min_section: [
-            window.min_region[0] * chunks as i32,
-            anvil::MIN_SECTION_Y,
-            window.min_region[1] * chunks as i32,
-        ],
-        quad_capacity: quad_mb * files * 1_000_000 / QUAD_BYTES,
-        model_capacity: model_mb * files * 1_000_000 / MODEL_BYTES,
-        face_capacity: face_mb * files * 1_000_000 / FACE_BYTES,
-        group_capacity: GROUPS_PER_FILE * files,
-        cave_words: (cave::cave_grid().slots() + pack::SECTIONS_PER_RENDER_REGION).div_ceil(32),
+    let budget = Arc::new(Budget {
+        quads: quad_mb * files * 1_000_000 / QUAD_BYTES,
+        models: model_mb * files * 1_000_000 / MODEL_BYTES,
+        faces: face_mb * files * 1_000_000 / FACE_BYTES,
+        groups: GROUPS_PER_FILE * files,
         tint_origin: [
             window.min_region[0] * span as i32,
             window.min_region[1] * span as i32,
@@ -182,26 +172,19 @@ fn terrain_source(
         ],
     });
 
-    let cave = cave::CaveCull::new(cave::cave_grid(), layout.min_section, extent);
-    assert_eq!(
-        cave.words(),
-        layout.cave_words,
-        "the sight-line bitset and the buffer it goes into have to be the same size"
-    );
     info!(
         files = window.files.len(),
         min_region = ?window.min_region,
         regions = ?window.regions,
-        draws = layout.max_draws(),
-        quad_mb = (layout.quad_capacity * QUAD_BYTES) / 1_000_000,
-        model_mb = (layout.model_capacity * MODEL_BYTES) / 1_000_000,
-        face_mb = (layout.face_capacity * FACE_BYTES) / 1_000_000,
+        quad_mb = (budget.quads * QUAD_BYTES) / 1_000_000,
+        model_mb = (budget.models * MODEL_BYTES) / 1_000_000,
+        face_mb = (budget.faces * FACE_BYTES) / 1_000_000,
         "streaming terrain from region files"
     );
 
     let uploads = Uploads::default();
-    let loader = stream::Loader::new(layout.clone(), uploads.clone(), window);
-    Ok((layout, uploads, cave, loader))
+    let loader = stream::Loader::new(&budget, uploads.clone(), window);
+    Ok((budget, uploads, cave::CaveCull::new(), loader))
 }
 
 fn world_folder() -> PathBuf {

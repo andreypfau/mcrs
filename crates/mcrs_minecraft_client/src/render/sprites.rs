@@ -3,7 +3,7 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
 use super::texture::{create_tints, upload_atlases};
-use super::{Animation, Atlas, Layout};
+use super::{Animation, Atlas, Budget};
 
 pub(super) struct Sprites {
     pub atlases: Vec<TextureView>,
@@ -15,9 +15,9 @@ pub(super) struct Sprites {
 }
 
 impl Sprites {
-    pub fn new(layout: &Layout, device: &RenderDevice, queue: &RenderQueue) -> Self {
+    pub fn new(budget: &Budget, device: &RenderDevice, queue: &RenderQueue) -> Self {
         let (atlases, atlas_sampler) = upload_atlases(&[], device, queue);
-        let (tints, tint_sampler) = create_tints(layout, device);
+        let (tints, tint_sampler) = create_tints(budget, device);
         Self {
             atlases,
             atlas_sampler,

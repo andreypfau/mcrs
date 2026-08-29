@@ -21,7 +21,6 @@ use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::{ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
 use crate::mesh::STREAMS;
-use crate::pack::RegionGrid;
 use crate::probe::{self, GpuTimings};
 
 pub use stats::DrawnTriangles;
@@ -30,23 +29,25 @@ pub use upload::{Placement, Upload, Uploads};
 pub const QUAD_BYTES: usize = crate::pack::QUAD_WORDS * 4;
 pub const MODEL_BYTES: usize = 4 * 3 * 4;
 pub const FACE_BYTES: usize = 4;
+pub const SECTION_BYTES: usize = size_of::<SectionDesc>();
 
-pub struct Layout {
-    pub grid: RegionGrid,
-    pub min_section: [i32; 3],
-    pub quad_capacity: usize,
-    pub model_capacity: usize,
-    pub face_capacity: usize,
-    pub group_capacity: usize,
-    pub cave_words: usize,
+pub struct Budget {
+    pub quads: usize,
+    pub models: usize,
+    pub faces: usize,
+    pub groups: usize,
     pub tint_origin: [i32; 2],
     pub tint_size: [u32; 2],
 }
 
-impl Layout {
-    pub fn max_draws(&self) -> usize {
-        STREAMS * self.grid.len()
-    }
+/// One row of the section table: where a section sits in the world, how many blocks one of its
+/// samples covers, and where its face attributes begin.
+#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct SectionDesc {
+    pub section: [i32; 3],
+    pub scale: u32,
+    pub face_base: u32,
 }
 
 pub struct Atlas {
@@ -100,11 +101,11 @@ pub fn toggle_wireframe(keys: Res<ButtonInput<KeyCode>>, mut wireframe: ResMut<W
 }
 
 #[derive(Resource, Deref)]
-struct WorldLayout(Arc<Layout>);
+struct TerrainBudget(Arc<Budget>);
 
 fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/include/fields.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/include/region.wgsl");
+    bevy::asset::embedded_asset!(app, "shaders/include/section.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/include/frame.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/include/quad.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/include/lighting.wgsl");
@@ -116,7 +117,7 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wgsl");
 }
 
-pub struct TerrainPlugin(pub Arc<Layout>, pub Uploads);
+pub struct TerrainPlugin(pub Arc<Budget>, pub Uploads);
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
@@ -138,7 +139,7 @@ impl Plugin for TerrainPlugin {
         render_app
             .insert_resource(triangles)
             .insert_resource(timings)
-            .insert_resource(WorldLayout(self.0.clone()))
+            .insert_resource(TerrainBudget(self.0.clone()))
             .insert_resource(self.1.clone())
             .add_systems(RenderStartup, (terrain::init_terrain, probe::init))
             .add_systems(ExtractSchedule, pass::extract_cave_visibility)

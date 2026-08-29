@@ -1,5 +1,7 @@
 #define_import_path mcrs_minecraft_client::terrain_bindings
 
+#import mcrs_minecraft_client::section::SectionDesc
+
 struct Animation {
     base_layer: u32,
     count: u32,
@@ -19,6 +21,7 @@ struct Animation {
 @group(1) @binding(9) var tint_sampler: sampler;
 @group(1) @binding(10) var<storage, read> animations: array<Animation>;
 @group(1) @binding(11) var<storage, read> faces: array<u32>;
+@group(1) @binding(12) var<storage, read> sections: array<SectionDesc>;
 
 fn quad_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {
     return extractBits(quads[base + word], shift, bits);

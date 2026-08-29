@@ -2,16 +2,17 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 
 use crate::mesh::Group;
-use crate::pack::QUAD_WORDS;
+use crate::pack::{MAX_SECTIONS, QUAD_WORDS};
 
-use super::Layout;
 use super::upload::Pending;
+use super::{Budget, SECTION_BYTES};
 
 pub(super) struct Arenas {
     pub quads: Buffer,
     pub vertices: Buffer,
     pub faces: Buffer,
     pub groups: Buffer,
+    pub sections: Buffer,
     pub visible: Buffer,
     pub pending: Option<Pending>,
 }
@@ -22,10 +23,11 @@ pub(super) enum Arena {
     Vertices,
     Faces,
     Groups,
+    Sections,
 }
 
 impl Arenas {
-    pub fn new(layout: &Layout, device: &RenderDevice) -> Self {
+    pub fn new(budget: &Budget, device: &RenderDevice) -> Self {
         let arena = |label, bytes: u64| {
             device.create_buffer(&BufferDescriptor {
                 label: Some(label),
@@ -35,22 +37,14 @@ impl Arenas {
             })
         };
         Self {
-            quads: arena(
-                "terrain quads",
-                (layout.quad_capacity * QUAD_WORDS * 4) as u64,
-            ),
-            vertices: arena(
-                "terrain vertices",
-                (layout.model_capacity * super::MODEL_BYTES) as u64,
-            ),
-            faces: arena("terrain faces", (layout.face_capacity * 4) as u64),
-            groups: arena(
-                "terrain groups",
-                (layout.group_capacity * size_of::<Group>()) as u64,
-            ),
+            quads: arena("terrain quads", (budget.quads * QUAD_WORDS * 4) as u64),
+            vertices: arena("terrain vertices", (budget.models * super::MODEL_BYTES) as u64),
+            faces: arena("terrain faces", (budget.faces * 4) as u64),
+            groups: arena("terrain groups", (budget.groups * size_of::<Group>()) as u64),
+            sections: arena("terrain sections", (MAX_SECTIONS * SECTION_BYTES) as u64),
             visible: arena(
                 "terrain visible list",
-                ((layout.quad_capacity + layout.model_capacity) * 4) as u64,
+                ((budget.quads + budget.models) * 4) as u64,
             ),
             pending: None,
         }
@@ -62,6 +56,7 @@ impl Arenas {
             Arena::Vertices => &self.vertices,
             Arena::Faces => &self.faces,
             Arena::Groups => &self.groups,
+            Arena::Sections => &self.sections,
         }
     }
 }

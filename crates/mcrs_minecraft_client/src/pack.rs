@@ -36,16 +36,9 @@ impl Field {
     }
 }
 
-pub const RENDER_REGION_X: usize = 16;
-pub const RENDER_REGION_Y: usize = 8;
-pub const RENDER_REGION_Z: usize = 16;
-pub const SECTIONS_PER_RENDER_REGION: usize = RENDER_REGION_X * RENDER_REGION_Y * RENDER_REGION_Z;
+pub const SECTION_INDEX: Field = Field::new(0, 0, 16);
 
-pub const LOCAL_X: Field = Field::new(0, 0, 4);
-pub const LOCAL_Y: Field = Field::new(0, 4, 3);
-pub const LOCAL_Z: Field = Field::new(0, 7, 4);
-
-pub const SECTION_INDEX: Field = Field::new(0, 0, 11);
+pub const MAX_SECTIONS: usize = 1 << SECTION_INDEX.bits;
 
 pub const GROUP_FACE: Field = Field::new(0, SECTION_INDEX.bits, 4);
 
@@ -62,8 +55,6 @@ pub const QUAD_SECTION: Field = Field::new(1, 0, SECTION_INDEX.bits);
 pub const QUAD_FACE_BASE: Field = Field::new(1, SECTION_INDEX.bits, 16);
 
 pub const QUAD_WORDS: usize = 2;
-
-pub const SECTION_FACE_TABLE: usize = SECTIONS_PER_RENDER_REGION;
 
 const _: () = assert!(
     (12 * crate::anvil::SECTION_VOLUME) as u64 <= QUAD_FACE_BASE.max(),
@@ -103,97 +94,8 @@ pub const MAX_SPRITES: usize = 1 << FACE_LAYER.bits;
 
 pub const MAX_SPRITE_ARRAYS: usize = 1 << FACE_ARRAY.bits;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct RegionGrid {
-    pub x: usize,
-    pub y: usize,
-    pub z: usize,
-}
-
-impl RegionGrid {
-    pub fn covering(sections: [usize; 3]) -> Self {
-        Self {
-            x: sections[0].div_ceil(RENDER_REGION_X),
-            y: sections[1].div_ceil(RENDER_REGION_Y),
-            z: sections[2].div_ceil(RENDER_REGION_Z),
-        }
-    }
-
-    pub const fn len(self) -> usize {
-        self.x * self.y * self.z
-    }
-
-    pub const fn split(self, sx: usize, sy: usize, sz: usize) -> (usize, u32) {
-        let region = sx / RENDER_REGION_X
-            + sz / RENDER_REGION_Z * self.x
-            + sy / RENDER_REGION_Y * self.x * self.z;
-        let local = pack_section(
-            (sx % RENDER_REGION_X) as u32,
-            (sy % RENDER_REGION_Y) as u32,
-            (sz % RENDER_REGION_Z) as u32,
-        );
-        (region, local)
-    }
-
-    pub const fn slot(self, sx: usize, sy: usize, sz: usize) -> usize {
-        let (region, local) = self.split(sx, sy, sz);
-        region * SECTIONS_PER_RENDER_REGION + local as usize
-    }
-
-    pub const fn section_at(self, slot: usize) -> [usize; 3] {
-        let [cx, sy, cz] = self.corner(slot / SECTIONS_PER_RENDER_REGION);
-        let [lx, ly, lz] = section_coords((slot % SECTIONS_PER_RENDER_REGION) as u32);
-        [cx + lx as usize, sy + ly as usize, cz + lz as usize]
-    }
-
-    pub const fn extent(self) -> [usize; 3] {
-        [
-            self.x * RENDER_REGION_X,
-            self.y * RENDER_REGION_Y,
-            self.z * RENDER_REGION_Z,
-        ]
-    }
-
-    pub const fn slots(self) -> usize {
-        self.len() * SECTIONS_PER_RENDER_REGION
-    }
-
-    pub const fn origin(self, min_section: [i32; 3], region: usize) -> [i32; 3] {
-        let [sx, sy, sz] = self.corner(region);
-        let size = crate::anvil::SECTION_SIZE as i32;
-        [
-            (sx as i32 + min_section[0]) * size,
-            (sy as i32 + min_section[1]) * size,
-            (sz as i32 + min_section[2]) * size,
-        ]
-    }
-
-    pub const fn corner(self, region: usize) -> [usize; 3] {
-        [
-            region % self.x * RENDER_REGION_X,
-            region / (self.x * self.z) * RENDER_REGION_Y,
-            region / self.x % self.z * RENDER_REGION_Z,
-        ]
-    }
-}
-
-pub const fn pack_section(lx: u32, ly: u32, lz: u32) -> u32 {
-    (LOCAL_X.pack(lx as u64) | LOCAL_Y.pack(ly as u64) | LOCAL_Z.pack(lz as u64)) as u32
-}
-
-pub const fn section_coords(section: u32) -> [i32; 3] {
-    [
-        LOCAL_X.get(section as u64) as i32,
-        LOCAL_Y.get(section as u64) as i32,
-        LOCAL_Z.get(section as u64) as i32,
-    ]
-}
-
 #[cfg(test)]
 const FIELDS: &[(&str, Field)] = &[
-    ("LOCAL_X", LOCAL_X),
-    ("LOCAL_Y", LOCAL_Y),
-    ("LOCAL_Z", LOCAL_Z),
     ("SECTION_INDEX", SECTION_INDEX),
     ("GROUP_FACE", GROUP_FACE),
     ("QUAD_X", QUAD_X),
@@ -270,7 +172,7 @@ rewrites it.\n#define_import_path mcrs_minecraft_client::fields\n",
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::anvil::{REGION_CHUNKS, SECTION_SIZE};
+    use crate::anvil::SECTION_SIZE;
 
     #[test]
     fn the_generated_field_header_matches_the_field_table() {
@@ -338,62 +240,6 @@ mod tests {
     }
 
     #[test]
-    fn a_section_number_round_trips_and_spans_the_whole_region() {
-        let corner = pack_section(
-            RENDER_REGION_X as u32 - 1,
-            RENDER_REGION_Y as u32 - 1,
-            RENDER_REGION_Z as u32 - 1,
-        );
-        assert_eq!(
-            section_coords(corner),
-            [
-                RENDER_REGION_X as i32 - 1,
-                RENDER_REGION_Y as i32 - 1,
-                RENDER_REGION_Z as i32 - 1
-            ]
-        );
-        assert_eq!(
-            corner as u64,
-            SECTION_INDEX.max(),
-            "the far corner has to be the last slot, or the bitset has holes in it"
-        );
-        assert_eq!(SECTIONS_PER_RENDER_REGION, 1 << SECTION_INDEX.bits);
-    }
-
-    #[test]
-    fn every_section_of_a_grid_gets_its_own_slot() {
-        let sections = [REGION_CHUNKS, 24, REGION_CHUNKS];
-        let grid = RegionGrid::covering(sections);
-        let mut seen = vec![false; grid.slots()];
-        for sz in 0..sections[2] {
-            for sy in 0..sections[1] {
-                for sx in 0..sections[0] {
-                    let slot = grid.slot(sx, sy, sz);
-                    assert!(!seen[slot], "two sections share slot {slot}");
-                    seen[slot] = true;
-                    assert_eq!(grid.section_at(slot), [sx, sy, sz]);
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn a_region_below_the_origin_keeps_the_whole_corner_of_its_window() {
-        let grid =
-            RegionGrid::covering([RENDER_REGION_X * 2, RENDER_REGION_Y, RENDER_REGION_Z * 2]);
-        assert_eq!(grid.origin([-32, -4, -32], 0), [-512, -64, -512]);
-        assert_eq!(
-            grid.origin([-32, -4, -32], 3),
-            [
-                -512 + RENDER_REGION_X as i32 * 16,
-                -64,
-                -512 + RENDER_REGION_Z as i32 * 16
-            ],
-            "the far corner of a two-by-two grid"
-        );
-    }
-
-    #[test]
     fn a_model_coordinate_reaches_the_overhang_on_both_sides() {
         let far = (SECTION_SIZE as f32 + MODEL_OVERHANG + MODEL_OVERHANG) * MODEL_STEPS;
         assert!(
@@ -429,7 +275,6 @@ mod tests {
                     FACE_AO,
                 ][..],
             ),
-            ("section number", &[LOCAL_X, LOCAL_Y, LOCAL_Z][..]),
             ("group section", &[SECTION_INDEX, GROUP_FACE][..]),
             (
                 "model vertex",
