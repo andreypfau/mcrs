@@ -78,6 +78,10 @@ fn main() {
         log_spawned_transforms.after(TransformSystems::Propagate),
     );
 
+    if let Some(only) = sky_draws_only() {
+        app.insert_resource(sky_render::SkyDrawsOnly(only));
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     app.add_plugins(screenshot::ScreenshotPlugin);
 
@@ -264,6 +268,19 @@ fn look_override() -> Option<(f32, f32)> {
         std::process::exit(1);
     };
     Some(angles)
+}
+
+/// `MCRS_SKY=disc,twilight,celestial,stars,clouds` draws only the passes it
+/// lists, which is how a frame gets priced one pass at a time.
+fn sky_draws_only() -> Option<sky_state::SkyEffects> {
+    let list = setting("MCRS_SKY", "sky")?;
+    match sky_state::SkyEffects::parse(&list) {
+        Ok(effects) => Some(effects),
+        Err(err) => {
+            eprintln!("MCRS_SKY={list}: {err}");
+            std::process::exit(1);
+        }
+    }
 }
 
 /// `MCRS_TIME=<ticks>` pins every clock and stops them, so a scripted

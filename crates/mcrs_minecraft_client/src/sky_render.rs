@@ -135,6 +135,11 @@ struct Sky {
     pipelines: Option<(SkyKey, Vec<(usize, CachedRenderPipelineId)>)>,
 }
 
+/// Restricts the sky to a subset of its draws, so a profiling run can price
+/// one pass by leaving it out.
+#[derive(Resource)]
+pub struct SkyDrawsOnly(pub SkyEffects);
+
 #[derive(Resource)]
 struct ExtractedSky {
     uniform: SkyUniform,
@@ -189,13 +194,18 @@ fn extract_sky(
     textures: Extract<Option<Res<SkyTextures>>>,
     frame: Extract<Res<SkyFrame>>,
     clocks: Extract<Res<WorldClocks>>,
+    only: Extract<Option<Res<SkyDrawsOnly>>>,
 ) {
     let (Some(environment), Some(textures)) = (environment.as_ref(), textures.as_ref()) else {
         return;
     };
+    let mut key = environment.key();
+    if let Some(only) = only.as_ref() {
+        key.effects &= only.0;
+    }
     commands.insert_resource(ExtractedSky {
         uniform: environment.uniform(&frame, environment.drift(&clocks)),
-        key: environment.key(),
+        key,
         celestials: textures.celestials.id(),
         clouds: textures.clouds.id(),
     });
