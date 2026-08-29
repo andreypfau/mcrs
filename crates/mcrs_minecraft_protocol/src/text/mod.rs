@@ -50,6 +50,49 @@ pub use into_text::IntoText;
 #[serde(transparent)]
 pub struct Text(Box<TextInner>);
 
+/// NBT stores a boolean as a byte, and serde's buffered `untagged` and
+/// `flatten` paths lose the deserializer's own coercion, so accept both.
+fn optional_flag<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<bool>, D::Error> {
+    struct FlagVisitor;
+
+    impl<'de> Visitor<'de> for FlagVisitor {
+        type Value = Option<bool>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            write!(formatter, "a boolean or the byte NBT stores one as")
+        }
+
+        fn visit_bool<E: de::Error>(self, v: bool) -> Result<Self::Value, E> {
+            Ok(Some(v))
+        }
+
+        fn visit_i64<E: de::Error>(self, v: i64) -> Result<Self::Value, E> {
+            Ok(Some(v != 0))
+        }
+
+        fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
+            Ok(Some(v != 0))
+        }
+
+        fn visit_none<E: de::Error>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_some<D: Deserializer<'de>>(
+            self,
+            deserializer: D,
+        ) -> Result<Self::Value, D::Error> {
+            deserializer.deserialize_any(FlagVisitor)
+        }
+    }
+
+    deserializer.deserialize_any(FlagVisitor)
+}
+
 /// Text data and formatting.
 #[derive(Clone, PartialEq, Default, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,19 +106,39 @@ pub struct TextInner {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font: Option<Font>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub bold: Option<bool>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub italic: Option<bool>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub underlined: Option<bool>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub strikethrough: Option<bool>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "optional_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub obfuscated: Option<bool>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -137,7 +200,11 @@ pub enum TextContent {
     BlockNbt {
         block: Cow<'static, str>,
         nbt: Cow<'static, str>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            deserialize_with = "optional_flag",
+            skip_serializing_if = "Option::is_none"
+        )]
         interpret: Option<bool>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         separator: Option<Text>,
@@ -146,7 +213,11 @@ pub enum TextContent {
     EntityNbt {
         entity: Cow<'static, str>,
         nbt: Cow<'static, str>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            deserialize_with = "optional_flag",
+            skip_serializing_if = "Option::is_none"
+        )]
         interpret: Option<bool>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         separator: Option<Text>,
@@ -155,7 +226,11 @@ pub enum TextContent {
     StorageNbt {
         storage: ResourceLocation<Cow<'static, str>>,
         nbt: Cow<'static, str>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            deserialize_with = "optional_flag",
+            skip_serializing_if = "Option::is_none"
+        )]
         interpret: Option<bool>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         separator: Option<Text>,
@@ -636,5 +711,11 @@ impl<'de> Deserialize<'de> for Text {
         }
 
         deserializer.deserialize_any(TextVisitor)
+    }
+}
+
+impl From<TextInner> for Text {
+    fn from(inner: TextInner) -> Self {
+        Self(Box::new(inner))
     }
 }

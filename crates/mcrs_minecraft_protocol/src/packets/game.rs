@@ -6,7 +6,7 @@ pub mod clientbound {
     use crate::packets::common::clientbound::KeepAlive;
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::text::Text;
-    use crate::{ColumnPos, Look, PositionFlag, Slot, VarInt};
+    use crate::{ColumnPos, Look, LpVec3, PositionFlag, Slot, VarInt};
     use bevy_math::DVec3;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_protocol::{BlockStateId, ByteAngle};
@@ -25,7 +25,7 @@ pub mod clientbound {
         pub uuid: Uuid,
         pub kind: VarInt,
         pub pos: DVec3,
-        pub velocity: VarInt,
+        pub movement: LpVec3,
         pub yaw: ByteAngle,
         pub pitch: ByteAngle,
         pub head_yaw: ByteAngle,

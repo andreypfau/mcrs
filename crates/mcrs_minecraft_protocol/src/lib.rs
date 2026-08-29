@@ -52,6 +52,7 @@ pub mod handshake;
 mod impls;
 pub mod item;
 pub mod light_codec;
+mod lp_vec3;
 pub mod packed_chunk_pos;
 pub mod packets;
 mod pos;
@@ -67,7 +68,6 @@ mod teleport_flags;
 pub mod text;
 pub mod var_int;
 mod var_long;
-mod velocity;
 
 use std::io::Write;
 
@@ -92,6 +92,7 @@ pub use game_mode::GameMode;
 pub use global_pos::GlobalPos;
 pub use hand::Hand;
 pub use item::{ItemId, Slot};
+pub use lp_vec3::LpVec3;
 pub use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
 pub use pos::Look;
 pub use pos::MoveFlags;
@@ -102,7 +103,6 @@ pub use teleport_flags::PositionFlag;
 pub use text::Text;
 pub use var_int::VarInt;
 pub use var_long::VarLong;
-pub use velocity::Velocity;
 pub use {anyhow, bytes, mcrs_minecraft_nbt as nbt, uuid};
 
 /// The maximum number of bytes in a single Minecraft packet.
