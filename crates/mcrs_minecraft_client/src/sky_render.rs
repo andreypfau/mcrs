@@ -123,7 +123,7 @@ impl Plugin for SkyRenderPlugin {
 }
 
 #[derive(Resource)]
-struct Sky {
+pub(crate) struct Sky {
     view_layout: BindGroupLayoutDescriptor,
     texture_layout: BindGroupLayoutDescriptor,
     shader: Handle<Shader>,
@@ -132,15 +132,15 @@ struct Sky {
 }
 
 #[derive(Resource)]
-struct ExtractedSky {
-    uniform: SkyUniform,
+pub(crate) struct ExtractedSky {
+    pub uniform: SkyUniform,
     key: SkyKey,
     celestials: AssetId<Image>,
     clouds: AssetId<Image>,
 }
 
 #[derive(Resource)]
-struct SkyBindGroups {
+pub(crate) struct SkyBindGroups {
     view: BindGroup,
     textures: BindGroup,
 }
@@ -310,7 +310,7 @@ fn prepare_sky_bind_groups(
     });
 }
 
-fn draw_sky(
+pub(crate) fn draw_sky(
     view: ViewQuery<(&ViewTarget, &ViewDepthTexture, &ViewUniformOffset)>,
     sky: Option<Res<Sky>>,
     binds: Option<Res<SkyBindGroups>>,

@@ -16,6 +16,8 @@ use crate::options::SENSITIVITY;
 
 const EYE_HEIGHT: f32 = 1.62;
 
+const FAR_PLANE: f32 = 4000.0;
+
 /// `MouseHandler.turnPlayer` builds `sens = (sensitivity * 0.6 + 0.2)^3 * 8` and
 /// `Entity.turn` then scales by `0.15`; at the default `sensitivity` the chain
 /// collapses to `degrees = pixels * 0.15`.
@@ -65,7 +67,10 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) {
     world.spawn((
         PlayerCamera,
         FovFilter::default(),
-        Projection::default(),
+        Projection::Perspective(PerspectiveProjection {
+            far: FAR_PLANE,
+            ..default()
+        }),
         Camera3d::default(),
         // The sky pipelines are built for a single sample; multisampling the
         // view would leave them unable to render into it.

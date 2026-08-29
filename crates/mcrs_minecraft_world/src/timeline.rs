@@ -1121,8 +1121,8 @@ mod tests {
             .collect()
     }
 
-    /// The wrap-and-lerp of `examples/anvil_region_viewer/daylight.rs::track`,
-    /// in float space, as an oracle independent of the baked segment list.
+    /// The wrap-and-lerp of the hand-extracted reference tracks, in float space,
+    /// as an oracle independent of the baked segment list.
     fn daylight_track(keys: &[(f32, [f32; 4])], ticks: f32) -> [f32; 4] {
         let mut at = ticks.rem_euclid(DAY);
         if at < keys[0].0 {
@@ -1238,7 +1238,7 @@ mod tests {
 
     #[test]
     fn the_daylight_tables_are_the_day_json_tracks() {
-        // hand-extracted in examples/anvil_region_viewer/daylight.rs
+        // hand-extracted from `timeline/day.json`
         const SKY_LIGHT_FACTOR: [(f32, f32); 4] = [
             (730.0, 1.0),
             (11270.0, 1.0),

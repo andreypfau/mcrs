@@ -13,8 +13,6 @@
 //! floor of neighbours — ambient occlusion is invisible on a block floating in open air, because
 //! every neighbour sample is then unoccluded.
 
-mod bake;
-mod model;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::color::LinearRgba;
@@ -25,7 +23,8 @@ use bevy::prelude::*;
 use bevy::render::mesh::{Indices, PrimitiveTopology, VertexAttributeValues};
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
-use bake::{Neighborhood, TinyWorld};
+use mcrs_minecraft_client::bake::{self, Neighborhood, TinyWorld};
+use mcrs_minecraft_client::model;
 
 const DEFAULT_TARGET: &str = "minecraft:oak_log[axis=y]";
 

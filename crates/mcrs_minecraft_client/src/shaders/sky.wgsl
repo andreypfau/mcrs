@@ -8,6 +8,9 @@ struct Sky {
     fog: vec4<f32>,
     cloud_color: vec4<f32>,
     cloud: vec4<f32>,
+    sky_light: vec4<f32>,
+    block_light: vec4<f32>,
+    ambient: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> view: View;

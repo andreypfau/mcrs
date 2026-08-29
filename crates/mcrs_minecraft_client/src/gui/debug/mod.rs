@@ -12,6 +12,7 @@ pub mod entry_fps;
 pub mod entry_position;
 pub mod entry_section_position;
 pub mod entry_system_specs;
+pub mod entry_terrain;
 pub mod entry_version;
 
 pub use displayer::DebugScreenDisplayer;
@@ -122,6 +123,7 @@ impl DebugScreenEntries {
     pub const PLAYER_SECTION_POSITION: DebugEntryId =
         ResourceLocation::new_static("minecraft:player_section_position");
     pub const SYSTEM_SPECS: DebugEntryId = ResourceLocation::new_static("minecraft:system_specs");
+    pub const TERRAIN: DebugEntryId = ResourceLocation::new_static("minecraft:terrain");
 
     /// Registration order is identifier order, and the status each entry starts
     /// on is the one the `default` profile gives it.
@@ -155,6 +157,11 @@ impl DebugScreenEntries {
             Self::SYSTEM_SPECS,
             DebugScreenEntryStatus::InOverlay,
             entry_system_specs::display,
+        )
+        .add_debug_screen_entry(
+            Self::TERRAIN,
+            DebugScreenEntryStatus::InOverlay,
+            entry_terrain::display.run_if(resource_exists::<crate::stream::Loader>),
         );
     }
 }
