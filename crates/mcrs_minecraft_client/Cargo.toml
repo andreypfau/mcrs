@@ -29,6 +29,7 @@ bytemuck = { version = "1", features = ["derive"] }
 bitflags = "2"
 serde_json.workspace = true
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_network.workspace = true
 mcrs_voxel_math.workspace = true
 mcrs_voxel_world.workspace = true
 mcrs_minecraft_world.workspace = true

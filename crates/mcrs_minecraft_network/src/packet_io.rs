@@ -1,7 +1,9 @@
 use crate::{EngineConnection, ReceivedPacket};
 use bytes::{Bytes, BytesMut};
 use log::{error, warn};
-use mcrs_minecraft_protocol::{Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket};
+use mcrs_minecraft_protocol::{
+    CompressionThreshold, Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket,
+};
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
@@ -13,7 +15,7 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::task::JoinHandle;
 
-pub(crate) struct PacketIo {
+pub struct PacketIo {
     stream: tokio::net::TcpStream,
     enc: PacketEncoder,
     dec: PacketDecoder,
@@ -26,7 +28,7 @@ pub(crate) const OUTBOUND_CHANNEL_CAPACITY: usize = 4;
 pub const MAX_QUEUED_BYTES_PER_SOCKET: usize = 4 * 1024 * 1024;
 
 impl PacketIo {
-    pub(crate) fn new(stream: tokio::net::TcpStream) -> Self {
+    pub fn new(stream: tokio::net::TcpStream) -> Self {
         Self {
             stream,
             enc: PacketEncoder::new(),
@@ -35,7 +37,36 @@ impl PacketIo {
         }
     }
 
-    pub(crate) async fn send_packet<P>(&mut self, pkt: &P) -> anyhow::Result<()>
+    pub async fn connect(server: SocketAddr) -> io::Result<Self> {
+        let stream = tokio::net::TcpStream::connect(server).await?;
+        stream.set_nodelay(true)?;
+        Ok(Self::new(stream))
+    }
+
+    pub fn set_compression(&mut self, threshold: CompressionThreshold) {
+        self.enc.set_compression(threshold);
+        self.dec.set_compression(threshold);
+    }
+
+    /// The un-typed counterpart to [`PacketIo::recv_packet`], for a phase whose
+    /// next packet is not known in advance. The body is owned, so the caller
+    /// can decode it and keep using `self` in the same expression.
+    pub async fn recv_frame(&mut self) -> anyhow::Result<(i32, Bytes)> {
+        loop {
+            if let Some(frame) = self.dec.try_next_packet()? {
+                return Ok((frame.id, frame.body.freeze()));
+            }
+
+            self.dec.reserve(READ_BUF_SIZE);
+            let mut buf = self.dec.take_capacity();
+            if self.stream.read_buf(&mut buf).await? == 0 {
+                return Err(io::Error::from(ErrorKind::UnexpectedEof).into());
+            }
+            self.dec.queue_bytes(buf);
+        }
+    }
+
+    pub async fn send_packet<P>(&mut self, pkt: &P) -> anyhow::Result<()>
     where
         P: Packet + Encode,
     {
@@ -45,7 +76,7 @@ impl PacketIo {
         Ok(())
     }
 
-    pub(crate) async fn recv_packet<'a, P>(&'a mut self) -> anyhow::Result<P>
+    pub async fn recv_packet<'a, P>(&'a mut self) -> anyhow::Result<P>
     where
         P: Packet + Decode<'a>,
     {
@@ -70,7 +101,7 @@ impl PacketIo {
         }
     }
 
-    pub(crate) fn into_raw_connection(self, remote_addr: SocketAddr) -> RawConnection {
+    pub fn into_raw_connection(self, remote_addr: SocketAddr) -> RawConnection {
         let (incoming_sender, incoming_receiver) = mpsc::channel(256);
         let (outgoing_sender, outgoing_receiver) =
             mpsc::channel::<Bytes>(OUTBOUND_CHANNEL_CAPACITY);

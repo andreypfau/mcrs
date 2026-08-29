@@ -1,8 +1,9 @@
+pub mod client;
 pub mod connect;
 pub mod event;
 mod intent;
 pub mod metrics;
-mod packet_io;
+pub mod packet_io;
 mod status;
 
 pub use crate::packet_io::{MAX_QUEUED_BYTES_PER_SOCKET, RawConnection};
