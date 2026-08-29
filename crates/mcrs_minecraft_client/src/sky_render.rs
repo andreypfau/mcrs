@@ -7,7 +7,7 @@ use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_resource::binding_types::{
-    sampler, texture_2d_array, uniform_buffer_sized,
+    sampler, texture_2d, texture_2d_array, uniform_buffer_sized,
 };
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
@@ -168,7 +168,7 @@ fn init_sky(mut commands: Commands, device: Res<RenderDevice>, asset_server: Res
                 (
                     texture_2d_array(TextureSampleType::Float { filterable: true }),
                     sampler(SamplerBindingType::Filtering),
-                    texture_2d_array(TextureSampleType::Float { filterable: true }),
+                    texture_2d(TextureSampleType::Float { filterable: true }),
                 ),
             ),
         ),
