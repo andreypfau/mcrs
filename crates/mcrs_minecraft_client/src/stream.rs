@@ -905,4 +905,125 @@ mod tests {
         assert_eq!(loader.tint_corner(ColumnPos::new(16, 0)), None);
         assert_eq!(loader.tint_corner(ColumnPos::new(-17, 0)), None);
     }
+    /// The chain the renderer now stands on end to end: a real server generates
+    /// terrain, sends it as chunk packets, the store keeps what arrives, and a
+    /// section of it meshes into quads.
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn a_column_the_server_sends_meshes_into_quads() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::time::{Duration, Instant};
+
+        use bevy::app::AppExit;
+        use bevy::ecs::message::MessageWriter;
+        use mcrs_minecraft_network::client::ClientNetworkPlugin;
+        use mcrs_minecraft_server::{
+            BoundAddress, MinecraftServerPlugin, run_server_loop, spawn_server_thread,
+        };
+
+        use crate::mesh::mesh_section;
+
+        let mut server = App::new();
+        server.add_plugins(MinecraftServerPlugin::embedded());
+        let address = server.world().resource::<BoundAddress>().0;
+        let stop = Arc::new(AtomicBool::new(false));
+        let raised = stop.clone();
+        server.add_systems(Update, move |mut exit: MessageWriter<AppExit>| {
+            if raised.load(Ordering::Relaxed) {
+                exit.write(AppExit::Success);
+            }
+        });
+        let (stopped, wait) = std::sync::mpsc::channel();
+        let thread = spawn_server_thread(server, move |app| {
+            run_server_loop(app);
+            stopped.send(()).ok();
+        });
+
+        let mut client = App::new();
+        client.add_plugins(ClientNetworkPlugin {
+            server: address,
+            username: "mcrs_mesh".to_owned(),
+        });
+
+        let deadline = Instant::now() + Duration::from_secs(120);
+        let mut solid = None;
+        while Instant::now() < deadline && solid.is_none() {
+            client.update();
+            let store = client.world().resource::<ColumnStore>();
+            if let Some(extent) = store.extent() {
+                solid = store
+                    .positions()
+                    .flat_map(|pos| {
+                        (0..extent.sections as i32)
+                            .map(move |i| [pos.x, extent.min_section_y + i, pos.z])
+                    })
+                    .max_by_key(|at| {
+                        store.section(at[0], at[1], at[2]).map_or(0, |section| {
+                            let mut seen: Vec<u16> = Vec::new();
+                            for &id in section.blocks.iter() {
+                                if id != 0 && !seen.contains(&id) {
+                                    seen.push(id);
+                                }
+                            }
+                            seen.len()
+                        })
+                    })
+                    .filter(|at| {
+                        store
+                            .section(at[0], at[1], at[2])
+                            .is_some_and(|section| section.blocks.iter().any(|&id| id != 0))
+                    })
+                    .map(|at| (at, store.clone()));
+            }
+            if solid.is_none() {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+
+        stop.store(true, Ordering::Relaxed);
+        wait.recv_timeout(Duration::from_secs(30))
+            .expect("the embedded server did not stop after AppExit");
+        thread.join().expect("server thread joined");
+
+        let (section, store) =
+            solid.expect("no column the server sent held a section of anything but air");
+
+        let base = section.map(|n| n * SECTION_SIZE as i32);
+        let mut states: Vec<u16> = Vec::new();
+        for y in -1..=SECTION_SIZE as i32 {
+            for z in -1..=SECTION_SIZE as i32 {
+                for x in -1..=SECTION_SIZE as i32 {
+                    let id = store.block(base[0] + x, base[1] + y, base[2] + z);
+                    if id != 0 && !states.contains(&id) {
+                        states.push(id);
+                    }
+                }
+            }
+        }
+
+        let definitions = blocks::corpus();
+        let mut catalog = blocks::empty();
+        blocks::extend(Pack::corpus(), &mut catalog, definitions, &states, &[]);
+        let baked = states
+            .iter()
+            .filter(|&&id| {
+                let info = &catalog.blocks[id as usize];
+                info.cube.is_some() || !info.quads.is_empty()
+            })
+            .count();
+        assert!(
+            baked > 0,
+            "the catalog baked geometry for none of the {} states the server sent: {:?}",
+            states.len(),
+            catalog.failures,
+        );
+
+        let mesh = mesh_section(&store, &catalog.blocks, section, 0, &mut Scratch::new());
+        let quads: u32 = mesh.spans.iter().map(|span| span.quad_count).sum();
+        assert!(
+            quads > 0,
+            "section {section:?} holds {} block states but meshed no quads",
+            states.len(),
+        );
+    }
 }

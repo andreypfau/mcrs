@@ -1,5 +1,5 @@
 // Generated from the field table in pack.rs. `cargo test -p mcrs_minecraft_client`
-// checks it; `ANVIL_BLESS=1 cargo test -p mcrs_minecraft_client` rewrites it.
+// checks it; `MCRS_BLESS=1 cargo test -p mcrs_minecraft_client` rewrites it.
 #define_import_path mcrs_minecraft_client::fields
 
 const QUAD_X_WORD: u32 = 0u;

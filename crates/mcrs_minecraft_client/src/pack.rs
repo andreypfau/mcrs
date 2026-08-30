@@ -132,7 +132,7 @@ const COUNTS: &[(&str, u32)] = &[("QUAD_WORDS", QUAD_WORDS as u32), ("FACE_NONE"
 fn wgsl_fields() -> String {
     let mut out = String::from(
         "// Generated from the field table in pack.rs. `cargo test -p \
-mcrs_minecraft_client`\n// checks it; `ANVIL_BLESS=1 cargo test -p mcrs_minecraft_client` \
+mcrs_minecraft_client`\n// checks it; `MCRS_BLESS=1 cargo test -p mcrs_minecraft_client` \
 rewrites it.\n#define_import_path mcrs_minecraft_client::fields\n",
     );
     let mut group = "";
@@ -167,7 +167,7 @@ mod tests {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("src/render/shaders/include/fields.wgsl");
         let generated = wgsl_fields();
-        if std::env::var("ANVIL_BLESS").is_ok() {
+        if std::env::var("MCRS_BLESS").is_ok() {
             std::fs::write(&path, &generated).expect("cannot rewrite the generated header");
             return;
         }
@@ -175,7 +175,7 @@ mod tests {
         assert_eq!(
             checked_in,
             generated,
-            "{} is stale; rerun with ANVIL_BLESS=1 to rewrite it",
+            "{} is stale; rerun with MCRS_BLESS=1 to rewrite it",
             path.display()
         );
     }

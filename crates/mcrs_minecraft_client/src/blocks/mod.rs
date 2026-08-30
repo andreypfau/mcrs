@@ -237,31 +237,32 @@ pub fn extend(
     extend_tints(pack, catalog, biomes);
 }
 
+/// The shipped block definitions, read through an asset server of their own:
+/// a test has no running app to take them from.
 #[cfg(test)]
-mod tests {
-    use std::sync::OnceLock;
-
+pub fn corpus() -> &'static BlockDefinitions {
     use bevy::app::{App, TaskPoolPlugin};
     use bevy::asset::{AssetPlugin, AssetServer};
     use mcrs_minecraft_world::block::definition::load_block_definitions;
 
-    use super::*;
+    static CORPUS: std::sync::OnceLock<BlockDefinitions> = std::sync::OnceLock::new();
+    CORPUS.get_or_init(|| {
+        let mut app = App::new();
+        app.add_plugins(TaskPoolPlugin::default());
+        app.add_plugins(AssetPlugin {
+            watch_for_changes_override: Some(false),
+            ..Default::default()
+        });
+        let assets = app.world().resource::<AssetServer>().clone();
+        load_block_definitions(&assets)
+            .expect("the block definition corpus loads")
+            .0
+    })
+}
 
-    fn corpus() -> &'static BlockDefinitions {
-        static CORPUS: OnceLock<BlockDefinitions> = OnceLock::new();
-        CORPUS.get_or_init(|| {
-            let mut app = App::new();
-            app.add_plugins(TaskPoolPlugin::default());
-            app.add_plugins(AssetPlugin {
-                watch_for_changes_override: Some(false),
-                ..Default::default()
-            });
-            let assets = app.world().resource::<AssetServer>().clone();
-            load_block_definitions(&assets)
-                .expect("the block definition corpus loads")
-                .0
-        })
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
     #[test]
     fn a_global_state_id_names_the_block_and_every_property_it_stands_for() {

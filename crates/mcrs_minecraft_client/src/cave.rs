@@ -72,7 +72,7 @@ pub struct CaveCull {
 impl CaveCull {
     pub fn new(slots: usize) -> Self {
         Self {
-            enabled: !std::env::var("ANVIL_CAVE").is_ok_and(|on| on == "0"),
+            enabled: !std::env::var("MCRS_CAVE").is_ok_and(|on| on == "0"),
             bits: vec![u32::MAX; slots.div_ceil(32)].into_boxed_slice(),
             min_section: [0; 3],
             reached: vec![0; WALK_CELLS / 32].into_boxed_slice(),
