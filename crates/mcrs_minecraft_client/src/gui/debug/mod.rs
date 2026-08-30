@@ -9,6 +9,7 @@ use crate::gui::debug_screen_overlay;
 pub mod displayer;
 pub mod entry_day_count;
 pub mod entry_fps;
+pub mod entry_network;
 pub mod entry_position;
 pub mod entry_section_position;
 pub mod entry_system_specs;
@@ -119,6 +120,7 @@ impl DebugScreenEntries {
     pub const DAY_COUNT: DebugEntryId = ResourceLocation::new_static("minecraft:day_count");
     pub const FPS: DebugEntryId = ResourceLocation::new_static("minecraft:fps");
     pub const GAME_VERSION: DebugEntryId = ResourceLocation::new_static("minecraft:game_version");
+    pub const NETWORK: DebugEntryId = ResourceLocation::new_static("mcrs:network");
     pub const PLAYER_POSITION: DebugEntryId =
         ResourceLocation::new_static("minecraft:player_position");
     pub const PLAYER_SECTION_POSITION: DebugEntryId =
@@ -143,6 +145,11 @@ impl DebugScreenEntries {
             Self::GAME_VERSION,
             DebugScreenEntryStatus::InOverlay,
             entry_version::display,
+        )
+        .add_debug_screen_entry(
+            Self::NETWORK,
+            DebugScreenEntryStatus::InOverlay,
+            entry_network::display,
         )
         .add_debug_screen_entry(
             Self::PLAYER_POSITION,
