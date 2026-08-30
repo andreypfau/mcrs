@@ -204,6 +204,34 @@ impl Plugin for DebugScreenPlugin {
                 ),
             );
         DebugScreenEntries::register(app);
+
+        if let Some(every) = crate::config::stats_interval() {
+            app.add_systems(Startup, |mut list: ResMut<DebugScreenEntryList>| {
+                list.toggle_overlay()
+            })
+            .add_systems(
+                Update,
+                log_debug_screen(every).in_set(DebugScreenSet::Render),
+            );
+        }
+    }
+}
+
+fn log_debug_screen(every: f32) -> impl FnMut(Res<DebugScreenDisplayer>, Res<Time>, Local<f32>) {
+    move |displayer, time, mut due| {
+        let now = time.elapsed_secs();
+        if now < *due {
+            return;
+        }
+        *due = now + every;
+        let (left, right) = displayer.columns();
+        let line = left
+            .into_iter()
+            .chain(right)
+            .filter(|entry| !entry.is_empty())
+            .collect::<Vec<_>>()
+            .join(" | ");
+        info!(target: "mcrs_client::stats", "{line}");
     }
 }
 

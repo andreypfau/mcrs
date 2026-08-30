@@ -125,8 +125,11 @@ fn cull_stable(
     let g = groups[params.group_base + workgroup.x];
 
     if (local == 0u) {
-        atomicMax(&args[params.args_index].instance_count, g.quad_prefix + g.quad_count);
-        reserved_slot = select(CULLED, g.quad_prefix, survives(g));
+        let lives = survives(g);
+        if (lives) {
+            atomicMax(&args[params.args_index].instance_count, g.quad_prefix + g.quad_count);
+        }
+        reserved_slot = select(CULLED, g.quad_prefix, lives);
     }
     workgroupBarrier();
 
