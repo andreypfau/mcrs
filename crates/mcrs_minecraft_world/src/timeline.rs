@@ -9,6 +9,7 @@ use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use mcrs_minecraft_core::asset::read_all;
 use mcrs_minecraft_core::tag::key::TaggedRegistry;
 
 use crate::ResourceLocation;
@@ -354,8 +355,7 @@ impl AssetLoader for TimelineLoader {
         _settings: &(),
         _load_context: &mut LoadContext<'_>,
     ) -> Result<Timeline, TimelineLoaderError> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         Ok(serde_json::from_slice(&bytes)?)
     }
 

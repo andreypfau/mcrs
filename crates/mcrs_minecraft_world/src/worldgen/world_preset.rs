@@ -4,6 +4,7 @@ use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_ecs_macros::Resource;
 use bevy_reflect::TypePath;
+use mcrs_minecraft_core::asset::read_all;
 use mcrs_minecraft_core::ResourceKey;
 use serde::Deserialize;
 
@@ -78,8 +79,7 @@ impl AssetLoader for WorldPresetLoader {
         _settings: &(),
         load_context: &mut LoadContext<'_>,
     ) -> Result<WorldPreset, WorldPresetLoaderError> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         let proto: ProtoWorldPreset = serde_json::from_slice(&bytes)?;
 
         let mut dimensions = Vec::with_capacity(proto.dimensions.len());

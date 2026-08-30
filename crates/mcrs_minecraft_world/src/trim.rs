@@ -2,6 +2,7 @@ use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
+use mcrs_minecraft_core::asset::read_all;
 
 macro_rules! leaf_asset {
     ($name:ident, $loader:ident, $error:ident) => {
@@ -33,8 +34,7 @@ macro_rules! leaf_asset {
                 _settings: &(),
                 _load_context: &mut LoadContext<'_>,
             ) -> Result<$name, $error> {
-                let mut bytes = Vec::new();
-                reader.read_to_end(&mut bytes).await?;
+                let bytes = read_all(reader).await?;
                 Ok(serde_json::from_slice(&bytes)?)
             }
 

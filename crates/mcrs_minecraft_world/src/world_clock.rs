@@ -11,6 +11,7 @@ use bevy_asset::{
 use bevy_ecs::prelude::*;
 use bevy_reflect::TypePath;
 use bevy_state::state::OnEnter;
+use mcrs_minecraft_core::asset::read_all;
 use mcrs_minecraft_core::registry::snapshot::rl_from_asset_path;
 use mcrs_minecraft_core::{AppState, ResourceLocation};
 use serde::{Deserialize, Serialize};
@@ -51,8 +52,7 @@ impl AssetLoader for WorldClockLoader {
         _settings: &(),
         _load_context: &mut LoadContext<'_>,
     ) -> Result<WorldClock, WorldClockLoaderError> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         if bytes.iter().all(|b| b.is_ascii_whitespace()) {
             return Ok(WorldClock {});
         }

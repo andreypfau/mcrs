@@ -9,6 +9,7 @@ use bevy_asset::{
 };
 use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Local, Res, Resource};
 use bevy_reflect::TypePath;
+use mcrs_minecraft_core::asset::read_all;
 use mcrs_minecraft_core::ResourceLocation;
 use std::collections::BTreeMap;
 use std::env;
@@ -150,8 +151,7 @@ impl AssetLoader for WorldPresetLoader {
         _settings: &Self::Settings,
         load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         let preset = serde_json::from_slice::<ProtoWorldPreset>(&bytes)?;
 
         let overworld = preset
@@ -416,8 +416,7 @@ impl AssetLoader for NoiseGeneratorSettingsLoader {
         _settings: &Self::Settings,
         load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         let settings = serde_json::from_slice::<GeneratorSettings>(&bytes)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
@@ -456,8 +455,7 @@ impl AssetLoader for NoiseParamLoader {
         _settings: &Self::Settings,
         _load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         let noise = serde_json::from_slice::<NoiseParam>(&bytes)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
@@ -487,8 +485,7 @@ impl AssetLoader for DensityFunctionLoader {
         _settings: &Self::Settings,
         load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         let function = serde_json::from_slice::<DensityFunctionHolder>(&bytes)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 

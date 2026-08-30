@@ -2,6 +2,7 @@ use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
+use mcrs_minecraft_core::asset::read_all;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct TestEnvironment {
@@ -39,8 +40,7 @@ impl AssetLoader for TestEnvironmentLoader {
         _settings: &(),
         _load_context: &mut LoadContext<'_>,
     ) -> Result<TestEnvironment, TestEnvironmentLoaderError> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         Ok(serde_json::from_slice(&bytes)?)
     }
 
@@ -89,8 +89,7 @@ impl AssetLoader for TestInstanceLoader {
         _settings: &(),
         _load_context: &mut LoadContext<'_>,
     ) -> Result<TestInstance, TestInstanceLoaderError> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         Ok(serde_json::from_slice(&bytes)?)
     }
 

@@ -10,6 +10,7 @@ use crate::attribute::EnvironmentAttributeMap;
 use crate::block::Block;
 use crate::timeline::Timeline;
 use crate::value::IntValueProvider;
+use mcrs_minecraft_core::asset::read_all;
 use mcrs_minecraft_core::tag::tag_ref::TagRef;
 
 // ── Proto (deserialization-only) ──
@@ -240,8 +241,7 @@ impl AssetLoader for DimensionTypeLoader {
         _settings: &(),
         load_context: &mut LoadContext<'_>,
     ) -> Result<DimensionType, DimensionTypeLoaderError> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         let proto: ProtoDimensionType = serde_json::from_slice(&bytes)?;
         Ok(proto.resolve(load_context)?)
     }

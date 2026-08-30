@@ -5,9 +5,10 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use bevy::asset::io::{AssetSourceId, ErasedAssetReader, Reader};
+use bevy::asset::io::{AssetSourceId, ErasedAssetReader};
 use bevy::prelude::{AssetServer, Resource};
 use bevy::tasks::futures_lite::StreamExt;
+use mcrs_minecraft_core::asset::read_whole;
 use serde::Deserialize;
 
 /// The folders of the resource pack the renderer draws from. Everything under them is held in
@@ -48,12 +49,7 @@ impl Pack {
                     pending.push(path);
                     continue;
                 }
-                let mut file = reader
-                    .read(&path)
-                    .await
-                    .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-                let mut bytes = Vec::new();
-                file.read_to_end(&mut bytes)
+                let bytes = read_whole(reader, &path)
                     .await
                     .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
                 files.insert(path.to_string_lossy().into_owned(), bytes);
