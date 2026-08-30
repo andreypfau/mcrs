@@ -1,4 +1,4 @@
-use crate::anvil::SECTION_SIZE;
+use mcrs_minecraft_network::columns::SECTION_SIZE;
 use crate::blocks::{BlockInfo, CORNER_UV, FACE_AXES};
 use crate::pack::{FACE_AO, FACE_ARRAY, FACE_BLOCK_LIGHT, FACE_LAYER, FACE_SKY_LIGHT, FACE_TINT};
 

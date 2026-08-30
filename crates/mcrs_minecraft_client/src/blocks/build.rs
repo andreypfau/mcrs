@@ -1,6 +1,6 @@
 use bevy::math::{IVec3, Vec3};
 
-use crate::anvil::BlockStateKey;
+use super::BlockStateKey;
 use crate::atlas::{Opacity, SpriteRef, SpriteRegistry};
 use crate::bake::{self, Dir, TinyWorld};
 use crate::model::Pack;

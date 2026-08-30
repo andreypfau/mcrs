@@ -3551,6 +3551,7 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_server",
  "mcrs_minecraft_world",
  "mcrs_voxel_math",
  "mcrs_voxel_storage",

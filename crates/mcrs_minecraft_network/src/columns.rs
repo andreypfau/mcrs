@@ -82,6 +82,14 @@ impl ColumnStore {
         self.columns.remove(&pos);
     }
 
+    pub fn holds(&self, pos: ColumnPos) -> bool {
+        self.columns.contains_key(&pos)
+    }
+
+    pub fn positions(&self) -> impl Iterator<Item = ColumnPos> + '_ {
+        self.columns.keys().copied()
+    }
+
     pub fn len(&self) -> usize {
         self.columns.len()
     }
@@ -125,6 +133,16 @@ impl ColumnStore {
 }
 
 impl Column {
+    /// A column nobody has lit: every block in it reads as dark.
+    pub fn unlit(min_section_y: i32, sections: Vec<Option<Section>>) -> Column {
+        let light = (0..sections.len() + 2).map(|_| None).collect();
+        Column {
+            min_section_y,
+            sections,
+            light,
+        }
+    }
+
     pub fn decode(data: &ChunkData<'_>, light: &LightData<'_>, extent: Extent) -> Result<Column> {
         let sections = data
             .sections(extent.sections)?

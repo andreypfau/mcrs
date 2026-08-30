@@ -142,7 +142,7 @@ pub(super) fn write_camera(
 mod tests {
     use bevy::math::{DMat4, DVec3};
 
-    use crate::anvil::SECTION_SIZE;
+    use mcrs_minecraft_network::columns::SECTION_SIZE;
 
     use super::*;
 

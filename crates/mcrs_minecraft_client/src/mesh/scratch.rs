@@ -1,4 +1,4 @@
-use crate::anvil::{SECTION_SIZE, SECTION_VOLUME, World};
+use mcrs_minecraft_network::columns::{ColumnStore, SECTION_SIZE, SECTION_VOLUME};
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::{FACE_NONE, QUAD_WORDS};
 
@@ -68,7 +68,7 @@ impl Scratch {
         }
     }
 
-    pub(super) fn load(&mut self, world: &World, catalog: &[BlockInfo], base: [i32; 3]) {
+    pub(super) fn load(&mut self, world: &ColumnStore, catalog: &[BlockInfo], base: [i32; 3]) {
         *self.cube_columns = [[0; COLUMNS]; 3];
         *self.occlude_columns = [[0; COLUMNS]; 3];
         *self.fluid_columns = [[[0; COLUMNS]; 3]; FLUID_KINDS];
@@ -78,6 +78,14 @@ impl Scratch {
                 for x in -1..=SECTION_SIZE as i32 {
                     let index = border_index(x, y, z);
                     let state = world.block(base[0] + x, base[1] + y, base[2] + z);
+                    // A server whose block corpus differs from ours can name a state
+                    // this catalog has no row for; it is drawn as air rather than
+                    // taking the frame down.
+                    let state = if (state as usize) < catalog.len() {
+                        state
+                    } else {
+                        0
+                    };
                     let info = &catalog[state as usize];
                     self.states[index] = state;
                     self.occludes[index] = info.occludes;

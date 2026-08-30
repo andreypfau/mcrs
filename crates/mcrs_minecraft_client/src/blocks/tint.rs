@@ -1,4 +1,6 @@
-use crate::anvil::{REGION_BLOCKS, SECTION_SIZE, World};
+use mcrs_minecraft_network::columns::{ColumnStore, SECTION_SIZE};
+use mcrs_voxel_math::ColumnPos;
+
 use crate::model::{self, Pack};
 
 use super::{Catalog, TINT_KINDS};
@@ -158,12 +160,12 @@ fn rgb(Rgb(packed): Rgb) -> [f32; 4] {
     ]
 }
 
-pub fn tint_square(world: &World, tints: &[[f32; 4]], corner: [usize; 2]) -> Vec<u8> {
-    const SIZE: usize = REGION_BLOCKS;
+pub fn tint_column(store: &ColumnStore, tints: &[[f32; 4]], column: ColumnPos) -> Vec<u8> {
+    const SIZE: usize = SECTION_SIZE;
     let mut out = vec![0u8; SIZE * SIZE * 4 * TINT_KINDS];
     for z in 0..SIZE {
         for x in 0..SIZE {
-            let biome = surface_biome(world, corner[0] + x, corner[1] + z);
+            let biome = surface_biome(store, column, x, z);
             for kind in 0..TINT_KINDS {
                 let slot = 1 + biome as usize * TINT_KINDS + kind;
                 let color = tints.get(slot).copied().unwrap_or([1.0; 4]);
@@ -177,13 +179,15 @@ pub fn tint_square(world: &World, tints: &[[f32; 4]], corner: [usize; 2]) -> Vec
     out
 }
 
-fn surface_biome(world: &World, x: usize, z: usize) -> u8 {
-    let sx = x / SECTION_SIZE;
-    let sz = z / SECTION_SIZE;
-    let cell = ((z % SECTION_SIZE) / 4) * 4 + (x % SECTION_SIZE) / 4;
-    for sy in (0..world.sections[1]).rev() {
-        if world.section(sx, sy, sz).is_some() {
-            return world.biome(sx, sy, sz, 3 * 16 + cell);
+fn surface_biome(store: &ColumnStore, column: ColumnPos, x: usize, z: usize) -> u8 {
+    let Some(extent) = store.extent() else {
+        return 0;
+    };
+    let cell = (z / 4) * 4 + x / 4;
+    for step in (0..extent.sections).rev() {
+        let sy = extent.min_section_y + step as i32;
+        if store.section(column.x, sy, column.z).is_some() {
+            return store.biome(column.x, sy, column.z, 3 * 16 + cell);
         }
     }
     0

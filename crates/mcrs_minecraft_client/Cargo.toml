@@ -43,6 +43,8 @@ wgpu = { version = "29", default-features = false }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 bevy = { version = "0.19.1", default-features = false, features = ["file_watcher", "clipboard_image"] }
+# Singleplayer is a server of our own on a loopback port, as it is in vanilla.
+mcrs_minecraft_server.workspace = true
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 bevy = { version = "0.19.1", default-features = false, features = ["web", "webgpu"] }

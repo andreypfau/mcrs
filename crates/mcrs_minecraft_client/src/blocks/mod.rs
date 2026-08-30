@@ -3,17 +3,76 @@ mod tint;
 
 use bevy::math::Vec3;
 
-use crate::anvil::BlockStateKey;
+use mcrs_minecraft_protocol::BlockStateId;
+use mcrs_minecraft_world::block::definition::BlockDefinitions;
+use mcrs_minecraft_world::block::definition::schema::PropertyValue;
+
 use crate::atlas::{Opacity, SpriteRef, SpriteRegistry};
 use crate::bake::{Dir, TinyWorld};
 use crate::model::Pack;
 use crate::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 
 pub use build::Fluid;
-pub use tint::tint_square;
+pub use tint::tint_column;
 
 use build::build_one;
 use tint::extend_tints;
+
+/// A block state as the resource pack names it: the block's identifier and
+/// every property it declares, rendered the way a blockstates file spells them.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct BlockStateKey {
+    pub name: String,
+    pub props: Vec<(String, String)>,
+}
+
+impl BlockStateKey {
+    pub fn pairs(&self) -> Vec<(&str, &str)> {
+        self.props
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+            .collect()
+    }
+
+    pub fn label(&self) -> String {
+        if self.props.is_empty() {
+            return self.name.clone();
+        }
+        let props: Vec<String> = self
+            .props
+            .iter()
+            .map(|(key, value)| format!("{key}={value}"))
+            .collect();
+        format!("{}[{}]", self.name, props.join(","))
+    }
+}
+
+/// The state the server's global block state id stands for.
+pub fn state_key(definitions: &BlockDefinitions, id: u16) -> BlockStateKey {
+    let state = BlockStateId(id);
+    let block = definitions.owner(state);
+    let props = block
+        .properties
+        .0
+        .iter()
+        .filter_map(|property| {
+            let value = block.value_of(state, &property.name)?;
+            Some((property.name.to_string(), render(value)))
+        })
+        .collect();
+    BlockStateKey {
+        name: block.identifier.as_str().to_owned(),
+        props,
+    }
+}
+
+fn render(value: &PropertyValue) -> String {
+    match value {
+        PropertyValue::Str(text) => text.to_string(),
+        PropertyValue::Int(number) => number.to_string(),
+        PropertyValue::Bool(flag) => flag.to_string(),
+    }
+}
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Pass {
@@ -133,17 +192,28 @@ pub fn empty() -> Catalog {
     }
 }
 
-pub fn extend(pack: &Pack, catalog: &mut Catalog, states: &[BlockStateKey], biomes: &[String]) {
+/// Bakes the states named by `ids`, which are indices into the corpus'
+/// state space and so index the catalog directly.
+pub fn extend(
+    pack: &Pack,
+    catalog: &mut Catalog,
+    definitions: &BlockDefinitions,
+    ids: &[u16],
+    biomes: &[String],
+) {
     let neighbours = TinyWorld::default();
-    for state in &states[catalog.blocks.len()..] {
-        match build_one(pack, state, &neighbours, &mut catalog.sprites) {
-            Ok(info) => catalog.blocks.push(info),
-            Err(reason) => {
-                catalog
-                    .failures
-                    .push(format!("{}: {reason}", state.label()));
-                catalog.blocks.push(BlockInfo::default());
-            }
+    if catalog.blocks.len() < definitions.state_count() {
+        catalog
+            .blocks
+            .resize(definitions.state_count(), BlockInfo::default());
+    }
+    for &id in ids {
+        let state = state_key(definitions, id);
+        match build_one(pack, &state, &neighbours, &mut catalog.sprites) {
+            Ok(info) => catalog.blocks[id as usize] = info,
+            Err(reason) => catalog
+                .failures
+                .push(format!("{}: {reason}", state.label())),
         }
     }
     assert!(
@@ -165,4 +235,60 @@ pub fn extend(pack: &Pack, catalog: &mut Catalog, states: &[BlockStateKey], biom
     }
 
     extend_tints(pack, catalog, biomes);
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::OnceLock;
+
+    use bevy::app::{App, TaskPoolPlugin};
+    use bevy::asset::{AssetPlugin, AssetServer};
+    use mcrs_minecraft_world::block::definition::load_block_definitions;
+
+    use super::*;
+
+    fn corpus() -> &'static BlockDefinitions {
+        static CORPUS: OnceLock<BlockDefinitions> = OnceLock::new();
+        CORPUS.get_or_init(|| {
+            let mut app = App::new();
+            app.add_plugins(TaskPoolPlugin::default());
+            app.add_plugins(AssetPlugin {
+                watch_for_changes_override: Some(false),
+                ..Default::default()
+            });
+            let assets = app.world().resource::<AssetServer>().clone();
+            load_block_definitions(&assets)
+                .expect("the block definition corpus loads")
+                .0
+        })
+    }
+
+    #[test]
+    fn a_global_state_id_names_the_block_and_every_property_it_stands_for() {
+        let corpus = corpus();
+        assert_eq!(
+            state_key(corpus, corpus.default_state("minecraft:stone").0).label(),
+            "minecraft:stone",
+            "a block with no properties is named on its own"
+        );
+
+        let slab = corpus
+            .block("minecraft:oak_slab")
+            .expect("the corpus has oak slabs");
+        for offset in 0..slab.state_count {
+            let id = slab.base_state_id.0 + offset;
+            let key = state_key(corpus, id);
+            assert_eq!(key.name, "minecraft:oak_slab");
+            assert_eq!(key.props.len(), slab.properties.0.len());
+            let walked = key.props.iter().try_fold(slab.base_state_id, |at, (property, value)| {
+                slab.with_text(at, property, value)
+            });
+            assert_eq!(
+                walked,
+                Some(BlockStateId(id)),
+                "{} does not lead back to the state it was read from",
+                key.label(),
+            );
+        }
+    }
 }

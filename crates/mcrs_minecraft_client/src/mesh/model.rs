@@ -1,4 +1,4 @@
-use crate::anvil::SECTION_SIZE;
+use mcrs_minecraft_network::columns::SECTION_SIZE;
 use crate::atlas::SpriteRef;
 use crate::blocks::{BlockInfo, Pass};
 use crate::pack::{
@@ -148,36 +148,22 @@ pub(super) fn fixed(value: f32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::{BUCKET_SHADES, fixed, shade_bucket};
-    use crate::anvil::{Palette, SECTION_SIZE, SECTION_VOLUME, World, one_section_region};
     use crate::atlas::SpriteRef;
     use crate::blocks::{BlockInfo, ModelQuad, Pass};
-    use crate::mesh::{Scratch, mesh_world};
+    use crate::mesh::{Scratch, mesh_world, one_section_world};
+    use mcrs_minecraft_network::columns::{SECTION_SIZE, SECTION_VOLUME};
     use crate::pack::{MODEL_OVERHANG, MODEL_STEPS};
     use bevy::math::Vec3;
 
     #[test]
     fn the_model_mesher_names_blocks_in_the_worlds_numbering() {
-        let mut palette = Palette::new();
-        let mut world = World::new([0, 0], [1, 1]);
-        world.insert(
-            &mut palette,
-            [0, 0],
-            one_section_region("minecraft:test_block"),
-        );
-        let id = palette
-            .states
-            .iter()
-            .position(|state| state.name == "minecraft:test_block")
-            .unwrap();
-        assert_ne!(
-            id, 0,
-            "the fixture only bites while the two numberings disagree"
-        );
+        const TEST_BLOCK: u16 = 37;
+        let world = one_section_world(|_, _, _| TEST_BLOCK);
 
-        let mut blocks: Vec<BlockInfo> = (0..palette.states.len())
+        let mut blocks: Vec<BlockInfo> = (0..=TEST_BLOCK)
             .map(|_| BlockInfo::default())
             .collect();
-        blocks[id].quads = vec![ModelQuad {
+        blocks[TEST_BLOCK as usize].quads = vec![ModelQuad {
             positions: [Vec3::ZERO; 4],
             uvs: [[0.0; 2]; 4],
             cull: None,
@@ -189,7 +175,7 @@ mod tests {
         }];
 
         let mut scratch = Scratch::new();
-        let quads = mesh_world(&world, &blocks, &mut scratch).model_quads();
+        let quads = mesh_world(&world, &blocks, &[[0, 0, 0]], &mut scratch).model_quads();
         assert_eq!(
             quads, SECTION_VOLUME,
             "one model quad per block of the one section the fixture fills"

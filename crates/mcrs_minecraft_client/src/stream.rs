@@ -1,56 +1,58 @@
-use std::collections::HashSet;
-use std::path::PathBuf;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::Instant;
 
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
+use mcrs_minecraft_network::client::ReceivedRegistries;
+use mcrs_minecraft_network::columns::{ColumnStore, SECTION_SIZE};
+use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks};
+use mcrs_voxel_math::ColumnPos;
 
-use crate::anvil::{self, Palette, REGION_BLOCKS, Region, SECTION_SIZE, Window, World};
 use crate::arena::{Arena, Block};
 use crate::blocks::{self, BlockInfo, Catalog};
 use crate::cave::{CaveCull, NO_SLOT};
-use crate::mesh::{self, Draw, Group, STREAM_NAMES, STREAMS, Scratch, SectionMesh};
+use crate::mesh::{self, Draw, Group, STREAMS, Scratch, SectionMesh};
 use crate::model::Pack;
 use crate::pack::QUAD_WORDS;
 use crate::render::{Animation, Atlas, Budget, Placement, SectionDesc, Upload, Uploads};
 
 const HYSTERESIS: f32 = (16 * SECTION_SIZE) as f32;
 
-const FILES_IN_FLIGHT: usize = 4;
-
 const SECTIONS_IN_FLIGHT: usize = 128;
 
 const SECTIONS_PER_FRAME: usize = 32;
 
+const BIOME_REGISTRY: &str = "minecraft:worldgen/biome";
+
 #[derive(Resource)]
 pub struct Loader {
     uploads: Uploads,
-    palette: Palette,
     pack: PackLoad,
     catalog: Option<Catalog>,
-    world: Arc<World>,
-    newest: Arc<World>,
     blocks: Arc<Vec<BlockInfo>>,
-    expected: HashSet<[i32; 2]>,
-    to_parse: Vec<([i32; 2], PathBuf)>,
-    parsing: Vec<([i32; 2], Task<Result<Region, String>>)>,
+    store: Arc<ColumnStore>,
+    known: HashSet<ColumnPos>,
+    sections_total: usize,
+    baked: Vec<bool>,
+    to_bake: Vec<u16>,
+    baking: Option<Task<Baked>>,
+    foreign_states: bool,
+    failures: usize,
+    biomes: Vec<String>,
+    to_tint: Vec<ColumnPos>,
     tinting: Vec<([u32; 2], Task<Vec<u8>>)>,
-    baking: Option<(Arc<World>, Vec<[i32; 2]>, Task<Baked>)>,
-    to_tint: Vec<[i32; 2]>,
-    extent: [usize; 3],
-    min_section: [i32; 3],
-    resident: Vec<Option<Resident>>,
-    deferred: Vec<bool>,
-    pending: Vec<bool>,
-    meshing: Vec<(usize, u32, Task<SectionMesh>)>,
+    tint_origin: [i32; 2],
+    tint_size: [u32; 2],
+    resident: HashMap<[i32; 3], Resident>,
+    pending: HashSet<[i32; 3]>,
+    deferred: HashSet<[i32; 3]>,
+    meshing: Vec<([i32; 3], u32, Task<SectionMesh>)>,
     lists: [Vec<Group>; STREAMS],
     group_block: Block,
     slots: usize,
     free_slots: Vec<u32>,
     dead: Vec<u32>,
     slots_used: u32,
-    live: usize,
     dirty: bool,
     camera: Vec3,
     anchor: Vec3,
@@ -59,10 +61,7 @@ pub struct Loader {
     models: Arena,
     faces: Arena,
     groups: Arena,
-    dropped: usize,
     sprites: usize,
-    started: Instant,
-    reported: bool,
 }
 
 enum PackLoad {
@@ -86,8 +85,7 @@ struct Baked {
 }
 
 pub struct Status {
-    pub files: usize,
-    pub files_total: usize,
+    pub columns: usize,
     pub sections: usize,
     pub sections_total: usize,
     pub evicted: usize,
@@ -96,28 +94,28 @@ pub struct Status {
 }
 
 impl Loader {
-    pub fn new(budget: &Budget, uploads: Uploads, window: Window) -> Self {
-        let world = World::new(window.min_region, window.regions);
-        let cells = world.sections[0] * world.sections[1] * world.sections[2];
+    pub fn new(budget: &Budget, uploads: Uploads) -> Self {
         Self {
-            expected: window.files.iter().map(|(coords, _)| *coords).collect(),
-            to_parse: window.files,
             uploads,
-            palette: Palette::new(),
             pack: PackLoad::Pending,
             catalog: Some(blocks::empty()),
-            extent: world.sections,
-            min_section: world.min_section,
-            world: Arc::new(world.clone()),
-            newest: Arc::new(world),
             blocks: Arc::new(Vec::new()),
-            parsing: Vec::new(),
+            store: Arc::new(ColumnStore::default()),
+            known: HashSet::new(),
+            sections_total: 0,
+            baked: Vec::new(),
+            to_bake: Vec::new(),
             baking: None,
+            foreign_states: false,
+            failures: 0,
+            biomes: Vec::new(),
             to_tint: Vec::new(),
             tinting: Vec::new(),
-            resident: (0..cells).map(|_| None).collect(),
-            deferred: vec![false; cells],
-            pending: vec![false; cells],
+            tint_origin: budget.tint_origin,
+            tint_size: budget.tint_size,
+            resident: HashMap::new(),
+            pending: HashSet::new(),
+            deferred: HashSet::new(),
             meshing: Vec::new(),
             lists: std::array::from_fn(|_| Vec::new()),
             group_block: Block::EMPTY,
@@ -125,7 +123,6 @@ impl Loader {
             free_slots: Vec::new(),
             dead: Vec::new(),
             slots_used: 0,
-            live: 0,
             dirty: false,
             camera: Vec3::ZERO,
             anchor: Vec3::splat(f32::MAX),
@@ -134,19 +131,15 @@ impl Loader {
             models: Arena::new(budget.models),
             faces: Arena::new(budget.faces),
             groups: Arena::new(budget.groups),
-            dropped: 0,
             sprites: 0,
-            started: Instant::now(),
-            reported: false,
         }
     }
 
     pub fn status(&self) -> Status {
         Status {
-            files: self.world.loaded(),
-            files_total: self.expected.len(),
-            sections: self.live,
-            sections_total: self.world.non_empty_sections(),
+            columns: self.known.len(),
+            sections: self.resident.len(),
+            sections_total: self.sections_total,
             evicted: self.evicted,
             quads: self.quads.held() as f32 / self.quads.capacity() as f32,
             models: self.models.held() as f32 / self.models.capacity() as f32,
@@ -154,12 +147,11 @@ impl Loader {
     }
 
     pub fn done(&self) -> bool {
-        self.reported && self.uploads.waiting() == 0
+        self.idle() && self.uploads.waiting() == 0
     }
 
     fn idle(&self) -> bool {
-        self.to_parse.is_empty()
-            && self.parsing.is_empty()
+        self.to_bake.is_empty()
             && self.baking.is_none()
             && self.to_tint.is_empty()
             && self.tinting.is_empty()
@@ -168,59 +160,50 @@ impl Loader {
             && self.wanted(1).is_empty()
     }
 
-    fn cell(&self, [sx, sy, sz]: [usize; 3]) -> usize {
-        (sy * self.extent[2] + sz) * self.extent[0] + sx
+    /// The catalog has to reach every state a resident column names before a
+    /// section holding one can be meshed against it.
+    fn caught_up(&self) -> bool {
+        self.to_bake.is_empty() && self.baking.is_none() && !self.blocks.is_empty()
     }
 
-    fn section_at(&self, cell: usize) -> [usize; 3] {
-        let rest = cell / self.extent[0];
-        [
-            cell % self.extent[0],
-            rest / self.extent[2],
-            rest % self.extent[2],
-        ]
-    }
-
-    fn absolute(&self, section: [usize; 3]) -> [i32; 3] {
-        std::array::from_fn(|axis| section[axis] as i32 + self.min_section[axis])
-    }
-
-    fn ready_to_mesh(&self, sx: usize, sz: usize) -> bool {
-        files_read(self.world.min_region, sx, sz)
-            .iter()
-            .all(|coords| !self.expected.contains(coords) || self.world.holds(*coords))
-    }
-
-    fn distance(&self, cell: usize) -> f32 {
-        let section = self.absolute(self.section_at(cell));
+    fn distance(&self, section: [i32; 3]) -> f32 {
         let min = Vec3::from_array(section.map(|n| (n * SECTION_SIZE as i32) as f32));
         let max = min + Vec3::splat(SECTION_SIZE as f32);
         (self.camera.clamp(min, max) - self.camera).length()
     }
 
+    /// A section reads one block past its own faces, so it borders the eight
+    /// columns around its own and cannot be meshed until they have arrived.
+    fn surrounded(&self, pos: ColumnPos) -> bool {
+        (-1..=1).all(|dz| {
+            (-1..=1).all(|dx| self.store.holds(ColumnPos::new(pos.x + dx, pos.z + dz)))
+        })
+    }
+
     /// The nearest sections that hold blocks, have nowhere to be but the arena, and border only
-    /// files that have arrived. Nothing more than distance decides the order yet.
-    fn wanted(&self, want: usize) -> Vec<usize> {
+    /// columns that have arrived. Nothing more than distance decides the order yet.
+    fn wanted(&self, want: usize) -> Vec<[i32; 3]> {
+        let Some(extent) = self.store.extent() else {
+            return Vec::new();
+        };
         if want == 0 {
             return Vec::new();
         }
-        let [ex, ey, ez] = self.extent;
-        let ready: Vec<bool> = (0..ex * ez)
-            .map(|at| self.ready_to_mesh(at % ex, at / ex))
-            .collect();
-        let mut nearest: Vec<(f32, usize)> = Vec::new();
-        for sy in 0..ey {
-            for sz in 0..ez {
-                for sx in 0..ex {
-                    if !ready[sz * ex + sx] || self.world.section(sx, sy, sz).is_none() {
-                        continue;
-                    }
-                    let cell = self.cell([sx, sy, sz]);
-                    if self.resident[cell].is_some() || self.deferred[cell] || self.pending[cell] {
-                        continue;
-                    }
-                    nearest.push((self.distance(cell), cell));
+        let mut nearest: Vec<(f32, [i32; 3])> = Vec::new();
+        for pos in self.store.positions() {
+            if !self.surrounded(pos) {
+                continue;
+            }
+            for step in 0..extent.sections {
+                let at = [pos.x, extent.min_section_y + step as i32, pos.z];
+                if self.resident.contains_key(&at)
+                    || self.pending.contains(&at)
+                    || self.deferred.contains(&at)
+                    || self.store.section(at[0], at[1], at[2]).is_none()
+                {
+                    continue;
                 }
+                nearest.push((self.distance(at), at));
             }
         }
         if nearest.len() > want {
@@ -228,13 +211,14 @@ impl Loader {
             nearest.truncate(want);
         }
         nearest.sort_by(|a, b| a.0.total_cmp(&b.0));
-        nearest.into_iter().map(|(_, cell)| cell).collect()
+        nearest.into_iter().map(|(_, at)| at).collect()
     }
 
-    fn victim(&self, candidate: f32) -> Option<usize> {
-        let farthest = (0..self.resident.len())
-            .filter(|cell| self.resident[*cell].is_some())
-            .max_by(|a, b| self.distance(*a).total_cmp(&self.distance(*b)))?;
+    fn victim(&self, candidate: f32) -> Option<[i32; 3]> {
+        let farthest = *self
+            .resident
+            .keys()
+            .max_by(|a, b| self.distance(**a).total_cmp(&self.distance(**b)))?;
         worth_evicting(self.distance(farthest), candidate).then_some(farthest)
     }
 
@@ -248,8 +232,8 @@ impl Loader {
         })
     }
 
-    fn evict(&mut self, cell: usize, cave: &mut CaveCull) {
-        let Some(held) = self.resident[cell].take() else {
+    fn evict(&mut self, section: [i32; 3], cave: &mut CaveCull) {
+        let Some(held) = self.resident.remove(&section) else {
             return;
         };
         self.quads.free(held.quads);
@@ -259,10 +243,9 @@ impl Loader {
             self.dead.push(held.slot);
             self.dirty = true;
         }
-        cave.forget(self.absolute(self.section_at(cell)));
-        self.live -= 1;
+        cave.forget(section);
         self.evicted += 1;
-        self.deferred.fill(false);
+        self.deferred.clear();
     }
 
     /// A slot goes back on the free list only once the group records naming it are gone, so a
@@ -282,14 +265,83 @@ impl Loader {
         if !cave.follow(self.camera) {
             return;
         }
-        for cell in 0..self.resident.len() {
-            let Some((slot, mask)) = self.resident[cell]
-                .as_ref()
-                .map(|held| (held.slot, held.connectivity))
-            else {
-                continue;
-            };
-            cave.set_section(self.absolute(self.section_at(cell)), slot, mask);
+        let held: Vec<([i32; 3], u32, u64)> = self
+            .resident
+            .iter()
+            .map(|(at, held)| (*at, held.slot, held.connectivity))
+            .collect();
+        for (at, slot, mask) in held {
+            cave.set_section(at, slot, mask);
+        }
+    }
+
+    /// Takes the store's newest shape: the sections of a column the server has
+    /// taken back go with it, and a column that has just arrived is walked for
+    /// the block states the catalog still owes and queued for its tints.
+    ///
+    /// ponytail: a column the server sends a second time keeps the geometry
+    /// meshed from the first, so a block change never reaches the screen; the
+    /// upgrade is to compare what is resident against the store's own columns
+    /// rather than a set of positions.
+    fn adopt(&mut self, store: &ColumnStore, definitions: &BlockDefinitions, cave: &mut CaveCull) {
+        let extent = store.extent();
+        let departed: Vec<ColumnPos> = self
+            .known
+            .iter()
+            .copied()
+            .filter(|pos| !store.holds(*pos))
+            .collect();
+        for pos in departed {
+            self.known.remove(&pos);
+            self.to_tint.retain(|queued| *queued != pos);
+            if let Some(extent) = self.store.extent() {
+                for step in 0..extent.sections {
+                    let at = [pos.x, extent.min_section_y + step as i32, pos.z];
+                    if self.store.section(at[0], at[1], at[2]).is_some() {
+                        self.sections_total -= 1;
+                    }
+                    self.evict(at, cave);
+                }
+            }
+        }
+
+        let arrived: Vec<ColumnPos> = store
+            .positions()
+            .filter(|pos| !self.known.contains(pos))
+            .collect();
+        self.store = Arc::new(store.clone());
+        if self.baked.len() < definitions.state_count() {
+            self.baked.resize(definitions.state_count(), false);
+        }
+        for pos in arrived {
+            self.known.insert(pos);
+            self.to_tint.push(pos);
+            let Some(extent) = extent else { continue };
+            for step in 0..extent.sections {
+                let sy = extent.min_section_y + step as i32;
+                let Some(section) = self.store.section(pos.x, sy, pos.z) else {
+                    continue;
+                };
+                self.sections_total += 1;
+                for &state in section.blocks.iter() {
+                    match self.baked.get_mut(state as usize) {
+                        Some(true) => {}
+                        Some(seen) => {
+                            *seen = true;
+                            self.to_bake.push(state);
+                        }
+                        None if self.foreign_states => {}
+                        None => {
+                            self.foreign_states = true;
+                            error!(
+                                state,
+                                "the server names block states this corpus has no definition \
+                                 for; they are drawn as air"
+                            );
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -340,8 +392,7 @@ impl Loader {
             first += run;
         }
 
-        let section = self.absolute(mesh.section);
-        let cell = self.cell(mesh.section);
+        let section = mesh.section;
         let slot = if placed.is_empty() {
             self.free_slots.push(slot);
             NO_SLOT
@@ -350,14 +401,16 @@ impl Loader {
             slot
         };
         cave.set_section(section, slot, mesh.connectivity);
-        self.resident[cell] = Some(Resident {
-            quads,
-            models,
-            faces,
-            slot,
-            connectivity: mesh.connectivity,
-        });
-        self.live += 1;
+        self.resident.insert(
+            section,
+            Resident {
+                quads,
+                models,
+                faces,
+                slot,
+                connectivity: mesh.connectivity,
+            },
+        );
 
         Ok(Placement {
             quads: ((quads.offset * QUAD_WORDS * 4) as u64, mesh.simple),
@@ -410,32 +463,40 @@ impl Loader {
             ..Placement::default()
         })
     }
+
+    /// Where a column's tint square sits in the tint texture, or `None` when
+    /// the column falls outside the window the texture covers.
+    fn tint_corner(&self, pos: ColumnPos) -> Option<[u32; 2]> {
+        let span = SECTION_SIZE as u32;
+        let corner = [
+            pos.x * SECTION_SIZE as i32 - self.tint_origin[0],
+            pos.z * SECTION_SIZE as i32 - self.tint_origin[1],
+        ];
+        let inside = |axis: usize| {
+            u32::try_from(corner[axis])
+                .ok()
+                .filter(|near| near + span <= self.tint_size[axis])
+        };
+        Some([inside(0)?, inside(1)?])
+    }
 }
 
 fn worth_evicting(resident: f32, candidate: f32) -> bool {
     resident > candidate + HYSTERESIS
 }
 
-/// A section reads one block past its own faces, so it borders up to four region files.
-fn files_read(min_region: [i32; 2], sx: usize, sz: usize) -> [[i32; 2]; 4] {
-    let size = SECTION_SIZE as i32;
-    let span = REGION_BLOCKS as i32;
-    let xs = [sx as i32 * size - 1, (sx + 1) as i32 * size];
-    let zs = [sz as i32 * size - 1, (sz + 1) as i32 * size];
-    std::array::from_fn(|corner| {
-        [
-            min_region[0] + xs[corner & 1].div_euclid(span),
-            min_region[1] + zs[corner >> 1].div_euclid(span),
-        ]
-    })
-}
-
 pub fn advance(
     mut loader: ResMut<Loader>,
     mut cave: ResMut<CaveCull>,
     assets: Res<AssetServer>,
+    definitions: Res<Blocks>,
+    store: Option<Res<ColumnStore>>,
+    registries: Query<&ReceivedRegistries>,
     camera: Single<&GlobalTransform, With<Camera3d>>,
 ) {
+    let Some(store) = store else {
+        return;
+    };
     let pool = AsyncComputeTaskPool::get();
     let loader = &mut *loader;
     let pack = poll_pack(loader, &assets);
@@ -443,41 +504,28 @@ pub fn advance(
     loader.follow(&mut cave);
     if loader.camera.distance(loader.anchor) > HYSTERESIS {
         loader.anchor = loader.camera;
-        loader.deferred.fill(false);
+        loader.deferred.clear();
     }
 
-    let mut parsed = Vec::new();
-    loader
-        .parsing
-        .retain_mut(|(coords, task)| match check_ready(task) {
-            Some(result) => {
-                parsed.push((*coords, result));
-                false
-            }
-            None => true,
-        });
-    for (coords, result) in parsed {
-        match result {
-            Ok(region) => absorb(loader, coords, region),
-            Err(error) => {
-                println!("skipping r.{}.{}: {error}", coords[0], coords[1]);
-                loader.expected.remove(&coords);
-            }
-        }
+    if loader.biomes.is_empty() {
+        loader.biomes = biome_names(&registries);
+    }
+    if store.is_changed() {
+        loader.adopt(&store, &definitions, &mut cave);
     }
 
-    if let Some((_, _, task)) = loader.baking.as_mut()
+    if let Some(task) = loader.baking.as_mut()
         && let Some(baked) = check_ready(task)
     {
-        let (world, tinted) = loader
-            .baking
-            .take()
-            .map(|(w, t, _)| (w, t))
-            .expect("just held");
-        publish(loader, world, tinted, Some(baked), pool);
+        loader.baking = None;
+        publish(loader, baked);
     }
-    if let Some(pack) = pack {
-        settle(loader, &pack, pool);
+    if let Some(pack) = pack
+        && loader.baking.is_none()
+        && !loader.to_bake.is_empty()
+        && !loader.biomes.is_empty()
+    {
+        start_baking(loader, &pack, &definitions, pool);
     }
 
     let mut tinted = Vec::new();
@@ -493,24 +541,25 @@ pub fn advance(
     for (origin, data) in tinted {
         loader.uploads.push(Upload::Tints {
             origin,
-            size: REGION_BLOCKS as u32,
+            size: SECTION_SIZE as u32,
             data,
         });
     }
+    start_tinting(loader, pool);
 
     let mut meshed = Vec::new();
     loader
         .meshing
-        .retain_mut(|(cell, slot, task)| match check_ready(task) {
+        .retain_mut(|(at, slot, task)| match check_ready(task) {
             Some(mesh) => {
-                meshed.push((*cell, *slot, mesh));
+                meshed.push((*at, *slot, mesh));
                 false
             }
             None => true,
         });
-    for (cell, slot, mesh) in meshed {
-        loader.pending[cell] = false;
-        let here = loader.distance(cell);
+    for (at, slot, mesh) in meshed {
+        loader.pending.remove(&at);
+        let here = loader.distance(at);
         let mut pending = mesh;
         loop {
             match loader.place(pending, slot, &mut cave) {
@@ -526,7 +575,7 @@ pub fn advance(
                         pending = back;
                     }
                     None => {
-                        loader.deferred[cell] = true;
+                        loader.deferred.insert(at);
                         loader.free_slots.push(slot);
                         break;
                     }
@@ -543,44 +592,41 @@ pub fn advance(
         loader.uploads.push(Upload::Geometry(placement));
     }
 
-    while loader.parsing.len() < FILES_IN_FLIGHT
-        && let Some((coords, path)) = loader.to_parse.pop()
-    {
-        loader
-            .parsing
-            .push((coords, pool.spawn(async move { anvil::load(&path) })));
+    if !loader.caught_up() {
+        return;
     }
-
     let room = SECTIONS_IN_FLIGHT.saturating_sub(loader.meshing.len());
-    for cell in loader.wanted(room.min(SECTIONS_PER_FRAME)) {
+    for at in loader.wanted(room.min(SECTIONS_PER_FRAME)) {
         let Some(slot) = loader.take_slot() else {
             break;
         };
-        let world = loader.world.clone();
+        let world = loader.store.clone();
         let blocks = loader.blocks.clone();
-        let section = loader.section_at(cell);
-        loader.pending[cell] = true;
+        loader.pending.insert(at);
         loader.meshing.push((
-            cell,
+            at,
             slot,
             pool.spawn(async move {
                 let mut scratch = Scratch::new();
-                mesh::mesh_section(&world, &blocks, section, slot, &mut scratch)
+                mesh::mesh_section(&world, &blocks, at, slot, &mut scratch)
             }),
         ));
     }
-
-    if !loader.reported && loader.idle() {
-        loader.reported = true;
-        report(loader);
-    }
 }
 
-fn absorb(loader: &mut Loader, coords: [i32; 2], region: Region) {
-    let mut world = (*loader.newest).clone();
-    loader.dropped += world.insert(&mut loader.palette, coords, region);
-    loader.newest = Arc::new(world);
-    loader.to_tint.push(coords);
+fn biome_names(registries: &Query<&ReceivedRegistries>) -> Vec<String> {
+    registries
+        .iter()
+        .flat_map(|received| received.0.iter())
+        .find(|registry| registry.registry == BIOME_REGISTRY)
+        .map(|registry| {
+            registry
+                .entries
+                .iter()
+                .map(|entry| entry.id.clone())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// The pack is read once, off the asset system, before anything can bake against it.
@@ -596,7 +642,7 @@ fn poll_pack(loader: &mut Loader, assets: &AssetServer) -> Option<Arc<Pack>> {
         PackLoad::Loading(task) => {
             let pack = check_ready(task)?
                 .unwrap_or_else(|reason| panic!("cannot read the resource pack: {reason}"));
-            println!("{} resource pack files read", pack.len());
+            info!(files = pack.len(), "read the resource pack");
             let pack = Arc::new(pack);
             loader.pack = PackLoad::Ready(pack.clone());
             Some(pack)
@@ -605,55 +651,22 @@ fn poll_pack(loader: &mut Loader, assets: &AssetServer) -> Option<Arc<Pack>> {
     }
 }
 
-fn settle(loader: &mut Loader, pack: &Arc<Pack>, pool: &'static AsyncComputeTaskPool) {
-    if loader.baking.is_some() {
-        return;
-    }
-    let catalog = loader.catalog.as_ref().expect("nothing is baking");
-    match next_step(
-        catalog.blocks.len(),
-        loader.palette.states.len(),
-        Arc::ptr_eq(&loader.world, &loader.newest),
-    ) {
-        Next::Bake => start_baking(loader, pack, pool),
-        Next::Publish => {
-            let world = loader.newest.clone();
-            let tinted = std::mem::take(&mut loader.to_tint);
-            publish(loader, world, tinted, None, pool);
-        }
-        Next::Wait => {}
-    }
-}
-
-#[derive(PartialEq, Eq, Debug)]
-enum Next {
-    Bake,
-    Publish,
-    Wait,
-}
-
-fn next_step(baked: usize, interned: usize, published_is_newest: bool) -> Next {
-    if baked < interned {
-        Next::Bake
-    } else if !published_is_newest {
-        Next::Publish
-    } else {
-        Next::Wait
-    }
-}
-
-fn start_baking(loader: &mut Loader, pack: &Arc<Pack>, pool: &'static AsyncComputeTaskPool) {
+fn start_baking(
+    loader: &mut Loader,
+    pack: &Arc<Pack>,
+    definitions: &Blocks,
+    pool: &'static AsyncComputeTaskPool,
+) {
     let Some(mut catalog) = loader.catalog.take() else {
         return;
     };
-    let states = loader.palette.states.clone();
-    let biomes = loader.palette.biomes.clone();
+    let states = std::mem::take(&mut loader.to_bake);
+    let biomes = loader.biomes.clone();
     let known = loader.sprites;
-    let world = loader.newest.clone();
-    let tints = std::mem::take(&mut loader.to_tint);
+    let definitions = definitions.clone();
     let pack = pack.clone();
-    let task = pool.spawn(async move {
-        blocks::extend(&pack, &mut catalog, &states, &biomes);
+    loader.baking = Some(pool.spawn(async move {
+        blocks::extend(&pack, &mut catalog, &definitions, &states, &biomes);
         let blocks = catalog.blocks.clone();
         let sprites = (catalog.sprites.len() != known).then(|| {
             let sprites = &catalog.sprites;
@@ -685,150 +698,48 @@ fn start_baking(loader: &mut Loader, pack: &Arc<Pack>, pool: &'static AsyncCompu
             blocks,
             sprites,
         }
-    });
-    loader.baking = Some((world, tints, task));
+    }));
 }
 
-fn publish(
-    loader: &mut Loader,
-    world: Arc<World>,
-    tinted: Vec<[i32; 2]>,
-    baked: Option<Baked>,
-    pool: &'static AsyncComputeTaskPool,
-) {
-    if let Some(baked) = baked {
-        if let Some(sprites) = baked.sprites {
-            loader.sprites = baked.catalog.sprites.len();
-            loader.uploads.push(sprites);
-        }
-        loader.catalog = Some(baked.catalog);
-        loader.blocks = Arc::new(baked.blocks);
+fn publish(loader: &mut Loader, baked: Baked) {
+    if let Some(sprites) = baked.sprites {
+        loader.sprites = baked.catalog.sprites.len();
+        loader.uploads.push(sprites);
     }
-    let tints = loader
-        .catalog
-        .as_ref()
-        .expect("the catalog is only away while baking")
-        .tints
-        .clone();
-    assert!(
-        world.states_reach() <= loader.blocks.len(),
-        "a world reaching {} block states would be meshed against a table of {}",
-        world.states_reach(),
-        loader.blocks.len(),
-    );
-    loader.world = world;
-
-    for coords in tinted {
-        let corner = [
-            (coords[0] - loader.world.min_region[0]) as usize * REGION_BLOCKS,
-            (coords[1] - loader.world.min_region[1]) as usize * REGION_BLOCKS,
-        ];
-        let world = loader.world.clone();
-        let tints = tints.clone();
-        loader.tinting.push((
-            [corner[0] as u32, corner[1] as u32],
-            pool.spawn(async move { blocks::tint_square(&world, &tints, corner) }),
-        ));
+    for failure in &baked.catalog.failures[loader.failures..] {
+        warn!("no model for {failure}");
     }
+    loader.failures = baked.catalog.failures.len();
+    loader.catalog = Some(baked.catalog);
+    loader.blocks = Arc::new(baked.blocks);
 }
 
-fn report(loader: &Loader) {
-    let catalog = loader.catalog.as_ref().expect("baking is finished");
-    let took = loader.started.elapsed();
-    println!(
-        "{} region files loaded in {took:.2?}, {} sections, {} block states ({} unrenderable), \
-         {} sprites",
-        loader.world.loaded(),
-        loader.world.non_empty_sections(),
-        loader.palette.states.len(),
-        catalog.failures.len(),
-        catalog.sprites.len(),
-    );
-    for failure in &catalog.failures {
-        println!("  skipping {failure}");
-    }
-    for (index, array) in catalog.sprites.arrays().iter().enumerate() {
-        println!(
-            "  sprite array {index}: {:>4} sprites at {}x{}, {} of them animated, \
-             {} resident layers",
-            array.sprites(),
-            array.size,
-            array.size,
-            array.animated(),
-            array.layers(),
-        );
-    }
-    for stream in 0..STREAMS {
-        let list = &loader.lists[stream];
-        let quads: u64 = list.iter().map(|group| u64::from(group.quad_count)).sum();
-        println!(
-            "  {:<22} {quads:>9} quads in {:>6} groups",
-            STREAM_NAMES[stream],
-            list.len(),
-        );
-    }
-    let arena = |arena: &Arena, unit: usize| {
-        (
-            arena.asked(),
-            (arena.asked() * unit) as f64 / 1e6,
-            (arena.held() * unit) as f64 / 1e6,
-            (arena.capacity() * unit) as f64 / 1e6,
-            100.0 * arena.held() as f64 / arena.capacity() as f64,
-        )
+fn start_tinting(loader: &mut Loader, pool: &'static AsyncComputeTaskPool) {
+    let Some(catalog) = loader.catalog.as_ref() else {
+        return;
     };
-    for (name, (count, asked, held, capacity, share)) in [
-        ("greedy quads", arena(&loader.quads, QUAD_WORDS * 4)),
-        ("model quads", arena(&loader.models, 4 * 3 * 4)),
-        ("block faces", arena(&loader.faces, 4)),
-        ("groups", arena(&loader.groups, size_of::<Group>())),
-    ] {
-        println!(
-            "  {count} {name} are {asked:.1} MB, held in {held:.1} MB of {capacity:.0} \
-             ({share:.0}% of the arena, {:.0}% of it rounding)",
-            100.0 * (held - asked) / held.max(f64::MIN_POSITIVE),
-        );
+    if catalog.tints.len() <= 1 {
+        return;
     }
-    if loader.dropped > 0 {
-        println!(
-            "  {} sections sit outside the {} the world declares and are not drawn",
-            loader.dropped,
-            crate::anvil::SECTIONS_Y,
-        );
-    }
-    if loader.evicted > 0 {
-        println!(
-            "  {} sections gave their room back to nearer ones",
-            loader.evicted,
-        );
+    let tints = catalog.tints.clone();
+    for pos in std::mem::take(&mut loader.to_tint) {
+        let Some(corner) = loader.tint_corner(pos) else {
+            continue;
+        };
+        let world = loader.store.clone();
+        let tints = tints.clone();
+        loader
+            .tinting
+            .push((corner, pool.spawn(async move {
+                blocks::tint_column(&world, &tints, pos)
+            })));
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::anvil::REGION_CHUNKS;
-
-    #[test]
-    fn two_sections_at_a_threshold_cannot_take_each_others_room() {
-        let (near, far) = (100.0, 100.0 + HYSTERESIS + 1.0);
-        assert!(
-            worth_evicting(far, near),
-            "the far one gives way to the near one"
-        );
-        assert!(!worth_evicting(near, far), "and never the other way round");
-
-        for other in [100.0, 100.5, 100.0 + HYSTERESIS] {
-            assert!(!worth_evicting(other, near));
-            assert!(!worth_evicting(near, other));
-        }
-    }
-
-    #[test]
-    fn a_file_that_brings_no_new_block_states_still_reaches_the_world() {
-        assert_eq!(next_step(400, 400, false), Next::Publish);
-        assert_eq!(next_step(400, 600, false), Next::Bake);
-        assert_eq!(next_step(400, 400, true), Next::Wait);
-    }
+    use crate::mesh::StreamSpan;
 
     fn loader() -> Loader {
         Loader::new(
@@ -839,21 +750,16 @@ mod tests {
                 groups: 1 << 12,
                 sections: 1 << 8,
                 visible: 1 << 12,
-                tint_origin: [0; 2],
-                tint_size: [1; 2],
+                tint_origin: [-256, -256],
+                tint_size: [512; 2],
             },
             Uploads::default(),
-            Window {
-                min_region: [0; 2],
-                regions: [1; 2],
-                files: Vec::new(),
-            },
         )
     }
 
-    fn one_greedy_group(section: [usize; 3], slot: u32, quads: u32) -> SectionMesh {
+    fn one_greedy_group(section: [i32; 3], slot: u32, quads: u32) -> SectionMesh {
         let mut spans = [Default::default(); STREAMS];
-        spans[0] = crate::mesh::StreamSpan {
+        spans[0] = StreamSpan {
             group_count: 1,
             quad_count: quads,
         };
@@ -871,6 +777,21 @@ mod tests {
             }],
             spans,
             connectivity: crate::mesh::CONNECT_ALL,
+        }
+    }
+
+    #[test]
+    fn two_sections_at_a_threshold_cannot_take_each_others_room() {
+        let (near, far) = (100.0, 100.0 + HYSTERESIS + 1.0);
+        assert!(
+            worth_evicting(far, near),
+            "the far one gives way to the near one"
+        );
+        assert!(!worth_evicting(near, far), "and never the other way round");
+
+        for other in [100.0, 100.5, 100.0 + HYSTERESIS] {
+            assert!(!worth_evicting(other, near));
+            assert!(!worth_evicting(near, other));
         }
     }
 
@@ -916,8 +837,7 @@ mod tests {
             "the blend order of a bucket runs across the sections in it"
         );
 
-        let cell = loader.cell([0, 0, 0]);
-        loader.evict(cell, &mut cave);
+        loader.evict([0, 0, 0], &mut cave);
         loader.sweep();
         let flushed = loader.flush().expect("the group arena has room");
         let draws = flushed
@@ -932,13 +852,57 @@ mod tests {
     }
 
     #[test]
-    fn a_section_on_a_file_corner_reads_the_diagonal_file_too() {
-        let mut files = files_read([-1, -1], 0, 0);
-        files.sort();
-        assert_eq!(files, [[-2, -2], [-2, -1], [-1, -2], [-1, -1]]);
+    fn a_column_is_meshed_only_once_every_column_it_borders_has_arrived() {
+        use mcrs_minecraft_network::columns::{Column, Extent};
 
-        let mut files = files_read([-1, -1], REGION_CHUNKS, REGION_CHUNKS);
-        files.sort();
-        assert_eq!(files, [[-1, -1], [-1, 0], [0, -1], [0, 0]]);
+        let mut loader = loader();
+        let mut store = ColumnStore::default();
+        store.enter(Extent {
+            min_section_y: 0,
+            sections: 1,
+        });
+        for x in -1..=1 {
+            for z in -1..=1 {
+                store.insert(ColumnPos::new(x, z), Column::unlit(0, Vec::new()));
+            }
+        }
+        loader.store = Arc::new(store.clone());
+        assert!(loader.surrounded(ColumnPos::new(0, 0)));
+        assert!(
+            !loader.surrounded(ColumnPos::new(1, 0)),
+            "an edge column still has three neighbours missing"
+        );
+
+        store.remove(ColumnPos::new(-1, -1));
+        loader.store = Arc::new(store);
+        assert!(
+            !loader.surrounded(ColumnPos::new(0, 0)),
+            "the diagonal is read too, so losing it is enough"
+        );
+    }
+
+    #[test]
+    fn no_section_is_meshed_before_the_catalog_reaches_the_states_it_holds() {
+        let mut loader = loader();
+        assert!(!loader.caught_up(), "nothing has been baked yet");
+
+        loader.blocks = Arc::new(vec![BlockInfo::default()]);
+        assert!(loader.caught_up());
+
+        loader.to_bake.push(7);
+        assert!(
+            !loader.caught_up(),
+            "a state the catalog still owes holds the mesher back"
+        );
+    }
+
+    #[test]
+    fn a_column_outside_the_tint_window_is_not_written_into_it() {
+        let loader = loader();
+        assert_eq!(loader.tint_corner(ColumnPos::new(-16, -16)), Some([0, 0]));
+        assert_eq!(loader.tint_corner(ColumnPos::new(0, 0)), Some([256, 256]));
+        assert_eq!(loader.tint_corner(ColumnPos::new(15, 0)), Some([496, 256]));
+        assert_eq!(loader.tint_corner(ColumnPos::new(16, 0)), None);
+        assert_eq!(loader.tint_corner(ColumnPos::new(-17, 0)), None);
     }
 }

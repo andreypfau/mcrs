@@ -1,7 +1,7 @@
 use bevy::camera::primitives::{Aabb, Frustum};
 use bevy::prelude::*;
 
-use crate::anvil::SECTION_SIZE;
+use mcrs_minecraft_network::columns::SECTION_SIZE;
 use crate::mesh::CONNECT_ALL;
 
 const NEIGHBOUR: [[i32; 3]; 6] = [

@@ -14,11 +14,9 @@ const UPLOAD_MB: usize = 4;
 /// ever holds what a frame draws, so this leaves room to spare and is given back between frames.
 const VISIBLE_MB: usize = 32;
 
-const REGION_WINDOW: usize = 2;
-
 static KNOBS: OnceLock<HashMap<String, String>> = OnceLock::new();
 
-/// Names a knob without its `ANVIL_` prefix, so a source that is not the
+/// Names a knob without its `MCRS_` prefix, so a source that is not the
 /// environment — the browser has none, and reads the query string instead —
 /// can supply the same values. Only the first call is kept, and it has to come
 /// before the first read.
@@ -35,7 +33,7 @@ fn knob(name: &str) -> Option<String> {
 
 #[cfg(not(target_family = "wasm"))]
 fn from_environment(name: &str) -> Option<String> {
-    std::env::var(format!("ANVIL_{name}")).ok()
+    std::env::var(format!("MCRS_{name}")).ok()
 }
 
 #[cfg(target_family = "wasm")]
@@ -64,7 +62,7 @@ pub fn arena_budget() -> (usize, usize, usize) {
     match numbers::<usize>(&spec)[..] {
         [quads, models, faces] => (quads.max(1), models.max(1), faces.max(1)),
         _ => {
-            eprintln!("ANVIL_ARENA needs three sizes in megabytes: quads,models,faces");
+            eprintln!("MCRS_ARENA needs three sizes in megabytes: quads,models,faces");
             default
         }
     }
@@ -86,7 +84,7 @@ pub fn drawn_streams() -> Streams {
     for name in spec.split(',') {
         match name.trim().parse::<u32>() {
             Ok(stream) if (stream as usize) < STREAMS => mask |= 1 << stream,
-            _ => eprintln!("ANVIL_STREAMS takes stream numbers 0..{}", STREAMS - 1),
+            _ => eprintln!("MCRS_STREAMS takes stream numbers 0..{}", STREAMS - 1),
         }
     }
     Streams(mask)
@@ -99,28 +97,10 @@ pub fn raster_fraction() -> Raster {
     match spec.trim().parse::<f32>() {
         Ok(fraction) if (0.0..=1.0).contains(&fraction) && fraction > 0.0 => Raster(fraction),
         _ => {
-            eprintln!("ANVIL_RASTER takes a fraction between 0 and 1");
+            eprintln!("MCRS_RASTER takes a fraction between 0 and 1");
             Raster::default()
         }
     }
-}
-
-pub fn window_centre() -> Option<[i32; 2]> {
-    let spec = knob("CENTER")?;
-    match numbers::<i32>(&spec)[..] {
-        [x, z] => Some([x, z]),
-        _ => {
-            eprintln!("ANVIL_CENTER needs two region coordinates: x,z");
-            None
-        }
-    }
-}
-
-pub fn region_window() -> usize {
-    knob("WINDOW")
-        .and_then(|size| size.parse().ok())
-        .unwrap_or(REGION_WINDOW)
-        .max(1)
 }
 
 pub fn gputrace_path() -> Option<String> {

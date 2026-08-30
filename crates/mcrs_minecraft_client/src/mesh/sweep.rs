@@ -1,4 +1,4 @@
-use crate::anvil::SECTION_SIZE;
+use mcrs_minecraft_network::columns::SECTION_SIZE;
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::{
     QUAD_DROP, QUAD_FACE, QUAD_FACE_BASE, QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y,
@@ -182,10 +182,9 @@ fn pack_quad(
 #[cfg(test)]
 mod tests {
     use super::{pack_quad, quad_anchor};
-    use crate::anvil::{Palette, World, one_section_region};
     use crate::atlas::SpriteRef;
     use crate::blocks::{BlockInfo, CORNER_UV, CubeFace, FACE_AXES, Pass, cube_corner};
-    use crate::mesh::{Scratch, mesh_world};
+    use crate::mesh::{Scratch, mesh_world, one_section_world};
     use crate::pack::{
         FACE_ARRAY, FACE_LAYER, QUAD_FACE, QUAD_FACE_BASE, QUAD_H, QUAD_W, QUAD_X, QUAD_Y, QUAD_Z,
     };
@@ -193,32 +192,22 @@ mod tests {
 
     #[test]
     fn the_face_runs_of_a_batch_tile_it_exactly() {
-        let mut palette = Palette::new();
-        let mut world = World::new([0, 0], [1, 1]);
-        world.insert(
-            &mut palette,
-            [0, 0],
-            one_section_region("minecraft:test_block"),
-        );
-        let id = palette
-            .states
-            .iter()
-            .position(|state| state.name == "minecraft:test_block")
-            .unwrap();
-        let mut blocks: Vec<BlockInfo> = (0..palette.states.len())
+        const TEST_BLOCK: u16 = 37;
+        let world = one_section_world(|_, _, _| TEST_BLOCK);
+        let mut blocks: Vec<BlockInfo> = (0..=TEST_BLOCK)
             .map(|_| BlockInfo::default())
             .collect();
-        blocks[id].cube = Some(
+        blocks[TEST_BLOCK as usize].cube = Some(
             [CubeFace {
                 sprite: SpriteRef { array: 1, layer: 7 },
                 pass: Pass::Solid as u8,
                 tinted: false,
             }; 6],
         );
-        blocks[id].occludes = true;
+        blocks[TEST_BLOCK as usize].occludes = true;
 
         let mut scratch = Scratch::new();
-        let batch = mesh_world(&world, &blocks, &mut scratch);
+        let batch = mesh_world(&world, &blocks, &[[0, 0, 0]], &mut scratch);
         let mut runs: Vec<(u64, u64)> = batch
             .simple
             .iter()

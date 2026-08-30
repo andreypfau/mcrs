@@ -27,17 +27,19 @@ use mcrs_minecraft_client::render::{
     Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads, VISIBLE_BYTES,
 };
 use mcrs_minecraft_client::sky_state::SkyEffects;
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin};
 use mcrs_minecraft_client::{
-    anvil, asset_corpus, camera, cave, config, gui, input, local_player, player, render, sky,
-    sky_render,
+    asset_corpus, camera, cave, config, gui, input, local_player, player, render, sky, sky_render,
+    stream,
 };
 #[cfg(not(target_family = "wasm"))]
-use mcrs_minecraft_client::{screenshot, stream};
+use mcrs_minecraft_client::screenshot;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 
-/// No world folder and no save on the browser, so the entry point there is its
-/// own; everything below reads a save off disk.
+/// The browser has no world folder and no save to seed itself from, so the
+/// entry point there is its own.
 #[cfg(target_family = "wasm")]
 fn main() {
     mcrs_minecraft_client::web::run();
@@ -46,9 +48,9 @@ fn main() {
 #[cfg(not(target_family = "wasm"))]
 fn main() {
     let world = world_folder();
-    let save_data = load_save(&world);
+    let save_data = world.as_deref().map(load_save).unwrap_or_default();
     let frozen_at = frozen_time();
-    let terrain = terrain_source(&world, &save_data.dimension, save_data.position);
+    let (budget, uploads, cave, loader) = terrain(save_data.position);
 
     let mut app = App::new();
     app.add_plugins(
@@ -67,7 +69,10 @@ fn main() {
             })
             .set(WindowPlugin {
                 primary_window: Some(Window {
-                    title: format!("mcrs — {}", world.display()),
+                    title: match &world {
+                        Some(world) => format!("mcrs — {}", world.display()),
+                        None => "mcrs".to_owned(),
+                    },
                     ..default()
                 }),
                 ..default()
@@ -101,12 +106,13 @@ fn main() {
         app.insert_resource(sky_render::SkyDrawsOnly(only));
     }
 
-    if let Some(server) = server_address() {
-        app.add_plugins(ClientNetworkPlugin {
-            server,
-            username: std::env::var("MCRS_USERNAME").unwrap_or_else(|_| "Player".to_owned()),
-        });
-    }
+    // After `DefaultPlugins`: an embedded server leaves the task pools to its
+    // host, so the host has to have built them before the server thread ticks.
+    let server = server_address().unwrap_or_else(|| host_integrated_server(world.as_deref()));
+    app.add_plugins(ClientNetworkPlugin {
+        server,
+        username: std::env::var("MCRS_USERNAME").unwrap_or_else(|_| "Player".to_owned()),
+    });
 
     // Inserted after `add_plugins`: `WorldClockPlugin` calls
     // `init_resource::<WorldClocks>()` during its own build, so an earlier
@@ -124,30 +130,25 @@ fn main() {
         .insert_resource(save_data.weather)
         .insert_resource(sky::PlayerDimension(save_data.dimension));
 
-    match terrain {
-        Ok((budget, uploads, cave, loader)) => {
-            app.add_plugins(TerrainPlugin(budget, uploads))
-                .insert_resource(config::drawn_streams())
-                .insert_resource(config::raster_fraction())
-                .insert_resource(cave)
-                .insert_resource(loader)
-                .add_systems(
-                    Update,
-                    (
-                        stream::advance,
-                        cave::toggle,
-                        render::toggle_wireframe,
-                        #[cfg(target_os = "macos")]
-                        mcrs_minecraft_client::capture::gputrace,
-                    ),
-                )
-                .add_systems(
-                    PostUpdate,
-                    cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
-                );
-        }
-        Err(error) => error!("no terrain to draw: {error}"),
-    }
+    app.add_plugins(TerrainPlugin(budget, uploads))
+        .insert_resource(config::drawn_streams())
+        .insert_resource(config::raster_fraction())
+        .insert_resource(cave)
+        .insert_resource(loader)
+        .add_systems(
+            Update,
+            (
+                stream::advance,
+                cave::toggle,
+                render::toggle_wireframe,
+                #[cfg(target_os = "macos")]
+                mcrs_minecraft_client::capture::gputrace,
+            ),
+        )
+        .add_systems(
+            PostUpdate,
+            cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
+        );
 
     let (yaw, pitch) = look_override().unwrap_or((save_data.yaw, save_data.pitch));
     player::spawn_player(app.world_mut(), save_data.position, yaw, pitch);
@@ -155,87 +156,72 @@ fn main() {
     app.run();
 }
 
-fn region_folder(world: &Path, dimension: &str) -> PathBuf {
-    let (namespace, path) = dimension
-        .split_once(':')
-        .unwrap_or(("minecraft", dimension));
-    world
-        .join("dimensions")
-        .join(namespace)
-        .join(path)
-        .join("region")
-}
-
-const BUDGET_FILES: usize = 4;
-
 /// One block holds every group of every bucket and a flush takes a fresh one before freeing the
 /// stale one, so the arena has to fit two of them with the buddy rounding on top.
-const GROUPS_PER_FILE: usize = 1 << 19;
+const GROUPS_BUDGET: usize = 1 << 21;
 
-/// A region file of the fixture world fills around nine thousand section table rows.
-const SECTIONS_PER_FILE: usize = 1 << 14;
+const SECTIONS_BUDGET: usize = 1 << 16;
 
-/// The region files around the player, until columns arrive from the network.
-#[cfg(not(target_family = "wasm"))]
-fn terrain_source(
-    world: &Path,
-    dimension: &str,
-    position: DVec3,
-) -> Result<(Arc<Budget>, Uploads, cave::CaveCull, stream::Loader), String> {
-    let centre = config::window_centre().unwrap_or_else(|| {
-        let region = |axis: f64| (axis / anvil::REGION_BLOCKS as f64).floor() as i32;
-        [region(position.x), region(position.z)]
-    });
-    let window = anvil::window(
-        &region_folder(world, dimension),
-        centre,
-        config::region_window(),
-    )?;
+/// The tint texture covers a fixed square of world around the spawn.
+/// ponytail: a player who walks out of it takes the edge tint with them; the
+/// upgrade is a tint window that scrolls with the camera.
+const TINT_SPAN: u32 = 1024;
 
-    let files = window.files.len().clamp(1, BUDGET_FILES);
+const ARENA_SCALE: usize = 4;
+
+fn terrain(spawn: DVec3) -> (Arc<Budget>, Uploads, cave::CaveCull, stream::Loader) {
     let (quad_mb, model_mb, face_mb) = config::arena_budget();
-    let span = anvil::REGION_BLOCKS as u32;
+    let centre = |axis: f64| (axis as i32).div_euclid(16) * 16 - TINT_SPAN as i32 / 2;
     let budget = Arc::new(Budget {
-        quads: quad_mb * files * 1_000_000 / QUAD_BYTES,
-        models: model_mb * files * 1_000_000 / MODEL_BYTES,
-        faces: face_mb * files * 1_000_000 / FACE_BYTES,
-        groups: GROUPS_PER_FILE * files,
-        sections: SECTIONS_PER_FILE * files,
+        quads: quad_mb * ARENA_SCALE * 1_000_000 / QUAD_BYTES,
+        models: model_mb * ARENA_SCALE * 1_000_000 / MODEL_BYTES,
+        faces: face_mb * ARENA_SCALE * 1_000_000 / FACE_BYTES,
+        groups: GROUPS_BUDGET,
+        sections: SECTIONS_BUDGET,
         visible: config::visible_budget() / VISIBLE_BYTES,
-        tint_origin: [
-            window.min_region[0] * span as i32,
-            window.min_region[1] * span as i32,
-        ],
-        tint_size: [
-            window.regions[0] as u32 * span,
-            window.regions[1] as u32 * span,
-        ],
+        tint_origin: [centre(spawn.x), centre(spawn.z)],
+        tint_size: [TINT_SPAN; 2],
     });
 
     info!(
-        files = window.files.len(),
-        min_region = ?window.min_region,
-        regions = ?window.regions,
         quad_mb = (budget.quads * QUAD_BYTES) / 1_000_000,
         model_mb = (budget.models * MODEL_BYTES) / 1_000_000,
         face_mb = (budget.faces * FACE_BYTES) / 1_000_000,
         visible_mb = (budget.visible * VISIBLE_BYTES) / 1_000_000,
-        "streaming terrain from region files"
+        "meshing the columns the server sends"
     );
 
     let uploads = Uploads::default();
-    let loader = stream::Loader::new(&budget, uploads.clone(), window);
-    Ok((
+    let loader = stream::Loader::new(&budget, uploads.clone());
+    (
         budget.clone(),
         uploads,
         cave::CaveCull::new(budget.sections),
         loader,
-    ))
+    )
 }
 
-/// `MCRS_SERVER=<host>:<port>` joins a server alongside the save the window is
-/// already showing. What arrives over the wire is held on the connection and
-/// read by nobody yet.
+/// Singleplayer, the way the vanilla client plays it: a server of our own on a
+/// loopback port, which the client then joins like any other.
+#[cfg(not(target_family = "wasm"))]
+fn host_integrated_server(world: Option<&Path>) -> SocketAddr {
+    let mut server = App::new();
+    server.add_plugins(MinecraftServerPlugin::embedded());
+    let address = server.world().resource::<BoundAddress>().0;
+    mcrs_minecraft_server::spawn_server_thread(server, mcrs_minecraft_server::run_server_loop);
+    match world {
+        Some(world) => info!(
+            world = %world.display(),
+            %address,
+            "hosting an integrated server, which generates its own terrain rather than \
+             reading the saved chunks of this world",
+        ),
+        None => info!(%address, "hosting an integrated server"),
+    }
+    address
+}
+
+/// `MCRS_SERVER=<host>:<port>` joins that server instead of hosting one.
 fn server_address() -> Option<SocketAddr> {
     let address = std::env::var("MCRS_SERVER").ok()?;
     match address.to_socket_addrs().map(|mut a| a.next()) {
@@ -247,16 +233,15 @@ fn server_address() -> Option<SocketAddr> {
     }
 }
 
-fn world_folder() -> PathBuf {
-    let Some(path) = std::env::args_os().nth(1).map(PathBuf::from) else {
-        eprintln!("usage: mcrs_minecraft_client <world folder>");
-        std::process::exit(1);
-    };
+/// A world folder seeds the clocks, the weather and the spawn. Terrain comes
+/// from the server either way, so there need not be one.
+fn world_folder() -> Option<PathBuf> {
+    let path = std::env::args_os().nth(1).map(PathBuf::from)?;
     if !path.is_dir() {
         eprintln!("not a world folder: {}", path.display());
         std::process::exit(1);
     }
-    path
+    Some(path)
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -268,6 +253,21 @@ struct SaveData {
     position: DVec3,
     yaw: f32,
     pitch: f32,
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl Default for SaveData {
+    fn default() -> Self {
+        Self {
+            world_clocks: save::WorldClockStates::default(),
+            dimension: "minecraft:overworld".to_owned(),
+            advance_time: true,
+            weather: Weather::default(),
+            position: DVec3::new(0.5, 80.0, 0.5),
+            yaw: 0.0,
+            pitch: 0.0,
+        }
+    }
 }
 
 #[cfg(not(target_family = "wasm"))]

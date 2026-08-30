@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 
 pub mod anim;
-pub mod anvil;
 pub mod arena;
 pub mod atlas;
 pub mod bake;
@@ -27,7 +26,6 @@ pub mod screenshot;
 pub mod sky;
 pub mod sky_render;
 pub mod sky_state;
-#[cfg(not(target_family = "wasm"))]
 pub mod stream;
 #[cfg(target_family = "wasm")]
 pub mod web;

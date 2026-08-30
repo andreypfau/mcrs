@@ -1,4 +1,4 @@
-use crate::anvil::SECTION_SIZE;
+use mcrs_minecraft_network::columns::SECTION_SIZE;
 
 use super::face_normal;
 use super::scratch::{BORDER_VOLUME, border_index};

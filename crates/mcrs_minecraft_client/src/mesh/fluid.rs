@@ -1,4 +1,4 @@
-use crate::anvil::SECTION_SIZE;
+use mcrs_minecraft_network::columns::SECTION_SIZE;
 use crate::atlas::SpriteRef;
 use crate::blocks::{BlockInfo, Fluid, Pass, TintKind};
 use crate::pack::{
@@ -475,12 +475,12 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
 #[cfg(test)]
 mod tests {
     use super::{FLUID_FULL, drop_steps};
-    use crate::anvil::{Palette, SECTION_SIZE, World, one_section_region};
     use crate::atlas::SpriteRef;
     use crate::bake::Dir;
     use crate::blocks::{BlockInfo, CubeFace, Fluid, Pass};
     use crate::mesh::model::fixed;
-    use crate::mesh::{Scratch, mesh_world};
+    use crate::mesh::{Scratch, mesh_world, one_section_world};
+    use mcrs_minecraft_network::columns::SECTION_SIZE;
     use crate::pack::{FACE_LAYER, MODEL_STEPS, QUAD_DROP, QUAD_FACE, QUAD_H, QUAD_W};
 
     fn water(amount: u8) -> Fluid {
@@ -493,18 +493,11 @@ mod tests {
         }
     }
 
-    fn catalog(palette: &Palette) -> Vec<BlockInfo> {
-        (0..palette.states.len())
-            .map(|_| BlockInfo::default())
-            .collect()
-    }
+    const WATER: u16 = 1;
+    const GLASS: u16 = 2;
 
-    fn state_id(palette: &Palette, name: &str) -> usize {
-        palette
-            .states
-            .iter()
-            .position(|state| state.name == name)
-            .unwrap()
+    fn catalog() -> Vec<BlockInfo> {
+        (0..3).map(|_| BlockInfo::default()).collect()
     }
 
     #[test]
@@ -521,14 +514,12 @@ mod tests {
 
     #[test]
     fn a_flat_sea_merges_into_one_quad_a_ninth_below_the_block_top() {
-        let mut palette = Palette::new();
-        let mut world = World::new([0, 0], [1, 1]);
-        world.insert(&mut palette, [0, 0], one_section_region("minecraft:water"));
-        let mut blocks = catalog(&palette);
-        blocks[state_id(&palette, "minecraft:water")].fluid = Some(water(8));
+        let world = one_section_world(|_, _, _| WATER);
+        let mut blocks = catalog();
+        blocks[WATER as usize].fluid = Some(water(8));
 
         let mut scratch = Scratch::new();
-        let batch = mesh_world(&world, &blocks, &mut scratch);
+        let batch = mesh_world(&world, &blocks, &[[0, 0, 0]], &mut scratch);
         let models = batch.model_quads();
         let mut surfaces = Vec::new();
         for quad in &batch.simple {
@@ -556,20 +547,14 @@ mod tests {
     #[test]
     fn a_waterlogged_block_hides_the_fluid_faces_it_covers() {
         let upward = |sturdy: u8| {
-            let mut palette = Palette::new();
-            let mut world = World::new([0, 0], [1, 1]);
-            world.insert(
-                &mut palette,
-                [0, 0],
-                one_section_region("minecraft:oak_slab"),
-            );
-            let id = state_id(&palette, "minecraft:oak_slab");
-            let mut blocks = catalog(&palette);
-            blocks[id].sturdy = sturdy;
-            blocks[id].fluid = Some(water(8));
+            const SLAB: u16 = 1;
+            let world = one_section_world(|_, _, _| SLAB);
+            let mut blocks = catalog();
+            blocks[SLAB as usize].sturdy = sturdy;
+            blocks[SLAB as usize].fluid = Some(water(8));
 
             let mut scratch = Scratch::new();
-            mesh_world(&world, &blocks, &mut scratch)
+            mesh_world(&world, &blocks, &[[0, 0, 0]], &mut scratch)
                 .simple
                 .iter()
                 .filter(|quad| QUAD_FACE.read(*quad) == Dir::Up as u64)
@@ -586,28 +571,17 @@ mod tests {
 
     #[test]
     fn water_against_glass_takes_the_overlay_texture() {
-        const WATER: usize = 0;
-        const GLASS: usize = 1;
-        let mut palette = Palette::new();
-        let mut world = World::new([0, 0], [1, 1]);
-        world.insert(
-            &mut palette,
-            [0, 0],
-            crate::anvil::one_section_region_of(
-                &["minecraft:water", "minecraft:glass"],
-                |x, _, _| if x < 8 { WATER } else { GLASS },
-            ),
-        );
+        let world = one_section_world(|x, _, _| if x < 8 { WATER } else { GLASS });
 
         let sprite = |layer: u16| SpriteRef { array: 0, layer };
-        let mut blocks = catalog(&palette);
-        blocks[state_id(&palette, "minecraft:water")].fluid = Some(Fluid {
+        let mut blocks = catalog();
+        blocks[WATER as usize].fluid = Some(Fluid {
             still: sprite(2),
             flow: sprite(3),
             overlay: Some(sprite(4)),
             ..water(8)
         });
-        blocks[state_id(&palette, "minecraft:glass")].cube = Some(
+        blocks[GLASS as usize].cube = Some(
             [CubeFace {
                 sprite: sprite(1),
                 pass: Pass::Translucent as u8,
@@ -617,7 +591,7 @@ mod tests {
 
         let mut scratch = Scratch::new();
         let mut sprites = [0usize; 5];
-        for attr in &mesh_world(&world, &blocks, &mut scratch).faces {
+        for attr in &mesh_world(&world, &blocks, &[[0, 0, 0]], &mut scratch).faces {
             sprites[FACE_LAYER.get(*attr as u64) as usize] += 1;
         }
 

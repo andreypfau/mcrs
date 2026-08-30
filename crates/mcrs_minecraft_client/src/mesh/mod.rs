@@ -5,7 +5,7 @@ mod model;
 mod scratch;
 mod sweep;
 
-use crate::anvil::{SECTION_SIZE, World};
+use mcrs_minecraft_network::columns::{ColumnStore, SECTION_SIZE};
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::QUAD_WORDS;
 
@@ -56,7 +56,7 @@ pub struct Draw {
 }
 
 pub struct SectionMesh {
-    pub section: [usize; 3],
+    pub section: [i32; 3],
     pub simple: Vec<[u32; QUAD_WORDS]>,
     pub faces: Vec<u32>,
     pub complex: Vec<u32>,
@@ -129,21 +129,13 @@ impl Sink<'_> {
 }
 
 pub fn mesh_section(
-    world: &World,
+    world: &ColumnStore,
     catalog: &[BlockInfo],
-    [sx, sy, sz]: [usize; 3],
+    section: [i32; 3],
     slot: u32,
     scratch: &mut Scratch,
 ) -> SectionMesh {
-    scratch.load(
-        world,
-        catalog,
-        [
-            (sx * SECTION_SIZE) as i32,
-            (sy as i32 + world.min_section[1]) * SECTION_SIZE as i32,
-            (sz * SECTION_SIZE) as i32,
-        ],
-    );
+    scratch.load(world, catalog, section.map(|n| n * SECTION_SIZE as i32));
 
     let mut partial = Partial {
         simple: Vec::new(),
@@ -184,7 +176,7 @@ pub fn mesh_section(
     }
 
     SectionMesh {
-        section: [sx, sy, sz],
+        section,
         simple: partial.simple,
         faces: std::mem::take(&mut scratch.section_faces),
         complex: partial.complex,
@@ -192,6 +184,38 @@ pub fn mesh_section(
         spans,
         connectivity: connectivity::connectivity(&mut scratch.occludes),
     }
+}
+
+/// One unlit section at the world origin, with every block chosen by `pick`.
+#[cfg(test)]
+pub fn one_section_world(pick: impl Fn(usize, usize, usize) -> u16) -> ColumnStore {
+    use mcrs_minecraft_network::columns::{Column, Extent, SECTION_VOLUME, Section};
+    use mcrs_voxel_math::ColumnPos;
+
+    let mut blocks = Box::new([0u16; SECTION_VOLUME]);
+    for y in 0..SECTION_SIZE {
+        for z in 0..SECTION_SIZE {
+            for x in 0..SECTION_SIZE {
+                blocks[(y * SECTION_SIZE + z) * SECTION_SIZE + x] = pick(x, y, z);
+            }
+        }
+    }
+    let mut store = ColumnStore::default();
+    store.enter(Extent {
+        min_section_y: 0,
+        sections: 1,
+    });
+    store.insert(
+        ColumnPos::new(0, 0),
+        Column::unlit(
+            0,
+            vec![Some(Section {
+                blocks,
+                biomes: Box::new([0; 64]),
+            })],
+        ),
+    );
+    store
 }
 
 #[cfg(test)]
@@ -210,9 +234,14 @@ impl Batch {
     }
 }
 
-/// Every section of a world, meshed into one batch, with a table slot handed out in walk order.
+/// The named sections, meshed into one batch, with a table slot handed out in walk order.
 #[cfg(test)]
-pub fn mesh_world(world: &World, catalog: &[BlockInfo], scratch: &mut Scratch) -> Batch {
+pub fn mesh_world(
+    world: &ColumnStore,
+    catalog: &[BlockInfo],
+    sections: &[[i32; 3]],
+    scratch: &mut Scratch,
+) -> Batch {
     let mut batch = Batch {
         simple: Vec::new(),
         faces: Vec::new(),
@@ -220,21 +249,14 @@ pub fn mesh_world(world: &World, catalog: &[BlockInfo], scratch: &mut Scratch) -
         quad_section: Vec::new(),
         complex: Vec::new(),
     };
-    for sz in 0..world.sections[2] {
-        for sx in 0..world.sections[0] {
-            for sy in 0..world.sections[1] {
-                if world.section(sx, sy, sz).is_none() {
-                    continue;
-                }
-                let slot = batch.face_base.len() as u32;
-                let mesh = mesh_section(world, catalog, [sx, sy, sz], slot, scratch);
-                batch.simple.extend_from_slice(&mesh.simple);
-                batch.quad_section.resize(batch.simple.len(), slot);
-                batch.complex.extend_from_slice(&mesh.complex);
-                batch.face_base.push(batch.faces.len() as u32);
-                batch.faces.extend_from_slice(&mesh.faces);
-            }
-        }
+    for &section in sections {
+        let slot = batch.face_base.len() as u32;
+        let mesh = mesh_section(world, catalog, section, slot, scratch);
+        batch.simple.extend_from_slice(&mesh.simple);
+        batch.quad_section.resize(batch.simple.len(), slot);
+        batch.complex.extend_from_slice(&mesh.complex);
+        batch.face_base.push(batch.faces.len() as u32);
+        batch.faces.extend_from_slice(&mesh.faces);
     }
     batch
 }
@@ -242,44 +264,26 @@ pub fn mesh_world(world: &World, catalog: &[BlockInfo], scratch: &mut Scratch) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::anvil::{Palette, one_section_region_of};
     use crate::atlas::SpriteRef;
     use crate::blocks::{CubeFace, ModelQuad};
     use bevy::math::Vec3;
 
     #[test]
     fn the_groups_of_a_section_tile_the_quads_of_that_section() {
-        const STONE: usize = 0;
-        const BUSH: usize = 1;
-        let mut palette = Palette::new();
-        let mut world = World::new([0, 0], [1, 1]);
-        world.insert(
-            &mut palette,
-            [0, 0],
-            one_section_region_of(&["minecraft:stone", "minecraft:bush"], |x, _, _| {
-                if x < 8 { STONE } else { BUSH }
-            }),
-        );
-        let id = |name: &str| {
-            palette
-                .states
-                .iter()
-                .position(|state| state.name == name)
-                .expect("the fixture interned it")
-        };
-        let mut catalog: Vec<BlockInfo> = (0..palette.states.len())
-            .map(|_| BlockInfo::default())
-            .collect();
-        let stone = id("minecraft:stone");
-        catalog[stone].cube = Some(
+        const STONE: u16 = 1;
+        const BUSH: u16 = 2;
+        let world = one_section_world(|x, _, _| if x < 8 { STONE } else { BUSH });
+
+        let mut catalog: Vec<BlockInfo> = (0..3).map(|_| BlockInfo::default()).collect();
+        catalog[STONE as usize].cube = Some(
             [CubeFace {
                 sprite: SpriteRef { array: 0, layer: 1 },
                 pass: Pass::Solid as u8,
                 tinted: false,
             }; 6],
         );
-        catalog[stone].occludes = true;
-        catalog[id("minecraft:bush")].quads = vec![ModelQuad {
+        catalog[STONE as usize].occludes = true;
+        catalog[BUSH as usize].quads = vec![ModelQuad {
             positions: [Vec3::ZERO, Vec3::X, Vec3::ONE, Vec3::Y],
             uvs: [[0.0; 2]; 4],
             cull: None,
@@ -291,10 +295,7 @@ mod tests {
         }];
 
         let mut scratch = Scratch::new();
-        let filled = (0..world.sections[1])
-            .find(|sy| world.section(0, *sy, 0).is_some())
-            .expect("the fixture holds one section");
-        let mesh = mesh_section(&world, &catalog, [0, filled, 0], 0, &mut scratch);
+        let mesh = mesh_section(&world, &catalog, [0, 0, 0], 0, &mut scratch);
 
         assert!(
             mesh.spans[0].quad_count > 0 && mesh.spans[3].quad_count > 0,

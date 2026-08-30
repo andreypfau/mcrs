@@ -11,8 +11,14 @@ use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClocks, seed_world_clo
 use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 
+use bevy::camera::visibility::VisibilitySystems;
+use std::sync::Arc;
+
+use crate::render::{
+    Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads, VISIBLE_BYTES,
+};
 use crate::sky_state::SkyEffects;
-use crate::{camera, gui, input, local_player, player, sky, sky_render};
+use crate::{camera, cave, config, gui, input, local_player, player, render, sky, sky_render, stream};
 
 pub const CANVAS: &str = "#mcrs";
 
@@ -71,7 +77,7 @@ fn server() -> Option<mcrs_minecraft_network::client::ServerAddress> {
 }
 
 /// The browser has no environment, so the knobs the native binary reads from
-/// `ANVIL_*` variables are taken from the query string instead: `?time=6000`.
+/// `MCRS_*` variables are taken from the query string instead: `?time=6000`.
 pub fn query(name: &str) -> Option<String> {
     let search = web_sys::window()?.location().search().ok()?;
     let value = web_sys::UrlSearchParams::new_with_str(&search)
@@ -136,6 +142,18 @@ pub fn run() {
         app.insert_resource(sky_render::SkyDrawsOnly(only));
     }
 
+    let (budget, uploads, cave, loader) = terrain();
+    app.add_plugins(TerrainPlugin(budget, uploads))
+        .insert_resource(config::drawn_streams())
+        .insert_resource(config::raster_fraction())
+        .insert_resource(cave)
+        .insert_resource(loader)
+        .add_systems(Update, (stream::advance, cave::toggle, render::toggle_wireframe))
+        .add_systems(
+            PostUpdate,
+            cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
+        );
+
     match server() {
         Some(server) => {
             app.add_plugins(ClientNetworkPlugin {
@@ -148,14 +166,42 @@ pub fn run() {
              The server logs both at startup."
         ),
     }
-    warn!(
-        "chunk columns reach the column store but are not meshed: the renderer's mesh source \
-         still reads region files, which the browser has none of"
-    );
-
     let (yaw, pitch) = look_override().unwrap_or((0.0, 0.0));
     player::spawn_player(app.world_mut(), SPAWN, yaw, pitch);
     app.run();
+}
+
+/// The browser draws the same columns the native client does, from a smaller
+/// arena: a WebGPU context has far less room than a desktop one.
+const ARENA_SCALE: usize = 1;
+
+const GROUPS_BUDGET: usize = 1 << 20;
+
+const SECTIONS_BUDGET: usize = 1 << 14;
+
+const TINT_SPAN: u32 = 512;
+
+fn terrain() -> (Arc<Budget>, Uploads, cave::CaveCull, stream::Loader) {
+    let (quad_mb, model_mb, face_mb) = config::arena_budget();
+    let centre = |axis: f64| (axis as i32).div_euclid(16) * 16 - TINT_SPAN as i32 / 2;
+    let budget = Arc::new(Budget {
+        quads: quad_mb * ARENA_SCALE * 1_000_000 / QUAD_BYTES,
+        models: model_mb * ARENA_SCALE * 1_000_000 / MODEL_BYTES,
+        faces: face_mb * ARENA_SCALE * 1_000_000 / FACE_BYTES,
+        groups: GROUPS_BUDGET,
+        sections: SECTIONS_BUDGET,
+        visible: config::visible_budget() / VISIBLE_BYTES,
+        tint_origin: [centre(SPAWN.x), centre(SPAWN.z)],
+        tint_size: [TINT_SPAN; 2],
+    });
+    let uploads = Uploads::default();
+    let loader = stream::Loader::new(&budget, uploads.clone());
+    (
+        budget.clone(),
+        uploads,
+        cave::CaveCull::new(budget.sections),
+        loader,
+    )
 }
 
 /// `?look=<yaw>,<pitch>` aims the camera in Minecraft degrees.
