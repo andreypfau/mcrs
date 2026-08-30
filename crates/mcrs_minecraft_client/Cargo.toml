@@ -9,7 +9,6 @@ bevy = { version = "0.19.1", default-features = false, features = [
     "std",
     "async_executor",
     "bevy_asset",
-    "file_watcher",
     "bevy_log",
     "bevy_state",
     "bevy_window",
@@ -21,7 +20,6 @@ bevy = { version = "0.19.1", default-features = false, features = [
     "keyboard",
     "mouse",
     "png",
-    "clipboard_image",
     "bevy_text",
     "bevy_ui",
     "bevy_ui_render",
@@ -42,6 +40,22 @@ mcrs_voxel_storage.workspace = true
 mcrs_voxel_world.workspace = true
 # Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.
 wgpu = { version = "29", default-features = false }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+bevy = { version = "0.19.1", default-features = false, features = ["file_watcher", "clipboard_image"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+bevy = { version = "0.19.1", default-features = false, features = ["web", "webgpu"] }
+console_error_panic_hook = "0.1"
+# The rustflag in .cargo/config.toml picks the backend; without the crate
+# feature of the same name getrandom refuses to build at all. Both majors are
+# in the dependency graph.
+getrandom = { version = "0.4", features = ["wasm_js"] }
+getrandom_03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"] }
+
+[build-dependencies]
+flate2.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-metal = { version = "0.3", default-features = false, features = ["std", "MTLCaptureManager", "MTLDevice"] }

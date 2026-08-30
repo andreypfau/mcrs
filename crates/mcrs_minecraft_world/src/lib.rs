@@ -20,6 +20,8 @@ pub mod item;
 pub mod jukebox_song;
 pub mod material;
 pub mod painting_variant;
+// The save on disk is native-only; the browser receives world state over the network.
+#[cfg(not(target_family = "wasm"))]
 pub mod save;
 pub mod sound;
 pub mod test_types;

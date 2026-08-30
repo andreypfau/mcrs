@@ -1,3 +1,5 @@
+#![cfg_attr(target_family = "wasm", allow(dead_code, unused_imports))]
+
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -12,10 +14,10 @@ use bevy::render::settings::WgpuSettings;
 use bevy::transform::TransformSystems;
 use bevy::winit::{UpdateMode, WinitSettings};
 use mcrs_minecraft_core::AppState;
-use mcrs_minecraft_network::client::ClientNetworkPlugin;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::dimension::dimension_type::DimensionType;
 use mcrs_minecraft_world::environment::Weather;
+#[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_world::save::{self, SaveError};
 use mcrs_minecraft_world::timeline::Timeline;
 use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClock, WorldClocks};
@@ -25,10 +27,21 @@ use mcrs_minecraft_client::render::{
     Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads, VISIBLE_BYTES,
 };
 use mcrs_minecraft_client::{
-    anvil, asset_corpus, camera, cave, config, gui, input, local_player, player, render,
-    screenshot, sky, stream,
+    anvil, asset_corpus, camera, cave, config, gui, input, local_player, player, render, sky,
 };
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_client::{screenshot, stream};
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_network::client::ClientNetworkPlugin;
 
+/// No world folder and no save on the browser, so the entry point there is its
+/// own; everything below reads a save off disk.
+#[cfg(target_family = "wasm")]
+fn main() {
+    mcrs_minecraft_client::web::run();
+}
+
+#[cfg(not(target_family = "wasm"))]
 fn main() {
     let world = world_folder();
     let save_data = load_save(&world);
@@ -157,6 +170,7 @@ const GROUPS_PER_FILE: usize = 1 << 19;
 const SECTIONS_PER_FILE: usize = 1 << 14;
 
 /// The region files around the player, until columns arrive from the network.
+#[cfg(not(target_family = "wasm"))]
 fn terrain_source(
     world: &Path,
     dimension: &str,
@@ -239,6 +253,7 @@ fn world_folder() -> PathBuf {
     path
 }
 
+#[cfg(not(target_family = "wasm"))]
 struct SaveData {
     world_clocks: save::WorldClockStates,
     dimension: String,
@@ -249,6 +264,7 @@ struct SaveData {
     pitch: f32,
 }
 
+#[cfg(not(target_family = "wasm"))]
 fn load_save(world: &Path) -> SaveData {
     let level = save::read_level_dat(world).unwrap_or_else(|err| fatal(err));
     let world_clocks = save::read_world_clocks(world).unwrap_or_else(|err| fatal(err));
@@ -285,6 +301,7 @@ fn load_save(world: &Path) -> SaveData {
 
 /// A spawn point is a block position; the player stands at its centre in X and
 /// Z, and Y is the block's own floor.
+#[cfg(not(target_family = "wasm"))]
 fn spawn_fallback(spawn: &save::RespawnData) -> (DVec3, f32, f32, String) {
     (
         DVec3::new(
@@ -325,6 +342,7 @@ fn frozen_time() -> Option<i64> {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 fn fatal(err: SaveError) -> ! {
     eprintln!("{err}");
     std::process::exit(1);

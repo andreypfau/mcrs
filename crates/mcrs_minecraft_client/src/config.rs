@@ -39,8 +39,8 @@ fn from_environment(name: &str) -> Option<String> {
 }
 
 #[cfg(target_family = "wasm")]
-fn from_environment(_name: &str) -> Option<String> {
-    None
+fn from_environment(name: &str) -> Option<String> {
+    crate::web::query(&name.to_ascii_lowercase())
 }
 
 fn numbers<T: std::str::FromStr>(spec: &str) -> Vec<T> {

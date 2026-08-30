@@ -29,6 +29,8 @@ pub mod sky_render;
 pub mod sky_state;
 #[cfg(not(target_family = "wasm"))]
 pub mod stream;
+#[cfg(target_family = "wasm")]
+pub mod web;
 
 pub fn asset_corpus() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
