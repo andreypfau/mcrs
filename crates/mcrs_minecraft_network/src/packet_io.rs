@@ -1,20 +1,51 @@
-use crate::{EngineConnection, ReceivedPacket};
+use crate::{EngineConnection, Instant, ReceivedPacket};
 use bytes::{Bytes, BytesMut};
 use log::{error, warn};
-use mcrs_minecraft_protocol::{Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket};
+use mcrs_minecraft_protocol::{
+    CompressionThreshold, Decode, Encode, Packet, PacketDecoder, PacketEncoder, WritePacket,
+};
 use std::io;
 use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
-use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
-use tokio::task::JoinHandle;
 
-pub(crate) struct PacketIo {
-    stream: tokio::net::TcpStream,
+/// `Send` everywhere but the browser, where a WebTransport stream is a JS
+/// object bound to the single thread that made it.
+#[cfg(not(target_family = "wasm"))]
+pub trait MaybeSend: Send {}
+#[cfg(not(target_family = "wasm"))]
+impl<T: Send> MaybeSend for T {}
+#[cfg(target_family = "wasm")]
+pub trait MaybeSend {}
+#[cfg(target_family = "wasm")]
+impl<T> MaybeSend for T {}
+
+/// A duplex byte stream that can be torn into independently owned halves, so
+/// the reader and writer loops need no shared lock. TCP, a native WebTransport
+/// bidirectional stream and the browser's own are the implementations.
+pub trait ByteStream: AsyncRead + AsyncWrite + Unpin + MaybeSend + 'static {
+    type Reader: AsyncRead + Unpin + MaybeSend + 'static;
+    type Writer: AsyncWrite + Unpin + MaybeSend + 'static;
+
+    fn split_stream(self) -> (Self::Reader, Self::Writer);
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl ByteStream for tokio::net::TcpStream {
+    type Reader = tokio::net::tcp::OwnedReadHalf;
+    type Writer = tokio::net::tcp::OwnedWriteHalf;
+
+    fn split_stream(self) -> (Self::Reader, Self::Writer) {
+        self.into_split()
+    }
+}
+
+pub struct PacketIo<S> {
+    stream: S,
     enc: PacketEncoder,
     dec: PacketDecoder,
     buf: BytesMut,
@@ -25,8 +56,17 @@ const READ_BUF_SIZE: usize = 4096;
 pub(crate) const OUTBOUND_CHANNEL_CAPACITY: usize = 4;
 pub const MAX_QUEUED_BYTES_PER_SOCKET: usize = 4 * 1024 * 1024;
 
-impl PacketIo {
-    pub(crate) fn new(stream: tokio::net::TcpStream) -> Self {
+#[cfg(not(target_family = "wasm"))]
+impl PacketIo<tokio::net::TcpStream> {
+    pub async fn connect(server: SocketAddr) -> io::Result<Self> {
+        let stream = tokio::net::TcpStream::connect(server).await?;
+        stream.set_nodelay(true)?;
+        Ok(Self::new(stream))
+    }
+}
+
+impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
+    pub fn new(stream: S) -> Self {
         Self {
             stream,
             enc: PacketEncoder::new(),
@@ -35,7 +75,30 @@ impl PacketIo {
         }
     }
 
-    pub(crate) async fn send_packet<P>(&mut self, pkt: &P) -> anyhow::Result<()>
+    pub fn set_compression(&mut self, threshold: CompressionThreshold) {
+        self.enc.set_compression(threshold);
+        self.dec.set_compression(threshold);
+    }
+
+    /// The un-typed counterpart to [`PacketIo::recv_packet`], for a phase whose
+    /// next packet is not known in advance. The body is owned, so the caller
+    /// can decode it and keep using `self` in the same expression.
+    pub async fn recv_frame(&mut self) -> anyhow::Result<(i32, Bytes)> {
+        loop {
+            if let Some(frame) = self.dec.try_next_packet()? {
+                return Ok((frame.id, frame.body.freeze()));
+            }
+
+            self.dec.reserve(READ_BUF_SIZE);
+            let mut buf = self.dec.take_capacity();
+            if self.stream.read_buf(&mut buf).await? == 0 {
+                return Err(io::Error::from(ErrorKind::UnexpectedEof).into());
+            }
+            self.dec.queue_bytes(buf);
+        }
+    }
+
+    pub async fn send_packet<P>(&mut self, pkt: &P) -> anyhow::Result<()>
     where
         P: Packet + Encode,
     {
@@ -45,7 +108,7 @@ impl PacketIo {
         Ok(())
     }
 
-    pub(crate) async fn recv_packet<'a, P>(&'a mut self) -> anyhow::Result<P>
+    pub async fn recv_packet<'a, P>(&'a mut self) -> anyhow::Result<P>
     where
         P: Packet + Decode<'a>,
     {
@@ -70,25 +133,33 @@ impl PacketIo {
         }
     }
 
-    pub(crate) fn into_raw_connection(self, remote_addr: SocketAddr) -> RawConnection {
+    pub fn into_raw_connection(self, remote_addr: SocketAddr) -> RawConnection
+    where
+        S: ByteStream,
+    {
         let (incoming_sender, incoming_receiver) = mpsc::channel(256);
         let (outgoing_sender, outgoing_receiver) =
             mpsc::channel::<Bytes>(OUTBOUND_CHANNEL_CAPACITY);
         let disconnect_flag = Arc::new(AtomicBool::new(false));
 
-        let (reader, writer) = self.stream.into_split();
+        let (reader, writer) = self.stream.split_stream();
+        let reader = reader_loop(reader, self.dec, incoming_sender);
+        let writer = writer_loop(outgoing_receiver, writer, disconnect_flag.clone());
 
-        let reader_task = tokio::spawn(reader_loop(reader, self.dec, incoming_sender));
-        let writer_task = tokio::spawn(writer_loop(
-            outgoing_receiver,
-            writer,
-            disconnect_flag.clone(),
-        ));
+        #[cfg(not(target_family = "wasm"))]
+        let (reader_task, writer_task) = (tokio::spawn(reader), tokio::spawn(writer));
+        #[cfg(target_family = "wasm")]
+        {
+            wasm_bindgen_futures::spawn_local(reader);
+            wasm_bindgen_futures::spawn_local(writer);
+        }
 
         RawConnection {
             outgoing: outgoing_sender,
             recv: incoming_receiver,
+            #[cfg(not(target_family = "wasm"))]
             reader_task,
+            #[cfg(not(target_family = "wasm"))]
             writer_task,
             enc: self.enc,
             remote_addr,
@@ -97,8 +168,8 @@ impl PacketIo {
     }
 }
 
-async fn reader_loop(
-    mut reader: tokio::net::tcp::OwnedReadHalf,
+async fn reader_loop<R: AsyncRead + Unpin>(
+    mut reader: R,
     mut dec: PacketDecoder,
     incoming_sender: mpsc::Sender<ReceivedPacket>,
 ) {
@@ -143,12 +214,12 @@ async fn reader_loop(
     }
 }
 
-async fn writer_loop(
+async fn writer_loop<W: AsyncWrite + Unpin>(
     mut rx: mpsc::Receiver<Bytes>,
-    tcp: tokio::net::tcp::OwnedWriteHalf,
+    sink: W,
     disconnect_flag: Arc<AtomicBool>,
 ) {
-    let mut writer = BufWriter::with_capacity(64 * 1024, tcp);
+    let mut writer = BufWriter::with_capacity(64 * 1024, sink);
     while let Some(bytes) = rx.recv().await {
         if writer.write_all(&bytes).await.is_err() {
             disconnect_flag.store(true, Ordering::Relaxed);
@@ -165,15 +236,20 @@ async fn writer_loop(
 pub struct RawConnection {
     outgoing: mpsc::Sender<Bytes>,
     recv: mpsc::Receiver<ReceivedPacket>,
-    reader_task: JoinHandle<()>,
+    // A browser task cannot be aborted, so there it ends when its next read
+    // resolves and the incoming channel is found closed.
+    #[cfg(not(target_family = "wasm"))]
+    reader_task: tokio::task::JoinHandle<()>,
     // Held to keep the writer task alive; dropped implicitly when RawConnection is dropped.
+    #[cfg(not(target_family = "wasm"))]
     #[allow(dead_code)]
-    writer_task: JoinHandle<()>,
+    writer_task: tokio::task::JoinHandle<()>,
     pub enc: PacketEncoder,
     pub remote_addr: SocketAddr,
     disconnect_flag: Arc<AtomicBool>,
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl Drop for RawConnection {
     fn drop(&mut self) {
         self.reader_task.abort();
@@ -188,6 +264,7 @@ impl RawConnection {
     /// for; every blob passed to `try_send_blob` lands there. The dummy
     /// reader/writer tasks park immediately and are never scheduled. No TCP
     /// socket is created.
+    #[cfg(not(target_family = "wasm"))]
     pub fn new_for_test(outgoing: mpsc::Sender<Bytes>) -> Self {
         let (inbound_tx, inbound_rx) = mpsc::channel::<ReceivedPacket>(32);
         let reader_task = tokio::spawn(async move {
@@ -216,6 +293,7 @@ impl RawConnection {
     /// the inbound channel (for bridge_inbound tests).
     ///
     /// Returns `(RawConnection, outgoing_rx, inbound_tx)`.
+    #[cfg(not(target_family = "wasm"))]
     pub fn new_for_test_full(
         outgoing_capacity: usize,
     ) -> (Self, mpsc::Receiver<Bytes>, mpsc::Sender<ReceivedPacket>) {

@@ -20,6 +20,8 @@ pub mod item;
 pub mod jukebox_song;
 pub mod material;
 pub mod painting_variant;
+// The save on disk is native-only; the browser receives world state over the network.
+#[cfg(not(target_family = "wasm"))]
 pub mod save;
 pub mod sound;
 pub mod test_types;
@@ -683,19 +685,22 @@ fn request_data_pack_assets(
     );
 }
 
-/// Request every block tag file the packs ship, not a list written in Rust.
-/// A pack that adds `tags/block/<name>.json` is picked up without a code
-/// change, and a tag no Rust constant names still reaches the client.
-#[allow(clippy::needless_pass_by_value)]
-fn request_every_block_tag(
-    mut loader: ResMut<TagLoader<block::Block, u32>>,
-    asset_server: Res<AssetServer>,
-) {
+/// Every tag file the mounted packs ship for one registry, as
+/// `(tag location, asset path)`, discovered by walking each namespace's
+/// `<namespace>/tags/<registry_path>` tree through the active `AssetSource`.
+///
+/// A pack that adds a tag file is picked up without a code change, and a tag
+/// no Rust constant names is still reachable.
+pub fn list_tag_files(
+    asset_server: &AssetServer,
+    registry_path: &str,
+) -> Vec<(ResourceLocation<std::sync::Arc<str>>, String)> {
     let Ok(source) = asset_server.get_source(AssetSourceId::Default) else {
-        return;
+        tracing::warn!(registry_path, "default AssetSource missing");
+        return Vec::new();
     };
     let reader = source.reader();
-    let mut requested = 0usize;
+    let mut found = Vec::new();
 
     bevy_tasks::block_on(async {
         let Ok(mut namespaces) = reader.read_directory(std::path::Path::new("")).await else {
@@ -703,7 +708,7 @@ fn request_every_block_tag(
         };
         let mut roots = Vec::new();
         while let Some(namespace) = namespaces.next().await {
-            roots.push(namespace.join("tags").join(block::Block::REGISTRY_PATH));
+            roots.push(namespace.join("tags").join(registry_path));
         }
         for root in roots {
             let mut stack = vec![root.clone()];
@@ -719,17 +724,33 @@ fn request_every_block_tag(
                     let Some(location) = tag_location(&root, &path) else {
                         continue;
                     };
-                    loader.request(
-                        &TagKey::<block::Block, _>::from_location(location),
-                        &asset_server,
-                    );
-                    requested += 1;
+                    let Some(asset_path) = path.to_str() else {
+                        continue;
+                    };
+                    found.push((location, asset_path.to_owned()));
                 }
             }
         }
     });
 
-    tracing::info!(count = requested, "requested every shipped block tag");
+    found.sort_by(|a, b| a.1.cmp(&b.1));
+    found
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn request_every_block_tag(
+    mut loader: ResMut<TagLoader<block::Block, u32>>,
+    asset_server: Res<AssetServer>,
+) {
+    let files = list_tag_files(&asset_server, block::Block::REGISTRY_PATH);
+    let count = files.len();
+    for (location, _) in files {
+        loader.request(
+            &TagKey::<block::Block, _>::from_location(location),
+            &asset_server,
+        );
+    }
+    tracing::info!(count, "requested every shipped block tag");
 }
 
 /// `minecraft/tags/block/mineable/pickaxe.json` under the root

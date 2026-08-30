@@ -1,10 +1,11 @@
 use std::path::Path;
 
 use bevy_asset::io::AssetSourceId;
-use bevy_asset::{AssetServer, io::Reader};
+use bevy_asset::AssetServer;
 use bevy_tasks::block_on;
 
 use super::data::{EnchantmentData, ProtoEnchantmentData};
+use mcrs_minecraft_core::asset::read_whole;
 use mcrs_minecraft_core::{ResourceLocation, StaticRegistry};
 
 /// The 43 vanilla enchantments in Java bootstrap (protocol) order.
@@ -65,17 +66,8 @@ pub fn register_all_enchantments(
     for &name in VANILLA_ENCHANTMENTS {
         let loc = ResourceLocation::parse(name).expect("invalid enchantment RL");
         let path = format!("{}/enchantment/{}.json", loc.namespace(), loc.path());
-        let bytes = block_on(async {
-            let mut file = reader
-                .read(Path::new(&path))
-                .await
-                .unwrap_or_else(|e| panic!("failed to read enchantment file {path}: {e}"));
-            let mut bytes = Vec::new();
-            file.read_to_end(&mut bytes)
-                .await
-                .unwrap_or_else(|e| panic!("failed to read enchantment file {path}: {e}"));
-            bytes
-        });
+        let bytes = block_on(read_whole(reader, Path::new(&path)))
+            .unwrap_or_else(|e| panic!("failed to read enchantment file {path}: {e}"));
         let proto: ProtoEnchantmentData = serde_json::from_slice(&bytes)
             .unwrap_or_else(|e| panic!("failed to parse enchantment JSON {path}: {e}"));
         let data = proto

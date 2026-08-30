@@ -8,6 +8,9 @@ struct Sky {
     fog: vec4<f32>,
     cloud_color: vec4<f32>,
     cloud: vec4<f32>,
+    sky_light: vec4<f32>,
+    block_light: vec4<f32>,
+    ambient: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> view: View;
@@ -15,7 +18,7 @@ struct Sky {
 
 @group(1) @binding(0) var celestials: texture_2d_array<f32>;
 @group(1) @binding(1) var celestial_sampler: sampler;
-@group(1) @binding(2) var clouds: texture_2d_array<f32>;
+@group(1) @binding(2) var clouds: texture_2d<f32>;
 
 const PI: f32 = 3.14159265359;
 
@@ -267,7 +270,7 @@ fn vertex_clouds(@builtin(vertex_index) index: u32) -> CloudVertex {
 }
 
 fn cloud_cell(cell: vec2<i32>, size: vec2<i32>) -> vec4<f32> {
-    return textureLoad(clouds, cell & (size - vec2<i32>(1)), 0, 0);
+    return textureLoad(clouds, cell & (size - vec2<i32>(1)), 0);
 }
 
 @fragment

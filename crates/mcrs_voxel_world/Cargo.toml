@@ -11,6 +11,7 @@ doctest = false
 mcrs_voxel_math.workspace = true
 mcrs_voxel_storage.workspace = true
 bevy_ecs.workspace = true
+bevy_platform.workspace = true
 bevy_ecs_macros.workspace = true
 bevy_derive.workspace = true
 bevy_app.workspace = true

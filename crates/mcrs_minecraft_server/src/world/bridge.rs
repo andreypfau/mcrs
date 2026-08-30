@@ -31,10 +31,10 @@ use mcrs_minecraft_protocol::packets::game::clientbound::{
     ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
     ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundLogin,
     ClientboundPlayerInfoUpdate, ClientboundPlayerPosition, ClientboundRemoveEntities,
-    ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket,
+    ClientboundSetChunkCacheCenter, ClientboundSystemChatPacket, PositionPath,
 };
 use mcrs_minecraft_protocol::profile::{PlayerListActions, PlayerListEntry};
-use mcrs_minecraft_protocol::{ByteAngle, GameEventKind, Look, PositionFlag, Text, VarInt};
+use mcrs_minecraft_protocol::{ByteAngle, GameEventKind, Look, LpVec3, PositionFlag, Text, VarInt};
 use tracing::{debug, trace, warn};
 
 use crate::world::bridge_queue::{
@@ -307,7 +307,7 @@ pub fn dispatch_encode(
                     PacketPayload::EntityPosSync {
                         entity_id,
                         position,
-                        velocity,
+                        velocity: _,
                         look,
                         on_ground,
                     } => {
@@ -320,8 +320,7 @@ pub fn dispatch_encode(
                         conn.raw
                             .append(&ClientboundEntityPositionSync {
                                 entity_id: VarInt(entity_id),
-                                position,
-                                velocity,
+                                position: PositionPath::Linear(position),
                                 look,
                                 on_ground,
                             })
@@ -376,7 +375,7 @@ pub fn dispatch_encode(
                                 uuid,
                                 kind: VarInt(kind),
                                 pos: position,
-                                velocity: VarInt(0),
+                                movement: LpVec3(DVec3::ZERO),
                                 yaw: ByteAngle::from_degrees(yaw),
                                 pitch: ByteAngle::from_degrees(pitch),
                                 head_yaw: ByteAngle::from_degrees(yaw),
@@ -465,6 +464,7 @@ pub fn dispatch_encode(
                                     game_mode,
                                     ..Default::default()
                                 },
+                                online_mode: false,
                                 enforces_secure_chat,
                             })
                             .ok();

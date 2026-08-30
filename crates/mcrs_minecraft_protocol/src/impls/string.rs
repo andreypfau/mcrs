@@ -1,13 +1,13 @@
 use std::io::{Cursor, Write};
 
-use crate::text::{Text, TextContent};
-use crate::{Bounded, Decode, Encode, RawBytes, VarInt};
-use anyhow::ensure;
+use crate::text::{Text, TextContent, TextInner};
+use crate::{Bounded, Decode, Encode, VarInt};
+use anyhow::{Context, ensure};
 use byteorder::WriteBytesExt;
 use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::serializer::WriteAdaptor;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_nbt::{STRING_ID, from_bytes_unnamed, to_bytes_unnamed};
+use mcrs_minecraft_nbt::{COMPOUND_ID, STRING_ID, from_bytes_unnamed, to_bytes_unnamed};
 
 const DEFAULT_MAX_STRING_CHARS: usize = 32767;
 
@@ -125,17 +125,17 @@ impl Encode for Text {
 
 impl Decode<'_> for Text {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let data = RawBytes::decode(r)?;
-        let b = data.0[0];
-        if b == STRING_ID {
-            let s = NbtTag::deserialize(&mut NbtReadHelper::new(&mut Cursor::new(&data.0)))?;
-            if let NbtTag::String(s) = s {
-                Ok(Self::text(s))
-            } else {
-                anyhow::bail!("expected NBT String tag for Text deserialization, got {s:?}");
-            }
-        } else {
-            Ok(from_bytes_unnamed(&mut Cursor::new(&data.0))?)
-        }
+        let tag = *r.first().context("empty input for Text")?;
+        let mut cursor = Cursor::new(*r);
+        let text = match tag {
+            STRING_ID => match NbtTag::deserialize(&mut NbtReadHelper::new(&mut cursor))? {
+                NbtTag::String(s) => Self::text(s),
+                other => anyhow::bail!("expected an NBT string tag for Text, got {other:?}"),
+            },
+            COMPOUND_ID => Self::from(from_bytes_unnamed::<TextInner>(&mut cursor)?),
+            other => anyhow::bail!("expected an NBT string or compound tag for Text, got {other}"),
+        };
+        *r = &r[cursor.position() as usize..];
+        Ok(text)
     }
 }

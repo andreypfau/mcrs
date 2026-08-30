@@ -380,3 +380,29 @@ fn every_state_is_reachable_one_property_at_a_time() {
         );
     }
 }
+
+/// The read-ahead pipe under the asset reader has reported EOF with a whole
+/// file still buffered, so a corpus file came back as zero bytes whenever
+/// several readers swept the directory at once.
+#[test]
+fn the_whole_corpus_arrives_at_every_reader_that_asks_at_once() {
+    let mut app = App::new();
+    app.add_plugins(TaskPoolPlugin::default());
+    app.add_plugins(AssetPlugin {
+        watch_for_changes_override: Some(false),
+        ..Default::default()
+    });
+    let asset_server = app.world().resource::<AssetServer>().clone();
+    let (_, expected) = corpus();
+
+    std::thread::scope(|scope| {
+        for _ in 0..16 {
+            let asset_server = asset_server.clone();
+            scope.spawn(move || {
+                let (_, report) = load_block_definitions(&asset_server).expect("the corpus loads");
+                assert_eq!(report.files, expected.files);
+                assert_eq!(report.states, expected.states);
+            });
+        }
+    });
+}

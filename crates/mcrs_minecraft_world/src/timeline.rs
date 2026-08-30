@@ -9,6 +9,7 @@ use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use mcrs_minecraft_core::asset::read_all;
 use mcrs_minecraft_core::tag::key::TaggedRegistry;
 
 use crate::ResourceLocation;
@@ -354,8 +355,7 @@ impl AssetLoader for TimelineLoader {
         _settings: &(),
         _load_context: &mut LoadContext<'_>,
     ) -> Result<Timeline, TimelineLoaderError> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         Ok(serde_json::from_slice(&bytes)?)
     }
 
@@ -1121,8 +1121,8 @@ mod tests {
             .collect()
     }
 
-    /// The wrap-and-lerp of `examples/anvil_region_viewer/daylight.rs::track`,
-    /// in float space, as an oracle independent of the baked segment list.
+    /// The wrap-and-lerp of the hand-extracted reference tracks, in float space,
+    /// as an oracle independent of the baked segment list.
     fn daylight_track(keys: &[(f32, [f32; 4])], ticks: f32) -> [f32; 4] {
         let mut at = ticks.rem_euclid(DAY);
         if at < keys[0].0 {
@@ -1238,7 +1238,7 @@ mod tests {
 
     #[test]
     fn the_daylight_tables_are_the_day_json_tracks() {
-        // hand-extracted in examples/anvil_region_viewer/daylight.rs
+        // hand-extracted from `timeline/day.json`
         const SKY_LIGHT_FACTOR: [(f32, f32); 4] = [
             (730.0, 1.0),
             (11270.0, 1.0),

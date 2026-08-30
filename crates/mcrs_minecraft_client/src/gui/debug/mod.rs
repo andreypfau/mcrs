@@ -9,9 +9,12 @@ use crate::gui::debug_screen_overlay;
 pub mod displayer;
 pub mod entry_day_count;
 pub mod entry_fps;
+pub mod entry_network;
 pub mod entry_position;
 pub mod entry_section_position;
 pub mod entry_system_specs;
+#[cfg(not(target_family = "wasm"))]
+pub mod entry_terrain;
 pub mod entry_version;
 
 pub use displayer::DebugScreenDisplayer;
@@ -117,11 +120,13 @@ impl DebugScreenEntries {
     pub const DAY_COUNT: DebugEntryId = ResourceLocation::new_static("minecraft:day_count");
     pub const FPS: DebugEntryId = ResourceLocation::new_static("minecraft:fps");
     pub const GAME_VERSION: DebugEntryId = ResourceLocation::new_static("minecraft:game_version");
+    pub const NETWORK: DebugEntryId = ResourceLocation::new_static("mcrs:network");
     pub const PLAYER_POSITION: DebugEntryId =
         ResourceLocation::new_static("minecraft:player_position");
     pub const PLAYER_SECTION_POSITION: DebugEntryId =
         ResourceLocation::new_static("minecraft:player_section_position");
     pub const SYSTEM_SPECS: DebugEntryId = ResourceLocation::new_static("minecraft:system_specs");
+    pub const TERRAIN: DebugEntryId = ResourceLocation::new_static("minecraft:terrain");
 
     /// Registration order is identifier order, and the status each entry starts
     /// on is the one the `default` profile gives it.
@@ -142,6 +147,11 @@ impl DebugScreenEntries {
             entry_version::display,
         )
         .add_debug_screen_entry(
+            Self::NETWORK,
+            DebugScreenEntryStatus::InOverlay,
+            entry_network::display,
+        )
+        .add_debug_screen_entry(
             Self::PLAYER_POSITION,
             DebugScreenEntryStatus::InOverlay,
             entry_position::display,
@@ -155,6 +165,13 @@ impl DebugScreenEntries {
             Self::SYSTEM_SPECS,
             DebugScreenEntryStatus::InOverlay,
             entry_system_specs::display,
+        );
+
+        #[cfg(not(target_family = "wasm"))]
+        app.add_debug_screen_entry(
+            Self::TERRAIN,
+            DebugScreenEntryStatus::InOverlay,
+            entry_terrain::display.run_if(resource_exists::<crate::stream::Loader>),
         );
     }
 }

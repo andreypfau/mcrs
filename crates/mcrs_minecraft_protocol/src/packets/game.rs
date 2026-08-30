@@ -6,10 +6,11 @@ pub mod clientbound {
     use crate::packets::common::clientbound::KeepAlive;
     use crate::profile::{PlayerListActions, PlayerListEntry};
     use crate::text::Text;
-    use crate::{ColumnPos, Look, PositionFlag, Slot, VarInt};
+    use crate::{ColumnPos, Look, LpVec3, PositionFlag, Slot, VarInt};
     use bevy_math::DVec3;
     use mcrs_minecraft_core::ResourceLocation;
     use mcrs_minecraft_protocol::{BlockStateId, ByteAngle};
+    use crate::{Decode as _, Encode as _};
     use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
     use mcrs_voxel_math::BlockPos;
     use mcrs_voxel_math::ChunkPos;
@@ -24,7 +25,7 @@ pub mod clientbound {
         pub uuid: Uuid,
         pub kind: VarInt,
         pub pos: DVec3,
-        pub velocity: VarInt,
+        pub movement: LpVec3,
         pub yaw: ByteAngle,
         pub pitch: ByteAngle,
         pub head_yaw: ByteAngle,
@@ -68,12 +69,23 @@ pub mod clientbound {
         pub entity_status: i8,
     }
 
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub struct PositionStep {
+        pub position: DVec3,
+        pub tick_offset: VarInt,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+    pub enum PositionPath {
+        Linear(DVec3),
+        Stepped(Vec<PositionStep>),
+    }
+
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x23, state=Game)]
     pub struct ClientboundEntityPositionSync {
         pub entity_id: VarInt,
-        pub position: DVec3,
-        pub velocity: DVec3,
+        pub position: PositionPath,
         pub look: Look,
         pub on_ground: bool,
     }
@@ -124,25 +136,138 @@ pub mod clientbound {
         pub show_death_screen: bool,
         pub do_limited_crafting: bool,
         pub player_spawn_info: PlayerSpawnInfo<'a>,
+        pub online_mode: bool,
         pub enforces_secure_chat: bool,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
+    pub struct DeltaStep {
+        pub ticks: VarInt,
+        pub delta: [i16; 3],
+    }
+
+    /// A position delta whose step count is not self-describing: it is packed
+    /// into the enclosing packet's properties field alongside the on-ground bit.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum VecDelta {
+        Linear([i16; 3]),
+        Stepped(Vec<DeltaStep>),
+    }
+
+    impl Default for VecDelta {
+        fn default() -> Self {
+            Self::Linear([0; 3])
+        }
+    }
+
+    impl VecDelta {
+        const MIN_ENCODED_STEP_LEN: usize = 7;
+
+        pub fn step_count(&self) -> i32 {
+            match self {
+                Self::Linear(_) => 0,
+                Self::Stepped(steps) => steps.len() as i32,
+            }
+        }
+
+        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+            match self {
+                Self::Linear(delta) => delta.encode(w),
+                Self::Stepped(steps) => {
+                    for step in steps {
+                        step.encode(&mut w)?;
+                    }
+                    Ok(())
+                }
+            }
+        }
+
+        fn decode(r: &mut &[u8], step_count: i32) -> anyhow::Result<Self> {
+            if step_count <= 0 {
+                return Ok(Self::Linear(crate::Decode::decode(r)?));
+            }
+            let step_count = step_count as usize;
+            anyhow::ensure!(
+                step_count <= r.len() / Self::MIN_ENCODED_STEP_LEN,
+                "VecDelta with {step_count} steps exceeds the remaining input"
+            );
+            let mut steps = Vec::with_capacity(step_count);
+            for _ in 0..step_count {
+                steps.push(DeltaStep::decode(r)?);
+            }
+            Ok(Self::Stepped(steps))
+        }
+    }
+
+    fn pack_move_properties(on_ground: bool, step_count: i32) -> VarInt {
+        VarInt(i32::from(on_ground) | step_count << 1)
+    }
+
+    fn unpack_move_properties(properties: VarInt) -> (bool, i32) {
+        (properties.0 & 1 != 0, (properties.0 as u32 >> 1) as i32)
+    }
+
+    #[derive(Clone, Debug, Packet)]
     #[packet(id=0x35, state=Game)]
     pub struct ClientboundMoveEntityPos {
         pub entity_id: VarInt,
-        pub delta: [i16; 3],
+        pub delta: VecDelta,
         pub on_ground: bool,
     }
 
-    #[derive(Clone, Debug, Encode, Decode, Packet)]
+    impl crate::Encode for ClientboundMoveEntityPos {
+        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+            self.entity_id.encode(&mut w)?;
+            pack_move_properties(self.on_ground, self.delta.step_count()).encode(&mut w)?;
+            self.delta.encode(w)
+        }
+    }
+
+    impl crate::Decode<'_> for ClientboundMoveEntityPos {
+        fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+            let entity_id = VarInt::decode(r)?;
+            let (on_ground, step_count) = unpack_move_properties(VarInt::decode(r)?);
+            Ok(Self {
+                entity_id,
+                delta: VecDelta::decode(r, step_count)?,
+                on_ground,
+            })
+        }
+    }
+
+    #[derive(Clone, Debug, Packet)]
     #[packet(id=0x36, state=Game)]
     pub struct ClientboundMoveEntityPosRot {
         pub entity_id: VarInt,
-        pub delta: [i16; 3],
+        pub delta: VecDelta,
         pub y_rot: ByteAngle,
         pub x_rot: ByteAngle,
         pub on_ground: bool,
+    }
+
+    impl crate::Encode for ClientboundMoveEntityPosRot {
+        fn encode(&self, mut w: impl Write) -> anyhow::Result<()> {
+            self.entity_id.encode(&mut w)?;
+            pack_move_properties(self.on_ground, self.delta.step_count()).encode(&mut w)?;
+            self.delta.encode(&mut w)?;
+            self.y_rot.encode(&mut w)?;
+            self.x_rot.encode(w)
+        }
+    }
+
+    impl crate::Decode<'_> for ClientboundMoveEntityPosRot {
+        fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
+            let entity_id = VarInt::decode(r)?;
+            let (on_ground, step_count) = unpack_move_properties(VarInt::decode(r)?);
+            let delta = VecDelta::decode(r, step_count)?;
+            Ok(Self {
+                entity_id,
+                delta,
+                y_rot: ByteAngle::decode(r)?,
+                x_rot: ByteAngle::decode(r)?,
+                on_ground,
+            })
+        }
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
@@ -178,10 +303,6 @@ pub mod clientbound {
         pub flags: Vec<PositionFlag>,
     }
 
-    /// Removes a list of entities from the client world.
-    ///
-    /// Wire id 0x4D in play/clientbound for Minecraft 26.1.2 / protocol 775,
-    /// sourced from `crates/mcrs_minecraft_protocol/packets.json` (`protocol_id: 77`).
     #[derive(Clone, Debug, Encode, Decode, Packet)]
     #[packet(id=0x4D, state=Game)]
     pub struct ClientboundRemoveEntities {
@@ -189,45 +310,45 @@ pub mod clientbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x52, state=Game)]
+    #[packet(id=0x53, state=Game)]
     pub struct ClientboundRespawn<'a> {
         pub player_spawn_info: PlayerSpawnInfo<'a>,
         pub data_to_keep: u8,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x53, state=Game)]
+    #[packet(id=0x54, state=Game)]
     pub struct ClientboundRotateHead {
         pub entity_id: VarInt,
         pub y_head_rot: ByteAngle,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x54, state=Game)]
+    #[packet(id=0x55, state=Game)]
     pub struct ClientboundSectionBlocksUpdate<'a> {
         pub chunk_pos: ChunkPos,
         pub blocks: Cow<'a, [ChunkBlockUpdateEntry]>,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x5E, state=Game)]
+    #[packet(id=0x5F, state=Game)]
     pub struct ClientboundSetChunkCacheCenter {
         pub x: VarInt,
         pub z: VarInt,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x5F, state=Game)]
+    #[packet(id=0x60, state=Game)]
     pub struct ClientboundChunkCacheRadius {
         pub radius: VarInt,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x76, state=Game)]
+    #[packet(id=0x77, state=Game)]
     pub struct ClientboundStartConfiguration;
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x79, state=Game)]
+    #[packet(id=0x7B, state=Game)]
     pub struct ClientboundSystemChatPacket {
         pub content: Text,
         pub overlay: bool,
@@ -465,13 +586,13 @@ pub mod serverbound {
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x35, state=Game)]
+    #[packet(id=0x36, state=Game)]
     pub struct ServerboundSetCarriedItem {
         pub slot: u16,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]
-    #[packet(id=0x3B, state=Game)]
+    #[packet(id=0x42, state=Game)]
     pub struct ServerboundUseItemOn {
         pub hand: crate::Hand,
         pub block_pos: BlockPos,

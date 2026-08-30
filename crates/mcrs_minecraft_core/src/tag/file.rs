@@ -4,6 +4,7 @@ use bevy_asset::{Asset, AssetLoader, Handle, LoadContext, UntypedAssetId, VisitA
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::str::FromStr;
+use crate::asset::read_all;
 
 /// A single entry in a Minecraft tag file.
 #[derive(Debug)]
@@ -169,8 +170,7 @@ impl AssetLoader for TagFileLoader {
         settings: &TagFileSettings,
         load_context: &mut LoadContext<'_>,
     ) -> Result<TagFile, TagFileLoaderError> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         let raw: SerializedTagFile = serde_json::from_slice(&bytes)?;
 
         let seg = &settings.registry_segment;

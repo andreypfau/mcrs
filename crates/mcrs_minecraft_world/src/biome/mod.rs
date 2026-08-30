@@ -14,6 +14,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::ResourceLocation;
 use crate::attribute::EnvironmentAttributeMap;
 use crate::value::IntValueProvider;
+use mcrs_minecraft_core::asset::read_all;
 
 pub const NATURAL_MOB_SPAWNS: &str = "minecraft:gameplay/natural_mob_spawns";
 
@@ -215,8 +216,7 @@ impl AssetLoader for BiomeLoader {
         _settings: &(),
         _load_context: &mut LoadContext<'_>,
     ) -> Result<Biome, BiomeLoaderError> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         let biome: Biome = serde_json::from_slice(&bytes)?;
         Ok(biome)
     }

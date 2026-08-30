@@ -1,5 +1,7 @@
 use mcrs_minecraft_core::rl;
 
+use crate::{Decode, Encode};
+
 use super::*;
 
 #[test]
@@ -133,4 +135,60 @@ fn text_to_legacy_lossy() {
         "§a§k§l§m§n§oHeavily formatted green text\n§r§c§n§oLightly formatted red text\n§r§9Not \
          formatted blue text"
     );
+}
+
+#[test]
+fn plain_text_travels_as_a_bare_nbt_string() {
+    let text = Text::text("hello");
+
+    let mut buf = Vec::new();
+    text.encode(&mut buf).unwrap();
+    assert_eq!(buf[0], mcrs_minecraft_nbt::STRING_ID);
+
+    let mut r: &[u8] = &buf;
+    assert_eq!(Text::decode(&mut r).unwrap(), text);
+    assert!(r.is_empty());
+}
+
+#[test]
+fn a_formatted_component_round_trips_through_nbt() {
+    let text = Text::translate(
+        "chat.type.text",
+        [Text::text("sender").color(Color::YELLOW).italic()],
+    ) + "body".color(Color::RED).bold().not_underlined()
+        + Text::keybind("key.jump");
+
+    let mut buf = Vec::new();
+    text.encode(&mut buf).unwrap();
+    assert_eq!(buf[0], mcrs_minecraft_nbt::COMPOUND_ID);
+
+    let mut r: &[u8] = &buf;
+    let decoded = Text::decode(&mut r).unwrap();
+    assert!(r.is_empty(), "{} trailing bytes", r.len());
+    assert_eq!(decoded, text);
+
+    let mut again = Vec::new();
+    decoded.encode(&mut again).unwrap();
+    assert_eq!(again, buf);
+}
+
+#[test]
+fn a_component_that_is_neither_a_string_nor_a_compound_is_rejected() {
+    let mut r: &[u8] = &[mcrs_minecraft_nbt::INT_ID, 0, 0, 0, 1];
+    assert!(Text::decode(&mut r).is_err());
+}
+
+#[test]
+fn a_boolean_inside_a_content_variant_survives_nbt() {
+    for text in [
+        Text::storage_nbt(rl!("foo"), "bar", Some(true), Some("sep".into_text())),
+        Text::block_nbt("foo", "bar", Some(false), None),
+        Text::entity_nbt("@s", "bar", Some(true), None),
+    ] {
+        let mut buf = Vec::new();
+        text.encode(&mut buf).unwrap();
+        let mut r: &[u8] = &buf;
+        assert_eq!(Text::decode(&mut r).unwrap(), text);
+        assert!(r.is_empty());
+    }
 }

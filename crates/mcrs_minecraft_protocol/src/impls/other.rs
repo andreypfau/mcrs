@@ -55,10 +55,10 @@ impl Encode for NbtCompound {
 
 impl Decode<'_> for NbtCompound {
     fn decode(r: &mut &[u8]) -> anyhow::Result<Self> {
-        let mut reader = NbtReadHelper::new(Cursor::new(r));
-        Nbt::read_unnamed(&mut reader)
-            .map(|n| n.root_tag)
-            .map_err(|e| e.into())
+        let mut cursor = Cursor::new(*r);
+        let nbt = Nbt::read_unnamed(&mut NbtReadHelper::new(&mut cursor))?;
+        *r = &r[cursor.position() as usize..];
+        Ok(nbt.root_tag)
     }
 }
 

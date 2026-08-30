@@ -82,6 +82,10 @@ const HORIZON: f32 = 63.0;
 
 const CLOUD_BLOCKS_PER_TICK: f64 = 0.030000001;
 
+/// No attribute carries it: the reference client multiplies the block-light
+/// term by this after the lightmap curve.
+const BLOCK_LIGHT_FACTOR: f32 = 1.4;
+
 /// The widest cloud field the march can wrap is 4096 cells of 12 blocks, so
 /// folding the drift into that span keeps the shader's own wrap intact while
 /// the value stays small enough for `f32` to resolve single blocks.
@@ -161,6 +165,12 @@ impl SkyEnvironment {
                 self.scalar(frame, SkyField::CloudFogEndDistance),
                 0.0,
             ],
+            sky_light: rgba(
+                color(SkyField::SkyLightColor),
+                self.scalar(frame, SkyField::SkyLightFactor),
+            ),
+            block_light: rgba(color(SkyField::BlockLightTint), BLOCK_LIGHT_FACTOR),
+            ambient: rgba(color(SkyField::AmbientLightColor), 0.0),
         }
     }
 
@@ -277,6 +287,9 @@ pub struct SkyUniform {
     pub fog: [f32; 4],
     pub cloud_color: [f32; 4],
     pub cloud: [f32; 4],
+    pub sky_light: [f32; 4],
+    pub block_light: [f32; 4],
+    pub ambient: [f32; 4],
 }
 
 fn cloud_drift(ticks: f64) -> f32 {
@@ -429,10 +442,21 @@ fn array(
         RenderAssetUsages::RENDER_WORLD,
     );
     array.sampler = ImageSampler::nearest();
-    array.texture_view_descriptor = Some(TextureViewDescriptor {
-        dimension: Some(TextureViewDimension::D2Array),
-        ..default()
-    });
+    // A single-layer array is not a thing a GL texture can be: the backend
+    // picks the texture target from the layer count when it creates the
+    // texture, so asking for a `D2Array` view over one layer leaves the
+    // binding mismatched and the sampler reads nothing. One layer is a plain
+    // 2D texture, and the shader declares it as one.
+    // Only a stack of layers is an array. A GL backend picks the texture
+    // target from the layer count when it creates the texture, so a one-layer
+    // texture is a plain 2D one there whatever view is asked for, and binding
+    // it against an array in the shader silently samples nothing.
+    if handles.len() > 1 {
+        array.texture_view_descriptor = Some(TextureViewDescriptor {
+            dimension: Some(TextureViewDimension::D2Array),
+            ..default()
+        });
+    }
     Ok(array)
 }
 
@@ -485,10 +509,9 @@ mod tests {
     }
 }
 
-/// The tracks and constants the region viewer's `daylight.rs` drove the sky
-/// with, kept as the reference the attribute system has to reproduce. They were
-/// read out of `timeline/day.json` by hand, so a drift between the two means
-/// the attribute path stopped agreeing with the asset.
+/// The tracks and constants read out of `timeline/day.json` by hand, kept as
+/// the reference the attribute system has to reproduce: a drift between the two
+/// means the attribute path stopped agreeing with the asset.
 #[cfg(test)]
 mod reference {
     use bevy::prelude::*;
@@ -778,6 +801,9 @@ mod sky_regression {
                 CLOUD_COLOR.w,
             ),
             cloud: [CLOUD_HEIGHT, cloud_drift(ticks as f64), CLOUD_FADE, 0.0],
+            sky_light: linear3(track(&SKY_LIGHT_COLOR, at), track(&SKY_LIGHT_FACTOR, at)),
+            block_light: linear3(BLOCK_LIGHT_TINT, BLOCK_LIGHT_FACTOR),
+            ambient: linear3(AMBIENT, 0.0),
         }
     }
 
@@ -803,6 +829,14 @@ mod sky_regression {
                 CHANNEL,
             );
             close(&label("cloud"), got.cloud, want.cloud, 0.0);
+            close(&label("sky_light"), got.sky_light, want.sky_light, CHANNEL);
+            close(
+                &label("block_light"),
+                got.block_light,
+                want.block_light,
+                CHANNEL,
+            );
+            close(&label("ambient"), got.ambient, want.ambient, CHANNEL);
             close(&label("moon"), got.moon, want.moon, 0.0);
             // the keyframe easing is a cubic bezier where the reference solved
             // the same curve in closed form
@@ -861,8 +895,6 @@ mod sky_regression {
         );
     }
 
-    /// Nothing draws with these yet — the client has no terrain to light — so
-    /// the only thing holding them to the asset is this comparison.
     #[test]
     fn the_lighting_attributes_still_match_the_reference_tracks() {
         for ticks in [0, 6000, 13000, 18000, 23000] {

@@ -18,6 +18,7 @@ use bevy_ecs::prelude::ResMut;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Res;
 use bevy_reflect::TypePath;
+use mcrs_minecraft_core::asset::read_all;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_core::StaticRegistry;
 use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks, LootId};
@@ -311,8 +312,7 @@ impl AssetLoader for LootTableLoader {
             return Err(LootTableLoaderError::MissingTableId);
         };
 
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
 
         let proto: LootTableProto = serde_json::from_slice(&bytes)
             .map_err(|e| LootTableLoaderError::Json(e.to_string()))?;

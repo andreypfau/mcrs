@@ -23,6 +23,6 @@ async fn main() {
         ..Default::default()
     });
     app.add_plugins(TelemetryPlugin);
-    app.add_plugins(MinecraftServerPlugin);
+    app.add_plugins(MinecraftServerPlugin::default());
     mcrs_minecraft_server::run_server_loop(app);
 }

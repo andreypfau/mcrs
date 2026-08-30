@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_client"
-description = "Minecraft client: window, asset corpus and environment registries"
+description = "Minecraft client: window, asset corpus, environment registries and the voxel renderer"
 version.workspace = true
 edition.workspace = true
 
@@ -9,17 +9,17 @@ bevy = { version = "0.19.1", default-features = false, features = [
     "std",
     "async_executor",
     "bevy_asset",
-    "file_watcher",
     "bevy_log",
     "bevy_state",
     "bevy_window",
     "bevy_winit",
     "bevy_render",
     "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_image",
     "keyboard",
     "mouse",
     "png",
-    "clipboard_image",
     "bevy_text",
     "bevy_ui",
     "bevy_ui_render",
@@ -27,40 +27,43 @@ bevy = { version = "0.19.1", default-features = false, features = [
 ] }
 bytemuck = { version = "1", features = ["derive"] }
 bitflags = "2"
-serde_json.workspace = true
-mcrs_minecraft_core.workspace = true
-mcrs_voxel_math.workspace = true
-mcrs_voxel_world.workspace = true
-mcrs_minecraft_world.workspace = true
-
-[dev-dependencies]
+flate2.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+mcrs_minecraft_core.workspace = true
 mcrs_minecraft_nbt.workspace = true
-mcrs_voxel_storage.workspace = true
+mcrs_minecraft_network.workspace = true
 mcrs_minecraft_protocol.workspace = true
-flate2.workspace = true
-bevy = { version = "0.19.1", default-features = false, features = [
-    "bevy_pbr",
-    "bevy_image",
-    "bevy_text",
-    "bevy_ui",
-    "bevy_ui_render",
-    "default_font",
-] }
+mcrs_minecraft_world.workspace = true
+mcrs_voxel_math.workspace = true
+mcrs_voxel_storage.workspace = true
+mcrs_voxel_world.workspace = true
 # Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.
 wgpu = { version = "29", default-features = false }
 
-[target.'cfg(target_os = "macos")'.dev-dependencies]
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+bevy = { version = "0.19.1", default-features = false, features = ["file_watcher", "clipboard_image"] }
+# Singleplayer is a server of our own on a loopback port, as it is in vanilla.
+mcrs_minecraft_server.workspace = true
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+bevy = { version = "0.19.1", default-features = false, features = ["web", "webgpu"] }
+console_error_panic_hook = "0.1"
+# The rustflag in .cargo/config.toml picks the backend; without the crate
+# feature of the same name getrandom refuses to build at all. Both majors are
+# in the dependency graph.
+getrandom = { version = "0.4", features = ["wasm_js"] }
+getrandom_03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"] }
+
+[build-dependencies]
+flate2.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
 objc2-metal = { version = "0.3", default-features = false, features = ["std", "MTLCaptureManager", "MTLDevice"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL", "NSError"] }
 
 [[example]]
 name = "block_viewer"
 path = "examples/block_viewer/main.rs"
-test = true
-
-[[example]]
-name = "anvil_region_viewer"
-path = "examples/anvil_region_viewer/main.rs"
 test = true

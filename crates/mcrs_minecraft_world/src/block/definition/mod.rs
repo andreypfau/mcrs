@@ -3,7 +3,9 @@ pub mod schema;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use core::time::Duration;
+
+use bevy_platform::time::Instant;
 
 use bevy_asset::AssetServer;
 use bevy_asset::io::AssetSourceId;
@@ -20,6 +22,7 @@ use self::schema::{
 };
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
+use mcrs_minecraft_core::asset::read_whole;
 use mcrs_minecraft_core::ResourceLocation;
 use mcrs_minecraft_protocol::BlockStateId;
 use mcrs_voxel_math::voxel_shape::Aabb;
@@ -321,6 +324,8 @@ pub enum LoadError {
         path: String,
         source: bevy_asset::io::AssetReaderError,
     },
+    #[error("`{path}` read as zero bytes")]
+    Empty { path: String },
     #[error("failed to parse `{path}`: {source}")]
     Parse {
         path: String,
@@ -385,18 +390,17 @@ pub fn load_block_definitions(
     let corpus: Vec<Vec<u8>> = block_on(async {
         let mut corpus = Vec::with_capacity(paths.len());
         for path in &paths {
-            let display = path.display().to_string();
-            let mut file = reader.read(path).await.map_err(|source| LoadError::Read {
-                path: display.clone(),
-                source,
-            })?;
-            let mut bytes = Vec::new();
-            file.read_to_end(&mut bytes)
+            let bytes = read_whole(reader, path)
                 .await
-                .map_err(|e| LoadError::Read {
-                    path: display.clone(),
-                    source: e.into(),
+                .map_err(|source| LoadError::Read {
+                    path: path.display().to_string(),
+                    source,
                 })?;
+            if bytes.is_empty() {
+                return Err(LoadError::Empty {
+                    path: path.display().to_string(),
+                });
+            }
             corpus.push(bytes);
         }
         Ok::<Vec<Vec<u8>>, LoadError>(corpus)

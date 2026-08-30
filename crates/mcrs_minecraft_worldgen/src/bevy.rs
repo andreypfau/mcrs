@@ -4,12 +4,12 @@ use crate::router::{GeneratorSettings, NoiseRouter};
 use bevy_app::{App, Plugin, Startup, Update};
 use bevy_asset::io::Reader;
 use bevy_asset::{
-    Asset, AssetApp, AssetEvent, AssetLoader, AssetServer, Assets, Handle, LoadContext,
-    LoadDirectError,
+    Asset, AssetApp, AssetLoader, AssetServer, Assets, Handle, LoadContext, LoadDirectError,
+    RecursiveDependencyLoadState, VisitAssetDependencies,
 };
-use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Res, Resource};
+use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Local, Res, Resource};
 use bevy_reflect::TypePath;
+use mcrs_minecraft_core::asset::read_all;
 use mcrs_minecraft_core::ResourceLocation;
 use std::collections::BTreeMap;
 use std::env;
@@ -26,11 +26,6 @@ use tracing::{error, info};
 pub struct WorldGenConfig {
     pub preset_namespace: Arc<str>,
     pub preset_path: Arc<str>,
-    /// The noise settings the preset's overworld dimension names, from its
-    /// `generator.settings`: `minecraft:overworld` for `minecraft:normal`,
-    /// `minecraft:beta` for `minecraft:beta`.
-    pub noise_settings_namespace: Arc<str>,
-    pub noise_settings_path: Arc<str>,
     pub seed: u64,
     /// The terrain block and the sea fluid the active noise settings state,
     /// resolved against the block registry by whoever runs before
@@ -45,8 +40,6 @@ impl Default for WorldGenConfig {
         Self {
             preset_namespace: Arc::from("minecraft"),
             preset_path: Arc::from("normal"),
-            noise_settings_namespace: Arc::from("minecraft"),
-            noise_settings_path: Arc::from("overworld"),
             seed: 0,
             default_block_state_id: None,
             default_fluid_state_id: None,
@@ -78,93 +71,139 @@ impl WorldGenConfig {
             Err(_) => 0,
         };
 
-        let (noise_settings_namespace, noise_settings_path) =
-            resolve_overworld_noise_settings(&preset_namespace, &preset_path);
-
         Self {
             preset_namespace,
             preset_path,
-            noise_settings_namespace,
-            noise_settings_path,
             seed,
             default_block_state_id: None,
             default_fluid_state_id: None,
         }
     }
 
-    pub fn noise_settings_asset_path(&self) -> String {
+    pub fn preset_asset_path(&self) -> String {
         format!(
-            "{}/worldgen/noise_settings/{}.json",
-            self.noise_settings_namespace, self.noise_settings_path
+            "{}/worldgen/world_preset/{}.json",
+            self.preset_namespace, self.preset_path
         )
     }
 }
 
 #[derive(serde::Deserialize)]
-struct WorldPreset {
-    dimensions: BTreeMap<String, LevelStem>,
+struct ProtoWorldPreset {
+    dimensions: BTreeMap<String, ProtoLevelStem>,
 }
 
 #[derive(serde::Deserialize)]
-struct LevelStem {
-    generator: ChunkGenerator,
+struct ProtoLevelStem {
+    generator: ProtoChunkGenerator,
 }
 
 #[derive(serde::Deserialize)]
 #[serde(tag = "type")]
-enum ChunkGenerator {
+enum ProtoChunkGenerator {
     #[serde(rename = "minecraft:noise", alias = "noise")]
     Noise { settings: String },
     #[serde(other)]
     Unsupported,
 }
 
-/// The `generator.settings` id the preset states for `minecraft:overworld`.
-pub(crate) fn resolve_overworld_noise_settings(
-    preset_ns: &str,
-    preset_path: &str,
-) -> (Arc<str>, Arc<str>) {
-    let asset_root = env::var("BEVY_ASSET_ROOT").unwrap_or_else(|_| ".".to_string());
-    let json_path =
-        format!("{asset_root}/assets/{preset_ns}/worldgen/world_preset/{preset_path}.json");
+/// The overworld noise settings a world preset names, as a handle rather than
+/// an id, so the whole density-function graph is pulled in with it.
+#[derive(TypePath, Debug)]
+pub struct WorldPresetAsset {
+    pub overworld_noise_settings: Handle<NoiseGeneratorSettingsAsset>,
+}
 
-    let data = std::fs::read_to_string(&json_path)
-        .unwrap_or_else(|e| panic!("cannot read world preset {json_path}: {e}"));
-    let preset: WorldPreset = serde_json::from_str(&data)
-        .unwrap_or_else(|e| panic!("cannot parse world preset {json_path}: {e}"));
+impl Asset for WorldPresetAsset {}
 
-    let overworld = preset
-        .dimensions
-        .get("minecraft:overworld")
-        .or_else(|| preset.dimensions.get("overworld"))
-        .unwrap_or_else(|| panic!("world preset {json_path} has no minecraft:overworld dimension"));
+impl VisitAssetDependencies for WorldPresetAsset {
+    fn visit_dependencies(&self, visit: &mut impl FnMut(bevy_asset::UntypedAssetId)) {
+        visit(self.overworld_noise_settings.id().untyped());
+    }
+}
 
-    let settings = match &overworld.generator {
-        ChunkGenerator::Noise { settings } => settings.as_str(),
-        ChunkGenerator::Unsupported => panic!(
-            "world preset {json_path}: the overworld generator is not minecraft:noise, \
-             which is the only generator this worldgen supports"
-        ),
-    };
+#[derive(Default, TypePath)]
+pub struct WorldPresetLoader;
 
-    match settings.split_once(':') {
-        Some((namespace, path)) => (Arc::from(namespace), Arc::from(path)),
-        None => (Arc::from("minecraft"), Arc::from(settings)),
+#[derive(Debug, Error)]
+pub enum WorldPresetLoaderError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+    #[error("the world preset names no minecraft:overworld dimension")]
+    NoOverworld,
+    #[error(
+        "the overworld generator is not minecraft:noise, which is the only generator this \
+         worldgen supports"
+    )]
+    NotNoiseGenerator,
+}
+
+impl AssetLoader for WorldPresetLoader {
+    type Asset = WorldPresetAsset;
+    type Settings = ();
+    type Error = WorldPresetLoaderError;
+
+    async fn load(
+        &self,
+        reader: &mut dyn Reader,
+        _settings: &Self::Settings,
+        load_context: &mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        let bytes = read_all(reader).await?;
+        let preset = serde_json::from_slice::<ProtoWorldPreset>(&bytes)?;
+
+        let overworld = preset
+            .dimensions
+            .get("minecraft:overworld")
+            .or_else(|| preset.dimensions.get("overworld"))
+            .ok_or(WorldPresetLoaderError::NoOverworld)?;
+
+        let ProtoChunkGenerator::Noise { settings } = &overworld.generator else {
+            return Err(WorldPresetLoaderError::NotNoiseGenerator);
+        };
+        let (namespace, path) = settings
+            .split_once(':')
+            .unwrap_or(("minecraft", settings.as_str()));
+
+        Ok(WorldPresetAsset {
+            overworld_noise_settings: load_context
+                .load(format!("{namespace}/worldgen/noise_settings/{path}.json")),
+        })
     }
 }
 
 pub struct NoiseGeneratorSettingsPlugin;
 
-impl Plugin for NoiseGeneratorSettingsPlugin {
+/// Registers the worldgen asset types and their loaders, and nothing else.
+///
+/// A world preset names its noise settings, so loading one allocates a
+/// `NoiseGeneratorSettingsAsset` handle. Any app that reads a preset therefore
+/// needs these types even when it never builds a noise router itself.
+pub struct WorldgenAssetsPlugin;
+
+impl Plugin for WorldgenAssetsPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<DensityFunctionAsset>()
             .init_asset::<NoiseGeneratorSettingsAsset>()
             .init_asset::<NoiseParamAsset>()
+            .init_asset::<WorldPresetAsset>()
             .register_asset_loader(DensityFunctionLoader)
             .register_asset_loader(NoiseGeneratorSettingsLoader)
             .register_asset_loader(NoiseParamLoader)
-            .add_systems(Startup, request_overworld_noise_settings)
-            .add_systems(Update, build_noise_router_on_load.in_set(BuildNoiseRouter));
+            .register_asset_loader(WorldPresetLoader);
+    }
+}
+
+impl Plugin for NoiseGeneratorSettingsPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(WorldgenAssetsPlugin)
+            .add_systems(Startup, request_world_preset)
+            .add_systems(
+                Update,
+                build_overworld_noise_router.in_set(BuildNoiseRouter),
+            );
     }
 }
 
@@ -173,96 +212,104 @@ impl Plugin for NoiseGeneratorSettingsPlugin {
 #[derive(bevy_ecs::schedule::SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BuildNoiseRouter;
 
-/// Retains the handle so the asset is not dropped before
-/// `build_noise_router_on_load` can react to its load event.
+/// Retains the handle so the preset and everything it names stay loaded.
 #[derive(Resource)]
-pub struct NoiseSettingsHandle(pub Handle<NoiseGeneratorSettingsAsset>);
+pub struct WorldPresetHandle(pub Handle<WorldPresetAsset>);
 
 #[derive(Resource)]
 pub struct OverworldNoiseRouter(pub Arc<NoiseRouter>);
 
-fn request_overworld_noise_settings(
+fn request_world_preset(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    world_gen_config: Option<Res<WorldGenConfig>>,
+    world_gen_config: Res<WorldGenConfig>,
 ) {
-    let asset_path = match &world_gen_config {
-        Some(config) => config.noise_settings_asset_path(),
-        None => "minecraft/worldgen/noise_settings/overworld.json".to_string(),
-    };
+    let asset_path = world_gen_config.preset_asset_path();
 
-    info!(asset_path = %asset_path, "Loading overworld noise settings");
+    info!(asset_path = %asset_path, "Loading world preset");
 
-    let handle: Handle<NoiseGeneratorSettingsAsset> = asset_server.load(asset_path);
-    commands.insert_resource(NoiseSettingsHandle(handle));
+    commands.insert_resource(WorldPresetHandle(asset_server.load(asset_path)));
 }
 
-fn build_noise_router_on_load(
+fn build_overworld_noise_router(
     mut commands: Commands,
-    mut messages: MessageReader<AssetEvent<NoiseGeneratorSettingsAsset>>,
+    mut settled: Local<bool>,
+    asset_server: Res<AssetServer>,
+    preset_handle: Option<Res<WorldPresetHandle>>,
+    presets: Res<Assets<WorldPresetAsset>>,
     noise_settings: Res<Assets<NoiseGeneratorSettingsAsset>>,
     density_functions: Res<Assets<DensityFunctionAsset>>,
     noises: Res<Assets<NoiseParamAsset>>,
-    world_gen_config: Option<Res<WorldGenConfig>>,
-    noise_handle: Option<Res<NoiseSettingsHandle>>,
+    config: Res<WorldGenConfig>,
 ) {
-    for event in messages.read() {
-        let AssetEvent::LoadedWithDependencies { id } = event else {
-            continue;
-        };
-        // Only the handle this plugin requested, not any other settings asset
-        // that happens to be loaded.
-        if noise_handle.as_ref().is_some_and(|h| h.0.id() != *id) {
-            continue;
+    if *settled {
+        return;
+    }
+    let Some(preset_handle) = preset_handle.as_deref() else {
+        return;
+    };
+    match asset_server.recursive_dependency_load_state(preset_handle.0.id()) {
+        RecursiveDependencyLoadState::Loaded => {}
+        RecursiveDependencyLoadState::Failed(error) => {
+            *settled = true;
+            error!(%error, "the world preset did not load");
+            return;
         }
-        let Some(asset) = noise_settings.get(*id) else {
-            continue;
-        };
+        _ => return,
+    }
+    let Some(settings_handle) = presets
+        .get(&preset_handle.0)
+        .map(|p| &p.overworld_noise_settings)
+    else {
+        return;
+    };
+    let Some(asset) = noise_settings.get(settings_handle) else {
+        return;
+    };
 
-        let mut registry = BTreeMap::new();
-        let mut noise_params = BTreeMap::new();
-        collect(
-            &asset.density_functions,
-            &asset.noises,
-            &density_functions,
-            &noises,
-            &mut registry,
-            &mut noise_params,
-        );
+    // `resolve_worldgen_default_states` reads these off the same asset one
+    // system earlier, so an unresolved pair means its message has not landed
+    // yet, not that nobody will ever state them.
+    let (Some(default_block), Some(default_fluid)) =
+        (config.default_block_state_id, config.default_fluid_state_id)
+    else {
+        return;
+    };
 
-        let config = world_gen_config.as_deref();
-        let seed = config.map(|c| c.seed).unwrap_or(0);
-        let noise_settings_id = config
-            .map(|c| format!("{}:{}", c.noise_settings_namespace, c.noise_settings_path))
-            .unwrap_or_else(|| "minecraft:overworld".to_string());
-        info!(
-            noise_settings = %noise_settings_id,
-            seed = seed,
-            "Building OverworldNoiseRouter"
-        );
-        let (default_block, default_fluid) = config
-            .and_then(|c| Some((c.default_block_state_id?, c.default_fluid_state_id?)))
-            .expect(
-                "the noise settings default block and fluid were never resolved; \
-                 a system before BuildNoiseRouter has to state them",
-            );
+    let mut registry = BTreeMap::new();
+    let mut noise_params = BTreeMap::new();
+    collect(
+        &asset.density_functions,
+        &asset.noises,
+        &density_functions,
+        &noises,
+        &mut registry,
+        &mut noise_params,
+    );
 
-        match build_router(
-            &asset.settings,
-            &registry,
-            &noise_params,
-            seed,
-            default_block,
-            default_fluid,
-        ) {
-            Ok(router) => {
-                for (name, error) in router.failed_roots() {
-                    error!(root = name, %error, "density root did not compile");
-                }
-                commands.insert_resource(OverworldNoiseRouter(Arc::new(router)));
+    let seed = config.seed;
+    info!(
+        noise_settings = ?settings_handle.path(),
+        seed = seed,
+        "Building OverworldNoiseRouter"
+    );
+
+    *settled = true;
+    match build_router(
+        &asset.settings,
+        &registry,
+        &noise_params,
+        seed,
+        default_block,
+        default_fluid,
+    ) {
+        Ok(router) => {
+            for (name, error) in router.failed_roots() {
+                error!(root = name, %error, "density root did not compile");
             }
-            Err(error) => error!(%error, "the noise router did not compile"),
+            commands.insert_resource(OverworldNoiseRouter(Arc::new(router)));
         }
+        Err(error) => error!(%error, "the noise router did not compile"),
     }
 }
 
@@ -369,8 +416,7 @@ impl AssetLoader for NoiseGeneratorSettingsLoader {
         _settings: &Self::Settings,
         load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         let settings = serde_json::from_slice::<GeneratorSettings>(&bytes)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
@@ -409,8 +455,7 @@ impl AssetLoader for NoiseParamLoader {
         _settings: &Self::Settings,
         _load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         let noise = serde_json::from_slice::<NoiseParam>(&bytes)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
@@ -440,8 +485,7 @@ impl AssetLoader for DensityFunctionLoader {
         _settings: &Self::Settings,
         load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         let function = serde_json::from_slice::<DensityFunctionHolder>(&bytes)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
@@ -528,19 +572,39 @@ fn noise_holder(function: &ProtoDensityFunction) -> Option<&NoiseHolder> {
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_overworld_noise_settings;
+    use super::{ProtoChunkGenerator, ProtoWorldPreset, WorldGenConfig};
+
+    fn overworld_settings(preset: &str) -> String {
+        let bytes = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .join(format!(
+                    "assets/minecraft/worldgen/world_preset/{preset}.json"
+                )),
+        )
+        .unwrap();
+        let preset: ProtoWorldPreset = serde_json::from_slice(&bytes).unwrap();
+        match &preset.dimensions["minecraft:overworld"].generator {
+            ProtoChunkGenerator::Noise { settings } => settings.clone(),
+            ProtoChunkGenerator::Unsupported => panic!("expected a noise generator"),
+        }
+    }
 
     #[test]
     fn noise_settings_for_normal_preset_is_overworld() {
-        let (namespace, path) = resolve_overworld_noise_settings("minecraft", "normal");
-        assert_eq!(namespace.as_ref(), "minecraft");
-        assert_eq!(path.as_ref(), "overworld");
+        assert_eq!(overworld_settings("normal"), "minecraft:overworld");
     }
 
     #[test]
     fn noise_settings_for_beta_preset_is_beta() {
-        let (namespace, path) = resolve_overworld_noise_settings("minecraft", "beta");
-        assert_eq!(namespace.as_ref(), "minecraft");
-        assert_eq!(path.as_ref(), "beta");
+        assert_eq!(overworld_settings("beta"), "minecraft:beta");
+    }
+
+    #[test]
+    fn default_config_names_the_normal_preset_asset() {
+        assert_eq!(
+            WorldGenConfig::default().preset_asset_path(),
+            "minecraft/worldgen/world_preset/normal.json"
+        );
     }
 }

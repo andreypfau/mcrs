@@ -12,13 +12,40 @@ doctest = false
 anyhow.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
+bevy_math.workspace = true
 bytes.workspace = true
 thiserror.workspace = true
 mcrs_minecraft_protocol.workspace = true
-tokio.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_voxel_storage.workspace = true
+md-5.workspace = true
+tokio = { version = "1.48.0", default-features = false, features = ["sync", "io-util"] }
 serde_json.workspace = true
 tracing.workspace = true
 log = "0.4.29"
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio.workspace = true
+wtransport.workspace = true
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-time = "1"
+web-sys = { version = "0.3", features = [
+    "ReadableStream",
+    "ReadableStreamDefaultReader",
+    "Url",
+    "WebTransport",
+    "WebTransportBidirectionalStream",
+    "WebTransportHash",
+    "WebTransportOptions",
+    "WebTransportReceiveStream",
+    "WebTransportSendStream",
+    "WritableStream",
+    "WritableStreamDefaultWriter",
+] }
 
 [features]
 telemetry-tracy = []

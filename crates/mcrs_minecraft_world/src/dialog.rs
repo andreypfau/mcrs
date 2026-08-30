@@ -3,6 +3,7 @@ use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDepe
 use bevy_reflect::TypePath;
 use serde::Serialize;
 
+use mcrs_minecraft_core::asset::read_all;
 use mcrs_minecraft_core::tag::key::TaggedRegistry;
 use mcrs_minecraft_core::tag::tag_ref::TagRef;
 
@@ -74,8 +75,7 @@ impl AssetLoader for DialogLoader {
         _settings: &(),
         load_context: &mut LoadContext<'_>,
     ) -> Result<Dialog, DialogLoaderError> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         let raw: serde_json::Map<String, serde_json::Value> = serde_json::from_slice(&bytes)?;
         let dialogs = match raw.get("dialogs").and_then(|v| v.as_str()) {
             Some(s) if s.starts_with('#') => {

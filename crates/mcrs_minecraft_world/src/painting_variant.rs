@@ -2,6 +2,7 @@ use bevy_asset::io::Reader;
 use bevy_asset::{Asset, AssetLoader, LoadContext, UntypedAssetId, VisitAssetDependencies};
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
+use mcrs_minecraft_core::asset::read_all;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TypePath)]
 pub struct PaintingVariant {
@@ -42,8 +43,7 @@ impl AssetLoader for PaintingVariantLoader {
         _settings: &(),
         _load_context: &mut LoadContext<'_>,
     ) -> Result<PaintingVariant, PaintingVariantLoaderError> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
+        let bytes = read_all(reader).await?;
         Ok(serde_json::from_slice(&bytes)?)
     }
 

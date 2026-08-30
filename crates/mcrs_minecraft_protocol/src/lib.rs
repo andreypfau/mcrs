@@ -52,6 +52,7 @@ pub mod handshake;
 mod impls;
 pub mod item;
 pub mod light_codec;
+mod lp_vec3;
 pub mod packed_chunk_pos;
 pub mod packets;
 mod pos;
@@ -67,7 +68,6 @@ mod teleport_flags;
 pub mod text;
 pub mod var_int;
 mod var_long;
-mod velocity;
 
 use std::io::Write;
 
@@ -92,6 +92,7 @@ pub use game_mode::GameMode;
 pub use global_pos::GlobalPos;
 pub use hand::Hand;
 pub use item::{ItemId, Slot};
+pub use lp_vec3::LpVec3;
 pub use mcrs_minecraft_protocol_macros::{Decode, Encode, Packet};
 pub use pos::Look;
 pub use pos::MoveFlags;
@@ -102,18 +103,17 @@ pub use teleport_flags::PositionFlag;
 pub use text::Text;
 pub use var_int::VarInt;
 pub use var_long::VarLong;
-pub use velocity::Velocity;
 pub use {anyhow, bytes, mcrs_minecraft_nbt as nbt, uuid};
 
 /// The maximum number of bytes in a single Minecraft packet.
 pub const MAX_PACKET_SIZE: i32 = 2097152;
 
 /// The Minecraft protocol version this library currently targets.
-pub const PROTOCOL_VERSION: i32 = 775;
+pub const PROTOCOL_VERSION: i32 = 1073742156;
 
 /// The stringified name of the Minecraft version this library currently
 /// targets.
-pub const MINECRAFT_VERSION: &str = "26.1.2";
+pub const MINECRAFT_VERSION: &str = "26.3-snapshot-10";
 
 /// How large a packet should be before it is compressed by the packet encoder.
 ///
@@ -332,9 +332,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn protocol_version_is_26_1_2() {
-        assert_eq!(PROTOCOL_VERSION, 775);
-        assert_eq!(MINECRAFT_VERSION, "26.1.2");
+    fn protocol_version_matches_target_release() {
+        assert_eq!(PROTOCOL_VERSION, 1073742156);
+        assert_eq!(MINECRAFT_VERSION, "26.3-snapshot-10");
     }
 }
 

@@ -1,15 +1,9 @@
-use crate::{EngineConnection, InGameConnectionState, ServerSideConnection};
-use bevy_app::{App, Plugin, Update};
+use crate::Instant;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::event::EntityEvent;
-use bevy_ecs::prelude::Commands;
-use bevy_ecs::query::Without;
-use bevy_ecs::schedule::ScheduleLabel;
-use bevy_ecs::system::Query;
 use bytes::Bytes;
 use log::warn;
 use mcrs_minecraft_protocol::{Decode, Packet};
-use std::time::Instant;
 
 #[derive(Debug, Clone, EntityEvent)]
 pub struct ReceivedPacketEvent {
@@ -45,52 +39,69 @@ impl ReceivedPacketEvent {
     }
 }
 
-pub(crate) struct EventLoopPlugin;
+#[cfg(not(target_family = "wasm"))]
+mod loop_plugin {
+    use super::ReceivedPacketEvent;
+    use crate::{EngineConnection, InGameConnectionState, ServerSideConnection};
+    use bevy_app::{App, Plugin, Update};
+    use bevy_ecs::entity::Entity;
+    use bevy_ecs::prelude::Commands;
+    use bevy_ecs::query::Without;
+    use bevy_ecs::schedule::ScheduleLabel;
+    use bevy_ecs::system::Query;
+    use log::warn;
 
-impl Plugin for EventLoopPlugin {
-    fn build(&self, app: &mut App) {
-        // app.init_schedule(RunEventLoop);
-        // let mut order = app.world_mut().resource_mut::<MainScheduleOrder>();
-        app.add_systems(Update, run_event_loop);
+    pub(crate) struct EventLoopPlugin;
+
+    impl Plugin for EventLoopPlugin {
+        fn build(&self, app: &mut App) {
+            // app.init_schedule(RunEventLoop);
+            // let mut order = app.world_mut().resource_mut::<MainScheduleOrder>();
+            app.add_systems(Update, run_event_loop);
+        }
     }
-}
 
-#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct RunEventLoop;
+    #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+    pub struct RunEventLoop;
 
-#[cfg_attr(
-    feature = "telemetry-tracy",
-    tracing::instrument(name = "network::process_received_packet", skip_all)
-)]
-fn run_event_loop(
-    mut query: Query<(Entity, &mut ServerSideConnection), Without<InGameConnectionState>>,
-    mut commands: Commands,
-) {
-    query.iter_mut().for_each(|(entity, mut conn)| {
-        loop {
-            match conn.try_recv() {
-                Ok(Some(pkt)) => {
-                    commands.trigger(ReceivedPacketEvent {
-                        entity,
-                        id: pkt.id,
-                        data: pkt.payload,
-                        timestamp: pkt.timestamp,
-                    });
-                    // let now = Instant::now();
-                    // info!(
-                    //     "{}: processed packet {} in {:?}",
-                    //     entity,
-                    //     pkt.id,
-                    //     now - pkt.timestamp
-                    // );
-                }
-                Ok(None) => break,
-                Err(e) => {
-                    warn!("disconnecting client: {e}");
-                    commands.entity(entity).despawn();
-                    break;
+    #[cfg_attr(
+        feature = "telemetry-tracy",
+        tracing::instrument(name = "network::process_received_packet", skip_all)
+    )]
+    fn run_event_loop(
+        mut query: Query<(Entity, &mut ServerSideConnection), Without<InGameConnectionState>>,
+        mut commands: Commands,
+    ) {
+        query.iter_mut().for_each(|(entity, mut conn)| {
+            loop {
+                match conn.try_recv() {
+                    Ok(Some(pkt)) => {
+                        commands.trigger(ReceivedPacketEvent {
+                            entity,
+                            id: pkt.id,
+                            data: pkt.payload,
+                            timestamp: pkt.timestamp,
+                        });
+                        // let now = Instant::now();
+                        // info!(
+                        //     "{}: processed packet {} in {:?}",
+                        //     entity,
+                        //     pkt.id,
+                        //     now - pkt.timestamp
+                        // );
+                    }
+                    Ok(None) => break,
+                    Err(e) => {
+                        warn!("disconnecting client: {e}");
+                        commands.entity(entity).despawn();
+                        break;
+                    }
                 }
             }
-        }
-    });
+        });
+    }
 }
+#[cfg(not(target_family = "wasm"))]
+pub use loop_plugin::RunEventLoop;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use loop_plugin::EventLoopPlugin;
