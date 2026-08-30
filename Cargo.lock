@@ -3622,6 +3622,7 @@ dependencies = [
  "log",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
+ "mcrs_voxel_storage",
  "md-5",
  "serde_json",
  "thiserror 2.0.18",

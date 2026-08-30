@@ -1,6 +1,7 @@
 #[cfg(target_family = "wasm")]
 pub mod browser;
 pub mod client;
+pub mod columns;
 #[cfg(not(target_family = "wasm"))]
 pub mod connect;
 pub mod event;

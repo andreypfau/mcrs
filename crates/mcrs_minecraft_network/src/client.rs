@@ -12,7 +12,6 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use log::{error, info, warn};
-use md5::{Digest, Md5};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_protocol::handshake::Intent;
 use mcrs_minecraft_protocol::packets::common::serverbound::{ClientInformation, KeepAlive};
@@ -25,9 +24,8 @@ use mcrs_minecraft_protocol::packets::configuration::serverbound::{
     ServerboundKeepAlive as ServerboundConfigurationKeepAlive, ServerboundSelectKnownPacks,
 };
 use mcrs_minecraft_protocol::packets::game::clientbound::{
-    ClientboundChunkCacheRadius, ClientboundKeepAlive as GameKeepAlive,
-    ClientboundLevelChunkWithLight, ClientboundLogin, ClientboundPlayerPosition,
-    ClientboundSetChunkCacheCenter,
+    ClientboundChunkCacheRadius, ClientboundKeepAlive as GameKeepAlive, ClientboundLogin,
+    ClientboundPlayerPosition, ClientboundSetChunkCacheCenter,
 };
 use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundKeepAlive as ServerboundGameKeepAlive;
 use mcrs_minecraft_protocol::packets::intent::serverbound::ServerboundHandshake;
@@ -42,6 +40,7 @@ use mcrs_minecraft_protocol::{
     Bounded, CompressionThreshold, Decode, Encode, Look, PROTOCOL_VERSION, Packet, VarInt,
     WritePacket, uuid::Uuid,
 };
+use md5::{Digest, Md5};
 use std::net::SocketAddr;
 #[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Runtime;
@@ -126,11 +125,6 @@ pub struct ChunkCacheCenter {
 #[derive(Component, Clone, Copy, Debug)]
 pub struct ChunkCacheRadius(pub i32);
 
-/// Chunk columns are dropped after decoding, so the count is the only trace
-/// they leave until the client has somewhere to put them.
-#[derive(Component, Default, Clone, Copy, Debug)]
-pub struct ReceivedChunkColumns(pub usize);
-
 #[cfg(not(target_family = "wasm"))]
 #[derive(Resource)]
 struct ClientRuntime(#[allow(dead_code)] Runtime);
@@ -165,6 +159,7 @@ impl Plugin for ClientNetworkPlugin {
         );
         app.add_observer(handle_configuration_packet);
         app.add_observer(handle_game_packet);
+        crate::columns::build(app);
     }
 }
 
@@ -292,7 +287,6 @@ fn spawn_logged_in_connection(
                 profile,
                 ReceivedRegistries::default(),
                 ReceivedTags::default(),
-                ReceivedChunkColumns::default(),
             ));
         }
     }
@@ -394,14 +388,10 @@ fn handle_configuration_packet(
 
 fn handle_game_packet(
     event: On<ReceivedPacketEvent>,
-    mut connections: Query<(
-        &mut ClientConnection,
-        &ConnectionState,
-        &mut ReceivedChunkColumns,
-    )>,
+    mut connections: Query<(&mut ClientConnection, &ConnectionState)>,
     mut commands: Commands,
 ) {
-    let Ok((mut connection, state, mut chunks)) = connections.get_mut(event.entity) else {
+    let Ok((mut connection, state)) = connections.get_mut(event.entity) else {
         return;
     };
     if *state != ConnectionState::Game {
@@ -428,8 +418,6 @@ fn handle_game_packet(
         commands
             .entity(event.entity)
             .insert(ChunkCacheRadius(radius.radius.0));
-    } else if event.decode::<ClientboundLevelChunkWithLight>().is_some() {
-        chunks.0 += 1;
     } else if let Some(keep_alive) = event.decode::<GameKeepAlive>() {
         connection.write_packet(&ServerboundGameKeepAlive(KeepAlive {
             payload: keep_alive.0.payload,

@@ -2,9 +2,10 @@ use bevy_app::{App, AppExit, Update};
 use bevy_ecs::message::MessageWriter;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
-    ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, JoinedGame, ReceivedChunkColumns,
-    ReceivedRegistries, ReceivedTags, ServerPosition, ServerProfile, offline_player_uuid,
+    ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, JoinedGame, ReceivedRegistries,
+    ReceivedTags, ServerPosition, ServerProfile, offline_player_uuid,
 };
+use mcrs_minecraft_network::columns::ColumnStore;
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin, run_server_loop};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -77,7 +78,12 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     assert!(world.get::<ServerPosition>(connection).is_some());
     assert!(world.get::<ChunkCacheCenter>(connection).is_some());
     assert!(world.get::<ChunkCacheRadius>(connection).is_some());
-    assert!(world.get::<ReceivedChunkColumns>(connection).unwrap().0 > 0);
+    let store = world.resource::<ColumnStore>();
+    let extent = store
+        .extent()
+        .expect("the login named a dimension type with a height");
+    assert!(!store.is_empty(), "no column reached the store");
+    assert!(extent.sections > 0, "a dimension of no sections");
 }
 
 /// Returns the connection entity once every play-state packet the flow promises
@@ -109,9 +115,7 @@ fn drive_client_until_joined(client: &mut App) -> Option<bevy_ecs::entity::Entit
         let positioned = world.get::<ServerPosition>(entity).is_some();
         let centred = world.get::<ChunkCacheCenter>(entity).is_some();
         let radius = world.get::<ChunkCacheRadius>(entity).is_some();
-        let chunks = world
-            .get::<ReceivedChunkColumns>(entity)
-            .is_some_and(|c| c.0 > 0);
+        let chunks = !world.resource::<ColumnStore>().is_empty();
         if joined && positioned && centred && radius && chunks {
             return Some(entity);
         }

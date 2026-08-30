@@ -17,6 +17,7 @@ bytes.workspace = true
 thiserror.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_nbt.workspace = true
+mcrs_voxel_storage.workspace = true
 md-5.workspace = true
 tokio = { version = "1.48.0", default-features = false, features = ["sync", "io-util"] }
 serde_json.workspace = true

@@ -149,7 +149,7 @@ pub fn run() {
         ),
     }
     warn!(
-        "chunk columns are decoded and counted but not meshed: the renderer's mesh source \
+        "chunk columns reach the column store but are not meshed: the renderer's mesh source \
          still reads region files, which the browser has none of"
     );
 
