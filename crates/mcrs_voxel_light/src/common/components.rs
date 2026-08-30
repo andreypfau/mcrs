@@ -37,8 +37,10 @@ impl CrossChunkWavefront {
 #[component(storage = "SparseSet")]
 pub struct IsAllAir;
 
-/// Inserted on a `Column` entity when a parked-outbox overflow is
-/// detected; consumed by the full-column reseed system.
+/// Inserted on a `Column` entity to request that every loaded chunk in it be
+/// seeded from scratch. Parked-egress overflow deliberately does NOT insert
+/// this: reseeding a column emits fresh egress at the same unloaded boundary
+/// that overflowed, which feeds itself indefinitely.
 #[derive(Component)]
 #[component(storage = "SparseSet")]
 pub struct NeedsFullReseed;

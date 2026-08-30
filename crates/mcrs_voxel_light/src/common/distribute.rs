@@ -1,6 +1,7 @@
 //! Cross-chunk distribute pass: drains `*Egress` wavefronts from source
 //! chunks and pre-attenuates them onto the destination chunk's
-//! `*Incoming` (or `*PendingEgress` on overflow).
+//! `*Incoming`, or parks them on `*PendingEgress` when the destination
+//! chunk is not loaded.
 //!
 //! Face-direction contract:
 //!
@@ -31,8 +32,7 @@ use crate::converge::PENDING_EGRESS_CAP;
 use crate::metrics::{LIGHT_CROSS_DIM_VIOLATIONS_TOTAL, LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL};
 use crate::{
     BlockBfsPending, BlockInbox, BlockOutbox, BlockOutboxDirty, BlockParkedEgress,
-    CrossChunkWavefront, NeedsFullReseed, SkyBfsPending, SkyInbox, SkyOutbox, SkyOutboxDirty,
-    SkyParkedEgress,
+    CrossChunkWavefront, SkyBfsPending, SkyInbox, SkyOutbox, SkyOutboxDirty, SkyParkedEgress,
 };
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_math::Direction;
@@ -154,29 +154,17 @@ pub(crate) fn resolve_neighbor_chunk(
     }
 }
 
+/// One log line per worker thread per second. Both call sites fire from
+/// inside a `par_iter_mut` body that can run once per wavefront, so an
+/// unthrottled line is a self-inflicted stderr flood.
 #[inline]
-fn rate_limited_xdim_log(
-    last_log: &mut Option<Instant>,
-    src: Entity,
-    dst: Entity,
-    src_dim: Option<Entity>,
-    dst_dim: Option<Entity>,
-) {
+fn log_due(last_log: &mut Option<Instant>) -> bool {
     let now = Instant::now();
-    let should_log = match *last_log {
-        None => true,
-        Some(prev) => now.duration_since(prev) >= Duration::from_secs(1),
-    };
-    if should_log {
-        tracing::error!(
-            ?src,
-            ?dst,
-            ?src_dim,
-            ?dst_dim,
-            "cross-dim wavefront route attempted; dropping"
-        );
+    let due = last_log.is_none_or(|prev| now.duration_since(prev) >= Duration::from_secs(1));
+    if due {
         *last_log = Some(now);
     }
+    due
 }
 
 pub(crate) trait DrainChannel {
@@ -231,8 +219,7 @@ impl DrainChannel for SkyChannel {
 /// destination entity — no `Mutex` contention. Caller drains the
 /// `Parallel<...>` after this returns and applies each per-thread map to
 /// the destination inboxes. Per-source deferred commands (`LightTicket`
-/// insert, `OutboxDirty` remove, overflow `NeedsFullReseed` inserts)
-/// flush through `ParallelCommands`. Face neighbours are resolved lazily
+/// insert, `OutboxDirty` remove) flush through `ParallelCommands`. Face neighbours are resolved lazily
 /// and cached per source so the column-walker fast-path (1280 wavefronts
 /// sharing one face) pays one `ColumnIndex` lookup instead of six.
 fn drain_channel_outbox<C: DrainChannel>(
@@ -252,11 +239,18 @@ fn drain_channel_outbox<C: DrainChannel>(
     column_indexes: &Query<&ColumnIndex>,
     stage: &Parallel<EntityHashMap<Vec<CrossChunkWavefront>>>,
     last_xdim_log: &Parallel<Option<Instant>>,
+    last_overflow_log: &Parallel<Option<Instant>>,
     par_commands: &ParallelCommands,
 ) {
     sources.par_iter_mut().for_each_init(
-        || (stage.borrow_local_mut(), last_xdim_log.borrow_local_mut()),
-        |(local_stage, local_log),
+        || {
+            (
+                stage.borrow_local_mut(),
+                last_xdim_log.borrow_local_mut(),
+                last_overflow_log.borrow_local_mut(),
+            )
+        },
+        |(local_stage, local_log, local_overflow_log),
          (src_entity, chunk_pos, in_dim, in_col, mut outbox, mut parked)| {
             if C::outbox_inner_mut(&mut outbox).is_empty() {
                 par_commands.command_scope(|mut c| {
@@ -267,7 +261,6 @@ fn drain_channel_outbox<C: DrainChannel>(
 
             let src_dim = in_dim.0;
             let mut resolved_faces: [Option<Option<ResolveOutcome>>; 6] = [None; 6];
-            let mut overflow_dst: SmallVec<[Entity; 4]> = SmallVec::new();
 
             let drained = std::mem::take(C::outbox_inner_mut(&mut outbox));
             for wavefront in drained {
@@ -320,13 +313,15 @@ fn drain_channel_outbox<C: DrainChannel>(
                         );
                         if dst_dim_opt != src_dim_opt {
                             LIGHT_CROSS_DIM_VIOLATIONS_TOTAL.fetch_add(1, Ordering::Relaxed);
-                            rate_limited_xdim_log(
-                                local_log,
-                                src_entity,
-                                dst_entity,
-                                src_dim_opt,
-                                dst_dim_opt,
-                            );
+                            if log_due(local_log) {
+                                tracing::error!(
+                                    src = ?src_entity,
+                                    dst = ?dst_entity,
+                                    src_dim = ?src_dim_opt,
+                                    dst_dim = ?dst_dim_opt,
+                                    "cross-dim wavefront route attempted; dropping"
+                                );
+                            }
                             continue;
                         }
                         let dest_face = face.opposite().id() as u8;
@@ -343,20 +338,20 @@ fn drain_channel_outbox<C: DrainChannel>(
                     Some(ResolveOutcome::Unloaded { dst_column, .. }) => {
                         if C::parked_inner_mut(&mut parked).len() >= PENDING_EGRESS_CAP {
                             LIGHT_PENDING_EGRESS_OVERFLOW_TOTAL.fetch_add(1, Ordering::Relaxed);
-                            tracing::warn!(
-                                target: "mcrs_lighting::needs_full_reseed",
-                                src = ?src_entity,
-                                dst_column = ?dst_column,
-                                src_chunk_x = chunk_pos.x,
-                                src_chunk_y = chunk_pos.y,
-                                src_chunk_z = chunk_pos.z,
-                                kind = C::OVERFLOW_KIND,
-                                channel = C::OVERFLOW_COUNTER_LABEL,
-                                pending_cap = PENDING_EGRESS_CAP,
-                                "Light parked overflow — inserting NeedsFullReseed on destination \
-                                 column; cascade risk if many chunks remain unloaded."
-                            );
-                            overflow_dst.push(dst_column);
+                            if log_due(local_overflow_log) {
+                                tracing::debug!(
+                                    target: "mcrs_lighting::parked_overflow",
+                                    src = ?src_entity,
+                                    dst_column = ?dst_column,
+                                    src_chunk_x = chunk_pos.x,
+                                    src_chunk_y = chunk_pos.y,
+                                    src_chunk_z = chunk_pos.z,
+                                    kind = C::OVERFLOW_KIND,
+                                    channel = C::OVERFLOW_COUNTER_LABEL,
+                                    pending_cap = PENDING_EGRESS_CAP,
+                                    "parked egress full for an unloaded destination; dropping wavefront"
+                                );
+                            }
                         } else {
                             C::parked_inner_mut(&mut parked).push(wavefront);
                         }
@@ -368,9 +363,6 @@ fn drain_channel_outbox<C: DrainChannel>(
             par_commands.command_scope(|mut c| {
                 c.entity(src_entity).insert(LightTicket);
                 c.entity(src_entity).remove::<C::OutboxDirty>();
-                for dst in overflow_dst.drain(..) {
-                    c.entity(dst).insert(NeedsFullReseed);
-                }
             });
         },
     );
@@ -411,6 +403,7 @@ pub fn distribute_block_wavefronts(
     column_indexes: Query<&ColumnIndex>,
     mut block_stage: Local<Parallel<EntityHashMap<Vec<CrossChunkWavefront>>>>,
     last_xdim_log: Local<Parallel<Option<Instant>>>,
+    last_overflow_log: Local<Parallel<Option<Instant>>>,
     par_commands: ParallelCommands,
 ) {
     if block_sources.is_empty() {
@@ -427,6 +420,7 @@ pub fn distribute_block_wavefronts(
         &column_indexes,
         &block_stage,
         &last_xdim_log,
+        &last_overflow_log,
         &par_commands,
     );
 
@@ -474,6 +468,7 @@ pub fn distribute_sky_wavefronts(
     column_indexes: Query<&ColumnIndex>,
     mut sky_stage: Local<Parallel<EntityHashMap<Vec<CrossChunkWavefront>>>>,
     last_xdim_log: Local<Parallel<Option<Instant>>>,
+    last_overflow_log: Local<Parallel<Option<Instant>>>,
     par_commands: ParallelCommands,
 ) {
     if sky_sources.is_empty() {
@@ -490,6 +485,7 @@ pub fn distribute_sky_wavefronts(
         &column_indexes,
         &sky_stage,
         &last_xdim_log,
+        &last_overflow_log,
         &par_commands,
     );
 
@@ -516,6 +512,7 @@ pub fn distribute_sky_wavefronts(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::NeedsFullReseed;
     use bevy_app::{App, Update};
     use bevy_ecs::prelude::IntoScheduleConfigs;
     use bevy_ecs::schedule::Schedule;
@@ -767,7 +764,7 @@ mod tests {
     }
 
     #[test]
-    fn distribute_pending_egress_overflow_inserts_needs_full_reseed() {
+    fn distribute_pending_egress_overflow_drops_wavefront_without_reseed() {
         let _lock = TELEMETRY_TEST_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
@@ -826,8 +823,63 @@ mod tests {
             "parked stays at cap; new wavefront dropped"
         );
         assert!(
-            app.world().get::<NeedsFullReseed>(col_b).is_some(),
-            "destination column got NeedsFullReseed"
+            app.world().get::<NeedsFullReseed>(col_b).is_none(),
+            "overflow must not reseed the destination column: the reseed re-emits egress at the \
+             same unloaded boundary and never settles"
+        );
+    }
+
+    #[test]
+    fn distribute_pending_egress_overflow_stays_quiet_across_repeated_ticks() {
+        let _lock = TELEMETRY_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let mut app = build_app();
+        let dim = spawn_dimension(&mut app);
+        let col_a = spawn_column(&mut app, 0, 1);
+        let col_b = spawn_column(&mut app, 0, 1);
+        register_column(&mut app, dim, ColumnPos::new(0, 0), col_a);
+        register_column(&mut app, dim, ColumnPos::new(1, 0), col_b);
+
+        let east = Direction::East.id() as u8;
+        let mut prefill = SmallVec::new();
+        for i in 0..PENDING_EGRESS_CAP {
+            prefill.push(CrossChunkWavefront::new(east, (i % 16) as u8, 0, 5));
+        }
+        let chunk_a = app
+            .world_mut()
+            .spawn((
+                ChunkPos::new(0, 0, 0),
+                InDimension(dim),
+                InColumn(col_a),
+                BlockOutbox::default(),
+                BlockInbox::default(),
+                BlockParkedEgress(prefill),
+            ))
+            .id();
+        if let Some(mut si) = app.world_mut().get_mut::<ColumnChunks>(col_a) {
+            si.set_loaded(0, chunk_a);
+        }
+
+        for _ in 0..8 {
+            let mut outbox = app.world_mut().get_mut::<BlockOutbox>(chunk_a).unwrap();
+            outbox.0.push(CrossChunkWavefront::new(east, 0, 0, 10));
+            app.world_mut().entity_mut(chunk_a).insert(BlockOutboxDirty);
+            app.update();
+        }
+
+        assert!(
+            app.world().get::<NeedsFullReseed>(col_b).is_none(),
+            "a permanently unloaded neighbour must not accumulate reseed work"
+        );
+        assert_eq!(
+            app.world()
+                .get::<BlockParkedEgress>(chunk_a)
+                .expect("source parked")
+                .0
+                .len(),
+            PENDING_EGRESS_CAP,
+            "parked buffer stays at its cap instead of growing"
         );
     }
 
