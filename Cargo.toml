@@ -30,6 +30,7 @@ bevy_asset = { version = "0.19.1" }
 bevy_derive = "0.19.1"
 bevy_log = { version = "0.19.1" }
 bevy_reflect = "0.19.1"
+bevy_platform = "0.19.1"
 bevy_state = "0.19.1"
 
 rocksdb = { version = "0.24.0" }

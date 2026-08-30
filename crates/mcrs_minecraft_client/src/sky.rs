@@ -442,10 +442,21 @@ fn array(
         RenderAssetUsages::RENDER_WORLD,
     );
     array.sampler = ImageSampler::nearest();
-    array.texture_view_descriptor = Some(TextureViewDescriptor {
-        dimension: Some(TextureViewDimension::D2Array),
-        ..default()
-    });
+    // A single-layer array is not a thing a GL texture can be: the backend
+    // picks the texture target from the layer count when it creates the
+    // texture, so asking for a `D2Array` view over one layer leaves the
+    // binding mismatched and the sampler reads nothing. One layer is a plain
+    // 2D texture, and the shader declares it as one.
+    // Only a stack of layers is an array. A GL backend picks the texture
+    // target from the layer count when it creates the texture, so a one-layer
+    // texture is a plain 2D one there whatever view is asked for, and binding
+    // it against an array in the shader silently samples nothing.
+    if handles.len() > 1 {
+        array.texture_view_descriptor = Some(TextureViewDescriptor {
+            dimension: Some(TextureViewDimension::D2Array),
+            ..default()
+        });
+    }
     Ok(array)
 }
 

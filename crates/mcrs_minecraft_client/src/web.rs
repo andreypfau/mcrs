@@ -11,7 +11,8 @@ use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClocks, seed_world_clo
 use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 
-use crate::{camera, gui, input, local_player, player, sky};
+use crate::sky_state::SkyEffects;
+use crate::{camera, gui, input, local_player, player, sky, sky_render};
 
 pub const CANVAS: &str = "#mcrs";
 
@@ -89,6 +90,13 @@ pub fn run() {
     console_error_panic_hook::set_once();
 
     let frozen_at = query("time").and_then(|ticks| ticks.trim().parse::<i64>().ok());
+    let sky_only = query("sky").and_then(|list| match SkyEffects::parse(&list) {
+        Ok(effects) => Some(effects),
+        Err(error) => {
+            error!("?sky={list}: {error}");
+            None
+        }
+    });
 
     let mut app = App::new();
     register_asset_source(&mut app);
@@ -124,6 +132,10 @@ pub fn run() {
         );
     }
 
+    if let Some(only) = sky_only {
+        app.insert_resource(sky_render::SkyDrawsOnly(only));
+    }
+
     match server() {
         Some(server) => {
             app.add_plugins(ClientNetworkPlugin {
@@ -141,8 +153,24 @@ pub fn run() {
          still reads region files, which the browser has none of"
     );
 
-    player::spawn_player(app.world_mut(), SPAWN, 0.0, 0.0);
+    let (yaw, pitch) = look_override().unwrap_or((0.0, 0.0));
+    player::spawn_player(app.world_mut(), SPAWN, yaw, pitch);
     app.run();
+}
+
+/// `?look=<yaw>,<pitch>` aims the camera in Minecraft degrees.
+fn look_override() -> Option<(f32, f32)> {
+    let look = query("look")?;
+    match look
+        .split_once(',')
+        .and_then(|(yaw, pitch)| Some((yaw.trim().parse().ok()?, pitch.trim().parse().ok()?)))
+    {
+        Some(angles) => Some(angles),
+        None => {
+            error!("?look={look}: expected <yaw>,<pitch> in degrees");
+            None
+        }
+    }
 }
 
 fn freeze_clocks(mut clocks: ResMut<WorldClocks>, frozen: Res<FrozenTicks>) {

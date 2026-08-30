@@ -155,6 +155,21 @@ bitflags! {
     }
 }
 
+impl SkyEffects {
+    /// Parses the comma-separated draw list a profiling run uses to leave
+    /// individual passes out, e.g. `disc,twilight,celestial,stars`.
+    pub fn parse(list: &str) -> Result<Self, String> {
+        list.split(',')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .try_fold(Self::empty(), |effects, name| {
+                Self::from_name(&name.to_ascii_uppercase())
+                    .map(|bit| effects | bit)
+                    .ok_or_else(|| format!("no sky draw is called {name}"))
+            })
+    }
+}
+
 /// The pipeline specialization key: everything that decides which shaders get
 /// compiled for this dimension.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

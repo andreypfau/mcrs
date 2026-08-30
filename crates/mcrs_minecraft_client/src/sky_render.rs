@@ -7,7 +7,7 @@ use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_resource::binding_types::{
-    sampler, texture_2d_array, uniform_buffer_sized,
+    sampler, texture_2d, texture_2d_array, uniform_buffer_sized,
 };
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
@@ -23,6 +23,10 @@ use crate::sky::{SkyEnvironment, SkyTextures, SkyUniform};
 
 const STAR_COUNT: u32 = 1500;
 
+// The alpha component keeps the destination rather than replacing it: these
+// draws add light, and a star whose colour has faded to zero would otherwise
+// leave the pixel under it transparent. That is invisible in an opaque native
+// window and punches holes through to the page behind a browser canvas.
 const ADDITIVE: BlendState = BlendState {
     color: BlendComponent {
         src_factor: BlendFactor::SrcAlpha,
@@ -30,8 +34,8 @@ const ADDITIVE: BlendState = BlendState {
         operation: BlendOperation::Add,
     },
     alpha: BlendComponent {
-        src_factor: BlendFactor::One,
-        dst_factor: BlendFactor::Zero,
+        src_factor: BlendFactor::Zero,
+        dst_factor: BlendFactor::One,
         operation: BlendOperation::Add,
     },
 };
@@ -131,6 +135,11 @@ pub(crate) struct Sky {
     pipelines: Option<(SkyKey, Vec<(usize, CachedRenderPipelineId)>)>,
 }
 
+/// Restricts the sky to a subset of its draws, so a profiling run can price
+/// one pass by leaving it out.
+#[derive(Resource)]
+pub struct SkyDrawsOnly(pub SkyEffects);
+
 #[derive(Resource)]
 pub(crate) struct ExtractedSky {
     pub uniform: SkyUniform,
@@ -164,7 +173,7 @@ fn init_sky(mut commands: Commands, device: Res<RenderDevice>, asset_server: Res
                 (
                     texture_2d_array(TextureSampleType::Float { filterable: true }),
                     sampler(SamplerBindingType::Filtering),
-                    texture_2d_array(TextureSampleType::Float { filterable: true }),
+                    texture_2d(TextureSampleType::Float { filterable: true }),
                 ),
             ),
         ),
@@ -185,13 +194,18 @@ fn extract_sky(
     textures: Extract<Option<Res<SkyTextures>>>,
     frame: Extract<Res<SkyFrame>>,
     clocks: Extract<Res<WorldClocks>>,
+    only: Extract<Option<Res<SkyDrawsOnly>>>,
 ) {
     let (Some(environment), Some(textures)) = (environment.as_ref(), textures.as_ref()) else {
         return;
     };
+    let mut key = environment.key();
+    if let Some(only) = only.as_ref() {
+        key.effects &= only.0;
+    }
     commands.insert_resource(ExtractedSky {
         uniform: environment.uniform(&frame, environment.drift(&clocks)),
-        key: environment.key(),
+        key,
         celestials: textures.celestials.id(),
         clouds: textures.clouds.id(),
     });

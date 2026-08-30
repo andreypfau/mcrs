@@ -26,8 +26,10 @@ use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_client::render::{
     Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads, VISIBLE_BYTES,
 };
+use mcrs_minecraft_client::sky_state::SkyEffects;
 use mcrs_minecraft_client::{
     anvil, asset_corpus, camera, cave, config, gui, input, local_player, player, render, sky,
+    sky_render,
 };
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_client::{screenshot, stream};
@@ -94,6 +96,10 @@ fn main() {
         PostStartup,
         log_spawned_transforms.after(TransformSystems::Propagate),
     );
+
+    if let Some(only) = sky_draws_only() {
+        app.insert_resource(sky_render::SkyDrawsOnly(only));
+    }
 
     if let Some(server) = server_address() {
         app.add_plugins(ClientNetworkPlugin {
@@ -327,6 +333,19 @@ fn look_override() -> Option<(f32, f32)> {
         std::process::exit(1);
     };
     Some(angles)
+}
+
+/// `MCRS_SKY=disc,twilight,celestial,stars,clouds` draws only the passes it
+/// lists, which is how a frame gets priced one pass at a time.
+fn sky_draws_only() -> Option<SkyEffects> {
+    let list = std::env::var("MCRS_SKY").ok()?;
+    match SkyEffects::parse(&list) {
+        Ok(effects) => Some(effects),
+        Err(err) => {
+            eprintln!("MCRS_SKY={list}: {err}");
+            std::process::exit(1);
+        }
+    }
 }
 
 /// `MCRS_TIME=<ticks>` pins every clock and stops them, so a scripted

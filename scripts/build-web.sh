@@ -59,9 +59,10 @@ html = """<!doctype html>
           background: rgba(0,0,0,.72); color: #eee; font: 12px/1.5 monospace;
           border-radius: 6px; white-space: pre; user-select: none; }
   #perf b { color: #8f8; font-weight: normal; }
-  #perf button { color: #9cf; background: none; border: 1px solid #567;
+  #perf a, #perf button { color: #9cf; background: none; border: 1px solid #567;
           border-radius: 4px; font: 11px monospace; padding: 1px 5px; margin: 1px 2px 1px 0;
-          cursor: pointer; }
+          cursor: pointer; text-decoration: none; display: inline-block; }
+  #perf a.on { border-color: #9cf; color: #fff; }
   #perf hr { border: none; border-top: 1px solid #345; margin: 6px 0; }
 </style>
 <div id="boot">loading…</div>
@@ -83,10 +84,18 @@ html = """<!doctype html>
     });
 </script>
 <script>
-  // Frame times measured off requestAnimationFrame, plus a render-scale knob:
-  // the one that separates a fill-rate limit from a CPU one. Toggle with P.
+  // A profiling overlay: frame times measured off requestAnimationFrame, plus
+  // the two knobs that separate a fill-rate limit from a CPU one - which sky
+  // passes are drawn, and how many pixels they cover. Toggle with P.
   const perf = document.getElementById("perf");
   const canvas = document.getElementById("mcrs");
+  const url = new URL(location.href);
+  const SETS = [
+    ["everything", null],
+    ["no clouds", "disc,twilight,celestial,stars"],
+    ["disc only", "disc"],
+    ["clouds only", "clouds"],
+  ];
   const SCALES = [["100%", 1], ["71%", 0.71], ["50%", 0.5], ["35%", 0.35]];
   let scale = 1;
 
@@ -95,6 +104,12 @@ html = """<!doctype html>
     canvas.style.width = value === 1 ? "100%" : Math.round(innerWidth * value) + "px";
     canvas.style.height = value === 1 ? "100%" : Math.round(innerHeight * value) + "px";
     draw();
+  };
+  const linkFor = (label, list) => {
+    const next = new URL(location.href);
+    if (list) next.searchParams.set("sky", list); else next.searchParams.delete("sky");
+    const on = (url.searchParams.get("sky") || null) === list ? " class=on" : "";
+    return `<a href="${next}"${on}>${label}</a>`;
   };
 
   let frames = [], last = performance.now(), shown = "measuring…";
@@ -115,7 +130,8 @@ html = """<!doctype html>
     const px = (canvas.width * canvas.height / 1e6).toFixed(1);
     perf.innerHTML = shown
       + `\n${canvas.width}x${canvas.height}  ${px} Mpx  dpr ${devicePixelRatio}`
-      + "<hr>render scale: "
+      + "<hr>passes: " + SETS.map(([l, v]) => linkFor(l, v)).join("")
+      + "<br>render scale: "
       + SCALES.map(([l, v]) => `<button data-scale="${v}"${v === scale ? " style=color:#fff" : ""}>${l}</button>`).join("");
   }
   perf.addEventListener("click", e => {
@@ -125,7 +141,7 @@ html = """<!doctype html>
   addEventListener("keydown", e => {
     if (e.code === "KeyP") { perf.hidden = !perf.hidden; e.preventDefault(); }
   });
-  if (new URL(location.href).searchParams.get("perf") !== "0") {
+  if (url.searchParams.get("perf") !== "0") {
     perf.hidden = false;
     draw();
     requestAnimationFrame(tick);

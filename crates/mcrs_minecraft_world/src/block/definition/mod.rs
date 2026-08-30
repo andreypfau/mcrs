@@ -3,7 +3,9 @@ pub mod schema;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use core::time::Duration;
+
+use bevy_platform::time::Instant;
 
 use bevy_asset::AssetServer;
 use bevy_asset::io::AssetSourceId;
