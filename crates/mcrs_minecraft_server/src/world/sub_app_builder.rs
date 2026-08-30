@@ -139,6 +139,13 @@ pub fn spawn_dim_subapp(
             from_dim_rx,
         );
 
+    let asset_root = app
+        .world()
+        .get_resource::<mcrs_voxel_server::AssetRoot>()
+        .cloned()
+        .unwrap_or_default()
+        .0;
+
     let mut sub_app = SubApp::new();
 
     sub_app.insert_resource(ToDimReceiver::<ToDim> {
@@ -251,6 +258,7 @@ pub fn spawn_dim_subapp(
     // also costs more than the whole sub-app spawn. Nothing here hot-reloads.
     sub_app.add_plugins(AssetPlugin {
         watch_for_changes_override: Some(false),
+        file_path: asset_root,
         ..AssetPlugin::default()
     });
     // The worldgen `ChunkPlugin` (NoiseGeneratorSettings, ColumnScheduler, the

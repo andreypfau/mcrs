@@ -42,6 +42,9 @@ pub struct MinecraftServerPlugin {
     /// Clear when the server shares a process with another Bevy app, which
     /// then owns the process-global task pools.
     pub owns_task_pools: bool,
+    /// Absolute path to the asset corpus, for a server that cannot resolve
+    /// `assets` from its own working directory or executable location.
+    pub asset_path: Option<String>,
 }
 
 impl Default for MinecraftServerPlugin {
@@ -49,6 +52,7 @@ impl Default for MinecraftServerPlugin {
         Self {
             bind_address: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 25565).into(),
             owns_task_pools: true,
+            asset_path: None,
         }
     }
 }
@@ -60,6 +64,14 @@ impl MinecraftServerPlugin {
         Self {
             bind_address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
             owns_task_pools: false,
+            asset_path: None,
+        }
+    }
+
+    pub fn with_assets(self, path: impl Into<String>) -> Self {
+        Self {
+            asset_path: Some(path.into()),
+            ..self
         }
     }
 }
@@ -69,6 +81,7 @@ impl Plugin for MinecraftServerPlugin {
         app.add_plugins(VoxelServerPlugin {
             tick_rate: DEFAULT_TPS,
             owns_task_pools: self.owns_task_pools,
+            asset_path: self.asset_path.clone(),
         });
         app.add_plugins(mcrs_minecraft_core::MinecraftCorePlugin);
         app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);

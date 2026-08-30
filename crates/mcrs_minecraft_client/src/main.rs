@@ -51,12 +51,13 @@ fn main() {
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
     let frozen_at = frozen_time();
     let (budget, uploads, cave, loader) = terrain(save_data.position);
+    let assets = asset_corpus().to_string_lossy().into_owned();
 
     let mut app = App::new();
     app.add_plugins(
         DefaultPlugins
             .set(AssetPlugin {
-                file_path: asset_corpus().to_string_lossy().into_owned(),
+                file_path: assets.clone(),
                 ..default()
             })
             .set(RenderPlugin {
@@ -108,7 +109,8 @@ fn main() {
 
     // After `DefaultPlugins`: an embedded server leaves the task pools to its
     // host, so the host has to have built them before the server thread ticks.
-    let server = server_address().unwrap_or_else(|| host_integrated_server(world.as_deref()));
+    let server =
+        server_address().unwrap_or_else(|| host_integrated_server(world.as_deref(), &assets));
     app.add_plugins(ClientNetworkPlugin {
         server,
         username: std::env::var("MCRS_USERNAME").unwrap_or_else(|_| "Player".to_owned()),
@@ -204,9 +206,9 @@ fn terrain(spawn: DVec3) -> (Arc<Budget>, Uploads, cave::CaveCull, stream::Loade
 /// Singleplayer, the way the vanilla client plays it: a server of our own on a
 /// loopback port, which the client then joins like any other.
 #[cfg(not(target_family = "wasm"))]
-fn host_integrated_server(world: Option<&Path>) -> SocketAddr {
+fn host_integrated_server(world: Option<&Path>, assets: &str) -> SocketAddr {
     let mut server = App::new();
-    server.add_plugins(MinecraftServerPlugin::embedded());
+    server.add_plugins(MinecraftServerPlugin::embedded().with_assets(assets));
     let address = server.world().resource::<BoundAddress>().0;
     mcrs_minecraft_server::spawn_server_thread(server, mcrs_minecraft_server::run_server_loop);
     match world {
