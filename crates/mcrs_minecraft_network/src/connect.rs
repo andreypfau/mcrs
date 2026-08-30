@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 use tokio::time::timeout;
 
-const HANDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
+pub(crate) const HANDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub const ACCEPT_BUCKET_CAP: u32 = 5;
 // 5 tokens over a 10 s window → 0.5 tokens/s
@@ -64,12 +64,66 @@ pub enum AcceptOutcome {
 
 /// RAII guard that decrements the in-flight counter on drop and mirrors the
 /// updated value to the telemetry global.
-struct InflightGuard(Arc<AtomicUsize>);
+pub(crate) struct InflightGuard(Arc<AtomicUsize>);
 
 impl Drop for InflightGuard {
     fn drop(&mut self) {
         let prev = self.0.fetch_sub(1, Ordering::Relaxed);
         BRIDGE_HANDSHAKE_INFLIGHT.store((prev - 1) as u64, Ordering::Relaxed);
+    }
+}
+
+/// Shared admission control for every listener: a per-IP token bucket plus one
+/// global cap on handshakes still in flight.
+pub(crate) struct AcceptGate {
+    // HashMap is safe without locks: a gate is owned by a single accept task.
+    per_ip_buckets: HashMap<IpAddr, TokenBucket>,
+    inflight: Arc<AtomicUsize>,
+}
+
+impl AcceptGate {
+    pub(crate) fn new() -> Self {
+        Self {
+            per_ip_buckets: HashMap::new(),
+            inflight: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+
+    pub(crate) fn admit(&mut self, ip: IpAddr) -> Option<InflightGuard> {
+        let current_inflight = self.inflight.load(Ordering::Relaxed);
+
+        // The per-IP bucket blunts remote connection floods. An integrated
+        // server reconnects over loopback far faster than its 0.5/s refill,
+        // where a silent refusal reads as a hang.
+        let outcome = if ip.is_loopback() {
+            if current_inflight >= GLOBAL_HANDSHAKE_CAP {
+                AcceptOutcome::CapExceeded
+            } else {
+                AcceptOutcome::Accept
+            }
+        } else {
+            let bucket = self
+                .per_ip_buckets
+                .entry(ip)
+                .or_insert_with(|| TokenBucket::new(ACCEPT_BUCKET_CAP));
+            accept_decision(bucket, current_inflight)
+        };
+
+        match outcome {
+            AcceptOutcome::RateLimited => {
+                warn!("accept-rate limit exceeded for {ip}");
+                return None;
+            }
+            AcceptOutcome::CapExceeded => {
+                warn!("global handshake cap reached ({current_inflight})");
+                return None;
+            }
+            AcceptOutcome::Accept => {}
+        }
+
+        let new_inflight = self.inflight.fetch_add(1, Ordering::Relaxed) + 1;
+        BRIDGE_HANDSHAKE_INFLIGHT.store(new_inflight as u64, Ordering::Relaxed);
+        Some(InflightGuard(self.inflight.clone()))
     }
 }
 
@@ -79,49 +133,14 @@ pub(crate) async fn start_accept_loop(shared: SharedNetworkState, listener: TcpL
         Err(e) => error!("Failed to read the listener address: {}", e),
     }
 
-    // HashMap is safe without locks: the accept-loop runs in a single tokio task.
-    let mut per_ip_buckets: HashMap<IpAddr, TokenBucket> = HashMap::new();
-    let inflight = Arc::new(AtomicUsize::new(0));
+    let mut gate = AcceptGate::new();
 
     loop {
         match listener.accept().await {
             Ok((socket, remote_addr)) => {
-                let ip = remote_addr.ip();
-                let current_inflight = inflight.load(Ordering::Relaxed);
-
-                // The per-IP bucket blunts remote connection floods. An
-                // integrated server reconnects over loopback far faster than
-                // its 0.5/s refill, where a silent refusal reads as a hang.
-                let outcome = if ip.is_loopback() {
-                    if current_inflight >= GLOBAL_HANDSHAKE_CAP {
-                        AcceptOutcome::CapExceeded
-                    } else {
-                        AcceptOutcome::Accept
-                    }
-                } else {
-                    let bucket = per_ip_buckets
-                        .entry(ip)
-                        .or_insert_with(|| TokenBucket::new(ACCEPT_BUCKET_CAP));
-                    accept_decision(bucket, current_inflight)
+                let Some(guard) = gate.admit(remote_addr.ip()) else {
+                    continue;
                 };
-
-                match outcome {
-                    AcceptOutcome::RateLimited => {
-                        warn!("accept-rate limit exceeded for {ip}");
-                        // socket dropped here — no tokio task spawned
-                        continue;
-                    }
-                    AcceptOutcome::CapExceeded => {
-                        warn!("global handshake cap reached ({current_inflight})");
-                        continue;
-                    }
-                    AcceptOutcome::Accept => {}
-                }
-
-                let new_inflight = inflight.fetch_add(1, Ordering::Relaxed) + 1;
-                BRIDGE_HANDSHAKE_INFLIGHT.store(new_inflight as u64, Ordering::Relaxed);
-
-                let guard = InflightGuard(inflight.clone());
                 let shared = shared.clone();
                 tokio::spawn(async move {
                     let _guard = guard;

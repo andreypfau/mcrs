@@ -1,11 +1,12 @@
 use crate::event::ReceivedPacketEvent;
-use crate::packet_io::PacketIo;
+use crate::packet_io::{ByteStream, PacketIo};
 use crate::{ConnectionState, EngineConnection, RawConnection};
 use anyhow::bail;
 use bevy_app::{App, Plugin, Update};
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, On, Query};
+#[cfg(not(target_family = "wasm"))]
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
@@ -42,11 +43,20 @@ use mcrs_minecraft_protocol::{
     WritePacket, uuid::Uuid,
 };
 use std::net::SocketAddr;
+#[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{Receiver, channel};
 
+/// The browser has no TCP and the native client has no WebTransport, so what
+/// "the server" is differs by target; everything downstream of the byte stream
+/// does not.
+#[cfg(not(target_family = "wasm"))]
+pub type ServerAddress = SocketAddr;
+#[cfg(target_family = "wasm")]
+pub type ServerAddress = crate::browser::WebTransportTarget;
+
 pub struct ClientNetworkPlugin {
-    pub server: SocketAddr,
+    pub server: ServerAddress,
     pub username: String,
 }
 
@@ -121,26 +131,34 @@ pub struct ChunkCacheRadius(pub i32);
 #[derive(Component, Default, Clone, Copy, Debug)]
 pub struct ReceivedChunkColumns(pub usize);
 
+#[cfg(not(target_family = "wasm"))]
 #[derive(Resource)]
 struct ClientRuntime(#[allow(dead_code)] Runtime);
 
 impl Plugin for ClientNetworkPlugin {
     fn build(&self, app: &mut App) {
-        let runtime = Runtime::new().expect("Failed to start the client network runtime");
         let (send, recv) = channel(1);
-        let server = self.server;
+        let server = self.server.clone();
         let username = self.username.clone();
 
-        runtime.spawn(async move {
-            match log_in(server, username).await {
+        let joining = async move {
+            match connect_and_log_in(server, username).await {
                 Ok(connection) => {
                     let _ = send.send(connection).await;
                 }
-                Err(e) => error!("login to {server} failed: {e:#}"),
+                Err(e) => error!("login failed: {e:#}"),
             }
-        });
+        };
 
-        app.insert_resource(ClientRuntime(runtime));
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let runtime = Runtime::new().expect("Failed to start the client network runtime");
+            runtime.spawn(joining);
+            app.insert_resource(ClientRuntime(runtime));
+        }
+        #[cfg(target_family = "wasm")]
+        wasm_bindgen_futures::spawn_local(joining);
+
         app.add_systems(
             Update,
             (spawn_logged_in_connection(recv), receive_packets, flush).chain(),
@@ -178,20 +196,41 @@ pub fn offline_player_uuid(username: &str) -> Uuid {
     Uuid::from_bytes(bytes)
 }
 
+async fn connect_and_log_in(
+    server: ServerAddress,
+    username: String,
+) -> anyhow::Result<(RawConnection, ServerProfile)> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        let io = PacketIo::connect(server).await?;
+        log_in(io, server, server.ip().to_string(), server.port(), username).await
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        // A browser never learns the peer address; the connection carries one
+        // only so a server-side log line has something to print.
+        let peer = SocketAddr::from(([0, 0, 0, 0], 0));
+        let (host, port) = server.host_and_port();
+        let io = PacketIo::new(crate::browser::connect(&server).await?);
+        log_in(io, peer, host, port, username).await
+    }
+}
+
 /// Handshake and login run before the socket is split in two, because
 /// `LoginCompression` changes the framing of every packet after it and the
 /// reader task may already have decoded them by the time an ECS system could
 /// react.
-async fn log_in(
-    server: SocketAddr,
+async fn log_in<S: ByteStream>(
+    mut io: PacketIo<S>,
+    remote_addr: SocketAddr,
+    host: String,
+    port: u16,
     username: String,
 ) -> anyhow::Result<(RawConnection, ServerProfile)> {
-    let mut io = PacketIo::connect(server).await?;
-    let host = server.ip().to_string();
     io.send_packet(&ServerboundHandshake {
         protocol_version: VarInt(PROTOCOL_VERSION),
         server_address: Bounded(host.as_str()),
-        server_port: server.port(),
+        server_port: port,
         intent: Intent::Login,
     })
     .await?;
@@ -222,8 +261,8 @@ async fn log_in(
     };
 
     io.send_packet(&ServerboundLoginAcknowledged).await?;
-    info!("logged in to {server} as {}", profile.username);
-    Ok((io.into_raw_connection(server), profile))
+    info!("logged in to {host}:{port} as {}", profile.username);
+    Ok((io.into_raw_connection(remote_addr), profile))
 }
 
 fn client_information() -> ClientInformation<'static> {

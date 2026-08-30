@@ -1,145 +1,54 @@
+#[cfg(target_family = "wasm")]
+pub mod browser;
 pub mod client;
+#[cfg(not(target_family = "wasm"))]
 pub mod connect;
 pub mod event;
+#[cfg(not(target_family = "wasm"))]
 mod intent;
 pub mod metrics;
 pub mod packet_io;
+#[cfg(not(target_family = "wasm"))]
 mod status;
+#[cfg(not(target_family = "wasm"))]
+pub mod webtransport;
+
+/// Reading a `std::time::Instant` panics in the browser, so packet timestamps
+/// come from `performance.now()` there instead.
+#[cfg(not(target_family = "wasm"))]
+pub use std::time::Instant;
+#[cfg(target_family = "wasm")]
+pub use web_time::Instant;
 
 pub use crate::packet_io::{MAX_QUEUED_BYTES_PER_SOCKET, RawConnection};
-use bevy_app::{App, FixedPreUpdate, Plugin, PostStartup};
 use bevy_ecs::prelude::Component;
-use bevy_ecs::resource::Resource;
-use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use bevy_ecs::system::Res;
-use bevy_ecs::world::World;
 
 /// System sets for the network layer, usable for ordering constraints in
 /// downstream crates. `SpawnConnections` contains `spawn_new_raw_connections`.
 /// Other crates should schedule their connection-setup systems
 /// `.after(NetworkSet::SpawnConnections)` in `FixedPreUpdate`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, SystemSet)]
+#[cfg(not(target_family = "wasm"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, bevy_ecs::schedule::SystemSet)]
 pub enum NetworkSet {
     SpawnConnections,
 }
 use bytes::Bytes;
-use mcrs_minecraft_protocol::{Encode, Packet, WritePacket};
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::sync::Arc;
-use std::time::Instant;
-use tokio::runtime::{Handle, Runtime};
 use tokio::sync::mpsc::error::TryRecvError;
-use tokio::sync::mpsc::{Sender, channel};
 
-pub struct NetworkPlugin {
-    /// Port 0 asks the OS for a free port; read the result back from
-    /// [`BoundAddress`].
-    pub address: SocketAddr,
-}
-
-impl Default for NetworkPlugin {
-    fn default() -> Self {
-        Self {
-            address: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 25565).into(),
-        }
-    }
-}
-
-/// The address the listener is actually bound to, inserted while the plugin
-/// builds, so a caller that asked for port 0 can read the port before the app
-/// ever ticks.
-#[derive(Resource, Clone, Copy, Debug)]
-pub struct BoundAddress(pub SocketAddr);
-
-impl Plugin for NetworkPlugin {
-    fn build(&self, app: &mut App) {
-        build_plugin(app, self.address).expect("Failed to build network plugin");
-    }
-}
-
-fn build_plugin(app: &mut App, address: SocketAddr) -> anyhow::Result<()> {
-    let runtime = Runtime::new()?;
-    let tokio_handle = runtime.handle().clone();
-
-    // Binding through std keeps this usable from a caller that is itself
-    // already inside a tokio runtime, where `block_on` would panic.
-    let std_listener = std::net::TcpListener::bind(address)?;
-    std_listener.set_nonblocking(true)?;
-    let bound = std_listener.local_addr()?;
-    let listener = {
-        let _guard = tokio_handle.enter();
-        tokio::net::TcpListener::from_std(std_listener)?
-    };
-
-    let (new_sessions_send, mut new_sessions_recv) = channel(128);
-
-    let shared_state = SharedNetworkState(Arc::new(SharedNetworkStateInner {
-        tokio_handle,
-        tokio_runtime: Some(runtime),
-        new_connections_send: new_sessions_send,
-    }));
-
-    app.insert_resource(shared_state.clone());
-    app.insert_resource(BoundAddress(bound));
-
-    let mut listener = Some(listener);
-    let start_accept_loop = move |shared_state: Res<SharedNetworkState>| {
-        let Some(listener) = listener.take() else {
-            return;
-        };
-        let _guard = shared_state.0.tokio_handle.enter();
-        tokio::spawn(connect::start_accept_loop(shared_state.clone(), listener));
-    };
-    let spawn_new_raw_connections = move |world: &mut World| {
-        for _ in 0..new_sessions_recv.len() {
-            match new_sessions_recv.try_recv() {
-                Ok(session) => {
-                    // OutboundQueue and InboundRateBucket components live in mcrs_minecraft_server
-                    // and are attached via an observer in the bridge plugin, not here.
-                    world.spawn((
-                        ServerSideConnection { raw: session },
-                        ConnectionState::Login,
-                    ))
-                }
-                Err(_) => break,
-            };
-        }
-    };
-
-    app.add_systems(PostStartup, start_accept_loop);
-    app.configure_sets(FixedPreUpdate, NetworkSet::SpawnConnections);
-    app.add_systems(
-        FixedPreUpdate,
-        spawn_new_raw_connections.in_set(NetworkSet::SpawnConnections),
-    );
-    // flush_packets and check_congestion removed; the FixedPostUpdate bridge chain
-    // is registered by BridgePlugin in mcrs_minecraft_server.
-    app.add_plugins(event::EventLoopPlugin);
-
-    Ok(())
-}
-
-#[derive(Resource, Clone)]
-struct SharedNetworkState(Arc<SharedNetworkStateInner>);
-
-struct SharedNetworkStateInner {
-    tokio_handle: Handle,
-    // Held to keep the runtime alive for the process lifetime; dropping it shuts down all tasks.
-    #[allow(dead_code)]
-    tokio_runtime: Option<Runtime>,
-    new_connections_send: Sender<Box<RawConnection>>,
-}
+#[cfg(not(target_family = "wasm"))]
+mod server;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use server::SharedNetworkState;
+#[cfg(not(target_family = "wasm"))]
+pub use server::{
+    BoundAddress, InGameConnectionState, NetworkPlugin, ServerSideConnection, WebTransportEndpoint,
+};
 
 #[derive(Clone, Debug)]
 pub struct ReceivedPacket {
     pub timestamp: Instant,
     pub id: i32,
     pub payload: Bytes,
-}
-
-#[derive(Component)]
-pub struct ServerSideConnection {
-    pub raw: Box<RawConnection>,
 }
 
 #[derive(Debug, Component, PartialEq, Eq, Clone, Copy, Hash)]
@@ -149,55 +58,47 @@ pub enum ConnectionState {
     Game,
 }
 
-#[derive(Component)]
-#[component(storage = "SparseSet")]
-pub struct InGameConnectionState;
-
-impl ServerSideConnection {
-    pub fn remote_addr(&self) -> SocketAddr {
-        self.raw.remote_addr
+/// The inverse of [`WebTransportEndpoint::certificate_hash_hex`]: a browser can
+/// only reach the self-signed development endpoint by passing the hash back,
+/// and it arrives as the hex the server printed.
+pub fn certificate_hash_from_hex(hex: &str) -> anyhow::Result<[u8; 32]> {
+    let hex = hex.trim();
+    if hex.len() != 64 {
+        anyhow::bail!(
+            "a SHA-256 certificate hash is 64 hex digits, got {}",
+            hex.len()
+        );
     }
-
-    pub fn queued_bytes(&self) -> usize {
-        self.raw.queued_bytes()
+    let mut hash = [0u8; 32];
+    for (byte, pair) in hash.iter_mut().zip(hex.as_bytes().chunks_exact(2)) {
+        *byte = u8::from_str_radix(std::str::from_utf8(pair)?, 16)?;
     }
-}
-
-impl WritePacket for ServerSideConnection {
-    fn write_packet_fallible<P>(&mut self, packet: &P) -> anyhow::Result<()>
-    where
-        P: Encode + Packet,
-    {
-        self.raw.write_packet_fallible(packet)
-    }
-
-    fn write_packet_bytes(&mut self, bytes: &[u8]) {
-        self.raw.write_packet_bytes(bytes)
-    }
-}
-
-impl EngineConnection for ServerSideConnection {
-    fn try_recv(&mut self) -> Result<Option<ReceivedPacket>, TryRecvError> {
-        self.raw.try_recv()
-    }
-
-    fn flush(&mut self) -> anyhow::Result<()> {
-        self.raw.flush()
-    }
-
-    fn queued_bytes(&self) -> usize {
-        self.raw.queued_bytes()
-    }
-}
-
-impl Drop for ServerSideConnection {
-    fn drop(&mut self) {
-        let _ = self.flush();
-    }
+    Ok(hash)
 }
 
 pub trait EngineConnection: Send + Sync + 'static {
     fn try_recv(&mut self) -> Result<Option<ReceivedPacket>, TryRecvError>;
     fn flush(&mut self) -> anyhow::Result<()>;
     fn queued_bytes(&self) -> usize;
+}
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_published_certificate_hash_round_trips_through_its_hex() {
+        let endpoint = WebTransportEndpoint {
+            address: "127.0.0.1:25565".parse().unwrap(),
+            certificate_hash: std::array::from_fn(|i| (i * 7 + 3) as u8),
+        };
+        let parsed = certificate_hash_from_hex(&endpoint.certificate_hash_hex()).unwrap();
+        assert_eq!(parsed, endpoint.certificate_hash);
+    }
+
+    #[test]
+    fn a_truncated_certificate_hash_is_refused() {
+        assert!(certificate_hash_from_hex("abcd").is_err());
+        assert!(certificate_hash_from_hex(&"z".repeat(64)).is_err());
+    }
 }
