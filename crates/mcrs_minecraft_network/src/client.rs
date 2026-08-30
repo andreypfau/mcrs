@@ -110,11 +110,19 @@ pub struct JoinedGame {
     pub dimension: String,
 }
 
-#[derive(Component, Clone, Copy, Debug)]
-pub struct ServerPosition {
+#[derive(Clone, Copy, Debug)]
+pub struct ServerTeleport {
+    pub teleport_id: i32,
     pub position: DVec3,
+    pub velocity: DVec3,
     pub look: Look,
 }
+
+/// Teleports the server has sent that the player has yet to be moved to and
+/// confirm. A queue rather than the latest one, because the server keeps a
+/// count of outstanding confirmations and a dropped teleport never unblocks.
+#[derive(Component, Default, Debug)]
+pub struct PendingTeleports(pub Vec<ServerTeleport>);
 
 #[derive(Component, Clone, Copy, Debug)]
 pub struct ChunkCacheCenter {
@@ -287,6 +295,7 @@ fn spawn_logged_in_connection(
                 profile,
                 ReceivedRegistries::default(),
                 ReceivedTags::default(),
+                PendingTeleports::default(),
             ));
         }
     }
@@ -388,10 +397,11 @@ fn handle_configuration_packet(
 
 fn handle_game_packet(
     event: On<ReceivedPacketEvent>,
-    mut connections: Query<(&mut ClientConnection, &ConnectionState)>,
+    mut connections: Query<(&mut ClientConnection, &ConnectionState, &mut PendingTeleports)>,
     mut commands: Commands,
 ) {
-    let Ok((mut connection, state)) = connections.get_mut(event.entity) else {
+    let Ok((mut connection, state, mut pending_teleports)) = connections.get_mut(event.entity)
+    else {
         return;
     };
     if *state != ConnectionState::Game {
@@ -405,8 +415,16 @@ fn handle_game_packet(
             dimension: login.player_spawn_info.dimension.to_string(),
         });
     } else if let Some(position) = event.decode::<ClientboundPlayerPosition>() {
-        commands.entity(event.entity).insert(ServerPosition {
+        if !position.flags.is_empty() {
+            // ponytail: every relative flag is treated as absolute. Our server
+            // only ever sends absolute teleports; the upgrade is vanilla's
+            // `PositionMoveRotation.calculateAbsolute`.
+            warn!("relative teleport flags are not applied: {:?}", position.flags);
+        }
+        pending_teleports.0.push(ServerTeleport {
+            teleport_id: position.teleport_id.0,
             position: position.position,
+            velocity: position.velocity,
             look: position.look,
         });
     } else if let Some(center) = event.decode::<ClientboundSetChunkCacheCenter>() {

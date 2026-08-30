@@ -10,9 +10,7 @@ use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundKeepAlive as ConfigurationRequest;
 use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundKeepAlive as ConfigurationResponse;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundKeepAlive as GameRequest;
-use mcrs_minecraft_protocol::packets::game::serverbound::{
-    ServerboundAcceptTeleportation, ServerboundKeepAlive as GameResponse,
-};
+use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundKeepAlive as GameResponse;
 use std::time::Instant;
 use tracing::{debug, warn};
 
@@ -23,7 +21,6 @@ impl Plugin for KeepAlivePlugin {
         app.add_systems(bevy_app::FixedPreUpdate, handle_keepalive);
         app.add_systems(bevy_app::FixedPreUpdate, new_connection);
         app.add_observer(handle_keepalive_response);
-        app.add_observer(handle_accept_teleportation);
     }
 }
 
@@ -140,11 +137,4 @@ pub fn handle_keepalive_response(
     }
 
     state.pending = false;
-}
-
-fn handle_accept_teleportation(event: On<ReceivedPacketEvent>) {
-    let Some(pkt) = event.decode::<ServerboundAcceptTeleportation>() else {
-        return;
-    };
-    debug!("AcceptTeleportation: teleport_id={}", pkt.teleport_id.0);
 }

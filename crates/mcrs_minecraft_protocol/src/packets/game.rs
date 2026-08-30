@@ -457,6 +457,8 @@ pub mod serverbound {
     #[packet(id=0x00, state=Game)]
     pub struct ServerboundAcceptTeleportation {
         pub teleport_id: VarInt,
+        pub position: Position,
+        pub look: Look,
     }
 
     #[derive(Clone, Debug, Encode, Decode, Packet)]

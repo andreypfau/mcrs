@@ -2,8 +2,8 @@ use bevy_app::{App, AppExit, Update};
 use bevy_ecs::message::MessageWriter;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{
-    ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, JoinedGame, ReceivedRegistries,
-    ReceivedTags, ServerPosition, ServerProfile, offline_player_uuid,
+    ChunkCacheCenter, ChunkCacheRadius, ClientNetworkPlugin, JoinedGame, PendingTeleports,
+    ReceivedRegistries, ReceivedTags, ServerProfile, offline_player_uuid,
 };
 use mcrs_minecraft_network::columns::ColumnStore;
 use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin, run_server_loop};
@@ -75,7 +75,12 @@ fn the_client_logs_in_configures_and_joins_the_embedded_server() {
     assert!(!joined.dimensions.is_empty());
     assert!(joined.dimension.starts_with("minecraft:"));
 
-    assert!(world.get::<ServerPosition>(connection).is_some());
+    assert!(
+        world
+            .get::<PendingTeleports>(connection)
+            .is_some_and(|teleports| !teleports.0.is_empty()),
+        "no teleport arrived for the client to confirm"
+    );
     assert!(world.get::<ChunkCacheCenter>(connection).is_some());
     assert!(world.get::<ChunkCacheRadius>(connection).is_some());
     let store = world.resource::<ColumnStore>();
@@ -112,7 +117,9 @@ fn drive_client_until_joined(client: &mut App) -> Option<bevy_ecs::entity::Entit
             "the connection reached play without passing through configuration"
         );
         let joined = world.get::<JoinedGame>(entity).is_some();
-        let positioned = world.get::<ServerPosition>(entity).is_some();
+        let positioned = world
+            .get::<PendingTeleports>(entity)
+            .is_some_and(|teleports| !teleports.0.is_empty());
         let centred = world.get::<ChunkCacheCenter>(entity).is_some();
         let radius = world.get::<ChunkCacheRadius>(entity).is_some();
         let chunks = !world.resource::<ColumnStore>().is_empty();

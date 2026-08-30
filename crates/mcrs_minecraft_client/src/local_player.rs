@@ -1,9 +1,18 @@
 use bevy::math::{DVec2, DVec3};
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
+use mcrs_minecraft_network::ConnectionState;
+use mcrs_minecraft_network::client::{ClientConnection, PendingTeleports};
+use mcrs_minecraft_protocol::packets::game::serverbound::{
+    ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,
+    ServerboundMovePlayerRot, ServerboundMovePlayerStatusOnly,
+};
+use mcrs_minecraft_protocol::{Look, MoveFlags, VarInt, WritePacket};
 use mcrs_minecraft_world::entity::movement;
 use mcrs_minecraft_world::entity::player::{Flying, FlyingSpeed, Input};
-use mcrs_voxel_world::entity::physics::{OldTransform, Transform as PhysicsTransform, Velocity};
+use mcrs_voxel_world::entity::physics::{
+    OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
+};
 
 use crate::input;
 use crate::options::SPRINT_WINDOW_TICKS;
@@ -54,6 +63,58 @@ impl Sprint {
     }
 }
 
+/// The squared distance `LocalPlayer.sendPosition` calls a move.
+const MOVE_EPSILON_SQUARED: f64 = 2.0e-4 * 2.0e-4;
+
+/// A stationary player still reports its position this often.
+const POSITION_REMINDER_TICKS: u8 = 20;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MovePacket {
+    PosRot,
+    Pos,
+    Rot,
+    StatusOnly,
+}
+
+/// What the server was last told, which is what this tick's position and look
+/// are judged against. Not derivable from the transform alone.
+#[derive(Component, Debug, Clone, Copy, Default)]
+pub struct LastSentMovement {
+    position: DVec3,
+    rotation: Rotation,
+    flags: u8,
+    reminder: u8,
+}
+
+impl LastSentMovement {
+    fn tick(&mut self, position: DVec3, rotation: Rotation, flags: MoveFlags) -> Option<MovePacket> {
+        self.reminder += 1;
+        let moved = position.distance_squared(self.position) > MOVE_EPSILON_SQUARED
+            || self.reminder >= POSITION_REMINDER_TICKS;
+        let turned = rotation != self.rotation;
+        let flags = flags.into_bits();
+
+        let packet = match (moved, turned) {
+            (true, true) => Some(MovePacket::PosRot),
+            (true, false) => Some(MovePacket::Pos),
+            (false, true) => Some(MovePacket::Rot),
+            (false, false) if flags != self.flags => Some(MovePacket::StatusOnly),
+            (false, false) => None,
+        };
+
+        if moved {
+            self.position = position;
+            self.reminder = 0;
+        }
+        if turned {
+            self.rotation = rotation;
+        }
+        self.flags = flags;
+        packet
+    }
+}
+
 /// One tick of local-player movement, from the sprint machine through the
 /// shared travel step.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -65,8 +126,75 @@ impl Plugin for LocalPlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             FixedUpdate,
-            (capture_old_transform, fly).chain().in_set(LocalPlayerTick),
+            (
+                accept_teleports.before(LocalPlayerTick),
+                (capture_old_transform, fly).chain().in_set(LocalPlayerTick),
+                send_movement.after(LocalPlayerTick),
+            ),
         );
+    }
+}
+
+/// `ClientPacketListener.handleMovePlayer`: move to where the server says, then
+/// confirm with the position that move landed on.
+fn accept_teleports(
+    player: Single<(&mut PhysicsTransform, &mut Velocity), With<Player>>,
+    connection: Option<Single<(&mut ClientConnection, &mut PendingTeleports)>>,
+) {
+    let Some(connection) = connection else { return };
+    let (mut connection, mut pending) = connection.into_inner();
+    if pending.0.is_empty() {
+        return;
+    }
+    let (mut transform, mut velocity) = player.into_inner();
+    for teleport in pending.0.drain(..) {
+        transform.translation = teleport.position;
+        transform.rotation = Rotation::new(teleport.look.yaw, teleport.look.pitch);
+        velocity.0 = teleport.velocity;
+        connection.write_packet(&ServerboundAcceptTeleportation {
+            teleport_id: VarInt(teleport.teleport_id),
+            position: transform.translation.into(),
+            look: teleport.look,
+        });
+    }
+}
+
+/// `LocalPlayer.sendPosition`. Without it the server's view of the player never
+/// moves, so it never streams the columns the player is flying towards.
+fn send_movement(
+    player: Single<(&PhysicsTransform, &mut LastSentMovement), With<Player>>,
+    connection: Option<Single<(&mut ClientConnection, &ConnectionState)>>,
+) {
+    let Some(connection) = connection else { return };
+    let (mut connection, state) = connection.into_inner();
+    if *state != ConnectionState::Game {
+        return;
+    }
+
+    let (transform, mut last_sent) = player.into_inner();
+    // Flying never touches the ground and never collides, so both flags stay
+    // clear until the client grows a collision step.
+    let flags = MoveFlags::new();
+    let Some(packet) = last_sent.tick(transform.translation, transform.rotation, flags) else {
+        return;
+    };
+
+    let position = transform.translation.into();
+    let look = Look {
+        yaw: transform.rotation.yaw(),
+        pitch: transform.rotation.pitch(),
+    };
+    match packet {
+        MovePacket::PosRot => connection.write_packet(&ServerboundMovePlayerPosRot {
+            position,
+            look,
+            flags,
+        }),
+        MovePacket::Pos => connection.write_packet(&ServerboundMovePlayerPos { position, flags }),
+        MovePacket::Rot => connection.write_packet(&ServerboundMovePlayerRot { look, flags }),
+        MovePacket::StatusOnly => {
+            connection.write_packet(&ServerboundMovePlayerStatusOnly { flags })
+        }
     }
 }
 
@@ -306,6 +434,220 @@ mod tests {
                 "yaw {yaw}: {moved:?} != {look:?}"
             );
         }
+    }
+
+    /// The end-to-end symptom: a real server streams columns to the position
+    /// the client reports, so a player who flies away takes the loaded region
+    /// with him.
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn the_loaded_columns_follow_a_flying_player() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::time::{Duration, Instant};
+
+        use bevy::app::AppExit;
+        use bevy::ecs::message::MessageWriter;
+        use mcrs_minecraft_network::client::ClientNetworkPlugin;
+        use mcrs_minecraft_network::columns::ColumnStore;
+        use mcrs_minecraft_protocol::ColumnPos;
+        use mcrs_minecraft_server::{
+            BoundAddress, MinecraftServerPlugin, run_server_loop, spawn_server_thread,
+        };
+
+        let mut server = App::new();
+        server.add_plugins(MinecraftServerPlugin::embedded());
+        let address = server.world().resource::<BoundAddress>().0;
+        let stop = Arc::new(AtomicBool::new(false));
+        let raised = stop.clone();
+        server.add_systems(Update, move |mut exit: MessageWriter<AppExit>| {
+            if raised.load(Ordering::Relaxed) {
+                exit.write(AppExit::Success);
+            }
+        });
+        let (stopped, wait) = std::sync::mpsc::channel();
+        let thread = spawn_server_thread(server, move |app| {
+            run_server_loop(app);
+            stopped.send(()).ok();
+        });
+
+        let mut client = App::new();
+        client.add_plugins(ClientNetworkPlugin {
+            server: address,
+            username: "mcrs_follow".to_owned(),
+        });
+        client.add_systems(Update, (accept_teleports, send_movement).chain());
+        let player = client
+            .world_mut()
+            .spawn((
+                Player,
+                PhysicsTransform::from_translation(DVec3::new(0.5, 80.0, 0.5)),
+                Velocity(DVec3::ZERO),
+                LastSentMovement::default(),
+            ))
+            .id();
+
+        let resident = |client: &App| -> Vec<ColumnPos> {
+            let mut positions: Vec<_> = client
+                .world()
+                .resource::<ColumnStore>()
+                .positions()
+                .collect();
+            positions.sort_by_key(|pos| (pos.x, pos.z));
+            positions
+        };
+        let spin = |client: &mut App, deadline: Instant, done: &dyn Fn(&App) -> bool| {
+            while Instant::now() < deadline && !done(client) {
+                client.update();
+                std::thread::sleep(Duration::from_millis(2));
+            }
+        };
+
+        let deadline = Instant::now() + Duration::from_secs(180);
+        spin(&mut client, deadline, &|client| {
+            client.world().resource::<ColumnStore>().len() >= 9
+        });
+        let before = resident(&client);
+        assert!(
+            !before.is_empty(),
+            "the server sent no columns at all; the stream is broken for other reasons"
+        );
+
+        // Flying speed is about half a block per tick, so this is the distance
+        // a real player covers in a couple of minutes of holding forward.
+        const FLIGHT: f64 = 512.0;
+        let destination = ColumnPos::new((FLIGHT as i32) >> 4, 0);
+        let mut flown = 0.0;
+        while flown < FLIGHT && Instant::now() < deadline {
+            flown += 0.5444;
+            client
+                .world_mut()
+                .get_mut::<PhysicsTransform>(player)
+                .expect("the player is still there")
+                .translation
+                .x = flown;
+            client.update();
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        spin(&mut client, deadline, &|client| {
+            client.world().resource::<ColumnStore>().holds(destination)
+        });
+
+        let after = resident(&client);
+        eprintln!(
+            "columns before: {} spanning x {:?}..={:?}",
+            before.len(),
+            before.first().map(|pos| pos.x),
+            before.last().map(|pos| pos.x),
+        );
+        eprintln!(
+            "columns after {FLIGHT} blocks: {} spanning x {:?}..={:?}",
+            after.len(),
+            after.first().map(|pos| pos.x),
+            after.last().map(|pos| pos.x),
+        );
+
+        stop.store(true, Ordering::Relaxed);
+        wait.recv_timeout(Duration::from_secs(30))
+            .expect("the embedded server did not stop after AppExit");
+        thread.join().expect("server thread joined");
+
+        assert!(
+            after.contains(&destination),
+            "the column the player flew to never arrived; the server's view did not follow"
+        );
+        assert!(
+            after.last().map(|pos| pos.x) > before.last().map(|pos| pos.x),
+            "the leading edge of the resident region did not move with the player"
+        );
+    }
+
+    fn on_ground(on_ground: bool) -> MoveFlags {
+        MoveFlags::new().with_on_ground(on_ground)
+    }
+
+    #[test]
+    fn flying_forward_reports_every_tick_and_only_turns_when_the_look_moves() {
+        let mut local = Local::new();
+        let mut last_sent = LastSentMovement::default();
+        let mut sent = Vec::new();
+        for tick in 0..5 {
+            local.tick(0.0, forward());
+            let rotation = Rotation::new(if tick >= 3 { 90.0 } else { 0.0 }, 0.0);
+            sent.push(last_sent.tick(local.position, rotation, on_ground(false)));
+        }
+        assert_eq!(
+            sent,
+            [
+                Some(MovePacket::Pos),
+                Some(MovePacket::Pos),
+                Some(MovePacket::Pos),
+                Some(MovePacket::PosRot),
+                Some(MovePacket::Pos),
+            ]
+        );
+        assert_eq!(last_sent.position, local.position);
+    }
+
+    #[test]
+    fn a_stationary_player_reports_once_every_twenty_ticks() {
+        let mut last_sent = LastSentMovement::default();
+        let resting = DVec3::new(8.5, 80.0, -3.5);
+        let facing = Rotation::new(45.0, 10.0);
+        assert_eq!(
+            last_sent.tick(resting, facing, on_ground(true)),
+            Some(MovePacket::PosRot)
+        );
+
+        let mut reminders = Vec::new();
+        for tick in 1..=60 {
+            if last_sent.tick(resting, facing, on_ground(true)).is_some() {
+                reminders.push(tick);
+            }
+        }
+        assert_eq!(reminders, [20, 40, 60]);
+    }
+
+    #[test]
+    fn looking_around_in_place_sends_rotation_only() {
+        let mut last_sent = LastSentMovement::default();
+        let resting = DVec3::ZERO;
+        last_sent.tick(resting, Rotation::ZERO, on_ground(true));
+        assert_eq!(
+            last_sent.tick(resting, Rotation::new(1.0, 0.0), on_ground(true)),
+            Some(MovePacket::Rot)
+        );
+    }
+
+    #[test]
+    fn a_flag_change_alone_sends_status_only() {
+        let mut last_sent = LastSentMovement::default();
+        let resting = DVec3::ZERO;
+        last_sent.tick(resting, Rotation::ZERO, on_ground(true));
+        assert_eq!(
+            last_sent.tick(resting, Rotation::ZERO, on_ground(false)),
+            Some(MovePacket::StatusOnly)
+        );
+        assert_eq!(last_sent.tick(resting, Rotation::ZERO, on_ground(false)), None);
+    }
+
+    /// A drift under the epsilon is not a move, so the reminder keeps counting
+    /// and the position it eventually reports is the drifted one.
+    #[test]
+    fn a_sub_epsilon_drift_is_not_a_move() {
+        let mut last_sent = LastSentMovement::default();
+        let mut position = DVec3::ZERO;
+        last_sent.tick(position, Rotation::ZERO, on_ground(true));
+        for _ in 0..18 {
+            position.x += 1.0e-5;
+            assert_eq!(last_sent.tick(position, Rotation::ZERO, on_ground(true)), None);
+        }
+        position.x += 1.0e-5;
+        assert_eq!(
+            last_sent.tick(position, Rotation::ZERO, on_ground(true)),
+            Some(MovePacket::Pos)
+        );
+        assert_eq!(last_sent.position, position);
     }
 
     #[test]

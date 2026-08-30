@@ -11,7 +11,7 @@ use mcrs_voxel_world::entity::physics::{
 };
 
 use crate::camera::FovFilter;
-use crate::local_player::Sprint;
+use crate::local_player::{LastSentMovement, Sprint};
 use crate::options::SENSITIVITY;
 
 pub(crate) const EYE_HEIGHT: f32 = 1.62;
@@ -61,6 +61,7 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) {
             Flying,
             FlyingSpeed::default(),
             Sprint::default(),
+            LastSentMovement::default(),
             Transform::from_translation(position.as_vec3()),
         ))
         .id();
