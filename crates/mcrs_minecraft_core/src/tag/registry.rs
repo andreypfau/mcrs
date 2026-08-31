@@ -95,7 +95,11 @@ fn extend_from_tag_file<S: TagSource>(
                     out.push(id);
                 }
             }
-            TagEntry::Tag(h) | TagEntry::OptionalTag(h) => {
+            TagEntry::Tag(h) => match all_files.get(h) {
+                Some(nested) => extend_from_tag_file(nested, all_files, source, out, seen),
+                None => tracing::warn!("required nested tag file is not loaded: {:?}", h.path()),
+            },
+            TagEntry::OptionalTag(h) => {
                 if let Some(nested) = all_files.get(h) {
                     extend_from_tag_file(nested, all_files, source, out, seen);
                 }

@@ -66,15 +66,18 @@ impl LoadedRegistryAssets {
         self.handles.push(handle);
     }
 
-    /// True once every handle has either finished loading successfully or
-    /// failed to load. Missing or malformed files do not stall the gate;
-    /// they are logged once `WorldgenFreeze` proceeds.
+    /// True once every handle and everything it pulls in has either finished
+    /// loading successfully or failed to load. The tag files a `DimensionType`
+    /// names are dependencies, and a tag file's nested `#tag` references are
+    /// dependencies of that, so waiting on the registry asset alone resolves
+    /// those tags against a half-loaded tree. Missing or malformed files do not
+    /// stall the gate; they are logged once `WorldgenFreeze` proceeds.
     pub fn all_handles_settled(&self, asset_server: &AssetServer) -> bool {
-        use bevy_asset::LoadState;
+        use bevy_asset::RecursiveDependencyLoadState;
         self.handles.iter().all(|h| {
             matches!(
-                asset_server.load_state(h.id()),
-                LoadState::Loaded | LoadState::Failed(_)
+                asset_server.recursive_dependency_load_state(h.id()),
+                RecursiveDependencyLoadState::Loaded | RecursiveDependencyLoadState::Failed(_)
             )
         })
     }
