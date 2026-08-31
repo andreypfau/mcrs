@@ -1,10 +1,11 @@
-use std::collections::{HashMap, HashSet};
+use std::cmp::Reverse;
 use std::sync::Arc;
 
+use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
 use bevy::tasks::{AsyncComputeTaskPool, IoTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_network::client::ReceivedRegistries;
-use mcrs_minecraft_network::columns::{ColumnStore, SECTION_SIZE};
+use mcrs_minecraft_network::columns::{ColumnStore, Extent, SECTION_SIZE};
 use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks};
 use mcrs_voxel_math::ColumnPos;
 
@@ -46,6 +47,9 @@ pub struct Loader {
     resident: HashMap<[i32; 3], Resident>,
     pending: HashSet<[i32; 3]>,
     deferred: HashSet<[i32; 3]>,
+    queue: Vec<[i32; 3]>,
+    queued: HashSet<[i32; 3]>,
+    queue_sorted: bool,
     meshing: Vec<([i32; 3], u32, Task<SectionMesh>)>,
     lists: [Vec<Group>; STREAMS],
     group_block: Block,
@@ -116,6 +120,9 @@ impl Loader {
             resident: HashMap::new(),
             pending: HashSet::new(),
             deferred: HashSet::new(),
+            queue: Vec::new(),
+            queued: HashSet::new(),
+            queue_sorted: true,
             meshing: Vec::new(),
             lists: std::array::from_fn(|_| Vec::new()),
             group_block: Block::EMPTY,
@@ -157,7 +164,7 @@ impl Loader {
             && self.tinting.is_empty()
             && self.meshing.is_empty()
             && !self.dirty
-            && self.wanted(1).is_empty()
+            && !self.queue.iter().any(|at| self.meshable(*at))
     }
 
     /// The catalog has to reach every state a resident column names before a
@@ -167,9 +174,7 @@ impl Loader {
     }
 
     fn distance(&self, section: [i32; 3]) -> f32 {
-        let min = Vec3::from_array(section.map(|n| (n * SECTION_SIZE as i32) as f32));
-        let max = min + Vec3::splat(SECTION_SIZE as f32);
-        (self.camera.clamp(min, max) - self.camera).length()
+        distance_from(self.camera, section)
     }
 
     /// A section reads one block past its own faces, so it borders the eight
@@ -180,38 +185,68 @@ impl Loader {
         })
     }
 
-    /// The nearest sections that hold blocks, have nowhere to be but the arena, and border only
-    /// columns that have arrived. Nothing more than distance decides the order yet.
-    fn wanted(&self, want: usize) -> Vec<[i32; 3]> {
-        let Some(extent) = self.store.extent() else {
-            return Vec::new();
-        };
-        if want == 0 {
-            return Vec::new();
+    /// Holds blocks, has nowhere to be but the arena, and borders only columns that have
+    /// arrived.
+    fn meshable(&self, at: [i32; 3]) -> bool {
+        !self.resident.contains_key(&at)
+            && !self.pending.contains(&at)
+            && self.store.section(at[0], at[1], at[2]).is_some()
+            && self.surrounded(ColumnPos::new(at[0], at[2]))
+    }
+
+    fn enqueue(&mut self, at: [i32; 3]) {
+        if self.queued.insert(at) {
+            self.queue.push(at);
+            self.queue_sorted = false;
         }
-        let mut nearest: Vec<(f32, [i32; 3])> = Vec::new();
-        for pos in self.store.positions() {
-            if !self.surrounded(pos) {
-                continue;
-            }
-            for step in 0..extent.sections {
-                let at = [pos.x, extent.min_section_y + step as i32, pos.z];
-                if self.resident.contains_key(&at)
-                    || self.pending.contains(&at)
-                    || self.deferred.contains(&at)
-                    || self.store.section(at[0], at[1], at[2]).is_none()
-                {
+    }
+
+    /// A section turns meshable when the last of the nine columns it reads arrives, which is
+    /// as often a neighbour of its own column as the column itself.
+    fn enqueue_around(&mut self, pos: ColumnPos, extent: Extent) {
+        for dz in -1..=1 {
+            for dx in -1..=1 {
+                let column = ColumnPos::new(pos.x + dx, pos.z + dz);
+                if !self.surrounded(column) {
                     continue;
                 }
-                nearest.push((self.distance(at), at));
+                for step in 0..extent.sections {
+                    let at = [column.x, extent.min_section_y + step as i32, column.z];
+                    if self.meshable(at) {
+                        self.enqueue(at);
+                    }
+                }
             }
         }
-        if nearest.len() > want {
-            nearest.select_nth_unstable_by(want, |a, b| a.0.total_cmp(&b.0));
-            nearest.truncate(want);
+    }
+
+    fn requeue_deferred(&mut self) {
+        for at in std::mem::take(&mut self.deferred) {
+            self.enqueue(at);
         }
-        nearest.sort_by(|a, b| a.0.total_cmp(&b.0));
-        nearest.into_iter().map(|(_, at)| at).collect()
+        self.queue_sorted = false;
+    }
+
+    /// The nearest queued sections. Nothing more than distance decides the order yet.
+    fn take_wanted(&mut self, want: usize) -> Vec<[i32; 3]> {
+        if want == 0 || self.queue.is_empty() {
+            return Vec::new();
+        }
+        if !self.queue_sorted {
+            let camera = self.camera;
+            self.queue
+                .sort_by_cached_key(|at| Reverse(distance_from(camera, *at).to_bits()));
+            self.queue_sorted = true;
+        }
+        let mut taken = Vec::with_capacity(want);
+        while taken.len() < want {
+            let Some(at) = self.queue.pop() else { break };
+            self.queued.remove(&at);
+            if self.meshable(at) {
+                taken.push(at);
+            }
+        }
+        taken
     }
 
     fn victim(&self, candidate: f32) -> Option<[i32; 3]> {
@@ -245,7 +280,7 @@ impl Loader {
         }
         cave.forget(section);
         self.evicted += 1;
-        self.deferred.clear();
+        self.requeue_deferred();
     }
 
     /// A slot goes back on the free list only once the group records naming it are gone, so a
@@ -342,6 +377,7 @@ impl Loader {
                     }
                 }
             }
+            self.enqueue_around(pos, extent);
         }
     }
 
@@ -485,6 +521,12 @@ fn worth_evicting(resident: f32, candidate: f32) -> bool {
     resident > candidate + HYSTERESIS
 }
 
+fn distance_from(camera: Vec3, section: [i32; 3]) -> f32 {
+    let min = Vec3::from_array(section.map(|n| (n * SECTION_SIZE as i32) as f32));
+    let max = min + Vec3::splat(SECTION_SIZE as f32);
+    (camera.clamp(min, max) - camera).length()
+}
+
 pub fn advance(
     mut loader: ResMut<Loader>,
     mut cave: ResMut<CaveCull>,
@@ -504,7 +546,7 @@ pub fn advance(
     loader.follow(&mut cave);
     if loader.camera.distance(loader.anchor) > HYSTERESIS {
         loader.anchor = loader.camera;
-        loader.deferred.clear();
+        loader.requeue_deferred();
     }
 
     if loader.biomes.is_empty() {
@@ -572,6 +614,7 @@ pub fn advance(
                 Err(back) => match loader.victim(here) {
                     Some(victim) => {
                         loader.evict(victim, &mut cave);
+                        loader.enqueue(victim);
                         pending = back;
                     }
                     None => {
@@ -596,8 +639,12 @@ pub fn advance(
         return;
     }
     let room = SECTIONS_IN_FLIGHT.saturating_sub(loader.meshing.len());
-    for at in loader.wanted(room.min(SECTIONS_PER_FRAME)) {
+    let wanted = loader.take_wanted(room.min(SECTIONS_PER_FRAME));
+    for (taken, &at) in wanted.iter().enumerate() {
         let Some(slot) = loader.take_slot() else {
+            for &back in &wanted[taken..] {
+                loader.enqueue(back);
+            }
             break;
         };
         let world = loader.store.clone();
@@ -878,6 +925,61 @@ mod tests {
         assert!(
             !loader.surrounded(ColumnPos::new(0, 0)),
             "the diagonal is read too, so losing it is enough"
+        );
+    }
+
+    #[test]
+    fn a_section_is_queued_when_the_last_of_its_neighbours_arrives_not_when_it_does() {
+        use mcrs_minecraft_network::columns::{Column, Extent, Section};
+
+        let extent = Extent {
+            min_section_y: 0,
+            sections: 1,
+        };
+        let stone = || {
+            Column::unlit(
+                0,
+                vec![Some(Section {
+                    blocks: Box::new([1; mcrs_minecraft_network::columns::SECTION_VOLUME]),
+                    biomes: Box::new([0; mcrs_minecraft_network::columns::BIOME_CELLS]),
+                })],
+            )
+        };
+
+        let mut loader = loader();
+        let mut cave = CaveCull::new(1 << 8);
+        let mut store = ColumnStore::default();
+        store.enter(extent);
+
+        let mut order: Vec<ColumnPos> = (-1..=1)
+            .flat_map(|x| (-1..=1).map(move |z| ColumnPos::new(x, z)))
+            .collect();
+        let last = order.pop().expect("nine columns");
+        for pos in &order {
+            store.insert(*pos, stone());
+        }
+        loader.adopt(&store, blocks::corpus(), &mut cave);
+        assert!(
+            loader.queue.is_empty(),
+            "no column is surrounded yet, so nothing is meshable"
+        );
+
+        store.insert(last, stone());
+        loader.adopt(&store, blocks::corpus(), &mut cave);
+        assert!(
+            loader.queue.contains(&[0, 0, 0]),
+            "the centre column arrived first; only its last neighbour makes it meshable"
+        );
+        assert_ne!(
+            last,
+            ColumnPos::new(0, 0),
+            "the arrival that unblocked the centre was a neighbour, not the centre itself"
+        );
+
+        assert_eq!(loader.take_wanted(8), vec![[0, 0, 0]]);
+        assert!(
+            loader.take_wanted(8).is_empty(),
+            "a section handed out once is not handed out again"
         );
     }
 
