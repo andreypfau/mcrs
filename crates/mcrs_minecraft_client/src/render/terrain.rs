@@ -22,6 +22,7 @@ pub(super) struct Terrain {
     pub binds: Bindings,
     pub pipelines: Pipelines,
     pub list: DrawList,
+    pub cull_grid: u32,
 }
 
 impl Terrain {
@@ -46,6 +47,7 @@ pub(super) fn init_terrain(
     let pipelines = Pipelines::new(Shaders::load(&asset_server), &binds, &pipeline_cache);
 
     commands.insert_resource(Terrain {
+        cull_grid: super::pass::cull_grid(&device.limits()),
         list: DrawList::new(),
         budget,
         arenas,
