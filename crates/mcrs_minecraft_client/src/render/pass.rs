@@ -133,6 +133,18 @@ pub(super) fn cull_terrain(
     span.end(&mut pass);
 }
 
+/// wgpu caps a dispatch at 65535 workgroups per dimension, and one group is one workgroup, so a
+/// resident world larger than that has to be spread over a second dimension. `cull.wgsl` folds the
+/// pair back into a slot index and drops the remainder past `group_count`.
+fn dispatch_grid(workgroups: u32) -> (u32, u32) {
+    const LIMIT: u32 = 65535;
+    if workgroups <= LIMIT {
+        (workgroups, 1)
+    } else {
+        (LIMIT, workgroups.div_ceil(LIMIT))
+    }
+}
+
 fn cull_group<'pass>(
     pass: &mut ComputePass<'pass>,
     terrain: &'pass Terrain,
@@ -161,7 +173,8 @@ fn cull_group<'pass>(
             view_bind_group,
             &[view_offset, index as u32 * PARAMS_STRIDE],
         );
-        pass.dispatch_workgroups(workgroups, 1, 1);
+        let (x, y) = dispatch_grid(workgroups);
+        pass.dispatch_workgroups(x, y, 1);
     }
     if open.is_some() {
         pass.pop_debug_group();
@@ -285,5 +298,24 @@ fn draw_layer_group<'pass>(
     }
     if open.is_some() {
         pass.pop_debug_group();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::dispatch_grid;
+
+    #[test]
+    fn a_dispatch_wider_than_one_dimension_allows_spreads_over_the_second() {
+        const LIMIT: u32 = 65535;
+        for groups in [0, 1, LIMIT - 1, LIMIT, LIMIT + 1, 65614, LIMIT * 3 + 7] {
+            let (x, y) = dispatch_grid(groups);
+            assert!(x <= LIMIT && y <= LIMIT, "{groups} exceeds a dimension");
+            assert!(x * y >= groups, "{groups} would leave groups unculled");
+            assert!(
+                groups == 0 || (x * y).saturating_sub(groups) < x,
+                "{groups} wastes a whole row"
+            );
+        }
     }
 }

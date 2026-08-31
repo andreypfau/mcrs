@@ -79,12 +79,14 @@ fn survives(g: Group) -> bool {
 @compute @workgroup_size(CULL_THREADS)
 fn cull(
     @builtin(workgroup_id) workgroup: vec3<u32>,
+    @builtin(num_workgroups) grid: vec3<u32>,
     @builtin(local_invocation_index) local: u32,
 ) {
-    if (workgroup.x >= params.group_count) {
+    let slot = workgroup.x + workgroup.y * grid.x;
+    if (slot >= params.group_count) {
         return;
     }
-    let g = groups[params.group_base + workgroup.x];
+    let g = groups[params.group_base + slot];
 
     if (local == 0u) {
         if (survives(g)) {
@@ -117,12 +119,14 @@ fn cull(
 @compute @workgroup_size(CULL_THREADS)
 fn cull_stable(
     @builtin(workgroup_id) workgroup: vec3<u32>,
+    @builtin(num_workgroups) grid: vec3<u32>,
     @builtin(local_invocation_index) local: u32,
 ) {
-    if (workgroup.x >= params.group_count) {
+    let slot = workgroup.x + workgroup.y * grid.x;
+    if (slot >= params.group_count) {
         return;
     }
-    let g = groups[params.group_base + workgroup.x];
+    let g = groups[params.group_base + slot];
 
     if (local == 0u) {
         let lives = survives(g);
