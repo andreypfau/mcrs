@@ -110,7 +110,9 @@ telemetry-diagnostics = ["mcrs_telemetry/telemetry-diagnostics"]
 
 [profile.dev]
 opt-level = 0
-debug = true
+# Full debug info dominates compile and link time across a workspace this size.
+# Line tables keep backtraces readable, which is all the tests need.
+debug = "line-tables-only"
 debug-assertions = true
 
 [profile.dev.package."*"]
