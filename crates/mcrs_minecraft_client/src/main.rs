@@ -12,6 +12,7 @@ use bevy::render::RenderPlugin;
 use bevy::render::render_resource::WgpuFeatures;
 use bevy::render::settings::WgpuSettings;
 use bevy::transform::TransformSystems;
+use bevy::window::{MonitorSelection, PresentMode, WindowMode};
 use bevy::winit::{UpdateMode, WinitSettings};
 use mcrs_minecraft_core::AppState;
 use mcrs_minecraft_world::biome::Biome;
@@ -73,6 +74,16 @@ fn main() {
                     title: match &world {
                         Some(world) => format!("mcrs — {}", world.display()),
                         None => "mcrs".to_owned(),
+                    },
+                    mode: if config::fullscreen() {
+                        WindowMode::BorderlessFullscreen(MonitorSelection::Current)
+                    } else {
+                        WindowMode::Windowed
+                    },
+                    present_mode: if config::vsync() {
+                        PresentMode::AutoVsync
+                    } else {
+                        PresentMode::AutoNoVsync
                     },
                     ..default()
                 }),

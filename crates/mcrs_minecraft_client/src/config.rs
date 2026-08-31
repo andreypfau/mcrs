@@ -76,6 +76,28 @@ pub fn visible_budget() -> usize {
         * 1_000_000
 }
 
+fn flag(name: &str, default: bool) -> bool {
+    match knob(name).as_deref().map(str::trim) {
+        Some("0" | "false" | "off" | "no") => false,
+        Some("1" | "true" | "on" | "yes") => true,
+        Some(other) => {
+            eprintln!("MCRS_{name}={other} takes 0 or 1");
+            default
+        }
+        None => default,
+    }
+}
+
+pub fn fullscreen() -> bool {
+    flag("FULLSCREEN", true)
+}
+
+/// Off by default so a frame time is readable: with vsync the frame reports the
+/// refresh interval no matter what the renderer costs.
+pub fn vsync() -> bool {
+    flag("VSYNC", false)
+}
+
 pub fn drawn_streams() -> Streams {
     let Some(spec) = knob("STREAMS") else {
         return Streams::default();
