@@ -61,6 +61,7 @@ rand_xoshiro = { workspace = true }
 base64 = { workspace = true }
 proptest = "1.11.0"
 rand09 = { package = "rand", version = "0.9" }
+criterion = { version = "0.7", features = ["html_reports"] }
 
 [features]
 test-bench = ["mcrs_voxel_light/test-bench"]
@@ -69,3 +70,15 @@ telemetry-tracy = [
   "mcrs_voxel_light/telemetry-tracy",
   "mcrs_minecraft_network/telemetry-tracy",
 ]
+
+[[bench]]
+name = "generate_columns"
+harness = false
+
+[[bench]]
+name = "tr07_scale"
+harness = false
+
+[[bench]]
+name = "tr07_baseline"
+harness = false

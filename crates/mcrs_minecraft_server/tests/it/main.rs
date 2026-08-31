@@ -63,6 +63,5 @@ mod subapp_lifecycle;
 mod subapp_lighting;
 mod support;
 mod torch_emits_block_light_dirty;
-mod tr07_scale;
 mod world_clock_subapp;
 mod worldgen_y_range_clamp;
