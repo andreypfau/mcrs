@@ -9,7 +9,7 @@ use mcrs_minecraft_network::columns::{ColumnStore, SECTION_SIZE};
 use crate::blocks::{BlockInfo, FACE_AXES, Pass};
 use crate::pack::QUAD_WORDS;
 
-pub use connectivity::CONNECT_ALL;
+pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
 pub use scratch::Scratch;
 
 pub const STREAMS: usize = Pass::COUNT * 2;
@@ -62,7 +62,7 @@ pub struct SectionMesh {
     pub complex: Vec<u32>,
     pub groups: Vec<Group>,
     pub spans: [StreamSpan; STREAMS],
-    pub connectivity: u64,
+    pub connectivity: Connectivity,
 }
 
 impl SectionMesh {
@@ -182,7 +182,7 @@ pub fn mesh_section(
         complex: partial.complex,
         groups,
         spans,
-        connectivity: connectivity::connectivity(&mut scratch.occludes),
+        connectivity: connectivity::connectivity(&scratch.occludes),
     }
 }
 
