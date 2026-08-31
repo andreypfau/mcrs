@@ -29,7 +29,7 @@ pub struct GpuTimings(Arc<Shared>);
 impl GpuTimings {
     pub fn median(&self, slot: usize) -> Option<f32> {
         let samples = self.0.samples.lock().ok()?;
-        let held = samples.written.min(WINDOW);
+        let held = samples.written[slot].min(WINDOW);
         if held == 0 {
             return None;
         }
@@ -49,7 +49,7 @@ impl GpuTimings {
 
     #[cfg(test)]
     fn push(&self, ms: [f32; SLOTS]) {
-        self.0.push(ms);
+        self.0.push(ms.map(Some));
     }
 }
 
@@ -62,15 +62,20 @@ struct Shared {
 }
 
 impl Shared {
-    fn push(&self, ms: [f32; SLOTS]) {
+    /// Metal writes no timestamp around a render pass, so a slot can stay blank forever while
+    /// its neighbour resolves every frame; one silent pass must not blind the others.
+    fn push(&self, ms: [Option<f32>; SLOTS]) {
         let Ok(mut samples) = self.samples.lock() else {
             return;
         };
-        let slot = samples.written % WINDOW;
         for (pass, value) in ms.iter().enumerate() {
+            let Some(value) = value else {
+                continue;
+            };
+            let slot = samples.written[pass] % WINDOW;
             samples.ms[pass][slot] = *value;
+            samples.written[pass] += 1;
         }
-        samples.written += 1;
     }
 }
 
@@ -84,22 +89,20 @@ impl Reader for Shared {
         let ticks: &[u64] = bytemuck::cast_slice(&bytes[..SLOTS * 2 * TIMESTAMP_BYTES as usize]);
         let ms: [Option<f32>; SLOTS] =
             std::array::from_fn(|slot| elapsed_ms(ticks[slot * 2], ticks[slot * 2 + 1], period));
-        if let Some(ms) = ms.iter().copied().collect::<Option<Vec<_>>>() {
-            self.push(std::array::from_fn(|slot| ms[slot]));
-        }
+        self.push(ms);
     }
 }
 
 struct Samples {
     ms: [[f32; WINDOW]; SLOTS],
-    written: usize,
+    written: [usize; SLOTS],
 }
 
 impl Default for Samples {
     fn default() -> Self {
         Self {
             ms: [[0.0; WINDOW]; SLOTS],
-            written: 0,
+            written: [0; SLOTS],
         }
     }
 }
@@ -272,6 +275,17 @@ mod tests {
         timings.push([1.0, 400.0]);
         assert_eq!(timings.median(CULL), Some(1.0));
         assert_eq!(timings.median(TERRAIN), Some(4.0));
+    }
+
+    #[test]
+    fn a_pass_the_gpu_never_timed_leaves_the_others_readable() {
+        let shared = Shared::default();
+        shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
+        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0];
+        shared.read(bytemuck::cast_slice(&ticks));
+        let timings = GpuTimings(Arc::new(shared));
+        assert_eq!(timings.median(CULL), Some(2.0));
+        assert_eq!(timings.median(TERRAIN), None);
     }
 
     #[test]
