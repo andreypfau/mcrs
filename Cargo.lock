@@ -3710,6 +3710,7 @@ dependencies = [
  "bytes",
  "cfb8",
  "cipher",
+ "criterion",
  "derive_more",
  "flume",
  "indexmap",
