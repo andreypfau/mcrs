@@ -15,7 +15,7 @@ use bevy::camera::visibility::VisibilitySystems;
 use std::sync::Arc;
 
 use crate::render::{
-    Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads, VISIBLE_BYTES,
+    Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads,
 };
 use crate::sky_state::SkyEffects;
 use crate::{camera, cave, config, gui, input, local_player, player, render, sky, sky_render, stream};
@@ -190,7 +190,6 @@ fn terrain() -> (Arc<Budget>, Uploads, cave::CaveCull, stream::Loader) {
         faces: face_mb * ARENA_SCALE * 1_000_000 / FACE_BYTES,
         groups: GROUPS_BUDGET,
         sections: SECTIONS_BUDGET,
-        visible: config::visible_budget() / VISIBLE_BYTES,
         tint_origin: [centre(SPAWN.x), centre(SPAWN.z)],
         tint_size: [TINT_SPAN; 2],
     });

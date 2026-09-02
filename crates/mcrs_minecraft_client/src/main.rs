@@ -25,7 +25,7 @@ use mcrs_minecraft_world::world_clock::{AdvanceTime, WorldClock, WorldClocks};
 use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 
 use mcrs_minecraft_client::render::{
-    Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads, VISIBLE_BYTES,
+    Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, TerrainPlugin, Uploads,
 };
 use mcrs_minecraft_client::sky_state::SkyEffects;
 #[cfg(not(target_family = "wasm"))]
@@ -191,7 +191,6 @@ fn terrain(spawn: DVec3) -> (Arc<Budget>, Uploads, cave::CaveCull, stream::Loade
         faces: face_mb * ARENA_SCALE * 1_000_000 / FACE_BYTES,
         groups: GROUPS_BUDGET,
         sections: SECTIONS_BUDGET,
-        visible: config::visible_budget() / VISIBLE_BYTES,
         tint_origin: [centre(spawn.x), centre(spawn.z)],
         tint_size: [TINT_SPAN; 2],
     });
@@ -200,7 +199,6 @@ fn terrain(spawn: DVec3) -> (Arc<Budget>, Uploads, cave::CaveCull, stream::Loade
         quad_mb = (budget.quads * QUAD_BYTES) / 1_000_000,
         model_mb = (budget.models * MODEL_BYTES) / 1_000_000,
         face_mb = (budget.faces * FACE_BYTES) / 1_000_000,
-        visible_mb = (budget.visible * VISIBLE_BYTES) / 1_000_000,
         "meshing the columns the server sends"
     );
 
@@ -219,15 +217,19 @@ fn terrain(spawn: DVec3) -> (Arc<Budget>, Uploads, cave::CaveCull, stream::Loade
 #[cfg(not(target_family = "wasm"))]
 fn host_integrated_server(world: Option<&Path>, assets: &str) -> SocketAddr {
     let mut server = App::new();
-    server.add_plugins(MinecraftServerPlugin::embedded().with_assets(assets));
+    server.add_plugins(
+        MinecraftServerPlugin::embedded()
+            .with_assets(assets)
+            .with_world(world.map(Path::to_path_buf)),
+    );
     let address = server.world().resource::<BoundAddress>().0;
     mcrs_minecraft_server::spawn_server_thread(server, mcrs_minecraft_server::run_server_loop);
     match world {
         Some(world) => info!(
             world = %world.display(),
             %address,
-            "hosting an integrated server, which generates its own terrain rather than \
-             reading the saved chunks of this world",
+            "hosting an integrated server, which reads this world's saved chunks and \
+             generates the columns it has never saved",
         ),
         None => info!(%address, "hosting an integrated server"),
     }
@@ -246,8 +248,8 @@ fn server_address() -> Option<SocketAddr> {
     }
 }
 
-/// A world folder seeds the clocks, the weather and the spawn. Terrain comes
-/// from the server either way, so there need not be one.
+/// A world folder seeds the clocks, the weather and the spawn, and gives the
+/// integrated server its saved chunks. Without one the server generates.
 fn world_folder() -> Option<PathBuf> {
     let path = std::env::args_os().nth(1).map(PathBuf::from)?;
     if !path.is_dir() {

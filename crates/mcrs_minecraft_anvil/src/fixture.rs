@@ -129,12 +129,12 @@ fn block_entry(index: usize) -> NbtTag {
         "minecraft:andesite",
     ];
     let mut entry = NbtCompound::new();
-    entry.put_string("Name", NAMES[index % NAMES.len()].to_string());
+    entry.put_string("id", NAMES[index % NAMES.len()].to_string());
     if index.is_multiple_of(3) {
         let mut props = NbtCompound::new();
         props.put_string("axis", ["x", "y", "z"][index % 3].to_string());
         props.put_string("waterlogged", "false".to_string());
-        entry.put_component("Properties", props);
+        entry.put_component("properties", props);
     }
     NbtTag::Compound(entry)
 }

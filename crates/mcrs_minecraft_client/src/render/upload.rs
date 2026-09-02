@@ -142,7 +142,7 @@ pub(super) fn apply_uploads(
                         &device,
                         &pipeline_cache,
                     );
-                    terrain.rebuild_params();
+                    terrain.rebuild_params(&device, &pipeline_cache);
                     budget = budget.saturating_sub(spent);
                     if budget == 0 {
                         break;
@@ -191,7 +191,7 @@ pub(super) fn apply_uploads(
             terrain.arenas.pending = Some(pending);
             break;
         }
-        publish(terrain, pending.placement);
+        publish(terrain, pending.placement, &device, &pipeline_cache);
         if budget == 0 {
             break;
         }
@@ -200,9 +200,14 @@ pub(super) fn apply_uploads(
     terrain.list.flush(&terrain.frame.params, &queue);
 }
 
-fn publish(terrain: &mut Terrain, placement: Placement) {
+fn publish(
+    terrain: &mut Terrain,
+    placement: Placement,
+    device: &RenderDevice,
+    pipeline_cache: &PipelineCache,
+) {
     if let Some(draws) = placement.draws {
         terrain.list.draws = draws;
     }
-    terrain.rebuild_params();
+    terrain.rebuild_params(device, pipeline_cache);
 }

@@ -796,7 +796,6 @@ mod tests {
                 faces: 1 << 16,
                 groups: 1 << 12,
                 sections: 1 << 8,
-                visible: 1 << 12,
                 tint_origin: [-256, -256],
                 tint_size: [512; 2],
             },

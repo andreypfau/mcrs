@@ -37,17 +37,7 @@ impl Bindings {
         let view_layout = view_layout();
         let cull_layout = cull_layout();
         let draw_layout = draw_layout();
-        let cull = device.create_bind_group(
-            "terrain cull",
-            &pipeline_cache.get_bind_group_layout(&cull_layout),
-            &BindGroupEntries::sequential((
-                arenas.groups.as_entire_buffer_binding(),
-                arenas.visible.as_entire_buffer_binding(),
-                frame.args.as_entire_buffer_binding(),
-                frame.cave.as_entire_buffer_binding(),
-                arenas.sections.as_entire_buffer_binding(),
-            )),
-        );
+        let cull = cull_bind_group(&cull_layout, arenas, frame, device, pipeline_cache);
         let draw = draw_bind_group(&draw_layout, arenas, sprites, device, pipeline_cache);
         Self {
             view_layout,
@@ -66,6 +56,16 @@ impl Bindings {
         pipeline_cache: &PipelineCache,
     ) {
         self.draw = draw_bind_group(&self.draw_layout, arenas, sprites, device, pipeline_cache);
+    }
+
+    pub fn rebuild_cull(
+        &mut self,
+        arenas: &Arenas,
+        frame: &Frame,
+        device: &RenderDevice,
+        pipeline_cache: &PipelineCache,
+    ) {
+        self.cull = cull_bind_group(&self.cull_layout, arenas, frame, device, pipeline_cache);
     }
 }
 
@@ -123,6 +123,26 @@ fn draw_layout() -> BindGroupLayoutDescriptor {
                 storage_buffer_read_only_sized(false, None),
             ),
         ),
+    )
+}
+
+fn cull_bind_group(
+    layout: &BindGroupLayoutDescriptor,
+    arenas: &Arenas,
+    frame: &Frame,
+    device: &RenderDevice,
+    pipeline_cache: &PipelineCache,
+) -> BindGroup {
+    device.create_bind_group(
+        "terrain cull",
+        &pipeline_cache.get_bind_group_layout(layout),
+        &BindGroupEntries::sequential((
+            arenas.groups.as_entire_buffer_binding(),
+            arenas.visible.as_entire_buffer_binding(),
+            frame.args.as_entire_buffer_binding(),
+            frame.cave.as_entire_buffer_binding(),
+            arenas.sections.as_entire_buffer_binding(),
+        )),
     )
 }
 

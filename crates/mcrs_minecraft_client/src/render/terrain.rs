@@ -26,8 +26,17 @@ pub(super) struct Terrain {
 }
 
 impl Terrain {
-    pub fn rebuild_params(&mut self) {
-        self.list.rebuild(&self.budget, self.sprites.animated_from);
+    /// Sizes the visible list to the draws as they stand and restates the
+    /// per-draw parameters, so a world that has grown is drawn whole rather
+    /// than up to a share of a fixed list.
+    pub fn rebuild_params(&mut self, device: &RenderDevice, pipeline_cache: &PipelineCache) {
+        self.list.rebuild(self.sprites.animated_from);
+        if self.arenas.grow_visible(self.list.visible_entries, device) {
+            self.binds
+                .rebuild_cull(&self.arenas, &self.frame, device, pipeline_cache);
+            self.binds
+                .rebuild_draw(&self.arenas, &self.sprites, device, pipeline_cache);
+        }
     }
 }
 

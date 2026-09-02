@@ -20,3 +20,5 @@ Early development.
 cargo build --release
 cargo run --release
 ```
+
+./target/debug/mcrs_minecraft_client "$HOME/Library/Application Support/minecraft/saves/two"

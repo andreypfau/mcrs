@@ -10,10 +10,6 @@ const FACE_MB_PER_FILE: usize = 40;
 
 const UPLOAD_MB: usize = 4;
 
-/// A render distance of 16 holds around two and a half million quads, and the visible list only
-/// ever holds what a frame draws, so this leaves room to spare and is given back between frames.
-const VISIBLE_MB: usize = 32;
-
 static KNOBS: OnceLock<HashMap<String, String>> = OnceLock::new();
 
 /// Names a knob without its `MCRS_` prefix, so a source that is not the
@@ -66,14 +62,6 @@ pub fn arena_budget() -> (usize, usize, usize) {
             default
         }
     }
-}
-
-pub fn visible_budget() -> usize {
-    knob("VISIBLE")
-        .and_then(|megabytes| megabytes.parse::<usize>().ok())
-        .unwrap_or(VISIBLE_MB)
-        .max(1)
-        * 1_000_000
 }
 
 fn flag(name: &str, default: bool) -> bool {

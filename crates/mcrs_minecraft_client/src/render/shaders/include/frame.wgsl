@@ -11,7 +11,7 @@ struct Params {
     wireframe: u32,
     overhang: f32,
     animated_from: u32,
-    visible_limit: u32,
+    padding: u32,
 }
 
 struct Camera {

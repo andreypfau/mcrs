@@ -109,6 +109,16 @@ impl<V: Hash + Eq + Copy + Default, const DIM: usize> PalettedContainer<V, DIM> 
         }
     }
 
+    /// Cells in `index` order: y-major, then z, then x.
+    pub fn from_cells(cells: &[V]) -> Self {
+        assert_eq!(cells.len(), Self::VOLUME);
+        let mut cube = Box::new([[[V::default(); DIM]; DIM]; DIM]);
+        cube.as_flattened_mut()
+            .as_flattened_mut()
+            .copy_from_slice(cells);
+        Self::from_cube(cube)
+    }
+
     #[allow(dead_code)]
     fn bits_per_entry(&self) -> u8 {
         match self {

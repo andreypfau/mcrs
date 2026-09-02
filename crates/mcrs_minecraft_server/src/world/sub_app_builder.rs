@@ -67,6 +67,8 @@ use mcrs_minecraft_world::enchantment::EnchantmentData;
 use mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource;
 use mcrs_voxel_light::LightingPlugin;
 use mcrs_voxel_light::table::BlockStateLightTable;
+use crate::WorldSave;
+use crate::world::format::anvil::SavedColumns;
 use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
 use mcrs_voxel_world::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
@@ -81,6 +83,7 @@ pub struct DimRegistryBundle {
     pub block_tag_registry: DynTagRegistry<Block>,
     pub biome_registry: RegistrySnapshot<Biome>,
     pub active_biome_source: Option<ActiveBiomeSource>,
+    pub world_save: Option<WorldSave>,
 }
 
 pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundle {
@@ -92,6 +95,7 @@ pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundl
         block_tag_registry: world.resource::<DynTagRegistry<Block>>().clone(),
         biome_registry: world.resource::<RegistrySnapshot<Biome>>().clone(),
         active_biome_source: world.get_resource::<ActiveBiomeSource>().cloned(),
+        world_save: world.get_resource::<WorldSave>().cloned(),
     }
 }
 
@@ -302,6 +306,11 @@ pub fn spawn_dim_subapp(
     sub_app.insert_resource(registries.biome_registry.clone());
     if let Some(active_biome_source) = &registries.active_biome_source {
         sub_app.insert_resource(active_biome_source.clone());
+    }
+    if let Some(world_save) = &registries.world_save
+        && let Some(saved) = SavedColumns::open(&world_save.0, request.dimension_id.as_str())
+    {
+        sub_app.insert_resource(saved);
     }
 
     // Seed the time resources so an inspector that reads `Res<Time<…>>` on a

@@ -59,6 +59,17 @@ impl<R: Read + Seek> NbtReadHelper<R> {
         self.reader.read_exact(buf).map_err(Error::Incomplete)
     }
 
+    pub fn position(&mut self) -> Result<u64> {
+        self.reader.stream_position().map_err(Error::Incomplete)
+    }
+
+    pub fn seek_to(&mut self, position: u64) -> Result<()> {
+        self.reader
+            .seek(SeekFrom::Start(position))
+            .map_err(Error::Incomplete)?;
+        Ok(())
+    }
+
     pub fn read_boxed_slice(&mut self, count: usize) -> Result<Box<[u8]>> {
         let mut buf = vec![0u8; count];
         self.reader
@@ -384,11 +395,36 @@ impl<'de, R: Read + Seek> SeqAccess<'de> for ListAccess<'_, R> {
         }
 
         self.remaining_values -= 1;
-        self.de.tag_to_deserialize_stack = Some(self.list_type);
+        let wrapped = match self.list_type {
+            COMPOUND_ID => wrapper_payload(&mut self.de.input)?,
+            _ => None,
+        };
+        self.de.tag_to_deserialize_stack = Some(wrapped.unwrap_or(self.list_type));
         self.de.in_list = true;
         let result = seed.deserialize(&mut *self.de).map(Some);
         self.de.in_list = false;
+        if result.is_ok() && wrapped.is_some() {
+            self.de.input.skip_bytes(1)?;
+        }
 
         result
     }
+}
+
+/// A list of compounds carries anything that is not one wrapped as
+/// `{"": value}`, so a heterogeneous list still has a single element type.
+/// Answers the wrapped value's tag, leaving the reader at its payload.
+fn wrapper_payload<R: Read + Seek>(input: &mut NbtReadHelper<R>) -> Result<Option<u8>> {
+    let start = input.position()?;
+    let tag = input.get_u8_be()?;
+    if tag != END_ID && input.get_u16_be()? == 0 {
+        let payload = input.position()?;
+        NbtTag::skip_data(input, tag)?;
+        if input.get_u8_be()? == END_ID {
+            input.seek_to(payload)?;
+            return Ok(Some(tag));
+        }
+    }
+    input.seek_to(start)?;
+    Ok(None)
 }

@@ -4,7 +4,6 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
 
-use crate::mesh::STREAMS;
 use crate::readback::{self, Gate, Reader};
 
 use super::terrain::Terrain;
@@ -42,17 +41,11 @@ impl DrawnTriangles {
         self.0.triangles.load(Ordering::Relaxed)
     }
 
-    /// Quads a bucket culled in but had no room for in its share of the visible list.
-    pub fn dropped(&self) -> u32 {
-        self.0.dropped.load(Ordering::Relaxed)
-    }
 }
 
 #[derive(Default)]
 pub struct Counted {
     triangles: AtomicU32,
-    dropped: AtomicU32,
-    limits: [AtomicU32; STREAMS],
     gate: Gate,
 }
 
@@ -63,16 +56,9 @@ impl Reader for Counted {
 
     fn read(&self, bytes: &[u8]) {
         let args: &[DrawArgs] = bytemuck::cast_slice(bytes);
-        let mut drawn = 0u32;
-        let mut dropped = 0u32;
-        for (arg, limit) in args.iter().zip(&self.limits) {
-            let limit = limit.load(Ordering::Relaxed);
-            drawn += arg.instance_count.min(limit);
-            dropped += arg.instance_count.saturating_sub(limit);
-        }
+        let drawn: u32 = args.iter().map(|arg| arg.instance_count).sum();
         self.triangles
             .store(drawn * TRIANGLES_PER_QUAD, Ordering::Relaxed);
-        self.dropped.store(dropped, Ordering::Relaxed);
     }
 }
 
@@ -83,10 +69,6 @@ pub(super) fn copy_args(
 ) {
     if !triangles.0.gate.claim_copy() {
         return;
-    }
-    for (stream, limit) in triangles.0.limits.iter().enumerate() {
-        let held = terrain.list.limits.get(stream).copied().unwrap_or(0);
-        limit.store(held, Ordering::Relaxed);
     }
     let size = terrain.frame.args_readback.size();
     encoder.copy_buffer_to_buffer(
@@ -115,9 +97,6 @@ mod tests {
     #[test]
     fn the_triangle_count_is_two_per_drawn_quad() {
         let counted = Counted::default();
-        for limit in &counted.limits {
-            limit.store(u32::MAX, Ordering::Relaxed);
-        }
         let args = [
             DrawArgs {
                 instance_count: 3,
@@ -130,26 +109,5 @@ mod tests {
         ];
         counted.read(bytemuck::cast_slice(&args));
         assert_eq!(counted.triangles.load(Ordering::Relaxed), 16);
-        assert_eq!(counted.dropped.load(Ordering::Relaxed), 0);
-    }
-
-    #[test]
-    fn a_bucket_culling_in_more_than_its_share_reports_the_rest_dropped() {
-        let counted = Counted::default();
-        counted.limits[0].store(4, Ordering::Relaxed);
-        counted.limits[1].store(8, Ordering::Relaxed);
-        let args = [
-            DrawArgs {
-                instance_count: 7,
-                ..DrawArgs::quad_strip()
-            },
-            DrawArgs {
-                instance_count: 5,
-                ..DrawArgs::quad_strip()
-            },
-        ];
-        counted.read(bytemuck::cast_slice(&args));
-        assert_eq!(counted.triangles.load(Ordering::Relaxed), 18);
-        assert_eq!(counted.dropped.load(Ordering::Relaxed), 3);
     }
 }

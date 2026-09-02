@@ -51,10 +51,6 @@ fn vertex_model(
     @builtin(instance_index) instance: u32,
 ) -> ModelOut {
     var out: ModelOut;
-    if (instance >= params.visible_limit) {
-        out.clip_position = degenerate();
-        return out;
-    }
     let entry = visible[params.visible_base + instance];
     if (entry.x == CULLED) {
         out.clip_position = degenerate();

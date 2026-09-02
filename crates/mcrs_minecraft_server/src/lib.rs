@@ -28,9 +28,11 @@ use crate::keep_alive::KeepAlivePlugin;
 use crate::login::LoginPlugin;
 use crate::world::WorldPlugin;
 use bevy_app::{App, Plugin};
+use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_network::NetworkPlugin;
 use mcrs_voxel_server::VoxelServerPlugin;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::path::PathBuf;
 
 pub use mcrs_minecraft_network::BoundAddress;
 pub use mcrs_voxel_server::spawn_server_thread;
@@ -45,7 +47,14 @@ pub struct MinecraftServerPlugin {
     /// Absolute path to the asset corpus, for a server that cannot resolve
     /// `assets` from its own working directory or executable location.
     pub asset_path: Option<String>,
+    /// World folder to read saved chunks from. Without one, and for any column
+    /// the folder has never saved, the dimension generates its terrain.
+    pub world: Option<PathBuf>,
 }
+
+/// The world folder the server reads its saved chunks from.
+#[derive(Resource, Clone)]
+pub struct WorldSave(pub PathBuf);
 
 impl Default for MinecraftServerPlugin {
     fn default() -> Self {
@@ -53,6 +62,7 @@ impl Default for MinecraftServerPlugin {
             bind_address: SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 25565).into(),
             owns_task_pools: true,
             asset_path: None,
+            world: None,
         }
     }
 }
@@ -65,6 +75,7 @@ impl MinecraftServerPlugin {
             bind_address: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0).into(),
             owns_task_pools: false,
             asset_path: None,
+            world: None,
         }
     }
 
@@ -73,6 +84,10 @@ impl MinecraftServerPlugin {
             asset_path: Some(path.into()),
             ..self
         }
+    }
+
+    pub fn with_world(self, world: Option<PathBuf>) -> Self {
+        Self { world, ..self }
     }
 }
 
@@ -83,6 +98,9 @@ impl Plugin for MinecraftServerPlugin {
             owns_task_pools: self.owns_task_pools,
             asset_path: self.asset_path.clone(),
         });
+        if let Some(world) = &self.world {
+            app.insert_resource(WorldSave(world.clone()));
+        }
         app.add_plugins(mcrs_minecraft_core::MinecraftCorePlugin);
         app.add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin);
         app.add_plugins(mcrs_minecraft_worldgen::bevy::WorldgenAssetsPlugin);

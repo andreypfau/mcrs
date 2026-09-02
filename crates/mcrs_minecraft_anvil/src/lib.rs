@@ -16,7 +16,7 @@ pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 
 use std::path::PathBuf;
 
-pub const DATA_VERSION: i32 = 5011;
+pub const DATA_VERSION: i32 = 5015;
 
 #[derive(Debug, thiserror::Error)]
 #[error("{path}: {kind}")]

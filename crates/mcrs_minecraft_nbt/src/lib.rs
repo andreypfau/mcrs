@@ -215,9 +215,54 @@ mod test {
     use crate::nbt_int_array;
     use crate::nbt_long_array;
     use crate::serializer::to_bytes;
+    use crate::{Nbt, compound, tag};
     use crate::serializer::to_bytes_named;
     use crate::{deserializer::from_bytes_unnamed, serializer::to_bytes_unnamed};
     use serde::{Deserialize, Serialize};
+
+    /// A list of compounds carries anything that is not one wrapped as
+    /// `{"": value}`, and a name saved without properties reaches the palette
+    /// that way.
+    #[test]
+    fn a_wrapped_list_element_reads_as_the_value_it_wraps() {
+        #[derive(Deserialize, PartialEq, Debug)]
+        #[serde(untagged)]
+        enum Entry {
+            Name(String),
+            State { id: String },
+        }
+
+        let mut wrapper = compound::NbtCompound::new();
+        wrapper.put_string("", "minecraft:deepslate".to_string());
+        let mut state = compound::NbtCompound::new();
+        state.put_string("id", "minecraft:glow_lichen".to_string());
+
+        let mut root = compound::NbtCompound::new();
+        root.put_list(
+            "palette",
+            vec![
+                tag::NbtTag::Compound(wrapper),
+                tag::NbtTag::Compound(state),
+            ],
+        );
+
+        #[derive(Deserialize, PartialEq, Debug)]
+        struct Palette {
+            palette: Vec<Entry>,
+        }
+
+        let bytes = Nbt::new(String::new(), root).write().to_vec();
+        let read: Palette = from_bytes(Cursor::new(bytes)).unwrap();
+        assert_eq!(
+            read.palette,
+            vec![
+                Entry::Name("minecraft:deepslate".to_string()),
+                Entry::State {
+                    id: "minecraft:glow_lichen".to_string()
+                },
+            ]
+        );
+    }
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct Test {

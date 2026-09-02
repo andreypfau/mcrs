@@ -163,7 +163,7 @@ impl<'de> Visitor<'de> for EntryVisitor<'_> {
 
         while let Some(field) = map.next_key::<Field>()? {
             match field {
-                Field::Name => {
+                Field::Id => {
                     let span = map.next_value_seed(TextSeed {
                         text: &mut self.palette.text,
                     })?;
@@ -176,7 +176,7 @@ impl<'de> Visitor<'de> for EntryVisitor<'_> {
             }
         }
 
-        let name = name.ok_or_else(|| A::Error::missing_field("Name"))?;
+        let name = name.ok_or_else(|| A::Error::missing_field("id"))?;
         let props = (start, self.palette.props.len() as u32 - start);
         self.palette.entries.push(Entry { name, props });
         Ok(())
@@ -184,7 +184,7 @@ impl<'de> Visitor<'de> for EntryVisitor<'_> {
 }
 
 enum Field {
-    Name,
+    Id,
     Properties,
 }
 
@@ -200,14 +200,14 @@ impl Visitor<'_> for FieldVisitor {
     type Value = Field;
 
     fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("`Name` or `Properties`")
+        f.write_str("`id` or `properties`")
     }
 
     fn visit_str<E: Error>(self, value: &str) -> Result<Field, E> {
         match value {
-            "Name" => Ok(Field::Name),
-            "Properties" => Ok(Field::Properties),
-            _ => Err(E::unknown_field(value, &["Name", "Properties"])),
+            "id" => Ok(Field::Id),
+            "properties" => Ok(Field::Properties),
+            _ => Err(E::unknown_field(value, &["id", "properties"])),
         }
     }
 }

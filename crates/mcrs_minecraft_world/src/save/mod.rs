@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::world_clock::ClockState;
 
-pub const WORLD_VERSION: i32 = 5011;
+pub const WORLD_VERSION: i32 = 5015;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SaveError {

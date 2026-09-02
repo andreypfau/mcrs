@@ -1,3 +1,4 @@
+use crate::world::format::anvil::{SavedColumns, column_sections};
 use crate::world::generate::{
     BetaCaveBlockIds, BetaOreBlockIds, apply_beta_caves, apply_beta_ores, apply_beta_surface,
     generate_column,
@@ -36,8 +37,9 @@ use mcrs_voxel_world::world::lifecycle::ticket::LightTicket;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
-use tracing::trace;
+use std::time::{Duration, Instant};
+use std::sync::{Arc, LazyLock, OnceLock};
+use tracing::{error, info, trace};
 
 /// The noise settings state which block fills the terrain and which fluid fills
 /// the sea (`minecraft:stone` and `minecraft:water` for the overworld), so the
@@ -108,13 +110,14 @@ impl Plugin for ChunkPlugin {
             bevy_app::Update,
             resolve_worldgen_default_states.before(BuildNoiseRouter),
         );
+        let scheduler = ColumnScheduler::default();
         CHUNK_TASK_POOL.get_or_init(|| {
             TaskPoolBuilder::new()
                 .thread_name("ChunkGen".to_string())
-                .num_threads(4)
+                .num_threads(scheduler.config.num_threads)
                 .build()
         });
-        app.insert_resource(ColumnScheduler::default());
+        app.insert_resource(scheduler);
         app.configure_sets(FixedPreUpdate, WorldgenIngestSet::ProcessCompletedColumns);
         app.add_systems(
             FixedPreUpdate,
@@ -127,6 +130,10 @@ impl Plugin for ChunkPlugin {
             )
                 .chain(),
         );
+        // A column read from the save is finished within a fraction of a
+        // millisecond, so draining only at the head of the tick charges every
+        // one of them a full tick of latency it never spent working.
+        app.add_systems(bevy_app::FixedLast, process_completed_columns);
     }
 }
 
@@ -189,12 +196,18 @@ impl ColumnKey {
 pub struct PendingColumn {
     /// Section entities with their Y coordinates, to be sorted by Y before dispatch.
     pub sections: Vec<(Entity, i32)>,
+    /// When the column joined the queue, so a column that arrives late can say
+    /// whether it waited for a worker or for the work itself.
+    pub queued: Instant,
 }
 
 impl PendingColumn {
     /// Create a new pending column with the given sections.
     pub fn new(sections: Vec<(Entity, i32)>) -> Self {
-        Self { sections }
+        Self {
+            sections,
+            queued: Instant::now(),
+        }
     }
 }
 
@@ -211,6 +224,8 @@ pub struct InFlightColumn {
     pub cancel: CancellationToken,
     /// The async task generating this column.
     pub task: Task<ColumnResult>,
+    pub queued: Instant,
+    pub dispatched: Instant,
 }
 
 impl InFlightColumn {
@@ -220,12 +235,15 @@ impl InFlightColumn {
         sections: Vec<(Entity, i32)>,
         cancel: CancellationToken,
         task: Task<ColumnResult>,
+        queued: Instant,
     ) -> Self {
         Self {
             col,
             sections,
             cancel,
             task,
+            queued,
+            dispatched: Instant::now(),
         }
     }
 }
@@ -252,9 +270,9 @@ impl Default for SchedulerConfig {
             .map(|p| p.get())
             .unwrap_or(4);
         Self {
-            max_in_flight: parallelism * 2,
-            max_dispatch_per_tick: 32,
-            num_threads: 4,
+            max_in_flight: parallelism * 8,
+            max_dispatch_per_tick: 256,
+            num_threads: (parallelism / 2).max(4),
         }
     }
 }
@@ -334,7 +352,36 @@ impl ColumnScheduler {
 pub struct ColumnResult {
     /// Generated sections. `None` for cancelled sections, `Some((blocks, biomes))` for completed.
     pub sections: Vec<(Entity, ChunkPos, Option<(BlockPalette, BiomePalette)>)>,
+    /// Where the column came from and how long that took, so a slow column can
+    /// name the stage that cost the time.
+    pub source: ColumnSource,
+    pub work: Duration,
 }
+
+#[derive(Copy, Clone, Debug)]
+pub enum ColumnSource {
+    Saved,
+    Generated,
+}
+
+impl ColumnSource {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Saved => "save",
+            Self::Generated => "worldgen",
+        }
+    }
+}
+
+/// A column slower than this from queue to hand-off gets a line naming the
+/// stage that cost the time. `MCRS_SLOW_CHUNK_MS` moves the bar.
+static SLOW_COLUMN: LazyLock<Duration> = LazyLock::new(|| {
+    let ms = std::env::var("MCRS_SLOW_CHUNK_MS")
+        .ok()
+        .and_then(|ms| ms.parse().ok())
+        .unwrap_or(250);
+    Duration::from_millis(ms)
+});
 
 /// Squared XZ (column) distance from a chunk to the nearest player.
 fn min_column_distance(pos: &ColumnPos, players: &[ColumnPos]) -> i32 {
@@ -369,6 +416,28 @@ fn min_y_distance(pos: &ChunkPos, players: &[IVec3]) -> i32 {
 /// - Removes completed columns from the `in_flight_index`
 ///
 /// Uses `retain_mut` pattern to efficiently filter completed tasks while iterating.
+/// Splits a slow column's latency into the three stages that can own it: the
+/// wait for a worker, the read or generation itself, and the wait for this
+/// system to notice the task had finished.
+fn report_column_timing(in_flight: &InFlightColumn, result: &ColumnResult) {
+    let total = in_flight.queued.elapsed();
+    if total < *SLOW_COLUMN {
+        return;
+    }
+    let ms = |d: Duration| d.as_secs_f32() * 1000.0;
+    info!(
+        x = in_flight.col.x,
+        z = in_flight.col.z,
+        source = result.source.label(),
+        total_ms = ms(total),
+        queued_ms = ms(in_flight.dispatched - in_flight.queued),
+        work_ms = ms(result.work),
+        drain_ms = ms(in_flight.dispatched.elapsed() - result.work),
+        sections = in_flight.sections.len(),
+        "slow chunk column"
+    );
+}
+
 fn process_completed_columns(mut scheduler: ResMut<ColumnScheduler>, mut commands: Commands) {
     // Collect columns to remove from in_flight_index after iteration
     let mut columns_to_remove: Vec<ColumnPos> = Vec::new();
@@ -376,6 +445,7 @@ fn process_completed_columns(mut scheduler: ResMut<ColumnScheduler>, mut command
     scheduler.in_flight.retain_mut(|in_flight| {
         let res = block_on(future::poll_once(&mut in_flight.task));
         if let Some(column_result) = res {
+            report_column_timing(in_flight, &column_result);
             // Column generation task completed, process all sections
             for (entity, _pos, result) in column_result.sections {
                 match result {
@@ -694,6 +764,7 @@ fn dispatch_column_generation(
     blocks: Res<Blocks>,
     active_biome_source: Option<Res<ActiveBiomeSource>>,
     biome_registry: Option<Res<RegistrySnapshot<Biome>>>,
+    saved: Option<Res<SavedColumns>>,
     mut cached_biome_registry: Local<Option<Arc<RegistrySnapshot<Biome>>>>,
 ) {
     let task_pool = CHUNK_TASK_POOL.get().unwrap();
@@ -730,6 +801,7 @@ fn dispatch_column_generation(
         }
         cached_biome_registry.as_ref().unwrap().clone()
     });
+    let biome_snapshot = biome_registry_arc.clone();
     let biome_context: Option<(Arc<BiomeSource>, Arc<RegistrySnapshot<Biome>>)> =
         match (active_biome_source.as_deref(), biome_registry_arc) {
             (Some(src), Some(reg)) => Some((src.0.clone(), reg)),
@@ -763,6 +835,7 @@ fn dispatch_column_generation(
         let cancel_clone = cancel.clone();
         let biome_ctx = biome_context.clone();
         let block_definitions = blocks.0.clone();
+        let saved = saved.as_deref().cloned().zip(biome_snapshot.clone());
 
         // Extract section data for the task
         let sections_data: Vec<(Entity, ChunkPos)> = pending_column
@@ -775,6 +848,7 @@ fn dispatch_column_generation(
 
         // Spawn the generation task
         let task = task_pool.spawn(async move {
+            let started = Instant::now();
             let router = router.as_ref();
             let biome_context = biome_ctx.as_ref().map(|(src, reg)| {
                 (
@@ -782,6 +856,29 @@ fn dispatch_column_generation(
                     reg.as_ref() as &RegistrySnapshot<Biome>,
                 )
             });
+
+            let loaded = saved.and_then(|(saved, biomes)| {
+                let chunk = saved.read(col.x, col.z)?;
+                match column_sections(&chunk, &y_sections, &block_definitions, &biomes) {
+                    Ok(sections) => Some(sections),
+                    Err(err) => {
+                        error!(%err, x = col.x, z = col.z, "decoding a saved column");
+                        None
+                    }
+                }
+            });
+
+            if let Some(sections) = loaded {
+                return ColumnResult {
+                    sections: sections_data
+                        .into_iter()
+                        .zip(sections)
+                        .map(|((entity, pos), result)| (entity, pos, result))
+                        .collect(),
+                    source: ColumnSource::Saved,
+                    work: started.elapsed(),
+                };
+            }
 
             let mut results = generate_column(
                 col.x,
@@ -857,11 +954,19 @@ fn dispatch_column_generation(
 
             ColumnResult {
                 sections: column_sections,
+                source: ColumnSource::Generated,
+                work: started.elapsed(),
             }
         });
 
         // Create in-flight entry
-        let in_flight_column = InFlightColumn::new(col, pending_column.sections, cancel, task);
+        let in_flight_column = InFlightColumn::new(
+            col,
+            pending_column.sections,
+            cancel,
+            task,
+            pending_column.queued,
+        );
 
         // Add to in-flight tracking
         scheduler.in_flight_index.insert(col);

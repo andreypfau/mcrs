@@ -112,10 +112,7 @@ fn cull(
                 if (i >= g.quad_count) {
                     break;
                 }
-                let at = base + i;
-                if (at < params.visible_limit) {
-                    visible[params.visible_base + at] = vec2<u32>(g.quad_base + i, g.section);
-                }
+                visible[params.visible_base + base + i] = vec2<u32>(g.quad_base + i, g.section);
                 i = i + CULL_THREADS;
             }
         }
@@ -154,11 +151,8 @@ fn cull_stable(
             if (i >= g.quad_count) {
                 break;
             }
-            let at = g.quad_prefix + i;
-            if (at < params.visible_limit) {
-                visible[params.visible_base + at] =
-                    vec2<u32>(select(g.quad_base + i, CULLED, culled), g.section);
-            }
+            visible[params.visible_base + g.quad_prefix + i] =
+                vec2<u32>(select(g.quad_base + i, CULLED, culled), g.section);
             i = i + CULL_THREADS;
         }
         workgroupBarrier();

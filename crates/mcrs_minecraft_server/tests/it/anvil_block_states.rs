@@ -51,13 +51,13 @@ fn state_properties(block: &BlockEntry, state: u16) -> Vec<(&str, &PropertyValue
 
 fn entry(name: &str, properties: &[(&str, String)]) -> NbtTag {
     let mut entry = NbtCompound::new();
-    entry.put_string("Name", name.to_string());
+    entry.put_string("id", name.to_string());
     if !properties.is_empty() {
         let mut props = NbtCompound::new();
         for (key, value) in properties {
             props.put_string(key, value.clone());
         }
-        entry.put_component("Properties", props);
+        entry.put_component("properties", props);
     }
     NbtTag::Compound(entry)
 }
@@ -302,23 +302,44 @@ fn an_unknown_block_name_is_a_loud_error() {
 
 #[test]
 fn a_value_the_block_does_not_declare_is_a_loud_error() {
-    for properties in [
+    let properties = vec![
+        ("facing", "up".to_string()),
+        ("half", "bottom".to_string()),
+        ("shape", "straight".to_string()),
+        ("waterlogged", "false".to_string()),
+    ];
+    let err = resolve(vec![section(
+        0,
+        vec![entry("minecraft:oak_stairs", &properties)],
+    )])
+    .unwrap_err();
+    assert!(
+        matches!(&err, ErrorKind::UnknownPaletteEntry { name } if name == "minecraft:oak_stairs"),
+        "{err}"
+    );
+}
+
+/// Each property stands on its own, so an entry states only what differs from
+/// the block's default state and a bare name is that default.
+#[test]
+fn a_property_the_entry_leaves_out_keeps_its_default_value() {
+    let corpus = corpus();
+    let stairs = corpus.block("minecraft:oak_stairs").expect("the corpus has stairs");
+    let default = stairs.default_state_id;
+    let facing_north = stairs
+        .with_text(default, "facing", "north")
+        .expect("stairs face north");
+
+    let ids = resolve(vec![section(
+        0,
         vec![
-            ("facing", "up".to_string()),
-            ("half", "bottom".to_string()),
-            ("shape", "straight".to_string()),
-            ("waterlogged", "false".to_string()),
+            entry("minecraft:oak_stairs", &[]),
+            entry(
+                "minecraft:oak_stairs",
+                &[("facing", "north".to_string())],
+            ),
         ],
-        vec![("facing", "north".to_string())],
-    ] {
-        let err = resolve(vec![section(
-            0,
-            vec![entry("minecraft:oak_stairs", &properties)],
-        )])
-        .unwrap_err();
-        assert!(
-            matches!(&err, ErrorKind::UnknownPaletteEntry { name } if name == "minecraft:oak_stairs"),
-            "{err}"
-        );
-    }
+    )])
+    .expect("a partial property set resolves");
+    assert_eq!(ids, vec![default.0 as u32, facing_north.0 as u32]);
 }

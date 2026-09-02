@@ -5,8 +5,6 @@ use bevy::render::renderer::RenderQueue;
 use crate::mesh::{Draw, STREAMS, stream_is_model};
 use crate::pack::MODEL_OVERHANG;
 
-use super::Budget;
-
 pub(super) const PARAMS_STRIDE: u32 = 256;
 pub(super) const PARAMS_SIZE: u64 = 32;
 const _: () = assert!(size_of::<Params>() as u64 == PARAMS_SIZE);
@@ -21,14 +19,23 @@ pub(super) struct Params {
     wireframe: u32,
     overhang: f32,
     animated_from: u32,
-    visible_limit: u32,
+    /// Keeps the struct a 16-byte multiple, which every backend lays a uniform
+    /// out to whatever the member alignments alone would allow.
+    padding: u32,
 }
 
 pub(super) struct DrawList {
     pub draws: Vec<Draw>,
     pub group_counts: Vec<u32>,
-    pub limits: Vec<u32>,
     pub wireframe: u32,
+    /// Entries the visible list has to hold for the draws as they stand.
+    ///
+    /// A blended draw addresses the list by the slot the mesher gave each
+    /// group, so its span is its whole quad count whatever the cull leaves
+    /// alive; an opaque one packs into the front of its span but can fill it.
+    /// Handing a draw anything less drops quads by where they sit in the arena
+    /// rather than by where they sit in the world.
+    pub visible_entries: usize,
     params: Vec<Params>,
     dirty: bool,
 }
@@ -38,24 +45,18 @@ impl DrawList {
         Self {
             draws: Vec::new(),
             group_counts: Vec::new(),
-            limits: Vec::new(),
             wireframe: 0,
+            visible_entries: 0,
             params: Vec::with_capacity(STREAMS),
             dirty: false,
         }
     }
 
-    pub fn rebuild(&mut self, budget: &Budget, animated_from: u32) {
+    pub fn rebuild(&mut self, animated_from: u32) {
         self.params.clear();
         self.group_counts.clear();
-        self.limits.clear();
-        let asked: usize = self.draws.iter().map(|draw| draw.quad_count as usize).sum();
         let mut visible_base = 0u32;
         for (index, draw) in self.draws.iter().enumerate() {
-            let limit = match asked > budget.visible {
-                true => (draw.quad_count as usize * budget.visible / asked) as u32,
-                false => draw.quad_count,
-            };
             self.params.push(Params {
                 group_base: draw.first_group,
                 group_count: draw.group_count,
@@ -68,12 +69,12 @@ impl DrawList {
                     0.0
                 },
                 animated_from,
-                visible_limit: limit,
+                padding: 0,
             });
-            visible_base += limit;
-            self.limits.push(limit);
+            visible_base += draw.quad_count;
             self.group_counts.push(draw.group_count);
         }
+        self.visible_entries = visible_base as usize;
         self.dirty = true;
     }
 
@@ -98,6 +99,8 @@ pub(super) fn prepare_wireframe(
     wireframe: Res<super::Wireframe>,
     mut terrain: Option<ResMut<super::terrain::Terrain>>,
     queue: Res<RenderQueue>,
+    device: Res<bevy::render::renderer::RenderDevice>,
+    pipeline_cache: Res<PipelineCache>,
 ) {
     let Some(terrain) = terrain.as_mut() else {
         return;
@@ -108,6 +111,6 @@ pub(super) fn prepare_wireframe(
     }
     let terrain = terrain.as_mut();
     terrain.list.wireframe = flag;
-    terrain.rebuild_params();
+    terrain.rebuild_params(&device, &pipeline_cache);
     terrain.list.flush(&terrain.frame.params, &queue);
 }

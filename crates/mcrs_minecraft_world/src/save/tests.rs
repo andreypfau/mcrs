@@ -407,7 +407,7 @@ fn the_previous_data_version_is_rejected_by_name_on_every_file_kind() {
         );
         let message = err.to_string();
         assert!(
-            message.contains("4903") && message.contains("5011"),
+            message.contains("4903") && message.contains("5015"),
             "{message}"
         );
     }
