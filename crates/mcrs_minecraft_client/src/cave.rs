@@ -297,7 +297,7 @@ pub fn cave_cull(
         cave.bits.fill(u32::MAX);
         return;
     }
-    let started = std::time::Instant::now();
+    let started = bevy::platform::time::Instant::now();
     cave.run(transform.translation(), frustum);
     let slot = cave.walks % CaveCull::TIMED;
     cave.took[slot] = started.elapsed().as_micros() as u32;
