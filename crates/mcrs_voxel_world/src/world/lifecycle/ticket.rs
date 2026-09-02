@@ -10,6 +10,7 @@ use crate::world::dimension::InDimension;
 use crate::world::lifecycle::markers::ChunkLoaded;
 use crate::world::lifecycle::markers::ChunkUnloaded;
 use crate::world::lifecycle::markers::ChunkUnloading;
+use crate::world::lifecycle::trace::{self, ColumnStage};
 use crate::world::storage::chunk::Chunk;
 use crate::world::storage::chunk::ChunkBundle;
 use crate::world::storage::chunk::ChunkIndex;
@@ -209,6 +210,7 @@ fn spawn_chunks(
             };
 
             if !chunk_index.contains(pos) {
+                trace::mark(pos.into(), ColumnStage::Spawned);
                 let chunk_entity = commands
                     .spawn((
                         ChunkBundle::new(InDimension(dim), pos),

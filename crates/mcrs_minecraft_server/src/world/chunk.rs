@@ -34,12 +34,14 @@ use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
 use mcrs_voxel_world::world::lifecycle::markers::ChunkLoading;
 use mcrs_voxel_world::world::lifecycle::markers::ChunkUnloading;
 use mcrs_voxel_world::world::lifecycle::ticket::LightTicket;
+use mcrs_voxel_world::world::lifecycle::trace as column_trace;
+use mcrs_voxel_world::world::lifecycle::trace::ColumnStage;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use std::sync::{Arc, LazyLock, OnceLock};
-use tracing::{error, info, trace};
+use tracing::{error, info, info_span, trace};
 
 /// The noise settings state which block fills the terrain and which fluid fills
 /// the sea (`minecraft:stone` and `minecraft:water` for the overworld), so the
@@ -446,6 +448,8 @@ fn process_completed_columns(mut scheduler: ResMut<ColumnScheduler>, mut command
         let res = block_on(future::poll_once(&mut in_flight.task));
         if let Some(column_result) = res {
             report_column_timing(in_flight, &column_result);
+            column_trace::mark(in_flight.col, ColumnStage::Loaded);
+            column_trace::set_source(in_flight.col, column_result.source.label());
             // Column generation task completed, process all sections
             for (entity, _pos, result) in column_result.sections {
                 match result {
@@ -562,6 +566,7 @@ fn enqueue_pending_columns(
                 .remove::<ChunkLoading>();
         }
 
+        column_trace::mark(col, ColumnStage::Queued);
         let distance_sq = min_column_distance(&col, &player_positions);
         let key = ColumnKey::new(distance_sq, col);
         let pending_column = PendingColumn::new(sections);
@@ -642,6 +647,7 @@ fn cancel_stale_columns(
     // stale at that point.
     for (key, entities) in stale_pending {
         trace!("Canceling stale column {:?}", key);
+        column_trace::forget(key.chunk_column_pos);
 
         scheduler.pending.remove(&key);
         scheduler.priority_index.remove(&key.chunk_column_pos);
@@ -667,6 +673,7 @@ fn cancel_stale_columns(
         }) {
             // Signal cancellation to the worker task
             // The task will check is_cancelled() between sections and exit early
+            column_trace::forget(in_flight.col);
             in_flight.cancel.cancel();
         }
     }
@@ -829,6 +836,8 @@ fn dispatch_column_generation(
             col, pending_column.sections
         );
 
+        column_trace::mark(col, ColumnStage::Generating);
+
         // Prepare data for the async task
         let router = overworld_noise_router.0.clone();
         let cancel = CancellationToken::new();
@@ -848,6 +857,7 @@ fn dispatch_column_generation(
 
         // Spawn the generation task
         let task = task_pool.spawn(async move {
+            let _column = info_span!("world::column_load", x = col.x, z = col.z).entered();
             let started = Instant::now();
             let router = router.as_ref();
             let biome_context = biome_ctx.as_ref().map(|(src, reg)| {
@@ -858,7 +868,11 @@ fn dispatch_column_generation(
             });
 
             let loaded = saved.and_then(|(saved, biomes)| {
-                let chunk = saved.read(col.x, col.z)?;
+                let chunk = {
+                    let _read = info_span!("world::column_read_saved").entered();
+                    saved.read(col.x, col.z)?
+                };
+                let _decode = info_span!("world::column_decode_saved").entered();
                 match column_sections(&chunk, &y_sections, &block_definitions, &biomes) {
                     Ok(sections) => Some(sections),
                     Err(err) => {
@@ -880,15 +894,18 @@ fn dispatch_column_generation(
                 };
             }
 
-            let mut results = generate_column(
-                col.x,
-                col.z,
-                &y_sections,
-                router,
-                biome_context,
-                &block_definitions,
-                &cancel_clone,
-            );
+            let mut results = {
+                let _gen = info_span!("world::column_gen").entered();
+                generate_column(
+                    col.x,
+                    col.z,
+                    &y_sections,
+                    router,
+                    biome_context,
+                    &block_definitions,
+                    &cancel_clone,
+                )
+            };
 
             // Beta surface pass: place surface/filler/bedrock blocks with a
             // single per-chunk RNG seeded from the chunk coords.

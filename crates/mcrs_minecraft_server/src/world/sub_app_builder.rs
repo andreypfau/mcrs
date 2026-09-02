@@ -249,7 +249,9 @@ pub fn spawn_dim_subapp(
     sub_app.add_systems(FixedLast, flush_from_dim_outbox);
 
     sub_app.add_plugins(DimensionPlugin);
-    sub_app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
+    if !crate::lighting_disabled() {
+        sub_app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
+    }
     sub_app.add_plugins(LightCodecPlugin);
     // AssetPlugin and AppTypeRegistry must precede any plugin that calls
     // `init_asset` / `register_asset_loader`. `ChunkPlugin` (via its nested

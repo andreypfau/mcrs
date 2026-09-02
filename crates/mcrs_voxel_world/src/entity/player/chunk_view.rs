@@ -2,6 +2,7 @@ use crate::entity::physics::Transform;
 use crate::world::dimension::{DimensionTypeConfig, InDimension};
 use crate::world::lifecycle::markers::ChunkLoaded;
 use crate::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketCommand, TicketKind};
+use crate::world::lifecycle::trace::{self, ColumnStage};
 use crate::world::storage::chunk::ChunkIndex;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::{
@@ -238,6 +239,7 @@ fn update_load_queue(
             if !last_view.contains(&pos) {
                 continue;
             }
+            trace::mark(pos.into(), ColumnStage::Ticketed);
             observer.delayed_ticket_ops.push_back(TicketCommand::Add {
                 chunk_pos: pos,
                 ticket: Ticket::new(TicketKind::PlayerLoading),
@@ -388,6 +390,13 @@ impl ChunkTrackingView {
             && self.max_y() >= other.min_y()
     }
 
+    /// Whether any section of this column is still tracked. The unload queue
+    /// is per section, so a column only truly leaves the view when its XZ does.
+    pub fn contains_column(&self, x: i32, z: i32) -> bool {
+        x.saturating_sub(self.center.x).unsigned_abs() <= self.distance as u32
+            && z.saturating_sub(self.center.z).unsigned_abs() <= self.distance as u32
+    }
+
     pub fn contains(&self, pos: &ChunkPos) -> bool {
         // Saturating ops keep the helper consistent with min_y / max_y,
         // which already use saturating arithmetic. Without this, an
@@ -464,5 +473,32 @@ impl ChunkTrackingView {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod contains_column_tests {
+    use super::*;
+
+    #[test]
+    fn a_vertical_step_keeps_every_column_the_view_already_held() {
+        let view = ChunkTrackingView::new(ChunkPos::new(0, 4, 0), 12, 8);
+        let stepped = ChunkTrackingView::new(ChunkPos::new(0, 5, 0), 12, 8);
+
+        // The section that drops out of the bottom of the vertical window.
+        let evicted = ChunkPos::new(3, -4, 7);
+        assert!(view.contains(&evicted));
+        assert!(!stepped.contains(&evicted));
+
+        // Its column is still tracked, so the column must not be torn down.
+        assert!(stepped.contains_column(evicted.x, evicted.z));
+    }
+
+    #[test]
+    fn a_column_outside_the_horizontal_reach_is_gone() {
+        let view = ChunkTrackingView::new(ChunkPos::new(0, 4, 0), 12, 8);
+        assert!(view.contains_column(12, -12));
+        assert!(!view.contains_column(13, 0));
+        assert!(!view.contains_column(0, -13));
     }
 }

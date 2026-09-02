@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bevy::asset::AssetPlugin;
+use bevy::log::{BoxedLayer, LogPlugin};
 use bevy::camera::visibility::VisibilitySystems;
 use bevy::math::DVec3;
 use bevy::prelude::*;
@@ -39,6 +40,25 @@ use mcrs_minecraft_client::screenshot;
 #[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 
+#[cfg(feature = "telemetry-tracy")]
+fn tracy_layer(_: &mut App) -> Option<BoxedLayer> {
+    Some(Box::new(tracing_tracy::TracyLayer::default()))
+}
+
+#[cfg(not(feature = "telemetry-tracy"))]
+fn tracy_layer(_: &mut App) -> Option<BoxedLayer> {
+    None
+}
+
+/// Tracy draws its frame boundaries from this. `bevy_render` marks them with a
+/// tracing event, but only the profiler's own subscriber filters that event
+/// back out of the log, so going through the client directly is what keeps a
+/// profiled run from writing a line per frame.
+#[cfg(feature = "telemetry-tracy")]
+fn frame_mark() {
+    tracing_tracy::client::frame_mark();
+}
+
 /// The browser has no world folder and no save to seed itself from, so the
 /// entry point there is its own.
 #[cfg(target_family = "wasm")]
@@ -67,6 +87,10 @@ fn main() {
                     ..default()
                 }
                 .into(),
+                ..default()
+            })
+            .set(LogPlugin {
+                custom_layer: tracy_layer,
                 ..default()
             })
             .set(WindowPlugin {
@@ -102,6 +126,7 @@ fn main() {
     .add_plugins(local_player::LocalPlayerPlugin)
     .add_plugins(camera::CameraPlugin)
     .add_plugins(gui::debug::DebugScreenPlugin)
+    .add_plugins(gui::chunk_map::ChunkMapPlugin)
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .add_plugins(sky::SkyPlugin)
     .add_plugins(screenshot::ScreenshotPlugin)
@@ -162,6 +187,9 @@ fn main() {
             PostUpdate,
             cave::cave_cull.after(VisibilitySystems::UpdateFrusta),
         );
+
+    #[cfg(feature = "telemetry-tracy")]
+    app.add_systems(Last, frame_mark);
 
     let (yaw, pitch) = look_override().unwrap_or((save_data.yaw, save_data.pitch));
     player::spawn_player(app.world_mut(), save_data.position, yaw, pitch);

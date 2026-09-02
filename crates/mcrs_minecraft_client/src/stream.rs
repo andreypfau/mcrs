@@ -8,6 +8,7 @@ use mcrs_minecraft_network::client::ReceivedRegistries;
 use mcrs_minecraft_network::columns::{ColumnStore, Extent, SECTION_SIZE};
 use mcrs_minecraft_world::block::definition::{BlockDefinitions, Blocks};
 use mcrs_voxel_math::ColumnPos;
+use mcrs_voxel_world::world::lifecycle::trace::{self, ColumnStage};
 
 use crate::arena::{Arena, Block};
 use crate::blocks::{self, BlockInfo, Catalog};
@@ -327,6 +328,7 @@ impl Loader {
             .filter(|pos| !store.holds(*pos))
             .collect();
         for pos in departed {
+            trace::forget(pos);
             self.known.remove(&pos);
             self.to_tint.retain(|queued| *queued != pos);
             if let Some(extent) = self.store.extent() {
@@ -349,6 +351,7 @@ impl Loader {
             self.baked.resize(definitions.state_count(), false);
         }
         for pos in arrived {
+            trace::mark(pos, ColumnStage::Received);
             self.known.insert(pos);
             self.to_tint.push(pos);
             let Some(extent) = extent else { continue };
@@ -437,6 +440,7 @@ impl Loader {
             slot
         };
         cave.set_section(section, slot, mesh.connectivity);
+        trace::mark(ColumnPos::new(section[0], section[2]), ColumnStage::Meshed);
         self.resident.insert(
             section,
             Resident {

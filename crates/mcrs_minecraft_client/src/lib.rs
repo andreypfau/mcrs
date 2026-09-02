@@ -1,3 +1,7 @@
+// wgpu's `Buffer: Sync` proof chain is deeper than the default 128 frames, and
+// `#[derive(Resource)]` walks all of it.
+#![recursion_limit = "256"]
+
 use std::path::{Path, PathBuf};
 
 pub mod anim;

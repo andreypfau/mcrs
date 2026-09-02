@@ -45,6 +45,7 @@ wgpu = { version = "29", default-features = false }
 bevy = { version = "0.19.1", default-features = false, features = ["file_watcher", "clipboard_image"] }
 # Singleplayer is a server of our own on a loopback port, as it is in vanilla.
 mcrs_minecraft_server.workspace = true
+tracing-tracy = { version = "0.12", optional = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 bevy = { version = "0.19.1", default-features = false, features = ["web", "webgpu"] }
@@ -55,6 +56,15 @@ console_error_panic_hook = "0.1"
 getrandom = { version = "0.4", features = ["wasm_js"] }
 getrandom_03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
 web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"] }
+
+[features]
+# Bevy links as a shared library instead of being statically relinked into every
+# client rebuild. Dev loop only; it is not a shape we ship.
+dynamic_linking = ["bevy/dynamic_linking"]
+# `bevy/trace_tracy` pins the Tracy client `bevy_log` was built against, which
+# trails the profiler GUI by a protocol version or two. Installing the layer
+# ourselves through `LogPlugin::custom_layer` lets this pick its own.
+telemetry-tracy = ["bevy/trace", "dep:tracing-tracy", "mcrs_minecraft_server/telemetry-tracy"]
 
 [build-dependencies]
 flate2.workspace = true

@@ -10,7 +10,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Commands;
 use mcrs_minecraft_block::palette::{AirCount, BiomePalette, BlockPalette, NetworkPalette};
 use mcrs_minecraft_protocol::light_codec::{
-    ColumnLightUpdate, LightCodecParams, build_full_light_data,
+    ColumnLightUpdate, LightCodecParams, build_full_light_data, build_fullbright_light_data,
 };
 use mcrs_minecraft_protocol::{ColumnPos, Encode};
 use mcrs_voxel_light::sets::LightingSet;
@@ -24,6 +24,8 @@ use mcrs_voxel_world::session::PlayerSession;
 use mcrs_voxel_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
 use mcrs_voxel_world::world::lifecycle::ticket::{ChunkTicketsCommands, Ticket, TicketKind};
+use mcrs_voxel_world::world::lifecycle::trace as column_trace;
+use mcrs_voxel_world::world::lifecycle::trace::ColumnStage;
 use mcrs_voxel_world::world::storage::chunk::ChunkIndex;
 use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnPos as EngineColumnPos};
 
@@ -118,14 +120,30 @@ fn load_chunk_request(
 
 fn unload_chunk_request(
     mut message: MessageReader<PlayerChunkUnloadRequest>,
-    mut players: Query<(&mut ColumnView, &InDimension, &Reposition)>,
+    mut players: Query<(
+        &mut ColumnView,
+        &InDimension,
+        &Reposition,
+        &PlayerChunkObserver,
+    )>,
     mut dims: Query<(&mut ChunkTicketsCommands, &DimensionTypeConfig)>,
 ) {
     message.read().for_each(|req| {
-        let Ok((mut chunk_view, in_dim, rep)) = players.get_mut(req.player) else {
+        let Ok((mut chunk_view, in_dim, rep, observer)) = players.get_mut(req.player) else {
             return;
         };
         let column_pos = ColumnPos::from(req.chunk_pos);
+        // The queue evicts one section at a time, but a column is sent and
+        // dropped whole. Crossing a section boundary vertically evicts one
+        // section from every column in view, and tearing those columns down
+        // for it would re-send the entire view.
+        if observer
+            .last_last_chunk_tracking_view
+            .is_some_and(|view| view.contains_column(column_pos.x, column_pos.z))
+        {
+            return;
+        }
+        column_trace::forget(column_pos);
         chunk_view.desired_columns.remove(&column_pos);
         chunk_view.sent_columns.remove(&column_pos);
         if chunk_view.loaded_columns.remove(&column_pos)
@@ -203,6 +221,7 @@ fn loading_column_queue(
                 }
             }
             trace!("Column {:?} loaded", col);
+            column_trace::mark(col, ColumnStage::Ready);
             chunk_view.loading_queue.pop_front();
             chunk_view.send_queue.push_back((col, chunks_entities));
         }
@@ -222,6 +241,7 @@ fn send_column_queue(
     mut players: Query<(&mut ColumnView, &Reposition, &InDimension, &HostAnchor)>,
     chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
     dim_column_indexes: Query<&ColumnIndex>,
+    dim_type_configs: Query<&DimensionTypeConfig>,
     // Sections still cascading light through the bounded converge loop carry
     // `BlockBfsPending` or `SkyBfsPending`. Defer first-send of any column
     // with at least one such section — otherwise the codec snapshots default
@@ -238,6 +258,10 @@ fn send_column_queue(
         .for_each(|(mut chunk_view, rep, in_dim, host_anchor)| {
             let host = host_anchor.0;
             let column_index = dim_column_indexes.get(in_dim.entity()).ok();
+            let wire_light_rows = dim_type_configs
+                .get(in_dim.entity())
+                .map(|config| config.section_count as usize + 2)
+                .unwrap_or(0);
             let mut sends = 0usize;
 
             loop {
@@ -297,20 +321,25 @@ fn send_column_queue(
                     break;
                 }
 
-                let light_data = column_index
-                    .and_then(|idx| {
-                        idx.0
-                            .get(&EngineColumnPos::new(column_pos.x, column_pos.z))
-                            .map(|slot| slot.entity)
-                    })
-                    .map(|column_entity| build_full_light_data(column_entity, &codec_params))
-                    .unwrap_or_default();
+                let light_data = if crate::lighting_disabled() {
+                    build_fullbright_light_data(wire_light_rows)
+                } else {
+                    column_index
+                        .and_then(|idx| {
+                            idx.0
+                                .get(&EngineColumnPos::new(column_pos.x, column_pos.z))
+                                .map(|slot| slot.entity)
+                        })
+                        .map(|column_entity| build_full_light_data(column_entity, &codec_params))
+                        .unwrap_or_default()
+                };
 
                 let wire_pos = ColumnPos::new(
                     rep.convert_chunk_x(column_pos.x),
                     rep.convert_chunk_z(column_pos.z),
                 );
 
+                column_trace::mark(column_pos, ColumnStage::Sent);
                 chunk_view.send_queue.pop_front();
                 chunk_view.sent_columns.insert(column_pos);
 

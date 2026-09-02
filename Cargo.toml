@@ -118,11 +118,29 @@ debug-assertions = true
 [profile.dev.package."*"]
 opt-level = 3
 
+# Build scripts and proc macros run at compile time, so optimizing them buys
+# build time rather than frame time. `package."*"` does not reach them.
+[profile.dev.build-override]
+opt-level = 3
+
+[profile.release.build-override]
+opt-level = 3
+
 # `package."*"` only covers external dependencies; workspace members inherit
-# [profile.dev] opt-level 0. Chunk generation (density-function evaluation,
-# octave Perlin noise, palette writes) is far too hot for opt-level 0, so the
-# worldgen-critical member crates are optimized even in dev builds.
+# [profile.dev] opt-level 0. Both paths a column can arrive by are far too hot
+# for that: generation (density-function evaluation, octave Perlin noise,
+# palette writes) and the read out of the save (zlib, NBT, palette unpacking),
+# so the member crates on either are optimized even in dev builds.
 [profile.dev.package."mcrs_minecraft_worldgen"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_anvil"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_nbt"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_protocol"]
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_decoration"]
@@ -139,21 +157,6 @@ opt-level = 2
 
 [profile.dev.package."mcrs_voxel_world"]
 opt-level = 1
-
-[profile.dev.package."bevy_ecs"]
-opt-level = 3
-
-[profile.dev.package."bevy_app"]
-opt-level = 3
-
-[profile.dev.package."bevy_reflect"]
-opt-level = 3
-
-[profile.dev.package."bevy_time"]
-opt-level = 3
-
-[profile.dev.package."bevy_math"]
-opt-level = 3
 
 # The browser bundle is inlined into a single HTML file, so binary size is the
 # dominant cost there in a way it never is for a native build.

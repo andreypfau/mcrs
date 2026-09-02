@@ -20,3 +20,14 @@ BEVY_ASSET_ROOT = { value = ".", relative = true }
 # browser client's only transport is built on them.
 [target.wasm32-unknown-unknown]
 rustflags = ['--cfg', 'getrandom_backend="wasm_js"', '--cfg', 'web_sys_unstable_apis']
+
+# `share-generics` stops every crate from monomorphizing the same Bevy generic
+# again; `threads=0` runs the parallel frontend on all cores; `cache-proc-macros`
+# keeps derive expansions in the incremental cache.
+[target.aarch64-apple-darwin]
+rustflags = ["-Zshare-generics=y", "-Zthreads=0", "-Zcache-proc-macros"]
+
+# Metadata is duplicated into every rlib otherwise, which this workspace pays
+# for across 650 dependencies.
+[unstable]
+embed-metadata = false

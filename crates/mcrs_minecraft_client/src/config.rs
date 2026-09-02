@@ -115,6 +115,10 @@ pub fn raster_fraction() -> Raster {
 
 /// Seconds between debug-screen lines written to the log, for a run whose
 /// window cannot be read.
+pub fn chunk_map() -> bool {
+    flag("CHUNK_MAP", false)
+}
+
 pub fn stats_interval() -> Option<f32> {
     knob("STATS").map(|spec| spec.trim().parse().unwrap_or(1.0))
 }

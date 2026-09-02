@@ -247,6 +247,25 @@ pub struct LightCodecParams<'w, 's> {
     pub has_sky_lights: Query<'w, 's, (), With<HasSkyLight>>,
 }
 
+/// Sky at full, block at nothing, for every row a column puts on the wire.
+/// A server running without a lighting engine still has to say something about
+/// light, and saying nothing renders the world black on the client.
+pub fn build_fullbright_light_data(rows: usize) -> LightData<'static> {
+    let words = rows.div_ceil(64);
+    let mut all_rows = vec![0u64; words];
+    for row in 0..rows {
+        all_rows[row / 64] |= 1 << (row % 64);
+    }
+    LightData {
+        sky_light_mask: Cow::Owned(all_rows.clone()),
+        block_light_mask: Cow::Owned(vec![0; words]),
+        empty_sky_light_mask: Cow::Owned(vec![0; words]),
+        empty_block_light_mask: Cow::Owned(all_rows),
+        sky_light_arrays: Cow::Owned(vec![LightChunk([0xff; 2048]); rows]),
+        block_light_arrays: Cow::Owned(Vec::new()),
+    }
+}
+
 /// Build a wire-ready `LightData` for the given column entity.
 ///
 /// Returns `LightData::default()` if the column or its parent dimension is

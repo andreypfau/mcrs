@@ -32,6 +32,7 @@ use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_network::NetworkPlugin;
 use mcrs_voxel_server::VoxelServerPlugin;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::sync::LazyLock;
 use std::path::PathBuf;
 
 pub use mcrs_minecraft_network::BoundAddress;
@@ -50,6 +51,19 @@ pub struct MinecraftServerPlugin {
     /// World folder to read saved chunks from. Without one, and for any column
     /// the folder has never saved, the dimension generates its terrain.
     pub world: Option<PathBuf>,
+}
+
+/// `MCRS_NO_LIGHTING=1` drops the lighting engine and hands every column to the
+/// client at full sky light. Sunlight, torches and shadows all stop existing;
+/// what is left is a world that loads without the propagation cost.
+pub fn lighting_disabled() -> bool {
+    static DISABLED: LazyLock<bool> = LazyLock::new(|| {
+        matches!(
+            std::env::var("MCRS_NO_LIGHTING").as_deref(),
+            Ok("1" | "true" | "on" | "yes")
+        )
+    });
+    *DISABLED
 }
 
 /// The world folder the server reads its saved chunks from.
