@@ -14,7 +14,6 @@ use mcrs_minecraft_server::world::sub_app_builder::{
     spawn_dim_subapp,
 };
 use mcrs_minecraft_world::block::definition::Blocks;
-use mcrs_voxel_light::table::BlockStateLightTable;
 use mcrs_voxel_world::world::dimension::{Dimension, DimensionId, DimensionTypeConfig};
 use mcrs_voxel_world::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
@@ -319,10 +318,6 @@ fn registries_present_in_all_subapps() {
         assert!(
             host_registry.shares_inner_with(access),
             "RegistryAccess clone must share the host Arc"
-        );
-        assert!(
-            world.get_resource::<BlockStateLightTable>().is_some(),
-            "BlockStateLightTable resource present in sub-app"
         );
         assert!(
             world.get_resource::<Blocks>().is_some(),

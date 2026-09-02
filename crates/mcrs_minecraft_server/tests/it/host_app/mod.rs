@@ -31,28 +31,11 @@ use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_world::enchantment::EnchantmentData;
-use mcrs_voxel_light::table::BlockStateLightTable;
-use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
 
 /// A two-state stub light table sufficient for sub-app construction. The
 /// production table is data-loaded; tests only need the resource to exist.
-pub fn make_stub_block_light_table() -> BlockStateLightTable {
-    let state_count = 2usize;
-    let emission = vec![0u8; state_count].into_boxed_slice();
-    let dampening = vec![0u8; state_count].into_boxed_slice();
-    let occlusion: Box<[&'static VoxelShape]> =
-        vec![VoxelShape::empty(); state_count].into_boxed_slice();
-    let flags = vec![0u8; state_count].into_boxed_slice();
-    BlockStateLightTable {
-        emission,
-        dampening,
-        occlusion,
-        flags,
-    }
-}
-
 /// Build a host `App` wired for the production per-dim sub-app builder path.
 ///
 /// Registers the host-side bus messages, channel resource, spawn/despawn
@@ -87,7 +70,6 @@ pub fn make_host_app() -> App {
     app.init_resource::<DimSpawnQueue>();
     app.init_resource::<DimDespawnQueue>();
     app.insert_resource(RegistryAccess::default());
-    app.insert_resource(make_stub_block_light_table());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());

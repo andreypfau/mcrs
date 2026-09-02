@@ -55,8 +55,6 @@ use mcrs_minecraft_server::world::sub_app_builder::drain_dim_spawn_queue;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::enchantment::EnchantmentData;
-use mcrs_voxel_light::table::BlockStateLightTable;
-use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_voxel_world::session::PlayerSession;
 use mcrs_voxel_world::session::SessionRegistry;
 use mcrs_voxel_world::world::sub_app::{DimDespawnQueue, DimSpawnQueue, DimSpawnRequest};
@@ -302,20 +300,6 @@ fn build_join_host_app() -> App {
     app.init_resource::<DimSpawnQueue>();
     app.init_resource::<DimDespawnQueue>();
     app.insert_resource(RegistryAccess::default());
-    {
-        let state_count = 2usize;
-        let emission = vec![0u8; state_count].into_boxed_slice();
-        let dampening = vec![0u8; state_count].into_boxed_slice();
-        let occlusion: Box<[&'static VoxelShape]> =
-            vec![VoxelShape::empty(); state_count].into_boxed_slice();
-        let flags = vec![0u8; state_count].into_boxed_slice();
-        app.insert_resource(BlockStateLightTable {
-            emission,
-            dampening,
-            occlusion,
-            flags,
-        });
-    }
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());

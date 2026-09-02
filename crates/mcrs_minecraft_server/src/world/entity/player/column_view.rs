@@ -1,19 +1,18 @@
 use std::collections::VecDeque;
 
-use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin, PreUpdate};
+use bevy_app::{App, FixedUpdate, Plugin, PreUpdate};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{
-    Added, Component, ContainsEntity, Message, MessageReader, On, Or, Query, With,
+    Added, Component, ContainsEntity, Message, MessageReader, On, Query, With,
 };
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Commands;
 use mcrs_minecraft_block::palette::{AirCount, BiomePalette, BlockPalette, NetworkPalette};
 use mcrs_minecraft_protocol::light_codec::{
-    ColumnLightUpdate, LightCodecParams, build_full_light_data, build_fullbright_light_data,
+    LightCodecParams, build_full_light_data, build_fullbright_light_data,
 };
 use mcrs_minecraft_protocol::{ColumnPos, Encode};
-use mcrs_voxel_light::sets::LightingSet;
 use mcrs_voxel_math::ChunkPos;
 use mcrs_voxel_world::entity::player::chunk_view::{
     ChunkTrackingViewUpdateEvent, ChunkViewPlugin, PlayerChunkLoadRequest, PlayerChunkObserver,
@@ -31,7 +30,6 @@ use mcrs_voxel_world::world::storage::column::{ColumnIndex, ColumnPos as EngineC
 
 use crate::world::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget};
 use crate::world::entity::player::HostAnchor;
-use mcrs_voxel_light::{BlockBfsPending, SkyBfsPending};
 use rustc_hash::FxHashSet;
 use tracing::trace;
 
@@ -44,15 +42,6 @@ impl Plugin for ColumnViewPlugin {
         // Initialize per-player column state.
         app.add_systems(PreUpdate, add_player_column_view);
 
-        // `send_column_queue` reads `BlockLight`/`SkyLight` storage to build the
-        // first-send light data via `build_full_light_data`. Without an explicit
-        // ordering, the Bevy scheduler may run it before `LightingSet::Converge`
-        // writes storage for a chunk that just loaded this tick — the player
-        // receives a `LevelChunkWithLight` packet with zero light values and
-        // never recovers (subsequent `ColumnLightUpdate` deltas only fire on
-        // `Changed<*Light>`, which doesn't trigger if the section converged
-        // before the first send). Anchor the chain after `EmitDirty` so the
-        // initial send always sees converged storage.
         app.add_systems(
             FixedUpdate,
             (
@@ -62,13 +51,7 @@ impl Plugin for ColumnViewPlugin {
                 loading_column_queue,
                 send_column_queue,
             )
-                .chain()
-                .after(LightingSet::EmitDirty),
-        );
-
-        app.add_systems(
-            FixedPostUpdate,
-            send_light_updates.after(LightingSet::Codec),
+                .chain(),
         );
 
         // React to ChunkTrackingView changes (xz-distance changes, movement).
@@ -242,13 +225,6 @@ fn send_column_queue(
     chunks: Query<(&BlockPalette, &BiomePalette), With<ChunkLoaded>>,
     dim_column_indexes: Query<&ColumnIndex>,
     dim_type_configs: Query<&DimensionTypeConfig>,
-    // Sections still cascading light through the bounded converge loop carry
-    // `BlockBfsPending` or `SkyBfsPending`. Defer first-send of any column
-    // with at least one such section — otherwise the codec snapshots default
-    // `Mixed(LightNibbles::zeros())` from pre-converged storage and the client
-    // caches darkness. The column re-enters the queue on the next tick once
-    // propagation drains.
-    light_dirty: Query<(), Or<(With<BlockBfsPending>, With<SkyBfsPending>)>>,
     codec_params: LightCodecParams,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
@@ -285,10 +261,6 @@ fn send_column_queue(
                         ready = false;
                         break;
                     };
-                    if light_dirty.contains(chunk_e) {
-                        ready = false;
-                        break;
-                    }
                     // Section layout per vanilla LevelChunkSection.write:
                     //   short non_empty_block_count
                     //   short fluid_count
@@ -379,34 +351,6 @@ fn send_column_queue(
 /// corresponding `ChunkLoad` packet. Emitted at Normal priority (light
 /// updates after first send can be dropped on congestion without client
 /// visible loss — only the initial chunk light is Critical).
-pub(crate) fn send_light_updates(
-    mut reader: MessageReader<ColumnLightUpdate>,
-    players: Query<(&ColumnView, &HostAnchor)>,
-    mut packet_writer: MessageWriter<OutboundPlayerPacket>,
-) {
-    use std::sync::atomic::Ordering;
-    for msg in reader.read() {
-        let col_pos = ColumnPos::new(msg.column_pos.x, msg.column_pos.z);
-        for (view, host_anchor) in players.iter() {
-            if !view.sent_columns.contains(&col_pos) {
-                continue;
-            }
-            packet_writer.write(OutboundPlayerPacket {
-                target: PacketTarget::SinglePlayer(host_anchor.0),
-                priority: PacketPriority::Normal,
-                data: PacketPayload::LightUpdate {
-                    column: col_pos,
-                    light_data: msg.light_data.clone(),
-                },
-                session: PlayerSession(0),
-                epoch: 0,
-            });
-            mcrs_minecraft_network::metrics::BRIDGE_OUTBOUND_MESSAGES_EMITTED_TOTAL
-                .fetch_add(1, Ordering::Relaxed);
-        }
-    }
-}
-
 #[derive(Debug, Message)]
 pub struct PlayerColumnLoadRequest {
     pub player: Entity,

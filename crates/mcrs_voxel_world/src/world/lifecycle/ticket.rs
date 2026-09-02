@@ -1,10 +1,4 @@
-//! Chunk tickets and the engine-wide `LightTicket` sparse marker.
-//!
-//! `LightTicket` lives here rather than alongside the other lighting
-//! components because the chunk-cancellation guard sits in a crate that must
-//! not depend on the lighting crate. Both sides already depend on this one, so
-//! it is the only valid shared anchor for the marker; nothing else here knows
-//! anything about lighting.
+//! Chunk tickets.
 
 use crate::world::dimension::InDimension;
 use crate::world::lifecycle::markers::ChunkLoaded;
@@ -21,10 +15,6 @@ use bevy_ecs::query::With;
 use indexmap::IndexMap;
 use mcrs_voxel_math::ChunkPos;
 use rustc_hash::{FxBuildHasher, FxHashSet};
-
-#[derive(Component)]
-#[component(storage = "SparseSet")]
-pub struct LightTicket;
 
 const MAX_DESPAWNS_PER_TICK: usize = 1024;
 const MAX_SPAWNS_PER_TICK: usize = 512;

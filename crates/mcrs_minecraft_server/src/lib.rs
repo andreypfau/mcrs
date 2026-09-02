@@ -8,7 +8,6 @@
 
 extern crate core;
 
-pub mod block_light_table;
 mod client_info;
 pub mod runner;
 pub use runner::{DEFAULT_TPS, run_server_loop};
@@ -21,7 +20,6 @@ mod version;
 mod weight;
 pub mod world;
 
-use crate::block_light_table::BlockLightTablePlugin;
 use crate::client_info::ClientInfoPlugin;
 use crate::configuration::ConfigurationStatePlugin;
 use crate::keep_alive::KeepAlivePlugin;
@@ -125,7 +123,6 @@ impl Plugin for MinecraftServerPlugin {
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);
         app.add_plugins(WorldPlugin);
-        app.add_plugins(BlockLightTablePlugin);
         app.add_plugins(ClientInfoPlugin);
     }
 }

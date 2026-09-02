@@ -1,4 +1,4 @@
-use crate::world::format::anvil::{SavedColumns, column_sections};
+use crate::world::format::anvil::{SavedColumns, SectionData, column_sections};
 use crate::world::generate::{
     BetaCaveBlockIds, BetaOreBlockIds, apply_beta_caves, apply_beta_ores, apply_beta_surface,
     generate_column,
@@ -33,7 +33,8 @@ use mcrs_voxel_world::world::lifecycle::markers::ChunkGenerating;
 use mcrs_voxel_world::world::lifecycle::markers::ChunkLoaded;
 use mcrs_voxel_world::world::lifecycle::markers::ChunkLoading;
 use mcrs_voxel_world::world::lifecycle::markers::ChunkUnloading;
-use mcrs_voxel_world::world::lifecycle::ticket::LightTicket;
+use mcrs_voxel_light::storage::LightStorage;
+use mcrs_voxel_light::{BlockLight, SkyLight};
 use mcrs_voxel_world::world::lifecycle::trace as column_trace;
 use mcrs_voxel_world::world::lifecycle::trace::ColumnStage;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -352,8 +353,8 @@ impl ColumnScheduler {
 /// the entity, position, and optionally the generated block/biome data.
 /// `None` indicates the section was cancelled before generation could complete.
 pub struct ColumnResult {
-    /// Generated sections. `None` for cancelled sections, `Some((blocks, biomes))` for completed.
-    pub sections: Vec<(Entity, ChunkPos, Option<(BlockPalette, BiomePalette)>)>,
+    /// Generated sections. `None` for cancelled sections.
+    pub sections: Vec<(Entity, ChunkPos, Option<SectionData>)>,
     /// Where the column came from and how long that took, so a slow column can
     /// name the stage that cost the time.
     pub source: ColumnSource,
@@ -421,6 +422,17 @@ fn min_y_distance(pos: &ChunkPos, players: &[IVec3]) -> i32 {
 /// Splits a slow column's latency into the three stages that can own it: the
 /// wait for a worker, the read or generation itself, and the wait for this
 /// system to notice the task had finished.
+/// Nothing computes light any more, so a column the save holds no light for is
+/// lit as if it stood under open sky; unlit, it would render black.
+fn generated_section((blocks, biomes): (BlockPalette, BiomePalette)) -> SectionData {
+    (
+        blocks,
+        biomes,
+        BlockLight::default(),
+        SkyLight(LightStorage::Uniform(15)),
+    )
+}
+
 fn report_column_timing(in_flight: &InFlightColumn, result: &ColumnResult) {
     let total = in_flight.queued.elapsed();
     if total < *SLOW_COLUMN {
@@ -453,11 +465,11 @@ fn process_completed_columns(mut scheduler: ResMut<ColumnScheduler>, mut command
             // Column generation task completed, process all sections
             for (entity, _pos, result) in column_result.sections {
                 match result {
-                    Some((blocks, biomes)) => {
+                    Some((blocks, biomes, block_light, sky_light)) => {
                         // Section completed successfully - mark as loaded with data
                         commands
                             .entity(entity)
-                            .insert((ChunkLoaded, blocks, biomes))
+                            .insert((ChunkLoaded, blocks, biomes, block_light, sky_light))
                             .remove::<ChunkGenerating>();
                     }
                     None => {
@@ -600,7 +612,6 @@ fn cancel_stale_columns(
     mut scheduler: ResMut<ColumnScheduler>,
     mut commands: Commands,
     players: Query<&PlayerChunkObserver>,
-    light_tickets: Query<Entity, With<LightTicket>>,
 ) {
     // Collect all player views for visibility checks
     let player_views: Vec<_> = players
@@ -613,11 +624,6 @@ fn cancel_stale_columns(
     if player_views.is_empty() {
         return;
     }
-
-    // Sections holding a LightTicket must stay loaded until their cross-section
-    // lighting work drains. Materialise the set once so the per-entity check
-    // inside the unload loop is O(1).
-    let light_ticket_set: FxHashSet<Entity> = light_tickets.iter().collect();
 
     // Cancel stale pending columns
     // Collect keys to remove first to avoid borrowing issues
@@ -640,11 +646,7 @@ fn cancel_stale_columns(
         })
         .collect();
 
-    // Remove stale pending columns and mark sections for unloading. Skip any
-    // section that currently holds a `LightTicket`; the ticket is cleared
-    // deterministically once the section's egress/incoming/workspace queues
-    // are empty, and the next eval will pick the section up if it is still
-    // stale at that point.
+    // Remove stale pending columns and mark sections for unloading.
     for (key, entities) in stale_pending {
         trace!("Canceling stale column {:?}", key);
         column_trace::forget(key.chunk_column_pos);
@@ -653,9 +655,6 @@ fn cancel_stale_columns(
         scheduler.priority_index.remove(&key.chunk_column_pos);
 
         for entity in entities {
-            if light_ticket_set.contains(&entity) {
-                continue;
-            }
             commands
                 .entity(entity)
                 .insert(ChunkUnloading)
@@ -966,7 +965,7 @@ fn dispatch_column_generation(
             let column_sections = sections_data
                 .into_iter()
                 .zip(results)
-                .map(|((entity, pos), result)| (entity, pos, result))
+                .map(|((entity, pos), result)| (entity, pos, result.map(generated_section)))
                 .collect();
 
             ColumnResult {
@@ -1088,56 +1087,7 @@ mod tests {
     }
 
     #[test]
-    fn cancel_stale_columns_skips_sections_with_light_ticket() {
-        let mut app = App::new();
-        app.insert_resource(ColumnScheduler::default());
-        app.add_systems(Update, cancel_stale_columns);
-
-        // Observer at chunk (0, 0, 0) with view distance 2; any column at
-        // dx/dz > 2 is stale.
-        spawn_observer_with_view(&mut app, ChunkPos::new(0, 0, 0), 2);
-
-        // Spawn a section entity with ChunkGenerating + LightTicket, far
-        // from the observer so the column is considered stale.
-        let stale_pos = ChunkPos::new(100, 0, 100);
-        let stale_section = app
-            .world_mut()
-            .spawn((stale_pos, ChunkGenerating, LightTicket))
-            .id();
-
-        // Register the stale column in the scheduler so cancel_stale_columns
-        // finds it in the priority_index.
-        let stale_col = ColumnPos::new(stale_pos.x, stale_pos.z);
-        let key = ColumnKey::new(0, stale_col);
-        let pending = PendingColumn::new(vec![(stale_section, stale_pos.y)]);
-        {
-            let mut scheduler = app.world_mut().resource_mut::<ColumnScheduler>();
-            scheduler.pending.insert(key, pending);
-            scheduler.priority_index.insert(stale_col, key);
-        }
-
-        app.update();
-
-        assert!(
-            app.world().get::<LightTicket>(stale_section).is_some(),
-            "LightTicket retained on the stale section"
-        );
-        assert!(
-            app.world().get::<ChunkUnloading>(stale_section).is_none(),
-            "ChunkUnloading must NOT be inserted on a ticketed section"
-        );
-        // ChunkGenerating stays because the unload path was skipped.
-        assert!(
-            app.world().get::<ChunkGenerating>(stale_section).is_some(),
-            "ChunkGenerating retained because the unload was deferred"
-        );
-    }
-
-    #[test]
-    fn cancel_stale_columns_unloads_untickted_stale_sections() {
-        // Control check: a stale section WITHOUT a LightTicket still gets
-        // ChunkUnloading, confirming the only behavioural delta is the
-        // LightTicket exclusion.
+    fn cancel_stale_columns_unloads_stale_sections() {
         let mut app = App::new();
         app.insert_resource(ColumnScheduler::default());
         app.add_systems(Update, cancel_stale_columns);
@@ -1160,7 +1110,7 @@ mod tests {
 
         assert!(
             app.world().get::<ChunkUnloading>(stale_section).is_some(),
-            "stale section without LightTicket gets ChunkUnloading"
+            "a stale section gets ChunkUnloading"
         );
         assert!(
             app.world().get::<ChunkGenerating>(stale_section).is_none(),

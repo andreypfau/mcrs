@@ -23,8 +23,6 @@ use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::enchantment::EnchantmentData;
 use mcrs_minecraft_world::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
-use mcrs_voxel_light::table::BlockStateLightTable;
-use mcrs_voxel_math::voxel_shape::VoxelShape;
 use mcrs_voxel_world::world::dimension::{DimensionId, DimensionTypeConfig};
 use mcrs_voxel_world::world::sub_app::{
     DimAppLabel, DimDespawnQueue, DimSpawnQueue, DimSpawnRequest,
@@ -33,16 +31,6 @@ use mcrs_voxel_world::world::sub_app::{
 use crate::support;
 
 const OVERWORLD: &str = "minecraft:overworld";
-
-fn make_stub_block_light_table() -> BlockStateLightTable {
-    let state_count = 2usize;
-    BlockStateLightTable {
-        emission: vec![0u8; state_count].into_boxed_slice(),
-        dampening: vec![0u8; state_count].into_boxed_slice(),
-        occlusion: vec![VoxelShape::empty(); state_count].into_boxed_slice(),
-        flags: vec![0u8; state_count].into_boxed_slice(),
-    }
-}
 
 fn build_host_app() -> App {
     let mut app = App::new();
@@ -60,7 +48,6 @@ fn build_host_app() -> App {
     app.init_resource::<DimSpawnQueue>();
     app.init_resource::<DimDespawnQueue>();
     app.insert_resource(RegistryAccess::default());
-    app.insert_resource(make_stub_block_light_table());
     app.insert_resource(StaticRegistry::<EnchantmentData>::default());
     app.insert_resource(DynTagRegistry::<Block>::default());
     app.insert_resource(RegistrySnapshot::<Biome>::default());

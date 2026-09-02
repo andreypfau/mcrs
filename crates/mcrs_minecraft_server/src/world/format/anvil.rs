@@ -4,12 +4,15 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_anvil::{
-    Biomes as SavedBiomes, BlockStateLookup, BlockStates, Chunk, ErrorKind, Properties, RegionFile,
+    Biomes as SavedBiomes, BlockStateLookup, BlockStates, Chunk, ErrorKind, Light, Properties,
+    RegionFile,
 };
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::definition::BlockDefinitions;
+use mcrs_voxel_light::storage::LightStorage;
+use mcrs_voxel_light::{BlockLight, SkyLight};
 use mcrs_voxel_storage::{PalettedContainer, VoxelId, VoxelPalette};
 use std::time::Instant;
 
@@ -137,18 +140,24 @@ impl SavedColumns {
 /// The requested sections of a saved column, in the order they were asked for.
 ///
 /// A Y the save holds no section for is air rather than absent: an absent
-/// section unloads the chunk instead of leaving it empty.
+/// section unloads the chunk instead of leaving it empty. Such a section sits
+/// above everything the save wrote, so it takes full sky light.
 pub fn column_sections(
     chunk: &Chunk,
     y_sections: &[i32],
     blocks: &BlockDefinitions,
     biomes: &RegistrySnapshot<Biome>,
-) -> Result<Vec<Option<(BlockPalette, BiomePalette)>>, ErrorKind> {
+) -> Result<Vec<Option<SectionData>>, ErrorKind> {
     y_sections
         .iter()
         .map(|&y| {
             let Some(section) = chunk.sections.iter().find(|s| i32::from(s.y) == y) else {
-                return Ok(Some(Default::default()));
+                return Ok(Some((
+                    BlockPalette::default(),
+                    BiomePalette::default(),
+                    BlockLight::default(),
+                    SkyLight(LightStorage::Uniform(15)),
+                )));
             };
             Ok(Some((
                 match &section.block_states {
@@ -159,9 +168,23 @@ pub fn column_sections(
                     Some(saved) => biome_palette(saved, biomes)?,
                     None => BiomePalette::default(),
                 },
+                BlockLight(saved_light(section.block_light.as_ref())),
+                SkyLight(saved_light(section.sky_light.as_ref())),
             )))
         })
         .collect()
+}
+
+/// Blocks, biomes and both light layers of one section, as the save holds them.
+pub type SectionData = (BlockPalette, BiomePalette, BlockLight, SkyLight);
+
+/// The save's nibble array is laid out exactly like `LightNibbles`, so the
+/// bytes move across whole.
+fn saved_light(light: Option<&Light>) -> LightStorage {
+    match light {
+        Some(light) => LightStorage::from_nibbles(light.0.clone()),
+        None => LightStorage::Empty,
+    }
 }
 
 fn block_palette(

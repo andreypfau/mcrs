@@ -2,10 +2,13 @@ use std::sync::OnceLock;
 
 use bevy_app::{App, TaskPoolPlugin};
 use bevy_asset::{AssetPlugin, AssetServer};
-use mcrs_minecraft_anvil::{Chunk, ErrorKind, parse_chunk};
+use mcrs_minecraft_anvil::{Chunk, ErrorKind, LIGHT_BYTES, parse_chunk};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_server::world::format::anvil::CorpusBlockStates;
+use mcrs_minecraft_core::RegistrySnapshot;
+use mcrs_minecraft_server::world::format::anvil::{CorpusBlockStates, column_sections};
+use mcrs_minecraft_world::biome::Biome;
+use mcrs_voxel_light::storage::LightStorage;
 use mcrs_minecraft_world::block::definition::schema::PropertyValue;
 use mcrs_minecraft_world::block::definition::{
     BlockDefinitions, BlockEntry, load_block_definitions,
@@ -87,6 +90,21 @@ fn section(y: i8, palette: Vec<NbtTag>) -> NbtTag {
     let mut section = NbtCompound::new();
     section.put_byte("Y", y);
     section.put_component("block_states", states);
+    NbtTag::Compound(section)
+}
+
+fn section_with_light(y: i8, palette: Vec<NbtTag>, sky: u8, block: u8) -> NbtTag {
+    let NbtTag::Compound(mut section) = section(y, palette) else {
+        unreachable!()
+    };
+    section.put(
+        "SkyLight",
+        NbtTag::ByteArray(vec![sky; LIGHT_BYTES].into_boxed_slice()),
+    );
+    section.put(
+        "BlockLight",
+        NbtTag::ByteArray(vec![block; LIGHT_BYTES].into_boxed_slice()),
+    );
     NbtTag::Compound(section)
 }
 
@@ -342,4 +360,29 @@ fn a_property_the_entry_leaves_out_keeps_its_default_value() {
     )])
     .expect("a partial property set resolves");
     assert_eq!(ids, vec![default.0 as u32, facing_north.0 as u32]);
+}
+
+/// Light is read from the save, never computed: the saved nibbles land in the
+/// section's components as-is, and a Y the save skipped stands under open sky.
+#[test]
+fn saved_light_reaches_the_section_components() {
+    let palette = vec![default_entry(corpus().block("minecraft:stone").unwrap())];
+    let chunk = chunk(vec![section_with_light(0, palette, 0xff, 0xa5)]);
+
+    let sections = column_sections(
+        &chunk,
+        &[0, 1],
+        corpus(),
+        &RegistrySnapshot::<Biome>::default(),
+    )
+    .expect("the column decodes");
+
+    let (_, _, block_light, sky_light) = sections[0].as_ref().expect("the saved section");
+    assert!(matches!(sky_light.0, LightStorage::Uniform(15)));
+    assert_eq!(block_light.0.get(0, 0, 0), 0x5);
+    assert_eq!(block_light.0.get(1, 0, 0), 0xa);
+
+    let (_, _, block_light, sky_light) = sections[1].as_ref().expect("the absent section");
+    assert!(matches!(sky_light.0, LightStorage::Uniform(15)));
+    assert!(matches!(block_light.0, LightStorage::Empty));
 }

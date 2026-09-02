@@ -9,6 +9,10 @@ pub enum LightStorage {
 }
 
 impl LightStorage {
+    pub fn from_nibbles(bytes: Box<[u8; mcrs_voxel_math::chunk_pos::BLOCKS::HALF_VOLUME]>) -> Self {
+        LightStorage::Dense(Box::new(LightNibbles(bytes))).compact()
+    }
+
     #[inline]
     pub fn get(&self, x: usize, y: usize, z: usize) -> u8 {
         match self {

@@ -54,19 +54,15 @@ use crate::world::block_update::{BlockUpdatePlugin, BlockUpdateWirePlugin};
 use crate::world::entity::MinecraftEntityPlugin;
 use crate::world::explosion::ExplosionPlugin;
 use crate::world::loot::LootPlugin;
-use mcrs_minecraft_block::block::BlockUpdateFlags;
 use mcrs_minecraft_core::RegistrySnapshot;
 use mcrs_minecraft_core::registry::access::RegistryAccess;
 use mcrs_minecraft_core::registry::static_registry::StaticRegistry;
 use mcrs_minecraft_core::tag::registry::DynTagRegistry;
-use mcrs_minecraft_protocol::light_codec::LightCodecPlugin;
 use mcrs_minecraft_world::biome::Biome;
 use mcrs_minecraft_world::block::Block;
 use mcrs_minecraft_world::block::definition::Blocks;
 use mcrs_minecraft_world::enchantment::EnchantmentData;
 use mcrs_minecraft_world::worldgen::beta_biome::ActiveBiomeSource;
-use mcrs_voxel_light::LightingPlugin;
-use mcrs_voxel_light::table::BlockStateLightTable;
 use crate::WorldSave;
 use crate::world::format::anvil::SavedColumns;
 use mcrs_voxel_world::world::dimension::{DimensionBundle, DimensionPlugin, HasSkyLight};
@@ -77,7 +73,6 @@ use mcrs_voxel_world::world::sub_app::{
 #[derive(Clone)]
 pub struct DimRegistryBundle {
     pub registry_access: RegistryAccess,
-    pub block_light_table: BlockStateLightTable,
     pub blocks: Blocks,
     pub static_enchantment_registry: StaticRegistry<EnchantmentData>,
     pub block_tag_registry: DynTagRegistry<Block>,
@@ -89,7 +84,6 @@ pub struct DimRegistryBundle {
 pub fn gather_dim_registries(world: &bevy_ecs::world::World) -> DimRegistryBundle {
     DimRegistryBundle {
         registry_access: world.resource::<RegistryAccess>().clone(),
-        block_light_table: world.resource::<BlockStateLightTable>().clone(),
         blocks: world.resource::<Blocks>().clone(),
         static_enchantment_registry: world.resource::<StaticRegistry<EnchantmentData>>().clone(),
         block_tag_registry: world.resource::<DynTagRegistry<Block>>().clone(),
@@ -249,10 +243,6 @@ pub fn spawn_dim_subapp(
     sub_app.add_systems(FixedLast, flush_from_dim_outbox);
 
     sub_app.add_plugins(DimensionPlugin);
-    if !crate::lighting_disabled() {
-        sub_app.add_plugins(LightingPlugin::<BlockUpdateFlags>::default());
-    }
-    sub_app.add_plugins(LightCodecPlugin);
     // AssetPlugin and AppTypeRegistry must precede any plugin that calls
     // `init_asset` / `register_asset_loader`. `ChunkPlugin` (via its nested
     // `NoiseGeneratorSettingsPlugin`) registers assets, so it must come after
@@ -301,7 +291,6 @@ pub fn spawn_dim_subapp(
     sub_app.add_plugins(crate::world::arrival::ArrivalPlugin);
 
     sub_app.insert_resource(registries.registry_access.clone());
-    sub_app.insert_resource(registries.block_light_table.clone());
     sub_app.insert_resource(registries.blocks.clone());
     sub_app.insert_resource(registries.static_enchantment_registry.clone());
     sub_app.insert_resource(registries.block_tag_registry.clone());
