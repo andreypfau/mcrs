@@ -9,7 +9,7 @@ use bevy::asset::io::{AssetSourceId, ErasedAssetReader};
 use bevy::prelude::{AssetServer, Resource};
 use bevy::tasks::futures_lite::StreamExt;
 use mcrs_minecraft_core::asset::read_whole;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// The folders of the resource pack the renderer draws from. Everything under them is held in
 /// memory, because a block state first seen mid-stream has to bake without an await.
@@ -144,32 +144,44 @@ struct MultipartCase {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 enum Condition {
-    Group {
-        #[serde(rename = "OR", default)]
+    Or {
+        #[serde(rename = "OR")]
         or: Vec<Condition>,
-        #[serde(rename = "AND", default)]
+    },
+    And {
+        #[serde(rename = "AND")]
         and: Vec<Condition>,
     },
-    Terms(HashMap<String, serde_json::Value>),
+    Terms(HashMap<String, Term>),
+}
+
+/// A property value spelled as the blockstate JSON spells it: quoted for a string, bare for the
+/// booleans and integers, which still name a string-valued property.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+enum Term {
+    Flag(bool),
+    Int(i64),
+    Text(String),
+}
+
+impl std::fmt::Display for Term {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Term::Flag(flag) => write!(f, "{flag}"),
+            Term::Int(int) => write!(f, "{int}"),
+            Term::Text(text) => f.write_str(text),
+        }
+    }
 }
 
 impl Condition {
     fn matches(&self, props: &[(&str, &str)]) -> bool {
         match self {
-            Condition::Group { or, and } => {
-                if !or.is_empty() {
-                    return or.iter().any(|c| c.matches(props));
-                }
-                if !and.is_empty() {
-                    return and.iter().all(|c| c.matches(props));
-                }
-                true
-            }
+            Condition::Or { or } => or.iter().any(|c| c.matches(props)),
+            Condition::And { and } => and.iter().all(|c| c.matches(props)),
             Condition::Terms(terms) => terms.iter().all(|(name, expected)| {
-                let expected = match expected {
-                    serde_json::Value::String(s) => s.clone(),
-                    other => other.to_string(),
-                };
+                let expected = expected.to_string();
                 let actual = props.iter().find(|(k, _)| k == name).map(|(_, v)| *v);
                 match actual {
                     Some(actual) => expected.split('|').any(|alt| alt == actual),
@@ -451,6 +463,53 @@ mod tests {
         assert_eq!(
             pack.read(&stone).unwrap(),
             Pack::corpus().read(&stone).unwrap(),
+        );
+    }
+
+    #[test]
+    fn a_condition_term_round_trips_through_every_spelling() {
+        for spelling in [r#""north|east""#, "true", "false", "3", "-1"] {
+            let term: Term = serde_json::from_str(spelling).expect("a term parses");
+            assert_eq!(serde_json::to_string(&term).unwrap(), spelling);
+        }
+        assert!(matches!(
+            serde_json::from_str::<Term>("true").unwrap(),
+            Term::Flag(true)
+        ));
+        assert!(matches!(
+            serde_json::from_str::<Term>("3").unwrap(),
+            Term::Int(3)
+        ));
+    }
+
+    #[test]
+    fn a_condition_matches_alternatives_and_bare_values() {
+        let when: Condition = serde_json::from_str(
+            r#"{"facing": "north|east", "powered": true, "delay": 3}"#,
+        )
+        .expect("a when clause parses");
+
+        assert!(when.matches(&[("facing", "east"), ("powered", "true"), ("delay", "3")]));
+        assert!(when.matches(&[("facing", "north"), ("powered", "true"), ("delay", "3")]));
+        assert!(!when.matches(&[("facing", "south"), ("powered", "true"), ("delay", "3")]));
+        assert!(!when.matches(&[("facing", "north"), ("powered", "false"), ("delay", "3")]));
+        assert!(!when.matches(&[("facing", "north"), ("powered", "true"), ("delay", "4")]));
+        assert!(!when.matches(&[("facing", "north|east"), ("powered", "true"), ("delay", "3")]));
+    }
+
+    #[test]
+    fn a_multipart_fence_picks_up_its_connected_sides() {
+        let states = BlockStateFile::load(Pack::corpus(), "minecraft:oak_fence")
+            .expect("the fence blockstate is in the corpus");
+        assert!(states.is_multipart());
+
+        assert_eq!(states.select_all(&[]).unwrap().len(), 1);
+        assert_eq!(
+            states
+                .select_all(&[("north", "true"), ("east", "true")])
+                .unwrap()
+                .len(),
+            3
         );
     }
 }
