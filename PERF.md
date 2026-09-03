@@ -175,6 +175,13 @@ to 208 (PostUpdate 99 to 80, state transitions 20 to 6), extract 74 to 54, encod
 (Core3d 123 to 90, of which the frame system is 51 and Bevy's upscaling blit 16), submit 52 to
 38 with two command buffers instead of six.
 
+In flight, hot, after this pass: sprint 0.68 / 1.28 / 1.60 ms with 16k resident sections
+(main 0.29 ms, GPU world 1.22), maximum speed 0.83 / 1.77 / 2.63 ms with 55k resident sections
+(main 0.35 ms, GPU cull 0.38, GPU world 4.3). The engine stays under 1.0 ms but is not flat:
+both the main world and the GPU grow with residency, and residency grows without bound because
+nothing is evicted in flight (the open streaming item), so flatness cannot be judged until
+columns behind the player leave.
+
 What is left, hot floor: main world 208 µs across 300-odd systems where the named work is a
 few µs (PreUpdate 57, PostUpdate 80, Update 41), extract 54 µs across 70 systems, the frame
 system 51 µs (one compute and one render pass; opening a pass on Metal is ~15 µs), upscaling
