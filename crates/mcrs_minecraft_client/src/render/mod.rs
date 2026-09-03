@@ -25,6 +25,7 @@ use crate::mesh::STREAMS;
 use crate::probe::{self, GpuTimings};
 
 pub use stats::DrawnTriangles;
+pub use terrain::SkyBuffer;
 pub use upload::{Placement, Upload, Uploads};
 
 /// The depth buffer runs reverse-Z, so the near plane is at one and a fragment passes when its
@@ -115,6 +116,7 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/include/fields.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/include/section.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/include/frame.wgsl");
+    bevy::asset::embedded_asset!(app, "shaders/include/sky.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/include/quad.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/include/lighting.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/include/terrain_bindings.wgsl");

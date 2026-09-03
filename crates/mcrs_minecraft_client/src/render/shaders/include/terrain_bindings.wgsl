@@ -22,6 +22,7 @@ struct Animation {
 @group(1) @binding(10) var<storage, read> animations: array<Animation>;
 @group(1) @binding(11) var<storage, read> faces: array<u32>;
 @group(1) @binding(12) var<storage, read> sections: array<SectionDesc>;
+@group(1) @binding(13) var lightmap_levels: texture_2d<f32>;
 
 fn quad_field(base: u32, word: u32, shift: u32, bits: u32) -> u32 {
     return extractBits(quads[base + word], shift, bits);

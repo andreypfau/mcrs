@@ -25,7 +25,7 @@ pub(super) struct CameraUniform {
     offset: [f32; 3],
     _pad_offset: f32,
     tint_origin: [f32; 2],
-    tint_span: [f32; 2],
+    tint_scale: [f32; 2],
 }
 
 pub(super) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
@@ -129,9 +129,9 @@ pub(super) fn write_camera(
             section: origin.section.to_array(),
             offset: origin.offset.to_array(),
             tint_origin: [tint_origin.x, tint_origin.z],
-            tint_span: [
-                terrain.budget.tint_size[0] as f32,
-                terrain.budget.tint_size[1] as f32,
+            tint_scale: [
+                1.0 / terrain.budget.tint_size[0] as f32,
+                1.0 / terrain.budget.tint_size[1] as f32,
             ],
             ..default()
         }),

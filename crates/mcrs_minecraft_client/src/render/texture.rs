@@ -3,10 +3,13 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
 use crate::pack::MAX_SPRITE_ARRAYS;
+use crate::sky::SkyUniform;
 
 use super::{Atlas, Budget};
 
 pub(super) const TINT_LAYERS: u32 = 3;
+
+pub(super) const LIGHT_LEVELS: u32 = 16;
 
 pub(super) fn upload_atlases(
     atlases: &[Atlas],
@@ -158,5 +161,105 @@ pub(super) fn write_tint_square(
                 depth_or_array_layers: 1,
             },
         );
+    }
+}
+
+pub(super) fn create_lightmap(device: &RenderDevice) -> Texture {
+    device.create_texture(&TextureDescriptor {
+        label: Some("terrain lightmap"),
+        size: Extent3d {
+            width: LIGHT_LEVELS,
+            height: LIGHT_LEVELS,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: TextureDimension::D2,
+        format: TextureFormat::Rgba32Float,
+        usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+        view_formats: &[],
+    })
+}
+
+pub(super) fn write_lightmap(lightmap: &Texture, queue: &RenderQueue, sky: &SkyUniform) {
+    let levels = LIGHT_LEVELS as usize;
+    let mut texels = vec![[0.0f32; 4]; levels * levels];
+    for sky_level in 0..levels {
+        for block_level in 0..levels {
+            texels[sky_level * levels + block_level] =
+                lit_color(sky, block_level as f32, sky_level as f32);
+        }
+    }
+    queue.write_texture(
+        TexelCopyTextureInfo {
+            texture: lightmap,
+            mip_level: 0,
+            origin: Origin3d::ZERO,
+            aspect: TextureAspect::All,
+        },
+        bytemuck::cast_slice(&texels),
+        TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(LIGHT_LEVELS * size_of::<[f32; 4]>() as u32),
+            rows_per_image: Some(LIGHT_LEVELS),
+        },
+        Extent3d {
+            width: LIGHT_LEVELS,
+            height: LIGHT_LEVELS,
+            depth_or_array_layers: 1,
+        },
+    );
+}
+
+fn light_curve(level: f32) -> f32 {
+    let f = level / 15.0;
+    f / (4.0 - 3.0 * f)
+}
+
+fn lit_color(sky: &SkyUniform, block_level: f32, sky_level: f32) -> [f32; 4] {
+    let rgb = |channels: [f32; 4]| Vec3::from_slice(&channels);
+    let mut color = rgb(sky.ambient);
+    color += rgb(sky.sky_light) * light_curve(sky_level) * sky.sky_light[3];
+    let f = block_level / 15.0;
+    let parabolic = (2.0 * f - 1.0) * (2.0 * f - 1.0);
+    let tint = rgb(sky.block_light).lerp(Vec3::ONE, 0.9 * parabolic);
+    color += tint * light_curve(block_level) * sky.block_light[3];
+    color.clamp(Vec3::ZERO, Vec3::ONE).extend(1.0).to_array()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sky() -> SkyUniform {
+        SkyUniform {
+            ambient: [0.1, 0.1, 0.1, 1.0],
+            sky_light: [0.2, 0.4, 0.6, 0.5],
+            block_light: [1.0, 0.5, 0.0, 0.8],
+            ..default()
+        }
+    }
+
+    fn assert_lit(block_level: f32, sky_level: f32, expected: [f32; 3]) {
+        let got = lit_color(&sky(), block_level, sky_level);
+        let close = (0..3).all(|c| (got[c] - expected[c]).abs() < 1e-6);
+        assert!(close, "({block_level}, {sky_level}) lit to {got:?}, want {expected:?}");
+        assert_eq!(got[3], 1.0);
+    }
+
+    #[test]
+    fn the_light_curve_holds_its_shape() {
+        assert_eq!(light_curve(0.0), 0.0);
+        assert_eq!(light_curve(15.0), 1.0);
+        assert!((light_curve(5.0) - 1.0 / 9.0).abs() < 1e-6);
+        assert!((light_curve(10.0) - 1.0 / 3.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_lightmap_matches_the_curve_worked_by_hand() {
+        assert_lit(0.0, 15.0, [0.2, 0.3, 0.4]);
+        assert_lit(15.0, 0.0, [0.9, 0.86, 0.82]);
+        assert_lit(5.0, 10.0, [0.222_222_2, 0.215_555_5, 0.208_888_9]);
+        assert_lit(15.0, 15.0, [1.0, 1.0, 1.0]);
     }
 }

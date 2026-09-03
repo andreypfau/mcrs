@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
-use super::texture::{create_tints, upload_atlases};
+use super::texture::{create_lightmap, create_tints, upload_atlases};
 use super::{Animation, Atlas, Budget};
 
 pub(super) struct Sprites {
@@ -10,6 +10,7 @@ pub(super) struct Sprites {
     pub atlas_sampler: Sampler,
     pub tints: Texture,
     pub tint_sampler: Sampler,
+    pub lightmap: Texture,
     pub animations: Buffer,
     pub animated_from: u32,
 }
@@ -23,6 +24,7 @@ impl Sprites {
             atlas_sampler,
             tints,
             tint_sampler,
+            lightmap: create_lightmap(device),
             animations: animation_buffer(&[], device),
             animated_from: 0,
         }

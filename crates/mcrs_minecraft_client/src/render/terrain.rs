@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bevy::prelude::*;
-use bevy::render::render_resource::PipelineCache;
+use bevy::render::render_resource::{Buffer, PipelineCache, Texture};
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
 use super::arenas::Arenas;
@@ -11,7 +11,14 @@ use super::frame::Frame;
 use super::pipeline::Pipelines;
 use super::shaders::Shaders;
 use super::sprites::Sprites;
+use super::texture::write_lightmap;
 use super::{Budget, TerrainBudget};
+
+#[derive(Resource, Deref)]
+pub struct SkyBuffer(Buffer);
+
+#[derive(Resource, Deref)]
+pub(super) struct Lightmap(Texture);
 
 #[derive(Resource)]
 pub(super) struct Terrain {
@@ -55,6 +62,8 @@ pub(super) fn init_terrain(
     let binds = Bindings::new(&arenas, &frame, &sprites, &device, &pipeline_cache);
     let pipelines = Pipelines::new(Shaders::load(&asset_server), &binds, &pipeline_cache);
 
+    commands.insert_resource(SkyBuffer(frame.sky.clone()));
+    commands.insert_resource(Lightmap(sprites.lightmap.clone()));
     commands.insert_resource(Terrain {
         cull_grid: super::pass::cull_grid(&device.limits()),
         list: DrawList::new(),
@@ -68,12 +77,14 @@ pub(super) fn init_terrain(
 }
 
 pub(super) fn write_sky(
-    terrain: Option<Res<Terrain>>,
+    buffer: Option<Res<SkyBuffer>>,
+    lightmap: Option<Res<Lightmap>>,
     sky: Option<Res<crate::sky_render::ExtractedSky>>,
     queue: Res<RenderQueue>,
 ) {
-    let (Some(terrain), Some(sky)) = (terrain, sky) else {
+    let (Some(buffer), Some(lightmap), Some(sky)) = (buffer, lightmap, sky) else {
         return;
     };
-    queue.write_buffer(&terrain.frame.sky, 0, bytemuck::bytes_of(&sky.uniform));
+    queue.write_buffer(&buffer, 0, bytemuck::bytes_of(&sky.uniform));
+    write_lightmap(&lightmap, &queue, &sky.uniform);
 }

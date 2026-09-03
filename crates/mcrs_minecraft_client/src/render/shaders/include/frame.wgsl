@@ -2,6 +2,7 @@
 
 #import bevy_render::view::View
 #import bevy_render::globals::Globals
+#import mcrs_minecraft_client::sky::Sky
 
 struct Params {
     group_base: u32,
@@ -20,20 +21,7 @@ struct Camera {
     section: vec3<i32>,
     offset: vec3<f32>,
     tint_origin: vec2<f32>,
-    tint_span: vec2<f32>,
-}
-
-struct Sky {
-    disc: vec4<f32>,
-    sunrise: vec4<f32>,
-    angles: vec4<f32>,
-    moon: vec4<f32>,
-    fog: vec4<f32>,
-    cloud_color: vec4<f32>,
-    cloud: vec4<f32>,
-    sky_light: vec4<f32>,
-    block_light: vec4<f32>,
-    ambient: vec4<f32>,
+    tint_scale: vec2<f32>,
 }
 
 @group(0) @binding(0) var<uniform> view: View;

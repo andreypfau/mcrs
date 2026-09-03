@@ -4,10 +4,11 @@ use bevy::shader::Shader;
 use super::layer::Shape;
 
 // Held alive because a shader whose imported module was dropped fails to compile.
-const IMPORTED: [&str; 8] = [
+const IMPORTED: [&str; 9] = [
     "include/fields.wgsl",
     "include/section.wgsl",
     "include/frame.wgsl",
+    "include/sky.wgsl",
     "include/quad.wgsl",
     "include/lighting.wgsl",
     "include/terrain_bindings.wgsl",

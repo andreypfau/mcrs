@@ -10,7 +10,7 @@ use bevy::render::render_resource::binding_types::{
     sampler, texture_2d, texture_2d_array, uniform_buffer_sized,
 };
 use bevy::render::render_resource::*;
-use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
+use bevy::render::renderer::{RenderContext, RenderDevice, ViewQuery};
 use bevy::render::texture::GpuImage;
 use bevy::render::view::{
     ExtractedView, ViewDepthTexture, ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms,
@@ -19,6 +19,7 @@ use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, R
 use bevy::shader::Shader;
 use mcrs_minecraft_world::world_clock::WorldClocks;
 
+use crate::render::SkyBuffer;
 use crate::sky::{SkyEnvironment, SkyTextures, SkyUniform};
 
 const STAR_COUNT: u32 = 1500;
@@ -131,8 +132,8 @@ pub(crate) struct Sky {
     view_layout: BindGroupLayoutDescriptor,
     texture_layout: BindGroupLayoutDescriptor,
     shader: Handle<Shader>,
-    buffer: Buffer,
     pipelines: Option<(SkyKey, Vec<(usize, CachedRenderPipelineId)>)>,
+    textures: Option<(AssetId<Image>, AssetId<Image>, BindGroup)>,
 }
 
 /// Restricts the sky to a subset of its draws, so a profiling run can price
@@ -154,7 +155,7 @@ pub(crate) struct SkyBindGroups {
     textures: BindGroup,
 }
 
-fn init_sky(mut commands: Commands, device: Res<RenderDevice>, asset_server: Res<AssetServer>) {
+fn init_sky(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(Sky {
         view_layout: BindGroupLayoutDescriptor::new(
             "sky view",
@@ -178,13 +179,8 @@ fn init_sky(mut commands: Commands, device: Res<RenderDevice>, asset_server: Res
             ),
         ),
         shader: asset_server.load("embedded://mcrs_minecraft_client/shaders/sky.wgsl"),
-        buffer: device.create_buffer(&BufferDescriptor {
-            label: Some("sky"),
-            size: size_of::<SkyUniform>() as u64,
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        }),
         pipelines: None,
+        textures: None,
     });
 }
 
@@ -216,13 +212,10 @@ fn prepare_sky(
     extracted: Option<Res<ExtractedSky>>,
     views: Query<&ExtractedView>,
     pipeline_cache: Res<PipelineCache>,
-    queue: Res<RenderQueue>,
 ) {
     let (Some(mut sky), Some(extracted)) = (sky, extracted) else {
         return;
     };
-    queue.write_buffer(&sky.buffer, 0, bytemuck::bytes_of(&extracted.uniform));
-
     if sky
         .pipelines
         .as_ref()
@@ -289,49 +282,69 @@ fn prepare_sky(
 
 fn prepare_sky_bind_groups(
     mut commands: Commands,
-    sky: Option<Res<Sky>>,
+    sky: Option<ResMut<Sky>>,
     extracted: Option<Res<ExtractedSky>>,
+    buffer: Option<Res<SkyBuffer>>,
     images: Res<RenderAssets<GpuImage>>,
     view_uniforms: Res<ViewUniforms>,
     device: Res<RenderDevice>,
     pipeline_cache: Res<PipelineCache>,
 ) {
-    let (Some(sky), Some(extracted)) = (sky, extracted) else {
+    let (Some(mut sky), Some(extracted), Some(buffer)) = (sky, extracted, buffer) else {
         return;
     };
-    let (Some(view_binding), Some(celestials), Some(clouds)) = (
-        view_uniforms.uniforms.binding(),
-        images.get(extracted.celestials),
-        images.get(extracted.clouds),
-    ) else {
+    let Some(view_binding) = view_uniforms.uniforms.binding() else {
         return;
+    };
+    let textures = match &sky.textures {
+        Some((celestials, clouds, bind_group))
+            if *celestials == extracted.celestials && *clouds == extracted.clouds =>
+        {
+            bind_group.clone()
+        }
+        _ => {
+            let (Some(celestials), Some(clouds)) = (
+                images.get(extracted.celestials),
+                images.get(extracted.clouds),
+            ) else {
+                return;
+            };
+            let bind_group = device.create_bind_group(
+                "sky textures",
+                &pipeline_cache.get_bind_group_layout(&sky.texture_layout),
+                &BindGroupEntries::sequential((
+                    &celestials.texture_view,
+                    &celestials.sampler,
+                    &clouds.texture_view,
+                )),
+            );
+            sky.textures = Some((extracted.celestials, extracted.clouds, bind_group.clone()));
+            bind_group
+        }
     };
     commands.insert_resource(SkyBindGroups {
         view: device.create_bind_group(
             "sky view",
             &pipeline_cache.get_bind_group_layout(&sky.view_layout),
-            &BindGroupEntries::sequential((view_binding, sky.buffer.as_entire_buffer_binding())),
+            &BindGroupEntries::sequential((view_binding, buffer.as_entire_buffer_binding())),
         ),
-        textures: device.create_bind_group(
-            "sky textures",
-            &pipeline_cache.get_bind_group_layout(&sky.texture_layout),
-            &BindGroupEntries::sequential((
-                &celestials.texture_view,
-                &celestials.sampler,
-                &clouds.texture_view,
-            )),
-        ),
+        textures,
     });
+}
+
+fn contributes(draw: &SkyDraw, uniform: &SkyUniform) -> bool {
+    draw.effect != SkyEffects::STARS || uniform.angles[3] > 0.0
 }
 
 pub(crate) fn draw_sky(
     view: ViewQuery<(&ViewTarget, &ViewDepthTexture, &ViewUniformOffset)>,
     sky: Option<Res<Sky>>,
+    extracted: Option<Res<ExtractedSky>>,
     binds: Option<Res<SkyBindGroups>>,
     pipeline_cache: Res<PipelineCache>,
     mut ctx: RenderContext,
 ) {
-    let (Some(sky), Some(binds)) = (sky, binds) else {
+    let (Some(sky), Some(extracted), Some(binds)) = (sky, extracted, binds) else {
         return;
     };
     let Some((_, pipelines)) = sky.pipelines.as_ref() else {
@@ -350,12 +363,16 @@ pub(crate) fn draw_sky(
     });
     pass.set_bind_group(1, &binds.textures, &[]);
     for &(index, id) in pipelines {
+        let draw = &SKY_DRAWS[index];
+        if !contributes(draw, &extracted.uniform) {
+            continue;
+        }
         let Some(pipeline) = pipeline_cache.get_render_pipeline(id) else {
             continue;
         };
         pass.set_render_pipeline(pipeline);
         pass.set_bind_group(0, &binds.view, &[view_offset.offset]);
-        pass.draw(0..SKY_DRAWS[index].vertices, 0..1);
+        pass.draw(0..draw.vertices, 0..1);
     }
 }
 
@@ -393,6 +410,23 @@ mod tests {
                 .fold(SkyEffects::empty(), |all, bit| all | bit),
             SkyEffects::all()
         );
+    }
+
+    #[test]
+    fn the_stars_are_drawn_only_while_they_carry_brightness() {
+        let stars = SKY_DRAWS
+            .iter()
+            .find(|draw| draw.effect == SkyEffects::STARS)
+            .unwrap();
+        let with_brightness = |brightness: f32| SkyUniform {
+            angles: [0.0, 0.0, 0.0, brightness],
+            ..default()
+        };
+        assert!(!contributes(stars, &with_brightness(0.0)));
+        assert!(contributes(stars, &with_brightness(f32::MIN_POSITIVE)));
+        for draw in SKY_DRAWS.iter().filter(|draw| draw.effect != stars.effect) {
+            assert!(contributes(draw, &with_brightness(0.0)), "{}", draw.label);
+        }
     }
 
     #[test]

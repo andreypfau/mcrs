@@ -54,7 +54,7 @@ fn shade_surface(s: Surface) -> vec4<f32> {
         factor = textureSampleLevel(
             tints,
             tint_sampler,
-            (s.world_xz - camera.tint_origin) / camera.tint_span,
+            (s.world_xz - camera.tint_origin) * camera.tint_scale,
             s.tint_kind - 1u,
             0.0,
         ).rgb;

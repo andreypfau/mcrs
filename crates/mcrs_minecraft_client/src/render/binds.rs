@@ -2,7 +2,7 @@ use std::num::NonZeroU64;
 
 use bevy::render::globals::GlobalsUniform;
 use bevy::render::render_resource::binding_types::{
-    sampler, storage_buffer_read_only_sized, storage_buffer_sized, texture_2d_array,
+    sampler, storage_buffer_read_only_sized, storage_buffer_sized, texture_2d, texture_2d_array,
     uniform_buffer, uniform_buffer_sized,
 };
 use bevy::render::render_resource::*;
@@ -121,6 +121,7 @@ fn draw_layout() -> BindGroupLayoutDescriptor {
                 storage_buffer_read_only_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
                 storage_buffer_read_only_sized(false, None),
+                texture_2d(TextureSampleType::Float { filterable: false }),
             ),
         ),
     )
@@ -170,6 +171,7 @@ fn draw_bind_group(
             sprites.animations.as_entire_buffer_binding(),
             arenas.faces.as_entire_buffer_binding(),
             arenas.sections.as_entire_buffer_binding(),
+            &sprites.lightmap.create_view(&TextureViewDescriptor::default()),
         )),
     )
 }

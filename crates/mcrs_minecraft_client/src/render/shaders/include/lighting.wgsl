@@ -1,20 +1,9 @@
 #define_import_path mcrs_minecraft_client::lighting
 
-#import mcrs_minecraft_client::frame::sky
-
-fn light_curve(level: f32) -> f32 {
-    let f = level / 15.0;
-    return f / (4.0 - 3.0 * f);
-}
+#import mcrs_minecraft_client::terrain_bindings::lightmap_levels
 
 fn lightmap(block_level: f32, sky_level: f32) -> vec3<f32> {
-    var color = sky.ambient.rgb;
-    color += sky.sky_light.rgb * light_curve(sky_level) * sky.sky_light.a;
-    let f = block_level / 15.0;
-    let parabolic = (2.0 * f - 1.0) * (2.0 * f - 1.0);
-    let tint = mix(sky.block_light.rgb, vec3<f32>(1.0), 0.9 * parabolic);
-    color += tint * light_curve(block_level) * sky.block_light.a;
-    return clamp(color, vec3<f32>(0.0), vec3<f32>(1.0));
+    return textureLoad(lightmap_levels, vec2<u32>(u32(block_level), u32(sky_level)), 0).rgb;
 }
 
 fn face_shade(face: u32) -> f32 {
