@@ -21,7 +21,8 @@ use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, R
 use bevy::shader::Shader;
 use mcrs_minecraft_world::world_clock::WorldClocks;
 
-use crate::render::{DEPTH_COMPARE, pipeline_descriptor, uniform_buffer};
+use crate::probe::{self, GpuTimings, Queries};
+use crate::render::{DEPTH_COMPARE, FrameCounts, pipeline_descriptor, uniform_buffer};
 use crate::sky::{SkyEnvironment, SkyTextures, SkyUniform};
 
 const STAR_COUNT: u32 = 1500;
@@ -361,16 +362,16 @@ impl CloudDraw<'_> {
         pass: &mut TrackedRenderPass<'pass>,
         view_offset: u32,
         cache: &'pass PipelineCache,
-    ) {
+    ) -> u32 {
         let (Some(sky), Some(extracted), Some(binds)) = (
             self.sky.as_deref(),
             self.extracted.as_deref(),
             self.binds.as_deref(),
         ) else {
-            return;
+            return 0;
         };
         let Some((_, pipelines)) = sky.pipelines.as_ref() else {
-            return;
+            return 0;
         };
         pass.set_bind_group(1, &binds.textures, &[]);
         issue(
@@ -381,7 +382,7 @@ impl CloudDraw<'_> {
             binds,
             view_offset,
             cache,
-        );
+        ) as u32
     }
 }
 
@@ -393,17 +394,18 @@ fn issue<'pass>(
     binds: &'pass SkyBindGroups,
     view_offset: u32,
     cache: &'pass PipelineCache,
-) {
+) -> bool {
     let draw = &SKY_DRAWS[index];
     if !(draw.visible)(&extracted.uniform) {
-        return;
+        return false;
     }
     let Some(pipeline) = pipelines[index].and_then(|id| cache.get_render_pipeline(id)) else {
-        return;
+        return false;
     };
     pass.set_render_pipeline(pipeline);
     pass.set_bind_group(0, &binds.view, &[view_offset]);
     pass.draw(0..draw.vertices, 0..1);
+    true
 }
 
 pub(crate) fn draw_sky(
@@ -412,28 +414,35 @@ pub(crate) fn draw_sky(
     extracted: Option<Res<ExtractedSky>>,
     binds: Option<Res<SkyBindGroups>>,
     pipeline_cache: Res<PipelineCache>,
+    counts: Res<FrameCounts>,
+    queries: Option<Res<Queries>>,
+    timings: Res<GpuTimings>,
     mut ctx: RenderContext,
 ) {
     let (Some(sky), Some(extracted), Some(binds)) = (sky, extracted, binds) else {
+        counts.set_sky_draws(0);
         return;
     };
     let Some((_, pipelines)) = sky.pipelines.as_ref() else {
+        counts.set_sky_draws(0);
         return;
     };
     let (target, depth, view_offset) = view.into_inner();
     let color_attachments = [Some(target.get_color_attachment())];
     let depth_attachment = Some(depth.get_attachment(StoreOp::Store));
+    let timestamps = queries.as_ref().map(|q| q.render(probe::SKY, &timings));
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("sky"),
         color_attachments: &color_attachments,
         depth_stencil_attachment: depth_attachment,
-        timestamp_writes: None,
+        timestamp_writes: timestamps,
         occlusion_query_set: None,
         multiview_mask: None,
     });
     pass.set_bind_group(1, &binds.textures, &[]);
+    let mut draws = 0;
     for index in (0..SKY_DRAWS.len()).filter(|&index| index != CLOUDS) {
-        issue(
+        draws += issue(
             &mut pass,
             index,
             pipelines,
@@ -441,8 +450,9 @@ pub(crate) fn draw_sky(
             &binds,
             view_offset.offset,
             &pipeline_cache,
-        );
+        ) as u32;
     }
+    counts.set_sky_draws(draws);
 }
 
 #[cfg(test)]

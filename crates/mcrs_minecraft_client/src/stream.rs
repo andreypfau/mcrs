@@ -97,6 +97,10 @@ pub struct Status {
     pub evicted: usize,
     pub quads: f32,
     pub models: f32,
+    pub faces: f32,
+    pub queued: usize,
+    pub meshing: usize,
+    pub uploads_waiting: usize,
 }
 
 impl Loader {
@@ -153,6 +157,10 @@ impl Loader {
             evicted: self.evicted,
             quads: self.quads.held() as f32 / self.quads.capacity() as f32,
             models: self.models.held() as f32 / self.models.capacity() as f32,
+            faces: self.faces.held() as f32 / self.faces.capacity() as f32,
+            queued: self.queue.len(),
+            meshing: self.meshing.len(),
+            uploads_waiting: self.uploads.waiting(),
         }
     }
 
@@ -183,9 +191,8 @@ impl Loader {
     /// A section reads one block past its own faces, so it borders the eight
     /// columns around its own and cannot be meshed until they have arrived.
     fn surrounded(&self, pos: ColumnPos) -> bool {
-        (-1..=1).all(|dz| {
-            (-1..=1).all(|dx| self.store.holds(ColumnPos::new(pos.x + dx, pos.z + dz)))
-        })
+        (-1..=1)
+            .all(|dz| (-1..=1).all(|dx| self.store.holds(ColumnPos::new(pos.x + dx, pos.z + dz))))
     }
 
     /// Holds blocks, has nowhere to be but the arena, and borders only columns that have
@@ -783,11 +790,10 @@ fn start_tinting(loader: &mut Loader, pool: &'static AsyncComputeTaskPool) {
         };
         let world = loader.store.clone();
         let tints = tints.clone();
-        loader
-            .tinting
-            .push((corner, pool.spawn(async move {
-                blocks::tint_column(&world, &tints, pos)
-            })));
+        loader.tinting.push((
+            corner,
+            pool.spawn(async move { blocks::tint_column(&world, &tints, pos) }),
+        ));
     }
 }
 

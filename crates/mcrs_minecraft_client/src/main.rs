@@ -4,15 +4,17 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 
 use bevy::asset::AssetPlugin;
-use bevy::log::{BoxedLayer, LogPlugin};
 use bevy::camera::visibility::VisibilitySystems;
+use bevy::log::{BoxedLayer, LogPlugin};
 use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::render::RenderPlugin;
 use bevy::render::render_resource::WgpuFeatures;
 use bevy::render::settings::WgpuSettings;
 use bevy::transform::TransformSystems;
-use bevy::window::{MonitorSelection, PresentMode, WindowMode};
+use bevy::window::{
+    Monitor, MonitorSelection, PresentMode, PrimaryMonitor, WindowMode, WindowResolution,
+};
 use bevy::winit::{UpdateMode, WinitSettings};
 use mcrs_minecraft_core::AppState;
 use mcrs_minecraft_world::biome::Biome;
@@ -27,15 +29,15 @@ use mcrs_voxel_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_client::config::TerrainLimits;
 use mcrs_minecraft_client::render::TerrainPlugin;
 #[cfg(not(target_family = "wasm"))]
-use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin};
+use mcrs_minecraft_client::screenshot;
 use mcrs_minecraft_client::{
     asset_corpus, camera, cave, config, gui, input, local_player, player, render, sky, sky_render,
     stream,
 };
 #[cfg(not(target_family = "wasm"))]
-use mcrs_minecraft_client::screenshot;
-#[cfg(not(target_family = "wasm"))]
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_server::{BoundAddress, MinecraftServerPlugin};
 
 #[cfg(feature = "telemetry-tracy")]
 fn tracy_layer(_: &mut App) -> Option<BoxedLayer> {
@@ -96,16 +98,23 @@ fn main() {
                         Some(world) => format!("mcrs — {}", world.display()),
                         None => "mcrs".to_owned(),
                     },
-                    mode: if config::fullscreen() {
+                    mode: if config::fullscreen() && config::resolution().is_none() {
                         WindowMode::BorderlessFullscreen(MonitorSelection::Current)
                     } else {
                         WindowMode::Windowed
+                    },
+                    resolution: match config::resolution() {
+                        Some((width, height)) => {
+                            WindowResolution::new(width, height).with_scale_factor_override(1.0)
+                        }
+                        None => WindowResolution::default(),
                     },
                     present_mode: if config::vsync() {
                         PresentMode::AutoVsync
                     } else {
                         PresentMode::AutoNoVsync
                     },
+                    desired_maximum_frame_latency: config::frame_latency(),
                     ..default()
                 }),
                 ..default()
@@ -133,7 +142,10 @@ fn main() {
     )
     .add_systems(
         PostStartup,
-        log_spawned_transforms.after(TransformSystems::Propagate),
+        (
+            log_spawned_transforms.after(TransformSystems::Propagate),
+            log_monitors,
+        ),
     );
 
     if let Some(only) = config::sky_draws_only() {
@@ -192,6 +204,20 @@ fn main() {
     player::spawn_player(app.world_mut(), save_data.position, yaw, pitch);
 
     app.run();
+}
+
+fn log_monitors(monitors: Query<(&Monitor, Has<PrimaryMonitor>)>) {
+    for (monitor, primary) in &monitors {
+        info!(
+            name = monitor.name.as_deref().unwrap_or("?"),
+            width = monitor.physical_width,
+            height = monitor.physical_height,
+            hz = monitor.refresh_rate_millihertz.map(|hz| hz as f32 / 1000.0),
+            scale = monitor.scale_factor,
+            primary,
+            "monitor"
+        );
+    }
 }
 
 /// One block holds every group of every bucket and a flush takes a fresh one before freeing the

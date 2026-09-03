@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
+use bevy::platform::time::Instant;
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue};
@@ -14,7 +15,8 @@ use crate::readback::{self, Gate, Reader};
 
 pub const CULL: usize = 0;
 pub const TERRAIN: usize = 1;
-pub const NAMES: [&str; 2] = ["cull", "terrain"];
+pub const SKY: usize = 2;
+pub const NAMES: [&str; 3] = ["cull", "terrain", "sky"];
 pub const SLOTS: usize = NAMES.len();
 
 const WINDOW: usize = 256;
@@ -28,15 +30,7 @@ pub struct GpuTimings(Arc<Shared>);
 
 impl GpuTimings {
     pub fn median(&self, slot: usize) -> Option<f32> {
-        let samples = self.0.samples.lock().ok()?;
-        let held = samples.written[slot].min(WINDOW);
-        if held == 0 {
-            return None;
-        }
-        let mut sorted = [0.0f32; WINDOW];
-        sorted[..held].copy_from_slice(&samples.ms[slot][..held]);
-        sorted[..held].sort_unstable_by(f32::total_cmp);
-        Some(sorted[held / 2])
+        self.0.samples.lock().ok()?.median(slot)
     }
 
     fn writing(&self) -> u32 {
@@ -56,7 +50,7 @@ impl GpuTimings {
 #[derive(Default)]
 struct Shared {
     frame: AtomicU32,
-    samples: Mutex<Samples>,
+    samples: Mutex<Samples<SLOTS>>,
     gate: Gate,
     period_ns: AtomicU32,
 }
@@ -69,12 +63,9 @@ impl Shared {
             return;
         };
         for (pass, value) in ms.iter().enumerate() {
-            let Some(value) = value else {
-                continue;
-            };
-            let slot = samples.written[pass] % WINDOW;
-            samples.ms[pass][slot] = *value;
-            samples.written[pass] += 1;
+            if let Some(value) = value {
+                samples.push(pass, *value);
+            }
         }
     }
 }
@@ -93,18 +84,139 @@ impl Reader for Shared {
     }
 }
 
-struct Samples {
-    ms: [[f32; WINDOW]; SLOTS],
-    written: [usize; SLOTS],
+struct Samples<const N: usize> {
+    ms: [[f32; WINDOW]; N],
+    written: [usize; N],
 }
 
-impl Default for Samples {
+impl<const N: usize> Default for Samples<N> {
     fn default() -> Self {
         Self {
-            ms: [[0.0; WINDOW]; SLOTS],
-            written: [0; SLOTS],
+            ms: [[0.0; WINDOW]; N],
+            written: [0; N],
         }
     }
+}
+
+impl<const N: usize> Samples<N> {
+    fn push(&mut self, slot: usize, ms: f32) {
+        let at = self.written[slot] % WINDOW;
+        self.ms[slot][at] = ms;
+        self.written[slot] += 1;
+    }
+
+    fn median(&self, slot: usize) -> Option<f32> {
+        let held = self.written[slot].min(WINDOW);
+        if held == 0 {
+            return None;
+        }
+        let mut sorted = [0.0f32; WINDOW];
+        sorted[..held].copy_from_slice(&self.ms[slot][..held]);
+        sorted[..held].sort_unstable_by(f32::total_cmp);
+        Some(sorted[held / 2])
+    }
+}
+
+pub const MAIN: usize = 0;
+pub const EXTRACT: usize = 1;
+pub const PREPARE: usize = 2;
+pub const RENDER: usize = 3;
+pub const CLEANUP: usize = 4;
+pub const ACQUIRE: usize = 5;
+pub const CPU_NAMES: [&str; 6] = ["main", "extract", "prepare", "render", "cleanup", "acquire"];
+pub const CPU_SLOTS: usize = CPU_NAMES.len();
+
+const FRAME_START: usize = 0;
+const MAIN_END: usize = 1;
+const RENDER_LAST: usize = 2;
+const ACQUIRE_START: usize = 3;
+const MARKS: usize = 4;
+
+/// Wall time of each stage of the frame, main world and render world alike, as medians over the
+/// same window the GPU slots use. Without pipelined rendering the stages run back to back, so
+/// they and the frame period add up; with it the extract slot also holds the wait for the render
+/// thread and the stages overlap instead of summing.
+#[derive(Resource, Clone, Default)]
+pub struct CpuTimings(Arc<CpuShared>);
+
+#[derive(Default)]
+struct CpuShared {
+    marks: Mutex<[Option<Instant>; MARKS]>,
+    samples: Mutex<Samples<CPU_SLOTS>>,
+}
+
+impl CpuTimings {
+    pub fn median(&self, slot: usize) -> Option<f32> {
+        self.0.samples.lock().ok()?.median(slot)
+    }
+
+    fn lap(&self, from: usize, to: usize, slot: usize) {
+        let now = Instant::now();
+        let Ok(mut marks) = self.0.marks.lock() else {
+            return;
+        };
+        if let Some(from) = marks[from]
+            && let Ok(mut samples) = self.0.samples.lock()
+        {
+            samples.push(
+                slot,
+                now.saturating_duration_since(from).as_secs_f32() * 1e3,
+            );
+        }
+        marks[to] = Some(now);
+    }
+}
+
+pub fn frame_started(time: Res<Time<Real>>, cpu: Res<CpuTimings>) {
+    if let Ok(mut marks) = cpu.0.marks.lock() {
+        marks[FRAME_START] = time.last_update();
+    }
+}
+
+pub fn main_ended(cpu: Res<CpuTimings>) {
+    cpu.lap(FRAME_START, MAIN_END, MAIN);
+}
+
+pub fn extracted(cpu: Res<CpuTimings>) {
+    cpu.lap(MAIN_END, RENDER_LAST, EXTRACT);
+}
+
+pub fn prepared(cpu: Res<CpuTimings>) {
+    cpu.lap(RENDER_LAST, RENDER_LAST, PREPARE);
+}
+
+/// The swapchain acquire blocks until the display hands a drawable back, so on a machine whose
+/// presentation is throttled this is the wait that hides inside the prepare stage.
+pub fn acquiring(cpu: Res<CpuTimings>) {
+    if let Ok(mut marks) = cpu.0.marks.lock() {
+        marks[ACQUIRE_START] = Some(Instant::now());
+    }
+}
+
+pub fn acquired(cpu: Res<CpuTimings>) {
+    cpu.lap(ACQUIRE_START, ACQUIRE_START, ACQUIRE);
+}
+
+pub fn rendered(cpu: Res<CpuTimings>) {
+    cpu.lap(RENDER_LAST, RENDER_LAST, RENDER);
+}
+
+pub fn cleaned(cpu: Res<CpuTimings>) {
+    cpu.lap(RENDER_LAST, RENDER_LAST, CLEANUP);
+}
+
+/// Every system dispatched costs something whether or not it finds work, so the count per
+/// schedule is a number the frame budget has to know.
+pub fn log_system_counts(world: &mut World) {
+    let schedules = world.resource::<Schedules>();
+    let mut counts: Vec<(String, usize)> = schedules
+        .iter()
+        .map(|(label, schedule)| (format!("{label:?}"), schedule.systems_len()))
+        .filter(|(_, count)| *count > 0)
+        .collect();
+    counts.sort_by(|a, b| b.1.cmp(&a.1));
+    let total: usize = counts.iter().map(|(_, count)| count).sum();
+    info!(total, ?counts, "systems per schedule");
 }
 
 #[derive(Resource)]
@@ -270,9 +382,9 @@ mod tests {
     fn the_median_ignores_the_one_frame_that_stalled() {
         let timings = GpuTimings::default();
         for _ in 0..8 {
-            timings.push([1.0, 4.0]);
+            timings.push([1.0, 4.0, 0.5]);
         }
-        timings.push([1.0, 400.0]);
+        timings.push([1.0, 400.0, 0.5]);
         assert_eq!(timings.median(CULL), Some(1.0));
         assert_eq!(timings.median(TERRAIN), Some(4.0));
     }
@@ -281,7 +393,7 @@ mod tests {
     fn a_pass_the_gpu_never_timed_leaves_the_others_readable() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0];
+        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0, 0, 0];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(CULL), Some(2.0));
@@ -297,7 +409,7 @@ mod tests {
     fn a_resolved_frame_lands_in_the_window_as_milliseconds() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [0, 1_000_000, 0, 4_000_000];
+        let ticks: [u64; SLOTS * 2] = [0, 1_000_000, 0, 4_000_000, 0, 0];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(CULL), Some(1.0));

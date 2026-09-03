@@ -22,9 +22,9 @@ use bevy::render::render_resource::{CompareFunction, TextureFormat};
 use bevy::render::{ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 
 use crate::mesh::STREAMS;
-use crate::probe::{self, GpuTimings};
+use crate::probe::{self, CpuTimings, GpuTimings};
 
-pub use stats::DrawnTriangles;
+pub use stats::{DrawnTriangles, FrameCounts};
 pub use upload::{Placement, Upload, Uploads};
 
 pub(crate) use frame::uniform as uniform_buffer;
@@ -138,13 +138,20 @@ impl Plugin for TerrainPlugin {
 
         let triangles = DrawnTriangles::default();
         let timings = GpuTimings::default();
+        let cpu = CpuTimings::default();
+        let counts = FrameCounts::default();
         app.insert_resource(crate::config::wireframe())
             .init_resource::<Streams>()
             .add_plugins(ExtractResourcePlugin::<Wireframe>::default())
             .add_plugins(ExtractResourcePlugin::<Streams>::default())
             .add_plugins(ExtractResourcePlugin::<Raster>::default())
             .insert_resource(triangles.clone())
-            .insert_resource(timings.clone());
+            .insert_resource(timings.clone())
+            .insert_resource(cpu.clone())
+            .insert_resource(counts.clone())
+            .add_systems(First, probe::frame_started.after(bevy::time::TimeSystems))
+            .add_systems(Last, probe::main_ended)
+            .add_systems(PostStartup, probe::log_system_counts);
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
@@ -152,13 +159,28 @@ impl Plugin for TerrainPlugin {
         render_app
             .insert_resource(triangles)
             .insert_resource(timings)
+            .insert_resource(cpu)
+            .insert_resource(counts)
             .insert_resource(TerrainBudget(self.0.clone()))
             .insert_resource(self.1.clone())
-            .add_systems(RenderStartup, (terrain::init_terrain, probe::init))
+            .add_systems(
+                RenderStartup,
+                (terrain::init_terrain, probe::init, probe::log_system_counts),
+            )
             .add_systems(ExtractSchedule, pass::extract_cave_visibility)
             .add_systems(
                 Render,
                 (
+                    probe::extracted.before(RenderSystems::ExtractCommands),
+                    probe::acquiring.before(bevy::render::view::window::prepare_windows),
+                    probe::acquired.after(bevy::render::view::window::prepare_windows),
+                    probe::prepared
+                        .after(RenderSystems::Prepare)
+                        .before(RenderSystems::Render),
+                    probe::rendered
+                        .after(RenderSystems::Render)
+                        .before(RenderSystems::Cleanup),
+                    probe::cleaned.in_set(RenderSystems::PostCleanup),
                     pipeline::prepare_pipelines.in_set(RenderSystems::Prepare),
                     pass::drop_unused_bins.in_set(RenderSystems::Prepare),
                     upload::apply_uploads

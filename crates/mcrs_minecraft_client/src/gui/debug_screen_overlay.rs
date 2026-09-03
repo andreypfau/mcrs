@@ -57,6 +57,7 @@ pub fn toggle_overlay(keys: Res<ButtonInput<KeyCode>>, mut list: ResMut<DebugScr
 
 pub fn render(
     displayer: Res<DebugScreenDisplayer>,
+    list: Res<DebugScreenEntryList>,
     mut columns: Query<(&DebugScreenColumn, &mut Text, &mut Visibility)>,
 ) {
     let (left, right) = displayer.columns();
@@ -69,12 +70,15 @@ pub fn render(
             .iter()
             .rposition(|line| !line.is_empty())
             .map_or(0, |last| last + 1);
-        let wanted = if end == 0 {
+        let wanted = if end == 0 || !list.overlay_visible() {
             Visibility::Hidden
         } else {
             Visibility::Inherited
         };
         visibility.set_if_neq(wanted);
+        if wanted == Visibility::Hidden {
+            continue;
+        }
         let block = lines[..end].join("\n");
         if text.0 != block {
             text.0 = block;

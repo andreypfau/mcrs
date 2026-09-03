@@ -9,6 +9,7 @@ use crate::mesh::{Draw, Group};
 use crate::pack::QUAD_WORDS;
 
 use super::arenas::Arenas;
+use super::stats::FrameCounts;
 use super::terrain::Terrain;
 use super::texture::write_tint_square;
 use super::{Animation, Atlas, SectionDesc};
@@ -98,6 +99,7 @@ pub(super) fn apply_uploads(
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
     pipeline_cache: Res<PipelineCache>,
+    counts: Res<FrameCounts>,
 ) {
     let Some(terrain) = terrain.as_mut() else {
         return;
@@ -182,5 +184,6 @@ pub(super) fn apply_uploads(
         terrain.rebuild_params(&device, &pipeline_cache);
     }
 
+    counts.set_upload_bytes(*BUDGET - budget);
     terrain.list.flush(&terrain.frame.params, &queue);
 }

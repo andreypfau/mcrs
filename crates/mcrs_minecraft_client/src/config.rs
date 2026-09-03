@@ -87,6 +87,29 @@ pub fn fullscreen() -> bool {
     flag("FULLSCREEN", true)
 }
 
+/// `LATENCY=<frames>` is how many swapchain images the window may run ahead by, for checking
+/// whether a display's drawable recycling is what the frame is waiting on.
+pub fn frame_latency() -> Option<std::num::NonZeroU32> {
+    let spec = knob("LATENCY")?;
+    match spec.trim().parse().ok().and_then(std::num::NonZeroU32::new) {
+        Some(frames) => Some(frames),
+        None => reject("LATENCY", &spec, "expected a frame count above zero"),
+    }
+}
+
+/// `RESOLUTION=<width>x<height>` opens a window of exactly that many pixels instead of the
+/// fullscreen one, so a frame can be priced at a stated pixel count.
+pub fn resolution() -> Option<(u32, u32)> {
+    let spec = knob("RESOLUTION")?;
+    let size = spec
+        .split_once('x')
+        .and_then(|(w, h)| Some((w.trim().parse().ok()?, h.trim().parse().ok()?)));
+    match size {
+        Some(size) => Some(size),
+        None => reject("RESOLUTION", &spec, "expected <width>x<height> in pixels"),
+    }
+}
+
 /// Off by default so a frame time is readable: with vsync the frame reports the
 /// refresh interval no matter what the renderer costs.
 pub fn vsync() -> bool {

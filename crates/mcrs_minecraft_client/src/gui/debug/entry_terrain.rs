@@ -3,7 +3,6 @@ use mcrs_minecraft_core::resource_location::ResourceLocation;
 
 use super::{DebugEntryGroup, DebugScreenDisplayer};
 use crate::cave::CaveCull;
-use crate::probe::{self, GpuTimings};
 use crate::render::DrawnTriangles;
 use crate::stream::Loader;
 
@@ -12,21 +11,25 @@ pub const GROUP: DebugEntryGroup = ResourceLocation::new_static("minecraft:terra
 pub fn display(
     mut displayer: ResMut<DebugScreenDisplayer>,
     triangles: Res<DrawnTriangles>,
-    gpu: Res<GpuTimings>,
     cave: Res<CaveCull>,
     loader: Res<Loader>,
 ) {
     let status = loader.status();
-    let mut lines = vec![
+    let lines = vec![
         format!("Tris: {}", triangles.get()),
         format!(
             "Sections: {}/{} in {} columns, {} evicted",
             status.sections, status.sections_total, status.columns, status.evicted
         ),
         format!(
-            "Arena: {:.0}% quads, {:.0}% models",
+            "Mesh: {} queued, {} in flight, {} uploads waiting",
+            status.queued, status.meshing, status.uploads_waiting
+        ),
+        format!(
+            "Arena: {:.1}% quads, {:.1}% models, {:.1}% faces",
             status.quads * 100.0,
-            status.models * 100.0
+            status.models * 100.0,
+            status.faces * 100.0
         ),
         match (cave.enabled, cave.took_ms()) {
             (false, _) => "Sight lines: off".to_owned(),
@@ -34,10 +37,5 @@ pub fn display(
             (true, Some(ms)) => format!("Sight lines: {} sections in {ms:.3} ms", cave.reached()),
         },
     ];
-    for (slot, name) in probe::NAMES.iter().enumerate() {
-        if let Some(ms) = gpu.median(slot) {
-            lines.push(format!("GPU {name}: {ms:.2} ms"));
-        }
-    }
     displayer.add_to_group(GROUP, lines);
 }

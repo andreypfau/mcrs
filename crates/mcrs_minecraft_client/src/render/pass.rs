@@ -13,7 +13,7 @@ use crate::sky_render::CloudDraw;
 
 use super::draws::PARAMS_STRIDE;
 use super::layer::LayerGroup;
-use super::stats::{DRAW_ARGS_SIZE, DrawnTriangles, copy_args};
+use super::stats::{DRAW_ARGS_SIZE, DrawnTriangles, FrameCounts, copy_args};
 use super::terrain::Terrain;
 use super::{Raster, Streams, Wireframe};
 
@@ -123,7 +123,9 @@ fn cull_group<'pass>(
         }
         pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
         pass.dispatch_workgroups(
-            draw.group_count.div_ceil(CULL_THREADS).min(terrain.cull_grid),
+            draw.group_count
+                .div_ceil(CULL_THREADS)
+                .min(terrain.cull_grid),
             1,
             1,
         );
@@ -159,12 +161,15 @@ pub(super) fn draw_terrain(
     queries: Option<Res<Queries>>,
     timings: Res<GpuTimings>,
     clouds: CloudDraw,
+    counts: Res<FrameCounts>,
     mut ctx: RenderContext,
 ) {
     let Some(terrain) = terrain else {
+        counts.set_terrain_draws(0);
         return;
     };
     if !terrain.pipelines.ready() {
+        counts.set_terrain_draws(0);
         return;
     }
     let (target, depth, extracted, view_offset) = view.into_inner();
@@ -188,11 +193,12 @@ pub(super) fn draw_terrain(
         pass.set_viewport(0.0, 0.0, size.x.max(1.0), size.y.max(1.0), 0.0, 1.0);
     }
 
+    let mut draws = 0;
     for group in LayerGroup::ALL {
         if group == LayerGroup::Translucent {
-            clouds.draw(&mut pass, view_offset.offset, &pipeline_cache);
+            draws += clouds.draw(&mut pass, view_offset.offset, &pipeline_cache);
         }
-        draw_layer_group(
+        draws += draw_layer_group(
             &mut pass,
             &terrain,
             group,
@@ -201,6 +207,7 @@ pub(super) fn draw_terrain(
             wireframe.0,
         );
     }
+    counts.set_terrain_draws(draws);
 
     span.end(&mut pass);
 }
@@ -212,9 +219,10 @@ fn draw_layer_group<'pass>(
     pipeline_cache: &'pass PipelineCache,
     streams: &Streams,
     wireframe: bool,
-) {
+) -> u32 {
     pass.set_bind_group(1, &terrain.binds.draw, &[]);
     let mut open = None;
+    let mut draws = 0;
     for (index, draw) in terrain.list.drawn(group, streams) {
         let Some(pipeline) = terrain
             .pipelines
@@ -232,10 +240,12 @@ fn draw_layer_group<'pass>(
         pass.set_render_pipeline(pipeline);
         pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
         pass.draw_indirect(&terrain.frame.args, index as u64 * DRAW_ARGS_SIZE);
+        draws += 1;
     }
     if open.is_some() {
         pass.pop_debug_group();
     }
+    draws
 }
 
 #[cfg(test)]
