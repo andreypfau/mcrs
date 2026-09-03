@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use bevy_ecs::prelude::Resource;
 use mcrs_minecraft_anvil::{
     Biomes as SavedBiomes, BlockStateLookup, BlockStates, Chunk, ErrorKind, Light, Properties,
-    RegionFile,
+    RegionFile, Section,
 };
 use mcrs_minecraft_block::palette::{BiomePalette, BlockPalette};
 use mcrs_minecraft_core::RegistrySnapshot;
@@ -137,6 +137,8 @@ impl SavedColumns {
     }
 }
 
+const OPEN_SKY: LightStorage = LightStorage::Uniform(15);
+
 /// The requested sections of a saved column, in the order they were asked for.
 ///
 /// A Y the save holds no section for is air rather than absent: an absent
@@ -156,7 +158,7 @@ pub fn column_sections(
                     BlockPalette::default(),
                     BiomePalette::default(),
                     BlockLight::default(),
-                    SkyLight(LightStorage::Uniform(15)),
+                    SkyLight(OPEN_SKY),
                 )));
             };
             Ok(Some((
@@ -168,8 +170,8 @@ pub fn column_sections(
                     Some(saved) => biome_palette(saved, biomes)?,
                     None => BiomePalette::default(),
                 },
-                BlockLight(saved_light(section.block_light.as_ref())),
-                SkyLight(saved_light(section.sky_light.as_ref())),
+                block_light(section),
+                sky_light(section),
             )))
         })
         .collect()
@@ -178,12 +180,22 @@ pub fn column_sections(
 /// Blocks, biomes and both light layers of one section, as the save holds them.
 pub type SectionData = (BlockPalette, BiomePalette, BlockLight, SkyLight);
 
+fn block_light(section: &Section) -> BlockLight {
+    BlockLight(saved_light(section.block_light.as_ref(), LightStorage::Empty))
+}
+
+fn sky_light(section: &Section) -> SkyLight {
+    SkyLight(saved_light(section.sky_light.as_ref(), OPEN_SKY))
+}
+
 /// The save's nibble array is laid out exactly like `LightNibbles`, so the
-/// bytes move across whole.
-fn saved_light(light: Option<&Light>) -> LightStorage {
+/// bytes move across whole. A layer the save left out is not darkness: most
+/// saved sections carry no sky array at all, and since nothing computes light
+/// any more, reading one as zero renders the section black.
+fn saved_light(light: Option<&Light>, absent: LightStorage) -> LightStorage {
     match light {
         Some(light) => LightStorage::from_nibbles(light.0.clone()),
-        None => LightStorage::Empty,
+        None => absent,
     }
 }
 
@@ -213,4 +225,28 @@ fn biome_palette(
     let mut cells = vec![0u8; SavedBiomes::ENTRY_COUNT];
     saved.remap_into(&ids, &mut cells);
     Ok(VoxelPalette(PalettedContainer::from_cells(&cells)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_section_the_save_wrote_no_sky_array_for_stands_under_open_sky() {
+        let bare = Section {
+            y: 0,
+            block_states: None,
+            biomes: None,
+            block_light: None,
+            sky_light: None,
+        };
+        assert!(
+            matches!(sky_light(&bare).0, LightStorage::Uniform(15)),
+            "most saved sections carry no sky array, and reading one as zero draws it black"
+        );
+        assert!(
+            matches!(block_light(&bare).0, LightStorage::Empty),
+            "an absent block array really is no block light"
+        );
+    }
 }
