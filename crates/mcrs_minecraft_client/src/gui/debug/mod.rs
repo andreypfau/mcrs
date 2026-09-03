@@ -13,7 +13,6 @@ pub mod entry_network;
 pub mod entry_position;
 pub mod entry_section_position;
 pub mod entry_system_specs;
-#[cfg(not(target_family = "wasm"))]
 pub mod entry_terrain;
 pub mod entry_version;
 
@@ -165,10 +164,8 @@ impl DebugScreenEntries {
             Self::SYSTEM_SPECS,
             DebugScreenEntryStatus::InOverlay,
             entry_system_specs::display,
-        );
-
-        #[cfg(not(target_family = "wasm"))]
-        app.add_debug_screen_entry(
+        )
+        .add_debug_screen_entry(
             Self::TERRAIN,
             DebugScreenEntryStatus::InOverlay,
             entry_terrain::display.run_if(resource_exists::<crate::stream::Loader>),
