@@ -201,16 +201,9 @@ impl Plugin for TerrainPlugin {
             )
             .add_systems(
                 Core3d,
-                (upload::apply_uploads, probe::resolve, pass::cull_terrain)
-                    .chain()
-                    .in_set(Core3dSystems::Prepass),
-            )
-            .add_systems(
-                Core3d,
-                pass::draw_terrain
+                pass::draw_frame
                     .in_set(Core3dSystems::MainPass)
-                    .after(main_opaque_pass_3d)
-                    .after(crate::sky_render::draw_sky),
+                    .after(main_opaque_pass_3d),
             );
     }
 }

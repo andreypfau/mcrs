@@ -1,8 +1,8 @@
 use bevy::camera::primitives::{Aabb, Frustum};
 use bevy::prelude::*;
 
-use mcrs_minecraft_network::columns::SECTION_SIZE;
 use crate::mesh::{Connectivity, OPEN, SEALED, along};
+use mcrs_minecraft_network::columns::SECTION_SIZE;
 
 const NEIGHBOUR: [[i32; 3]; 6] = [
     crate::mesh::face_normal(0),
@@ -90,6 +90,9 @@ fn local_of(cell: usize) -> [usize; 3] {
 pub struct CaveCull {
     pub enabled: bool,
     pub bits: Box<[u32]>,
+    /// Counts the walks that changed `bits`, so a reader can skip the ones that did not.
+    pub generation: u32,
+    uploaded: Box<[u32]>,
     min_section: [i32; 3],
     laid: Option<[[usize; 3]; 2]>,
     walked: Option<[[i32; 3]; 2]>,
@@ -108,6 +111,8 @@ impl CaveCull {
         Self {
             enabled: !std::env::var("MCRS_CAVE").is_ok_and(|on| on == "0"),
             bits: vec![u32::MAX; slots.div_ceil(32)].into_boxed_slice(),
+            generation: 0,
+            uploaded: vec![u32::MAX; slots.div_ceil(32)].into_boxed_slice(),
             min_section: [0; 3],
             laid: None,
             walked: None,
@@ -329,17 +334,22 @@ pub fn cave_cull(
     camera: Single<(&GlobalTransform, &Frustum), With<Camera3d>>,
 ) {
     let (transform, frustum) = *camera;
+    let cave = cave.bypass_change_detection();
     if !cave.enabled {
         if cave.bits.iter().any(|&word| word != u32::MAX) {
             cave.bits.fill(u32::MAX);
         }
-        return;
+    } else {
+        let started = bevy::platform::time::Instant::now();
+        cave.run(transform.translation(), frustum);
+        let slot = cave.walks % CaveCull::TIMED;
+        cave.took[slot] = started.elapsed().as_micros() as u32;
+        cave.walks += 1;
     }
-    let started = bevy::platform::time::Instant::now();
-    cave.run(transform.translation(), frustum);
-    let slot = cave.walks % CaveCull::TIMED;
-    cave.took[slot] = started.elapsed().as_micros() as u32;
-    cave.walks += 1;
+    if cave.bits != cave.uploaded {
+        cave.uploaded.copy_from_slice(&cave.bits);
+        cave.generation = cave.generation.wrapping_add(1);
+    }
 }
 
 pub fn toggle(keys: Res<ButtonInput<KeyCode>>, mut cave: ResMut<CaveCull>) {
@@ -514,7 +524,10 @@ mod tests {
             "the walk has to leave marks for this to be worth asserting"
         );
 
-        assert!(slab.cave.follow(middle([60, 2, 16])), "the camera crossed a step");
+        assert!(
+            slab.cave.follow(middle([60, 2, 16])),
+            "the camera crossed a step"
+        );
         assert!(
             slab.cave.spent.iter().all(|seen| *seen == NEVER),
             "a cell is numbered against the corner, so a slide renumbers every one of them \
@@ -592,7 +605,11 @@ mod tests {
         slab.open([10, 2, 0], CONNECT_ALL);
 
         slab.run(middle([0, 2, 0]), middle([40, 2, 0]));
-        assert_eq!(slab.cave.reached(), 11, "the eleven cells east to the section laid in");
+        assert_eq!(
+            slab.cave.reached(),
+            11,
+            "the eleven cells east to the section laid in"
+        );
 
         slab.run(middle([20, 2, 0]), middle([0, 2, 0]));
         assert_eq!(

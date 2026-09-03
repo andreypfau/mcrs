@@ -45,6 +45,12 @@ pub struct ChunkMap {
     visible: bool,
 }
 
+impl ChunkMap {
+    pub fn visible(&self) -> bool {
+        self.visible
+    }
+}
+
 #[derive(Component)]
 struct ChunkMapRoot;
 

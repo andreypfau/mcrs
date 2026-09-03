@@ -129,7 +129,8 @@ fn main() {
                 }),
                 ..default()
             })
-            .disable::<bevy::pbr::PbrPlugin>(),
+            .disable::<bevy::pbr::PbrPlugin>()
+            .disable::<bevy::light::LightPlugin>(),
     )
     .insert_resource(WinitSettings {
         focused_mode: UpdateMode::Continuous,

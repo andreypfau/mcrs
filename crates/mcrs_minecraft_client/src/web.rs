@@ -103,7 +103,8 @@ pub fn run() {
                 primary_window: Some(window()),
                 ..default()
             })
-            .disable::<bevy::pbr::PbrPlugin>(),
+            .disable::<bevy::pbr::PbrPlugin>()
+            .disable::<bevy::light::LightPlugin>(),
     )
     .add_plugins(mcrs_minecraft_core::MinecraftCorePlugin)
     .add_plugins(mcrs_minecraft_world::MinecraftWorldPlugin)

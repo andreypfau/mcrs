@@ -1,4 +1,5 @@
 use bevy::core_pipeline::core_3d::{AlphaMask3d, Opaque3d};
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::render::Extract;
 use bevy::render::diagnostic::RecordDiagnostics;
@@ -9,40 +10,40 @@ use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget, ViewUnifor
 
 use crate::mesh::STREAM_NAMES;
 use crate::probe::{self, GpuTimings, Queries};
-use crate::sky_render::CloudDraw;
+use crate::sky_render::SkyDraws;
 
 use super::draws::PARAMS_STRIDE;
 use super::layer::LayerGroup;
 use super::stats::{DRAW_ARGS_SIZE, DrawnTriangles, FrameCounts, copy_args};
 use super::terrain::Terrain;
+use super::upload::{UploadParams, apply_uploads};
 use super::{Raster, Streams, Wireframe};
 
 pub(super) fn extract_cave_visibility(
     cave: Extract<Res<crate::cave::CaveCull>>,
     terrain: Option<Res<Terrain>>,
     queue: Res<RenderQueue>,
+    mut uploaded: Local<Option<u32>>,
 ) {
     let Some(terrain) = terrain else {
         return;
     };
-    if !cave.is_changed() {
+    if *uploaded == Some(cave.generation) {
         return;
     }
+    *uploaded = Some(cave.generation);
     queue.write_buffer(&terrain.frame.cave, 0, bytemuck::cast_slice(&cave.bits[..]));
 }
 
-pub(super) fn cull_terrain(
-    terrain: Option<Res<Terrain>>,
-    pipeline_cache: Res<PipelineCache>,
-    triangles: Res<DrawnTriangles>,
-    queries: Option<Res<Queries>>,
-    timings: Res<GpuTimings>,
-    streams: Res<Streams>,
-    mut ctx: RenderContext,
+fn cull_terrain(
+    terrain: &Terrain,
+    pipeline_cache: &PipelineCache,
+    triangles: &DrawnTriangles,
+    queries: Option<&Queries>,
+    timings: &GpuTimings,
+    streams: &Streams,
+    encoder: &mut CommandEncoder,
 ) {
-    let Some(terrain) = terrain else {
-        return;
-    };
     let (Some(compacting), Some(stable)) = (
         pipeline_cache.get_compute_pipeline(terrain.pipelines.cull),
         pipeline_cache.get_compute_pipeline(terrain.pipelines.cull_stable),
@@ -50,41 +51,29 @@ pub(super) fn cull_terrain(
         return;
     };
 
-    copy_args(&terrain, &triangles, ctx.command_encoder());
+    copy_args(terrain, triangles, encoder);
     let reset = terrain.frame.args_reset.size();
-    ctx.command_encoder().copy_buffer_to_buffer(
-        &terrain.frame.args_reset,
-        0,
-        &terrain.frame.args,
-        0,
-        reset,
-    );
+    encoder.copy_buffer_to_buffer(&terrain.frame.args_reset, 0, &terrain.frame.args, 0, reset);
 
-    let diagnostics = ctx.diagnostic_recorder();
-    let diagnostics = diagnostics.as_deref();
-    let timestamps = queries.as_ref().map(|q| q.compute(probe::CULL, &timings));
-    let mut pass = ctx
-        .command_encoder()
-        .begin_compute_pass(&ComputePassDescriptor {
-            label: Some("terrain cull"),
-            timestamp_writes: timestamps,
-        });
-    let span = diagnostics.pass_span(&mut pass, "terrain_cull");
+    let timestamps = queries.map(|q| q.compute(probe::CULL, timings));
+    let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+        label: Some("terrain cull"),
+        timestamp_writes: timestamps,
+    });
     pass.set_bind_group(1, &terrain.binds.cull, &[]);
     for group in LayerGroup::ALL {
         cull_group(
             &mut pass,
-            &terrain,
+            terrain,
             group,
             if group.culls_in_order() {
                 stable
             } else {
                 compacting
             },
-            &streams,
+            streams,
         );
     }
-    span.end(&mut pass);
 }
 
 pub(super) const CULL_THREADS: u32 = 32;
@@ -143,71 +132,99 @@ pub(super) fn drop_unused_bins(
     alpha_mask.clear();
 }
 
-/// The clouds go in between the opaque and the blended terrain: after the opaque so the depth
-/// test throws away every cloud pixel a hill or a tree already covers, before the blended so
-/// water still lies over them.
-pub(super) fn draw_terrain(
+#[derive(SystemParam)]
+pub(super) struct FrameParams<'w> {
+    pipeline_cache: Res<'w, PipelineCache>,
+    triangles: Res<'w, DrawnTriangles>,
+    queries: Option<Res<'w, Queries>>,
+    timings: Res<'w, GpuTimings>,
+    streams: Res<'w, Streams>,
+    wireframe: Res<'w, Wireframe>,
+    raster: Res<'w, Raster>,
+    counts: Res<'w, FrameCounts>,
+}
+
+/// The whole frame from one system, so it records into one encoder and submits one command
+/// buffer: uploads, the timestamp resolve, the cull dispatch, then one render pass holding the
+/// sky, the opaque terrain, the clouds and the blended terrain in that order.
+pub(super) fn draw_frame(
     view: ViewQuery<(
         &ViewTarget,
         &ViewDepthTexture,
         &ExtractedView,
         &ViewUniformOffset,
     )>,
-    terrain: Option<Res<Terrain>>,
-    streams: Res<Streams>,
-    wireframe: Res<Wireframe>,
-    raster: Res<Raster>,
-    pipeline_cache: Res<PipelineCache>,
-    queries: Option<Res<Queries>>,
-    timings: Res<GpuTimings>,
-    clouds: CloudDraw,
-    counts: Res<FrameCounts>,
+    mut uploads: UploadParams,
+    frame: FrameParams,
+    sky: SkyDraws,
     mut ctx: RenderContext,
 ) {
-    let Some(terrain) = terrain else {
-        counts.set_terrain_draws(0);
-        return;
-    };
-    if !terrain.pipelines.ready() {
-        counts.set_terrain_draws(0);
-        return;
-    }
     let (target, depth, extracted, view_offset) = view.into_inner();
+    apply_uploads(&mut uploads, ctx.command_encoder());
+    probe::resolve(
+        frame.queries.as_deref(),
+        &frame.timings,
+        ctx.command_encoder(),
+    );
+    let terrain = uploads
+        .terrain
+        .as_deref()
+        .filter(|terrain| terrain.pipelines.ready());
+    if let Some(terrain) = terrain {
+        cull_terrain(
+            terrain,
+            &frame.pipeline_cache,
+            &frame.triangles,
+            frame.queries.as_deref(),
+            &frame.timings,
+            &frame.streams,
+            ctx.command_encoder(),
+        );
+    } else {
+        frame.counts.set_terrain_draws(0);
+    }
+
     let color_attachments = [Some(target.get_color_attachment())];
     let depth_attachment = Some(depth.get_attachment(StoreOp::Store));
     let diagnostics = ctx.diagnostic_recorder();
     let diagnostics = diagnostics.as_deref();
-    let timestamps = queries.as_ref().map(|q| q.render(probe::TERRAIN, &timings));
+    let timestamps = frame
+        .queries
+        .as_deref()
+        .map(|q| q.render(probe::WORLD, &frame.timings));
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
-        label: Some("terrain"),
+        label: Some("world"),
         color_attachments: &color_attachments,
         depth_stencil_attachment: depth_attachment,
         timestamp_writes: timestamps,
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    let span = diagnostics.pass_span(&mut pass, "terrain_draw");
+    let span = diagnostics.pass_span(&mut pass, "world");
 
-    if raster.0 < 1.0 {
-        let size = extracted.viewport.zw().as_vec2() * raster.0;
-        pass.set_viewport(0.0, 0.0, size.x.max(1.0), size.y.max(1.0), 0.0, 1.0);
-    }
+    sky.draw_sky(&mut pass, view_offset.offset, &frame.pipeline_cache);
 
-    let mut draws = 0;
-    for group in LayerGroup::ALL {
-        if group == LayerGroup::Translucent {
-            draws += clouds.draw(&mut pass, view_offset.offset, &pipeline_cache);
+    if let Some(terrain) = terrain {
+        if frame.raster.0 < 1.0 {
+            let size = extracted.viewport.zw().as_vec2() * frame.raster.0;
+            pass.set_viewport(0.0, 0.0, size.x.max(1.0), size.y.max(1.0), 0.0, 1.0);
         }
-        draws += draw_layer_group(
-            &mut pass,
-            &terrain,
-            group,
-            &pipeline_cache,
-            &streams,
-            wireframe.0,
-        );
+        let mut draws = 0;
+        for group in LayerGroup::ALL {
+            if group == LayerGroup::Translucent {
+                draws += sky.draw_clouds(&mut pass, view_offset.offset, &frame.pipeline_cache);
+            }
+            draws += draw_layer_group(
+                &mut pass,
+                terrain,
+                group,
+                &frame.pipeline_cache,
+                &frame.streams,
+                frame.wireframe.0,
+            );
+        }
+        frame.counts.set_terrain_draws(draws);
     }
-    counts.set_terrain_draws(draws);
 
     span.end(&mut pass);
 }

@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use bevy::platform::time::Instant;
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
-use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue};
+use bevy::render::renderer::{RenderDevice, RenderQueue};
 use wgpu::{
     CommandEncoderDescriptor, ComputePassDescriptor, ComputePassTimestampWrites,
     QUERY_RESOLVE_BUFFER_ALIGNMENT, QuerySet, QuerySetDescriptor, QueryType,
@@ -14,9 +14,8 @@ use wgpu::{
 use crate::readback::{self, Gate, Reader};
 
 pub const CULL: usize = 0;
-pub const TERRAIN: usize = 1;
-pub const SKY: usize = 2;
-pub const NAMES: [&str; 3] = ["cull", "terrain", "sky"];
+pub const WORLD: usize = 1;
+pub const NAMES: [&str; 2] = ["cull", "world"];
 pub const SLOTS: usize = NAMES.len();
 
 const WINDOW: usize = 256;
@@ -356,7 +355,7 @@ pub fn init(
     });
 }
 
-pub fn resolve(queries: Option<Res<Queries>>, timings: Res<GpuTimings>, mut ctx: RenderContext) {
+pub fn resolve(queries: Option<&Queries>, timings: &GpuTimings, encoder: &mut CommandEncoder) {
     let Some(queries) = queries else {
         return;
     };
@@ -365,7 +364,6 @@ pub fn resolve(queries: Option<Res<Queries>>, timings: Res<GpuTimings>, mut ctx:
         return;
     }
     let first = timings.resolving();
-    let encoder = ctx.command_encoder();
     encoder.resolve_query_set(
         &queries.set,
         first..first + SLOTS as u32 * 2,
@@ -431,22 +429,22 @@ mod tests {
     fn the_median_ignores_the_one_frame_that_stalled() {
         let timings = GpuTimings::default();
         for _ in 0..8 {
-            timings.push([1.0, 4.0, 0.5]);
+            timings.push([1.0, 4.0]);
         }
-        timings.push([1.0, 400.0, 0.5]);
+        timings.push([1.0, 400.0]);
         assert_eq!(timings.median(CULL), Some(1.0));
-        assert_eq!(timings.median(TERRAIN), Some(4.0));
+        assert_eq!(timings.median(WORLD), Some(4.0));
     }
 
     #[test]
     fn a_pass_the_gpu_never_timed_leaves_the_others_readable() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0, 0, 0];
+        let ticks: [u64; SLOTS * 2] = [0, 2_000_000, 0, 0];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(CULL), Some(2.0));
-        assert_eq!(timings.median(TERRAIN), None);
+        assert_eq!(timings.median(WORLD), None);
     }
 
     #[test]
@@ -458,10 +456,10 @@ mod tests {
     fn a_resolved_frame_lands_in_the_window_as_milliseconds() {
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [0, 1_000_000, 0, 4_000_000, 0, 0];
+        let ticks: [u64; SLOTS * 2] = [0, 1_000_000, 0, 4_000_000];
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(CULL), Some(1.0));
-        assert_eq!(timings.median(TERRAIN), Some(4.0));
+        assert_eq!(timings.median(WORLD), Some(4.0));
     }
 }

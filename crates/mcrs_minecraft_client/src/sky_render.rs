@@ -2,8 +2,7 @@ use std::num::NonZeroU64;
 
 use crate::sky_state::{SkyEffects, SkyFrame, SkyKey};
 use bevy::asset::embedded_asset;
-use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_opaque_pass_3d};
-use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
+use bevy::core_pipeline::core_3d::CORE_3D_DEPTH_FORMAT;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssets;
@@ -12,16 +11,13 @@ use bevy::render::render_resource::binding_types::{
     sampler, texture_2d, texture_2d_array, uniform_buffer_sized,
 };
 use bevy::render::render_resource::*;
-use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
+use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::texture::GpuImage;
-use bevy::render::view::{
-    ExtractedView, ViewDepthTexture, ViewTarget, ViewUniform, ViewUniformOffset, ViewUniforms,
-};
+use bevy::render::view::{ExtractedView, ViewUniform, ViewUniforms};
 use bevy::render::{Extract, ExtractSchedule, Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
 use mcrs_minecraft_world::world_clock::WorldClocks;
 
-use crate::probe::{self, GpuTimings, Queries};
 use crate::render::{DEPTH_COMPARE, FrameCounts, pipeline_descriptor, uniform_buffer};
 use crate::sky::{SkyEnvironment, SkyTextures, SkyUniform};
 
@@ -129,12 +125,6 @@ impl Plugin for SkyRenderPlugin {
                     (prepare_sky, write_sky).in_set(RenderSystems::Prepare),
                     prepare_sky_bind_groups.in_set(RenderSystems::PrepareBindGroups),
                 ),
-            )
-            .add_systems(
-                Core3d,
-                draw_sky
-                    .in_set(Core3dSystems::MainPass)
-                    .after(main_opaque_pass_3d),
             );
     }
 }
@@ -349,28 +339,58 @@ fn prepare_sky_bind_groups(
     commands.insert_resource(SkyBindGroups { view, textures });
 }
 
+/// The sky draws go first in the world pass and the clouds between its opaque and blended
+/// terrain, so both are issued by whoever holds the pass.
 #[derive(SystemParam)]
-pub(crate) struct CloudDraw<'w> {
+pub(crate) struct SkyDraws<'w> {
     sky: Option<Res<'w, Sky>>,
     extracted: Option<Res<'w, ExtractedSky>>,
     binds: Option<Res<'w, SkyBindGroups>>,
+    counts: Res<'w, FrameCounts>,
 }
 
-impl CloudDraw<'_> {
-    pub fn draw<'pass>(
+impl SkyDraws<'_> {
+    fn ready(
+        &self,
+    ) -> Option<(
+        &[Option<CachedRenderPipelineId>; SKY_DRAWS.len()],
+        &ExtractedSky,
+        &SkyBindGroups,
+    )> {
+        let (sky, extracted, binds) = (
+            self.sky.as_deref()?,
+            self.extracted.as_deref()?,
+            self.binds.as_deref()?,
+        );
+        let (_, pipelines) = sky.pipelines.as_ref()?;
+        Some((pipelines, extracted, binds))
+    }
+
+    pub fn draw_sky<'pass>(
+        &'pass self,
+        pass: &mut TrackedRenderPass<'pass>,
+        view_offset: u32,
+        cache: &'pass PipelineCache,
+    ) {
+        let Some((pipelines, extracted, binds)) = self.ready() else {
+            self.counts.set_sky_draws(0);
+            return;
+        };
+        pass.set_bind_group(1, &binds.textures, &[]);
+        let mut draws = 0;
+        for index in (0..SKY_DRAWS.len()).filter(|&index| index != CLOUDS) {
+            draws += issue(pass, index, pipelines, extracted, binds, view_offset, cache) as u32;
+        }
+        self.counts.set_sky_draws(draws);
+    }
+
+    pub fn draw_clouds<'pass>(
         &'pass self,
         pass: &mut TrackedRenderPass<'pass>,
         view_offset: u32,
         cache: &'pass PipelineCache,
     ) -> u32 {
-        let (Some(sky), Some(extracted), Some(binds)) = (
-            self.sky.as_deref(),
-            self.extracted.as_deref(),
-            self.binds.as_deref(),
-        ) else {
-            return 0;
-        };
-        let Some((_, pipelines)) = sky.pipelines.as_ref() else {
+        let Some((pipelines, extracted, binds)) = self.ready() else {
             return 0;
         };
         pass.set_bind_group(1, &binds.textures, &[]);
@@ -406,53 +426,6 @@ fn issue<'pass>(
     pass.set_bind_group(0, &binds.view, &[view_offset]);
     pass.draw(0..draw.vertices, 0..1);
     true
-}
-
-pub(crate) fn draw_sky(
-    view: ViewQuery<(&ViewTarget, &ViewDepthTexture, &ViewUniformOffset)>,
-    sky: Option<Res<Sky>>,
-    extracted: Option<Res<ExtractedSky>>,
-    binds: Option<Res<SkyBindGroups>>,
-    pipeline_cache: Res<PipelineCache>,
-    counts: Res<FrameCounts>,
-    queries: Option<Res<Queries>>,
-    timings: Res<GpuTimings>,
-    mut ctx: RenderContext,
-) {
-    let (Some(sky), Some(extracted), Some(binds)) = (sky, extracted, binds) else {
-        counts.set_sky_draws(0);
-        return;
-    };
-    let Some((_, pipelines)) = sky.pipelines.as_ref() else {
-        counts.set_sky_draws(0);
-        return;
-    };
-    let (target, depth, view_offset) = view.into_inner();
-    let color_attachments = [Some(target.get_color_attachment())];
-    let depth_attachment = Some(depth.get_attachment(StoreOp::Store));
-    let timestamps = queries.as_ref().map(|q| q.render(probe::SKY, &timings));
-    let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
-        label: Some("sky"),
-        color_attachments: &color_attachments,
-        depth_stencil_attachment: depth_attachment,
-        timestamp_writes: timestamps,
-        occlusion_query_set: None,
-        multiview_mask: None,
-    });
-    pass.set_bind_group(1, &binds.textures, &[]);
-    let mut draws = 0;
-    for index in (0..SKY_DRAWS.len()).filter(|&index| index != CLOUDS) {
-        draws += issue(
-            &mut pass,
-            index,
-            pipelines,
-            &extracted,
-            &binds,
-            view_offset.offset,
-            &pipeline_cache,
-        ) as u32;
-    }
-    counts.set_sky_draws(draws);
 }
 
 #[cfg(test)]

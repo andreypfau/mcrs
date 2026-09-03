@@ -2,9 +2,49 @@ use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::ecs::system::ScheduleSystem;
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
+use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
+use bevy::render::{ExtractSchedule, RenderApp};
+use bevy::ui::UiSystems;
+use bevy::ui_render::RenderUiSystems;
 use mcrs_minecraft_core::resource_location::ResourceLocation;
 
+use crate::gui::chunk_map::ChunkMap;
 use crate::gui::debug_screen_overlay;
+
+/// Whether any panel is up this frame and whether one was last frame. Bevy's UI systems run
+/// every frame whatever is on screen; with nothing shown they are a fixed cost of the frame,
+/// so they run only while this says so, and one frame longer so a hidden panel gets extracted
+/// as hidden.
+#[derive(Resource, Clone, Copy, Default, ExtractResource)]
+pub struct UiNeeded {
+    now: bool,
+    before: bool,
+}
+
+impl UiNeeded {
+    fn wanted(&self) -> bool {
+        self.now || self.before
+    }
+}
+
+fn ui_needed(needed: Option<Res<UiNeeded>>) -> bool {
+    needed.is_some_and(|needed| needed.wanted())
+}
+
+fn update_ui_needed(
+    list: Res<DebugScreenEntryList>,
+    map: Res<ChunkMap>,
+    mut needed: ResMut<UiNeeded>,
+) {
+    let now = list.overlay_visible() || map.visible();
+    let next = UiNeeded {
+        now,
+        before: needed.now,
+    };
+    if (next.now, next.before) != (needed.now, needed.before) {
+        *needed = next;
+    }
+}
 
 pub mod displayer;
 pub mod entry_day_count;
@@ -220,6 +260,22 @@ impl Plugin for DebugScreenPlugin {
         }
         app.init_resource::<DebugScreenEntryList>()
             .init_resource::<DebugScreenDisplayer>()
+            .init_resource::<UiNeeded>()
+            .add_plugins(ExtractResourcePlugin::<UiNeeded>::default())
+            .add_systems(Last, update_ui_needed)
+            .configure_sets(PreUpdate, UiSystems::Focus.run_if(ui_needed))
+            .configure_sets(
+                PostUpdate,
+                (
+                    UiSystems::Prepare,
+                    UiSystems::Propagate,
+                    UiSystems::Content,
+                    UiSystems::Layout,
+                    UiSystems::PostLayout,
+                    UiSystems::Stack,
+                )
+                    .run_if(ui_needed),
+            )
             .insert_resource(Refresh::new(crate::config::stats_interval()))
             .configure_sets(
                 Update,
@@ -247,6 +303,28 @@ impl Plugin for DebugScreenPlugin {
                 ),
             );
         DebugScreenEntries::register(app);
+
+        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+            render_app.configure_sets(
+                ExtractSchedule,
+                (
+                    RenderUiSystems::ExtractCameraViews,
+                    RenderUiSystems::ExtractBoxShadows,
+                    RenderUiSystems::ExtractBackgrounds,
+                    RenderUiSystems::ExtractImages,
+                    RenderUiSystems::ExtractTextureSlice,
+                    RenderUiSystems::ExtractBorders,
+                    RenderUiSystems::ExtractViewportNodes,
+                    RenderUiSystems::ExtractTextBackgrounds,
+                    RenderUiSystems::ExtractTextShadows,
+                    RenderUiSystems::ExtractText,
+                    RenderUiSystems::ExtractCursor,
+                    RenderUiSystems::ExtractDebug,
+                    RenderUiSystems::ExtractGradient,
+                )
+                    .run_if(ui_needed),
+            );
+        }
     }
 }
 

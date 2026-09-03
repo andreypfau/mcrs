@@ -159,6 +159,27 @@ that is streaming work still to come and it inflates every GPU number taken in f
 Bevy's window screenshot comes back black on some frames on this build and the previous one
 alike; captures are retried until one is lit.
 
+## CPU frame
+
+Native, 3840x2160 fullscreen, vsync off, overlay hidden, `MCRS_HOT=1`. Engine time median /
+p99 / max over 4096 frames, stage medians in ms.
+
+| build | floor engine | floor main / extract / render | base engine | base main / extract / render |
+|---|---|---|---|---|
+| after the stalls pass | 0.60 / 1.12 / 1.36 | 0.285 / 0.089 / 0.151 | 0.70 / 1.31 / 1.66 | 0.336 / 0.090 / 0.194 |
+| UI gated | 0.51 / 0.92 / 1.07 | 0.199 / 0.073 / 0.155 | | |
+| one frame system, transitions gated, no lights, cave and screenshot polls | 0.44 / 0.83 / 0.99 | 0.171 / 0.055 / 0.119 | 0.53 / 1.0 / 1.25 | 0.216 / 0.058 / 0.164 |
+
+Per zone, hot floor, microseconds a frame (Tracy, before and after this pass): main world 248
+to 208 (PostUpdate 99 to 80, state transitions 20 to 6), extract 74 to 54, encode 198 to 150
+(Core3d 123 to 90, of which the frame system is 51 and Bevy's upscaling blit 16), submit 52 to
+38 with two command buffers instead of six.
+
+What is left, hot floor: main world 208 µs across 300-odd systems where the named work is a
+few µs (PreUpdate 57, PostUpdate 80, Update 41), extract 54 µs across 70 systems, the frame
+system 51 µs (one compute and one render pass; opening a pass on Metal is ~15 µs), upscaling
+16 µs, submit 38 µs, and `bevy_asset` at 22 µs a frame across 184 per-asset-type systems.
+
 ## Web
 
 Not measurable yet. `scripts/build-web.sh` produces a 40 MB single-file bundle that Chrome runs

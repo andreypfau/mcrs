@@ -20,7 +20,8 @@ One line each, with the numbers that justified it. Newest last.
   work then reads two to three times longer and the tail is the clock ramp, not the code: the
   empty frame measured 1.37 ms median / 4.0 p99 / 9.2 max cold and 0.60 / 1.12 / 1.36 with a
   spinning helper thread. The helper is a measurement knob and not on by default: keeping a
-  core busy is a power decision for the product, and one still to be taken.
+  core busy is a power decision for the product: taken as no, the client does not spin, and a
+  player at vsync pays the clock ramp until the CPU floor is small enough not to matter.
 - **Sprite atlases grow in place.** Every bake used to re-upload every atlas (54 times in 40 s
   of flight, 2.4 ms mean, 4.8 ms max, for under a megabyte); now a bake writes only its new
   layers, 8 to 90 KB, into fixed-capacity arrays that regrow by a GPU copy. Screenshots at
@@ -34,3 +35,16 @@ One line each, with the numbers that justified it. Newest last.
   engine p99 from 2.10 to 1.80 ms against `Queue::write_buffer`.
 - **Not kept:** raising the main thread's QoS class (p99 3.9 vs 3.8 ms, inside the spread) and a
   deeper swapchain (no change; Metal caps drawables at three).
+- **Bevy's UI systems run only while a panel is shown**, one frame longer so a hidden panel is
+  extracted as hidden: hot floor engine 0.60 to 0.51 ms, main world 0.29 to 0.20 ms. The
+  overlay and the chunk map still cost their layout while up (chunk map: 0.4 ms).
+- **The state transition schedule runs only when a transition is pending** (it left the main
+  schedule order; a `PreUpdate` system runs it on demand): 20 to 6 µs a frame.
+- **The frame is one render system**: uploads, timestamp resolve, cull dispatch and a single
+  render pass holding sky, opaque terrain, clouds and blended terrain. Five encoders and six
+  command buffers became one and two; encode 198 to 150 µs, submit 52 to 38 µs, and the GPU
+  pass timestamps lost their sky slot (the world pass reads 1.0 to 1.15 ms where sky plus
+  terrain read 1.26). The picture is unchanged.
+- **Dropped:** the light plugin (no lights here, 31 systems, 9 µs), the per-frame cave-bit
+  upload when the walk changed nothing (11 µs), and a per-frame stat of the screenshot trigger
+  file (3 µs; polled four times a second instead).

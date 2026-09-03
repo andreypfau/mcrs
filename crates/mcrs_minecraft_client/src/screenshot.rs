@@ -57,9 +57,22 @@ fn prepare_dir(dir: Res<ScreenshotDir>) {
     info!(dir = %dir.0.display(), trigger = %dir.trigger().display(), "screenshots");
 }
 
-fn capture(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>, dir: Res<ScreenshotDir>) {
+const TRIGGER_POLL_SECONDS: f32 = 0.25;
+
+fn capture(
+    mut commands: Commands,
+    keys: Res<ButtonInput<KeyCode>>,
+    dir: Res<ScreenshotDir>,
+    time: Res<Time>,
+    mut due: Local<f32>,
+) {
     let trigger = dir.trigger();
-    if trigger.exists() {
+    let now = time.elapsed_secs();
+    let poll = now >= *due;
+    if poll {
+        *due = now + TRIGGER_POLL_SECONDS;
+    }
+    if poll && trigger.exists() {
         remove_trigger(&trigger);
         let shot = dir.next_shot();
         info!(path = %shot.display(), "capturing screenshot");

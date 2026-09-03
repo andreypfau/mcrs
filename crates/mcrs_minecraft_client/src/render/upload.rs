@@ -1,9 +1,10 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
-use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue};
+use bevy::render::renderer::{RenderDevice, RenderQueue};
 use wgpu::util::StagingBelt;
 
 use crate::mesh::{Draw, Group};
@@ -115,22 +116,32 @@ impl Placement {
     }
 }
 
-pub(super) fn apply_uploads(
-    mut terrain: Option<ResMut<Terrain>>,
-    staging: Option<Res<Staging>>,
-    uploads: Res<Uploads>,
-    device: Res<RenderDevice>,
-    queue: Res<RenderQueue>,
-    pipeline_cache: Res<PipelineCache>,
-    counts: Res<FrameCounts>,
-    mut ctx: RenderContext,
-) {
+#[derive(SystemParam)]
+pub(super) struct UploadParams<'w> {
+    pub terrain: Option<ResMut<'w, Terrain>>,
+    staging: Option<Res<'w, Staging>>,
+    uploads: Res<'w, Uploads>,
+    device: Res<'w, RenderDevice>,
+    queue: Res<'w, RenderQueue>,
+    pipeline_cache: Res<'w, PipelineCache>,
+    counts: Res<'w, FrameCounts>,
+}
+
+pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEncoder) {
+    let UploadParams {
+        terrain,
+        staging,
+        uploads,
+        device,
+        queue,
+        pipeline_cache,
+        counts,
+    } = params;
     let (Some(terrain), Some(staging)) = (terrain.as_mut(), staging) else {
         return;
     };
     let terrain = terrain.as_mut();
     let mut belt = staging.0.lock().unwrap();
-    let encoder = ctx.command_encoder();
     let mut budget = *BUDGET;
 
     while budget > 0 {
@@ -140,7 +151,7 @@ pub(super) fn apply_uploads(
                 None => break,
                 Some(Upload::Tints { origin, size, data }) => {
                     let _writing = info_span!("upload tints").entered();
-                    write_tint_square(&terrain.sprites.tints, &queue, origin, size, &data);
+                    write_tint_square(&terrain.sprites.tints, queue, origin, size, &data);
                     budget = budget.saturating_sub(data.len());
                     continue;
                 }
@@ -154,7 +165,7 @@ pub(super) fn apply_uploads(
                         &atlases,
                         &animations,
                         animated_from,
-                        &device,
+                        device,
                         encoder,
                         &mut belt,
                     );
@@ -162,8 +173,8 @@ pub(super) fn apply_uploads(
                         terrain.binds.rebuild_draw(
                             &terrain.arenas,
                             &terrain.sprites,
-                            &device,
-                            &pipeline_cache,
+                            device,
+                            pipeline_cache,
                         );
                     }
                     budget = budget.saturating_sub(spent);
@@ -220,7 +231,7 @@ pub(super) fn apply_uploads(
             terrain.list.draws = draws;
         }
         let _rebuilding = info_span!("upload rebuild params").entered();
-        terrain.rebuild_params(&device, &pipeline_cache);
+        terrain.rebuild_params(device, pipeline_cache);
     }
 
     {
@@ -229,5 +240,5 @@ pub(super) fn apply_uploads(
     }
     counts.set_upload_bytes(*BUDGET - budget);
     let _flushing = info_span!("upload flush params").entered();
-    terrain.list.flush(&terrain.frame.params, &queue);
+    terrain.list.flush(&terrain.frame.params, queue);
 }
